@@ -784,8 +784,8 @@ class DifferenceScore {
   IRSummation UnmatchedIR = {};
 
   // This field represents how deep the type system was traversed to compute the
-  // score. Scores with a higher depth are considered better (so lower
-  // difference) because it means that the type system was traversed deeply.
+  // score. Scores with a lower depth are considered better (so lower
+  // difference).
   uint64_t Depth = std::numeric_limits<uint64_t>::min();
 
 private:
@@ -843,10 +843,9 @@ public:
 
     // Here both have the same difference, e.g. they reach the same offset.
 
-    // At this point we consider the deepest to be the better.
-    // Notice that in the following line the terms are inverted, because lower
-    // depth needs to be scored "better" (so lower difference).
-    return Other.Depth <=> Depth;
+    // At this point we consider the shallowest (i.e. lower Depth) to be the
+    // best.
+    return Depth <=> Other.Depth;
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
@@ -1285,9 +1284,9 @@ computeBestInArray(const model::QualifiedType &BaseType,
         if (not InductionVariable.has_value())
           InductionVariable = SmallVector<IRAddend>{};
 
-        auto *IntType = Index->getType();
+        auto *Int64Type = llvm::IntegerType::getIntNTy(Index->getContext(), 64);
         IRAddend NewAddend = IRAddend{
-          cast<ConstantInt>(ConstantInt::get(IntType, NumMultipleElements)),
+          cast<ConstantInt>(ConstantInt::get(Int64Type, NumMultipleElements)),
           Index
         };
         InductionVariable->push_back(std::move(NewAddend));
@@ -1681,6 +1680,7 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
                                     model::VerifyHelper &VH) {
 
   model::QualifiedType CurrType = BaseType;
+  bool TopLevel = true;
   for (const auto &[Index, AggregateType] : IndexVector) {
 
     switch (AggregateType) {
@@ -1705,35 +1705,30 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
 
     case AggregateKind::Array: {
 
-      auto ArrayQualIt = CurrType.Qualifiers().begin();
+      CurrType = peelConstAndTypedefs(CurrType);
+      auto Begin = CurrType.Qualifiers().begin();
+      revng_assert(Begin != CurrType.Qualifiers().end());
 
-      do {
-        CurrType = peelConstAndTypedefs(CurrType);
+      {
+        [[maybe_unused]] bool IsArray = model::Qualifier::isArray(*Begin);
+        [[maybe_unused]] bool IsPointer = model::Qualifier::isPointer(*Begin);
+        [[maybe_unused]] auto IndexValue = Index.getConstant().getZExtValue();
+        revng_assert((IsArray and Begin->Size() > IndexValue)
+                     or (IsPointer and TopLevel));
+      }
 
-        ArrayQualIt = llvm::find_if(CurrType.Qualifiers(),
-                                    model::Qualifier::isArray);
-
-        // Assert that we're not skipping any pointer qualifier.
-        // That would mean that the GEPArgs.IndexVector is broken w.r.t. the
-        // GEPArgs.BaseAddress.
-        revng_assert(not std::any_of(CurrType.Qualifiers().begin(),
-                                     ArrayQualIt,
-                                     model::Qualifier::isPointer));
-
-      } while (ArrayQualIt == CurrType.Qualifiers().end());
-
-      revng_assert(ArrayQualIt->Size() > Index.getConstant().getZExtValue());
       // For arrays we don't need to look at the value of the index, we just
       // unwrap the array and go on.
       CurrType = model::QualifiedType(CurrType.UnqualifiedType(),
-                                      { std::next(ArrayQualIt),
+                                      { std::next(Begin),
                                         CurrType.Qualifiers().end() });
-
     } break;
 
     default:
       revng_abort();
     }
+
+    TopLevel = false;
   }
 
   return CurrType;
@@ -2066,8 +2061,8 @@ makeGEPReplacements(llvm::Function &F,
 
       for (Use &U : I.operands()) {
 
-        // Skip everything that is not a pointer or an integer, since it cannot
-        // be an any kind of pointer arithmetic that we handle
+        // Skip everything that is not a pointer or an integer, since it
+        // cannot be an any kind of pointer arithmetic that we handle
         if (not U.get()->getType()->isIntOrPtrTy()) {
           revng_log(ModelGEPLog,
                     "Skipping operand that cannot be pointer arithmetic");
@@ -2126,49 +2121,78 @@ makeGEPReplacements(llvm::Function &F,
 
         const auto &[BaseAddress, IRSum] = IRPointerArithmetic;
 
+        // Now, compute the best GEP arguments for traversing the PointeeType.
+        //
+        // Notice that we have to try and access the pointer both via a
+        // regular dereference and with the [] operator.
+        // In order to do this, we have to create a fake array qualifier to
+        // wrap around the PointeeType, and compute the best access in there.
+        const model::QualifiedType &PointeeType = BaseAddress.getPointeeType();
+        const model::Architecture::Values &Arch = Model.Architecture();
+        model::QualifiedType FakeArray = PointeeType.getPointerTo(Arch);
+        // Now replace the pointer qualifier with an array qualifier with
+        // arbitrary maximum length. Don't use the max value for uint64_t
+        // because it may overflow when computing the array size as array
+        // length * element size.
+        // TODO: MaxArrayLength is arbitrary. On the one hand we should make
+        // it large enough to enable traversals with large indices without
+        // falling back to out-of-bound raw-integer-arithmetic. On the other
+        // hand if we make it too large we hit overflows on computations of
+        // the total size of the array. So UINT32_MAX seemed like a good
+        // compromise, but at some point we might need to handle this
+        // properly.
+        const uint64_t MaxArrayLength = std::numeric_limits<uint32_t>::max();
+        auto LongArray = model::Qualifier::createArray(MaxArrayLength);
+        FakeArray.Qualifiers().front() = std::move(LongArray);
+
         // Select among the computed TAPIndices the one which best fits the
         // IRPattern
-        ModelGEPReplacementInfo GEPArgs = computeBest(BaseAddress
-                                                        .getPointeeType(),
+        ModelGEPReplacementInfo GEPArgs = computeBest(FakeArray,
                                                       IRSum,
                                                       AccessedTypeOnIR,
                                                       VH);
 
-        const model::Architecture::Values &Architecture = Model.Architecture();
-        auto PointerToGEPArgs = GEPArgs.AccessedType.getPointerTo(Architecture);
-        GEPifiedUsedTypes.insert({ &U, PointerToGEPArgs });
+        // Fix up the BaseType. This needs to contain the base type as per the
+        // ModelGEP specification, not the fake array.
+        GEPArgs.BaseType = PointeeType;
+        revng_log(ModelGEPLog, "GEPArgs: " << GEPArgs);
 
-        revng_log(ModelGEPLog, "Best GEPArgs: " << GEPArgs);
+        // If the result is doesn't have any Mismatched we can use it to
+        // propagate information in GEPifiedUsedTypes and PointerTypes.
+        if (GEPArgs.Mismatched.isZero()) {
+          auto PointerToGEPArgs = GEPArgs.AccessedType.getPointerTo(Arch);
+          GEPifiedUsedTypes.insert({ &U, PointerToGEPArgs });
 
-        // If IRSum is an address and I is an "address barrier"
-        // instruction (e.g. an instruction such that pointer arithmetic does
-        // not propagate through it), we need to check if we can still deduce
-        // a rich pointer type for I starting from IRSum. An example of an
-        // "address barrier" is a xor instruction (where we cannot deduce the
-        // type of the xored value even if one of the operands has a known
-        // pointer type); another example is a phi, where we can always deduce
-        // that the phi has a rich pointer type if one of the incoming values
-        // has a rich pointer type. The example of the xor is particularly
-        // interesting, because one day we can think of starting to support it
-        // for addresses that are built with masks, with small analyses. So
-        // this is good customization point.
-        //
-        // In particular, we need to take care at least of the following
-        // cases:
-        // DONE:
-        // - if I is a load and the loaded stuff is a pointer we have to set
-        //   the type of the load
-        // TODO:
-        // - if I is a phi, we need to set the phi type
-        //   - if one of the incoming has pointer type, we can take that. but
-        //   what happens if many incoming have different pointer types, can
-        //   we use a pointer to the parent type (the one that all should
-        //   inherit from)?
-        // - if I is a select instruction we can do something like the PHI
-        // - if I is an alloca, I'm not sure what we can do
-        if (auto *Load = dyn_cast<llvm::LoadInst>(&I)) {
-          if (not GEPArgs.Mismatched.isZero()) {
-            model::QualifiedType GEPType = getType(GEPArgs.BaseType,
+          revng_log(ModelGEPLog, "Best GEPArgs: " << GEPArgs);
+
+          // If IRSum is an address and I is an "address barrier"
+          // instruction (e.g. an instruction such that pointer arithmetic does
+          // not propagate through it), we need to check if we can still deduce
+          // a rich pointer type for I starting from IRSum. An example of an
+          // "address barrier" is a xor instruction (where we cannot deduce the
+          // type of the xored value even if one of the operands has a known
+          // pointer type); another example is a phi, where we can always deduce
+          // that the phi has a rich pointer type if one of the incoming values
+          // has a rich pointer type. The example of the xor is particularly
+          // interesting, because one day we can think of starting to support it
+          // for addresses that are built with masks, with small analyses. So
+          // this is good customization point.
+          //
+          // In particular, we need to take care at least of the following
+          // cases:
+          // DONE:
+          // - if I is a load and the loaded stuff is a pointer we have to set
+          //   the type of the load
+          // TODO:
+          // - if I is a phi, we need to set the phi type
+          //   - if one of the incoming has pointer type, we can take that. but
+          //   what happens if many incoming have different pointer types, can
+          //   we use a pointer to the parent type (the one that all should
+          //   inherit from)?
+          // - if I is a select instruction we can do something like the PHI
+          // - if I is an alloca, I'm not sure what we can do
+          if (auto *Load = dyn_cast<llvm::LoadInst>(&I)) {
+            model::QualifiedType GEPType = getType(FakeArray,
                                                    GEPArgs.IndexVector,
                                                    VH);
             if (GEPType.isPointer())
@@ -2271,9 +2295,19 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     const auto &[BaseType, IndexVector, Mismatched, AccessedType] = GEPArgs;
     const auto &[MismatchedOffset, MismatchedIndices] = Mismatched;
 
-    // Skip ModelGEPs that have no arguments
-    if (IndexVector.empty())
-      continue;
+    // Early exit for avoiding to emit a lot of &* in C.
+    {
+      if (IndexVector.empty())
+        continue;
+
+      const auto &[Index, AggregateTy] = IndexVector.front();
+      revng_assert(AggregateTy == AggregateKind::Array);
+
+      // This is not necessary or wrong strictly speaking, but if we don't bail
+      // out on this case we end up generating a lot of &* in C.
+      if (IndexVector.size() == 1 and Index.isZero())
+        continue;
+    }
 
     auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
     auto *V = TheUseToGEPify->get();
@@ -2343,7 +2377,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     }
 
     // The other arguments are the indices in IndexVector
-    for (const auto &[Index, AggregateTy] : GEPArgs.IndexVector) {
+    for (auto &Group : llvm::enumerate(GEPArgs.IndexVector)) {
+      const auto &[Index, AggregateTy] = Group.value();
       const auto &[ConstantIndex, InductionVariables] = Index;
       revng_assert(AggregateTy == AggregateKind::Array
                    or InductionVariables.empty());
@@ -2363,7 +2398,17 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
           Addend = Builder.CreateMul(CoefficientConstant, InductionVariable);
         }
 
+        auto AddendBitWidth = Addend->getType()->getIntegerBitWidth();
+        revng_assert(AddendBitWidth);
+
+        if (Group.index() == 0 and AddendBitWidth != 64) {
+          auto *Int64Type = llvm::IntegerType::getIntNTy(Addend->getContext(),
+                                                         64);
+          Addend = Builder.CreateZExtOrTrunc(Addend, Int64Type);
+        }
+
         if (IndexValue) {
+
           if (auto BitWidth = IndexValue->getType()->getIntegerBitWidth();
               BitWidth > Addend->getType()->getIntegerBitWidth())
             Addend = Builder.CreateZExt(Addend, IndexValue->getType());
@@ -2401,8 +2446,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       // inject the remaining part of the pointer arithmetic as normal sums
       auto GEPResultBitWidth = ModelGEPPtr->getType()->getIntegerBitWidth();
       APInt OffsetToAdd = MismatchedOffset.zextOrTrunc(GEPResultBitWidth);
-      ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
-                                      ConstantInt::get(Ctxt, OffsetToAdd));
+      if (not OffsetToAdd.isNullValue())
+        ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
+                                        ConstantInt::get(Ctxt, OffsetToAdd));
       for (const auto &[Coefficient, Index] : MismatchedIndices) {
         ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
                                         Builder.CreateMul(Index, Coefficient));

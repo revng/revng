@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -54,53 +55,57 @@ inline llvm::Value *traverseTransparentInstructions(llvm::Value *V) {
 
 static llvm::Value *
 getValueToSubstitute(llvm::Instruction &I, const model::Binary &Model) {
-  if (auto *Call = llvm::dyn_cast<CallInst>(&I)) {
+  if (auto *Call = getCallToTagged(&I, FunctionTags::ModelGEP)) {
     revng_log(Log, "--------Call: " << dumpToString(I));
 
-    auto *CalledFunc = Call->getCalledFunction();
-    if (not CalledFunc)
+    // For ModelGEPs, we want to match patterns of the type
+    // `ModelGEP(AddressOf())` where the model types recovered by both the
+    // ModelGEP and the AddressOf are the same.
+    // In this way, we are matching patterns that give birth to expression
+    // such as `*&` and `(&base)->` in the decompiled code, which are
+    // redundant.
+
+    // First argument is the model type of the base pointer
+    llvm::Value *GEPFirstArg = Call->getArgOperand(0);
+    QualifiedType GEPBaseType = deserializeFromLLVMString(GEPFirstArg, Model);
+
+    // Second argument is the base pointer
+    llvm::Value *SecondArg = Call->getArgOperand(1);
+    SecondArg = traverseTransparentInstructions(SecondArg);
+
+    // Skip if the ModelGEP is doing an array access. If it's doing an array
+    // access, we'd lose that by folding, so we only traverse if it's constant
+    // and it's zero.
+    llvm::Value *ThirdArg = Call->getArgOperand(2);
+    auto *ConstantArrayIndex = dyn_cast<llvm::ConstantInt>(ThirdArg);
+    bool HasInitialArrayAccess = not ConstantArrayIndex
+                                 or not ConstantArrayIndex->isZero();
+    if (HasInitialArrayAccess)
       return nullptr;
 
-    if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
-      // For ModelGEPs, we want to match patterns of the type
-      // `ModelGEP(AddressOf())` where the model types recovered by both the
-      // ModelGEP and the AddressOf are the same.
-      // In this way, we are matching patterns that give birth to expression
-      // such as `*&` and `(&base)->` in the decompiled code, which are
-      // redundant.
+    // Skip if the second argument (after traversing casts) is not an
+    // AddressOf call
+    llvm::CallInst *AddrOfCall = getCallToTagged(SecondArg,
+                                                 FunctionTags::AddressOf);
+    if (not AddrOfCall)
+      return nullptr;
 
-      // First argument is the model type of the base pointer
-      llvm::Value *GEPFirstArg = Call->getArgOperand(0);
-      QualifiedType GEPBaseType = deserializeFromLLVMString(GEPFirstArg, Model);
+    revng_log(Log, "Second arg is an addressOf ");
 
-      // Second argument is the base pointer
-      llvm::Value *SecondArg = Call->getArgOperand(1);
-      SecondArg = traverseTransparentInstructions(SecondArg);
+    // First argument of the AddressOf is the pointer's base type
+    llvm::Value *AddrOfFirstArg = AddrOfCall->getArgOperand(0);
+    QualifiedType AddrOfBaseType = deserializeFromLLVMString(AddrOfFirstArg,
+                                                             Model);
 
-      // Skip if the second argument (after traversing casts) is not an
-      // AddressOf call
-      llvm::CallInst *AddrOfCall = getCallToTagged(SecondArg,
-                                                   FunctionTags::AddressOf);
-      if (not AddrOfCall)
-        return nullptr;
+    // Skip if the ModelGEP is dereferencing the AddressOf with a
+    // different type
+    if (AddrOfBaseType != GEPBaseType)
+      return nullptr;
 
-      revng_log(Log, "Second arg is an addressOf ");
+    revng_log(Log, "Types are the same ");
+    revng_log(Log, "Adding " << dumpToString(Call) << " to the map");
 
-      // First argument of the AddressOf is the pointer's base type
-      llvm::Value *AddrOfFirstArg = AddrOfCall->getArgOperand(0);
-      QualifiedType AddrOfBaseType = deserializeFromLLVMString(AddrOfFirstArg,
-                                                               Model);
-
-      // Skip if the ModelGEP is dereferencing the AddressOf with a
-      // different type
-      if (AddrOfBaseType != GEPBaseType)
-        return nullptr;
-
-      revng_log(Log, "Types are the same ");
-      revng_log(Log, "Adding " << dumpToString(Call) << " to the map");
-
-      return AddrOfCall->getArgOperand(1);
-    }
+    return AddrOfCall->getArgOperand(1);
   }
 
   return nullptr;
@@ -127,54 +132,44 @@ bool FoldModelGEP::runOnFunction(llvm::Function &F) {
   llvm::SmallVector<llvm::Instruction *, 32> ToErase;
 
   // Collect ModelGEPs
-  for (auto &BB : llvm::ReversePostOrderTraversal(&F)) {
-    auto CurInst = BB->begin();
-    while (CurInst != BB->end()) {
-      llvm::Instruction &I = *CurInst;
-      auto NextInst = std::next(CurInst);
-
-      llvm::Value *ValueToSubstitute = getValueToSubstitute(I, *Model);
-
+  for (auto *BB : llvm::ReversePostOrderTraversal(&F)) {
+    for (auto &I : llvm::make_early_inc_range(*BB)) {
       // Prevent merging a ModelGEP with an addressOf that needs a top-scope
       // variable, as this would create
-      if (needsTopScopeDeclaration(I)) {
-        CurInst = NextInst;
+      if (needsTopScopeDeclaration(I))
         continue;
-      }
 
-      if (ValueToSubstitute) {
-        Builder.SetInsertPoint(&I);
+      if (llvm::Value *ValueToSubstitute = getValueToSubstitute(I, *Model)) {
+        auto *CallToFold = cast<CallInst>(&I);
+        revng_assert(isCallToTagged(CallToFold, FunctionTags::ModelGEP));
+        Builder.SetInsertPoint(CallToFold);
 
-        // We should be folding only calls to ModelGEP or AddressOf
-        llvm::CallInst *CallToFold = llvm::cast<CallInst>(&I);
-        const llvm::Function *CalledFunc = CallToFold->getCalledFunction();
-        revng_assert(CalledFunc);
-
-        if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
-
-          llvm::SmallVector<llvm::Value *, 8> Args;
-          for (auto &Arg : CallToFold->args())
-            Args.push_back(Arg);
-          Args[1] = ValueToSubstitute;
-
-          auto *ModelGEPRefFunc = getModelGEPRef(*F.getParent(),
-                                                 CallToFold->getType(),
-                                                 ValueToSubstitute->getType());
-          llvm::Value *ModelGEPRef = Builder.CreateCall(ModelGEPRefFunc, Args);
-
-          CallToFold->replaceAllUsesWith(ModelGEPRef);
-
-          ToErase.push_back(CallToFold);
-          Modified = true;
+        llvm::SmallVector<llvm::Value *, 8> Args;
+        for (auto &Group : llvm::enumerate(CallToFold->args())) {
+          llvm::Value *Arg = Group.value();
+          // We just ignore the argument representing the array index for the
+          // ModelGEPRef.
+          if (Group.index() == 2) {
+            revng_assert(isa<llvm::ConstantInt>(Arg)
+                         and cast<llvm::ConstantInt>(Arg)->isZero());
+            continue;
+          }
+          Args.push_back(Arg);
         }
-      }
+        Args[1] = ValueToSubstitute;
 
-      CurInst = NextInst;
+        auto *ModelGEPRefFunc = getModelGEPRef(*F.getParent(),
+                                               CallToFold->getType(),
+                                               ValueToSubstitute->getType());
+        llvm::Value *ModelGEPRef = Builder.CreateCall(ModelGEPRefFunc, Args);
+
+        CallToFold->replaceAllUsesWith(ModelGEPRef);
+        CallToFold->eraseFromParent();
+
+        Modified = true;
+      }
     }
   }
-
-  for (auto InstrToErase : ToErase)
-    InstrToErase->eraseFromParent();
 
   return Modified;
 }

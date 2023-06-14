@@ -16,6 +16,7 @@
 #include "revng-c/Support/Mangling.h"
 
 static constexpr const char *const ModelGEPName = "ModelGEP";
+static constexpr const char *const ModelGEPRefName = "ModelGEPRef";
 
 namespace FunctionTags {
 Tag AllocatesLocalVariable("AllocatesLocalVariable");
@@ -25,7 +26,7 @@ Tag AddressOf("AddressOf");
 Tag StringLiteral("StringLiteral");
 Tag ModelCast("ModelCast");
 Tag ModelGEP(ModelGEPName);
-Tag ModelGEPRef("ModelGEPRef");
+Tag ModelGEPRef(ModelGEPRefName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
 Tag HexInteger("HexInteger");
@@ -72,9 +73,9 @@ static std::string makeTypeName(const llvm::Type *Ty) {
   return Name;
 }
 
-static std::string makeModelGEPName(const llvm::Type *RetTy,
-                                    const llvm::Type *BaseAddressTy,
-                                    llvm::StringRef Prefix) {
+static std::string makeTypeBasedSuffix(const llvm::Type *RetTy,
+                                       const llvm::Type *BaseAddressTy,
+                                       llvm::StringRef Prefix) {
   using llvm::Twine;
   return (Prefix + Twine("_ret_") + Twine(makeTypeName(RetTy))
           + Twine("_baseptr_") + Twine(makeTypeName(BaseAddressTy)))
@@ -262,22 +263,28 @@ getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
 
   using namespace llvm;
 
-  // There are 2 fixed arguments:
+  // There are 3 fixed arguments:
   // - the first is a pointer to a constant string that contains a serialization
   //   of the key of the base type;
   // - the second is the type of the base pointer.
-  SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
-                                             BaseType };
+  // - the third argument represents the member of the array access based on the
+  //   second. if it's 0 it's a regular pointer access, otherwise an array
+  //   access.
+  auto *Int64Type = llvm::IntegerType::getIntNTy(M.getContext(), 64);
+  SmallVector<llvm::Type *, 3> FixedArgs = { getStringPtrType(M.getContext()),
+                                             BaseType,
+                                             Int64Type };
   // The function is vararg, because we might need to access a number of fields
   // that is variable.
   FunctionType *ModelGEPType = FunctionType::get(RetType,
                                                  FixedArgs,
+
                                                  true /* IsVarArg */);
 
   FunctionCallee
-    MGEPCallee = M.getOrInsertFunction(makeModelGEPName(RetType,
-                                                        BaseType,
-                                                        ModelGEPName),
+    MGEPCallee = M.getOrInsertFunction(makeTypeBasedSuffix(RetType,
+                                                           BaseType,
+                                                           ModelGEPName),
                                        ModelGEPType);
 
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
@@ -298,6 +305,10 @@ getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
   // - the first is a pointer to a constant string that contains a serialization
   //   of the key of the base type;
   // - the second is the type of the base pointer.
+  //
+  // Notice that, unlike ModelGEP, ModelGEPRef doesn't have a mandatory third
+  // argument to represent the array access, because in case of reference
+  // there's no way to do an array-like access
   SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
                                              BaseType };
   // The function is vararg, because we might need to access a number of fields
@@ -306,11 +317,11 @@ getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
                                                  FixedArgs,
                                                  true /* IsVarArg */);
 
-  FunctionCallee MGEPCallee = M.getOrInsertFunction(makeModelGEPName(ReturnType,
-                                                                     BaseType,
-                                                                     "ModelGEPR"
-                                                                     "ef"),
-                                                    ModelGEPType);
+  FunctionCallee
+    MGEPCallee = M.getOrInsertFunction(makeTypeBasedSuffix(ReturnType,
+                                                           BaseType,
+                                                           ModelGEPRefName),
+                                       ModelGEPType);
 
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);

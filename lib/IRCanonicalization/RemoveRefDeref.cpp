@@ -59,10 +59,7 @@ bool RemoveRefDeref::runOnFunction(llvm::Function &F) {
   bool Modified = false;
 
   for (auto &BB : F) {
-    auto CurInst = BB.begin();
-    while (CurInst != BB.end()) {
-      llvm::Instruction &I = *CurInst;
-      auto NextInst = std::next(CurInst);
+    for (auto &I : llvm::make_early_inc_range(BB)) {
 
       if (auto *Call = isRefDeref(&I)) {
         Builder.SetInsertPoint(&I);
@@ -112,8 +109,6 @@ bool RemoveRefDeref::runOnFunction(llvm::Function &F) {
         Call->eraseFromParent();
         Modified = true;
       }
-
-      CurInst = NextInst;
     }
   }
 
