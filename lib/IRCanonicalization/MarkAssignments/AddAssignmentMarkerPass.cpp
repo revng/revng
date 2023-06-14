@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -143,7 +144,20 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
                                                 "LocalVariable");
 
       // Compute the model type returned from the call.
-      Constant *ModelTypeString = serializeToLLVMString(TypeMap.at(I), *M);
+      model::QualifiedType VariableType = TypeMap.at(I);
+      const llvm::DataLayout &DL = I->getModule()->getDataLayout();
+      auto ModelSize = VariableType.size().value();
+      auto IRSize = DL.getTypeAllocSize(IType);
+      if (ModelSize < IRSize) {
+        VariableType = llvmIntToModelType(IType, *Model);
+      } else if (ModelSize > IRSize) {
+        auto Prototype = Cache.getCallSitePrototype(*Model, cast<CallInst>(I));
+        using namespace abi::FunctionType;
+        abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
+        revng_assert(Layout.returnsAggregateType());
+      }
+
+      Constant *ModelTypeString = serializeToLLVMString(VariableType, *M);
 
       // Inject call to LocalVariable
       CallInst *LocalVarCall = Builder.CreateCall(LocalVarFunction,
