@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE(GetBackedgesTest) {
   revng_check(Target == LG.Entry);
 
   // Check the reachability set described by the only backedge present
-  BlockSet Reachables = nodesBetweenNew(Target, Source);
+  BlockSet Reachables = nodesBetween(Target, Source);
   revng_check(Reachables.size() == 2);
   revng_check(Reachables.contains(LG.Entry));
   revng_check(Reachables.contains(LG.LoopLatch));
@@ -139,7 +139,7 @@ BOOST_AUTO_TEST_CASE(NestedLoopTest) {
   // Obtain the nodes reachable from the identified backedges
   BlockSetVect Loops;
   for (EdgeDescriptor Backedge : Backedges) {
-    BlockSet LoopNodes = nodesBetweenNew(Backedge.second, Backedge.first);
+    BlockSet LoopNodes = nodesBetween(Backedge.second, Backedge.first);
     Loops.push_back(std::move(LoopNodes));
   }
 

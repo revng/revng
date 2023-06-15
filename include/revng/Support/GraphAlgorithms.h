@@ -154,142 +154,6 @@ entryPoints(GraphType &&Graph) {
   return Result;
 }
 
-template<typename GT, typename NodeRef = typename GT::NodeRef>
-inline llvm::SmallPtrSet<NodeRef, 4>
-nodesBetweenImpl(NodeRef Source,
-                 NodeRef Destination,
-                 const llvm::SmallPtrSetImpl<NodeRef> *IgnoreList) {
-
-  using Iterator = typename GT::ChildIteratorType;
-  using NodeSet = llvm::SmallPtrSet<NodeRef, 4>;
-
-  auto HasSuccessors = [](const NodeRef Node) {
-    return GT::child_begin(Node) != GT::child_end(Node);
-  };
-
-  // Ensure Source has at least one successor
-  if (not HasSuccessors(Source)) {
-    if (Source == Destination)
-      return { Source };
-    else
-      return {};
-  }
-
-  NodeSet Selected = { Destination };
-  NodeSet VisitedNodes;
-
-  struct StackEntry {
-    StackEntry(NodeRef Node) :
-      Node(Node),
-      Set({ Node }),
-      NextSuccessorIt(GT::child_begin(Node)),
-      EndSuccessorIt(GT::child_end(Node)) {}
-
-    NodeRef Node;
-    NodeSet Set;
-    Iterator NextSuccessorIt;
-    Iterator EndSuccessorIt;
-  };
-  std::vector<StackEntry> Stack;
-
-  Stack.emplace_back(Source);
-
-  while (not Stack.empty()) {
-    StackEntry *Entry = &Stack.back();
-
-    NodeRef CurrentSuccessor = *Entry->NextSuccessorIt;
-
-    bool Visited = VisitedNodes.contains(CurrentSuccessor);
-    VisitedNodes.insert(CurrentSuccessor);
-
-    if (Selected.contains(CurrentSuccessor)) {
-
-      // We reached a selected node, select all the nodes on the stack
-      for (const StackEntry &E : Stack) {
-        Selected.insert(E.Set.begin(), E.Set.end());
-      }
-
-    } else if (Visited) {
-      // We already visited this node, do not proceed in this direction
-
-      auto End = Stack.end();
-      auto IsCurrent = [CurrentSuccessor](const StackEntry &E) {
-        return E.Set.contains(CurrentSuccessor);
-      };
-      auto It = std::find_if(Stack.begin(), End, IsCurrent);
-      bool IsAlreadyOnStack = It != End;
-
-      if (IsAlreadyOnStack) {
-        // It's already on the stack, insert all those on stack until the top
-        StackEntry &Target = *It;
-        Target.Set.insert(CurrentSuccessor);
-        ++It;
-        for (const StackEntry &E : llvm::make_range(It, End)) {
-          Target.Set.insert(E.Set.begin(), E.Set.end());
-        }
-      }
-
-    } else if (IgnoreList != nullptr
-               and IgnoreList->contains(CurrentSuccessor)) {
-      // Ignore
-    } else {
-
-      // We never visited this node, proceed to its successors, if any
-      if (HasSuccessors(CurrentSuccessor)) {
-        revng_assert(CurrentSuccessor != nullptr);
-        Stack.emplace_back(CurrentSuccessor);
-      }
-
-      continue;
-    }
-
-    bool TryNext = false;
-    do {
-      // Move to the next successor
-      ++Entry->NextSuccessorIt;
-
-      // Are we done with this entry?
-      TryNext = (Entry->NextSuccessorIt == Entry->EndSuccessorIt);
-
-      if (TryNext) {
-        // Pop from the stack
-        Stack.pop_back();
-
-        // If there's another element process it
-        if (Stack.size() == 0) {
-          TryNext = false;
-        } else {
-          Entry = &Stack.back();
-        }
-      }
-
-    } while (TryNext);
-  }
-
-  return Selected;
-}
-
-template<class G>
-inline llvm::SmallPtrSet<G, 4>
-nodesBetween(G Source,
-             G Destination,
-             const llvm::SmallPtrSetImpl<G> *IgnoreList = nullptr) {
-  return nodesBetweenImpl<llvm::GraphTraits<G>>(Source,
-                                                Destination,
-                                                IgnoreList);
-}
-
-template<class G>
-inline llvm::SmallPtrSet<G, 4>
-nodesBetweenReverse(G Source,
-                    G Destination,
-                    const llvm::SmallPtrSetImpl<G> *IgnoreList = nullptr) {
-  using namespace llvm;
-  return nodesBetweenImpl<GraphTraits<Inverse<G>>>(Source,
-                                                   Destination,
-                                                   IgnoreList);
-}
-
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 auto graph_successors(GraphT Block) {
   return llvm::make_range(GT::child_begin(Block), GT::child_end(Block));
@@ -542,26 +406,21 @@ getBackedgesBlackList(GraphT Block,
   return getBackedgesImpl<revng::detail::FilterSet::BlackList>(Block, Set);
 }
 
-// TODO: remove the `IgnoreList` parameter once the new AVI implementation is
-//       merged, checking that no other uses are still present
-template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
+// TODO: remove the `BlackList`/`WhiteList` parameter once the new AVI
+//       implementation is merged, checking that no other uses are still present
+template<revng::detail::FilterSet FilterSetType,
+         class GraphT,
+         class GT = llvm::GraphTraits<GraphT>>
 llvm::SmallSetVector<typename GT::NodeRef, 4>
-nodesBetweenNewImpl(GraphT Source,
-                    GraphT Target,
-                    const llvm::SmallSetVector<GraphT, 4> *IgnoreL = nullptr) {
+nodesBetweenImpl(GraphT Source,
+                 GraphT Target,
+                 llvm::SmallPtrSet<typename GT::NodeRef, 4> &Set) {
   using NodeRef = typename GT::NodeRef;
-  using StateType = revng::detail::DFStackReachable<NodeRef>;
-  StateType State;
+  using StateType = typename revng::detail::DFStackReachable<FilterSetType,
+                                                             NodeRef>;
+  StateType State(Set);
 
   using SmallSetVector = llvm::SmallSetVector<NodeRef, 4>;
-
-  // If the `IgnoreList` is not empty, populate the ext set with the nodes that
-  // it contains
-  if (IgnoreL != nullptr) {
-    for (GraphT Element : *IgnoreL) {
-      State.insertInMap(Element, false);
-    }
-  }
 
   // Assign the `Source` node
   State.assignSource(Source);
@@ -609,23 +468,76 @@ nodesBetweenNewImpl(GraphT Source,
 
 template<class GraphT>
 inline llvm::SmallSetVector<GraphT, 4>
-nodesBetweenNew(GraphT Source,
-                GraphT Destination,
-                const llvm::SmallSetVector<GraphT, 4> *IgnL = nullptr) {
-  return nodesBetweenNewImpl<GraphT, llvm::GraphTraits<GraphT>>(Source,
-                                                                Destination,
-                                                                IgnL);
+nodesBetween(GraphT Source, GraphT Destination) {
+  llvm::SmallPtrSet<typename llvm::GraphTraits<GraphT>::NodeRef, 4> EmptySet;
+  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          llvm::GraphTraits<GraphT>>(Source,
+                                                     Destination,
+                                                     EmptySet);
+}
+
+template<class GraphT,
+         typename NodeRef = typename llvm::GraphTraits<GraphT>::NodeRef>
+inline llvm::SmallSetVector<GraphT, 4>
+nodesBetweenWhiteList(GraphT Source,
+                      GraphT Destination,
+                      llvm::SmallPtrSet<NodeRef, 4> &Set) {
+  return nodesBetweenImpl<revng::detail::FilterSet::WhiteList,
+                          GraphT,
+                          llvm::GraphTraits<GraphT>>(Source, Destination, Set);
+}
+
+template<class GraphT,
+         typename NodeRef = typename llvm::GraphTraits<GraphT>::NodeRef>
+inline llvm::SmallSetVector<GraphT, 4>
+nodesBetweenBlackList(GraphT Source,
+                      GraphT Destination,
+                      llvm::SmallPtrSet<NodeRef, 4> &Set) {
+  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          llvm::GraphTraits<GraphT>>(Source, Destination, Set);
 }
 
 template<class GraphT>
 inline llvm::SmallSetVector<GraphT, 4>
-nodesBetweenNewReverse(GraphT Source,
-                       GraphT Destination,
-                       const llvm::SmallSetVector<GraphT, 4> *IgnL = nullptr) {
+nodesBetweenReverse(GraphT Source, GraphT Destination) {
   using namespace llvm;
-  return nodesBetweenNewImpl<GraphT, GraphTraits<Inverse<GraphT>>>(Source,
-                                                                   Destination,
-                                                                   IgnL);
+  llvm::SmallPtrSet<typename llvm::GraphTraits<GraphT>::NodeRef, 4> EmptySet;
+  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          GraphTraits<Inverse<GraphT>>>(Source,
+                                                        Destination,
+                                                        EmptySet);
+}
+
+template<
+  class GraphT,
+  typename NodeRef = typename llvm::GraphTraits<llvm::Inverse<GraphT>>::NodeRef>
+inline llvm::SmallSetVector<GraphT, 4>
+nodesBetweenReverseWhiteList(GraphT Source,
+                             GraphT Destination,
+                             llvm::SmallPtrSet<NodeRef, 4> &Set) {
+  using namespace llvm;
+  return nodesBetweenImpl<revng::detail::FilterSet::WhiteList,
+                          GraphT,
+                          GraphTraits<Inverse<GraphT>>>(Source,
+                                                        Destination,
+                                                        Set);
+}
+
+template<class GraphT,
+         typename NodeRef = typename llvm::GraphTraits<GraphT>::NodeRef>
+inline llvm::SmallSetVector<GraphT, 4>
+nodesBetweenReverseBlackList(GraphT Source,
+                             GraphT Destination,
+                             llvm::SmallPtrSet<NodeRef, 4> &Set) {
+  using namespace llvm;
+  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          GraphTraits<Inverse<GraphT>>>(Source,
+                                                        Destination,
+                                                        Set);
 }
 
 template<class GraphT>
