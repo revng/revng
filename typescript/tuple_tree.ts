@@ -22,23 +22,6 @@ export const yamlToStringOptions = {
     directives: true,
 } as const;
 
-/**
- * Parses an int safely, returning undefined if the number cannot be represented as a decimal
- * string
- */
-export function safeParseInt(str?: string): number | undefined {
-    if (str !== undefined) {
-        const num = Number.parseInt(str);
-        if (num == undefined || isNaN(num) || !isFinite(num)) {
-            return undefined;
-        } else {
-            return num;
-        }
-    } else {
-        return undefined;
-    }
-}
-
 export type IReference = string;
 
 /**
