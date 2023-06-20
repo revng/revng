@@ -230,7 +230,7 @@ public:
   /// Return true if \p BB is the result of translating some code
   ///
   /// Return false if \p BB is a dispatcher-related basic block.
-  static bool isTranslated(llvm::BasicBlock *BB) {
+  static bool isTranslated(const llvm::BasicBlock *BB) {
     BlockType::Values Type = getType(BB);
     return (Type == BlockType::TranslatedBlock
             or Type == BlockType::JumpTargetBlock);
