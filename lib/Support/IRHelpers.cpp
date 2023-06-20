@@ -336,9 +336,9 @@ void dumpUsers(llvm::Value *V) {
 }
 
 static RecursiveCoroutine<void>
-findJumpTarget(llvm::BasicBlock *&Result,
-               llvm::BasicBlock *BB,
-               std::set<BasicBlock *> &Visited) {
+findJumpTarget(const llvm::BasicBlock *&Result,
+               const llvm::BasicBlock *BB,
+               std::set<const BasicBlock *> &Visited) {
   Visited.insert(BB);
 
   if (isJumpTarget(BB)) {
@@ -346,17 +346,18 @@ findJumpTarget(llvm::BasicBlock *&Result,
                  "This block leads to multiple jump targets");
     Result = BB;
   } else {
-    for (BasicBlock *Predecessor : predecessors(BB))
+    for (const BasicBlock *Predecessor : predecessors(BB)) {
       if (!Visited.contains(Predecessor))
         rc_recur findJumpTarget(Result, Predecessor, Visited);
+    }
   }
 
   rc_return;
 }
 
-llvm::BasicBlock *getJumpTargetBlock(llvm::BasicBlock *BB) {
-  BasicBlock *Result = nullptr;
-  std::set<BasicBlock *> Visited;
+const llvm::BasicBlock *getJumpTargetBlock(const llvm::BasicBlock *BB) {
+  const llvm::BasicBlock *Result = nullptr;
+  std::set<const BasicBlock *> Visited;
   findJumpTarget(Result, BB, Visited);
   return Result;
 }

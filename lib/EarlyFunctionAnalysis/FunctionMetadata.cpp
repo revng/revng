@@ -87,7 +87,7 @@ public:
 
 const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
                                                    llvm::BasicBlock *BB) const {
-  llvm::BasicBlock *JumpTargetBB = getJumpTargetBlock(BB);
+  const llvm::BasicBlock *JumpTargetBB = getJumpTargetBlock(BB);
   if (JumpTargetBB == nullptr)
     return nullptr;
 
@@ -97,10 +97,10 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
 
   while (It == ControlFlowGraph().end()) {
 
-    llvm::BasicBlock *PredecessorJumpTargetBB = nullptr;
-    for (llvm::BasicBlock *Predecessor : predecessors(JumpTargetBB)) {
+    const llvm::BasicBlock *PredecessorJumpTargetBB = nullptr;
+    for (const llvm::BasicBlock *Predecessor : predecessors(JumpTargetBB)) {
       if (GCBI.isTranslated(Predecessor)) {
-        auto *NewJT = getJumpTargetBlock(Predecessor);
+        const llvm::BasicBlock *NewJT = getJumpTargetBlock(Predecessor);
         if (PredecessorJumpTargetBB != nullptr) {
           revng_assert(PredecessorJumpTargetBB == NewJT,
                        "Jump target is not in the CFG but it has multiple "

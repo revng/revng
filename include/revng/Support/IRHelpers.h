@@ -1099,7 +1099,7 @@ inline llvm::User *getUniqueUser(llvm::Value *V) {
   return Result;
 }
 
-llvm::BasicBlock *getJumpTargetBlock(llvm::BasicBlock *BB);
+const llvm::BasicBlock *getJumpTargetBlock(const llvm::BasicBlock *BB);
 
 inline BasicBlockID blockIDFromNewPC(const llvm::CallBase *Call) {
   revng_assert(isCallTo(Call, "newpc"));
@@ -1121,6 +1121,8 @@ inline MetaAddress addressFromNewPC(const llvm::Instruction *I) {
 
 inline BasicBlockID getBasicBlockID(const llvm::BasicBlock *BB) {
   using namespace llvm;
+
+  revng_assert(BB != nullptr);
 
   const Instruction *I = BB->getFirstNonPHI();
   if (I == nullptr)
