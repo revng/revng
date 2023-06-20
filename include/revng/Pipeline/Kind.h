@@ -29,7 +29,7 @@ locationsToRanks(std::tuple<const T &...> Locations) {
   return Return;
 }
 
-/// A Kind is used to accumunate objects that logically belongs to the same
+/// A Kind is used to accumulate objects that logically belongs to the same
 /// category.
 ///
 /// As an example, the Kind of Isolated Functions, the Kind of translated
