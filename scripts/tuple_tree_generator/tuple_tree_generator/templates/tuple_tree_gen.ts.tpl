@@ -167,6 +167,20 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
         {%- endfor %}
         return result as I{{ class_.name }};
     }
+
+    static fromString(input: string): {{ class_.name }} {
+        const object = yaml.parse(input, yamlParseOptions);
+        {%- if class_.abstract %}
+        return {{ class_.name }}.parse(object);
+        {%- else %}
+        return new {{ class_.name }}(object);
+        {%- endif %}
+    }
+
+    dump(): string {
+        const doc = new yaml.Document(this, yamlOutParseOptions);
+        return doc.toString(yamlToStringOptions);
+    }
 }
 {% endfor %}
 
