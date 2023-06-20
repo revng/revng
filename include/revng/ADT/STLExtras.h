@@ -214,7 +214,7 @@ skipImpl(IteratorType &&From,
     // We cannot check on the input iterators because it's going to consume
     // them.
 
-    if (std::distance(From, To) <= TotalSkippedCount) {
+    if (std::distance(From, To) < TotalSkippedCount) {
       if constexpr (SafeMode) {
         revng_abort("Input range has fewer elements than the intended skip.");
       } else {
