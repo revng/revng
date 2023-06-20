@@ -14,6 +14,7 @@ revng_add_library_internal(
   ControlFlow/NodeSizeCalculation.cpp
   CrossRelations.cpp
   Dump.cpp
+  HexDump.cpp
   Plain.cpp
   PTML.cpp
   SVG.cpp

@@ -49,6 +49,7 @@ static RegisterLLVMPass<O2Pipe> P2;
 static RegisterDefaultConstructibleContainer<BinaryFileContainer> F1;
 static RegisterDefaultConstructibleContainer<ObjectFileContainer> F2;
 static RegisterDefaultConstructibleContainer<TranslatedFileContainer> F4;
+static RegisterDefaultConstructibleContainer<HexDumpFileContainer> F5;
 
 class LLVMPipelineRegistry : public Registry {
 
