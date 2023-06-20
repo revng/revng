@@ -33,7 +33,6 @@
 using llvm::dyn_cast;
 
 using pipeline::serializedLocation;
-using ptml::Tag;
 namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
 namespace ranks = revng::ranks;

@@ -16,8 +16,8 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Helpers.h"
 #include "revng/Model/Type.h"
-#include "revng/PTML/ModelHelpers.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"

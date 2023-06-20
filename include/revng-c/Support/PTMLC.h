@@ -11,9 +11,9 @@
 #include "llvm/IR/Value.h"
 
 #include "revng/ADT/ConstexprString.h"
+#include "revng/Model/Helpers.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
-#include "revng/PTML/ModelHelpers.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 
@@ -482,7 +482,7 @@ public:
     // non-primitive types are editable
     if (not llvm::isa<model::PrimitiveType>(&T))
       Result.addAttribute(ptml::attributes::ModelEditPath,
-                          modelEditPath::getCustomNamePath(T));
+                          model::editPath::customName(T));
     return Result.serialize();
   }
 
@@ -508,7 +508,7 @@ public:
     return getNameTag(S)
       .addAttribute(getLocationAttribute(IsDefinition), serializeLocation(S))
       .addAttribute(ptml::attributes::ModelEditPath,
-                    modelEditPath::getCustomNamePath(S))
+                    model::editPath::customName(S))
       .serialize();
   }
 
@@ -564,7 +564,7 @@ public:
       .addAttribute(getLocationAttribute(IsDefinition),
                     serializeLocation(Enum, Entry))
       .addAttribute(ptml::attributes::ModelEditPath,
-                    modelEditPath::getCustomNamePath(Enum, Entry))
+                    model::editPath::customName(Enum, Entry))
       .serialize();
   }
 
@@ -579,7 +579,7 @@ public:
     return getNameTag(F)
       .addAttribute(getLocationAttribute(IsDefinition), serializeLocation(A, F))
       .addAttribute(attributes::ModelEditPath,
-                    modelEditPath::getCustomNamePath(A, F))
+                    model::editPath::customName(A, F))
       .serialize();
   }
 

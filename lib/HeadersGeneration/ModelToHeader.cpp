@@ -15,8 +15,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Helpers.h"
 #include "revng/Model/Type.h"
-#include "revng/PTML/ModelHelpers.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -36,9 +36,6 @@ using ArtificialTypes::ArrayWrapperFieldName;
 using llvm::cast;
 using llvm::isa;
 using llvm::Twine;
-
-using ptml::str;
-using ptml::Tag;
 
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;

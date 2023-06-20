@@ -13,11 +13,11 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
+#include "revng/Model/Helpers.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/RawFunctionType.h"
 #include "revng/PTML/Constants.h"
-#include "revng/PTML/ModelHelpers.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
@@ -35,9 +35,7 @@ using llvm::StringRef;
 using llvm::Twine;
 using tokenDefinition::types::TypeString;
 
-using modelEditPath::getCustomNamePath;
 using pipeline::serializedLocation;
-using ptml::str;
 using ptml::Tag;
 namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
@@ -476,7 +474,7 @@ void printFunctionPrototype(const model::Type &FT,
   Tag FunctionTag = ThePTMLCBuilder
                       .tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
-                                    getCustomNamePath(Function))
+                                    model::editPath::customName(Function))
                       .addAttribute(LocationAttribute,
                                     serializedLocation(ranks::Function,
                                                        Function.key()));
@@ -511,7 +509,7 @@ void printFunctionPrototype(const model::Type &FT,
   Tag FunctionTag = ThePTMLCBuilder
                       .tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
-                                    getCustomNamePath(Function))
+                                    model::editPath::customName(Function))
                       .addAttribute(LocationAttribute,
                                     serializedLocation(ranks::DynamicFunction,
                                                        Function.key()));

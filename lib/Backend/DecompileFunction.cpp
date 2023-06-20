@@ -30,6 +30,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Helpers.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/PrimitiveTypeKind.h"
@@ -42,7 +43,6 @@
 #include "revng/Model/VerifyHelper.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
-#include "revng/PTML/ModelHelpers.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
@@ -82,9 +82,7 @@ using model::Qualifier;
 using model::RawFunctionType;
 using model::TypedefType;
 
-using modelEditPath::getCustomNamePath;
 using pipeline::serializedLocation;
-using ptml::str;
 using ptml::Tag;
 namespace ranks = revng::ranks;
 namespace attributes = ptml::attributes;
@@ -994,7 +992,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
                       .getTag(ptml::tags::Span, DynamicFunc.name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
-                                    getCustomNamePath(DynamicFunc))
+                                    model::editPath::customName(DynamicFunc))
                       .addAttribute(attributes::LocationReferences, Location)
                       .serialize();
     } else {
@@ -1008,7 +1006,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
                       .getTag(ptml::tags::Span, ModelFunc->name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
-                                    getCustomNamePath(*ModelFunc))
+                                    model::editPath::customName(*ModelFunc))
                       .addAttribute(attributes::LocationReferences,
                                     serializedLocation(ranks::Function,
                                                        ModelFunc->key()))
