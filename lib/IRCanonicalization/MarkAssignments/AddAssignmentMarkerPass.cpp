@@ -17,6 +17,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Model/Architecture.h"
+#include "revng/Model/Generated/Early/Architecture.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -148,13 +150,20 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
       const llvm::DataLayout &DL = I->getModule()->getDataLayout();
       auto ModelSize = VariableType.size().value();
       auto IRSize = DL.getTypeAllocSize(IType);
-      if (ModelSize < IRSize) {
+      if (ModelSize >= IRSize) {
+        if (ModelSize > IRSize) {
+          auto Prototype = Cache.getCallSitePrototype(*Model,
+                                                      cast<CallInst>(I));
+          using namespace abi::FunctionType;
+          abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
+          revng_assert(Layout.returnsAggregateType());
+        }
         VariableType = llvmIntToModelType(IType, *Model);
-      } else if (ModelSize > IRSize) {
-        auto Prototype = Cache.getCallSitePrototype(*Model, cast<CallInst>(I));
-        using namespace abi::FunctionType;
-        abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
-        revng_assert(Layout.returnsAggregateType());
+      } else {
+        revng_assert(IType->isPointerTy());
+        using model::Architecture::getPointerSize;
+        auto PtrSize = getPointerSize(Model->Architecture());
+        revng_assert(ModelSize == PtrSize);
       }
 
       Constant *ModelTypeString = serializeToLLVMString(VariableType, *M);
