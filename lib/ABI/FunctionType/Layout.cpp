@@ -908,6 +908,13 @@ bool Layout::verify() const {
     IsFirst = false;
   }
 
+  // If we have more than one return value, each return value should take at
+  // most a single register
+  if (ReturnValues.size() > 1)
+    for (const ReturnValue &ReturnValue : ReturnValues)
+      if (ReturnValue.Registers.size() > 1)
+        return false;
+
   return true;
 }
 
