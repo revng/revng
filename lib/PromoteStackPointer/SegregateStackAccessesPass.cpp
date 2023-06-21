@@ -919,7 +919,10 @@ private:
     }
 
     // Actually create the new call and replace the old one
-    auto *NewCall = Builder.CreateCall(CalleeType, CalledValue, Arguments);
+    Instruction *NewCall = Builder.CreateCall(CalleeType,
+                                              CalledValue,
+                                              Arguments);
+    NewCall->copyMetadata(*OldCall);
 
     if (ReturnsAggregate) {
       // Perform a couple of safety checks
@@ -952,9 +955,14 @@ private:
                                                 AssignFnType,
                                                 "Assign");
       Builder.CreateCall(AssignFunction, { NewCall, ReturnValueReference });
+    } else if (OldReturnType != NewReturnType
+               and NewReturnType->isIntegerTy()) {
+      auto OldSize = OldReturnType->getIntegerBitWidth();
+      auto NewSize = NewReturnType->getIntegerBitWidth();
+      revng_assert(NewSize <= OldSize);
+      NewCall = cast<Instruction>(Builder.CreateZExt(NewCall, OldReturnType));
     }
 
-    NewCall->copyMetadata(*OldCall);
     OldCall->replaceAllUsesWith(NewCall);
     eraseFromParent(OldCall);
     revng_assert(CalleeType->getPointerTo() == CalledValue->getType());
@@ -1109,11 +1117,13 @@ private:
   std::pair<llvm::Function *, abi::FunctionType::Layout>
   recreateApplyingModelPrototype(Function *OldFunction,
                                  const model::TypePath &Prototype) {
-    auto Layout = abi::FunctionType::Layout::make(Prototype);
+    using namespace abi::FunctionType;
+    auto Layout = Layout::make(Prototype);
 
     Type *ReturnType = nullptr;
 
     bool ReturnsAggregate = Layout.returnsAggregateType();
+    Type *OldReturnType = OldFunction->getReturnType();
     if (ReturnsAggregate) {
       // Ensure the return type is correct
       auto ReturnValuesCount = Layout.returnValueRegisterCount();
@@ -1126,8 +1136,24 @@ private:
       }
 
       ReturnType = StackPointerType;
+    } else if (isa<StructType>(OldReturnType)) {
+      // We have a RawFunctionType returning things over multiple registers
+      revng_assert(isa<model::RawFunctionType>(Prototype.get()));
+      revng_assert(Layout.ReturnValues.size() > 1);
+      revng_assert(Layout.verify());
+      ReturnType = OldReturnType;
+    } else if (Layout.ReturnValues.size() == 1) {
+      // We have a single scalar return value, make it of the correct type
+      const Layout::ReturnValue &ReturnValueType = Layout.ReturnValues[0];
+      revng_assert(ReturnValueType.Type.isScalar());
+      revng_assert(ReturnValueType.Registers.size() <= 1);
+      ReturnType = getLLVMTypeForScalar(M.getContext(), ReturnValueType.Type);
+    } else if (Layout.ReturnValues.size() == 0) {
+      // No return values, forward returning void
+      revng_assert(OldReturnType->isVoidTy());
+      ReturnType = OldReturnType;
     } else {
-      ReturnType = OldFunction->getReturnType();
+      revng_abort();
     }
 
     FunctionType &NewType = layoutToLLVMFunctionType(Layout, ReturnType);
