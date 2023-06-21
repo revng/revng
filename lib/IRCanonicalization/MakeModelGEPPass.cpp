@@ -1594,6 +1594,9 @@ computeBest(const model::QualifiedType &BaseType,
             const std::optional<model::QualifiedType> &AccessedTypeOnIR,
             model::VerifyHelper &VH) {
   revng_log(ModelGEPLog, "Computing Best ModelGEP for IRSum: " << IRSum);
+  revng_assert(not BaseType.isVoid()
+               and not BaseType.is(model::TypeKind::RawFunctionType)
+               and not BaseType.is(model::TypeKind::CABIFunctionType));
 
   // This Result models no access, and leaves all the IRSum as a mismatch.
   // It's handful for easy bail out for obvious failures to traverse this
@@ -1605,9 +1608,7 @@ computeBest(const model::QualifiedType &BaseType,
   // need to support "accessing" pointer with the square brackets as if they
   // were arrays.
   if (BaseType.isPrimitive() or BaseType.isPointer()
-      or BaseType.is(model::TypeKind::EnumType)
-      or BaseType.is(model::TypeKind::RawFunctionType)
-      or BaseType.is(model::TypeKind::CABIFunctionType)) {
+      or BaseType.is(model::TypeKind::EnumType)) {
     revng_log(ModelGEPLog,
               "Never replace pointer arithmetic from a type that is not a "
               "struct, a union, or an array, with a ModelGEP");
@@ -2111,6 +2112,14 @@ makeGEPReplacements(llvm::Function &F,
         if (not IRPointerArithmetic.isAddress())
           continue;
 
+        const auto &[BaseAddress, IRSum] = IRPointerArithmetic;
+        const model::QualifiedType &PointeeType = BaseAddress.getPointeeType();
+
+        if (PointeeType.isVoid()
+            or PointeeType.is(model::TypeKind::RawFunctionType)
+            or PointeeType.is(model::TypeKind::CABIFunctionType))
+          continue;
+
         // Compute the type accessed by this use if any.
         std::optional<model::QualifiedType>
           AccessedTypeOnIR = getAccessedTypeOnIR(Cache,
@@ -2119,15 +2128,12 @@ makeGEPReplacements(llvm::Function &F,
                                                  PointerTypes,
                                                  GEPifiedUsedTypes);
 
-        const auto &[BaseAddress, IRSum] = IRPointerArithmetic;
-
         // Now, compute the best GEP arguments for traversing the PointeeType.
         //
         // Notice that we have to try and access the pointer both via a
         // regular dereference and with the [] operator.
         // In order to do this, we have to create a fake array qualifier to
         // wrap around the PointeeType, and compute the best access in there.
-        const model::QualifiedType &PointeeType = BaseAddress.getPointeeType();
         const model::Architecture::Values &Arch = Model.Architecture();
         model::QualifiedType FakeArray = PointeeType.getPointerTo(Arch);
         // Now replace the pointer qualifier with an array qualifier with
