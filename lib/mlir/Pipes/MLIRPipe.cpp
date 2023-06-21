@@ -44,7 +44,7 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(ABIEnforced,
+    return { ContractGroup({ Contract(StackAccessesSegregated,
                                       0,
                                       MLIRLLVMModule,
                                       1,

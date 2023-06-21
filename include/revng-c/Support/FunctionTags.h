@@ -41,7 +41,7 @@ extern Tag UnaryMinus;
 extern Tag BinaryNot;
 extern Tag BooleanNot;
 
-inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
+inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", CSVsPromoted);
 
 inline Tag StackPointerPromoted("StackPointerPromoted",
                                 LiftingArtifactsRemoved);

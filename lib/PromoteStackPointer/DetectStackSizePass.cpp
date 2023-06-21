@@ -367,7 +367,7 @@ public:
   static constexpr auto Name = "detect-stack-size";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::kinds::LiftingArtifactsRemoved }
+    { &revng::kinds::StackPointerPromoted }
   };
 
   llvm::Error run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {

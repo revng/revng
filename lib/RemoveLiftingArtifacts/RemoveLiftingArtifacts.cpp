@@ -200,8 +200,9 @@ struct RemoveLiftingArtifactsPipe {
   std::vector<pipeline::ContractGroup> getContract() const {
     using namespace pipeline;
     using namespace revng::kinds;
-    return { ContractGroup::transformOnlyArgument(Isolated,
-                                                  LiftingArtifactsRemoved,
+    const auto &Removed = LiftingArtifactsRemoved;
+    return { ContractGroup::transformOnlyArgument(CSVsPromoted,
+                                                  Removed,
                                                   InputPreservation::Erase) };
   }
 
