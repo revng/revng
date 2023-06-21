@@ -692,10 +692,12 @@ Layout::Layout(const model::CABIFunctionType &Function) {
   const auto Architecture = model::ABI::getArchitecture(Function.ABI());
   auto RV = Converter.distributeReturnValue(Function.ReturnType());
   if (RV.SizeOnStack == 0) {
-    // Nothing on the stack, the return value fits into the registers.
-    auto &ReturnValue = ReturnValues.emplace_back();
-    ReturnValue.Type = Function.ReturnType();
-    ReturnValue.Registers = std::move(RV.Registers);
+    if (not Function.ReturnType().isVoid()) {
+      // Nothing on the stack, the return value fits into the registers.
+      auto &ReturnValue = ReturnValues.emplace_back();
+      ReturnValue.Type = Function.ReturnType();
+      ReturnValue.Registers = std::move(RV.Registers);
+    }
   } else {
     revng_assert(RV.Registers.empty(),
                  "Register and stack return values should never be present "
