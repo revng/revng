@@ -243,22 +243,25 @@ dropPointer(const model::QualifiedType &QT) {
   rc_return{};
 }
 
-RecursiveCoroutine<QualifiedType>
+static RecursiveCoroutine<QualifiedType>
 getFieldType(const QualifiedType &Parent, uint64_t Idx) {
-  if (Parent.isPointer())
-    revng_abort("Cannot traverse a pointer");
+  revng_assert(not Parent.isPointer());
 
   // If it's an array, we want to discard any const qualifier we have before the
   // first array qualifier, and traverse all typedefs.
-  if (Parent.isArray()) {
+  // Pointers are treated as arrays, as if they were traversed by operator []
+  if (Parent.isArray() or Parent.isPointer()) {
     QualifiedType Peeled = peelConstAndTypedefs(Parent);
-    revng_assert(not Peeled.Qualifiers().empty());
-    revng_assert(model::Qualifier::isArray(*Peeled.Qualifiers().begin()));
+
+    auto Begin = Peeled.Qualifiers().begin();
+    auto End = Peeled.Qualifiers().end();
+    revng_assert(Begin != End);
+    revng_assert(model::Qualifier::isArray(*Begin)
+                 or model::Qualifier::isPointer(*Begin));
     // Then we also throw away the first array qualifier to build a
     // QualifiedType that represents the type of field of the array.
     rc_return model::QualifiedType(Peeled.UnqualifiedType(),
-                                   { std::next(Peeled.Qualifiers().begin()),
-                                     Peeled.Qualifiers().end() });
+                                   { std::next(Begin), End });
   }
 
   // If we arrived here, there should be only const qualifiers left
@@ -277,7 +280,10 @@ getFieldType(const QualifiedType &Parent, uint64_t Idx) {
   revng_abort("Type does not contain fields");
 }
 
-QualifiedType getFieldType(const QualifiedType &Parent, llvm::Value *Idx) {
+static QualifiedType
+getFieldType(const QualifiedType &Parent, llvm::Value *Idx) {
+  revng_assert(not Parent.isPointer());
+
   uint64_t NumericIdx = 0;
 
   if (auto *ArgAsInt = dyn_cast<llvm::ConstantInt>(Idx)) {
@@ -293,24 +299,22 @@ QualifiedType getFieldType(const QualifiedType &Parent, llvm::Value *Idx) {
   return getFieldType(Parent, NumericIdx);
 }
 
-QualifiedType
-traverseTypeSystem(const QualifiedType &Base,
-                   const llvm::SmallVector<llvm::Value *, 8> &Indexes) {
-  QualifiedType CurType = Base;
-  for (auto Idx : Indexes)
-    CurType = getFieldType(CurType, Idx);
-
-  return CurType;
-}
-
-QualifiedType
+static QualifiedType
 traverseModelGEP(const model::Binary &Model, const llvm::CallInst *Call) {
   // Deduce the base type from the first argument
   QualifiedType CurType = deserializeFromLLVMString(Call->getArgOperand(0),
                                                     Model);
 
+  // Compute the first index of variadic arguments that represent the traversal
+  // starting from the CurType.
+  unsigned IndexOfFirstTraversalArgument = ModelGEPBaseArgIndex + 1;
+  if (isCallToTagged(Call, FunctionTags::ModelGEP))
+    ++IndexOfFirstTraversalArgument;
+  else
+    revng_assert(isCallToTagged(Call, FunctionTags::ModelGEPRef));
   // Traverse the model
-  for (auto &CurArg : llvm::drop_begin(Call->args(), ModelGEPBaseArgIndex + 1))
+  for (auto &CurArg :
+       llvm::drop_begin(Call->args(), IndexOfFirstTraversalArgument))
     CurType = getFieldType(CurType, CurArg);
 
   return CurType;

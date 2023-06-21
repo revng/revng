@@ -628,12 +628,18 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
   llvm::Value *BaseValue = CurArg->get();
   std::string BaseString = rc_recur getToken(BaseValue);
 
+  bool UseArrow = false;
   if (IsRef) {
     // In ModelGEPRefs, the base value is a reference, and the base type is
     // its type
     revng_assert(TypeMap.at(BaseValue) == CurType,
                  "The ModelGEP base type is not coherent with the "
                  "propagated type.");
+    // If there are no further arguments we're just dereferencing the base value
+    if (std::next(CurArg) == Call->arg_end()) {
+      // But dereferencing a reference does not produce any code so we're done
+      rc_return BaseString;
+    }
   } else {
     // In ModelGEPs, the base value is a pointer, and the base type is the
     // type pointed by the base value
@@ -641,26 +647,76 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
     revng_assert(TypeMap.at(BaseValue) == PointerQt,
                  "The ModelGEP base type is not coherent with the "
                  "propagated type.");
-  }
 
-  // Arguments from the third represent indices for accessing
-  // struct/unions/arrays
-  ++CurArg;
-  if (CurArg == Call->arg_end()) {
-    if (not IsRef) {
-      // If there are no further arguments, we are just dereferencing the
-      // base value
-      rc_return buildDerefExpr(BaseString);
+    auto *ThirdArgument = Call->getArgOperand(2);
+    auto *ConstantArrayIndex = dyn_cast<llvm::ConstantInt>(ThirdArgument);
+
+    // Check if the ModelGEP represents an additional access with square
+    // brackets on the pointer
+    bool HasInitialArrayAccess = not ConstantArrayIndex
+                                 or not ConstantArrayIndex->isZero();
+
+    // If this doesn't have any variadic argument just dereference the base
+    // pointer and we're done.
+    if (Call->arg_size() < 4) {
+      // There are actually various ways to do it.
+
+      // If we're not using square brackets to dereference the pointer, we just
+      // emit a dereference expression.
+      if (not HasInitialArrayAccess)
+        rc_return buildDerefExpr(BaseString);
+
+      // Here we have square brackets, that effectively replace the dereference
+      // operator, so we just emit the square brackets with the appropriate
+      // index.
+      std::string IndexExpr;
+      if (auto *Const = dyn_cast<llvm::ConstantInt>(ThirdArgument)) {
+        IndexExpr = ThePTMLCBuilder.getNumber(Const->getValue()).serialize();
+      } else {
+        IndexExpr = rc_recur getToken(ThirdArgument);
+      }
+
+      rc_return BaseString + "[" + IndexExpr + "]";
+    }
+
+    // Here we know that there is at least one variadic argument.
+
+    if (HasInitialArrayAccess) {
+      // If we're using the square brackets to dereference the base pointer we
+      // have to change the base type so that it represents the "fake" array
+      // being accessed.
+      // We make it with only 1 element because in the following the number of
+      // elements of the array is not actually used for generating the C code,
+      // so we can get away with it.
+      auto LongArray = model::Qualifier::createArray(1);
+      PointerQt.Qualifiers().front() = std::move(LongArray);
+      CurType = PointerQt;
     } else {
-      // Dereferencing a reference does not produce any code
-      rc_return BaseString;
+      // Otherwise, we're not accessing the base pointer as an array.
+      // So we can skip an additional argument.
+      ++CurArg;
+
+      // But the base type could still be an array.
+      if (CurType.isArray()) {
+        // If the base type is an array the first level of indirection will be
+        // represented by square brackets that want to access elements of the
+        // array. So we have to first dereference the pointer-to-array in order
+        // to be able to access elements via [] in C.
+        BaseString = "(" + buildDerefExpr(BaseString) + ")";
+      } else {
+        // If CurType is not an array we're going to represent the first level
+        // of the traversal with the `->` operator rather than `.`, so let's
+        // take note of this fact.
+        UseArrow = true;
+      }
     }
   }
+  ++CurArg;
 
   std::string CurExpr = addParentheses(BaseString);
   using PTMLOperator = ptml::PTMLCBuilder::Operator;
-  Tag DerefSymbol = IsRef ? ThePTMLCBuilder.getOperator(PTMLOperator::Dot) :
-                            ThePTMLCBuilder.getOperator(PTMLOperator::Arrow);
+  Tag Deref = UseArrow ? ThePTMLCBuilder.getOperator(PTMLOperator::Arrow) :
+                         ThePTMLCBuilder.getOperator(PTMLOperator::Dot);
 
   // Traverse the model to decide whether to emit "." or "[]"
   for (; CurArg != Call->arg_end(); ++CurArg) {
@@ -670,8 +726,12 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
     if (CurType.Qualifiers().size() > 0)
       MainQualifier = &CurType.Qualifiers().front();
 
-    if (MainQualifier and model::Qualifier::isArray(*MainQualifier)) {
-      // If it's an array, add "[]"
+    if (MainQualifier) {
+      // If it's an array or a pointer, add "[]"
+
+      // We shouldn't be going past pointers in a single ModelGEP except on top
+      // level expressions.
+      revng_assert(model::Qualifier::isArray(*MainQualifier));
 
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
@@ -686,16 +746,13 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       CurType.Qualifiers() = { RemainingQualifiers.begin(),
                                RemainingQualifiers.end() };
     } else {
-      // We shouldn't be going past pointers in a single ModelGEP
-      revng_assert(not MainQualifier);
-
       // If it's a struct or union, we can only navigate it with fixed
       // indexes.
       // TODO: decide how to emit constants
       auto *FieldIdxConst = cast<llvm::ConstantInt>(CurArg->get());
       uint64_t FieldIdx = FieldIdxConst->getValue().getLimitedValue();
 
-      CurExpr += DerefSymbol.serialize();
+      CurExpr += Deref.serialize();
 
       // Find the field name
       const auto *UnqualType = CurType.UnqualifiedType().getConst();
@@ -718,7 +775,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
     // Regardless if the base type was a pointer or not, we are now
     // navigating only references
-    DerefSymbol = ThePTMLCBuilder.getOperator(PTMLOperator::Dot);
+    Deref = ThePTMLCBuilder.getOperator(PTMLOperator::Dot);
   }
 
   rc_return CurExpr;

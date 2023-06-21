@@ -26,7 +26,7 @@ public:
 
   RemoveLoadStore() : FunctionPass(ID) {}
 
-  /// Replace all `load` instructions with calls to `ModelGEP()` and all
+  /// Replace all `load` instructions with calls to `Copy(ModelGEP())` and all
   /// `store` instructions with calls to `Assign(ModelGEP())`.
   bool runOnFunction(llvm::Function &F) override;
 
@@ -56,10 +56,15 @@ static llvm::CallInst *buildDerefCall(llvm::Module &M,
   // qualified type of the base type of the modelGEP
   auto *BaseTypeConstantStrPtr = serializeToLLVMString(PointedType, M);
 
-  // The second argument is the base address
+  // The second argument is the base address, and the third (representing the
+  // array access) is defaulted to 0, representing regular pointer access (not
+  // array access).
+  auto *Int64Type = llvm::IntegerType::getIntNTy(M.getContext(), 64);
+  auto *Zero = llvm::ConstantInt::get(Int64Type, 0);
   llvm::CallInst *InjectedCall = Builder.CreateCall(ModelGEPFunction,
                                                     { BaseTypeConstantStrPtr,
-                                                      Arg });
+                                                      Arg,
+                                                      Zero });
 
   return InjectedCall;
 }

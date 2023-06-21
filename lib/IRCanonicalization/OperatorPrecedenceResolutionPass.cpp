@@ -187,9 +187,13 @@ static unsigned getCustomOpcode(Instruction *I) {
   else if (FunctionTags::ModelCast.isTagOf(CalledFunc))
     return CustomInstruction::Cast;
   else if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
-    if (cast<CallInst>(I)->arg_size() > 2)
+    auto *Call = cast<CallInst>(I);
+    if (Call->arg_size() > 3)
       return CustomInstruction::MemberAccess;
-    return CustomInstruction::Indirection;
+    auto *ConstantArrayIndex = dyn_cast<ConstantInt>(Call->getArgOperand(2));
+    if (ConstantArrayIndex and ConstantArrayIndex->isZero())
+      return CustomInstruction::Indirection;
+    return CustomInstruction::MemberAccess;
   } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
     if (cast<CallInst>(I)->arg_size() > 2)
       return CustomInstruction::MemberAccess;

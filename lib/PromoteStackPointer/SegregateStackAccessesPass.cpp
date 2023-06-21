@@ -938,9 +938,12 @@ private:
       Type *T = ReturnValuePointer->getType();
       Function *GetModelGEPFunction = getModelGEP(M, T, T);
       auto *BaseTypeConstantStrPtr = serializeToLLVMString(ReturnType, M);
+      auto *Int64Type = llvm::IntegerType::getIntNTy(M.getContext(), 64);
+      auto *Zero = llvm::ConstantInt::get(Int64Type, 0);
       Value *ReturnValueReference = Builder.CreateCall(GetModelGEPFunction,
                                                        { BaseTypeConstantStrPtr,
-                                                         ReturnValuePointer });
+                                                         ReturnValuePointer,
+                                                         Zero });
 
       auto *ReturnValueType = ReturnValueReference->getType();
       auto *AssignFnType = getAssignFunctionType(NewCall->getType(),
