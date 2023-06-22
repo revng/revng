@@ -22,8 +22,7 @@
 
 namespace revng::pipes {
 
-inline constexpr char CrossRelationsFileMIMEType[] = "application/"
-                                                     "x.yaml.cross-relations";
+inline constexpr char CrossRelationsFileMIMEType[] = "text/x.yaml";
 inline constexpr char CrossRelationsFileSuffix[] = "";
 inline constexpr char CrossRelationsName[] = "BinaryCrossRelations";
 
