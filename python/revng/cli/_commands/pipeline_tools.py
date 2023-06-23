@@ -19,6 +19,7 @@ class PipelineToolCommand(Command):
         command = build_command_with_loads(
             f"revng-{self.name}", pipelines_args + options.remaining_args, options
         )
+
         return run(command, options)
 
 

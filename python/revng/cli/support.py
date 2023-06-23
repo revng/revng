@@ -105,6 +105,8 @@ def run(command, options: Options, environment: OptionalEnv = None):
     if result != 0:
         sys.exit(result)
 
+    return result
+
 
 def exec_run(command, options: Options, environment: OptionalEnv) -> Union[int, NoReturn]:
     command, environment = _run_common(command, options, environment)
