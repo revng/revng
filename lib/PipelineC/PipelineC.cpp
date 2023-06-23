@@ -387,28 +387,30 @@ static char *_rp_diff_map_get_diff(const rp_diff_map *map,
 static rp_buffer *_rp_manager_produce_targets(rp_manager *manager,
                                               uint64_t targets_count,
                                               rp_target *targets[],
-                                              rp_step *step,
-                                              rp_container *container) {
+                                              const rp_step *step,
+                                              const rp_container *container) {
   revng_check(manager != nullptr);
   revng_check(targets_count != 0);
   revng_check(targets != nullptr);
   revng_check(step != nullptr);
   revng_check(container != nullptr);
 
-  ContainerToTargetsMap Targets;
+  TargetsList List;
   for (size_t I = 0; I < targets_count; I++)
-    Targets[container->second->name()].push_back(*targets[I]);
+    List.push_back(*targets[I]);
 
-  auto Error = manager->getRunner().run(step->getName(), Targets);
-  if (Error) {
-    llvm::consumeError(std::move(Error));
+  auto ErrorOrCloned = manager->produceTargets(step->getName(),
+                                               *container,
+                                               List);
+
+  if (!ErrorOrCloned) {
+    llvm::consumeError(ErrorOrCloned.takeError());
     return nullptr;
   }
 
+  auto &Cloned = ErrorOrCloned.get();
   rp_buffer *Out = new rp_buffer();
   llvm::raw_svector_ostream Serialized(*Out);
-  const auto &ToFilter = Targets[container->second->name()];
-  const auto &Cloned = container->second->cloneFiltered(ToFilter);
   llvm::cantFail(Cloned->serialize(Serialized));
 
   return Out;

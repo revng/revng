@@ -288,8 +288,8 @@ rp_buffer * /*owning*/
 rp_manager_produce_targets(rp_manager *manager,
                            uint64_t targets_count,
                            const rp_target *targets[],
-                           rp_step *step,
-                           rp_container *container);
+                           const rp_step *step,
+                           const rp_container *container);
 LENGTH_HINT(rp_manager_produce_targets, 2, 1)
 
 /**

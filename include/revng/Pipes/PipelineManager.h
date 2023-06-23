@@ -153,6 +153,14 @@ public:
   const pipeline::Runner &getRunner() const { return *Runner; }
   pipeline::Runner &getRunner() { return *Runner; }
 
+  llvm::Error materializeTargets(const llvm::StringRef StepName,
+                                 const pipeline::ContainerToTargetsMap &Map);
+
+  llvm::Expected<std::unique_ptr<pipeline::ContainerBase>>
+  produceTargets(const llvm::StringRef StepName,
+                 const Container &TheContainer,
+                 const pipeline::TargetsList &List);
+
   llvm::Expected<pipeline::DiffMap>
   runAnalyses(const pipeline::AnalysesList &List,
               pipeline::InvalidationMap &Map,
