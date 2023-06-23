@@ -1322,7 +1322,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Matching while\n");
   matchWhile(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "07-After-match-while");
   }
 
   // Match dowhile.
@@ -1331,7 +1331,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "07-After-match-do-while");
+                            "08-After-match-do-while");
   }
 
   // Remove useless continues.
