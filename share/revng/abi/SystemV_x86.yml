@@ -24,6 +24,8 @@ VectorArgumentRegisters:
   - xmm0_x86
   - xmm1_x86
   - xmm2_x86
+VectorReturnValueRegisters:
+  - st0_x86
 CalleeSavedRegisters:
   - ebx_x86
   - ebp_x86

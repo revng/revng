@@ -28,6 +28,7 @@ members:
   - name: edi_x86
   - name: ebp_x86
   - name: esp_x86
+  - name: st0_x86
   - name: xmm0_x86
   - name: xmm1_x86
   - name: xmm2_x86
@@ -263,6 +264,7 @@ getReferenceArchitecture(Values V) {
   case edi_x86:
   case ebp_x86:
   case esp_x86:
+  case st0_x86:
   case xmm0_x86:
   case xmm1_x86:
   case xmm2_x86:
@@ -517,6 +519,13 @@ inline llvm::StringRef getRegisterName(Values V) {
 inline size_t getSize(Values V) {
   model::Architecture::Values Architecture = getReferenceArchitecture(V);
 
+  switch (V) {
+  case st0_x86:
+    return 10;
+  default:
+    break;
+  }
+
   // TODO: this does not account for vector registers, but it should eventually.
   switch (Architecture) {
   case model::Architecture::x86:
@@ -653,7 +662,10 @@ inline std::optional<unsigned> getMContextIndex(Values V) {
 }
 
 inline llvm::StringRef getCSVName(Values V) {
+  // TODO: handle xmm0_x86
   switch (V) {
+  case st0_x86:
+    return "state_0x83c0";
   case xmm0_x86_64:
     return "state_0x8558";
   case xmm1_x86_64:
@@ -678,7 +690,10 @@ inline llvm::StringRef getCSVName(Values V) {
 inline Values
 fromCSVName(llvm::StringRef Name, model::Architecture::Values Architecture) {
   if (Architecture == model::Architecture::x86_64) {
-    if (Name == "state_0x8558") {
+    // TODO: handle xmm0_x86
+    if (Name == "state_0x83c0") {
+      return st0_x86;
+    } else if (Name == "state_0x8558") {
       return xmm0_x86_64;
     } else if (Name == "state_0x8598") {
       return xmm1_x86_64;
@@ -820,6 +835,7 @@ constexpr inline model::PrimitiveTypeKind::Values primitiveKind(Values V) {
   case r15_systemz:
     return model::PrimitiveTypeKind::PointerOrNumber;
 
+  case st0_x86:
   case xmm0_x86:
   case xmm1_x86:
   case xmm2_x86:
