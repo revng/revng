@@ -31,4 +31,5 @@ commands:
       - type: revng.qemu-run
         filter: for-comparison
       - type: revng.translated-run
+        filter: "!native"
     command: diff -ur "$INPUT1" "$INPUT2"

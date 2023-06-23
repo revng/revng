@@ -82,6 +82,7 @@ commands:
       - type: revng.cross-relations
       - type: revng.abi-enforced-for-decompilation
       - type: revng-qa.compiled
+        filter: one-per-architecture
     suffix: .svg.yml
     command: |-
       MODEL="$$(temp)";
