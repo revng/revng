@@ -117,7 +117,13 @@ class Manager:
             # TODO: we really should be able to provide a detailed error here
             raise RevngException("Failed to produce targets")
 
-        return {t.serialize(): t.extract() for t in targets}
+        result = {}
+        for target in targets:
+            extracted_target = target.extract()
+            if extracted_target is None:
+                raise RevngException(f"Target {target.serialize()} extraction failed")
+            result[target.serialize()] = extracted_target
+        return result
 
     def produce_target(
         self,
