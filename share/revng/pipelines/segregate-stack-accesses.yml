@@ -19,6 +19,7 @@ Branches:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
+              - hoist-struct-phis
               - segregate-stack-accesses
       - Name: LateOptimizeForDecompilation
         Pipes:

@@ -29,6 +29,7 @@ commands:
     from:
       - type: revng-c.stack-pointer-promoted
       - type: revng-qa.compiled
+        filter: one-per-architecture
     suffix: .bc
     command: |-
       revng llvm pipeline
@@ -54,6 +55,7 @@ commands:
     from:
       - type: revng-c.analyzed
       - type: revng-qa.compiled
+        filter: one-per-architecture
     suffix: .bc
     command: |-
       revng llvm pipeline
@@ -111,6 +113,7 @@ commands:
     from:
       - type: revng-c.decompiled-c
       - type: revng-c.model-to-header
+        filter: one-per-architecture
       - type: revng-c.helpers-to-header
     command: |-
       TMP=$$(temp -d);
