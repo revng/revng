@@ -1663,7 +1663,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // Calculate the string of the condition
     // TODO: possibly cast the CondExpr if it's not convertible to boolean?
     std::string CondExpr = ThePTMLCBuilder.getTrueTag().serialize();
-    if (LoopBody->isDoWhile() or LoopBody->isWhile()) {
+    if (LoopBody->isWhile()) {
       const IfNode *LoopCondition = LoopBody->getRelatedCondition();
       revng_assert(LoopCondition);
 
