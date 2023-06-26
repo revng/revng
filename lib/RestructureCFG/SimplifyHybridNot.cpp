@@ -115,7 +115,7 @@ populateAssociatedExprMap(ASTTree &AST, ASTNode *Node, BBExprsMap &BBExprs) {
     // In case we are inspecting a loop that has been promoted to `while` or
     // `dowhile`, we should inspect the related condition containing the
     // `IfNode` associated to the execution of the loop
-    if (not Scs->isStandard()) {
+    if (not Scs->isWhileTrue()) {
       IfNode *If = Scs->getRelatedCondition();
       ExprNode **IfExpr = If->getCondExprAddress();
       collectExprBB(IfExpr, BBExprs);

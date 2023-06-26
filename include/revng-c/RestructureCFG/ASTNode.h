@@ -234,14 +234,14 @@ class ScsNode : public ASTNode {
 
 public:
   enum class Type {
-    Standard,
+    WhileTrue,
     While,
     DoWhile,
   };
 
 private:
   ASTNode *Body;
-  Type LoopType = Type::Standard;
+  Type LoopType = Type::WhileTrue;
   IfNode *RelatedCondition = nullptr;
 
 public:
@@ -275,20 +275,20 @@ public:
 
   ASTNode *Clone() const { return new ScsNode(*this); }
 
-  bool isStandard() const { return LoopType == Type::Standard; }
+  bool isWhileTrue() const { return LoopType == Type::WhileTrue; }
 
   bool isWhile() const { return LoopType == Type::While; }
 
   bool isDoWhile() const { return LoopType == Type::DoWhile; }
 
   void setWhile(IfNode *Condition) {
-    revng_assert(LoopType == Type::Standard);
+    revng_assert(LoopType == Type::WhileTrue);
     LoopType = Type::While;
     RelatedCondition = Condition;
   }
 
   void setDoWhile(IfNode *Condition) {
-    revng_assert(LoopType == Type::Standard);
+    revng_assert(LoopType == Type::WhileTrue);
     LoopType = Type::DoWhile;
     RelatedCondition = Condition;
   }

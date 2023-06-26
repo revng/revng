@@ -246,7 +246,7 @@ void ScsNode::dump(llvm::raw_fd_ostream &ASTFile) {
   if (this->RelatedCondition)
     ASTFile << ",bb=" << printBBName(this->RelatedCondition->getCondExpr());
 
-  if (this->isStandard())
+  if (this->isWhileTrue())
     ASTFile << ",type=standard ";
   else if (this->isWhile())
     ASTFile << ",type=while ";
