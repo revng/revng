@@ -881,68 +881,6 @@ public:
   }
 };
 
-struct ArrayInfo {
-  APInt Stride = APInt(/*NumBits*/ 64, /*Value*/ 0);
-  APInt NumElems = APInt(/*NumBits*/ 64, /*Value*/ 0);
-
-  bool operator==(const ArrayInfo &) const = default;
-
-  bool operator<(const ArrayInfo &Other) const {
-    if (Stride.ult(Other.Stride))
-      return true;
-    if (Stride.ugt(Other.Stride))
-      return false;
-    if (NumElems.ult(Other.NumElems))
-      return true;
-    return false;
-  }
-
-  void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "ArrayInfo { .Stride = " << toDecimal(Stride)
-       << ", .NumElems = " << toDecimal(NumElems) << "}";
-  }
-
-  void dump() const debug_function { dump(llvm::dbgs()); }
-};
-
-using ArrayInfoVector = SmallVector<ArrayInfo, 4>;
-
-struct TypedAccessPattern {
-  APInt BaseOffset = APInt(/*NumBits*/ 64, /*Value*/ 0);
-  ArrayInfoVector Arrays = {};
-  model::QualifiedType AccessedType = {};
-
-  bool operator==(const TypedAccessPattern &) const = default;
-
-  bool operator<(const TypedAccessPattern &Other) const {
-    if (BaseOffset.ult(Other.BaseOffset))
-      return true;
-    if (BaseOffset.ugt(Other.BaseOffset))
-      return false;
-
-    if (Arrays < Other.Arrays)
-      return true;
-    if (Other.Arrays < Arrays)
-      return false;
-
-    return AccessedType < Other.AccessedType;
-  }
-
-  void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "TypedAccessPattern {\nBaseOffset: " << toDecimal(BaseOffset) << "\n";
-    OS << "Arrays: {";
-    for (const auto &AI : Arrays) {
-      OS << "\n";
-      AI.dump(OS);
-    }
-    OS << "\n}\nType: ";
-    serialize(OS, AccessedType);
-    OS << "\n}";
-  }
-
-  void dump() const debug_function { dump(llvm::dbgs()); }
-};
-
 enum AggregateKind { Invalid, Struct, Union, Array };
 
 static std::string toString(AggregateKind K) {
