@@ -1054,10 +1054,6 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   // The depth of a match or mismatch will be at least long as the number of
   // indices we have available.
@@ -1205,10 +1201,6 @@ computeBestInArray(const model::QualifiedType &BaseType,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   if ((BaseOffset + AccessedSizeOnIR).ugt(ArraySize)) {
     revng_log(ModelGEPLog,
@@ -1389,10 +1381,6 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   const auto &[BaseOffset, Indices] = IRSum;
 
@@ -1511,10 +1499,6 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   const auto &[BaseOffset, Indices] = IRSum;
 
