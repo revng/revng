@@ -132,15 +132,6 @@ public:
 
   size_t size() const { return Map.size(); }
 
-  std::vector<llvm::StringRef> getGlobalNames() const {
-    std::vector<llvm::StringRef> ToReturn;
-
-    for (const auto &Global : Map)
-      ToReturn.push_back(Global.first);
-
-    return ToReturn;
-  }
-
 public:
   GlobalsMap() = default;
   ~GlobalsMap() = default;
@@ -161,6 +152,29 @@ public:
       Map.try_emplace(Entry.first, Entry.second->clone());
 
     return *this;
+  }
+  void collectReadFields(const TargetInContainer &Target,
+                         llvm::StringMap<PathTargetBimap> &Out) const {
+    for (const auto &Global : Map) {
+      Global.second->collectReadFields(Target, Out[Global.first]);
+    }
+  }
+
+  void clearAndResume() const {
+    for (const auto &Global : Map)
+      Global.second->clearAndResume();
+  }
+  void pushReadFields() const {
+    for (const auto &Global : Map)
+      Global.second->pushReadFields();
+  }
+  void popReadFields() const {
+    for (const auto &Global : Map)
+      Global.second->popReadFields();
+  }
+  void stopTracking() const {
+    for (const auto &Global : Map)
+      Global.second->stopTracking();
   }
 };
 } // namespace pipeline

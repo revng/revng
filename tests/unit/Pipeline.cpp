@@ -243,7 +243,9 @@ public:
     };
   }
 
-  void run(const Context &, const MapContainer &Source, MapContainer &Target) {
+  void run(const ExecutionContext &,
+           const MapContainer &Source,
+           MapContainer &Target) {
     Source.enumerate().dump();
     auto SrcCopy = Source;
     for (const auto &Element : SrcCopy.getMap())
@@ -260,10 +262,12 @@ public:
 
 BOOST_AUTO_TEST_CASE(PipeCanBeWrapper) {
   Context Ctx;
+  Step FakeStep(Ctx, "dc", "", {});
+  ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
   MapContainer Map("RandomName");
   Map.get({ {}, RootKind }) = 1;
   TestPipe Enf;
-  Enf.run(Ctx, Map, Map);
+  Enf.run(ExecutionCtx, Map, Map);
   BOOST_TEST(Map.get({ {}, RootKind2 }) == 1);
 }
 
@@ -453,7 +457,8 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
   ContainerSet Containers;
   auto Factory = getMapFactoryContainer();
   Containers.add(CName, Factory, Factory("dont_care"));
-  Step Step("first_step",
+  Step Step(Ctx,
+            "first_step",
             "",
             std::move(Containers),
             PipeWrapper::bind<TestPipe>(CName, CName));
@@ -465,7 +470,7 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
   auto Factory2 = getMapFactoryContainer();
   Containers.add(CName, Factory, Factory("dont_care"));
   cast<MapContainer>(Containers[CName]).get(Target({}, RootKind)) = 1;
-  auto Result = Step.run(Ctx, std::move(Containers));
+  auto Result = Step.run(std::move(Containers));
 
   auto &Cont = cast<MapContainer>(Result.at(CName));
   BOOST_TEST(Cont.get(Target({}, RootKind2)) == 1);
@@ -477,7 +482,8 @@ BOOST_AUTO_TEST_CASE(PipelineCanBeManuallyExectued) {
 
   Context Ctx;
   Runner Pip(Ctx);
-  Pip.addStep(Step("first_step",
+  Pip.addStep(Step(Ctx,
+                   "first_step",
                    "",
                    Registry.createEmpty(),
                    PipeWrapper::bind<TestPipe>(CName, CName)));
@@ -486,7 +492,7 @@ BOOST_AUTO_TEST_CASE(PipelineCanBeManuallyExectued) {
   auto &C1 = Containers.getOrCreate<MapContainer>(CName);
   C1.get(Target(RootKind)) = 1;
 
-  auto Res = Pip["first_step"].run(Ctx, std::move(Containers));
+  auto Res = Pip["first_step"].run(std::move(Containers));
   BOOST_TEST(cast<MapContainer>(Res.at(CName)).get(Target(RootKind2)) == 1);
   const auto &StartingContainer = Pip["first_step"]
                                     .containers()
@@ -505,14 +511,15 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineCanBeRunned) {
   auto &C1 = cast<MapContainer>(Content[CName]);
   C1.get(Target(RootKind)) = 1;
 
-  Step StepToAdd("first_step", "", std::move(Content));
+  Step StepToAdd(Ctx, "first_step", "", std::move(Content));
   Pip.addStep(std::move(StepToAdd));
   ContainerSet &BCI = Pip["first_step"].containers();
   BOOST_TEST(cast<MapContainer>(BCI.at(CName)).get(Target(RootKind)) == 1);
 
   ContainerSet Containers2;
   Containers2.add(CName, Factory, make_unique<MapContainer>("dont_care"));
-  Pip.addStep(Step("End",
+  Pip.addStep(Step(Ctx,
+                   "End",
                    "",
                    std::move(Containers2),
                    Pip["first_step"],
@@ -536,7 +543,8 @@ public:
     };
   }
 
-  void run(Context &, const MapContainer &Source, MapContainer &Target) {
+  void
+  run(ExecutionContext &, const MapContainer &Source, MapContainer &Target) {
     for (const auto &Element : Source.getMap()) {
 
       if (&Element.first.getKind() != &RootKind)
@@ -565,7 +573,8 @@ public:
                            InputPreservation::Preserve) };
   }
 
-  void run(Context &, const MapContainer &Source, MapContainer &Target) {
+  void
+  run(ExecutionContext &, const MapContainer &Source, MapContainer &Target) {
     for (const auto &Element : Source.getMap())
       if (&Element.first.getKind() == &FunctionKind)
         Target.get(Element.first) = Element.second;
@@ -1289,7 +1298,7 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
 
   BOOST_TEST(C2End.get(ToProduce) == 1);
 
-  pipeline::InvalidationMap Invalidations;
+  pipeline::TargetInStepSet Invalidations;
   Invalidations[Name][CName].push_back(T);
 
   // C2End.enumerate().dump();
@@ -1322,7 +1331,7 @@ public:
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = { { &RootKind } };
 
-  void run(const Context &Ctx,
+  void run(const ExecutionContext &Ctx,
            const MapContainer &Cont,
            int First,
            std::string Second,
@@ -1337,11 +1346,13 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
   RegisterAnalysis<ArgumentTestAnalysis> Dummy;
   pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container_name" });
   Context Ctx;
+  Step FakeStep(Ctx, "dc", "", {});
+  ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
   ContainerSet Set;
   auto Factory = ContainerFactory::create<MapContainer>();
   Set.add("container_name", Factory);
   Set["container_name"];
-  if (auto Error = W.run(Ctx, Set, {}); Error)
+  if (auto Error = W.run(ExecutionCtx, Set, {}); Error)
     BOOST_FAIL("unreachable");
 }
 

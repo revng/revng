@@ -17,7 +17,7 @@ using namespace llvm::sys;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void LinkForTranslation::run(const Context &Ctx,
+void LinkForTranslation::run(const ExecutionContext &Ctx,
                              BinaryFileContainer &InputBinary,
                              ObjectFileContainer &ObjectFile,
                              TranslatedFileContainer &OutputBinary) {

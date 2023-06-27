@@ -39,20 +39,6 @@ TaggedFunctionKind::symbolToTarget(const llvm::Function &Symbol) const {
   return pipeline::Target({ Address.toString() }, *this);
 }
 
-using TaggedFK = TaggedFunctionKind;
-void TaggedFK::getInvalidations(const Context &Ctx,
-                                TargetsList &ToRemove,
-                                const GlobalTupleTreeDiff &Diff) const {
-  const auto &CurrentModel = getModelFromContext(Ctx);
-
-  if (not Ctx.containsReadOnlyContainer(BinaryCrossRelationsRole))
-    return;
-
-  const auto *ModelDiff = Diff.getAs<model::Binary>();
-  if (not ModelDiff)
-    return;
-}
-
 void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Ctx,
                                           pipeline::TargetsList &Out) const {
   const auto &Model = getModelFromContext(Ctx);

@@ -81,12 +81,12 @@ void LinkSupport::print(const pipeline::Context &Ctx,
      << Names[0] << "\n";
 }
 
-void revng::pipes::LinkSupport::run(const Context &Ctx,
+void revng::pipes::LinkSupport::run(const ExecutionContext &Ctx,
                                     LLVMContainer &TargetsList) {
   if (TargetsList.enumerate().empty())
     return;
 
-  std::string SupportPath = getSupportPath(Ctx);
+  std::string SupportPath = getSupportPath(Ctx.getContext());
 
   llvm::SMDiagnostic Err;
   auto Module = llvm::parseIRFile(SupportPath,

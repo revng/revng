@@ -25,10 +25,58 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/Tracking.h"
 #include "revng/TupleTree/TupleTreeCompatible.h"
 #include "revng/TupleTree/TupleTreePath.h"
 #include "revng/TupleTree/TupleTreeReference.h"
 #include "revng/TupleTree/Visits.h"
+
+template<typename T>
+concept HasTracking = requires(T _) { T::HasTracking; };
+
+template<typename T>
+struct TrackGuard {
+  const T *TrackedObject;
+
+public:
+  TrackGuard(const T &TrackedObject) : TrackedObject(&TrackedObject) {
+    // Since the model classes may have been generated either with or without
+    // tracking, a trackguard should do nothing if the concept returns false.
+    if constexpr (HasTracking<T>)
+      revng::Tracking::push(*this->TrackedObject);
+  }
+
+  TrackGuard(const TrackGuard &Other) = delete;
+  TrackGuard &operator=(const TrackGuard &Other) = delete;
+
+  TrackGuard(TrackGuard &&Other) {
+    TrackedObject = Other.TrackedObject;
+    Other.TrackedObject = nullptr;
+  }
+  TrackGuard &operator=(TrackGuard &&Other) {
+    if (this == &Other) {
+      return *this;
+    }
+
+    onDestruction();
+    TrackedObject = Other.TrackedObject;
+    Other.TrackedObject = nullptr;
+
+    return *this;
+  }
+
+  ~TrackGuard() { onDestruction(); }
+
+private:
+  void onDestruction() {
+    if constexpr (HasTracking<T>) {
+      if (TrackedObject != nullptr) {
+        revng::Tracking::pop(*TrackedObject);
+      }
+    }
+    TrackedObject = nullptr;
+  }
+};
 
 template<TupleTreeCompatible T>
 class TupleTree {
@@ -169,6 +217,7 @@ public:
 
 private:
   void initializeUncachedReferences() {
+    TrackGuard Guard(*Root);
     visitReferences([this](auto &Element) {
       Element.Root = Root.get();
       Element.evictCachedTarget();
@@ -178,17 +227,20 @@ private:
 
 public:
   void initializeReferences() {
+    TrackGuard Guard(*Root);
     revng_assert(not AllReferencesAreCached);
     visitReferences([this](auto &Element) { Element.Root = Root.get(); });
   }
 
   void cacheReferences() {
+    TrackGuard Guard(*Root);
     if (not AllReferencesAreCached)
       visitReferencesInternal([](auto &Element) { Element.cacheTarget(); });
     AllReferencesAreCached = true;
   }
 
   void evictCachedReferences() {
+    TrackGuard Guard(*Root);
     if (AllReferencesAreCached)
       visitReferencesInternal([](auto &E) { E.evictCachedTarget(); });
     AllReferencesAreCached = false;
@@ -251,6 +303,7 @@ public:
 
 private:
   bool verifyReferences(bool Assert) const {
+    TrackGuard Guard(*Root);
     bool Result = true;
 
     visitReferences([&Result,

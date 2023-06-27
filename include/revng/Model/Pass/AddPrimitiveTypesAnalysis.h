@@ -25,7 +25,7 @@ public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
 public:
-  void run(pipeline::Context &Context);
+  void run(pipeline::ExecutionContext &Context);
 };
 
 } // namespace revng::pipes

@@ -39,7 +39,7 @@ public:
   }
 
 public:
-  void run(pipeline::Context &Context,
+  void run(pipeline::ExecutionContext &Context,
            const pipeline::LLVMContainer &TargetList,
            const CrossRelationsFileContainer &InputFile,
            CallGraphSliceSVGStringMap &Output);

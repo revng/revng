@@ -11,6 +11,7 @@
 #include <type_traits>
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -343,6 +344,7 @@ Identifier model::Type::name() const {
 }
 
 void Qualifier::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -356,6 +358,8 @@ bool Qualifier::verify(bool Assert) const {
 }
 
 bool Qualifier::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
   switch (Kind()) {
   case QualifierKind::Invalid:
     return VH.fail("Invalid qualifier found", *this);
@@ -597,6 +601,7 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
 }
 
 void EnumEntry::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -625,6 +630,7 @@ std::optional<uint64_t> QualifiedType::trySize() const {
 
 RecursiveCoroutine<std::optional<uint64_t>>
 QualifiedType::size(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   std::optional<uint64_t> MaybeSize = rc_recur trySize(VH);
   revng_check(MaybeSize);
   if (*MaybeSize == 0)
@@ -635,6 +641,7 @@ QualifiedType::size(VerifyHelper &VH) const {
 
 RecursiveCoroutine<std::optional<uint64_t>>
 QualifiedType::trySize(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   // This code assumes that the QualifiedType QT is well formed.
   auto QIt = Qualifiers().begin();
   auto QEnd = Qualifiers().end();
@@ -832,6 +839,7 @@ std::optional<uint64_t> Type::trySize() const {
 }
 
 std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   std::optional<uint64_t> MaybeSize = trySize(VH);
   revng_check(MaybeSize);
   if (*MaybeSize == 0)
@@ -846,6 +854,7 @@ std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
 //       to its little brother as well.
 RecursiveCoroutine<std::optional<uint64_t>>
 Type::trySize(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   auto MaybeSize = VH.size(this);
   if (MaybeSize)
     rc_return MaybeSize;
@@ -923,6 +932,7 @@ Type::trySize(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const PrimitiveType *T) {
+  auto Guard = VH.suspendTracking(*T);
   revng_assert(T->Kind() == TypeKind::PrimitiveType);
 
   if (not T->CustomName().empty() or not T->OriginalName().empty())
@@ -973,6 +983,8 @@ bool Identifier::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const EnumType *T) {
+
+  auto Guard = VH.suspendTracking(*T);
   if (T->Kind() != TypeKind::EnumType or T->Entries().empty()
       or not T->CustomName().verify(VH))
     rc_return VH.fail();
@@ -1002,6 +1014,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const TypedefType *T) {
+  auto Guard = VH.suspendTracking(*T);
   rc_return VH.maybeFail(T->CustomName().verify(VH)
                          and T->Kind() == TypeKind::TypedefType
                          and rc_recur T->UnderlyingType().verify(VH));
@@ -1042,6 +1055,8 @@ bool model::QualifiedType::isScalar() const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const StructType *T) {
+
+  auto Guard = VH.suspendTracking(*T);
   using namespace llvm;
 
   revng_assert(T->Kind() == TypeKind::StructType);
@@ -1118,6 +1133,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const UnionType *T) {
+  auto Guard = VH.suspendTracking(*T);
   revng_assert(T->Kind() == TypeKind::UnionType);
 
   if (not T->CustomName().verify(VH))
@@ -1163,6 +1179,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const CABIFunctionType *T) {
+
+  auto Guard = VH.suspendTracking(*T);
   if (not T->CustomName().verify(VH) or T->Kind() != TypeKind::CABIFunctionType
       or not rc_recur T->ReturnType().verify(VH))
     rc_return VH.fail();
@@ -1269,6 +1287,8 @@ bool Type::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
+
+  auto Guard = VH.suspendTracking(*this);
   if (VH.isVerified(this))
     rc_return true;
 
@@ -1326,6 +1346,7 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
 }
 
 void QualifiedType::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1339,6 +1360,8 @@ bool QualifiedType::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
+
+  auto Guard = VH.suspendTracking(*this);
   if (not UnqualifiedType().isValid())
     rc_return VH.fail("Underlying type is invalid", *this);
 
@@ -1423,6 +1446,7 @@ verifyTypedRegisterCommon(const T &TypedRegister, VerifyHelper &VH) {
 }
 
 void TypedRegister::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1436,10 +1460,12 @@ bool TypedRegister::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> TypedRegister::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   rc_return verifyTypedRegisterCommon(this, VH);
 }
 
 void NamedTypedRegister::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1453,6 +1479,7 @@ bool NamedTypedRegister::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   // Ensure the name is valid
   if (not CustomName().verify(VH))
     rc_return VH.fail();
@@ -1470,6 +1497,7 @@ bool StructField::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   if (not rc_recur Type().verify(VH))
     rc_return VH.fail("Aggregate field type is not valid");
 
@@ -1491,6 +1519,8 @@ bool UnionField::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
+
+  auto Guard = VH.suspendTracking(*this);
   if (not rc_recur Type().verify(VH))
     rc_return VH.fail("Aggregate field type is not valid");
 
@@ -1503,6 +1533,7 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
 }
 
 void Argument::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1516,6 +1547,7 @@ bool Argument::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   rc_return VH.maybeFail(CustomName().verify(VH)
                          and rc_recur Type().verify(VH));
 }

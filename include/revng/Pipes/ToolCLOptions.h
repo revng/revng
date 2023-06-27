@@ -40,9 +40,7 @@ public:
     A1("l",
        llvm::cl::desc("Alias for --load"),
        llvm::cl::aliasopt(llvm::LoadOpt),
-       llvm::cl::cat(Category))
-
-  {}
+       llvm::cl::cat(Category)) {}
 
   llvm::Error overrideModel(revng::FilePath ModelOverride,
                             PipelineManager &Manager) {

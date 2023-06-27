@@ -18,9 +18,10 @@ namespace revng::pipes {
 template<typename... Passes>
 class LLVMAnalysisImplementation {
 public:
-  void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &Container) {
+  void run(const pipeline::ExecutionContext &Ctx,
+           pipeline::LLVMContainer &Container) {
     llvm::legacy::PassManager Manager;
-    registerPasses(Ctx, Manager);
+    registerPasses(Ctx.getContext(), Manager);
     Manager.run(Container.getModule());
   }
 

@@ -13,7 +13,7 @@
 
 namespace revng::pipes {
 
-void AddPrimitiveTypesAnalysis::run(pipeline::Context &Context) {
+void AddPrimitiveTypesAnalysis::run(pipeline::ExecutionContext &Context) {
   model::addPrimitiveTypes(getWritableModelFromContext(Context));
 }
 

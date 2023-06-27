@@ -25,11 +25,6 @@ public:
 
   void appendAllTargets(const pipeline::Context &Ctx,
                         pipeline::TargetsList &Out) const override;
-
-  void
-  getInvalidations(const pipeline::Context &Ctx,
-                   pipeline::TargetsList &ToRemove,
-                   const pipeline::GlobalTupleTreeDiff &Base) const override;
 };
 
 class IsolatedRootKind : public pipeline::LLVMKind {

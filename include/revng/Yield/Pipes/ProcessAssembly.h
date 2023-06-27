@@ -41,7 +41,7 @@ public:
   }
 
 public:
-  void run(pipeline::Context &Context,
+  void run(pipeline::ExecutionContext &Context,
            const BinaryFileContainer &SourceBinary,
            const pipeline::LLVMContainer &TargetsList,
            FunctionAssemblyStringMap &OutputAssembly);

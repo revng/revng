@@ -58,7 +58,7 @@ public:
   }
 
 public:
-  void run(pipeline::Context &Context,
+  void run(pipeline::ExecutionContext &Context,
            const FunctionAssemblyStringMap &Input,
            FunctionControlFlowStringMap &Output);
 

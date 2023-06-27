@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
   AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
 
-  InvalidationMap InvMap;
+  TargetInStepSet InvMap;
   for (auto &AnalysesListName : AnalysesLists) {
     if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
       AbortOnError(createStringError(inconvertibleErrorCode(),

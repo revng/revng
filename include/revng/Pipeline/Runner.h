@@ -73,9 +73,9 @@ public:
   const KindsRegistry &getKindsRegistry() const;
 
   llvm::Error apply(const GlobalTupleTreeDiff &Diff,
-                    pipeline::InvalidationMap &Map);
+                    pipeline::TargetInStepSet &Map);
   void getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
-                            pipeline::InvalidationMap &Out) const;
+                            pipeline::TargetInStepSet &Out) const;
 
 public:
   Step &operator[](llvm::StringRef Name) { return getStep(Name); }
@@ -127,11 +127,11 @@ public:
   /// every step will be registered in the returned invalidation map. The
   /// propagations will not be calculated.
   llvm::Error getInvalidations(const Target &Target,
-                               pipeline::InvalidationMap &Invalidations) const;
+                               pipeline::TargetInStepSet &Invalidations) const;
 
   /// Deduces and register in the invalidation map all the targets that have
   /// been produced starting from targets already presents in the map.
-  llvm::Error getInvalidations(pipeline::InvalidationMap &Invalidated) const;
+  llvm::Error getInvalidations(pipeline::TargetInStepSet &Invalidated) const;
 
 public:
   template<typename... PipeWrappers>
@@ -141,12 +141,14 @@ public:
                     PipeWrappers &&...Wrappers) {
     IsContainerFactoriesRegistryFinalized = true;
     if (PreviousStepName.empty())
-      return addStep(Step(StepName.str(),
+      return addStep(Step(*TheContext,
+                          StepName.str(),
                           Component.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           std::forward<PipeWrappers>(Wrappers)...));
     else
-      return addStep(Step(StepName.str(),
+      return addStep(Step(*TheContext,
+                          StepName.str(),
                           Component.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           operator[](PreviousStepName),
@@ -173,12 +175,12 @@ public:
   runAnalysis(llvm::StringRef AnalysisName,
               llvm::StringRef StepName,
               const ContainerToTargetsMap &Targets,
-              pipeline::InvalidationMap &InvalidationsMap,
+              pipeline::TargetInStepSet &InvalidationsMap,
               const llvm::StringMap<std::string> &Options = {});
 
   llvm::Expected<DiffMap>
   runAnalyses(const AnalysesList &List,
-              pipeline::InvalidationMap &InvalidationsMap,
+              pipeline::TargetInStepSet &InvalidationsMap,
               const llvm::StringMap<std::string> &Options = {});
 
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
@@ -203,7 +205,7 @@ public:
   /// Remove the provided target from all containers in all the steps, as well
   /// as all all their transitive dependencies
   llvm::Error invalidate(const Target &Target);
-  llvm::Error invalidate(const pipeline::InvalidationMap &Invalidations);
+  llvm::Error invalidate(const pipeline::TargetInStepSet &Invalidations);
 
 public:
   llvm::Error store(const revng::DirectoryPath &DirPath) const;

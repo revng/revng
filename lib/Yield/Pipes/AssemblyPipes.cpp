@@ -24,7 +24,7 @@ using ptml::PTMLBuilder;
 
 namespace revng::pipes {
 
-void ProcessAssembly::run(pipeline::Context &Context,
+void ProcessAssembly::run(pipeline::ExecutionContext &Context,
                           const BinaryFileContainer &SourceBinary,
                           const pipeline::LLVMContainer &TargetList,
                           FunctionAssemblyStringMap &Output) {
@@ -65,7 +65,7 @@ void ProcessAssembly::print(const pipeline::Context &,
   OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
-void YieldAssembly::run(pipeline::Context &Context,
+void YieldAssembly::run(pipeline::ExecutionContext &Context,
                         const FunctionAssemblyStringMap &Input,
                         FunctionAssemblyPTMLStringMap &Output) {
   // Access the model

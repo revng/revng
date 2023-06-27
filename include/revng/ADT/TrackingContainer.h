@@ -57,7 +57,7 @@ public:
 
 private:
   T Content;
-  mutable AccessTracker Exact;
+  mutable AccessTracker Exact = AccessTracker(false);
   mutable std::vector<TrackingSet> NonExisting;
   mutable std::vector<llvm::BitVector> Existing;
 

@@ -5,9 +5,12 @@
 //
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
@@ -15,6 +18,7 @@
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/OverflowSafeInt.h"
+#include "revng/TupleTree/Tracking.h"
 
 using namespace llvm;
 
@@ -78,6 +82,7 @@ bool Binary::verifyTypes(bool Assert) const {
 }
 
 bool Binary::verifyTypes(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   // All types on their own should verify
   std::set<Identifier> Names;
   for (auto &Type : Types()) {
@@ -95,10 +100,13 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
 }
 
 void Binary::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
 void Binary::dumpTypeGraph(const char *Path) const {
+  TrackGuard Guard(*this);
+
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
   if (EC)
@@ -109,6 +117,7 @@ void Binary::dumpTypeGraph(const char *Path) const {
 }
 
 std::string Binary::toString() const {
+  TrackGuard Guard(*this);
   std::string S;
   llvm::raw_string_ostream OS(S);
   serialize(OS, *this);
@@ -152,6 +161,8 @@ bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
 
 static bool verifyGlobalNamespace(VerifyHelper &VH,
                                   const model::Binary &Model) {
+
+  auto Guard = VH.suspendTracking(Model);
   // Namespacing rules:
   //
   // 1. each struct/union induces a namespace for its field names;
@@ -197,6 +208,8 @@ static bool verifyGlobalNamespace(VerifyHelper &VH,
 bool Binary::verify(VerifyHelper &VH) const {
   // First of all, verify the global namespace: we need to fully populate it
   // before we can verify namespaces with smaller scopes
+
+  auto Guard = VH.suspendTracking(*this);
   if (not verifyGlobalNamespace(VH, *this))
     return VH.fail();
 
@@ -282,6 +295,8 @@ bool Relocation::verify(bool Assert) const {
 }
 
 bool Relocation::verify(VerifyHelper &VH) const {
+
+  auto Guard = VH.suspendTracking(*this);
   if (Type() == model::RelocationType::Invalid)
     return VH.fail("Invalid relocation", *this);
 
@@ -298,6 +313,7 @@ bool Section::verify(bool Assert) const {
 }
 
 bool Section::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   auto EndAddress = StartAddress() + Size();
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow");
@@ -318,6 +334,7 @@ Identifier Segment::name() const {
 }
 
 void Segment::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -331,6 +348,7 @@ bool Segment::verify(bool Assert) const {
 }
 
 bool Segment::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   using OverflowSafeInt = OverflowSafeInt<uint64_t>;
 
   if (FileSize() > VirtualSize())
@@ -394,10 +412,12 @@ bool Segment::verify(VerifyHelper &VH) const {
 }
 
 void Function::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
 void Function::dumpTypeGraph(const char *Path) const {
+  TrackGuard Guard(*this);
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
   if (EC)
@@ -417,6 +437,7 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   if (not Entry().isValid())
     return VH.fail("Invalid Entry", *this);
 
@@ -459,6 +480,7 @@ bool Function::verify(VerifyHelper &VH) const {
 }
 
 void DynamicFunction::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -472,6 +494,7 @@ bool DynamicFunction::verify(bool Assert) const {
 }
 
 bool DynamicFunction::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   // Ensure we have a name
   if (OriginalName().size() == 0)
     return VH.fail("Dynamic functions must have a OriginalName", *this);
@@ -501,6 +524,7 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 }
 
 void CallSitePrototype::dump() const {
+  TrackGuard Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -514,6 +538,7 @@ bool CallSitePrototype::verify(bool Assert) const {
 }
 
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   if (Prototype().empty() or not Prototype().isValid())
     return VH.fail("Invalid prototype");
 

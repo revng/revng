@@ -16,15 +16,23 @@ namespace revng {
 ///
 class AccessTracker {
 private:
-  uint8_t Counter = 0;
+  std::uint8_t Counter = 0;
+  bool IsTracking;
+
+public:
+  AccessTracker(bool StartsActive) { IsTracking = StartsActive; }
 
 public:
   bool operator==(const AccessTracker &Other) const = default;
 
   bool operator!=(const AccessTracker &Other) const = default;
 
-  void clear() { Counter &= ~0x1; }
-  void access() { Counter |= 0x1; }
+public:
+  void clear() {
+    Counter &= ~0x1;
+    IsTracking = true;
+  }
+  void access() { Counter |= (0x1 & IsTracking); }
   void push() {
     revng_assert(llvm::countLeadingZeros(Counter) != 0,
                  "More than 8 pushes have been performed");
@@ -34,6 +42,7 @@ public:
   bool front() const { return (Counter & 0x1) == 0; }
   bool peak() const { return Counter & 0x1; }
   bool isSet() const { return Counter; }
+  void stopTracking() { IsTracking = false; }
 };
 
 } // namespace revng

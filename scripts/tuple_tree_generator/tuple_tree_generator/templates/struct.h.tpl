@@ -39,6 +39,7 @@ struct /*= struct | fullname =*/
 {
   /** if emit_tracking -**/
   friend struct revng::Tracking;
+  inline static constexpr bool HasTracking = true;
   /**- endif **/
 
   /** if struct.inherits **/
@@ -57,7 +58,7 @@ private:
   static_assert(Yamlizable</*= field | field_type =*/>);
 
   /**- if emit_tracking **/
-  mutable revng::AccessTracker /*= field.name =*/Tracker;
+  mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
   /** endif -**/
 
 public:

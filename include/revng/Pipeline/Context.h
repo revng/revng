@@ -17,6 +17,7 @@
 
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/GlobalsMap.h"
 #include "revng/Pipeline/KindsRegistry.h"
@@ -126,6 +127,16 @@ public:
 public:
   llvm::Error store(const revng::DirectoryPath &Path) const;
   llvm::Error load(const revng::DirectoryPath &Path);
-};
 
+public:
+  void collectReadFields(const TargetInContainer &Target,
+                         llvm::StringMap<PathTargetBimap> &Out) const {
+    Globals.collectReadFields(Target, Out);
+  }
+
+  void clearAndResume() const { Globals.clearAndResume(); }
+  void pushReadFields() const { Globals.pushReadFields(); }
+  void popReadFields() const { Globals.popReadFields(); }
+  void stopTracking() const { Globals.stopTracking(); }
+};
 } // namespace pipeline

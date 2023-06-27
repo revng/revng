@@ -20,8 +20,8 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
-#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/Invokable.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
@@ -54,6 +54,8 @@ constexpr bool checkPipe(auto (C::*)(First, Rest...))
 template<typename PipeType>
 class PipeWrapperImpl;
 
+// TODO: Rename, there are 3 layers of wrappers around a pipe and they are
+// getting confusing
 class PipeWrapperBase : public InvokableWrapperBase {
 public:
   template<typename PipeType>
@@ -173,7 +175,7 @@ public:
     Invokable.print(Ctx, OS, Indentation);
   }
 
-  llvm::Error run(Context &Ctx,
+  llvm::Error run(ExecutionContext &Ctx,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &ExtraArgs) override {
     return Invokable.run(Ctx, Containers, ExtraArgs);
@@ -198,6 +200,94 @@ public:
 
 } // namespace detail
 
-using PipeWrapper = InvokableWrapper<detail::PipeWrapperBase>;
+// Due to invokable wrapper not being controllable by this file we need to have
+// a extra wrapper that carries along the invalidation metadata too.
+struct PipeWrapper {
+
+  class InvalidationMetadata {
+  private:
+    llvm::StringMap<PathTargetBimap> PathCache;
+
+  public:
+    void registerTargetsDependingOn(const Context &Ctx,
+                                    llvm::StringRef GlobalName,
+                                    const TupleTreePath &Path,
+                                    ContainerToTargetsMap &Out) const {
+      if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
+
+        auto &Bimap = Iter->second;
+        auto It = Bimap.find(Path);
+        if (It == Bimap.end())
+          return;
+
+        for (const auto &Entry : It->second)
+          Out.add(Entry.getContainerName(), Entry.getTarget());
+      }
+    }
+
+    void remove(const ContainerToTargetsMap &Map) {
+      for (auto &Pair : Map) {
+        auto Iter = PathCache.find(Pair.first());
+        if (Iter == PathCache.end())
+          continue;
+
+        Iter->second.remove(Pair.second, Pair.first());
+      }
+    }
+
+    bool contains(llvm::StringRef GlobalName,
+                  const TargetInContainer &Target) const {
+      if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end())
+        return Iter->second.contains(Target);
+      return false;
+    }
+
+    const llvm::StringMap<PathTargetBimap> &getPathCache() const {
+      return PathCache;
+    }
+    llvm::StringMap<PathTargetBimap> &getPathCache() { return PathCache; }
+
+    const PathTargetBimap &getPathCache(llvm::StringRef GlobalName) const {
+      revng_assert(PathCache.find(GlobalName) != PathCache.end());
+      return PathCache.find(GlobalName)->second;
+    }
+    PathTargetBimap &getPathCache(llvm::StringRef GlobalName) {
+      return PathCache[GlobalName];
+    }
+  };
+
+public:
+  using WrapperType = InvokableWrapper<detail::PipeWrapperBase>;
+  WrapperType Pipe;
+  InvalidationMetadata InvalidationMetadata;
+
+  template<typename PipeType>
+  static PipeWrapper
+  make(PipeType Pipe, std::vector<std::string> RunningContainersNames) {
+    return WrapperType::make<PipeType>(Pipe, std::move(RunningContainersNames));
+  }
+
+  template<typename PipeType>
+  static PipeWrapper make(std::vector<std::string> RunningContainersNames) {
+    return WrapperType::make<PipeType>(std::move(RunningContainersNames));
+  }
+
+  PipeWrapper(const InvokableWrapper<detail::PipeWrapperBase> &Other) :
+    Pipe(Other) {}
+
+  PipeWrapper(const PipeWrapper &Other,
+              std::vector<std::string> RunningContainersNames) :
+    Pipe(Other.Pipe, RunningContainersNames) {}
+
+  template<typename PipeType, typename... ContainerNames>
+  static PipeWrapper bind(ContainerNames &&...Names) {
+    return WrapperType::bind<PipeType, ContainerNames...>(Names...);
+  }
+
+  template<typename PipeType, typename... ContainerNames>
+  static PipeWrapper bind(PipeType &&E, ContainerNames &&...Names) {
+    return WrapperType::bind<PipeType, ContainerNames...>(E, Names...);
+  }
+};
 
 } // namespace pipeline
