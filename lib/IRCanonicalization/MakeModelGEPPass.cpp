@@ -403,7 +403,7 @@ public:
       I.dump(OS);
     }
 
-    OS << "}\n";
+    OS << "}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -497,7 +497,7 @@ public:
     BaseAddress.dump(OS);
     OS << "\nSummation: {\n";
     Summation.dump(OS);
-    OS << "}\n}";
+    OS << "\n}\n}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -849,10 +849,10 @@ public:
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "DifferenceScore { .Mismatch = " << print(Mismatch)
+    OS << "DifferenceScore { Mismatch = " << print(Mismatch)
        << "\nUnmatchedIR = ";
     UnmatchedIR.dump(OS);
-    OS << "\n.Depth = " << Depth << "\n}";
+    OS << "\nDepth = " << Depth << "\n}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
