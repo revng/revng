@@ -720,18 +720,17 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
   // Traverse the model to decide whether to emit "." or "[]"
   for (; CurArg != Call->arg_end(); ++CurArg) {
+
     CurType = flattenTypedefsIgnoringConst(CurType);
+    auto &Qualifiers = CurType.Qualifiers();
 
-    model::Qualifier *MainQualifier = nullptr;
-    if (CurType.Qualifiers().size() > 0)
-      MainQualifier = &CurType.Qualifiers().front();
-
-    if (MainQualifier) {
+    if (not Qualifiers.empty()) {
       // If it's an array or a pointer, add "[]"
 
-      // We shouldn't be going past pointers in a single ModelGEP except on top
-      // level expressions.
-      revng_assert(model::Qualifier::isArray(*MainQualifier));
+      // Get the ArrayQualifier out, and drop it.
+      model::Qualifier ArrayQualifier = Qualifiers.front();
+      revng_assert(model::Qualifier::isArray(ArrayQualifier));
+      Qualifiers.erase(Qualifiers.begin());
 
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
@@ -741,10 +740,6 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       }
 
       CurExpr += "[" + IndexExpr + "]";
-      // Remove the qualifier we just analysed
-      auto RemainingQualifiers = llvm::drop_begin(CurType.Qualifiers(), 1);
-      CurType.Qualifiers() = { RemainingQualifiers.begin(),
-                               RemainingQualifiers.end() };
     } else {
       // If it's a struct or union, we can only navigate it with fixed
       // indexes.
@@ -768,8 +763,8 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
         CurType = Union->Fields().at(FieldIdx).Type();
 
       } else {
-        revng_abort("Unexpected ModelGEP type found: ");
         CurType.dump();
+        revng_abort("Unexpected ModelGEP type found: ");
       }
     }
 
