@@ -600,7 +600,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
 static RecursiveCoroutine<QualifiedType>
 flattenTypedefsIgnoringConst(const QualifiedType &QT) {
   QualifiedType Result = peelConstAndTypedefs(QT);
-  if (auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst())) {
+  if (auto *TD = dyn_cast<TypedefType>(Result.UnqualifiedType().getConst())) {
     auto &Underlying = TD->UnderlyingType();
     QualifiedType Nested = rc_recur flattenTypedefsIgnoringConst(Underlying);
     Result.UnqualifiedType() = Nested.UnqualifiedType();
