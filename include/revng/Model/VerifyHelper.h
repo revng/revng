@@ -28,6 +28,9 @@ private:
   std::map<const model::Type *, uint64_t> AlignmentCache;
   std::set<const model::Type *> InProgress;
   bool AssertOnFail = false;
+  // TODO: This is a hack for now, but the methods, when the Model does not
+  // verify, should return an llvm::Error with the error message found by this.
+  std::string ReasonBuffer;
 
 public:
   VerifyHelper() = default;
@@ -44,6 +47,8 @@ public:
   bool isVerified(const model::Type *T) const {
     return VerifiedCache.contains(T);
   }
+
+  const std::string &getReason() const { return ReasonBuffer; }
 
 public:
   bool isVerificationInProgress(const model::Type *T) const {
@@ -101,19 +106,18 @@ public:
   }
 
   template<typename T>
-  bool maybeFail(bool Result, const llvm::Twine &Reason, T &Element) const {
+  bool maybeFail(bool Result, const llvm::Twine &Reason, T &Element) {
     if (not Result) {
-      std::string Buffer;
       {
-        llvm::raw_string_ostream StringStream(Buffer);
+        llvm::raw_string_ostream StringStream(ReasonBuffer);
         StringStream << Reason << "\n";
         serialize(StringStream, const_cast<std::remove_const_t<T> &>(Element));
       }
 
       if (AssertOnFail) {
-        revng_abort(Buffer.c_str());
+        revng_abort(ReasonBuffer.c_str());
       } else {
-        revng_log(ModelVerifyLogger, Buffer);
+        revng_log(ModelVerifyLogger, ReasonBuffer);
       }
     }
 
@@ -126,7 +130,7 @@ public:
   }
 
   template<typename T>
-  bool fail(const llvm::Twine &Reason, T &Element) const {
+  bool fail(const llvm::Twine &Reason, T &Element) {
     return maybeFail(false, Reason, Element);
   }
 };
