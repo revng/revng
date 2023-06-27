@@ -37,7 +37,6 @@ Branches:
               - instcombine
               - early-cse
               - dce
-              - restore-extractvalues
               - strip-dead-prototypes
               - split-overflow-intrinsics
       - Name: MakeSegmentRefs
