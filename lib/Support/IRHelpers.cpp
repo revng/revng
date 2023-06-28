@@ -55,7 +55,7 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
       ExtractValues.insert(ExtractV);
     } else {
       if (auto *Call = dyn_cast<llvm::CallInst>(TheUser)) {
-        if (not isCallToTagged(Call, FunctionTags::Marker))
+        if (not isCallToTagged(Call, FunctionTags::Parentheses))
           continue;
       }
 
@@ -74,7 +74,7 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
             if (auto *ExtractV = llvm::dyn_cast<llvm::ExtractValueInst>(User)) {
               ExtractValues.insert(ExtractV);
             } else if (auto *IdentUser = llvm::dyn_cast<llvm::CallInst>(User)) {
-              if (FunctionTags::Marker.isTagOf(IdentUser->getCalledFunction()))
+              if (isCallToTagged(IdentUser, FunctionTags::Parentheses))
                 NextToVisit.insert(IdentUser);
             } else if (auto *PHIUser = llvm::dyn_cast<llvm::PHINode>(User)) {
               if (not Visited.count(PHIUser))

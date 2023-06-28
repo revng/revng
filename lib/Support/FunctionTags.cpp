@@ -154,7 +154,7 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::Parentheses, &FunctionTags::Marker });
+  Pool.setTags({ &FunctionTags::Parentheses });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::Parentheses);

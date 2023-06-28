@@ -447,6 +447,12 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         auto Segment = Model.Segments().at({ StartAddress, VirtualSize });
 
         ReturnTypes.push_back(Segment.Type());
+
+      } else if (FTags.contains(FunctionTags::Parentheses)) {
+        const llvm::Value *Op = Call->getArgOperand(0);
+        if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(Op))
+          ReturnTypes = rc_recur getStrongModelInfo(Cache, OriginalInst, Model);
+
       } else if (FuncName.startswith("revng_stack_frame")) {
         // Retrieve the stack frame type
         auto &StackType = ParentFunc()->StackFrameType();
@@ -460,11 +466,6 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
     }
   } else if (auto *EV = llvm::dyn_cast<llvm::ExtractValueInst>(Inst)) {
     const llvm::Value *AggregateOp = EV->getAggregateOperand();
-
-    // Transparently traverse markers backwards to find the original source of
-    // the aggregate value
-    while (auto *Call = getCallToTagged(AggregateOp, FunctionTags::Marker))
-      AggregateOp = Call->getArgOperand(0);
 
     if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(AggregateOp))
       rc_return rc_recur getStrongModelInfo(Cache, OriginalInst, Model);
