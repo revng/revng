@@ -379,6 +379,9 @@ void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Don't optimize these calls
   Pool.addFnAttribute(llvm::Attribute::OptimizeNone);
   Pool.addFnAttribute(llvm::Attribute::NoInline);
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.setMemoryEffects(llvm::MemoryEffects::inaccessibleOrArgMemOnly());
 
   const auto &EVTag = FunctionTags::OpaqueExtractValue;
   Pool.setTags({ &EVTag });
