@@ -30,7 +30,7 @@ class MetaAddressType(Enum):
 
 @dataclass
 class MetaAddress:
-    Address: int
+    Address: int = field(default=0)
     Type: MetaAddressType = field(default=MetaAddressType.Invalid)
     Epoch: int = field(default=0)
     AddressSpace: int = field(default=0)

@@ -5,7 +5,7 @@
 import sys
 from collections.abc import MutableSequence
 from dataclasses import dataclass, fields
-from enum import Enum
+from enum import Enum, EnumType
 from functools import lru_cache
 from typing import Any, Callable, Dict, Generic, List, Type, TypeVar, get_args, get_origin
 from typing import get_type_hints
@@ -127,7 +127,9 @@ class StructBase:
         mapping_to_dump = {}
         for field in fields(cls):
             field_val = instance.__getattribute__(field.name)
-            if _field_is_optional(field) and (field_val is None or field_val == []):
+            if _field_is_default(field, field_val) or (
+                isinstance(field, Reference) and not field.is_valid()
+            ):
                 continue
             mapping_to_dump[field.name] = field_val
         return dumper.represent_dict(mapping_to_dump)
@@ -174,7 +176,16 @@ class AbstractStructBase(StructBase):
         return super().from_dict(**kwargs)
 
 
-class EnumBase(Enum):
+class DefaultEnumType(EnumType):
+    default = object()
+
+    def __call__(cls, value=default, *args, **kwargs):  # noqa: N805
+        if value is DefaultEnumType.default:
+            return cls.Invalid
+        return super().__call__(value, *args, **kwargs)
+
+
+class EnumBase(Enum, metaclass=DefaultEnumType):
     @classmethod
     def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance: Enum):
         return dumper.represent_str(instance.name)
@@ -205,21 +216,35 @@ class Reference(Generic[_PointedType, _RootType]):
 
     @classmethod
     def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance: "Reference"):
-        return dumper.represent_str(repr(instance))
+        return dumper.represent_str(instance._ref_str)
 
     def __repr__(self):
+        if self._ref_str == "":
+            return "<Invalid Reference>"
         return self._ref_str
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return self._ref_str == other._ref_str and self.referenced_obj == other.referenced_obj
+
+    def is_valid(self):
+        return self._ref_str != ""
 
 
 def init_reference_yaml_classes(_: Type[yaml.Loader], dumper: Type[yaml.Dumper]):
     dumper.add_representer(Reference, Reference.yaml_representer)
 
 
-def _field_is_optional(field):
+def _field_is_default(field, value):
     field_metadata = field.metadata
     if field_metadata is None:
         return False
-    return field_metadata.get("optional", False)
+    is_optional = field_metadata.get("optional", False)
+    if not is_optional:
+        return False
+    factory = field_metadata["default_value"]
+    return value == factory()
 
 
 class YamlLoader(Loader):
@@ -285,6 +310,12 @@ class TypedList(MutableSequence):
 
     def __str__(self):
         return str(self._data)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self._base_class == other._base_class and self._data == other._data
+        else:
+            return self._data == other
 
 
 YamlDumper.add_representer(TypedList, TypedList.yaml_representer)

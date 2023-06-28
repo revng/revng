@@ -3,10 +3,11 @@
  */
 /* eslint-disable @typescript-eslint/naming-convention */
 
-import * as yaml from "yaml"
-import { yamlParseOptions, yamlOutParseOptions, yamlToStringOptions } from "./tuple_tree"
-import { _getElementByPath, _setElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, IReference, Reference, TupleTreeType } from "./tuple_tree"
-export { DiffSet, IReference, Reference }
+import * as yaml from "yaml";
+import { deepEqual } from "fast-equals";
+import { yamlParseOptions, yamlOutParseOptions, yamlToStringOptions } from "./tuple_tree";
+import { _getElementByPath, _setElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, IReference, Reference, TupleTreeType } from "./tuple_tree";
+export { DiffSet, IReference, Reference };
 
 {% for file_name in external_files %}
 {{ file_name | read_file }}
@@ -47,12 +48,16 @@ export class {{ type_name }} {
         return this.str;
     }
 
-    static parse(str?: string): {{ type_name }} | undefined {
-        if(str !== undefined) {
-            return new Identifier(str);
+    equals(other: unknown): boolean {
+        if (other instanceof {{ type_name}}) {
+            return this.str == other.str;
         } else {
-            return undefined;
+            return false;
         }
+    }
+
+    static parse(str?: string): {{ type_name }} {
+        return new {{ type_name }}(str || "");
     }
 }
 {% endfor %}
@@ -60,6 +65,7 @@ export class {{ type_name }} {
 {% for enum in enums %}
 {{ enum.doc | ts_doc }}
 export const {{enum.name}}Values = [
+    "Invalid",
     {%- for member in enum.members %}
         {%- if member.doc %}
         {{ member.doc | ts_doc }}
@@ -78,7 +84,7 @@ export interface I{{class_.name}} {% if class_.inherits %} extends I{{class_.inh
     {%- if field.doc %}
     {{ field.doc | ts_doc }}
     {%- endif %}
-    {{field.name}}{{'?' if field.optional or field.is_guid else ''}}: {{field | ts_itype }}
+    {{field.name}}{{'?' if is_optional(field) else ''}}: {{field | ts_itype }}
     {%- endfor %}
 }
 
@@ -93,11 +99,11 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
     {%- if field.doc %}
     {{ field.doc | ts_doc }}
     {%- endif %}
-    {{field.name}}{{'?' if field.optional else ''}}: {{ field | ts_type }}
+    {{field.name}}: {{ field | ts_type }}
     {%- endfor %}
 
     constructor(
-        rawObject: I{{class_.name}}
+        rawObject{{ '?' if completely_optional(class_) else '' }}: I{{class_.name}}
         {%- if class_ | get_guid %}
         ,genGuid: (rawObject: I{{class_.name}}) => {{ class_ | get_guid | ts_type }}) {
             if (rawObject.{{class_ | get_guid | get_attr('name') }} === undefined) {
@@ -105,6 +111,11 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
             }
         {%- else %}
         ) {
+        {%- endif %}
+        {%- if completely_optional(class_) %}
+        if (rawObject === undefined) {
+            rawObject = {};
+        }
         {%- endif %}
         {%- if class_.inherits %}
         {%- if class_.inherits | get_guid %}
@@ -125,6 +136,8 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
         case "{{child.name}}":
             return new {{child.name}}(rawObject as I{{child.name}});
         {%- endfor %}
+        case "Invalid":
+            throw new Error("Invalid Kind")
         }
     }
 
@@ -139,6 +152,20 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
         return {{ class_ | gen_key }};
     }
     {% endif %}
+
+    public toJSON(): I{{ class_.name }} {
+        const result = {{ "super.toJSON()" if class_.inherits else "{}" }};
+        {%- for field in class_.fields %}
+        {%- if is_optional(field) %}
+        if (!deepEqual(this.{{ field.name }}, {{ default_value(field) }})) {
+            result["{{ field.name }}"] = this.{{ field.name }};
+        }
+        {%- else %}
+        result["{{ field.name }}"] = this.{{ field.name }};
+        {%- endif %}
+        {%- endfor %}
+        return result as I{{ class_.name }};
+    }
 }
 {% endfor %}
 

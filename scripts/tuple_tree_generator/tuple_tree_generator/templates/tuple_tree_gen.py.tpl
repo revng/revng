@@ -77,6 +77,8 @@ class 'struct.name'(
     = field(default_factory=random_id)
     ##- elif field is sequence_field -##
     = field(default_factory=typedlist_factory('field | python_type'))
+    ##- elif field is reference_field -##
+    = field(default_factory=lambda: Reference(""))
     ##- elif struct.inherits -##
     = field(default=no_default)
     ##- endif ##
@@ -88,14 +90,14 @@ class 'struct.name'(
     '-field.doc | docstring'
     ## endif ##
     '-field.name': "'field | python_type'" = field(
-        metadata={"optional": True},
+        metadata={"optional": True, "default_value": lambda: '- field | default_value '},
         ## if field.is_guid ##default_factory=random_id,## endif ##
         ## if field is simple_field ##
-        default=None
+        default_factory=lambda: '- field | default_value '
         ## elif field is sequence_field ##
         default_factory=typedlist_factory('field | python_type')
         ## elif field is reference_field ##
-        default=None
+        default_factory=lambda: Reference("")
         ## endif ##
     )
     ##- endfor ##

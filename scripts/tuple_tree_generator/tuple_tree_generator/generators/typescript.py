@@ -2,18 +2,16 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import re
 from pathlib import Path
 from typing import List, Optional
 
 from jinja2 import Environment
 from markupsafe import Markup
 
-from ..schema import ReferenceDefinition, ScalarDefinition, Schema, SequenceDefinition
-from ..schema import StructDefinition, StructField, UpcastableDefinition
-from .jinja_utils import loader
-
-int_re = re.compile(r"(u)?int(8|16|32|64)_t")
+from ..schema import EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
+from ..schema import SequenceDefinition, StructDefinition, StructField, UpcastableDefinition
+from ..schema.struct import SimpleStructField
+from .jinja_utils import int_re, loader
 
 BUILTINS = ["string", "boolean", "bigint"]
 BUILTINS_CLASSES = {"string": "String", "boolean": "Boolean", "bigint": "BigIntBuilder"}
@@ -37,6 +35,9 @@ class TypeScriptGenerator:
         self.global_name = global_name
         self.jinja_environment = Environment(loader=loader)
         self.jinja_environment.globals["load_file"] = self.load_file
+        self.jinja_environment.globals["is_optional"] = self.is_optional
+        self.jinja_environment.globals["completely_optional"] = self.completely_optional
+        self.jinja_environment.globals["default_value"] = self.get_default_value
         self.jinja_environment.filters["read_file"] = self.read_file
         self.jinja_environment.filters["ts_doc"] = self.ts_doc
         self.jinja_environment.filters["ts_type"] = self.ts_type
@@ -129,7 +130,9 @@ class TypeScriptGenerator:
 
     def gen_assignment(self, field: StructField) -> str:
         if self._is_simple_type(field):
-            return f"this.{field.name} = rawObject.{field.name};"
+            result = f"this.{field.name} = rawObject.{field.name}"
+            opt = f"|| {self.get_default_value(field)}" if field.optional else ""
+            return f"{result}{opt};"
         if isinstance(field.resolved_type, ReferenceDefinition):
             pointee_type = field.resolved_type.pointee.name
             root_type = field.resolved_type.root.name
@@ -141,23 +144,39 @@ class TypeScriptGenerator:
             is_sequence = isinstance(field.resolved_type, SequenceDefinition)
             ftype = self._real_type(field)
             name = field.name
-            opt = "?" if field.optional else ""
             if self._is_class_type(field, True):
                 if is_sequence:
-                    return f"this.{name} = rawObject.{name}{opt}.map(e => new {ftype}(e));"
+                    return f"this.{name} = (rawObject.{name} || []).map(e => new {ftype}(e));"
                 else:
-                    element = f"rawObject.{name}"
-                    if field.optional:
-                        ctor = f"{element} !== undefined ? new {ftype}({element}) : undefined"
-                    else:
-                        ctor = f"new {ftype}({element})"
-                    return f"this.{name} = {ctor};"
+                    return f"this.{name} = new {ftype}(rawObject.{name});"
             else:
                 if is_sequence:
-                    return f"this.{name} = rawObject.{name}{opt}.map(e => {ftype}.parse(e));"
+                    return f"this.{name} = (rawObject.{name} || []).map(e => {ftype}.parse(e));"
                 else:
                     return f"this.{name} = {ftype}.parse(rawObject.{name});"
         raise ValueError(field.name)
+
+    def get_default_value(self, field: StructField):
+        if isinstance(field.resolved_type, SequenceDefinition):
+            return "[]"
+        elif isinstance(field.resolved_type, ReferenceDefinition):
+            return 'new Reference("")'
+        elif isinstance(field, SimpleStructField):
+            if field.type == "string":
+                return '""'
+            elif field.type in self.string_types:
+                return f'new {field.type}("")'
+            elif field.type == "bool":
+                return "false"
+            elif int_re.match(field.type):
+                return "0n"
+            else:
+                if isinstance(field.resolved_type, EnumDefinition):
+                    return '"Invalid"'
+                else:
+                    return f"new {field.type}()"
+        else:
+            raise ValueError()
 
     @staticmethod
     def gen_key(struct: StructDefinition) -> str:
@@ -246,3 +265,13 @@ class TypeScriptGenerator:
             + f"optional: {'true' if field.optional else 'false'}, "
             + f"isArray: {'true' if is_sequence else 'false'}}}"
         )
+
+    @staticmethod
+    def is_optional(field: StructField):
+        return (
+            field.optional or field.is_guid or isinstance(field.resolved_type, ReferenceDefinition)
+        )
+
+    @classmethod
+    def completely_optional(cls, class_: StructDefinition):
+        return all(cls.is_optional(f) for f in class_.fields)

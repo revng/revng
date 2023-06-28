@@ -8,6 +8,7 @@
     "types": "dist/model.d.ts",
     "files": ["/dist"],
     "dependencies": {
+        "fast-equals": "^5",
         "yaml": "^2"
     }
 }

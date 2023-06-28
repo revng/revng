@@ -3,6 +3,7 @@
     "__license": "See LICENSE.md for details.",
     "dependencies": {
         "@types/node": ">=17",
+        "fast-equals": "^5",
         "prettier": "^2.6",
         "typescript": "^4.6",
         "yaml": "^2"

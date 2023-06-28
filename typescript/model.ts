@@ -129,6 +129,14 @@ export class MetaAddress {
     toJSON(): string {
         return this.toString();
     }
+
+    equals(other: unknown): boolean {
+        if (other instanceof MetaAddress) {
+            return this.toString() == other.toString();
+        } else {
+            return false;
+        }
+    }
 }
 
 export function genPrimitiveTypeGuid(rawObject: IType): bigint {

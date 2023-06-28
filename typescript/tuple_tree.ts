@@ -35,20 +35,28 @@ export class Reference<T, M> {
         this.reference = ref;
     }
 
-    toJSON(): string | undefined {
+    toJSON(): string {
         return this.reference;
+    }
+
+    equals(other: unknown): boolean {
+        if (other instanceof Reference<T, M>) {
+            return this.reference == other.reference;
+        } else {
+            return false;
+        }
     }
 
     resolve(root: M): T {
         return _getElementByPath<T>(this.reference, root)!;
     }
 
-    static parse<T, M>(ref?: string): Reference<T, M> | undefined {
-        if (ref !== undefined) {
-            return new Reference(ref);
-        } else {
-            return undefined;
-        }
+    isValid(): boolean {
+        return this.reference !== "";
+    }
+
+    static parse<T, M>(ref?: string): Reference<T, M> {
+        return new Reference(ref || "");
     }
 }
 
@@ -311,8 +319,8 @@ function setComm<T>(set1: Set<T>, set2: Set<T>): Comm<T> {
     return { only1: only1, only2: only2, common: common };
 }
 
-function hasCustomJson(obj: any): obj is { toJSON: () => any } {
-    return typeof obj === "object" && "toJSON" in obj && typeof obj.toJSON === "function";
+function hasEquals(obj: any): obj is { equals: (other: unknown) => boolean } {
+    return typeof obj === "object" && typeof obj?.equals === "function";
 }
 
 function isNativeType(obj: any): obj is string | bigint | boolean {
@@ -407,8 +415,8 @@ export function makeDiffSubtree(obj_old: any, obj_new: any, prefix: string): Dif
                         )
                     );
                 }
-            } else if (hasCustomJson(obj_old[element]) && hasCustomJson(obj_new[element])) {
-                if (obj_old[element].toJSON() !== obj_new[element].toJSON()) {
+            } else if (hasEquals(obj_old[element]) && hasEquals(obj_new[element])) {
+                if (!obj_old[element].equals(obj_new[element])) {
                     result.push(
                         new Diff(
                             `${prefix}/${element}`,
