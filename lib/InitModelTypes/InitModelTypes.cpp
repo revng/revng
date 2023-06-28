@@ -163,7 +163,7 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
                                  const llvm::CallInst *Call,
                                  const model::Function *ParentFunc,
                                  const Binary &Model,
-                                 ModelTypesMap &TypeMap) {
+                                 const ModelTypesMap &TypeMap) {
   TypeVector ReturnTypes;
 
   if (Call->getType()->isVoidTy())
