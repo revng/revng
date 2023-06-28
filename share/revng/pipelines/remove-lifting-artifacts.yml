@@ -10,5 +10,6 @@ Branches:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
+              - dce
               - remove-lifting-artifacts
               - promote-init-csv-to-undef
