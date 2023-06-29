@@ -6,7 +6,7 @@
 import * as yaml from "yaml";
 import { deepEqual } from "fast-equals";
 import { yamlParseOptions, yamlOutParseOptions, yamlToStringOptions } from "./tuple_tree";
-import { _getElementByPath, _setElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, IReference, Reference, TupleTreeType } from "./tuple_tree";
+import { _getElementByPath, _setElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, TypeHints, IReference, Reference } from "./tuple_tree";
 export { DiffSet, IReference, Reference };
 
 {% for file_name in external_files %}
@@ -148,6 +148,7 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
     {%- endif %}
 
     {% if class_.key_fields | length > 0 %}
+    static keyed = true;
     key(): string {
         return {{ class_ | gen_key }};
     }
@@ -169,7 +170,7 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
 }
 {% endfor %}
 
-export const TYPE_HINTS = new Map<TupleTreeType, { [key: string]: TypeInfo }>();
+export const TYPE_HINTS: TypeHints = new Map();
 {% for class_ in structs %}
 TYPE_HINTS.set({{class_.name}}, {
 {%- for field in class_.fields %}
@@ -186,7 +187,7 @@ export function getTypeInfo(
 }
 
 export function makeDiff(tuple_tree_old: {{ global_name }}, tuple_tree_new: {{ global_name }}): DiffSet {
-  return _makeDiff(tuple_tree_old, tuple_tree_new);
+  return _makeDiff(tuple_tree_old, tuple_tree_new, TYPE_HINTS, {{ metadata.root }});
 }
 
 export function validateDiff(obj: {{ global_name }}, diffs: DiffSet): boolean {
