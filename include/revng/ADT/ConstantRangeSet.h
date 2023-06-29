@@ -199,7 +199,16 @@ public:
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>
-  void dump(T &Output) const {
+  void dump(T &Output) const debug_function {
+    dump(Output, [](const llvm::APInt &Value) -> std::string {
+      llvm::SmallString<32> String;
+      Value.toStringUnsigned(String);
+      return String.str().str();
+    });
+  }
+
+  template<typename T, typename F>
+  void dump(T &Output, F &&Formatter) const {
     if (BitWidth == 0) {
       Output << "[)";
       return;
@@ -212,7 +221,7 @@ public:
       else
         Output << ",";
 
-      Output << N.getLimitedValue();
+      Output << Formatter(N);
 
       if (not Open)
         Output << ") ";
@@ -224,8 +233,7 @@ public:
       Output << "[)";
     }
     if (not Open) {
-      Output << "," << llvm::APInt::getMaxValue(BitWidth).getLimitedValue()
-             << ")";
+      Output << "," << Formatter(llvm::APInt::getMaxValue(BitWidth)) << ")";
     }
   }
 
