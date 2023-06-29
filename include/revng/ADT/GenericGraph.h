@@ -278,6 +278,8 @@ public:
     return Successors.erase(It);
   }
 
+  void clearSuccessors() { Successors.clear(); }
+
 public:
   llvm::iterator_range<const_child_iterator> successors() const {
     return toNeighborRange(Successors);
@@ -316,7 +318,7 @@ protected:
     return llvm::map_range(Range, &getConstNeighbor);
   }
 
-private:
+protected:
   NeighborContainer Successors;
 };
 
@@ -390,33 +392,123 @@ public:
 
 public:
   void addSuccessor(BidirectionalNode *NewSuccessor) {
-    Base::addSuccessor({ NewSuccessor });
+    Base::Successors.emplace_back(NewSuccessor);
     NewSuccessor->Predecessors.emplace_back(this);
   }
 
   void addSuccessor(BidirectionalNode *NewSuccessor, EdgeLabel EL) {
-    Base::addSuccessor(NewSuccessor, EL);
+    Base::Successors.emplace_back(NewSuccessor, EL);
     NewSuccessor->Predecessors.emplace_back(this, EL);
   }
 
   void addPredecessor(BidirectionalNode *NewPredecessor) {
     Predecessors.emplace_back(NewPredecessor);
-    NewPredecessor->addSuccessor(this);
+    NewPredecessor->Successors.emplace_back(this);
   }
 
   void addPredecessor(BidirectionalNode *NewPredecessor, EdgeLabel EL) {
     Predecessors.emplace_back(NewPredecessor, EL);
-    NewPredecessor->addSuccessor(this, EL);
+    NewPredecessor->Successors.emplace_back(this, EL);
   }
 
 public:
-  child_iterator removePredecessor(child_iterator It) {
-    auto InternalIt = Predecessors.erase(It.getCurrent());
-    return child_iterator(InternalIt, Base::getNeighbor);
+  void removePredecessor(child_iterator It) {
+    BidirectionalNode *Predecessor = *It;
+    bool Found = false;
+    auto PredecessorSuccessors = Predecessor->successor_edges();
+    for (auto PredecessorIt = PredecessorSuccessors.begin(),
+              Last = PredecessorSuccessors.end();
+         PredecessorIt != Last;) {
+      auto Edge = *PredecessorIt;
+      Edge.Neighbor = this;
+      if (Edge == *PredecessorIt) {
+        Predecessor->Successors.erase(PredecessorIt);
+        Found = true;
+        break;
+      } else {
+        ++PredecessorIt;
+      }
+    }
+    revng_assert(Found);
+
+    Predecessors.erase(It.getCurrent());
   }
 
-  edge_iterator removePredecessorEdge(edge_iterator It) {
-    return Predecessors.erase(It);
+  void removePredecessorEdge(edge_iterator It) {
+    auto Edge = *It;
+    bool Found = false;
+    auto Predecessor = Edge.Neighbor;
+    auto PredecessorSuccessors = Predecessor->successor_edges();
+    for (auto PredecessorIt = PredecessorSuccessors.begin(),
+              Last = PredecessorSuccessors.end();
+         PredecessorIt != Last;) {
+      Edge.Neighbor = this;
+      if (Edge == *PredecessorIt) {
+        Predecessor->Successors.erase(PredecessorIt);
+        Found = true;
+        break;
+      } else {
+        ++PredecessorIt;
+      }
+    }
+    revng_assert(Found);
+
+    Predecessors.erase(It);
+  }
+
+  void clearPredecessors() {
+    while (Predecessors.size())
+      removePredecessorEdge(Predecessors.begin());
+  }
+
+  void removeSuccessor(child_iterator It) {
+    BidirectionalNode *Successor = *It;
+    bool Found = false;
+    auto SuccessorPredecessors = Successor->predecessor_edges();
+    for (auto SuccessorIt = SuccessorPredecessors.begin(),
+              Last = SuccessorPredecessors.end();
+         SuccessorIt != Last;) {
+      auto Edge = *SuccessorIt;
+      Edge.Neighbor = this;
+      if (Edge == *SuccessorIt) {
+        Successor->Predecessors.erase(SuccessorIt);
+        Found = true;
+        break;
+      } else {
+        ++SuccessorIt;
+      }
+    }
+
+    revng_assert(Found);
+
+    Base::Successors.erase(It.getCurrent());
+  }
+
+  void removeSuccessorEdge(edge_iterator It) {
+    auto Edge = *It;
+    bool Found = false;
+    auto Successor = Edge.Neighbor;
+    auto SuccessorPredecessors = Successor->predecessor_edges();
+    for (auto SuccessorIt = SuccessorPredecessors.begin(),
+              Last = SuccessorPredecessors.end();
+         SuccessorIt != Last;) {
+      Edge.Neighbor = this;
+      if (Edge == *SuccessorIt) {
+        Successor->Predecessors.erase(SuccessorIt);
+        Found = true;
+        break;
+      } else {
+        ++SuccessorIt;
+      }
+    }
+    revng_assert(Found);
+
+    this->Successors.erase(It);
+  }
+
+  void clearSuccessors() {
+    while (Base::Successors.size())
+      removeSuccessorEdge(Base::Successors.begin());
   }
 
 public:
@@ -1294,7 +1386,7 @@ public:
   void reserve(size_t Size) { Nodes.reserve(Size); }
   void clear() { Nodes.clear(); }
 
-private:
+protected:
   NodesContainer Nodes;
 };
 
