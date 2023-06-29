@@ -47,7 +47,8 @@ using model::QualifiedType;
 inline llvm::Value *traverseTransparentInstructions(llvm::Value *V) {
   llvm::Value *CurValue = V;
 
-  while (isa<llvm::IntToPtrInst>(CurValue) or isa<llvm::PtrToIntInst>(CurValue))
+  while (isa<llvm::IntToPtrInst>(CurValue) or isa<llvm::PtrToIntInst>(CurValue)
+         or isa<llvm::BitCastInst>(CurValue) or isa<llvm::FreezeInst>(CurValue))
     CurValue = cast<llvm::Instruction>(CurValue)->getOperand(0);
 
   return CurValue;
