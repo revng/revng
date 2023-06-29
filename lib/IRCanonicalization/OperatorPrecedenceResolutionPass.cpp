@@ -35,8 +35,6 @@ constexpr unsigned getInstructionLLVMOpcodeCount() {
 }
 } // namespace
 
-enum Associativity : unsigned { NONE = 0, LEFT_TO_RIGHT, RIGHT_TO_LEFT };
-
 enum CustomInstruction : unsigned {
   AddressOf = getInstructionLLVMOpcodeCount() + 1,
   Assignment = getInstructionLLVMOpcodeCount() + 2,
@@ -51,132 +49,121 @@ enum CustomInstruction : unsigned {
   BooleanNot = getInstructionLLVMOpcodeCount() + 11
 };
 
-struct InstToOpPrec {
-  unsigned InstructionOpcode;
+enum Associativity { LeftToRight, RightToLeft };
+
+enum Arity : unsigned { Unary, Binary, Ternary, NAry };
+
+struct OperatorInfo {
+  unsigned Opcode;
   int Precedence;
   Associativity Associativity;
-
-  constexpr InstToOpPrec(unsigned InstructionOpcode,
-                         int Precedence,
-                         enum Associativity Associativity) :
-    InstructionOpcode(InstructionOpcode),
-    Precedence(Precedence),
-    Associativity(Associativity) {}
+  Arity Arity;
 };
 
 // Table that maps LLVM opcodes to the equivalent C operator precedence priority
-static constexpr std::array<const InstToOpPrec, 37>
+static constexpr std::array<const OperatorInfo, 37>
   LLVMOpcodeToCOpPrecedenceArray{
-    { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::LocalVariable, 10, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Select, 1, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Or, 2, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Xor, 3, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::And, 4, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::ICmp, 5, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FCmp, 5, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Shl, 6, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::LShr, 6, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::AShr, 6, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Add, 7, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FAdd, 7, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Sub, 7, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FSub, 7, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Mul, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FMul, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::UDiv, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::SDiv, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FDiv, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::URem, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::SRem, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FRem, 8, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FNeg, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Load, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::SExt, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Trunc, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::BitCast, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::GetElementPtr, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Alloca, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::AddressOf, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::Indirection, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::Cast, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::MemberAccess, 10, LEFT_TO_RIGHT) },
-      { InstToOpPrec(CustomInstruction::UnaryMinus, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::BinaryNot, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::BooleanNot, 9, RIGHT_TO_LEFT) } },
+    // OperatorInfo{ OpCode, Precedence, Associativity, Arity },
+    OperatorInfo{ Instruction::Select, 1, RightToLeft, Ternary },
+    OperatorInfo{ Instruction::Or, 2, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Xor, 3, LeftToRight, Binary },
+    OperatorInfo{ Instruction::And, 4, LeftToRight, Binary },
+    OperatorInfo{ Instruction::ICmp, 5, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Shl, 6, LeftToRight, Binary },
+    OperatorInfo{ Instruction::LShr, 6, LeftToRight, Binary },
+    OperatorInfo{ Instruction::AShr, 6, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Add, 7, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Sub, 7, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Mul, 8, LeftToRight, Binary },
+    OperatorInfo{ Instruction::UDiv, 8, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SDiv, 8, LeftToRight, Binary },
+    OperatorInfo{ Instruction::URem, 8, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SRem, 8, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SExt, 9, RightToLeft, Unary },
+    OperatorInfo{ Instruction::Trunc, 9, RightToLeft, Unary },
+    OperatorInfo{ Instruction::ZExt, 9, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::AddressOf, 9, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::Indirection, 9, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::Cast, 9, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::UnaryMinus, 9, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::BinaryNot, 9, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::BooleanNot, 9, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::MemberAccess, 10, LeftToRight, Unary },
+    OperatorInfo{ Instruction::Call, 10, LeftToRight, NAry },
   };
 
-static constexpr std::array<const InstToOpPrec, 37>
+static constexpr std::array<const OperatorInfo, 37>
   LLVMOpcodeToNopOpPrecedenceArray{
-    { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::LocalVariable, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Select, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Or, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Xor, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::And, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::ICmp, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FCmp, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Shl, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::LShr, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::AShr, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Add, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FAdd, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Sub, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FSub, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::Mul, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FMul, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::UDiv, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::SDiv, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FDiv, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::URem, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::SRem, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FRem, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(Instruction::FNeg, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Load, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::SExt, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Trunc, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::BitCast, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::GetElementPtr, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::Alloca, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::AddressOf, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::Indirection, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::Cast, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::MemberAccess, 0, LEFT_TO_RIGHT) },
-      { InstToOpPrec(CustomInstruction::UnaryMinus, 2, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::BinaryNot, 2, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::BooleanNot, 2, RIGHT_TO_LEFT) } },
+    // OperatorInfo{ OpCode, Precedence, Associativity, Arity },
+    OperatorInfo{ Instruction::Select, 0, RightToLeft, Ternary },
+    OperatorInfo{ Instruction::Or, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Xor, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::And, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::ICmp, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Shl, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::LShr, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::AShr, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Add, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Sub, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Mul, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::UDiv, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SDiv, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::URem, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SRem, 0, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SExt, 0, RightToLeft, Unary },
+    OperatorInfo{ Instruction::Trunc, 0, RightToLeft, Unary },
+    OperatorInfo{ Instruction::ZExt, 0, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::AddressOf, 0, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::Indirection, 0, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::Cast, 0, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::UnaryMinus, 0, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::BinaryNot, 0, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::BooleanNot, 0, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::MemberAccess, 0, LeftToRight, Unary },
+    OperatorInfo{ Instruction::Call, 0, LeftToRight, NAry },
   };
 
-static auto
-findOpcode(const std::array<const InstToOpPrec, 37> *Table, unsigned Opcode) {
-  return find_if(*Table, [&](const auto &Elem) {
-    return Elem.InstructionOpcode == Opcode;
+static OperatorInfo
+getPrecedence(const std::array<const OperatorInfo, 37> *Table,
+              unsigned Opcode) {
+  auto It = llvm::find_if(*Table, [&](const auto &Elem) {
+    return Elem.Opcode == Opcode;
   });
+  revng_assert(It != Table->end());
+  return *It;
 }
 
-static bool isCustomOpcode(Instruction *I) {
-  auto *CalledFunc = cast<CallInst>(I)->getCalledFunction();
-  if (!CalledFunc)
+static bool isCustomOpcode(const Value *I) {
+  const auto *Call = dyn_cast<CallInst>(I);
+  if (nullptr == Call)
+    return false;
+
+  const auto *CalledFunc = Call->getCalledFunction();
+  if (nullptr == CalledFunc)
     return false;
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc)
-      || FunctionTags::Assign.isTagOf(CalledFunc)
-      || FunctionTags::ModelCast.isTagOf(CalledFunc)
-      || FunctionTags::ModelGEP.isTagOf(CalledFunc)
-      || FunctionTags::Copy.isTagOf(CalledFunc)
-      || FunctionTags::ModelGEPRef.isTagOf(CalledFunc)
-      || FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc)
-      || FunctionTags::SegmentRef.isTagOf(CalledFunc)
-      || FunctionTags::UnaryMinus.isTagOf(CalledFunc)
-      || FunctionTags::BinaryNot.isTagOf(CalledFunc)
-      || FunctionTags::BooleanNot.isTagOf(CalledFunc))
+      or FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc)
+      or FunctionTags::Assign.isTagOf(CalledFunc)
+      or FunctionTags::BinaryNot.isTagOf(CalledFunc)
+      or FunctionTags::BooleanNot.isTagOf(CalledFunc)
+      or FunctionTags::Copy.isTagOf(CalledFunc)
+      or FunctionTags::ModelCast.isTagOf(CalledFunc)
+      or FunctionTags::ModelGEP.isTagOf(CalledFunc)
+      or FunctionTags::ModelGEPRef.isTagOf(CalledFunc)
+      or FunctionTags::OpaqueExtractValue.isTagOf(CalledFunc)
+      or FunctionTags::SegmentRef.isTagOf(CalledFunc)
+      or FunctionTags::UnaryMinus.isTagOf(CalledFunc))
     return true;
 
   return false;
 }
 
-static unsigned getCustomOpcode(Instruction *I) {
+static unsigned getCustomOpcode(const Instruction *I) {
+  revng_assert(isCustomOpcode(I));
+
   auto *CalledFunc = cast<CallInst>(I)->getCalledFunction();
+  revng_assert(CalledFunc);
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc))
     return CustomInstruction::AddressOf;
@@ -198,6 +185,8 @@ static unsigned getCustomOpcode(Instruction *I) {
     if (cast<CallInst>(I)->arg_size() > 2)
       return CustomInstruction::MemberAccess;
     return CustomInstruction::Transparent;
+  } else if (FunctionTags::OpaqueExtractValue.isTagOf(CalledFunc)) {
+    return CustomInstruction::MemberAccess;
   } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {
     return CustomInstruction::Transparent;
   } else if (FunctionTags::SegmentRef.isTagOf(CalledFunc)) {
@@ -210,10 +199,10 @@ static unsigned getCustomOpcode(Instruction *I) {
     return CustomInstruction::BooleanNot;
   }
 
-  revng_abort();
+  revng_abort("unhandled custom opcode");
 }
 
-static unsigned getOpcode(Instruction *I) {
+static unsigned getOpcode(const Instruction *I) {
   if (isa<CallInst>(I))
     if (isCustomOpcode(I))
       return getCustomOpcode(I);
@@ -221,31 +210,37 @@ static unsigned getOpcode(Instruction *I) {
   return I->getOpcode();
 }
 
-static bool isTransparentOpCode(llvm::Value *V) {
-  if (isa<IntToPtrInst>(V) || isa<PtrToIntInst>(V) || isa<ZExtInst>(V))
+static bool isTransparentOpCode(const Value *V) {
+  if (isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V) or isa<BitCastInst>(V)
+      or isa<FreezeInst>(V))
     return true;
 
-  if (auto *I = dyn_cast<llvm::Instruction>(V))
-    if (getOpcode(I) == CustomInstruction::Transparent)
-      return true;
+  const auto *I = dyn_cast<Instruction>(V);
+  if (nullptr == I)
+    return false;
 
-  return false;
+  return isCustomOpcode(I)
+         and getCustomOpcode(I) == CustomInstruction::Transparent;
 }
 
-static llvm::Value *traverseTransparentOpcode(llvm::Value *V) {
-  if (isa<IntToPtrInst>(V) || isa<PtrToIntInst>(V) || isa<ZExtInst>(V))
-    return llvm::cast<llvm::Instruction>(V)->getOperand(0);
-
-  if (auto *Call = dyn_cast<llvm::CallInst>(V))
-    if (getOpcode(Call) == CustomInstruction::Transparent)
-      return Call->getArgOperand(0);
-
-  revng_abort();
+static Value *traverseTransparentOpcodes(Value *I) {
+  while (isa<Instruction>(I) and isTransparentOpCode(I)) {
+    if (isa<IntToPtrInst>(I) or isa<PtrToIntInst>(I) or isa<BitCastInst>(I)
+        or isa<FreezeInst>(I))
+      I = cast<Instruction>(I)->getOperand(0);
+    else if (auto *CallToCopy = getCallToTagged(I, FunctionTags::Copy))
+      I = CallToCopy->getArgOperand(0);
+    else if (auto *CallToMGR = getCallToTagged(I, FunctionTags::ModelGEPRef))
+      I = CallToMGR->getArgOperand(1);
+    else
+      revng_abort("unexpected transparent opcode");
+  }
+  return I;
 }
 
-struct OperatorPrecedenceResolutionPass : public llvm::FunctionPass {
+struct OperatorPrecedenceResolutionPass : public FunctionPass {
 private:
-  const std::array<const InstToOpPrec, 37>
+  const std::array<const OperatorInfo, 37>
     *LLVMOpcodeToLangOpPrecedenceArray = nullptr;
 
 public:
@@ -259,9 +254,9 @@ public:
     revng_assert(LLVMOpcodeToLangOpPrecedenceArray);
   }
 
-  bool runOnFunction(llvm::Function &F) override;
+  bool runOnFunction(Function &F) override;
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
   }
 
@@ -269,128 +264,192 @@ public:
   bool needsParentheses(Instruction *I, Use &U);
 };
 
-enum OperandSide : unsigned { LHS = 0, RHS };
-
 using OPRP = OperatorPrecedenceResolutionPass;
 
 bool OPRP::needsParentheses(Instruction *I, Use &U) {
-  // We need to decide when to emit parentheses (by default, always, most
-  // conservative choice), yet, there are some cases, e.g. w/ binary
-  // operator instructions, in which we can lean on their precedence &
-  // associativity to verify whether we need to emit parentheses or
-  // not for sure.
-  bool VerifyParentheses = false;
-
-  // If the operand is not an instruction (e.g. constant, arguments), don't emit
-  // parentheses
-  llvm::Value *Op = dyn_cast<Instruction>(U.get());
-  if (not Op)
+  // Control flow instructions never need parentheses around their operands.
+  if (isa<BranchInst>(I) or isa<SwitchInst>(I) or isa<ReturnInst>(I))
     return false;
 
-  // Verify emission of parentheses for binary operators, load and cast
-  // instructions. Always emit parentheses when encountering calls.
-  if (isa<AllocaInst>(I) || isa<InsertElementInst>(I)
-      || isa<ExtractElementInst>(I) || isa<ExtractValueInst>(I)
-      || isa<ShuffleVectorInst>(I) || isa<StoreInst>(I) || isa<BranchInst>(I)
-      || isa<CallBrInst>(I) || isa<IndirectBrInst>(I) || isa<ReturnInst>(I)
-      || isa<IntrinsicInst>(I) || isa<IntToPtrInst>(I) || isa<PtrToIntInst>(I)
-      || isa<ZExtInst>(I))
+  // The following are transparent in C as we emit it, so we never put
+  // parentheses around their operands.
+  if (isTransparentOpCode(I))
     return false;
 
-  else if (isa<BinaryOperator>(I) || isa<CmpInst>(I) || isa<ICmpInst>(I)
-           || isa<SelectInst>(I) || isa<LoadInst>(I) || isa<CastInst>(I))
-    VerifyParentheses = true;
+  // The remaining instructions can be divided in 2 categories:
+  // - A group of instruction for which we always have to evaluate if we need to
+  //   emit parentheses around all their operands, using the operator
+  //   precedencence and associativity.
+  // - A group of instructions for which we only have to evaluate if we need to
+  //   emit parentheses around some of their operands, depending on the specific
+  //   instruction. On all the other operands we never need to emit parentheses
+  //   and we can bail out early.
+  // So we now detect the second group, to bail out early in all the cases where
+  // it's necessary, leaving the evaluation of operator precedence and
+  // associativity only for later when really necessary.
 
-  // Does the current instruction represent a custom operator?
-  if (isa<CallInst>(I) && isCustomOpcode(I)) {
+  if (isa<CallInst>(I) and isCustomOpcode(I)) {
     switch (getCustomOpcode(I)) {
-    case CustomInstruction::MemberAccess:
-      // Never emit parenthesis for array indices, because they are already
-      // between square brackets.
-      if (U.getOperandNo() > 1)
-        return false;
-      [[fallthrough]];
-    case CustomInstruction::AddressOf:
-    case CustomInstruction::Indirection:
-    case CustomInstruction::Cast:
-      VerifyParentheses = (U.getOperandNo() == 1);
-      break;
+    // These instructions never need parentheses around their operands as well.
+    case CustomInstruction::Assignment:
+    case CustomInstruction::LocalVariable:
+    case CustomInstruction::SegmentRef:
+      return false;
+
+    // These should be handled as regular operations, so we just go on below.
     case CustomInstruction::BinaryNot:
     case CustomInstruction::BooleanNot:
     case CustomInstruction::UnaryMinus:
-      VerifyParentheses = true;
       break;
-    case CustomInstruction::Assignment:
-    case CustomInstruction::LocalVariable:
+
+    case CustomInstruction::MemberAccess: {
+      if (isCallToTagged(I, FunctionTags::OpaqueExtractValue)) {
+        // For OpaqueExtractValues we only need to evaluate parentheses around
+        // the first operand, which is the aggregate, not on the others.
+        if (U.getOperandNo() != 0)
+          return false;
+      } else if (isCallToTagged(I, FunctionTags::ModelGEP)
+                 or isCallToTagged(I, FunctionTags::ModelGEPRef)) {
+        // For various kinds of ModelGEPs the only operand for which we care
+        // about operator precedence is the operand representing the base
+        // address. All the others can be ignored
+        if (U.getOperandNo() != 1)
+          return false;
+      } else {
+        revng_abort("unexpected MemberAccess opcode");
+      }
+    } break;
+
+    case CustomInstruction::Indirection:
+    case CustomInstruction::AddressOf:
+    case CustomInstruction::Cast: {
+      // For these operations we only have to consider operator precedence
+      // around operand 1, for all the others just return false, since they
+      // never need parentheses.
+      if (U.getOperandNo() != 1)
+        return false;
+    } break;
+
+    // This should be already handled above.
     case CustomInstruction::Transparent:
-    case CustomInstruction::SegmentRef:
-      return false;
+      revng_abort("transparent opcodes should have been handled earlier");
+
     default:
-      revng_abort("unhandled opcode");
+      revng_abort("Unexpected custom opcode");
     }
   }
 
-  // Traverse transparent instructions
-  while (isTransparentOpCode(Op))
-    Op = traverseTransparentOpcode(Op);
+  // Here we know by having looked at the instruction that we might need to look
+  // at the operand as well, to decide if we have to emit parentheses based on
+  // the operator precedence and associativity.
+  //
+  // However, there are some kinds of operands for which we already know that we
+  // never need to emit parentheses, so in those cases we bail out early.
+
+  // Traverse all the transparent opcodes around the operand, until we can
+  // really see the operand itself.
+  Instruction *Op = dyn_cast<Instruction>(traverseTransparentOpcodes(U.get()));
+
+  // If the operand is not an instruction (e.g. constant, arguments), don't emit
+  // parentheses, because in C we always emit it as an identifiers, which never
+  // needs parentheses.
+  if (nullptr == Op)
+    return false;
 
   // If the operand is a call to qemu helpers or intrinsic we know that we
   // always emit a local variable for it, so we don't have to emit parentheses
   if (isCallToTagged(Op, FunctionTags::QEMU)
       or isCallToTagged(Op, FunctionTags::Helper)
       or isCallToTagged(Op, FunctionTags::Exceptional)
-      or llvm::isa<llvm::IntrinsicInst>(Op))
+      or isa<IntrinsicInst>(Op))
     return false;
 
-  // If the traversed operand is not an instruction (i.e. constant, argument
-  // etc.), don't emit parenthesis
-  llvm::Instruction *Ins = dyn_cast<Instruction>(Op);
-  if (not Ins)
+  // If the operand is one of the following custom opcode, there's no need of
+  // parentheses around it.
+  if (isCustomOpcode(Op)
+      and (getCustomOpcode(Op) == CustomInstruction::Assignment
+           or getCustomOpcode(Op) == CustomInstruction::LocalVariable
+           or getCustomOpcode(Op) == CustomInstruction::SegmentRef))
     return false;
 
-  // Skip parenthesizing the expression when the Use is an `Assignment`
-  if (isa<CallInst>(Ins) && isCustomOpcode(Ins)
-      && (getCustomOpcode(Ins) == CustomInstruction::Assignment
-          or getCustomOpcode(Ins) == CustomInstruction::LocalVariable
-          or getCustomOpcode(Ins) == CustomInstruction::SegmentRef))
-    return false;
+  // For calls that are not custom opcodes, we only have to check the operator
+  // precedence for the called operand, not for the arguments.
+  if (auto *Call = dyn_cast<CallInst>(I); Call and not isCustomOpcode(Call))
+    if (&U != &Call->getCalledOperandUse())
+      return false;
 
-  // No need to emit parentheses when the operand is a custom operator or a
-  // general instruction of normal function call. This may be subject to change
-  // in the future, up to the addition of new operators.
-  if (isa<CallInst>(I) && !isCustomOpcode(I)
-      && cast<CallInst>(I)->getCalledFunction() && isa<Instruction>(Ins))
-    return false;
+  auto [InstructionOpcode,
+        InstructionPrecedence,
+        InstructionAssociativity,
+        InstructionArity] = getPrecedence(LLVMOpcodeToLangOpPrecedenceArray,
+                                          getOpcode(I));
 
-  if (VerifyParentheses) {
-    auto CurrentOpIt = findOpcode(LLVMOpcodeToLangOpPrecedenceArray,
-                                  getOpcode(I));
-    revng_assert(CurrentOpIt != nullptr);
+  auto [OperandOpcode,
+        OperandPrecedence,
+        OperandAssociativity,
+        OperandArity] = getPrecedence(LLVMOpcodeToLangOpPrecedenceArray,
+                                      getOpcode(Op));
 
-    auto OperandOpIt = findOpcode(LLVMOpcodeToLangOpPrecedenceArray,
-                                  getOpcode(Ins));
+  auto Cmp = InstructionPrecedence <=> OperandPrecedence;
+  // If the precedence of the instruction and the operand is the same, we have
+  // to discriminate by Associativity and by Arity
+  if (Cmp == 0) {
 
-    if (OperandOpIt != LLVMOpcodeToLangOpPrecedenceArray->end()) {
-      if (CurrentOpIt->Precedence < OperandOpIt->Precedence) {
+    revng_assert(InstructionAssociativity == OperandAssociativity);
+
+    switch (InstructionArity) {
+    case NAry: {
+      revng_assert(InstructionOpcode == Instruction::Call);
+      // Basically this is a call, and we're analyzing the called operand, which
+      // has the same precedence (the highest) and associativity of the call.
+      // So we can just never emit the parenthesis because associativity will do
+      // the work for us.
+    } break;
+
+    case Unary: {
+      // If the instruction operator is unary, and the precedence is
+      // the same, no parentheses are needed, and there's no need to check
+      // associativity, since all the operators with the same precedence have
+      // the same associativity.
+      return false;
+    } break;
+
+    case Binary: {
+      revng_assert(I->getNumOperands() == 2);
+      revng_assert(isa<BinaryOperator>(I) or isa<CmpInst>(I));
+      // If there are 2 operands, Instruction can only be a binary operator
+      // (arithmetic or bitwise).
+      enum Side : unsigned { LHS = 0, RHS };
+      Side OpSide = U.getOperandNo() == 0 ? LHS : RHS;
+      // If the Instruction associativity leads to preserving semantics we don't
+      // need parentheses, otherwise we do.
+      if (InstructionAssociativity == LeftToRight and OpSide != RHS)
         return false;
-      } else if (CurrentOpIt->Precedence == OperandOpIt->Precedence) {
-        OperandSide Side = U.getOperandNo() == 0 ? LHS : RHS;
-        // Binary operator?
-        if (I->getNumOperands() != 1 && !isa<CallInst>(I)) {
-          if (CurrentOpIt->Associativity == LEFT_TO_RIGHT && Side != RHS)
-            return false;
-          else if (CurrentOpIt->Associativity == RIGHT_TO_LEFT && Side != LHS)
-            return false;
-        } else {
-          // If the instruction operator is unary, and the associativity is
-          // alike, no parentheses are needed.
-          return false;
-        }
-      }
+
+      if (InstructionAssociativity == RightToLeft and OpSide != LHS)
+        return false;
+
+      return true;
+    } break;
+
+    case Ternary: {
+      revng_assert(I->getNumOperands() == 3);
+      revng_assert(isa<SelectInst>(I));
+      // This is basically a ternary with an operand that is another ternary, so
+      // we always emit parentheses to avoid nasty nested things that are hard
+      // to read and understand.
+      return true;
+    } break;
+
+    default:
+      revng_abort("unexpected arity");
     }
   }
 
-  return true;
+  // If the precedence of the instruction is different, we only need parentheses
+  // when the precedence of the instruction is higher than the precedence of the
+  // operand. In this case we never need to check associativity.
+  return Cmp > 0;
 }
 
 bool OPRP::runOnFunction(Function &F) {
