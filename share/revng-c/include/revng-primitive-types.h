@@ -39,6 +39,14 @@ static_assert_size(generic80_t, 10);
 static_assert_size(generic96_t, 12);
 static_assert_size(generic128_t, 16);
 
+extern generic8_t undef_generic8_t();
+extern generic16_t undef_generic16_t();
+extern generic32_t undef_generic32_t();
+extern generic64_t undef_generic64_t();
+extern generic80_t undef_generic80_t();
+extern generic96_t undef_generic96_t();
+extern generic128_t undef_generic128_t();
+
 //
 // PointerOrNumber
 //
@@ -54,6 +62,12 @@ static_assert_size(pointer_or_number16_t, 2);
 static_assert_size(pointer_or_number32_t, 4);
 static_assert_size(pointer_or_number64_t, 8);
 static_assert_size(pointer_or_number128_t, 16);
+
+extern pointer_or_number8_t undef_pointer_or_number8_t();
+extern pointer_or_number16_t undef_pointer_or_number16_t();
+extern pointer_or_number32_t undef_pointer_or_number32_t();
+extern pointer_or_number64_t undef_pointer_or_number64_t();
+extern pointer_or_number128_t undef_pointer_or_number128_t();
 
 //
 // Number
@@ -71,6 +85,12 @@ static_assert_size(number32_t, 4);
 static_assert_size(number64_t, 8);
 static_assert_size(number128_t, 16);
 
+extern number8_t undef_number8_t();
+extern number16_t undef_number16_t();
+extern number32_t undef_number32_t();
+extern number64_t undef_number64_t();
+extern number128_t undef_number128_t();
+
 //
 // Signed and Unsigned
 //
@@ -85,11 +105,23 @@ static_assert_size(int32_t, 4);
 static_assert_size(int64_t, 8);
 static_assert_size(int128_t, 16);
 
+extern int8_t undef_int8_t();
+extern int16_t undef_int16_t();
+extern int32_t undef_int32_t();
+extern int64_t undef_int64_t();
+extern int128_t undef_int128_t();
+
 static_assert_size(uint8_t, 1);
 static_assert_size(uint16_t, 2);
 static_assert_size(uint32_t, 4);
 static_assert_size(uint64_t, 8);
 static_assert_size(uint128_t, 16);
+
+extern uint8_t undef_uint8_t();
+extern uint16_t undef_uint16_t();
+extern uint32_t undef_uint32_t();
+extern uint64_t undef_uint64_t();
+extern uint128_t undef_uint128_t();
 
 //
 // Float
@@ -155,5 +187,12 @@ static_assert_size(float64_t, 8);
 static_assert_size(float80_t, 10);
 static_assert_size(float96_t, 12);
 static_assert_size(float128_t, 16);
+
+extern float16_t undef_float16_t();
+extern float32_t undef_float32_t();
+extern float64_t undef_float64_t();
+extern float80_t undef_float80_t();
+extern float96_t undef_float96_t();
+extern float128_t undef_float128_t();
 
 #undef static_assert_size

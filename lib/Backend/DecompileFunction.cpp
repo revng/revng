@@ -497,15 +497,15 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
          + addParentheses(ExprToCast);
 }
 
-static std::string getInvalidToken(const llvm::UndefValue *U,
-                                   const ptml::PTMLCBuilder &ThePTMLCBuilder) {
-  revng_assert(U->getType()->isIntOrPtrTy());
-
-  std::string Result = ThePTMLCBuilder.getZeroTag().serialize() + ' ';
-  if (isa<llvm::PoisonValue>(U))
-    Result += " " + ThePTMLCBuilder.getBlockComment("poison", false) + " ";
-  else
-    Result += " " + ThePTMLCBuilder.getBlockComment("undef", false) + " ";
+static std::string getUndefToken(model::QualifiedType UndefType,
+                                 const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+  UndefType = peelConstAndTypedefs(UndefType);
+  revng_assert(UndefType.isPrimitive());
+  revng_assert(UndefType.Qualifiers().empty());
+  std::string
+    Result = "undef_"
+             + UndefType.UnqualifiedType().getConst()->name().str().str()
+             + "()";
   return Result;
 }
 
@@ -545,7 +545,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   revng_assert(isCConstant(C));
 
   if (auto *Undef = dyn_cast<llvm::UndefValue>(C))
-    rc_return getInvalidToken(Undef, ThePTMLCBuilder);
+    rc_return getUndefToken(TypeMap.at(Undef), ThePTMLCBuilder);
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
     rc_return ThePTMLCBuilder.getNullTag().serialize();
