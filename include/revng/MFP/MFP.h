@@ -64,7 +64,7 @@ template<MonotoneFrameworkInstance MFI,
          typename LGT = typename MFI::Label>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const MFI &Instance,
-                     const typename MFI::GraphType &Flow,
+                     typename MFI::GraphType Flow,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels,
@@ -137,7 +137,7 @@ template<MonotoneFrameworkInstance MFI,
          typename LGT = typename MFI::Label>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const MFI &Instance,
-                     const typename MFI::GraphType &Flow,
+                     typename MFI::GraphType Flow,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels) {
