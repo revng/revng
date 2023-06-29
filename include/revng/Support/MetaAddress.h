@@ -528,6 +528,7 @@ public:
                                              llvm::Value *TypeValue);
 
   static MetaAddress decomposeIntegerPC(llvm::ConstantInt *Value);
+  static MetaAddress decomposeIntegerPC(const llvm::APInt &Value);
 
 public:
   /// If isCode(), let this decay to the corresponding generic address
