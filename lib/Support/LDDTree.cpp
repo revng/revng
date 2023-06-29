@@ -23,7 +23,7 @@
 #include "revng/Support/LDDTree.h"
 #include "revng/Support/OverflowSafeInt.h"
 
-Logger<> Log("lddtree");
+static Logger<> Log("lddtree");
 
 using namespace llvm;
 
