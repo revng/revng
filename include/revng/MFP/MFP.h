@@ -79,7 +79,6 @@ getMaximalFixedPoint(const MFI &Instance,
     size_t Priority;
     Label Item;
 
-    // NOLINTNEXTLINE(readability-identifier-naming)
     std::strong_ordering operator<=>(const WorklistItem &) const = default;
   };
   std::set<WorklistItem> Worklist;
