@@ -9,6 +9,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
@@ -54,6 +55,7 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
 
     // Collect arguments of the ExtractValue
     SmallVector<Value *, 8> ArgValues = { I->getAggregateOperand() };
+    revng_assert(I->getNumIndices() == 1);
     for (auto Idx : I->indices()) {
       auto *IndexVal = ConstantInt::get(IntegerType::getInt64Ty(LLVMCtx), Idx);
       ArgValues.push_back(IndexVal);
@@ -72,7 +74,7 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
 
     I->replaceAllUsesWith(InjectedCall);
     InjectedCall->copyMetadata(*I);
-    I->eraseFromParent();
+    llvm::RecursivelyDeleteTriviallyDeadInstructions(I);
   }
 
   return true;

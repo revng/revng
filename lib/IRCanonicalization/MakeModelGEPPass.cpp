@@ -657,7 +657,6 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
     case Instruction::Load:
     case Instruction::Call:
     case Instruction::PHI:
-    case Instruction::ExtractValue:
     case Instruction::Trunc:
     case Instruction::Select:
     case Instruction::SExt:
@@ -678,45 +677,8 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       rc_return IRArithmetic::unknown(AddrArithmeticInst);
     } break;
 
-    case Instruction::Unreachable:
-    case Instruction::Store:
-    case Instruction::Invoke:
-    case Instruction::Resume:
-    case Instruction::CleanupRet:
-    case Instruction::CatchRet:
-    case Instruction::CatchPad:
-    case Instruction::CatchSwitch:
-    case Instruction::AtomicCmpXchg:
-    case Instruction::AtomicRMW:
-    case Instruction::Fence:
-    case Instruction::FAdd:
-    case Instruction::FSub:
-    case Instruction::FMul:
-    case Instruction::FDiv:
-    case Instruction::FRem:
-    case Instruction::FPTrunc:
-    case Instruction::FPExt:
-    case Instruction::FCmp:
-    case Instruction::FPToUI:
-    case Instruction::FPToSI:
-    case Instruction::UIToFP:
-    case Instruction::SIToFP:
-    case Instruction::AddrSpaceCast:
-    case Instruction::VAArg:
-    case Instruction::ExtractElement:
-    case Instruction::InsertElement:
-    case Instruction::ShuffleVector:
-    case Instruction::LandingPad:
-    case Instruction::CleanupPad:
-    case Instruction::Br:
-    case Instruction::IndirectBr:
-    case Instruction::Ret:
-    case Instruction::Switch: {
-      revng_abort("unexpected instruction for address arithmetic");
-    } break;
-
     default: {
-      revng_abort("Unexpected operation");
+      revng_abort("Unexpected instruction for address arithmetic");
     } break;
     }
 

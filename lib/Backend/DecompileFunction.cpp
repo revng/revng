@@ -158,6 +158,7 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::AddressOf)
          or isCallToTagged(I, FunctionTags::Parentheses)
          or isCallToTagged(I, FunctionTags::OpaqueCSVValue)
+         or isCallToTagged(I, FunctionTags::OpaqueExtractValue)
          or isCallToTagged(I, FunctionTags::StructInitializer)
          or isCallToTagged(I, FunctionTags::SegmentRef)
          or isCallToTagged(I, FunctionTags::UnaryMinus)
@@ -850,6 +851,35 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     rc_return StructInit;
   }
 
+  if (isCallToTagged(Call, FunctionTags::OpaqueExtractValue)) {
+
+    const llvm::Value *AggregateOp = Call->getArgOperand(0);
+    const auto *Idx = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
+
+    const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
+    const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
+    const auto CalleePrototype = Cache.getCallSitePrototype(Model,
+                                                            CallReturnsStruct);
+
+    std::string StructFieldRef;
+    if (not CalleePrototype.isValid()) {
+      // The call returning a struct is a call to a helper function.
+      // It must be a direct call.
+      revng_assert(Callee);
+      StructFieldRef = getReturnStructFieldLocationReference(Callee,
+                                                             Idx
+                                                               ->getZExtValue(),
+                                                             ThePTMLCBuilder);
+    } else {
+      const model::Type *CalleeType = CalleePrototype.getConst();
+      StructFieldRef = getReturnField(*CalleeType, Idx->getZExtValue(), Model)
+                         .str()
+                         .str();
+    }
+
+    rc_return rc_recur getToken(AggregateOp) + "." + StructFieldRef;
+  }
+
   if (isCallToTagged(Call, FunctionTags::SegmentRef)) {
     auto *Callee = Call->getCalledFunction();
     const auto &[StartAddress,
@@ -1253,41 +1283,6 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
   case llvm::Instruction::Unreachable:
     rc_return addDebugInfo(I, "__builtin_trap()", ThePTMLCBuilder);
-
-  case llvm::Instruction::ExtractValue: {
-
-    // Note: ExtractValues at this point should have been already
-    // handled when visiting the instruction that generated their
-    // struct operand
-    auto *ExtractVal = llvm::cast<llvm::ExtractValueInst>(I);
-    revng_assert(ExtractVal->getNumIndices() == 1);
-    const auto &Idx = ExtractVal->getIndices().back();
-    const llvm::Value *AggregateOp = ExtractVal->getAggregateOperand();
-
-    const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
-    const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
-    const auto CalleePrototype = Cache.getCallSitePrototype(Model,
-                                                            CallReturnsStruct);
-
-    std::string StructFieldRef;
-    if (not CalleePrototype.isValid()) {
-      // The call returning a struct is a call to a helper function.
-      // It must be a direct call.
-      revng_assert(Callee);
-      StructFieldRef = getReturnStructFieldLocationReference(Callee,
-                                                             Idx,
-                                                             ThePTMLCBuilder);
-    } else {
-      const model::Type *CalleeType = CalleePrototype.getConst();
-      StructFieldRef = getReturnField(*CalleeType, Idx, Model).str().str();
-    }
-
-    rc_return addDebugInfo(I,
-                           rc_recur getToken(AggregateOp) + "."
-                             + StructFieldRef,
-                           ThePTMLCBuilder);
-
-  } break;
 
   case llvm::Instruction::Select: {
 

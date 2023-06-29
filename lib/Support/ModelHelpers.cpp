@@ -7,6 +7,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
@@ -453,6 +454,16 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(Op))
           ReturnTypes = rc_recur getStrongModelInfo(Cache, OriginalInst, Model);
 
+      } else if (FTags.contains(FunctionTags::OpaqueExtractValue)) {
+        const llvm::Value *Op0 = Call->getArgOperand(0);
+        if (auto *Aggregate = llvm::dyn_cast<llvm::Instruction>(Op0)) {
+          llvm::SmallVector<QualifiedType> NestedReturnTypes = rc_recur
+            getStrongModelInfo(Cache, Aggregate, Model);
+          const auto *Op1 = Call->getArgOperand(1);
+          const auto *Index = llvm::cast<llvm::ConstantInt>(Op1);
+          ReturnTypes.push_back(NestedReturnTypes[Index->getZExtValue()]);
+        }
+
       } else if (FuncName.startswith("revng_stack_frame")) {
         // Retrieve the stack frame type
         auto &StackType = ParentFunc()->StackFrameType();
@@ -464,13 +475,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         revng_assert(not FuncName.startswith("revng_call_stack_arguments"));
       }
     }
-  } else if (auto *EV = llvm::dyn_cast<llvm::ExtractValueInst>(Inst)) {
-    const llvm::Value *AggregateOp = EV->getAggregateOperand();
-
-    if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(AggregateOp))
-      rc_return rc_recur getStrongModelInfo(Cache, OriginalInst, Model);
   }
-
   rc_return ReturnTypes;
 }
 

@@ -97,23 +97,27 @@ SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
         if (auto *U = dyn_cast<llvm::SCEVUnknown>(AddressCandidate)) {
           auto *UVal = U->getValue();
           if (not isAlwaysAddress(UVal)) {
-            // For ExtractValueInst, if they have an aggregate operand that is
-            // not a call to an isolated function, we are never able to say
-            // anything meaningful about they type they point to, for now.
-            // So we just treat them if they are never never addresses that
-            // point to a type.
-            if (auto *E = dyn_cast<llvm::ExtractValueInst>(UVal))
-              if (not isCallToIsolated(E->getAggregateOperand()))
-                AddrSCEV = nullptr;
-
-            // If UVal is a call to a function that was not isolated by revng,
-            // the data layout analysis skips it, and we are never able to say
-            // something meaningful about the type it points to.
-            // So we just treat them if they are never never addresses that
-            // point to a type.
-            if (auto *Call = dyn_cast<llvm::CallInst>(UVal))
-              if (not isCallToIsolated(Call))
-                AddrSCEV = nullptr;
+            // If it's a call there are cases where we know we are never able to
+            // say anything meaningful about the type they point to, for now.
+            if (auto *Call = dyn_cast<llvm::CallInst>(UVal)) {
+              // For OpaqueExtractValue, if they have an aggregate operand that
+              // is not a call to an isolated function, we are never able to say
+              // anything meaningful about the type they point to, for now.
+              // So we just treat them if they are never never addresses that
+              // point to a type.
+              if (isCallToTagged(Call, FunctionTags::OpaqueExtractValue)) {
+                if (not isCallToIsolated(Call->getOperand(0)))
+                  AddrSCEV = nullptr;
+              } else {
+                // If UVal is a call to a function that was not isolated by
+                // revng, the data layout analysis skips it, and we are never
+                // able to say something meaningful about the type it points to.
+                // So we just treat them if they are never never addresses that
+                // point to a type.
+                if (not isCallToIsolated(Call))
+                  AddrSCEV = nullptr;
+              }
+            }
           }
         }
       }

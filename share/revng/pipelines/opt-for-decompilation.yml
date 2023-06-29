@@ -10,17 +10,19 @@ Branches:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
-              - remove-extractvalues
               - dce
+              - remove-extractvalues
               - simplify-cfg-with-hoist-and-sink
               - dse
               - instcombine
+              - remove-extractvalues
               - sroa
               - instsimplify
               - jump-threading
               - licm
               - unreachableblockelim
               - instcombine
+              - remove-extractvalues
               - early-cse
               - simplify-cfg-with-hoist-and-sink
               - type-shrinking

@@ -2,8 +2,10 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -154,20 +156,21 @@ public:
       auto *Overflow = Builder.CreateCall(OverflowPool.get(Name, FT, Name),
                                           { Operand1, Operand2 });
 
-      for (User *U : Call->users()) {
-        auto *ExtractValue = cast<ExtractValueInst>(U);
-        revng_assert(ExtractValue->getNumIndices() == 1);
-        auto Index = ExtractValue->getIndices()[0];
+      for (User *U : llvm::make_early_inc_range(Call->users())) {
+        revng_assert(isCallToTagged(U, FunctionTags::OpaqueExtractValue));
+        auto *ExtractValue = cast<CallInst>(U);
+        auto *Index = cast<ConstantInt>(ExtractValue->getArgOperand(1));
         Value *ReplaceWith = nullptr;
-        if (Index == 0) {
+        if (Index->isZero()) {
           ReplaceWith = Result;
-        } else if (Index == 1) {
+        } else if (Index->isOne()) {
           ReplaceWith = Overflow;
         } else {
           revng_abort();
         }
 
         ExtractValue->replaceAllUsesWith(ReplaceWith);
+        ExtractValue->eraseFromParent();
       }
     }
 

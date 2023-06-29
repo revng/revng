@@ -473,8 +473,9 @@ public:
                 if (Ext.empty())
                   continue;
 
-                for (llvm::ExtractValueInst *E : Ext) {
-                  revng_assert(E);
+                for (llvm::CallInst *E : Ext) {
+                  using FunctionTags::OpaqueExtractValue;
+                  revng_assert(isCallToTagged(E, OpaqueExtractValue));
                   llvm::Type *ExtTy = E->getType();
                   revng_assert(isa<IntegerType>(ExtTy)
                                or isa<PointerType>(ExtTy));
@@ -710,7 +711,8 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
         // ExtractValue is special since its operand has struct type, so we
         // don't handle them explicitly.  It will be analyzed only as operands
         // of its uses.
-        if (isa<ExtractValueInst>(I))
+        revng_assert(not isa<ExtractValueInst>(I));
+        if (isCallToTagged(&I, FunctionTags::OpaqueExtractValue))
           continue;
 
         // Load and Store are handled separately, because we look into their
