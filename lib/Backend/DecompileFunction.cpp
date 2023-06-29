@@ -1214,7 +1214,15 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
           const model::Type *TheType = peelConstAndTypedefs(OpType0)
                                          .UnqualifiedType()
                                          .getConst();
-          const auto *Primitive = cast<model::PrimitiveType>(TheType);
+          revng_assert(isa<model::PrimitiveType>(TheType)
+                       or isa<model::EnumType>(TheType));
+          const auto *Primitive = dyn_cast<model::PrimitiveType>(TheType);
+          if (nullptr == Primitive) {
+            const auto *Enum = cast<model::EnumType>(TheType);
+            const auto
+              *Underlying = Enum->UnderlyingType().UnqualifiedType().getConst();
+            Primitive = cast<model::PrimitiveType>(Underlying);
+          }
           auto CurrentKind = Primitive->PrimitiveKind();
           if (ICmpKind == Signed and CurrentKind != Signed)
             Op0Token = buildCastExpr(Op0Token, OpType0, TargetType);
