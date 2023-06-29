@@ -172,22 +172,26 @@ public:
   llvm::APInt size() const {
     using namespace llvm;
 
-    if (Bounds.size() == 0)
-      return APInt(BitWidth, 0);
+    auto SizeBitWidth = BitWidth + 1;
 
-    APInt Size(BitWidth, 0);
+    if (Bounds.size() == 0)
+      return APInt(SizeBitWidth, 0);
+
+    APInt Size(SizeBitWidth, 0);
     const APInt *Last = nullptr;
     for (const llvm::APInt &N : Bounds) {
       if (Last == nullptr) {
         Last = &N;
       } else {
-        Size += (N - *Last);
+        Size += (N - *Last).zext(SizeBitWidth);
         Last = nullptr;
       }
     }
 
-    if (Last != nullptr)
-      Size += (APInt::getMaxValue(BitWidth) - *Last);
+    if (Last != nullptr) {
+      Size += (APInt::getHighBitsSet(SizeBitWidth, 1)
+               - Last->zext(SizeBitWidth));
+    }
 
     return Size;
   }
