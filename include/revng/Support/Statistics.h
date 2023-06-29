@@ -17,10 +17,33 @@
 
 const size_t MaxCounterMapDump = 32;
 
-class OnQuitInteraface {
+extern llvm::cl::opt<bool> Statistics;
+
+class OnQuitInterface;
+
+class OnQuitRegistry {
+public:
+  void install();
+
+  /// Registers an object for having its onQuit method called upon program
+  /// termination
+  void add(OnQuitInterface *S) { Register.push_back(S); }
+
+  void dump();
+
+private:
+  std::vector<OnQuitInterface *> Register;
+};
+
+extern llvm::ManagedStatic<OnQuitRegistry> OnQuit;
+
+class OnQuitInterface {
+public:
+  OnQuitInterface() { OnQuit->add(this); }
+
 public:
   virtual void onQuit() = 0;
-  virtual ~OnQuitInteraface();
+  virtual ~OnQuitInterface(){};
 };
 
 template<typename T>
@@ -35,15 +58,21 @@ inline size_t digitsCount(T Value) {
   return Digits;
 }
 
+inline void OnQuitRegistry::dump() {
+  if (Statistics)
+    for (OnQuitInterface *S : Register)
+      S->onQuit();
+}
+
 template<typename K, typename T = uint64_t>
-class CounterMap : public OnQuitInteraface {
+class CounterMap : public OnQuitInterface {
 private:
   using Container = std::map<K, T>;
   Container Map;
   std::string Name;
 
 public:
-  CounterMap(const llvm::Twine &Name) : Name(Name.str()) { init(); }
+  CounterMap(const llvm::Twine &Name) : Name(Name.str()) {}
   virtual ~CounterMap() {}
 
   void push(K Key) { Map[Key]++; }
@@ -51,7 +80,7 @@ public:
   void clear(K Key) { Map.erase(Key); }
   void clear() { Map.clear(); }
 
-  virtual void onQuit() { dump(); }
+  void onQuit() final { dump(); }
 
   template<typename O>
   void dump(size_t Max, O &Output) {
@@ -87,9 +116,6 @@ public:
 
   void dump(size_t Max) { dump(Max, dbg); }
   void dump() { dump(MaxCounterMapDump, dbg); }
-
-private:
-  void init();
 };
 
 /// Collect mean and variance about a certain event.
@@ -100,21 +126,20 @@ private:
 ///
 /// If a name is provided, the results will be registered for printing at
 /// program termination.
-class RunningStatistics : public OnQuitInteraface {
+class RunningStatistics : public OnQuitInterface {
+private:
+  std::string Name;
+  int N = 0;
+  double OldM = 0.0;
+  double NewM = 0.0;
+  double OldS = 0.0;
+  double NewS = 0.0;
+  double Sum = 0.0;
+
 public:
-  RunningStatistics() : RunningStatistics(llvm::Twine(), false) {}
+  RunningStatistics() = default;
 
-  RunningStatistics(const llvm::Twine &Name) : RunningStatistics(Name, true) {}
-
-  /// \arg Name the name to use when printing the statistics.
-  /// \arg Register whether this object should be registered for being printed
-  ///      upon program termination or not.
-  RunningStatistics(const llvm::Twine &Name, bool Register) :
-    Name(Name.str()), N(0) {
-
-    if (Register)
-      init();
-  }
+  RunningStatistics(const llvm::Twine &Name) : Name(Name.str()) {}
 
   virtual ~RunningStatistics() {}
 
@@ -162,51 +187,8 @@ public:
   }
 
   void dump() { dump(dbg); }
-
-  virtual void onQuit();
-
-private:
-  void init();
-
-private:
-  std::string Name;
-  int N;
-  double OldM, NewM, OldS, NewS;
-  double Sum;
-};
-
-// TODO: this is duplicated
-template<typename T, typename... ArgTypes>
-inline std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
-  return { { std::forward<ArgTypes>(Args)... } };
-}
-
-class OnQuitRegistry {
-public:
-  void install();
-
-  /// Registers an object for having its onQuit method called upon program
-  /// termination
-  void add(OnQuitInteraface *S) { Register.push_back(S); }
-
-  void dump() {
-    for (OnQuitInteraface *S : Register)
-      S->onQuit();
+  void onQuit() final {
+    dump();
+    dbg << "\n";
   }
-
-private:
-  std::vector<OnQuitInteraface *> Register;
 };
-
-extern llvm::ManagedStatic<OnQuitRegistry> OnQuitStatistics;
-
-inline void RunningStatistics::init() {
-  OnQuitStatistics->add(this);
-}
-
-template<typename K, typename T>
-inline void CounterMap<K, T>::init() {
-  OnQuitStatistics->add(this);
-}
-
-extern void installStatistics();
