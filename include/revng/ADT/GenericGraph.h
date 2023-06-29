@@ -1362,6 +1362,7 @@ public:
   static NodeRef getEntryNode(llvm::Inverse<NodeRef> N) { return N.Graph; };
 };
 
+// TODO: implement const version of GraphTraits
 /// Specializes GraphTraits<MutableEdgeNode<...> *>
 template<StrictSpecializationOfMutableEdgeNode T>
 struct GraphTraits<T *> {
@@ -1388,6 +1389,7 @@ public:
   static T *getEntryNode(T *N) { return N; };
 };
 
+// TODO: implement const version of GraphTraits
 /// Specializes GraphTraits<llvm::Inverse<MutableEdgeNode<...> *>>
 template<StrictSpecializationOfMutableEdgeNode T>
 struct GraphTraits<llvm::Inverse<T *>> {
@@ -1416,7 +1418,10 @@ public:
 
 /// Specializes GraphTraits<GenericGraph<...> *>>
 template<SpecializationOfGenericGraph T>
-struct GraphTraits<T *> : public GraphTraits<typename T::Node *> {
+struct GraphTraits<T *>
+  : public GraphTraits<std::conditional_t<std::is_const_v<T>,
+                                          const typename T::Node *,
+                                          typename T::Node *>> {
 
   using NodeRef = std::conditional_t<std::is_const_v<T>,
                                      const typename T::Node *,
@@ -1437,7 +1442,10 @@ struct GraphTraits<T *> : public GraphTraits<typename T::Node *> {
 /// Specializes GraphTraits<llvm::Inverse<GenericGraph<...> *>>>
 template<SpecializationOfGenericGraph T>
 struct GraphTraits<llvm::Inverse<T *>>
-  : public GraphTraits<llvm::Inverse<typename T::Node *>> {
+  : public GraphTraits<
+      llvm::Inverse<std::conditional_t<std::is_const_v<T>,
+                                       const typename T::Node *,
+                                       typename T::Node *>>> {
 
   using NodeRef = std::conditional_t<std::is_const_v<T>,
                                      const typename T::Node *,
