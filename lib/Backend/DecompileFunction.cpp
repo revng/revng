@@ -183,37 +183,62 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
 
 static std::string
 get128BitIntegerHexConstant(llvm::APInt Value,
-                            const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                            const ptml::PTMLCBuilder &ThePTMLCBuilder,
+                            const model::Binary &Model) {
   revng_assert(Value.getBitWidth() > 64);
+  revng_assert(Value.getBitWidth() <= 128);
+  using PTMLOperator = ptml::PTMLCBuilder::Operator;
+
+  using model::PrimitiveTypeKind::Unsigned;
+  model::QualifiedType
+    U128 = model::QualifiedType(Model.getPrimitiveType(Unsigned, 16), {});
+  std::string Cast = addAlwaysParentheses(getTypeName(U128, ThePTMLCBuilder));
+
+  if (Value.isZero())
+    return addAlwaysParentheses(Cast + " " + ThePTMLCBuilder.getNumber(0));
+
   // In C, even if you can have 128-bit variables, you cannot have 128-bit
   // literals, so we need this hack to assign a big constant value to a
   // 128-bit variable.
-  llvm::APInt LowBits = Value.getLoBits(64);
   llvm::APInt HighBits = Value.getHiBits(Value.getBitWidth() - 64);
+  llvm::APInt LowBits = Value.getLoBits(64);
+  bool NeedsOr = not HighBits.isZero() and not LowBits.isZero();
 
-  StringToken LowBitsString;
-  LowBits.toString(LowBitsString,
-                   /*radix=*/16,
-                   /*signed=*/false,
-                   /*formatAsCLiteral=*/true);
-  StringToken HighBitsString;
-  HighBits.toString(HighBitsString,
-                    /*radix=*/16,
-                    /*signed=*/false,
-                    /*formatAsCLiteral=*/true);
+  std::string CompositeConstant = Cast + " ";
 
-  using PTMLOperator = ptml::PTMLCBuilder::Operator;
-  auto HighConstant = ThePTMLCBuilder.getConstantTag(HighBitsString) + " "
-                      + ThePTMLCBuilder.getOperator(PTMLOperator::LShift) + " "
-                      + ThePTMLCBuilder.getNumber(64);
-  auto CompositeConstant = HighConstant + " "
-                           + ThePTMLCBuilder.getOperator(PTMLOperator::Or) + " "
-                           + ThePTMLCBuilder.getConstantTag(LowBitsString);
+  if (not HighBits.isZero()) {
+    StringToken HighBitsString;
+    HighBits.toString(HighBitsString,
+                      /*radix=*/16,
+                      /*signed=*/false,
+                      /*formatAsCLiteral=*/true);
+
+    auto HighConst = ThePTMLCBuilder.getConstantTag(HighBitsString) + " "
+                     + ThePTMLCBuilder.getOperator(PTMLOperator::LShift) + " "
+                     + ThePTMLCBuilder.getNumber(64);
+
+    CompositeConstant += HighConst;
+  }
+
+  if (NeedsOr)
+    CompositeConstant += " " + ThePTMLCBuilder.getOperator(PTMLOperator::Or)
+                         + " ";
+
+  if (not LowBits.isZero()) {
+    StringToken LowBitsString;
+    LowBits.toString(LowBitsString,
+                     /*radix=*/16,
+                     /*signed=*/false,
+                     /*formatAsCLiteral=*/true);
+    CompositeConstant += ThePTMLCBuilder.getConstantTag(LowBitsString)
+                           .serialize();
+  }
   return addAlwaysParentheses(CompositeConstant);
 }
 
 static std::string hexLiteral(const llvm::ConstantInt *Int,
-                              const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                              const ptml::PTMLCBuilder &ThePTMLCBuilder,
+                              const model::Binary &Model) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
     Int->getValue().toString(Formatted,
@@ -222,7 +247,7 @@ static std::string hexLiteral(const llvm::ConstantInt *Int,
                              /*formatAsCLiteral*/ true);
     return Formatted.str().str();
   }
-  return get128BitIntegerHexConstant(Int->getValue(), ThePTMLCBuilder);
+  return get128BitIntegerHexConstant(Int->getValue(), ThePTMLCBuilder, Model);
 }
 
 static std::string charLiteral(const llvm::ConstantInt *Int) {
@@ -486,12 +511,14 @@ static std::string getInvalidToken(const llvm::UndefValue *U,
 
 static std::string
 getFormattedIntegerToken(const llvm::CallInst *Call,
-                         const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                         const ptml::PTMLCBuilder &ThePTMLCBuilder,
+                         const model::Binary &Model) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return ThePTMLCBuilder.getConstantTag(hexLiteral(Value, ThePTMLCBuilder))
+    return ThePTMLCBuilder
+      .getConstantTag(hexLiteral(Value, ThePTMLCBuilder, Model))
       .serialize();
   }
 
@@ -528,7 +555,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
     if (Value.isIntN(64))
       rc_return ThePTMLCBuilder.getNumber(Value).serialize();
     else
-      rc_return get128BitIntegerHexConstant(Value, ThePTMLCBuilder);
+      rc_return get128BitIntegerHexConstant(Value, ThePTMLCBuilder, Model);
   }
 
   if (auto *Global = dyn_cast<llvm::GlobalVariable>(C)) {
@@ -587,7 +614,8 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
 
   if (isIntegerConstFormatting(C))
     rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C),
-                                       ThePTMLCBuilder);
+                                       ThePTMLCBuilder,
+                                       Model);
 
   std::string Error = "Cannot get token for llvm::Constant: ";
   Error += dumpToString(C).c_str();
