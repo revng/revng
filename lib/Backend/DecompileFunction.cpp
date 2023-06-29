@@ -953,7 +953,14 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
     const auto Operand = Call->getArgOperand(0);
     std::string StringLiteral = rc_recur getToken(Operand);
-    rc_return ThePTMLCBuilder.getStringLiteral(StringLiteral).serialize();
+
+    std::string EscapedHTML;
+    {
+      llvm::raw_string_ostream EscapeHTMLStream(EscapedHTML);
+      llvm::printHTMLEscaped(StringLiteral, EscapeHTMLStream);
+    }
+
+    rc_return ThePTMLCBuilder.getStringLiteral(EscapedHTML).serialize();
   }
 
   std::string Error = "Cannot get token for custom opcode: "
