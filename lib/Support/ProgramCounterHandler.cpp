@@ -464,9 +464,9 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
         //
 
         if (PMA.isEmpty()) {
-          // We have found a path on which the PC doesn't change return an
-          // empty std::optional
-          revng_abort();
+          // We have found a path on which the PC doesn't change
+          AgreedMA = MetaAddress::invalid();
+          return BailOut;
         }
 
         // Obtain the current PC and fill in all the missing fields
