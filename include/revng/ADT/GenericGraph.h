@@ -100,7 +100,7 @@ template<typename Node, typename EdgeLabel>
 struct Edge : public EdgeLabel {
   Edge(Node *Neighbor) : Neighbor(Neighbor) {}
   Edge(Node *Neighbor, EdgeLabel EL) : EdgeLabel(EL), Neighbor(Neighbor) {}
-  Node *Neighbor;
+  Node *Neighbor = nullptr;
 };
 
 //
