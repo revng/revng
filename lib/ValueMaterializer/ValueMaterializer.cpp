@@ -72,6 +72,7 @@ void ValueMaterializer::computeOracleConstraints() {
 
 void ValueMaterializer::applyOracleResultsToDataFlowGraph() {
   using namespace llvm;
+  const DataLayout &DL = getModule(Context)->getDataLayout();
 
   for (DataFlowGraph::Node *Node : DataFlowGraph.nodes()) {
     auto *V = Node->Value;
@@ -84,7 +85,15 @@ void ValueMaterializer::applyOracleResultsToDataFlowGraph() {
       revng_assert(Node->OracleRange->size() != 0);
     } else if (isa<ConstantPointerNull>(V) or isa<UndefValue>(V)) {
       // TODO: should we set a range of 0 for ConstantPointerNull
-      unsigned BitWidth = V->getType()->getIntegerBitWidth();
+      unsigned BitWidth = 0;
+      auto *ValueType = V->getType();
+      if (isa<PointerType>(ValueType)) {
+        BitWidth = DL.getPointerTypeSizeInBits(ValueType);
+      } else if (isa<IntegerType>(ValueType)) {
+        BitWidth = V->getType()->getIntegerBitWidth();
+      } else {
+        revng_abort();
+      }
       Node->OracleRange = ConstantRange(BitWidth, false);
     } else if (auto *I = dyn_cast<Instruction>(V)) {
       // Query the oracle
