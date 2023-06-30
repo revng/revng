@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     }
 
     struct EdgeLabel {
-      int X;
+      int X = 0;
     };
 
     {
