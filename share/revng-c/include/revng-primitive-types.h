@@ -29,7 +29,9 @@ typedef struct {
 typedef struct {
   char data[12];
 } generic96_t;
+#ifdef __SIZEOF_INT128__
 typedef __uint128_t generic128_t;
+#endif
 
 static_assert_size(generic8_t, 1);
 static_assert_size(generic16_t, 2);
@@ -37,7 +39,9 @@ static_assert_size(generic32_t, 4);
 static_assert_size(generic64_t, 8);
 static_assert_size(generic80_t, 10);
 static_assert_size(generic96_t, 12);
+#ifdef __SIZEOF_INT128__
 static_assert_size(generic128_t, 16);
+#endif
 
 extern generic8_t undef_generic8_t();
 extern generic16_t undef_generic16_t();
@@ -45,7 +49,9 @@ extern generic32_t undef_generic32_t();
 extern generic64_t undef_generic64_t();
 extern generic80_t undef_generic80_t();
 extern generic96_t undef_generic96_t();
+#ifdef __SIZEOF_INT128__
 extern generic128_t undef_generic128_t();
+#endif
 
 //
 // PointerOrNumber
@@ -55,19 +61,25 @@ typedef uint8_t pointer_or_number8_t;
 typedef uint16_t pointer_or_number16_t;
 typedef uint32_t pointer_or_number32_t;
 typedef uint64_t pointer_or_number64_t;
+#ifdef __SIZEOF_INT128__
 typedef __uint128_t pointer_or_number128_t;
+#endif
 
 static_assert_size(pointer_or_number8_t, 1);
 static_assert_size(pointer_or_number16_t, 2);
 static_assert_size(pointer_or_number32_t, 4);
 static_assert_size(pointer_or_number64_t, 8);
+#ifdef __SIZEOF_INT128__
 static_assert_size(pointer_or_number128_t, 16);
+#endif
 
 extern pointer_or_number8_t undef_pointer_or_number8_t();
 extern pointer_or_number16_t undef_pointer_or_number16_t();
 extern pointer_or_number32_t undef_pointer_or_number32_t();
 extern pointer_or_number64_t undef_pointer_or_number64_t();
+#ifdef __SIZEOF_INT128__
 extern pointer_or_number128_t undef_pointer_or_number128_t();
+#endif
 
 //
 // Number
@@ -77,51 +89,67 @@ typedef uint8_t number8_t;
 typedef uint16_t number16_t;
 typedef uint32_t number32_t;
 typedef uint64_t number64_t;
+#ifdef __SIZEOF_INT128__
 typedef __uint128_t number128_t;
+#endif
 
 static_assert_size(number8_t, 1);
 static_assert_size(number16_t, 2);
 static_assert_size(number32_t, 4);
 static_assert_size(number64_t, 8);
+#ifdef __SIZEOF_INT128__
 static_assert_size(number128_t, 16);
+#endif
 
 extern number8_t undef_number8_t();
 extern number16_t undef_number16_t();
 extern number32_t undef_number32_t();
 extern number64_t undef_number64_t();
+#ifdef __SIZEOF_INT128__
 extern number128_t undef_number128_t();
+#endif
 
 //
 // Signed and Unsigned
 //
 
 // Smaller sizes are already present in stdint.h
+#ifdef __SIZEOF_INT128__
 typedef __int128_t int128_t;
 typedef __uint128_t uint128_t;
+#endif
 
 static_assert_size(int8_t, 1);
 static_assert_size(int16_t, 2);
 static_assert_size(int32_t, 4);
 static_assert_size(int64_t, 8);
+#ifdef __SIZEOF_INT128__
 static_assert_size(int128_t, 16);
+#endif
 
 extern int8_t undef_int8_t();
 extern int16_t undef_int16_t();
 extern int32_t undef_int32_t();
 extern int64_t undef_int64_t();
+#ifdef __SIZEOF_INT128__
 extern int128_t undef_int128_t();
+#endif
 
 static_assert_size(uint8_t, 1);
 static_assert_size(uint16_t, 2);
 static_assert_size(uint32_t, 4);
 static_assert_size(uint64_t, 8);
+#ifdef __SIZEOF_INT128__
 static_assert_size(uint128_t, 16);
+#endif
 
 extern uint8_t undef_uint8_t();
 extern uint16_t undef_uint16_t();
 extern uint32_t undef_uint32_t();
 extern uint64_t undef_uint64_t();
+#ifdef __SIZEOF_INT128__
 extern uint128_t undef_uint128_t();
+#endif
 
 //
 // Float
