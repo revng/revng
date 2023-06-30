@@ -172,22 +172,26 @@ public:
   llvm::APInt size() const {
     using namespace llvm;
 
-    if (Bounds.size() == 0)
-      return APInt(BitWidth, 0);
+    auto SizeBitWidth = BitWidth + 1;
 
-    APInt Size(BitWidth, 0);
+    if (Bounds.size() == 0)
+      return APInt(SizeBitWidth, 0);
+
+    APInt Size(SizeBitWidth, 0);
     const APInt *Last = nullptr;
     for (const llvm::APInt &N : Bounds) {
       if (Last == nullptr) {
         Last = &N;
       } else {
-        Size += (N - *Last);
+        Size += (N - *Last).zext(SizeBitWidth);
         Last = nullptr;
       }
     }
 
-    if (Last != nullptr)
-      Size += (APInt::getMaxValue(BitWidth) - *Last);
+    if (Last != nullptr) {
+      Size += (APInt::getHighBitsSet(SizeBitWidth, 1)
+               - Last->zext(SizeBitWidth));
+    }
 
     return Size;
   }
@@ -195,7 +199,16 @@ public:
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>
-  void dump(T &Output) const {
+  void dump(T &Output) const debug_function {
+    dump(Output, [](const llvm::APInt &Value) -> std::string {
+      llvm::SmallString<32> String;
+      Value.toStringUnsigned(String);
+      return String.str().str();
+    });
+  }
+
+  template<typename T, typename F>
+  void dump(T &Output, F &&Formatter) const {
     if (BitWidth == 0) {
       Output << "[)";
       return;
@@ -208,7 +221,7 @@ public:
       else
         Output << ",";
 
-      Output << N.getLimitedValue();
+      Output << Formatter(N);
 
       if (not Open)
         Output << ") ";
@@ -220,8 +233,7 @@ public:
       Output << "[)";
     }
     if (not Open) {
-      Output << "," << llvm::APInt::getMaxValue(BitWidth).getLimitedValue()
-             << ")";
+      Output << "," << Formatter(llvm::APInt::getMaxValue(BitWidth)) << ")";
     }
   }
 

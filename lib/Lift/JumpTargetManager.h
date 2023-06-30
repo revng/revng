@@ -40,7 +40,6 @@ class StoreInst;
 class Value;
 } // namespace llvm
 
-class AnalysisRegistry;
 class JumpTargetManager;
 class ProgramCounterHandler;
 class SummaryCallsBuilder;
@@ -83,8 +82,8 @@ private:
   /// Remove all the constant writes to the PC
   bool pinConstantStore(llvm::Function &F);
 
-  /// Pin PC-stores for which AVI provided useful results
-  bool pinAVIResults(llvm::Function &F);
+  /// Pin PC-stores for which ValueMaterializer provided useful results
+  bool pinMaterializedValues(llvm::Function &F);
 
   /// Introduces a fallthrough branch if there's no store to PC before the last
   /// call to an helper
@@ -237,6 +236,8 @@ public:
   /// Collect jump targets from the program's segments
   void harvestGlobalData();
 
+  auto createCSAA() { return CreateCSAA(); }
+
   /// Handle a new program counter. We might already have a basic block for that
   /// program counter, or we could even have a translation for it. Return one
   /// of these, if appropriate.
@@ -253,6 +254,9 @@ public:
 
   /// Save the PC-Instruction association for future use
   void registerInstruction(MetaAddress PC, llvm::Instruction *Instruction);
+
+  auto &module() { return TheModule; }
+  const auto &model() const { return Model; }
 
   /// Return a pointer to the `exitTB` function
   ///
@@ -356,11 +360,18 @@ public:
 
   // TODO: this is a likely approach is broken, it depends on the order
   /// As registerJT, but only if the JT has already been registered
-  void markJT(MetaAddress PC, JTReason::Values Reason) {
+  ///
+  /// \return true if the given PC did not already have such reason
+  bool markJT(MetaAddress PC, JTReason::Values Reason) {
+    bool Result = false;
     revng_assert(PC.isValid());
 
-    if (isJumpTarget(PC))
+    if (isJumpTarget(PC)) {
+      Result = not JumpTargets.at(PC).hasReason(Reason);
       registerJT(PC, Reason);
+    }
+
+    return Result;
   }
 
   /// Checks if \p BB is a basic block generated during translation
@@ -397,14 +408,22 @@ public:
     return Pair.first + Pair.second;
   }
 
-  MaterializedValue readFromPointer(llvm::Type *Type,
-                                    llvm::Constant *Pointer,
+  MaterializedValue readFromPointer(MetaAddress LoadAddress,
+                                    unsigned LoadSize,
                                     bool IsLittleEndian);
 
   /// Increment the counter of emitted branches since the last reset
   void recordNewBranches(llvm::BasicBlock *Source, size_t Count) {
-    AVIPCWhiteList.insert(getPC(Source->getTerminator()).first);
+    ValueMaterializerPCWhiteList.insert(getPC(Source->getTerminator()).first);
     NewBranches += Count;
+  }
+
+  bool isInValueMaterializerPCWhitelist(MetaAddress Address) const {
+    return ValueMaterializerPCWhiteList.contains(Address);
+  }
+
+  void clearValueMaterializerPCWhitelist() {
+    ValueMaterializerPCWhiteList.clear();
   }
 
   /// Finalizes information about the jump targets
@@ -518,10 +537,10 @@ public:
 
   ProgramCounterHandler *programCounterHandler() { return PCH; }
 
+  llvm::DenseSet<llvm::BasicBlock *> computeUnreachable() const;
+
 private:
   void fixPostHelperPC();
-
-  llvm::DenseSet<llvm::BasicBlock *> computeUnreachable() const;
 
   /// Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
@@ -555,11 +574,7 @@ private:
                         const unsigned char *Start,
                         const unsigned char *End);
 
-  void harvestWithAVI();
-
   void harvest();
-
-  MetaAddressSet inflateAVIWhitelist();
 
   llvm::CallInst *getJumpTarget(llvm::BasicBlock *Target);
 
@@ -598,27 +613,9 @@ private:
 
   ProgramCounterHandler *PCH;
 
-  MetaAddressSet AVIPCWhiteList;
+  MetaAddressSet ValueMaterializerPCWhiteList;
   const TupleTree<model::Binary> &Model;
   const RawBinaryView &BinaryView;
-
-private:
-  void updateCSAA();
-
-  llvm::Function *createTemporaryRoot(llvm::ValueToValueMapTy &OldToNew);
-
-  void processLoadsAndStores(llvm::Function *OptimizedFunction,
-                             AnalysisRegistry &AR);
-
-  void promoteHelpersToIntrinsics(llvm::Module *M,
-                                  llvm::Function *OptimizedFunction,
-                                  llvm::IRBuilder<> &Builder);
-
-  GlobalToAllocaTy promoteCSVsToAlloca(llvm::Function *OptimizedFunction);
-
-  SummaryCallsBuilder runAdvancedValueInfo(llvm::Function *OptimizedFunction);
-
-  void collectAVIResults(llvm::Module *M, AnalysisRegistry &AR);
 };
 
 template<>

@@ -20,6 +20,14 @@ bool init_unit_test();
 
 using namespace llvm;
 
+static unsigned getSize(llvm::Value *V) {
+  llvm::Type *T = V->getType();
+  if (auto *IntTy = llvm::dyn_cast<llvm::IntegerType>(T))
+    return IntTy->getBitWidth();
+
+  return 0;
+}
+
 static Function *run(Module *M, const char *Body) {
   Function *F = M->getFunction("main");
 

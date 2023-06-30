@@ -43,10 +43,13 @@ Instruction *MetaAddress::composeIntegerPC(IRBuilder<> &B,
 }
 
 MetaAddress MetaAddress::decomposeIntegerPC(ConstantInt *Value) {
-  revng_assert(Value->getType()->getBitWidth() == 128);
-  const APInt &APValue = Value->getValue();
-  uint64_t Lower = (APValue & UINT64_MAX).getLimitedValue();
-  uint64_t Upper = APValue.lshr(64).getLimitedValue();
+  return decomposeIntegerPC(Value->getValue());
+}
+
+MetaAddress MetaAddress::decomposeIntegerPC(const APInt &Value) {
+  revng_assert(Value.getBitWidth() == 128);
+  uint64_t Lower = (Value & UINT64_MAX).getLimitedValue();
+  uint64_t Upper = Value.lshr(64).getLimitedValue();
 
   MetaAddress Result;
   Result.Address = Lower;

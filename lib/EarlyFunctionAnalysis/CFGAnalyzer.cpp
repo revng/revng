@@ -28,6 +28,7 @@
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
+#include "revng/Support/RegisterClobberer.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 using namespace llvm;
@@ -1037,17 +1038,13 @@ void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
                                  const CSVSet &ClobberedRegisters) {
   using namespace llvm;
 
+  Module *M = Builder.GetInsertBlock()->getParent()->getParent();
+  RegisterClobberer Clobberer(M);
+
   // Prevent the store instructions from being optimized out by storing
   // the an opaque value into clobbered registers
-  for (GlobalVariable *Register : ClobberedRegisters) {
-    auto *CSVTy = Register->getValueType();
-    auto Name = ("registers_clobbered_" + Twine(Register->getName())).str();
-    auto *ClobberFunction = RegistersClobberedPool.get(Register->getName(),
-                                                       CSVTy,
-                                                       {},
-                                                       Name);
-    Builder.CreateStore(Builder.CreateCall(ClobberFunction), Register);
-  }
+  for (GlobalVariable *Register : ClobberedRegisters)
+    Clobberer.clobber(Builder, Register);
 }
 
 } // namespace efa

@@ -8,6 +8,8 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
+#include "revng/Support/Statistics.h"
+
 namespace revng {
 
 /// Performs initialization and shutdown steps for revng tools.
@@ -22,7 +24,11 @@ public:
             llvm::ArrayRef<const llvm::cl::OptionCategory *> CategoriesToHide) :
     InitLLVM(Argc, Argv, true) {
 
-    init();
+    OnQuit->install();
+
+    llvm::setBugReportMsg("PLEASE submit a bug report to "
+                          "https://github.com/revng/revng and include the "
+                          "crash backtrace\n");
 
     // NOLINTNEXTLINE
     llvm::cl::HideUnrelatedOptions(CategoriesToHide);
@@ -37,12 +43,7 @@ public:
       std::exit(EXIT_FAILURE);
   }
 
-private:
-  void init() {
-    llvm::setBugReportMsg("PLEASE submit a bug report to "
-                          "https://github.com/revng/revng and include the "
-                          "crash backtrace\n");
-  }
+  ~InitRevng() { OnQuit->dump(); }
 };
 
 } // namespace revng

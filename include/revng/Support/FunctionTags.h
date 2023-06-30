@@ -189,6 +189,7 @@ inline Tag IsolatedRoot("IsolatedRoot");
 inline Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
 inline Tag Marker("Marker");
 inline Tag DynamicFunction("DynamicFunction");
+inline Tag ClobbererFunction("ClobbererFunction");
 
 inline Tag CSV("CSV");
 

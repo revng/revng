@@ -64,7 +64,7 @@ template<MonotoneFrameworkInstance MFI,
          typename LGT = typename MFI::Label>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const MFI &Instance,
-                     const typename MFI::GraphType &Flow,
+                     typename MFI::GraphType Flow,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels,
@@ -79,7 +79,6 @@ getMaximalFixedPoint(const MFI &Instance,
     size_t Priority;
     Label Item;
 
-    // NOLINTNEXTLINE(readability-identifier-naming)
     std::strong_ordering operator<=>(const WorklistItem &) const = default;
   };
   std::set<WorklistItem> Worklist;
@@ -138,7 +137,7 @@ template<MonotoneFrameworkInstance MFI,
          typename LGT = typename MFI::Label>
 std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
 getMaximalFixedPoint(const MFI &Instance,
-                     const typename MFI::GraphType &Flow,
+                     typename MFI::GraphType Flow,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels) {

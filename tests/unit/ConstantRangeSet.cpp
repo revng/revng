@@ -18,6 +18,13 @@ BOOST_AUTO_TEST_CASE(TestEnumerate) {
     return CRS({ { 32, Start }, { 32, End } });
   };
 
+  revng_check(Range(0xFFFFFFFF, 0).size() == 1);
+  llvm::ConstantRange AlmostAll({ 32, 0 }, { 32, 0xFFFFFFFF });
+  revng_check(not AlmostAll.isFullSet());
+  revng_check(not AlmostAll.isEmptySet());
+  revng_check(not AlmostAll.isWrappedSet());
+  revng_check(Range(0, 0xFFFFFFFF).size().getLimitedValue() == 0xFFFFFFFF);
+
   llvm::ConstantRange ZeroFive({ 4, 0 }, { 4, 5 });
 
   std::pair<CRS, std::vector<uint64_t>> Ranges[] = {
@@ -36,7 +43,8 @@ BOOST_AUTO_TEST_CASE(TestEnumerate) {
     { CRS(ZeroFive), { 0, 1, 2, 3, 4 } },
     { CRS(ZeroFive.inverse()), { 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 } },
     { CRS(ZeroFive.inverse()).intersectWith(CRS({ { 4, 10 }, { 4, 13 } })),
-      { 10, 11, 12 } }
+      { 10, 11, 12 } },
+    { Range(0xFFFFFFFF, 0), { 0xFFFFFFFF } }
   };
 
   for (auto &P : Ranges) {

@@ -11,6 +11,37 @@
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/Support/IRHelpers.h"
 
+class RegisterClobberer {
+private:
+  llvm::Module *M;
+  OpaqueFunctionsPool<std::string> Clobberers;
+
+public:
+  RegisterClobberer(llvm::Module *M) : M(M), Clobberers(M, false) {
+    using namespace llvm;
+    Clobberers.setMemoryEffects(MemoryEffects::readOnly());
+    Clobberers.addFnAttribute(Attribute::NoUnwind);
+    Clobberers.addFnAttribute(Attribute::WillReturn);
+    Clobberers.setTags({ &FunctionTags::ClobbererFunction });
+    Clobberers.initializeFromName(FunctionTags::ClobbererFunction);
+  }
+
+public:
+  llvm::StoreInst *
+  clobber(llvm::IRBuilder<> &Builder, llvm::GlobalVariable *CSV) {
+    auto *CSVTy = CSV->getValueType();
+    std::string Name = "clobber_" + CSV->getName().str();
+    llvm::Function *Clobberer = Clobberers.get(Name, CSVTy, {}, Name);
+    return Builder.CreateStore(Builder.CreateCall(Clobberer), CSV);
+  }
+
+  llvm::StoreInst *
+  clobber(llvm::IRBuilder<> &Builder, model::Register::Values Value) {
+    return clobber(Builder,
+                   M->getGlobalVariable(model::Register::getCSVName(Value)));
+  }
+};
+
 llvm::PreservedAnalyses
 RemoveHelperCallsPass::run(llvm::Function &F,
                            llvm::FunctionAnalysisManager &FAM) {
@@ -30,16 +61,11 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   if (!Changed)
     return PreservedAnalyses::all();
 
+  RegisterClobberer Clobberer(F.getParent());
   OpaqueFunctionsPool<Type *> OFPOriginalHelper(F.getParent(), false);
-  OpaqueFunctionsPool<Type *> OFPRegsClobberedHelper(F.getParent(), false);
-
   OFPOriginalHelper.setMemoryEffects(MemoryEffects::readOnly());
   OFPOriginalHelper.addFnAttribute(Attribute::NoUnwind);
   OFPOriginalHelper.addFnAttribute(Attribute::WillReturn);
-
-  OFPRegsClobberedHelper.setMemoryEffects(MemoryEffects::readOnly());
-  OFPRegsClobberedHelper.addFnAttribute(Attribute::NoUnwind);
-  OFPRegsClobberedHelper.addFnAttribute(Attribute::WillReturn);
 
   IRBuilder<> Builder(F.getContext());
   for (auto *I : ToReplace) {
@@ -59,16 +85,8 @@ RemoveHelperCallsPass::run(llvm::Function &F,
     // originally clobbered.
     CallInst *NewHelper = Builder.CreateCall(OriginalHelperMarker);
 
-    for (auto *CSV : getCSVUsedByHelperCall(I).Written) {
-      auto *CSVTy = CSV->getValueType();
-      auto *RegisterClobberedMarker = OFPRegsClobberedHelper.get(CSVTy,
-                                                                 CSVTy,
-                                                                 {},
-                                                                 "regs_"
-                                                                 "clobbered_"
-                                                                 "helper");
-      Builder.CreateStore(Builder.CreateCall(RegisterClobberedMarker), CSV);
-    }
+    for (auto *CSV : getCSVUsedByHelperCall(I).Written)
+      Clobberer.clobber(Builder, CSV);
 
     // Restore stack pointer back.
     Builder.CreateStore(SP, GCBI->spReg());

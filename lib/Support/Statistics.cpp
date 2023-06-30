@@ -10,17 +10,11 @@
 
 namespace cl = llvm::cl;
 
-// Was: -stats
-static cl::opt<bool> Statistics("statistics",
-                                cl::desc("print statistics upon exit or "
-                                         "SIGINT. Use "
-                                         "this argument, ignore -stats."),
-                                cl::cat(MainCategory));
-
-static cl::alias A1("T",
-                    cl::desc("Alias for -statistics"),
-                    cl::aliasopt(Statistics),
-                    cl::cat(MainCategory));
+cl::opt<bool> Statistics("statistics",
+                         cl::desc("print statistics upon exit or "
+                                  "SIGINT. Use "
+                                  "this argument, ignore -stats."),
+                         cl::cat(MainCategory));
 
 struct Handler {
   int Signal;
@@ -31,20 +25,16 @@ struct Handler {
 
 // Print statistics on SIGINT (Ctrl + C), SIGABRT (assertions) and SIGUSR1.
 // For SIGUSR1, don't terminate program execution.
-static std::array<Handler, 3> Handlers = { { { SIGINT, true, {}, {} },
+static std::array<Handler, 4> Handlers = { { { SIGINT, true, {}, {} },
+                                             { SIGTERM, true, {}, {} },
                                              { SIGABRT, true, {}, {} },
                                              { SIGUSR1, false, {}, {} } } };
 
-llvm::ManagedStatic<OnQuitRegistry> OnQuitStatistics;
-
-void installStatistics() {
-  if (Statistics)
-    OnQuitStatistics->install();
-}
+llvm::ManagedStatic<OnQuitRegistry> OnQuit;
 
 static void onQuit() {
   dbg << "\n";
-  OnQuitStatistics->dump();
+  OnQuit->dump();
 }
 
 static void onQuitSignalHandler(int Signal) {
@@ -67,23 +57,13 @@ static void onQuitSignalHandler(int Signal) {
 }
 
 void OnQuitRegistry::install() {
-  // Dump on normal exit
-  std::atexit(onQuit);
-
+  // TODO: can we use llvm::sys::AddSignalHandler?
   // Register signal handlers
   for (Handler &H : Handlers) {
     H.NewHandler.sa_handler = &onQuitSignalHandler;
 
     int Result = sigaction(H.Signal, &H.NewHandler, &H.OldHandler);
     revng_assert(Result == 0);
-    revng_assert(H.OldHandler.sa_handler == nullptr);
+    // revng_assert(H.OldHandler.sa_handler == nullptr);
   }
-}
-
-void RunningStatistics::onQuit() {
-  dump();
-  dbg << "\n";
-}
-
-OnQuitInteraface::~OnQuitInteraface() {
 }

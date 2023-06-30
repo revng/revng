@@ -10,34 +10,34 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "llvm/Analysis/Passes.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Scalar.h"
 
-#include "revng/BasicAnalyses/AdvancedValueInfo.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/UnitTestHelpers/LLVMTestHelpers.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
+#include "revng/ValueMaterializer/ValueMaterializer.h"
 
 using namespace llvm;
 
-class MockupMemoryOracle {
+class MockupMemoryOracle final : public MemoryOracle {
 private:
   const llvm::DataLayout &DL;
 
 public:
   MockupMemoryOracle(const llvm::DataLayout &DL) : DL(DL) {}
+  ~MockupMemoryOracle() final = default;
 
   const llvm::DataLayout &getDataLayout() const { return DL; }
 
-  MaterializedValue load(Type *Type, Constant *Address) {
-    unsigned BitWidth = Type->getScalarSizeInBits();
-    if (auto *CI = dyn_cast<ConstantInt>(skipCasts(Address)))
-      if (getLimitedValue(CI) == 1000)
-        return { "symbol", APInt(BitWidth, 0) };
-    return { APInt(BitWidth, 42) };
+  MaterializedValue load(uint64_t LoadAddress, unsigned LoadSize) final {
+    if (LoadAddress == 1000)
+      return MaterializedValue::fromSymbol("symbol", APInt(LoadSize * 8, 0));
+    return MaterializedValue::fromConstant(APInt(LoadSize * 8, 42));
   }
 };
 
@@ -57,7 +57,6 @@ public:
     AU.setPreservesAll();
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addRequired<LazyValueInfoWrapperPass>();
-    AU.addRequired<ScalarEvolutionWrapperPass>();
   }
 
   bool runOnModule(llvm::Module &M) override;
@@ -81,16 +80,25 @@ bool TestAdvancedValueInfoPass::runOnModule(llvm::Module &M) {
   Function &Root = *M.getFunction("main");
   auto &LVI = getAnalysis<LazyValueInfoWrapperPass>(Root).getLVI();
   auto &DT = getAnalysis<DominatorTreeWrapperPass>(Root).getDomTree();
-  auto &SCEV = getAnalysis<ScalarEvolutionWrapperPass>(Root).getSE();
 
   MockupMemoryOracle MO(M.getDataLayout());
-  BasicBlock *StopAt = &Root.getEntryBlock();
-  AdvancedValueInfo<MockupMemoryOracle> AVI(LVI, SCEV, DT, MO, StopAt);
 
   for (User *U : M.getGlobalVariable("pc", true)->users()) {
     if (auto *Store = dyn_cast<StoreInst>(U)) {
       Value *V = Store->getValueOperand();
-      (*Results)[V] = AVI.explore(Store->getParent(), V);
+
+      auto
+        MaybeValues = ValueMaterializer::getValuesFor(Store,
+                                                      V,
+                                                      MO,
+                                                      LVI,
+                                                      DT,
+                                                      {},
+                                                      Oracle::AdvancedValueInfo)
+                        .values();
+      if (MaybeValues) {
+        (*Results)[V] = *MaybeValues;
+      }
     }
   }
 
@@ -113,7 +121,6 @@ static void checkAdvancedValueInfo(const char *Body, const CheckMap &Map) {
 
   legacy::PassManager PM;
   PM.add(createLazyValueInfoPass());
-  PM.add(new ScalarEvolutionWrapperPass);
   PM.add(new TestAdvancedValueInfoPass(Results));
   PM.run(*M);
 
@@ -121,11 +128,49 @@ static void checkAdvancedValueInfo(const char *Body, const CheckMap &Map) {
   for (auto &P : Map)
     Reference[instructionByName(F, P.first)] = P.second;
 
-  revng_check(Results == Reference);
+  for (auto [ResultPair, ReferencePair] : zipmap_range(Results, Reference)) {
+    std::set<MaterializedValue> ResultSet;
+    std::set<MaterializedValue> ReferenceSet;
+
+    if (ResultPair != nullptr) {
+      llvm::copy(ResultPair->second,
+                 std::inserter(ResultSet, ResultSet.begin()));
+    }
+
+    if (ReferencePair != nullptr) {
+      llvm::copy(ReferencePair->second,
+                 std::inserter(ReferenceSet, ReferenceSet.begin()));
+    }
+
+    if (ResultSet != ReferenceSet) {
+      dbg << "ResultSet.size() == " << ResultSet.size() << "\n";
+      dbg << "ReferenceSet.size() == " << ReferenceSet.size() << "\n";
+
+      for (auto [ResultValue, ReferenceValue] :
+           zipmap_range(ResultSet, ReferenceSet)) {
+        MaterializedValue Value;
+        if (ResultValue != nullptr and ReferenceValue != nullptr) {
+          Value = *ResultValue;
+          dbg << "   ";
+        } else if (ResultValue != nullptr) {
+          dbg << "  +";
+          Value = *ResultValue;
+        } else if (ReferenceValue != nullptr) {
+          dbg << "  -";
+          Value = *ReferenceValue;
+        }
+
+        Value.dump(dbg);
+        dbg << "\n";
+      }
+
+      revng_abort();
+    }
+  }
 }
 
-static APInt aI64(uint64_t Value) {
-  return APInt(64, Value);
+static MaterializedValue aI64(uint64_t Value) {
+  return MaterializedValue::fromConstant(APInt(64, Value));
 }
 
 BOOST_AUTO_TEST_CASE(TestConstant) {
@@ -415,7 +460,10 @@ BOOST_AUTO_TEST_CASE(TestSymbol) {
   unreachable
 
 )LLVM",
-                         { { "to_store", { { "symbol", aI64(10) } } } });
+                         { { "to_store",
+                             { MaterializedValue::fromSymbol("symbol",
+                                                             APInt(64,
+                                                                   10)) } } });
 
   // We don't handle multiplication of symbol values
   checkAdvancedValueInfo(R"LLVM(

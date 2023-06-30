@@ -89,8 +89,6 @@ public:
     llvm::initializeCodeGen(Registry);
     llvm::initializeGlobalISel(Registry);
     llvm::initializeTarget(Registry);
-
-    installStatistics();
   }
 
   ~LLVMPipelineRegistry() override = default;

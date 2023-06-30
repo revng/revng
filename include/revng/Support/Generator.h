@@ -138,7 +138,6 @@ public:
 
   ~generator() {
     if (Coroutine) {
-      revng_assert(Coroutine.done());
       Coroutine.destroy();
     }
   }
