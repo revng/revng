@@ -461,6 +461,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   // Produce the call
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
+  Result->addFnAttr(Attribute::NoMerge);
   revng_assert(Result->getDebugLoc());
 
   if (ReturnCSVs.size() != 1) {

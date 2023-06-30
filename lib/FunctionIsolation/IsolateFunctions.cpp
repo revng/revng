@@ -429,6 +429,7 @@ private:
     Instruction *Old = AtEnd ? &*Builder.GetInsertBlock()->rbegin() :
                                &*InsertPoint;
     auto *NewCall = Builder.CreateCall(CalledFunction);
+    NewCall->addFnAttr(Attribute::NoMerge);
     NewCall->setDebugLoc(Old->getDebugLoc());
   }
 };
