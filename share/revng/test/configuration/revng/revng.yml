@@ -70,12 +70,12 @@ commands:
         cat "$$TMP";
         exit 1;
       fi;
-  - type: test-model-diff
+  - type: revng.test-model-diff
     from:
       - type: revng-qa.compiled
-        filter: example-executable-1
+        filter: example-executable-1 and with-debug-info
       - type: revng-qa.compiled
-        filter: example-executable-2
+        filter: example-executable-2 and with-debug-info
     command: |-
       revng model import binary "$INPUT1" > input1.yml;
       revng model import binary "$INPUT2" > input2.yml;

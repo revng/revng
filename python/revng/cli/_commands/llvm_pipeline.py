@@ -48,7 +48,11 @@ class IRPipelineCommand(Command):
             saved_input_file.flush()
 
             # Extract model
-            run_revng_command(["model", "dump", saved_input_file.name, "-o", model.name], options)
+            result = run_revng_command(
+                ["model", "dump", saved_input_file.name, "-o", model.name], options
+            )
+            if result != 0:
+                return result
 
             # Run revng-pipeline
             target = f"--produce={args.to}/module.ll/{args.target}"
@@ -58,9 +62,14 @@ class IRPipelineCommand(Command):
             load_binary = []
             if args.binary != "":
                 from_step = args.__dict__["from"]
-                load_binary = ["-i", f"{args.binary}:{from_step}/input"]
+                load_binary = [
+                    "-i",
+                    f"{args.binary}:{from_step}/input",
+                    "-i",
+                    f"{args.binary}:begin/input",
+                ]
 
-            run_revng_command(
+            result = run_revng_command(
                 [
                     "pipeline",
                     "-m",
@@ -76,11 +85,16 @@ class IRPipelineCommand(Command):
                 ],
                 options,
             )
+            if result != 0:
+                return result
 
             # Re-inject the model
-            run_revng_command(
+            result = run_revng_command(
                 ["model", "inject", model.name, module.name, "-o", args.output], options
             )
+            if result != 0:
+                return result
+
         return 0
 
 

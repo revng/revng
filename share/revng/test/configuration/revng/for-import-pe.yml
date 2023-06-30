@@ -6,6 +6,7 @@ commands:
   - type: revng.test-import-pe
     from:
       - type: revng-qa.compiled
+        filter: windows
       - type: revng-qa.generated-pdb
     filter: windows
     command: |-

@@ -12,6 +12,7 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -420,12 +421,36 @@ void revng::verify(const llvm::Function *F) {
 
 void revng::forceVerify(const llvm::Module *M) {
   // NOLINTNEXTLINE
-  revng_check(llvm::verifyModule(*M, &llvm::dbgs()) == 0);
+  if (llvm::verifyModule(*M, &llvm::dbgs()) != 0) {
+    int FD = 0;
+    SmallString<128> Path;
+    auto EC = llvm::sys::fs::createTemporaryFile("revng-failed-verify",
+                                                 "ll",
+                                                 FD,
+                                                 Path);
+    revng_assert(!EC and FD != 0);
+    llvm::raw_fd_ostream Stream(FD, true);
+    M->print(Stream, nullptr);
+    dbg << "Module printed to " << Path.str().str() << "\n";
+    revng_abort();
+  }
 }
 
 void revng::forceVerify(const llvm::Function *F) {
   // NOLINTNEXTLINE
-  revng_check(llvm::verifyFunction(*F, &llvm::dbgs()) == 0);
+  if (llvm::verifyFunction(*F, &llvm::dbgs()) != 0) {
+    int FD = 0;
+    SmallString<128> Path;
+    auto EC = llvm::sys::fs::createTemporaryFile("revng-failed-verify",
+                                                 "ll",
+                                                 FD,
+                                                 Path);
+    revng_assert(!EC and FD != 0);
+    llvm::raw_fd_ostream Stream(FD, true);
+    F->print(Stream, nullptr);
+    dbg << "Function printed to " << Path.str().str() << "\n";
+    revng_abort();
+  }
 }
 
 void collectTypes(Type *Root, std::set<Type *> &Set) {
