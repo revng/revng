@@ -19,7 +19,7 @@ sources:
       - inline-enum.h.model.yml
       - inline-union.h.model.yml
 commands:
-  - type: revng-c.model-to-header
+  - type: revng-c.model-to-header-unit-test
     from:
       - type: source
         filter: model-to-header
