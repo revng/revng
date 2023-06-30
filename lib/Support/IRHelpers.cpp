@@ -33,29 +33,30 @@ template<DerivedValue T>
 using ValueT = PossiblyConstValueT<T, llvm::Value>;
 
 template<DerivedValue T>
-using ExtractValueT = PossiblyConstValueT<T, llvm::ExtractValueInst>;
+using CallT = PossiblyConstValueT<T, llvm::CallInst>;
 
 template<DerivedValue T>
-using ExtractValuePtrSet = llvm::SmallPtrSet<ExtractValueT<T> *, 2>;
+using CallPtrSet = llvm::SmallPtrSet<CallT<T> *, 2>;
 
 template<DerivedValue T>
-llvm::SmallVector<ExtractValuePtrSet<T>, 2>
+llvm::SmallVector<CallPtrSet<T>, 2>
 getConstQualifiedExtractedValuesFromInstruction(T *I) {
 
-  llvm::SmallVector<ExtractValuePtrSet<T>, 2> Results;
+  llvm::SmallVector<CallPtrSet<T>, 2> Results;
 
   auto *StructTy = llvm::cast<llvm::StructType>(I->getType());
   unsigned NumFields = StructTy->getNumElements();
   Results.resize(NumFields, {});
 
   // Find extract value uses transitively, traversing PHIs and markers
-  ExtractValuePtrSet<T> ExtractValues;
+  CallPtrSet<T> Calls;
   for (auto *TheUser : I->users()) {
-    if (auto *ExtractV = dyn_cast<llvm::ExtractValueInst>(TheUser)) {
-      ExtractValues.insert(ExtractV);
+    if (auto *ExtractV = getCallToTagged(TheUser,
+                                         FunctionTags::OpaqueExtractValue)) {
+      Calls.insert(ExtractV);
     } else {
       if (auto *Call = dyn_cast<llvm::CallInst>(TheUser)) {
-        if (not isCallToTagged(Call, FunctionTags::Marker))
+        if (not isCallToTagged(Call, FunctionTags::Parentheses))
           continue;
       }
 
@@ -71,10 +72,11 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
           NextToVisit.erase(Ident);
 
           for (auto *User : Ident->users()) {
-            if (auto *ExtractV = llvm::dyn_cast<llvm::ExtractValueInst>(User)) {
-              ExtractValues.insert(ExtractV);
+            using FunctionTags::OpaqueExtractValue;
+            if (auto *EV = getCallToTagged(User, OpaqueExtractValue)) {
+              Calls.insert(EV);
             } else if (auto *IdentUser = llvm::dyn_cast<llvm::CallInst>(User)) {
-              if (FunctionTags::Marker.isTagOf(IdentUser->getCalledFunction()))
+              if (isCallToTagged(IdentUser, FunctionTags::Parentheses))
                 NextToVisit.insert(IdentUser);
             } else if (auto *PHIUser = llvm::dyn_cast<llvm::PHINode>(User)) {
               if (not Visited.count(PHIUser))
@@ -88,24 +90,22 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
     }
   }
 
-  for (auto *E : ExtractValues) {
-    revng_assert(E->getNumIndices() == 1);
-    unsigned FieldId = E->getIndices()[0];
-    revng_assert(FieldId < NumFields);
+  for (auto *E : Calls) {
     revng_assert(isa<llvm::IntegerType>(E->getType())
                  or isa<llvm::PointerType>(E->getType()));
+    auto FieldId = cast<llvm::ConstantInt>(E->getArgOperand(1))->getZExtValue();
     Results[FieldId].insert(E);
   }
 
   return Results;
 };
 
-llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
+llvm::SmallVector<llvm::SmallPtrSet<llvm::CallInst *, 2>, 2>
 getExtractedValuesFromInstruction(llvm::Instruction *I) {
   return getConstQualifiedExtractedValuesFromInstruction(I);
 }
 
-llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>, 2>
+llvm::SmallVector<llvm::SmallPtrSet<const llvm::CallInst *, 2>, 2>
 getExtractedValuesFromInstruction(const llvm::Instruction *I) {
   return getConstQualifiedExtractedValuesFromInstruction(I);
 }

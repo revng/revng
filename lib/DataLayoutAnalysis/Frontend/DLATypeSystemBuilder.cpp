@@ -10,6 +10,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 
 #include "DLATypeSystemBuilder.h"
@@ -183,7 +184,8 @@ DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
           // We get or create a layout type for each of them, but they should
           // all be the same.
           std::optional<LayoutTypeSystemNode *> FieldNode;
-          for (const ExtractValueInst *Ext : ExtractedSet) {
+          for (const CallInst *Ext : ExtractedSet) {
+            revng_assert(isCallToTagged(Ext, FunctionTags::OpaqueExtractValue));
             LayoutTypeSystemNode *ExtNode = getLayoutType(Ext);
             if (FieldNode.has_value()) {
               LayoutTypeSystemNode *Node = FieldNode.value();
@@ -286,7 +288,8 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
           // We get or create a layout type for each of them, but they should
           // all be the same.
           std::optional<GetOrCreateResult> FieldResult;
-          for (const ExtractValueInst *Ext : ExtractedSet) {
+          for (const CallInst *Ext : ExtractedSet) {
+            revng_assert(isCallToTagged(Ext, FunctionTags::OpaqueExtractValue));
             GetOrCreateResult ExtResult = getOrCreateLayoutType(Ext);
             if (FieldResult.has_value()) {
               auto &[Node, New] = FieldResult.value();

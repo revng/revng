@@ -154,7 +154,7 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::Parentheses, &FunctionTags::Marker });
+  Pool.setTags({ &FunctionTags::Parentheses });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::Parentheses);
@@ -361,13 +361,15 @@ void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
 
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   using namespace llvm;
-  // First argument is the struct we are extracting from
-  std::vector ArgTypes = { Extract->getAggregateOperand()->getType() };
 
-  // All other arguments are indices, which we decided to be of type i64
-  auto &C = Extract->getContext();
-  Type *I64Type = IntegerType::getInt64Ty(C);
-  ArgTypes.insert(ArgTypes.end(), Extract->getNumIndices(), I64Type);
+  revng_assert(Extract->getNumIndices() == 1);
+
+  // The first argument is the struct we are extracting from, the second is the
+  // index, with i64 type.
+  std::vector<llvm::Type *> ArgTypes = {
+    Extract->getAggregateOperand()->getType(),
+    IntegerType::getInt64Ty(Extract->getContext())
+  };
 
   // The return type is the type of the extracted field
   Type *ReturnType = Extract->getType();
@@ -379,6 +381,10 @@ void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Don't optimize these calls
   Pool.addFnAttribute(llvm::Attribute::OptimizeNone);
   Pool.addFnAttribute(llvm::Attribute::NoInline);
+  Pool.addFnAttribute(llvm::Attribute::NoMerge);
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.setMemoryEffects(llvm::MemoryEffects::inaccessibleMemOnly());
 
   const auto &EVTag = FunctionTags::OpaqueExtractValue;
   Pool.setTags({ &EVTag });

@@ -158,6 +158,7 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::AddressOf)
          or isCallToTagged(I, FunctionTags::Parentheses)
          or isCallToTagged(I, FunctionTags::OpaqueCSVValue)
+         or isCallToTagged(I, FunctionTags::OpaqueExtractValue)
          or isCallToTagged(I, FunctionTags::StructInitializer)
          or isCallToTagged(I, FunctionTags::SegmentRef)
          or isCallToTagged(I, FunctionTags::UnaryMinus)
@@ -182,37 +183,62 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
 
 static std::string
 get128BitIntegerHexConstant(llvm::APInt Value,
-                            const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                            const ptml::PTMLCBuilder &ThePTMLCBuilder,
+                            const model::Binary &Model) {
   revng_assert(Value.getBitWidth() > 64);
+  revng_assert(Value.getBitWidth() <= 128);
+  using PTMLOperator = ptml::PTMLCBuilder::Operator;
+
+  using model::PrimitiveTypeKind::Unsigned;
+  model::QualifiedType
+    U128 = model::QualifiedType(Model.getPrimitiveType(Unsigned, 16), {});
+  std::string Cast = addAlwaysParentheses(getTypeName(U128, ThePTMLCBuilder));
+
+  if (Value.isZero())
+    return addAlwaysParentheses(Cast + " " + ThePTMLCBuilder.getNumber(0));
+
   // In C, even if you can have 128-bit variables, you cannot have 128-bit
   // literals, so we need this hack to assign a big constant value to a
   // 128-bit variable.
-  llvm::APInt LowBits = Value.getLoBits(64);
   llvm::APInt HighBits = Value.getHiBits(Value.getBitWidth() - 64);
+  llvm::APInt LowBits = Value.getLoBits(64);
+  bool NeedsOr = not HighBits.isZero() and not LowBits.isZero();
 
-  StringToken LowBitsString;
-  LowBits.toString(LowBitsString,
-                   /*radix=*/16,
-                   /*signed=*/false,
-                   /*formatAsCLiteral=*/true);
-  StringToken HighBitsString;
-  HighBits.toString(HighBitsString,
-                    /*radix=*/16,
-                    /*signed=*/false,
-                    /*formatAsCLiteral=*/true);
+  std::string CompositeConstant = Cast + " ";
 
-  using PTMLOperator = ptml::PTMLCBuilder::Operator;
-  auto HighConstant = ThePTMLCBuilder.getConstantTag(HighBitsString) + " "
-                      + ThePTMLCBuilder.getOperator(PTMLOperator::LShift) + " "
-                      + ThePTMLCBuilder.getNumber(64);
-  auto CompositeConstant = HighConstant + " "
-                           + ThePTMLCBuilder.getOperator(PTMLOperator::Or) + " "
-                           + ThePTMLCBuilder.getConstantTag(LowBitsString);
+  if (not HighBits.isZero()) {
+    StringToken HighBitsString;
+    HighBits.toString(HighBitsString,
+                      /*radix=*/16,
+                      /*signed=*/false,
+                      /*formatAsCLiteral=*/true);
+
+    auto HighConst = ThePTMLCBuilder.getConstantTag(HighBitsString) + " "
+                     + ThePTMLCBuilder.getOperator(PTMLOperator::LShift) + " "
+                     + ThePTMLCBuilder.getNumber(64);
+
+    CompositeConstant += HighConst;
+  }
+
+  if (NeedsOr)
+    CompositeConstant += " " + ThePTMLCBuilder.getOperator(PTMLOperator::Or)
+                         + " ";
+
+  if (not LowBits.isZero()) {
+    StringToken LowBitsString;
+    LowBits.toString(LowBitsString,
+                     /*radix=*/16,
+                     /*signed=*/false,
+                     /*formatAsCLiteral=*/true);
+    CompositeConstant += ThePTMLCBuilder.getConstantTag(LowBitsString)
+                           .serialize();
+  }
   return addAlwaysParentheses(CompositeConstant);
 }
 
 static std::string hexLiteral(const llvm::ConstantInt *Int,
-                              const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                              const ptml::PTMLCBuilder &ThePTMLCBuilder,
+                              const model::Binary &Model) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
     Int->getValue().toString(Formatted,
@@ -221,7 +247,7 @@ static std::string hexLiteral(const llvm::ConstantInt *Int,
                              /*formatAsCLiteral*/ true);
     return Formatted.str().str();
   }
-  return get128BitIntegerHexConstant(Int->getValue(), ThePTMLCBuilder);
+  return get128BitIntegerHexConstant(Int->getValue(), ThePTMLCBuilder, Model);
 }
 
 static std::string charLiteral(const llvm::ConstantInt *Int) {
@@ -471,26 +497,28 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
          + addParentheses(ExprToCast);
 }
 
-static std::string getInvalidToken(const llvm::UndefValue *U,
-                                   const ptml::PTMLCBuilder &ThePTMLCBuilder) {
-  revng_assert(U->getType()->isIntOrPtrTy());
-
-  std::string Result = ThePTMLCBuilder.getZeroTag().serialize() + ' ';
-  if (isa<llvm::PoisonValue>(U))
-    Result += " " + ThePTMLCBuilder.getBlockComment("poison", false) + " ";
-  else
-    Result += " " + ThePTMLCBuilder.getBlockComment("undef", false) + " ";
+static std::string getUndefToken(model::QualifiedType UndefType,
+                                 const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+  UndefType = peelConstAndTypedefs(UndefType);
+  revng_assert(UndefType.isPrimitive());
+  revng_assert(UndefType.Qualifiers().empty());
+  std::string
+    Result = "undef_"
+             + UndefType.UnqualifiedType().getConst()->name().str().str()
+             + "()";
   return Result;
 }
 
 static std::string
 getFormattedIntegerToken(const llvm::CallInst *Call,
-                         const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                         const ptml::PTMLCBuilder &ThePTMLCBuilder,
+                         const model::Binary &Model) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return ThePTMLCBuilder.getConstantTag(hexLiteral(Value, ThePTMLCBuilder))
+    return ThePTMLCBuilder
+      .getConstantTag(hexLiteral(Value, ThePTMLCBuilder, Model))
       .serialize();
   }
 
@@ -517,7 +545,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   revng_assert(isCConstant(C));
 
   if (auto *Undef = dyn_cast<llvm::UndefValue>(C))
-    rc_return getInvalidToken(Undef, ThePTMLCBuilder);
+    rc_return getUndefToken(TypeMap.at(Undef), ThePTMLCBuilder);
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
     rc_return ThePTMLCBuilder.getNullTag().serialize();
@@ -527,7 +555,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
     if (Value.isIntN(64))
       rc_return ThePTMLCBuilder.getNumber(Value).serialize();
     else
-      rc_return get128BitIntegerHexConstant(Value, ThePTMLCBuilder);
+      rc_return get128BitIntegerHexConstant(Value, ThePTMLCBuilder, Model);
   }
 
   if (auto *Global = dyn_cast<llvm::GlobalVariable>(C)) {
@@ -586,7 +614,8 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
 
   if (isIntegerConstFormatting(C))
     rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C),
-                                       ThePTMLCBuilder);
+                                       ThePTMLCBuilder,
+                                       Model);
 
   std::string Error = "Cannot get token for llvm::Constant: ";
   Error += dumpToString(C).c_str();
@@ -600,7 +629,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
 static RecursiveCoroutine<QualifiedType>
 flattenTypedefsIgnoringConst(const QualifiedType &QT) {
   QualifiedType Result = peelConstAndTypedefs(QT);
-  if (auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst())) {
+  if (auto *TD = dyn_cast<TypedefType>(Result.UnqualifiedType().getConst())) {
     auto &Underlying = TD->UnderlyingType();
     QualifiedType Nested = rc_recur flattenTypedefsIgnoringConst(Underlying);
     Result.UnqualifiedType() = Nested.UnqualifiedType();
@@ -720,18 +749,17 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
   // Traverse the model to decide whether to emit "." or "[]"
   for (; CurArg != Call->arg_end(); ++CurArg) {
+
     CurType = flattenTypedefsIgnoringConst(CurType);
+    auto &Qualifiers = CurType.Qualifiers();
 
-    model::Qualifier *MainQualifier = nullptr;
-    if (CurType.Qualifiers().size() > 0)
-      MainQualifier = &CurType.Qualifiers().front();
-
-    if (MainQualifier) {
+    if (not Qualifiers.empty()) {
       // If it's an array or a pointer, add "[]"
 
-      // We shouldn't be going past pointers in a single ModelGEP except on top
-      // level expressions.
-      revng_assert(model::Qualifier::isArray(*MainQualifier));
+      // Get the ArrayQualifier out, and drop it.
+      model::Qualifier ArrayQualifier = Qualifiers.front();
+      revng_assert(model::Qualifier::isArray(ArrayQualifier));
+      Qualifiers.erase(Qualifiers.begin());
 
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
@@ -741,10 +769,6 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       }
 
       CurExpr += "[" + IndexExpr + "]";
-      // Remove the qualifier we just analysed
-      auto RemainingQualifiers = llvm::drop_begin(CurType.Qualifiers(), 1);
-      CurType.Qualifiers() = { RemainingQualifiers.begin(),
-                               RemainingQualifiers.end() };
     } else {
       // If it's a struct or union, we can only navigate it with fixed
       // indexes.
@@ -768,8 +792,8 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
         CurType = Union->Fields().at(FieldIdx).Type();
 
       } else {
-        revng_abort("Unexpected ModelGEP type found: ");
         CurType.dump();
+        revng_abort("Unexpected ModelGEP type found: ");
       }
     }
 
@@ -855,6 +879,35 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     rc_return StructInit;
   }
 
+  if (isCallToTagged(Call, FunctionTags::OpaqueExtractValue)) {
+
+    const llvm::Value *AggregateOp = Call->getArgOperand(0);
+    const auto *Idx = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
+
+    const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
+    const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
+    const auto CalleePrototype = Cache.getCallSitePrototype(Model,
+                                                            CallReturnsStruct);
+
+    std::string StructFieldRef;
+    if (not CalleePrototype.isValid()) {
+      // The call returning a struct is a call to a helper function.
+      // It must be a direct call.
+      revng_assert(Callee);
+      StructFieldRef = getReturnStructFieldLocationReference(Callee,
+                                                             Idx
+                                                               ->getZExtValue(),
+                                                             ThePTMLCBuilder);
+    } else {
+      const model::Type *CalleeType = CalleePrototype.getConst();
+      StructFieldRef = getReturnField(*CalleeType, Idx->getZExtValue(), Model)
+                         .str()
+                         .str();
+    }
+
+    rc_return rc_recur getToken(AggregateOp) + "." + StructFieldRef;
+  }
+
   if (isCallToTagged(Call, FunctionTags::SegmentRef)) {
     auto *Callee = Call->getCalledFunction();
     const auto &[StartAddress,
@@ -900,7 +953,14 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
     const auto Operand = Call->getArgOperand(0);
     std::string StringLiteral = rc_recur getToken(Operand);
-    rc_return ThePTMLCBuilder.getStringLiteral(StringLiteral).serialize();
+
+    std::string EscapedHTML;
+    {
+      llvm::raw_string_ostream EscapeHTMLStream(EscapedHTML);
+      llvm::printHTMLEscaped(StringLiteral, EscapeHTMLStream);
+    }
+
+    rc_return ThePTMLCBuilder.getStringLiteral(EscapedHTML).serialize();
   }
 
   std::string Error = "Cannot get token for custom opcode: "
@@ -1161,7 +1221,15 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
           const model::Type *TheType = peelConstAndTypedefs(OpType0)
                                          .UnqualifiedType()
                                          .getConst();
-          const auto *Primitive = cast<model::PrimitiveType>(TheType);
+          revng_assert(isa<model::PrimitiveType>(TheType)
+                       or isa<model::EnumType>(TheType));
+          const auto *Primitive = dyn_cast<model::PrimitiveType>(TheType);
+          if (nullptr == Primitive) {
+            const auto *Enum = cast<model::EnumType>(TheType);
+            const auto
+              *Underlying = Enum->UnderlyingType().UnqualifiedType().getConst();
+            Primitive = cast<model::PrimitiveType>(Underlying);
+          }
           auto CurrentKind = Primitive->PrimitiveKind();
           if (ICmpKind == Signed and CurrentKind != Signed)
             Op0Token = buildCastExpr(Op0Token, OpType0, TargetType);
@@ -1258,41 +1326,6 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
   case llvm::Instruction::Unreachable:
     rc_return addDebugInfo(I, "__builtin_trap()", ThePTMLCBuilder);
-
-  case llvm::Instruction::ExtractValue: {
-
-    // Note: ExtractValues at this point should have been already
-    // handled when visiting the instruction that generated their
-    // struct operand
-    auto *ExtractVal = llvm::cast<llvm::ExtractValueInst>(I);
-    revng_assert(ExtractVal->getNumIndices() == 1);
-    const auto &Idx = ExtractVal->getIndices().back();
-    const llvm::Value *AggregateOp = ExtractVal->getAggregateOperand();
-
-    const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
-    const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
-    const auto CalleePrototype = Cache.getCallSitePrototype(Model,
-                                                            CallReturnsStruct);
-
-    std::string StructFieldRef;
-    if (not CalleePrototype.isValid()) {
-      // The call returning a struct is a call to a helper function.
-      // It must be a direct call.
-      revng_assert(Callee);
-      StructFieldRef = getReturnStructFieldLocationReference(Callee,
-                                                             Idx,
-                                                             ThePTMLCBuilder);
-    } else {
-      const model::Type *CalleeType = CalleePrototype.getConst();
-      StructFieldRef = getReturnField(*CalleeType, Idx, Model).str().str();
-    }
-
-    rc_return addDebugInfo(I,
-                           rc_recur getToken(AggregateOp) + "."
-                             + StructFieldRef,
-                           ThePTMLCBuilder);
-
-  } break;
 
   case llvm::Instruction::Select: {
 

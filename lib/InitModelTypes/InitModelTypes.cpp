@@ -163,7 +163,7 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
                                  const llvm::CallInst *Call,
                                  const model::Function *ParentFunc,
                                  const Binary &Model,
-                                 ModelTypesMap &TypeMap) {
+                                 const ModelTypesMap &TypeMap) {
   TypeVector ReturnTypes;
 
   if (Call->getType()->isVoidTy())
@@ -262,7 +262,7 @@ static void handleCallInstruction(FunctionMetadataCache &Cache,
                                                 Model,
                                                 TypeMap);
 
-  if (ReturnedQualTypes.size() == 0)
+  if (ReturnedQualTypes.empty())
     return;
 
   llvm::Type *CallType = Call->getType();
@@ -309,7 +309,7 @@ static void handleCallInstruction(FunctionMetadataCache &Cache,
 
       // Each extractedSet contains the set of instructions that extract the
       // same value from the struct
-      for (const llvm::ExtractValueInst *ExtractValInst : ExtractedSet)
+      for (const llvm::CallInst *ExtractValInst : ExtractedSet)
         // Skip if it's not a pointer and we are only interested in pointers
         if (not PointersOnly or QualType.isPointer())
           TypeMap.insert({ ExtractValInst, QualType });
@@ -365,13 +365,8 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
       // Only Call instructions can return aggregates
       revng_assert(not InstType->isAggregateType());
 
-      // All ExtractValues should have been assigned when handling Call
-      // instructions that return an aggregate
-      if (isa<llvm::ExtractValueInst>(&I)) {
-        if (not PointersOnly)
-          revng_assert(TypeMap.contains(&I));
-        continue;
-      }
+      // All ExtractValues should have been converted to OpaqueExtractValue
+      revng_assert(not isa<llvm::ExtractValueInst>(&I));
 
       std::optional<QualifiedType> Type;
 

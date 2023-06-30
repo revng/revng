@@ -13,12 +13,14 @@ Branches:
               - remove-stack-alignment
               - instrument-stack-accesses
               - instcombine
+              - remove-extractvalues
               - compute-stack-accesses-bounds
       - Name: SegregateStackAccesses
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
+              - hoist-struct-phis
               - segregate-stack-accesses
       - Name: LateOptimizeForDecompilation
         Pipes:
@@ -29,16 +31,18 @@ Branches:
               - dce
               - sroa
               - instcombine
+              - remove-extractvalues
               - sroa
               - simplify-cfg-with-hoist-and-sink
               - loop-rewrite-with-canonical-induction-variable
               - simplify-cfg-with-hoist-and-sink
               - instcombine
+              - remove-extractvalues
               - early-cse
               - dce
-              - restore-extractvalues
               - strip-dead-prototypes
               - split-overflow-intrinsics
+              - dce
       - Name: MakeSegmentRefs
         Pipes:
           - Type: MakeSegmentRefs

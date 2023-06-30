@@ -403,7 +403,7 @@ public:
       I.dump(OS);
     }
 
-    OS << "}\n";
+    OS << "}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -497,7 +497,7 @@ public:
     BaseAddress.dump(OS);
     OS << "\nSummation: {\n";
     Summation.dump(OS);
-    OS << "}\n}";
+    OS << "\n}\n}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -657,7 +657,6 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
     case Instruction::Load:
     case Instruction::Call:
     case Instruction::PHI:
-    case Instruction::ExtractValue:
     case Instruction::Trunc:
     case Instruction::Select:
     case Instruction::SExt:
@@ -678,45 +677,8 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       rc_return IRArithmetic::unknown(AddrArithmeticInst);
     } break;
 
-    case Instruction::Unreachable:
-    case Instruction::Store:
-    case Instruction::Invoke:
-    case Instruction::Resume:
-    case Instruction::CleanupRet:
-    case Instruction::CatchRet:
-    case Instruction::CatchPad:
-    case Instruction::CatchSwitch:
-    case Instruction::AtomicCmpXchg:
-    case Instruction::AtomicRMW:
-    case Instruction::Fence:
-    case Instruction::FAdd:
-    case Instruction::FSub:
-    case Instruction::FMul:
-    case Instruction::FDiv:
-    case Instruction::FRem:
-    case Instruction::FPTrunc:
-    case Instruction::FPExt:
-    case Instruction::FCmp:
-    case Instruction::FPToUI:
-    case Instruction::FPToSI:
-    case Instruction::UIToFP:
-    case Instruction::SIToFP:
-    case Instruction::AddrSpaceCast:
-    case Instruction::VAArg:
-    case Instruction::ExtractElement:
-    case Instruction::InsertElement:
-    case Instruction::ShuffleVector:
-    case Instruction::LandingPad:
-    case Instruction::CleanupPad:
-    case Instruction::Br:
-    case Instruction::IndirectBr:
-    case Instruction::Ret:
-    case Instruction::Switch: {
-      revng_abort("unexpected instruction for address arithmetic");
-    } break;
-
     default: {
-      revng_abort("Unexpected operation");
+      revng_abort("Unexpected instruction for address arithmetic");
     } break;
     }
 
@@ -849,10 +811,10 @@ public:
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "DifferenceScore { .Mismatch = " << print(Mismatch)
+    OS << "DifferenceScore { Mismatch = " << print(Mismatch)
        << "\nUnmatchedIR = ";
     UnmatchedIR.dump(OS);
-    OS << "\n.Depth = " << Depth << "\n}";
+    OS << "\nDepth = " << Depth << "\n}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -879,68 +841,6 @@ public:
   nestedOutOfBound(const IRSummation &DiffScore, uint64_t Depth) {
     return DifferenceScore(OutOfBound, DiffScore, Depth);
   }
-};
-
-struct ArrayInfo {
-  APInt Stride = APInt(/*NumBits*/ 64, /*Value*/ 0);
-  APInt NumElems = APInt(/*NumBits*/ 64, /*Value*/ 0);
-
-  bool operator==(const ArrayInfo &) const = default;
-
-  bool operator<(const ArrayInfo &Other) const {
-    if (Stride.ult(Other.Stride))
-      return true;
-    if (Stride.ugt(Other.Stride))
-      return false;
-    if (NumElems.ult(Other.NumElems))
-      return true;
-    return false;
-  }
-
-  void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "ArrayInfo { .Stride = " << toDecimal(Stride)
-       << ", .NumElems = " << toDecimal(NumElems) << "}";
-  }
-
-  void dump() const debug_function { dump(llvm::dbgs()); }
-};
-
-using ArrayInfoVector = SmallVector<ArrayInfo, 4>;
-
-struct TypedAccessPattern {
-  APInt BaseOffset = APInt(/*NumBits*/ 64, /*Value*/ 0);
-  ArrayInfoVector Arrays = {};
-  model::QualifiedType AccessedType = {};
-
-  bool operator==(const TypedAccessPattern &) const = default;
-
-  bool operator<(const TypedAccessPattern &Other) const {
-    if (BaseOffset.ult(Other.BaseOffset))
-      return true;
-    if (BaseOffset.ugt(Other.BaseOffset))
-      return false;
-
-    if (Arrays < Other.Arrays)
-      return true;
-    if (Other.Arrays < Arrays)
-      return false;
-
-    return AccessedType < Other.AccessedType;
-  }
-
-  void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "TypedAccessPattern {\nBaseOffset: " << toDecimal(BaseOffset) << "\n";
-    OS << "Arrays: {";
-    for (const auto &AI : Arrays) {
-      OS << "\n";
-      AI.dump(OS);
-    }
-    OS << "\n}\nType: ";
-    serialize(OS, AccessedType);
-    OS << "\n}";
-  }
-
-  void dump() const debug_function { dump(llvm::dbgs()); }
 };
 
 enum AggregateKind { Invalid, Struct, Union, Array };
@@ -1054,10 +954,6 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   // The depth of a match or mismatch will be at least long as the number of
   // indices we have available.
@@ -1205,10 +1101,6 @@ computeBestInArray(const model::QualifiedType &BaseType,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   if ((BaseOffset + AccessedSizeOnIR).ugt(ArraySize)) {
     revng_log(ModelGEPLog,
@@ -1389,10 +1281,6 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   const auto &[BaseOffset, Indices] = IRSum;
 
@@ -1511,10 +1399,6 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
     std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
-  revng_assert(not IRHasPointee
-               or AccessedTypeOnIR.value().is(model::TypeKind::RawFunctionType)
-               or AccessedTypeOnIR.value().is(model::TypeKind::CABIFunctionType)
-               or AccessedSizeOnIR != 0ULL);
 
   const auto &[BaseOffset, Indices] = IRSum;
 

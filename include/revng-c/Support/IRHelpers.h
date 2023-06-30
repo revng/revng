@@ -84,16 +84,15 @@ inline const char *StringLiteralMDName = "revng.cstring_literal";
 namespace llvm {
 
 class Instruction;
-class ExtractValueInst;
+class CallInst;
 class Value;
 
 } // end namespace llvm
 
-extern llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
+extern llvm::SmallVector<llvm::SmallPtrSet<llvm::CallInst *, 2>, 2>
 getExtractedValuesFromInstruction(llvm::Instruction *);
 
-extern llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>,
-                         2>
+extern llvm::SmallVector<llvm::SmallPtrSet<const llvm::CallInst *, 2>, 2>
 getExtractedValuesFromInstruction(const llvm::Instruction *);
 
 /// Deletes the body of an llvm::Function, but preservin all the tags and
