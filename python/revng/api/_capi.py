@@ -16,6 +16,12 @@ from revng.support import AnyPaths, get_root, to_iterable
 from revng.support.collect import collect_files, collect_libraries, collect_one
 
 
+# This counter is used to count the pointers released by PipelineC, since
+# calling rp_shutdown before all pointers are freed leads to a crash
+# This will count (atomically) the pointers created by PipelineC and decrements
+# once the pointer is freed by `ffi.gc`. Once the API signals that it will no
+# longer do anything (by calling `mark_end`) then once the counter reaches 0
+# the callback can be invoked which will safely call rp_shutdown.
 class AtomicCounterWithCallback:
     """Simple atomic counter, will call callback once mark_end has been called
     and the counter reaches zero"""
@@ -39,6 +45,8 @@ class AtomicCounterWithCallback:
     def mark_end(self):
         with self.lock:
             self.ending = True
+            if self.counter == 0:
+                self.callback()
 
 
 class ApiWrapper:

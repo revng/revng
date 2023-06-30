@@ -427,7 +427,7 @@ class Manager:
 
     def _analyses_list_get(self, index: int) -> AnalysesList:
         _analyses_list = _api.rp_manager_get_analyses_list(self._manager, index)
-        return AnalysesList(_analyses_list, self._manager)
+        return AnalysesList(_analyses_list, self)
 
     def analyses_lists(self) -> Generator[AnalysesList, None, None]:
         return make_generator(self._analyses_list_count(), self._analyses_list_get)
