@@ -558,7 +558,7 @@ class CheckCommitPass(Pass):
             if len(line) > 72:
                 problems.append(f"Commit message line {index+2} too long ({len(line)})")
 
-        if message_lines[-1][-1] != ".":
+        if len(message_lines) > 0 and message_lines[-1][-1] != ".":
             problems.append("Last line of the commit does not end with a period")
 
         commit_joined = f"{subject}\n\n" + "\n".join(message_lines)
