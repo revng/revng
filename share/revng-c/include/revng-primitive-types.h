@@ -23,12 +23,23 @@ typedef uint8_t generic8_t;
 typedef uint16_t generic16_t;
 typedef uint32_t generic32_t;
 typedef uint64_t generic64_t;
+
+#if __SIZEOF_LONG_DOUBLE__ == 10
+typedef long double generic80_t;
+#else
 typedef struct {
   char data[10];
 } generic80_t;
+#endif
+
+#if __SIZEOF_LONG_DOUBLE__ == 12
+typedef long double generic96_t;
+#else
 typedef struct {
   char data[12];
 } generic96_t;
+#endif
+
 #ifdef __SIZEOF_INT128__
 typedef __uint128_t generic128_t;
 #endif
@@ -190,7 +201,6 @@ typedef struct {
 #if __SIZEOF_LONG_DOUBLE__ == 12
 typedef long double float96_t;
 #else
-
 typedef struct {
   char data[12];
 } float96_t;
