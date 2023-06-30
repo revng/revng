@@ -246,6 +246,13 @@ void g_free(void *memory) {
     return free(memory);
 }
 
+void g_assertion_message_expr(const char *domain,
+                              const char *file,
+                              int line,
+                              const char *func,
+                              const char *expr) {
+}
+
 void unknownPC(PlainMetaAddress PC) {
   int arg;
   fprintf(stderr, "Unknown PC:");
