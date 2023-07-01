@@ -67,10 +67,8 @@ static const llvm::Value *toLLVMValue(const llvm::Use &A) {
 /// If the DLA recovered a more precise type than the already existing one
 /// for any of the arguments of a RawFunctionType, update the model accordingly.
 template<typename T>
-// clang-format off
-requires std::same_as<std::remove_const_t<T>, llvm::CallInst> or
-         std::same_as<std::remove_const_t<T>, llvm::Function>
-// clang-format on
+  requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
+           or std::same_as<std::remove_const_t<T>, llvm::Function>
 static bool updateArgumentTypes(model::Binary &Model,
                                 RawFunctionType *ModelPrototype,
                                 const T *CallOrFunction,
@@ -240,10 +238,8 @@ static bool updateReturnType(model::Binary &Model,
 /// for any of the arguments of a CABIFunctionType, update the model
 /// accordingly.
 template<typename T>
-// clang-format off
-requires std::same_as<std::remove_const_t<T>, llvm::CallInst> or
-         std::same_as<std::remove_const_t<T>, llvm::Function>
-// clang-format on
+  requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
+           or std::same_as<std::remove_const_t<T>, llvm::Function>
 static bool updateArgumentTypes(model::Binary &Model,
                                 CABIFunctionType *ModelPrototype,
                                 const T *CallOrFunction,
@@ -363,10 +359,8 @@ static bool updateReturnType(model::Binary &Model,
 /// Update the prototype of a model::Function or of a call siet with the types
 /// recovered by DLA.
 template<typename T>
-// clang-format off
-requires std::same_as<std::remove_const_t<T>, llvm::CallInst> or
-         std::same_as<std::remove_const_t<T>, llvm::Function>
-// clang-format on
+  requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
+           or std::same_as<std::remove_const_t<T>, llvm::Function>
 static bool updatePrototype(model::Binary &Model,
                             model::Type *Prototype,
                             const T *CallOrFunction,

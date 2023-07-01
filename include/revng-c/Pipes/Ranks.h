@@ -19,17 +19,13 @@ inline auto HelperFunction = defineRank<"helper-function", std::string>(Binary);
 
 /// Rank for locations associated to struct return types of QEMU and LLVM helper
 /// functions
-// clang-format off
-inline auto HelperStructType = defineRank<"helper-struct-type",
+inline auto HelperStructType = defineRank<"helper-struct-type", // formatting
                                           std::string>(Binary);
-// clang-format on
 
 /// Rank for locations associated to fields of struct return types of QEMU and
 /// LLVM helper functions
-// clang-format off
 inline auto HelperStructField = defineRank<"helper-struct-field",
                                            std::string>(HelperStructType);
-// clang-format on
 
 /// Rank for locations associated to arguments of dynamic functions.
 inline auto DynamicFunctionArgument = defineRank<"dynamic-function-argument",

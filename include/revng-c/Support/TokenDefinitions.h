@@ -21,20 +21,16 @@ using TypeString = StringToken;
 /// It will have 2 Fields:
 /// \property Declaration : Contains the string that's to be used when declaring
 /// the variable. For example:
-// clang-format off
 /// \code{.c}
 /// int foo;
 ///   //^^^-- This is a declaration of foo
 /// \endcode
-// clang-format on
 /// \property Use : Contains the string that's to be used when using the
 /// variable, such as:
-// clang-format off
 /// \code{.c}
 /// foo = bar + baz * bal;
 /// // In this example foo, bar, baz and bal are "used"
 /// \endcode
-// clang-format on
 struct VariableTokens {
 public:
   tokenDefinition::types::StringToken Declaration;
