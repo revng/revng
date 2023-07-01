@@ -510,7 +510,7 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
                 // need to re-process it, hence we add it to FieldsToCompare,
                 // then set NodeWithFieldsChanged, and remove it from
                 // AnalyzedNodesNotMerged.
-                if (OriginalFields.count(PreservedNode)) {
+                if (OriginalFields.contains(PreservedNode)) {
                   LoggerIndent MaxIndent{ Log };
                   revng_log(Log,
                             "Is an original field. Re-enqueue it for "

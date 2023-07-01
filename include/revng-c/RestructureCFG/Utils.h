@@ -133,11 +133,7 @@ using BasicBlockNodeTSet = typename BasicBlockNode<NodeT>::BBNodeSet;
 template<class NodeT>
 inline bool alreadyOnStackQuick(BasicBlockNodeTSet<NodeT> &StackSet,
                                 BasicBlockNode<NodeT> *Node) {
-  if (StackSet.count(Node)) {
-    return true;
-  } else {
-    return false;
-  }
+  return StackSet.contains(Node);
 }
 
 template<class NodeT>
@@ -183,7 +179,7 @@ findReachableNodes(BasicBlockNode<NodeT> *Source,
       // computed a filtered post dominator tree, and the `nullptr` passed as
       // argument represents exactly the `VirtualRoot` node which acts as a sink
       // needed for the tree computation.
-      if ((Targets.count(Vertex) != 0)
+      if ((Targets.contains(Vertex))
           or (Target == nullptr && Vertex->successor_size() == 0)) {
         for (auto StackE : Stack) {
           Targets.insert(StackE.first);
@@ -205,7 +201,7 @@ findReachableNodes(BasicBlockNode<NodeT> *Source,
       BasicBlockNode<NodeT> *NextSuccessor = Vertex->getSuccessorI(Index);
       Index++;
       Stack.push_back(std::make_pair(Vertex, Index));
-      if (VisitedEdges.count(std::make_pair(Vertex, NextSuccessor)) == 0
+      if (not VisitedEdges.contains(std::make_pair(Vertex, NextSuccessor))
           and NextSuccessor != Source
           and !alreadyOnStackQuick(StackSet, NextSuccessor)) {
         Stack.push_back(std::make_pair(NextSuccessor, 0));

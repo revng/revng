@@ -69,7 +69,7 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
     std::set<const LTSN *> Visited;
     for (const auto &Node : llvm::nodes(&TS)) {
       revng_assert(Node != nullptr);
-      if (Visited.count(Node))
+      if (Visited.contains(Node))
         continue;
 
       auto I = llvm::scc_begin(typename SCC::SCCNodeView(Node));
@@ -289,7 +289,7 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
 
           // We haven't pushed, either because NextChild is on the stack, or
           // because it was visited before.
-          if (InStack.count(NextChild)) {
+          if (InStack.contains(NextChild)) {
 
             // If it's on the stack, we're closing a loop.
             // Add all the cross color edges to the edges ToRemove.
@@ -369,7 +369,7 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
     std::set<const LTSN *> Visited;
     for (const auto &Node : llvm::nodes(&TS)) {
       revng_assert(Node != nullptr);
-      if (Visited.count(Node))
+      if (Visited.contains(Node))
         continue;
 
       auto I = llvm::scc_begin(MixedNodeT(Node));

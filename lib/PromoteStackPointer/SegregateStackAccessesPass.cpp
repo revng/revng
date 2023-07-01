@@ -124,7 +124,7 @@ public:
 
   void recordSpan(const Span &Span, Value *BaseAddress) {
     auto Offset = BaseOffset + Span.Offset;
-    revng_assert(Map.count(Offset) == 0);
+    revng_assert(!Map.contains(Offset));
     Map[Offset] = { Span.Size, BaseAddress };
 
     revng_assert(verify());

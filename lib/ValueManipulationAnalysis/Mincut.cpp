@@ -82,7 +82,7 @@ static unsigned calcCost(ContractedGraph &G) {
     NodeColor.Bits.reset(G.Color.firstSetBit());
 
     for (auto *Succ : TFGNode->successors()) {
-      if (Visited.count(Succ))
+      if (Visited.contains(Succ))
         continue;
 
       ColorSet CommonColors;

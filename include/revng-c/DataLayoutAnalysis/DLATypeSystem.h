@@ -276,8 +276,8 @@ protected:
   addLink(LayoutTypeSystemNode *Src, LayoutTypeSystemNode *Tgt, TagT &&Tag) {
     if (Src == nullptr or Tgt == nullptr or Src == Tgt)
       return std::make_pair(nullptr, false);
-    revng_assert(Layouts.count(Src));
-    revng_assert(Layouts.count(Tgt));
+    revng_assert(Layouts.contains(Src));
+    revng_assert(Layouts.contains(Tgt));
     auto It = LinkTags.insert(std::forward<TagT>(Tag)).first;
     revng_assert(It != LinkTags.end());
     const TypeLinkTag *T = &*It;

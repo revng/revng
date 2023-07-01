@@ -135,7 +135,7 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
     }
   }
 
-  revng_assert(ASTSubstitutionMap.count(OldAST.getRoot()) != 0);
+  revng_assert(ASTSubstitutionMap.contains(OldAST.getRoot()));
   return ASTSubstitutionMap[OldAST.getRoot()];
 }
 

@@ -420,7 +420,7 @@ public:
   }
 
   std::string getLineComment(const llvm::StringRef Str) {
-    revng_check(Str.find("\n") == llvm::StringRef::npos);
+    revng_check(!Str.contains('\n'));
     return ptml::PTMLBuilder::tokenTag("// " + Str.str(), ptml::tokens::Comment)
            + "\n";
   }

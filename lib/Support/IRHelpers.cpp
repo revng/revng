@@ -79,7 +79,7 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
               if (isCallToTagged(IdentUser, FunctionTags::Parentheses))
                 NextToVisit.insert(IdentUser);
             } else if (auto *PHIUser = llvm::dyn_cast<llvm::PHINode>(User)) {
-              if (not Visited.count(PHIUser))
+              if (not Visited.contains(PHIUser))
                 NextToVisit.insert(PHIUser);
             }
           }

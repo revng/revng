@@ -388,11 +388,9 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
     // Ensure that we are not processing the sink node.
     revng_assert(CurrentNode != Sink);
 
-    if (AlreadyProcessed.count(CurrentNode) == 0) {
-      AlreadyProcessed.insert(CurrentNode);
-    } else {
+    auto [_, Inserted] = AlreadyProcessed.insert(CurrentNode);
+    if (!Inserted)
       continue;
-    }
 
     // Get the clone of the `CurrentNode`.
     BasicBlockNode<NodeT> *CurrentClone = CloneMap.at(CurrentNode);
@@ -469,7 +467,7 @@ inline void RegionCFG<NodeT>::untangle() {
     llvm::ReversePostOrderTraversal<BasicBlockNode<NodeT> *> RPOT(EntryNode);
 
     for (BasicBlockNode<NodeT> *RPOTBB : RPOT) {
-      if (ConditionalNodesSet.count(RPOTBB) != 0) {
+      if (ConditionalNodesSet.contains(RPOTBB)) {
         ConditionalNodes.push_back(RPOTBB);
       }
     }
@@ -876,7 +874,7 @@ inline void RegionCFG<NodeT>::inflate() {
     RevPostOrderList.push_back(RPOTBB);
     NodesEquivalenceClass[RPOTBB].insert(RPOTBB);
     CloneToOriginalMap[RPOTBB] = RPOTBB;
-    if (ConditionalNodesSet.count(RPOTBB))
+    if (ConditionalNodesSet.contains(RPOTBB))
       ConditionalNodes.push_back(RPOTBB);
   }
   NodesEquivalenceClass[nullptr] = {};
@@ -923,7 +921,7 @@ inline void RegionCFG<NodeT>::inflate() {
 
     int Iteration = 0;
     while (++ListIt != RevPostOrderList.end() and not WorkList.empty()) {
-      if (not WorkList.count(*ListIt))
+      if (not WorkList.contains(*ListIt))
         continue; // Go to the next node in reverse postorder.
 
       // Otherwise this node is in the worklist, and we have to analyze it.
@@ -935,14 +933,14 @@ inline void RegionCFG<NodeT>::inflate() {
       bool AllPredAreVisited = std::all_of(Candidate->predecessors().begin(),
                                            Candidate->predecessors().end(),
                                            [&Visited](auto *Pred) {
-                                             return Visited.count(Pred);
+                                             return Visited.contains(Pred);
                                            });
       WorkList.erase(Candidate);
       Visited.insert(Candidate);
 
       // Comb end flag, which is useful to understand if the dummies we will
       // insert will need to substitute the current postdominator.
-      bool IsCombEnd = CombEndSetIt->second.count(Candidate);
+      bool IsCombEnd = CombEndSetIt->second.contains(Candidate);
 
       if (not IsCombEnd) {
         for (auto &[Successor, EdgeLabel] : Candidate->labeled_successors()) {
@@ -964,7 +962,7 @@ inline void RegionCFG<NodeT>::inflate() {
         revng_log(CombLogger, "Current predecessors are:");
         for (BasicBlockNode<NodeT> *Predecessor : Candidate->predecessors()) {
           revng_log(CombLogger, Predecessor->getNameStr());
-          if (Visited.count(Predecessor))
+          if (Visited.contains(Predecessor))
             NewDummyPredecessors.push_back(Predecessor);
         }
 
@@ -1045,7 +1043,7 @@ inline void RegionCFG<NodeT>::inflate() {
         // they become predecessors of Duplicated
         BasicBlockNodeTVect NotVisitedPredecessors;
         for (BasicBlockNode<NodeT> *Predecessor : Candidate->predecessors())
-          if (not Visited.count(Predecessor))
+          if (not Visited.contains(Predecessor))
             NotVisitedPredecessors.push_back(Predecessor);
 
         for (BasicBlockNode<NodeT> *Predecessor : NotVisitedPredecessors) {

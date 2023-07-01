@@ -51,8 +51,8 @@ bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
       using GT = GraphTraits<NonPointerFilterT>;
       if (std::any_of(GT::child_begin(N),
                       GT::child_end(N),
-                      [&ToRemove](LTSN *Chld) {
-                        return ToRemove.count(Chld) == 0;
+                      [&ToRemove](LTSN *Child) {
+                        return !ToRemove.contains(Child);
                       })) {
         revng_log(Log, "### ChildHasLayout(N)!");
         continue;

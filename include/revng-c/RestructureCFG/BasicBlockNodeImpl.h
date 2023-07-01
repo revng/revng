@@ -195,14 +195,14 @@ inline void handleNeighbors(const BBNodeMap<NodeT> &SubMap,
 
   Neighbors.erase(std::remove_if(Neighbors.begin(),
                                  Neighbors.end(),
-                                 [&SubMap](const auto &NodeWithLabels) {
-                                   return !SubMap.count(NodeWithLabels.first);
+                                 [&SubMap](const auto &LabeledNode) {
+                                   return !SubMap.contains(LabeledNode.first);
                                  }),
                   Neighbors.end());
 
   for (auto &NeighborLabelPair : Neighbors) {
     auto &Neighbor = NeighborLabelPair.first;
-    revng_assert(SubMap.count(Neighbor) != 0);
+    revng_assert(SubMap.contains(Neighbor));
     Neighbor = SubMap.at(Neighbor);
   }
 }

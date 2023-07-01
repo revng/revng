@@ -218,7 +218,7 @@ static ColorSet getAcceptedColors(FunctionMetadataCache &Cache,
 
 TypeFlowNode *TypeFlowGraph::addNodeContaining(FunctionMetadataCache &Cache,
                                                const UseOrValue &NC) {
-  revng_assert(not ContentToNodeMap.count(NC));
+  revng_assert(not ContentToNodeMap.contains(NC));
 
   NodeColorProperty InitialColors = { NO_COLOR,
                                       getAcceptedColors(Cache, NC, Model) };
@@ -456,7 +456,7 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
 
       // Add the Value node
       TypeFlowNode *InstNode;
-      if (TG.ContentToNodeMap.count(&I)) {
+      if (TG.ContentToNodeMap.contains(&I)) {
         // If the instruction has already been added, it must be because of a
         // phi
         revng_assert(any_of(I.users(), IsPhiInstr));
@@ -489,7 +489,7 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
         // The operand value should have already been visited, unless the
         // instruction is a phi or the operand is a non-instruction
         // (constant, global, arg).
-        if (not TG.ContentToNodeMap.count(Op.get())) {
+        if (not TG.ContentToNodeMap.contains(Op.get())) {
           revng_assert(I.getOpcode() == Instruction::PHI
                        or not isa<Instruction>(Op.get()));
           TG.addNodeContaining(Cache, Op.get());
@@ -525,7 +525,7 @@ void vma::propagateColor(TypeFlowGraph &TG) {
   llvm::df_iterator_default_set<TypeFlowNode *> Visited;
 
   for (auto *Node : TG.nodes()) {
-    bool AlreadyVisited = (Visited.find(Node) != Visited.end());
+    bool AlreadyVisited = Visited.contains(Node);
     // Start from nodes that have only the desired color
     if (AlreadyVisited or not Node->getCandidates().contains(ColorSet(Filter)))
       continue;
@@ -599,7 +599,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
 
     for (const TypeFlowNode *Succ : TGNode->successors()) {
       // Ignore already visited nodes
-      if (Visited.count(Succ))
+      if (Visited.contains(Succ))
         continue;
 
       auto SuccBits = Succ->getCandidates().Bits;

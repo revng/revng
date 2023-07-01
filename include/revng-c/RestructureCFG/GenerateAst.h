@@ -285,9 +285,8 @@ template<class NodeT>
 inline ASTNode *findASTNode(ASTTree &AST,
                             typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
                             BasicBlockNode<NodeT> *Node) {
-  if (TileToNodeMap.count(Node) != 0) {
-    Node = TileToNodeMap.at(Node);
-  }
+  if (auto It = TileToNodeMap.find(Node); It != TileToNodeMap.end())
+    Node = It->second;
 
   return AST.findASTNode(Node);
 }

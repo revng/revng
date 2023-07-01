@@ -47,7 +47,7 @@ inline void pushInstructionALAP(llvm::DominatorTree &DT,
   revng_assert(CommonDominator != nullptr);
 
   for (Instruction &I : *CommonDominator) {
-    if (I.isTerminator() or Users.count(&I) != 0) {
+    if (I.isTerminator() or Users.contains(&I)) {
       ToMove->moveBefore(&I);
       return;
     }

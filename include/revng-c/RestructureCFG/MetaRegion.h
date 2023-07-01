@@ -98,7 +98,9 @@ public:
 
   bool isSCS() const { return IsSCS; }
 
-  bool containsNode(BasicBlockNodeT *Node) const { return Nodes.count(Node); }
+  bool containsNode(BasicBlockNodeT *Node) const {
+    return Nodes.contains(Node);
+  }
 
   void insertNode(BasicBlockNodeT *NewNode) { Nodes.insert(NewNode); }
 

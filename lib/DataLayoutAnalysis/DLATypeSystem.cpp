@@ -478,8 +478,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
       }
 
       // same edge with same tag
-      auto It = P.first->Successors.find({ NodePtr, P.second });
-      if (It == P.first->Successors.end()) {
+      if (!P.first->Successors.contains({ NodePtr, P.second })) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
@@ -493,8 +492,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
       }
 
       // same edge with same tag
-      auto It = P.first->Predecessors.find({ NodePtr, P.second });
-      if (It == P.first->Predecessors.end()) {
+      if (!P.first->Predecessors.contains({ NodePtr, P.second })) {
         if (VerifyDLALog.isEnabled())
           revng_check(false);
         return false;
@@ -560,7 +558,7 @@ bool LayoutTypeSystem::verifyDAG() const {
   std::set<const LayoutTypeSystemNode *> Visited;
   for (const auto &Node : llvm::nodes(this)) {
     revng_assert(Node != nullptr);
-    if (Visited.count(Node))
+    if (Visited.contains(Node))
       continue;
 
     using NonPointerFilterT = EdgeFilteredGraph<LayoutTypeSystemNode *,
@@ -590,7 +588,7 @@ bool LayoutTypeSystem::verifyInstanceDAG() const {
   std::set<const LayoutTypeSystemNode *> Visited;
   for (const auto &Node : llvm::nodes(this)) {
     revng_assert(Node != nullptr);
-    if (Visited.count(Node))
+    if (Visited.contains(Node))
       continue;
 
     using GraphNodeT = const LayoutTypeSystemNode *;
@@ -619,7 +617,7 @@ bool LayoutTypeSystem::verifyPointerDAG() const {
   std::set<const LayoutTypeSystemNode *> Visited;
   for (const auto &Node : llvm::nodes(this)) {
     revng_assert(Node != nullptr);
-    if (Visited.count(Node))
+    if (Visited.contains(Node))
       continue;
 
     using GraphNodeT = const LayoutTypeSystemNode *;
@@ -662,7 +660,7 @@ bool LayoutTypeSystem::verifyInstanceAtOffset0DAG() const {
   std::set<const LayoutTypeSystemNode *> Visited;
   for (const auto &Node : llvm::nodes(this)) {
     revng_assert(Node != nullptr);
-    if (Visited.count(Node))
+    if (Visited.contains(Node))
       continue;
 
     using GraphNodeT = const LayoutTypeSystemNode *;
