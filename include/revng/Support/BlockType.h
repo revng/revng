@@ -160,7 +160,7 @@ inline bool isPartOfRootDispatcher(llvm::BasicBlock *BB) {
           or Type == BlockType::RootDispatcherHelperBlock);
 }
 
-/// \brief Return true if the basic block is a jump target
+/// Return true if the basic block is a jump target
 inline bool isJumpTarget(llvm::BasicBlock *BB) {
   return getType(BB->getTerminator()) == BlockType::JumpTargetBlock;
 }
