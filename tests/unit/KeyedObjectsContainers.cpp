@@ -1,5 +1,5 @@
 /// \file KeyedObjectsContainers.cpp
-/// \brief Tests for MutableSet and SortedVector
+/// Tests for MutableSet and SortedVector.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

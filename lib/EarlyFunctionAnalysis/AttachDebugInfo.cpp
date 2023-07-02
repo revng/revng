@@ -1,5 +1,5 @@
 /// \file AttachDebugInfo.cpp
-/// \brief A simple pass to attach debug metadata.
+/// A simple pass to attach debug metadata.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

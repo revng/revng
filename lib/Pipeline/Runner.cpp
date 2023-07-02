@@ -1,6 +1,5 @@
 /// \file Runner.cpp
-/// \brief a runner top object of a pipeline structure, it is able to run the
-/// pipeline.
+/// A runner top object of a pipeline structure, it is able to run the pipeline.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

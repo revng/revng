@@ -1,5 +1,5 @@
 /// \file TypeShrinking.cpp
-/// \brief This analysis finds which bits of each Instruction is alive
+/// This analysis finds which bits of each Instruction is alive.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

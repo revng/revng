@@ -1,5 +1,5 @@
 /// \file RemoveNewPCCalls.cpp
-/// \brief Remove calls to newpc in a function.
+/// Remove calls to newpc in a function.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

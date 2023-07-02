@@ -1,7 +1,6 @@
 /// \file Runner.cpp
-/// \brief Implements the logic to run a trace file, this boils down to the
-///        Trace.run function that will re-execute the commands of the trace in
-///        order
+/// Implements the logic to run a trace file, this boils down to the Trace.run
+/// function that will re-execute the commands of the trace in order.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

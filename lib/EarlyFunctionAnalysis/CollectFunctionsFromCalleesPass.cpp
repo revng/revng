@@ -1,5 +1,5 @@
 /// \file CollectFunctionsFromCalleesPass.cpp
-/// \brief Collect the function entry points from the callees.
+/// Collect the function entry points from the callees.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

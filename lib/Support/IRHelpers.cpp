@@ -1,5 +1,5 @@
 /// \file IRHelpers.cpp
-/// \brief Implementation of IR helper functions
+/// Implementation of IR helper functions.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

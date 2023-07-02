@@ -1,5 +1,4 @@
 /// \file AdvancedValueInfo.cpp
-/// \brief Test the AdvancedValueInfo analysis
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

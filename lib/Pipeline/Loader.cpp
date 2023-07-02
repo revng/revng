@@ -1,6 +1,6 @@
 /// \file Loader.cpp
-/// \brief a loader is a object that acceps a serialized pipeline and yields a
-/// runner object that rappresents that pipeline.
+/// A loader is a object that acceps a serialized pipeline and yields a runner
+/// object that rappresents that pipeline.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

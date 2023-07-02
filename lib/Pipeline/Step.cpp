@@ -1,7 +1,6 @@
 /// \file Runner.cpp
-/// \brief a step is composed of a list of pipes and a set of containers
-/// rappresenting the content of the pipeline before the execution of such
-/// pipes.
+/// A step is composed of a list of pipes and a set of containers representing
+/// the content of the pipeline before the execution of such pipes.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

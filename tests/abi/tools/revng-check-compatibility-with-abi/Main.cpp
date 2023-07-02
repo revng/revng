@@ -1,12 +1,9 @@
-//
-// This file is distributed under the MIT License. See LICENSE.md for details.
-//
-
 /// \file Main.cpp
-/// \brief This tool is used for ABI conversion testing. It's purpose is to
-/// make sure that the function still corresponds to the intended ABI no matter
-/// what kind of work was done on top of it. It works with both
-/// `RawFunctionType` and `CABIFunctionType`.
+/// This tool is used for ABI conversion testing.
+///
+/// It's purpose is to make sure that the function still corresponds to the
+/// intended ABI no matter what kind of work was done on top of it. It works
+/// with both `RawFunctionType` and `CABIFunctionType`.
 ///
 /// \note: This tool requires a runtime abi artifact. It can be obtained using
 /// revng-qa. For more information see the corresponding repository.

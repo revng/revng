@@ -1,5 +1,5 @@
 /// \file CompileModule.cpp
-/// \brief The compile module pipe transforma llvm module into a object file
+/// The compile module pipe transforms an llvm module into an object file.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

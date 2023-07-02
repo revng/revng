@@ -1,6 +1,6 @@
 /// \file RemoveHelperCalls.cpp
-/// \brief Remove calls to helpers in a function and replaces them
-///        with stores of an opaque value onto the CSVs clobbered by the helper.
+/// Remove calls to helpers in a function and replaces them with stores of an
+/// opaque value onto the CSVs clobbered by the helper.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

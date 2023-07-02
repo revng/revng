@@ -1,5 +1,4 @@
 /// \file MetaAddress.cpp
-/// \brief Implementation of MetaAddress.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

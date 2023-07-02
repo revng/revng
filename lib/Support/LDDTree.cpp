@@ -1,5 +1,5 @@
 /// \file LDDTree.cpp
-/// \brief Implementation of lddtree like API
+/// Implementation of lddtree like API.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

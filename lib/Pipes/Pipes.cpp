@@ -1,5 +1,5 @@
 /// \file Pipes.cpp
-/// \brief Pipes contains all the various pipes and kinds exposed by revng
+/// Contains the definition of the pipe registry.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

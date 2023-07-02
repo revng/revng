@@ -1,6 +1,6 @@
 /// \file ProgramRunner.cpp
-/// \brief a program runner is used to invoke external programs a bit more
-/// safelly than to compose a string and invoke system
+/// A program runner is used to invoke external programs a bit more safelly than
+/// to compose a string and invoke system.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

@@ -1,6 +1,6 @@
 /// \file LinkForTranslation.cpp
-/// \brief the link for translation pipe is used to link object files into a
-/// executable
+/// The link for translation pipe is used to link object files into a
+/// executable.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

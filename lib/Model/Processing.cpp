@@ -1,6 +1,6 @@
 /// \file Processing.cpp
-/// \brief A collection of helper functions to improve the quality of the
-///        model/make it valid
+/// A collection of helper functions to improve the quality of the model/make it
+/// valid.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

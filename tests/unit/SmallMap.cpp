@@ -1,5 +1,4 @@
 /// \file SmallMap.cpp
-/// \brief Tests for SmallMap
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

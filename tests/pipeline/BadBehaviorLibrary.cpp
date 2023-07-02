@@ -1,6 +1,6 @@
 /// \file BadBehaviorLibrary.cpp
-/// \brief This file, when compiled into a library, crashes in a manner
-/// configured in the environment variables.
+/// This file, when compiled into a library, crashes in a manner configured in
+/// the environment variables.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

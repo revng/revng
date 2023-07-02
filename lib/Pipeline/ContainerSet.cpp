@@ -1,6 +1,5 @@
 /// \file ContainerSet.cpp
-/// \brief ContainerSets are collections of containers able to spawn them on
-/// request
+/// ContainerSets are collections of containers able to spawn them on request.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

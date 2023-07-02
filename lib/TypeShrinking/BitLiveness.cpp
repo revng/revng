@@ -1,5 +1,6 @@
 /// \file BitLiveness.cpp
-/// \brief In this file we model the transfer functions for the analysis.
+/// In this file we model the transfer functions for the analysis.
+///
 /// Each transfer function models the information flow of a function or of
 /// a special case of an instruction.
 /// In our case, `R = transferXyz(Ins, E)` means that for the instruction Ins

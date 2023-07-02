@@ -1,5 +1,5 @@
 /// \file PromoteGlobalToLocalVars.cpp
-/// \brief Promote CSVs in form of global variables to local variables.
+/// Promote CSVs in form of global variables to local variables.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

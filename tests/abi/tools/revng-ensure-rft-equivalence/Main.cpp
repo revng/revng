@@ -1,10 +1,6 @@
-//
-// This file is distributed under the MIT License. See LICENSE.md for details.
-//
-
 /// \file Main.cpp
-/// \brief This tool is a specialized `revng model diff` extension designed
-/// to work around the shortcomings of the abi testing pipeline.
+/// This tool is a specialized `revng model diff` extension designed to work
+/// around the shortcomings of the abi testing pipeline.
 ///
 /// It takes two models and produces a diff (and a non-zero exit code) if
 /// they are not equivalent.
@@ -12,6 +8,10 @@
 /// The main differences from `diff` is the fact that it invokes
 /// `model::purgeUnnamedAndUnreachableTypes` on both models and also
 /// specifically handles the IDs of `RawFunctionType`'s stack arguments.
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
 
 #include <string>
 #include <unordered_set>

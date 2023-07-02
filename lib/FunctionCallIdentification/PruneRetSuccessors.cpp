@@ -1,5 +1,5 @@
 /// \file PruneRetSuccessors.cpp
-/// \brief Remove successors from return instructions
+/// Remove successors from return instructions
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

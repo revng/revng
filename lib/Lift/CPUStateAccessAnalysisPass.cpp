@@ -1,6 +1,6 @@
 /// \file CPUStateAccessAnalysisPass.cpp
-/// \brief This file performs an analysis for reconstructing the access
-///        patterns to the CPU State Variables (CSV).
+/// This file performs an analysis for reconstructing the access patterns to the
+/// CPU State Variables (CSV).
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

@@ -1,6 +1,6 @@
 /// \file Errors.cpp
-/// \brief this file contains the various errors that can be thrown from whitin
-/// a pipeline
+/// This file contains the various errors that can be thrown from whitin a
+/// pipeline.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

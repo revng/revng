@@ -1,7 +1,9 @@
 /// \file SegregateDirectStackAccesses.cpp
-/// \brief Segregate direct stack accesses from all other memory accesses
-///        through alias information. This provides a way to say that stack
-///        accesses do not interfere with any other memory access.
+/// Segregate direct stack accesses from all other memory accesses through alias
+/// information.
+///
+/// This provides a way to say that stack accesses do not interfere with any
+/// other memory access.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

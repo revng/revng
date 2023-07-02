@@ -1,6 +1,6 @@
 /// \file EnforceABI.cpp
-/// \brief Promotes global variables CSV to function arguments or local
-///        variables, according to the ABI analysis.
+/// Promotes global variables CSV to function arguments or local variables,
+/// according to the ABI analysis.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

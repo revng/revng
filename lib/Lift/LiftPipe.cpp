@@ -1,5 +1,5 @@
 /// \file Lift.cpp
-/// \brief Lift transform a binary into a llvm module
+/// Lift transform a binary into a llvm module
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

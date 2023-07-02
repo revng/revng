@@ -1,6 +1,5 @@
 /// \file ExampleAnalysis.cpp
-/// \brief Example of minimal data-flow analysis using the MonotoneFramework
-///        class
+/// Example of minimal data-flow analysis using the MonotoneFramework class.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

@@ -1,6 +1,6 @@
 /// \file CodeGenerator.cpp
-/// \brief This file handles the whole translation process from the input
-///        assembly to LLVM IR.
+/// This file handles the whole translation process from the input assembly to
+/// LLVM IR.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

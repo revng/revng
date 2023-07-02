@@ -1,5 +1,5 @@
 /// \file Statistics.cpp
-/// \brief Implementation of the statistics collection framework
+/// Implementation of the statistics collection framework.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

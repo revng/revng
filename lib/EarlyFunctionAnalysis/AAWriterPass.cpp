@@ -1,6 +1,5 @@
 /// \file AAWriterPass.cpp
-/// \brief Add aliasing scope information to the IR before load and store
-///        accesses.
+/// Add aliasing scope information to the IR before load and store accesses.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
