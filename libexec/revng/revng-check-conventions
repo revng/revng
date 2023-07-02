@@ -357,7 +357,7 @@ class LicenseCheckPass(TaggedPass):
 
     @staticmethod
     def check_license(content: str) -> bool:
-        return any("See LICENSE.md for details" in line for line in content.splitlines()[:10])
+        return any("See LICENSE.md for details" in line for line in content.splitlines()[:20])
 
     async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult:
         missing_license = []
