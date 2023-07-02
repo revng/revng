@@ -106,6 +106,7 @@ read_passes:
               - "HideUnrelatedOptions\\("
               - "//+.* clang-format o(?:ff|n)"
               - "/\\*+.* clang-format o(?:ff|n)"
+              - "/\\*+.* \\brief"
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher
