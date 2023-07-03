@@ -26,7 +26,6 @@ revng_add_analyses_library(
 target_link_libraries(
   revngcIRCanonicalization
   revngcInitModelTypes
-  revngcMarkAssignments
   revngcSupport
   revng::revngABI
   revng::revngModel
