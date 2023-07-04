@@ -13,6 +13,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/YAMLTraits.h"
 
+#include "revng/ADT/CompilationTime.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Support/MetaAddress.h"
@@ -92,7 +93,7 @@ public:
     Location<Rank> Result;
 
     constexpr auto Common = std::min(Rank::Depth, AnotherRank::Depth);
-    constexprRepeat<Common>([&Result, &Another]<std::size_t I> {
+    compile_time::repeat<Common>([&Result, &Another]<std::size_t I> {
       std::get<I>(Result.tuple()) = std::get<I>(Another.tuple());
     });
 
@@ -109,7 +110,7 @@ public:
 
     Result += Separator;
     Result += Rank::RankName;
-    constexprRepeat<Size>([&Result, this]<std::size_t Index> {
+    compile_time::repeat<Size>([&Result, this]<std::size_t Index> {
       Result += Separator;
       Result += serializeToString(std::get<Index>(tuple()));
     });
@@ -125,7 +126,7 @@ public:
   fromString(std::string_view String) {
     Location<Rank> Result;
 
-    auto MaybeSteps = constexprSplit<Size + 2>(Separator, String);
+    auto MaybeSteps = compile_time::split<Size + 2>(Separator, String);
     if (!MaybeSteps.has_value())
       return std::nullopt;
 
@@ -134,7 +135,7 @@ public:
     if (MaybeSteps->at(0) != "" || MaybeSteps->at(1) != ExpectedName)
       return std::nullopt;
 
-    auto Success = constexprAnd<Size>([&Result, &MaybeSteps]<std::size_t Idx> {
+    auto Success = compile_time::repeatAnd<Size>([&]<std::size_t Idx> {
       using T = typename std::tuple_element<Idx, Tuple>::type;
       using revng::detail::deserializeImpl;
       auto MaybeValue = deserializeImpl<T>(MaybeSteps->at(Idx + 2));
@@ -220,7 +221,8 @@ genericLocationFromString(std::string_view Serialized,
   using TupleType = std::tuple<detail::ConstP<ExpectedRank>,
                                detail::ConstP<SupportedRanks>...>;
   TupleType Tuple{ &Expected, &Supported... };
-  constexprRepeat<std::tuple_size_v<TupleType>>([&, Serialized]<std::size_t I> {
+  constexpr std::size_t TupleSize = std::tuple_size_v<TupleType>;
+  compile_time::repeat<TupleSize>([&, Serialized]<std::size_t I> {
     auto MaybeLoc = locationFromString(*std::get<I>(Tuple), Serialized);
     if (MaybeLoc.has_value()) {
       Result = Location<ExpectedRank>::convert(*MaybeLoc);
