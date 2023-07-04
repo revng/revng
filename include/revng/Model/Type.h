@@ -53,16 +53,12 @@ public:
   static constexpr const auto AssociatedKind = TypeKind::Invalid;
 
 public:
-  // TODO: Constructors cannot be inherited, since the default one is
-  //  manually implemented in order to generate a random ID
-  Type();
+  using generated::Type::Type;
+
+  // Constructors that do not accept an ID have to be overridden because they
+  // need to generate a random one.
   Type(TypeKind::Values TK);
-  Type(TypeKind::Values Kind, uint64_t ID) : Type(Kind, ID, Identifier(), "") {}
-  Type(TypeKind::Values Kind,
-       uint64_t ID,
-       Identifier CustomName,
-       std::string OriginalName) :
-    model::generated::Type(Kind, ID, CustomName, OriginalName) {}
+  Type();
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }
