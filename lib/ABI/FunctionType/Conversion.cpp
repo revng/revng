@@ -156,6 +156,20 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
 
   revng_log(Log, "Conversion successful:\n" << serializeToString(NewType));
 
+  // Since CABI-FT only have one field for return value comments - we have no
+  // choice but to resort to concatenation in order to preserve as much
+  // information as possible.
+  for (model::TypedRegister ReturnValue : FunctionType.ReturnValues()) {
+    if (!ReturnValue.Comment().empty()) {
+      if (!NewType.ReturnValueComment().empty())
+        NewType.ReturnValueComment() += '\n';
+      model::Register::Values RVLoc = ReturnValue.Location();
+      NewType.ReturnValueComment() += model::Register::getRegisterName(RVLoc);
+      NewType.ReturnValueComment() += ": ";
+      NewType.ReturnValueComment() += ReturnValue.Comment();
+    }
+  }
+
   // To finish up the conversion, remove all the references to the old type by
   // carefully replacing them with references to the new one.
   replaceAllUsesWith(FunctionType.key(), NewTypePath, Binary);
