@@ -48,24 +48,32 @@ select(std::index_sequence<Indices...> Is, TemplatedCallableType &&Callable) {
 
 } // namespace detail
 
+/// Calls \ref Callable \ref IterationCount times.
 template<std::size_t IterationCount, typename CallableType>
 constexpr void repeat(CallableType &&Callable) {
   detail::repeat(std::make_index_sequence<IterationCount>(),
                  std::forward<CallableType>(Callable));
 }
 
+/// Calls \ref Callable \ref IterationCount times, while applying logical AND
+/// operation to the return values.
 template<std::size_t IterationCount, typename CallableType>
 constexpr bool repeatAnd(CallableType &&Callable) {
   return detail::repeatAnd(std::make_index_sequence<IterationCount>(),
                            std::forward<CallableType>(Callable));
 }
 
+/// Calls \ref Callable \ref IterationCount times, while applying logical OR
+/// operation to the return values.
 template<std::size_t IterationCount, typename CallableType>
 constexpr bool repeatOr(CallableType &&Callable) {
   return detail::repeatOr(std::make_index_sequence<IterationCount>(),
                           std::forward<CallableType>(Callable));
 }
 
+/// Calls \ref Callable \ref IterationCount times, makes sure at most one of
+/// those invocations has a non-zero return value, then returns its index if
+/// there is one, or `std::nullopt` if there's none.
 template<std::size_t IterationCount, typename CallableType>
 constexpr std::optional<std::size_t> select(CallableType &&Callable) {
   return detail::select(std::make_index_sequence<IterationCount>(),
