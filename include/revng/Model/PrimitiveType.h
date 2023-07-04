@@ -25,8 +25,10 @@ TUPLE-TREE-YAML */
 class model::PrimitiveType : public model::generated::PrimitiveType {
 public:
   using generated::PrimitiveType::PrimitiveType;
-  // TODO: these do not conform to the constructors convention
-  PrimitiveType() : generated::PrimitiveType(){};
+
+  // These constructors have to be overridden because primitive type IDs
+  // are special: they are never randomly generated and instead depend on
+  // the type specifics.
   explicit PrimitiveType(uint64_t ID);
   PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind, uint8_t ByteSize);
 
