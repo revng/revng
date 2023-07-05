@@ -30,14 +30,7 @@ class FileContainer
   : public pipeline::Container<FileContainer<K, TypeName, MIME, Suffix>> {
 private:
   llvm::SmallString<32> Path;
-
   static void cantFail(std::error_code EC) { revng_assert(!EC); }
-
-  static std::unique_ptr<llvm::MemoryBuffer>
-  unfailableGetFileAsStream(llvm::StringRef Path) {
-    auto Value = errorOrToExpected(llvm::MemoryBuffer::getFileAsStream(Path));
-    return llvm::cantFail(std::move(Value));
-  }
 
 public:
   inline static char ID = '0';
@@ -106,8 +99,7 @@ public:
     return true;
   }
 
-  llvm::Error storeToDisk(llvm::StringRef Path) const override {
-    using namespace llvm;
+  llvm::Error storeToDisk(const revng::FilePath &Path) const override {
     // We must ensure that if we got invalidated then no file on disk is
     // present, so that the next time we load we don't mistakenly think that we
     // have some content.
@@ -116,32 +108,31 @@ public:
     // looking inside the stored file, instead of only checking if the file
     // exists.
     if (this->Path.empty()) {
-      if (llvm::sys::fs::exists(Path))
-        llvm::sys::fs::remove(Path);
+      auto MaybeExists = Path.exists();
+      if (not MaybeExists)
+        return MaybeExists.takeError();
+
+      if (MaybeExists.get())
+        return Path.remove();
 
       return llvm::Error::success();
     }
 
-    if (Path == "-") {
-      auto Buffer = unfailableGetFileAsStream(this->Path);
-
-      llvm::outs() << Buffer->getBuffer();
-    }
-
-    auto Error = errorCodeToError(llvm::sys::fs::copy_file(this->Path, Path));
-    auto MaybeError = llvm::sys::fs::getPermissions(this->Path);
-    auto Perm = llvm::cantFail(llvm::errorOrToExpected(std::move(MaybeError)));
-    llvm::sys::fs::setPermissions(Path, Perm);
-    return Error;
+    return revng::FilePath::fromLocalStorage(this->Path).copyTo(Path);
   }
 
-  llvm::Error loadFromDisk(llvm::StringRef Path) override {
-    if (not llvm::sys::fs::exists(Path)) {
-      *this = FileContainer(this->name());
+  llvm::Error loadFromDisk(const revng::FilePath &Path) override {
+    auto MaybeExists = Path.exists();
+    if (not MaybeExists)
+      return MaybeExists.takeError();
+
+    if (not MaybeExists.get()) {
+      clear();
       return llvm::Error::success();
     }
+
     getOrCreatePath();
-    return llvm::errorCodeToError(llvm::sys::fs::copy_file(Path, this->Path));
+    return Path.copyTo(revng::FilePath::fromLocalStorage(this->Path));
   }
 
   void clear() override { *this = FileContainer(this->name()); }

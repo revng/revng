@@ -22,4 +22,8 @@ def make_manager(workdir: Optional[AnyPath] = None):
         initialize()
         atexit.register(shutdown)
         _initialized = True
-    return Manager(workdir)
+
+    if workdir is None:
+        return Manager(None)
+    else:
+        return Manager(str(workdir))

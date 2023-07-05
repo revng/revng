@@ -17,27 +17,34 @@ using namespace std;
 using namespace pipeline;
 using namespace llvm;
 
-Error Global::storeToDisk(StringRef Path) const {
-  std::error_code EC;
-  raw_fd_ostream OS(Path, EC, llvm::sys::fs::OF_None);
-  if (EC)
-    return createStringError(EC,
-                             "could not write file at %s",
-                             Path.str().c_str());
+Error Global::storeToDisk(const revng::FilePath &Path) const {
+  auto MaybeWritableFile = Path.getWritableFile();
+  if (not MaybeWritableFile)
+    return MaybeWritableFile.takeError();
 
-  return serialize(OS);
+  auto &WritableFile = MaybeWritableFile.get();
+  llvm::Error SerializeError = serialize(WritableFile.get()->os());
+  if (SerializeError)
+    return SerializeError;
+
+  return WritableFile.get()->commit();
 }
 
-Error Global::loadFromDisk(StringRef Path) {
-  if (not llvm::sys::fs::exists(Path)) {
+Error Global::loadFromDisk(const revng::FilePath &Path) {
+  auto MaybeExists = Path.exists();
+  if (not MaybeExists)
+    return MaybeExists.takeError();
+
+  if (not MaybeExists.get()) {
     clear();
     return llvm::Error::success();
   }
 
-  if (auto MaybeBuffer = MemoryBuffer::getFile(Path); !MaybeBuffer)
-    return llvm::createStringError(MaybeBuffer.getError(),
-                                   "could not read file at %s",
-                                   Path.str().c_str());
-  else
-    return deserialize(**MaybeBuffer);
+  auto MaybeBuffer = Path.getReadableFile();
+  if (not MaybeBuffer) {
+    return MaybeBuffer.takeError();
+  }
+
+  llvm::Error DeserializeError = deserialize(MaybeBuffer.get()->buffer());
+  return DeserializeError;
 }

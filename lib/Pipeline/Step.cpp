@@ -164,7 +164,7 @@ Error Step::invalidate(const ContainerToTargetsMap &ToRemove) {
   return containers().remove(ToRemove);
 }
 
-Error Step::storeToDisk(llvm::StringRef DirPath) const {
+Error Step::storeToDisk(const revng::DirectoryPath &DirPath) const {
   return Containers.storeToDisk(DirPath);
 }
 
@@ -178,8 +178,6 @@ Error Step::checkPrecondition(const Context &Ctx) const {
   return llvm::Error::success();
 }
 
-Error Step::loadFromDisk(llvm::StringRef DirPath) {
-  if (not llvm::sys::fs::exists(DirPath))
-    return llvm::Error::success();
+Error Step::loadFromDisk(const revng::DirectoryPath &DirPath) {
   return Containers.loadFromDisk(DirPath);
 }

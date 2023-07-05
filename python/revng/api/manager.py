@@ -2,11 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Generator, Iterable, List, Mapping, Optional, Union
-
-from revng.support import AnyPath
 
 from ._capi import _api, ffi
 from .analysis import AnalysesList, Analysis
@@ -26,19 +23,17 @@ INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
 class Manager:
     def __init__(
         self,
-        workdir: Optional[AnyPath] = None,
+        workdir: Optional[str] = None,
         flags: Iterable[str] = (),
     ):
         if workdir is None:
             self.temporary_workdir = TemporaryDirectory(prefix="revng-manager-workdir-")
-            self.workdir = Path(self.temporary_workdir.name)
+            self.workdir = self.temporary_workdir.name
         else:
-            self.workdir = Path(workdir)
-
-        self.workdir.mkdir(parents=True, exist_ok=True)
+            self.workdir = workdir
 
         _flags = [make_c_string(s) for s in flags]
-        _workdir = make_c_string(str(self.workdir))
+        _workdir = make_c_string(self.workdir)
 
         # Ensures that the _manager property is always defined even if the API call fails
         self._manager = None
@@ -201,15 +196,6 @@ class Manager:
         return TargetsList(targets_list, container) if targets_list != ffi.NULL else None
 
     # Container-related functions
-
-    def container_path(self, step_name: str, container_name: str) -> Optional[str]:
-        _step_name = make_c_string(step_name)
-        _container_name = make_c_string(container_name)
-        _path = _api.rp_manager_create_container_path(self._manager, _step_name, _container_name)
-        if not _path:
-            return None
-        return make_python_string(_path)
-
     @property
     def containers_count(self) -> int:
         return _api.rp_manager_containers_count(self._manager)
