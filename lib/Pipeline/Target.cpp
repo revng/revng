@@ -1,6 +1,6 @@
 /// \file Runner.cpp
-/// \brief a target is a object that is associated to the content of a container
-/// to describe it without knowing what is the real type of the content itself.
+/// A target is a object that is associated to the content of a container to
+/// describe it without knowing what is the real type of the content itself.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

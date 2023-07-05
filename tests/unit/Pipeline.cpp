@@ -1,5 +1,4 @@
 /// \file Pipeline.cpp
-/// \brief Tests for revng-pipeline
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -119,10 +118,7 @@ public:
     return { &FunctionKind, &RootKind };
   }
 
-  bool contains(const Target &T) const {
-    bool Contained = Map.count(T);
-    return Contained;
-  }
+  bool contains(const Target &T) const { return Map.contains(T); }
 
   TargetsList enumerate() const final {
     TargetsList ToReturn;
@@ -142,15 +138,15 @@ public:
   }
 
   bool remove(const Target &Target) {
-    if (Map.find(Target) == Map.end())
+    if (!Map.contains(Target))
       return false;
 
     Map.erase(Target);
     return true;
   }
 
-  llvm::Error
-  extractOne(llvm::raw_ostream &OS, const Target &Target) const override {
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const Target &Target) const override {
     revng_abort();
     return llvm::Error::success();
   }
@@ -1071,8 +1067,8 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error
-  extractOne(llvm::raw_ostream &OS, const Target &Target) const override {
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const Target &Target) const override {
     revng_abort();
     return llvm::Error::success();
   }
@@ -1104,7 +1100,7 @@ public:
 
   bool contains(const Target &Target,
                 const EnumerableContainerExample &Container) const {
-    return Container.Targets.count(Target);
+    return Container.Targets.contains(Target);
   }
 
   bool remove(const Context &Ctx,
@@ -1118,8 +1114,8 @@ public:
     return ErasedAll;
   }
 
-  bool
-  remove(const Target &Target, EnumerableContainerExample &Container) const {
+  bool remove(const Target &Target,
+              EnumerableContainerExample &Container) const {
 
     if (not contains(Target, Container))
       return false;

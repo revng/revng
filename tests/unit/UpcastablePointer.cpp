@@ -1,5 +1,4 @@
 /// \file UpcastablePointer.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -7,7 +6,6 @@
 
 #include "revng/ADT/UpcastablePointer.h"
 
-// clang-format off
 template<typename T>
 concept UniquePtrLike = requires(T A, typename T::pointer B) {
   std::is_pointer_v<typename T::pointer>;
@@ -17,7 +15,6 @@ concept UniquePtrLike = requires(T A, typename T::pointer B) {
   { T() };
   { T(B) };
 };
-// clang-format on
 
 class TestClass {
 public:

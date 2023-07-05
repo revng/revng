@@ -1,6 +1,6 @@
 /// \file EnforceABI.cpp
-/// \brief Promotes global variables CSV to function arguments or local
-///        variables, according to the ABI analysis.
+/// Promotes global variables CSV to function arguments or local variables,
+/// according to the ABI analysis.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -83,13 +83,13 @@ public:
   void run();
 
 private:
-  Function *
-  handleFunction(Function &OldFunction, const model::Function &FunctionModel);
+  Function *handleFunction(Function &OldFunction,
+                           const model::Function &FunctionModel);
 
   Function *recreateFunction(Function &OldFunction, const FTLayout &Prototype);
 
-  void
-  createPrologue(Function *NewFunction, const model::Function &FunctionModel);
+  void createPrologue(Function *NewFunction,
+                      const model::Function &FunctionModel);
 
   void handleRegularFunctionCall(CallInst *Call);
   CallInst *generateCall(IRBuilder<> &Builder,
@@ -171,7 +171,7 @@ void EnforceABIImpl::run() {
   }
 
   auto IsInIsolatedFunction = [this](Instruction *I) -> bool {
-    return FunctionsMap.count(I->getParent()->getParent()) != 0;
+    return FunctionsMap.contains(I->getParent()->getParent());
   };
 
   // Handle function calls in isolated functions

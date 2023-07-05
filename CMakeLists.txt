@@ -28,7 +28,7 @@ set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 # cmake-format: off
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
 # cmake-format: on
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
@@ -182,8 +182,8 @@ endforeach()
 add_custom_command(
   OUTPUT "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
   DEPENDS "${CMAKE_SOURCE_DIR}/libexec/revng/revng-check-conventions"
-          "${CMAKE_SOURCE_DIR}/share/revng/clang-format-style-file" copy_share
-          copy_libexec
+          "${CMAKE_SOURCE_DIR}/share/revng/clang-format-style-file.yml"
+          copy_share copy_libexec
   COMMAND
     "${CMAKE_BINARY_DIR}/libexec/revng/revng-check-conventions" ARGS
     --print-clang-format-config >

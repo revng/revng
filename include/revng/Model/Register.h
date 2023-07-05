@@ -687,8 +687,8 @@ inline llvm::StringRef getCSVName(Values V) {
   }
 }
 
-inline Values
-fromCSVName(llvm::StringRef Name, model::Architecture::Values Architecture) {
+inline Values fromCSVName(llvm::StringRef Name,
+                          model::Architecture::Values Architecture) {
   if (Architecture == model::Architecture::x86_64) {
     // TODO: handle xmm0_x86
     if (Name == "state_0x83c0") {

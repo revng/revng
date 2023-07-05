@@ -41,11 +41,11 @@ public:
     LVI(LVI), DT(DT), Context(Context), Instructions(Instructions) {}
 
 public:
-  LatticeElement
-  combineValues(const LatticeElement &LHS, const LatticeElement &RHS) const;
+  LatticeElement combineValues(const LatticeElement &LHS,
+                               const LatticeElement &RHS) const;
 
-  bool
-  isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) const;
+  bool isLessOrEqual(const LatticeElement &LHS,
+                     const LatticeElement &RHS) const;
 
   LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const;
 

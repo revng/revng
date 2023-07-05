@@ -15,6 +15,6 @@ public:
   AAWriterPass(llvm::raw_ostream &OS, bool StoresOnly = false) :
     OS(OS), StoresOnly(StoresOnly){};
 
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
 };

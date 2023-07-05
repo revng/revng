@@ -1,6 +1,6 @@
 /// \file SerializeModelPass.cpp
-/// \brief Implementation of the pass taking care of serializing the
-///        model in the Module as Metadata.
+/// Implementation of the pass taking care of serializing the model in the
+/// Module as Metadata.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

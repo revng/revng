@@ -1,5 +1,4 @@
 /// \file PDBImporter.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -107,23 +106,23 @@ public:
   Error visitTypeBegin(CVType &Record, TypeIndex TI) override;
 
   Error visitKnownRecord(CVType &Record, ClassRecord &Class) override;
-  Error
-  visitKnownMember(CVMemberRecord &Record, EnumeratorRecord &Member) override;
+  Error visitKnownMember(CVMemberRecord &Record,
+                         EnumeratorRecord &Member) override;
   Error visitKnownRecord(CVType &Record, EnumRecord &Enum) override;
   Error visitKnownRecord(CVType &Record, ProcedureRecord &Proc) override;
   Error visitKnownRecord(CVType &Record, UnionRecord &Union) override;
   Error visitKnownRecord(CVType &Record, ArgListRecord &Args) override;
-  Error
-  visitKnownMember(CVMemberRecord &Record, DataMemberRecord &Member) override;
+  Error visitKnownMember(CVMemberRecord &Record,
+                         DataMemberRecord &Member) override;
   Error visitKnownRecord(CVType &Record, FieldListRecord &FieldList) override;
   Error visitKnownRecord(CVType &Record, PointerRecord &Ptr) override;
   Error visitKnownRecord(CVType &Record, ModifierRecord &Modifier) override;
   Error visitKnownRecord(CVType &Record, ArrayRecord &Array) override;
 
-  Error
-  visitKnownMember(CVMemberRecord &Record, OneMethodRecord &FnMember) override;
-  Error
-  visitKnownRecord(CVType &CVR, MemberFunctionRecord &MemberFnRecord) override;
+  Error visitKnownMember(CVMemberRecord &Record,
+                         OneMethodRecord &FnMember) override;
+  Error visitKnownRecord(CVType &CVR,
+                         MemberFunctionRecord &MemberFnRecord) override;
 
   std::optional<TupleTreeReference<model::Type, model::Binary>>
   getModelTypeForIndex(TypeIndex Index);
@@ -652,7 +651,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   }
 
   TypeIndex FieldsTypeIndex = Class.getFieldList();
-  if (InProgressMemberTypes.count(FieldsTypeIndex)) {
+  if (InProgressMemberTypes.count(FieldsTypeIndex) != 0) {
     auto NewType = makeType<model::StructType>();
     NewType->OriginalName() = Class.getName();
     auto Struct = cast<model::StructType>(NewType.get());
@@ -712,11 +711,11 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   }
 
   // Process methods. Create C-like function prototype for it.
-  if (InProgressFunctionMemberTypes.count(FieldsTypeIndex)) {
+  if (InProgressFunctionMemberTypes.contains(FieldsTypeIndex)) {
     auto &TheFunctions = InProgressFunctionMemberTypes[FieldsTypeIndex];
     for (auto &Function : TheFunctions) {
       TypeIndex FnTypeIndex = Function.getType();
-      if (not InProgressConcreteFunctionMemberTypes.count(FnTypeIndex))
+      if (InProgressConcreteFunctionMemberTypes.count(FnTypeIndex) == 0)
         continue;
 
       // Get the proper LF_MFUNCTION.
@@ -738,7 +737,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       TypeFunction->ReturnType() = TheReturnType;
 
       TypeIndex ArgListTyIndex = MemberFunction.getArgumentList();
-      revng_assert(InProgressArgumentsTypes.count(ArgListTyIndex));
+      revng_assert(InProgressArgumentsTypes.contains(ArgListTyIndex));
       auto ArgList = InProgressArgumentsTypes[ArgListTyIndex];
 
       auto Indices = ArgList.getIndices();
@@ -749,7 +748,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       // as `static` or `friend`.
       if (Function.getMethodKind() != MethodKind::Static
           and Function.getMethodKind() != MethodKind::Friend
-          and ProcessedTypes.count(CurrentTypeIndex)) {
+          and ProcessedTypes.count(CurrentTypeIndex) != 0) {
         auto MaybeSize = ProcessedTypes[CurrentTypeIndex].get()->size();
         if (MaybeSize and *MaybeSize != 0) {
           Argument &NewArgument = TypeFunction->Arguments()[Index];
@@ -1278,30 +1277,24 @@ Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
   revng_log(DILogger, "Importing " << Proc.Name);
 
   // If it is not in the .idata already, we assume it is a static symbol.
-  if (not Model->ImportedDynamicFunctions().count(Proc.Name.str())) {
+  if (not Model->ImportedDynamicFunctions().contains(Proc.Name.str())) {
     uint64_t FunctionVirtualAddress = Session
                                         .getRVAFromSectOffset(Proc.Segment,
                                                               Proc.CodeOffset);
     // Relocate the symbol.
     MetaAddress FunctionAddress = ImageBase + FunctionVirtualAddress;
 
-    if (not Model->Functions().count(FunctionAddress)) {
+    if (not Model->Functions().contains(FunctionAddress)) {
       model::Function &Function = Model->Functions()[FunctionAddress];
       Function.OriginalName() = Proc.Name;
       TypeIndex FunctionTypeIndex = Proc.FunctionType;
-      if (ProcessedTypes.count(FunctionTypeIndex)) {
-        model::QualifiedType ThePrototype(ProcessedTypes[FunctionTypeIndex],
-                                          {});
-        Function.Prototype() = ThePrototype.UnqualifiedType();
-      }
+      if (ProcessedTypes.find(FunctionTypeIndex) != ProcessedTypes.end())
+        Function.Prototype() = ProcessedTypes[FunctionTypeIndex];
     } else {
       auto It = Model->Functions().find(FunctionAddress);
       TypeIndex FunctionTypeIndex = Proc.FunctionType;
-      if (ProcessedTypes.count(FunctionTypeIndex)) {
-        model::QualifiedType ThePrototype(ProcessedTypes[FunctionTypeIndex],
-                                          {});
-        It->Prototype() = ThePrototype.UnqualifiedType();
-      }
+      if (ProcessedTypes.find(FunctionTypeIndex) != ProcessedTypes.end())
+        It->Prototype() = ProcessedTypes[FunctionTypeIndex];
     }
   }
 

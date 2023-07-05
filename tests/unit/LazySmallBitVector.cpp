@@ -1,5 +1,4 @@
 /// \file LazySmallBitVector.cpp
-/// \brief Tests for LazySmallBitVector
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

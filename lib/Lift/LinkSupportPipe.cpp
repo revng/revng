@@ -1,5 +1,5 @@
 /// \file LinkSupport.cpp
-/// \brief Link support adds the helper functions to a lifeted module
+/// Link support adds the helper functions to a lifeted module
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

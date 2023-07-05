@@ -12,35 +12,6 @@
 #include <type_traits>
 
 //
-// The concepts from the STL.
-// TODO: remove these after updating the libc++ version.
-//
-
-template<typename T>
-concept equality_comparable = requires(T &&LHS, T &&RHS) {
-  { LHS == RHS } -> std::convertible_to<bool>;
-};
-
-// clang-format off
-template<typename F, typename... Args>
-concept invocable = requires(F&& Function, Args &&...Arguments) {
-  std::invoke(std::forward<F>(Function), std::forward<Args>(Arguments)...);
-};
-
-// NOTE: this is supposed to use `std::regular_invocable`, but the difference
-//       is not major in most cases, so use `invocable` until we update libc++.
-template<typename F, typename... Args>
-concept predicate = invocable<F, Args...>
-                    && std::is_convertible_v<std::invoke_result_t<F, Args...>,
-                                             bool>;
-// clang-format on
-
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode;
-// clang-format off
-// clang-format on
-
-//
 // Concepts to simplify working with tuples.
 //
 
@@ -75,11 +46,9 @@ constexpr auto checkAllTupleElementTypes() {
 
 } // namespace revng::detail
 
-// clang-format off
 template<class T>
 concept TupleLike = (TupleSizeCompatible<T>
                      and revng::detail::checkAllTupleElementTypes<T>());
-// clang-format on
 
 static_assert(TupleLike<std::tuple<>>);
 static_assert(TupleLike<std::tuple<int, int, long>>);
@@ -98,23 +67,11 @@ static_assert(not TupleLike<std::vector<int>>);
 /// `IsRank`) concepts needed since we can now just say
 /// `SpecializationOf<GenericGraph>` on the interface boundaries and get
 /// the expected check.
-///
-/// TODO: this requires clang-13+, uncomment it after the update.
-// template<typename Type, template<typename...> class Ref>
-// concept SpecializationOf = requires(Type &&Value) {
-//   []<typename... Ts>(Ref<Ts...> &){}(Value);
-// };
-//
-// static_assert(SpecializationOf<std::pair<int, long>, std::pair>);
-// static_assert(SpecializationOf<const std::pair<int, long>, std::pair>);
-// static_assert(SpecializationOf<std::string, std::basic_string>);
-// static_assert(SpecializationOf<std::ostream, std::basic_ios>);
-// static_assert(not SpecializationOf<std::string, std::basic_string_view>);
-
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode;
-// clang-format off
-// clang-format on
+template<typename Type, template<typename...> class Ref>
+concept SpecializationOf = requires(Type &Value) {
+  []<typename... Ts>(Ref<Ts...> &) {
+  }(const_cast<std::remove_const_t<Type> &>(Value));
+};
 
 namespace revng::detail {
 
@@ -141,11 +98,39 @@ constexpr bool
 template<typename Test, template<typename...> class Ref>
 concept StrictSpecializationOf = revng::detail::StrictSpecialization<Test, Ref>;
 
+namespace examples {
+
+static_assert(SpecializationOf<std::pair<int, long>, std::pair>);
 static_assert(StrictSpecializationOf<std::pair<int, long>, std::pair>);
+static_assert(SpecializationOf<const std::pair<int, long>, std::pair>);
 static_assert(StrictSpecializationOf<const std::pair<int, long>, std::pair>);
+
+static_assert(SpecializationOf<std::string, std::basic_string>);
 static_assert(StrictSpecializationOf<std::string, std::basic_string>);
-static_assert(not StrictSpecializationOf<std::ostream, std::basic_ios>);
+static_assert(not SpecializationOf<std::string, std::basic_string_view>);
 static_assert(not StrictSpecializationOf<std::string, std::basic_string_view>);
+
+using Alias = std::pair<int, long>;
+static_assert(SpecializationOf<Alias, std::pair>);
+static_assert(StrictSpecializationOf<Alias, std::pair>);
+
+template<typename Type>
+struct InheritanceT : std::pair<int, Type> {};
+struct PublicInheritance : public InheritanceT<long> {};
+struct PrivateInheritance : private InheritanceT<long> {};
+struct ProtectedInheritance : protected InheritanceT<long> {};
+
+static_assert(SpecializationOf<PublicInheritance, std::pair>);
+static_assert(SpecializationOf<PublicInheritance, InheritanceT>);
+static_assert(not SpecializationOf<PrivateInheritance, std::pair>);
+static_assert(not SpecializationOf<ProtectedInheritance, std::pair>);
+
+static_assert(not StrictSpecializationOf<PublicInheritance, std::pair>);
+static_assert(not StrictSpecializationOf<PublicInheritance, InheritanceT>);
+static_assert(not StrictSpecializationOf<PrivateInheritance, std::pair>);
+static_assert(not StrictSpecializationOf<ProtectedInheritance, std::pair>);
+
+} // namespace examples
 
 //
 // Other Miscellaneous concepts.
@@ -154,9 +139,7 @@ static_assert(not StrictSpecializationOf<std::string, std::basic_string_view>);
 template<typename T, typename R>
 concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 
-// clang-format off
-template<class Range, typename ValueType>
-concept range_with_value_type = std::ranges::range<Range> &&
-                std::is_convertible_v<typename Range::value_type,
-                                      ValueType>;
-// clang-format on
+template<class R, typename ValueType>
+concept range_with_value_type = std::ranges::range<R>
+                                && std::is_convertible_v<typename R::value_type,
+                                                         ValueType>;

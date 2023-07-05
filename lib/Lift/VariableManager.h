@@ -151,12 +151,12 @@ public:
 
   bool hasEnv() const { return Env != nullptr; }
 
-  llvm::Value *
-  cpuStateToEnv(llvm::Value *CPUState, llvm::Instruction *InsertBefore) const;
+  llvm::Value *cpuStateToEnv(llvm::Value *CPUState,
+                             llvm::Instruction *InsertBefore) const;
 
 private:
-  std::pair<bool, llvm::Value *>
-  getOrCreate(unsigned TemporaryId, bool Reading);
+  std::pair<bool, llvm::Value *> getOrCreate(unsigned TemporaryId,
+                                             bool Reading);
 
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
                                       unsigned LoadSize,
@@ -168,8 +168,8 @@ private:
                         unsigned Offset,
                         llvm::Value *ToStore);
 
-  llvm::GlobalVariable *
-  getByCPUStateOffset(intptr_t Offset, std::string Name = "");
+  llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
+                                            std::string Name = "");
 
   std::pair<llvm::GlobalVariable *, unsigned>
   getByCPUStateOffsetInternal(intptr_t Offset, std::string Name = "");

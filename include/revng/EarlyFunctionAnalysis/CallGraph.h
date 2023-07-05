@@ -26,8 +26,8 @@ struct llvm::DOTGraphTraits<efa::CallGraph *>
   using EdgeIterator = llvm::GraphTraits<efa::CallGraph *>::ChildIteratorType;
   DOTGraphTraits(bool IsSimple = false) : DefaultDOTGraphTraits(IsSimple) {}
 
-  static std::string
-  getNodeLabel(const efa::BasicBlockNode *Node, const efa::CallGraph *Graph) {
+  static std::string getNodeLabel(const efa::BasicBlockNode *Node,
+                                  const efa::CallGraph *Graph) {
     return Node->Address.toString();
   }
 

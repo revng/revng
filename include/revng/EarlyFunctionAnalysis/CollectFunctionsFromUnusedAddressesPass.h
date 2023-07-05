@@ -27,6 +27,6 @@ public:
 class CollectFunctionsFromUnusedAddressesPass
   : public llvm::PassInfoMixin<CollectFunctionsFromUnusedAddressesPass> {
 public:
-  llvm::PreservedAnalyses
-  run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM);
 };

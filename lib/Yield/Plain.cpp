@@ -1,5 +1,4 @@
 /// \file Plain.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -32,8 +31,7 @@ static std::string deduceName(const BasicBlockID &Target,
   if (auto *F = yield::tryGetFunction(Binary, Target)) {
     // The target is a function
     return F->name().str().str();
-  } else if (auto Iterator = Function.ControlFlowGraph().find(Target);
-             Iterator != Function.ControlFlowGraph().end()) {
+  } else if (Function.ControlFlowGraph().contains(Target)) {
     // The target is a basic block
 
     // TODO: maybe there's something better than the address to put here.

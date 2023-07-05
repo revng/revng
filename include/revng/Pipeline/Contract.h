@@ -15,8 +15,11 @@
 namespace pipeline {
 
 namespace InputPreservation {
-enum Values { Erase, Preserve };
-}
+enum Values {
+  Erase,
+  Preserve
+};
+} // namespace InputPreservation
 
 /// A contract enstablishes a what operations a pipe can perform on input
 /// container and output container both referred by their index.

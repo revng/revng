@@ -1,5 +1,4 @@
 /// \file CommandLine.cpp
-/// \brief Implementation of the debug framework
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

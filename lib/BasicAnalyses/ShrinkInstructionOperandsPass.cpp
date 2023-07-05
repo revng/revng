@@ -1,5 +1,4 @@
 /// \file ShrinkInstructionOperandsPass.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -11,7 +10,11 @@
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/Support/IRHelpers.h"
 
-enum Signedness { DontCare, Signed, Unsigned };
+enum Signedness {
+  DontCare,
+  Signed,
+  Unsigned
+};
 
 static llvm::Value *getPreExt(llvm::Value *V, Signedness S) {
   if (auto *ZExt = llvm::dyn_cast<llvm::ZExtInst>(V)) {

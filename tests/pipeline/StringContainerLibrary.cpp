@@ -1,5 +1,5 @@
 /// \file StringContainerLibrary.cpp
-/// \brief the kind associated to non isolated root.
+/// The kind associated with non isolated root.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -55,7 +55,7 @@ public:
   }
 
   bool contains(const Target &Target) const {
-    return ContainedStrings.count(Target.getPathComponents().back());
+    return ContainedStrings.contains(Target.getPathComponents().back());
   }
 
   bool remove(const TargetsList &Targets) override {

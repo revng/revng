@@ -1,5 +1,4 @@
 /// \file LLVMDisassemblerInterface.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -22,7 +21,11 @@ namespace options {
 
 static bool UseIntelSyntax = true;
 
-enum class ImmediateStyles { Decimal, CHexadecimal, AsmHexadecimal };
+enum class ImmediateStyles {
+  Decimal,
+  CHexadecimal,
+  AsmHexadecimal
+};
 static ImmediateStyles ImmediateStyle = ImmediateStyles::CHexadecimal;
 
 } // namespace options
@@ -386,8 +389,8 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
   return Result;
 }
 
-DI::Disassembled
-DI::instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes) {
+DI::Disassembled DI::instruction(const MetaAddress &Where,
+                                 llvm::ArrayRef<uint8_t> RawBytes) {
   revng_assert(Where.isValid() && !RawBytes.empty());
 
   auto [Instruction, Size] = disassemble(Where, RawBytes, *Disassembler);

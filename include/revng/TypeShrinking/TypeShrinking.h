@@ -15,8 +15,8 @@ namespace TypeShrinking {
 class TypeShrinkingPass : public llvm::PassInfoMixin<TypeShrinkingPass> {
 
 public:
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
 };
 
 class TypeShrinkingWrapperPass : public llvm::FunctionPass {

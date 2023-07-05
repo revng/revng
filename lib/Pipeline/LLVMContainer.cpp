@@ -1,7 +1,7 @@
 /// \file LLVMContainer.cpp
-/// \brief A llvm container is a container which uses a llvm module as a
-/// backend, and can be customized with downstream kinds that specify which
-/// global objects in it are which target.
+/// A llvm container is a container which uses a llvm module as a backend, and
+/// can be customized with downstream kinds that specify which global objects in
+/// it are which target.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -68,7 +68,7 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
       return true;
 
     const auto &F = llvm::cast<llvm::Function>(GlobalSym);
-    return ToClone.count(F) != 0 or ToClonedNotOwned.count(F) != 0;
+    return ToClone.contains(F) or ToClonedNotOwned.contains(F);
   };
 
   llvm::ValueToValueMapTy Map;
@@ -100,8 +100,8 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
 using LinkageRestoreMap = std::map<std::string,
                                    llvm::GlobalValue::LinkageTypes>;
 
-static void
-fixGlobals(llvm::Module &Module, LinkageRestoreMap &LinkageRestore) {
+static void fixGlobals(llvm::Module &Module,
+                       LinkageRestoreMap &LinkageRestore) {
   using namespace llvm;
 
   for (auto &Global : Module.global_objects()) {
@@ -229,8 +229,8 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   }
 }
 
-llvm::Error
-LLVMContainer::extractOne(llvm::raw_ostream &OS, const Target &Target) const {
+llvm::Error LLVMContainer::extractOne(llvm::raw_ostream &OS,
+                                      const Target &Target) const {
   TargetsList List({ Target });
   auto Module = cloneFiltered(List);
   return Module->serialize(OS);

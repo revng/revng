@@ -283,6 +283,8 @@ public:
     }
   }
 
+  bool contains(const key_type &Key) const { return find(Key) != end(); }
+
   iterator lower_bound(const key_type &Key) {
     revng_assert(not BatchInsertInProgress);
     return std::lower_bound(begin(), end(), KOT::fromKey(Key), compareElements);

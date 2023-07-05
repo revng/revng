@@ -98,9 +98,7 @@ public:
         Successor->addPredecessor(&P.second);
   }
 
-  bool hasNode(const llvm::BasicBlock *BB) const {
-    return Blocks.count(BB) != 0;
-  }
+  bool hasNode(const llvm::BasicBlock *BB) const { return Blocks.contains(BB); }
 
   CustomCFGNode *getNode(llvm::BasicBlock *BB) {
     auto It = Blocks.find(BB);

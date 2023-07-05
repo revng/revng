@@ -1,5 +1,4 @@
 /// \file ValueMaterializerPass.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -33,8 +32,8 @@ SDMO::StaticDataMemoryOracle(const DataLayout &DL,
   IsLittleEndian = DL.isLittleEndian();
 }
 
-MaterializedValue
-StaticDataMemoryOracle::load(uint64_t LoadAddress, unsigned LoadSize) {
+MaterializedValue StaticDataMemoryOracle::load(uint64_t LoadAddress,
+                                               unsigned LoadSize) {
   auto Address = MetaAddress::fromGeneric(LoadAddress, Features);
   return JTM.readFromPointer(Address, LoadSize, IsLittleEndian);
 }
@@ -69,8 +68,8 @@ static void demoteOrToAdd(Function &F) {
   }
 }
 
-PreservedAnalyses
-ValueMaterializerPass::run(Function &F, FunctionAnalysisManager &FAM) {
+PreservedAnalyses ValueMaterializerPass::run(Function &F,
+                                             FunctionAnalysisManager &FAM) {
   using namespace llvm;
 
   demoteOrToAdd(F);

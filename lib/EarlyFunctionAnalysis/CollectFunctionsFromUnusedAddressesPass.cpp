@@ -1,5 +1,5 @@
 /// \file CollectFunctionsFromUnusedAddressesPass.cpp
-/// \brief Collect the function entry points from unused addresses.
+/// Collect the function entry points from unused addresses.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

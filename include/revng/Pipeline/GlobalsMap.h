@@ -68,16 +68,16 @@ public:
     return std::next(Map.begin(), Index)->first;
   }
 
-  llvm::Error
-  serialize(llvm::StringRef GlobalName, llvm::raw_ostream &OS) const {
+  llvm::Error serialize(llvm::StringRef GlobalName,
+                        llvm::raw_ostream &OS) const {
     auto MaybeGlobal = get(GlobalName);
     if (!MaybeGlobal)
       return MaybeGlobal.takeError();
     return MaybeGlobal.get()->serialize(OS);
   }
 
-  llvm::Error
-  deserialize(llvm::StringRef GlobalName, const llvm::MemoryBuffer &Buffer) {
+  llvm::Error deserialize(llvm::StringRef GlobalName,
+                          const llvm::MemoryBuffer &Buffer) {
     auto MaybeGlobal = get(GlobalName);
     if (!MaybeGlobal)
       return MaybeGlobal.takeError();

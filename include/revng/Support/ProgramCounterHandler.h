@@ -18,15 +18,22 @@ inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
 
 namespace NextJumpTarget {
 
-enum Values { Unique, Multiple, Helper };
-
+enum Values {
+  Unique,
+  Multiple,
+  Helper
 };
+
+}; // namespace NextJumpTarget
 
 namespace PCAffectingCSV {
 
-enum Values { PC, IsThumb };
-
+enum Values {
+  PC,
+  IsThumb
 };
+
+}; // namespace PCAffectingCSV
 
 namespace revng::detail {
 
@@ -122,15 +129,15 @@ public:
                                      const MetaAddress &Address) const;
 
 protected:
-  virtual void
-  initializePCInternal(llvm::IRBuilder<> &Builder, MetaAddress NewPC) const = 0;
+  virtual void initializePCInternal(llvm::IRBuilder<> &Builder,
+                                    MetaAddress NewPC) const = 0;
 
   virtual bool handleStoreInternal(llvm::IRBuilder<> &Builder,
                                    llvm::StoreInst *Store) const = 0;
 
 public:
   bool affectsPC(llvm::GlobalVariable *GV) const {
-    return CSVsAffectingPC.count(GV) != 0;
+    return CSVsAffectingPC.contains(GV);
   }
 
   bool affectsPC(llvm::StoreInst *Store) const {

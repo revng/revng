@@ -104,8 +104,8 @@ inline void setBlockType(llvm::Instruction *T, BlockType::Values Value) {
   T->setMetadata(BlockTypeMDName, QMD.tuple(BlockType::getName(Value)));
 }
 
-inline llvm::BasicBlock *
-findByBlockType(llvm::Function *F, BlockType::Values Value) {
+inline llvm::BasicBlock *findByBlockType(llvm::Function *F,
+                                         BlockType::Values Value) {
   using namespace llvm;
   QuickMetadata QMD(getContext(F));
   for (BasicBlock &BB : *F) {
@@ -160,7 +160,7 @@ inline bool isPartOfRootDispatcher(llvm::BasicBlock *BB) {
           or Type == BlockType::RootDispatcherHelperBlock);
 }
 
-/// \brief Return true if the basic block is a jump target
+/// Return true if the basic block is a jump target
 inline bool isJumpTarget(llvm::BasicBlock *BB) {
   return getType(BB->getTerminator()) == BlockType::JumpTargetBlock;
 }

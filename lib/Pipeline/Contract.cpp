@@ -1,5 +1,5 @@
 /// \file Contract.cpp
-/// \brief A contract is "Rule" attached to a pipe that specifies what kind of
+/// A contract is "Rule" attached to a pipe that specifies what kind of
 /// transformations the pipe is allowed to do on input containers.
 
 //

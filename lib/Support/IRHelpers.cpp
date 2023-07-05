@@ -1,5 +1,5 @@
 /// \file IRHelpers.cpp
-/// \brief Implementation of IR helper functions
+/// Implementation of IR helper functions.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -160,7 +160,7 @@ CallInst *getLastNewPC(Instruction *TheInstruction) {
       revng_assert(isPartOfRootDispatcher(Predecessor) == false);
 
       // Ignore already visited or empty BBs
-      if (!Predecessor->empty() && Visited.find(Predecessor) == Visited.end()) {
+      if (!Predecessor->empty() && !Visited.contains(Predecessor)) {
         WorkList.push(Predecessor->rbegin());
         Visited.insert(Predecessor);
       }
@@ -346,11 +346,9 @@ findJumpTarget(llvm::BasicBlock *&Result,
                  "This block leads to multiple jump targets");
     Result = BB;
   } else {
-    for (BasicBlock *Predecessor : predecessors(BB)) {
-      if (Visited.count(Predecessor) == 0) {
+    for (BasicBlock *Predecessor : predecessors(BB))
+      if (!Visited.contains(Predecessor))
         rc_recur findJumpTarget(Result, Predecessor, Visited);
-      }
-    }
   }
 
   rc_return;
@@ -392,7 +390,7 @@ using ValueSet = SmallSet<Value *, 2>;
 static RecursiveCoroutine<void>
 findPhiTreeLeavesImpl(ValueSet &Leaves, ValueSet &Visited, llvm::Value *V) {
   if (auto *Phi = dyn_cast<PHINode>(V)) {
-    revng_assert(Visited.count(V) == 0);
+    revng_assert(!Visited.contains(V));
     Visited.insert(V);
     for (Value *Operand : Phi->operands())
       rc_recur findPhiTreeLeavesImpl(Leaves, Visited, Operand);

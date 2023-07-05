@@ -67,7 +67,6 @@ enum Values : uint16_t {
 
   /// The address of a z/Architecture (s390x) basic block
   Code_systemz
-
 };
 
 inline constexpr bool isValid(Values V) {
@@ -526,8 +525,8 @@ public:
                        AddressSpace);
   }
 
-  static constexpr MetaAddress
-  fromGeneric(uint64_t Address, Features Features) {
+  static constexpr MetaAddress fromGeneric(uint64_t Address,
+                                           Features Features) {
     return MetaAddress(Address,
                        MetaAddressType::genericFromArch(Features.Architecture),
                        Features.Epoch,

@@ -37,6 +37,7 @@ public:
 
   // typedef ChildEdgeIteratorType - Type used to iterate over children edges in
   //                             graph, dereference to a EdgeRef.
+
 protected:
   using PredT = typename PredicateType::value_type;
   static_assert(std::is_invocable_r_v<bool, PredT, NodeRef, NodeRef>);
@@ -92,6 +93,7 @@ public:
 
   // typedef ChildEdgeIteratorType - Type used to iterate over children edges in
   //                             graph, dereference to a EdgeRef.
+
 protected:
   using PredT = typename PredicateType::value_type;
   static_assert(std::is_invocable_r_v<bool, PredT, NodeRef, NodeRef>);
@@ -184,7 +186,8 @@ public:
   using EdgeRef = typename BaseGraphTraits::EdgeRef;
 
   // typedef ChildEdgeIteratorType - Type used to iterate over children edges in
-  //                             graph, dereference to a EdgeRef.
+  //                                 graph, dereference to a EdgeRef.
+
 protected:
   using PredT = typename PredicateType::value_type;
   static_assert(std::is_invocable_r_v<bool, PredT, EdgeRef>);
@@ -285,6 +288,7 @@ public:
 
   // typedef ChildEdgeIteratorType - Type used to iterate over children edges in
   //                             graph, dereference to a EdgeRef.
+
 protected:
   using PredT = typename PredicateType::value_type;
   static_assert(std::is_invocable_r_v<bool, PredT, EdgeRef>);
@@ -316,6 +320,7 @@ public:
 
   // typedef ChildIteratorType - Type used to iterate over children in graph,
   //                             dereference to a NodeRef.
+
 protected:
   using EdgeDest = NodeRef (*)(EdgeRef);
 

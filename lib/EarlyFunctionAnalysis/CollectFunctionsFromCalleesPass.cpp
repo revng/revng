@@ -1,5 +1,5 @@
 /// \file CollectFunctionsFromCalleesPass.cpp
-/// \brief Collect the function entry points from the callees.
+/// Collect the function entry points from the callees.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -42,7 +42,7 @@ static void collectFunctionsFromCallees(Module &M,
       continue;
 
     MetaAddress Entry = getBasicBlockAddress(getJumpTargetBlock(&BB));
-    if (Binary.Functions().find(Entry) != Binary.Functions().end())
+    if (Binary.Functions().contains(Entry))
       continue;
 
     uint32_t Reasons = GCBI.getJTReasons(&BB);

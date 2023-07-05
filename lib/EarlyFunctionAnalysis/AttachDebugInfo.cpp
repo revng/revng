@@ -1,5 +1,5 @@
 /// \file AttachDebugInfo.cpp
-/// \brief A simple pass to attach debug metadata.
+/// A simple pass to attach debug metadata.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -49,7 +49,7 @@ static void handleFunction(DIBuilder &DIB,
 
         if (isTrue(Call->getArgOperand(NewPCArguments::IsJumpTarget))) {
           const auto &CFG = FM.ControlFlowGraph();
-          if (CFG.count(Address) != 0) {
+          if (CFG.contains(Address)) {
             LastJumpTarget = Address;
           } else {
             revng_assert(CFG.at(LastJumpTarget).contains(Address));

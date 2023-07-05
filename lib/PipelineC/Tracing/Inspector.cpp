@@ -1,6 +1,6 @@
 /// \file Runner.cpp
-/// \brief Implements the logic for inspecting a trace file. Right now this
-///        entails listing and extracting buffers
+/// Implements the logic for inspecting a trace file. Right now this entails
+/// listing and extracting buffers.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -92,8 +92,8 @@ Trace::getBuffer(const BufferLocation &Location) const {
   return getBuffer(Location.CommandNumber, Location.ArgumentNumber);
 };
 
-llvm::Expected<std::vector<char>>
-Trace::getBuffer(size_t CommandNo, size_t ArgNo) const {
+llvm::Expected<std::vector<char>> Trace::getBuffer(size_t CommandNo,
+                                                   size_t ArgNo) const {
   if (CommandNo > this->Commands.size())
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "Command number OOB");

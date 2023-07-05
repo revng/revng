@@ -1,5 +1,4 @@
 /// \file PromoteOriginalName.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -40,7 +39,7 @@ void promoteOriginalNamesInList(auto &Collection,
       // We have an OriginalName but not CustomName
       auto Name = Identifier::fromString(Entry->OriginalName());
 
-      while (UsedNames.count(Name.str().str()) != 0)
+      while (UsedNames.contains(Name.str().str()))
         Name += "_";
 
       // Assign name

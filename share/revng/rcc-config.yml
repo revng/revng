@@ -71,7 +71,7 @@ read_passes:
     ignore_pathnames:
       - .gitignore
       - pyproject.toml
-      - clang-format-style-file
+      - clang-format-style-file.yml
       - .clang-tidy
       - Doxyfile.in
   - type: BashPass
@@ -104,6 +104,9 @@ read_passes:
               - "verifyModule\\("
               - "verifyFunction\\("
               - "HideUnrelatedOptions\\("
+              - "//+.* clang-format o(?:ff|n)"
+              - "/\\*+.* clang-format o(?:ff|n)"
+              - "/\\*+.* \\brief"
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher

@@ -1,5 +1,5 @@
 /// \file KeyedObjectsContainers.cpp
-/// \brief Tests for MutableSet and SortedVector
+/// Tests for MutableSet and SortedVector.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -72,14 +72,14 @@ void testSet() {
 
   // Test erase
   {
-    revng_check(Set.find(0x1500) == Set.end());
+    revng_check(!Set.contains(0x1500));
 
     auto [It, Success] = Set.insert({ 0x1500, 0xEEEE });
     revng_check(Success);
     auto Next = Set.erase(It);
     revng_check(Next == Set.find(0x2000));
 
-    revng_check(Set.find(0x1500) == Set.end());
+    revng_check(!Set.contains(0x1500));
 
     IterationResultType IterationResult;
     for (const Element &SE : Set)
@@ -117,7 +117,7 @@ void testSet() {
   // Test operator[] on new element
   revng_check(Set[0x2500].key() == 0x2500);
   revng_check(Set.size() == 4);
-  revng_check(Set.find(0x2500) != Set.end());
+  revng_check(Set.contains(0x2500));
   revng_check(Set[0x2500].value() == 0);
 
   // Test elements are mutable

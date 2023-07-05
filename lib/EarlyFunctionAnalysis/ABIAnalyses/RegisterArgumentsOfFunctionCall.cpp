@@ -43,21 +43,15 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   DenseSet<const GlobalVariable *> RegUnknown{};
   std::map<const GlobalVariable *, State> RegYes{};
 
-  for (auto &[BB, Result] : Results) {
-    for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Unknown) {
+  for (auto &[BB, Result] : Results)
+    for (auto &[GV, RegState] : Result.OutValue)
+      if (RegState == CoreLattice::Unknown)
         RegUnknown.insert(GV);
-      }
-    }
-  }
 
-  for (auto &[BB, Result] : Results) {
-    for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Yes && RegUnknown.count(GV) == 0) {
+  for (auto &[BB, Result] : Results)
+    for (auto &[GV, RegState] : Result.OutValue)
+      if (RegState == CoreLattice::Yes && !RegUnknown.contains(GV))
         RegYes[GV] = State::Yes;
-      }
-    }
-  }
 
   return RegYes;
 }

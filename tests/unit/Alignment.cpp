@@ -24,12 +24,10 @@ struct Expected {
     ABI(abi::Definition::get(ABIName)), Alignment(Alignment) {}
 };
 
-// clang-format off
-template<typename ...Types>
+template<typename... Types>
   requires(same_as<Types, Expected> && ...)
 void testAlignment(const model::QualifiedType &Type,
                    const Types &...TestCases) {
-  // clang-format on
   for (auto [ABI, Expected] : std::array{ TestCases... }) {
     std::optional<std::uint64_t> TestResult = ABI.alignment(Type);
     if (TestResult.value_or(0) != Expected) {
@@ -165,20 +163,18 @@ BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
   }
 }
 
-static model::UnionField
-makeUnionField(std::uint64_t Index, model::QualifiedType Type) {
+static model::UnionField makeUnionField(std::uint64_t Index,
+                                        model::QualifiedType Type) {
   model::UnionField Result;
   Result.Index() = Index;
   Result.Type() = Type;
   return Result;
 }
 
-// clang-format off
-template<typename ...FieldTypes>
-  requires (std::is_convertible_v<FieldTypes, model::UnionField> && ...)
-static model::QualifiedType makeUnion(model::Binary &Binary,
-                                      FieldTypes &&...Fields) {
-  // clang-format on
+template<typename... FieldTypes>
+  requires(std::is_convertible_v<FieldTypes, model::UnionField> && ...)
+static model::QualifiedType
+makeUnion(model::Binary &Binary, FieldTypes &&...Fields) {
   auto [Union, Path] = Binary.makeType<model::UnionType>();
   (Union.Fields().emplace(std::forward<FieldTypes>(Fields)), ...);
   return model::QualifiedType(Path, {});
@@ -241,20 +237,18 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   }
 }
 
-static model::StructField
-makeStructField(std::uint64_t Offset, model::QualifiedType Type) {
+static model::StructField makeStructField(std::uint64_t Offset,
+                                          model::QualifiedType Type) {
   model::StructField Result;
   Result.Offset() = Offset;
   Result.Type() = Type;
   return Result;
 }
 
-// clang-format off
-template<typename ...FieldTypes>
-  requires (std::is_convertible_v<FieldTypes, model::StructField> && ...)
-static model::QualifiedType makeStruct(model::Binary &Binary,
-                                       FieldTypes &&...Fields) {
-  // clang-format on
+template<typename... FieldTypes>
+  requires(std::is_convertible_v<FieldTypes, model::StructField> && ...)
+static model::QualifiedType
+makeStruct(model::Binary &Binary, FieldTypes &&...Fields) {
   auto [Struct, Path] = Binary.makeType<model::StructType>();
   (Struct.Fields().emplace(std::forward<FieldTypes>(Fields)), ...);
   return model::QualifiedType(Path, {});

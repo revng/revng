@@ -1,5 +1,5 @@
 /// \file FilteredGraphTraits.cpp
-/// \brief Tests for the FilteredGraphTraits template
+/// Tests for the FilteredGraphTraits template.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

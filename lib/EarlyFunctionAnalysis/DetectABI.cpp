@@ -242,14 +242,14 @@ void DetectABI::computeApproximateCallGraph() {
         BasicBlock *Next = getFallthrough(Current);
         revng_assert(Next != nullptr);
 
-        if (Visited.count(Next) == 0)
+        if (!Visited.contains(Next))
           Worklist.push_back(Next);
 
       } else {
 
         for (BasicBlock *Successor : successors(Current)) {
           if (not isPartOfRootDispatcher(Successor)
-              && !Visited.count(Successor)) {
+              && !Visited.contains(Successor)) {
             revng_assert(Successor != nullptr);
             Worklist.push_back(Successor);
           }
@@ -431,7 +431,7 @@ void DetectABI::finalizeModel() {
           auto &CallSitePrototypes = Function->CallSitePrototypes();
           bool IsDirect = CE->Destination().isValid();
           bool IsDynamic = not CE->DynamicFunction().empty();
-          bool HasInfoOnEdge = CallSitePrototypes.count(BlockAddress) != 0;
+          bool HasInfoOnEdge = CallSitePrototypes.contains(BlockAddress);
           if (not IsDynamic and not IsDirect and not HasInfoOnEdge) {
             // It's an indirect call for which we have now call site information
             auto Prototype = buildPrototypeForIndirectCall(Summary, Block);
@@ -560,10 +560,10 @@ void DetectABI::applyABIDeductions() {
         auto MaybeRV = State.IsUsedForReturningValues;
 
         // ABI-refined results per function
-        if (Summary.ABIResults.ArgumentsRegisters.count(CSV) != 0)
+        if (Summary.ABIResults.ArgumentsRegisters.contains(CSV))
           Summary.ABIResults.ArgumentsRegisters[CSV] = MaybeArg;
 
-        if (Summary.ABIResults.FinalReturnValuesRegisters.count(CSV) != 0)
+        if (Summary.ABIResults.FinalReturnValuesRegisters.contains(CSV))
           Summary.ABIResults.FinalReturnValuesRegisters[CSV] = MaybeRV;
 
         // ABI-refined results per indirect call-site
@@ -574,10 +574,10 @@ void DetectABI::applyABIDeductions() {
               revng_assert(Block.ID().isValid());
               auto &CSSummary = Summary.ABIResults.CallSites.at(Block.ID());
 
-              if (CSSummary.ArgumentsRegisters.count(CSV) != 0)
+              if (CSSummary.ArgumentsRegisters.contains(CSV))
                 CSSummary.ArgumentsRegisters[CSV] = MaybeArg;
 
-              if (CSSummary.ReturnValuesRegisters.count(CSV) != 0)
+              if (CSSummary.ReturnValuesRegisters.contains(CSV))
                 CSSummary.ReturnValuesRegisters[CSV] = MaybeRV;
             }
           }
@@ -669,10 +669,10 @@ suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
   // Suppress from call-sites
   for (const auto &[K, _] : ABIResults.CallSites) {
     for (const auto &Reg : CalleeSavedRegs) {
-      if (ABIResults.CallSites[K].ArgumentsRegisters.count(Reg) != 0)
+      if (ABIResults.CallSites[K].ArgumentsRegisters.contains(Reg))
         ABIResults.CallSites[K].ArgumentsRegisters[Reg] = RegisterState::No;
 
-      if (ABIResults.CallSites[K].ReturnValuesRegisters.count(Reg) != 0)
+      if (ABIResults.CallSites[K].ReturnValuesRegisters.contains(Reg))
         ABIResults.CallSites[K].ReturnValuesRegisters[Reg] = RegisterState::No;
     }
   }
@@ -792,8 +792,7 @@ void DetectABI::runInterproceduralAnalysis() {
           MetaAddress CallerPC = Caller->Address;
           const auto &CallerSummary = Oracle.getLocalFunction(CallerPC);
           using namespace model::FunctionAttribute;
-          bool IsInline = CallerSummary.Attributes.count(Inline) != 0;
-          if (IsInline)
+          if (CallerSummary.Attributes.contains(Inline))
             InlineFunctionWorklist.insert(Caller);
 
           if (not Binary->Functions().at(CallerPC).Prototype().isValid()) {

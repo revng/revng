@@ -67,7 +67,7 @@ public:
 
 inline bool ABIAnalysis::isABIRegister(const llvm::Value *V) const {
   if (auto *G = dyn_cast<llvm::GlobalVariable>(V)) {
-    return ABIRegisters.count(G) != 0;
+    return ABIRegisters.contains(G);
   }
   return false;
 }
@@ -233,13 +233,13 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
   using GT = llvm::GraphTraits<GraphType>;
   using LGT = GraphType;
 
-  LatticeElement
-  combineValues(const LatticeElement &LHS, const LatticeElement &RHS) const {
+  LatticeElement combineValues(const LatticeElement &LHS,
+                               const LatticeElement &RHS) const {
     return LHS.combine(RHS);
   };
 
-  bool
-  isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) const {
+  bool isLessOrEqual(const LatticeElement &LHS,
+                     const LatticeElement &RHS) const {
     return LHS.isLessOrEqual(RHS);
   };
 

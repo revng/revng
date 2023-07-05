@@ -117,8 +117,8 @@ public:
                       SummaryCallsBuilder &SCB) :
     SCB(SCB), SyscallHelper(SyscallHelper), SyscallIDCSV(SyscallIDCSV) {}
 
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &);
 
 private:
 };

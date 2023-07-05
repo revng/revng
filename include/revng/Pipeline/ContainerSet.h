@@ -116,11 +116,12 @@ public:
   }
 
   bool contains(llvm::StringRef Name) const {
-    return Content.count(Name) != 0 and Content.find(Name)->second != nullptr;
+    auto Iterator = Content.find(Name);
+    return Iterator != Content.end() and Iterator->second != nullptr;
   }
 
   bool containsOrCanCreate(llvm::StringRef Name) const {
-    return Content.count(Name) != 0;
+    return Content.find(Name) != Content.end();
   }
 
   template<typename T>

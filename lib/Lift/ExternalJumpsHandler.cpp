@@ -1,6 +1,6 @@
 /// \file externaljumpsHandler.cpp
-/// \brief Inject code to support jumping in non-translated code and handling
-///        the comeback.
+/// Inject code to support jumping in non-translated code and handling the
+/// comeback.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

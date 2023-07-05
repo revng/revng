@@ -1,6 +1,6 @@
 /// \file Processing.cpp
-/// \brief A collection of helper functions to improve the quality of the
-///        model/make it valid
+/// A collection of helper functions to improve the quality of the model/make it
+/// valid.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -22,7 +22,7 @@ void purgeFunctions(T &Functions,
   auto Begin = Functions.begin();
   for (auto It = Begin; It != Functions.end(); /**/) {
     if (not It->Prototype().isValid()
-        or ToDelete.count(It->Prototype().get()) == 0) {
+        or not ToDelete.contains(It->Prototype().get())) {
       ++It;
     } else {
       It = Functions.erase(It);
@@ -50,7 +50,7 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
   // Register edges
   for (UpcastablePointer<model::Type> &T : Model->Types()) {
     // Ignore dependencies of types we need to drop
-    if (Types.count(T.get()) != 0)
+    if (Types.contains(T.get()))
       continue;
 
     for (const model::QualifiedType &QT : T->edges()) {
@@ -73,7 +73,7 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
 
   // Purge types depending on unresolved Types
   for (auto It = Model->Types().begin(); It != Model->Types().end();) {
-    if (ToDelete.count(It->get()) != 0)
+    if (ToDelete.contains(It->get()))
       It = Model->Types().erase(It);
     else
       ++It;

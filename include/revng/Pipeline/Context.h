@@ -102,12 +102,12 @@ public:
   }
 
   bool containsReadOnlyContainer(llvm::StringRef Name) const {
-    return ReadOnlyContainers.count(Name)
-           and ReadOnlyContainers.find(Name)->second->second != nullptr;
+    auto It = ReadOnlyContainers.find(Name);
+    return It != ReadOnlyContainers.end() and It->second->second != nullptr;
   }
 
   bool hasRegisteredReadOnlyContainer(llvm::StringRef Name) const {
-    return ReadOnlyContainers.count(Name);
+    return ReadOnlyContainers.find(Name) != ReadOnlyContainers.end();
   }
 
   template<typename ContainerType>

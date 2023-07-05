@@ -31,14 +31,14 @@ struct Size {
   constexpr Size(Dimension W = 0, Dimension H = 0) : W(W), H(H) {}
 };
 
-// clang-format off
 template<typename GraphType>
 concept HasLLVMGraphTraits = requires(const GraphType &Graph) {
-  { llvm::GraphTraits<GraphType>::getEntryNode(Graph) } ->
-  std::convertible_to<typename llvm::GraphTraits<GraphType>::NodeRef>;
+  {
+    llvm::GraphTraits<GraphType>::getEntryNode(Graph)
+  } -> std::convertible_to<typename llvm::GraphTraits<GraphType>::NodeRef>;
 };
 
-template <HasLLVMGraphTraits GraphType>
+template<HasLLVMGraphTraits GraphType>
 struct LayoutableGraphTraits {
   using LLVMTrait = llvm::GraphTraits<GraphType>;
 
@@ -55,25 +55,33 @@ struct LayoutableGraphTraits {
   // qualify as both (for computing the layout in-place).
 };
 
-template <typename GraphType>
-concept HasLayoutableInputGraphTraits = HasLLVMGraphTraits<GraphType>
-  && requires(typename llvm::GraphTraits<GraphType>::NodeRef Node) {
-    { LayoutableGraphTraits<GraphType>::getNodeSize(Node) } ->
-      std::convertible_to<Size>;
-  };
+namespace detail {
 
-template <typename GraphType>
-concept HasLayoutableOutputGraphTraits = HasLLVMGraphTraits<GraphType>
-  && requires(typename llvm::GraphTraits<GraphType>::NodeRef Node,
-              typename llvm::GraphTraits<GraphType>::EdgeRef Edge) {
-    { LayoutableGraphTraits<GraphType>::setNodePosition(Node, Point()) };
-    { LayoutableGraphTraits<GraphType>::setEdgePath(Edge, Path()) };
-  };
+template<typename GraphType>
+using NR = typename llvm::GraphTraits<GraphType>::NodeRef;
+
+template<typename GraphType>
+using ER = typename llvm::GraphTraits<GraphType>::EdgeRef;
+
+} // namespace detail
+
+template<typename GraphType>
+concept HasLayoutableInputGraphTraits = requires(detail::NR<GraphType> Node) {
+  {
+    LayoutableGraphTraits<GraphType>::getNodeSize(Node)
+  } -> std::convertible_to<Size>;
+} && HasLLVMGraphTraits<GraphType>;
+
+template<typename GraphType>
+concept HasLayoutableOutputGraphTraits = requires(detail::NR<GraphType> Node,
+                                                  detail::ER<GraphType> Edge) {
+  { LayoutableGraphTraits<GraphType>::setNodePosition(Node, Point()) };
+  { LayoutableGraphTraits<GraphType>::setEdgePath(Edge, Path()) };
+} && HasLLVMGraphTraits<GraphType>;
 
 template<typename GraphType>
 concept HasLayoutableGraphTraits = HasLLVMGraphTraits<GraphType>
                                    && HasLayoutableInputGraphTraits<GraphType>
                                    && HasLayoutableOutputGraphTraits<GraphType>;
-// clang-format on
 
 } // namespace yield::layout

@@ -127,7 +127,7 @@ public:
   llvm::Error setArtifacts(std::string ContainerName,
                            const Kind *ArtifactsKind,
                            std::string SingleTargetFilename) {
-    if (Containers.find(ContainerName) == Containers.end()) {
+    if (Containers.contains(ContainerName)) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Artifact Container does not exist");
     }
@@ -204,8 +204,8 @@ public:
 
   /// Returns the predicted state of the Input containers status after the
   /// execution of all the pipes in this step.
-  ContainerToTargetsMap
-  deduceResults(const Context &Ctx, ContainerToTargetsMap Input) const;
+  ContainerToTargetsMap deduceResults(const Context &Ctx,
+                                      ContainerToTargetsMap Input) const;
 
 public:
   void addPipe(PipeWrapper Wrapper) { Pipes.push_back(std::move(Wrapper)); }

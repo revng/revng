@@ -46,15 +46,15 @@ public:
     return false;
   }
 
-  llvm::Error
-  verify(const ContainerBase &Container, const Target &T) const override {
+  llvm::Error verify(const ContainerBase &Container,
+                     const Target &T) const override {
     if (const auto *Casted = llvm::dyn_cast<LLVMContainer>(&Container))
       return verifyTarget(*Casted, T);
     return llvm::Error::success();
   }
 
-  virtual llvm::Error
-  verifyTarget(const LLVMContainer &Container, const Target &T) const {
+  virtual llvm::Error verifyTarget(const LLVMContainer &Container,
+                                   const Target &T) const {
     return llvm::Error::success();
   }
 
@@ -113,8 +113,8 @@ public:
     return AllContained;
   }
 
-  TargetsList
-  enumerate(const Context &Ctx, const LLVMContainer &Container) const final {
+  TargetsList enumerate(const Context &Ctx,
+                        const LLVMContainer &Container) const final {
     TargetsList::List L;
     for (auto &GL : Container.getModule().functions()) {
       auto MaybeTarget = symbolToTarget(GL);

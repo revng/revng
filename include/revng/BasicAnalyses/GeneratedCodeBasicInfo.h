@@ -295,7 +295,7 @@ public:
   }
 
   bool isABIRegister(llvm::GlobalVariable *CSV) const {
-    return ABIRegistersSet.count(CSV) != 0;
+    return ABIRegistersSet.contains(CSV);
   }
 
   MetaAddress fromPC(uint64_t PC) const {

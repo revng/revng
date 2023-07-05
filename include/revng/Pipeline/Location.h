@@ -1,7 +1,5 @@
 #pragma once
 
-// clang-format language: cpp
-
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
@@ -79,8 +77,6 @@ public:
     return Location<typename Rank::Parent>::convert(*this);
   }
 
-  // clang-format off
-
   /// A static helper function for constructing locations from different
   /// location with related ranks.
   ///
@@ -89,11 +85,10 @@ public:
   ///
   /// If output location's rank is lower, all the extra keys get discarded.
   template<typename AnotherRank>
-    requires (RankConvertibleTo<Rank, AnotherRank>
-              || RankConvertibleTo<AnotherRank, Rank>)
+    requires(RankConvertibleTo<Rank, AnotherRank>
+             || RankConvertibleTo<AnotherRank, Rank>)
   static constexpr Location<Rank>
   convert(const Location<AnotherRank> &Another) {
-    // clang-format on
     Location<Rank> Result;
 
     constexpr auto Common = std::min(Rank::Depth, AnotherRank::Depth);
@@ -156,13 +151,11 @@ public:
   }
 };
 
-// clang-format off
-
 /// Constructs a new location from arbitrary arguments.
 ///
 /// The first argument is used to indicate the rank of location to be
 /// constructed, the rest are the arguments.
-template<RankSpecialization Rank, typename ...Args>
+template<RankSpecialization Rank, typename... Args>
   requires std::is_convertible_v<std::tuple<Args...>, typename Rank::Tuple>
 inline constexpr Location<Rank> location(const Rank &, Args &&...As) {
   return Location<Rank>(As...);
@@ -170,7 +163,7 @@ inline constexpr Location<Rank> location(const Rank &, Args &&...As) {
 
 /// Constructs a new location from arbitrary arguments and instantly serializes
 /// it into its string representation.
-template<RankSpecialization Rank, typename ...Args>
+template<RankSpecialization Rank, typename... Args>
   requires std::is_convertible_v<std::tuple<Args...>, typename Rank::Tuple>
 inline std::string serializedLocation(const Rank &R, Args &&...As) {
   return location(R, std::forward<Args>(As)...).toString();
@@ -196,8 +189,6 @@ convertLocation(const ResultRank &Result, const Location<InputRank> &Input) {
   return Location<ResultRank>::convert(Input);
 }
 
-// clang-format on
-
 namespace detail {
 
 /// Shorthand to "decay type then make a const pointer to it".
@@ -205,8 +196,6 @@ template<typename T>
 using ConstP = std::add_pointer_t<std::add_const_t<std::decay_t<T>>>;
 
 } // namespace detail
-
-// clang-format off
 
 /// A helper function used for deserializing any number of differently
 /// ranked locations at once.
@@ -219,13 +208,12 @@ using ConstP = std::add_pointer_t<std::add_const_t<std::decay_t<T>>>;
 /// \returns a valid location of \ref Expected rank if the \ref Serialized
 /// string contains a valid serialized form of any location type within the
 /// \ref Supported list (including \ref Expected), `std::nullopt` otherwise.
-template <typename ExpectedRank, typename ...SupportedRanks>
-  requires (RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
+template<typename ExpectedRank, typename... SupportedRanks>
+  requires(RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
 inline constexpr std::optional<Location<ExpectedRank>>
 genericLocationFromString(std::string_view Serialized,
                           const ExpectedRank &Expected,
                           const SupportedRanks &...Supported) {
-  // clang-format on
   Location<ExpectedRank> Result;
   bool ParsedOnce = false;
 
@@ -249,17 +237,14 @@ genericLocationFromString(std::string_view Serialized,
     return std::nullopt;
 }
 
-// clang-format off
-
 /// The simplified interface for generic location deserialization allowing for
 /// fetching a single key, indicated by \tparam Idx.
-template <std::size_t Idx, typename ExpectedRank, typename ...SupportedRanks>
-  requires (RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
+template<std::size_t Idx, typename ExpectedRank, typename... SupportedRanks>
+  requires(RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
 constexpr std::optional<std::tuple_element_t<Idx, typename ExpectedRank::Tuple>>
 genericLocationFromString(std::string_view Serialized,
                           const ExpectedRank &Expected,
                           const SupportedRanks &...Supported) {
-  // clang-format on
   static_assert(Idx < std::decay_t<ExpectedRank>::Depth);
   auto Result = genericLocationFromString(Serialized, Expected, Supported...);
   if (Result.has_value())

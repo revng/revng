@@ -47,8 +47,8 @@ private:
   void promoteHelpersToIntrinsics(llvm::Function *OptimizedFunction,
                                   llvm::IRBuilder<> &Builder);
 
-  SummaryCallsBuilder
-  optimize(llvm::Function *OptimizedFunction, const Features &CommonFeatures);
+  SummaryCallsBuilder optimize(llvm::Function *OptimizedFunction,
+                               const Features &CommonFeatures);
 
   GlobalToAllocaTy promoteCSVsToAlloca(llvm::Function *OptimizedFunction);
 

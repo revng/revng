@@ -74,7 +74,7 @@ public:
                                    ParentGraphTraits::child_end(Value));
       for (InnerNodeType Successor : Successors) {
         // If it's whitelisted, register it as a child and enqueue it
-        if (WhiteList.count(Successor) != 0) {
+        if (WhiteList.contains(Successor)) {
           NewNode.Children.push_back(&findOrInsert(Successor));
           Queue.insert(Successor);
         }

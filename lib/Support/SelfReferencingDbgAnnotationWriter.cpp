@@ -1,5 +1,5 @@
 /// \file SelfReferencingDbgAnnotationWriter.cpp
-/// \brief This file handles debugging information generation.
+/// This file handles debugging information generation.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

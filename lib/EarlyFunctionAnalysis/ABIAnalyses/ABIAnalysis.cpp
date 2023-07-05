@@ -211,7 +211,7 @@ RegisterState combine(RegisterState LH, RegisterState RH) {
 void finalizeReturnValues(ABIAnalysesResults &ABIResults) {
   for (auto &[PC, RSMap] : ABIResults.ReturnValuesRegisters) {
     for (auto &[CSV, RS] : RSMap) {
-      if (ABIResults.FinalReturnValuesRegisters.count(CSV) == 0)
+      if (!ABIResults.FinalReturnValuesRegisters.contains(CSV))
         ABIResults.FinalReturnValuesRegisters[CSV] = RegisterState::Maybe;
 
       ABIResults.FinalReturnValuesRegisters

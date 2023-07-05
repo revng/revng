@@ -28,6 +28,6 @@ public:
 
 class SerializeModelPass : public llvm::PassInfoMixin<SerializeModelPass> {
 public:
-  llvm::PreservedAnalyses
-  run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM);
 };

@@ -1,5 +1,4 @@
 /// \file ProgramCounterHandler.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -33,8 +32,8 @@ public:
     return Result;
   }
 
-  static std::unique_ptr<ProgramCounterHandler>
-  fromModule(Module *M, unsigned Alignment) {
+  static std::unique_ptr<ProgramCounterHandler> fromModule(Module *M,
+                                                           unsigned Alignment) {
     auto Result = std::make_unique<PCOnlyProgramCounterHandler>(Alignment);
 
     // Initialize the standard variables
@@ -76,8 +75,8 @@ public:
   }
 
 protected:
-  void
-  initializePCInternal(IRBuilder<> &Builder, MetaAddress NewPC) const final {}
+  void initializePCInternal(IRBuilder<> &Builder,
+                            MetaAddress NewPC) const final {}
 };
 
 class ARMProgramCounterHandler : public ProgramCounterHandler {
@@ -213,8 +212,8 @@ private:
   }
 
 protected:
-  void
-  initializePCInternal(IRBuilder<> &Builder, MetaAddress NewPC) const final {
+  void initializePCInternal(IRBuilder<> &Builder,
+                            MetaAddress NewPC) const final {
     using namespace MetaAddressType;
     store(Builder, IsThumb, NewPC.type() == Code_arm_thumb ? 1 : 0);
   }
@@ -311,7 +310,7 @@ private:
 public:
   bool visit(BasicBlock *BB) {
     // Check if we already visited this block
-    if (Visited.count(BB) != 0) {
+    if (Visited.contains(BB)) {
       return true;
     } else {
       // Register as visited
@@ -410,7 +409,11 @@ std::pair<NextJumpTarget::Values, MetaAddress>
 PCH::getUniqueJumpTarget(BasicBlock *BB) {
   std::vector<StackEntry> Stack;
 
-  enum ProcessResult { Proceed, DontProceed, BailOut };
+  enum ProcessResult {
+    Proceed,
+    DontProceed,
+    BailOut
+  };
 
   std::optional<MetaAddress> AgreedMA;
 
@@ -658,8 +661,8 @@ public:
     }
   }
 
-  SwitchInst *
-  getOrCreateTypeSwitch(SwitchInst *AddressSpaceSwitch, const MetaAddress &MA) {
+  SwitchInst *getOrCreateTypeSwitch(SwitchInst *AddressSpaceSwitch,
+                                    const MetaAddress &MA) {
     if (auto *Existing = getSwitchForLabel(AddressSpaceSwitch,
                                            MA.addressSpace())) {
       return Existing;
@@ -668,8 +671,8 @@ public:
     }
   }
 
-  SwitchInst *
-  getOrCreateAddressSwitch(SwitchInst *TypeSwitch, const MetaAddress &MA) {
+  SwitchInst *getOrCreateAddressSwitch(SwitchInst *TypeSwitch,
+                                       const MetaAddress &MA) {
     if (auto *Existing = getSwitchForLabel(TypeSwitch, MA.type())) {
       return Existing;
     } else {
@@ -684,8 +687,8 @@ public:
                            CurrentAddressSpace);
   }
 
-  SwitchInst *
-  registerAddressSpaceCase(SwitchInst *Switch, const MetaAddress &MA) {
+  SwitchInst *registerAddressSpaceCase(SwitchInst *Switch,
+                                       const MetaAddress &MA) {
     return registerNewCase(Switch,
                            MA.addressSpace(),
                            "address_space_" + Twine(MA.addressSpace()),

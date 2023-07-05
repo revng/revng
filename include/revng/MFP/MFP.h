@@ -45,12 +45,9 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
 
   std::same_as<typename MFI::Label,
                typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
-  // Disable clang-format, because it does not handle concepts very well yet
-  // clang-format off
   { I.combineValues(E1, E2) } -> std::same_as<LatticeElement>;
   { I.isLessOrEqual(E1, E2) } -> std::same_as<bool>;
   { I.applyTransferFunction(L, E2) } -> std::same_as<LatticeElement>;
-  // clang-format on
 };
 
 /// Compute the maximum fixed points of an instance of monotone framework GT an
@@ -92,7 +89,7 @@ getMaximalFixedPoint(const MFI &Instance,
   }
 
   for (Label Start : InitialNodes) {
-    if (Visited.count(Start) == 0) {
+    if (!Visited.contains(Start)) {
       // Fill the worklist with nodes in reverse post order
       // launching a visit from each remaining node
       ReversePostOrderTraversalExt<LGT,
@@ -103,9 +100,8 @@ getMaximalFixedPoint(const MFI &Instance,
         LabelPriority[Node] = LabelPriority.size();
         Worklist.insert({ LabelPriority.at(Node), Node });
         // initialize the analysis value for non extremal nodes
-        if (AnalysisResult.find(Node) == AnalysisResult.end()) {
+        if (!AnalysisResult.contains(Node))
           AnalysisResult[Node].InValue = InitialValue;
-        }
       }
     }
   }

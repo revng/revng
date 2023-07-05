@@ -167,8 +167,8 @@ static void addStructField(llvm::raw_ostream &Out,
 }
 
 /// Generate the inner table of a struct type
-static void
-dumpStructFields(llvm::raw_ostream &Out, const model::StructType *T) {
+static void dumpStructFields(llvm::raw_ostream &Out,
+                             const model::StructType *T) {
   if (T->Fields().size() == 0) {
     Out << "<TR><TD></TD></TR>";
     return;
@@ -299,8 +299,8 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
 }
 
 /// Generate the inner content of a Typedef node
-static void
-dumpTypedefUnderlying(llvm::raw_ostream &Out, const model::TypedefType *T) {
+static void dumpTypedefUnderlying(llvm::raw_ostream &Out,
+                                  const model::TypedefType *T) {
   Out << "<TR>";
   paddedCell(Out, buildFieldName(T->UnderlyingType()), 0);
   Out << "</TR>";

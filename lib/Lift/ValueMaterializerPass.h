@@ -40,8 +40,8 @@ private:
 public:
   ValueMaterializerPass(StaticDataMemoryOracle &MO) : MO(MO) {}
 
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &);
 
   static llvm::Function *createMarker(llvm::Module *M) {
     using namespace llvm;

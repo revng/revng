@@ -1,5 +1,5 @@
 /// \file PTCDump.cpp
-/// \brief This file handles dumping PTC to text
+/// This file handles dumping PTC to text
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

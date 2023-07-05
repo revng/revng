@@ -139,8 +139,8 @@ private:
   /// \param LSDAAddress the address of the target LSDA
   void parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress);
 
-  void
-  parseSymbols(llvm::object::ELFFile<T> &TheELF, ConstElf_Shdr *SectionHeader);
+  void parseSymbols(llvm::object::ELFFile<T> &TheELF,
+                    ConstElf_Shdr *SectionHeader);
 
   void parseProgramHeaders(llvm::object::ELFFile<T> &TheELF);
 

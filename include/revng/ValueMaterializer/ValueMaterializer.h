@@ -23,8 +23,13 @@ class DominatorTree;
 } // namespace llvm
 
 namespace Oracle {
-enum Values { None, LazyValueInfo, AdvancedValueInfo, Count };
-}
+enum Values {
+  None,
+  LazyValueInfo,
+  AdvancedValueInfo,
+  Count
+};
+} // namespace Oracle
 
 inline RunningStatistics DFGSizeStatitistics("vm-dfg-size");
 

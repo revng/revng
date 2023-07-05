@@ -146,8 +146,8 @@ public:
     return static_cast<uint64_t>(readValue(Encoding));
   }
 
-  Pointer
-  readPointer(unsigned Encoding, MetaAddress Base = MetaAddress::invalid()) {
+  Pointer readPointer(unsigned Encoding,
+                      MetaAddress Base = MetaAddress::invalid()) {
     using namespace llvm;
     revng_assert((Encoding & ~(0x70 | 0x0F | dwarf::DW_EH_PE_indirect)) == 0);
 

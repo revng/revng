@@ -48,8 +48,8 @@ extern template void
 ABIAnalyses::ABIAnalysesResults::dump<Logger<true>>(Logger<true> &,
                                                     const char *) const;
 
-abi::RegisterState::Values
-  combine(abi::RegisterState::Values, abi::RegisterState::Values);
+abi::RegisterState::Values combine(abi::RegisterState::Values,
+                                   abi::RegisterState::Values);
 
 ABIAnalysesResults analyzeOutlinedFunction(llvm::Function *F,
                                            const GeneratedCodeBasicInfo &,

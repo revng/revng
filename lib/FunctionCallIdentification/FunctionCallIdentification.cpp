@@ -1,6 +1,6 @@
 /// \file FunctionCallIdentification.cpp
-/// \brief Implementation of the FunctionCallIdentification pass, which
-///        identifies function calls.
+/// Implementation of the FunctionCallIdentification pass, which identifies
+/// function calls.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

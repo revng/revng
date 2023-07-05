@@ -1,5 +1,4 @@
 /// \file RootAnalyzer.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -133,7 +132,13 @@ public:
 
 namespace TrackedInstructionType {
 
-enum Values { Invalid, WrittenInPC, StoredInMemory, StoreTarget, LoadTarget };
+enum Values {
+  Invalid,
+  WrittenInPC,
+  StoredInMemory,
+  StoreTarget,
+  LoadTarget
+};
 
 inline const char *getName(Values V) {
   switch (V) {

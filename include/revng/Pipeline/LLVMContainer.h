@@ -61,8 +61,8 @@ public:
   std::unique_ptr<ContainerBase>
   cloneFiltered(const TargetsList &Targets) const final;
 
-  llvm::Error
-  extractOne(llvm::raw_ostream &OS, const Target &Target) const override;
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const Target &Target) const override;
 
 public:
   llvm::Error serialize(llvm::raw_ostream &OS) const final;

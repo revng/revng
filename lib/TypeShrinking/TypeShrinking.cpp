@@ -1,5 +1,5 @@
 /// \file TypeShrinking.cpp
-/// \brief This analysis finds which bits of each Instruction is alive
+/// This analysis finds which bits of each Instruction is alive.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -65,8 +65,8 @@ static bool isAddLike(const Instruction *Ins) {
   return false;
 }
 
-static bool
-runTypeShrinking(Function &F, const BitLivenessAnalysisResults &FixedPoints) {
+static bool runTypeShrinking(Function &F,
+                             const BitLivenessAnalysisResults &FixedPoints) {
   bool HasChanges = false;
 
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
@@ -137,8 +137,8 @@ bool TypeShrinkingWrapperPass::runOnFunction(Function &F) {
   return runTypeShrinking(F, FixedPoints);
 }
 
-PreservedAnalyses
-TypeShrinkingPass::run(Function &F, FunctionAnalysisManager &FAM) {
+PreservedAnalyses TypeShrinkingPass::run(Function &F,
+                                         FunctionAnalysisManager &FAM) {
   const auto &FixedPoints = FAM.getResult<BitLivenessPass>(F);
   bool HasChanges = runTypeShrinking(F, FixedPoints);
   return HasChanges ? PreservedAnalyses::none() : PreservedAnalyses::all();

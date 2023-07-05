@@ -24,11 +24,9 @@ namespace FunctionTags {
 
 class Tag;
 
-// clang-format off
 template<typename T>
 concept Taggable = (std::is_same_v<llvm::GlobalVariable, T>
                     or std::is_same_v<llvm::Function, T>);
-// clang-format on
 
 /// Represents a set of Tag that can be attached to an
 /// Instruction/GlobalVariable/Function
@@ -59,9 +57,12 @@ public:
 
 public:
   bool containsExactly(const Tag &Target) const {
-    return Tags.count(&Target) != 0;
+    return Tags.contains(&Target);
   }
 
+  // TODO: This seems non-obvious to me. I feel like it would be more natural
+  //       for this to be called `containsDescendants`, while `containsExactly`
+  //       could either stay as is or be renamed into just `contains`.
   bool contains(const Tag &Target) const;
 
 public:
@@ -204,8 +205,8 @@ inline bool isRootOrLifted(const llvm::Function *F) {
 //
 // {is,get}CallToTagged
 //
-const llvm::CallInst *
-getCallToTagged(const llvm::Value *V, const FunctionTags::Tag &T);
+const llvm::CallInst *getCallToTagged(const llvm::Value *V,
+                                      const FunctionTags::Tag &T);
 
 llvm::CallInst *getCallToTagged(llvm::Value *V, const FunctionTags::Tag &T);
 

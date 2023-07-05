@@ -1,5 +1,4 @@
 /// \file SVG.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -62,14 +61,11 @@ static std::string_view edgeTypeAsString(const yield::calls::Edge &Edge) {
   return Edge.IsBackwards ? tags::RefusedEdge : tags::TakenEdge;
 }
 
-// clang-format off
-template <uintmax_t Numerator = 8, uintmax_t Denominator = 10>
+template<uintmax_t Numerator = 8, uintmax_t Denominator = 10>
 static std::string cubicBend(const yield::layout::Point &From,
                              const yield::layout::Point &To,
                              bool VerticalCurves,
                              std::ratio<Numerator, Denominator> &&Bend = {}) {
-  // clang-format on
-
   using Coordinate = yield::layout::Coordinate;
   constexpr Coordinate Factor = Coordinate(Numerator) / Denominator;
   Coordinate XModifier = Factor * (To.X - From.X);
@@ -192,7 +188,7 @@ static void expandViewbox(Viewbox &Box, const yield::layout::Point &Point) {
     Box.BottomRight.Y = -Point.Y;
 }
 
-template<StrictSpecializationOf<yield::layout::OutputGraph> GraphType>
+template<SpecializationOf<yield::layout::OutputGraph> GraphType>
 Viewbox calculateViewbox(const GraphType &Graph) {
   revng_assert(Graph.size() != 0);
 
@@ -288,7 +284,7 @@ concept NodeExporter = requires(CallableType &&Callable, const NodeType &Node) {
 };
 
 template<bool ShouldEmitEmptyNodes,
-         StrictSpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
+         SpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
          NodeExporter<typename PostLayoutGraph::Node> ContentsLambda>
 static std::string exportGraph(const PTMLBuilder &ThePTMLBuilder,
                                const PostLayoutGraph &Graph,

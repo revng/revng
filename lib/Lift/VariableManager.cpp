@@ -1,6 +1,6 @@
 /// \file VariableManager.cpp
-/// \brief This file handles the creation and management of global variables,
-///        i.e. mainly parts of the CPU state
+/// This file handles the creation and management of global variables, i.e.
+/// mainly parts of the CPU state
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -49,7 +49,7 @@ private:
 public:
   void pushIfNew(int64_t Offset, Value *V) {
     OffsetValuePair Element = { Offset, V };
-    if (!Seen.count(Element)) {
+    if (!Seen.contains(Element)) {
       Seen.insert(Element);
       Stack.push_back(Element);
     }
@@ -451,8 +451,8 @@ static ConstantInt *fromBytes(IntegerType *Type, void *Data) {
 }
 
 // TODO: document that it can return nullptr
-GlobalVariable *
-VariableManager::getByCPUStateOffset(intptr_t Offset, std::string Name) {
+GlobalVariable *VariableManager::getByCPUStateOffset(intptr_t Offset,
+                                                     std::string Name) {
   GlobalVariable *Result = nullptr;
   unsigned Remaining;
   std::tie(Result, Remaining) = getByCPUStateOffsetInternal(Offset, Name);
@@ -516,8 +516,8 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
   }
 }
 
-std::pair<bool, Value *>
-VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
+std::pair<bool, Value *> VariableManager::getOrCreate(unsigned TemporaryId,
+                                                      bool Reading) {
   revng_assert(Instructions != nullptr);
 
   PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);

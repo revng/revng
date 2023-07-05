@@ -1,5 +1,5 @@
 /// \file Debug.cpp
-/// \brief Implementation of the debug framework
+/// Implementation of the debug framework.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -84,7 +84,8 @@ void Logger<X>::flush(const LogTerminator &LineInfo) {
   }
 }
 
-enum PlaceholderEnum {};
+enum PlaceholderEnum {
+};
 struct DebugLogOptionList : public llvm::cl::list<PlaceholderEnum> {
   using list = llvm::cl::list<PlaceholderEnum>;
   DebugLogOptionList() :

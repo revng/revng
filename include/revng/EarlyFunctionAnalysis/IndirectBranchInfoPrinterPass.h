@@ -14,8 +14,8 @@ class IndirectBranchInfoPrinterPass
 public:
   IndirectBranchInfoPrinterPass(llvm::raw_ostream &OS) : OS(OS){};
 
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
 
 private:
   void serialize(llvm::CallBase *Call);

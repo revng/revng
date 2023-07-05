@@ -169,13 +169,13 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
     auto *T = FunctionCall->getParent()->getTerminator();
     BasicBlock *CalleeBlock = getFunctionCallCallee(T);
 
-    bool IsMarkedInline = Summary->Attributes.count(Inline) != 0;
+    bool IsMarkedInline = Summary->Attributes.contains(Inline);
     bool IsCallingTheCaller = CallerFunction == Callee;
     bool IsBanned = FunctionsMap.isBanned(Callee);
     IsInline = IsMarkedInline and not IsCallingTheCaller and not IsBanned;
   }
 
-  bool IsNoReturn = Summary->Attributes.count(NoReturn) != 0;
+  bool IsNoReturn = Summary->Attributes.contains(NoReturn);
 
   if (IsInline) {
     // Emit a call to the function to inline: a later step will inline this call
@@ -255,7 +255,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
 
       // Unless it's NoReturn, enqueue the call fallthrough
       using namespace model::FunctionAttribute;
-      bool IsNoReturn = Summary->Attributes.count(NoReturn) != 0;
+      bool IsNoReturn = Summary->Attributes.contains(NoReturn);
       if (not IsNoReturn and not IsTailCall) {
         Queue.insert(getFallthrough(Current));
       }
@@ -312,7 +312,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
                                                          JumpToSymbol,
                                                          PCCallee);
 
-      bool IsNoReturn = CalleeSummary->Attributes.count(NoReturn) != 0;
+      bool IsNoReturn = CalleeSummary->Attributes.contains(NoReturn);
       if (IsNoReturn) {
         auto *BB = Term->getParent();
         Term->eraseFromParent();
@@ -475,8 +475,8 @@ private:
   }
 };
 
-OutlinedFunction
-Outliner::outline(llvm::BasicBlock *Entry, CallHandler *Handler) {
+OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry,
+                                   CallHandler *Handler) {
   using namespace llvm;
 
   OutlinedFunction Result;

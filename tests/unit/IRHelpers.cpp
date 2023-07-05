@@ -1,5 +1,4 @@
 /// \file IRHelpers.cpp
-/// \brief Tests for IRHelpers
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

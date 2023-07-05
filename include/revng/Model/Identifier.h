@@ -30,7 +30,7 @@ public:
     Identifier Result;
 
     // For reserved C keywords prepend a non-reserved prefix and we're done.
-    if (ReservedKeywords.count(Name)) {
+    if (ReservedKeywords.contains(Name)) {
       Result += "prefix_";
       Result += Name;
       return Result;

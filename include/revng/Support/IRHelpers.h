@@ -41,7 +41,7 @@ enum {
   DissassembledInstruction,
   FirstLocalVariable
 };
-}
+} // namespace NewPCArguments
 
 /// Given \p V, checks if there are uses left and then calls eraseFromParent.
 /// In case of leftover uses, they are pretty printed.
@@ -105,8 +105,8 @@ inline void purgeBranch(llvm::BasicBlock::iterator I) {
       eraseFromParent(BB);
 }
 
-inline llvm::ConstantInt *
-getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
+inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
+                                        const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
     C = ConstantFoldConstant(Expr, DL);
 
@@ -231,7 +231,7 @@ template<typename B>
 struct BlackListTrait<const std::set<B> &, B>
   : BlackListTraitBase<const std::set<B> &> {
   using BlackListTraitBase<const std::set<B> &>::BlackListTraitBase;
-  bool isBlacklisted(B Value) const { return this->Obj.count(Value) != 0; }
+  bool isBlacklisted(B Value) const { return this->Obj.contains(Value); }
 };
 
 template<typename B, typename C>
@@ -339,7 +339,7 @@ public:
       case Continue:
         if (not ExhaustOnly) {
           for (auto *Successor : ThisDerived.successors(Item.BB)) {
-            if (Visited.count(Successor) == 0) {
+            if (!Visited.contains(Successor)) {
               Visited.insert(Successor);
               Queue.push(WorkItem(Successor));
             }
@@ -901,24 +901,24 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::Function *F) {
     return nullptr;
 }
 
-inline const llvm::CallInst *
-getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+inline const llvm::CallInst *getCallTo(const llvm::Instruction *I,
+                                       llvm::StringRef Name) {
   if (isCallTo(I, Name))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
 }
 
-inline const llvm::CallInst *
-getCallTo(const llvm::Instruction *I, llvm::Function *F) {
+inline const llvm::CallInst *getCallTo(const llvm::Instruction *I,
+                                       llvm::Function *F) {
   if (isCallTo(I, F))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
 }
 
-inline std::vector<llvm::GlobalVariable *>
-extractCSVs(llvm::Instruction *Call, unsigned MDKindID) {
+inline std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Instruction *Call,
+                                                       unsigned MDKindID) {
   using namespace llvm;
 
   std::vector<GlobalVariable *> Result;
@@ -998,14 +998,12 @@ concept ModFunLikePrintable = requires(F Fun) {
   Fun.print(std::declval<llvm::raw_ostream &>(), nullptr, false, true);
 };
 
-// clang-format off
 template<typename T>
 concept LLVMRawOStreamPrintable = not ValueLikePrintable<T>
-    and not ModFunLikePrintable<T>
-    and requires(T TheT) {
-  TheT.print(std::declval<llvm::raw_ostream &>());
-};
-// clang-format on
+                                  and not ModFunLikePrintable<T>
+                                  and requires(T V, llvm::raw_ostream &S) {
+                                        V.print(S);
+                                      };
 
 // This is enabled only for references to types that inherit from llvm::Value
 // but not from llvm::Function, since llvm::Function has a different prototype
@@ -1041,14 +1039,13 @@ inline std::string dumpToString(T &TheT) {
   return Result;
 }
 
-// clang-format off
 template<typename T>
 concept LLVMRawOStreamDumpable = not ValueLikePrintable<T>
                                  and not ModFunLikePrintable<T>
                                  and requires(T TheT) {
-  TheT.dump(std::declval<llvm::raw_ostream &>());
-};
-// clang-format on
+                                       TheT.dump(std::declval<
+                                                 llvm::raw_ostream &>());
+                                     };
 
 template<bool B, LLVMRawOStreamDumpable Dumpable>
 inline void writeToLog(Logger<B> &L, const Dumpable &P, int /* Ignore */) {
@@ -1243,13 +1240,13 @@ inline llvm::CallInst *getMarker(llvm::Instruction *T, llvm::Function *Marker) {
   return nullptr;
 }
 
-inline llvm::CallInst *
-getMarker(llvm::Instruction *I, llvm::StringRef MarkerName) {
+inline llvm::CallInst *getMarker(llvm::Instruction *I,
+                                 llvm::StringRef MarkerName) {
   return getMarker(I, getModule(I)->getFunction(MarkerName));
 }
 
-inline llvm::CallInst *
-getMarker(llvm::BasicBlock *BB, llvm::StringRef MarkerName) {
+inline llvm::CallInst *getMarker(llvm::BasicBlock *BB,
+                                 llvm::StringRef MarkerName) {
   return getMarker(BB->getTerminator(), MarkerName);
 }
 
@@ -1454,8 +1451,8 @@ inline llvm::Value *getPointer(llvm::User *U) {
 void moveBlocksInto(llvm::Function &OldFunction, llvm::Function &NewFunction);
 
 /// Create a function identical to \p OldFunction but use \p NewType as type
-llvm::Function &
-moveToNewFunctionType(llvm::Function &OldFunction, llvm::FunctionType &NewType);
+llvm::Function &moveToNewFunctionType(llvm::Function &OldFunction,
+                                      llvm::FunctionType &NewType);
 
 /// Adds NewArguments and changes the return type of \p OldFunction
 ///

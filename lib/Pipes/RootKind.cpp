@@ -1,5 +1,5 @@
 /// \file RootKind.cpp
-/// \brief the kind associated to non isolated root.
+/// The kind associated to non isolated root.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

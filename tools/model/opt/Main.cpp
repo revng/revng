@@ -1,5 +1,4 @@
 /// \file Main.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -54,8 +53,8 @@ struct OptionValue<PassName> final
 } // namespace cl
 } // namespace llvm
 
-static cl::list<PassName>
-  PassesList(cl::desc("Optimizations available:"), cl::cat(ThisToolCategory));
+static cl::list<PassName> PassesList(cl::desc("Optimizations available:"),
+                                     cl::cat(ThisToolCategory));
 
 static void loadPassesList() {
   for (const auto &[Name, Description, _] : RegisterModelPass::passes())

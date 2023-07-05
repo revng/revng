@@ -1,5 +1,4 @@
 /// \file NodeRanking.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -102,7 +101,7 @@ static bool areDisjoint(NodeView A, NodeView B, size_t MaxDepth = -1) {
   for (const auto &Current : Worklist) {
     SmallMap<NodeView, size_t, 16> VisitedNow;
     VisitedNow[Current] = 0;
-    if (VisitedPrevious.find(Current) != VisitedPrevious.end())
+    if (VisitedPrevious.contains(Current))
       return false;
     Queue.emplace_back(Current);
 
@@ -115,7 +114,7 @@ static bool areDisjoint(NodeView A, NodeView B, size_t MaxDepth = -1) {
         continue;
 
       for (auto *Next : TopNode->successors()) {
-        if (VisitedNow.find(Next) == VisitedNow.end()) {
+        if (!VisitedNow.contains(Next)) {
           Queue.emplace_back(Next);
           VisitedNow[Next] = VisitedTop + 1;
         }

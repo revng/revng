@@ -102,8 +102,8 @@ std::optional<std::string> PathList::findFile(llvm::StringRef FileName) const {
   return findFileInPaths(FileName, SearchPaths);
 }
 
-std::vector<std::string>
-PathList::list(llvm::StringRef Path, llvm::StringRef Suffix) const {
+std::vector<std::string> PathList::list(llvm::StringRef Path,
+                                        llvm::StringRef Suffix) const {
   using namespace llvm;
   using namespace sys;
   using namespace fs;

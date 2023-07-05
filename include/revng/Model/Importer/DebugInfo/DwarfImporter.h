@@ -26,9 +26,9 @@ public:
     return It == DwarfToModel.end() ? nullptr : &It->second;
   }
 
-  const model::QualifiedType &
-  recordType(DwarfID ID, const model::QualifiedType &QT) {
-    revng_assert(DwarfToModel.count(ID) == 0);
+  const model::QualifiedType &recordType(DwarfID ID,
+                                         const model::QualifiedType &QT) {
+    revng_assert(!DwarfToModel.contains(ID));
     return DwarfToModel.insert({ ID, QT }).first->second;
   }
 

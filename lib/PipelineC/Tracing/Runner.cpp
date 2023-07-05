@@ -1,7 +1,6 @@
 /// \file Runner.cpp
-/// \brief Implements the logic to run a trace file, this boils down to the
-///        Trace.run function that will re-execute the commands of the trace in
-///        order
+/// Implements the logic to run a trace file, this boils down to the Trace.run
+/// function that will re-execute the commands of the trace in order.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -238,11 +237,9 @@ public:
   }
 };
 
-// clang-format off
-using CommandRunner = std::function<void(RunnerContext &Context,
+using CommandRunner = std::function<void(/* format */ RunnerContext &Context,
                                          ArgumentsRef Arguments,
                                          ReturnRef Return)>;
-// clang-format on
 
 static void
 softAssert(const RunnerContext &Context, bool Check, const char *Message) {

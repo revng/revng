@@ -1,6 +1,6 @@
 /// \file LoadModelPass.cpp
-/// \brief Implementation of the immutable pass providing access to
-///        the model and taking care of its deserialization on the IR.
+/// Implementation of the immutable pass providing access to the model and
+/// taking care of its deserialization on the IR.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

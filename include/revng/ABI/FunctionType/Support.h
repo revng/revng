@@ -35,8 +35,8 @@ const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
 /// \param RegisterSize The size of a register under the given architecture.
 ///
 /// \return The size of the argument with the padding.
-inline constexpr uint64_t
-paddedSizeOnStack(uint64_t RealSize, uint64_t RegisterSize) {
+inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
+                                            uint64_t RegisterSize) {
   revng_assert(llvm::isPowerOf2_64(RegisterSize));
 
   if (RealSize <= RegisterSize)

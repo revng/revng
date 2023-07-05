@@ -264,6 +264,8 @@ public:
     return Quantity;
   }
 
+  bool contains(const key_type &Key) const { return count(Key) != 0; }
+
   const value_type *tryGet(const key_type &Key) const {
     auto Iter = Content.find(Key);
     if (Iter == Content.end()) {

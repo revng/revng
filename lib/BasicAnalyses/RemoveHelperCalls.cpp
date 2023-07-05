@@ -1,6 +1,6 @@
 /// \file RemoveHelperCalls.cpp
-/// \brief Remove calls to helpers in a function and replaces them
-///        with stores of an opaque value onto the CSVs clobbered by the helper.
+/// Remove calls to helpers in a function and replaces them with stores of an
+/// opaque value onto the CSVs clobbered by the helper.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -27,16 +27,16 @@ public:
   }
 
 public:
-  llvm::StoreInst *
-  clobber(llvm::IRBuilder<> &Builder, llvm::GlobalVariable *CSV) {
+  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+                           llvm::GlobalVariable *CSV) {
     auto *CSVTy = CSV->getValueType();
     std::string Name = "clobber_" + CSV->getName().str();
     llvm::Function *Clobberer = Clobberers.get(Name, CSVTy, {}, Name);
     return Builder.CreateStore(Builder.CreateCall(Clobberer), CSV);
   }
 
-  llvm::StoreInst *
-  clobber(llvm::IRBuilder<> &Builder, model::Register::Values Value) {
+  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+                           model::Register::Values Value) {
     return clobber(Builder,
                    M->getGlobalVariable(model::Register::getCSVName(Value)));
   }

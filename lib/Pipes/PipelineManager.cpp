@@ -1,7 +1,7 @@
 /// \file PipelineManager.cpp
-/// \brief A pipeline manager ties up all the various bit and pieces of a
-/// pipeline into a single object that does not require the c api to ever need
-/// to expose a delete operator except for the global one.
+/// A pipeline manager ties up all the various bit and pieces of a pipeline into
+/// a single object that does not require the c api to ever need to expose a
+/// delete operator except for the global one.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -61,8 +61,8 @@ static Context setUpContext(LLVMContext &Context) {
   return Ctx;
 }
 
-static llvm::Error
-pipelineConfigurationCallback(const Loader &Loader, LLVMPipe &NewPass) {
+static llvm::Error pipelineConfigurationCallback(const Loader &Loader,
+                                                 LLVMPipe &NewPass) {
   using Wrapper = revng::ModelGlobal;
   auto &Context = Loader.getContext();
   auto MaybeModelWrapper = Context.getGlobal<Wrapper>(revng::ModelGlobalName);

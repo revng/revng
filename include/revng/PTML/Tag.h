@@ -62,11 +62,9 @@ public:
     return *this;
   }
 
-  // clang-format off
   template<typename... T>
     requires(std::is_convertible_v<T, llvm::StringRef> and ...)
   Tag &addListAttribute(llvm::StringRef Name, const T &...Value) {
-    // clang-format on
     if (TheTag.empty())
       return *this;
 
@@ -173,8 +171,8 @@ public:
   ptml::Tag getTag(llvm::StringRef Tag, llvm::StringRef Content) const;
 
   ptml::Tag scopeTag(const llvm::StringRef AttributeName) const;
-  ptml::Tag
-  tokenTag(const llvm::StringRef Str, const llvm::StringRef Token) const;
+  ptml::Tag tokenTag(const llvm::StringRef Str,
+                     const llvm::StringRef Token) const;
 };
 
 } // namespace ptml

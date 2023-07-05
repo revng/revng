@@ -27,11 +27,6 @@ concept HasOptions = requires(T) {
   { T::Options };
 };
 
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode;
-// clang-format off
-// clang-format on
-
 namespace detail {
 
 template<typename Invokable, size_t Index>

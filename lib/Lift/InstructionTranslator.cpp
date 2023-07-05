@@ -1,6 +1,5 @@
 /// \file InstructionTranslator.cpp
-/// \brief This file implements the logic to translate a PTC instruction in to
-///        LLVM IR.
+/// This file implements the logic to translate a PTC instruction in to LLVM IR.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -43,7 +42,11 @@ namespace PTC {
 template<bool C>
 class InstructionImpl;
 
-enum ArgumentType { In, Out, Const };
+enum ArgumentType {
+  In,
+  Out,
+  Const
+};
 
 template<typename T, typename Q, bool B>
 using RAI = RandomAccessIterator<T, Q, B>;
@@ -1297,9 +1300,7 @@ IT::translateOpcode(PTCOpcode Opcode,
     std::string Label = LabelSS.str();
 
     BasicBlock *Fallthrough = nullptr;
-    auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
-
-    if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+    if (!LabeledBasicBlocks.contains(Label)) {
       Fallthrough = BasicBlock::Create(Context, Label, TheFunction);
       Fallthrough->moveAfter(Builder.GetInsertBlock());
       LabeledBasicBlocks[Label] = Fallthrough;
@@ -1342,10 +1343,8 @@ IT::translateOpcode(PTCOpcode Opcode,
 
     // Look for a matching label
     BasicBlock *Target = nullptr;
-    auto ExistingBasicBlock = LabeledBasicBlocks.find(Label);
-
-    // No matching label, create a temporary block
-    if (ExistingBasicBlock == LabeledBasicBlocks.end()) {
+    if (!LabeledBasicBlocks.contains(Label)) {
+      // No matching label, create a temporary block
       Target = BasicBlock::Create(Context, Label, TheFunction);
       LabeledBasicBlocks[Label] = Target;
     } else {

@@ -1,6 +1,6 @@
 /// \file CodeGenerator.cpp
-/// \brief This file handles the whole translation process from the input
-///        assembly to LLVM IR.
+/// This file handles the whole translation process from the input assembly to
+/// LLVM IR.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -508,7 +508,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
     // Remove the call to cpu_loop_exit
     eraseFromParent(Call);
 
-    if (FixedCallers.find(Caller) == FixedCallers.end()) {
+    if (!FixedCallers.contains(Caller)) {
       FixedCallers.insert(Caller);
 
       std::queue<Value *> WorkList;
@@ -564,7 +564,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
           eraseFromParent(Branch);
 
           // Add to the work list only if it hasn't been fixed already
-          if (FixedCallers.find(RecCaller) == FixedCallers.end()) {
+          if (!FixedCallers.contains(RecCaller)) {
             FixedCallers.insert(RecCaller);
             WorkList.push(RecCaller);
           }
@@ -900,7 +900,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
     MetaAddress LastByte = VirtualAddress.toGeneric() + (ConsumedSize - 1);
     if (VirtualAddress.pageStart() != LastByte.pageStart()) {
       MetaAddress NextPage = VirtualAddress.nextPageStart();
-      if (NoMoreCodeBoundaries.count(NextPage) != 0)
+      if (NoMoreCodeBoundaries.contains(NextPage))
         AbortAt = NextPage;
     }
 
@@ -932,7 +932,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
       for (unsigned K = 1; K < InstructionCount; K++) {
         PTCInstruction *I = &InstructionList->instructions[K];
         if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
-            && ToIgnore.count(K) == 0) {
+            && !ToIgnore.contains(K)) {
           NextInstruction = I;
           break;
         }
@@ -952,7 +952,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
     // TODO: shall we move this whole loop in InstructionTranslator?
     for (; J < InstructionCount && !StopTranslation; J++) {
-      if (ToIgnore.count(J) != 0)
+      if (ToIgnore.contains(J))
         continue;
 
       PTCInstruction Instruction = InstructionList->instructions[J];
@@ -971,7 +971,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
         for (unsigned K = J + 1; K < InstructionCount; K++) {
           PTCInstruction *I = &InstructionList->instructions[K];
           if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
-              && ToIgnore.count(K) == 0) {
+              && !ToIgnore.contains(K)) {
             NextInstruction = I;
             break;
           }
@@ -1074,11 +1074,9 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
     }
 
     std::vector<BasicBlock *> Unreachable;
-    for (BasicBlock &BB : *MainFunction) {
-      if (SortedBasicBlocksSet.count(&BB) == 0) {
+    for (BasicBlock &BB : *MainFunction)
+      if (!SortedBasicBlocksSet.contains(&BB))
         Unreachable.push_back(&BB);
-      }
-    }
 
     auto Size = MainFunction->size();
     for (unsigned I = 0; I < Size; ++I)

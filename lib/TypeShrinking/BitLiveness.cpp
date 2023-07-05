@@ -1,5 +1,6 @@
 /// \file BitLiveness.cpp
-/// \brief In this file we model the transfer functions for the analysis.
+/// In this file we model the transfer functions for the analysis.
+///
 /// Each transfer function models the information flow of a function or of
 /// a special case of an instruction.
 /// In our case, `R = transferXyz(Ins, E)` means that for the instruction Ins
@@ -97,8 +98,8 @@ static uint32_t getMaxOperandSize(Instruction *Ins) {
 /// only the lower 8 bits of `%0` flow into `%1`, but if only the lower 4 bits
 /// of `%1` flow into a data flow sink, then only the lower 4 bits of `%0`
 /// will flow into the data flow sink
-static uint32_t
-transferMask(const uint32_t &Element, const uint32_t &MaskIndex) {
+static uint32_t transferMask(const uint32_t &Element,
+                             const uint32_t &MaskIndex) {
   return std::min(Element, MaskIndex);
 }
 
@@ -154,8 +155,8 @@ static uint32_t transferShiftLeft(Instruction *Ins, const uint32_t &Element) {
 ///
 /// if %0 is a constant, then the first E bits of %2 come from the first E +
 /// %0 bits of %1
-static uint32_t
-transferLogicalShiftRight(Instruction *Ins, const uint32_t &Element) {
+static uint32_t transferLogicalShiftRight(Instruction *Ins,
+                                          const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
   if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
     auto OpVal = ConstOp->getZExtValue();
@@ -177,8 +178,8 @@ transferLogicalShiftRight(Instruction *Ins, const uint32_t &Element) {
 ///
 /// if %0 is a constant, then the first E bits of %2 come from the first E +
 /// %0 bits of %1
-static uint32_t
-transferArithmeticalShiftRight(Instruction *Ins, const uint32_t &Element) {
+static uint32_t transferArithmeticalShiftRight(Instruction *Ins,
+                                               const uint32_t &Element) {
   uint32_t OperandSize = getMaxOperandSize(Ins);
   if (auto ConstOp = llvm::dyn_cast<llvm::ConstantInt>(Ins->getOperand(1))) {
     auto OpVal = ConstOp->getZExtValue();
@@ -238,8 +239,8 @@ uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
   }
 }
 
-BitLivenessPass::Result
-BitLivenessPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
+                                             llvm::FunctionAnalysisManager &) {
   GenericGraph<DataFlowNode> DataFlowGraph = buildDataFlowGraph(F);
   std::vector<DataFlowNode *> ExtremalLabels;
   for (DataFlowNode *Node : DataFlowGraph.nodes()) {

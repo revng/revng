@@ -45,8 +45,8 @@ inline std::string buildModule(const char *Body) {
   return Result;
 }
 
-inline llvm::Instruction *
-instructionByName(llvm::Function *F, const char *Name) {
+inline llvm::Instruction *instructionByName(llvm::Function *F,
+                                            const char *Name) {
   using namespace llvm;
 
   if (StringRef(Name).startswith("s:")) {
@@ -77,8 +77,8 @@ inline llvm::BasicBlock *basicBlockByName(llvm::Function *F, const char *Name) {
   revng_abort("Couldn't find a Value with the requested name");
 }
 
-inline std::unique_ptr<llvm::Module>
-loadModule(llvm::LLVMContext &C, const char *Body) {
+inline std::unique_ptr<llvm::Module> loadModule(llvm::LLVMContext &C,
+                                                const char *Body) {
   using namespace llvm;
 
   std::string ModuleText = buildModule(Body);

@@ -43,8 +43,8 @@ public:
 
   static MaterializedValue fromConstant(llvm::ConstantInt *CI);
 
-  static MaterializedValue
-  fromSymbol(llvm::StringRef SymbolName, const llvm::APInt &Offset) {
+  static MaterializedValue fromSymbol(llvm::StringRef SymbolName,
+                                      const llvm::APInt &Offset) {
     return MaterializedValue(SymbolName, Offset);
   }
 

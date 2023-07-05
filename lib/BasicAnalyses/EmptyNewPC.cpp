@@ -1,6 +1,6 @@
 /// \file EmptyNewPC.cpp
-/// \brief A simple pass to given an empty body to the `newpc` function so that
-///        it can be optimized away.
+/// A simple pass to given an empty body to the `newpc` function so that it can
+/// be optimized away.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

@@ -1,5 +1,4 @@
 /// \file Binary.cpp
-/// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -21,8 +20,8 @@ using namespace llvm;
 
 namespace model {
 
-model::TypePath
-Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
+model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
+                                         uint8_t ByteSize) {
   PrimitiveType Temporary(V, ByteSize);
   Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
   auto It = Types().find(PrimitiveKey);
@@ -36,8 +35,8 @@ Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
   return getTypePath(It->get());
 }
 
-model::TypePath
-Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const {
+model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
+                                         uint8_t ByteSize) const {
   PrimitiveType Temporary(V, ByteSize);
   Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
   return getTypePath(Types().at(PrimitiveKey).get());
@@ -182,8 +181,8 @@ Identifier Function::name() const {
   }
 }
 
-static const model::TypePath &
-prototypeOr(const model::TypePath &Prototype, const model::TypePath &Default) {
+static const model::TypePath &prototypeOr(const model::TypePath &Prototype,
+                                          const model::TypePath &Default) {
   if (Prototype.isValid())
     return Prototype;
 

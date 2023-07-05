@@ -55,9 +55,8 @@ importPrototype(Module &M,
       PreservedRegisters.insert(CSV);
   }
 
-  std::erase_if(Summary.ClobberedRegisters, [&](const auto &E) {
-    return PreservedRegisters.count(E) != 0;
-  });
+  std::erase_if(Summary.ClobberedRegisters,
+                [&](const auto &E) { return PreservedRegisters.contains(E); });
 
   Summary.ElectedFSO = Layout.FinalStackOffset;
   return Summary;
@@ -74,7 +73,7 @@ FunctionSummaryOracle::getCallSite(MetaAddress Function,
   } else if (not CalledSymbol.empty()) {
     return { &getDynamicFunction(CalledSymbol), false };
   } else if (CalledLocalFunction.isValid()
-             and LocalFunctions.count(CalledLocalFunction) != 0) {
+             and LocalFunctions.contains(CalledLocalFunction)) {
     return { &getLocalFunction(CalledLocalFunction), false };
   } else {
     return { &getDefault(), false };
@@ -186,7 +185,7 @@ void importModel(Module &M,
                                    Function.prototype(Binary));
 
     // Create function to inline, if necessary
-    if (Summary.Attributes.count(model::FunctionAttribute::Inline))
+    if (Summary.Attributes.contains(model::FunctionAttribute::Inline))
       InlineFunctions[GCBI.getBlockAt(Function.Entry())] = Function.Entry();
 
     Oracle.registerLocalFunction(Function.Entry(), std::move(Summary));
