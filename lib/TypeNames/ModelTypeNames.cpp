@@ -47,10 +47,8 @@ namespace ranks = revng::ranks;
 using namespace ArtificialTypes;
 
 template<typename FT>
-// clang-format off
 concept ModelFunction = std::same_as<FT, model::Function>
                         or std::same_as<FT, model::DynamicFunction>;
-// clang-format on
 
 static std::string serializeVariableLocation(llvm::StringRef VariableName,
                                              const model::DynamicFunction &F) {

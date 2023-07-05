@@ -154,7 +154,7 @@ mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
     MetaRegionBB &Region = *RegionIt;
 
     // Do not re-analyze blacklisted metaregions.
-    if (BlacklistedMetaregions.count(&Region) == 0) {
+    if (!BlacklistedMetaregions.contains(&Region)) {
 
       // Iterate over all the backedges present in the graph, if the current
       // region contains the source of a backedge, it should contain also the
@@ -247,8 +247,8 @@ checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
   return ComparisonState;
 }
 
-static void
-computeParents(MetaRegionBBVect &MetaRegions, MetaRegionBB *RootMetaRegion) {
+static void computeParents(MetaRegionBBVect &MetaRegions,
+                           MetaRegionBB *RootMetaRegion) {
   for (MetaRegionBB &MetaRegion1 : MetaRegions) {
     bool ParentFound = false;
     for (MetaRegionBB &MetaRegion2 : MetaRegions) {
@@ -286,10 +286,10 @@ static MetaRegionBBPtrVect applyPartialOrder(MetaRegionBBVect &V) {
 
   while (V.size() != Processed.size()) {
     for (auto RegionIt1 = V.begin(); RegionIt1 != V.end(); RegionIt1++) {
-      if (Processed.count(&*RegionIt1) == 0) {
+      if (!Processed.contains(&*RegionIt1)) {
         bool FoundParent = false;
         for (auto RegionIt2 = V.begin(); RegionIt2 != V.end(); RegionIt2++) {
-          if ((RegionIt1 != RegionIt2) and Processed.count(&*RegionIt2) == 0) {
+          if ((RegionIt1 != RegionIt2) and !Processed.contains(&*RegionIt2)) {
             if ((*RegionIt1).getParent() == &*RegionIt2) {
               FoundParent = true;
               break;
@@ -357,7 +357,7 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
     do {
       OldNodes = Nodes;
       for (BasicBlockNodeBB *Node : Nodes) {
-        if ((Node != Head) and (AdditionalSCSNodes.count(Node) != 0)) {
+        if ((Node != Head) and (AdditionalSCSNodes.contains(Node))) {
           CombLogger << "Adding additional nodes for region with head: ";
           CombLogger << Head->getNameStr();
           CombLogger << " and relative to node: ";
@@ -818,7 +818,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
         // Handle outgoing edges from SCS nodes.
         for (const auto &[Successor, Labels] : Node->labeled_successors()) {
-          revng_assert(not Backedges.count(EdgeDescriptor(Node, Successor)));
+          revng_assert(not Backedges.contains(EdgeDescriptor(Node, Successor)));
           using ED = EdgeDescriptor;
           auto *NewEdgeSrc = ClonedMap.at(Node);
           auto *NewEdgeTgt = Successor;
@@ -851,7 +851,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
             }
 
             // Are we moving a backedge with the first iteration outlining?
-            revng_assert(not Backedges.count({ Predecessor, Node }));
+            revng_assert(not Backedges.contains({ Predecessor, Node }));
 
             moveEdgeTarget(EdgeDescriptor(Predecessor, Node),
                            ClonedMap.at(Node));
@@ -969,7 +969,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
       for (EdgeDescriptor Edge : OutEdges) {
         // We should not be adding new backedges.
-        revng_assert(not Backedges.count(Edge));
+        revng_assert(not Backedges.contains(Edge));
 
         unsigned Idx = SuccessorsIdxMap.at(DeduplicationMap.at(Edge.second));
         auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());

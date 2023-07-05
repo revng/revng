@@ -35,8 +35,8 @@ struct FormatInt {
   llvm::Use *Use;
 };
 
-static std::optional<FormatInt>
-getIntFormat(llvm::Instruction &I, llvm::Use &U);
+static std::optional<FormatInt> getIntFormat(llvm::Instruction &I,
+                                             llvm::Use &U);
 
 struct PrettyIntFormatting : public llvm::FunctionPass {
 public:

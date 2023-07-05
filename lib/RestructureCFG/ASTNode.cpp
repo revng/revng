@@ -35,12 +35,12 @@ IfNode *ContinueNode::getComputationIfNode() const {
 void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update the pointers to the `then` and `else` branches.
   if (hasThen()) {
-    revng_assert(SubstitutionMap.count(Then) != 0);
+    revng_assert(SubstitutionMap.contains(Then));
     Then = SubstitutionMap[Then];
   }
 
   if (hasElse()) {
-    revng_assert(SubstitutionMap.count(Else) != 0);
+    revng_assert(SubstitutionMap.contains(Else));
     Else = SubstitutionMap[Else];
   }
 }
@@ -56,7 +56,7 @@ void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   // Update all the pointers of the sequence node.
   for (auto NodeIt = NodeVec.begin(); NodeIt != NodeVec.end(); NodeIt++) {
     ASTNode *Node = *NodeIt;
-    revng_assert(SubstitutionMap.count(Node) != 0);
+    revng_assert(SubstitutionMap.contains(Node));
     ASTNode *NewNode = SubstitutionMap[Node];
     *NodeIt = NewNode;
   }

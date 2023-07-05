@@ -18,7 +18,10 @@ struct TypeNode {
 
   /// For each model::Type we'll have nodes representing the type name or
   /// the full type, depending on this enum.
-  enum Kind { TypeName, FullType } K;
+  enum Kind {
+    TypeName,
+    FullType
+  } K;
 };
 
 using TypeDependencyNode = BidirectionalNode<TypeNode>;
@@ -44,8 +47,8 @@ struct llvm::DOTGraphTraits<DependencyGraph *>
   : public llvm::DefaultDOTGraphTraits {
   using llvm::DefaultDOTGraphTraits::DefaultDOTGraphTraits;
 
-  std::string
-  getNodeLabel(const TypeDependencyNode *N, const DependencyGraph *G);
+  std::string getNodeLabel(const TypeDependencyNode *N,
+                           const DependencyGraph *G);
 };
 
 DependencyGraph buildDependencyGraph(const TypeVector &Types);

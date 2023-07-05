@@ -54,8 +54,8 @@ inline llvm::Value *traverseTransparentInstructions(llvm::Value *V) {
   return CurValue;
 }
 
-static llvm::Value *
-getValueToSubstitute(llvm::Instruction &I, const model::Binary &Model) {
+static llvm::Value *getValueToSubstitute(llvm::Instruction &I,
+                                         const model::Binary &Model) {
   if (auto *Call = getCallToTagged(&I, FunctionTags::ModelGEP)) {
     revng_log(Log, "--------Call: " << dumpToString(I));
 

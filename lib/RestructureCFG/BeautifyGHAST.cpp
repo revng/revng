@@ -1101,8 +1101,8 @@ promoteNoFallthrough(ASTTree &AST,
   rc_return Node;
 }
 
-static RecursiveCoroutine<ASTNode *>
-collapseSequences(ASTTree &AST, ASTNode *Node) {
+static RecursiveCoroutine<ASTNode *> collapseSequences(ASTTree &AST,
+                                                       ASTNode *Node) {
   switch (Node->getKind()) {
   case ASTNode::NK_List: {
     SequenceNode *Seq = llvm::cast<SequenceNode>(Node);

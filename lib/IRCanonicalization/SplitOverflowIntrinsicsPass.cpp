@@ -14,9 +14,16 @@
 
 using namespace llvm;
 
-enum Signedness { Signed, Unsigned };
+enum Signedness {
+  Signed,
+  Unsigned
+};
 
-enum Operation { Add, Sub, Mul };
+enum Operation {
+  Add,
+  Sub,
+  Mul
+};
 
 struct OverflowFunctionKey {
 public:

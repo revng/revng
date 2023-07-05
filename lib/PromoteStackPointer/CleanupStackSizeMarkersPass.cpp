@@ -53,5 +53,5 @@ void CleanupStackSizeMarkersPass::getAnalysisUsage(AnalysisUsage &AU) const {
 char CleanupStackSizeMarkersPass::ID = 0;
 
 using RegisterCSSM = RegisterPass<CleanupStackSizeMarkersPass>;
-static RegisterCSSM
-  R("cleanup-stack-size-markers", "Cleanup Stack Size Markers Pass");
+static RegisterCSSM R("cleanup-stack-size-markers",
+                      "Cleanup Stack Size Markers Pass");

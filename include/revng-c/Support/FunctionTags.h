@@ -42,11 +42,11 @@ extern Tag BooleanNot;
 
 inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
-inline Tag
-  StackPointerPromoted("StackPointerPromoted", LiftingArtifactsRemoved);
+inline Tag StackPointerPromoted("StackPointerPromoted",
+                                LiftingArtifactsRemoved);
 
-inline Tag
-  StackAccessesSegregated("StackAccessesSegregated", StackPointerPromoted);
+inline Tag StackAccessesSegregated("StackAccessesSegregated",
+                                   StackPointerPromoted);
 
 inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
 
@@ -158,8 +158,8 @@ void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// Assign() are meant to replace `store` instructions in which the pointer
 /// operand is a reference.
-llvm::FunctionType *
-getAssignFunctionType(llvm::Type *ValueType, llvm::Type *PtrType);
+llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
+                                          llvm::Type *PtrType);
 
 /// Initializes a pool of Assign functions, initializing it its internal
 /// Module.

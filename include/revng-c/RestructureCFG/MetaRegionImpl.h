@@ -27,12 +27,9 @@ void MetaRegion<NodeT>::updateNodes(BasicBlockNodeTSet &Removal,
                                     BasicBlockNodeTVect &OutlinedNodes) {
   // Remove the old SCS nodes
   bool NeedSubstitution = false;
-  for (BasicBlockNodeT *Node : Removal) {
-    if (Nodes.count(Node) != 0) {
-      Nodes.erase(Node);
+  for (BasicBlockNodeT *Node : Removal)
+    if (Nodes.erase(Node))
       NeedSubstitution = true;
-    }
-  }
 
   // Add the collapsed node.
   if (NeedSubstitution) {

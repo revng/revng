@@ -101,8 +101,8 @@ struct ColorSet {
   /// \return MAX_COLORS if there's no set bit
   ColorIndex firstSetBit() const { return nextSetBit(/*StartIndex*/ -1); }
 
-  friend std::strong_ordering
-  operator<=>(const ColorSet &Lhs, const ColorSet &Rhs) {
+  friend std::strong_ordering operator<=>(const ColorSet &Lhs,
+                                          const ColorSet &Rhs) {
     return Lhs.Bits.to_ulong() <=> Rhs.Bits.to_ulong();
   }
 

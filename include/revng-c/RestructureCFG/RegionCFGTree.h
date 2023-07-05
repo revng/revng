@@ -296,8 +296,8 @@ public:
 
   BBNodeT *addExitDispatcher() { return addDispatcher("exit dispatcher"); }
 
-  BBNodeT *
-  addSetStateNode(unsigned StateVariableValue, llvm::StringRef TargetName) {
+  BBNodeT *addSetStateNode(unsigned StateVariableValue,
+                           llvm::StringRef TargetName) {
     using Type = typename BasicBlockNodeT::Type;
     using BBNodeT = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);

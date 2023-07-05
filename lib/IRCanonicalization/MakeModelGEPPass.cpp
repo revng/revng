@@ -760,8 +760,8 @@ private:
 private:
   // Comparison operations among IRSummation that sorts before things that are
   // "nicer" e.g they should be selected first for ModelGEP.
-  std::strong_ordering
-  compare(const IRSummation &LHS, const IRSummation &RHS) const {
+  std::strong_ordering compare(const IRSummation &LHS,
+                               const IRSummation &RHS) const {
     revng_assert(LHS.isValid() and RHS.isValid());
 
     // If the summations have different length, the shorter summation is
@@ -837,13 +837,18 @@ public:
     return DifferenceScore(InRange, IRSummation(), Depth);
   }
 
-  static DifferenceScore
-  nestedOutOfBound(const IRSummation &DiffScore, uint64_t Depth) {
+  static DifferenceScore nestedOutOfBound(const IRSummation &DiffScore,
+                                          uint64_t Depth) {
     return DifferenceScore(OutOfBound, DiffScore, Depth);
   }
 };
 
-enum AggregateKind { Invalid, Struct, Union, Array };
+enum AggregateKind {
+  Invalid,
+  Struct,
+  Union,
+  Array
+};
 
 static std::string toString(AggregateKind K) {
   switch (K) {

@@ -245,8 +245,8 @@ static auto getIncomingUsesOfValuesFromBlocks(const std::set<PHINode *> &PHIs) {
   return Result;
 }
 
-static void
-replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs, Function &F) {
+static void replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs,
+                                       Function &F) {
 
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };

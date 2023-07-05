@@ -75,8 +75,8 @@ struct OffsetExpression {
     return true;
   }
 
-  static OffsetExpression
-  append(OffsetExpression LHS, const OffsetExpression &RHS) {
+  static OffsetExpression append(OffsetExpression LHS,
+                                 const OffsetExpression &RHS) {
     revng_assert(LHS.verify());
     revng_assert(RHS.verify());
     LHS.Offset += RHS.Offset;
@@ -276,8 +276,8 @@ protected:
   addLink(LayoutTypeSystemNode *Src, LayoutTypeSystemNode *Tgt, TagT &&Tag) {
     if (Src == nullptr or Tgt == nullptr or Src == Tgt)
       return std::make_pair(nullptr, false);
-    revng_assert(Layouts.count(Src));
-    revng_assert(Layouts.count(Tgt));
+    revng_assert(Layouts.contains(Src));
+    revng_assert(Layouts.contains(Tgt));
     auto It = LinkTags.insert(std::forward<TagT>(Tag)).first;
     revng_assert(It != LinkTags.end());
     const TypeLinkTag *T = &*It;
@@ -323,8 +323,8 @@ public:
   void dumpDotOnFile(const char *FName,
                      bool ShowCollapsed = false) const debug_function;
 
-  void
-  dumpDotOnFile(const std::string &FName, bool ShowCollapsed = false) const {
+  void dumpDotOnFile(const std::string &FName,
+                     bool ShowCollapsed = false) const {
     dumpDotOnFile(FName.c_str(), ShowCollapsed);
   }
 
@@ -349,8 +349,8 @@ public:
                       NeighborIterator EdgeIt,
                       int64_t OffsetToSum);
 
-  NeighborIterator
-  eraseEdge(LayoutTypeSystemNode *Src, NeighborIterator EdgeIt);
+  NeighborIterator eraseEdge(LayoutTypeSystemNode *Src,
+                             NeighborIterator EdgeIt);
 
   void dropOutgoingEdges(LayoutTypeSystemNode *N);
 

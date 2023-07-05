@@ -171,7 +171,7 @@ public:
 
   bool isPending(Instruction *Key) const {
     revng_assert(not IsBottom);
-    return TaintedPending.count(Key);
+    return TaintedPending.contains(Key);
   }
 
 public:

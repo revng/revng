@@ -31,7 +31,11 @@ using namespace llvm;
 using namespace vma;
 
 // Node types
-enum NodeType : unsigned { VALUE, USE, MAX_TYPES };
+enum NodeType : unsigned {
+  VALUE,
+  USE,
+  MAX_TYPES
+};
 const inline std::string NodeTypeName[MAX_TYPES] = { "values", "uses  " };
 
 // Counters

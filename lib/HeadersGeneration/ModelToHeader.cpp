@@ -73,7 +73,7 @@ static void printTypeDefinitions(const model::Binary &Model,
       for (const auto *Child :
            llvm::children<const TypeDependencyNode *>(Node)) {
         revng_log(Log, "= child " << getNodeLabel(Child));
-        if (Defined.count(Child))
+        if (Defined.contains(Child))
           revng_log(Log, "      DEFINED");
         else
           revng_log(Log, "      NOT DEFINED");

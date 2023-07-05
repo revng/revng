@@ -44,7 +44,7 @@ static bool collapseSCCs(LayoutTypeSystem &TS) {
   for (const auto &Node : llvm::nodes(&TS)) {
     revng_assert(Node != nullptr);
     revng_log(LogVerbose, "## Analyzing SCCs from  " << Node);
-    if (VisitedNodes.count(Node)) {
+    if (VisitedNodes.contains(Node)) {
       revng_log(LogVerbose, "## Was already visited");
       continue;
     }
@@ -53,7 +53,7 @@ static bool collapseSCCs(LayoutTypeSystem &TS) {
     llvm::scc_iterator<NodeT> E = llvm::scc_end(NodeT(Node));
     for (const auto &SCC : llvm::make_range(I, E)) {
       revng_assert(not SCC.empty());
-      if (VisitedNodes.count(SCC[0]))
+      if (VisitedNodes.contains(SCC[0]))
         continue;
       VisitedNodes.insert(SCC.begin(), SCC.end());
 

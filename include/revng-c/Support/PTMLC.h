@@ -412,15 +412,15 @@ public:
            + "\n";
   }
 
-  std::string
-  getBlockComment(const llvm::StringRef Str, bool Newline = true) const {
+  std::string getBlockComment(const llvm::StringRef Str,
+                              bool Newline = true) const {
     return ptml::PTMLBuilder::tokenTag("/* " + Str.str() + " */",
                                        ptml::tokens::Comment)
            + (Newline ? "\n" : "");
   }
 
   std::string getLineComment(const llvm::StringRef Str) {
-    revng_check(Str.find("\n") == llvm::StringRef::npos);
+    revng_check(!Str.contains('\n'));
     return ptml::PTMLBuilder::tokenTag("// " + Str.str(), ptml::tokens::Comment)
            + "\n";
   }

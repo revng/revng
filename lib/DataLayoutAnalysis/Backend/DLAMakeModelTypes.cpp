@@ -408,8 +408,8 @@ getNumPointersAndPointee(const LTSN *Node) {
   return { NumPointers, PointerNode };
 }
 
-static void
-logEntry(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
+static void logEntry(const LayoutTypeSystem &TS,
+                     TupleTree<model::Binary> &Model) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-make-model.dot");
 
@@ -420,8 +420,8 @@ logEntry(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
   }
 }
 
-static void
-logExit(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
+static void logExit(const LayoutTypeSystem &TS,
+                    TupleTree<model::Binary> &Model) {
   if (VerifyLog.isEnabled()) {
     revng_assert(TS.verifyPointerDAG() and TS.verifyDAG()
                  and TS.verifyUnions());

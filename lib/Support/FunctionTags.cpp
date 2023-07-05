@@ -82,8 +82,8 @@ static std::string makeTypeBasedSuffix(const llvm::Type *RetTy,
     .str();
 }
 
-llvm::FunctionType *
-getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType) {
+llvm::FunctionType *getAddressOfType(llvm::Type *RetType,
+                                     llvm::Type *BaseType) {
   // There are 2 fixed arguments:
   // - the first is a pointer to a constant string that contains a serialization
   //   of the key of the base type;
@@ -397,8 +397,8 @@ void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   }
 }
 
-llvm::FunctionType *
-getAssignFunctionType(llvm::Type *ValueType, llvm::Type *PtrType) {
+llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
+                                          llvm::Type *PtrType) {
   llvm::SmallVector<llvm::Type *, 2> FixedArgs = { ValueType, PtrType };
   auto &C = ValueType->getContext();
   return llvm::FunctionType::get(llvm::Type::getVoidTy(C),

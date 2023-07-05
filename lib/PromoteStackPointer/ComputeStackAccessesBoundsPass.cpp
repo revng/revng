@@ -60,5 +60,5 @@ void ComputeStackAccessesBoundsPass::getAnalysisUsage(AnalysisUsage &AU) const {
 char ComputeStackAccessesBoundsPass::ID = 0;
 
 using RegisterCSAB = RegisterPass<ComputeStackAccessesBoundsPass>;
-static RegisterCSAB
-  R("compute-stack-accesses-bounds", "Compute Stack Accesses Bounds Pass");
+static RegisterCSAB R("compute-stack-accesses-bounds",
+                      "Compute Stack Accesses Bounds Pass");

@@ -27,7 +27,7 @@ struct ContractedNode {
 
   /// Check if a TypeFlowNode is part of this super node
   bool contains(TypeFlowNode *TFN) const {
-    return InitialNodes.count(TFN) or AdditionalNodes.count(TFN);
+    return InitialNodes.contains(TFN) or AdditionalNodes.contains(TFN);
   }
 };
 

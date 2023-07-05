@@ -2012,9 +2012,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
 
         auto VarTypeIt = TypeMap.find(VarToDeclare);
         if (VarTypeIt != TypeMap.end()) {
-          Out << getNamedCInstance(TypeMap.at(VarToDeclare),
-                                   VarName,
-                                   ThePTMLCBuilder)
+          Out << getNamedCInstance(VarTypeIt->second, VarName, ThePTMLCBuilder)
               << ";\n";
         } else {
           // The only types that are allowed to be missing from the TypeMap
