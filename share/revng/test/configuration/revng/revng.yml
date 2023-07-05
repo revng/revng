@@ -80,6 +80,12 @@ commands:
         cat "$$TMP";
         exit 1;
       fi;
+  - type: revng.test-s3-storage
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/storage.sh" "$INPUT" "$$(temp -d)"
   - type: revng.test-model-diff
     from:
       - type: revng-qa.compiled

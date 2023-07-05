@@ -46,10 +46,10 @@ static cl::list<string> Arguments(Positional,
                                   desc("<AnalysisToRun> <InputBinary>"),
                                   cat(MainCategory));
 
-static opt<string> Output("o",
-                          desc("Output filepath of produced model"),
-                          cat(MainCategory),
-                          init("-"));
+static OutputPathOpt Output("o",
+                            desc("Output filepath of produced model"),
+                            cat(MainCategory),
+                            init(revng::PathInit::Dash));
 
 static opt<bool> NoApplyModel("no-apply",
                               desc("run the analysis but do not apply it (used "
@@ -90,6 +90,7 @@ static llvm::Error overrideModel(PipelineManager &Manager,
 }
 
 int main(int argc, char *argv[]) {
+  using revng::FilePath;
   using BinaryRef = TupleTreeGlobal<model::Binary>;
 
   revng::InitRevng X(argc, argv, "", { &MainCategory });
@@ -118,7 +119,8 @@ int main(int argc, char *argv[]) {
   }
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
-  AbortOnError(InputContainer.loadFromDisk(Arguments[1]));
+  AbortOnError(InputContainer
+                 .loadFromDisk(FilePath::fromLocalStorage(Arguments[1])));
 
   InvalidationMap InvMap;
   if (Manager.getRunner().hasAnalysesList(Arguments[0])) {
@@ -158,7 +160,7 @@ int main(int argc, char *argv[]) {
   AbortOnError(Manager.storeToDisk());
 
   auto &FinalModel = getModel(Manager);
-  AbortOnError(FinalModel.storeToDisk(Output));
+  AbortOnError(FinalModel.storeToDisk(*Output));
 
   return EXIT_SUCCESS;
 }

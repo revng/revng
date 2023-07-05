@@ -20,6 +20,7 @@
 #include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/GlobalsMap.h"
 #include "revng/Pipeline/KindsRegistry.h"
+#include "revng/Storage/Path.h"
 #include "revng/Support/Assert.h"
 
 namespace pipeline {
@@ -119,10 +120,11 @@ public:
   }
 
 public:
-  llvm::Error storeToDisk(llvm::StringRef Path) const {
+  llvm::Error storeToDisk(const revng::DirectoryPath &Path) const {
     return Globals.storeToDisk(Path);
   }
-  llvm::Error loadFromDisk(llvm::StringRef Path) {
+
+  llvm::Error loadFromDisk(const revng::DirectoryPath &Path) {
     return Globals.loadFromDisk(Path);
   }
 };

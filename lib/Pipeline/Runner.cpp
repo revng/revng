@@ -146,20 +146,19 @@ Error Runner::invalidate(const Target &Target) {
 
 llvm::Expected<PipelineFileMapping>
 PipelineFileMapping::parse(StringRef ToParse) {
-  SmallVector<StringRef, 4> Parts;
-  ToParse.split(Parts, ':', 2);
-
-  if (Parts.size() != 2) {
-    auto *Message = "could not parse %s into two parts "
-                    "file_path:step/container";
+  if (ToParse.count(':') < 1 or ToParse.count('/') < 1) {
+    auto *Message = "could not parse %s\n"
+                    "Format is: file_path:step/container";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              ToParse.str().c_str());
   }
 
-  auto [StepName, ContainerName] = Parts.back().split('/');
+  auto [StoragePath, ContainerPath] = ToParse.rsplit(':');
+  auto Path = revng::FilePath::fromLocalStorage(StoragePath);
 
-  return PipelineFileMapping(StepName, ContainerName, Parts[0]);
+  auto [StepName, ContainerName] = ContainerPath.split('/');
+  return PipelineFileMapping(StepName, ContainerName, std::move(Path));
 }
 
 Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
@@ -171,68 +170,66 @@ Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known container " + Container);
 
-  return LoadInto[Step].containers()[Container].loadFromDisk(InputFile);
+  return LoadInto[Step].containers()[Container].loadFromDisk(Path);
 }
 
 Error PipelineFileMapping::storeToDisk(Runner &LoadInto) const {
-  if (not LoadInto.containsStep(Step))
+  if (not LoadInto.containsStep(Step)) {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known step " + Step);
+  }
 
-  if (not LoadInto[Step].containers().containsOrCanCreate(Container))
+  if (not LoadInto[Step].containers().containsOrCanCreate(Container)) {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known container " + Container);
+  }
 
-  return LoadInto[Step].containers()[Container].storeToDisk(InputFile);
+  return LoadInto[Step].containers()[Container].storeToDisk(Path);
 }
 
-Error Runner::storeToDisk(llvm::StringRef DirPath) const {
+Error Runner::storeToDisk(const revng::DirectoryPath &DirPath) const {
+  if (auto Error = DirPath.create(); Error)
+    return Error;
+
   for (const auto &StepName : Steps.keys()) {
     if (auto Error = storeStepToDisk(StepName, DirPath); !!Error) {
       return Error;
     }
   }
 
-  llvm::SmallString<128> ContextDir;
-  llvm::sys::path::append(ContextDir, DirPath, "context");
-  if (auto EC = llvm::sys::fs::create_directories(ContextDir); EC)
-    return llvm::createStringError(EC,
-                                   "Could not create dir %s",
-                                   ContextDir.c_str());
+  revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
+  if (auto Error = ContextDir.create(); Error)
+    return Error;
 
-  return TheContext->storeToDisk(std::string(ContextDir));
+  return TheContext->storeToDisk(ContextDir);
 }
 
 Error Runner::storeStepToDisk(llvm::StringRef StepName,
-                              llvm::StringRef DirPath) const {
+                              const revng::DirectoryPath &DirPath) const {
   auto Step = Steps.find(StepName);
   if (Step == Steps.end())
     return createStringError(inconvertibleErrorCode(),
                              "Could not find a step named %s\n",
                              StepName.str().c_str());
-  llvm::SmallString<128> StepDir;
-  llvm::sys::path::append(StepDir, DirPath, Step->first());
-  if (auto EC = llvm::sys::fs::create_directories(StepDir); EC)
-    return llvm::createStringError(EC,
-                                   "Could not create dir %s",
-                                   StepDir.c_str());
 
-  if (auto Error = Step->second.storeToDisk(std::string(StepDir)); !!Error)
+  revng::DirectoryPath StepDir = DirPath.getDirectory(Step->first());
+  if (auto Error = StepDir.create(); Error)
+    return Error;
+
+  if (auto Error = Step->second.storeToDisk(StepDir); !!Error)
     return Error;
 
   return Error::success();
 }
 
-Error Runner::loadFromDisk(llvm::StringRef DirPath) {
-  llvm::SmallString<128> ContextDir;
-  llvm::sys::path::append(ContextDir, DirPath, "context");
-  if (auto Error = TheContext->loadFromDisk(std::string(ContextDir)); !!Error)
+Error Runner::loadFromDisk(const revng::DirectoryPath &DirPath) {
+  revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
+  if (auto Error = TheContext->loadFromDisk(ContextDir); !!Error)
     return Error;
 
   for (auto &Step : Steps) {
-    llvm::SmallString<128> StepDir;
-    llvm::sys::path::append(StepDir, DirPath, Step.first());
-    if (auto Error = Step.second.loadFromDisk(std::string(StepDir)); !!Error)
+    revng::DirectoryPath StepDir = DirPath.getDirectory(Step.first());
+    if (auto Error = Step.second.loadFromDisk(StepDir); !!Error)
       return Error;
   }
 

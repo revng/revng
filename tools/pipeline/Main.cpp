@@ -44,10 +44,9 @@ static cl::list<string> ContainerOverrides("i",
                                                 "target step"),
                                            cat(MainCategory));
 
-static opt<string> SaveModel("save-model",
-                             desc("Save the model at the end of the run"),
-                             cat(MainCategory),
-                             init(""));
+static OutputPathOpt SaveModel("save-model",
+                               desc("Save the model at the end of the run"),
+                               cat(MainCategory));
 
 static opt<string> ApplyModelDiff("apply-model-diff",
                                   desc("Apply model diff"),
@@ -216,11 +215,11 @@ int main(int argc, char *argv[]) {
   AbortOnError(Manager.store(StoresOverrides));
   AbortOnError(Manager.storeToDisk());
 
-  if (not SaveModel.empty()) {
+  if (SaveModel.hasValue()) {
     auto Context = Manager.context();
     const auto &ModelName = revng::ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
-    AbortOnError(FinalModel->storeToDisk(SaveModel));
+    AbortOnError(FinalModel->storeToDisk(*SaveModel));
   }
 
   return EXIT_SUCCESS;

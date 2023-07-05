@@ -5,7 +5,6 @@
 import json
 import os
 from base64 import b64encode
-from pathlib import Path
 from typing import Dict, List, Optional
 
 
@@ -45,11 +44,8 @@ def clean_container_list(container_list: List):
             container_list.remove(container)
 
 
-def project_workdir() -> Optional[Path]:
-    if "REVNG_DATA_DIR" in os.environ:
-        return Path(os.environ["REVNG_DATA_DIR"])
-    else:
-        return None
+def project_workdir() -> Optional[str]:
+    return os.environ.get("REVNG_DATA_DIR")
 
 
 def produce_serializer(input_: Dict[str, str | bytes]) -> str:

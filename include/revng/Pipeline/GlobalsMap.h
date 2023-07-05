@@ -5,6 +5,7 @@
 //
 
 #include "revng/Pipeline/Global.h"
+#include "revng/Storage/Path.h"
 
 namespace pipeline {
 class GlobalsMap {
@@ -111,8 +112,8 @@ public:
     return MaybeGlobal.get()->clone();
   }
 
-  llvm::Error storeToDisk(llvm::StringRef Path) const;
-  llvm::Error loadFromDisk(llvm::StringRef Path);
+  llvm::Error storeToDisk(const revng::DirectoryPath &Path) const;
+  llvm::Error loadFromDisk(const revng::DirectoryPath &Path);
 
   size_t size() const { return Map.size(); }
 

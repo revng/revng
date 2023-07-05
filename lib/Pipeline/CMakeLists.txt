@@ -21,4 +21,4 @@ revng_add_library_internal(
   Global.cpp
   GlobalsMap.cpp)
 
-target_link_libraries(revngPipeline revngSupport ${LLVM_LIBRARIES})
+target_link_libraries(revngPipeline revngStorage revngSupport ${LLVM_LIBRARIES})

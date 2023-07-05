@@ -359,16 +359,6 @@ const rp_targets_list *
 rp_manager_get_container_targets_list(const rp_manager *manager,
                                       const rp_container *container);
 
-/**
- * \param step_name the name of the step
- * \param container_name the name of the container
- * \return the path where the container will be serialized on rp_manager_save if
- * no path parameter is supplied
- */
-char * /*owning*/ rp_manager_create_container_path(rp_manager *manager,
-                                                   const char *step_name,
-                                                   const char *container_name);
-
 /** \} */
 
 /**

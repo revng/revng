@@ -160,12 +160,12 @@ public:
   auto &getMap() const { return Map; }
   auto &getMap() { return Map; }
 
-  llvm::Error storeToDisk(llvm::StringRef Path) const override {
+  llvm::Error storeToDisk(const revng::FilePath &Path) const override {
     SavedData = Map;
     return llvm::Error::success();
   }
 
-  llvm::Error loadFromDisk(llvm::StringRef Path) override {
+  llvm::Error loadFromDisk(const revng::FilePath &Path) override {
     Map = SavedData;
     return llvm::Error::success();
   }
@@ -992,15 +992,17 @@ BOOST_AUTO_TEST_CASE(LoaderTestFromYamlLLVM) {
   BOOST_TEST(!!MaybePipeline);
 }
 
-static std::string getCurrentPath() {
-  llvm::SmallVector<char, 3> ToReturn;
+static revng::DirectoryPath getCurrentPath() {
+  using revng::StorageClient;
+  llvm::SmallString<128> ToReturn;
   llvm::sys::fs::current_path(ToReturn);
-  return std::string(ToReturn.begin(), ToReturn.end());
+  return revng::DirectoryPath::fromLocalStorage(ToReturn.str());
 }
 
 BOOST_AUTO_TEST_CASE(SingleElementPipelineStoreToDisk) {
   Context Ctx;
   Runner Pipeline(Ctx);
+  revng::DirectoryPath Path = getCurrentPath();
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
   const std::string Name = "first_step";
@@ -1013,14 +1015,14 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineStoreToDisk) {
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({}, RootKind)) = 1;
 
-  BOOST_TEST((!Pipeline.storeToDisk(getCurrentPath())));
+  BOOST_TEST((!Pipeline.storeToDisk(Path)));
 
   auto &Container(Pipeline[Name].containers().getOrCreate<MapContainer>(CName));
 
   BOOST_TEST((Container.get(Target({}, RootKind)) == 1));
   Container.get(Target({}, RootKind)) = 2;
   BOOST_TEST((Container.get(Target({}, RootKind)) == 2));
-  BOOST_TEST((!Pipeline.loadFromDisk(getCurrentPath())));
+  BOOST_TEST((!Pipeline.loadFromDisk(Path)));
   BOOST_TEST(Pipeline[Name].containers().containsOrCanCreate(CName));
   BOOST_TEST(not Pipeline[Name].containers().contains(CName));
 }
@@ -1064,23 +1066,19 @@ public:
 
   ~EnumerableContainerExample() override = default;
 
-  llvm::Error storeToDisk(llvm::StringRef Path) const override {
-
+  llvm::Error storeToDisk(const revng::FilePath &Path) const override {
     return llvm::Error::success();
   }
 
-  llvm::Error loadFromDisk(llvm::StringRef Path) override {
-
+  llvm::Error loadFromDisk(const revng::FilePath &Path) override {
     return llvm::Error::success();
   }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const final {
-
     return llvm::Error::success();
   }
 
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
-
     return llvm::Error::success();
   }
 

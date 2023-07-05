@@ -16,7 +16,9 @@ commands:
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-runtime and for-comparison
-    command: revng translate -i "$INPUT" -o "$OUTPUT"
+    command: |-
+      revng translate -i "$INPUT" -o "$OUTPUT";
+      chmod +x "$OUTPUT"
   - type: revng.translated-run
     from:
       - type: revng.translated
