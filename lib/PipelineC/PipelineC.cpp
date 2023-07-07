@@ -199,38 +199,10 @@ static rp_manager *_rp_manager_create(uint64_t pipeline_flags_count,
                                 true);
 }
 
-static bool _rp_manager_save(rp_manager *manager, const char *path) {
+static bool _rp_manager_save(rp_manager *manager) {
   revng_check(manager != nullptr);
 
-  llvm::StringRef DirPath;
-  if (path != nullptr)
-    DirPath = llvm::StringRef(path);
-
-  auto Error = manager->storeToDisk(DirPath);
-  if (not Error)
-    return true;
-
-  llvm::consumeError(std::move(Error));
-  return false;
-}
-
-static bool _rp_step_save(rp_step *step, const char *path) {
-  revng_check(step != nullptr);
-  revng_check(path != nullptr);
-
-  auto Error = step->storeToDisk(path);
-  if (not Error)
-    return true;
-
-  llvm::consumeError(std::move(Error));
-  return false;
-}
-
-static bool _rp_manager_save_context(rp_manager *manager, const char *path) {
-  revng_check(manager != nullptr);
-  revng_check(path != nullptr);
-
-  auto Error = manager->context().storeToDisk(path);
+  auto Error = manager->storeToDisk();
   if (not Error)
     return true;
 

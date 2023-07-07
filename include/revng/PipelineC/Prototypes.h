@@ -156,17 +156,9 @@ rp_manager_get_container_identifier(const rp_manager *manager, uint64_t index);
 
 /**
  *  Trigger the serialization of the pipeline on disk.
- *  If path is not nullptr, serialize to the specified path otherwise serialize
- *  in the manager's execution directory
  *  \return false if there was an error while saving, true otherwise
  */
-bool rp_manager_save(rp_manager *manager, const char *path);
-
-/**
- * Serialize the pipeline context to the specified directory
- *  \return false if there was an error while saving, true otherwise
- */
-bool rp_manager_save_context(rp_manager *manager, const char *path);
+bool rp_manager_save(rp_manager *manager);
 
 /**
  * \return the number of steps present in the manager.
@@ -527,12 +519,6 @@ const rp_kind *
 rp_analysis_get_argument_acceptable_kind(const rp_analysis *analysis,
                                          uint64_t argument_index,
                                          uint64_t kind_index);
-
-/**
- * Serialize a single pipeline step to the specified directory
- *  \return 0 if a error happened, 1 otherwise.
- */
-bool rp_step_save(rp_step *step, const char *path);
 
 /** \} */
 
