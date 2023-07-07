@@ -55,20 +55,8 @@ class Manager:
     def uid(self) -> int:
         return int(ffi.cast("uintptr_t", self._manager))
 
-    def save(self, destination_directory: Optional[Union[Path, str]] = None):
-        if destination_directory is None:
-            _dir_path = ffi.NULL
-        else:
-            dir_path = Path(destination_directory)
-            if not dir_path.is_dir():
-                dir_path.mkdir()
-            _dir_path = make_c_string(str(dir_path.resolve()))
-        return _api.rp_manager_save(self._manager, _dir_path)
-
-    def save_context(self, destination_directory: Union[Path, str]):
-        dest_dir = Path(destination_directory).resolve()
-        _dest_dir = make_c_string(str(dest_dir))
-        return _api.rp_manager_save_context(self._manager, _dest_dir)
+    def save(self):
+        return _api.rp_manager_save(self._manager)
 
     # Kind-related Functions
 
