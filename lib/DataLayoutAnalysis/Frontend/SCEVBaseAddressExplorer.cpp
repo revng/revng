@@ -34,20 +34,6 @@ static bool isAlwaysAddress(const llvm::Value *V) {
   return false;
 }
 
-// Returns true if \V is a call to a function isolated by revng
-static bool isCallToIsolated(const llvm::Value *V) {
-
-  if (auto *C = dyn_cast_or_null<llvm::CallInst>(V)) {
-    const llvm::Function *Callee = C->getCalledFunction();
-    if (Callee) {
-      auto CTags = FunctionTags::TagsSet::from(Callee);
-      return CTags.contains(FunctionTags::Isolated);
-    }
-  }
-
-  return false;
-}
-
 std::set<const llvm::SCEV *>
 SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
                                    const llvm::SCEV *Root,
@@ -106,7 +92,7 @@ SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
               // So we just treat them if they are never never addresses that
               // point to a type.
               if (isCallToTagged(Call, FunctionTags::OpaqueExtractValue)) {
-                if (not isCallToIsolated(Call->getOperand(0)))
+                if (not isCallToIsolatedFunction(Call->getOperand(0)))
                   AddrSCEV = nullptr;
               } else {
                 // If UVal is a call to a function that was not isolated by
@@ -114,7 +100,7 @@ SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
                 // able to say something meaningful about the type it points to.
                 // So we just treat them if they are never never addresses that
                 // point to a type.
-                if (not isCallToIsolated(Call))
+                if (not isCallToIsolatedFunction(Call))
                   AddrSCEV = nullptr;
               }
             }
