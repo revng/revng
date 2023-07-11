@@ -88,9 +88,13 @@ int main(int argc, char *argv[]) {
   InvalidationMap InvMap;
   for (auto &AnalysesListName : AnalysesLists) {
     if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
-      return EXIT_FAILURE;
+      AbortOnError(createStringError(inconvertibleErrorCode(),
+                                     "No known analyses list named "
+                                       + AnalysesListName));
     }
+  }
 
+  for (auto &AnalysesListName : AnalysesLists) {
     AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
     AbortOnError(Manager.runAnalyses(AL, InvMap));
   }
