@@ -14,5 +14,6 @@ add_mlir_dialect_library(
   DEPENDS
   LINK_LIBS
   PUBLIC
+  MLIRTransforms
   MLIRDialect
   MLIRIR)
