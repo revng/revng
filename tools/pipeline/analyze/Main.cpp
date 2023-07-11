@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
   if (Arguments.size() == 0) {
     for (size_t I = 0; I < Manager.getRunner().getAnalysesListCount(); I++) {
       AnalysesList AL = Manager.getRunner().getAnalysesList(I);
-      dbg << "list-" << AL.getName().str() << "\n";
+      dbg << AL.getName().str() << "\n";
     }
     for (const auto &Step : Manager.getRunner())
       for (const auto &Analysis : Step.analyses())
@@ -121,23 +121,15 @@ int main(int argc, char *argv[]) {
   AbortOnError(InputContainer.loadFromDisk(Arguments[1]));
 
   InvalidationMap InvMap;
-  if (Arguments[0].starts_with("list-")) {
-    std::string AnalysesListName = Arguments[0].substr(5);
-    if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
-      AbortOnError(createStringError(inconvertibleErrorCode(),
-                                     "No known analyses list named %s, invoke "
-                                     "this command without arguments to see "
-                                     "the list of available analysis",
-                                     Arguments[0].c_str()));
-    }
-
-    AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
+  if (Manager.getRunner().hasAnalysesList(Arguments[0])) {
+    AnalysesList AL = Manager.getRunner().getAnalysesList(Arguments[0]);
     AbortOnError(Manager.runAnalyses(AL, InvMap));
   } else {
     auto *Step = getStepOfAnalysis(Manager.getRunner(), Arguments[0]);
     if (not Step) {
       AbortOnError(createStringError(inconvertibleErrorCode(),
-                                     "No known analysis named %s, invoke this "
+                                     "No known analysis named %s, invoke "
+                                     "this "
                                      "command without arguments to see the "
                                      "list of available analysis",
                                      Arguments[0].c_str()));
