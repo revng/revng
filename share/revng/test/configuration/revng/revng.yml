@@ -63,7 +63,7 @@ commands:
   - type: revng.test-daemon
     from:
       - type: revng-qa.compiled
-        filter: example-executable-1
+        filter: example-executable-1 and with-debug-info
     command: |-
       TMP="$$(temp)";
       if ! python3 -m pytest "${SOURCES_ROOT}/share/revng/test/tests/daemon/test.py" --binary "$INPUT" >& "$$TMP"; then
