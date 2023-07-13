@@ -379,7 +379,15 @@ public:
     }
 
     llvm::SmallVector<model::Register::Values, 8> Result;
-    for (auto Register : GeneralPurposeArgumentRegisters())
+
+    const auto &GPRs = GeneralPurposeArgumentRegisters();
+    const model::Register::Values &RVL = ReturnValueLocationRegister();
+    constexpr model::Register::Values Invalid = model::Register::Invalid;
+    bool NoRVLInGPRs = RVL != Invalid && !llvm::is_contained(GPRs, RVL);
+    if (NoRVLInGPRs && Lookup.contains(RVL))
+      Result.emplace_back(RVL);
+
+    for (auto Register : GPRs)
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
     for (auto Register : VectorArgumentRegisters())
