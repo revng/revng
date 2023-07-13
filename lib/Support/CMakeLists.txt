@@ -17,6 +17,7 @@ revng_add_library_internal(
   LDDTree.cpp
   MetaAddress.cpp
   ModuleStatistics.cpp
+  OnQuit.cpp
   OriginalAssemblyAnnotationWriter.cpp
   PathList.cpp
   Progress.cpp

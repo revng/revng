@@ -43,7 +43,7 @@ public:
       std::exit(EXIT_FAILURE);
   }
 
-  ~InitRevng() { OnQuit->dump(); }
+  ~InitRevng() { OnQuit->quit(); }
 };
 
 } // namespace revng

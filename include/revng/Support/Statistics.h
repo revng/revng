@@ -4,47 +4,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <csignal>
-#include <cstdlib>
 #include <map>
 #include <string>
 #include <vector>
 
-#include "llvm/ADT/Twine.h"
-#include "llvm/Support/ManagedStatic.h"
-
 #include "revng/Support/Debug.h"
+#include "revng/Support/OnQuit.h"
 
 const size_t MaxCounterMapDump = 32;
 
 extern llvm::cl::opt<bool> Statistics;
-
-class OnQuitInterface;
-
-class OnQuitRegistry {
-public:
-  void install();
-
-  /// Registers an object for having its onQuit method called upon program
-  /// termination
-  void add(OnQuitInterface *S) { Register.push_back(S); }
-
-  void dump();
-
-private:
-  std::vector<OnQuitInterface *> Register;
-};
-
-extern llvm::ManagedStatic<OnQuitRegistry> OnQuit;
-
-class OnQuitInterface {
-public:
-  OnQuitInterface() { OnQuit->add(this); }
-
-public:
-  virtual void onQuit() = 0;
-  virtual ~OnQuitInterface(){};
-};
 
 template<typename T>
 inline size_t digitsCount(T Value) {
@@ -58,29 +27,25 @@ inline size_t digitsCount(T Value) {
   return Digits;
 }
 
-inline void OnQuitRegistry::dump() {
-  if (Statistics)
-    for (OnQuitInterface *S : Register)
-      S->onQuit();
-}
-
 template<typename K, typename T = uint64_t>
-class CounterMap : public OnQuitInterface {
+class CounterMap {
 private:
   using Container = std::map<K, T>;
   Container Map;
   std::string Name;
 
 public:
-  CounterMap(const llvm::Twine &Name) : Name(Name.str()) {}
-  virtual ~CounterMap() {}
+  CounterMap(const llvm::StringRef Name) : Name(Name.str()) {
+    OnQuit->add([this] {
+      if (Statistics)
+        dump();
+    });
+  }
 
   void push(K Key) { Map[Key]++; }
   void push(K Key, T Value) { Map[Key] += Value; }
   void clear(K Key) { Map.erase(Key); }
   void clear() { Map.clear(); }
-
-  void onQuit() final { dump(); }
 
   template<typename O>
   void dump(size_t Max, O &Output) {
@@ -126,7 +91,7 @@ public:
 ///
 /// If a name is provided, the results will be registered for printing at
 /// program termination.
-class RunningStatistics : public OnQuitInterface {
+class RunningStatistics {
 private:
   std::string Name;
   int N = 0;
@@ -139,9 +104,12 @@ private:
 public:
   RunningStatistics() = default;
 
-  RunningStatistics(const llvm::Twine &Name) : Name(Name.str()) {}
-
-  virtual ~RunningStatistics() {}
+  RunningStatistics(const llvm::StringRef Name) : Name(Name.str()) {
+    OnQuit->add([this] {
+      if (Statistics)
+        dump();
+    });
+  }
 
   void clear() { N = 0; }
 
@@ -178,17 +146,12 @@ public:
 
   template<typename T>
   void dump(T &Output) {
-    if (not Name.empty())
-      Output << Name << ": ";
-    Output << "{ s: " << sum() << " "
+    Output << Name << ": "
+           << "{ s: " << sum() << " "
            << "n: " << size() << " "
            << "u: " << mean() << " "
-           << "o: " << variance() << " }";
+           << "o: " << variance() << " }\n";
   }
 
   void dump() { dump(dbg); }
-  void onQuit() final {
-    dump();
-    dbg << "\n";
-  }
 };
