@@ -88,7 +88,9 @@ int main(int argc, char *argv[]) {
   InvalidationMap InvMap;
   for (auto &AnalysesListName : AnalysesLists) {
     if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
-      return EXIT_FAILURE;
+      AbortOnError(createStringError(inconvertibleErrorCode(),
+                                     "Analysis `%s' not found",
+                                     AnalysesListName.c_str()));
     }
 
     AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
