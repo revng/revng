@@ -386,7 +386,25 @@ public:
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
-    revng_assert(Result.size() == std::size(Registers));
+    if (Result.size() != std::size(Registers)) {
+      std::string Error = "Unable to sort argument registers.\nMost likely "
+                          "some of the present registers are not allowed to be "
+                          "used for arguments under the current ABI ("
+                          + std::string(getName())
+                          + ").\nList of registers to be sorted: ";
+      for (auto Register : Registers) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += "\nSorted list: ";
+      for (auto Register : Result) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += '\n';
+      revng_abort(Error.c_str());
+    }
+
     return Result;
   }
 
@@ -408,7 +426,25 @@ public:
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
-    revng_assert(Result.size() == std::size(Registers));
+    if (Result.size() != std::size(Registers)) {
+      std::string Error = "Unable to sort return value registers.\nMost likely "
+                          "some of the present registers are not allowed to be "
+                          "used for returning values under the current ABI ("
+                          + std::string(getName())
+                          + ").\nList of registers to be sorted: ";
+      for (auto Register : Registers) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += "\nSorted list: ";
+      for (auto Register : Result) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += '\n';
+      revng_abort(Error.c_str());
+    }
+
     return Result;
   }
 
