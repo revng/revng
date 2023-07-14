@@ -7,6 +7,7 @@ ABI: Microsoft_x86_vectorcall
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+NoRegisterArgumentsCanComeAfterStackOnes: true
 UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: true
 
