@@ -35,7 +35,9 @@ ScalarTypes:
   - Size: 2
   - Size: 4
   - Size: 8
+    AlignedAt: 4
 
 FloatingPointScalarTypes:
   - Size: 4
   - Size: 8
+    AlignedAt: 4
