@@ -248,11 +248,6 @@ public:
   using NodeUniquePtr = std::unique_ptr<LayoutTypeSystemNode>;
   using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
-  static dla::LayoutTypeSystem::NodePtr
-  getNodePtr(const dla::LayoutTypeSystem::NodeUniquePtr &P) {
-    return P.get();
-  }
-
   LayoutTypeSystem() : DebugPrinter(new TSDebugPrinter) {}
 
   ~LayoutTypeSystem() {
