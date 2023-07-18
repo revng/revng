@@ -25,6 +25,7 @@
 
 #include "revng/ADT/ReversePostOrderTraversal.h"
 #include "revng/MFP/MFP.h"
+#include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/RestructureCFG/ASTTree.h"
@@ -502,12 +503,14 @@ inline void RegionCFG<NodeT>::untangle() {
     BasicBlockNode<NodeT> *ElseChild = Conditional->getSuccessorI(1);
 
     // Collect all the nodes laying between the branches
-    BasicBlockNodeTSet ThenNodes = findReachableNodes(ThenChild, PostDominator);
-    BasicBlockNodeTSet ElseNodes = findReachableNodes(ElseChild, PostDominator);
+    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4>
+      ThenNodes = nodesBetween(ThenChild, PostDominator);
+    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4>
+      ElseNodes = nodesBetween(ElseChild, PostDominator);
 
     // Remove the postdominator from both the sets.
-    ThenNodes.erase(PostDominator);
-    ElseNodes.erase(PostDominator);
+    ThenNodes.remove(PostDominator);
+    ElseNodes.remove(PostDominator);
 
     const auto EdgeDominates = [DT = &DT](const EdgeDescriptor &E,
                                           BasicBlockNodeT *N) {
@@ -540,14 +543,14 @@ inline void RegionCFG<NodeT>::untangle() {
       const auto DominatedByElse = [DT = &DT, ElseChild](auto *Node) {
         return DT->dominates(ElseChild, Node);
       };
-      std::erase_if(ElseNodes, DominatedByElse);
+      ElseNodes.remove_if(DominatedByElse);
     }
 
     if (EdgeDominates({ Conditional, ThenChild }, ThenChild)) {
       const auto DominatedByThen = [DT = &DT, ThenChild](auto *Node) {
         return DT->dominates(ThenChild, Node);
       };
-      std::erase_if(ThenNodes, DominatedByThen);
+      ThenNodes.remove_if(DominatedByThen);
     }
 
     // Compute the weight of the `then` and `else` branches.
@@ -571,8 +574,8 @@ inline void RegionCFG<NodeT>::untangle() {
     // this weight.
     unsigned PostDominatorWeight = 0;
     if (PostDominator != nullptr) {
-      BasicBlockNodeTSet PostDominatorToExit = findReachableNodes(PostDominator,
-                                                                  Sink);
+      llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4>
+        PostDominatorToExit = nodesBetween(PostDominator, Sink);
       for (BasicBlockNode<NodeT> *Node : PostDominatorToExit) {
         PostDominatorWeight += WeightMap[Node];
       }
