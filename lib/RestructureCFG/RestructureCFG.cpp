@@ -19,6 +19,7 @@
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/RestructureCFG/ASTTree.h"
@@ -53,69 +54,6 @@ using MetaRegionBBVect = std::vector<MetaRegionBB>;
 using MetaRegionBBPtrVect = std::vector<MetaRegionBB *>;
 using BackedgeMetaRegionMap = std::map<EdgeDescriptor, MetaRegionBB *>;
 
-static std::set<EdgeDescriptor>
-getBackedges(BasicBlockNodeBB *Entry,
-             std::function<bool(BasicBlockNodeBB *)> IsValid) {
-
-  // Set of backedges.
-  std::set<EdgeDescriptor> Backedges;
-
-  // Some helper data structures.
-  llvm::SmallPtrSet<const BasicBlockNodeBB *, 8> Done;
-  llvm::SmallPtrSet<const BasicBlockNodeBB *, 8> OnStack;
-  llvm::SmallVector<std::pair<BasicBlockNodeBB *, size_t>> Stack;
-
-  // Push the entry node in the exploration stack.
-  Stack.push_back(std::make_pair(Entry, 0));
-  OnStack.insert(Entry);
-
-  // Go through the exploration stack.
-  while (not Stack.empty()) {
-    auto &StackElem = Stack.back();
-    auto &[Vertex, NextSuccessorToVisit] = StackElem;
-    revng_assert(IsValid(Vertex));
-
-    if (NextSuccessorToVisit < Vertex->successor_size()) {
-      // We haven't finished visiting the children of Vertex yet.
-      // Look at the next Successor
-      BasicBlockNodeBB *Successor = Vertex->getSuccessorI(NextSuccessorToVisit);
-
-      // Increment the successor count, so at next iteration we see the next
-      // pending successor of Vertex.
-      ++NextSuccessorToVisit;
-
-      // If the current Successor is not valid, or it's already done, skip it.
-      if (not IsValid(Successor) or Done.contains(Successor))
-        continue;
-
-      // Here the Successor is valid. Try to push it on the stack.
-      if (bool New = OnStack.insert(Successor).second) {
-        // If the Successor wasn't already on the stack, we can push it.
-        Stack.push_back(std::make_pair(Successor, 0));
-      } else {
-        // Otherwise, the Successor was already on the stack, and we detect a
-        // backedge.
-        Backedges.insert(std::make_pair(Vertex, Successor));
-      }
-    } else {
-      // We've finished looking at Vertex's children. We can pop Vertex from the
-      // stack.
-      bool Erased = OnStack.erase(Vertex);
-      revng_assert(Erased);
-      bool New = Done.insert(Vertex).second;
-      revng_assert(New);
-      Stack.pop_back();
-    }
-  }
-
-  return Backedges;
-}
-
-static std::set<EdgeDescriptor> getBackedges(RegionCFG<BasicBlock *> &Graph) {
-  return getBackedges(&Graph.getEntryNode(),
-                      [](const BasicBlockNodeBB *) { return true; });
-}
-
 static bool mergeSCSStep(MetaRegionBBVect &MetaRegions) {
   for (auto RegionIt1 = MetaRegions.begin(); RegionIt1 != MetaRegions.end();
        RegionIt1++) {
@@ -146,7 +84,7 @@ static void simplifySCS(MetaRegionBBVect &MetaRegions) {
 
 static bool
 mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
-                           const std::set<EdgeDescriptor> &Backedges,
+                           const llvm::SmallDenseSet<EdgeDescriptor> &Backedges,
                            BackedgeMetaRegionMap &BackedgeMetaRegionMap,
                            std::set<MetaRegionBB *> &BlacklistedMetaregions) {
   for (auto RegionIt = MetaRegions.begin(); RegionIt != MetaRegions.end();
@@ -188,7 +126,8 @@ mergeSCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
 
 static void
 simplifySCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
-                              const std::set<EdgeDescriptor> &Backedges) {
+                              const llvm::SmallDenseSet<EdgeDescriptor>
+                                &Backedges) {
 
   // Temporary map where to store the correspondence between the backedge and
   // the SCS it gives origin to.
@@ -227,9 +166,9 @@ static void sortMetaRegions(MetaRegionBBVect &MetaRegions) {
             });
 }
 
-static bool
-checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
-                           const std::set<EdgeDescriptor> &Backedges) {
+static bool checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
+                                       const llvm::SmallDenseSet<EdgeDescriptor>
+                                         &Backedges) {
   bool ComparisonState = true;
   for (const MetaRegionBB &MetaRegion : MetaRegions) {
     for (EdgeDescriptor Backedge : Backedges) {
@@ -324,7 +263,7 @@ static bool alreadyInMetaregion(MetaRegionBBVect &V, BasicBlockNodeBB *N) {
 }
 
 static MetaRegionBBVect
-createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
+createMetaRegions(const llvm::SmallDenseSet<EdgeDescriptor> &Backedges) {
   std::map<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>> AdditionalSCSNodes;
   std::vector<std::pair<BasicBlockNodeBB *, std::set<BasicBlockNodeBB *>>>
     Regions;
@@ -476,7 +415,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   }
 
   // Identify SCS regions.
-  std::set<EdgeDescriptor> Backedges = getBackedges(RootCFG);
+  llvm::SmallDenseSet<EdgeDescriptor>
+    Backedges = getBackedges(&RootCFG.getEntryNode()).takeSet();
   if (CombLogger.isEnabled()) {
     CombLogger << "Backedges in the graph:\n";
     for (auto &Backedge : Backedges) {
@@ -492,7 +432,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     moveEdgeTarget(Backedge, Dummy);
     addPlainEdge(EdgeDescriptor(Dummy, OriginalTarget));
   }
-  Backedges = getBackedges(RootCFG);
+  Backedges.clear();
+  Backedges = getBackedges(&RootCFG.getEntryNode()).takeSet();
 
   // Check that the source node of each retreating edge is a dummy node.
   for (EdgeDescriptor Backedge : Backedges)
@@ -653,10 +594,16 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     // Compute the retreating edges and their targets inside the region,
     // starting from the new Entry.
-    std::set<EdgeDescriptor>
-      Retreatings = getBackedges(Entry, [Meta](BasicBlockNodeBB *Node) {
-        return Meta->containsNode(Node);
-      });
+    // Collect the nodes in the metaregion, so we can use the
+    // `getBackedgesWhitelist` helper to collect the retreating contained in the
+    // current metaregion.
+    llvm::SmallSet<BasicBlockNodeBB *, 4> MetaNodes;
+    for (BasicBlockNodeBB *Node : Meta->nodes()) {
+      MetaNodes.insert(Node);
+    }
+
+    llvm::SmallDenseSet<EdgeDescriptor>
+      Retreatings = getBackedgesWhiteList(Entry, MetaNodes).takeSet();
     std::set<BasicBlockNodeBB *> RetreatingTargets;
     for (const EdgeDescriptor &Retreating : Retreatings) {
       revng_log(CombLogger,
@@ -1003,20 +950,23 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       // region pointed to a node that now has been collapsed, now should point
       // to the collapsed node, and that does not exists at this point a
       // backedge which has as source a node that will be collapsed.
-      std::set<EdgeDescriptor> NewBackedges;
-      auto BackEdgeIt = Backedges.begin();
-      while (BackEdgeIt != Backedges.end()) {
-        const auto [Source, Target] = *BackEdgeIt;
-        revng_assert(not Meta->containsNode(Source));
-        if (Meta->containsNode(Target)) {
-          revng_assert(Target == Head);
-          NewBackedges.insert({ Source, Collapsed });
-          BackEdgeIt = Backedges.erase(BackEdgeIt);
-        } else {
-          ++BackEdgeIt;
+      // We cannot do it in a single iteration because `llvm::SmallDenseSet`
+      // invalidates the iterators upon an erase and insertion operation.
+      bool Changed = true;
+      while (Changed) {
+        Changed = false;
+        for (const auto &Backedge : Backedges) {
+          const auto [Source, Target] = Backedge;
+          revng_assert(not Meta->containsNode(Source));
+          if (Meta->containsNode(Target)) {
+            revng_assert(Target == Head);
+            Backedges.erase(Backedge);
+            Backedges.insert({ Source, Collapsed });
+            Changed = true;
+            break;
+          }
         }
       }
-      Backedges.merge(NewBackedges);
     }
 
     // Creation and connection of the break and continue node is now performed
