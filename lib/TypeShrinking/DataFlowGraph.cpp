@@ -38,3 +38,21 @@ GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F) {
 }
 
 } // namespace TypeShrinking
+
+using TSDOTGraphTraits = DOTGraphTraits<const TypeShrinking::DataFlowGraph *>;
+
+std::string
+TSDOTGraphTraits::getNodeLabel(const TypeShrinking::DataFlowNode *Node,
+                               const TypeShrinking::DataFlowGraph *Graph) {
+  std::string Buffer;
+  {
+    llvm::raw_string_ostream Stream(Buffer);
+    Node->Instruction->print(Stream);
+  }
+  return Buffer;
+}
+
+std::string
+TSDOTGraphTraits::getGraphProperties(const TypeShrinking::DataFlowGraph *) {
+  return "  node [shape=box];\n  rankdir = BT;\n";
+}

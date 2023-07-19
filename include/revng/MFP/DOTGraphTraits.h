@@ -14,17 +14,17 @@ class Instruction;
 }
 
 template<MFP::MonotoneFrameworkInstance MFI>
-struct llvm::DOTGraphTraits<MFP::Graph<MFI> *>
-  : public llvm::DefaultDOTGraphTraits {
+struct llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {
 
   static_assert(MFP::SerializableLatticeElement<typename MFI::LatticeElement>);
 
-  using GraphType = MFP::Graph<MFI> *;
+  using GraphType = const MFP::Graph<MFI> *;
   using UnderlyingGraphType = MFI::GraphType;
   using UnderlyingDOTGraphTraits = llvm::DOTGraphTraits<UnderlyingGraphType>;
   using NodeRef = llvm::GraphTraits<GraphType>::NodeRef;
 
-  DOTGraphTraits(bool IsSimple = false) : DefaultDOTGraphTraits(IsSimple) {}
+  DOTGraphTraits() = default;
+  DOTGraphTraits(bool IsSimple) {}
 
   static std::string getGraphName(const GraphType &G) {
     return UnderlyingDOTGraphTraits::getGraphName(G->underlying());
@@ -139,3 +139,7 @@ struct llvm::DOTGraphTraits<MFP::Graph<MFI> *>
     UnderlyingDOTGraphTraits::addCustomGraphFeatures(G->underlying(), Writer);
   }
 };
+
+template<MFP::MonotoneFrameworkInstance MFI>
+struct llvm::DOTGraphTraits<MFP::Graph<MFI> *>
+  : llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {};

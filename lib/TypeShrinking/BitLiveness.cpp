@@ -20,6 +20,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/MFP/Graph.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/Assert.h"
 #include "revng/TypeShrinking/BitLiveness.h"
@@ -269,3 +270,10 @@ bool BitLivenessWrapperPass::runOnFunction(llvm::Function &F) {
 }
 
 } // namespace TypeShrinking
+
+template<>
+void MFP::dump(llvm::raw_ostream &Stream,
+               unsigned Indent,
+               const unsigned &Value) {
+  Stream << Value;
+}
