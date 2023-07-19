@@ -76,7 +76,6 @@ public:
 class DataFlowGraph : public GenericGraph<BidirectionalNode<DataFlowNode>> {
 public:
   using Node = BidirectionalNode<DataFlowNode>;
-  using Base = GenericGraph<Node>;
 
   class Limits {
   public:
@@ -151,20 +150,20 @@ public:
 };
 
 template<>
-struct llvm::DOTGraphTraits<const DataFlowGraph::Base *>
+struct llvm::DOTGraphTraits<const DataFlowGraph *>
   : public llvm::DefaultDOTGraphTraits {
 
   DOTGraphTraits(bool IsSimple = false) : DefaultDOTGraphTraits(IsSimple) {}
 
-  static std::string getGraphProperties(const DataFlowGraph::Base *);
+  static std::string getGraphProperties(const DataFlowGraph *);
 
   static std::string getNodeLabel(const DataFlowGraph::Node *Node,
-                                  const DataFlowGraph::Base *Graph);
+                                  const DataFlowGraph *Graph);
 
   static std::string getNodeAttributes(const DataFlowGraph::Node *Node,
-                                       const DataFlowGraph::Base *Graph);
+                                       const DataFlowGraph *Graph);
 };
 
 template<>
-struct llvm::DOTGraphTraits<DataFlowGraph::Base *>
-  : public llvm::DOTGraphTraits<const DataFlowGraph::Base *> {};
+struct llvm::DOTGraphTraits<DataFlowGraph *>
+  : public llvm::DOTGraphTraits<const DataFlowGraph *> {};

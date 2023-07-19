@@ -29,7 +29,6 @@ class ControlFlowEdgesGraph
   : public GenericGraph<ForwardNode<ControlFlowEdgesNode>> {
 public:
   using Node = ForwardNode<ControlFlowEdgesNode>;
-  using Base = GenericGraph<Node>;
   using InstructionSet = llvm::SmallPtrSet<llvm::Instruction *, 8>;
 
 private:
