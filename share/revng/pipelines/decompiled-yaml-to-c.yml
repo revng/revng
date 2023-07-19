@@ -12,7 +12,7 @@ Branches:
       - Name: DecompiledYAMLToC
         Pipes:
           - Type: DecompiledYAMLToC
-            UsedContainers: [decompiled.yml, decompiled.c]
+            UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c
           Kind: DecompiledToC

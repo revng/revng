@@ -4,7 +4,7 @@
 
 Component: revng-c
 Containers:
-  - Name: decompiled.yml
+  - Name: decompiled.tar.gz
     Type: DecompiledCCodeInYAML
 Branches:
   - From: IRCanonicalization
@@ -16,8 +16,8 @@ Branches:
           - Type: ModelToHeader
             UsedContainers: [input, model_header.h]
           - Type: CDecompilation
-            UsedContainers: [module.ll, decompiled.yml]
+            UsedContainers: [module.ll, decompiled.tar.gz]
         Artifacts:
-          Container: decompiled.yml
+          Container: decompiled.tar.gz
           Kind: DecompiledToYAML
           SingleTargetFilename: decompiled.c

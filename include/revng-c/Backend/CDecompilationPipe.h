@@ -22,10 +22,12 @@ namespace revng::pipes {
 
 inline constexpr char DecompiledCCodeInYAMLMime[] = "text/x.c+ptml+yaml";
 inline constexpr char DecompiledCCodeInYAMLName[] = "DecompiledCCodeInYAML";
+inline constexpr char DecompiledCCodeInYAMLExtension[] = ".c.ptml";
 using DecompiledCCodeInYAMLStringMap = FunctionStringMap<
   &kinds::DecompiledToYAML,
   DecompiledCCodeInYAMLName,
-  DecompiledCCodeInYAMLMime>;
+  DecompiledCCodeInYAMLMime,
+  DecompiledCCodeInYAMLExtension>;
 
 class CDecompilation {
 public:
