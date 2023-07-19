@@ -177,7 +177,7 @@ public:
   // This method should never be called, but it's necessary to be able to use
   // some llvm::GraphTraits algorithms, otherwise they wouldn't compile.
   LayoutTypeSystem *getParent() {
-    revng_unreachable();
+    revng_abort();
     return nullptr;
   }
 
