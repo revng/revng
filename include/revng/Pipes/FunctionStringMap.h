@@ -17,29 +17,61 @@
 #include "revng/Pipes/FunctionKind.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Support/GzipTarFile.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
-/// Wrapper for std::string that allows YAML-serialization as multiline string
-struct MultiLineString {
-  std::string Value;
+namespace detail {
 
-  MultiLineString() : Value() {}
-  MultiLineString(const std::string &NewValue) : Value(NewValue) {}
-  MultiLineString(std::string &&NewValue) : Value(std::move(NewValue)) {}
+struct DataOffset {
+  size_t Start;
+  size_t End;
 };
+
+using OffsetMap = std::map<MetaAddress, DataOffset>;
+
+} // namespace detail
+
+namespace llvm::yaml {
+
+template<>
+struct MappingTraits<::detail::DataOffset> {
+  static void mapping(IO &IO, ::detail::DataOffset &Value) {
+    IO.mapRequired("Start", Value.Start);
+    IO.mapRequired("End", Value.End);
+  }
+};
+
+template<>
+struct CustomMappingTraits<::detail::OffsetMap> {
+  static void
+  inputOne(IO &IO, llvm::StringRef Key, ::detail::OffsetMap &Value) {
+    MetaAddress Address = MetaAddress::fromString(Key);
+    IO.mapRequired(Key.str().c_str(), Value[Address]);
+  }
+
+  static void output(IO &IO, ::detail::OffsetMap &Value) {
+    for (auto &[MetaAddr, Offset] : Value) {
+      IO.mapRequired(MetaAddr.toString().c_str(), Offset);
+    }
+  }
+};
+
+} // namespace llvm::yaml
 
 namespace revng::pipes {
 
 template<kinds::FunctionKind *K,
          const char *TypeName,
-         const char *MIMETypeParam>
+         const char *MIMETypeParam,
+         const char *ArchiveSuffix>
 class FunctionStringMap
-  : public pipeline::Container<FunctionStringMap<K, TypeName, MIMETypeParam>> {
+  : public pipeline::Container<
+      FunctionStringMap<K, TypeName, MIMETypeParam, ArchiveSuffix>> {
 public:
-  using MapType = typename std::map<MetaAddress, MultiLineString>;
+  using MapType = typename std::map<MetaAddress, std::string>;
   using ValueType = typename MapType::value_type;
   using Iterator = typename MapType::iterator;
   using ConstIterator = typename MapType::const_iterator;
@@ -48,6 +80,7 @@ public:
   inline static const char *Name = TypeName;
 
 private:
+  using OffsetMap = ::detail::OffsetMap;
   MapType Map;
   const TupleTree<model::Binary> *Model;
 
@@ -130,9 +163,60 @@ public:
     return Changed;
   }
 
-  llvm::Error serialize(llvm::raw_ostream &OS) const override;
+  llvm::Error serialize(llvm::raw_ostream &OS) const override {
+    serializeWithOffsets(OS);
+    return llvm::Error::success();
+  }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
+    GzipTarReader Reader(Buffer);
+    deserializeImpl(Reader);
+    return llvm::Error::success();
+  }
+
+  llvm::Error storeToDisk(const revng::FilePath &Path) const override {
+    auto MaybeWritableFile = Path.getWritableFile(ContentEncoding::Gzip);
+    if (not MaybeWritableFile)
+      return MaybeWritableFile.takeError();
+
+    OffsetMap Offsets = serializeWithOffsets(MaybeWritableFile.get()->os());
+
+    if (auto Error = MaybeWritableFile.get()->commit(); Error)
+      return Error;
+
+    revng::FilePath IndexPath = Path.addExtension("idx");
+    auto MaybeWritableIndexFile = IndexPath.getWritableFile();
+    if (!!MaybeWritableIndexFile) {
+      llvm::yaml::Output IndexOutput(MaybeWritableIndexFile.get()->os());
+      IndexOutput << Offsets;
+
+      if (auto Error = MaybeWritableIndexFile.get()->commit(); Error)
+        return Error;
+    } else {
+      llvm::consumeError(MaybeWritableIndexFile.takeError());
+    }
+
+    return llvm::Error::success();
+  }
+
+  llvm::Error loadFromDisk(const revng::FilePath &Path) override {
+    auto MaybeExists = Path.exists();
+    if (not MaybeExists)
+      return MaybeExists.takeError();
+
+    if (not MaybeExists.get()) {
+      clear();
+      return llvm::Error::success();
+    }
+
+    auto MaybeBuffer = Path.getReadableFile();
+    if (not MaybeBuffer)
+      return MaybeBuffer.takeError();
+
+    GzipTarReader Reader(MaybeBuffer.get()->buffer());
+    deserializeImpl(Reader);
+    return llvm::Error::success();
+  }
 
   static std::vector<pipeline::Kind *> possibleKinds() { return { K }; }
 
@@ -149,20 +233,20 @@ protected:
 public:
   /// std::map-like methods
 
-  std::string &operator[](MetaAddress M) { return Map[M].Value; };
+  std::string &operator[](MetaAddress M) { return Map[M]; };
 
-  std::string &at(MetaAddress M) { return Map.at(M).Value; };
-  const std::string &at(MetaAddress M) const { return Map.at(M).Value; };
+  std::string &at(MetaAddress M) { return Map.at(M); };
+  const std::string &at(MetaAddress M) const { return Map.at(M); };
 
 private:
   using IteratedValue = std::pair<const MetaAddress &, std::string &>;
   inline constexpr static auto mapIt = [](auto &Iterated) -> IteratedValue {
-    return { Iterated.first, Iterated.second.Value };
+    return { Iterated.first, Iterated.second };
   };
 
   using IteratedCValue = std::pair<const MetaAddress &, const std::string &>;
   inline constexpr static auto mapCIt = [](auto &Iterated) -> IteratedCValue {
-    return { Iterated.first, Iterated.second.Value };
+    return { Iterated.first, Iterated.second };
   };
 
 public:
@@ -199,68 +283,32 @@ public:
   auto begin() const { return revng::map_iterator(Map.begin(), this->mapCIt); }
   auto end() const { return revng::map_iterator(Map.end(), this->mapCIt); }
 
+private:
+  void deserializeImpl(GzipTarReader &Reader) {
+    for (ArchiveEntry &Entry : Reader.entries()) {
+      llvm::StringRef Name = Entry.Filename;
+      revng_assert(Name.consume_back(ArchiveSuffix));
+      MetaAddress Address = MetaAddress::fromString(Name);
+      std::string Data = std::string(Entry.Data.data(), Entry.Data.size());
+      Map[Address] = Data;
+    }
+  }
+
+  OffsetMap serializeWithOffsets(llvm::raw_ostream &OS) const {
+    OffsetMap Result;
+    revng::GzipTarWriter Writer(OS);
+    for (auto &[MetaAddr, Data] : Map) {
+      std::string Name = MetaAddr.toString() + ArchiveSuffix;
+      OffsetDescriptor Offsets = Writer.append(Name,
+                                               { Data.data(), Data.size() });
+      Result[MetaAddr] = { .Start = Offsets.DataStart,
+                           .End = Offsets.PaddingStart - 1 };
+    }
+    Writer.close();
+
+    return Result;
+  }
 }; // end class FunctionStringMap
-
-} // namespace revng::pipes
-
-namespace llvm {
-namespace yaml {
-
-template<>
-struct BlockScalarTraits<MultiLineString> {
-  inline static void
-  output(const MultiLineString &String, void *, llvm::raw_ostream &OS) {
-    OS << String.Value;
-  }
-
-  inline static StringRef
-  input(StringRef Scalar, void *, MultiLineString &String) {
-    String.Value = Scalar.str();
-    return StringRef();
-  }
-};
-
-template<>
-struct CustomMappingTraits<std::map<MetaAddress, MultiLineString>> {
-
-  inline static void
-  inputOne(IO &IO, StringRef Key, std::map<MetaAddress, MultiLineString> &M) {
-    IO.mapRequired(Key.str().c_str(), M[MetaAddress::fromString(Key)]);
-  }
-
-  inline static void output(IO &IO, std::map<MetaAddress, MultiLineString> &M) {
-    for (auto &[MetaAddr, String] : M)
-      IO.mapRequired(MetaAddr.toString().c_str(), String);
-  }
-};
-
-} // end namespace yaml
-} // end namespace llvm
-
-namespace revng::pipes {
-
-template<kinds::FunctionKind *K, const char *Name, const char *MIMEType>
-llvm::Error
-FunctionStringMap<K, Name, MIMEType>::serialize(llvm::raw_ostream &OS) const {
-  ::serialize(OS, Map);
-  return llvm::Error::success();
-}
-
-template<kinds::FunctionKind *K, const char *Name, const char *MIME>
-llvm::Error
-FunctionStringMap<K, Name, MIME>::deserialize(const llvm::MemoryBuffer &Buf) {
-
-  llvm::yaml::Input YAMLInput(Buf);
-  YAMLInput >> Map;
-
-  if (YAMLInput.error()) {
-    this->Map.clear();
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   YAMLInput.error().message());
-  }
-
-  return llvm::Error::success();
-}
 
 template<typename ToRegister>
 class RegisterFunctionStringMap : public pipeline::Registry {
