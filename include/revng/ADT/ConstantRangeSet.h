@@ -196,6 +196,42 @@ public:
     return Size;
   }
 
+public:
+  void zext(uint32_t NewSize) {
+    revng_assert(NewSize >= BitWidth);
+    changeSize(NewSize, false);
+  }
+
+  void zextOrTrunc(uint32_t NewSize) { changeSize(NewSize, false); }
+
+  void sext(uint32_t NewSize) {
+    revng_assert(NewSize >= BitWidth);
+    changeSize(NewSize, true);
+  }
+
+  void sextOrTrunc(uint32_t NewSize) { changeSize(NewSize, true); }
+
+  void changeSize(uint32_t NewSize, bool SignExtend) {
+    uint32_t OldSize = BitWidth;
+    if (NewSize == OldSize) {
+      return;
+    } else if (NewSize > OldSize) {
+      for (llvm::APInt &Bound : Bounds) {
+        if (SignExtend)
+          Bound = Bound.sext(NewSize);
+        else
+          Bound = Bound.zext(NewSize);
+      }
+    } else {
+      revng_assert(NewSize < OldSize);
+      for (llvm::APInt &Bound : Bounds)
+        Bound = Bound.trunc(NewSize);
+    }
+
+    BitWidth = NewSize;
+  }
+
+public:
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>
