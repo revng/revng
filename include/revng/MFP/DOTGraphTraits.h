@@ -49,7 +49,8 @@ struct llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {
   std::string getNodeLabel(const NodeRef &Arg, const GraphType &G) {
     std::string Result;
 
-    std::string Newline = renderNodesUsingHTML() ? HTMLNewline : "\\l";
+    bool UseHTML = renderNodesUsingHTML();
+    std::string Newline = UseHTML ? HTMLNewline : "\\l";
 
     {
       llvm::raw_string_ostream Stream(Result);
@@ -74,11 +75,14 @@ struct llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {
       };
 
       // Dump initial value
-      Stream << "<FONT FACE=\"monospace\">";
+      if (UseHTML)
+        Stream << "<FONT FACE=\"monospace\">";
       Stream << Dump(AnalysisResult.InValue, "Initial");
       Stream << Newline;
       Stream << Dump(AnalysisResult.OutValue, "Final");
-      Stream << "</FONT>";
+      Stream << Newline;
+      if (UseHTML)
+        Stream << "</FONT>";
     }
 
     return Result;
