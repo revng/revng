@@ -171,6 +171,8 @@ struct LayoutTypeSystemNode {
   NeighborsSet Predecessors{};
   uint64_t Size{};
   InterferingChildrenInfo InterferingInfo{ Unknown };
+  bool NonScalar{ false };
+
   LayoutTypeSystemNode(uint64_t I) : ID(I) {}
 
 public:

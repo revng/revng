@@ -132,6 +132,8 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
       revng_unreachable();
     }
 
+    DotFile << " NonScalar: " << L->NonScalar;
+
     if (CollapsedNodePrinter.isEnabled() or ShowCollapsed)
       DebugPrinter->printNodeContent(*this, L, DotFile);
 
@@ -290,12 +292,23 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
     revng_assert(From != Into);
     revng_log(MergeLog, "Merging: " << From->ID << " Into: " << Into->ID);
 
+    Into->InterferingInfo = Unknown;
+    if (Into->NonScalar or From->NonScalar) {
+      revng_assert(not(Into->NonScalar and From->NonScalar)
+                   or Into->Size == From->Size);
+      auto *NonScalar = Into->NonScalar ? Into : From;
+      auto *Other = Into->NonScalar ? From : Into;
+      revng_assert(Other->Size <= NonScalar->Size);
+      Into->Size = NonScalar->Size;
+    } else {
+      revng_assert(not Into->Size or From->Size <= Into->Size);
+      Into->Size = std::max(Into->Size, From->Size);
+    }
+    Into->NonScalar |= From->NonScalar;
+
     EqClasses.join(IntoID, From->ID);
 
     fixPredSucc(From, Into);
-    Into->InterferingInfo = Unknown;
-    revng_assert(not Into->Size or From->Size <= Into->Size);
-    Into->Size = std::max(Into->Size, From->Size);
 
     // Remove From from Layouts
     bool Erased = Layouts.erase(From);
