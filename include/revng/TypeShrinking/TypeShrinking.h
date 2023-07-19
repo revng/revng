@@ -8,6 +8,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 #include "llvm/Transforms/Scalar.h"
 
 namespace TypeShrinking {
