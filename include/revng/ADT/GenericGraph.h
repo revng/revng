@@ -1299,6 +1299,13 @@ public:
   GenericGraph &operator=(const GenericGraph &) = delete;
   GenericGraph &operator=(GenericGraph &&) = default;
 
+  bool verify() const debug_function {
+    for (const std::unique_ptr<NodeT> &Node : Nodes)
+      if (Node.get() == nullptr)
+        return false;
+    return true;
+  }
+
 public:
   static NodeT *getNode(std::unique_ptr<NodeT> &E) { return E.get(); }
   static const NodeT *getConstNode(const std::unique_ptr<NodeT> &E) {

@@ -242,6 +242,7 @@ uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
 BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
                                              llvm::FunctionAnalysisManager &) {
   GenericGraph<DataFlowNode> DataFlowGraph = buildDataFlowGraph(F);
+
   std::vector<DataFlowNode *> ExtremalLabels;
   for (DataFlowNode *Node : DataFlowGraph.nodes()) {
     if (isDataFlowSink(Node->Instruction)) {

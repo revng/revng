@@ -14,7 +14,8 @@ using namespace llvm;
 
 namespace TypeShrinking {
 GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F) {
-  GenericGraph<DataFlowNode> DataFlowGraph{};
+  GenericGraph<DataFlowNode> DataFlowGraph;
+
   std::vector<DataFlowNode *> Worklist;
   std::unordered_map<Instruction *, DataFlowNode *> InstructionNodeMap;
   // Initialization
@@ -32,6 +33,7 @@ GenericGraph<DataFlowNode> buildDataFlowGraph(Function &F) {
       UseNode->addSuccessor(DefNode);
     }
   }
+
   return DataFlowGraph;
 }
 
