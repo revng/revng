@@ -32,13 +32,19 @@ private:
   const llvm::DominatorTree &DT;
   llvm::Instruction *Context;
   llvm::SmallPtrSetImpl<llvm::Instruction *> &Instructions;
+  bool ZeroExtendConstraints = false;
 
 public:
   AdvancedValueInfoMFI(llvm::LazyValueInfo &LVI,
                        const llvm::DominatorTree &DT,
                        llvm::Instruction *Context,
-                       InstructionsSet &Instructions) :
-    LVI(LVI), DT(DT), Context(Context), Instructions(Instructions) {}
+                       InstructionsSet &Instructions,
+                       bool ZeroExtendConstraints) :
+    LVI(LVI),
+    DT(DT),
+    Context(Context),
+    Instructions(Instructions),
+    ZeroExtendConstraints(ZeroExtendConstraints) {}
 
 public:
   LatticeElement combineValues(const LatticeElement &LHS,
@@ -64,7 +70,8 @@ std::tuple<std::map<llvm::Instruction *, ConstantRangeSet>,
 runAVI(const DataFlowGraph &DFG,
        llvm::Instruction *Context,
        const llvm::DominatorTree &DT,
-       llvm::LazyValueInfo &LVI);
+       llvm::LazyValueInfo &LVI,
+       bool ZeroExtendConstraints);
 
 template<>
 void MFP::dump(llvm::raw_ostream &Stream,
