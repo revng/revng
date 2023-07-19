@@ -90,7 +90,7 @@ public:
     for (BasicBlock &BB : F)
       for (Instruction &I : BB)
         I.setMetadata("range", nullptr);
-    return PreservedAnalyses::none();
+    return PreservedAnalyses::all();
   }
 };
 
