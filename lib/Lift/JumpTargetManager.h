@@ -286,6 +286,22 @@ public:
         return true;
       }
     }
+
+    return false;
+  }
+
+  bool isMapped(MetaAddress Start, MetaAddress End) const {
+    revng_assert(Start.isValid() and End.isValid());
+
+    for (const model::Segment &Segment : Model->Segments()) {
+      if (Segment.StartAddress().addressLowerThanOrEqual(Start)
+          and Start.addressLowerThan(Segment.endAddress())
+          and Segment.StartAddress().addressLowerThanOrEqual(End)
+          and End.addressLowerThan(Segment.endAddress())) {
+        return true;
+      }
+    }
+
     return false;
   }
 
@@ -512,7 +528,7 @@ public:
     }
   }
 
-  void registerReadRange(MetaAddress Address, uint64_t Size);
+  void registerReadRange(MetaAddress StartAddress, MetaAddress EndAddress);
 
   const interval_set &readRange() const { return ReadIntervalSet; }
 
