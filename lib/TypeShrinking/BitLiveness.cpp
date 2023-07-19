@@ -257,8 +257,14 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
                                                                Top,
                                                                ExtremalLabels);
   BitLivenessPass::Result Result;
-  for (auto &[Label, MFPResult] : MFPRes)
-    Result[Label->Instruction] = MFPResult.OutValue;
+  for (auto &[Label, MFPResult] : MFPRes) {
+    auto &Entry = Result[Label->Instruction];
+    Entry.Result = MFPResult.InValue;
+    Entry.Operands = MFPResult.OutValue;
+  }
+
+  revng_assert(DataFlowGraph.verify());
+  MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, MFPRes);
 
   return Result;
 }

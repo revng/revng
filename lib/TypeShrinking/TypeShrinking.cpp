@@ -50,16 +50,28 @@ void TypeShrinkingWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<BitLivenessWrapperPass>();
 }
 
-/// Returns true if each bit B of the result of Ins depends only on
-/// the bits of the operands with an index lower than B
-static bool isAddLike(const Instruction *Ins) {
+/// Returns true if each bit B of the result of Ins depends only on the bits of
+/// the operands with an index lower than B
+static bool isBitwise(const Instruction *Ins) {
   switch (Ins->getOpcode()) {
   case llvm::Instruction::And:
   case llvm::Instruction::Xor:
   case llvm::Instruction::Or:
+    return true;
+  }
+  return false;
+}
+
+/// Returns true if each bit B of the result of Ins depends only on the bits of
+/// the operands with an index lower than B
+static bool isAddLike(const Instruction *Ins) {
+  switch (Ins->getOpcode()) {
   case llvm::Instruction::Add:
   case llvm::Instruction::Sub:
   case llvm::Instruction::Mul:
+  case llvm::Instruction::Shl:
+  case llvm::Instruction::Select:
+  case llvm::Instruction::PHI:
     return true;
   }
   return false;
@@ -69,51 +81,74 @@ static bool runTypeShrinking(Function &F,
                              const BitLivenessAnalysisResults &FixedPoints) {
   bool HasChanges = false;
 
+  IRBuilder<> B(F.getParent()->getContext());
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
-  for (auto &[Ins, Result] : FixedPoints) {
+  for (auto &[I, Result] : FixedPoints) {
     // Find the closest rank that contains all the alive bits.
     // If there is a known rank and this is an instruction that behaves like add
     // (the least significant bits of the result depend only on the least
     // significant bits of the operands) we can down cast the operands and then
     // upcast the result
-    if (Result >= MinimumWidth.getValue() && isAddLike(Ins)) {
-      auto ClosestRank = std::lower_bound(Ranks.begin(), Ranks.end(), Result);
-      if (ClosestRank != Ranks.end()
-          && Ins->getType()->getScalarSizeInBits() > *ClosestRank) {
-        auto Rank = *ClosestRank;
-        HasChanges = true;
-        llvm::Value *NewIns = nullptr;
+    if (I->getType()->isIntegerTy()
+        and (isBitwise(I) or isAddLike(I) or isa<ICmpInst>(I))) {
+      // Bound analysis results to MinimumWidth
+      unsigned NewResultSize = std::max(MinimumWidth.getValue(), Result.Result);
+      unsigned NewOperandsSize = std::max(MinimumWidth.getValue(),
+                                          Result.Operands);
 
-        llvm::IRBuilder<> BuilderPre(Ins);
-        llvm::IRBuilder<> BuilderPost(Ins->getNextNode());
+      // Get old size
+      Type *OldType = I->getType();
+      unsigned OldSize = OldType->getIntegerBitWidth();
 
-        using CastOps = llvm::Instruction::CastOps;
-        auto *Lhs = BuilderPre.CreateCast(CastOps::Trunc,
-                                          Ins->getOperand(0),
-                                          BuilderPre.getIntNTy(Rank));
-        auto *Rhs = BuilderPre.CreateCast(CastOps::Trunc,
-                                          Ins->getOperand(1),
-                                          BuilderPre.getIntNTy(Rank));
+      // Find closest rank
+      auto It = llvm::lower_bound(Ranks, NewOperandsSize);
+      if (It == Ranks.end())
+        NewOperandsSize = OldSize;
+      else
+        NewOperandsSize = *It;
+      Type *NewOperandsType = B.getIntNTy(NewOperandsSize);
 
-        NewIns = BuilderPost.CreateBinOp((Instruction::BinaryOps)
-                                           Ins->getOpcode(),
-                                         Lhs,
-                                         Rhs);
+      if (isBitwise(I)) {
+        NewResultSize = NewOperandsSize;
+      } else {
+        It = llvm::lower_bound(Ranks, NewResultSize);
+        if (It == Ranks.end())
+          NewResultSize = OldSize;
+        else
+          NewResultSize = *It;
+      }
+      Type *NewResultType = B.getIntNTy(NewResultSize);
+
+      if (NewOperandsSize > NewResultSize)
+        NewResultSize = NewOperandsSize;
+
+      if (NewOperandsSize < OldSize) {
+        B.SetInsertPoint(I);
+
+        // Shrink operands
+        Value *LHS = B.CreateTrunc(I->getOperand(0), NewOperandsType);
+        Value *RHS = B.CreateTrunc(I->getOperand(1), NewOperandsType);
+
+        // Recreate instruction
+        LHS = B.CreateZExt(LHS, NewResultType);
+        RHS = B.CreateZExt(RHS, NewResultType);
+        auto Opcode = static_cast<Instruction::BinaryOps>(I->getOpcode());
+        Value *Result = B.CreateBinOp(Opcode, LHS, RHS);
 
         // Emit ZExts, as late as possible
         SmallVector<std::pair<Use *, Value *>, 6> Replacements;
-        for (Use &TheUse : Ins->uses()) {
-          if (auto *U = cast<Instruction>(TheUse.getUser())) {
-            IRBuilder<> B(U);
+        for (Use &TheUse : I->uses()) {
+          if (auto *I = cast<Instruction>(TheUse.getUser())) {
+            B.SetInsertPoint(I);
 
             // Fix insert point for PHIs
-            if (auto *Phi = dyn_cast<PHINode>(U)) {
+            if (auto *Phi = dyn_cast<PHINode>(I)) {
               auto *BB = Phi->getIncomingBlock(TheUse);
               auto It = BB->getTerminator()->getIterator();
               B.SetInsertPoint(BB, It);
             }
 
-            auto *LateUpcast = B.CreateZExt(NewIns, Ins->getType());
+            auto *LateUpcast = B.CreateZExt(Result, OldType);
             Replacements.emplace_back(&TheUse, LateUpcast);
           }
         }
@@ -123,7 +158,7 @@ static bool runTypeShrinking(Function &F,
           Use->set(I);
 
         // Drop the original instruction
-        eraseFromParent(Ins);
+        eraseFromParent(I);
       }
     }
   }
