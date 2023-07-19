@@ -50,6 +50,13 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
   { I.applyTransferFunction(L, E2) } -> std::same_as<LatticeElement>;
 };
 
+template<typename Label, typename LatticeElement>
+using ResultMap = std::map<Label, MFPResult<LatticeElement>>;
+
+template<MonotoneFrameworkInstance MFI>
+using MFIResultMap = ResultMap<typename MFI::Label,
+                               typename MFI::LatticeElement>;
+
 /// Compute the maximum fixed points of an instance of monotone framework GT an
 /// instance of llvm::GraphTraits that tells us how to visit the graph LGT a
 /// graph type that tells us how to visit the subgraph induced by a node in the
@@ -59,7 +66,7 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
 template<MonotoneFrameworkInstance MFI,
          typename GT = llvm::GraphTraits<typename MFI::GraphType>,
          typename LGT = typename MFI::Label>
-std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
+MFIResultMap<MFI>
 getMaximalFixedPoint(const MFI &Instance,
                      typename MFI::GraphType Flow,
                      typename MFI::LatticeElement InitialValue,
@@ -131,7 +138,7 @@ getMaximalFixedPoint(const MFI &Instance,
 template<MonotoneFrameworkInstance MFI,
          typename GT = llvm::GraphTraits<typename MFI::GraphType>,
          typename LGT = typename MFI::Label>
-std::map<typename MFI::Label, MFPResult<typename MFI::LatticeElement>>
+MFIResultMap<MFI>
 getMaximalFixedPoint(const MFI &Instance,
                      typename MFI::GraphType Flow,
                      typename MFI::LatticeElement InitialValue,
