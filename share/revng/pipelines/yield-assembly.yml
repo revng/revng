@@ -4,9 +4,9 @@
 
 Component: revng
 Containers:
-  - Name: assembly-internal.yml
+  - Name: assembly-internal.tar.gz
     Type: FunctionAssemblyInternal
-  - Name: assembly-ptml.yml
+  - Name: assembly-ptml.tar.gz
     Type: FunctionAssemblyPTML
 Branches:
   - From: Isolate
@@ -14,12 +14,12 @@ Branches:
       - Name: ProcessAssembly
         Pipes:
           - Type: ProcessAssembly
-            UsedContainers: [input, module.ll, assembly-internal.yml]
+            UsedContainers: [input, module.ll, assembly-internal.tar.gz]
       - Name: YieldAssembly
         Pipes:
           - Type: YieldAssembly
-            UsedContainers: [assembly-internal.yml, assembly-ptml.yml]
+            UsedContainers: [assembly-internal.tar.gz, assembly-ptml.tar.gz]
         Artifacts:
-          Container: assembly-ptml.yml
+          Container: assembly-ptml.tar.gz
           Kind: FunctionAssemblyPTML
           SingleTargetFilename: disassembly.S

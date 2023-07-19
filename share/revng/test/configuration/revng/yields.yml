@@ -16,8 +16,8 @@ commands:
         -m "$$MODEL"
         -i "$INPUT1:begin/input"
         -i "$INPUT2:EnforceABI/module.ll"
-        -o "$OUTPUT:ProcessAssembly/assembly-internal.yml"
-        --produce ProcessAssembly/assembly-internal.yml/*:FunctionAssemblyInternal
+        -o "$OUTPUT:ProcessAssembly/assembly-internal.tar.gz"
+        --produce ProcessAssembly/assembly-internal.tar.gz/*:FunctionAssemblyInternal
 
   - type: revng.assembly-ptml
     from:
@@ -29,9 +29,9 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:ProcessAssembly/assembly-internal.yml"
-        -o "$OUTPUT:YieldAssembly/assembly-ptml.yml"
-        --produce YieldAssembly/assembly-ptml.yml/*:FunctionAssemblyPTML
+        -i "$INPUT1:ProcessAssembly/assembly-internal.tar.gz"
+        -o "$OUTPUT:YieldAssembly/assembly-ptml.tar.gz"
+        --produce YieldAssembly/assembly-ptml.tar.gz/*:FunctionAssemblyPTML
 
   - type: revng.cfg-svg
     from:
@@ -43,9 +43,9 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:ProcessAssembly/assembly-internal.yml"
-        -o "$OUTPUT:YieldCFG/cfg-svg.yml"
-        --produce YieldCFG/cfg-svg.yml/*:FunctionControlFlowGraphSVG
+        -i "$INPUT1:ProcessAssembly/assembly-internal.tar.gz"
+        -o "$OUTPUT:YieldCFG/cfg-svg.tar.gz"
+        --produce YieldCFG/cfg-svg.tar.gz/*:FunctionControlFlowGraphSVG
 
   - type: revng.cross-relations
     from:
@@ -92,5 +92,5 @@ commands:
         -i "$INPUT1:Isolate/cross-relations.yml"
         -i "$INPUT2:EnforceABI/module.ll"
         -i "$INPUT3:begin/input"
-        -o "$OUTPUT:YieldCallGraphSlice/call-graph-slice-svg.yml"
-        --produce YieldCallGraphSlice/call-graph-slice-svg.yml/*:CallGraphSliceSVG
+        -o "$OUTPUT:YieldCallGraphSlice/call-graph-slice-svg.tar.gz"
+        --produce YieldCallGraphSlice/call-graph-slice-svg.tar.gz/*:CallGraphSliceSVG
