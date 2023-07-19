@@ -570,18 +570,57 @@ SummaryCallsBuilder RootAnalyzer::optimize(llvm::Function *OptimizedFunction,
     //       LazyValueInfo registers a lot of callbacks to get notified when a
     //       Value is destroyed, slowing down OptimizedFunction->eraseFromParent
     //       enormously.
+
+    // The order of the passes, when and how many times they are run are
+    // inspired by the -O2 pipeline. You can see it in action as follows:
+    //
+    //       clang test.c -emit-llvm -o- -Xclang -disable-O0-optnone | \
+    //         opt -O2 -S -debug-pass-manager
+
     FunctionPassManager FPM;
+
+    // Drop all markers except exitTB
     FPM.addPass(DropMarkerCalls({ "exitTB" }));
+
+    // Summarize calls to helpers
     FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
+
+    // TODO: do we still need this?
     FPM.addPass(ShrinkInstructionOperandsPass());
+
+    // Canonicalization
     FPM.addPass(PromotePass());
-    FPM.addPass(InstCombinePass(InstCombineMaxIterations));
-    FPM.addPass(ConstantLoadsFolderPass(MO));
-    FPM.addPass(TypeShrinking::TypeShrinkingPass());
-    FPM.addPass(JumpThreadingPass());
-    FPM.addPass(UnreachableBlockElimPass());
     FPM.addPass(EarlyCSEPass(true));
+    FPM.addPass(InstCombinePass(InstCombineMaxIterations));
+
+    // This ensures we have in the IR values from constant pools, which will
+    // then get collected by collectValuesStoredIntoMemory
+    FPM.addPass(ConstantLoadsFolderPass(MO));
+
+    // Running JumpThreading is important to merge multiple instructions with
+    // the same predicate in a single "if" (in particular in ARM) and obtain
+    // more accurate constraints.
+    FPM.addPass(JumpThreadingPass());
+
+    // Shrink instructions
+
+    // InstCombine should not run after TypeShrinking since it undoes its work.
+    // Specifically it turns icmp that have been shrank to 32-bit by
+    // TypeShrinking back to 64-bits.
+    FPM.addPass(TypeShrinking::TypeShrinkingPass());
+
+    // It is important to run EarlyCSE *after* JumpThreading. This has the
+    // side effect of invalidating LazyValueInfo (which would otherwise be
+    // shared between JumpThreadingPass and ValueMaterializerPass).
+    // If we don't run it we get failures on ARM.
+    // It is also important to run EarlyCSE after TypeShrinking to factor trunc
+    // instructions and have more accurate constraints.
+    FPM.addPass(EarlyCSEPass(true));
+
+    // Drop range metadata
     FPM.addPass(DropRangeMetadataPass());
+
+    // Run ValueMaterializer!
     FPM.addPass(ValueMaterializerPass(MO));
 
     FunctionAnalysisManager FAM;
