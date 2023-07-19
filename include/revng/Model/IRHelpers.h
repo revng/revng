@@ -41,11 +41,17 @@ inline const model::Function *llvmToModelFunction(const model::Binary &Binary,
   return nullptr;
 }
 
+inline llvm::IntegerType *
+getLLVMIntegerTypeFor(llvm::LLVMContext &Context,
+                      const model::QualifiedType &QT) {
+  revng_assert(QT.size());
+  return llvm::IntegerType::getIntNTy(Context, *QT.size() * 8);
+}
+
 inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
                                                const model::QualifiedType &QT) {
   revng_assert(QT.isScalar());
-  revng_assert(QT.size());
-  return llvm::IntegerType::getIntNTy(Context, *QT.size() * 8);
+  return getLLVMIntegerTypeFor(Context, QT);
 }
 
 /// Create an empty model::StructType of size Size in Binary
