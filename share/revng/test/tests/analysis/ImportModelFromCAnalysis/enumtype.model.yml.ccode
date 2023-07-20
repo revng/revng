@@ -1,0 +1,11 @@
+//
+// Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+//
+
+enum ENUM_UNDERLYING(uint32_t) __attribute__((packed)) enum_1257249073155595650 {
+    enum_1257249073155595650_none = 0x0U,
+    enum_1257249073155595650_positive = 0x1U,
+    enum_1257249073155595650_negative = 0x2U,
+    enum_1257249073155595650_neutral = 0x3U,
+    enum_1257249073155595650_max_held_value = 0xffffffffU,
+};

@@ -1,0 +1,59 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+CHECK:   - Kind:            CABIFunctionType
+CHECK:     ID:              1
+CHECK:     ABI:             SystemV_x86_64
+CHECK:     ReturnType:
+CHECK:       UnqualifiedType: "/Types/StructType-5"
+CHECK:     Arguments:
+CHECK:       - Index:           0
+CHECK:         Type:
+CHECK:           UnqualifiedType: "/Types/StructType-5"
+CHECK:       - Index:           1
+CHECK:         Type:
+CHECK:           UnqualifiedType: "/Types/StructType-6"
+CHECK:           Qualifiers:
+CHECK:             - Kind:            Pointer
+CHECK:               Size:            8
+CHECK:       - Index:           2
+CHECK:         Type:
+CHECK:           UnqualifiedType: "/Types/StructType-6"
+CHECK:          Qualifiers:
+CHECK:            - Kind:            Pointer
+CHECK:              Size:            8
+CHECK:            - Kind:            Pointer
+CHECK:              Size:            8
+CHECK:      - Index:           3
+CHECK:        Type:
+CHECK:          UnqualifiedType: "/Types/PrimitiveType-1540"
+CHECK:          Qualifiers:
+CHECK:            - Kind:            Pointer
+CHECK:              Size:            8
+CHECK:   - Kind:            PrimitiveType
+CHECK:     ID:              1537
+CHECK:     PrimitiveKind:   Signed
+CHECK:     Size:            1
+CHECK:   - Kind:            PrimitiveType
+CHECK:     ID:              1540
+CHECK:     PrimitiveKind:   Signed
+CHECK:     Size:            4
+CHECK:   - Kind:            StructType
+CHECK:     ID:              5
+CHECK:     Fields:
+CHECK:       - Offset:          0
+CHECK:         CustomName:      "can_do_threads"
+CHECK:         OriginalName:    can_do_threads
+CHECK:         Type:
+CHECK:           UnqualifiedType: "/Types/PrimitiveType-1540"
+CHECK:     Size:            4
+CHECK:   - Kind:            StructType
+CHECK:     ID:              6
+CHECK:     Fields:
+CHECK:       - Offset:          0
+CHECK:         CustomName:      "do_threads"
+CHECK:         OriginalName:    do_threads
+CHECK:         Type:
+CHECK:           UnqualifiedType: "/Types/PrimitiveType-1537"
+CHECK:     Size:            1

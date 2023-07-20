@@ -1,0 +1,38 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Functions:
+  - Entry: "0x504a5f:Code_x86_64"
+    CustomName: "fn2___"
+    OriginalName: fn2
+    Prototype: "/Types/CABIFunctionType-1"
+    ExportedNames:
+      - fn2
+Types:
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1544
+    PrimitiveKind: Signed
+    Size: 8
+  - Kind: CABIFunctionType
+    ID: 1
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-520"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+        CustomName: "fd"
+        OriginalName: fd

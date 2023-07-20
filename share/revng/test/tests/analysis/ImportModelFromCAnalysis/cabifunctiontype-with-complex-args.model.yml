@@ -1,0 +1,67 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Types:
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1537
+    PrimitiveKind: Signed
+    Size: 1
+  - Kind: StructType
+    ID: 5
+    Fields:
+      - Offset: 0
+        CustomName: "can_do_threads"
+        OriginalName: can_do_threads
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+    Size: 4
+  - Kind: StructType
+    ID: 6
+    Fields:
+      - Offset: 0
+        CustomName: "do_threads"
+        OriginalName: do_threads
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1537"
+    Size: 1
+  - Kind: TypedefType
+    ID: 13
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+  - Kind: TypedefType
+    ID: 12
+    UnderlyingType:
+      UnqualifiedType: "/Types/TypedefType-13"
+  - Kind: TypedefType
+    ID: 11
+    UnderlyingType:
+      UnqualifiedType: "/Types/TypedefType-12"
+  - Kind: CABIFunctionType
+    ID: 1
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+        CustomName: "argc"
+        OriginalName: argc
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1537"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+            - Kind: Pointer
+              Size: 8
+        CustomName: "argv"
+        OriginalName: argv

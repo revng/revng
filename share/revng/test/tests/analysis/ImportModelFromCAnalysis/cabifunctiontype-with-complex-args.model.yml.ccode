@@ -1,0 +1,5 @@
+//
+// Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+//
+
+typedef __attribute__((annotate("abi:SystemV_x86_64"))) struct_5 function_type_cabifunction_1(struct_5, struct_6[], struct_6**, typedef_11*);

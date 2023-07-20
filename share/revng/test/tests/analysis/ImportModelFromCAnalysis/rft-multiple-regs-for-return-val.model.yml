@@ -1,0 +1,34 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Functions:
+  - Entry: "0x403a5f:Code_x86_64"
+    CustomName: "dummy___"
+    OriginalName: dummy
+    Prototype: "/Types/CABIFunctionType-1"
+    ExportedNames:
+      - dummy
+Types:
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: CABIFunctionType
+    ID: 1
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+        CustomName: "fd"
+        OriginalName: fd

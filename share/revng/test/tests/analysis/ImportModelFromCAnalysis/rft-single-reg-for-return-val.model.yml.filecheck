@@ -1,0 +1,17 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+CHECK:   - Entry:           "0x504a5f:Code_x86_64"
+CHECK:     CustomName:      "fn3___"
+CHECK:     OriginalName:    fn2
+CHECK:     Prototype:       "/Types/RawFunctionType-
+CHECK:   - Kind:            RawFunctionType
+CHECK:     Arguments:
+CHECK:       - Location:        rcx_x86_64
+CHECK:         Type:
+CHECK:           UnqualifiedType: "/Types/PrimitiveType-1544"
+CHECK:     ReturnValues:
+CHECK:       - Location:        rax_x86_64
+CHECK:         Type:
+CHECK:           UnqualifiedType: "/Types/PrimitiveType-1544"

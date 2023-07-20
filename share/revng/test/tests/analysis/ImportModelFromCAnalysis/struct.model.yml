@@ -1,0 +1,97 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Types:
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: StructType
+    ID: 2
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/StructType-3"
+    Size: 40
+  - Kind: StructType
+    ID: 6
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/StructType-2"
+    Size: 40
+  - Kind: StructType
+    ID: 7
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/StructType-3"
+    Size: 40
+  - Kind: StructType
+    ID: 8
+    Fields:
+      - Offset: 27
+        Type:
+          UnqualifiedType: "/Types/StructType-4"
+    Size: 175
+  - Kind: StructType
+    ID: 9
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/StructType-4"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    Size: 40
+  - Kind: StructType
+    ID: 5
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/StructType-4"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    Size: 40
+  - Kind: StructType
+    ID: 3
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/StructType-1"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    Size: 8
+  - Kind: StructType
+    ID: 1
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/StructType-10"
+    Size: 40
+  - Kind: StructType
+    ID: 4
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 8
+        Type:
+          UnqualifiedType: "/Types/StructType-4"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    Size: 48
+  - Kind: StructType
+    ID: 10
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    Size: 8
