@@ -488,6 +488,7 @@ void IsolateFunctionsImpl::run() {
                                          "dynamic_" + Function.OriginalName(),
                                          TheModule);
     FunctionTags::DynamicFunction.addTo(NewFunction);
+    NewFunction->addFnAttr(Attribute::NoMerge);
 
     auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
     throwException(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
