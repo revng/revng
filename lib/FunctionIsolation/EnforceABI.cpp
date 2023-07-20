@@ -395,6 +395,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
                                    *CallerBlock,
                                    *CallSite);
   NewCall->copyMetadata(*Call);
+  NewCall->setAttributes(Call->getAttributes());
 
   // Set PC to the expected value
   GCBI.programCounterHandler()->setPC(Builder, CallerBlock->ID().start());
@@ -461,7 +462,6 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   // Produce the call
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
-  Result->addFnAttr(Attribute::NoMerge);
   revng_assert(Result->getDebugLoc());
 
   if (ReturnCSVs.size() != 1) {
