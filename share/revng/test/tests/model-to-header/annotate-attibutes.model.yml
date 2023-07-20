@@ -56,6 +56,22 @@ Types:
     ID: 1282
     PrimitiveKind: Unsigned
     Size: 2
+  - Kind: PrimitiveType
+    ID: 1544
+    PrimitiveKind: Signed
+    Size: 8
+  - Kind: EnumType
+    ID: 9
+    CustomName: "prefix_enum_9"
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-1544"
+    Entries:
+      - Value: 0
+        CustomName: "prefix_enum_9_none"
+      - Value: 1
+        CustomName: "prefix_enum_9_positive"
+      - Value: 4294967295
+        CustomName: "prefix_enum_9_max_held_value"
   - Kind: StructType
     ID: 7
     Fields:

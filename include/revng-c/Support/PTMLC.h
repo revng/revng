@@ -430,6 +430,11 @@ public:
     return getDirective(Directive::Attribute) + "((" + Str.str() + "))";
   }
 
+  std::string getAnnotateEnum(const llvm::StringRef Annotate) {
+    std::string AnnotateABI = "ENUM_UNDERLYING(" + Annotate.str() + ")";
+    return AnnotateABI;
+  }
+
   std::string getAnnotateABI(const llvm::StringRef ABI) {
     std::string AnnotateABI = "ABI(" + ABI.str() + ")";
     return AnnotateABI;

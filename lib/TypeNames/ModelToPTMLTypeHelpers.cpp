@@ -248,10 +248,13 @@ static void printDefinition(const model::EnumType &E,
                                  FullMask :
                                  ((FullMask) xor (FullMask << (8 * ByteSize)));
 
-  Header << ThePTMLCBuilder.getModelComment(E)
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
-         << ThePTMLCBuilder.getAttributePacked() << " "
-         << ThePTMLCBuilder.getLocationDefinition(E) << " ";
+  Header
+    << ThePTMLCBuilder.getModelComment(E)
+    << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
+    << ThePTMLCBuilder
+         .getAnnotateEnum(E.UnderlyingType().UnqualifiedType().get()->name())
+    << " " << ThePTMLCBuilder.getAttributePacked() << " "
+    << ThePTMLCBuilder.getLocationDefinition(E) << " ";
 
   {
     Scope Scope(Header);
