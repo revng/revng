@@ -334,12 +334,29 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
 
       const auto *InstType = I.getType();
 
-      // Visit operands, in case they are constants, globals or constexprs
-      for (const llvm::Value *Op : I.operand_values()) {
-        // Ignore operands of some custom opcodes
-        if (isCallTo(&I, "revng_call_stack_arguments"))
-          continue;
-        addOperandType(Op, Model, TypeMap, PointersOnly);
+      // Ignore operands of some custom opcodes
+      if (not isCallTo(&I, "revng_call_stack_arguments")) {
+        // Visit operands, in case they are constants, globals or constexprs
+        for (const llvm::Use &Op : I.operands()) {
+
+          if (auto *Call = getCallToIsolatedFunction(&I);
+              Call and Call->isCallee(&Op)) {
+            // Isolated functions have their prototype in the model
+            //
+            // If it's a direct call to an isolated function we know the type of
+            // the function, which affects the type of the
+            auto *Called = Call->getCalledOperand();
+            if (auto *CalledFunction = dyn_cast<llvm::Function>(Called)) {
+              auto Prototype = Cache.getCallSitePrototype(Model, Call);
+              revng_assert(Prototype.isValid() and not Prototype.empty());
+              TypeMap.insert({ CalledFunction,
+                               createPointerTo(Prototype, Model) });
+              continue;
+            }
+          }
+
+          addOperandType(Op, Model, TypeMap, PointersOnly);
+        }
       }
 
       // Insert void types for consistency
