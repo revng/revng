@@ -412,9 +412,9 @@ static void printDefinition(Logger<> &Log,
   Header << ";\n";
 }
 
-static void printDeclaration(const model::TypedefType &TD,
-                             ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &ThePTMLCBuilder) {
+void printDeclaration(const model::TypedefType &TD,
+                      ptml::PTMLIndentedOstream &Header,
+                      ptml::PTMLCBuilder &ThePTMLCBuilder) {
   if (declarationIsDefinition(&TD))
     Header << ThePTMLCBuilder.getModelComment(TD);
 

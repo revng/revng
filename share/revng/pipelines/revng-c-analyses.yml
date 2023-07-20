@@ -16,3 +16,7 @@ Analyses:
     Type: ConvertToCABIFunctionType
     UsedContainers: []
     Step: MakeSegmentRefs
+  - Name: ImportModelFromC
+    Type: ImportModelFromC
+    UsedContainers: []
+    Step: DecompileToCInYAML
