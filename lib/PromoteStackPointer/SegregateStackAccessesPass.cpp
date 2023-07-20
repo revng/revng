@@ -978,8 +978,9 @@ private:
     }
 
     // Actually create the new call and replace the old one
-    Instruction *NewCall = B.CreateCall(CalleeType, CalledValue, Arguments);
+    CallInst *NewCall = B.CreateCall(CalleeType, CalledValue, Arguments);
     NewCall->copyMetadata(*OldCall);
+    NewCall->setAttributes(OldCall->getAttributes());
 
     if (ReturnsAggregate) {
       // Perform a couple of safety checks
