@@ -8,6 +8,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GraphWriter.h"
 
+#include "revng/MFP/DOTGraphTraits.h"
 #include "revng/MFP/Graph.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
