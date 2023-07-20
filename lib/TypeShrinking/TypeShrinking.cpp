@@ -163,6 +163,47 @@ static bool runTypeShrinking(Function &F,
     }
   }
 
+  //
+  // Drop zext from zext(value) == constant
+  //
+  SmallVector<ICmpInst *, 8> Compares;
+  for (Instruction &I : instructions(&F))
+    if (auto *ICmp = dyn_cast<ICmpInst>(&I))
+      if (ICmp->getPredicate() == llvm::CmpInst::Predicate::ICMP_EQ)
+        Compares.push_back(ICmp);
+
+  for (ICmpInst *ICmp : Compares) {
+    // Pattern match zext(value) == constant
+    auto *ZEXt = dyn_cast<ZExtInst>(ICmp->getOperand(0));
+    auto *RHS = dyn_cast<ConstantInt>(ICmp->getOperand(1));
+    if (ZEXt == nullptr or RHS == nullptr)
+      continue;
+
+    Value *PreExtension = ZEXt->getOperand(0);
+    auto *PreExtensionType = dyn_cast<IntegerType>(PreExtension->getType());
+    if (PreExtensionType == nullptr)
+      continue;
+
+    unsigned PreExtensionSize = PreExtensionType->getIntegerBitWidth();
+    unsigned PostExtensionSize = ZEXt->getType()->getIntegerBitWidth();
+    APInt TruncatedRHS = RHS->getValue().trunc(PreExtensionSize);
+
+    // Ensure the upper bits of the constant are zero
+    unsigned ExpectedLeadingZeros = PostExtensionSize - PreExtensionSize;
+    if (RHS->getValue().countLeadingZeros() < ExpectedLeadingZeros)
+      continue;
+
+    // Replace the compare trunc'ing the constant and skipping over the zext
+    HasChanges = true;
+    IRBuilder<> B(ICmp);
+    auto *NewICmp = B.CreateICmp(ICmp->getPredicate(),
+                                 PreExtension,
+                                 ConstantInt::get(PreExtensionType,
+                                                  TruncatedRHS));
+    ICmp->replaceAllUsesWith(NewICmp);
+    ICmp->eraseFromParent();
+  }
+
   return HasChanges;
 }
 
