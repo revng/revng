@@ -1,0 +1,33 @@
+#
+# This file is distributed under the MIT LIcense. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - Prototype: "/Types/CABIFunctionType-44520348750923847"
+ImportedDynamicFunctions:
+  - Prototype: "/Types/CABIFunctionType-44520348750923847"
+Types:
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1537
+    PrimitiveKind: Signed
+    Size: 1
+  - Kind: CABIFunctionType
+    ID: 44520348750923847
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1537"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+            - Kind: Const
+        CustomName: "str"
+        OriginalName: str

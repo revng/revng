@@ -818,6 +818,12 @@ inline llvm::Value *skipCasts(llvm::Value *V) {
   return V;
 }
 
+inline bool isMemory(llvm::Value *V) {
+  using namespace llvm;
+  V = skipCasts(V);
+  return not(isa<GlobalVariable>(V) or isa<AllocaInst>(V));
+}
+
 inline const llvm::Function *getCallee(const llvm::Instruction *I) {
   revng_assert(I != nullptr);
 
