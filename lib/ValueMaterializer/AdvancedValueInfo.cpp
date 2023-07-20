@@ -86,8 +86,21 @@ AdvancedValueInfoMFI::applyTransferFunction(Label L,
       }
     }
 
-    for (Instruction *Candidate : Candidates) {
+    if (AVILogger.isEnabled()) {
+      AVILogger << "Considering constraints on " << getName(I);
+      if (L->Destination != nullptr) {
+        AVILogger << " on " << getName(L->Source) << " -> "
+                  << getName(L->Destination);
+      } else {
+        AVILogger << " in " << getName(L->Source);
+      }
+      AVILogger << DoLog;
+    }
 
+    LoggerIndent Indent(AVILogger);
+    for (Instruction *Candidate : Candidates) {
+      revng_log(AVILogger, "Considering " << getName(Candidate));
+      LoggerIndent Indent(AVILogger);
       if (Candidate->getParent() != L->Source
           and not DT.dominates(Candidate, L->Source)) {
         revng_log(AVILogger,
@@ -104,6 +117,12 @@ AdvancedValueInfoMFI::applyTransferFunction(Label L,
                                               Context);
       } else {
         NewRange = LVI.getConstantRange(Candidate, L->Source->getTerminator());
+      }
+
+      if (AVILogger.isEnabled()) {
+        AVILogger << "Range: ";
+        NewRange.dump(AVILogger);
+        AVILogger << DoLog;
       }
 
       if (NewRange.size().getLimitedValue() < Range.size().getLimitedValue())
