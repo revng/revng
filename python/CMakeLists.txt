@@ -110,12 +110,12 @@ set(REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES
 python_module(TARGET_NAME revng-python-cli-commands-fetchdebuginfo MODULE_FILES
               ${REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES})
 
-set(REVNG_CLI_COMMANDS_DAEMON_SELF_TEST_MODULE_FILES
-    revng/cli/_commands/daemon_self_test/__init__.py
-    revng/cli/_commands/daemon_self_test/test.py
-    revng/cli/_commands/daemon_self_test/daemon_handler.py)
-python_module(TARGET_NAME revng-python-cli-commands-daemon_self_test
-              MODULE_FILES ${REVNG_CLI_COMMANDS_DAEMON_SELF_TEST_MODULE_FILES})
+set(REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES
+    revng/cli/_commands/graphql/__init__.py
+    revng/cli/_commands/graphql/runner.py
+    revng/cli/_commands/graphql/daemon_handler.py)
+python_module(TARGET_NAME revng-python-cli-commands-graphql MODULE_FILES
+              ${REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES})
 
 #
 # Install revng.api
@@ -154,15 +154,12 @@ endforeach()
 #
 set(REVNG_DAEMON_MODULE_FILES
     revng/daemon/__init__.py
-    revng/daemon/demo_webpage.py
     revng/daemon/multiqueue.py
     revng/daemon/event_manager.py
     revng/daemon/schema_generator.py
     revng/daemon/schema.graphql.tpl
     revng/daemon/static_handlers.py
-    revng/daemon/util.py
-    revng/daemon/templates/base.html
-    revng/daemon/templates/index.html)
+    revng/daemon/util.py)
 python_module(TARGET_NAME revng-python-daemon MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
 
