@@ -16,12 +16,13 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Helpers.h"
 #include "revng/Model/Type.h"
-#include "revng/PTML/ModelHelpers.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/Yield/PTML.h"
 
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 #include "revng-c/Pipes/Ranks.h"
@@ -223,6 +224,9 @@ static ptml::Tag getTypeKeyword(const model::Type &T,
 void printForwardDeclaration(const model::Type &T,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &ThePTMLCBuilder) {
+  if (declarationIsDefinition(&T))
+    Header << ThePTMLCBuilder.getModelComment(T);
+
   auto TypeNameReference = ThePTMLCBuilder.getLocationReference(T);
   Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
          << " " << getTypeKeyword(T, ThePTMLCBuilder) << " "
@@ -244,7 +248,8 @@ static void printDefinition(const model::EnumType &E,
                                  FullMask :
                                  ((FullMask) xor (FullMask << (8 * ByteSize)));
 
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
+  Header << ThePTMLCBuilder.getModelComment(E)
+         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
          << ThePTMLCBuilder.getAttributePacked() << " "
          << ThePTMLCBuilder.getLocationDefinition(E) << " ";
 
@@ -254,7 +259,8 @@ static void printDefinition(const model::EnumType &E,
     using PTMLOperator = ptml::PTMLCBuilder::Operator;
     for (const auto &Entry : E.Entries()) {
       revng_assert(not Entry.CustomName().empty());
-      Header << ThePTMLCBuilder.getLocationDefinition(E, Entry) << " "
+      Header << ThePTMLCBuilder.getModelComment(Entry)
+             << ThePTMLCBuilder.getLocationDefinition(E, Entry) << " "
              << ThePTMLCBuilder.getOperator(PTMLOperator::Assign) << " "
              << ThePTMLCBuilder.getHex(Entry.Value()) << ",\n";
     }
@@ -282,7 +288,8 @@ void printDefinition(Logger<> &Log,
                      llvm::StringRef NameOfInlineInstance,
                      const std::vector<model::Qualifier> *Qualifiers) {
 
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Struct)
+  Header << ThePTMLCBuilder.getModelComment(S)
+         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Struct)
          << " " << ThePTMLCBuilder.getAttributePacked() << " ";
   Header << ThePTMLCBuilder.getLocationDefinition(S) << " ";
   {
@@ -302,7 +309,8 @@ void printDefinition(Logger<> &Log,
       auto TheType = Field.Type().UnqualifiedType().get();
       if (not TypesToInline.contains(TheType)) {
         auto F = ThePTMLCBuilder.getLocationDefinition(S, Field);
-        Header << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
+        Header << ThePTMLCBuilder.getModelComment(Field)
+               << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
       } else {
         std::string Name = std::string(Field.CustomName());
         if (Name == "") {
@@ -357,7 +365,8 @@ static void printDefinition(Logger<> &Log,
                             const model::Binary &Model,
                             llvm::StringRef NameOfInlineInstance,
                             const std::vector<model::Qualifier> *Qualifiers) {
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Union)
+  Header << ThePTMLCBuilder.getModelComment(U)
+         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Union)
          << " " << ThePTMLCBuilder.getAttributePacked() << " ";
   Header << ThePTMLCBuilder.getLocationDefinition(U) << " ";
 
@@ -367,7 +376,8 @@ static void printDefinition(Logger<> &Log,
       auto TheType = Field.Type().UnqualifiedType().get();
       if (not TypesToInline.contains(TheType)) {
         auto F = ThePTMLCBuilder.getLocationDefinition(U, Field);
-        Header << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
+        Header << ThePTMLCBuilder.getModelComment(Field)
+               << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
       } else {
         std::string Name = std::string(Field.CustomName());
         if (Name == "") {
@@ -405,6 +415,9 @@ static void printDefinition(Logger<> &Log,
 static void printDeclaration(const model::TypedefType &TD,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &ThePTMLCBuilder) {
+  if (declarationIsDefinition(&TD))
+    Header << ThePTMLCBuilder.getModelComment(TD);
+
   auto Type = ThePTMLCBuilder.getLocationDefinition(TD);
   Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
          << " " << getNamedCInstance(TD.UnderlyingType(), Type, ThePTMLCBuilder)
@@ -469,7 +482,8 @@ static void printDeclaration(Logger<> &Log,
                              const model::Binary &Model) {
   printRawFunctionWrappers(Log, &F, Header, ThePTMLCBuilder, Model);
 
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
+  Header << ThePTMLCBuilder.getModelComment(F)
+         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
          << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
@@ -530,7 +544,8 @@ static void printDeclaration(const model::CABIFunctionType &F,
                              const model::Binary &Model) {
   printCABIFunctionWrappers(&F, Header, ThePTMLCBuilder, NamesCache);
 
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
+  Header << ThePTMLCBuilder.getModelComment(F)
+         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
          << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.

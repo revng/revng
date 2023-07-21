@@ -57,7 +57,7 @@ static QualifiedType createStructWrapper(const LTSN *N,
   auto *Struct = llvm::cast<model::StructType>(StructPath.get());
 
   // Create and insert field in struct
-  StructField Field{ Offset, {}, {}, T };
+  StructField Field{ Offset, {}, {}, {}, T };
   const auto &[FieldIt, Inserted] = Struct->Fields().insert(Field);
   revng_assert(Inserted);
 
@@ -168,7 +168,7 @@ makeInstanceQualifiedType(const LTSN *N,
       auto *WrapperStruct = llvm::cast<model::StructType>(UnqualifiedWrapper);
 
       // Insert the rest of the array
-      StructField TrailingElem = StructField{ LastElemOffset, {}, {}, Result };
+      StructField TrailingElem{ LastElemOffset, {}, {}, {}, Result };
       WrapperStruct->Fields().insert(TrailingElem);
       WrapperStruct->Size() = ArrayWrapperSize;
 
@@ -219,7 +219,7 @@ static QualifiedType makeStructFromNode(const LTSN *N,
                                           PointerFieldsToUpdate,
                                           Model);
 
-    StructField Field{ FieldOffset, {}, {}, FieldType };
+    StructField Field{ FieldOffset, {}, {}, {}, FieldType };
     bool Inserted = Fields.insert({ std::move(Field), SuccNode }).second;
     revng_assert(Inserted);
   }
@@ -297,7 +297,7 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
                                       FieldOffset);
 
     auto FieldIndex = Group.index();
-    UnionField Field{ FieldIndex, {}, {}, FieldType };
+    UnionField Field{ FieldIndex, {}, {}, {}, FieldType };
     bool Inserted = Fields.insert({ std::move(Field), SuccNode }).second;
     revng_assert(Inserted);
   }
