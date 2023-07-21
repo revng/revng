@@ -36,40 +36,43 @@ struct ReadFields;
 struct /*= struct | fullname =*/
   /**- if struct.inherits **/ : public /*= struct.inherits | user_fullname =*/ /** endif -**/
 {
-  /**- if emit_tracking **/
+  /** if emit_tracking -**/
   friend struct revng::Tracking;
-  /** endif -**/
-
-  /**- if struct.inherits **/
-  static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
   /**- endif **/
+
+  /** if struct.inherits **/
+  static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
+  using Parent = /*= struct.inherits | user_fullname =*/;
+  /**- else **//** if struct.abstract **/
+  using Parent = /*= struct | user_fullname =*/;
+  /**- else **/
+  using Parent = void;
+  /**- endif **//** endif **/
 
   /*#- --- Member list --- #*/
   /**- for field in struct.fields **/
-  /*= field.doc | docstring =*/
-  /**- if field.const **/const /** endif -**/
 private:
   /*= field | field_type =*/ The/*= field.name =*/ = /*= field | field_type =*/{};
   static_assert(Yamlizable</*= field | field_type =*/>);
 
   /**- if emit_tracking **/
-private:
   mutable revng::AccessTracker /*= field.name =*/Tracker;
   /** endif -**/
 
 public:
   using /*= field.name =*/Type = /*= field | field_type =*/;
 
-public:
+  /*= field.doc | docstring =*/
   const /*= field | field_type =*/ & /*= field.name =*/() const {
     /**- if emit_tracking **/
-    /** if not field in struct.key_fields **/
+    /**- if not field in struct.key_fields **/
     /*= field.name =*/Tracker.access();
-    /** endif **/
+    /** endif -**/
     /** endif -**/
     return The/*= field.name =*/;
   }
 
+  /*= field.doc | docstring =*/
   /*= field | field_type =*/ & /*= field.name =*/() {
   /**- if emit_tracking **/
     /*= field.name =*/Tracker.access();

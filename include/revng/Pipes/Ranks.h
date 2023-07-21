@@ -19,6 +19,8 @@ namespace detail {
 
 using SFK = model::StructField::Key;
 using UFK = model::UnionField::Key;
+using CAK = model::Argument::Key;
+using RAK = model::NamedTypedRegister::Key;
 
 } // namespace detail
 
@@ -36,6 +38,8 @@ inline auto Type = defineRank<"type", model::Type::Key>(Binary);
 inline auto StructField = defineRank<"struct-field", detail::SFK>(Type);
 inline auto UnionField = defineRank<"union-field", detail::UFK>(Type);
 inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(Type);
+inline auto CABIArgument = defineRank<"cabi-argument", detail::CAK>(Type);
+inline auto RawArgument = defineRank<"raw-argument", detail::RAK>(Type);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);

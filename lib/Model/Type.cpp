@@ -517,6 +517,17 @@ static uint64_t makePrimitiveID(PrimitiveTypeKind::Values PrimitiveKind,
   return (static_cast<uint8_t>(PrimitiveKind) << 8) | Size;
 }
 
+PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
+                             uint8_t Size) :
+  PrimitiveType(AssociatedKind,
+                makePrimitiveID(PrimitiveKind, Size),
+                {},
+                {},
+                {},
+                PrimitiveKind,
+                Size) {
+}
+
 static PrimitiveTypeKind::Values getPrimitiveKind(uint64_t ID) {
   return static_cast<PrimitiveTypeKind::Values>(ID >> 8);
 }
@@ -525,21 +536,12 @@ static uint8_t getPrimitiveSize(uint64_t ID) {
   return ID & ((1 << 8) - 1);
 }
 
-PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
-                             uint8_t Size) :
-  PrimitiveType(AssociatedKind,
-                makePrimitiveID(PrimitiveKind, Size),
-                {},
-                "",
-                PrimitiveKind,
-                Size) {
-}
-
 PrimitiveType::PrimitiveType(uint64_t ID) :
   PrimitiveType(AssociatedKind,
                 ID,
                 {},
-                "",
+                {},
+                {},
                 getPrimitiveKind(ID),
                 getPrimitiveSize(ID)) {
 }

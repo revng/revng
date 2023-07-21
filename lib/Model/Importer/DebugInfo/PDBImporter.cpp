@@ -236,7 +236,7 @@ void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
     return;
   }
 
-  FilterOptions Filters;
+  FilterOptions Filters{};
   LinePrinter Printer(/*Indent=*/2, false, nulls(), Filters);
   const PrintScope HeaderScope(Printer, /*IndentLevel=*/2);
   PDBSymbolHandler SymbolHandler(Importer, ProcessedTypes, Session, *InputFile);

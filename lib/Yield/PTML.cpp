@@ -11,6 +11,7 @@
 #include "revng/ADT/Concepts.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Helpers.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
@@ -49,7 +50,6 @@ static AddressStyles AddressStyle = AddressStyles::Smart;
 
 using pipeline::serializedLocation;
 using ptml::PTMLBuilder;
-using ptml::str;
 using ptml::Tag;
 namespace attributes = ptml::attributes;
 namespace ptmlScopes = ptml::scopes;
@@ -105,7 +105,7 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
     return LabelDescription{
       .Name = ModelFunction->name().str().str(),
       .Location = serializedLocation(ranks::Function, ModelFunction->key()),
-      .Path = "/Functions/" + str(ModelFunction->key()) + "/CustomName"
+      .Path = model::editPath::customName(*ModelFunction)
     };
   } else if (CFG.contains(BasicBlock)) {
     return LabelDescription{
