@@ -6,17 +6,20 @@ import asyncio
 import json
 import sys
 from graphlib import TopologicalSorter
-from typing import Tuple
+from typing import Awaitable, Callable, Iterable, List, Tuple
 
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
 from gql import Client, gql
+from gql.client import AsyncClientSession
 from gql.transport.aiohttp import AIOHTTPTransport
 
 from .daemon_handler import DaemonHandler
 
+Runner = Callable[[AsyncClientSession], Awaitable[None]]
 
-async def run_self_test(handler: DaemonHandler, executable_path: str, has_revng_c: bool):
+
+async def run_on_daemon(handler: DaemonHandler, runners: Iterable[Runner]):
     await handler.wait_for_start()
     await check_server_up(handler.url)
 
@@ -28,6 +31,12 @@ async def run_self_test(handler: DaemonHandler, executable_path: str, has_revng_
     async with Client(
         transport=transport, fetch_schema_from_transport=True, execute_timeout=None
     ) as client:
+        for runner in runners:
+            await runner(client)
+
+
+def upload_file(executable_path: str):
+    async def runner(client: AsyncClientSession):
         upload_q = gql(
             """
             mutation upload($file: Upload!) {
@@ -39,28 +48,26 @@ async def run_self_test(handler: DaemonHandler, executable_path: str, has_revng_
             await client.execute(upload_q, variable_values={"file": binary_file}, upload_files=True)
         log("Upload complete")
 
-        q = gql("""{ info { analysesLists { name }}}""")
-        analyses_lists = await client.execute(q)
-        list_names = [al["name"] for al in analyses_lists["info"]["analysesLists"]]
+    return runner
 
-        assert "revng-initial-auto-analysis" in list_names, "Missing revng initial auto-analysis"
 
-        await client.execute(
-            gql("""mutation { runAnalysesList(name: "revng-initial-auto-analysis") }""")
-        )
+def run_analyses_lists(analyses_lists: List[str]):
+    async def runner(client: AsyncClientSession):
+        lists_q = gql("""{ info { analysesLists { name }}}""")
+        available_analyses_lists = await client.execute(lists_q)
+        list_names = [al["name"] for al in available_analyses_lists["info"]["analysesLists"]]
 
-        if has_revng_c:
-            assert (
-                "revng-c-initial-auto-analysis" in list_names
-            ), "Missing revng-c initial auto-analysis"
-
-        if "revng-c-initial-auto-analysis" in list_names:
-            await client.execute(
-                gql("""mutation { runAnalysesList(name: "revng-c-initial-auto-analysis") }""")
-            )
+        for list_name in analyses_lists:
+            assert list_name in list_names, f"Missing analyses list {list_name}"
+            await client.execute(gql(f'mutation {{ runAnalysesList(name: "{list_name}") }}'))
 
         log("Autoanalysis complete")
 
+    return runner
+
+
+def produce_all():
+    async def runner(client: AsyncClientSession):
         q = gql(
             """{ info { steps {
                 name
@@ -116,6 +123,8 @@ async def run_self_test(handler: DaemonHandler, executable_path: str, has_revng_
             result = await client.execute(q, {**arguments, "target": targets})
             json_result = json.loads(result["produce"])
             assert target_list == set(json_result.keys()), "Some targets were not produced"
+
+    return runner
 
 
 async def check_server_up(url: str):
