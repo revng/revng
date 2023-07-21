@@ -75,7 +75,7 @@ class AnalysesList(Sequence[Analysis]):
         return _api.rp_analyses_list_count(self._analyses_list)
 
     def _get_analysis(self, index: int) -> Analysis:
-        _analysis = _api.rp_manager_get_analysis(self._manager, self._analyses_list, index)
+        _analysis = _api.rp_manager_get_analysis(self._manager._manager, self._analyses_list, index)
         return Analysis(_analysis)
 
     @overload

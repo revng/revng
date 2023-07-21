@@ -6,10 +6,12 @@ import graphlib
 from collections import defaultdict
 from typing import Dict, Optional
 
+from jinja2 import Environment
+
 from ..schema import Definition, EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
 from ..schema import SequenceDefinition, SequenceStructField, StructDefinition, StructField
 from ..schema import UpcastableDefinition
-from .jinja_utils import environment
+from .jinja_utils import loader
 
 
 class CppHeadersGenerator:
@@ -29,17 +31,34 @@ class CppHeadersGenerator:
         elif not user_include_path.endswith("/"):
             user_include_path = user_include_path + "/"
 
-        environment.filters["field_type"] = self.field_type
-        environment.filters["fullname"] = self.fullname
-        environment.filters["user_fullname"] = self.user_fullname
-        environment.filters["is_struct_field"] = self.is_struct_field
-        environment.filters["len"] = len
-        self.enum_template = environment.get_template("enum.h.tpl")
-        self.struct_template = environment.get_template("struct.h.tpl")
-        self.struct_late_template = environment.get_template("struct_late.h.tpl")
-        self.struct_impl_template = environment.get_template("struct_impl.cpp.tpl")
-        self.struct_forward_decls_template = environment.get_template("struct_forward_decls.h.tpl")
-        self.class_forward_decls_template = environment.get_template("class_forward_decls.h.tpl")
+        self.environment = Environment(
+            block_start_string="/**",
+            block_end_string="**/",
+            variable_start_string="/*=",
+            variable_end_string="=*/",
+            comment_start_string="/*#",
+            comment_end_string="#*/",
+            loader=loader,
+        )
+
+        # More convenient than escaping the double braces
+        self.environment.globals["nodiscard"] = "[[ nodiscard ]]"
+        self.environment.filters["docstring"] = self.render_docstring
+        self.environment.filters["field_type"] = self.field_type
+        self.environment.filters["fullname"] = self.fullname
+        self.environment.filters["user_fullname"] = self.user_fullname
+        self.environment.filters["is_struct_field"] = self.is_struct_field
+        self.environment.filters["len"] = len
+        self.enum_template = self.environment.get_template("enum.h.tpl")
+        self.struct_template = self.environment.get_template("struct.h.tpl")
+        self.struct_late_template = self.environment.get_template("struct_late.h.tpl")
+        self.struct_impl_template = self.environment.get_template("struct_impl.cpp.tpl")
+        self.struct_forward_decls_template = self.environment.get_template(
+            "struct_forward_decls.h.tpl"
+        )
+        self.class_forward_decls_template = self.environment.get_template(
+            "class_forward_decls.h.tpl"
+        )
 
         # Path where user-provided headers are assumed to be located
         # Prepended to include statements (e.g. #include "<user_include_path>/Class.h")
@@ -262,3 +281,12 @@ class CppHeadersGenerator:
     @staticmethod
     def is_struct_field(field: StructField):
         return isinstance(field, StructField)
+
+    @staticmethod
+    def render_docstring(docstr: str):
+        if not docstr:
+            return ""
+        rendered_docstring = "\n".join(f"/// {line}" for line in docstr.splitlines())
+        if not rendered_docstring.endswith("\n"):
+            rendered_docstring = rendered_docstring + "\n"
+        return rendered_docstring

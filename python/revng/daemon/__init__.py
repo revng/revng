@@ -105,7 +105,7 @@ def make_startlette() -> Starlette:
         }
 
     routes = [
-        Route("/", generate_demo_page(manager, DEBUG), methods=["GET"]),
+        Route("/", generate_demo_page(manager.workdir, DEBUG), methods=["GET"]),
         Route("/status", status, methods=["GET"]),
         Mount(
             "/graphql",
@@ -129,6 +129,7 @@ def make_startlette() -> Starlette:
         store_result = manager.save()
         if not store_result:
             logging.warning("Failed to store manager's containers")
+        manager._manager = None
         capi_shutdown()
 
     return Starlette(
