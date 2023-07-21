@@ -1,0 +1,30 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Types:
+  - Kind: PrimitiveType
+    ID: 1552
+    PrimitiveKind: Signed
+    Size: 16
+  - Kind: UnionType
+    ID: 1
+    Fields:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1552"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1552"
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1552"
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1552"
+      - Index: 4
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1552"

@@ -24,6 +24,8 @@ using namespace revng;
 
 static Logger<> DILogger("header-to-model");
 static constexpr std::string_view RevngInputCFile = "revng-input.c";
+static constexpr std::string_view RevngPrimitiveTypeHeader = "revng-primitive-"
+                                                             "types.h";
 static constexpr std::string_view RawABI = "raw";
 
 static constexpr const char *ABIAnnotatePrefix = "abi:";
@@ -109,6 +111,10 @@ private:
   // This checks that the declaration is the one user provided as input.
   bool comesFromInternalFile(const clang::Decl *D);
 
+  // This checks that the declaration comes from revng-primitive-types header
+  // file.
+  bool comesFromRevngPrimitiveTypesHeader(const clang::RecordDecl *RD);
+
   // Set up line and column for the declaratrion.
   void setupLineAndColumn(const clang::Decl *D);
 
@@ -123,7 +129,8 @@ private:
 
   // Get model type for clang::RecordType (Struct/Unoion).
   std::optional<model::TypePath>
-  getTypeForRecordType(const clang::RecordType *RecordType);
+  getTypeForRecordType(const clang::RecordType *RecordType,
+                       const QualType &ClangType);
 
   // Get model type for clang::EnumType.
   std::optional<model::TypePath>
@@ -182,6 +189,7 @@ static bool isPrimitiveType(const std::string &TypeName) {
   // Generic.
   if (TypeName == "generic8_t" or TypeName == "generic16_t"
       or TypeName == "generic32_t" or TypeName == "generic64_t"
+      or TypeName == "generic80_t" or TypeName == "generic96_t"
       or TypeName == "generic128_t")
     return true;
 
@@ -210,7 +218,8 @@ static bool isPrimitiveType(const std::string &TypeName) {
 
   // Float.
   if (TypeName == "float16_t" or TypeName == "float32_t"
-      or TypeName == "float64_t")
+      or TypeName == "float64_t" or TypeName == "float80_t"
+      or TypeName == "float96_t" or TypeName == "float128_t")
     return true;
 
   return false;
@@ -220,6 +229,7 @@ static std::optional<model::PrimitiveTypeKind::Values>
 getPrimitiveKind(const std::string &TypeName) {
   if (TypeName == "generic8_t" or TypeName == "generic16_t"
       or TypeName == "generic32_t" or TypeName == "generic64_t"
+      or TypeName == "generic80_t" or TypeName == "generic96_t"
       or TypeName == "generic128_t")
     return model::PrimitiveTypeKind::Generic;
 
@@ -247,7 +257,8 @@ getPrimitiveKind(const std::string &TypeName) {
 
   // Float.
   if (TypeName == "float16_t" or TypeName == "float32_t"
-      or TypeName == "float64_t")
+      or TypeName == "float64_t" or TypeName == "float80_t"
+      or TypeName == "float96_t" or TypeName == "float128_t")
     return model::PrimitiveTypeKind::Float;
 
   return std::nullopt;
@@ -274,9 +285,15 @@ static std::optional<unsigned> getPrimitiveSize(const std::string &TypeName) {
       or TypeName == "uint64_t" or TypeName == "float64_t")
     return 8;
 
+  if (TypeName == "generic80_t" or TypeName == "float80_t")
+    return 10;
+
+  if (TypeName == "generic96_t" or TypeName == "float96_t")
+    return 12;
+
   if (TypeName == "generic128_t" or TypeName == "pointer_or_number128_t"
       or TypeName == "number128_t" or TypeName == "int128_t"
-      or TypeName == "uint128_t")
+      or TypeName == "uint128_t" or TypeName == "float128_t")
     return 16;
 
   return std::nullopt;
@@ -453,8 +470,29 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name, TypeKind::Values Kind) {
 }
 
 std::optional<model::TypePath>
-DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType) {
+DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
+                                  const QualType &ClangType) {
   revng_assert(RecordType);
+
+  // Check if it is a primitive type described with a struct.
+  if (comesFromRevngPrimitiveTypesHeader(RecordType->getDecl())) {
+    const TypedefType *AsTypedef = ClangType->getAs<TypedefType>();
+    if (not AsTypedef) {
+      revng_log(DILogger,
+                "There should be a typedef for struct that defines the "
+                "primitive type");
+      return std::nullopt;
+    }
+    auto TypeName = AsTypedef->getDecl()->getName();
+    revng_check(isPrimitiveType(TypeName.str()));
+    auto Kind = getPrimitiveKind(TypeName.str());
+    revng_check(Kind);
+    auto TypeSize = getPrimitiveSize(TypeName.str());
+    revng_check(TypeSize);
+
+    return Model->getPrimitiveType(*Kind, *TypeSize);
+  }
+
   auto Name = RecordType->getDecl()->getName();
   if (Name.empty()) {
     revng_log(DILogger, "Unable to find record type without name");
@@ -510,6 +548,22 @@ bool DeclVisitor::comesFromInternalFile(const clang::Decl *D) {
   return false;
 }
 
+bool DeclVisitor::comesFromRevngPrimitiveTypesHeader(const clang::RecordDecl
+                                                       *RD) {
+  SourceManager &SM = Context.getSourceManager();
+  PresumedLoc Loc = SM.getPresumedLoc(RD->getLocation());
+  if (!Loc.isValid()) {
+    revng_log(DILogger, "Invalid source location found");
+    return false;
+  }
+
+  StringRef TheFileName(Loc.getFilename());
+  if (TheFileName.contains(RevngPrimitiveTypeHeader))
+    return true;
+
+  return false;
+}
+
 void DeclVisitor::setupLineAndColumn(const clang::Decl *D) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc Loc = SM.getPresumedLoc(D->getLocation());
@@ -552,7 +606,7 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
       if (not TheTypePath)
         return std::nullopt;
     } else if (const RecordType *AsRecordType = BaseType->getAs<RecordType>()) {
-      TheTypePath = getTypeForRecordType(AsRecordType);
+      TheTypePath = getTypeForRecordType(AsRecordType, BaseType);
       if (not TheTypePath)
         return std::nullopt;
     } else if (const EnumType *AsEnum = BaseType->getAs<EnumType>()) {
@@ -606,7 +660,7 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
         return std::nullopt;
     } else if (const RecordType *AsRecordType = ElementType
                                                   ->getAs<RecordType>()) {
-      TheTypePath = getTypeForRecordType(AsRecordType);
+      TheTypePath = getTypeForRecordType(AsRecordType, ElementType);
       if (not TheTypePath)
         return std::nullopt;
     } else if (const EnumType *AsEnum = ElementType->getAs<EnumType>()) {
@@ -618,7 +672,7 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
       return std::nullopt;
     }
   } else if (const RecordType *AsRecordType = QT->getAs<RecordType>()) {
-    TheTypePath = getTypeForRecordType(AsRecordType);
+    TheTypePath = getTypeForRecordType(AsRecordType, QT);
     if (not TheTypePath)
       return std::nullopt;
   } else if (const EnumType *AsEnum = QT->getAs<EnumType>()) {

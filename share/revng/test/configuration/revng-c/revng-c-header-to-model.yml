@@ -14,6 +14,7 @@ sources:
       - cabifunctiontype-with-complex-args.model.yml
       - enumtype.model.yml
       - typedef.model.yml
+      - primitive-types.model.yml
       - rft-multiple-regs-for-return-val.model.yml
       - rft-single-reg-for-return-val.model.yml
 commands:

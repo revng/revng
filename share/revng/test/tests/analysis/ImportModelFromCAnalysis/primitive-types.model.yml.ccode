@@ -1,0 +1,11 @@
+//
+// Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+//
+
+union __attribute__((packed)) union_1 {
+  generic80_t unnamed_field_0;
+  generic96_t unnamed_field_1;
+  float80_t unnamed_field_2;
+  float96_t unnamed_field_3;
+  float128_t unnamed_field_4;
+};
