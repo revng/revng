@@ -7,10 +7,10 @@
 import asyncio
 import io
 import os
+import signal
 import sys
-from signal import SIGINT
-from subprocess import PIPE, STDOUT, Popen
-from tempfile import TemporaryDirectory
+from subprocess import STDOUT, Popen, TimeoutExpired
+from tempfile import TemporaryDirectory, TemporaryFile
 from typing import Any, AsyncGenerator
 
 from aiohttp.client import ClientConnectionError, ClientSession, ClientTimeout
@@ -76,7 +76,8 @@ async def response_trace(session, trace_config_ctx, params: TraceRequestEndParam
 
 @fixture
 async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSession, None]:
-    temp_dir = TemporaryDirectory()
+    temp_dir = TemporaryDirectory(prefix="revng-daemon-test-")
+    log_file = TemporaryFile("wb+", prefix="revng-daemon-test-log-")
     socket_path = f"{temp_dir.name}/daemon.sock"
     new_env = {k: v for k, v in os.environ.items() if k not in FILTER_ENV}
     process = Popen(
@@ -86,20 +87,32 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
             "-b",
             f"unix:{socket_path}",
         ],
-        stdout=PIPE,
+        stdout=log_file.fileno(),
         stderr=STDOUT,
-        text=True,
         env=new_env,
     )
 
+    def stop_daemon():
+        if process.returncode is not None:
+            return process.returncode
+
+        process.send_signal(signal.SIGINT)
+        try:
+            return process.wait(30.0)
+        except TimeoutExpired:
+            process.send_signal(signal.SIGKILL)
+
+        return process.wait()
+
     def error_handler(e: BaseException):
-        # If the daemon hasn't stopped, do so gracefully
-        if process.poll() is None:
-            process.terminate()
+        return_code = stop_daemon()
+        log_file.seek(0)
+
         log("\n\n########## BEGIN DAEMON LOG ##########\n\n")
-        log(process.communicate()[0])
+        log(log_file.read().decode("utf-8"))
         log("\n\n########## END DAEMON LOG ##########\n\n")
-        log(f"The daemon exited with code {process.returncode}\n")
+        log(f"The daemon exited with code {return_code}\n")
+
         raise e
 
     connector = UnixConnector(socket_path, force_close=True)
@@ -150,8 +163,7 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
             error_handler(ValueError(test_report.longreprtext))
 
     # Terminate the daemon gracefully
-    process.send_signal(SIGINT)
-    return_code = process.wait()
+    return_code = stop_daemon()
 
     # Check that the daemon exited cleanly
     if return_code != 0:
@@ -255,10 +267,10 @@ async def test_lift_ready_fail(client):
     await client.execute(gql("{ binary { Lift(onlyIfReady: true) } }"))
 
 
-@mark.xfail(raises=Exception)
 async def test_invalid_step(client):
     q = gql('{ step(name: "this_step_does_not_exist") { name } }')
-    await client.execute(q)
+    result = await client.execute(q)
+    assert result["step"]["name"] is None
 
 
 async def test_valid_steps(client):
