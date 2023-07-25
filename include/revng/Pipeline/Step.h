@@ -63,6 +63,7 @@ private:
   };
 
   std::string Name;
+  std::string Component;
   ContainerSet Containers;
   std::vector<PipeWrapper> Pipes;
   Step *PreviousStep;
@@ -72,19 +73,23 @@ private:
 public:
   template<typename... PipeWrapperTypes>
   Step(std::string Name,
+       std::string Component,
        ContainerSet Containers,
        PipeWrapperTypes &&...PipeWrappers) :
     Name(std::move(Name)),
+    Component(std::move(Component)),
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
     PreviousStep(nullptr) {}
 
   template<typename... PipeWrapperTypes>
   Step(std::string Name,
+       std::string Component,
        ContainerSet Containers,
        Step &PreviousStep,
        PipeWrapperTypes &&...PipeWrappers) :
     Name(std::move(Name)),
+    Component(std::move(Component)),
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
     PreviousStep(&PreviousStep) {}
@@ -136,6 +141,8 @@ public:
                               std::move(SingleTargetFilename));
     return llvm::Error::success();
   }
+
+  llvm::StringRef getComponent() const { return Component; }
 
   const Kind *getArtifactsKind() const {
     if (Artifacts.isValid()) {

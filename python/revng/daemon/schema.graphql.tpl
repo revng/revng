@@ -71,6 +71,7 @@ type Rank {
 
 type Step {
     name: ID
+    component: String!
     parent: String
     containers: [Container!]!
     analyses: [Analysis!]!

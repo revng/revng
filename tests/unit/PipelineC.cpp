@@ -14,7 +14,8 @@ bool init_unit_test();
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 const auto PipelineTextContent =
-  R"(Containers:
+  R"(Component: revng-test
+Containers:
  - Name:            Strings1
    Type:            StringContainer
  - Name:            Strings2
