@@ -23,8 +23,11 @@ using StringsMap = llvm::StringMap<string>;
 Error Loader::parseStepDeclaration(Runner &Runner,
                                    const StepDeclaration &Declaration,
                                    std::string &LastAddedStep,
-                                   const StringsMap &ReadOnlyNames) const {
-  auto &JustAdded = Runner.emplaceStep(LastAddedStep, Declaration.Name);
+                                   const StringsMap &ReadOnlyNames,
+                                   const llvm::StringRef Component) const {
+  auto &JustAdded = Runner.emplaceStep(LastAddedStep,
+                                       Declaration.Name,
+                                       Component);
   LastAddedStep = Declaration.Name;
 
   if (Declaration.Artifacts.isValid()) {
@@ -214,7 +217,8 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
 
 llvm::Error Loader::parseSteps(Runner &Runner,
                                const BranchDeclaration &Declaration,
-                               const StringsMap &ReadOnlyNames) const {
+                               const StringsMap &ReadOnlyNames,
+                               const llvm::StringRef Component) const {
 
   std::string LastAddedStep = Declaration.From.empty() ? "begin" :
                                                          Declaration.From;
@@ -225,7 +229,8 @@ llvm::Error Loader::parseSteps(Runner &Runner,
     if (auto Error = parseStepDeclaration(Runner,
                                           Step,
                                           LastAddedStep,
-                                          ReadOnlyNames);
+                                          ReadOnlyNames,
+                                          Component);
         !!Error)
       return Error;
   }
@@ -287,9 +292,13 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
   Runner ToReturn(*PipelineContext);
 
   llvm::SmallVector<const BranchDeclaration *, 2> ToSort;
-  for (const auto &Pipeline : Pipelines)
-    for (const auto &Declaration : Pipeline.Branches)
+  std::map<const BranchDeclaration *, llvm::StringRef> BranchToComponent;
+  for (const auto &Pipeline : Pipelines) {
+    for (const auto &Declaration : Pipeline.Branches) {
       ToSort.push_back(&Declaration);
+      BranchToComponent[&Declaration] = Pipeline.Component;
+    }
+  }
 
   if (auto Error = sortPipeline(ToSort); Error)
     return std::move(Error);
@@ -300,11 +309,17 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
         Error)
       return std::move(Error);
 
-  ToReturn.emplaceStep("", "begin");
+  ToReturn.emplaceStep("", "begin", "");
 
-  for (const auto *Declaration : ToSort)
-    if (auto Error = parseSteps(ToReturn, *Declaration, ReadOnlyNames); Error)
+  for (const auto *Declaration : ToSort) {
+    llvm::StringRef Component = BranchToComponent[Declaration];
+    if (auto Error = parseSteps(ToReturn,
+                                *Declaration,
+                                ReadOnlyNames,
+                                Component);
+        Error)
       return std::move(Error);
+  }
 
   for (const auto &Declaration : Pipelines)
     for (const auto &Analysis : Declaration.Analyses) {

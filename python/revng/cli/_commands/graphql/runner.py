@@ -66,11 +66,12 @@ def run_analyses_lists(analyses_lists: List[str]):
     return runner
 
 
-def produce_all():
+def produce_artifacts(filter_: List[str] | None = None):
     async def runner(client: AsyncClientSession):
         q = gql(
             """{ info { steps {
                 name
+                component
                 parent
                 artifacts {
                     kind { name }
@@ -81,11 +82,23 @@ def produce_all():
 
         result = await client.execute(q)
 
-        steps = {step["name"]: step for step in result["info"]["steps"]}
+        if filter_ is None:
+            filtered_steps = list(result["info"]["steps"])
+        else:
+            filtered_steps = [
+                step
+                for step in result["info"]["steps"]
+                if step["component"] in filter_ or step["name"] == "begin"
+            ]
+
+        steps = {step["name"]: step for step in filtered_steps}
         topo_sorter: TopologicalSorter = TopologicalSorter()
         for step in steps.values():
             if step["parent"] is not None:
-                topo_sorter.add(step["name"], step["parent"])
+                if step["parent"] in steps:
+                    topo_sorter.add(step["name"], step["parent"])
+                else:
+                    topo_sorter.add(step["name"], "begin")
 
         for step_name in topo_sorter.static_order():
             step = steps[step_name]
