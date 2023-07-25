@@ -431,6 +431,13 @@ public:
         revng_assert(not Assignments.contains(&I));
       }
 
+      // TODO: This should be dropped, and we should solve the problem properly
+      // instead of relying on this workaround flag.
+      if (isa<llvm::SelectInst>(I)) {
+        Assignments[&I].set(Reasons::PreventExponentialStrings);
+        revng_log(MarkLog, "Instr PreventExponentialStrings");
+      }
+
       if (Assignments.contains(&I) or I.getType()->isVoidTy()) {
 
         // If we've decided to assign I, we need to consider if it might

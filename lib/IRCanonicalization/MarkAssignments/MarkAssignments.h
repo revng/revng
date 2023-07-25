@@ -38,6 +38,14 @@ enum Values {
   // This is useful for debug purposes, because it makes dead Instructions show
   // up in decompiled code.
   AlwaysAssign = 1 << 2,
+
+  // TODO: this flag is used to to forcibly assign an Instruction if it's known
+  // to occur often in dataflows that cause exponential blowup of the generated
+  // string when emitting C code.
+  // At the moment as a workaround we force them to be assigned to a local
+  // variable, but the proper fix would be a visit on the dataflow graph to
+  // actually solve the problem in a general and robust way.
+  PreventExponentialStrings = 1 << 3,
 };
 
 } // end namespace Reasons
