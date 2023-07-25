@@ -1,0 +1,21 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Types:
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: UnionType
+    ID: 1
+    Fields:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"

@@ -1,0 +1,26 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+Types:
+  - Kind: PrimitiveType
+    ID: 1284
+    PrimitiveKind: Unsigned
+    Size: 4
+  - Kind: EnumType
+    ID: 1
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-1284"
+    Entries:
+      - Value: 0
+        CustomName: "none"
+        OriginalName: none
+      - Value: 1
+        CustomName: "positive"
+        OriginalName: positive
+      - Value: 2
+        CustomName: "negative"
+        OriginalName: negative

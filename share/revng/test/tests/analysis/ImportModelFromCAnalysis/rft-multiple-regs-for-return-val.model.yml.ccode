@@ -1,0 +1,9 @@
+//
+// Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+//
+
+__attribute__((annotate("abi:raw")))
+struct return_value {
+  int32_t x __attribute__((annotate("reg:rax")));
+  int32_t y __attribute__((annotate("reg:rbx")));
+} dummy2___(int64_t __attribute__((annotate("reg:rcx"))) fd33);

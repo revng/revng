@@ -1,0 +1,16 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+CHECK:     - Kind:            UnionType
+CHECK:       ID:              1
+CHECK:       CustomName:      "prefix_union_17414601124250866323"
+CHECK:       Fields:
+CHECK:         - Index:           0
+CHECK:           CustomName:      "unnamed_field_0"
+CHECK:           Type:
+CHECK:             UnqualifiedType: "/Types/PrimitiveType-1288"
+CHECK:         - Index:           1
+CHECK:           CustomName:      "unnamed_field_1"
+CHECK:           Type:
+CHECK:             UnqualifiedType: "/Types/PrimitiveType-1284"

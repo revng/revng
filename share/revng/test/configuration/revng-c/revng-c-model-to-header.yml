@@ -18,6 +18,7 @@ sources:
       - do-not-inline-used-stack-type.h.model.yml
       - inline-enum.h.model.yml
       - inline-union.h.model.yml
+      - annotate-attibutes.model.yml
 commands:
   - type: revng-c.model-to-header-unit-test
     from:
@@ -28,3 +29,4 @@ commands:
       cat "$INPUT" | revng model to-header | revng ptml --plain > "$$HEADER".h;
       revng check-decompiled-c "$$HEADER".h;
       FileCheck --input-file="$$HEADER".h "${SOURCE}.filecheck";
+      rm -rf "$$HEADER".h;

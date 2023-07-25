@@ -430,15 +430,21 @@ public:
     return getDirective(Directive::Attribute) + "((" + Str.str() + "))";
   }
 
+  std::string getAnnotateEnum(const llvm::StringRef Annotate) {
+    std::string AnnotateABI = "ENUM_UNDERLYING(" + Annotate.str() + ")";
+    return AnnotateABI;
+  }
+
   std::string getAnnotateABI(const llvm::StringRef ABI) {
-    std::string AnnotateABI = "annotate(\"abi:" + ABI.str() + "\")";
-    return getAttribute(AnnotateABI);
+    std::string AnnotateABI = "ABI(" + ABI.str() + ")";
+    return AnnotateABI;
   }
 
   std::string getAnnotateReg(const llvm::StringRef RegName) {
-    std::string AnnotateReg = "annotate(\"reg:" + RegName.str() + "\")";
-    return getAttribute(AnnotateReg);
+    std::string AnnotateReg = "REG(" + RegName.str() + ")";
+    return AnnotateReg;
   }
+  // TODO: Add and test STACK locations.
 
   std::string getAttributePacked() { return getAttribute("packed"); }
 

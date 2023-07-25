@@ -1,0 +1,34 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+tags:
+  - name: HeaderToModel
+sources:
+  - tags: [HeaderToModel]
+    prefix: share/revng/test/tests/analysis/ImportModelFromCAnalysis/
+    members:
+      - struct.model.yml
+      - union.model.yml
+      - cabifunctiontype.model.yml
+      - cabifunctiontype-with-complex-args.model.yml
+      - enumtype.model.yml
+      - typedef.model.yml
+      - primitive-types.model.yml
+      - rft-multiple-regs-for-return-val.model.yml
+      - rft-single-reg-for-return-val.model.yml
+commands:
+  - type: revng-c.HeaderToModel
+    from:
+      - type: source
+        filter: HeaderToModel
+    command: |-
+      RESUME=$$(temp -d);
+      mkdir "$$RESUME/context/";
+      touch "$$RESUME/context/model.yml";
+      cat "$INPUT" > "$$RESUME/context/model.yml";
+      revng analyze --resume "$$RESUME" ImportModelFromC
+      --ImportModelFromC-location-to-edit="$$(head -1 ${SOURCE}.location)"
+      --ImportModelFromC-ccode="$$(cat ${SOURCE}.ccode)" a.out -o /dev/null;
+      FileCheck --input-file="$$RESUME/context/model.yml" "${SOURCE}.filecheck";
+      rm -rf "$$RESUME/context/model.yml";

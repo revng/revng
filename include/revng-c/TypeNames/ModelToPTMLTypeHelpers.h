@@ -137,3 +137,8 @@ printDefinition(Logger<> &Log,
 // Checks if a Type is valid candidate to inline. Types that can be inline are
 // structs, unions and enums.
 extern bool isCandidateForInline(const model::Type *T);
+
+// Print a typedef declaration.
+extern void printDeclaration(const model::TypedefType &TD,
+                             ptml::PTMLIndentedOstream &Header,
+                             ptml::PTMLCBuilder &ThePTMLCBuilder);
