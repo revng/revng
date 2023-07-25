@@ -70,6 +70,16 @@ commands:
         cat "$$TMP";
         exit 1;
       fi;
+  - type: revng.test-daemon-all-artifacts
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      TMP="$$(temp)";
+      if ! revng graphql --analyses-list=revng-initial-auto-analysis --produce-artifacts --filter-artifacts=revng "$INPUT" &> "$$TMP"; then
+        cat "$$TMP";
+        exit 1;
+      fi;
   - type: revng.test-model-diff
     from:
       - type: revng-qa.compiled
