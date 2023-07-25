@@ -12,7 +12,7 @@ from typing import List
 from revng.cli.commands_registry import Command, CommandsRegistry, Options
 
 from .daemon_handler import DaemonHandler, ExternalDaemonHandler, InternalDaemonHandler
-from .runner import Runner, produce_all, run_analyses_lists, run_on_daemon, upload_file
+from .runner import Runner, produce_artifacts, run_analyses_lists, run_on_daemon, upload_file
 
 
 class GraphQLCommand(Command):
@@ -34,7 +34,12 @@ class GraphQLCommand(Command):
             help="Use the specified external address instead of using the local daemon",
         )
         parser.add_argument(
-            "--all-artifacts", action="store_true", help="Produce all possible artifacts"
+            "--produce-artifacts", action="store_true", help="Produce all possible artifacts"
+        )
+        parser.add_argument(
+            "--filter-artifacts",
+            action="append",
+            help="Only produce artifacts with the specified component",
         )
         parser.add_argument(
             "--analyses-list", action="append", help="Analyses lists to run after upload"
@@ -45,6 +50,10 @@ class GraphQLCommand(Command):
 
     def run(self, options: Options):
         args = options.parsed_args
+
+        if not args.produce_artifacts and args.filter_artifacts is not None:
+            self.log("Specifying --filter-artifacts without --produce-artifacts is unsupported")
+            return 1
 
         if args.external is not None:
             url = args.external
@@ -63,14 +72,16 @@ class GraphQLCommand(Command):
         if args.analyses_list is not None:
             runners.append(run_analyses_lists(args.analyses_list))
 
-        if args.all_artifacts:
-            runners.append(produce_all())
+        if args.produce_artifacts:
+            runners.append(produce_artifacts(args.filter_artifacts))
 
         asyncio.run(run_on_daemon(self.daemon_handler, runners))
 
         rc = self.daemon_handler.terminate()
         if rc != 0:
             raise RuntimeError(f"Daemon exited with code {rc}")
+
+        return 0
 
     @staticmethod
     def log(string: str):
