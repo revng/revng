@@ -2,6 +2,7 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
+Component: revng-c
 Containers:
   - Name: model_header.h
     Type: ModelHeader
