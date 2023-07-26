@@ -394,7 +394,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   auto Layout = abi::FunctionType::Layout::make(RF);
   revng_assert(not Layout.returnsAggregateType());
 
-  Header << " " << ThePTMLCBuilder.getAnnotateABI("raw") << " ";
+  Header << ThePTMLCBuilder.getAnnotateABI("raw") << " ";
   Header << getNamedInstanceOfReturnType(RF, FunctionName, ThePTMLCBuilder);
 
   revng_assert(RF.StackArgumentsType().Qualifiers().empty());
@@ -446,7 +446,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        ptml::PTMLCBuilder &ThePTMLCBuilder,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << " " << ThePTMLCBuilder.getAnnotateABI(model::ABI::getName(CF.ABI()))
+  Header << ThePTMLCBuilder.getAnnotateABI(model::ABI::getName(CF.ABI()))
          << " ";
   Header << getNamedInstanceOfReturnType(CF, FunctionName, ThePTMLCBuilder);
 
