@@ -135,6 +135,20 @@ TypeString getNamedCInstance(const model::QualifiedType &QT,
   const model::Type &Unqualified = *QT.UnqualifiedType().getConst();
   std::string TypeName = ThePTMLCBuilder.getLocationReference(Unqualified);
 
+  if (auto *Enum = dyn_cast<model::EnumType>(&Unqualified)) {
+    const model::QualifiedType &Underlying = Enum->UnderlyingType();
+    revng_assert(Underlying.Qualifiers().empty());
+    std::string UnderlyingName = ThePTMLCBuilder
+                                   .getLocationReference(*Underlying
+                                                            .UnqualifiedType()
+                                                            .getConst());
+
+    std::string EnumTypeWithAttribute = ThePTMLCBuilder
+                                          .getAnnotateEnum(UnderlyingName);
+    EnumTypeWithAttribute += " " + std::move(TypeName);
+    TypeName = std::move(EnumTypeWithAttribute);
+  }
+
   return getNamedCInstance(TypeName,
                            QT.Qualifiers(),
                            InstanceName,
