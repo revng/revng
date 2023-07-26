@@ -301,7 +301,7 @@ private:
       .addAttribute(ptml::attributes::Scope, AttributeName);
   }
 
-  Tag directiveTagHelper(const llvm::StringRef Str) {
+  Tag directiveTagHelper(const llvm::StringRef Str) const {
     return tokenTag(Str, ptml::c::tokens::Directive);
   }
 
@@ -381,12 +381,12 @@ public:
   }
 
   // Directives.
-  Tag getDirective(Directive TheDirective) {
+  Tag getDirective(Directive TheDirective) const {
     return directiveTagHelper(toString(TheDirective));
   }
 
   // Helpers.
-  std::string getPragmaOnce() {
+  std::string getPragmaOnce() const {
     return getDirective(Directive::Pragma) + " " + getConstantTag("once")
            + "\n";
   }
@@ -426,23 +426,23 @@ public:
            + "\n";
   }
 
-  std::string getAttribute(const llvm::StringRef Str) {
+  std::string getAttribute(const llvm::StringRef Str) const {
     return getDirective(Directive::Attribute) + "((" + Str.str() + "))";
   }
 
-  std::string getAnnotateEnum(const llvm::StringRef Annotate) {
-    std::string AnnotateABI = "ENUM_UNDERLYING(" + Annotate.str() + ")";
-    return AnnotateABI;
+  std::string getAnnotateEnum(const llvm::StringRef Annotate) const {
+    std::string AnnotateMacro = "ENUM_UNDERLYING(" + Annotate.str() + ")";
+    return AnnotateMacro;
   }
 
-  std::string getAnnotateABI(const llvm::StringRef ABI) {
-    std::string AnnotateABI = "ABI(" + ABI.str() + ")";
-    return AnnotateABI;
+  std::string getAnnotateABI(const llvm::StringRef ABI) const {
+    std::string AnnotateMacro = "ABI(" + ABI.str() + ")";
+    return AnnotateMacro;
   }
 
-  std::string getAnnotateReg(const llvm::StringRef RegName) {
-    std::string AnnotateReg = "REG(" + RegName.str() + ")";
-    return AnnotateReg;
+  std::string getAnnotateReg(const llvm::StringRef RegName) const {
+    std::string AnnotateMacro = "REG(" + RegName.str() + ")";
+    return AnnotateMacro;
   }
   // TODO: Add and test STACK locations.
 
