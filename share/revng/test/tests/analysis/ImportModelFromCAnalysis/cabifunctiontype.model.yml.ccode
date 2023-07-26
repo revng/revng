@@ -2,4 +2,4 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-typedef  __attribute__((annotate("abi:SystemV_x86_64"))) int64_t function_type_cabifunction_1 (int32_t, int8_t **);
+typedef ABI(SystemV_x86_64) int64_t function_type_cabifunction_1 (int32_t, int8_t **);

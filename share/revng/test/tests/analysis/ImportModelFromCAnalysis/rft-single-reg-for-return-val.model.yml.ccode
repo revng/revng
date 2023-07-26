@@ -2,4 +2,4 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-__attribute__((annotate("abi:raw"))) int64_t __attribute__((annotate("reg:rax"))) fn3___(int64_t __attribute__((annotate("reg:rcx"))) fd33);
+ABI(raw) int64_t REG(rax) fn3___(int64_t REG(rcx) fd33);
