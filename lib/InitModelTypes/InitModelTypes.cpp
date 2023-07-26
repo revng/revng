@@ -476,18 +476,14 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
 
       } break;
 
+      case Instruction::BitCast:
+      case Instruction::Freeze:
       case Instruction::IntToPtr:
       case Instruction::PtrToInt: {
-        // If the PointersOnly flag is set, we ignore IntToPtr and PtrToInt
-        if (not PointersOnly) {
-          const llvm::Value *Operand = I.getOperand(0);
-
-          // Forward the type if there is one
-          auto It = TypeMap.find(Operand);
-          if (It != TypeMap.end())
-            Type = It->second;
-        }
-
+        // Forward the type if there is one
+        auto It = TypeMap.find(I.getOperand(0));
+        if (It != TypeMap.end())
+          Type = It->second;
       } break;
 
       default:
