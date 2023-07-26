@@ -444,7 +444,8 @@ public:
     std::string AnnotateMacro = "REG(" + RegName.str() + ")";
     return AnnotateMacro;
   }
-  // TODO: Add and test STACK locations.
+
+  std::string getAnnotateStack() const { return "STACK"; }
 
   std::string getAttributePacked() { return getAttribute("packed"); }
 

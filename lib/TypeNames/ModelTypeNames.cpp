@@ -406,8 +406,6 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
       Separator = Comma;
     }
 
-    // TODO: Add annotation of stack arguments.
-
     revng_assert(RF.StackArgumentsType().Qualifiers().empty());
     if (RF.StackArgumentsType().UnqualifiedType().isValid()) {
       // Add last argument representing a pointer to the stack arguments
@@ -420,6 +418,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
              << getNamedCInstance(RF.StackArgumentsType(),
                                   StackArgName,
                                   ThePTMLCBuilder);
+      Header << " " << ThePTMLCBuilder.getAnnotateStack();
     }
     Header << ")";
   }
