@@ -61,7 +61,7 @@ void ValueMaterializer::computeOracleConstraints() {
   case Oracle::AdvancedValueInfo:
     std::tie(OracleConstraints,
              CFEG,
-             MFIResults) = runAVI(DataFlowGraph, Context, DT, LVI);
+             MFIResults) = runAVI(DataFlowGraph, Context, DT, LVI, true);
     break;
 
   default:

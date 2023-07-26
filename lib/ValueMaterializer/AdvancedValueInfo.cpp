@@ -8,6 +8,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GraphWriter.h"
 
+#include "revng/MFP/DOTGraphTraits.h"
 #include "revng/MFP/Graph.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
@@ -64,20 +65,72 @@ AdvancedValueInfoMFI::applyTransferFunction(Label L,
   LatticeElement Result = E;
 
   for (Instruction *I : Instructions) {
-    ConstantRangeSet Range;
+    uint32_t BitWidth = I->getType()->getIntegerBitWidth();
+    ConstantRangeSet Range(BitWidth, true);
 
-    if (I->getParent() != L->Source and not DT.dominates(I, L->Source)) {
-      revng_log(AVILogger,
-                "Skipping " << getName(I) << ": not dominated by "
-                            << getName(L->Source));
-      continue;
+    SmallSet<Instruction *, 4> Candidates;
+    Candidates.insert(I);
+
+    if (ZeroExtendConstraints) {
+      // Steal constraints from trunc'd versions of this value and use the most
+      // accurate
+      for (User *U : I->users()) {
+        if (auto *Trunc = dyn_cast<TruncInst>(U)) {
+          Candidates.insert(Trunc);
+          for (User *U2 : Trunc->users()) {
+            if (auto *ZExt = dyn_cast<ZExtInst>(U2)) {
+              Candidates.insert(ZExt);
+            }
+          }
+        }
+      }
     }
 
-    if (L->Destination != nullptr) {
-      Range = LVI.getConstantRangeOnEdge(I, L->Source, L->Destination, Context);
-    } else {
-      Range = LVI.getConstantRange(I, L->Source->getTerminator());
+    if (AVILogger.isEnabled()) {
+      AVILogger << "Considering constraints on " << getName(I);
+      if (L->Destination != nullptr) {
+        AVILogger << " on " << getName(L->Source) << " -> "
+                  << getName(L->Destination);
+      } else {
+        AVILogger << " in " << getName(L->Source);
+      }
+      AVILogger << DoLog;
     }
+
+    LoggerIndent Indent(AVILogger);
+    for (Instruction *Candidate : Candidates) {
+      revng_log(AVILogger, "Considering " << getName(Candidate));
+      LoggerIndent Indent(AVILogger);
+      if (Candidate->getParent() != L->Source
+          and not DT.dominates(Candidate, L->Source)) {
+        revng_log(AVILogger,
+                  "Skipping " << getName(I) << ": not dominated by "
+                              << getName(L->Source));
+        continue;
+      }
+
+      ConstantRangeSet NewRange;
+      if (L->Destination != nullptr) {
+        NewRange = LVI.getConstantRangeOnEdge(Candidate,
+                                              L->Source,
+                                              L->Destination,
+                                              Context);
+      } else {
+        NewRange = LVI.getConstantRange(Candidate, L->Source->getTerminator());
+      }
+
+      if (AVILogger.isEnabled()) {
+        AVILogger << "Range: ";
+        NewRange.dump(AVILogger);
+        AVILogger << DoLog;
+      }
+
+      if (NewRange.size().getLimitedValue() < Range.size().getLimitedValue())
+        Range = NewRange;
+    }
+    // Ensure our range is of the right size
+    auto Old = Range;
+    Range.sextOrTrunc(BitWidth);
 
     if (AVILogger.isEnabled()) {
       AVILogger << "Range for " << getName(I) << ": ";
@@ -109,7 +162,8 @@ std::tuple<std::map<llvm::Instruction *, ConstantRangeSet>,
 runAVI(const DataFlowGraph &DFG,
        llvm::Instruction *Context,
        const llvm::DominatorTree &DT,
-       llvm::LazyValueInfo &LVI) {
+       llvm::LazyValueInfo &LVI,
+       bool ZeroExtendConstraints) {
   using namespace llvm;
 
   //
@@ -196,7 +250,7 @@ runAVI(const DataFlowGraph &DFG,
   revng_assert(InitialNodes.size() > 0);
 
   // Run MFP
-  AdvancedValueInfoMFI AVIMFI(LVI, DT, Context, Targets);
+  AdvancedValueInfoMFI AVIMFI(LVI, DT, Context, Targets, ZeroExtendConstraints);
   auto AllResults = MFP::getMaximalFixedPoint(AVIMFI,
                                               &CFEG,
                                               {},

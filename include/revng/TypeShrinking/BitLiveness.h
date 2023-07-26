@@ -16,7 +16,13 @@ extern const uint32_t Top;
 
 bool isDataFlowSink(const llvm::Instruction *Ins);
 
-using BitLivenessAnalysisResults = std::map<llvm::Instruction *, uint32_t>;
+struct InstructionResults {
+  unsigned Operands = 0;
+  unsigned Result = 0;
+};
+
+using BitLivenessAnalysisResults = std::map<llvm::Instruction *,
+                                            InstructionResults>;
 
 class BitLivenessWrapperPass : public llvm::FunctionPass {
 public:

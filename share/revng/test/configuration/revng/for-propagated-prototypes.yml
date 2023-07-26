@@ -9,7 +9,7 @@ commands:
         filter: for-propagated-prototypes
     command: |-
       RESUME=$$(temp -d);
-      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null --debug-info=no;
       revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
       revng model apply "$$RESUME/context/model.yml" "$SOURCE.add-puts.yml" -o "$$RESUME/context/model.yml";
       revng analyze --resume "$$RESUME" DetectABI "$INPUT" |

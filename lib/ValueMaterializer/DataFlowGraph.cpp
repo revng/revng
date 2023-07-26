@@ -421,14 +421,12 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
 
 using DFG = DataFlowGraph;
 
-std::string
-DOTGraphTraits<const DFG::Base *>::getGraphProperties(const DFG::Base *) {
+std::string DOTGraphTraits<const DFG *>::getGraphProperties(const DFG *) {
   return "  node [shape=box];\n  rankdir = BT;\n";
 }
 
-std::string
-DOTGraphTraits<const DFG::Base *>::getNodeLabel(const DFG::Node *Node,
-                                                const DFG::Base *Graph) {
+std::string DOTGraphTraits<const DFG *>::getNodeLabel(const DFG::Node *Node,
+                                                      const DFG *Graph) {
   std::string Result;
   {
     raw_string_ostream Stream(Result);
@@ -439,8 +437,8 @@ DOTGraphTraits<const DFG::Base *>::getNodeLabel(const DFG::Node *Node,
 }
 
 std::string
-DOTGraphTraits<const DFG::Base *>::getNodeAttributes(const DFG::Node *Node,
-                                                     const DFG::Base *Graph) {
+DOTGraphTraits<const DFG *>::getNodeAttributes(const DFG::Node *Node,
+                                               const DFG *Graph) {
   std::string Result;
 
   if (isPhiLike(Node->Value))

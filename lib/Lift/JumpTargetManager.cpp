@@ -336,12 +336,13 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
   auto NewAPInt = [LoadSize](uint64_t V) { return APInt(LoadSize * 8, V); };
 
   UnusedCodePointers.erase(LoadAddress);
-  registerReadRange(LoadAddress, LoadSize);
 
   // Prevent overflow when computing the label interval
-  if ((LoadAddress + LoadSize).addressLowerThan(LoadAddress)) {
+  MetaAddress EndAddress = LoadAddress + LoadSize;
+  if (not EndAddress.isValid())
     return MaterializedValue::invalid();
-  }
+
+  registerReadRange(LoadAddress, EndAddress);
 
   //
   // Check relocations
@@ -939,9 +940,13 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
   return NewBlock;
 }
 
-void JumpTargetManager::registerReadRange(MetaAddress Address, uint64_t Size) {
+void JumpTargetManager::registerReadRange(MetaAddress StartAddress,
+                                          MetaAddress EndAddress) {
+  if (not isMapped(StartAddress, EndAddress))
+    return;
+
   using interval = boost::icl::interval<MetaAddress, CompareAddress>;
-  ReadIntervalSet += interval::right_open(Address, Address + Size);
+  ReadIntervalSet += interval::right_open(StartAddress, EndAddress);
 }
 
 void JumpTargetManager::prepareDispatcher() {

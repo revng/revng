@@ -20,6 +20,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/MFP/Graph.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/Assert.h"
 #include "revng/TypeShrinking/BitLiveness.h"
@@ -242,6 +243,7 @@ uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
 BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
                                              llvm::FunctionAnalysisManager &) {
   GenericGraph<DataFlowNode> DataFlowGraph = buildDataFlowGraph(F);
+
   std::vector<DataFlowNode *> ExtremalLabels;
   for (DataFlowNode *Node : DataFlowGraph.nodes()) {
     if (isDataFlowSink(Node->Instruction)) {
@@ -255,8 +257,14 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
                                                                Top,
                                                                ExtremalLabels);
   BitLivenessPass::Result Result;
-  for (auto &[Label, MFPResult] : MFPRes)
-    Result[Label->Instruction] = MFPResult.OutValue;
+  for (auto &[Label, MFPResult] : MFPRes) {
+    auto &Entry = Result[Label->Instruction];
+    Entry.Result = MFPResult.InValue;
+    Entry.Operands = MFPResult.OutValue;
+  }
+
+  revng_assert(DataFlowGraph.verify());
+  MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, MFPRes);
 
   return Result;
 }
@@ -268,3 +276,10 @@ bool BitLivenessWrapperPass::runOnFunction(llvm::Function &F) {
 }
 
 } // namespace TypeShrinking
+
+template<>
+void MFP::dump(llvm::raw_ostream &Stream,
+               unsigned Indent,
+               const unsigned &Value) {
+  Stream << Value;
+}
