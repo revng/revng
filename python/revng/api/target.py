@@ -54,8 +54,10 @@ class Target:
         _serialized = _api.rp_target_create_serialized_string(self._target)
         return make_python_string(_serialized)
 
-    def extract(self) -> str | bytes:
+    def extract(self) -> str | bytes | None:
         _buffer = _api.rp_container_extract_one(self._container._container, self._target)
+        if _buffer == ffi.NULL:
+            return None
         size = _api.rp_buffer_size(_buffer)
         data = _api.rp_buffer_data(_buffer)
         return convert_buffer(data, size, self._container.mime)

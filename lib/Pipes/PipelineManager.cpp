@@ -448,3 +448,48 @@ PipelineManager::invalidateFromDiff(const llvm::StringRef Name,
   // TODO: once invalidations are working, return `Map` instead of this
   return invalidateAllPossibleTargets();
 }
+
+llvm::Error
+PipelineManager::materializeTargets(const llvm::StringRef StepName,
+                                    const ContainerToTargetsMap &Map) {
+  if (CurrentState.count(StepName) == 0)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Step %s does not have any targets",
+                                   StepName.str().c_str());
+
+  const auto &StepCurrentState = CurrentState[StepName];
+  for (auto ContainerName : Map.keys()) {
+    if (!StepCurrentState.contains(ContainerName))
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Container %s does not have any targets",
+                                     ContainerName.str().c_str());
+
+    auto &CurrentContainerState = StepCurrentState.at(ContainerName);
+    for (const pipeline::Target &Target : Map.at(ContainerName)) {
+      if (!CurrentContainerState.contains(Target))
+        return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                       "Target %s cannot be produced",
+                                       Target.serialize().c_str());
+    }
+  }
+
+  if (auto Error = getRunner().run(StepName, Map); Error)
+    return Error;
+
+  return Error::success();
+}
+
+llvm::Expected<std::unique_ptr<pipeline::ContainerBase>>
+PipelineManager::produceTargets(const llvm::StringRef StepName,
+                                const Container &TheContainer,
+                                const pipeline::TargetsList &List) {
+  ContainerToTargetsMap Targets;
+  for (const pipeline::Target &Target : List)
+    Targets[TheContainer.second->name()].push_back(Target);
+
+  if (auto Error = materializeTargets(StepName, Targets); Error)
+    return Error;
+
+  const auto &ToFilter = Targets.at(TheContainer.second->name());
+  return TheContainer.second->cloneFiltered(ToFilter);
+}

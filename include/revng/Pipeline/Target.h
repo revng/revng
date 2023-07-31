@@ -286,6 +286,7 @@ public:
   using iterator = Map::iterator;
   using const_iterator = Map::const_iterator;
   using value_type = Map::value_type;
+  using key_iterator = decltype(declval<Map>().keys());
 
 private:
   Map Status;
@@ -295,6 +296,7 @@ public:
   iterator end() { return Status.end(); }
   const_iterator begin() const { return Status.begin(); }
   const_iterator end() const { return Status.end(); }
+  key_iterator keys() const { return Status.keys(); }
 
   bool empty() const { return targetsCount() == 0; }
 

@@ -20,6 +20,7 @@ inline constexpr auto Token = "data-token";
 inline constexpr auto LocationDefinition = "data-location-definition";
 inline constexpr auto LocationReferences = "data-location-references";
 inline constexpr auto ModelEditPath = "data-model-edit-path";
+inline constexpr auto ScopeLocation = "data-scope-location";
 
 } // namespace attributes
 
