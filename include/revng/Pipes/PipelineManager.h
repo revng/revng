@@ -44,6 +44,7 @@ private:
   std::map<const pipeline::ContainerSet::value_type *,
            const pipeline::TargetsList *>
     ContainerToEnumeration;
+  std::string Description;
 
 public:
   PipelineManager(PipelineManager &&Other) = default;
@@ -194,5 +195,6 @@ public:
 
 private:
   llvm::Error produceAllPossibleTargets(bool ExpandTargets);
+  llvm::Error computeDescription();
 };
 } // namespace revng::pipes

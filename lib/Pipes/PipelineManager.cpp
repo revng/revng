@@ -173,6 +173,10 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
     return MaybePipeline.takeError();
 
   Manager.recalculateAllPossibleTargets();
+
+  if (auto Error = Manager.computeDescription(); Error)
+    return Error;
+
   return std::move(Manager);
 }
 
@@ -493,4 +497,31 @@ PipelineManager::produceTargets(const llvm::StringRef StepName,
 
   const auto &ToFilter = Targets.at(TheContainer.second->name());
   return TheContainer.second->cloneFiltered(ToFilter);
+}
+
+llvm::Error PipelineManager::computeDescription() {
+  using pipeline::description::PipelineDescription;
+  PipelineDescription Description = getRunner().description();
+
+  {
+    llvm::raw_string_ostream OS(this->Description);
+    yaml::Output YAMLOutput(OS);
+    YAMLOutput << Description;
+  }
+
+  if (StorageClient == nullptr)
+    return llvm::Error::success();
+
+  if (auto Error = ExecutionDirectory.create(); Error)
+    return Error;
+
+  constexpr auto DescriptionName = "pipeline-description.yml";
+  revng::FilePath DescriptionPath = ExecutionDirectory.getFile(DescriptionName);
+  auto MaybeWritableFile = DescriptionPath.getWritableFile();
+  if (!MaybeWritableFile)
+    return MaybeWritableFile.takeError();
+
+  MaybeWritableFile.get()->os() << this->Description;
+
+  return MaybeWritableFile.get()->commit();
 }
