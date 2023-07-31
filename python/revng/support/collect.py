@@ -51,3 +51,7 @@ def collect_libraries(search_prefixes: AnyPaths) -> Tuple[List[str], Set[str]]:
     # not allowed.
     dependencies = set(chain.from_iterable([get_elf_needed(path) for path in to_load]))
     return (to_load, dependencies)
+
+
+def collect_pipelines(search_prefixes: AnyPaths) -> List[str]:
+    return collect_files(search_prefixes, ["share", "revng", "pipelines"], "*.yml")
