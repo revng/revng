@@ -163,9 +163,18 @@ python_module(TARGET_NAME revng-python-daemon MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
 
 #
-# Install revng.daemon
+# Install revng.support
 #
 set(REVNG_SUPPORT_MODULE_FILES revng/support/__init__.py revng/support/elf.py
                                revng/support/collect.py)
 python_module(TARGET_NAME revng-python-support MODULE_FILES
               ${REVNG_SUPPORT_MODULE_FILES})
+
+#
+# Install revng.pipeline_description
+#
+set(PYTHON_PIPELINEDESCRIPTION_FILES revng/pipeline_description/__init__.py)
+python_module(
+  TARGET_NAME python-pipeline-description MODULE_FILES
+  ${PYTHON_PIPELINEDESCRIPTION_FILES} MODULE_GENERATED_FILES
+  revng/pipeline_description/_generated.py)

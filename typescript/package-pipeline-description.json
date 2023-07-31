@@ -1,0 +1,14 @@
+{
+    "license": "MIT",
+    "__license": "See LICENSE.md for details.",
+    "name": "revng-pipeline-description",
+    "version": "1.0.0-##CHECKSUM##",
+    "description": "revng pipeline-description",
+    "main": "dist/pipeline-description.js",
+    "types": "dist/pipeline-description.d.ts",
+    "files": ["/dist"],
+    "dependencies": {
+        "fast-equals": "^5",
+        "yaml": "^2"
+    }
+}
