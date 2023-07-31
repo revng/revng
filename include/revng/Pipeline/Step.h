@@ -152,6 +152,13 @@ public:
     }
   }
 
+  std::string getArtifactsContainerName() const {
+    if (!Artifacts.isValid())
+      return "";
+    else
+      return Artifacts.Container;
+  }
+
   const ContainerSet::value_type *getArtifactsContainer() {
     if (!Artifacts.isValid()) {
       return nullptr;

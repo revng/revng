@@ -8,6 +8,7 @@ revng_add_library_internal(
   ContainerSet.cpp
   Context.cpp
   Contract.cpp
+  DescriptionConverter.cpp
   Errors.cpp
   GenericLLVMPipe.cpp
   Kind.cpp
@@ -22,3 +23,43 @@ revng_add_library_internal(
   GlobalsMap.cpp)
 
 target_link_libraries(revngPipeline revngStorage revngSupport ${LLVM_LIBRARIES})
+
+set(PIPELINEDESCRIPTION_HEADERS_DIR
+    "${CMAKE_SOURCE_DIR}/include/revng/Pipeline/Description")
+set(PIPELINEDESCRIPTION_SCHEMA_PATH
+    "${CMAKE_BINARY_DIR}/pipelineDescription-schema.yml")
+set(PIPELINEDESCRIPTION_JSONSCHEMA_PATH
+    "${CMAKE_BINARY_DIR}/pipelineDescription-jsonschema.yml")
+set(PIPELINEDESCRIPTION_TYPESCRIPT_PATH
+    "${CMAKE_BINARY_DIR}/lib/typescript/pipeline-description.ts")
+target_tuple_tree_generator(
+  revngPipeline
+  INSTALL
+  HEADER_DIRECTORY
+  Pipeline/Description
+  NAMESPACE
+  pipeline::description
+  SCHEMA_PATH
+  ${PIPELINEDESCRIPTION_SCHEMA_PATH}
+  JSONSCHEMA_PATH
+  "${PIPELINEDESCRIPTION_JSONSCHEMA_PATH}"
+  PYTHON_PATH
+  "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pipeline_description/_generated.py"
+  TYPESCRIPT_PATH
+  "${PIPELINEDESCRIPTION_TYPESCRIPT_PATH}"
+  ROOT_TYPE
+  PipelineDescription
+  GLOBAL_NAME
+  PipelineDescription
+  HEADERS
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysesList.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysisContainerInput.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysisOption.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysisReference.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Analysis.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Artifacts.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Container.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Kind.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/PipelineDescription.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Rank.h"
+  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Step.h")
