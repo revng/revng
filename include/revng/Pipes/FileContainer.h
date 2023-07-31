@@ -248,4 +248,12 @@ using TranslatedFileContainer = FileContainer<&kinds::Translated,
                                               TranslatedFileMIMEType,
                                               TranslatedFileSuffix>;
 
+inline constexpr char HexDumpFileMIMEType[] = "text/x.hexdump+ptml";
+inline constexpr char HexDumpFileSuffix[] = ".hex";
+inline constexpr char HexDumpFileName[] = "HexDump";
+using HexDumpFileContainer = FileContainer<&kinds::HexDump,
+                                           HexDumpFileName,
+                                           HexDumpFileMIMEType,
+                                           HexDumpFileSuffix>;
+
 } // namespace revng::pipes

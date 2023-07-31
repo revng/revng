@@ -18,6 +18,7 @@ inline std::tuple<const T &...> fat(const T &...Refs) {
 }
 
 inline pipeline::SingleElementKind Binary("Binary", ranks::Binary, {}, {});
+inline pipeline::SingleElementKind HexDump("HexDump", ranks::Binary, {}, {});
 
 inline RootKind Root("Root", ranks::Binary);
 inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root, ranks::Binary);

@@ -120,20 +120,20 @@ inline llvm::BasicBlock *findByBlockType(llvm::Function *F,
   return nullptr;
 }
 
-inline BlockType::Values getType(llvm::Instruction *T) {
+inline BlockType::Values getType(const llvm::Instruction *T) {
   using namespace llvm;
 
   revng_assert(T != nullptr);
   revng_assert(T->isTerminator());
   MDNode *MD = T->getMetadata(BlockTypeMDName);
 
-  BasicBlock *BB = T->getParent();
+  const BasicBlock *BB = T->getParent();
   if (BB == &BB->getParent()->getEntryBlock())
     return BlockType::EntryPoint;
 
   if (MD == nullptr) {
-    Instruction *First = &*T->getParent()->begin();
-    if (CallInst *Call = getCallTo(First, "newpc")) {
+    const Instruction *First = &*T->getParent()->begin();
+    if (const CallInst *Call = getCallTo(First, "newpc")) {
       auto *Argument = Call->getArgOperand(NewPCArguments::IsJumpTarget);
       if (getLimitedValue(Argument) == 1)
         return BlockType::JumpTargetBlock;
@@ -149,7 +149,7 @@ inline BlockType::Values getType(llvm::Instruction *T) {
 }
 
 /// Return the type of basic block, see BlockType.
-inline BlockType::Values getType(llvm::BasicBlock *BB) {
+inline BlockType::Values getType(const llvm::BasicBlock *BB) {
   return getType(BB->getTerminator());
 }
 
@@ -161,6 +161,6 @@ inline bool isPartOfRootDispatcher(llvm::BasicBlock *BB) {
 }
 
 /// Return true if the basic block is a jump target
-inline bool isJumpTarget(llvm::BasicBlock *BB) {
+inline bool isJumpTarget(const llvm::BasicBlock *BB) {
   return getType(BB->getTerminator()) == BlockType::JumpTargetBlock;
 }
