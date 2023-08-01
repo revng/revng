@@ -94,11 +94,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  for (auto &AnalysesListName : AnalysesLists) {
+  Task T(2, "revng-artifact");
+  T.advance("Run analyses", true);
+
+  Task T2(AnalysesLists.size(), "Analyses");
+  for (const std::string &AnalysesListName : AnalysesLists) {
+    T2.advance(AnalysesListName, true);
     AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
     AbortOnError(Manager.runAnalyses(AL, InvMap));
   }
+  T2.complete();
 
+  T.advance("Produce artifact", true);
   if (not Manager.getRunner().containsStep(Arguments[0])) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
                                    "No known artifact named %s.\n Use `revng "

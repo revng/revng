@@ -47,6 +47,8 @@ public:
   using iterator = DereferenceIteratorType<Vector::iterator>;
   using const_iterator = DereferenceIteratorType<Vector::const_iterator>;
 
+  /// Map from a step name, to container, to a list of targets
+  // TODO: rename
   using State = llvm::StringMap<ContainerToTargetsMap>;
 
 public:
@@ -149,13 +151,7 @@ public:
   llvm::Error run(llvm::StringRef EndingStepName,
                   const ContainerToTargetsMap &Targets);
 
-  llvm::Error run(const State &ToProduce) {
-    for (const auto &Request : ToProduce)
-      if (auto Error = run(Request.first(), Request.second))
-        return Error;
-
-    return llvm::Error::success();
-  }
+  llvm::Error run(const State &ToProduce);
 
   AnalysisWrapper *findAnalysis(llvm::StringRef AnalysisName) {
     for (auto &Step : Steps) {

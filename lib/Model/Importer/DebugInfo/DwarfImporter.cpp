@@ -18,6 +18,7 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/Progress.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -388,9 +389,20 @@ private:
   }
 
   void materializeTypesWithIdentity() {
-    for (const auto &CU : DICtx.compile_units()) {
-      for (const auto &Entry : CU->dies()) {
-        DWARFDie Die = { CU.get(), &Entry };
+    SmallVector<llvm::DWARFUnit *, 16> CompileUnits;
+    for (const auto &CU : DICtx.compile_units())
+      CompileUnits.push_back(CU.get());
+
+    Task T(CompileUnits.size(), "Compile units");
+    for (llvm::DWARFUnit *CU : CompileUnits) {
+      T.advance("", true);
+
+      SmallVector<llvm::DWARFDebugInfoEntry *, 16> Dies;
+      for (llvm::DWARFDebugInfoEntry &Entry : CU->dies())
+        Dies.push_back(&Entry);
+
+      for (DWARFDebugInfoEntry *Entry : Dies) {
+        DWARFDie Die = { CU, Entry };
         auto Tag = Die.getTag();
         if (isType(Tag) and hasModelIdentity(Tag)) {
           auto MaybeDeclaration = Die.find(DW_AT_declaration);
@@ -977,15 +989,25 @@ private:
 
 public:
   void run() {
+    Task T(9, "Importing DWARF");
+    T.advance("Materialize types with an identity", true);
     materializeTypesWithIdentity();
+    T.advance("Resolve types", true);
     resolveAllTypes();
+    T.advance("Create model functions", true);
     createFunctions();
+    T.advance("Type system cleanup", true);
     cleanupTypeSystem();
+    T.advance("Apply fixes to the model", true);
     fixModel(Model);
+    T.advance("Deduplicate equivalent types", true);
     deduplicateEquivalentTypes(Model);
+    T.advance("Promote OriginalName", true);
     promoteOriginalName(Model);
+    T.advance("Purge unnamed unreachable types", true);
     purgeUnnamedAndUnreachableTypes(Model);
     revng_assert(Placeholders.size() == 0);
+    T.advance("Verify the model", true);
     Model->verify(true);
   }
 };
@@ -1206,6 +1228,8 @@ findDebugInfoFileByName(StringRef FileName,
 }
 
 void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
+  Task T(2, "Import DWARF files");
+
   using namespace llvm::object;
   ErrorOr<std::unique_ptr<MemoryBuffer>>
     BuffOrErr = MemoryBuffer::getFileOrSTDIN(FileName);
@@ -1237,13 +1261,14 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
     return false;
   };
 
-  auto PerformImport = [this, &Options](StringRef FilePath,
-                                        StringRef TheDebugFile) {
+  auto PerformImport = [this, &T, &Options](StringRef FilePath,
+                                            StringRef TheDebugFile) {
     auto ExpectedBinary = object::createBinary(FilePath);
     if (!ExpectedBinary) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
+      T.advance("Parsing " + llvm::sys::path::filename(TheDebugFile), true);
       import(*ExpectedBinary->getBinary(), TheDebugFile, Options.BaseAddress);
     }
   };
@@ -1282,6 +1307,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
     }
   }
 
+  T.advance("Parsing " + llvm::sys::path::filename(FileName), true);
   import(*BinOrErr->get(), FileName, Options.BaseAddress);
 }
 

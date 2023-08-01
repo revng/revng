@@ -464,7 +464,7 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
   auto Factory2 = getMapFactoryContainer();
   Containers.add(CName, Factory, Factory("dont_care"));
   cast<MapContainer>(Containers[CName]).get(Target({}, RootKind)) = 1;
-  auto Result = Step.cloneAndRun(Ctx, std::move(Containers));
+  auto Result = Step.run(Ctx, std::move(Containers));
 
   auto &Cont = cast<MapContainer>(Result.at(CName));
   BOOST_TEST(Cont.get(Target({}, RootKind2)) == 1);
@@ -484,7 +484,7 @@ BOOST_AUTO_TEST_CASE(PipelineCanBeManuallyExectued) {
   auto &C1 = Containers.getOrCreate<MapContainer>(CName);
   C1.get(Target(RootKind)) = 1;
 
-  auto Res = Pip["first_step"].cloneAndRun(Ctx, std::move(Containers));
+  auto Res = Pip["first_step"].run(Ctx, std::move(Containers));
   BOOST_TEST(cast<MapContainer>(Res.at(CName)).get(Target(RootKind2)) == 1);
   const auto &StartingContainer = Pip["first_step"]
                                     .containers()

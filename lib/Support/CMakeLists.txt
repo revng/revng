@@ -19,6 +19,7 @@ revng_add_library_internal(
   ModuleStatistics.cpp
   OriginalAssemblyAnnotationWriter.cpp
   PathList.cpp
+  Progress.cpp
   ProgramCounterHandler.cpp
   ResourceFinder.cpp
   SelfReferencingDbgAnnotationWriter.cpp

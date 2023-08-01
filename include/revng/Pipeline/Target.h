@@ -297,6 +297,7 @@ public:
   const_iterator begin() const { return Status.begin(); }
   const_iterator end() const { return Status.end(); }
   key_iterator keys() const { return Status.keys(); }
+  auto size() const { return Status.size(); }
 
   bool empty() const { return targetsCount() == 0; }
 

@@ -29,6 +29,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Progress.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -579,6 +580,8 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   using FT = FunctionType;
 
+  Task T(12, "Translation");
+
   // Declare the abort function
   auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
   FunctionCallee AbortFunction = TheModule->getOrInsertFunction("abort",
@@ -590,6 +593,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
   // Prepare the helper modules by transforming the cpu_loop function and
   // running SROA
+  T.advance("Prepare helpers module", true);
   legacy::PassManager CpuLoopPM;
   CpuLoopPM.add(new LoopInfoWrapperPass());
   CpuLoopPM.add(new CpuLoopFunctionPass(ptc.exception_index));
@@ -677,6 +681,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   //
   // Link helpers module into the main module
   //
+  T.advance("Linking helpers module", true);
   Linker TheLinker(*TheModule);
   bool Result = TheLinker.linkInModule(std::move(HelpersModule));
   revng_assert(not Result, "Linking failed");
@@ -796,6 +801,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   QuickMetadata QMD(Context);
 
   // Link early-linked.c
+  T.advance("Link early-linked.c", true);
   {
     Linker TheLinker(*TheModule);
     bool Result = TheLinker.linkInModule(std::move(EarlyLinkedModule),
@@ -846,6 +852,10 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
     EndianessMismatch = TargetIsLittleEndian != SourceIsLittleEndian;
   }
 
+  T.advance("Lifting code", true);
+  Task LiftTask({}, "Lifting");
+  LiftTask.advance("Initial address peeking", false);
+
   InstructionTranslator Translator(Builder,
                                    Variables,
                                    JumpTargets,
@@ -856,6 +866,11 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
   while (Entry != nullptr) {
+    LiftTask.advance(VirtualAddress.toString(), true);
+
+    Task TranslateTask(3, "Translate");
+    TranslateTask.advance("Lift to PTC", true);
+
     Builder.SetInsertPoint(Entry);
 
     // TODO: what if create a new instance of an InstructionTranslator here?
@@ -890,6 +905,8 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
       Builder.CreateUnreachable();
 
       // Obtain a new program counter to translate
+      TranslateTask.complete();
+      LiftTask.advance("Peek new address", true);
       std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
       continue;
@@ -926,6 +943,11 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
     using IT = InstructionTranslator;
     IT::TranslationResult Result;
 
+    TranslateTask.advance("Translate to LLVM IR", true);
+
+    Task TranslateToLLVMTask(InstructionCount + 1, "Translate to LLVM IR");
+    TranslateToLLVMTask.advance("", true);
+
     // Handle the first PTC_INSTRUCTION_op_debug_insn_start
     {
       PTCInstruction *NextInstruction = nullptr;
@@ -952,6 +974,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
     // TODO: shall we move this whole loop in InstructionTranslator?
     for (; J < InstructionCount && !StopTranslation; J++) {
+      TranslateToLLVMTask.advance("", true);
       if (ToIgnore.contains(J))
         continue;
 
@@ -1044,6 +1067,10 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
     } // End loop over instructions
 
+    TranslateToLLVMTask.complete();
+
+    TranslateTask.advance("Finalization", true);
+
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb
     auto *LastBlock = Builder.GetInsertBlock();
@@ -1057,12 +1084,17 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
     Translator.registerDirectJumps();
 
     // Obtain a new program counter to translate
+    TranslateTask.complete();
+    LiftTask.advance("Peek new address", true);
     std::tie(VirtualAddress, Entry) = JumpTargets.peek();
   } // End translations loop
+
+  LiftTask.complete();
 
   OI.drop();
 
   // Reorder basic blocks in RPOT
+  T.advance("Reordering basic blocks", true);
   {
     BasicBlock *Entry = &MainFunction->getEntryBlock();
     ReversePostOrderTraversal<BasicBlock *> RPOT(Entry);
@@ -1091,6 +1123,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   // At this point we have all the code, add store false to cpu_loop_exiting in
   // root
   //
+  T.advance("IR finalization", true);
   auto *BoolType = CpuLoopExiting->getValueType();
   std::queue<User *> WorkList;
   for (Function *Helper : CpuLoopExitingUsers)
@@ -1132,8 +1165,10 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
   Variables.setDataLayout(&TheModule->getDataLayout());
 
+  T.advance("Finalize newpc markers", true);
   Translator.finalizeNewPCMarkers();
 
+  T.advance("Optimize lifted IR");
   // SROA must run before InstCombine because in this way InstCombine has many
   // more elementary operations to combine
   legacy::PassManager PreInstCombinePM;
@@ -1155,12 +1190,16 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   PostInstCombinePM.add(new PruneRetSuccessors);
   PostInstCombinePM.run(*TheModule);
 
+  T.advance("Finalize jump targets", true);
   JumpTargets.finalizeJumpTargets();
 
+  T.advance("Purge dead code", true);
   EliminateUnreachableBlocks(*MainFunction, nullptr, false);
 
+  T.advance("Create revng.jt.reason", true);
   JumpTargets.createJTReasonMD();
 
+  T.advance("Finalization", true);
   ExternalJumpsHandler JumpOutHandler(*Model,
                                       JumpTargets.dispatcher(),
                                       *MainFunction,

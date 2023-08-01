@@ -112,12 +112,15 @@ static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
 }
 
 bool LiftPass::runOnModule(llvm::Module &M) {
+  llvm::Task T(4, "Lift pass");
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
 
+  T.advance("findFiles", false);
   findFiles(Model->Architecture());
 
   // Load the appropriate libtyncode version
+  T.advance("loadPTC", false);
   LibraryPointer PTCLibrary;
   if (loadPTCLibrary(PTCLibrary) != EXIT_SUCCESS)
     return EXIT_FAILURE;
@@ -125,6 +128,7 @@ bool LiftPass::runOnModule(llvm::Module &M) {
   // Get access to raw binary data
   RawBinaryView &RawBinary = getAnalysis<LoadBinaryWrapperPass>().get();
 
+  T.advance("Construct CodeGenerator", false);
   CodeGenerator Generator(RawBinary,
                           &M,
                           Model,
@@ -135,6 +139,7 @@ bool LiftPass::runOnModule(llvm::Module &M) {
   std::optional<uint64_t> EntryPointAddressOptional;
   if (EntryPointAddress.getNumOccurrences() != 0)
     EntryPointAddressOptional = EntryPointAddress;
+  T.advance("Translate", true);
   Generator.translate(EntryPointAddressOptional);
 
   return false;

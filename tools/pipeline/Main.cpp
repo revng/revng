@@ -140,12 +140,19 @@ static void runAnalysis(Runner &Pipeline, llvm::StringRef Target) {
 }
 
 static void runPipeline(Runner &Pipeline) {
-
-  for (llvm::StringRef Entry : Analyze) {
-    runAnalysis(Pipeline, Entry);
+  // First run the requested analyses
+  {
+    Task T(Analyze.size(), "revng-pipeline analyses");
+    for (llvm::StringRef Entry : Analyze) {
+      T.advance(Entry, true);
+      runAnalysis(Pipeline, Entry);
+    }
   }
 
+  // Then produce the requested targets
+  Task T(Produce.size(), "revng-pipeline produce");
   for (llvm::StringRef Entry : Produce) {
+    T.advance(Entry, true);
     llvm::SmallVector<llvm::StringRef, 3> Targets;
     Entry.split(Targets, ",");
     AbortOnError(Pipeline.run(parseProductionRequest(Pipeline, Targets)));
