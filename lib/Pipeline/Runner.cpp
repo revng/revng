@@ -9,6 +9,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Progress.h"
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Errors.h"
@@ -255,16 +256,21 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
                              StepName.str().c_str());
   }
 
+  Task T(3, "Analysis execution");
+  T.advance("Produce step " + StepName, true);
   if (auto Error = run(StepName, Targets))
     return std::move(Error);
 
+  T.advance("Run analysis", true);
   if (auto Error = MaybeStep->second.runAnalysis(AnalysisName,
                                                  *TheContext,
                                                  Targets,
                                                  Options);
-      Error)
+      Error) {
     return std::move(Error);
+  }
 
+  T.advance("Apply diff produced by the analysis", true);
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
   for (const auto &GlobalNameDiffPair : Map)
@@ -281,7 +287,9 @@ Runner::runAnalyses(const AnalysesList &List,
                     const llvm::StringMap<std::string> &Options) {
   auto Before = getContext().getGlobals();
 
+  Task T(List.size() + 1, "Analysis list " + List.getName());
   for (const AnalysisReference &Ref : List) {
+    T.advance(Ref.getAnalysisName(), true);
     const auto &Step = getStep(Ref.getStepName());
     const auto &Analysis = Step.getAnalysis(Ref.getAnalysisName());
     ContainerToTargetsMap Map;
@@ -301,8 +309,20 @@ Runner::runAnalyses(const AnalysesList &List,
       return Result.takeError();
   }
 
+  T.advance("Computing analysis list diff", true);
   auto &After = getContext().getGlobals();
   return Before.diff(After);
+}
+
+Error Runner::run(const State &ToProduce) {
+  Task T(ToProduce.size(), "Multi-step pipeline run");
+  for (const auto &Request : ToProduce) {
+    T.advance(Request.first(), true);
+    if (auto Error = run(Request.first(), Request.second))
+      return Error;
+  }
+
+  return llvm::Error::success();
 }
 
 Error Runner::run(llvm::StringRef EndingStepName,
@@ -326,16 +346,29 @@ Error Runner::run(llvm::StringRef EndingStepName,
                                                 + Step.getName() + ":");
   }
 
-  for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
+  Task T(ToExec.size() - 1, "Produce step " + EndingStepName);
+  for (PipelineExecutionEntry &StepGoalsPairs : llvm::drop_begin(ToExec)) {
     auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
+    T.advance(Step->getName(), true);
+
+    Task T2(3, "Run step");
+    T2.advance("Clone and filter input containers", true);
+
     auto &Parent = Step->getPredecessor();
     auto CurrentContainer = Parent.containers().cloneFiltered(Input);
+
+    // Run the step
+    T2.advance("Run the step", true);
     Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
-    auto Produced = Step->containers().cloneFiltered(PredictedOutput);
-    revng_check(Produced.enumerate().contains(PredictedOutput),
-                "predicted output was not fully contained in actually "
-                "produced");
-    revng_check(Step->containers().enumerate().contains(PredictedOutput));
+
+    T2.advance("Extract the requested targets", true);
+    if (VerifyLog.isEnabled()) {
+      auto Produced = Step->containers().cloneFiltered(PredictedOutput);
+      revng_check(Produced.enumerate().contains(PredictedOutput),
+                  "predicted output was not fully contained in actually "
+                  "produced");
+      revng_check(Step->containers().enumerate().contains(PredictedOutput));
+    }
   }
 
   if (ExplanationLogger.isEnabled()) {

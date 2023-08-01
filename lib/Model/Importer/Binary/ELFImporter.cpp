@@ -11,6 +11,7 @@
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Progress.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
@@ -158,6 +159,9 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 
 template<typename T, bool HasAddend>
 Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
+  llvm::Task Task(11, "Import ELF");
+  Task.advance("Parse ELF", true);
+
   // Parse the ELF file
   auto TheELFOrErr = object::ELFFile<T>::create(TheBinary.getData());
   if (not TheELFOrErr)
@@ -187,6 +191,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   ConstElf_Shdr *SymtabShdr = nullptr;
   std::optional<MetaAddress> EHFrameAddress;
   std::optional<uint64_t> EHFrameSize;
+
+  Task.advance("Parse sections", true);
 
   auto Sections = TheELF.sections();
   if (auto Error = Sections.takeError()) {
@@ -220,12 +226,14 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     }
   }
 
+  Task.advance("Parse static symbols", true);
   parseSymbols(TheELF, SymtabShdr);
 
   const auto &ElfHeader = TheELF.getHeader();
   Model->EntryPoint() = relocate(fromPC(ElfHeader.e_entry));
 
   // Parse segments
+  Task.advance("Parse program headers", true);
   parseProgramHeaders(TheELF);
 
   std::optional<uint64_t> FDEsCount;
@@ -245,10 +253,12 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     }
   }
 
+  Task.advance("Parse .eh_frame", true);
   if (EHFrameAddress and EHFrameAddress->isValid())
     parseEHFrame(*EHFrameAddress, FDEsCount, EHFrameSize);
 
   // Parse the .dynamic table
+  Task.advance("Parse .dynamic", true);
   auto DynamicEntries = TheELF.dynamicEntries();
   if (auto Error = DynamicEntries.takeError()) {
     revng_log(ELFImporterLog, "Cannot access dynamic entries: " << Error);
@@ -296,6 +306,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
     // Collect function addresses contained in dynamic symbols
     if (SymbolsCount and *SymbolsCount > 0 and DynsymPortion->isAvailable()) {
+      Task.advance("Parse dynamic symbols", true);
+
       using Elf_Sym = llvm::object::Elf_Sym_Impl<T>;
       DynsymPortion->setSize(*SymbolsCount * sizeof(Elf_Sym));
 
@@ -338,6 +350,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // Dynamic symbols harvested too, segment type creation can be finalized.
   // Do not replace it, if `Type` is valid (may be added by the user); note that
   // `isValid` checks also for being empty.
+  Task.advance("Parse segment struct from data symbols", true);
   for (auto &Segment : Model->Segments())
     if (not Segment.Type().UnqualifiedType().isValid())
       Segment.Type() = populateSegmentTypeStruct(*Model, Segment, DataSymbols);
@@ -348,15 +361,20 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(Ptr);
 
   if (AdjustedOptions.DebugInfo != DebugInfoLevel::No) {
+    Task.advance("Parse debug info", true);
+
     // Import Dwarf
     DwarfImporter Importer(Model);
     Importer.import(TheBinary.getFileName(), AdjustedOptions);
 
     // Now we try to find missing types in the dependencies.
+    Task.advance("Find missing types from debug info", true);
     findMissingTypes(TheELF, AdjustedOptions);
   }
 
+  Task.advance("Promote original name", true);
   model::promoteOriginalName(Model);
+
   return Error::success();
 }
 

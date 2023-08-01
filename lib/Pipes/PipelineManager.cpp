@@ -320,11 +320,16 @@ PipelineManager::invalidateAllPossibleTargets() {
   auto Stream = ExplanationLogger.getAsLLVMStream();
   recalculateAllPossibleTargets();
 
+  Task T(CurrentState.size(), "");
   for (const auto &Step : CurrentState) {
+    T.advance(Step.first(), true);
     if (Step.first() == Runner->begin()->getName())
       continue;
 
+    Task T2(Step.second.size(), "Containers");
     for (const auto &Container : Step.second) {
+      T2.advance(Container.first(), true);
+
       for (const auto &Target : Container.second) {
         auto &Containers = getRunner()[Step.first()].containers();
         if (not Containers.contains(Container.first()))
@@ -398,11 +403,13 @@ PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
                              const llvm::StringMap<std::string> &Options,
                              llvm::raw_ostream *DiagnosticLog) {
   auto Result = Runner->runAnalyses(List, Map, Options);
+
+  Task T({}, "WTF");
+  T.advance("1", true);
   if (not Result)
     return Result.takeError();
 
-  recalculateAllPossibleTargets();
-
+  T.advance("2", true);
   // TODO: to remove once invalidations are working
   if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
     Map = Invalidations.get();

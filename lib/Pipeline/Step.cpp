@@ -9,6 +9,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Progress.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/ContainerSet.h"
@@ -88,11 +89,15 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
   auto InputEnumeration = Input.enumerate();
   explainStartStep(InputEnumeration);
 
-  for (auto &Pipe : Pipes) {
+  Task T(Pipes.size() + 1, "Step " + getName());
+  for (PipeWrapper &Pipe : Pipes) {
+    T.advance(Pipe->getName(), false);
     explainExecutedPipe(Ctx, *Pipe);
     cantFail(Pipe->run(Ctx, Input));
     llvm::cantFail(Input.verify());
   }
+
+  T.advance("Merging back", true);
   explainEndStep(Input.enumerate());
   Containers.mergeBack(std::move(Input));
   InputEnumeration = deduceResults(Ctx, InputEnumeration);
