@@ -9,13 +9,6 @@ commands:
         filter: abi-describe-functions
       - type: revng-qa.compiled-with-debug-info
         filter: abi-functions-library
-    repeat-for:
-      - [x86-64-systemv-abi]
-      - [i386-systemv-abi]
-      - [i386-regparm-3-systemv-abi]
-      - [i386-regparm-2-systemv-abi]
-      - [i386-regparm-1-systemv-abi]
-      - [arm-aapcs-abi]
     command: |-
       "${SOURCES_ROOT}/share/revng/test/tests/abi/test-layout.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
 
@@ -25,12 +18,5 @@ commands:
         filter: abi-describe-functions
       - type: revng-qa.compiled-with-debug-info
         filter: abi-functions-library
-    repeat-for:
-      - [x86-64-systemv-abi]
-      - [i386-systemv-abi]
-      - [i386-regparm-3-systemv-abi]
-      - [i386-regparm-2-systemv-abi]
-      - [i386-regparm-1-systemv-abi]
-      - [arm-aapcs-abi]
     command: |-
       "${SOURCES_ROOT}/share/revng/test/tests/abi/test-conversion.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
