@@ -60,6 +60,7 @@ armv7a-hardfloat-linux-uclibceabi-gcc \
 
 # Translate
 ./bin/revng translate hello.arm
+chmod +x hello.arm.translated
 
 # Run translated version
 ./hello.arm.translated
