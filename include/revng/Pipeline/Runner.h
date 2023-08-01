@@ -47,6 +47,8 @@ public:
   using iterator = DereferenceIteratorType<Vector::iterator>;
   using const_iterator = DereferenceIteratorType<Vector::const_iterator>;
 
+  /// Map from a step name, to container, to a list of targets
+  // TODO: rename
   using State = llvm::StringMap<ContainerToTargetsMap>;
 
 public:

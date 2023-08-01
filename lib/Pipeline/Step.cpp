@@ -85,7 +85,7 @@ void Step::explainExecutedPipe(const Context &Ctx,
   CommandLogger << DoLog;
 }
 
-ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
+ContainerSet Step::run(Context &Ctx, ContainerSet &&Input) {
   auto InputEnumeration = Input.enumerate();
   explainStartStep(InputEnumeration);
 

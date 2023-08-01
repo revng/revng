@@ -359,7 +359,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
     // Run the step
     T2.advance("Run the step", true);
-    Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
+    Step->run(*TheContext, std::move(CurrentContainer));
 
     T2.advance("Extract the requested targets", true);
     if (VerifyLog.isEnabled()) {

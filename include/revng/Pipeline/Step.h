@@ -186,12 +186,9 @@ public:
                           const ContainerToTargetsMap &Targets,
                           const llvm::StringMap<std::string> &ExtraArgs = {});
 
-  /// Clones the Targets from the backing containers of this step
-  /// and executes all the pipes in sequence contained by this step
-  /// and returns the transformed containers.
-  ///
-  /// The contained values stays unchanged.
-  ContainerSet cloneAndRun(Context &Ctx, ContainerSet &&Targets);
+  /// Executes all the pipes of this step, merges the results in the final
+  /// containers and returns the containers filtered according to the request.
+  ContainerSet run(Context &Ctx, ContainerSet &&Targets);
 
   /// Returns the set of goals that are already contained in the backing
   /// containers of this step, furthermore adds to the container ToLoad those
