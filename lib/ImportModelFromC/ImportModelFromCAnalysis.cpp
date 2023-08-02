@@ -28,6 +28,7 @@
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/PathList.h"
+#include "revng/Support/TemporaryFile.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
@@ -127,22 +128,22 @@ struct ImportModelFromCAnalysis {
       }
     }
 
-    // Create a temporary directory for the filtered model's header file.
-    llvm::SmallString<128> TemporaryDir;
-    llvm::sys::fs::createUniqueDirectory("revng-filtered-model", TemporaryDir);
+    auto MaybeFilterModelPath = TemporaryFile::make("filtered-model-header-"
+                                                    "ptml",
+                                                    "h");
+    if (!MaybeFilterModelPath) {
+      std::error_code EC = MaybeFilterModelPath.getError();
+      return llvm::createStringError(EC,
+                                     "Couldn't create temporary file: "
+                                       + EC.message());
+    }
 
-    constexpr std::string_view FilteredModelHeaderAsPTML = "filtered-model-"
-                                                           "header-ptml.h";
-    llvm::SmallString<160> FilterModelPath;
-    llvm::sys::path::append(FilterModelPath,
-                            TemporaryDir.str().str(),
-                            FilteredModelHeaderAsPTML);
-
+    TemporaryFile &FilterModelPath = MaybeFilterModelPath.get();
     std::error_code EC;
-    llvm::raw_fd_ostream Header(FilterModelPath.str().str(), EC);
+    llvm::raw_fd_ostream Header(FilterModelPath.path(), EC);
     if (EC) {
       return llvm::createStringError(EC,
-                                     "Couldn't create the file for "
+                                     "Couldn't open file for "
                                      "filtered-model-header-ptml.h: "
                                        + EC.message());
     }
@@ -179,7 +180,7 @@ struct ImportModelFromCAnalysis {
     Header.close();
 
     std::string FilteredHeader = std::string("#include \"")
-                                 + FilterModelPath.str().str()
+                                 + FilterModelPath.path().str()
                                  + std::string("\"");
     TupleTree<model::Binary> OutModel(Model);
 
