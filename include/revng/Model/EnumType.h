@@ -34,6 +34,7 @@ public:
 
 public:
   Identifier name() const;
+  Identifier entryName(const model::EnumEntry &Entry) const;
 
 public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const {

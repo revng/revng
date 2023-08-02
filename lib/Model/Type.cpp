@@ -268,11 +268,6 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "asm",
 };
 
-const std::set<llvm::StringRef> ReservedPrefixes = { "unnnamed_",
-                                                     "function_",
-                                                     "dynamic_function_",
-                                                     "segment_" };
-
 model::Type::Type() : model::Type(0, model::TypeKind::Invalid){};
 
 model::Type::Type(uint64_t ID, TypeKind::Values Kind) :
@@ -307,28 +302,37 @@ model::UpcastableType makeTypeWithID(uint64_t ID,
 
 Identifier model::UnionField::name() const {
   Identifier Result;
-  if (CustomName().empty())
-    (Twine("unnamed_field_") + Twine(Index())).toVector(Result);
-  else
+
+  if (CustomName().empty()) {
+    (Twine("_member") + Twine(Index())).toVector(Result);
+  } else {
     Result = CustomName();
+  }
+
   return Result;
 }
 
 Identifier model::StructField::name() const {
   Identifier Result;
-  if (CustomName().empty())
-    (Twine("unnamed_field_at_offset_") + Twine(Offset())).toVector(Result);
-  else
+
+  if (CustomName().empty()) {
+    (Twine("_offset_") + Twine(Offset())).toVector(Result);
+  } else {
     Result = CustomName();
+  }
+
   return Result;
 }
 
 Identifier model::Argument::name() const {
   Identifier Result;
-  if (CustomName().empty())
-    (Twine("unnamed_arg_") + Twine(Index())).toVector(Result);
-  else
+
+  if (CustomName().empty()) {
+    (Twine("_argument") + Twine(Index())).toVector(Result);
+  } else {
     Result = CustomName();
+  }
+
   return Result;
 }
 
@@ -450,7 +454,9 @@ Identifier customNameOrAutomatic(T *This) {
   if (not This->CustomName().empty())
     return This->CustomName();
   else {
-    auto IdentText = (Twine(T::AutomaticNamePrefix) + Twine(This->ID())).str();
+    auto IdentText = (Twine("_") + Twine(T::AutomaticNamePrefix)
+                      + Twine(This->ID()))
+                       .str();
     return Identifier(IdentText);
   }
 }
@@ -467,15 +473,30 @@ Identifier model::EnumType::name() const {
   return customNameOrAutomatic(this);
 }
 
+Identifier model::EnumType::entryName(const model::EnumEntry &Entry) const {
+  revng_assert(Entries().count(Entry.Value()) != 0);
+
+  if (Entry.CustomName().size() > 0) {
+    return Entry.CustomName();
+  } else {
+    return Identifier((Twine("_enum_entry_") + name().str() + "_"
+                       + Twine(Entry.Value()))
+                        .str());
+  }
+}
+
 Identifier model::UnionType::name() const {
   return customNameOrAutomatic(this);
 }
 
 Identifier model::NamedTypedRegister::name() const {
-  if (not CustomName().empty())
+  if (not CustomName().empty()) {
     return CustomName();
-  else
-    return Identifier(model::Register::getRegisterName(Location()));
+  } else {
+    using namespace model::Register;
+    return Identifier((Twine("_argument_") + Twine(getRegisterName(Location())))
+                        .str());
+  }
 }
 
 Identifier model::RawFunctionType::name() const {
@@ -518,13 +539,6 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
                 {},
                 getPrimitiveKind(ID),
                 getPrimitiveSize(ID)) {
-}
-
-static bool beginsWithReservedPrefix(llvm::StringRef Name) {
-  for (const auto &Prefix : ReservedPrefixes)
-    if (Name.startswith(Prefix))
-      return true;
-  return false;
 }
 
 void EnumEntry::dump() const {
@@ -865,7 +879,6 @@ bool Identifier::verify(VerifyHelper &VH) const {
   return VH.maybeFail(not(not empty() and std::isdigit(str()[0]))
                         and not startswith("_")
                         and allAlphaNumOrUnderscore(str())
-                        and not beginsWithReservedPrefix(str())
                         and not ReservedKeywords.contains(str()),
                       Twine(*this) + " is not a valid identifier");
 }
@@ -888,18 +901,12 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                       "Unsigned",
                       *T);
 
-  llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Entry : T->Entries()) {
 
     if (not Entry.verify(VH))
       rc_return VH.fail();
 
     // TODO: verify Entry.Value is within boundaries
-
-    if (not Entry.CustomName().empty()) {
-      if (not Names.insert(Entry.CustomName()).second)
-        rc_return VH.fail();
-    }
   }
 
   rc_return true;
@@ -1005,9 +1012,14 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (isVoidConst(&Field.Type()).IsVoid)
       rc_return VH.fail("Field " + Twine(Index + 1) + " is void", *T);
 
-    if (not Field.CustomName().empty()
-        and not Names.insert(Field.CustomName()).second)
-      rc_return VH.fail("Collision in struct fields names", *T);
+    // Verify CustomName for collisions
+    if (not Field.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Field.CustomName()))
+        rc_return VH.fail("Field name collides with global symbol", *T);
+
+      if (not Names.insert(Field.CustomName()).second)
+        rc_return VH.fail("Collision in struct fields names", *T);
+    }
 
     ++Index;
   }
@@ -1047,9 +1059,14 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail("Field " + Twine(Field.Index()) + " is void", *T);
     }
 
-    if (not Field.CustomName().empty()
-        and not Names.insert(Field.CustomName()).second)
-      rc_return VH.fail("Collision in union fields names", *T);
+    // Verify CustomName for collisions
+    if (not Field.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Field.CustomName()))
+        rc_return VH.fail("Field name collides with global symbol", *T);
+
+      if (not Names.insert(Field.CustomName()).second)
+        rc_return VH.fail("Collision in union fields names", *T);
+    }
   }
 
   rc_return true;
@@ -1064,12 +1081,22 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   if (T->ABI() == model::ABI::Invalid)
     rc_return VH.fail("An invalid ABI", *T);
 
+  llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Group : llvm::enumerate(T->Arguments())) {
     auto &Argument = Group.value();
     uint64_t ArgPos = Group.index();
 
     if (not Argument.CustomName().verify(VH))
       rc_return VH.fail("An argument has invalid CustomName", *T);
+
+    // Verify CustomName for collisions
+    if (not Argument.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Argument.CustomName()))
+        rc_return VH.fail("Argument name collides with global symbol", *T);
+
+      if (not Names.insert(Argument.CustomName()).second)
+        rc_return VH.fail("Collision in argument names", *T);
+    }
 
     if (Argument.Index() != ArgPos)
       rc_return VH.fail("An argument has invalid index", *T);
@@ -1096,9 +1123,20 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const RawFunctionType *T) {
 
-  for (const NamedTypedRegister &Argument : T->Arguments())
+  llvm::SmallSet<llvm::StringRef, 8> Names;
+  for (const NamedTypedRegister &Argument : T->Arguments()) {
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
+
+    // Verify CustomName for collisions
+    if (not Argument.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Argument.CustomName()))
+        rc_return VH.fail("Argument name collides with global symbol", *T);
+
+      if (not Names.insert(Argument.CustomName()).second)
+        rc_return VH.fail("Collision in argument names", *T);
+    }
+  }
 
   for (const TypedRegister &Return : T->ReturnValues())
     if (not rc_recur Return.verify(VH))

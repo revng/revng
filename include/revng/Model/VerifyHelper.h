@@ -20,6 +20,7 @@ inline Logger<> ModelVerifyLogger("model-verify");
 
 namespace model {
 class Type;
+class Identifier;
 
 class VerifyHelper {
 private:
@@ -28,6 +29,8 @@ private:
   std::map<const model::Type *, uint64_t> AlignmentCache;
   std::set<const model::Type *> InProgress;
   bool AssertOnFail = false;
+  std::map<model::Identifier, std::string> GlobalSymbols;
+
   // TODO: This is a hack for now, but the methods, when the Model does not
   // verify, should return an llvm::Error with the error message found by this.
   std::string ReasonBuffer;
@@ -93,6 +96,11 @@ public:
     else
       return std::nullopt;
   }
+
+public:
+  [[nodiscard]] bool isGlobalSymbol(const model::Identifier &Name) const;
+  [[nodiscard]] bool registerGlobalSymbol(const model::Identifier &Name,
+                                          const std::string &Path);
 
 public:
   bool maybeFail(bool Result) { return maybeFail(Result, {}); }

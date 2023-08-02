@@ -18,6 +18,10 @@
 
 using namespace llvm;
 
+static std::string toIdentifier(const MetaAddress &Address) {
+  return model::Identifier::sanitize(Address.toString()).str().str();
+}
+
 namespace model {
 
 model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
@@ -121,55 +125,95 @@ bool Binary::verify() const {
   return verify(VH);
 }
 
-bool Binary::verify(VerifyHelper &VH) const {
-  // Prepare for checking symbol names. We will populate and check this against
-  // functions, dynamic functions, segments, types and enum entries
-  std::set<Identifier> Symbols;
-  auto CheckCustomName = [&VH, &Symbols, this](const Identifier &CustomName) {
-    if (CustomName.empty())
-      return true;
+bool VerifyHelper::isGlobalSymbol(const model::Identifier &Name) const {
+  return GlobalSymbols.count(Name) > 0;
+}
 
-    return VH.maybeFail(Symbols.insert(CustomName).second,
-                        "Duplicate name: " + CustomName.str().str(),
-                        *this);
-  };
+bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
+                                        const std::string &Path) {
+  if (Name.empty())
+    return true;
 
-  for (const Function &F : Functions()) {
-    // Verify individual functions
-    if (not F.verify(VH))
-      return VH.fail();
+  auto It = GlobalSymbols.find(Name);
+  if (It == GlobalSymbols.end()) {
+    GlobalSymbols.insert({ Name, Path });
+    return true;
+  } else {
+    std::string Message;
+    Message += "Duplicate global symbol \"";
+    Message += Name.str().str();
+    Message += "\":\n\n";
 
-    if (not CheckCustomName(F.CustomName()))
+    Message += "  " + It->second + "\n";
+    Message += "  " + Path + "\n";
+    return fail(Message);
+  }
+}
+
+static bool verifyGlobalNamespace(VerifyHelper &VH,
+                                  const model::Binary &Model) {
+  // Namespacing rules:
+  //
+  // 1. each struct/union induces a namespace for its field names;
+  // 2. each prototype induces a namespace for its arguments (and local
+  //    variables, but those are not part of the model yet);
+  // 3. the global namespace includes segment names, function names, dynamic
+  //    function names, type names and entries of `enum`s;
+  //
+  // Verify needs to verify that each namespace has no internal clashes.
+  // Also, the global namespace clashes with everything.
+  for (const Function &F : Model.Functions()) {
+    if (not VH.registerGlobalSymbol(F.CustomName(), Model.path(F)))
       return VH.fail("Duplicate name", F);
   }
 
   // Verify DynamicFunctions
-  for (const DynamicFunction &DF : ImportedDynamicFunctions()) {
-    if (not DF.verify(VH))
-      return VH.fail();
-
-    if (not CheckCustomName(DF.CustomName()))
+  for (const DynamicFunction &DF : Model.ImportedDynamicFunctions()) {
+    if (not VH.registerGlobalSymbol(DF.CustomName(), Model.path(DF)))
       return VH.fail();
   }
 
-  for (auto &Type : Types()) {
-    if (not CheckCustomName(Type->CustomName()))
+  // Verify types and enum entries
+  for (auto &Type : Model.Types()) {
+    if (not VH.registerGlobalSymbol(Type->CustomName(), Model.path(*Type)))
       return VH.fail();
 
     if (auto *Enum = dyn_cast<EnumType>(Type.get()))
       for (auto &Entry : Enum->Entries())
-        if (not CheckCustomName(Entry.CustomName()))
+        if (not VH.registerGlobalSymbol(Entry.CustomName(),
+                                        Model.path(*Enum, Entry)))
           return VH.fail();
   }
 
   // Verify Segments
-  for (const Segment &S : Segments()) {
-    if (not S.verify(VH))
-      return VH.fail();
-
-    if (not CheckCustomName(S.CustomName()))
+  for (const Segment &S : Model.Segments()) {
+    if (not VH.registerGlobalSymbol(S.CustomName(), Model.path(S)))
       return VH.fail();
   }
+
+  return true;
+}
+
+bool Binary::verify(VerifyHelper &VH) const {
+  // First of all, verify the global namespace: we need to fully populate it
+  // before we can verify namespaces with smaller scopes
+  if (not verifyGlobalNamespace(VH, *this))
+    return VH.fail();
+
+  // Verify individual functions
+  for (const Function &F : Functions())
+    if (not F.verify(VH))
+      return VH.fail();
+
+  // Verify DynamicFunctions
+  for (const DynamicFunction &DF : ImportedDynamicFunctions())
+    if (not DF.verify(VH))
+      return VH.fail();
+
+  // Verify Segments
+  for (const Segment &S : Segments())
+    if (not S.verify(VH))
+      return VH.fail();
 
   // Make sure no segments overlap
   for (const auto &[LHS, RHS] : zip_pairs(Segments())) {
@@ -192,8 +236,8 @@ Identifier Function::name() const {
   if (not CustomName().empty()) {
     return CustomName();
   } else {
-    auto AutomaticName = (Twine("function_") + Entry().toString()).str();
-    return Identifier::fromString(AutomaticName);
+    auto AutomaticName = (Twine("_function_") + toIdentifier(Entry())).str();
+    return Identifier(AutomaticName);
   }
 }
 
@@ -215,8 +259,8 @@ Identifier DynamicFunction::name() const {
   if (not CustomName().empty()) {
     return CustomName();
   } else {
-    auto AutomaticName = (Twine("dynamic_function_") + OriginalName()).str();
-    return Identifier::fromString(AutomaticName);
+    auto AutomaticName = (Twine("_dynamic_") + OriginalName()).str();
+    return Identifier(AutomaticName);
   }
 }
 
@@ -263,10 +307,10 @@ Identifier Segment::name() const {
   if (not CustomName().empty()) {
     return CustomName();
   } else {
-    auto AutomaticName = (Twine("segment_") + StartAddress().toString() + "_"
-                          + Twine(VirtualSize()))
+    auto AutomaticName = (Twine("_segment_") + toIdentifier(StartAddress())
+                          + "_" + Twine(VirtualSize()))
                            .str();
-    return Identifier::fromString(AutomaticName);
+    return Identifier(AutomaticName);
   }
 }
 

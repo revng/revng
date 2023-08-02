@@ -120,7 +120,7 @@ PromoteCSVs::PromoteCSVs(Module *M,
       continue;
 
     CSVs.insert(CSV);
-    if (auto *F = M->getFunction((Twine("init_") + CSV->getName()).str()))
+    if (auto *F = M->getFunction((Twine("_init_") + CSV->getName()).str()))
       if (FunctionTags::OpaqueCSVValue.isTagOf(F))
         CSVInitializers.record(CSV->getName(), F);
   }
@@ -305,7 +305,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     auto *Initializer = CSVInitializers.get(CSVName,
                                             CSVType,
                                             {},
-                                            Twine("init_") + CSVName);
+                                            Twine("_init_") + CSVName);
 
     if (not Initializer->hasMetadata("revng.abi_register")) {
       model::Register::Values
