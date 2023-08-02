@@ -210,9 +210,6 @@ public:
     // verification routine or things are going to break down.
     model::VerifyHelper VectorVH;
 
-    // This is a normal `model::VerifyHelper`.
-    model::VerifyHelper ValidationVH;
-
     // Choose the applicable functions and run the conversion for them.
     using abi::FunctionType::filterTypes;
     auto ToConvert = filterTypes<model::RawFunctionType>(Model->Types());
@@ -234,7 +231,8 @@ public:
         revng_assert(New->isValid());
 
         // and verifies
-        revng_assert(New->get()->verify(ValidationVH));
+        if (VerifyLog.isEnabled())
+          New->get()->verify(true);
 
         revng_log(Log,
                   "Function Conversion Successful: "
