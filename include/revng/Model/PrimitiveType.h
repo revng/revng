@@ -33,6 +33,9 @@ public:
   PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind, uint8_t ByteSize);
 
 public:
+  static uint64_t FirstNonPrimitiveID;
+
+public:
   Identifier name() const;
 
 public:
@@ -40,7 +43,18 @@ public:
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }
-  static bool classof(const Key &K) { return std::get<0>(K) == AssociatedKind; }
+  static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
+
+namespace detail {
+inline uint64_t getFirstNonPrimitiveID() {
+  using namespace model;
+  using namespace PrimitiveTypeKind;
+  return PrimitiveType(static_cast<Values>(Count - 1), 16).ID() + 1;
+}
+} // namespace detail
+
+inline uint64_t
+  model::PrimitiveType::FirstNonPrimitiveID = detail::getFirstNonPrimitiveID();
 
 #include "revng/Model/Generated/Late/PrimitiveType.h"
