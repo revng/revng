@@ -169,12 +169,38 @@ public:
   bool verifyTypes(VerifyHelper &VH) const;
 
 public:
+  std::string path(const model::Function &F) const {
+    return "/Functions/" + key(F);
+  }
+
+  std::string path(const model::DynamicFunction &F) const {
+    return "/ImportedDynamicFunctions/" + key(F);
+  }
+
+  std::string path(const model::Type &T) const { return "/Types/" + key(T); }
+
+  std::string path(const model::EnumType &T,
+                   const model::EnumEntry &Entry) const {
+    return path(static_cast<const model::Type &>(T)) + "/Entries/" + key(Entry);
+  }
+
+  std::string path(const model::Segment &Segment) const {
+    return "/Segments/" + key(Segment);
+  }
+
+public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
   bool verify() const;
   void dump() const debug_function;
   void dumpTypeGraph(const char *Path) const debug_function;
   std::string toString() const debug_function;
+
+private:
+  template<typename T>
+  static std::string key(const T &Object) {
+    return getNameFromYAMLScalar(KeyedObjectTraits<T>::key(Object));
+  }
 };
 
 inline model::TypePath
