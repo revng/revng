@@ -29,7 +29,7 @@ public:
   template<typename ToAdd, typename... T>
   void emplace(llvm::StringRef Name, T &&...Args) {
     Map.try_emplace(Name.str(),
-                    std::make_unique<ToAdd>(std::forward<T>(Args)...));
+                    std::make_unique<ToAdd>(Name, std::forward<T>(Args)...));
   }
 
   template<typename T>
@@ -101,7 +101,7 @@ public:
     auto MaybeGlobal = get(GlobalName);
     if (!MaybeGlobal)
       return MaybeGlobal.takeError();
-    return MaybeGlobal.get()->createNew(Buffer);
+    return MaybeGlobal.get()->createNew(GlobalName, Buffer);
   }
 
   llvm::Expected<std::unique_ptr<Global>> clone(llvm::StringRef GlobalName) {
