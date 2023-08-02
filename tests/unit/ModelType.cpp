@@ -138,7 +138,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   auto Int32 = T->getPrimitiveType(Signed, 4);
 
-  TypePath EnumPath = T->recordNewType(makeType<EnumType>());
+  TypePath EnumPath = T->makeType<EnumType>().second;
   auto *Enum = cast<EnumType>(EnumPath.get());
   revng_check(T->Types().size() == 2);
 
@@ -189,7 +189,6 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   Entry2.CustomName() = "some_value";
   revng_check(Enum->Entries().insert(Entry2).second);
   revng_check(Enum->Entries().size() == 4);
-  revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
   // But if we remove the dupicated entry we're good again
   revng_check(Enum->Entries().erase(7));
@@ -200,7 +199,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // But if we break the underlying, making it point to a type that does not
   // exist, we're not good anymore
-  auto BrokenPath = TypePath::fromString(T.get(), "/Types/TypedefType-42");
+  auto BrokenPath = TypePath::fromString(T.get(), "/Types/42-TypedefType");
   Enum->UnderlyingType() = { BrokenPath, {} };
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
@@ -231,7 +230,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
 
   // Insert the typedef
 
-  TypePath TypedefPath = T->recordNewType(makeType<TypedefType>());
+  TypePath TypedefPath = T->makeType<TypedefType>().second;
   auto *Typedef = cast<TypedefType>(TypedefPath.get());
   revng_check(T->Types().size() == 2);
 
@@ -274,7 +273,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   auto VoidT = T->getPrimitiveType(Void, 0);
 
   // Insert the struct
-  TypePath StructPath = T->recordNewType(makeType<StructType>());
+  TypePath StructPath = T->makeType<StructType>().second;
   auto *Struct = cast<StructType>(StructPath.get());
   revng_check(T->Types().size() == 3);
 
@@ -402,7 +401,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   auto VoidT = T->getPrimitiveType(Void, 0);
 
   // Insert the union
-  TypePath UnionPath = T->recordNewType(makeType<UnionType>());
+  TypePath UnionPath = T->makeType<UnionType>().second;
   auto *Union = cast<UnionType>(UnionPath.get());
   revng_check(T->Types().size() == 4);
 
@@ -474,7 +473,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   auto VoidT = T->getPrimitiveType(Void, 0);
 
   // Create a C-like function type
-  TypePath FunctionPath = T->recordNewType(makeType<CABIFunctionType>());
+  TypePath FunctionPath = T->makeType<CABIFunctionType>().second;
   auto *FunctionType = cast<CABIFunctionType>(FunctionPath.get());
   FunctionType->ABI() = model::ABI::SystemV_x86_64;
   revng_check(T->Types().size() == 3);
@@ -535,7 +534,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   auto Primitive64 = T->getPrimitiveType(model::PrimitiveTypeKind::Generic, 4);
   QualifiedType Generic64 = { Primitive64, {} };
 
-  auto RAFPointer = makeType<model::RawFunctionType>();
+  auto RAFPointer = T->makeType<model::RawFunctionType>().second;
   auto *RAF = cast<model::RawFunctionType>(RAFPointer.get());
 
   revng_check(RAF->verify(true));

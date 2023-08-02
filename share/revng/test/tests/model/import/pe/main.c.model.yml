@@ -6,7 +6,7 @@
 Functions:
   - CustomName: "main"
     OriginalName: main
-    Prototype: "/Types/CABIFunctionType-1215409121627673421"
+    Prototype: "/Types/1215409121627673421-CABIFunctionType"
 Types:
   - Kind: PrimitiveType
     ID: 1540
@@ -16,5 +16,5 @@ Types:
     ID: 1215409121627673421
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments: []

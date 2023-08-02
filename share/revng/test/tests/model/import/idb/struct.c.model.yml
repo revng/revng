@@ -5,17 +5,14 @@
 Types:
   - Kind: StructType
     ID: 10354558065911308391
-    CustomName: "my_struct"
     OriginalName: my_struct
     Fields:
       - Offset: 0
-        CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
       - Offset: 4
-        CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
     Size: 8

@@ -34,7 +34,7 @@ def is_reference(string):
 
 def dereference(root, string):
     assert is_reference(string)
-    match = re.match(r"/Types/.*-([^-]*)", string)
+    match = re.match(r"/Types/([^-]*)-", string)
 
     if match:
         type_id = int(match.groups()[0])
@@ -320,12 +320,12 @@ def selftest():
     assert test_subgraph([1, 3, 2], [1, 2, 3])
 
     # Test references
-    reference = {"a": "/Types/Type-1", "Types": [{"ID": 1, "b": 3}]}
+    reference = {"a": "/Types/1-Type", "Types": [{"ID": 1, "b": 3}]}
     assert test_subgraph(
-        {"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference
+        {"a": "/Types/2-Type", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference
     )
     assert not test_subgraph(
-        {"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]}, reference
+        {"a": "/Types/2-Type", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]}, reference
     )
 
     return 0

@@ -4,9 +4,9 @@
 
 ---
 Functions:
-  - Prototype: "/Types/CABIFunctionType-44520348750923847"
+  - Prototype: "/Types/44520348750923847-CABIFunctionType"
 ImportedDynamicFunctions:
-  - Prototype: "/Types/CABIFunctionType-44520348750923847"
+  - Prototype: "/Types/44520348750923847-CABIFunctionType"
 Types:
   - Kind: PrimitiveType
     ID: 1540
@@ -20,11 +20,11 @@ Types:
     ID: 44520348750923847
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1537"
+          UnqualifiedType: "/Types/1537-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8

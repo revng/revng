@@ -117,6 +117,11 @@ public:
     return getTypePath(T->key());
   }
 
+  /// Return the first available (non-primitive) type ID available
+  uint64_t getAvailableTypeID() const;
+
+  /// Record the new type into the model and assign an ID (unless it's a
+  /// PrimitiveType)
   model::TypePath recordNewType(UpcastablePointer<Type> &&T);
 
   /// Uses `SortedVector::batch_insert()` to emplace all the elements from
@@ -125,6 +130,8 @@ public:
   /// This inserts all the elements at the end of the underlying vector, and
   /// then triggers sorting, instead of conventional searching for the position
   /// of each element on its insertion.
+  ///
+  /// \note Unlike recordNewTypes, this method does not assign type IDs.
   ///
   /// \note It takes advantage of `std::move_iterator` to ensure all
   ///       the elements are accessed strictly as r-values, so the original
@@ -145,6 +152,7 @@ public:
     auto Movable = as_rvalue(std::move(NewTypes));
     for (UpcastablePointer<Type> &&NewType : Movable) {
       static_assert(std::is_rvalue_reference_v<decltype(NewType)>);
+      revng_assert(NewType->ID() != 0);
       Inserter.emplace(std::move(NewType));
     }
   }

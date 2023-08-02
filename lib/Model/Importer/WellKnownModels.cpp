@@ -29,12 +29,13 @@ public:
 
 class WellKnownModel {
 public:
-  TupleTree<model::Binary> Model;
+  TupleTree<model::Binary> FromModel;
   TypeCopier Copier;
 
 public:
-  WellKnownModel(TupleTree<model::Binary> &&Model) :
-    Model(Model), Copier(this->Model) {}
+  WellKnownModel(TupleTree<model::Binary> &&FromModel,
+                 TupleTree<model::Binary> &DestinationModel) :
+    FromModel(FromModel), Copier(this->FromModel, DestinationModel) {}
 };
 
 class ImportWellKnownModelsAnalysis {
@@ -50,6 +51,7 @@ public:
     std::map<WellKnownFunctionKey,
              std::pair<WellKnownModel *, model::Function *>>
       WellKnownFunctions;
+    TupleTree<model::Binary> &Model = getWritableModelFromContext(Context);
 
     // Load all well-known models
     for (const std::string &Path :
@@ -57,13 +59,13 @@ public:
       auto MaybeModel = TupleTree<model::Binary>::fromFile(Path);
       revng_assert(MaybeModel);
       using namespace std;
-      auto NewWKM = make_unique<WellKnownModel>(std::move(*MaybeModel));
+      auto NewWKM = make_unique<WellKnownModel>(std::move(*MaybeModel), Model);
       WellKnownModels.push_back(std::move(NewWKM));
     }
 
     // Create an index of well-known functions
     for (auto &WellKnownModel : WellKnownModels) {
-      auto &Model = WellKnownModel->Model;
+      auto &Model = WellKnownModel->FromModel;
       // Collect exported functions
       for (model::Function &F : Model->Functions()) {
         for (std::string ExportedName : F.ExportedNames()) {
@@ -74,8 +76,6 @@ public:
         }
       }
     }
-
-    TupleTree<model::Binary> &Model = getWritableModelFromContext(Context);
 
     for (model::DynamicFunction &F : Model->ImportedDynamicFunctions()) {
       // Compose the key
@@ -94,13 +94,16 @@ public:
         // Copy prototype
         auto NewPrototype = WellKnownFunction->Prototype();
         if (NewPrototype.isValid()) {
-          auto TypeKey = NewPrototype.get()->key();
           TypeCopier &Copier = It->second.first->Copier;
-          Copier.copyTypeInto(NewPrototype, Model);
-          F.Prototype() = Model->getTypePath(TypeKey);
+          auto MaybePath = Copier.copyTypeInto(NewPrototype);
+          revng_assert(MaybePath.has_value());
+          F.Prototype() = *MaybePath;
         }
       }
     }
+
+    for (auto &WLF : WellKnownModels)
+      WLF->Copier.finalize();
 
     return llvm::Error::success();
   }

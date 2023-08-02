@@ -9,16 +9,13 @@ Types:
     Size: 4
   - Kind: EnumType
     ID: 8119090305649570066
-    CustomName: "A"
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1284"
+      UnqualifiedType: "/Types/1284-PrimitiveType"
     Entries:
       - Value: 0
-        CustomName: "x"
         OriginalName: x
       - Value: 1
-        CustomName: "y"
         OriginalName: "y"
   - ID: 256
     Kind: PrimitiveType
@@ -26,20 +23,17 @@ Types:
     Size: 0
   - Kind: TypedefType
     ID: 1687222338895130802
-    CustomName: "A_"
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/Types/EnumType-8119090305649570066"
+      UnqualifiedType: "/Types/8119090305649570066-EnumType"
   - Kind: CABIFunctionType
     ID: 5232257417303549612
-    CustomName: "fn"
     OriginalName: fn
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/TypedefType-1687222338895130802"
-        CustomName: "x"
+          UnqualifiedType: "/Types/1687222338895130802-TypedefType"
         OriginalName: x

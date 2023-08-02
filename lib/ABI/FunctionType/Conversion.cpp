@@ -144,6 +144,7 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
 
   // The conversion was successful, a new `CABIFunctionType` can now be created,
   auto [NewType, NewTypePath] = Binary->makeType<model::CABIFunctionType>();
+  revng_assert(NewType.ID() != 0);
   model::copyMetadata(NewType, FunctionType);
   NewType.ABI() = ABI.ABI();
 

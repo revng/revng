@@ -23,7 +23,7 @@ namespace model {
 model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
                                          uint8_t ByteSize) {
   PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
+  Type::Key PrimitiveKey{ Temporary.ID(), TypeKind::PrimitiveType };
   auto It = Types().find(PrimitiveKey);
 
   // If we couldn't find it, create it
@@ -38,11 +38,27 @@ model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
 model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
                                          uint8_t ByteSize) const {
   PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
+  Type::Key PrimitiveKey{ Temporary.ID(), TypeKind::PrimitiveType };
   return getTypePath(Types().at(PrimitiveKey).get());
 }
 
+uint64_t Binary::getAvailableTypeID() const {
+  uint64_t Result = 0;
+
+  if (not Types().empty())
+    Result = Types().rbegin()->get()->ID() + 1;
+
+  Result = std::max(model::PrimitiveType::FirstNonPrimitiveID, Result);
+  return Result;
+}
+
 TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
+  if (not isa<PrimitiveType>(T.get())) {
+    // Assign progressive ID
+    revng_assert(T->ID() == 0);
+    T->ID() = getAvailableTypeID();
+  }
+
   auto [It, Success] = Types().insert(T);
   revng_assert(Success);
   return getTypePath(It->get());

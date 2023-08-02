@@ -56,8 +56,8 @@ static std::optional<std::pair<model::TypePath, model::TypePath>>
 ensureMatchingIDs(const model::Type::Key &Left,
                   const model::Type::Key &Right,
                   model::Binary &Model) {
-  auto &[LeftKind, LeftID] = Left;
-  auto &[RightKind, RightID] = Right;
+  auto &[LeftID, LeftKind] = Left;
+  auto &[RightID, RightKind] = Right;
   revng_assert(LeftKind == RightKind);
 
   if (LeftID != RightID) {
@@ -73,8 +73,10 @@ ensureMatchingIDs(const model::Type::Key &Left,
     // Replace the ID of the moved out type.
     MovedOut->ID() = LeftID;
 
-    // ReinsertTheType
-    model::TypePath NewPath = Model.recordNewType(std::move(MovedOut));
+    // Reinsert the type
+    auto [It, Success] = Model.Types().insert(std::move(MovedOut));
+    revng_assert(Success);
+    model::TypePath NewPath = Model.getTypePath(It->get());
 
     // Return the "replacement pair", so that the caller is able to gather them
     // and invoke `TupleTree::replaceReferences` on all of them at once.

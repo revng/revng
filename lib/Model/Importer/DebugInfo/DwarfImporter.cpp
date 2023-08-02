@@ -306,10 +306,9 @@ private:
 
   template<typename T>
   [[maybe_unused]] T *createPlaceholderType(const DWARFDie &Die) {
-    auto NewType = model::makeType<T>();
-    T *Result = cast<T>(NewType.get());
-    record(Die, Model->recordNewType(std::move(NewType)), false);
-    return Result;
+    auto [Result, NewTypePath] = Model->makeType<T>();
+    record(Die, NewTypePath, false);
+    return &Result;
   }
 
   void createInvalidPrimitivePlaceholder(const DWARFDie &Die) {
@@ -349,9 +348,7 @@ private:
     } break;
 
     case llvm::dwarf::DW_TAG_subroutine_type:
-      record(Die,
-             Model->recordNewType(model::makeType<model::CABIFunctionType>()),
-             false);
+      record(Die, Model->makeType<model::CABIFunctionType>().second, false);
       break;
     case llvm::dwarf::DW_TAG_typedef:
     case llvm::dwarf::DW_TAG_restrict_type:

@@ -74,13 +74,14 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
   auto UInt8Path = TheBinary.getPrimitiveType(PrimitiveTypeKind::Unsigned, 8);
   model::Type *UInt8 = UInt8Path.get();
   using llvm::Twine;
-  std::string TypePath = (Twine("/Types/PrimitiveType-") + Twine(UInt8->ID())
-                          + "/OriginalName")
+  std::string TypePath = (Twine("/Types/") + Twine(UInt8->ID())
+                          + "-PrimitiveType/OriginalName")
                            .str();
   auto *OriginalNamePointer = getByPath<std::string>(TypePath, TheBinary);
   revng_check(OriginalNamePointer == &UInt8->OriginalName());
 
-  TypePath = (Twine("/Types/PrimitiveType-") + Twine(UInt8->ID())).str();
+  TypePath = (Twine("/Types/") + Twine(UInt8->ID()) + Twine("-PrimitiveType"))
+               .str();
   revng_check(getByPath<model::Type>(TypePath, TheBinary) == UInt8);
 }
 
@@ -143,13 +144,13 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
   // Test matching through an UpcastablePointer
   //
   {
-    auto Matcher = PathMatcher::create<Binary>("/Types/RawFunctionType-*/"
+    auto Matcher = PathMatcher::create<Binary>("/Types/*-RawFunctionType/"
                                                "FinalStackOffset")
                      .value();
 
-    model::Type::Key Key{ model::TypeKind::RawFunctionType, 1000 };
+    model::Type::Key Key{ 1000, model::TypeKind::RawFunctionType };
     auto Path1000 = pathAsString<Binary>(Matcher.apply(Key));
-    revng_check(Path1000 == "/Types/RawFunctionType-1000/FinalStackOffset");
+    revng_check(Path1000 == "/Types/1000-RawFunctionType/FinalStackOffset");
 
     auto MaybeToMatch = stringAsPath<Binary>(*Path1000);
     revng_check(MaybeToMatch);
@@ -157,7 +158,7 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
     revng_check(MaybeMatch);
     revng_check(std::get<0>(*MaybeMatch) == Key);
 
-    MaybeToMatch = stringAsPath<Binary>("/Types/CABIFunctionType-1000/ID");
+    MaybeToMatch = stringAsPath<Binary>("/Types/1000-CABIFunctionType/ID");
     MaybeMatch = Matcher.match<model::Type::Key>(MaybeToMatch.value());
     revng_check(not MaybeMatch);
   }
@@ -165,8 +166,7 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
 
 template<typename T>
 static T *createType(model::Binary &Model) {
-  model::TypePath Path = Model.recordNewType(makeType<T>());
-  return llvm::cast<T>(Path.get());
+  return &Model.makeType<T>().first;
 }
 
 BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
@@ -293,13 +293,13 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
 }
 
 BOOST_AUTO_TEST_CASE(CABIFunctionTypePathShouldParse) {
-  const char *Path = "/Types/CABIFunctionType-10000";
+  const char *Path = "/Types/10000-CABIFunctionType";
   auto MaybeParsed = stringAsPath<model::Binary>(Path);
   BOOST_TEST(MaybeParsed.has_value());
 }
 
 BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
-  const char *Path = "/Types/CABIFunctionType-10000/Arguments";
+  const char *Path = "/Types/10000-CABIFunctionType/Arguments";
   auto MaybeParsed = stringAsPath<model::Binary>(Path);
   BOOST_TEST(MaybeParsed.has_value());
 }

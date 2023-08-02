@@ -273,36 +273,10 @@ const std::set<llvm::StringRef> ReservedPrefixes = { "unnnamed_",
                                                      "dynamic_function_",
                                                      "segment_" };
 
-static llvm::cl::opt<uint64_t> ModelTypeIDSeed("model-type-id-seed",
-                                               llvm::cl::desc("Set the seed "
-                                                              "for the "
-                                                              "generation of "
-                                                              "ID of model "
-                                                              "Types"),
-                                               llvm::cl::cat(MainCategory),
-                                               llvm::cl::init(false));
+model::Type::Type() : model::Type(0, model::TypeKind::Invalid){};
 
-class RNG {
-  std::mt19937_64 Generator;
-  std::uniform_int_distribution<uint64_t> Distribution;
-
-public:
-  RNG() :
-    Generator(ModelTypeIDSeed.getNumOccurrences() ? ModelTypeIDSeed.getValue() :
-                                                    std::random_device()()),
-    Distribution(std::numeric_limits<uint64_t>::min(),
-                 std::numeric_limits<uint64_t>::max()) {}
-
-  uint64_t get() { return Distribution(Generator); }
-};
-
-static llvm::ManagedStatic<RNG> IDGenerator;
-
-model::Type::Type() :
-  model::generated::Type(model::TypeKind::Invalid, IDGenerator->get()){};
-
-model::Type::Type(TypeKind::Values TK) :
-  model::Type::Type(TK, IDGenerator->get()) {
+model::Type::Type(uint64_t ID, TypeKind::Values Kind) :
+  model::generated::Type(ID, Kind) {
 }
 
 const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
@@ -313,22 +287,22 @@ const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
 
 template<size_t I = 0>
 model::UpcastableType
-makeTypeWithIDImpl(model::TypeKind::Values Kind, uint64_t ID) {
+makeTypeWithIDImpl(uint64_t ID, model::TypeKind::Values Kind) {
   using concrete_types = concrete_types_traits_t<model::Type>;
   if constexpr (I < std::tuple_size_v<concrete_types>) {
     using type = std::tuple_element_t<I, concrete_types>;
-    if (type::classof(typename type::Key(Kind, ID)))
-      return UpcastableType(new type(type::AssociatedKind, ID));
+    if (type::classof(typename type::Key(ID, Kind)))
+      return UpcastableType(new type(ID, type::AssociatedKind));
     else
-      return model::makeTypeWithIDImpl<I + 1>(Kind, ID);
+      return model::makeTypeWithIDImpl<I + 1>(ID, Kind);
   } else {
     return UpcastableType(nullptr);
   }
 }
 
-model::UpcastableType makeTypeWithID(model::TypeKind::Values Kind,
-                                     uint64_t ID) {
-  return makeTypeWithIDImpl(Kind, ID);
+model::UpcastableType makeTypeWithID(uint64_t ID,
+                                     model::TypeKind::Values Kind) {
+  return makeTypeWithIDImpl(ID, Kind);
 }
 
 Identifier model::UnionField::name() const {
@@ -519,8 +493,8 @@ static uint64_t makePrimitiveID(PrimitiveTypeKind::Values PrimitiveKind,
 
 PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
                              uint8_t Size) :
-  PrimitiveType(AssociatedKind,
-                makePrimitiveID(PrimitiveKind, Size),
+  PrimitiveType(makePrimitiveID(PrimitiveKind, Size),
+                AssociatedKind,
                 {},
                 {},
                 {},
@@ -537,8 +511,8 @@ static uint8_t getPrimitiveSize(uint64_t ID) {
 }
 
 PrimitiveType::PrimitiveType(uint64_t ID) :
-  PrimitiveType(AssociatedKind,
-                ID,
+  PrimitiveType(ID,
+                AssociatedKind,
                 {},
                 {},
                 {},

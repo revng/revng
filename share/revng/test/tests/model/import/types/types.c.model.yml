@@ -5,7 +5,7 @@
 ---
 Segments:
   - Type:
-      UnqualifiedType: "/Types/StructType-12084688553483582712"
+      UnqualifiedType: "/Types/12084688553483582712-StructType"
 Types:
   - Kind: PrimitiveType
     ID: 513
@@ -26,15 +26,15 @@ Types:
       - Offset: 0
         OriginalName: char_80_global
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-513"
+          UnqualifiedType: "/Types/513-PrimitiveType"
           Qualifiers:
             - Kind: Array
               Size: 80
       - Offset: 80
         OriginalName: uint64_global
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 88
         OriginalName: uint32_global
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-516"
+          UnqualifiedType: "/Types/516-PrimitiveType"

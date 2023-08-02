@@ -9,20 +9,17 @@ Types:
     Size: 1
   - Kind: CABIFunctionType
     ID: 13950133128659256343
-    CustomName: "fn"
     OriginalName: fn
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/TypedefType-11568236181854152965"
+      UnqualifiedType: "/Types/11568236181854152965-TypedefType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/TypedefType-11568236181854152965"
-        CustomName: "x"
+          UnqualifiedType: "/Types/11568236181854152965-TypedefType"
         OriginalName: x
   - Kind: TypedefType
     ID: 11568236181854152965
-    CustomName: "prefix_uint32_t"
     OriginalName: uint32_t
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1025"
+      UnqualifiedType: "/Types/1025-PrimitiveType"

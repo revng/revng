@@ -211,7 +211,7 @@ class Reference(Generic[_PointedType, _RootType]):
 
     @property
     def id(self):  # noqa: A003
-        _, _, rid = self._ref_str.rpartition("-")
+        rid = self._ref_str.split("/")[2].split("-")[0]
         return int(rid)
 
     @classmethod

@@ -590,7 +590,7 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
 
   if constexpr (StrictSpecializationOf<Value, UpcastablePointer>) {
     auto [PreDash, PostDash] = Before.split("-");
-    if (PostDash == "*") {
+    if (PreDash == "*") {
       // Mark as free
       Result.Free.push_back(Result.Path.size());
 
@@ -603,14 +603,15 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
       using Kind = typename Value::element_type::KindType;
 
       // Extract Kind from "Kind-*" and deserialize it
-      Kind MatcherKind = getValueFromYAMLScalar<Kind>(PreDash);
+      Kind MatcherKind = getValueFromYAMLScalar<Kind>(PostDash);
       static_assert(std::is_enum_v<std::decay_t<Kind>>);
 
       // Push in Path a Key initializing only the first field (the kind)
       Key Component;
-      using KindType = decltype(std::get<0>(Component));
+      auto &TheKind = std::get<std::tuple_size_v<Key> - 1>(Component);
+      using KindType = decltype(TheKind);
       static_assert(std::is_enum_v<std::decay_t<KindType>>);
-      std::get<0>(Component) = MatcherKind;
+      TheKind = MatcherKind;
       Result.Path.emplace_back<Key, true>(Component);
     } else {
       Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));

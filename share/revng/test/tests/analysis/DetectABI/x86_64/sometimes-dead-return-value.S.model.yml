@@ -5,11 +5,11 @@
 ---
 Functions:
   - OriginalName: func1
-    Prototype: "/Types/RawFunctionType-1"
+    Prototype: "/Types/1-RawFunctionType"
   - OriginalName: func2
-    Prototype: "/Types/RawFunctionType-2"
+    Prototype: "/Types/2-RawFunctionType"
   - OriginalName: callee
-    Prototype: "/Types/RawFunctionType-3"
+    Prototype: "/Types/3-RawFunctionType"
 Types:
   - ID: 2
     ReturnValues:

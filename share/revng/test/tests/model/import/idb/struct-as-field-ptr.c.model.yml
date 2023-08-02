@@ -5,47 +5,39 @@
 Types:
   - Kind: StructType
     ID: 12620553074732431538
-    CustomName: "my_struct"
     OriginalName: my_struct
     Fields:
       - Offset: 0
-        CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
       - Offset: 4
-        CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
       - Offset: 8
-        CustomName: "z"
         OriginalName: z
         Type:
-          UnqualifiedType: "/Types/TypedefType-626103279023675435"
+          UnqualifiedType: "/Types/626103279023675435-TypedefType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
     Size: 16
   - Kind: TypedefType
     ID: 626103279023675435
-    CustomName: "second_struct_"
     OriginalName: second_struct
     UnderlyingType:
-      UnqualifiedType: "/Types/StructType-2113910595525978593"
+      UnqualifiedType: "/Types/2113910595525978593-StructType"
   - Kind: StructType
     ID: 2113910595525978593
-    CustomName: "second_struct"
     OriginalName: second_struct
     Fields:
       - Offset: 0
-        CustomName: "a"
         OriginalName: a
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
       - Offset: 4
-        CustomName: "b"
         OriginalName: b
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
     Size: 8
