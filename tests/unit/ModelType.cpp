@@ -25,13 +25,11 @@ serializeDeserialize(const TupleTree<model::Binary> &T) {
 
   std::string Buffer;
   T.serialize(Buffer);
-  llvm::dbgs() << "Serialized\n" << Buffer;
 
   auto Deserialized = TupleTree<model::Binary>::deserialize(Buffer);
 
   std::string OtherBuffer;
   Deserialized->serialize(OtherBuffer);
-  llvm::dbgs() << "Deserialized\n" << OtherBuffer;
 
   return std::move(Deserialized.get());
 }
