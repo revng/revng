@@ -1217,10 +1217,10 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
     ;
   }
 
-  if (Result)
+  if (Result) {
     VH.setVerified(this);
-
-  VH.verificationCompleted(this);
+    VH.verificationCompleted(this);
+  }
 
   rc_return VH.maybeFail(Result);
 }

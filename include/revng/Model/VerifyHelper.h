@@ -95,12 +95,14 @@ public:
   }
 
 public:
-  bool maybeFail(bool Result) const { return maybeFail(Result, {}); }
+  bool maybeFail(bool Result) { return maybeFail(Result, {}); }
 
-  bool maybeFail(bool Result, const llvm::Twine &Reason) const {
+  bool maybeFail(bool Result, const llvm::Twine &Reason) {
     if (AssertOnFail and not Result) {
       revng_abort(Reason.str().c_str());
     } else {
+      if (not Result)
+        InProgress.clear();
       return Result;
     }
   }
@@ -108,6 +110,8 @@ public:
   template<typename T>
   bool maybeFail(bool Result, const llvm::Twine &Reason, T &Element) {
     if (not Result) {
+      InProgress.clear();
+
       {
         llvm::raw_string_ostream StringStream(ReasonBuffer);
         StringStream << Reason << "\n";
@@ -124,10 +128,8 @@ public:
     return Result;
   }
 
-  bool fail() const { return maybeFail(false); }
-  bool fail(const llvm::Twine &Reason) const {
-    return maybeFail(false, Reason);
-  }
+  bool fail() { return maybeFail(false); }
+  bool fail(const llvm::Twine &Reason) { return maybeFail(false, Reason); }
 
   template<typename T>
   bool fail(const llvm::Twine &Reason, T &Element) {
