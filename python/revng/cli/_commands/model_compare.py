@@ -94,6 +94,7 @@ class YAMLGraph:
                     self.add_edge(object_id, id(item), "")
         elif object_type is dict:
             for key, value in object_.items():
+                key = key.lstrip("$")
                 value_type = type(value)
                 if value_type is dict or value_type is list:
                     self.visit_object(value)
@@ -197,8 +198,14 @@ class YAMLGraph:
             return False
 
         if input_type is dict:
-            input_object = YAMLGraph.filter(input_object)
+            for key, value in list(reference_object.items()):
+                if key.startswith("$") and (type(value) is list or type(value) is dict):
+                    key = key[1:]
+                    if key not in input_object or len(value) != len(input_object[key]):
+                        return False
+
             reference_object = YAMLGraph.filter(reference_object)
+            input_object = YAMLGraph.filter(input_object)
 
             if exact:
                 return input_object == reference_object
