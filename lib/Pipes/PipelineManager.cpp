@@ -404,12 +404,9 @@ PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
                              llvm::raw_ostream *DiagnosticLog) {
   auto Result = Runner->runAnalyses(List, Map, Options);
 
-  Task T({}, "WTF");
-  T.advance("1", true);
   if (not Result)
     return Result.takeError();
 
-  T.advance("2", true);
   // TODO: to remove once invalidations are working
   if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
     Map = Invalidations.get();

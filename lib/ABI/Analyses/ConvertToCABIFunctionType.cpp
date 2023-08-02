@@ -233,7 +233,7 @@ public:
         // If the conversion succeeds, make sure the returned type is valid,
         revng_assert(New->isValid());
 
-        // and verifies.
+        // and verifies
         revng_assert(New->get()->verify(ValidationVH));
 
         revng_log(Log,

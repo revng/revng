@@ -33,7 +33,7 @@ public:
 private:
   const abi::Definition &ABI;
   TypeBucket Bucket;
-  const bool UseSoftRegisterStateDeductions;
+  const bool UseSoftRegisterStateDeductions = false;
 
 public:
   ToCABIConverter(const abi::Definition &ABI,

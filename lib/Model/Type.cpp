@@ -1179,7 +1179,7 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
   VH.verificationInProgress(this);
 
   if (ID() == 0)
-    rc_return VH.fail();
+    rc_return VH.fail("A type cannot have ID 0", *this);
 
   bool Result = false;
 
