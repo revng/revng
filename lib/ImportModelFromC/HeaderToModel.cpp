@@ -459,7 +459,7 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name, TypeKind::Values Kind) {
     std::istringstream TheStream(ID);
     TheStream >> TypeID;
 
-    auto KeyType = model::Type::Key{ Kind, TypeID };
+    auto KeyType = model::Type::Key{ TypeID, Kind };
 
     auto TheType = Model->getTypePath(KeyType);
     if (TheType.get())
@@ -941,9 +941,11 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
-  }
 
-  Model->recordNewType(std::move(TypeTypedef));
+    Model->Types().insert(std::move(TypeTypedef));
+  } else {
+    Model->recordNewType(std::move(TypeTypedef));
+  }
 
   return true;
 }
@@ -1014,9 +1016,11 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
-  }
 
-  Model->recordNewType(std::move(NewType));
+    Model->Types().insert(std::move(NewType));
+  } else {
+    Model->recordNewType(std::move(NewType));
+  }
 
   return true;
 }
@@ -1126,18 +1130,23 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   // TODO: Can this be calculated/fetched automatically?
   Struct->Size() = CurrentOffset;
 
-  if (AnalysisOption == ImportModelFromCOption::EditType) {
+  switch (AnalysisOption) {
+  case ImportModelFromCOption::EditType:
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
-  }
+    Model->Types().insert(std::move(NewType));
+    break;
 
-  if (AnalysisOption != ImportModelFromCOption::EditFunctionPrototype)
-    Model->recordNewType(std::move(NewType));
-
-  if (AnalysisOption == ImportModelFromCOption::EditFunctionPrototype)
+  case ImportModelFromCOption::EditFunctionPrototype:
     MultiRegisterReturnValue = ReturnValues;
+    break;
+
+  case ImportModelFromCOption::AddType:
+    Model->recordNewType(std::move(NewType));
+    break;
+  }
 
   return true;
 }
@@ -1187,9 +1196,11 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
+    Model->Types().insert(std::move(NewType));
+  } else {
+    Model->recordNewType(std::move(NewType));
   }
 
-  Model->recordNewType(std::move(NewType));
   return true;
 }
 
@@ -1279,9 +1290,12 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
+
+    Model->Types().insert(std::move(NewType));
+  } else {
+    Model->recordNewType(std::move(NewType));
   }
 
-  Model->recordNewType(std::move(NewType));
   return true;
 }
 
