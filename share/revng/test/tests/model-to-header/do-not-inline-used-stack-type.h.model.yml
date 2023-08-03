@@ -7,26 +7,26 @@ Functions:
   - Entry: "0x401129:Code_x86_64"
     CustomName: "fn"
     OriginalName: fn
-    StackFrameType: "/Types/StructType-1"
-    Prototype: "/Types/CABIFunctionType-2"
+    StackFrameType: "/Types/3001-StructType"
+    Prototype: "/Types/3002-CABIFunctionType"
     ExportedNames:
       - fn
 Types:
   - Kind: CABIFunctionType
-    ID: 2
+    ID: 3002
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
+      UnqualifiedType: "/Types/520-PrimitiveType"
     Arguments: []
   - Kind: StructType
-    ID: 1
+    ID: 3001
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     Size: 16
   - Kind: StructType
-    ID: 3
+    ID: 3003
     CustomName: "S"
     OriginalName: S
     Fields:
@@ -34,7 +34,7 @@ Types:
         CustomName: "s1"
         OriginalName: s1
         Type:
-          UnqualifiedType: "/Types/StructType-1"
+          UnqualifiedType: "/Types/3001-StructType"
     Size: 16
   - Kind: PrimitiveType
     ID: 520

@@ -2,10 +2,10 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-CHECK: typedef struct __attribute__((packed)) B B;
-CHECK: typedef struct __attribute__((packed)) A A;
-CHECK: struct __attribute__((packed)) B {
-CHECK:     struct __attribute__((packed)) A {
+CHECK: typedef struct _PACKED B B;
+CHECK: typedef struct _PACKED A A;
+CHECK: struct _PACKED B {
+CHECK:     struct _PACKED A {
 CHECK:         int32_t x;
 CHECK:     } a1;
 CHECK: };

@@ -11,11 +11,12 @@ Types:
     PrimitiveKind: Generic
     Size: 8
   - Kind: UnionType
-    ID: 1
+    ID: 3000
+    CustomName: old_union_name
     Fields:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"

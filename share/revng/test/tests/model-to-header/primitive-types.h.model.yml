@@ -7,273 +7,273 @@ Functions:
   - Entry: "0x400700:Code_x86_64"
     CustomName: "fn"
     OriginalName: fn
-    StackFrameType: "/Types/StructType-7"
-    Prototype: "/Types/CABIFunctionType-1"
+    StackFrameType: "/Types/3007-StructType"
+    Prototype: "/Types/3001-CABIFunctionType"
     ExportedNames:
       - fn
   - Entry: "0x400740:Code_x86_64"
     CustomName: "fn2"
     OriginalName: fn2
-    StackFrameType: "/Types/StructType-7"
-    Prototype: "/Types/CABIFunctionType-2"
+    StackFrameType: "/Types/3007-StructType"
+    Prototype: "/Types/3002-CABIFunctionType"
     ExportedNames:
       - fn2
   - Entry: "0x400749:Code_x86_64"
     CustomName: "fn3"
     OriginalName: fn3
-    StackFrameType: "/Types/StructType-7"
-    Prototype: "/Types/CABIFunctionType-3"
+    StackFrameType: "/Types/3007-StructType"
+    Prototype: "/Types/3003-CABIFunctionType"
     ExportedNames:
       - fn3
   - Entry: "0x400770:Code_x86_64"
     CustomName: "fn4"
     OriginalName: fn4
-    StackFrameType: "/Types/StructType-7"
-    Prototype: "/Types/CABIFunctionType-4"
+    StackFrameType: "/Types/3007-StructType"
+    Prototype: "/Types/3004-CABIFunctionType"
     ExportedNames:
       - fn4
   - Entry: "0x4007e8:Code_x86_64"
     CustomName: "fn5"
     OriginalName: fn5
-    StackFrameType: "/Types/StructType-7"
-    Prototype: "/Types/CABIFunctionType-5"
+    StackFrameType: "/Types/3007-StructType"
+    Prototype: "/Types/3005-CABIFunctionType"
     ExportedNames:
       - fn5
   - Entry: "0x402266:Code_x86_64"
     CustomName: "fn6"
     OriginalName: fn6
-    StackFrameType: "/Types/StructType-7"
-    Prototype: "/Types/CABIFunctionType-6"
+    StackFrameType: "/Types/3007-StructType"
+    Prototype: "/Types/3006-CABIFunctionType"
     ExportedNames:
       - fn6
   - Entry: "0x402288:Code_x86_64"
     CustomName: "fn7"
     OriginalName: fn7
-    StackFrameType: "/Types/StructType-7"
-    Prototype: "/Types/CABIFunctionType-8"
+    StackFrameType: "/Types/3007-StructType"
+    Prototype: "/Types/3008-CABIFunctionType"
     ExportedNames:
       - fn7
 Types:
   - Kind: CABIFunctionType
-    ID: 1
+    ID: 3001
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
         CustomName: "b"
         OriginalName: b
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
         CustomName: "c"
         OriginalName: c
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1282"
+          UnqualifiedType: "/Types/1282-PrimitiveType"
         CustomName: "d"
         OriginalName: d
   - Kind: CABIFunctionType
-    ID: 8
+    ID: 3008
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-522"
+          UnqualifiedType: "/Types/522-PrimitiveType"
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-524"
+          UnqualifiedType: "/Types/524-PrimitiveType"
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
-    ID: 2
+    ID: 3002
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-513"
+          UnqualifiedType: "/Types/513-PrimitiveType"
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-514"
+          UnqualifiedType: "/Types/514-PrimitiveType"
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-516"
+          UnqualifiedType: "/Types/516-PrimitiveType"
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
         CustomName: "arg4"
         OriginalName: arg4
   - Kind: CABIFunctionType
-    ID: 3
+    ID: 3003
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-528"
+          UnqualifiedType: "/Types/528-PrimitiveType"
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-769"
+          UnqualifiedType: "/Types/769-PrimitiveType"
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-770"
+          UnqualifiedType: "/Types/770-PrimitiveType"
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-772"
+          UnqualifiedType: "/Types/772-PrimitiveType"
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-776"
+          UnqualifiedType: "/Types/776-PrimitiveType"
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-784"
+          UnqualifiedType: "/Types/784-PrimitiveType"
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
-    ID: 4
+    ID: 3004
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1025"
+          UnqualifiedType: "/Types/1025-PrimitiveType"
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1026"
+          UnqualifiedType: "/Types/1026-PrimitiveType"
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1032"
+          UnqualifiedType: "/Types/1032-PrimitiveType"
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1040"
+          UnqualifiedType: "/Types/1040-PrimitiveType"
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1281"
+          UnqualifiedType: "/Types/1281-PrimitiveType"
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
-    ID: 5
+    ID: 3005
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1282"
+          UnqualifiedType: "/Types/1282-PrimitiveType"
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1284"
+          UnqualifiedType: "/Types/1284-PrimitiveType"
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1288"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1296"
+          UnqualifiedType: "/Types/1296-PrimitiveType"
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1537"
+          UnqualifiedType: "/Types/1537-PrimitiveType"
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1538"
+          UnqualifiedType: "/Types/1538-PrimitiveType"
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
-    ID: 6
+    ID: 3006
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1544"
+          UnqualifiedType: "/Types/1544-PrimitiveType"
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1552"
+          UnqualifiedType: "/Types/1552-PrimitiveType"
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1794"
+          UnqualifiedType: "/Types/1794-PrimitiveType"
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1796"
+          UnqualifiedType: "/Types/1796-PrimitiveType"
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1800"
+          UnqualifiedType: "/Types/1800-PrimitiveType"
         CustomName: "arg6"
         OriginalName: arg6
       - Index: 6
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1802"
+          UnqualifiedType: "/Types/1802-PrimitiveType"
         CustomName: "arg7"
         OriginalName: arg7
       - Index: 7
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1804"
+          UnqualifiedType: "/Types/1804-PrimitiveType"
         CustomName: "arg8"
         OriginalName: arg8
       - Index: 8
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1808"
+          UnqualifiedType: "/Types/1808-PrimitiveType"
         CustomName: "arg9"
         OriginalName: arg9
   - Kind: PrimitiveType
@@ -413,9 +413,9 @@ Types:
     PrimitiveKind: Float
     Size: 16
   - Kind: StructType
-    ID: 7
+    ID: 3007
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     Size: 16

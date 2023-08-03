@@ -1,0 +1,60 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: CABIFunctionType
+    ID: 3000
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/3005-StructType"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/3005-StructType"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/3006-StructType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/3006-StructType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+            - Kind: Pointer
+              Size: 8
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/1540-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+  - Kind: PrimitiveType
+    ID: 1537
+    PrimitiveKind: Signed
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: StructType
+    ID: 5
+    Fields:
+      - Offset: 0
+        CustomName: "can_do_threads"
+        OriginalName: can_do_threads
+        Type:
+          UnqualifiedType: "/Types/1540-PrimitiveType"
+    Size: 4
+  - Kind: StructType
+    ID: 3006
+    Fields:
+      - Offset: 0
+        CustomName: "do_threads"
+        OriginalName: do_threads
+        Type:
+          UnqualifiedType: "/Types/1537-PrimitiveType"
+    Size: 1

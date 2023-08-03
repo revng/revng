@@ -1,8 +1,0 @@
-#
-# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
-#
-
-CHECK:     - Kind:            TypedefType
-CHECK:       ID:              1
-CHECK:           UnderlyingType:
-CHECK:             UnqualifiedType: "/Types/PrimitiveType-1538"

@@ -26,7 +26,7 @@ Types:
     ID: 962527246414399901
     FinalStackOffset: 8
     StackArgumentsType:
-      UnqualifiedType: "/Types/StructType-2914208048943782880"
+      UnqualifiedType: "/Types/2914208048943782880-StructType"
   - # stack_arguments_64 stack arguments type
     Kind: StructType
     ID: 2914208048943782880
@@ -36,7 +36,7 @@ Types:
     ID: 15643449473528100124
     FinalStackOffset: 8
     StackArgumentsType:
-      UnqualifiedType: "/Types/StructType-17628016926864895242"
+      UnqualifiedType: "/Types/17628016926864895242-StructType"
   - # stack_arguments_32 stack arguments type
     Kind: StructType
     ID: 17628016926864895242
@@ -44,19 +44,19 @@ Types:
     Size: 20
 Functions:
   - CustomName: "stack_frame"
-    Prototype: "/Types/RawFunctionType-7412439904038490792"
-    StackFrameType: "/Types/StructType-17773669446801075323"
+    Prototype: "/Types/7412439904038490792-RawFunctionType"
+    StackFrameType: "/Types/17773669446801075323-StructType"
   - CustomName: "stack_frame_array"
-    Prototype: "/Types/RawFunctionType-13776914522867493387"
-    StackFrameType: "/Types/StructType-10059356012972557344"
+    Prototype: "/Types/13776914522867493387-RawFunctionType"
+    StackFrameType: "/Types/10059356012972557344-StructType"
   - CustomName: "stack_arguments_64"
-    Prototype: "/Types/RawFunctionType-962527246414399901"
+    Prototype: "/Types/962527246414399901-RawFunctionType"
   - CustomName: "call_stack_arguments_64"
     -StackFrameType: ""
     # TODO: once we have references in the CFG we can test the relationship with
     #       the callee.
   - CustomName: "stack_arguments_32"
-    Prototype: "/Types/RawFunctionType-15643449473528100124"
-    StackFrameType: "/Types/StructType-4125551533421568229"
+    Prototype: "/Types/15643449473528100124-RawFunctionType"
+    StackFrameType: "/Types/4125551533421568229-StructType"
 # TODO: test indirect_call_stack_arguments_64 once we handle it
 # TODO: test array_stack_argument once we handle it

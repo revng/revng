@@ -2,12 +2,12 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-CHECK: typedef struct __attribute__((packed)) B B;
-CHECK: typedef enum __attribute__((packed)) A A;
-CHECK: struct __attribute__((packed)) B {
-CHECK:     enum ENUM_UNDERLYING(uint32_t) __attribute__((packed)) A {
-CHECK:         A_FIRST = 0x0U,
-CHECK:         A_SECOND = 0x1U,
-CHECK:         A_max_held_value = 0xffffffffU,
+CHECK: typedef struct _PACKED B B;
+CHECK: typedef enum _PACKED A A;
+CHECK: struct _PACKED B {
+CHECK:     enum _ENUM_UNDERLYING(uint32_t) _PACKED A {
+CHECK:         FIRST = 0x0U,
+CHECK:         SECOND = 0x1U,
+CHECK:         _enum_max_value_A = 0xffffffffU,
 CHECK:     } the_a;
 CHECK: };

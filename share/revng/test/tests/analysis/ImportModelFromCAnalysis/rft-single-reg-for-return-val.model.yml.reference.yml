@@ -1,0 +1,22 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Functions:
+  - CustomName: "new_function_name"
+    Prototype: "/Types/3000-RawFunctionType"
+Types:
+  - Kind: PrimitiveType
+    ID: 1544
+    PrimitiveKind: Signed
+    Size: 8
+  - ID: 3000
+    Kind: RawFunctionType
+    Arguments:
+      - Location: rcx_x86_64
+        Type:
+          UnqualifiedType: "/Types/1544-PrimitiveType"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/1544-PrimitiveType"

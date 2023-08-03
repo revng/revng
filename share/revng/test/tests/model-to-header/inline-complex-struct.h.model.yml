@@ -5,7 +5,7 @@
 
 Types:
   - Kind: StructType
-    ID: 1
+    ID: 3001
     CustomName: "X"
     OriginalName: X
     Fields:
@@ -13,10 +13,10 @@ Types:
         CustomName: "the_struct_y"
         OriginalName: the_struct_y
         Type:
-          UnqualifiedType: "/Types/StructType-2"
+          UnqualifiedType: "/Types/3002-StructType"
     Size: 56
   - Kind: StructType
-    ID: 2
+    ID: 3002
     CustomName: "Y"
     OriginalName: Y
     Fields:
@@ -24,23 +24,23 @@ Types:
         CustomName: "the_union_w"
         OriginalName: the_union_w
         Type:
-          UnqualifiedType: "/Types/UnionType-3"
+          UnqualifiedType: "/Types/3003-UnionType"
       - Offset: 4
         CustomName: "the_union_z"
         OriginalName: the_union_z
         Type:
-          UnqualifiedType: "/Types/UnionType-4"
+          UnqualifiedType: "/Types/3004-UnionType"
       - Offset: 48
         CustomName: "ptr_to_E"
         OriginalName: ptr_to_E
         Type:
-          UnqualifiedType: "/Types/EnumType-7"
+          UnqualifiedType: "/Types/3007-EnumType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
     Size: 56
   - Kind: UnionType
-    ID: 3
+    ID: 3003
     CustomName: "W"
     OriginalName: W
     Fields:
@@ -48,9 +48,9 @@ Types:
         CustomName: "field"
         OriginalName: field
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
   - Kind: UnionType
-    ID: 4
+    ID: 3004
     CustomName: "Z"
     OriginalName: Z
     Fields:
@@ -58,21 +58,21 @@ Types:
         CustomName: "the_enum_e"
         OriginalName: the_enum_e
         Type:
-          UnqualifiedType: "/Types/EnumType-5"
+          UnqualifiedType: "/Types/3005-EnumType"
       - Index: 1
         CustomName: "array_of_a"
         OriginalName: array_of_a
         Type:
-          UnqualifiedType: "/Types/StructType-6"
+          UnqualifiedType: "/Types/3006-StructType"
           Qualifiers:
             - Kind: Array
               Size: 10
   - Kind: EnumType
-    ID: 5
+    ID: 3005
     CustomName: "E"
     OriginalName: E
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1284"
+      UnqualifiedType: "/Types/1284-PrimitiveType"
     Entries:
       - Value: 2
         CustomName: "VALUE"
@@ -81,7 +81,7 @@ Types:
         CustomName: "OTHER"
         OriginalName: OTHER
   - Kind: StructType
-    ID: 6
+    ID: 3006
     CustomName: "A"
     OriginalName: A
     Fields:
@@ -89,14 +89,14 @@ Types:
         CustomName: "field"
         OriginalName: field
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
     Size: 4
   - Kind: EnumType
-    ID: 7
+    ID: 3007
     CustomName: "E2"
     OriginalName: E2
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1284"
+      UnqualifiedType: "/Types/1284-PrimitiveType"
     Entries:
       - Value: 1
         CustomName: "FIRST"

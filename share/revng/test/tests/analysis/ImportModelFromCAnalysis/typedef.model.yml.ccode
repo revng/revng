@@ -2,4 +2,4 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-typedef int16_t typedef_1;
+typedef int16_t my_typedef;

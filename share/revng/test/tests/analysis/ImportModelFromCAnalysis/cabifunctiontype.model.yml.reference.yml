@@ -2,29 +2,16 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
----
-Architecture: x86_64
-DefaultABI: SystemV_x86_64
 Types:
-  - Kind: PrimitiveType
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1537
-    PrimitiveKind: Signed
-    Size: 1
   - Kind: CABIFunctionType
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      UnqualifiedType: "/Types/1544-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/1540-PrimitiveType"
-        CustomName: "argc"
-        OriginalName: argc
       - Index: 1
         Type:
           UnqualifiedType: "/Types/1537-PrimitiveType"
@@ -33,5 +20,3 @@ Types:
               Size: 8
             - Kind: Pointer
               Size: 8
-        CustomName: "argv"
-        OriginalName: argv

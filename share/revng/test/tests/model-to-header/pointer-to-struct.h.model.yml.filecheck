@@ -2,11 +2,11 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-CHECK: typedef struct __attribute__((packed)) B B;
-CHECK: typedef ABI(SystemV_x86_64) void function_type_cabifunction_1(B *);
-CHECK: struct __attribute__((packed)) B {
+CHECK: typedef struct _PACKED B B;
+CHECK: typedef _ABI(SystemV_x86_64) void _cabifunction_3001(B *);
+CHECK: struct _PACKED B {
 CHECK:     uint32_t a1;
 CHECK:     uint32_t a2;
 CHECK: };
 
-CHECK: ABI(SystemV_x86_64) void fn(B *b_array);
+CHECK: _ABI(SystemV_x86_64) void fn(B *b_array);

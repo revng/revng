@@ -2,15 +2,13 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
----
-Architecture: x86_64
-DefaultABI: SystemV_x86_64
 Types:
   - Kind: PrimitiveType
-    ID: 1540
+    ID: 1538
     PrimitiveKind: Signed
-    Size: 4
+    Size: 2
   - Kind: TypedefType
     ID: 3000
+    CustomName: my_typedef
     UnderlyingType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      UnqualifiedType: "/Types/1538-PrimitiveType"

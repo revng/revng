@@ -2,7 +2,7 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-struct __attribute__((packed)) struct_17414601124250866323 {
-    struct_4 *unnamed_field_at_offset_0;
-    uint8_t padding_at_offset_8[32];
+struct _PACKED my_struct {
+    _struct_3004 *first_field;
+    uint8_t _padding_at_8[32];
 };

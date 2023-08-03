@@ -6,10 +6,9 @@
 Architecture: x86_64
 DefaultABI: SystemV_x86_64
 Functions:
-  - Entry: "0x504a5f:Code_x86_64"
-    CustomName: "fn2___"
-    OriginalName: fn2
-    Prototype: "/Types/CABIFunctionType-1"
+  - Entry: "0x400000:Code_x86_64"
+    CustomName: "old_function_name"
+    Prototype: "/Types/3000-CABIFunctionType"
     ExportedNames:
       - fn2
 Types:
@@ -26,13 +25,13 @@ Types:
     PrimitiveKind: Signed
     Size: 8
   - Kind: CABIFunctionType
-    ID: 1
+    ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
+      UnqualifiedType: "/Types/520-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
         CustomName: "fd"
         OriginalName: fd

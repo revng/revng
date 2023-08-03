@@ -2,4 +2,4 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-ABI(raw) int64_t REG(rax) fn3___(int64_t REG(rcx) fd33);
+_ABI(raw) int64_t _REG(rax) new_function_name(int64_t _REG(rcx) fd33);

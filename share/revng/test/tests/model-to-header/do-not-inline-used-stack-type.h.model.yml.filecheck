@@ -2,12 +2,12 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-CHECK: typedef struct __attribute__((packed)) struct_1 struct_1;
-CHECK: struct __attribute__((packed)) struct_1 {
-CHECK:     generic64_t unnamed_field_at_offset_0;
-CHECK:     uint8_t padding_at_offset_8[8];
+CHECK: typedef struct _PACKED _struct_3001 _struct_3001;
+CHECK: struct _PACKED _struct_3001 {
+CHECK:     generic64_t _offset_0;
+CHECK:     uint8_t _padding_at_8[8];
 CHECK: };
-CHECK: typedef struct __attribute__((packed)) S S;
-CHECK: struct __attribute__((packed)) S {
-CHECK:     struct_1 s1;
+CHECK: typedef struct _PACKED S S;
+CHECK: struct _PACKED S {
+CHECK:     _struct_3001 s1;
 CHECK: };

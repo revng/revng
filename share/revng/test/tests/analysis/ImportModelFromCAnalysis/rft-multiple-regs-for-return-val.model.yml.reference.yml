@@ -1,0 +1,22 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Functions:
+  - Entry: "0x400000:Code_x86_64"
+    CustomName: new_function_name
+    Prototype: "/Types/3000-RawFunctionType"
+Types:
+  - Kind: RawFunctionType
+    ID: 3000
+    Arguments:
+      - Location: rcx_x86_64
+        Type:
+          UnqualifiedType: "/Types/1544-PrimitiveType"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/1540-PrimitiveType"
+      - Location: rbx_x86_64
+        Type:
+          UnqualifiedType: "/Types/1540-PrimitiveType"

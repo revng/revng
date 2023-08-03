@@ -90,9 +90,9 @@ ControlFlowGraph:
 EntryPoint: \220x401200:Code_x86_64\22
 Functions:
   - Entry:           \220x401200:Code_x86_64\22
-    Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
+    Prototype:       \22/Types/6646220838590018230-RawFunctionType\22
   - Entry:           \220x401060:Code_x86_64\22
-    Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
+    Prototype:       \22/Types/6646220838590018230-RawFunctionType\22
 ImportedDynamicFunctions: []
 Types:
   - Kind:            PrimitiveType
@@ -108,10 +108,10 @@ Types:
     Arguments:
       - Location:        rax_x86_64
         Type:
-          UnqualifiedType: \22/Types/PrimitiveType-520\22
+          UnqualifiedType: \22/Types/520-PrimitiveType\22
       - Location:        rdx_x86_64
         Type:
-          UnqualifiedType: \22/Types/PrimitiveType-520\22
+          UnqualifiedType: \22/Types/520-PrimitiveType\22
     ReturnValues:    []
     PreservedRegisters: []
     FinalStackOffset: 0
