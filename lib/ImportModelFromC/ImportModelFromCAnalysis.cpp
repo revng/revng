@@ -154,12 +154,13 @@ struct ImportModelFromCAnalysis {
       if (not isa<model::RawFunctionType>(*TypeToEdit)
           and not isa<model::CABIFunctionType>(*TypeToEdit)
           and not isa<model::TypedefType>(*TypeToEdit)) {
+        llvm::raw_string_ostream Stream(Options.PostIncludes);
         ptml::PTMLCBuilder ThePTMLCBuilder(true);
-        ptml::PTMLIndentedOstream ThePTMLStream(Header, 4, true);
-        Header << ThePTMLCBuilder.getLineComment("The type we are editing.");
+        ptml::PTMLIndentedOstream ThePTMLStream(Stream, 4, true);
+        Stream << ThePTMLCBuilder.getLineComment("The type we are editing");
         // The definition of this type will be at the end of the file.
         printForwardDeclaration(**TypeToEdit, ThePTMLStream, ThePTMLCBuilder);
-        Header << '\n';
+        Stream << '\n';
       }
 
       // Find all types whose definition depends on the type we are editing.
