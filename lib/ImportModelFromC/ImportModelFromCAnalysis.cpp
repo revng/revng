@@ -13,6 +13,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include "clang/Driver/Driver.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Lex/PreprocessorOptions.h"
@@ -26,6 +27,7 @@
 #include "revng/Pipeline/Option.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Support/PathList.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
@@ -198,9 +200,8 @@ struct ImportModelFromCAnalysis {
     }
 
     // Find compile flags to be applied to clang.
-    auto MaybeCompileCFGPath = revng::ResourceFinder.findFile("share/revng-c/"
-                                                              "compile-flags."
-                                                              "cfg");
+    StringRef CompileFlagsPath = "share/revng-c/compile-flags.cfg";
+    auto MaybeCompileCFGPath = revng::ResourceFinder.findFile(CompileFlagsPath);
     if (not MaybeCompileCFGPath) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Couldn't find compile-flags.cfg");
@@ -212,36 +213,23 @@ struct ImportModelFromCAnalysis {
     std::vector<std::string> Compilation(FromCFGFile);
     Compilation.push_back("-xc");
 
-    // Find stdbool.h.
-    auto MaybeStdBoolHeaderPath = findHeaderFile("lib64/llvm/"
-                                                 "llvm/lib/"
-                                                 "clang/16/"
-                                                 "include/"
-                                                 "stdbool.h");
-    if (not MaybeStdBoolHeaderPath) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Couldn't find stdbool.h");
+    SmallString<16> CompilerHeadersPath;
+    {
+      StringRef LLVMLibrary = getLibrariesFullPath().at("libLLVMSupport");
+      using namespace llvm::sys::path;
+      SmallString<16> ClangPath;
+      append(ClangPath, parent_path(parent_path(LLVMLibrary)));
+      append(ClangPath, Twine("bin"));
+      append(ClangPath, Twine("clang"));
+      CompilerHeadersPath = clang::driver::Driver::GetResourcesPath(ClangPath);
+      append(CompilerHeadersPath, Twine("include"));
     }
-    Compilation.push_back("-I" + *MaybeStdBoolHeaderPath);
-
-    // Find stdint.h.
-    auto MaybeStdIntHeaderPath = findHeaderFile("lib64/llvm/"
-                                                "llvm/lib/"
-                                                "clang/16/"
-                                                "include/"
-                                                "stdint.h");
-    if (not MaybeStdIntHeaderPath) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Couldn't find stdint.h");
-    }
-    Compilation.push_back("-I" + *MaybeStdIntHeaderPath);
+    Compilation.push_back("-I" + CompilerHeadersPath.str().str());
 
     // Find revng-primitive-types.h and revng-attributes.h.
-    auto MaybeRevngHeaderPath = findHeaderFile("share/revng-c/"
-                                               "include/"
-                                               "revng-"
-                                               "primitive-"
-                                               "types.h");
+    const char *PrimitivesHeader = "share/revng-c/include/"
+                                   "revng-primitive-types.h";
+    auto MaybeRevngHeaderPath = findHeaderFile(PrimitivesHeader);
     if (not MaybeRevngHeaderPath) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Couldn't find revng-primitive-types.h");
