@@ -10,12 +10,16 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/ForwardDecls.h"
 
+#include "revng-c/Support/PTMLC.h"
 #include "revng-c/Support/TokenDefinitions.h"
+
+// TODO: find a more suitable place for this
+inline const char *StructPaddingPrefix = "_padding_at_";
 
 namespace ArtificialTypes {
 
-constexpr const char *const RetStructPrefix = "artificial_struct_";
-constexpr const char *const ArrayWrapperPrefix = "artificial_wrapper_";
+constexpr const char *const RetStructPrefix = "_artificial_struct_";
+constexpr const char *const ArrayWrapperPrefix = "_artificial_wrapper_";
 
 constexpr const char *const RetFieldPrefix = "field_";
 constexpr const char *const ArrayWrapperFieldName = "the_array";

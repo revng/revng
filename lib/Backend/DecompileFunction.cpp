@@ -101,7 +101,7 @@ using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 
-static constexpr const char *StackFrameVarName = "stack";
+static constexpr const char *StackFrameVarName = "_stack";
 
 static Logger<> Log{ "c-backend" };
 static Logger<> VisitLog{ "c-backend-visit-order" };
@@ -314,10 +314,10 @@ private:
     uint64_t CurVarID = 0;
 
   public:
-    std::string nextVarName() { return "var_" + to_string(CurVarID++); }
+    std::string nextVarName() { return "_var_" + to_string(CurVarID++); }
 
     StringToken nextSwitchStateVar() {
-      StringToken StateVar("break_from_loop_");
+      StringToken StateVar("_break_from_loop_");
       StateVar += to_string(CurVarID++);
       return StateVar;
     }
@@ -365,10 +365,11 @@ public:
     SwitchStateVars(),
     Cache(Cache) {
     // TODO: don't use a global loop state variable
-    LoopStateVar = getVariableLocationReference("loop_state_var",
+    static const char *LoopStateVarName = "_loop_state_var";
+    LoopStateVar = getVariableLocationReference(LoopStateVarName,
                                                 ModelFunction,
                                                 ThePTMLCBuilder);
-    LoopStateVarDeclaration = getVariableLocationDefinition("loop_state_var",
+    LoopStateVarDeclaration = getVariableLocationDefinition(LoopStateVarName,
                                                             ModelFunction,
                                                             ThePTMLCBuilder);
 
@@ -507,10 +508,8 @@ static std::string getUndefToken(model::QualifiedType UndefType,
   UndefType = peelConstAndTypedefs(UndefType);
   revng_assert(UndefType.isPrimitive());
   revng_assert(UndefType.Qualifiers().empty());
-  std::string
-    Result = "undef_"
-             + UndefType.UnqualifiedType().getConst()->name().str().str()
-             + "()";
+  std::string Result = "_undef_";
+  Result += UndefType.UnqualifiedType().getConst()->name().str().str() + "()";
   return Result;
 }
 
@@ -1943,7 +1942,7 @@ static std::string getModelArgIdentifier(const model::Type *ModelFunctionType,
     if (ArgNo < NumModelArguments) {
       return std::next(RFT->Arguments().begin(), ArgNo)->name().str().str();
     } else {
-      return "stack_args";
+      return "_stack_arguments";
     }
   } else if (auto *CFT = dyn_cast<model::CABIFunctionType>(ModelFunctionType)) {
     revng_assert(LLVMFunction->arg_size() == CFT->Arguments().size());

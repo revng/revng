@@ -370,7 +370,7 @@ getNamedInstanceOfReturnType(const model::Type &Function,
       revng_assert(llvm::isa<model::RawFunctionType>(Function));
       Result = ThePTMLCBuilder
                  .tokenTag((Twine(RetStructPrefix) + "returned_by_"
-                            + model::Identifier::fromString(Function.name()))
+                            + Function.name())
                              .str(),
                            ptml::c::tokens::Type)
                  .serialize();
@@ -406,8 +406,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
     const StringRef Open = "(";
     const StringRef Comma = ", ";
     StringRef Separator = Open;
-    for (const auto &Arg : RF.Arguments()) {
-      auto ArgName = model::Identifier::fromString(Arg.name()).str().str();
+    for (const model::NamedTypedRegister &Arg : RF.Arguments()) {
+      std::string ArgName = Arg.name().str().str();
       std::string ArgString = Function ?
                                 getArgumentLocationDefinition(ArgName,
                                                               *Function,
@@ -415,7 +415,9 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                 "";
       Header << Separator
              << getNamedCInstance(Arg.Type(), ArgString, ThePTMLCBuilder);
-      Header << " " << ThePTMLCBuilder.getAnnotateReg(Arg.name());
+      Header << " "
+             << ThePTMLCBuilder
+                  .getAnnotateReg(model::Register::getName(Arg.Location()));
 
       Separator = Comma;
     }
@@ -424,7 +426,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
     if (RF.StackArgumentsType().UnqualifiedType().isValid()) {
       // Add last argument representing a pointer to the stack arguments
       auto StackArgName = Function ?
-                            getArgumentLocationDefinition("stack_args",
+                            getArgumentLocationDefinition("_stack_arguments",
                                                           *Function,
                                                           ThePTMLCBuilder) :
                             "";
@@ -459,7 +461,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
     StringRef Separator = Open;
 
     for (const auto &Arg : CF.Arguments()) {
-      auto ArgName = model::Identifier::fromString(Arg.name()).str().str();
+      std::string ArgName = Arg.name().str().str();
       std::string ArgString = Function ?
                                 getArgumentLocationDefinition(ArgName,
                                                               *Function,

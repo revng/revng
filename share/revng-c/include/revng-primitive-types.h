@@ -54,14 +54,14 @@ static_assert_size(generic96_t, 12);
 static_assert_size(generic128_t, 16);
 #endif
 
-extern generic8_t undef_generic8_t();
-extern generic16_t undef_generic16_t();
-extern generic32_t undef_generic32_t();
-extern generic64_t undef_generic64_t();
-extern generic80_t undef_generic80_t();
-extern generic96_t undef_generic96_t();
+extern generic8_t _undef_generic8_t();
+extern generic16_t _undef_generic16_t();
+extern generic32_t _undef_generic32_t();
+extern generic64_t _undef_generic64_t();
+extern generic80_t _undef_generic80_t();
+extern generic96_t _undef_generic96_t();
 #ifdef __SIZEOF_INT128__
-extern generic128_t undef_generic128_t();
+extern generic128_t _undef_generic128_t();
 #endif
 
 //

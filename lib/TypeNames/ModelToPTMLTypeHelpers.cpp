@@ -259,7 +259,6 @@ static void printDefinition(const model::EnumType &E,
 
     using PTMLOperator = ptml::PTMLCBuilder::Operator;
     for (const auto &Entry : E.Entries()) {
-      revng_assert(not Entry.CustomName().empty());
       Header << ThePTMLCBuilder.getModelComment(Entry)
              << ThePTMLCBuilder.getLocationDefinition(E, Entry) << " "
              << ThePTMLCBuilder.getOperator(PTMLOperator::Assign) << " "
@@ -267,7 +266,7 @@ static void printDefinition(const model::EnumType &E,
     }
 
     // This ensures the enum is large exactly like the Underlying type
-    Header << ThePTMLCBuilder.tokenTag((E.name() + "_max_held_value").str(),
+    Header << ThePTMLCBuilder.tokenTag(("_enum_max_value_" + E.name()).str(),
                                        ptml::c::tokens::Field)
            << " " + ThePTMLCBuilder.getOperator(PTMLOperator::Assign) + " "
            << ThePTMLCBuilder.getHex(MaxBitPatternInEnum) << ",\n";
@@ -298,14 +297,15 @@ void printDefinition(Logger<> &Log,
 
     size_t NextOffset = 0ULL;
     for (const auto &Field : S.Fields()) {
-      if (NextOffset < Field.Offset())
+      if (NextOffset < Field.Offset()) {
         Header << ThePTMLCBuilder.tokenTag("uint8_t", ptml::c::tokens::Type)
                << " "
-               << ThePTMLCBuilder.tokenTag("padding_at_offset_"
+               << ThePTMLCBuilder.tokenTag(StructPaddingPrefix
                                              + std::to_string(NextOffset),
                                            ptml::c::tokens::Field)
                << "[" << ThePTMLCBuilder.getNumber(Field.Offset() - NextOffset)
                << "];\n";
+      }
 
       auto TheType = Field.Type().UnqualifiedType().get();
       if (not TypesToInline.contains(TheType)) {
@@ -313,12 +313,6 @@ void printDefinition(Logger<> &Log,
         Header << ThePTMLCBuilder.getModelComment(Field)
                << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
       } else {
-        std::string Name = std::string(Field.CustomName());
-        if (Name == "") {
-          Name = std::string("unnamed_field_at_offset_")
-                 + std::to_string(Field.Offset());
-        }
-
         auto Qualifiers = Field.Type().Qualifiers();
         printDefinition(Log,
                         *TheType,
@@ -327,7 +321,7 @@ void printDefinition(Logger<> &Log,
                         AdditionalNames,
                         Model,
                         TypesToInline,
-                        llvm::StringRef(Name.c_str()),
+                        Field.name().str(),
                         &Qualifiers);
       }
 
@@ -337,7 +331,7 @@ void printDefinition(Logger<> &Log,
     if (NextOffset < S.Size())
       Header << ThePTMLCBuilder.tokenTag("uint8_t", ptml::c::tokens::Type)
              << " "
-             << ThePTMLCBuilder.tokenTag("padding_at_offset_"
+             << ThePTMLCBuilder.tokenTag(StructPaddingPrefix
                                            + std::to_string(NextOffset),
                                          ptml::c::tokens::Field)
              << "[" << ThePTMLCBuilder.getNumber(S.Size() - NextOffset)
@@ -380,10 +374,7 @@ static void printDefinition(Logger<> &Log,
         Header << ThePTMLCBuilder.getModelComment(Field)
                << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
       } else {
-        std::string Name = std::string(Field.CustomName());
-        if (Name == "") {
-          Name = std::string("unnamed_field_") + std::to_string(Field.Index());
-        }
+        std::string Name = Field.name().str().str();
 
         auto Qualifiers = Field.Type().Qualifiers();
         printDefinition(Log,

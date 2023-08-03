@@ -23,7 +23,7 @@
 using llvm::Twine;
 using PTMLCBuilder = ptml::PTMLCBuilder;
 
-constexpr const char *const StructWrapperPrefix = "artificial_struct_returned_"
+constexpr const char *const StructWrapperPrefix = "_artificial_struct_returned_"
                                                   "by_";
 constexpr const char *const StructFieldPrefix = "field_";
 
@@ -142,7 +142,7 @@ std::string getScalarCType(const llvm::Type *LLVMType,
 
 static std::string getHelperFunctionIdentifier(const llvm::Function *F) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
-  return model::Identifier::fromString(F->getName()).str().str();
+  return (Twine("_") + model::Identifier::sanitize(F->getName())).str();
 }
 
 static std::string getReturnedStructIdentifier(const llvm::Function *F) {

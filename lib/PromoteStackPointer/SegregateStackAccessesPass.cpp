@@ -283,7 +283,7 @@ public:
     Binary(Binary),
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
-    InitLocalSP(M.getFunction("revng_init_local_sp")),
+    InitLocalSP(M.getFunction("_init_local_sp")),
     SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
     StackPointerType(StackPointer->getValueType()),
@@ -301,7 +301,7 @@ public:
     initLocalVarPool(LocalVarPool);
 
     // After segregate, we should not introduce new calls to
-    // `revng_init_local_sp`: enable to DCE it away
+    // `_init_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
 
     auto Create = [&M](StringRef Name, llvm::FunctionType *FType) {
@@ -763,7 +763,7 @@ private:
     LoggerIndent<> Indent(Log);
 
     //
-    // Find call to revng_init_local_sp
+    // Find call to _init_local_sp
     //
     Function *Caller = SSACSCall->getParent()->getParent();
     CallInst *StackPointer = findCallTo(Caller, InitLocalSP);
@@ -1130,7 +1130,7 @@ private:
 
   void adjustStackFrame(const model::Function &ModelFunction, Function &F) {
     //
-    // Find call to revng_init_local_sp
+    // Find call to _init_local_sp
     //
     CallInst *Call = findCallTo(&F, InitLocalSP);
     if (Call == nullptr or not ModelFunction.StackFrameType().isValid())
@@ -1159,7 +1159,7 @@ private:
                                     getSPConstant(StackFrameSize));
       Call->replaceAllUsesWith(SP0);
 
-      // Cleanup revng_init_local_sp
+      // Cleanup _init_local_sp
       eraseFromParent(Call);
     }
   }

@@ -230,7 +230,7 @@ bool dumpModelToHeader(const model::Binary &Model,
         if (Options.TypesToOmit.contains(FT))
           continue;
 
-        auto FName = model::Identifier::fromString(MF.name());
+        auto FName = MF.name();
 
         if (Log.isEnabled()) {
           helpers::BlockComment
@@ -264,7 +264,7 @@ bool dumpModelToHeader(const model::Binary &Model,
         if (Options.TypesToOmit.contains(FT))
           continue;
 
-        auto FName = model::Identifier::fromString(MF.name());
+        auto FName = MF.name();
 
         if (Log.isEnabled()) {
           helpers::BlockComment

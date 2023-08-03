@@ -14,7 +14,7 @@
 /// representing the range of offsets from SP0 that the pointer passed in as the
 /// first argument can assume.
 ///
-/// \note This pass looks for all the users of `revng_init_local_sp`, therefore
+/// \note This pass looks for all the users of `_init_local_sp`, therefore
 /// it needs to be run *after* `PromoteStackPointerPass`
 struct InstrumentStackAccessesPass : public llvm::ModulePass {
 public:

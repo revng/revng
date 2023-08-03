@@ -65,9 +65,9 @@ InstrumentStackAccesses::findStackAccesses(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
 
-      // Is this the call to revng_init_local_sp?
-      if (auto *Call = getCallTo(&I, "revng_init_local_sp")) {
-        revng_log(Log, "Found call to revng_init_local_sp: " << getName(Call));
+      // Is this the call to _init_local_sp?
+      if (auto *Call = getCallTo(&I, "_init_local_sp")) {
+        revng_log(Log, "Found call to _init_local_sp: " << getName(Call));
 
         SP0 = Call;
         SPType = SP0->getType();
