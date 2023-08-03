@@ -9,7 +9,7 @@
 namespace revng {
 
 PathList ResourceFinder({
-  getCurrentRoot(),
+  getCurrentRoot().str(),
 
 #ifdef INSTALL_PATH
   INSTALL_PATH,

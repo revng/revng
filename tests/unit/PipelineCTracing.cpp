@@ -19,7 +19,7 @@ using namespace revng;
 struct Fixture {
 public:
   Fixture() {
-    std::string RootPath = getCurrentRoot();
+    llvm::StringRef RootPath = getCurrentRoot();
     std::string LibPath = joinPath(RootPath,
                                    "lib/librevngStringContainerLibrary.so");
     std::string PipelinePath = joinPath(RootPath, "tests/pipeline/Tracing.yml");
