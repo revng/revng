@@ -708,21 +708,20 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   revng_assert(FD);
   revng_assert(AnalysisOption == ImportModelFromCOption::EditFunctionPrototype);
-  std::optional<llvm::StringRef> ABI;
-  std::vector<Attr *> AnnotateAttrs;
+  std::optional<std::string> MaybeABI;
+  std::vector<AnnotateAttr *> AnnotateAttrs;
 
-  if (FD->hasAttr<AnnotateAttr>()) {
+  {
     // May be multiple Annotate attributes. One for ABI, one for return value.
     std::for_each(begin(FD->getAttrs()),
                   end(FD->getAttrs()),
                   [&](Attr *Attribute) {
-                    if (isa<AnnotateAttr>(Attribute))
-                      AnnotateAttrs.push_back(Attribute);
+                    if (auto *Annotation = dyn_cast<AnnotateAttr>(Attribute))
+                      AnnotateAttrs.push_back(Annotation);
                   });
 
-    std::optional<std::string> MaybeABI;
     for (auto *Annotate : AnnotateAttrs) {
-      MaybeABI = getABI(cast<AnnotateAttr>(*Annotate).getAnnotation());
+      MaybeABI = getABI(Annotate->getAnnotation());
       if (MaybeABI)
         break;
     }
@@ -733,16 +732,15 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
                 "specification");
       return false;
     }
-
-    ABI = *MaybeABI;
   }
 
-  bool IsRawFunctionType = *ABI == std::string(RawABI);
+  revng_assert(MaybeABI.has_value());
+  bool IsRawFunctionType = *MaybeABI == std::string(RawABI);
   auto NewType = IsRawFunctionType ? makeType<RawFunctionType>() :
                                      makeType<CABIFunctionType>();
 
   if (not IsRawFunctionType) {
-    auto TheModelABI = model::ABI::fromName(*ABI);
+    auto TheModelABI = model::ABI::fromName(*MaybeABI);
     if (TheModelABI == model::ABI::Invalid) {
       revng_log(DILogger, "Invalid ABI provided");
       return false;
@@ -798,13 +796,13 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       std::for_each(begin(FD->getAttrs()),
                     end(FD->getAttrs()),
                     [&](Attr *Attribute) {
-                      if (isa<AnnotateAttr>(Attribute))
-                        AnnotateAttrs.push_back(Attribute);
+                      if (auto *Annotation = dyn_cast<AnnotateAttr>(Attribute))
+                        AnnotateAttrs.push_back(Annotation);
                     });
 
       std::optional<std::string> ReturnValue;
       for (auto *Annotate : AnnotateAttrs) {
-        ReturnValue = getLoc(cast<AnnotateAttr>(*Annotate).getAnnotation());
+        ReturnValue = getLoc(Annotate->getAnnotation());
         if (ReturnValue)
           break;
       }
@@ -915,7 +913,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     // TODO: Should we change the annotate attached to function types to have
     // info about parameters in the toplevel annotate attribute attached to
     // the typedef itself?
-    std::optional<llvm::StringRef> TheABI;
+    std::optional<std::string> TheABI;
     if (D->hasAttr<AnnotateAttr>()) {
       auto TheAnnotateAttr = std::find_if(begin(D->getAttrs()),
                                           end(D->getAttrs()),
@@ -923,13 +921,12 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
                                             return isa<AnnotateAttr>(Attribute);
                                           });
 
-      auto ABI = getABI(cast<AnnotateAttr>(*TheAnnotateAttr)->getAnnotation());
-      if (not ABI or ABI->empty()) {
-        revng_log(DILogger,
-                  "Unable to parse `abi:` from the annotate attribute");
-      } else {
-        TheABI = (*ABI);
-      }
+      TheABI = getABI(cast<AnnotateAttr>(*TheAnnotateAttr)->getAnnotation());
+    }
+
+    if (not TheABI or TheABI->empty()) {
+      revng_log(DILogger, "Unable to parse `abi:` from the annotate attribute");
+      return false;
     }
 
     return VisitFunctionPrototype(Fn, TheABI);
@@ -1249,7 +1246,7 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   }
 
   // Parse annotate attribute used for specifying underlying type.
-  std::optional<llvm::StringRef> UnderlyingType;
+  std::optional<std::string> UnderlyingType;
   if (D->hasAttr<AnnotateAttr>()) {
     auto Annotate = std::find_if(begin(D->getAttrs()),
                                  end(D->getAttrs()),
@@ -1258,18 +1255,17 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
                                  });
 
     llvm::StringRef Annotation = cast<AnnotateAttr>(*Annotate)->getAnnotation();
-    auto TheUnderlyingType = parseEnumUnderlyingType(Annotation);
-    if (not TheUnderlyingType or TheUnderlyingType->empty()) {
+    UnderlyingType = parseEnumUnderlyingType(Annotation);
+    if (not UnderlyingType or UnderlyingType->empty()) {
       revng_log(DILogger,
                 "Unable to parse `enum_underlying_type:` from the annotate "
                 "attribute");
       return false;
-    } else {
-      UnderlyingType = (*TheUnderlyingType);
     }
   }
 
-  auto TheUnderlyingModelType = getEnumUnderlyingType((*UnderlyingType).str());
+  revng_assert(UnderlyingType.has_value());
+  auto TheUnderlyingModelType = getEnumUnderlyingType(*UnderlyingType);
   if (not TheUnderlyingModelType) {
     revng_log(DILogger,
               "UnderlyingType of a EnumType can only be Signed or Unsigned");
