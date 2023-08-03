@@ -31,11 +31,7 @@
 
 #include "DependencyGraph.h"
 
-using ArtificialTypes::ArrayWrapperFieldName;
-
-using llvm::cast;
 using llvm::isa;
-using llvm::Twine;
 
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
@@ -182,6 +178,7 @@ bool dumpModelToHeader(const model::Binary &Model,
     auto Scope = ThePTMLCBuilder.getTag(ptml::tags::Div).scope(Header);
 
     Header << ThePTMLCBuilder.getPragmaOnce();
+    Header << "\n";
     Header << ThePTMLCBuilder.getIncludeAngle("stdint.h");
     Header << ThePTMLCBuilder.getIncludeAngle("stdbool.h");
     Header << ThePTMLCBuilder.getIncludeQuote("revng-primitive-types.h");

@@ -31,10 +31,6 @@
 #include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
-namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokens;
-namespace ranks = revng::ranks;
-
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeSet = std::set<const model::Type *>;
 using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
@@ -177,13 +173,15 @@ TypeSet TypeInlineHelper::collectStackTypes(const model::Binary &Model) const {
   for (auto &Function : Model.Functions()) {
     if (not Function.StackFrameType().empty()) {
       const model::Type *StackT = Function.StackFrameType().getConst();
+      revng_assert(StackT->Kind() == model::TypeKind::StructType);
+
       // Do not inline stack types that are being used somewhere else.
       auto TheTypeToNumOfRefs = TypeToNumOfRefs.find(StackT);
       if (TheTypeToNumOfRefs != TypeToNumOfRefs.end()
           and TheTypeToNumOfRefs->second != 0)
         continue;
 
-      revng_assert(StackT->Kind() == model::TypeKind::StructType);
+      revng_assert(StackT != nullptr);
       Result.insert(StackT);
       auto AllNestedTypes = getTypesToInlineInTypeTy(Model, StackT);
       Result.merge(AllNestedTypes);

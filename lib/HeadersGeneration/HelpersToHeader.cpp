@@ -32,11 +32,6 @@
 
 using llvm::dyn_cast;
 
-using pipeline::serializedLocation;
-namespace tags = ptml::tags;
-namespace attributes = ptml::attributes;
-namespace ranks = revng::ranks;
-
 static Logger<> Log{ "helpers-to-header" };
 
 /// Print the declaration a C struct corresponding to an LLVM struct

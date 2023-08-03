@@ -880,7 +880,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   ModelFunction.OriginalName() = Function->OriginalName();
   ModelFunction.ExportedNames() = Function->ExportedNames();
 
-  // TODO: Remember/clone StackFrameType as well.
+  // TODO: remember/clone StackFrameType as well.
 
   auto Prototype = Model->recordNewType(std::move(NewType));
   ModelFunction.Prototype() = Prototype;
@@ -894,7 +894,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 
   revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
 
-  auto TheType = D->getUnderlyingType();
+  QualType TheType = D->getUnderlyingType();
   if (auto Fn = llvm::dyn_cast<FunctionProtoType>(TheType)) {
     // Parse the ABI from annotate attribute attached to the typedef
     // declaration. Please do note that annotations on the parameters are not

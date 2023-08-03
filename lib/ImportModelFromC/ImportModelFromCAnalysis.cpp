@@ -121,8 +121,7 @@ struct ImportModelFromCAnalysis {
         TheOption = ImportModelFromCOption::EditType;
       } else {
         return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                       "Please provide a location that is "
-                                       "supported by our Model");
+                                       "Invalid location");
       }
     }
 
