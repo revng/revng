@@ -47,13 +47,12 @@ static void printSegmentsTypes(const model::Segment &Segment,
 }
 
 /// Print all type definitions for the types in the model
-static void
-printTypeDefinitions(const model::Binary &Model,
-                     const TypeInlineHelper &TheTypeInlineHelper,
-                     ptml::PTMLIndentedOstream &Header,
-                     ptml::PTMLCBuilder &ThePTMLCBuilder,
-                     QualifiedTypeNameMap &AdditionalTypeNames,
-                     const std::set<const model::Type *> &IgnoreTypes) {
+static void printTypeDefinitions(const model::Binary &Model,
+                                 const TypeInlineHelper &TheTypeInlineHelper,
+                                 ptml::PTMLIndentedOstream &Header,
+                                 ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                 QualifiedTypeNameMap &AdditionalTypeNames,
+                                 const ModelToHeaderOptions &Options) {
   auto StackTypes = TheTypeInlineHelper.collectStackTypes(Model);
   DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
   const auto &TypeNodes = Dependencies.TypeNodes();
@@ -84,7 +83,7 @@ printTypeDefinitions(const model::Binary &Model,
       constexpr auto TypeName = TypeNode::Kind::TypeName;
       constexpr auto FullType = TypeNode::Kind::FullType;
 
-      if (IgnoreTypes.contains(NodeT))
+      if (Options.TypesToOmit.contains(NodeT))
         continue;
 
       if (DeclKind == FullType) {
@@ -135,7 +134,7 @@ printTypeDefinitions(const model::Binary &Model,
         Defined.insert(TypeNodes.at({ NodeT, FullType }));
       } else {
         if (not ToInline.contains(NodeT)) {
-          if (not IgnoreTypes.contains(Node->T))
+          if (not Options.TypesToOmit.contains(Node->T)) {
             printDeclaration(Log,
                              *NodeT,
                              Header,
@@ -143,6 +142,7 @@ printTypeDefinitions(const model::Binary &Model,
                              AdditionalTypeNames,
                              Model,
                              ToInline);
+          }
           Defined.insert(TypeNodes.at({ NodeT, TypeName }));
         }
 
@@ -166,13 +166,11 @@ printTypeDefinitions(const model::Binary &Model,
 
 bool dumpModelToHeader(const model::Binary &Model,
                        llvm::raw_ostream &Out,
-                       const std::set<const model::Type *> &IgnoreTypes,
-                       MetaAddress FunctionToIgnore,
-                       bool GeneratePlainC) {
+                       const ModelToHeaderOptions &Options) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
   using Scopes = ptml::PTMLCBuilder::Scopes;
 
-  PTMLCBuilder ThePTMLCBuilder(GeneratePlainC);
+  PTMLCBuilder ThePTMLCBuilder(Options.GeneratePlainC);
   ptml::PTMLIndentedOstream Header(Out, 4, true);
   {
     auto Scope = ThePTMLCBuilder.getTag(ptml::tags::Div).scope(Header);
@@ -184,6 +182,9 @@ bool dumpModelToHeader(const model::Binary &Model,
     Header << ThePTMLCBuilder.getIncludeQuote("revng-primitive-types.h");
     Header << ThePTMLCBuilder.getIncludeQuote("revng-attributes.h");
     Header << "\n";
+
+    if (Options.PostIncludes.size())
+      Header << Options.PostIncludes << "\n";
 
     Header << ThePTMLCBuilder.getDirective(PTMLCBuilder::Directive::IfNotDef)
            << " " << ThePTMLCBuilder.getNullTag() << "\n"
@@ -210,7 +211,7 @@ bool dumpModelToHeader(const model::Binary &Model,
                            Header,
                            ThePTMLCBuilder,
                            AdditionalTypeNames,
-                           IgnoreTypes);
+                           Options);
     }
 
     if (not Model.Functions().empty()) {
@@ -222,11 +223,11 @@ bool dumpModelToHeader(const model::Binary &Model,
       Header << ThePTMLCBuilder.getLineComment("===================");
       Header << '\n';
       for (const model::Function &MF : Model.Functions()) {
-        if (FunctionToIgnore.isValid() and MF.Entry() == FunctionToIgnore)
+        if (Options.FunctionsToOmit.contains(MF.Entry()))
           continue;
 
         const model::Type *FT = MF.Prototype().get();
-        if (IgnoreTypes.contains(FT))
+        if (Options.TypesToOmit.contains(FT))
           continue;
 
         auto FName = model::Identifier::fromString(MF.name());
@@ -260,7 +261,7 @@ bool dumpModelToHeader(const model::Binary &Model,
            Model.ImportedDynamicFunctions()) {
         const model::Type *FT = MF.prototype(Model).get();
         revng_assert(FT != nullptr);
-        if (IgnoreTypes.contains(FT))
+        if (Options.TypesToOmit.contains(FT))
           continue;
 
         auto FName = model::Identifier::fromString(MF.name());

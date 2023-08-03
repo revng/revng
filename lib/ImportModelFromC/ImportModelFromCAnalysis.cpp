@@ -145,6 +145,9 @@ struct ImportModelFromCAnalysis {
                                        + EC.message());
     }
 
+    ModelToHeaderOptions Options;
+    Options.GeneratePlainC = true;
+
     if (TheOption == ImportModelFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward
       // declarations.
@@ -160,21 +163,15 @@ struct ImportModelFromCAnalysis {
       }
 
       // Find all types whose definition depends on the type we are editing.
-      auto TypesThatDependOnTypeWeEdit = populateDependencies(*TypeToEdit,
-                                                              Model);
-      dumpModelToHeader(*Model,
-                        Header,
-                        TypesThatDependOnTypeWeEdit,
-                        MetaAddress::invalid(),
-                        true);
+      Options.TypesToOmit = populateDependencies(*TypeToEdit, Model);
     } else if (TheOption == ImportModelFromCOption::EditFunctionPrototype) {
-      auto FunctionAddress = FunctionToBeEdited->Entry();
-      dumpModelToHeader(*Model, Header, {}, FunctionAddress, true);
+      Options.FunctionsToOmit.insert(FunctionToBeEdited->Entry());
     } else {
       revng_assert(TheOption == ImportModelFromCOption::AddType);
-      // We have nothing to ignore.
-      dumpModelToHeader(*Model, Header, {}, MetaAddress::invalid(), true);
+      // We have nothing to ignore
     }
+
+    dumpModelToHeader(*Model, Header, Options);
 
     Header.close();
 

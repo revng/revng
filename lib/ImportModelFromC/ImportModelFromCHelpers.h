@@ -31,11 +31,11 @@ struct NodeData {
 using Node = BidirectionalNode<NodeData>;
 using Graph = GenericGraph<Node>;
 
-inline std::set<const model::Type *>
+inline llvm::SmallPtrSet<const model::Type *, 2>
 getIncommingTypesForT(const model::Type *T,
                       const TupleTree<model::Binary> &Model,
                       const std::map<const model::Type *, Node *> &TypeToNode) {
-  std::set<const model::Type *> Result;
+  llvm::SmallPtrSet<const model::Type *, 2> Result;
 
   // Visit all the nodes reachable from RootType.
   llvm::df_iterator_default_set<Node *> Visited;
@@ -51,10 +51,10 @@ getIncommingTypesForT(const model::Type *T,
 }
 
 // Remember dependencies between types.
-inline std::set<const model::Type *>
+inline llvm::SmallPtrSet<const model::Type *, 2>
 populateDependencies(const model::Type *TheType,
                      const TupleTree<model::Binary> &Model) {
-  std::set<const model::Type *> Result;
+  llvm::SmallPtrSet<const model::Type *, 2> Result;
 
   Graph InverseTypeGraph;
   std::map<const model::Type *, Node *> TypeToNode;
@@ -93,7 +93,7 @@ populateDependencies(const model::Type *TheType,
         auto AllThatUseTypeT = getIncommingTypesForT(T.get(),
                                                      Model,
                                                      TypeToNode);
-        Result.merge(AllThatUseTypeT);
+        llvm::copy(AllThatUseTypeT, std::inserter(Result, Result.begin()));
       }
     }
   }
