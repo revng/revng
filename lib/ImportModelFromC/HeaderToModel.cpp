@@ -40,6 +40,18 @@ static constexpr const char *EnumAnnotatePrefix = "enum_underlying_type:";
 static constexpr size_t
   EnumAnnotatePrefixLength = std::char_traits<char>::length(EnumAnnotatePrefix);
 
+template<typename T>
+concept HasCustomName = requires(const T &Element) {
+  { Element.CustomName() } -> std::same_as<const model::Identifier &>;
+  { Element.name() } -> std::same_as<model::Identifier>;
+};
+
+template<HasCustomName T>
+static void setCustomName(T &Element, llvm::StringRef NewName) {
+  if (Element.name() != NewName)
+    Element.CustomName() = NewName;
+}
+
 namespace clang {
 namespace tooling {
 
@@ -758,7 +770,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       }
 
       model::Argument &NewArgument = FunctionType->Arguments()[Index];
-      NewArgument.CustomName() = FD->getParamDecl(I)->getName();
+      setCustomName(NewArgument, FD->getParamDecl(I)->getName());
       NewArgument.Type() = *ParamType;
       ++Index;
     }
@@ -874,7 +886,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   // Update the name if in the case it got changed.
   auto &ModelFunction = Model->Functions()[Function->Entry()];
-  ModelFunction.CustomName() = FD->getName();
+  setCustomName(ModelFunction, FD->getName());
 
   // Clone the other stuff.
   ModelFunction.OriginalName() = Function->OriginalName();
@@ -935,6 +947,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 
   auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
   TheTypeTypeDef->UnderlyingType() = *ModelTypedefType;
+  setCustomName(*TheTypeTypeDef, D->getName());
 
   if (AnalysisOption == ImportModelFromCOption::EditType) {
     // Remove old and add new type with the same ID.
@@ -1029,11 +1042,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   const RecordDecl *Definition = RD->getDefinition();
 
   auto NewType = makeType<model::StructType>();
-
-  // We add "prefix_" to guarantee that there are no collisions.
-  std::string CustomName = std::string("prefix_") + RD->getName().str();
-  auto StructName = std::string(model::Identifier::fromString(CustomName));
-  NewType->CustomName() = StructName;
+  setCustomName(*NewType, RD->getName());
 
   if (AnalysisOption == ImportModelFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
@@ -1041,6 +1050,9 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   auto Struct = cast<model::StructType>(NewType.get());
   uint64_t CurrentOffset = 0;
 
+  //
+  // Iterate over the struct fields
+  //
   llvm::SmallVector<std::pair<model::Register::Values, ModelType>, 4>
     ReturnValues;
   for (const FieldDecl *Field : Definition->fields()) {
@@ -1118,10 +1130,12 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       Size = *(TheFieldType->UnqualifiedType().get()->size());
     }
 
-    auto &FieldModelType = Struct->Fields()[CurrentOffset];
-    FieldModelType.CustomName() = Field->getName();
-
-    FieldModelType.Type() = *TheFieldType;
+    // Do not create fields for padding fields
+    if (not Field->getName().starts_with(StructPaddingPrefix)) {
+      auto &FieldModelType = Struct->Fields()[CurrentOffset];
+      setCustomName(FieldModelType, Field->getName());
+      FieldModelType.Type() = *TheFieldType;
+    }
 
     revng_assert(Size);
     CurrentOffset += *Size;
@@ -1156,11 +1170,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
 
   const RecordDecl *Definition = RD->getDefinition();
   auto NewType = makeType<model::UnionType>();
-
-  // We add "prefix_" to guarantee that there are no collisions.
-  std::string CustomName = std::string("prefix_") + RD->getName().str();
-  auto UnionName = std::string(model::Identifier::fromString(CustomName));
-  NewType->CustomName() = UnionName;
+  setCustomName(*NewType, RD->getName().str());
 
   auto Union = cast<model::UnionType>(NewType.get());
 
@@ -1185,7 +1195,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     }
 
     auto &FieldModelType = Union->Fields()[CurrentIndex];
-    FieldModelType.CustomName() = Field->getName();
+    setCustomName(FieldModelType, Field->getName());
     FieldModelType.Type() = *TheFieldType;
 
     ++CurrentIndex;
@@ -1274,15 +1284,13 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   auto TypeEnum = cast<model::EnumType>(NewType.get());
   model::QualifiedType TheUnderlyingType(*TheUnderlyingModelType, {});
   TypeEnum->UnderlyingType() = TheUnderlyingType;
-
-  // We add "prefix_" to guarantee that there are no collisions.
-  std::string CustomName = std::string("prefix_") + Definition->getName().str();
-  auto EnumName = std::string(model::Identifier::fromString(CustomName));
-  NewType->CustomName() = EnumName;
+  setCustomName(*TypeEnum, Definition->getName());
 
   for (const auto *Enum : Definition->enumerators()) {
     auto &EnumEntry = TypeEnum->Entries()[Enum->getInitVal().getExtValue()];
-    EnumEntry.CustomName() = Enum->getName();
+    std::string NewName = Enum->getName().str();
+    if (TypeEnum->entryName(EnumEntry) != NewName)
+      EnumEntry.CustomName() = NewName;
   }
 
   if (AnalysisOption == ImportModelFromCOption::EditType) {
