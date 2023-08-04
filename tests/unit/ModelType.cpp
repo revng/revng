@@ -127,6 +127,13 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
         revng_check(not G.verify(false));
     }
   }
+
+  revng_check(not PrimitiveType::fromName("foalt32_t"));
+  revng_check(not PrimitiveType::fromName("generic7_t"));
+  revng_check(not PrimitiveType::fromName("generic8"));
+  revng_check(PrimitiveType::fromName("generic8_t")->name() == "generic8_t");
+  revng_check(PrimitiveType::fromName("float64_t")->name() == "float64_t");
+  revng_check(PrimitiveType::fromName("number128_t")->name() == "number128_t");
 }
 
 BOOST_AUTO_TEST_CASE(EnumTypes) {

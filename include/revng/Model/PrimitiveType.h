@@ -32,6 +32,8 @@ public:
   explicit PrimitiveType(uint64_t ID);
   PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind, uint8_t ByteSize);
 
+  static std::optional<model::PrimitiveType> fromName(llvm::StringRef Name);
+
 public:
   static uint64_t FirstNonPrimitiveID;
 

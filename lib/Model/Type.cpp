@@ -410,6 +410,62 @@ static constexpr bool isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind,
   revng_abort();
 }
 
+std::optional<model::PrimitiveType>
+model::PrimitiveType::fromName(llvm::StringRef Name) {
+  PrimitiveTypeKind::Values Kind = PrimitiveTypeKind::Invalid;
+  uint8_t Size = 0;
+
+  // Handle void
+  if (Name == "void") {
+    Kind = PrimitiveTypeKind::Void;
+    return model::PrimitiveType(Kind, Size);
+  }
+
+  // Ensure the name ends with _t
+  if (not Name.consume_back("_t"))
+    return std::nullopt;
+
+  // Parse the prefix for the kind
+  if (Name.consume_front("generic")) {
+    Kind = PrimitiveTypeKind::Generic;
+  } else if (Name.consume_front("uint")) {
+    Kind = PrimitiveTypeKind::Unsigned;
+  } else if (Name.consume_front("number")) {
+    Kind = PrimitiveTypeKind::Number;
+  } else if (Name.consume_front("pointer_or_number")) {
+    Kind = PrimitiveTypeKind::PointerOrNumber;
+  } else if (Name.consume_front("int")) {
+    Kind = PrimitiveTypeKind::Signed;
+  } else if (Name.consume_front("float")) {
+    Kind = PrimitiveTypeKind::Float;
+  } else {
+    return std::nullopt;
+  }
+
+  // Consume bit size
+  unsigned Bits = 0;
+  if (Name.consumeInteger(10, Bits))
+    return std::nullopt;
+
+  // Ensure we consumed everything
+  if (Name.size() != 0)
+    return std::nullopt;
+
+  // Ensure it's a multiple of 8
+  if (Bits % 8 != 0)
+    return std::nullopt;
+
+  Size = Bits / 8;
+
+  // Create the type
+  model::PrimitiveType NewType(Kind, Size);
+
+  if (not NewType.verify())
+    return std::nullopt;
+
+  return NewType;
+}
+
 Identifier model::PrimitiveType::name() const {
   Identifier Result;
 
