@@ -2,24 +2,24 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from collections.abc import Sequence
+from itertools import islice
 from typing import Any, Generator, List, Optional
 
 from ._capi import _api, ffi
-from .container import Container
-from .kind import Kind
-from .utils import convert_buffer, make_c_string, make_generator, make_python_string
+from .utils import convert_buffer, make_c_string, make_python_string
 
 
 class Target:
-    def __init__(self, target, container: Container):
+    def __init__(self, target, container):
         self._target = target
         self._container = container
 
     @staticmethod
-    def create(kind: Kind, container: Container, path_components: List[str]) -> Optional["Target"]:
+    def create(_kind, container: str, path_components: List[str]) -> Optional["Target"]:
         _path_components = [make_c_string(c) for c in path_components]
         _target = _api.rp_target_create(
-            kind._kind,
+            _kind,
             len(_path_components),
             _path_components,
         )
@@ -27,13 +27,13 @@ class Target:
         return Target(_target, container) if _target != ffi.NULL else None
 
     @property
-    def kind(self) -> Kind:
-        _kind = _api.rp_target_get_kind(self._target)
-        return Kind(_kind)
+    def kind(self) -> str | None:
+        _kind_name = _api.rp_target_get_kind(self._target)
+        return make_python_string(_kind_name) if _kind_name != ffi.NULL else None
 
     @property
     def is_ready(self) -> bool:
-        return bool(_api.rp_target_is_ready(self._target, self._container._container))
+        return bool(_api.rp_target_is_ready(self._target, self._container))
 
     @property
     def path_components_count(self) -> int:
@@ -55,36 +55,43 @@ class Target:
         return make_python_string(_serialized)
 
     def extract(self) -> str | bytes | None:
-        _buffer = _api.rp_container_extract_one(self._container._container, self._target)
+        _buffer = _api.rp_container_extract_one(self._container, self._target)
         if _buffer == ffi.NULL:
             return None
         size = _api.rp_buffer_size(_buffer)
         data = _api.rp_buffer_data(_buffer)
-        return convert_buffer(data, size, self._container.mime)
+        _mime = _api.rp_container_get_mime(self._container)
+        return convert_buffer(data, size, make_python_string(_mime))
 
     def as_dict(self):
         return {
             "serialized": self.serialize(),
             "pathComponents": list(self.path_components()),
-            "kind": self.kind.name if self.kind is not None else None,
+            "kind": self.kind,
             "ready": self.is_ready,
         }
 
 
-class TargetsList:
-    def __init__(self, targets_list, container: Container):
+class TargetsList(Sequence):
+    def __init__(self, targets_list, container):
         self._targets_list = targets_list
         self._container = container
 
-    def targets(self) -> Generator[Target, None, None]:
-        return make_generator(len(self), self._get_nth_target)
-
-    def _get_nth_target(self, idx: int) -> Optional[Target]:
+    def _get_target(self, idx: int) -> Optional[Target]:
         _target = _api.rp_targets_list_get_target(self._targets_list, idx)
         return Target(_target, self._container) if _target != ffi.NULL else None
 
-    def __len__(self):
+    def __len__(self) -> int:
         return _api.rp_targets_list_targets_count(self._targets_list)
+
+    def __getitem__(self, idx: int | slice):
+        if isinstance(idx, int):
+            if idx < len(self):
+                return self._get_target(idx)
+            else:
+                raise IndexError("list index out of range")
+        else:
+            return list(islice(self, idx.start, idx.stop, idx.step))
 
 
 class ContainerToTargetsMap:
@@ -94,6 +101,5 @@ class ContainerToTargetsMap:
         else:
             self._map = _map
 
-    def add(self, container: Container, *targets: Target):
-        for target in targets:
-            _api.rp_container_targets_map_add(self._map, container._container, target._target)
+    def add(self, _container, target: Target):
+        _api.rp_container_targets_map_add(self._map, _container, target._target)

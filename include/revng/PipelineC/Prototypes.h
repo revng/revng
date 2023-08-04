@@ -155,6 +155,15 @@ const rp_container_identifier *
 rp_manager_get_container_identifier(const rp_manager *manager, uint64_t index);
 
 /**
+ * \param name the container name to fetch
+ *
+ * \return the container with the given name
+ */
+const rp_container_identifier *
+rp_manager_get_container_identifier_from_name(const rp_manager *manager,
+                                              const char *name);
+
+/**
  *  Trigger the serialization of the pipeline on disk.
  *  \return false if there was an error while saving, true otherwise
  */
@@ -178,6 +187,11 @@ uint64_t rp_manager_step_name_to_index(const rp_manager *manager,
  * \return the step with the provided index, or NULL if not such step existed.
  */
 rp_step *rp_manager_get_step(const rp_manager *manager, uint64_t index);
+
+/**
+ * \return the step with the provided name, or NULL if not such step existed.
+ */
+rp_step *rp_manager_get_step_from_name(rp_manager *manager, const char *name);
 
 /**
  * \param global_name the name of the global
@@ -347,7 +361,7 @@ rp_analyses_list *rp_manager_get_analyses_list(rp_manager *manager,
  */
 rp_diff_map * /*owning*/
 rp_manager_run_analyses_list(rp_manager *manager,
-                             rp_analyses_list *list,
+                             const char *list_name,
                              rp_invalidations *invalidations,
                              const rp_string_map *options);
 
@@ -358,6 +372,11 @@ rp_manager_run_analyses_list(rp_manager *manager,
 const rp_targets_list *
 rp_manager_get_container_targets_list(const rp_manager *manager,
                                       const rp_container *container);
+
+/**
+ * \return The pipeline description file, in YAML format
+ */
+const char *rp_manager_get_pipeline_description(rp_manager *manager);
 
 /** \} */
 
@@ -548,7 +567,7 @@ void rp_target_destroy(rp_target *target);
 /**
  * \return the kind of the provided target
  */
-const rp_kind *rp_target_get_kind(const rp_target *target);
+const char *rp_target_get_kind(const rp_target *target);
 
 /**
  * Serializes target into a string.

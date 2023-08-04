@@ -122,15 +122,10 @@ python_module(TARGET_NAME revng-python-cli-commands-graphql MODULE_FILES
 set(REVNG_API_MODULE_FILES
     revng/api/__init__.py
     revng/api/_capi.py
-    revng/api/analysis.py
-    revng/api/container.py
     revng/api/errors.py
     revng/api/exceptions.py
     revng/api/invalidations.py
-    revng/api/kind.py
     revng/api/manager.py
-    revng/api/rank.py
-    revng/api/step.py
     revng/api/string_map.py
     revng/api/target.py
     revng/api/utils.py)
@@ -152,13 +147,9 @@ endforeach()
 # Install revng.daemon
 #
 set(REVNG_DAEMON_MODULE_FILES
-    revng/daemon/__init__.py
-    revng/daemon/multiqueue.py
-    revng/daemon/event_manager.py
-    revng/daemon/schema_generator.py
-    revng/daemon/schema.graphql.tpl
-    revng/daemon/static_handlers.py
-    revng/daemon/util.py)
+    revng/daemon/__init__.py revng/daemon/multiqueue.py
+    revng/daemon/event_manager.py revng/daemon/schema.graphql
+    revng/daemon/graphql.py revng/daemon/util.py)
 python_module(TARGET_NAME revng-python-daemon MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
 

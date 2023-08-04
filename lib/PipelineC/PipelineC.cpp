@@ -241,6 +241,12 @@ static rp_step *_rp_manager_get_step(const rp_manager *manager,
   return &(*(std::next(manager->getRunner().begin(), index)));
 }
 
+static rp_step *_rp_manager_get_step_from_name(rp_manager *manager,
+                                               const char *name) {
+  revng_check(manager != nullptr);
+  return &manager->getRunner().getStep(name);
+}
+
 static const char *_rp_step_get_name(const rp_step *step) {
   revng_check(step != nullptr);
   return step->getName().data();
@@ -455,9 +461,9 @@ static bool _rp_manager_container_deserialize(rp_manager *manager,
   return true;
 }
 
-static rp_kind *_rp_target_get_kind(rp_target *target) {
+static const char *_rp_target_get_kind(rp_target *target) {
   revng_check(target != nullptr);
-  return &target->getKind();
+  return target->getKind().name().data();
 }
 
 static uint64_t _rp_target_path_components_count(rp_target *target) {
@@ -507,6 +513,16 @@ _rp_manager_get_container_identifier(const rp_manager *manager,
   const auto &ContainerRegistry = manager->getRunner().getContainerFactorySet();
   revng_check(index < ContainerRegistry.size());
   return &*std::next(ContainerRegistry.begin(), index);
+}
+
+static const rp_container_identifier *
+_rp_manager_get_container_identifier_from_name(const rp_manager *manager,
+                                               const char *name) {
+  revng_check(manager != nullptr);
+  revng_check(name != nullptr);
+
+  const auto &ContainerRegistry = manager->getRunner().getContainerFactorySet();
+  return &ContainerRegistry.at(name);
 }
 
 static const char *_rp_container_get_name(const rp_container *container) {
@@ -891,16 +907,17 @@ static rp_analysis *_rp_manager_get_analysis(rp_manager *manager,
 
 static rp_diff_map *
 _rp_manager_run_analyses_list(rp_manager *manager,
-                              rp_analyses_list *list,
+                              const char *list_name,
                               rp_invalidations *invalidations,
                               const rp_string_map *options) {
   revng_check(manager != nullptr);
-  revng_check(list != nullptr);
+  revng_check(list_name != nullptr);
 
   ExistingOrNew<rp_invalidations> Invalidations(invalidations);
   ExistingOrNew<const rp_string_map> Options(options);
 
-  auto MaybeDiffs = manager->runAnalyses(*list, *Invalidations, *Options);
+  const AnalysesList &AL = manager->getRunner().getAnalysesList(list_name);
+  auto MaybeDiffs = manager->runAnalyses(AL, *Invalidations, *Options);
   if (!MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
@@ -1122,6 +1139,11 @@ static void _rp_container_targets_map_add(rp_container_targets_map *map,
 static char *_rp_step_get_component(const rp_step *step) {
   revng_check(step != nullptr);
   return copyString(step->getComponent());
+}
+
+static const char *_rp_manager_get_pipeline_description(rp_manager *manager) {
+  revng_check(manager != nullptr);
+  return manager->getPipelineDescription().data();
 }
 
 // NOLINTEND
