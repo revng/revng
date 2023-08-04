@@ -315,7 +315,7 @@ void SwitchNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 
 void BreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
-  ASTFile << "label=\"loop break\"";
+  ASTFile << "label=\"loop break " << this->getName() << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
@@ -324,7 +324,7 @@ void BreakNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 
 void SwitchBreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
-  ASTFile << "label=\"switch break\"";
+  ASTFile << "label=\"switch break " << this->getName() << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
@@ -333,7 +333,7 @@ void SwitchBreakNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 
 void ContinueNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
-  ASTFile << "label=\"continue\"";
+  ASTFile << "label=\"continue " << this->getName() << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 

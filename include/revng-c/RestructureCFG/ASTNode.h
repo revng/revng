@@ -378,7 +378,7 @@ private:
   bool IsImplicit = false;
 
 public:
-  ContinueNode() : ASTNode(NK_Continue, "continue") {}
+  ContinueNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_Continue, CFGNode) {}
 
 protected:
   ContinueNode(const ContinueNode &) = default;
@@ -413,7 +413,7 @@ class BreakNode : public ASTNode {
   friend class ASTNode;
 
 public:
-  BreakNode() : ASTNode(NK_Break, "loop break") {}
+  BreakNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_Break, CFGNode) {}
 
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
 

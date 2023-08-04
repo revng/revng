@@ -908,9 +908,9 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
       case 0: {
         if (Node->isBreak())
-          ASTObject.reset(new BreakNode());
+          ASTObject.reset(new BreakNode(Node));
         else if (Node->isContinue())
-          ASTObject.reset(new ContinueNode());
+          ASTObject.reset(new ContinueNode(Node));
         else if (Node->isSet())
           ASTObject.reset(new SetNode(Node));
         else if (Node->isEmpty() or Node->isCode())
