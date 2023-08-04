@@ -13,7 +13,7 @@ const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
                                           const model::TypePath &NewTypePath,
                                           TupleTree<model::Binary> &Model) {
   auto CheckTheKey = [&OldKey](const model::TypePath &Reference) -> bool {
-    if (!Reference.isValid())
+    if (Reference.empty())
       return false;
 
     return OldKey == Reference.getConst()->key();

@@ -617,7 +617,7 @@ QualifiedType::trySize(VerifyHelper &VH) const {
     }
   }
 
-  if (!UnqualifiedType().isValid())
+  if (UnqualifiedType().empty())
     rc_return std::nullopt;
 
   rc_return rc_recur UnqualifiedType().get()->trySize(VH);
@@ -971,10 +971,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   for (; FieldIt != FieldEnd; ++FieldIt) {
     auto &Field = *FieldIt;
 
-    if (not rc_recur Field.verify(VH))
+    if (not rc_recur Field.verify(VH)) {
       rc_return VH.fail("Can't verify type of field at offset "
                           + Twine(Field.Offset()),
                         *T);
+    }
 
     if (Field.Offset() >= T->Size()) {
       std::uint64_t Size = *Field.Type().size();
@@ -1148,8 +1149,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
   if (not T->StackArgumentsType().Qualifiers().empty())
     rc_return VH.fail();
-  if (auto &Type = T->StackArgumentsType().UnqualifiedType();
-      Type.isValid() and not rc_recur Type.get()->verify(VH))
+
+  auto &Type = T->StackArgumentsType().UnqualifiedType();
+  if (not Type.empty() and not rc_recur Type.get()->verify(VH))
     rc_return VH.fail();
 
   rc_return VH.maybeFail(T->CustomName().verify(VH));

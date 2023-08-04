@@ -333,7 +333,7 @@ gatherArgumentComments(const model::Function &Function) {
                                        model::editPath::comment(*FT, Argument));
     }
 
-    if (FT->StackArgumentsType().UnqualifiedType().isValid()) {
+    if (not FT->StackArgumentsType().UnqualifiedType().empty()) {
       revng_assert(FT->StackArgumentsType().Qualifiers().empty());
       auto *Unqualified = FT->StackArgumentsType().UnqualifiedType().get();
       const auto &Stack = *llvm::cast<model::StructType>(Unqualified);

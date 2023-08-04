@@ -93,7 +93,7 @@ public:
 
         // Copy prototype
         auto NewPrototype = WellKnownFunction->Prototype();
-        if (NewPrototype.isValid()) {
+        if (not NewPrototype.empty()) {
           TypeCopier &Copier = It->second.first->Copier;
           auto MaybePath = Copier.copyTypeInto(NewPrototype);
           revng_assert(MaybePath.has_value());

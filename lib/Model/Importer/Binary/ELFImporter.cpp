@@ -352,7 +352,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // `isValid` checks also for being empty.
   Task.advance("Parse segment struct from data symbols", true);
   for (auto &Segment : Model->Segments())
-    if (not Segment.Type().UnqualifiedType().isValid())
+    if (Segment.Type().UnqualifiedType().empty())
       Segment.Type() = populateSegmentTypeStruct(*Model, Segment, DataSymbols);
 
   // Create a default prototype
@@ -443,7 +443,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   }
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (Fn.Prototype().isValid() or Fn.OriginalName().size() == 0) {
+    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
       continue;
     }
 

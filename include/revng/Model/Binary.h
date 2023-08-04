@@ -214,7 +214,7 @@ private:
 inline model::TypePath
 getPrototype(const model::Binary &Binary,
              const model::DynamicFunction &DynamicFunction) {
-  if (DynamicFunction.Prototype().isValid())
+  if (not DynamicFunction.Prototype().empty())
     return DynamicFunction.Prototype();
   else
     return Binary.DefaultPrototype();

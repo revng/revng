@@ -243,8 +243,10 @@ Identifier Function::name() const {
 
 static const model::TypePath &prototypeOr(const model::TypePath &Prototype,
                                           const model::TypePath &Default) {
-  if (Prototype.isValid())
+  if (not Prototype.empty()) {
+    revng_assert(Prototype.isValid());
     return Prototype;
+  }
 
   revng_assert(Default.isValid());
   return Default;
@@ -390,7 +392,10 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
-  if (Prototype().isValid()) {
+  if (not Prototype().empty() and not Prototype().isValid())
+    return VH.fail("Invalid prototype", *this);
+
+  if (not Prototype().empty()) {
     // The function has a prototype
     if (not Prototype().get()->verify(VH))
       return VH.fail("Function prototype does not verify", *this);
@@ -429,8 +434,11 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   if (OriginalName().size() == 0)
     return VH.fail("Dynamic functions must have a OriginalName", *this);
 
+  if (not Prototype().empty() and not Prototype().isValid())
+    return VH.fail("Invalid prototype", *this);
+
   // Prototype is valid
-  if (Prototype().isValid()) {
+  if (not Prototype().empty()) {
     if (not Prototype().get()->verify(VH))
       return VH.fail();
 
@@ -466,9 +474,8 @@ bool CallSitePrototype::verify(bool Assert) const {
 }
 
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
-  // Prototype is present
-  if (not Prototype().isValid())
-    return VH.fail("Invalid prototype", *this);
+  if (Prototype().empty() or not Prototype().isValid())
+    return VH.fail("Invalid prototype");
 
   // Prototype is valid
   if (not Prototype().get()->verify(VH))

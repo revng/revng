@@ -118,7 +118,7 @@ checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type) {
     const auto &Stack = llvm::cast<RawFT>(&Type)->StackArgumentsType();
     revng_assert(Stack.Qualifiers().empty());
     const model::TypePath &Internal = Stack.UnqualifiedType();
-    if (Internal.isValid())
+    if (not Internal.empty())
       Result = Result && rc_recur checkVectorRegisterSupport(VH, Internal);
   } break;
 
