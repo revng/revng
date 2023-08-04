@@ -6,6 +6,7 @@
 
 import asyncio
 import io
+import json
 import os
 import signal
 import sys
@@ -13,6 +14,7 @@ from subprocess import STDOUT, Popen, TimeoutExpired
 from tempfile import TemporaryDirectory, TemporaryFile
 from typing import Any, AsyncGenerator
 
+import yaml
 from aiohttp.client import ClientConnectionError, ClientSession, ClientTimeout
 from aiohttp.connector import UnixConnector
 from aiohttp.tracing import TraceConfig, TraceRequestChunkSentParams, TraceRequestEndParams
@@ -20,8 +22,11 @@ from aiohttp.tracing import TraceRequestHeadersSentParams
 from gql import Client, gql
 from gql.client import AsyncClientSession
 from gql.transport.aiohttp import AIOHTTPTransport
+from gql.transport.exceptions import TransportQueryError
 from pytest import Config, ExceptionInfo, TestReport, mark
 from pytest_asyncio import fixture
+
+from revng.pipeline_description import YamlLoader  # type: ignore
 
 pytestmark = mark.asyncio
 
@@ -170,227 +175,125 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
         error_handler(ValueError(f"Daemon exited with non-zero return code: {return_code}"))
 
 
-async def test_info(client):
-    q = gql(
-        """
-    {
-        info {
-            kinds {
-                name
-                rank
-                parent
-            }
-            ranks {
-                name
-                depth
-                parent
-            }
-            steps {
-                name
-            }
-        }
-    }
-    """
-    )
-
+async def test_pipeline_description(client):
+    q = gql("{ pipelineDescription }")
     result = await client.execute(q)
+    yaml.load(result["pipelineDescription"], Loader=YamlLoader)
 
-    binary_kind = next(k for k in result["info"]["kinds"] if k["name"] == "Binary")
-    isolated_kind = next(k for k in result["info"]["kinds"] if k["name"] == "IsolatedRoot")
-    assert binary_kind["rank"] == "binary"
-    assert binary_kind["parent"] is None
-    assert isolated_kind["rank"] == "binary"
-    assert isolated_kind["parent"] == "Root"
 
-    root_rank = next(r for r in result["info"]["ranks"] if r["name"] == "binary")
-    function_rank = next(r for r in result["info"]["ranks"] if r["name"] == "function")
-    assert root_rank["depth"] == 0
-    assert root_rank["parent"] is None
-    assert function_rank["depth"] == 1
-    assert function_rank["parent"] == "binary"
+async def get_description(client):
+    q = gql("{ pipelineDescription }")
+    result = await client.execute(q)
+    return yaml.load(result["pipelineDescription"], Loader=YamlLoader)
 
-    step_names = [s["name"] for s in result["info"]["steps"]]
-    assert "begin" in step_names
+
+async def test_info(client):
+    desc = await get_description(client)
+
+    binary_kind = next(k for k in desc.Kinds if k.Name == "Binary")
+    isolated_kind = next(k for k in desc.Kinds if k.Name == "IsolatedRoot")
+    assert binary_kind.Rank == "binary"
+    assert binary_kind.Parent == ""
+    assert isolated_kind.Rank == "binary"
+    assert isolated_kind.Parent == "Root"
+
+    root_rank = next(r for r in desc.Ranks if r.Name == "binary")
+    function_rank = next(r for r in desc.Ranks if r.Name == "function")
+    assert root_rank.Depth == 0
+    assert root_rank.Parent == ""
+    assert function_rank.Depth == 1
+    assert function_rank.Parent == "binary"
+
+    begin_step = next(s for s in desc.Steps if s.Name == "begin")
+    import_step = next(s for s in desc.Steps if s.Name == "Import")
+    assert begin_step.Parent == ""
+    assert import_step.Parent == "begin"
+
+    container_names = [c.Name for c in desc.Containers]
+    assert "module.ll" in container_names
+    assert "input" in container_names
+
+    input_container = next(c for c in desc.Containers if c.Name == "input")
+    assert input_container.MIMEType != ""
+
+    auto_analysis_found = False
+    for alist in desc.AnalysesLists:
+        if alist.Name == "revng-initial-auto-analysis":
+            auto_analysis_found = True
+        assert len(alist.Analyses) > 0, f"Analyses list {alist.Name} has 0 analyses"
+    assert auto_analysis_found, "revng-initial-auto-analysis not found in analyses lists"
 
 
 async def test_info_global(client):
-    q = gql(
-        """
-    {
-        info {
-            globals {
-                name
-                content
-            }
-            model: global(name: "model.yml")
-        }
-    }
-    """
-    )
+    desc = await get_description(client)
+    assert "model.yml" in desc.Globals
 
-    result = await client.execute(q)
-
-    model = next(r for r in result["info"]["globals"] if r["name"] == "model.yml")
-    model_content = result["info"]["model"]
-
-    assert model is not None
-    assert model_content is not None
-    assert model["content"] == model_content
+    result = await client.execute(gql('{ getGlobal(name: "model.yml") }'))
+    assert result["getGlobal"] is not None
 
 
 async def run_preliminary_analyses(client):
     await client.execute(
         gql(
-            """
-    mutation {
-        analyses {
-            Import {
-                ImportBinary(input: ":Binary"),
-                AddPrimitiveTypes
-            }
-        }
-    }"""
-        )
+            """mutation($ctt: String!) {
+                runAnalysis(step: "Import", analysis: "ImportBinary", containerToTargets: $ctt)
+            }"""
+        ),
+        {"ctt": json.dumps({"input": [":Binary"]})},
+    )
+    await client.execute(
+        gql('mutation { runAnalysis(step: "Import", analysis: "AddPrimitiveTypes") }')
     )
 
 
 async def test_lift(client):
     await run_preliminary_analyses(client)
+    result = await client.execute(gql('{ produceArtifacts(step: "Lift", paths: "") }'))
+    assert result["produceArtifacts"] is not None
 
-    result = await client.execute(gql("{ binary { Lift } }"))
-    assert result["binary"]["Lift"] is not None
 
-
-@mark.xfail(raises=Exception)
 async def test_lift_ready_fail(client):
     await run_preliminary_analyses(client)
-    await client.execute(gql("{ binary { Lift(onlyIfReady: true) } }"))
+    q = gql('{ produceArtifacts(step: "Lift", paths: ":Binary", onlyIfReady: true) }')
 
-
-async def test_invalid_step(client):
-    q = gql('{ step(name: "this_step_does_not_exist") { name } }')
-    result = await client.execute(q)
-    assert result["step"]["name"] is None
-
-
-async def test_valid_steps(client):
-    q = gql(
-        """
-    {
-        begin: step(name: "begin") {
-            name
-            parent
-        }
-        import: step(name: "Import") {
-            name
-            parent
-        }
-    }
-    """
-    )
-    result = await client.execute(q)
-
-    assert result["begin"]["name"] == "begin"
-    assert result["begin"]["parent"] is None
-
-    assert result["import"]["name"] == "Import"
-    assert result["import"]["parent"] == "begin"
-
-
-async def test_begin_has_containers(client):
-    q = gql(
-        """
-    {
-        step(name: "begin") {
-            containers {
-                name
-                mime
-            }
-        }
-        container(name: "input", step: "begin") {
-            name
-            mime
-        }
-    }
-    """
-    )
-    result = await client.execute(q)
-
-    container_names = [c["name"] for c in result["step"]["containers"]]
-    input_container = next(c for c in result["step"]["containers"] if c["name"] == "input")
-    assert "module.ll" in container_names
-    assert "input" in container_names
-    assert input_container["mime"] is not None
-    assert input_container["mime"] == result["container"]["mime"]
+    try:
+        await client.execute(q)
+        raise ValueError("Exception expected")
+    except TransportQueryError as e:
+        assert len(e.errors) == 1
+        assert e.errors[0]["message"] == "Path components need to equal kind rank"
 
 
 async def test_get_model(client):
     await run_preliminary_analyses(client)
-    await client.execute(gql("{ binary { Lift } }"))
+    await client.execute(gql('{ produceArtifacts(step: "Lift", paths: "") }'))
 
-    result = await client.execute(gql("{ info { model } }"))
-    assert result["info"]["model"] is not None
-
-
-async def test_targets_from_step(client):
-    q = gql(
-        """
-    {
-        begin: step(name: "begin") {
-            containers {
-                name
-                targets {
-                    serialized
-                    kind
-                    ready
-                }
-            }
-        }
-
-        lift: step(name: "Lift") {
-            containers {
-                name
-                targets {
-                    kind
-                    ready
-                }
-            }
-        }
-    }
-    """
-    )
-    result = await client.execute(q)
-
-    binary_target = next(
-        t
-        for t in next(c for c in result["begin"]["containers"] if c["name"] == "input")["targets"]
-        if t["kind"] == "Binary"
-    )
-    lift_target = next(
-        t
-        for t in next(c for c in result["lift"]["containers"] if c["name"] == "module.ll")[
-            "targets"
-        ]
-        if t["kind"] == "Root"
-    )
-    assert binary_target["ready"]
-    assert not lift_target["ready"]
+    result = await client.execute(gql('{ getGlobal(name: "model.yml") }'))
+    assert result["getGlobal"] is not None
 
 
 async def test_targets(client):
     q = gql(
         """
     {
-        targets(pathspec: "") {
-            name
+        begin: targets(step: "begin", container: "input") {
+            kind
+            ready
+        }
+
+        lift: targets(step: "Lift", container: "module.ll") {
+            kind
+            ready
         }
     }
     """
     )
     result = await client.execute(q)
 
-    names = [s["name"] for s in result["targets"]]
-    assert "begin" in names
+    binary_target = next(t for t in result["begin"] if t["kind"] == "Binary")
+    lift_target = next(t for t in result["lift"] if t["kind"] == "Root")
+    assert binary_target["ready"]
+    assert not lift_target["ready"]
 
 
 async def test_produce(client):
@@ -398,7 +301,7 @@ async def test_produce(client):
     q = gql('{ produce(step: "Lift", container: "module.ll", targetList: ":Root") }')
     result = await client.execute(q)
 
-    assert "produce" in result, result["produce"] != ""
+    assert result["produce"] != ""
 
 
 async def test_produce_artifact(client):
@@ -411,87 +314,49 @@ async def test_produce_artifact(client):
 
 async def test_function_endpoint(client):
     await run_preliminary_analyses(client)
-    await client.execute(
-        gql(
-            """
-    mutation {
-        analyses {
-            Lift {
-                DetectABI(module_ll: ":Root")
-            }
-        }
-    }
-    """
-        )
+    q = gql(
+        """mutation($ctt: String!) {
+                runAnalysis(step: "Lift", analysis: "DetectABI", containerToTargets: $ctt)
+        }"""
     )
+    await client.execute(q, {"ctt": json.dumps({"module.ll": [":Root"]})})
 
     q = gql(
-        """
-    {
-        container(name: "module.ll", step: "Isolate") {
-            targets {
+        """{
+            targets(step: "Isolate", container: "module.ll") {
                 serialized
             }
-        }
-    }
-    """
+        }"""
     )
     result = await client.execute(q)
 
-    first_function = next(
-        t for t in result["container"]["targets"] if not t["serialized"].startswith(":")
-    )["serialized"].rsplit(":", 1)[0]
+    first_function = next(t for t in result["targets"] if not t["serialized"].startswith(":"))
     q = gql(
-        """
-    query function($param1: String!) {
-        function(param1: $param1) {
-            Isolate
-        }
-    }
-    """
+        """query function($param1: String!) {
+            produceArtifacts(step: "Isolate", paths: $param1)
+        }"""
     )
-    result = await client.execute(q, {"param1": first_function})
+    result = await client.execute(q, {"param1": first_function["serialized"].rsplit(":", 1)[0]})
 
-    assert result["function"]["Isolate"] is not None
+    assert result["produceArtifacts"] is not None
 
 
-@mark.xfail(raises=Exception)
 async def test_analysis_kind_check(client):
-    await client.execute(
-        gql(
-            """
-    mutation {
-        analyses {
-            Lift {
-                DetectABI(module_ll: ":IsolatedRoot")
-            }
-        }
-    }
-    """
-        )
+    q = gql(
+        """mutation($ctt: String!) {
+            runAnalysis(step: "Lift", analysis: "DetectABI", containerToTargets: $ctt)
+        }"""
     )
+    try:
+        await client.execute(q, {"ctt": json.dumps({"module.ll": [":IsolatedRoot"]})})
+        raise ValueError("Expected exception")
+    except TransportQueryError as e:
+        assert len(e.errors) == 1
+        assert "Wrong kind for analysis" in e.errors[0]["message"]
 
 
 async def test_analyses_list(client):
-    q = gql(
-        """
-    {
-        info {
-            analysesLists {
-                name
-                analyses {
-                    name
-                }
-            }
-        }
-    }
-    """
-    )
+    q = gql('mutation { runAnalysesList(name: "revng-initial-auto-analysis") }')
     result = await client.execute(q)
 
-    auto_analysis_found = False
-    for alist in result["info"]["analysesLists"]:
-        if alist["name"] == "revng-initial-auto-analysis":
-            auto_analysis_found = True
-        assert len(alist["analyses"]) > 0, f"Analyses list {alist['name']} has 0 analyses"
-    assert auto_analysis_found, "revng-initial-auto-analysis not found in analyses lists"
+    assert result["runAnalysesList"] != ""

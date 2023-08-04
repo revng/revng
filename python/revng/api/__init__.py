@@ -9,9 +9,8 @@ from revng.support import AnyPath
 
 from ._capi import initialize, shutdown
 from .manager import Manager
-from .rank import Rank
 
-__all__ = ["Manager", "Rank", "initialize", "shutdown"]
+__all__ = ["Manager", "initialize", "shutdown"]
 
 _initialized = False
 
