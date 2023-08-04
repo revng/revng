@@ -20,24 +20,11 @@ public:
   virtual std::unique_ptr<ContainerBase>
   operator()(llvm::StringRef Name) const = 0;
 
+  virtual llvm::StringRef mimeType() const = 0;
+
   virtual ~ContainerFactoryBase() = default;
 
   virtual std::unique_ptr<ContainerFactoryBase> clone() const = 0;
-};
-
-template<typename ContainerT>
-class ContainerFactoryImpl : public ContainerFactoryBase {
-public:
-  std::unique_ptr<ContainerBase>
-  operator()(llvm::StringRef Name) const override {
-    return std::make_unique<ContainerT>(Name);
-  }
-
-  std::unique_ptr<ContainerFactoryBase> clone() const override {
-    return std::make_unique<ContainerFactoryImpl>(*this);
-  }
-
-  ~ContainerFactoryImpl() override = default;
 };
 
 template<typename ContainerT, typename... Args>
@@ -56,6 +43,8 @@ public:
     };
     return std::apply(Creator, GlobalValue);
   }
+
+  llvm::StringRef mimeType() const override { return ContainerT::MIMEType; }
 
   std::unique_ptr<ContainerFactoryBase> clone() const override {
     return std::make_unique<ContainerFactoryWithArgs>(*this);
@@ -111,5 +100,7 @@ public:
   std::unique_ptr<ContainerBase> operator()(llvm::StringRef Name) const {
     return Content->operator()(Name);
   }
+
+  llvm::StringRef mimeType() const { return Content->mimeType(); }
 };
 } // namespace pipeline
