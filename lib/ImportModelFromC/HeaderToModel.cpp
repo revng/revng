@@ -197,137 +197,16 @@ parseEnumUnderlyingType(llvm::StringRef Annotate) {
   return std::string(Annotate.substr(EnumAnnotatePrefixLength));
 }
 
-static bool isPrimitiveType(const std::string &TypeName) {
-  // Generic.
-  if (TypeName == "generic8_t" or TypeName == "generic16_t"
-      or TypeName == "generic32_t" or TypeName == "generic64_t"
-      or TypeName == "generic80_t" or TypeName == "generic96_t"
-      or TypeName == "generic128_t")
-    return true;
-
-  // Pointer or number.
-  if (TypeName == "pointer_or_number8_t" or TypeName == "pointer_or_number16_t"
-      or TypeName == "pointer_or_number32_t"
-      or TypeName == "pointer_or_number64_t"
-      or TypeName == "pointer_or_number128_t")
-    return true;
-
-  // Number.
-  if (TypeName == "number8_t" or TypeName == "number16_t"
-      or TypeName == "number32_t" or TypeName == "number64_t"
-      or TypeName == "number128_t")
-    return true;
-
-  // Signed.
-  if (TypeName == "int8_t" or TypeName == "int16_t" or TypeName == "int32_t"
-      or TypeName == "int64_t" or TypeName == "int128_t")
-    return true;
-
-  // Unsigned.
-  if (TypeName == "uint8_t" or TypeName == "uint16_t" or TypeName == "uint32_t"
-      or TypeName == "uint64_t" or TypeName == "uint128_t")
-    return true;
-
-  // Float.
-  if (TypeName == "float16_t" or TypeName == "float32_t"
-      or TypeName == "float64_t" or TypeName == "float80_t"
-      or TypeName == "float96_t" or TypeName == "float128_t")
-    return true;
-
-  return false;
-}
-
-static std::optional<model::PrimitiveTypeKind::Values>
-getPrimitiveKind(const std::string &TypeName) {
-  if (TypeName == "generic8_t" or TypeName == "generic16_t"
-      or TypeName == "generic32_t" or TypeName == "generic64_t"
-      or TypeName == "generic80_t" or TypeName == "generic96_t"
-      or TypeName == "generic128_t")
-    return model::PrimitiveTypeKind::Generic;
-
-  if (TypeName == "pointer_or_number8_t" or TypeName == "pointer_or_number16_t"
-      or TypeName == "pointer_or_number32_t"
-      or TypeName == "pointer_or_number64_t"
-      or TypeName == "pointer_or_number128_t")
-    return model::PrimitiveTypeKind::PointerOrNumber;
-
-  // Number.
-  if (TypeName == "number8_t" or TypeName == "number16_t"
-      or TypeName == "number32_t" or TypeName == "number64_t"
-      or TypeName == "number128_t")
-    return model::PrimitiveTypeKind::Number;
-
-  // Signed.
-  if (TypeName == "int8_t" or TypeName == "int16_t" or TypeName == "int32_t"
-      or TypeName == "int64_t" or TypeName == "int128_t")
-    return model::PrimitiveTypeKind::Signed;
-
-  // Unsigned.
-  if (TypeName == "uint8_t" or TypeName == "uint16_t" or TypeName == "uint32_t"
-      or TypeName == "uint64_t" or TypeName == "uint128_t")
-    return model::PrimitiveTypeKind::Unsigned;
-
-  // Float.
-  if (TypeName == "float16_t" or TypeName == "float32_t"
-      or TypeName == "float64_t" or TypeName == "float80_t"
-      or TypeName == "float96_t" or TypeName == "float128_t")
-    return model::PrimitiveTypeKind::Float;
-
-  return std::nullopt;
-}
-
-static std::optional<unsigned> getPrimitiveSize(const std::string &TypeName) {
-  if (TypeName == "generic8_t" or TypeName == "pointer_or_number8_t"
-      or TypeName == "number8_t" or TypeName == "int8_t"
-      or TypeName == "uint8_t")
-    return 1;
-
-  if (TypeName == "generic16_t" or TypeName == "pointer_or_number16_t"
-      or TypeName == "number16_t" or TypeName == "int16_t"
-      or TypeName == "uint16_t" or TypeName == "float16_t")
-    return 2;
-
-  if (TypeName == "generic32_t" or TypeName == "pointer_or_number32_t"
-      or TypeName == "number32_t" or TypeName == "int32_t"
-      or TypeName == "uint32_t" or TypeName == "float32_t")
-    return 4;
-
-  if (TypeName == "generic64_t" or TypeName == "pointer_or_number64_t"
-      or TypeName == "number64_t" or TypeName == "int64_t"
-      or TypeName == "uint64_t" or TypeName == "float64_t")
-    return 8;
-
-  if (TypeName == "generic80_t" or TypeName == "float80_t")
-    return 10;
-
-  if (TypeName == "generic96_t" or TypeName == "float96_t")
-    return 12;
-
-  if (TypeName == "generic128_t" or TypeName == "pointer_or_number128_t"
-      or TypeName == "number128_t" or TypeName == "int128_t"
-      or TypeName == "uint128_t" or TypeName == "float128_t")
-    return 16;
-
-  return std::nullopt;
-}
-
 std::optional<model::TypePath>
 DeclVisitor::getEnumUnderlyingType(const std::string &TypeName) {
-  if (not isPrimitiveType(TypeName)) {
+  auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+  if (not MaybePrimitive) {
     revng_log(Log, "Not a primitive type");
     return std::nullopt;
   }
 
-  auto Kind = getPrimitiveKind(TypeName);
-  if (not Kind
-      or (Kind != model::PrimitiveTypeKind::Signed
-          and Kind != model::PrimitiveTypeKind::Unsigned))
-    return std::nullopt;
-
-  auto TypeSize = getPrimitiveSize(TypeName);
-  revng_check(TypeSize);
-
-  return Model->getPrimitiveType(*Kind, *TypeSize);
+  return Model->getPrimitiveType(MaybePrimitive->PrimitiveKind(),
+                                 MaybePrimitive->Size());
 }
 
 std::optional<model::TypePath>
@@ -354,7 +233,9 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
     AsElaboratedType = TheUnderlyingType->getAs<ElaboratedType>();
   }
 
-  if (not isPrimitiveType(AsElaboratedType->getNamedType().getAsString())) {
+  std::string TypeName = AsElaboratedType->getNamedType().getAsString();
+  auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+  if (not MaybePrimitive.has_value()) {
     std::string ErrorMessage = "revng: `"
                                + AsElaboratedType->getNamedType().getAsString()
                                + "`, please use a revng model::PrimitiveType "
@@ -496,13 +377,11 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
       return std::nullopt;
     }
     auto TypeName = AsTypedef->getDecl()->getName();
-    revng_check(isPrimitiveType(TypeName.str()));
-    auto Kind = getPrimitiveKind(TypeName.str());
-    revng_check(Kind);
-    auto TypeSize = getPrimitiveSize(TypeName.str());
-    revng_check(TypeSize);
+    auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+    revng_assert(MaybePrimitive);
 
-    return Model->getPrimitiveType(*Kind, *TypeSize);
+    return Model->getPrimitiveType(MaybePrimitive->PrimitiveKind(),
+                                   MaybePrimitive->Size());
   }
 
   auto Name = RecordType->getDecl()->getName();
