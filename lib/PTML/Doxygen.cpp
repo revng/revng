@@ -295,16 +295,22 @@ gatherArgumentComments(const model::Function &Function) {
         auto Last = CurrentArgument.Registers.back();
         Line->emplace_back(DoxygenToken::Types::Identifier,
                            model::Register::getRegisterName(Last).str());
-        Line->emplace_back(DoxygenToken::Types::Untagged, ") ");
+        Line->emplace_back(DoxygenToken::Types::Untagged, ")");
       } else {
         revng_assert(CurrentArgument.Stack && CurrentArgument.Stack->Size != 0);
-        Line->emplace_back(DoxygenToken::Types::Untagged, " (on the stack) ");
+        Line->emplace_back(DoxygenToken::Types::Untagged, " (on the stack)");
       }
 
-      auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
-                                     FT->Arguments().at(Index).Comment());
-      Tag.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
-                                       model::editPath::comment(*FT, Argument));
+      // Emit the comment body
+      const std::string &Comment = FT->Arguments().at(Index).Comment();
+      if (Comment.size() > 0) {
+        Line->emplace_back(DoxygenToken::Types::Untagged, " ");
+        auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
+                                       FT->Arguments().at(Index).Comment());
+        Tag.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
+                                         model::editPath::comment(*FT,
+                                                                  Argument));
+      }
     }
   } else if (auto *FT = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
     for (const model::NamedTypedRegister &Argument : FT->Arguments()) {
