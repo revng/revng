@@ -9,10 +9,13 @@ from graphlib import TopologicalSorter
 from typing import Awaitable, Callable, Iterable, List, Tuple
 
 import aiohttp
+import yaml
 from aiohttp import ClientSession, ClientTimeout
 from gql import Client, gql
 from gql.client import AsyncClientSession
 from gql.transport.aiohttp import AIOHTTPTransport
+
+from revng.pipeline_description import Artifacts, YamlLoader  # type: ignore
 
 from .daemon_handler import DaemonHandler
 
@@ -53,9 +56,11 @@ def upload_file(executable_path: str):
 
 def run_analyses_lists(analyses_lists: List[str]):
     async def runner(client: AsyncClientSession):
-        lists_q = gql("""{ info { analysesLists { name }}}""")
-        available_analyses_lists = await client.execute(lists_q)
-        list_names = [al["name"] for al in available_analyses_lists["info"]["analysesLists"]]
+        q = gql("""{ pipelineDescription }""")
+        description_req = await client.execute(q)
+        description = yaml.load(description_req["pipelineDescription"], Loader=YamlLoader)
+
+        list_names = [al.Name for al in description.AnalysesLists]
 
         for list_name in analyses_lists:
             assert list_name in list_names, f"Missing analyses list {list_name}"
@@ -68,51 +73,41 @@ def run_analyses_lists(analyses_lists: List[str]):
 
 def produce_artifacts(filter_: List[str] | None = None):
     async def runner(client: AsyncClientSession):
-        q = gql(
-            """{ info { steps {
-                name
-                component
-                parent
-                artifacts {
-                    kind { name }
-                    container { name }
-                }
-            }}}"""
-        )
-
-        result = await client.execute(q)
+        q = gql("""{ pipelineDescription }""")
+        description_req = await client.execute(q)
+        description = yaml.load(description_req["pipelineDescription"], Loader=YamlLoader)
 
         if filter_ is None:
-            filtered_steps = list(result["info"]["steps"])
+            filtered_steps = list(description.Steps)
         else:
             filtered_steps = [
                 step
-                for step in result["info"]["steps"]
-                if step["component"] in filter_ or step["name"] == "begin"
+                for step in description.Steps
+                if step.Component in filter_ or step.Name == "begin"
             ]
 
-        steps = {step["name"]: step for step in filtered_steps}
+        steps = {step.Name: step for step in filtered_steps}
         topo_sorter: TopologicalSorter = TopologicalSorter()
         for step in steps.values():
-            if step["parent"] is not None:
-                if step["parent"] in steps:
-                    topo_sorter.add(step["name"], step["parent"])
+            if step.Parent != "":
+                if step.Parent in steps:
+                    topo_sorter.add(step.Name, step.Parent)
                 else:
-                    topo_sorter.add(step["name"], "begin")
+                    topo_sorter.add(step.Name, "begin")
 
         for step_name in topo_sorter.static_order():
             step = steps[step_name]
-            if step["artifacts"] is None:
+            if step.Artifacts == Artifacts():
                 continue
 
-            artifacts_container = step["artifacts"]["container"]["name"]
-            artifacts_kind = step["artifacts"]["kind"]["name"]
+            artifacts_container = step.Artifacts.Container
+            artifacts_kind = step.Artifacts.Kind
 
             q = gql(
                 """
             query cq($step: String!, $container: String!) {
-                container(name: $container, step: $step) {
-                    targets { serialized }
+                targets(step: $step, container: $container) {
+                    serialized
                 }
             }"""
             )
@@ -121,7 +116,7 @@ def produce_artifacts(filter_: List[str] | None = None):
 
             target_list = {
                 target["serialized"]
-                for target in res["container"]["targets"]
+                for target in res["targets"]
                 if target["serialized"].endswith(f":{artifacts_kind}")
             }
             targets = ",".join(target_list)

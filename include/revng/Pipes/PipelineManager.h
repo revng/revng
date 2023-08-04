@@ -193,6 +193,8 @@ public:
     return ExecutionDirectory;
   }
 
+  const llvm::StringRef getPipelineDescription() const { return Description; }
+
 private:
   llvm::Error produceAllPossibleTargets(bool ExpandTargets);
   llvm::Error computeDescription();

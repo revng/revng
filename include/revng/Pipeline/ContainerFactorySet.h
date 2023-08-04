@@ -34,6 +34,18 @@ public:
   const_iterator end() const { return Entries.end(); }
   size_t size() const { return Entries.size(); }
 
+  value_type &at(llvm::StringRef Name) {
+    auto Search = Entries.find(Name);
+    revng_assert(Search != Entries.end());
+    return *Search;
+  }
+
+  const value_type &at(llvm::StringRef Name) const {
+    auto Search = Entries.find(Name);
+    revng_assert(Search != Entries.end());
+    return *Search;
+  }
+
 public:
   void registerContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
     Entries.insert_or_assign(Name, std::move(Entry));

@@ -3,21 +3,19 @@
 #
 
 from tempfile import TemporaryDirectory
-from typing import Dict, Generator, Iterable, List, Mapping, Optional, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Union
+
+import yaml
+
+from revng.pipeline_description import YamlLoader  # type: ignore
 
 from ._capi import _api, ffi
-from .analysis import AnalysesList, Analysis
-from .container import Container, ContainerIdentifier
 from .errors import Error, Expected
 from .exceptions import RevngException
 from .invalidations import Invalidations, ResultWithInvalidations
-from .kind import Kind
-from .step import Step
 from .string_map import StringMap
 from .target import ContainerToTargetsMap, Target, TargetsList
-from .utils import make_c_string, make_generator, make_python_string
-
-INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
+from .utils import make_c_string, make_python_string
 
 
 class Manager:
@@ -46,6 +44,10 @@ class Manager:
 
         assert self._manager, "Failed to instantiate manager"
 
+        _description = _api.rp_manager_get_pipeline_description(self._manager)
+        self._description_str = make_python_string(_description)
+        self.description = yaml.load(self._description_str, Loader=YamlLoader)
+
     @property
     def uid(self) -> int:
         return int(ffi.cast("uintptr_t", self._manager))
@@ -53,23 +55,58 @@ class Manager:
     def save(self):
         return _api.rp_manager_save(self._manager)
 
-    # Kind-related Functions
+    # description utilities
 
-    @property
-    def kinds_count(self) -> int:
-        return _api.rp_manager_kinds_count(self._manager)
+    def kind_from_name(self, name: str):
+        return next((k for k in self.description.Kinds if k.Name == name), None)
 
-    def _get_kind_from_index(self, idx: int) -> Optional[Kind]:
-        _kind = _api.rp_manager_get_kind(self._manager, idx)
-        return Kind(_kind) if _kind != ffi.NULL else None
+    def rank_from_name(self, name: str):
+        return next((r for r in self.description.Ranks if r.Name == name), None)
 
-    def kinds(self) -> Generator[Kind, None, None]:
-        return make_generator(self.kinds_count, self._get_kind_from_index)
+    def analysis_from_name(self, step: str, name: str):
+        step_obj = self.step_from_name(step)
+        if step_obj is None:
+            return None
 
-    def kind_from_name(self, kind_name: str) -> Optional[Kind]:
-        _kind_name = make_c_string(kind_name)
-        kind = _api.rp_manager_get_kind_from_name(self._manager, _kind_name)
-        return Kind(kind) if kind != ffi.NULL else None
+        return next((a for a in step_obj.Analyses if a.Name == name), None)
+
+    def analyses_list_from_name(self, name: str):
+        return next((al for al in self.description.AnalysesLists if al.Name == name), None)
+
+    def step_from_name(self, name: str):
+        return next((s for s in self.description.Steps if s.Name == name), None)
+
+    def container_from_name(self, name: str):
+        return next((c for c in self.description.Containers if c.Name == name), None)
+
+    # Pointer getters
+
+    def _get_step_ptr(self, step_name: str):
+        if self.step_from_name(step_name) is None:
+            raise RevngException(f"Invalid step {step_name}")
+
+        return _api.rp_manager_get_step_from_name(self._manager, make_c_string(step_name))
+
+    def _get_container_identifier_ptr(self, container_name: str):
+        if self.container_from_name(container_name) is None:
+            raise RevngException(f"Invalid container {container_name}")
+
+        return _api.rp_manager_get_container_identifier_from_name(
+            self._manager, make_c_string(container_name)
+        )
+
+    def _get_container_ptr_from_step(self, step_name, step_ptr, container_name: str):
+        identifier_ptr = self._get_container_identifier_ptr(container_name)
+
+        container_ptr = _api.rp_step_get_container(step_ptr, identifier_ptr)
+        if container_ptr == ffi.NULL:
+            raise RevngException(f"Step {step_name} does not use container {container_name}")
+
+        return step_ptr, container_ptr
+
+    def _get_step_container_ptr(self, step_name: str, container_name: str):
+        step_ptr = self._get_step_ptr(step_name)
+        return self._get_container_ptr_from_step(step_name, step_ptr, container_name)
 
     # Target-related Functions
 
@@ -81,18 +118,16 @@ class Manager:
 
     def _produce_target(
         self,
-        step: Step,
+        step_name: str,
         target: Union[Target, List[Target]],
-        container: Container,
+        container_name: str,
     ) -> Dict[str, str | bytes]:
         if isinstance(target, Target):
-            targets = [
-                target,
-            ]
+            targets = [target]
         else:
             targets = target
-        _step = step._step
-        _container = container._container
+
+        _step, _container = self._get_step_container_ptr(step_name, container_name)
         product = _api.rp_manager_produce_targets(
             self._manager, len(targets), [t._target for t in targets], _step, _container
         )
@@ -111,25 +146,19 @@ class Manager:
     def produce_target(
         self,
         step_name: str,
-        target: Union[None, str, List[str]],
+        target: None | str | List[str],
         container_name: Optional[str] = None,
         only_if_ready=False,
     ) -> Dict[str, str | bytes]:
-        step = self.get_step(step_name)
+        step = self.step_from_name(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")
 
         if container_name is not None:
-            container_identifier = self.get_container_with_name(container_name)
-            if container_identifier is None:
-                raise RevngException(f"Invalid container {container_name}")
-
-            container = step.get_container(container_identifier)
-            if container is None:
-                raise RevngException(f"Step {step_name} does not use container {container_name}")
+            container = container_name
         else:
-            container = step.get_artifacts_container()
-            if container is None:
+            container = step.Artifacts.Container
+            if container == "":
                 raise RevngException(f"Step {step_name} does not have an artifacts container")
 
         if target is None:
@@ -145,152 +174,68 @@ class Manager:
 
         targets: List[Target] = []
         for _target_elem in _targets:
-            if container_name is not None:
-                targets.append(self.create_target(_target_elem, container))
-            else:
-                targets.append(self.create_target(_target_elem, container, step))
+            targets.append(
+                self.create_target(step_name, container, _target_elem, container_name is None)
+            )
 
         if only_if_ready and any(not t.is_ready for t in targets):
             raise RevngException("Requested production of unready targets")
 
-        product = self._produce_target(step, targets, container)
+        product = self._produce_target(step_name, targets, container)
         if not product:
             # TODO: we really should be able to provide a detailed error here
             raise RevngException("Failed to produce target")
+
         return product
 
     def create_target(
-        self,
-        target_path: str,
-        container: Container,
-        step: Optional[Step] = None,
+        self, step_name: str, container_name: str, target_path: str, use_artifact_kind: bool
     ) -> Target:
-        if step is not None:
-            path = target_path
-            kind = step.get_artifacts_kind()
-            if kind is None:
-                raise RevngException("Step does not have an artifacts kind")
-        else:
-            components = target_path.split(":")
-            path, kind_name = ":".join(components[:-1]), components[-1]
+        step_ptr, container_ptr = self._get_step_container_ptr(step_name, container_name)
+        step_obj = self.step_from_name(step_name)
+        assert step_obj is not None
 
+        if use_artifact_kind:
+            if step_obj.Artifacts.Kind == "":
+                raise RevngException("Step does not have an artifacts kind")
+
+            kind_name = step_obj.Artifacts.Kind
+            kind = self.kind_from_name(kind_name)
+            assert kind is not None
+
+            path_components = target_path.split("/") if target_path != "" else []
+        else:
+            path, kind_name = target_path.rsplit(":", 1)
             kind = self.kind_from_name(kind_name)
             if kind is None:
-                raise RevngException("Invalid kind")
+                raise RevngException(f"Kind {kind_name} does not exist")
 
-        path_components = path.split("/") if path != "" else []
+            path_components = path.split("/") if path != "" else []
 
-        if kind.rank is not None and len(path_components) != kind.rank.depth:
+        rank = self.rank_from_name(kind.Rank)  # type: ignore
+        if rank is not None and len(path_components) != rank.Depth:
             raise RevngException("Path components need to equal kind rank")
 
-        target = Target.create(kind, container, path_components)
+        _kind = _api.rp_manager_get_kind_from_name(self._manager, make_c_string(kind_name))
+        assert _kind != ffi.NULL
+
+        target = Target.create(_kind, container_ptr, path_components)
         if target is None:
             raise RevngException("Invalid target")
+
         return target
-
-    def get_targets_list(self, container: Container) -> Optional[TargetsList]:
-        targets_list = _api.rp_manager_get_container_targets_list(
-            self._manager, container._container
-        )
-
-        return TargetsList(targets_list, container) if targets_list != ffi.NULL else None
-
-    # Container-related functions
-    @property
-    def containers_count(self) -> int:
-        return _api.rp_manager_containers_count(self._manager)
-
-    def containers(self) -> Generator[ContainerIdentifier, None, None]:
-        return make_generator(self.containers_count, self._get_container_identifier)
-
-    def get_container_with_name(self, name) -> Optional[ContainerIdentifier]:
-        for container in self.containers():
-            if container.name == name:
-                return container
-        return None
-
-    def deserialize_container(self, step: Step, container_name: str, content: bytes):
-        _content = ffi.from_buffer(content)
-        return _api.rp_manager_container_deserialize(
-            self._manager, step._step, make_c_string(container_name), _content, len(_content)
-        )
-
-    def _get_container_identifier(self, idx: int) -> Optional[ContainerIdentifier]:
-        _container_identifier = _api.rp_manager_get_container_identifier(self._manager, idx)
-        if _container_identifier != ffi.NULL:
-            return ContainerIdentifier(_container_identifier)
-        return None
-
-    # Step-related functions
-
-    @property
-    def steps_count(self) -> int:
-        return _api.rp_manager_steps_count(self._manager)
-
-    def get_step(self, step_name: str) -> Optional[Step]:
-        step_index = self._step_name_to_index(step_name)
-        if step_index is None:
-            return None
-        return self._get_step_from_index(step_index)
-
-    def steps(self) -> Generator[Step, None, None]:
-        return make_generator(self.steps_count, self._get_step_from_index)
-
-    def _step_name_to_index(self, name: str) -> Optional[int]:
-        _name = make_c_string(name)
-        index = _api.rp_manager_step_name_to_index(self._manager, _name)
-        return index if index != INVALID_INDEX else None
-
-    def _get_step_from_index(self, idx: int) -> Optional[Step]:
-        step = _api.rp_manager_get_step(self._manager, idx)
-        return Step(step) if step != ffi.NULL else None
 
     # Utility target functions
 
     def get_targets(self, step_name: str, container_name: str) -> List[Target]:
-        step = self.get_step(step_name)
-        if step is None:
-            raise RevngException("Invalid step name")
+        _, container_ptr = self._get_step_container_ptr(step_name, container_name)
 
-        container_identifier = self.get_container_with_name(container_name)
-        if container_identifier is None:
-            raise RevngException("Invalid container name")
+        targets_list = _api.rp_manager_get_container_targets_list(self._manager, container_ptr)
 
-        container = step.get_container(container_identifier)
-        if container is None:
-            raise RevngException(f"Step {step_name} does not use container {container_name}")
-
-        targets_list = self.get_targets_list(container)
-        return list(targets_list.targets()) if targets_list is not None else []
-
-    def get_targets_from_step(self, step_name: str) -> Dict[str, List[Target]]:
-        step = self.get_step(step_name)
-        if step is None:
-            raise RevngException("Invalid step name")
-
-        containers = []
-        for container_id in self.containers():
-            containers.append(step.get_container(container_id))
-
-        ret = {}
-        for container in containers:
-            if container is not None:
-                targets = self.get_targets(step_name, container.name)
-                ret[container.name] = targets
-        return ret
-
-    def get_all_targets(self) -> Dict[str, Dict[str, List[Target]]]:
-        targets: Dict[str, Dict[str, List[Target]]] = {}
-        container_ids = list(self.containers())
-        for step in self.steps():
-            targets[step.name] = {}
-            containers = [step.get_container(cid) for cid in container_ids]
-            for container in [c for c in containers if c is not None]:
-                target_list = self.get_targets_list(container)
-                if target_list is not None:
-                    target_dicts = list(target_list.targets())
-                    targets[step.name][container.name] = target_dicts
-        return targets
+        if targets_list != ffi.NULL:
+            return list(TargetsList(targets_list, container_ptr))
+        else:
+            return []
 
     # Analysis handling
 
@@ -301,61 +246,58 @@ class Manager:
         target_mapping: Dict[str, List[str]],
         options: Dict[str, str] | None = None,
     ) -> ResultWithInvalidations[Dict[str, str]]:
-        step = self.get_step(step_name)
+        step = self.step_from_name(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")
 
-        analysis = next((a for a in step.analyses() if a.name == analysis_name), None)
+        analysis = self.analysis_from_name(step_name, analysis_name)
         if analysis is None:
             raise RevngException(f"Invalid Analysis {analysis_name}")
 
         concrete_target_mapping = {}
         for container_name, target_list in target_mapping.items():
-            container_identifier = self.get_container_with_name(container_name)
-            if container_identifier is None:
-                raise RevngException(f"Invalid container {container_name}")
-
-            container = step.get_container(container_identifier)
-            if container is None:
-                raise RevngException(f"Step {step_name} does not use container {container_name}")
-
             concrete_targets = [
-                self.create_target(target, container, None) for target in target_list
+                self.create_target(step_name, container_name, target, False)
+                for target in target_list
             ]
 
-            analysis_argument = next(a for a in analysis.arguments() if a.name == container_name)
+            analysis_ci = next(ci for ci in analysis.ContainerInputs if ci.Name == container_name)
             for target in concrete_targets:
-                if target.kind is None or target.kind.name not in [
-                    k.name for k in analysis_argument.acceptable_kinds()
-                ]:
+                if target.kind is None or target.kind not in analysis_ci.AcceptableKinds:
                     raise RevngException(
                         f"Wrong kind for analysis: found '{target.kind}', "
-                        + f"expected: {[a.name for a in analysis_argument.acceptable_kinds()]}"
+                        + f"expected: {[analysis_ci.AcceptableKinds]}"
                     )
-            concrete_target_mapping[container] = concrete_targets
+            concrete_target_mapping[container_name] = concrete_targets
 
         options_map = StringMap(options)
-        analysis_result = self._run_analysis(step, analysis, concrete_target_mapping, options_map)
+        analysis_result = self._run_analysis(
+            step_name, analysis_name, concrete_target_mapping, options_map
+        )
         if analysis_result.result is None:
             raise RevngException("Failed to run analysis")
         return analysis_result  # type: ignore
 
     def _run_analysis(
         self,
-        step: Step,
-        analysis: Analysis,
-        target_mapping: Dict[Container, List[Target]],
+        step_name: str,
+        analysis_name: str,
+        target_mapping: Dict[str, List[Target]],
         options: StringMap,
     ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
         target_map = ContainerToTargetsMap()
+        step_ptr = self._get_step_ptr(step_name)
+
         for container, targets in target_mapping.items():
-            target_map.add(container, *targets)
+            _, container_ptr = self._get_container_ptr_from_step(step_name, step_ptr, container)
+            for target in targets:
+                target_map.add(container_ptr, target)
 
         invalidations = Invalidations()
         result = _api.rp_manager_run_analysis(
             self._manager,
-            make_c_string(step.name),
-            make_c_string(analysis.name),
+            make_c_string(step_name),
+            make_c_string(analysis_name),
             target_map._map,
             invalidations._invalidations,
             options._string_map,
@@ -368,26 +310,20 @@ class Manager:
         )
 
     def run_analyses_list(
-        self, analyses_list: AnalysesList | str, options: Mapping[str, str] | None = None
+        self, analyses_list_name: str, options: Mapping[str, str] | None = None
     ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
-        if isinstance(analyses_list, str):
-            name = analyses_list
-            found_al = next((al for al in self.analyses_lists() if al.name == name), None)
-            if found_al is not None:
-                real_analyses_list = found_al
-            else:
-                raise RevngException(f"Could not find analyses list {name}")
-        else:
-            real_analyses_list = analyses_list
+        if self.analyses_list_from_name(analyses_list_name) is None:
+            raise RevngException(f"Could not find analyses list {analyses_list_name}")
 
         options_map = StringMap(options)
         invalidations = Invalidations()
         result = _api.rp_manager_run_analyses_list(
             self._manager,
-            real_analyses_list._analyses_list,
+            make_c_string(analyses_list_name),
             invalidations._invalidations,
             options_map._string_map,
         )
+
         if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
             self.save()
         return ResultWithInvalidations(
@@ -396,21 +332,11 @@ class Manager:
 
     def parse_diff_map(self, diff_map) -> Dict[str, str]:
         result = {}
-        for global_name in self.globals_list():
+        for global_name in self.description.Globals:
             _diff_value = _api.rp_diff_map_get_diff(diff_map, make_c_string(global_name))
             if _diff_value != ffi.NULL:
                 result[global_name] = make_python_string(_diff_value)
         return result
-
-    def _analyses_list_count(self) -> int:
-        return _api.rp_manager_get_analyses_list_count(self._manager)
-
-    def _analyses_list_get(self, index: int) -> AnalysesList:
-        _analyses_list = _api.rp_manager_get_analyses_list(self._manager, index)
-        return AnalysesList(_analyses_list, self)
-
-    def analyses_lists(self) -> Generator[AnalysesList, None, None]:
-        return make_generator(self._analyses_list_count(), self._analyses_list_get)
 
     # Global Handling & misc.
 
@@ -453,27 +379,18 @@ class Manager:
         res = _api.rp_manager_verify_diff(self._manager, _diff, _name, error._error)
         return Expected(res, error)
 
-    def get_model(self) -> str:
-        return self.get_global("model.yml")
-
-    def globals_count(self) -> int:
-        return _api.rp_manager_get_globals_count(self._manager)
-
-    def _get_global_from_index(self, idx: int) -> str:
-        _name = _api.rp_manager_get_global_name(self._manager, idx)
-        return make_python_string(_name)
-
-    def globals_list(self) -> Generator[str, None, None]:
-        return make_generator(self.globals_count(), self._get_global_from_index)
-
     def set_input(self, container_name: str, content: bytes, _key=None):
-        step = self.get_step("begin")
-        if step is None:
-            raise RevngException('Step "begin" not found')
+        step_ptr = self._get_step_ptr("begin")
 
-        success = self.deserialize_container(step, container_name, content)
+        _content = ffi.from_buffer(content)
+        success = _api.rp_manager_container_deserialize(
+            self._manager, step_ptr, make_c_string(container_name), _content, len(_content)
+        )
 
         if not success:
             raise RevngException(
                 f"Failed loading user provided input for container {container_name}"
             )
+
+    def get_pipeline_description(self):
+        return self._description_str
