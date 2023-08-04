@@ -19,6 +19,11 @@ struct ModelToHeaderOptions {
   std::set<MetaAddress> FunctionsToOmit;
   /// Piece of code to include after the main includes have been emitted
   std::string PostIncludes;
+  /// Minimize the emitted code to avoid pitfalls for the user editing the type
+  ///
+  /// For example, this option disables emission of the _enum_max_value_* entry
+  /// in enums.
+  bool ForEditing = false;
 };
 
 /// Generate a C header containing a serialization of the type system,

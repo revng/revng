@@ -101,7 +101,8 @@ printDeclaration(Logger<> &Log,
                  const model::Binary &Model,
                  const std::set<const model::Type *> &TypesToInline,
                  llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                 const std::vector<model::Qualifier> *Qualifiers = nullptr);
+                 const std::vector<model::Qualifier> *Qualifiers = nullptr,
+                 bool ForEditing = false);
 
 // Print a definition for a Type. The last three arguments (`TypesToInline`
 // `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
@@ -117,7 +118,8 @@ printDefinition(Logger<> &Log,
                 const model::Binary &Model,
                 const std::set<const model::Type *> &TypesToInline,
                 llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                const std::vector<model::Qualifier> *Qualifiers = nullptr);
+                const std::vector<model::Qualifier> *Qualifiers = nullptr,
+                bool ForEditing = false);
 
 // Print a definition for a struct. The last three arguments (`TypesToInline`
 // `NameOfInlineInstance` and `Qualifiers`) are being used for printing types

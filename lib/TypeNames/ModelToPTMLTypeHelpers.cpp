@@ -237,7 +237,8 @@ static void printDefinition(const model::EnumType &E,
                             ptml::PTMLCBuilder &ThePTMLCBuilder,
                             const TypeSet &TypesToInline,
                             llvm::StringRef NameOfInlineInstance,
-                            const std::vector<model::Qualifier> *Qualifiers) {
+                            const std::vector<model::Qualifier> *Qualifiers,
+                            bool ForEditing) {
   // We have to make the enum of the correct size of the underlying type
   auto ByteSize = *E.size();
   revng_assert(ByteSize <= 8);
@@ -265,11 +266,13 @@ static void printDefinition(const model::EnumType &E,
              << ThePTMLCBuilder.getHex(Entry.Value()) << ",\n";
     }
 
-    // This ensures the enum is large exactly like the Underlying type
-    Header << ThePTMLCBuilder.tokenTag(("_enum_max_value_" + E.name()).str(),
-                                       ptml::c::tokens::Field)
-           << " " + ThePTMLCBuilder.getOperator(PTMLOperator::Assign) + " "
-           << ThePTMLCBuilder.getHex(MaxBitPatternInEnum) << ",\n";
+    if (not ForEditing) {
+      // This ensures the enum is large exactly like the Underlying type
+      Header << ThePTMLCBuilder.tokenTag(("_enum_max_value_" + E.name()).str(),
+                                         ptml::c::tokens::Field)
+             << " " + ThePTMLCBuilder.getOperator(PTMLOperator::Assign) + " "
+             << ThePTMLCBuilder.getHex(MaxBitPatternInEnum) << ",\n";
+    }
   }
 
   if (not NameOfInlineInstance.empty())
@@ -553,7 +556,8 @@ void printDeclaration(Logger<> &Log,
                       const model::Binary &Model,
                       const TypeSet &TypesToInline,
                       llvm::StringRef NameOfInlineInstance,
-                      const std::vector<model::Qualifier> *Qualifiers) {
+                      const std::vector<model::Qualifier> *Qualifiers,
+                      bool ForEditing) {
   if (Log.isEnabled()) {
     auto Scope = helpers::LineComment(Header,
                                       ThePTMLCBuilder.isGenerateTagLessPTML());
@@ -626,7 +630,8 @@ void printDefinition(Logger<> &Log,
                      const model::Binary &Model,
                      const TypeSet &TypesToInline,
                      llvm::StringRef NameOfInlineInstance,
-                     const std::vector<model::Qualifier> *Qualifiers) {
+                     const std::vector<model::Qualifier> *Qualifiers,
+                     bool ForEditing) {
   if (Log.isEnabled())
     Header << ThePTMLCBuilder.getLineComment("Definition of "
                                              + getNameFromYAMLScalar(T.key()));
@@ -641,7 +646,8 @@ void printDefinition(Logger<> &Log,
                      Model,
                      TypesToInline,
                      NameOfInlineInstance,
-                     Qualifiers);
+                     Qualifiers,
+                     ForEditing);
   } else {
     switch (T.Kind()) {
 
@@ -680,7 +686,8 @@ void printDefinition(Logger<> &Log,
                       ThePTMLCBuilder,
                       TypesToInline,
                       NameOfInlineInstance,
-                      Qualifiers);
+                      Qualifiers,
+                      ForEditing);
     } break;
 
     default:
