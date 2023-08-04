@@ -32,9 +32,9 @@ using Node = BidirectionalNode<NodeData>;
 using Graph = GenericGraph<Node>;
 
 inline llvm::SmallPtrSet<const model::Type *, 2>
-getIncommingTypesForT(const model::Type *T,
-                      const TupleTree<model::Binary> &Model,
-                      const std::map<const model::Type *, Node *> &TypeToNode) {
+getIncomingTypesFor(const model::Type *T,
+                    const TupleTree<model::Binary> &Model,
+                    const std::map<const model::Type *, Node *> &TypeToNode) {
   llvm::SmallPtrSet<const model::Type *, 2> Result;
 
   // Visit all the nodes reachable from RootType.
@@ -90,9 +90,7 @@ populateDependencies(const model::Type *TheType,
 
         // We need to skip all the types that can reach to this type we have
         // just ignored by doing DFS on the inverse graph.
-        auto AllThatUseTypeT = getIncommingTypesForT(T.get(),
-                                                     Model,
-                                                     TypeToNode);
+        auto AllThatUseTypeT = getIncomingTypesFor(T.get(), Model, TypeToNode);
         llvm::copy(AllThatUseTypeT, std::inserter(Result, Result.begin()));
       }
     }
