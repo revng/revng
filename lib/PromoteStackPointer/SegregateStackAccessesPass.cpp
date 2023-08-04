@@ -1133,7 +1133,7 @@ private:
     // Find call to _init_local_sp
     //
     CallInst *Call = findCallTo(&F, InitLocalSP);
-    if (Call == nullptr or not ModelFunction.StackFrameType().isValid())
+    if (Call == nullptr or ModelFunction.StackFrameType().empty())
       return;
 
     //

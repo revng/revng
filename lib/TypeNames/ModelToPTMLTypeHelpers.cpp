@@ -66,7 +66,7 @@ TypeSet TypeInlineHelper::findTypesToInline(const model::Binary &Model,
   // once somewhere else in Types:, but we do not want to inline it if that is
   // the case.
   for (auto &Function : Model.Functions()) {
-    if (Function.StackFrameType().isValid()) {
+    if (not Function.StackFrameType().empty()) {
       const model::Type *StackT = Function.StackFrameType().getConst();
       ShouldIgnore.insert(StackT);
     }

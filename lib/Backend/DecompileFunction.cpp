@@ -492,8 +492,8 @@ std::string
 CCodeGenerator::buildCastExpr(StringRef ExprToCast,
                               const model::QualifiedType &SrcType,
                               const model::QualifiedType &DestType) const {
-  if (SrcType == DestType or not SrcType.UnqualifiedType().isValid()
-      or not DestType.UnqualifiedType().isValid())
+  if (SrcType == DestType or SrcType.UnqualifiedType().empty()
+      or DestType.UnqualifiedType().empty())
     return ExprToCast.str();
 
   revng_assert((SrcType.isScalar() or SrcType.isPointer())
@@ -894,7 +894,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
                                                             CallReturnsStruct);
 
     std::string StructFieldRef;
-    if (not CalleePrototype.isValid()) {
+    if (CalleePrototype.empty()) {
       // The call returning a struct is a call to a helper function.
       // It must be a direct call.
       revng_assert(Callee);
@@ -1937,7 +1937,7 @@ static std::string getModelArgIdentifier(const model::Type *ModelFunctionType,
     auto NumModelArguments = RFT->Arguments().size();
     revng_assert(ArgNo <= NumModelArguments + 1);
     revng_assert(LLVMFunction->arg_size() == NumModelArguments
-                 or (RFT->StackArgumentsType().UnqualifiedType().isValid()
+                 or (not RFT->StackArgumentsType().UnqualifiedType().empty()
                      and (LLVMFunction->arg_size() == NumModelArguments + 1)));
     if (ArgNo < NumModelArguments) {
       return std::next(RFT->Arguments().begin(), ArgNo)->name().str().str();
@@ -1993,7 +1993,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
     bool IsStackDefined = false;
 
     // Declare the local variable representing the stack frame
-    if (ModelFunction.StackFrameType().isValid()) {
+    if (not ModelFunction.StackFrameType().empty()) {
       revng_log(Log, "Stack Frame Declaration");
       const auto &IsStackFrameDecl = [](const llvm::Instruction &I) {
         return isStackFrameDecl(&I);
@@ -2057,8 +2057,8 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
           // The only types that are allowed to be missing from the TypeMap
           // are LLVM aggregates returned by RawFunctionTypes or by helpers
           auto *Call = llvm::cast<CallInst>(VarToDeclare);
-          if (const auto &Prototype = Cache.getCallSitePrototype(Model, Call);
-              Prototype.isValid() and not Prototype.empty()) {
+          const auto &Prototype = Cache.getCallSitePrototype(Model, Call);
+          if (not Prototype.empty()) {
             const auto *FunctionType = Prototype.getConst();
             Out << getNamedInstanceOfReturnType(*FunctionType,
                                                 VarName,

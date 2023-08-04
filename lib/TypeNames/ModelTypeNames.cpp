@@ -399,7 +399,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
   revng_assert(RF.StackArgumentsType().Qualifiers().empty());
   if (RF.Arguments().empty()
-      and not RF.StackArgumentsType().UnqualifiedType().isValid()) {
+      and RF.StackArgumentsType().UnqualifiedType().empty()) {
     Header << "(" << ThePTMLCBuilder.tokenTag("void", ptml::c::tokens::Type)
            << ")";
   } else {
@@ -423,7 +423,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
     }
 
     revng_assert(RF.StackArgumentsType().Qualifiers().empty());
-    if (RF.StackArgumentsType().UnqualifiedType().isValid()) {
+    if (not RF.StackArgumentsType().UnqualifiedType().empty()) {
       // Add last argument representing a pointer to the stack arguments
       auto StackArgName = Function ?
                             getArgumentLocationDefinition("_stack_arguments",

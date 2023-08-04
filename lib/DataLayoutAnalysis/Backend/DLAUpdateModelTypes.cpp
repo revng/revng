@@ -586,8 +586,7 @@ static bool updateStackFrameType(model::Function &ModelFunc,
                                  model::Binary &Model) {
   bool Updated = false;
 
-  if (not ModelFunc.StackFrameType().isValid()
-      or ModelFunc.StackFrameType().empty())
+  if (ModelFunc.StackFrameType().empty())
     return Updated;
 
   auto *OldModelStackFrameType = ModelFunc.StackFrameType().get();

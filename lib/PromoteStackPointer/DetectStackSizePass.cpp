@@ -149,15 +149,15 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
 
   // Check if this function already has information about stack
   // frame/arguments
-  bool NeedsStackFrame = not ModelFunction.StackFrameType().isValid();
+  bool NeedsStackFrame = ModelFunction.StackFrameType().empty();
   bool NeedsStackArguments = false;
   model::Type *Prototype = ModelFunction.Prototype().get();
   RawFunctionType *RawPrototype = nullptr;
   if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype))) {
     revng_assert(RawPrototype->StackArgumentsType().Qualifiers().empty());
-    NeedsStackArguments = not RawPrototype->StackArgumentsType()
-                                .UnqualifiedType()
-                                .isValid();
+    NeedsStackArguments = RawPrototype->StackArgumentsType()
+                            .UnqualifiedType()
+                            .empty();
   }
 
   revng_log(Log, "NeedsStackFrame: " << NeedsStackArguments);
@@ -229,7 +229,7 @@ using DSSI = DetectStackSize;
 void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
                                    const UpperBoundCollector &Bound) const {
   revng_assert(Prototype->StackArgumentsType().Qualifiers().empty());
-  revng_assert(not Prototype->StackArgumentsType().UnqualifiedType().isValid());
+  revng_assert(Prototype->StackArgumentsType().UnqualifiedType().empty());
   revng_assert(Bound.hasValue());
 
   APInt Value = Bound.value();
@@ -310,7 +310,7 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
 
   const model::QualifiedType &StackArguments = Prototype->StackArgumentsType();
   revng_assert(StackArguments.Qualifiers().empty());
-  if (StackArguments.UnqualifiedType().isValid()) {
+  if (not StackArguments.UnqualifiedType().empty()) {
     using std::optional;
     optional<uint64_t> MaybeStackArgumentsSize = StackArguments.size(VH);
     revng_assert(MaybeStackArgumentsSize);

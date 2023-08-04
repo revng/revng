@@ -444,7 +444,7 @@ public:
             continue;
 
           const auto PrototypeRef = Cache->getCallSitePrototype(Model, C);
-          if (not PrototypeRef.isValid())
+          if (PrototypeRef.empty())
             continue;
 
           const model::Type *Prototype = PrototypeRef.getConst();
@@ -628,7 +628,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   bool Changed = false;
 
   auto Prototype = Cache->getCallSitePrototype(Model, Call);
-  if (not Prototype.isValid())
+  if (Prototype.empty())
     return false;
 
   auto It = VisitedPrototypes.find(Prototype.get());
