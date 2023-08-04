@@ -23,9 +23,9 @@ using namespace model;
 using namespace revng;
 
 static Logger<> Log("header-to-model");
-static constexpr std::string_view RevngInputCFile = "revng-input.c";
-static constexpr std::string_view RevngPrimitiveTypeHeader = "revng-primitive-"
-                                                             "types.h";
+static constexpr std::string_view InputCFile = "revng-input.c";
+static constexpr std::string_view PrimitiveTypeHeader = "revng-primitive-"
+                                                        "types.h";
 static constexpr std::string_view RawABI = "raw";
 
 static constexpr const char *ABIAnnotatePrefix = "abi:";
@@ -125,7 +125,7 @@ private:
 
   // This checks that the declaration comes from revng-primitive-types header
   // file.
-  bool comesFromRevngPrimitiveTypesHeader(const clang::RecordDecl *RD);
+  bool comesFromPrimitiveTypesHeader(const clang::RecordDecl *RD);
 
   // Set up line and column for the declaratrion.
   void setupLineAndColumn(const clang::Decl *D);
@@ -487,7 +487,7 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
   revng_assert(RecordType);
 
   // Check if it is a primitive type described with a struct.
-  if (comesFromRevngPrimitiveTypesHeader(RecordType->getDecl())) {
+  if (comesFromPrimitiveTypesHeader(RecordType->getDecl())) {
     const TypedefType *AsTypedef = ClangType->getAs<TypedefType>();
     if (not AsTypedef) {
       revng_log(Log,
@@ -554,14 +554,13 @@ bool DeclVisitor::comesFromInternalFile(const clang::Decl *D) {
 
   StringRef TheFileName(Loc.getFilename());
   // Process the new type only.
-  if (TheFileName.contains(RevngInputCFile))
+  if (TheFileName.contains(InputCFile))
     return true;
 
   return false;
 }
 
-bool DeclVisitor::comesFromRevngPrimitiveTypesHeader(const clang::RecordDecl
-                                                       *RD) {
+bool DeclVisitor::comesFromPrimitiveTypesHeader(const clang::RecordDecl *RD) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc Loc = SM.getPresumedLoc(RD->getLocation());
   if (!Loc.isValid()) {
@@ -570,7 +569,7 @@ bool DeclVisitor::comesFromRevngPrimitiveTypesHeader(const clang::RecordDecl
   }
 
   StringRef TheFileName(Loc.getFilename());
-  if (TheFileName.contains(RevngPrimitiveTypeHeader))
+  if (TheFileName.contains(PrimitiveTypeHeader))
     return true;
 
   return false;

@@ -41,7 +41,7 @@ using namespace llvm;
 using namespace clang;
 using namespace clang::tooling;
 
-static constexpr std::string_view RevngInputCFile = "revng-input.c";
+static constexpr std::string_view InputCFile = "revng-input.c";
 
 static std::vector<std::string>
 getOptionsfromCFGFile(llvm::StringRef FilePath) {
@@ -229,12 +229,12 @@ struct ImportModelFromCAnalysis {
     // Find revng-primitive-types.h and revng-attributes.h.
     const char *PrimitivesHeader = "share/revng-c/include/"
                                    "revng-primitive-types.h";
-    auto MaybeRevngHeaderPath = findHeaderFile(PrimitivesHeader);
-    if (not MaybeRevngHeaderPath) {
+    auto MaybePrimitiveHeaderPath = findHeaderFile(PrimitivesHeader);
+    if (not MaybePrimitiveHeaderPath) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Couldn't find revng-primitive-types.h");
     }
-    Compilation.push_back("-I" + *MaybeRevngHeaderPath);
+    Compilation.push_back("-I" + *MaybePrimitiveHeaderPath);
 
     FilteredHeader += "\n";
     FilteredHeader += CCode;
@@ -242,7 +242,7 @@ struct ImportModelFromCAnalysis {
     if (not clang::tooling::runToolOnCodeWithArgs(std::move(Action),
                                                   FilteredHeader,
                                                   Compilation,
-                                                  RevngInputCFile)) {
+                                                  InputCFile)) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Unable to run clang");
     }
