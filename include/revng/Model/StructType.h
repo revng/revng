@@ -16,13 +16,13 @@ doc: |
 type: struct
 inherits: Type
 fields:
+  - name: Size
+    doc: Size in bytes
+    type: uint64_t
   - name: Fields
     sequence:
       type: SortedVector
       elementType: StructField
-  - name: Size
-    doc: Size in bytes
-    type: uint64_t
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/StructType.h"
