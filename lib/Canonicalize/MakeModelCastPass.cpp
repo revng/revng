@@ -164,6 +164,15 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
         Result.emplace_back(std::move(Type));
       }
     }
+  } else if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)
+             or isa<llvm::SelectInst>(I)) {
+    for (unsigned Index = 0; Index < I->getNumOperands(); ++Index)
+      SerializeTypeFor(I->getOperandUse(Index));
+  } else if (auto *Switch = dyn_cast<llvm::SwitchInst>(I)) {
+    SerializeTypeFor(Switch->getOperandUse(0));
+  } else if (isa<llvm::TruncInst>(I) or isa<llvm::ZExtInst>(I)
+             or isa<llvm::SExtInst>(I)) {
+    SerializeTypeFor(I->getOperandUse(0));
   }
 
   return Result;

@@ -1090,50 +1090,6 @@ static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred,
   return " " + Op + " ";
 }
 
-/// Returns a pair of QualifiedTypes to which LHS and RHS has to be casted to
-/// for enabling an == or != comparison in C while preserving semantic.
-static std::pair<model::QualifiedType, model::QualifiedType>
-getCastTargetTypesForEqualityComparisons(model::QualifiedType LHS,
-                                         model::QualifiedType RHS) {
-  revng_assert(LHS.isScalar() and RHS.isScalar());
-  revng_assert(not LHS.isFloat() and not RHS.isFloat());
-  revng_assert(*LHS.size() == *RHS.size());
-
-  // If they are the same we don't have to cast anything.
-  if (LHS == RHS)
-    return { std::move(LHS), std::move(RHS) };
-
-  // If they are both pointer we don't have to cast anything.
-  // This could cause UB in case of strict-aliasing, but that's not something
-  // that we're trying to guarantee in decompiled code.
-  if (LHS.isPointer() and RHS.isPointer())
-    return { std::move(LHS), std::move(RHS) };
-
-  // In case only one is a pointer, given that they both have the same size, we
-  // can always cast the non-pointer to the pointer-type.
-  if (bool LHSIsPointer = LHS.isPointer(); LHSIsPointer != RHS.isPointer()) {
-    model::QualifiedType &Pointer = LHSIsPointer ? LHS : RHS;
-    return { Pointer, Pointer };
-  }
-
-  // At this point we have 2 non-pointer scalar types.
-  // Given that we've ruled out Float by assertions, we can just leave them as
-  // they are.
-  // Even if they mismatch, they have the same size, and in C we'll get an
-  // implicit reinterpret cast. This might raise some warning, but we'll deal
-  // with those.
-  // TODO: this is definitely sloppy, but doing the right thing would require to
-  // really think thoroughly about what's the best way to treat casts in
-  // general, and we haven't done it yet.
-  // At the moment some casts are emitted as ModelCast on the IR others are
-  // emitted on the fly during c-code-generation. Until we don't solve that
-  // problem systematically, this is a sloppy solution to prevent proliferation
-  // of casts, trading off the fact of not having warnings. So in practice this
-  // works at the cost of disabling more warnings on decompiled C code. Once
-  // we've solved this properly the warning can be re-enabled.
-  return { std::move(LHS), std::move(RHS) };
-}
-
 RecursiveCoroutine<std::string>
 CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
@@ -1148,7 +1104,6 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     const QualifiedType &OpType1 = TypeMap.at(Op1);
 
     revng_assert(OpType0.isScalar() and OpType1.isScalar());
-    uint64_t ByteSize = *OpType0.size();
 
     // In principle, OpType0 and OpType1 should always have the same size.
     // There is a notable exception though: we use LLVM with a 64bit DataLayout
@@ -1179,73 +1134,6 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
         Integer = cast<llvm::ConstantInt>(CallToDecorator->getArgOperand(0));
       }
       revng_assert(nullptr != Integer);
-      // In this case the size of the pointer wins
-      ByteSize = PointerByteSize;
-    }
-
-    if (auto *ICmp = dyn_cast<llvm::ICmpInst>(I)) {
-
-      revng_assert(not OpType0.isFloat() and not OpType1.isFloat());
-
-      if (ICmp->isEquality()) {
-        // Cast the two operands to a same common type for equality comparison.
-        const auto
-          &[TargetOp0Type,
-            TargetOp1Type] = getCastTargetTypesForEqualityComparisons(OpType0,
-                                                                      OpType1);
-        Op0Token = buildCastExpr(Op0Token, OpType0, TargetOp0Type);
-        Op1Token = buildCastExpr(Op1Token, OpType1, TargetOp0Type);
-      } else {
-        // If we're not doing eq or neq, we have to make sure that the
-        // signedness is compatible, otherwise it would break semantics.
-        using model::PrimitiveTypeKind::Signed;
-        using model::PrimitiveTypeKind::Unsigned;
-        auto ICmpKind = ICmp->isSigned() ? Signed : Unsigned;
-
-        auto TargetType = model::QualifiedType(Model.getPrimitiveType(ICmpKind,
-                                                                      ByteSize),
-                                               {});
-        if (OpType0.isPointer()) {
-          Op0Token = buildCastExpr(Op0Token, OpType0, TargetType);
-        } else {
-          const model::Type *TheType = peelConstAndTypedefs(OpType0)
-                                         .UnqualifiedType()
-                                         .getConst();
-          revng_assert(isa<model::PrimitiveType>(TheType)
-                       or isa<model::EnumType>(TheType));
-          const auto *Primitive = dyn_cast<model::PrimitiveType>(TheType);
-          if (nullptr == Primitive) {
-            const auto *Enum = cast<model::EnumType>(TheType);
-            const auto
-              *Underlying = Enum->UnderlyingType().UnqualifiedType().getConst();
-            Primitive = cast<model::PrimitiveType>(Underlying);
-          }
-          auto CurrentKind = Primitive->PrimitiveKind();
-          if (ICmpKind == Signed and CurrentKind != Signed)
-            Op0Token = buildCastExpr(Op0Token, OpType0, TargetType);
-          if (ICmpKind == Unsigned and CurrentKind == Signed)
-            Op0Token = buildCastExpr(Op0Token, OpType0, TargetType);
-        }
-
-        if (OpType1.isPointer()) {
-          Op1Token = buildCastExpr(Op1Token, OpType1, TargetType);
-        } else {
-          const model::Type *TheType = peelConstAndTypedefs(OpType1)
-                                         .UnqualifiedType()
-                                         .getConst();
-          const auto *Primitive = cast<model::PrimitiveType>(TheType);
-          auto CurrentKind = Primitive->PrimitiveKind();
-          if (ICmpKind == Signed and CurrentKind != Signed)
-            Op1Token = buildCastExpr(Op1Token, OpType1, TargetType);
-          if (ICmpKind == Unsigned and CurrentKind == Signed)
-            Op1Token = buildCastExpr(Op1Token, OpType1, TargetType);
-        }
-      }
-
-    } else {
-      const QualifiedType &ResultType = TypeMap.at(I);
-      Op0Token = buildCastExpr(Op0Token, OpType0, ResultType);
-      Op1Token = buildCastExpr(Op1Token, OpType1, ResultType);
     }
 
     auto *Bin = dyn_cast<llvm::BinaryOperator>(I);
@@ -1262,12 +1150,10 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
   }
 
   if (isa<llvm::CastInst>(I) or isa<llvm::FreezeInst>(I)) {
-
+    // Those are usually noops on the LLVM IR.
     const llvm::Value *Op = I->getOperand(0);
-    std::string ToCast = rc_recur getToken(Op);
-    rc_return addDebugInfo(I,
-                           buildCastExpr(ToCast, TypeMap.at(Op), TypeMap.at(I)),
-                           B);
+    std::string Token = rc_recur getToken(Op);
+    rc_return addDebugInfo(I, Token, B);
   }
 
   switch (I->getOpcode()) {
@@ -1317,18 +1203,12 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     const llvm::Value *Op2 = Select->getOperand(2);
 
     std::string Op1String = rc_recur getToken(Op1);
-    std::string Op1Token = buildCastExpr(Op1String,
-                                         TypeMap.at(Op1),
-                                         TypeMap.at(Select));
     std::string Op2String = rc_recur getToken(Op2);
-    std::string Op2Token = buildCastExpr(Op2String,
-                                         TypeMap.at(Op2),
-                                         TypeMap.at(Select));
 
     rc_return addDebugInfo(I,
                            addParentheses(Condition) + " ? "
-                             + addParentheses(Op1Token) + " : "
-                             + addParentheses(Op2Token),
+                             + addParentheses(Op1String) + " : "
+                             + addParentheses(Op2String),
                            B);
 
   } break;
@@ -1901,15 +1781,6 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       SwitchVarType.UnqualifiedType() = Model.getPrimitiveType(Unsigned, 8);
     }
     revng_assert(not SwitchVarToken.empty());
-
-    if (not SwitchVarType.is(model::TypeKind::PrimitiveType)) {
-      model::QualifiedType BoolTy;
-      // TODO: finer decision on how to cast structs used in a switch
-      using model::PrimitiveTypeKind::Unsigned;
-      BoolTy.UnqualifiedType() = Model.getPrimitiveType(Unsigned, 8);
-
-      SwitchVarToken = buildCastExpr(SwitchVarToken, SwitchVarType, BoolTy);
-    }
 
     // Generate the switch statement
     Out << B.getKeyword(ptml::PTMLCBuilder::Keyword::Switch) + " ("

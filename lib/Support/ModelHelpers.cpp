@@ -657,7 +657,21 @@ getExpectedModelType(FunctionMetadataCache &Cache,
 
       return { Result };
     } break;
-
+    case llvm::Instruction::Sub:
+    case llvm::Instruction::Add: {
+      model::QualifiedType Result;
+      auto BitWidth = U->get()->getType()->getIntegerBitWidth();
+      revng_assert(std::has_single_bit(BitWidth)
+                   and (BitWidth == 1 or BitWidth >= 8));
+      auto Bytes = (BitWidth == 1) ? 1 : BitWidth / 8;
+      // The second operand of sub should be a number.
+      if (Opcode == llvm::Instruction::Sub and U->getOperandNo() == 1)
+        Result.UnqualifiedType() = Model.getPrimitiveType(Number, Bytes);
+      else
+        Result.UnqualifiedType() = Model.getPrimitiveType(PointerOrNumber,
+                                                          Bytes);
+      return { Result };
+    } break;
     case llvm::Instruction::Mul:
     case llvm::Instruction::And:
     case llvm::Instruction::Or:
@@ -670,11 +684,96 @@ getExpectedModelType(FunctionMetadataCache &Cache,
       Result.UnqualifiedType() = Model.getPrimitiveType(Number, Bytes);
       return { Result };
     } break;
-
+    case llvm::Instruction::FAdd:
+    case llvm::Instruction::FSub:
+    case llvm::Instruction::FMul:
+    case llvm::Instruction::FDiv:
+    case llvm::Instruction::FRem: {
+      revng_abort("unexpected floating point binary operation");
+    }
     default:
       // no strict requirement for others
       ;
     }
+  } else if (auto *ICmp = dyn_cast<llvm::ICmpInst>(User)) {
+    const llvm::Value *Op0 = ICmp->getOperand(0);
+    const llvm::Value *Op1 = ICmp->getOperand(1);
+
+    // If any of the operands is a pointer, we assume that both of operands are
+    // pointers.
+    if (Op0->getType()->isPointerTy() or Op1->getType()->isPointerTy()) {
+      model::QualifiedType Result;
+      using model::PrimitiveTypeKind::PointerOrNumber;
+      auto PointerSize = model::Architecture::getPointerSize(Model
+                                                               .Architecture());
+      Result.UnqualifiedType() = Model.getPrimitiveType(PointerOrNumber,
+                                                        PointerSize);
+      return { Result };
+    }
+
+    // If we're not doing eq or neq, we have to make sure that the
+    // signedness is compatible, otherwise it would break semantics.
+    using model::PrimitiveTypeKind::PointerOrNumber;
+    using model::PrimitiveTypeKind::Signed;
+    using model::PrimitiveTypeKind::Unsigned;
+    auto ICmpKind = ICmp->isEquality() ? PointerOrNumber :
+                                         (ICmp->isSigned() ? Signed : Unsigned);
+
+    auto DL = ICmp->getModule()->getDataLayout();
+    uint64_t ByteSize = DL.getTypeAllocSize(Op0->getType());
+
+    auto TargetType = model::QualifiedType(Model.getPrimitiveType(ICmpKind,
+                                                                  ByteSize),
+                                           {});
+    return { TargetType };
+
+  } else if (auto *Select = dyn_cast<llvm::SelectInst>(User)) {
+
+    auto DL = Select->getModule()->getDataLayout();
+    uint64_t ByteSize = DL.getTypeAllocSize(Select->getOperand(1)->getType());
+    model::QualifiedType Result;
+    using model::PrimitiveTypeKind::Generic;
+    Result.UnqualifiedType() = Model.getPrimitiveType(Generic, ByteSize);
+    return { Result };
+
+  } else if (auto *Switch = dyn_cast<llvm::SwitchInst>(User)) {
+
+    auto DL = Switch->getModule()->getDataLayout();
+    uint64_t ByteSize = DL.getTypeAllocSize(Switch->getCondition()->getType());
+    model::QualifiedType Result;
+    using model::PrimitiveTypeKind::Number;
+    Result.UnqualifiedType() = Model.getPrimitiveType(Number, ByteSize);
+    return { Result };
+
+  } else if (auto *Trunc = dyn_cast<llvm::TruncInst>(User)) {
+
+    llvm::Type *ResultTy = Trunc->getType();
+    auto DL = Trunc->getModule()->getDataLayout();
+    uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
+    model::QualifiedType Result;
+    using model::PrimitiveTypeKind::Number;
+    Result.UnqualifiedType() = Model.getPrimitiveType(Number, ByteSize);
+    return { Result };
+
+  } else if (auto *SExt = dyn_cast<llvm::SExtInst>(User)) {
+
+    llvm::Type *ResultTy = SExt->getType();
+    auto DL = SExt->getModule()->getDataLayout();
+    uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
+    model::QualifiedType Result;
+    using model::PrimitiveTypeKind::Signed;
+    Result.UnqualifiedType() = Model.getPrimitiveType(Signed, ByteSize);
+    return { Result };
+
+  } else if (auto *ZExt = dyn_cast<llvm::ZExtInst>(User)) {
+
+    llvm::Type *ResultTy = ZExt->getType();
+    auto DL = ZExt->getModule()->getDataLayout();
+    uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
+    model::QualifiedType Result;
+    using model::PrimitiveTypeKind::Unsigned;
+    Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, ByteSize);
+    return { Result };
   }
 
   return {};
