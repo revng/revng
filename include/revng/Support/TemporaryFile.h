@@ -14,20 +14,46 @@ class TemporaryFile {
 private:
   llvm::SmallString<32> Path;
 
+  TemporaryFile(llvm::StringRef Path, int /* dummy */) : Path(Path.str()) {
+    llvm::sys::RemoveFileOnSignal(Path);
+  }
+
 public:
   TemporaryFile(const llvm::Twine &Prefix, llvm::StringRef Suffix = "") {
     cantFail(llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path));
     llvm::sys::RemoveFileOnSignal(Path);
   }
 
+  static llvm::ErrorOr<TemporaryFile> make(const llvm::Twine &Prefix,
+                                           llvm::StringRef Suffix = "") {
+    using llvm::sys::fs::createTemporaryFile;
+    llvm::SmallString<32> TempPath;
+    int FD;
+    if (auto EC = createTemporaryFile(Prefix, Suffix, FD, TempPath); EC)
+      return EC;
+
+    return TemporaryFile(TempPath, 0);
+  }
+
   TemporaryFile(TemporaryFile &&Other) { *this = std::move(Other); }
   TemporaryFile &operator=(TemporaryFile &&Other) {
+    if (not Path.empty()) {
+      cantFail(llvm::sys::fs::remove(Path));
+      llvm::sys::DontRemoveFileOnSignal(Path);
+    }
+
     Path = Other.Path;
     Other.Path.clear();
+
     return *this;
   }
 
-  ~TemporaryFile() { cantFail(llvm::sys::fs::remove(Path)); }
+  ~TemporaryFile() {
+    if (not Path.empty()) {
+      cantFail(llvm::sys::fs::remove(Path));
+      llvm::sys::DontRemoveFileOnSignal(Path);
+    }
+  }
 
 public:
   TemporaryFile(const TemporaryFile &) = delete;
