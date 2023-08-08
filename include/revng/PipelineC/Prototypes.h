@@ -142,19 +142,6 @@ LENGTH_HINT(rp_manager_create_from_string, 3, 2)
 void rp_manager_destroy(rp_manager *manager);
 
 /**
- * \return the number of containers registered in this pipeline.
- */
-uint64_t rp_manager_containers_count(const rp_manager *manager);
-
-/**
- * \param index must be less than rp_manager_containers_count(manager).
- *
- * \return the container at the provided index.
- */
-const rp_container_identifier *
-rp_manager_get_container_identifier(const rp_manager *manager, uint64_t index);
-
-/**
  * \param name the container name to fetch
  *
  * \return the container with the given name
@@ -168,25 +155,6 @@ rp_manager_get_container_identifier_from_name(const rp_manager *manager,
  *  \return false if there was an error while saving, true otherwise
  */
 bool rp_manager_save(rp_manager *manager);
-
-/**
- * \return the number of steps present in the manager.
- */
-uint64_t rp_manager_steps_count(const rp_manager *manager);
-
-const inline uint64_t RP_STEP_NOT_FOUND = UINT64_MAX;
-
-/**
- * \return the index of the step with the given name or RP_STEP_NOT_FOUND if no
- *         step with such name was found.
- */
-uint64_t rp_manager_step_name_to_index(const rp_manager *manager,
-                                       const char *name);
-
-/**
- * \return the step with the provided index, or NULL if not such step existed.
- */
-rp_step *rp_manager_get_step(const rp_manager *manager, uint64_t index);
 
 /**
  * \return the step with the provided name, or NULL if not such step existed.
@@ -255,33 +223,11 @@ bool rp_manager_verify_diff(rp_manager *manager,
                             rp_error *error);
 
 /**
- * \return the number of serializable global objects
- */
-uint64_t rp_manager_get_globals_count(rp_manager *manager);
-
-/**
- * \return the owning pointer to the name of serializable global object
- * with the provided index, nullptr if the index was out of bound.
- */
-char * /*owning*/
-rp_manager_get_global_name(const rp_manager *manager, uint64_t index);
-
-/**
  * \return the kind with the provided name, NULL if no kind had the provided
  *         name.
  */
 const rp_kind *rp_manager_get_kind_from_name(const rp_manager *manager,
                                              const char *kind_name);
-
-/**
- * \return the number of kinds present in the manager.
- */
-uint64_t rp_manager_kinds_count(const rp_manager *manager);
-
-/**
- * \return the kind with the provided index, or NULL if not such step existed.
- */
-const rp_kind *rp_manager_get_kind(const rp_manager *manager, uint64_t index);
 
 /**
  * Request the production of the provided targets in a particular container.
@@ -319,36 +265,6 @@ rp_manager_run_analysis(rp_manager *manager,
                         const rp_container_targets_map *target_map,
                         rp_invalidations *invalidations,
                         const rp_string_map *options);
-
-/**
- * \return the number of analyses lists loaded in the pipeline
- */
-uint64_t rp_manager_get_analyses_list_count(rp_manager *manager);
-
-/**
- * \return the name of a given analyses list
- */
-const char *rp_analyses_list_get_name(rp_analyses_list *list);
-
-/**
- * \return the length of the given analyses list
- */
-uint64_t rp_analyses_list_count(rp_analyses_list *list);
-
-/**
- * \param index must be less than rp_analyses_list_count(list)
- * \return the analysis at the index position in the given list.
- */
-rp_analysis *rp_manager_get_analysis(rp_manager *manager,
-                                     rp_analyses_list *list,
-                                     uint64_t index);
-
-/**
- * \param  index < rp_manager_get_analyses_list_count(manager)
- * \return the number the pointer to the index-nth analysis list.
- */
-rp_analyses_list *rp_manager_get_analyses_list(rp_manager *manager,
-                                               uint64_t index);
 
 /**
  * Request to run all analyses of the given list on all targets
@@ -400,29 +316,9 @@ rp_targets_list_get_target(const rp_targets_list *targets_list, uint64_t index);
 /** \} */
 
 /**
- * \defgroup rp_container_identifier rp_container_identifier methods
- * \{
- */
-
-/**
- * \return the name of the n-th container registered inside the manager.
- *
- * \note The returned string must not be freed by the caller.
- */
-const char *
-rp_container_identifier_get_name(const rp_container_identifier *container_id);
-
-/** \} */
-
-/**
  * \defgroup rp_step rp_step methods
  * \{
  */
-
-/**
- * \return the step name.
- */
-const char *rp_step_get_name(const rp_step *step);
 
 /**
  * \return the container associated to the provided \p identifier at the given
@@ -430,104 +326,6 @@ const char *rp_step_get_name(const rp_step *step);
  */
 rp_container *rp_step_get_container(rp_step *step,
                                     const rp_container_identifier *identifier);
-
-/**
- * \return a \p step 's parent, if present
- */
-const rp_step *rp_step_get_parent(const rp_step *step);
-
-/**
- * \return a \p step 's component
- */
-char * /*owning*/ rp_step_get_component(const rp_step *step);
-
-/**
- * \return the artifacts kind of the step
- */
-const rp_kind *rp_step_get_artifacts_kind(const rp_step *step);
-
-/**
- * \return the artifacts container of the step
- */
-const rp_container *rp_step_get_artifacts_container(rp_step *step);
-
-/**
- * \return the artifacts filename to use for a single target
- */
-char * /*owning*/
-rp_step_get_artifacts_single_target_filename(const rp_step *step);
-
-/**
- * \return the number of analysis present in this step
- */
-uint64_t rp_step_get_analyses_count(const rp_step *step);
-
-/**
- * \return the of the analysis in the provided step with the provided index.
- *
- * index must be less than rp_step_get_analyses_count
- */
-const rp_analysis *rp_step_get_analysis(const rp_step *step, uint64_t index);
-
-/**
- * \return the name of the analysis
- */
-const char *rp_analysis_get_name(const rp_analysis *analysis);
-
-/**
- * \return the count of containers used by the provided analysis.
- * is no analysis
- */
-uint64_t rp_analysis_get_arguments_count(const rp_analysis *analysis);
-
-/**
- * \return a owning pointer to the name of the container used as index
- * argument of the analysis of this step.
- *
- * index must be less than rp_step_get_analysis_arguments_count(step)
- */
-char * /*owning*/
-rp_analysis_get_argument_name(const rp_analysis *analysis, uint64_t index);
-
-/**
- * \return the quantity of kinds that can be accepted by a analysis
- */
-uint64_t
-rp_analysis_get_argument_acceptable_kinds_count(const rp_analysis *analysis,
-                                                uint64_t argument_index);
-
-/**
- * \return the ammout of extra arguments of the provided analysis
- */
-uint64_t rp_analysis_get_options_count(const rp_analysis *analysis);
-
-/**
- * \return the name of the extra argument with the provided index. Returns
- * nullptr if extra_argument_index < 0 or extra_argument_index >
- * rp_analysis_get_extra_argument_count(analysis)
- */
-char * /*owning*/
-rp_analysis_get_option_name(const rp_analysis *analysis,
-                            uint64_t extra_argument_index);
-
-/**
- * \return the type of the extra argument with the provided index. Returns
- * nullptr if extra_argument_index < 0 or extra_argument_index >
- * rp_analysis_get_extra_argument_count(analysis)
- */
-char * /*owning*/
-rp_analysis_get_option_type(const rp_analysis *analysis,
-                            uint64_t extra_argument_index);
-
-/**
- * \return the pointer to a acceptable kind for the container with index
- * argument_index within a analysis, nullptr if kind_index is >= than
- * rp_analysis_argument_acceptable_kinds_count(analysis, argument_index)
- */
-const rp_kind *
-rp_analysis_get_argument_acceptable_kind(const rp_analysis *analysis,
-                                         uint64_t argument_index,
-                                         uint64_t kind_index);
 
 /** \} */
 
@@ -550,14 +348,6 @@ rp_target * /*owning*/ rp_target_create(const rp_kind *kind,
                                         uint64_t path_components_count,
                                         const char *path_components[]);
 LENGTH_HINT(rp_target_create, 2, 1)
-
-/**
- * Deserialize a target from a string, arguments cannot be NULL.
- *
- * \return NULL if \p string is malformed.
- */
-rp_target * /*owning*/
-rp_target_create_from_string(const rp_manager *manager, const char *string);
 
 /**
  * Delete the provided target.
@@ -597,69 +387,14 @@ bool rp_target_is_ready(const rp_target *target, const rp_container *container);
 /** \} */
 
 /**
- * \defgroup rp_kind rp_kind methods
- * \{
- */
-
-/**
- * \return the name of \p kind.
- */
-const char *rp_kind_get_name(const rp_kind *kind);
-
-/**
- * \return a \p kind 's parent if present, otherwise nullptr.
- */
-const rp_kind *rp_kind_get_parent(const rp_kind *kind);
-
-/**
- * \return the rank associated with the specified \p Kind
- */
-const rp_rank *rp_kind_get_rank(const rp_kind *kind);
-
-/**
- * \return the number of rank-locations the kind exposes
- */
-uint64_t rp_kind_get_defined_location_count(const rp_kind *kind);
-
-/**
- * \return the rank-location at index or nullptr
- */
-const rp_rank *rp_kind_get_defined_location(const rp_kind *kind,
-                                            uint64_t index);
-
-/**
- * \return the number of kinds the kind can reference
- */
-uint64_t rp_kind_get_preferred_kind_count(const rp_kind *kind);
-
-/**
- * \return the kind definition at index or nullptr
- */
-const rp_kind *rp_kind_get_preferred_kind(const rp_kind *kind, uint64_t index);
-
-/** \} */
-
-/**
  * \defgroup rp_container rp_container methods
  * \{
  */
 
 /**
- * \return the name of \p container.
- */
-const char *rp_container_get_name(const rp_container *container);
-
-/**
  * \return the mime type of \p container
  */
 const char *rp_container_get_mime(const rp_container *container);
-
-/**
- * Serialize \p container in \p path.
- *
- * \return 0 if an error was encountered 1 otherwise.
- */
-bool rp_container_store(const rp_container *container, const char *path);
 
 /**
  * Load the provided container given a buffer
@@ -712,43 +447,6 @@ rp_diff_map_get_diff(const rp_diff_map *map, const char *global_name);
 bool rp_diff_map_is_empty(const rp_diff_map *map);
 
 /** \} */
-
-/**
- * \defgroup rp_rank rp_rank methods
- * \{
- */
-
-/**
- * \return the number of ranks present in the manager
- */
-uint64_t rp_ranks_count();
-
-/**
- * \return the rank with the provided index, or NULL if no such rank existed.
- */
-const rp_rank *rp_rank_get(uint64_t index);
-
-/**
- * \return the rank with the provided name, NULL if no rank had the provided
- *         name.
- */
-const rp_rank *rp_rank_get_from_name(const char *rank_name);
-
-/**
- * \return the name of \p Rank
- * \note The returned string must not be freed by the caller.
- */
-const char *rp_rank_get_name(const rp_rank *rank);
-
-/**
- * \return the depth of \p Rank
- */
-uint64_t rp_rank_get_depth(const rp_rank *rank);
-
-/**
- * \return \p Rank 's parent, or NULL if it has none
- */
-const rp_rank *rp_rank_get_parent(const rp_rank *rank);
 
 /**
  * \defgroup rp_error rp_error methods
