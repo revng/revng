@@ -60,8 +60,8 @@ public:
   createNew(llvm::StringRef Name, const llvm::MemoryBuffer &Buffer) const = 0;
   virtual std::unique_ptr<Global> clone() const = 0;
 
-  virtual llvm::Error storeToDisk(const revng::FilePath &Path) const;
-  virtual llvm::Error loadFromDisk(const revng::FilePath &Path);
+  virtual llvm::Error store(const revng::FilePath &Path) const;
+  virtual llvm::Error load(const revng::FilePath &Path);
 };
 
 template<TupleTreeCompatibleAndVerifiable Object>

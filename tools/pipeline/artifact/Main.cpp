@@ -83,8 +83,7 @@ int main(int argc, char *argv[]) {
   }
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
-  AbortOnError(InputContainer
-                 .loadFromDisk(FilePath::fromLocalStorage(Arguments[1])));
+  AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
 
   InvalidationMap InvMap;
   for (auto &AnalysesListName : AnalysesLists) {
@@ -144,19 +143,19 @@ int main(int argc, char *argv[]) {
   }
   AbortOnError(Manager.getRunner().run(Step.getName(), Map));
 
-  AbortOnError(Manager.storeToDisk());
+  AbortOnError(Manager.store());
 
   const TargetsList &Targets = Map.contains(ContainerName) ?
                                  Map.at(ContainerName) :
                                  TargetsList();
   auto Produced = Container.second->cloneFiltered(Targets);
-  AbortOnError(Produced->storeToDisk(*Output));
+  AbortOnError(Produced->store(*Output));
 
   if (SaveModel.hasValue()) {
     auto Context = Manager.context();
     const auto &ModelName = revng::ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
-    AbortOnError(FinalModel->storeToDisk(*SaveModel));
+    AbortOnError(FinalModel->store(*SaveModel));
   }
 
   return EXIT_SUCCESS;

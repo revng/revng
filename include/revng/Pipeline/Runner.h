@@ -203,13 +203,13 @@ public:
   llvm::Error invalidate(const pipeline::InvalidationMap &Invalidations);
 
 public:
-  llvm::Error storeToDisk(const revng::DirectoryPath &DirPath) const;
+  llvm::Error store(const revng::DirectoryPath &DirPath) const;
   llvm::Error dump(const char *DirPath) const debug_function {
-    return storeToDisk(revng::DirectoryPath::fromLocalStorage(DirPath));
+    return store(revng::DirectoryPath::fromLocalStorage(DirPath));
   }
   llvm::Error storeStepToDisk(llvm::StringRef StepName,
                               const revng::DirectoryPath &DirPath) const;
-  llvm::Error loadFromDisk(const revng::DirectoryPath &DirPath);
+  llvm::Error load(const revng::DirectoryPath &DirPath);
 
 public:
   void deduceAllPossibleTargets(State &State) const;
@@ -282,8 +282,8 @@ public:
   static llvm::Expected<PipelineFileMapping> parse(llvm::StringRef ToParse);
 
 public:
-  llvm::Error loadFromDisk(Runner &LoadInto) const;
-  llvm::Error storeToDisk(Runner &LoadInto) const;
+  llvm::Error load(Runner &LoadInto) const;
+  llvm::Error store(Runner &LoadInto) const;
 };
 
 } // namespace pipeline
