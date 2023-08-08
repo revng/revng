@@ -39,27 +39,24 @@ public:
 
 static void verifyTrace(tracing::Trace &Trace) {
   BOOST_TEST(Trace.Version == 1ULL);
-  BOOST_TEST(Trace.Commands.size() == 5ULL);
+  BOOST_TEST(Trace.Commands.size() == 4ULL);
   BOOST_TEST(Trace.Commands[0].Name == "rp_manager_create");
-  BOOST_TEST(Trace.Commands[1].Name == "rp_manager_steps_count");
-  BOOST_TEST(Trace.Commands[2].Name == "rp_manager_get_step");
-  BOOST_TEST(Trace.Commands[3].Name == "rp_manager_get_step");
-  BOOST_TEST(Trace.Commands[4].Name == "rp_manager_destroy");
+  BOOST_TEST(Trace.Commands[1].Name == "rp_manager_get_step_from_name");
+  BOOST_TEST(Trace.Commands[2].Name == "rp_manager_get_step_from_name");
+  BOOST_TEST(Trace.Commands[3].Name == "rp_manager_destroy");
 
   BOOST_TEST(Trace.Commands[0].Arguments.size() == 3ULL);
-  BOOST_TEST(Trace.Commands[1].Arguments.size() == 1ULL);
+  BOOST_TEST(Trace.Commands[1].Arguments.size() == 2ULL);
   BOOST_TEST(Trace.Commands[2].Arguments.size() == 2ULL);
-  BOOST_TEST(Trace.Commands[3].Arguments.size() == 2ULL);
-  BOOST_TEST(Trace.Commands[4].Arguments.size() == 1ULL);
+  BOOST_TEST(Trace.Commands[3].Arguments.size() == 1ULL);
 
   const std::string &ManagerAddress = Trace.Commands[0].Result;
   BOOST_TEST(Trace.Commands[1].Arguments[0].getScalar() == ManagerAddress);
   BOOST_TEST(Trace.Commands[2].Arguments[0].getScalar() == ManagerAddress);
   BOOST_TEST(Trace.Commands[3].Arguments[0].getScalar() == ManagerAddress);
-  BOOST_TEST(Trace.Commands[4].Arguments[0].getScalar() == ManagerAddress);
 
-  BOOST_TEST(Trace.Commands[2].Arguments[1].getScalar() == "0");
-  BOOST_TEST(Trace.Commands[3].Arguments[1].getScalar() == "1");
+  BOOST_TEST(Trace.Commands[1].Arguments[1].getScalar() == "begin");
+  BOOST_TEST(Trace.Commands[2].Arguments[1].getScalar() == "FirstStep");
 }
 
 BOOST_AUTO_TEST_SUITE(PipelineCTracingTestSuite,
@@ -74,11 +71,8 @@ BOOST_AUTO_TEST_CASE(PipelineCTraceTest) {
     tracing::setTracing(&OS);
 
     rp_manager *Manager = rp_manager_create(0, {}, "");
-    uint64_t StepCount = rp_manager_steps_count(Manager);
-    for (uint64_t I = 0; I < StepCount; I++) {
-      rp_manager_get_step(Manager, I);
-    }
-
+    rp_manager_get_step_from_name(Manager, "begin");
+    rp_manager_get_step_from_name(Manager, "FirstStep");
     rp_manager_destroy(Manager);
 
     tracing::setTracing(nullptr);
