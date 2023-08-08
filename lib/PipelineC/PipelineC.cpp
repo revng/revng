@@ -202,7 +202,7 @@ static rp_manager *_rp_manager_create(uint64_t pipeline_flags_count,
 static bool _rp_manager_save(rp_manager *manager) {
   revng_check(manager != nullptr);
 
-  auto Error = manager->storeToDisk();
+  auto Error = manager->store();
   if (not Error)
     return true;
 
@@ -426,7 +426,7 @@ static bool _rp_container_store(const rp_container *container,
   revng_check(path != nullptr);
 
   revng::FilePath Path = revng::FilePath::fromLocalStorage(path);
-  auto Error = container->second->storeToDisk(Path);
+  auto Error = container->second->store(Path);
   if (not Error)
     return true;
 

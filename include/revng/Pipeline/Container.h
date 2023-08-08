@@ -114,11 +114,11 @@ public:
 
   /// The implementation must ensure that there exists a file at the provided
   /// path that contains the serialized version of this object.
-  virtual llvm::Error storeToDisk(const revng::FilePath &Path) const;
+  virtual llvm::Error store(const revng::FilePath &Path) const;
 
   /// The implementation must ensure that the content of this file will be
   /// loaded from the provided path.
-  virtual llvm::Error loadFromDisk(const revng::FilePath &Path);
+  virtual llvm::Error load(const revng::FilePath &Path);
 
   /// Checks that the content of the this container is valid.
   virtual llvm::Error verify() const { return enumerate().verify(*this); }

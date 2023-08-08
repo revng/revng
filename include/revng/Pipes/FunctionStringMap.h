@@ -174,7 +174,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error storeToDisk(const revng::FilePath &Path) const override {
+  llvm::Error store(const revng::FilePath &Path) const override {
     auto MaybeWritableFile = Path.getWritableFile(ContentEncoding::Gzip);
     if (not MaybeWritableFile)
       return MaybeWritableFile.takeError();
@@ -199,7 +199,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error loadFromDisk(const revng::FilePath &Path) override {
+  llvm::Error load(const revng::FilePath &Path) override {
     auto MaybeExists = Path.exists();
     if (not MaybeExists)
       return MaybeExists.takeError();

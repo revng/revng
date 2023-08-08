@@ -48,7 +48,7 @@ public:
                             PipelineManager &Manager) {
     const auto &Name = ModelGlobalName;
     auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
-    return Model->loadFromDisk(ModelOverride);
+    return Model->load(ModelOverride);
   }
 
   llvm::Expected<revng::pipes::PipelineManager> makeManager() {

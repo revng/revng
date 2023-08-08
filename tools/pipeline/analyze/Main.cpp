@@ -119,8 +119,7 @@ int main(int argc, char *argv[]) {
   }
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
-  AbortOnError(InputContainer
-                 .loadFromDisk(FilePath::fromLocalStorage(Arguments[1])));
+  AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
 
   InvalidationMap InvMap;
   if (Manager.getRunner().hasAnalysesList(Arguments[0])) {
@@ -157,10 +156,10 @@ int main(int argc, char *argv[]) {
   if (NoApplyModel)
     AbortOnError(overrideModel(Manager, OriginalModel.get()));
 
-  AbortOnError(Manager.storeToDisk());
+  AbortOnError(Manager.store());
 
   auto &FinalModel = getModel(Manager);
-  AbortOnError(FinalModel.storeToDisk(*Output));
+  AbortOnError(FinalModel.store(*Output));
 
   return EXIT_SUCCESS;
 }

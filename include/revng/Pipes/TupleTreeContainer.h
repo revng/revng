@@ -137,7 +137,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error storeToDisk(const revng::FilePath &Path) const override {
+  llvm::Error store(const revng::FilePath &Path) const override {
     using namespace llvm;
     // Tuple tree deserializer does not work on empty files, so we must ensure
     // to not write them
@@ -153,10 +153,10 @@ public:
       return llvm::Error::success();
     }
 
-    return Base::storeToDisk(Path);
+    return Base::store(Path);
   }
 
-  llvm::Error loadFromDisk(const revng::FilePath &Path) override {
+  llvm::Error load(const revng::FilePath &Path) override {
     auto MaybeExists = Path.exists();
     if (not MaybeExists)
       return MaybeExists.takeError();
@@ -165,7 +165,7 @@ public:
       *this = TupleTreeContainer(this->name());
       return llvm::Error::success();
     }
-    return Base::loadFromDisk(Path);
+    return Base::load(Path);
   }
 
   void clear() override { Content = TupleTree<T>(); }

@@ -89,7 +89,7 @@ PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
   auto MaybeMapping = PipelineFileMapping::parse(PipelineFileMapping);
   if (not MaybeMapping)
     return MaybeMapping.takeError();
-  return MaybeMapping->loadFromDisk(*Runner);
+  return MaybeMapping->load(*Runner);
 }
 
 static llvm::Expected<Runner>
@@ -102,7 +102,7 @@ setUpPipeline(pipeline::Context &PipelineContext,
     return MaybePipeline.takeError();
 
   if (ExecutionDirectory.isValid())
-    if (auto Error = MaybePipeline->loadFromDisk(ExecutionDirectory); Error)
+    if (auto Error = MaybePipeline->load(ExecutionDirectory); Error)
       return std::move(Error);
 
   return MaybePipeline;
@@ -244,14 +244,14 @@ void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
   }
 }
 
-llvm::Error PipelineManager::storeToDisk() {
+llvm::Error PipelineManager::store() {
   // If we are in ephemeral mode (resume was "") then we don't store anything
   if (StorageClient == nullptr)
     return llvm::Error::success();
 
-  // Run storeToDisk on the runner, this will serialize all step/containers
+  // Run store on the runner, this will serialize all step/containers
   // inside the resume directory
-  if (auto Error = Runner->storeToDisk(ExecutionDirectory); Error)
+  if (auto Error = Runner->store(ExecutionDirectory); Error)
     return Error;
 
   // Commit all the changes to storage
@@ -291,11 +291,11 @@ PipelineManager::deserializeContainer(pipeline::Step &Step,
 }
 
 llvm::Error PipelineManager::store(const PipelineFileMapping &Mapping) {
-  return Mapping.storeToDisk(*Runner);
+  return Mapping.store(*Runner);
 }
 
 llvm::Error PipelineManager::overrideContainer(PipelineFileMapping Mapping) {
-  return Mapping.loadFromDisk(*Runner);
+  return Mapping.load(*Runner);
 }
 
 llvm::Error
@@ -305,7 +305,7 @@ PipelineManager::store(llvm::ArrayRef<std::string> StoresOverrides) {
     if (not MaybeMapping)
       return MaybeMapping.takeError();
 
-    if (auto Error = MaybeMapping->storeToDisk(*Runner))
+    if (auto Error = MaybeMapping->store(*Runner))
       return Error;
   }
   return llvm::Error::success();

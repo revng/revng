@@ -17,7 +17,7 @@ using namespace std;
 using namespace pipeline;
 using namespace llvm;
 
-Error Global::storeToDisk(const revng::FilePath &Path) const {
+Error Global::store(const revng::FilePath &Path) const {
   auto MaybeWritableFile = Path.getWritableFile();
   if (not MaybeWritableFile)
     return MaybeWritableFile.takeError();
@@ -30,7 +30,7 @@ Error Global::storeToDisk(const revng::FilePath &Path) const {
   return WritableFile.get()->commit();
 }
 
-Error Global::loadFromDisk(const revng::FilePath &Path) {
+Error Global::load(const revng::FilePath &Path) {
   auto MaybeExists = Path.exists();
   if (not MaybeExists)
     return MaybeExists.takeError();

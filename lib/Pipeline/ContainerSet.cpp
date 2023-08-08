@@ -74,21 +74,20 @@ void ContainerSet::intersect(ContainerToTargetsMap &ToIntersect) const {
   }
 }
 
-llvm::Error
-ContainerSet::storeToDisk(const revng::DirectoryPath &Directory) const {
+llvm::Error ContainerSet::store(const revng::DirectoryPath &Directory) const {
   for (const auto &Pair : Content) {
     revng::FilePath Filename = Directory.getFile(Pair.first());
     const auto &Container = Pair.second;
     if (Container == nullptr)
       continue;
 
-    if (auto Error = Container->storeToDisk(Filename); !!Error)
+    if (auto Error = Container->store(Filename); !!Error)
       return Error;
   }
   return Error::success();
 }
 
-llvm::Error ContainerSet::loadFromDisk(const revng::DirectoryPath &Directory) {
+llvm::Error ContainerSet::load(const revng::DirectoryPath &Directory) {
   for (auto &Pair : Content) {
     revng::FilePath Filename = Directory.getFile(Pair.first());
     auto MaybeExists = Filename.exists();
@@ -100,7 +99,7 @@ llvm::Error ContainerSet::loadFromDisk(const revng::DirectoryPath &Directory) {
       continue;
     }
 
-    if (auto Error = (*this)[Pair.first()].loadFromDisk(Filename); !!Error)
+    if (auto Error = (*this)[Pair.first()].load(Filename); !!Error)
       return Error;
   }
   return Error::success();
@@ -130,7 +129,7 @@ ContainerToTargetsMap ContainerSet::enumerate() const {
   return Status;
 }
 
-llvm::Error ContainerBase::storeToDisk(const revng::FilePath &Path) const {
+llvm::Error ContainerBase::store(const revng::FilePath &Path) const {
   auto MaybeWritableFile = Path.getWritableFile();
   if (not MaybeWritableFile) {
     return MaybeWritableFile.takeError();
@@ -142,7 +141,7 @@ llvm::Error ContainerBase::storeToDisk(const revng::FilePath &Path) const {
   return MaybeWritableFile.get()->commit();
 }
 
-llvm::Error ContainerBase::loadFromDisk(const revng::FilePath &Path) {
+llvm::Error ContainerBase::load(const revng::FilePath &Path) {
   auto MaybeExists = Path.exists();
   if (not MaybeExists)
     return MaybeExists.takeError();

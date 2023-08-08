@@ -95,7 +95,7 @@ public:
 
   /// Triggers the full serialization of every step and every container to the
   /// the specified DirPath or the Execution directory if omitted.
-  llvm::Error storeToDisk();
+  llvm::Error store();
 
   /// Trigger the serialization of a single Step to the specified DirPath or
   /// the Execution directory if omitted.

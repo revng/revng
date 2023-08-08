@@ -120,12 +120,12 @@ public:
   }
 
 public:
-  llvm::Error storeToDisk(const revng::DirectoryPath &Path) const {
-    return Globals.storeToDisk(Path);
+  llvm::Error store(const revng::DirectoryPath &Path) const {
+    return Globals.store(Path);
   }
 
-  llvm::Error loadFromDisk(const revng::DirectoryPath &Path) {
-    return Globals.loadFromDisk(Path);
+  llvm::Error load(const revng::DirectoryPath &Path) {
+    return Globals.load(Path);
   }
 };
 
