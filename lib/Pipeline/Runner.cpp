@@ -161,7 +161,7 @@ PipelineFileMapping::parse(StringRef ToParse) {
   return PipelineFileMapping(StepName, ContainerName, std::move(Path));
 }
 
-Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
+Error PipelineFileMapping::load(Runner &LoadInto) const {
   if (not LoadInto.containsStep(Step))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known step " + Step);
@@ -170,10 +170,10 @@ Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known container " + Container);
 
-  return LoadInto[Step].containers()[Container].loadFromDisk(Path);
+  return LoadInto[Step].containers()[Container].load(Path);
 }
 
-Error PipelineFileMapping::storeToDisk(Runner &LoadInto) const {
+Error PipelineFileMapping::store(Runner &LoadInto) const {
   if (not LoadInto.containsStep(Step)) {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known step " + Step);
@@ -184,10 +184,10 @@ Error PipelineFileMapping::storeToDisk(Runner &LoadInto) const {
                                    "No known container " + Container);
   }
 
-  return LoadInto[Step].containers()[Container].storeToDisk(Path);
+  return LoadInto[Step].containers()[Container].store(Path);
 }
 
-Error Runner::storeToDisk(const revng::DirectoryPath &DirPath) const {
+Error Runner::store(const revng::DirectoryPath &DirPath) const {
   if (auto Error = DirPath.create(); Error)
     return Error;
 
@@ -201,7 +201,7 @@ Error Runner::storeToDisk(const revng::DirectoryPath &DirPath) const {
   if (auto Error = ContextDir.create(); Error)
     return Error;
 
-  return TheContext->storeToDisk(ContextDir);
+  return TheContext->store(ContextDir);
 }
 
 Error Runner::storeStepToDisk(llvm::StringRef StepName,
@@ -216,20 +216,20 @@ Error Runner::storeStepToDisk(llvm::StringRef StepName,
   if (auto Error = StepDir.create(); Error)
     return Error;
 
-  if (auto Error = Step->second.storeToDisk(StepDir); !!Error)
+  if (auto Error = Step->second.store(StepDir); !!Error)
     return Error;
 
   return Error::success();
 }
 
-Error Runner::loadFromDisk(const revng::DirectoryPath &DirPath) {
+Error Runner::load(const revng::DirectoryPath &DirPath) {
   revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
-  if (auto Error = TheContext->loadFromDisk(ContextDir); !!Error)
+  if (auto Error = TheContext->load(ContextDir); !!Error)
     return Error;
 
   for (auto &Step : Steps) {
     revng::DirectoryPath StepDir = DirPath.getDirectory(Step.first());
-    if (auto Error = Step.second.loadFromDisk(StepDir); !!Error)
+    if (auto Error = Step.second.load(StepDir); !!Error)
       return Error;
   }
 

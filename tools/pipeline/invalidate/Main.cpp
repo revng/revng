@@ -91,6 +91,6 @@ int main(int argc, char *argv[]) {
   if (DumpFinalStatus)
     Manager.dump();
 
-  AbortOnError(Manager.storeToDisk());
+  AbortOnError(Manager.store());
   return EXIT_SUCCESS;
 }

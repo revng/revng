@@ -112,8 +112,8 @@ public:
     return MaybeGlobal.get()->clone();
   }
 
-  llvm::Error storeToDisk(const revng::DirectoryPath &Path) const;
-  llvm::Error loadFromDisk(const revng::DirectoryPath &Path);
+  llvm::Error store(const revng::DirectoryPath &Path) const;
+  llvm::Error load(const revng::DirectoryPath &Path);
 
   size_t size() const { return Map.size(); }
 

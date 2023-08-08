@@ -99,7 +99,7 @@ public:
     return true;
   }
 
-  llvm::Error storeToDisk(const revng::FilePath &Path) const override {
+  llvm::Error store(const revng::FilePath &Path) const override {
     // We must ensure that if we got invalidated then no file on disk is
     // present, so that the next time we load we don't mistakenly think that we
     // have some content.
@@ -121,7 +121,7 @@ public:
     return revng::FilePath::fromLocalStorage(this->Path).copyTo(Path);
   }
 
-  llvm::Error loadFromDisk(const revng::FilePath &Path) override {
+  llvm::Error load(const revng::FilePath &Path) override {
     auto MaybeExists = Path.exists();
     if (not MaybeExists)
       return MaybeExists.takeError();
