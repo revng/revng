@@ -87,8 +87,9 @@ static bool isFixedChild(const LayoutTypeSystemNode *Parent,
   // If there's a strided edge going to Child, then Child is fixed.
   // If Child has another Parent that is different from Parent, then it's
   // fixed
-  if (isLeaf(Child) or hasPointerChild(Child) or hasPointerParent(Child)
-      or hasStridedParent(Child) or hasAnotherParent(Child, Parent)) {
+  if (Child->NonScalar or isLeaf(Child) or hasPointerChild(Child)
+      or hasPointerParent(Child) or hasStridedParent(Child)
+      or hasAnotherParent(Child, Parent)) {
     return true;
   }
 
