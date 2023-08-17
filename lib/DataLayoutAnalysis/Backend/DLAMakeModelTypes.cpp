@@ -364,8 +364,16 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
 
   } else if (isLeaf(Node)) {
     revng_assert(Node->Size);
-    MaybeResult = QualifiedType{ Model->getPrimitiveType(Generic, Node->Size),
-                                 {} };
+    if (Node->NonScalar) {
+      MaybeResult = makeStructFromNode(Node,
+                                       Types,
+                                       PointerFieldsToUpdate,
+                                       Model,
+                                       EqClasses);
+    } else {
+      MaybeResult = QualifiedType{ Model->getPrimitiveType(Generic, Node->Size),
+                                   {} };
+    }
   } else if (isStructNode(Node)) {
     MaybeResult = makeStructFromNode(Node,
                                      Types,
