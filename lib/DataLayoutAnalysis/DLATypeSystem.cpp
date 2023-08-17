@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <string>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -281,10 +282,13 @@ static void fixPredSucc(LayoutTypeSystemNode *From,
 
 static Logger<> MergeLog("dla-merge-nodes");
 
-using LayoutTypeSystemNodePtrVec = std::vector<LayoutTypeSystemNode *>;
+void LayoutTypeSystem::mergeNodes(llvm::ArrayRef<LayoutTypeSystemNode *>
+                                    ToMerge) {
+  revng_assert(ToMerge.size() > 0ULL);
+  // If we're merging just one node there's nothing to do.
+  if (ToMerge.size() <= 1ULL)
+    return;
 
-void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
-  revng_assert(ToMerge.size() > 1ULL);
   LayoutTypeSystemNode *Into = ToMerge[0];
   const unsigned IntoID = Into->ID;
 

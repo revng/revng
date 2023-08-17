@@ -14,6 +14,7 @@
 #include <set>
 #include <utility>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/IntEqClasses.h"
 #include "llvm/ADT/SmallSet.h"
@@ -332,7 +333,7 @@ public:
   }
 
 public:
-  void mergeNodes(const std::vector<LayoutTypeSystemNode *> &ToMerge);
+  void mergeNodes(llvm::ArrayRef<LayoutTypeSystemNode *> ToMerge);
 
   void removeNode(LayoutTypeSystemNode *N);
 
