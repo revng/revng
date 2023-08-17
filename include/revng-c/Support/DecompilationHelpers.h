@@ -27,14 +27,16 @@ inline bool hasSideEffects(const llvm::Instruction &I) {
     if (not CalledFunc)
       return true;
 
+    if (isCallToIsolatedFunction(Call))
+      return true;
+
     if (CalledFunc->isIntrinsic()) {
       bool IsReadOnly = CalledFunc->onlyReadsMemory();
       bool IsReadNone = CalledFunc->doesNotAccessMemory();
       return not IsReadOnly and not IsReadNone;
     }
 
-    if (FunctionTags::Isolated.isTagOf(CalledFunc)
-        or FunctionTags::WritesMemory.isTagOf(CalledFunc)
+    if (FunctionTags::WritesMemory.isTagOf(CalledFunc)
         or FunctionTags::Helper.isTagOf(CalledFunc)
         or FunctionTags::QEMU.isTagOf(CalledFunc)
         or FunctionTags::Exceptional.isTagOf(CalledFunc))
@@ -90,6 +92,9 @@ inline bool needsTopScopeDeclaration(const llvm::Instruction &I) {
     // in the top scope, so there is no need to add a separate variable for it.
     return false;
   }
+
+  if (isCallToIsolatedFunction(&I) and I.getType()->isAggregateType())
+    return true;
 
   // If the instruction has uses outside its own basic block, we need a top
   // scope variable for it.

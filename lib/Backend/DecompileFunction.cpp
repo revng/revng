@@ -110,6 +110,10 @@ static bool isAssignment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Assign);
 }
 
+static bool isArtificialAggregateLocalVarDecl(const llvm::Value *I) {
+  return isCallToIsolatedFunction(I) and I->getType()->isAggregateType();
+}
+
 static bool isLocalVarDecl(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::LocalVariable);
 }
@@ -444,7 +448,8 @@ private:
   }
 
   std::string createLocalVarDeclName(const llvm::Instruction *I) {
-    revng_assert(isLocalVarDecl(I) or isCallStackArgumentDecl(I));
+    revng_assert(isLocalVarDecl(I) or isArtificialAggregateLocalVarDecl(I)
+                 or isCallStackArgumentDecl(I));
     std::string VarName = NameGenerator.nextVarName();
     // This may override the entry for I, if I belongs to a "duplicated"
     // BasicBlock that is reachable from many paths on the GHAST.
@@ -458,6 +463,7 @@ private:
 
   std::string getVarName(const llvm::Instruction *I) const {
     revng_assert(isStackFrameDecl(I) or isLocalVarDecl(I)
+                 or isArtificialAggregateLocalVarDecl(I)
                  or isCallStackArgumentDecl(I));
     revng_assert(TokenMap.contains(I));
     return TokenMap.at(I);
@@ -1374,7 +1380,8 @@ CCodeGenerator::getToken(const llvm::Value *V) const {
   auto It = TokenMap.find(V);
   if (It != TokenMap.end()) {
     revng_assert(isa<llvm::Argument>(V) or isStackFrameDecl(V)
-                 or isCallStackArgumentDecl(V) or isLocalVarDecl(V));
+                 or isCallStackArgumentDecl(V) or isLocalVarDecl(V)
+                 or isArtificialAggregateLocalVarDecl(V));
     revng_log(Log, "Found!");
     rc_return It->second;
   }
@@ -1426,6 +1433,15 @@ static bool isStatement(const llvm::Instruction *I) {
   if (not Call)
     return false;
 
+  // Calls to Assign and LocalVariable are statemements.
+  if (isAssignment(Call) or isLocalVarDecl(Call))
+    return true;
+
+  // Calls to isolated functions that require a local variable of artificial
+  // aggregate type (that is not on the model) are statemements.
+  if (isArtificialAggregateLocalVarDecl(Call))
+    return true;
+
   // If the call returns an aggregate, and it needs a top scope declaration, we
   // have to handle it as if it was an assignment to the local variable declared
   // in the top scope declaration.
@@ -1434,10 +1450,6 @@ static bool isStatement(const llvm::Instruction *I) {
   // LLVM IR (because those types are not on the model), so we need to handle it
   // now.
   if (Call->getType()->isAggregateType() and needsTopScopeDeclaration(*Call))
-    return true;
-
-  // Calls to Assign and LocalVariable are statemements.
-  if (isAssignment(Call) or isLocalVarDecl(Call))
     return true;
 
   // Calls to isolated functions and helpers that return void are statements.
@@ -1479,17 +1491,13 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
     // At this point we're left with only CallInst
     auto *Call = cast<llvm::CallInst>(&I);
 
-    // This is a call but it actually needs an assignment to the top scope
-    // variable. The top scope variable has not been declared in the IR with
-    // LocalVariable, because LocalVariable needs a model type, and aggregates
-    // types on the LLVM IR are not on the model.
-    if (TopScopeVariables.contains(Call)) {
-      revng_assert(Call->getType()->isAggregateType());
-      std::string VarName = getVarName(Call);
+    // Emit variable declaration statements
+    if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
+      // Emit missing local variable declarations
+      std::string VarName = createLocalVarDeclName(Call);
       revng_assert(not VarName.empty());
-      Out << VarName << " "
-          << ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Assign)
-          << " " << getToken(Call) << ";\n";
+      Out << getNamedCInstance(TypeMap.at(Call), VarName, ThePTMLCBuilder)
+          << ";\n";
       continue;
     }
 
@@ -1501,13 +1509,40 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
       continue;
     }
 
-    // Emit variable declaration statements
-    if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
-      // Emit missing local variable declarations
-      std::string VarName = createLocalVarDeclName(Call);
+    // This is a call but it actually needs an assignment to the associated
+    // variable. The variable has not been declared in the IR with
+    // LocalVariable, because LocalVariable needs a model type, and aggregates
+    // types on the LLVM IR are not on the model.
+    bool IsTopScopeVariable = TopScopeVariables.contains(Call);
+    if (IsTopScopeVariable or isArtificialAggregateLocalVarDecl(Call)) {
+      revng_assert(Call->getType()->isAggregateType());
+
+      if (not IsTopScopeVariable) {
+        // Create missing local variable declarations
+        std::string VarName = createLocalVarDeclName(Call);
+        const auto &Prototype = Cache.getCallSitePrototype(Model, Call);
+        revng_assert(Prototype.isValid() and not Prototype.empty());
+        const auto *FunctionType = Prototype.getConst();
+        Out << getNamedInstanceOfReturnType(*FunctionType,
+                                            VarName,
+                                            ThePTMLCBuilder)
+            << ";\n";
+      }
+      std::string VarName = getVarName(Call);
       revng_assert(not VarName.empty());
-      Out << getNamedCInstance(TypeMap.at(Call), VarName, ThePTMLCBuilder)
-          << ";\n";
+
+      // Get the token. If the Call is a call to an isolated function that
+      // returns an aggregate we want to get the token of the call, not of the
+      // local variable. For all the other cases we can just get the regular
+      // token.
+      std::string RHSExpression = isArtificialAggregateLocalVarDecl(Call) ?
+                                    getIsolatedCallToken(Call) :
+                                    getToken(Call);
+
+      // Assign to the local variable
+      Out << VarName << " "
+          << ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Assign)
+          << " " << std::move(RHSExpression) << ";\n";
       continue;
     }
 
