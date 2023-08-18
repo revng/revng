@@ -19,8 +19,9 @@
 #include "revng-c/RestructureCFG/ExprNode.h"
 #include "revng-c/RestructureCFG/GenerateAst.h"
 #include "revng-c/RestructureCFG/RegionCFGTree.h"
-#include "revng-c/RestructureCFG/SimplifyHybridNot.h"
 #include "revng-c/Support/DecompilationHelpers.h"
+
+#include "SimplifyHybridNot.h"
 
 using std::make_unique;
 using std::unique_ptr;

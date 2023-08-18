@@ -17,8 +17,10 @@
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/RestructureCFG/ExprNode.h"
-#include "revng-c/RestructureCFG/SimplifyHybridNot.h"
 #include "revng-c/Support/FunctionTags.h"
+
+#include "SimplifyHybridNot.h"
+
 using namespace llvm;
 
 struct AssociatedExprs {
