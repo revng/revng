@@ -38,6 +38,7 @@ static constexpr const char *LightGreen = "\"#D3EBCD\"";
 static constexpr const char *Red = "\"#EC5858\"";
 static constexpr const char *Blue = "\"#93ABD3\"";
 static constexpr const char *Purple = "\"#C689C6\"";
+static constexpr const char *Pink = "\"#FF99CC\"";
 static constexpr const char *Grey = "\"#7C3E66\"";
 static constexpr const char *White = "\"white\"";
 
@@ -520,9 +521,65 @@ void TypeSystemPrinter::print(const model::Function &F) {
   }
 }
 
+void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
+                                         int NodeID) {
+  const model::Type *PrototypeT = F.Prototype().getConst();
+
+  // Print the name of the node
+  Out << "node_" << to_string(NodeID) << "[";
+
+  // Choose the node's border color
+  auto Color = Pink;
+  Out << "color=" << Color << ", ";
+
+  // Start of HTML-style label
+  Out << "label= < <TABLE " << TableOpts << ">";
+
+  // Print the name of the function on top
+  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>" << F.name()
+      << "()</B></TD></TR>";
+
+  // Print connected types in a table
+  Out << "<TR><TD><TABLE " << TableOpts << "> ";
+  // Header
+  Out << "<TR>";
+  headerCell(Out, Color, "Prototype");
+  Out << "</TR>";
+
+  // Second row of the inner table (actual types)
+  Out << "<TR>";
+  paddedCell(Out, PrototypeT->name(), /*port=*/0);
+  Out << "</TR>";
+
+  // End of inner table
+  Out << "</TABLE></TD></TR>";
+
+  // End of label
+  Out << "</TABLE> >];\n";
+}
+
+void TypeSystemPrinter::print(const model::DynamicFunction &F) {
+  // Node corresponding to the function
+  auto FunctionNodeID = NextID;
+  dumpFunctionNode(F, FunctionNodeID);
+  NextID++;
+
+  // Nodes of the subtypes if they do not already exist
+  const model::Type *PrototypeT = F.Prototype().getConst();
+  print(*PrototypeT);
+
+  // Edges
+  auto PrototypeNodeID = NodesMap.at(PrototypeT);
+  addEdge(FunctionNodeID, 0, PrototypeNodeID);
+}
+
 void TypeSystemPrinter::print(const model::Binary &Model) {
   // Print all functions and related types
   for (auto &F : Model.Functions())
+    print(F);
+
+  // Print all dynamic functions and related types
+  for (auto &F : Model.ImportedDynamicFunctions())
     print(F);
 
   // Print remaining types, if any

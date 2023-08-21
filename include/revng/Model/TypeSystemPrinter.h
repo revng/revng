@@ -46,6 +46,9 @@ private:
   /// Print the given function as a node in a `.dot` graph.
   void dumpFunctionNode(const model::Function &F, int NodeID);
 
+  /// Print the given dynamic function as a node in a `.dot` graph.
+  void dumpFunctionNode(const model::DynamicFunction &F, int NodeID);
+
   /// Add an edge between node_SrcID:SrcPort and node_DstID
   void addEdge(int SrcID, int SrcPort, int DstID);
 
@@ -57,6 +60,9 @@ public:
   /// Generate a graph of the types for the given function (Prototype,
   /// StackFrame, ...).
   void print(const model::Function &F);
+
+  /// Generate a graph of the types for the given dynamic function.
+  void print(const model::DynamicFunction &F);
 
   /// Generate a graph of all the types in a given Module.
   void print(const model::Binary &Model);
