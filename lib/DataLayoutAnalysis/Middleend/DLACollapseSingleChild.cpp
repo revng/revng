@@ -80,6 +80,18 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
         break;
       }
 
+      // If we would end up merging a NonScalar node into the the non-NonScalar,
+      // we'd end up losing information about the size of the NonScalar one,
+      // which is wrong since it's fixed and it comes from the Model. In that
+      // case we bail out.
+      if (Child->NonScalar) {
+        revng_log(Log,
+                  "Cannot merge NonScalar Child into Node! Node = "
+                    << Node->Size << " Child = " << ChildSize
+                    << " Offset = " << Off);
+        break;
+      }
+
       // Move Node's predecessor edges to Child, adding Off.
       auto PredIt = Node->Predecessors.begin();
       auto PredEnd = Node->Predecessors.end();
