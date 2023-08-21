@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <string>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -131,6 +132,8 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
     default:
       revng_unreachable();
     }
+
+    DotFile << " NonScalar: " << L->NonScalar;
 
     if (CollapsedNodePrinter.isEnabled() or ShowCollapsed)
       DebugPrinter->printNodeContent(*this, L, DotFile);
@@ -279,10 +282,13 @@ static void fixPredSucc(LayoutTypeSystemNode *From,
 
 static Logger<> MergeLog("dla-merge-nodes");
 
-using LayoutTypeSystemNodePtrVec = std::vector<LayoutTypeSystemNode *>;
+void LayoutTypeSystem::mergeNodes(llvm::ArrayRef<LayoutTypeSystemNode *>
+                                    ToMerge) {
+  revng_assert(ToMerge.size() > 0ULL);
+  // If we're merging just one node there's nothing to do.
+  if (ToMerge.size() <= 1ULL)
+    return;
 
-void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
-  revng_assert(ToMerge.size() > 1ULL);
   LayoutTypeSystemNode *Into = ToMerge[0];
   const unsigned IntoID = Into->ID;
 
@@ -290,12 +296,23 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
     revng_assert(From != Into);
     revng_log(MergeLog, "Merging: " << From->ID << " Into: " << Into->ID);
 
+    Into->InterferingInfo = Unknown;
+    if (Into->NonScalar or From->NonScalar) {
+      revng_assert(not(Into->NonScalar and From->NonScalar)
+                   or Into->Size == From->Size);
+      auto *NonScalar = Into->NonScalar ? Into : From;
+      auto *Other = Into->NonScalar ? From : Into;
+      revng_assert(Other->Size <= NonScalar->Size);
+      Into->Size = NonScalar->Size;
+    } else {
+      revng_assert(not Into->Size or From->Size <= Into->Size);
+      Into->Size = std::max(Into->Size, From->Size);
+    }
+    Into->NonScalar |= From->NonScalar;
+
     EqClasses.join(IntoID, From->ID);
 
     fixPredSucc(From, Into);
-    Into->InterferingInfo = Unknown;
-    revng_assert(not Into->Size or From->Size <= Into->Size);
-    Into->Size = std::max(Into->Size, From->Size);
 
     // Remove From from Layouts
     bool Erased = Layouts.erase(From);

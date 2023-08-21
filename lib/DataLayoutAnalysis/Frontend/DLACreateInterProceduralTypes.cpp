@@ -19,6 +19,7 @@
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
+#include "revng-c/Support/ModelHelpers.h"
 
 #include "../FuncOrCallInst.h"
 #include "DLATypeSystemBuilder.h"
@@ -59,6 +60,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       revng_assert(TTR.isValid());
       Prototype = TTR.getConst();
     }
+
     revng_assert(Prototype);
 
     FuncOrCallInst FuncWithSameProto;
@@ -82,19 +84,78 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     revng_assert(FuncWithSameProto.isNull()
                  or F.arg_size() == FuncWithSameProto.arg_size());
 
+    const auto *RFT = dyn_cast<model::RawFunctionType>(Prototype);
+    const auto *CABIFT = dyn_cast<model::CABIFunctionType>(Prototype);
+    if (RFT) {
+      revng_assert(F.arg_size() == RFT->Arguments().size()
+                   or (RFT->StackArgumentsType().UnqualifiedType().isValid()
+                       and (F.arg_size() == RFT->Arguments().size() + 1)));
+    } else if (CABIFT) {
+      revng_assert(CABIFT->Arguments().size() == F.arg_size());
+    } else {
+      revng_abort();
+    }
+
     // Create types for the Function's arguments
-    for (const auto &Arg : llvm::enumerate(F.args())) {
+    for (const auto &ArgVal : F.args()) {
+      auto ArgIndex = ArgVal.getArgNo();
       // Arguments can only be integers and pointers
-      auto &ArgVal = Arg.value();
       revng_assert(isa<IntegerType>(ArgVal.getType())
                    or isa<PointerType>(ArgVal.getType()));
       auto [ArgNode, _] = getOrCreateLayoutType(&ArgVal);
       revng_assert(ArgNode);
 
+      model::QualifiedType ArgumentModelType;
+      if (RFT) {
+        const auto &ModelArgs = RFT->Arguments();
+        auto NumModelArguments = ModelArgs.size();
+        if (ArgIndex < NumModelArguments) {
+          auto ArgIt = std::next(ModelArgs.begin(), ArgIndex);
+          ArgumentModelType = ArgIt->Type();
+        } else {
+          ArgumentModelType = RFT->StackArgumentsType();
+        }
+      } else {
+        revng_assert(CABIFT);
+        const auto &Args = CABIFT->Arguments();
+        ArgumentModelType = Args.at(ArgIndex).Type();
+      }
+
+      if (ArgumentModelType.UnqualifiedType().isValid()
+          and ArgumentModelType.isPointer()) {
+        const model::QualifiedType
+          Pointee = stripPointer(peelConstAndTypedefs(ArgumentModelType));
+
+        bool IsScalar = Pointee.isScalar();
+
+        auto MaybeSize = Pointee.trySize();
+        bool IsSized = MaybeSize.has_value();
+
+        bool IsFunction = Pointee.is(model::TypeKind::RawFunctionType)
+                          or Pointee.is(model::TypeKind::CABIFunctionType);
+
+        // If it is not scalar then it must be sized or a function type
+        revng_assert(IsScalar or IsSized or IsFunction);
+
+        if (not IsScalar) {
+          ArgNode->NonScalar = true;
+          if (IsSized)
+            ArgNode->Size = *MaybeSize;
+          else if (IsFunction)
+            ArgNode->Size = getPointerSize(Model.Architecture());
+        } else {
+          // Skip char, because they alias and propagate weird information.
+          if (IsSized and *MaybeSize > 1)
+            ArgNode->Size = *MaybeSize;
+          else if (IsFunction)
+            ArgNode->Size = getPointerSize(Model.Architecture());
+        }
+      }
+
       // If there is already a Function with the same prototype, add equality
       // edges between args
       if (not FuncWithSameProto.isNull()) {
-        auto &OtherArg = *(FuncWithSameProto.getArg(Arg.index()));
+        auto &OtherArg = *(FuncWithSameProto.getArg(ArgIndex));
         auto *OtherArgNode = getLayoutType(&OtherArg);
         revng_assert(OtherArgNode);
         TS.addEqualityLink(ArgNode, OtherArgNode);
