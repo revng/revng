@@ -33,7 +33,7 @@ void LLVMTSDebugPrinter::printNodeContent(const LayoutTypeSystem &TS,
   auto HasAssociatedVal = [this](unsigned ID) { return (ID < Values.size()); };
 
   const auto &CollapsedNodes = EqClasses.computeEqClass(N->ID);
-  File << "Collapsed Nodes:" << DoRet;
+  File << "Collapsed Nodes (# " << CollapsedNodes.size() << ") :" << DoRet;
 
   for (auto ID : CollapsedNodes) {
     File << "{ ID: " << ID << ", ";
