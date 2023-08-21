@@ -43,7 +43,7 @@ using namespace revng;
 
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
-                                  desc("<ArtifactToProduce> <InputBinary>"),
+                                  desc("<AnalysisToRun> <InputBinary>"),
                                   cat(MainCategory));
 
 static opt<string> Output("o",
