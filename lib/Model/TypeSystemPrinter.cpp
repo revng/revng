@@ -319,7 +319,7 @@ void TypeSystemPrinter::dumpTypeNode(const model::Type *T, int NodeID) {
 
   // Print the name of the type on top
   Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << " PORT='TOP'><B>"
-      << T->name() << "</B>  (size: " << to_string(T->size().value_or(0))
+      << T->name() << "</B>  (size: " << to_string(T->trySize().value_or(0))
       << ")</TD></TR>";
 
   // Print fields in a table
