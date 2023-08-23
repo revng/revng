@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,8 +12,8 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Path.h"
 
-std::string getCurrentExecutableFullPath();
-std::string getCurrentRoot();
+llvm::StringRef getCurrentRoot();
+const std::map<std::string, std::string> &getLibrariesFullPath();
 
 template<typename... T>
   requires(std::is_convertible_v<T, llvm::StringRef> && ...)

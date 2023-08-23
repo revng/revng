@@ -5,7 +5,7 @@
 commands:
   - type: revng.test-propagated-prototypes
     from:
-      - type: revng-qa.compiled-with-debug-info
+      - type: revng-qa.compiled-stripped
         filter: for-propagated-prototypes
     command: |-
       RESUME=$$(temp -d);

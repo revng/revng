@@ -16,9 +16,11 @@ private:
   using TypeVector = llvm::SmallVector<UpcastablePointer<model::Type>, 16>;
   TypeVector Types;
   model::Binary &Binary;
+  uint64_t NextAvailableTypeID = 0;
 
 public:
-  TypeBucket(model::Binary &Binary) : Binary(Binary) {}
+  TypeBucket(model::Binary &Binary) :
+    Binary(Binary), NextAvailableTypeID(Binary.getAvailableTypeID()) {}
   ~TypeBucket() {
     revng_assert(Types.empty(),
                  "The bucket has to be explicitly committed or dropped.");
@@ -45,11 +47,19 @@ public:
   /// A helper for new type creation.
   ///
   /// Its usage mirrors that of `model::Binary::makeType<NewType>()`.
+  ///
+  /// \note This function forcefully assign a new type ID.
   template<typename NewType, typename... Ts>
   [[nodiscard]] std::pair<NewType &, model::TypePath> makeType(Ts &&...As) {
     using UT = model::UpcastableType;
     auto &Ptr = Types.emplace_back(UT::make<NewType>(std::forward<Ts>(As)...));
     NewType *Upcasted = llvm::cast<NewType>(Ptr.get());
+
+    // Assign the type ID
+    revng_assert(Upcasted->ID() == 0);
+    Upcasted->ID() = NextAvailableTypeID;
+    NextAvailableTypeID++;
+
     model::TypePath ResultPath = Binary.getTypePath(Upcasted->key());
     return { *Upcasted, ResultPath };
   }

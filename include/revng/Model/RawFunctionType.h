@@ -57,7 +57,7 @@ public:
       Result.push_back(Argument.Type());
     for (auto &RV : ReturnValues())
       Result.push_back(RV.Type());
-    if (StackArgumentsType().UnqualifiedType().isValid())
+    if (not StackArgumentsType().UnqualifiedType().empty())
       Result.push_back(StackArgumentsType());
 
     return Result;
@@ -65,7 +65,7 @@ public:
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }
-  static bool classof(const Key &K) { return std::get<0>(K) == AssociatedKind; }
+  static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
 #include "revng/Model/Generated/Late/RawFunctionType.h"

@@ -24,8 +24,7 @@ static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
 }
 
 static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
-  UpcastableType NewType = makeType<RawFunctionType>();
-  TypePath TypePath = TheBinary.recordNewType(std::move(NewType));
+  TypePath TypePath = TheBinary.makeType<RawFunctionType>().second;
   auto &Prototype = *llvm::cast<RawFunctionType>(TypePath.get());
 
   const abi::Definition &Defined = abi::Definition::get(ABI);

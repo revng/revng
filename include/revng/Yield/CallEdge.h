@@ -71,7 +71,7 @@ public:
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
   static bool classof(const Key &K) {
-    return std::get<0>(K) == FunctionEdgeBaseKind::CallEdge;
+    return std::get<1>(K) == FunctionEdgeBaseKind::CallEdge;
   }
 
 public:
@@ -151,7 +151,7 @@ inline model::TypePath getPrototype(const model::Binary &Binary,
     }
   }
 
-  if (not Result.isValid())
+  if (Result.empty())
     Result = Binary.DefaultPrototype();
 
   return Result;

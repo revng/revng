@@ -268,41 +268,10 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "asm",
 };
 
-const std::set<llvm::StringRef> ReservedPrefixes = { "unnnamed_",
-                                                     "function_",
-                                                     "dynamic_function_",
-                                                     "segment_" };
+model::Type::Type() : model::Type(0, model::TypeKind::Invalid){};
 
-static llvm::cl::opt<uint64_t> ModelTypeIDSeed("model-type-id-seed",
-                                               llvm::cl::desc("Set the seed "
-                                                              "for the "
-                                                              "generation of "
-                                                              "ID of model "
-                                                              "Types"),
-                                               llvm::cl::cat(MainCategory),
-                                               llvm::cl::init(false));
-
-class RNG {
-  std::mt19937_64 Generator;
-  std::uniform_int_distribution<uint64_t> Distribution;
-
-public:
-  RNG() :
-    Generator(ModelTypeIDSeed.getNumOccurrences() ? ModelTypeIDSeed.getValue() :
-                                                    std::random_device()()),
-    Distribution(std::numeric_limits<uint64_t>::min(),
-                 std::numeric_limits<uint64_t>::max()) {}
-
-  uint64_t get() { return Distribution(Generator); }
-};
-
-static llvm::ManagedStatic<RNG> IDGenerator;
-
-model::Type::Type() :
-  model::generated::Type(model::TypeKind::Invalid, IDGenerator->get()){};
-
-model::Type::Type(TypeKind::Values TK) :
-  model::Type::Type(TK, IDGenerator->get()) {
+model::Type::Type(uint64_t ID, TypeKind::Values Kind) :
+  model::generated::Type(ID, Kind) {
 }
 
 const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
@@ -313,48 +282,57 @@ const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
 
 template<size_t I = 0>
 model::UpcastableType
-makeTypeWithIDImpl(model::TypeKind::Values Kind, uint64_t ID) {
+makeTypeWithIDImpl(uint64_t ID, model::TypeKind::Values Kind) {
   using concrete_types = concrete_types_traits_t<model::Type>;
   if constexpr (I < std::tuple_size_v<concrete_types>) {
     using type = std::tuple_element_t<I, concrete_types>;
-    if (type::classof(typename type::Key(Kind, ID)))
-      return UpcastableType(new type(type::AssociatedKind, ID));
+    if (type::classof(typename type::Key(ID, Kind)))
+      return UpcastableType(new type(ID, type::AssociatedKind));
     else
-      return model::makeTypeWithIDImpl<I + 1>(Kind, ID);
+      return model::makeTypeWithIDImpl<I + 1>(ID, Kind);
   } else {
     return UpcastableType(nullptr);
   }
 }
 
-model::UpcastableType makeTypeWithID(model::TypeKind::Values Kind,
-                                     uint64_t ID) {
-  return makeTypeWithIDImpl(Kind, ID);
+model::UpcastableType makeTypeWithID(uint64_t ID,
+                                     model::TypeKind::Values Kind) {
+  return makeTypeWithIDImpl(ID, Kind);
 }
 
 Identifier model::UnionField::name() const {
   Identifier Result;
-  if (CustomName().empty())
-    (Twine("unnamed_field_") + Twine(Index())).toVector(Result);
-  else
+
+  if (CustomName().empty()) {
+    (Twine("_member") + Twine(Index())).toVector(Result);
+  } else {
     Result = CustomName();
+  }
+
   return Result;
 }
 
 Identifier model::StructField::name() const {
   Identifier Result;
-  if (CustomName().empty())
-    (Twine("unnamed_field_at_offset_") + Twine(Offset())).toVector(Result);
-  else
+
+  if (CustomName().empty()) {
+    (Twine("_offset_") + Twine(Offset())).toVector(Result);
+  } else {
     Result = CustomName();
+  }
+
   return Result;
 }
 
 Identifier model::Argument::name() const {
   Identifier Result;
-  if (CustomName().empty())
-    (Twine("unnamed_arg_") + Twine(Index())).toVector(Result);
-  else
+
+  if (CustomName().empty()) {
+    (Twine("_argument") + Twine(Index())).toVector(Result);
+  } else {
     Result = CustomName();
+  }
+
   return Result;
 }
 
@@ -432,6 +410,62 @@ static constexpr bool isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind,
   revng_abort();
 }
 
+std::optional<model::PrimitiveType>
+model::PrimitiveType::fromName(llvm::StringRef Name) {
+  PrimitiveTypeKind::Values Kind = PrimitiveTypeKind::Invalid;
+  uint8_t Size = 0;
+
+  // Handle void
+  if (Name == "void") {
+    Kind = PrimitiveTypeKind::Void;
+    return model::PrimitiveType(Kind, Size);
+  }
+
+  // Ensure the name ends with _t
+  if (not Name.consume_back("_t"))
+    return std::nullopt;
+
+  // Parse the prefix for the kind
+  if (Name.consume_front("generic")) {
+    Kind = PrimitiveTypeKind::Generic;
+  } else if (Name.consume_front("uint")) {
+    Kind = PrimitiveTypeKind::Unsigned;
+  } else if (Name.consume_front("number")) {
+    Kind = PrimitiveTypeKind::Number;
+  } else if (Name.consume_front("pointer_or_number")) {
+    Kind = PrimitiveTypeKind::PointerOrNumber;
+  } else if (Name.consume_front("int")) {
+    Kind = PrimitiveTypeKind::Signed;
+  } else if (Name.consume_front("float")) {
+    Kind = PrimitiveTypeKind::Float;
+  } else {
+    return std::nullopt;
+  }
+
+  // Consume bit size
+  unsigned Bits = 0;
+  if (Name.consumeInteger(10, Bits))
+    return std::nullopt;
+
+  // Ensure we consumed everything
+  if (Name.size() != 0)
+    return std::nullopt;
+
+  // Ensure it's a multiple of 8
+  if (Bits % 8 != 0)
+    return std::nullopt;
+
+  Size = Bits / 8;
+
+  // Create the type
+  model::PrimitiveType NewType(Kind, Size);
+
+  if (not NewType.verify())
+    return std::nullopt;
+
+  return NewType;
+}
+
 Identifier model::PrimitiveType::name() const {
   Identifier Result;
 
@@ -476,7 +510,9 @@ Identifier customNameOrAutomatic(T *This) {
   if (not This->CustomName().empty())
     return This->CustomName();
   else {
-    auto IdentText = (Twine(T::AutomaticNamePrefix) + Twine(This->ID())).str();
+    auto IdentText = (Twine("_") + Twine(T::AutomaticNamePrefix)
+                      + Twine(This->ID()))
+                       .str();
     return Identifier(IdentText);
   }
 }
@@ -493,15 +529,30 @@ Identifier model::EnumType::name() const {
   return customNameOrAutomatic(this);
 }
 
+Identifier model::EnumType::entryName(const model::EnumEntry &Entry) const {
+  revng_assert(Entries().count(Entry.Value()) != 0);
+
+  if (Entry.CustomName().size() > 0) {
+    return Entry.CustomName();
+  } else {
+    return Identifier((Twine("_enum_entry_") + name().str() + "_"
+                       + Twine(Entry.Value()))
+                        .str());
+  }
+}
+
 Identifier model::UnionType::name() const {
   return customNameOrAutomatic(this);
 }
 
 Identifier model::NamedTypedRegister::name() const {
-  if (not CustomName().empty())
+  if (not CustomName().empty()) {
     return CustomName();
-  else
-    return Identifier(model::Register::getRegisterName(Location()));
+  } else {
+    using namespace model::Register;
+    return Identifier((Twine("_argument_") + Twine(getRegisterName(Location())))
+                        .str());
+  }
 }
 
 Identifier model::RawFunctionType::name() const {
@@ -519,8 +570,8 @@ static uint64_t makePrimitiveID(PrimitiveTypeKind::Values PrimitiveKind,
 
 PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
                              uint8_t Size) :
-  PrimitiveType(AssociatedKind,
-                makePrimitiveID(PrimitiveKind, Size),
+  PrimitiveType(makePrimitiveID(PrimitiveKind, Size),
+                AssociatedKind,
                 {},
                 {},
                 {},
@@ -537,20 +588,13 @@ static uint8_t getPrimitiveSize(uint64_t ID) {
 }
 
 PrimitiveType::PrimitiveType(uint64_t ID) :
-  PrimitiveType(AssociatedKind,
-                ID,
+  PrimitiveType(ID,
+                AssociatedKind,
                 {},
                 {},
                 {},
                 getPrimitiveKind(ID),
                 getPrimitiveSize(ID)) {
-}
-
-static bool beginsWithReservedPrefix(llvm::StringRef Name) {
-  for (const auto &Prefix : ReservedPrefixes)
-    if (Name.startswith(Prefix))
-      return true;
-  return false;
 }
 
 void EnumEntry::dump() const {
@@ -629,7 +673,7 @@ QualifiedType::trySize(VerifyHelper &VH) const {
     }
   }
 
-  if (!UnqualifiedType().isValid())
+  if (UnqualifiedType().empty())
     rc_return std::nullopt;
 
   rc_return rc_recur UnqualifiedType().get()->trySize(VH);
@@ -891,7 +935,6 @@ bool Identifier::verify(VerifyHelper &VH) const {
   return VH.maybeFail(not(not empty() and std::isdigit(str()[0]))
                         and not startswith("_")
                         and allAlphaNumOrUnderscore(str())
-                        and not beginsWithReservedPrefix(str())
                         and not ReservedKeywords.contains(str()),
                       Twine(*this) + " is not a valid identifier");
 }
@@ -914,18 +957,12 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                       "Unsigned",
                       *T);
 
-  llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Entry : T->Entries()) {
 
     if (not Entry.verify(VH))
       rc_return VH.fail();
 
     // TODO: verify Entry.Value is within boundaries
-
-    if (not Entry.CustomName().empty()) {
-      if (not Names.insert(Entry.CustomName()).second)
-        rc_return VH.fail();
-    }
   }
 
   rc_return true;
@@ -990,10 +1027,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   for (; FieldIt != FieldEnd; ++FieldIt) {
     auto &Field = *FieldIt;
 
-    if (not rc_recur Field.verify(VH))
+    if (not rc_recur Field.verify(VH)) {
       rc_return VH.fail("Can't verify type of field at offset "
                           + Twine(Field.Offset()),
                         *T);
+    }
 
     if (Field.Offset() >= T->Size()) {
       std::uint64_t Size = *Field.Type().size();
@@ -1031,9 +1069,14 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (isVoidConst(&Field.Type()).IsVoid)
       rc_return VH.fail("Field " + Twine(Index + 1) + " is void", *T);
 
-    if (not Field.CustomName().empty()
-        and not Names.insert(Field.CustomName()).second)
-      rc_return VH.fail("Collision in struct fields names", *T);
+    // Verify CustomName for collisions
+    if (not Field.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Field.CustomName()))
+        rc_return VH.fail("Field name collides with global symbol", *T);
+
+      if (not Names.insert(Field.CustomName()).second)
+        rc_return VH.fail("Collision in struct fields names", *T);
+    }
 
     ++Index;
   }
@@ -1073,9 +1116,14 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail("Field " + Twine(Field.Index()) + " is void", *T);
     }
 
-    if (not Field.CustomName().empty()
-        and not Names.insert(Field.CustomName()).second)
-      rc_return VH.fail("Collision in union fields names", *T);
+    // Verify CustomName for collisions
+    if (not Field.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Field.CustomName()))
+        rc_return VH.fail("Field name collides with global symbol", *T);
+
+      if (not Names.insert(Field.CustomName()).second)
+        rc_return VH.fail("Collision in union fields names", *T);
+    }
   }
 
   rc_return true;
@@ -1090,12 +1138,22 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   if (T->ABI() == model::ABI::Invalid)
     rc_return VH.fail("An invalid ABI", *T);
 
+  llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Group : llvm::enumerate(T->Arguments())) {
     auto &Argument = Group.value();
     uint64_t ArgPos = Group.index();
 
     if (not Argument.CustomName().verify(VH))
       rc_return VH.fail("An argument has invalid CustomName", *T);
+
+    // Verify CustomName for collisions
+    if (not Argument.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Argument.CustomName()))
+        rc_return VH.fail("Argument name collides with global symbol", *T);
+
+      if (not Names.insert(Argument.CustomName()).second)
+        rc_return VH.fail("Collision in argument names", *T);
+    }
 
     if (Argument.Index() != ArgPos)
       rc_return VH.fail("An argument has invalid index", *T);
@@ -1122,9 +1180,20 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const RawFunctionType *T) {
 
-  for (const NamedTypedRegister &Argument : T->Arguments())
+  llvm::SmallSet<llvm::StringRef, 8> Names;
+  for (const NamedTypedRegister &Argument : T->Arguments()) {
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
+
+    // Verify CustomName for collisions
+    if (not Argument.CustomName().empty()) {
+      if (VH.isGlobalSymbol(Argument.CustomName()))
+        rc_return VH.fail("Argument name collides with global symbol", *T);
+
+      if (not Names.insert(Argument.CustomName()).second)
+        rc_return VH.fail("Collision in argument names", *T);
+    }
+  }
 
   for (const TypedRegister &Return : T->ReturnValues())
     if (not rc_recur Return.verify(VH))
@@ -1136,8 +1205,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
   if (not T->StackArgumentsType().Qualifiers().empty())
     rc_return VH.fail();
-  if (auto &Type = T->StackArgumentsType().UnqualifiedType();
-      Type.isValid() and not rc_recur Type.get()->verify(VH))
+
+  auto &Type = T->StackArgumentsType().UnqualifiedType();
+  if (not Type.empty() and not rc_recur Type.get()->verify(VH))
     rc_return VH.fail();
 
   rc_return VH.maybeFail(T->CustomName().verify(VH));
@@ -1179,7 +1249,7 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
   VH.verificationInProgress(this);
 
   if (ID() == 0)
-    rc_return VH.fail();
+    rc_return VH.fail("A type cannot have ID 0", *this);
 
   bool Result = false;
 
@@ -1217,10 +1287,10 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
     ;
   }
 
-  if (Result)
+  if (Result) {
     VH.setVerified(this);
-
-  VH.verificationCompleted(this);
+    VH.verificationCompleted(this);
+  }
 
   rc_return VH.maybeFail(Result);
 }

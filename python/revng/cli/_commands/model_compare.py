@@ -34,7 +34,7 @@ def is_reference(string):
 
 def dereference(root, string):
     assert is_reference(string)
-    match = re.match(r"/Types/.*-([^-]*)", string)
+    match = re.match(r"/Types/([^-]*)-", string)
 
     if match:
         type_id = int(match.groups()[0])
@@ -94,6 +94,7 @@ class YAMLGraph:
                     self.add_edge(object_id, id(item), "")
         elif object_type is dict:
             for key, value in object_.items():
+                key = key.lstrip("$")
                 value_type = type(value)
                 if value_type is dict or value_type is list:
                     self.visit_object(value)
@@ -197,8 +198,14 @@ class YAMLGraph:
             return False
 
         if input_type is dict:
-            input_object = YAMLGraph.filter(input_object)
+            for key, value in list(reference_object.items()):
+                if key.startswith("$") and (type(value) is list or type(value) is dict):
+                    key = key[1:]
+                    if key not in input_object or len(value) != len(input_object[key]):
+                        return False
+
             reference_object = YAMLGraph.filter(reference_object)
+            input_object = YAMLGraph.filter(input_object)
 
             if exact:
                 return input_object == reference_object
@@ -313,12 +320,12 @@ def selftest():
     assert test_subgraph([1, 3, 2], [1, 2, 3])
 
     # Test references
-    reference = {"a": "/Types/Type-1", "Types": [{"ID": 1, "b": 3}]}
+    reference = {"a": "/Types/1-Type", "Types": [{"ID": 1, "b": 3}]}
     assert test_subgraph(
-        {"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference
+        {"a": "/Types/2-Type", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference
     )
     assert not test_subgraph(
-        {"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]}, reference
+        {"a": "/Types/2-Type", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]}, reference
     )
 
     return 0

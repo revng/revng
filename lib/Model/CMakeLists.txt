@@ -6,6 +6,7 @@
 revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
+  Identifier.cpp
   LoadModelPass.cpp
   TypeSystemPrinter.cpp
   Processing.cpp

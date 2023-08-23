@@ -384,7 +384,7 @@ void DetectABI::finalizeModel() {
   std::set<model::Function *> Functions;
   for (model::Function &Function : Binary->Functions()) {
     // Ignore if we already have a prototype
-    if (Function.Prototype().isValid())
+    if (not Function.Prototype().empty())
       continue;
 
     MetaAddress EntryPC = Function.Entry();
@@ -865,7 +865,7 @@ void DetectABI::runInterproceduralAnalysis() {
     for (const MetaAddress &MA : Set)
       revng_assert(Oracle.getLocalFunction(MA).CFG.size() > 0);
 
-    if (Binary->Functions()[EntryPointAddress].Prototype().isValid())
+    if (not Binary->Functions()[EntryPointAddress].Prototype().empty())
       continue;
 
     bool Changed = Oracle.registerLocalFunction(EntryPointAddress,
@@ -901,7 +901,7 @@ void DetectABI::runInterproceduralAnalysis() {
           if (CallerSummary.Attributes.contains(Inline))
             InlineFunctionWorklist.insert(Caller);
 
-          if (not Binary->Functions().at(CallerPC).Prototype().isValid()) {
+          if (Binary->Functions().at(CallerPC).Prototype().empty()) {
             revng_log(Log, CallerPC.toString());
             EntrypointsQueue.insert(Caller);
           }

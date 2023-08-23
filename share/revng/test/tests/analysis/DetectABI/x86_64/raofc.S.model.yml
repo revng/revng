@@ -5,7 +5,7 @@
 ---
 Functions:
   - OriginalName: raofc
-    Prototype: "/Types/RawFunctionType-1"
+    Prototype: "/Types/1-RawFunctionType"
 Types:
   - Arguments: []
     ID: 1

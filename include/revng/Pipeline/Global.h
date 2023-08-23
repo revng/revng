@@ -16,14 +16,20 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
+template<typename T>
+concept HasVerify = requires(const T &Object) {
+  { Object.verify() } -> std::same_as<bool>;
+};
+
 namespace pipeline {
 
 class Global {
 private:
   const char *ID;
+  std::string Name;
 
 public:
-  Global(const char *ID) : ID(ID) {}
+  Global(const char *ID, llvm::StringRef Name) : ID(ID), Name(Name.str()) {}
   virtual ~Global() {}
   virtual Global &operator=(const Global &NewGlobal) = 0;
 
@@ -34,6 +40,7 @@ public:
 
 public:
   const char *getID() const { return ID; }
+  llvm::StringRef getName() const { return Name; }
 
 public:
   virtual GlobalTupleTreeDiff diff(const Global &Other) const = 0;
@@ -49,7 +56,7 @@ public:
   virtual void clear() = 0;
 
   virtual llvm::Expected<std::unique_ptr<Global>>
-  createNew(const llvm::MemoryBuffer &Buffer) const = 0;
+  createNew(llvm::StringRef Name, const llvm::MemoryBuffer &Buffer) const = 0;
   virtual std::unique_ptr<Global> clone() const = 0;
 
   virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
@@ -67,10 +74,10 @@ private:
   }
 
 public:
-  explicit TupleTreeGlobal(TupleTree<Object> Value) :
-    Global(&getID()), Value(std::move(Value)) {}
+  explicit TupleTreeGlobal(llvm::StringRef Name, TupleTree<Object> Value) :
+    Global(&getID(), Name), Value(std::move(Value)) {}
 
-  TupleTreeGlobal() : Global(&getID()) {}
+  explicit TupleTreeGlobal(llvm::StringRef Name) : Global(&getID(), Name) {}
   TupleTreeGlobal(const TupleTreeGlobal &Other) = default;
   TupleTreeGlobal(TupleTreeGlobal &&Other) = default;
   TupleTreeGlobal &operator=(const TupleTreeGlobal &Other) = default;
@@ -81,11 +88,12 @@ public:
 
 public:
   llvm::Expected<std::unique_ptr<Global>>
-  createNew(const llvm::MemoryBuffer &Buffer) const override {
+  createNew(llvm::StringRef Name,
+            const llvm::MemoryBuffer &Buffer) const override {
     auto MaybeTree = TupleTree<Object>::deserialize(Buffer.getBuffer());
     if (!MaybeTree)
       return llvm::errorCodeToError(MaybeTree.getError());
-    return std::make_unique<TupleTreeGlobal>(MaybeTree.get());
+    return std::make_unique<TupleTreeGlobal>(Name, MaybeTree.get());
   }
 
   std::unique_ptr<Global> clone() const override {
@@ -104,11 +112,17 @@ public:
   }
 
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
-    auto MaybeDiff = TupleTree<Object>::deserialize(Buffer.getBuffer());
-    if (!MaybeDiff)
-      return llvm::errorCodeToError(MaybeDiff.getError());
+    auto MaybeTupleTree = TupleTree<Object>::deserialize(Buffer.getBuffer());
+    if (!MaybeTupleTree)
+      return llvm::errorCodeToError(MaybeTupleTree.getError());
 
-    Value = *MaybeDiff;
+    if (not(*MaybeTupleTree)->verify()) {
+      using llvm::Twine;
+      std::string Message = (Twine("Verify failed on ") + getName()).str();
+      return llvm::createStringError(llvm::inconvertibleErrorCode(), Message);
+    }
+
+    Value = *MaybeTupleTree;
     return llvm::Error::success();
   }
 

@@ -117,6 +117,11 @@ public:
     return getTypePath(T->key());
   }
 
+  /// Return the first available (non-primitive) type ID available
+  uint64_t getAvailableTypeID() const;
+
+  /// Record the new type into the model and assign an ID (unless it's a
+  /// PrimitiveType)
   model::TypePath recordNewType(UpcastablePointer<Type> &&T);
 
   /// Uses `SortedVector::batch_insert()` to emplace all the elements from
@@ -125,6 +130,8 @@ public:
   /// This inserts all the elements at the end of the underlying vector, and
   /// then triggers sorting, instead of conventional searching for the position
   /// of each element on its insertion.
+  ///
+  /// \note Unlike recordNewTypes, this method does not assign type IDs.
   ///
   /// \note It takes advantage of `std::move_iterator` to ensure all
   ///       the elements are accessed strictly as r-values, so the original
@@ -145,6 +152,7 @@ public:
     auto Movable = as_rvalue(std::move(NewTypes));
     for (UpcastablePointer<Type> &&NewType : Movable) {
       static_assert(std::is_rvalue_reference_v<decltype(NewType)>);
+      revng_assert(NewType->ID() != 0);
       Inserter.emplace(std::move(NewType));
     }
   }
@@ -169,18 +177,44 @@ public:
   bool verifyTypes(VerifyHelper &VH) const;
 
 public:
+  std::string path(const model::Function &F) const {
+    return "/Functions/" + key(F);
+  }
+
+  std::string path(const model::DynamicFunction &F) const {
+    return "/ImportedDynamicFunctions/" + key(F);
+  }
+
+  std::string path(const model::Type &T) const { return "/Types/" + key(T); }
+
+  std::string path(const model::EnumType &T,
+                   const model::EnumEntry &Entry) const {
+    return path(static_cast<const model::Type &>(T)) + "/Entries/" + key(Entry);
+  }
+
+  std::string path(const model::Segment &Segment) const {
+    return "/Segments/" + key(Segment);
+  }
+
+public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
   bool verify() const;
   void dump() const debug_function;
   void dumpTypeGraph(const char *Path) const debug_function;
   std::string toString() const debug_function;
+
+private:
+  template<typename T>
+  static std::string key(const T &Object) {
+    return getNameFromYAMLScalar(KeyedObjectTraits<T>::key(Object));
+  }
 };
 
 inline model::TypePath
 getPrototype(const model::Binary &Binary,
              const model::DynamicFunction &DynamicFunction) {
-  if (DynamicFunction.Prototype().isValid())
+  if (not DynamicFunction.Prototype().empty())
     return DynamicFunction.Prototype();
   else
     return Binary.DefaultPrototype();

@@ -18,90 +18,95 @@ static RegisterModelPass R("promote-original-name",
                            "the validity of the model is preserved",
                            model::promoteOriginalName);
 
-void recordCustomNamesInList(auto &Collection,
-                             auto Unwrap,
-                             std::set<std::string> &UsedNames) {
-  for (auto &Entry2 : Collection) {
-    auto *Entry = Unwrap(Entry2);
-    if (not Entry->CustomName().empty())
-      UsedNames.insert(Entry->CustomName().str().str());
+class SymbolPromoter {
+private:
+  std::set<Identifier> GlobalSymbols;
+
+public:
+  void dump() const debug_function {
+    for (const Identifier &ID : GlobalSymbols)
+      dbg << ID.str().str() << "\n";
   }
-}
 
-void promoteOriginalNamesInList(auto &Collection,
-                                auto Unwrap,
-                                std::set<std::string> &UsedNames) {
-  // TODO: collapse uint8_t typedefs into the primitive type
-
-  for (auto &Entry2 : Collection) {
-    auto *Entry = Unwrap(Entry2);
-    if (Entry->CustomName().empty() and not Entry->OriginalName().empty()) {
-      // We have an OriginalName but not CustomName
-      auto Name = Identifier::fromString(Entry->OriginalName());
-
-      while (UsedNames.contains(Name.str().str()))
-        Name += "_";
-
-      // Assign name
-      Entry->CustomName() = Name;
-
-      // Record new name
-      UsedNames.insert(Name.str().str());
+public:
+  void recordGlobalSymbols(auto &Collection, auto Unwrap) {
+    for (auto &Entry2 : Collection) {
+      auto *Entry = Unwrap(Entry2);
+      if (not Entry->CustomName().empty())
+        GlobalSymbols.insert(Entry->CustomName());
     }
   }
-}
 
-void promoteOriginalNamesInList(auto &Collection, auto Unwrap) {
-  std::set<std::string> UsedNames;
-  recordCustomNamesInList(Collection, Unwrap, UsedNames);
-  promoteOriginalNamesInList(Collection, Unwrap, UsedNames);
-}
+  void promoteGlobalSymbols(auto &Collection, auto Unwrap) {
+    promoteSymbolsImpl(Collection, Unwrap, GlobalSymbols);
+  }
+
+  void promoteLocalSymbols(auto &Collection, auto Unwrap) {
+    std::set<Identifier> LocalBucket;
+    promoteSymbolsImpl(Collection, Unwrap, LocalBucket);
+  }
+
+private:
+  void promoteSymbolsImpl(auto &Collection,
+                          auto Unwrap,
+                          std::set<Identifier> &Namespace) {
+    // TODO: collapse uint8_t typedefs into the primitive type
+    for (auto &Wrapped : Collection) {
+      auto *Entry = Unwrap(Wrapped);
+      if (Entry->CustomName().empty() and not Entry->OriginalName().empty()) {
+        // We have an OriginalName but not CustomName
+        auto Name = Identifier::fromString(Entry->OriginalName());
+
+        while (GlobalSymbols.contains(Name) or Namespace.contains(Name))
+          Name += "_";
+
+        // Assign name
+        Entry->CustomName() = Name;
+
+        // Record new name as taken in the current namespace
+        Namespace.insert(Name);
+      }
+    }
+  }
+};
 
 /// Promote OriginalNames to CustomNames
 void model::promoteOriginalName(TupleTree<model::Binary> &Model) {
   auto AddressOf = [](auto &Entry) { return &Entry; };
   auto Unwrap = [](auto &UC) { return UC.get(); };
 
-  // Collect all the already used CustomNames for symbols
-  std::set<std::string> Symbols;
-  recordCustomNamesInList(Model->Types(), Unwrap, Symbols);
-  recordCustomNamesInList(Model->Functions(), AddressOf, Symbols);
-  recordCustomNamesInList(Model->ImportedDynamicFunctions(),
-                          AddressOf,
-                          Symbols);
+  SymbolPromoter Promoter;
+
+  // Populate global symbol table
+  Promoter.recordGlobalSymbols(Model->Segments(), AddressOf);
+  Promoter.recordGlobalSymbols(Model->Types(), Unwrap);
+  Promoter.recordGlobalSymbols(Model->Functions(), AddressOf);
+  Promoter.recordGlobalSymbols(Model->ImportedDynamicFunctions(), AddressOf);
   for (auto &UP : Model->Types())
     if (auto *Enum = dyn_cast<EnumType>(UP.get()))
-      recordCustomNamesInList(Enum->Entries(), AddressOf, Symbols);
+      Promoter.recordGlobalSymbols(Enum->Entries(), AddressOf);
 
-  // Promote type names
-  promoteOriginalNamesInList(Model->Types(), Unwrap, Symbols);
+  // Promote global symbols
+  Promoter.promoteGlobalSymbols(Model->Segments(), AddressOf);
+  Promoter.promoteGlobalSymbols(Model->Types(), Unwrap);
+  Promoter.promoteGlobalSymbols(Model->Functions(), AddressOf);
+  Promoter.promoteGlobalSymbols(Model->ImportedDynamicFunctions(), AddressOf);
+  for (auto &UP : Model->Types())
+    if (auto *Enum = dyn_cast<EnumType>(UP.get()))
+      Promoter.promoteGlobalSymbols(Enum->Entries(), AddressOf);
 
-  // Promote function names
-  promoteOriginalNamesInList(Model->Functions(), AddressOf, Symbols);
-
-  // Promote dynamic function names
-  promoteOriginalNamesInList(Model->ImportedDynamicFunctions(),
-                             AddressOf,
-                             Symbols);
-
-  // Promote segment names
-  promoteOriginalNamesInList(Model->Segments(), AddressOf, Symbols);
-
+  // Promote local symbols
   for (auto &UP : Model->Types()) {
     model::Type *T = UP.get();
 
     if (auto *Struct = dyn_cast<StructType>(T)) {
-      // Promote struct fields names (they have their own namespace)
-      promoteOriginalNamesInList(Struct->Fields(), AddressOf);
+      Promoter.promoteLocalSymbols(Struct->Fields(), AddressOf);
     } else if (auto *Union = dyn_cast<UnionType>(T)) {
-      // Promote union fields names (they have their own namespace)
-      promoteOriginalNamesInList(Union->Fields(), AddressOf);
+      Promoter.promoteLocalSymbols(Union->Fields(), AddressOf);
     } else if (auto *CFT = dyn_cast<CABIFunctionType>(T)) {
-      // Promote argument names (they have their own namespace)
-      promoteOriginalNamesInList(CFT->Arguments(), AddressOf);
-    } else if (auto *Enum = dyn_cast<EnumType>(T)) {
-      // Promote enum entries names (they are symbols)
-      promoteOriginalNamesInList(Enum->Entries(), AddressOf, Symbols);
+      Promoter.promoteLocalSymbols(CFT->Arguments(), AddressOf);
+    } else if (auto *RFT = dyn_cast<RawFunctionType>(T)) {
+      Promoter.promoteLocalSymbols(RFT->Arguments(), AddressOf);
     }
   }
 }

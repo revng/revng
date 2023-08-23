@@ -4,13 +4,10 @@
 
 ---
 Functions:
-  - CustomName: "main"
-    OriginalName: main
-    Prototype: "/Types/CABIFunctionType-14349581157410972103"
-  - Entry: "0x401040:Code_x86"
-    CustomName: "doSomething"
-    OriginalName: doSomething
-    Prototype: "/Types/CABIFunctionType-12460153539718472348"
+  - OriginalName: main
+    Prototype: "/Types/14349581157410972103-CABIFunctionType"
+  - OriginalName: doSomething
+    Prototype: "/Types/12460153539718472348-CABIFunctionType"
 Types:
   - Kind: PrimitiveType
     ID: 256
@@ -24,27 +21,26 @@ Types:
     ID: 14349581157410972103
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments: []
   - Kind: CABIFunctionType
     ID: 12460153539718472348
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/TypedefType-15633732224814581737"
+          UnqualifiedType: "/Types/15633732224814581737-TypedefType"
   - Kind: TypedefType
     ID: 15633732224814581737
     UnderlyingType:
-      UnqualifiedType: "/Types/TypedefType-7275868073853708434"
+      UnqualifiedType: "/Types/7275868073853708434-TypedefType"
       Qualifiers:
         - Kind: Pointer
           Size: 4
   - Kind: TypedefType
     ID: 7275868073853708434
-    CustomName: "Foo_"
     OriginalName: Foo
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"

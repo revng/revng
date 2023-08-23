@@ -93,12 +93,12 @@ public:
 };
 
 // TODO: optimize integral types
-template<typename T, bool FirstFieldIsKind = false>
+template<typename T, bool LastFieldIsKind = false>
 class ConcreteTupleTreeKeyWrapper : public TupleTreeKeyWrapper {
 private:
   static char ID;
 
-private:
+public:
   T *get() const { return reinterpret_cast<T *>(Pointer); }
 
 public:
@@ -139,11 +139,12 @@ public:
     if (id() != Other.id())
       return false;
 
-    if constexpr (FirstFieldIsKind) {
+    if constexpr (LastFieldIsKind) {
       // Compare kinds
       using ThisType = const ConcreteTupleTreeKeyWrapper &;
       const auto *OtherPointer = static_cast<ThisType>(Other).get();
-      return std::get<0>(*get()) == std::get<0>(*OtherPointer);
+      constexpr auto Index = std::tuple_size_v<T> - 1;
+      return std::get<Index>(*get()) == std::get<Index>(*OtherPointer);
     } else {
       revng_assert(*get() == T());
       return true;

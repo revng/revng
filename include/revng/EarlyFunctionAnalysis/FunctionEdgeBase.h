@@ -15,8 +15,6 @@ name: FunctionEdgeBase
 doc: An edge on the CFG
 type: struct
 fields:
-  - name: Kind
-    type: FunctionEdgeBaseKind
   - name: Destination
     doc: |
       Target of the CFG edge
@@ -27,12 +25,14 @@ fields:
       branch, or, in case of a function call, the address of the callee.
       TODO: switch to TupleTreeReference
     type: BasicBlockID
+  - name: Kind
+    type: FunctionEdgeBaseKind
   - name: Type
     doc: Type of the CFG edge
     type: FunctionEdgeType
 key:
-  - Kind
   - Destination
+  - Kind
 abstract: true
 TUPLE-TREE-YAML */
 

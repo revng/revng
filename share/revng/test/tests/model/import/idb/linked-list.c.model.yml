@@ -5,27 +5,23 @@
 Types:
   - Kind: StructType
     ID: 17825711661244524544
-    CustomName: "Node"
     OriginalName: Node
     Fields:
       - Offset: 0
-        CustomName: "content_uint32"
         OriginalName: content_uint32
         Type:
-          UnqualifiedType: "/Types/TypedefType-16313795245817021241"
+          UnqualifiedType: "/Types/16313795245817021241-TypedefType"
       - Offset: 4
-        CustomName: "prev"
         OriginalName: prev
         Type:
-          UnqualifiedType: "/Types/TypedefType-14968854803921815239"
+          UnqualifiedType: "/Types/14968854803921815239-TypedefType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
       - Offset: 12
-        CustomName: "next"
         OriginalName: next
         Type:
-          UnqualifiedType: "/Types/TypedefType-14968854803921815239"
+          UnqualifiedType: "/Types/14968854803921815239-TypedefType"
           Qualifiers:
             - Kind: Pointer
               Size: 8

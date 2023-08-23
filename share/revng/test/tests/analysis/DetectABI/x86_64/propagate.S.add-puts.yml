@@ -5,7 +5,7 @@
 ---
 Changes:
   - Path: "/ImportedDynamicFunctions/puts/Prototype"
-    Add: "/Types/CABIFunctionType-5831792892140344958"
+    Add: "/Types/5831792892140344958-CABIFunctionType"
     Remove: ""
   - Path: "/Types"
     Add:
@@ -13,11 +13,11 @@ Changes:
       ID: 5831792892140344958
       ABI: SystemV_x86_64
       ReturnType:
-        UnqualifiedType: "/Types/PrimitiveType-1540"
+        UnqualifiedType: "/Types/1540-PrimitiveType"
       Arguments:
         - Index: 0
           Type:
-            UnqualifiedType: "/Types/PrimitiveType-1537"
+            UnqualifiedType: "/Types/1537-PrimitiveType"
             Qualifiers:
               - Kind: Pointer
                 Size: 8

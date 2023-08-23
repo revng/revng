@@ -59,7 +59,7 @@ inline model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
   using namespace model;
 
   revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
-  TypePath Path = Binary.recordNewType(makeType<model::StructType>());
+  TypePath Path = Binary.makeType<model::StructType>().second;
   model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
   NewStruct->Size() = Size;
   return Path;

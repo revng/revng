@@ -6,16 +6,16 @@
 Functions:
   - CustomName: "Foo__Foo"
     OriginalName: "Foo::Foo"
-    Prototype: "/Types/CABIFunctionType-16558654860526908435"
+    Prototype: "/Types/16558654860526908435-CABIFunctionType"
   - CustomName: "Foo__retX"
     OriginalName: "Foo::retX"
-    Prototype: "/Types/CABIFunctionType-17990064059287856019"
+    Prototype: "/Types/17990064059287856019-CABIFunctionType"
   - CustomName: "Foo__retY"
     OriginalName: "Foo::retY"
-    Prototype: "/Types/CABIFunctionType-8800211852340388695"
+    Prototype: "/Types/8800211852340388695-CABIFunctionType"
   - CustomName: "Foo__dummy"
     OriginalName: "Foo::dummy"
-    Prototype: "/Types/CABIFunctionType-11972987020417764497"
+    Prototype: "/Types/11972987020417764497-CABIFunctionType"
 Types:
   - Kind: PrimitiveType
     ID: 256
@@ -27,46 +27,45 @@ Types:
     Size: 4
   - Kind: StructType
     ID: 987067897056915724
-    CustomName: "Foo"
     OriginalName: Foo
     Fields:
       - Offset: 0
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
       - Offset: 4
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
   - Kind: CABIFunctionType
     ID: 16558654860526908435
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/StructType-12480030069089186527"
+          UnqualifiedType: "/Types/12480030069089186527-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 4
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
   - Kind: CABIFunctionType
     ID: 17990064059287856019
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/StructType-12480030069089186527"
+          UnqualifiedType: "/Types/12480030069089186527-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 4
@@ -74,11 +73,11 @@ Types:
     ID: 8800211852340388695
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/StructType-12480030069089186527"
+          UnqualifiedType: "/Types/12480030069089186527-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 4
@@ -86,8 +85,8 @@ Types:
     ID: 11972987020417764497
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"

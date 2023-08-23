@@ -33,7 +33,7 @@ public:
 private:
   const abi::Definition &ABI;
   TypeBucket Bucket;
-  const bool UseSoftRegisterStateDeductions;
+  const bool UseSoftRegisterStateDeductions = false;
 
 public:
   ToCABIConverter(const abi::Definition &ABI,
@@ -144,6 +144,7 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
 
   // The conversion was successful, a new `CABIFunctionType` can now be created,
   auto [NewType, NewTypePath] = Binary->makeType<model::CABIFunctionType>();
+  revng_assert(NewType.ID() != 0);
   model::copyMetadata(NewType, FunctionType);
   NewType.ABI() = ABI.ABI();
 
@@ -245,7 +246,7 @@ TCC::tryConvertingRegisterArguments(const ArgumentRegisters &Registers) {
 std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
                                  std::size_t IndexOffset) {
-  if (!StackArgumentTypes.UnqualifiedType().isValid()) {
+  if (StackArgumentTypes.UnqualifiedType().empty()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating
     // a new empty type.

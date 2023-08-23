@@ -13,36 +13,32 @@ Types:
     Size: 1
   - Kind: CABIFunctionType
     ID: 9061286636309425384
-    CustomName: "main"
     OriginalName: main
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1028"
+      UnqualifiedType: "/Types/1028-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
-        CustomName: "argc"
+          UnqualifiedType: "/Types/1028-PrimitiveType"
         OriginalName: argc
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1025"
+          UnqualifiedType: "/Types/1025-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
             - Kind: Pointer
               Size: 8
             - Kind: Const
-        CustomName: "argv"
         OriginalName: argv
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1025"
+          UnqualifiedType: "/Types/1025-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
             - Kind: Pointer
               Size: 8
             - Kind: Const
-        CustomName: "envp"
         OriginalName: envp

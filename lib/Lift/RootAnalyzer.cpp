@@ -423,7 +423,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
       if (BasicBlock *Callee = getFunctionCallCallee(Terminator)) {
         MetaAddress CalleeAddress = getBasicBlockJumpTarget(Callee);
         auto It = Model->Functions().find(CalleeAddress);
-        if (It != Model->Functions().end() and It->Prototype().isValid()) {
+        if (It != Model->Functions().end() and not It->Prototype().empty()) {
           CalleePreservedRegisters = getPreservedRegisters(It->Prototype());
         }
       }

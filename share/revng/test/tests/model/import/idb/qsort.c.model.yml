@@ -4,52 +4,44 @@
 
 ImportedDynamicFunctions:
   - OriginalName: qsort
-    CustomName: "qsort_"
-    Prototype: "/Types/CABIFunctionType-3821538295510931842"
+    Prototype: "/Types/3821538295510931842-CABIFunctionType"
 Types:
   - Kind: CABIFunctionType
     ID: 3821538295510931842
-    CustomName: "qsort"
     OriginalName: qsort
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-256"
+          UnqualifiedType: "/Types/256-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
-        CustomName: "base"
         OriginalName: base
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/TypedefType-855760813070670525"
-        CustomName: "nmemb"
+          UnqualifiedType: "/Types/855760813070670525-TypedefType"
         OriginalName: nmemb
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/TypedefType-855760813070670525"
-        CustomName: "size"
+          UnqualifiedType: "/Types/855760813070670525-TypedefType"
         OriginalName: size
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/TypedefType-7339777181910699325"
-        CustomName: "compar"
+          UnqualifiedType: "/Types/7339777181910699325-TypedefType"
         OriginalName: compar
   - Kind: TypedefType
     ID: 855760813070670525
-    CustomName: "size_t"
     OriginalName: size_t
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1288"
+      UnqualifiedType: "/Types/1288-PrimitiveType"
   - Kind: TypedefType
     ID: 7339777181910699325
-    CustomName: "prefix___compar_fn_t"
     OriginalName: __compar_fn_t
     UnderlyingType:
-      UnqualifiedType: "/Types/CABIFunctionType-5090678720539169893"
+      UnqualifiedType: "/Types/5090678720539169893-CABIFunctionType"
       Qualifiers:
         - Kind: Pointer
           Size: 8
@@ -57,18 +49,18 @@ Types:
     ID: 5090678720539169893
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1028"
+      UnqualifiedType: "/Types/1028-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-256"
+          UnqualifiedType: "/Types/256-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
             - Kind: Const
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-256"
+          UnqualifiedType: "/Types/256-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8

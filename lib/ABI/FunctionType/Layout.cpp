@@ -808,7 +808,7 @@ Layout::Layout(const model::RawFunctionType &Function) {
   }
 
   // Lay stack arguments out.
-  if (Function.StackArgumentsType().UnqualifiedType().isValid()) {
+  if (not Function.StackArgumentsType().UnqualifiedType().empty()) {
     const model::QualifiedType &StackArgType = Function.StackArgumentsType();
     // The stack argument, if present, should always be a struct.
     revng_assert(StackArgType.Qualifiers().empty());

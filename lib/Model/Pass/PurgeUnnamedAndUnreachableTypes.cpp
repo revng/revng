@@ -76,7 +76,7 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
   // Remember those types we want to preserve.
   if constexpr (PruneAllUnusedTypes) {
     for (const auto &Function : Model->Functions()) {
-      if (Function.Prototype().isValid()) {
+      if (not Function.Prototype().empty()) {
         ToKeep.insert(const_cast<Type *>(Function.Prototype().get()));
       }
     }

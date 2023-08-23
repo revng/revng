@@ -59,7 +59,7 @@ public:
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
   static bool classof(const Key &K) {
-    return std::get<0>(K) == FunctionEdgeBaseKind::CallEdge;
+    return std::get<1>(K) == FunctionEdgeBaseKind::CallEdge;
   }
 
 public:

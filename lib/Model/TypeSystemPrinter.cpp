@@ -101,7 +101,7 @@ static FieldList collectFields(const model::Type *T) {
     for (auto &Field : RawFunc->Arguments())
       Fields.push_back(Field.Type());
 
-    if (RawFunc->StackArgumentsType().UnqualifiedType().isValid())
+    if (not RawFunc->StackArgumentsType().UnqualifiedType().empty())
       Fields.push_back(RawFunc->StackArgumentsType());
   } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(T)) {
     Fields.push_back(Typedef->UnderlyingType());
@@ -131,7 +131,7 @@ static llvm::SmallString<32>
 buildFieldName(const model::QualifiedType &FieldQT) {
   llvm::SmallString<32> FieldName;
 
-  if (FieldQT.UnqualifiedType().isValid()) {
+  if (not FieldQT.UnqualifiedType().empty()) {
     FieldName += FieldQT.UnqualifiedType().get()->name();
     FieldName += " ";
   } else {
@@ -246,7 +246,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
     for (auto &ArgTy : RawFunc->Arguments())
       Arguments.push_back(ArgTy.Type());
 
-    if (RawFunc->StackArgumentsType().UnqualifiedType().isValid())
+    if (not RawFunc->StackArgumentsType().UnqualifiedType().empty())
       Arguments.push_back(RawFunc->StackArgumentsType());
 
   } else if (auto *CABIFunc = dyn_cast<CABIFunctionType>(T)) {
@@ -415,7 +415,7 @@ void TypeSystemPrinter::print(const model::Type &T) {
 
       const model::Type *FieldUnqualType = nullptr;
 
-      if (FieldQT.UnqualifiedType().isValid())
+      if (not FieldQT.UnqualifiedType().empty())
         FieldUnqualType = FieldQT.UnqualifiedType().getConst();
 
       // Don't add edges for primitive types, as they would pollute the graph
@@ -480,7 +480,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   // Second row of the inner table (actual types)
   Out << "<TR>";
   paddedCell(Out, PrototypeT->name(), /*port=*/0);
-  if (F.StackFrameType().isValid() and not F.StackFrameType().empty()) {
+  if (not F.StackFrameType().empty()) {
     const model::Type *StackT = F.StackFrameType().getConst();
     paddedCell(Out, StackT->name(), /*port=*/1);
   } else {
@@ -503,8 +503,7 @@ void TypeSystemPrinter::print(const model::Function &F) {
 
   // Nodes of the subtypes if they do not already exist
   const model::Type *PrototypeT = F.Prototype().getConst();
-  bool HasStackFrame = F.StackFrameType().isValid()
-                       and not F.StackFrameType().empty();
+  bool HasStackFrame = not F.StackFrameType().empty();
   const model::Type *StackT = HasStackFrame ? F.StackFrameType().getConst() :
                                               nullptr;
 

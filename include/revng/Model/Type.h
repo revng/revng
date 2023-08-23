@@ -25,11 +25,11 @@ name: Type
 doc: Base class of model types used for LLVM-style RTTI
 type: struct
 fields:
-  - name: Kind
-    type: TypeKind
   - name: ID
     type: uint64_t
     is_guid: true
+  - name: Kind
+    type: TypeKind
   - name: CustomName
     type: Identifier
     optional: true
@@ -40,8 +40,8 @@ fields:
     type: string
     optional: true
 key:
-  - Kind
   - ID
+  - Kind
 abstract: true
 TUPLE-TREE-YAML */
 
@@ -58,10 +58,8 @@ public:
 public:
   using generated::Type::Type;
 
-  // Constructors that do not accept an ID have to be overridden because they
-  // need to generate a random one.
-  Type(TypeKind::Values TK);
   Type();
+  Type(uint64_t ID, TypeKind::Values Kind);
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }
@@ -106,7 +104,7 @@ namespace model {
 
 using UpcastableType = UpcastablePointer<model::Type>;
 
-model::UpcastableType makeTypeWithID(model::TypeKind::Values Kind, uint64_t ID);
+model::UpcastableType makeTypeWithID(uint64_t ID, model::TypeKind::Values Kind);
 
 using TypePath = TupleTreeReference<model::Type, model::Binary>;
 

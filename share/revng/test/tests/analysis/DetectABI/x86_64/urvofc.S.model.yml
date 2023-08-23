@@ -5,9 +5,9 @@
 ---
 Functions:
   - OriginalName: urvofc
-    Prototype: "/Types/RawFunctionType-1"
+    Prototype: "/Types/1-RawFunctionType"
   - OriginalName: callee
-    Prototype: "/Types/RawFunctionType-2"
+    Prototype: "/Types/2-RawFunctionType"
 Types:
   - ID: 2
     ReturnValues:

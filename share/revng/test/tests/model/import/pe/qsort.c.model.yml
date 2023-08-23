@@ -6,10 +6,10 @@
 Functions:
   - CustomName: "cmpfunc"
     OriginalName: cmpfunc
-    Prototype: "/Types/CABIFunctionType-5944255354151483434"
+    Prototype: "/Types/5944255354151483434-CABIFunctionType"
   - CustomName: "qsort"
     OriginalName: qsort
-    Prototype: "/Types/CABIFunctionType-17913232940792519997"
+    Prototype: "/Types/17913232940792519997-CABIFunctionType"
 Types:
   - Kind: PrimitiveType
     ID: 256
@@ -26,13 +26,13 @@ Types:
   - Kind: TypedefType
     ID: 14210609572455956746
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
       Qualifiers:
         - Kind: Const
   - Kind: TypedefType
     ID: 3290784804431442976
     UnderlyingType:
-      UnqualifiedType: "/Types/TypedefType-14210609572455956746"
+      UnqualifiedType: "/Types/14210609572455956746-TypedefType"
       Qualifiers:
         - Kind: Pointer
           Size: 4
@@ -40,43 +40,43 @@ Types:
     ID: 5944255354151483434
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/TypedefType-3290784804431442976"
+          UnqualifiedType: "/Types/3290784804431442976-TypedefType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/TypedefType-3290784804431442976"
+          UnqualifiedType: "/Types/3290784804431442976-TypedefType"
   - Kind: CABIFunctionType
     ID: 17913232940792519997
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/TypedefType-9032570991415481170"
+          UnqualifiedType: "/Types/9032570991415481170-TypedefType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1284"
+          UnqualifiedType: "/Types/1284-PrimitiveType"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1284"
+          UnqualifiedType: "/Types/1284-PrimitiveType"
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/TypedefType-17163826859945186478"
+          UnqualifiedType: "/Types/17163826859945186478-TypedefType"
   - Kind: TypedefType
     ID: 9032570991415481170
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
       Qualifiers:
         - Kind: Pointer
           Size: 4
   - Kind: TypedefType
     ID: 17163826859945186478
     UnderlyingType:
-      UnqualifiedType: "/Types/CABIFunctionType-5944255354151483434"
+      UnqualifiedType: "/Types/5944255354151483434-CABIFunctionType"
       Qualifiers:
         - Kind: Pointer
           Size: 4

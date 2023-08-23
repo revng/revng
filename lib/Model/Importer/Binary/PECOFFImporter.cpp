@@ -453,11 +453,12 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
 
   for (auto &ModelOfDep : ModelsOfLibraries) {
     auto &TheModel = ModelOfDep.second;
-    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel);
+    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel,
+                                                                 Model);
   }
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (Fn.Prototype().isValid() or Fn.OriginalName().size() == 0)
+    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0)
       continue;
 
     revng_log(Log, "Searching for prototype for " << Fn.OriginalName());
@@ -465,7 +466,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
     if (TypeLocation) {
       revng_log(Log, "Found type for " << Fn.OriginalName());
       auto &TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName];
-      auto Type = TheTypeCopier->copyTypeInto((*TypeLocation).Type, Model);
+      auto Type = TheTypeCopier->copyTypeInto((*TypeLocation).Type);
       if (!Type) {
         revng_log(Log,
                   "Failed to copy prototype " << Fn.OriginalName() << " from "
@@ -482,6 +483,10 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
       }
     }
   }
+
+  // Finalize the copies
+  for (auto &[_, TC] : TypeCopiers)
+    TC->finalize();
 
   // Purge cached references and update the reference to Root.
   Model.evictCachedReferences();

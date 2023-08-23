@@ -118,7 +118,7 @@ checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type) {
     const auto &Stack = llvm::cast<RawFT>(&Type)->StackArgumentsType();
     revng_assert(Stack.Qualifiers().empty());
     const model::TypePath &Internal = Stack.UnqualifiedType();
-    if (Internal.isValid())
+    if (not Internal.empty())
       Result = Result && rc_recur checkVectorRegisterSupport(VH, Internal);
   } break;
 
@@ -210,9 +210,6 @@ public:
     // verification routine or things are going to break down.
     model::VerifyHelper VectorVH;
 
-    // This is a normal `model::VerifyHelper`.
-    model::VerifyHelper ValidationVH;
-
     // Choose the applicable functions and run the conversion for them.
     using abi::FunctionType::filterTypes;
     auto ToConvert = filterTypes<model::RawFunctionType>(Model->Types());
@@ -233,8 +230,9 @@ public:
         // If the conversion succeeds, make sure the returned type is valid,
         revng_assert(New->isValid());
 
-        // and verifies.
-        revng_assert(New->get()->verify(ValidationVH));
+        // and verifies
+        if (VerifyLog.isEnabled())
+          New->get()->verify(true);
 
         revng_log(Log,
                   "Function Conversion Successful: "

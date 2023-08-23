@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
     // a list of unrelated serialized locations to use as sources of truth
     "/binary",
     "/instruction/0x12:Generic64/0x34:Generic64/0x56:Generic64",
-    "/type/PrimitiveType-1026",
+    "/type/1026-PrimitiveType",
     "/raw-byte-range/0x78:Generic64/0x90:Generic64"
   };
 

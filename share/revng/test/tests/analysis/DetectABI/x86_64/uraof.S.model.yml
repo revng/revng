@@ -5,7 +5,7 @@
 ---
 Functions:
   - OriginalName: uraof
-    Prototype: "/Types/RawFunctionType-1"
+    Prototype: "/Types/1-RawFunctionType"
 Types:
   - Arguments:
       - Location: rax_x86_64

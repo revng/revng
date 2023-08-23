@@ -5,7 +5,7 @@
 ---
 Functions:
   - OriginalName: drvofc
-    Prototype: "/Types/RawFunctionType-1"
+    Prototype: "/Types/1-RawFunctionType"
 Types:
   - ID: 1
     ReturnValues:

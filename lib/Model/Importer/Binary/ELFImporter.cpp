@@ -352,7 +352,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // `isValid` checks also for being empty.
   Task.advance("Parse segment struct from data symbols", true);
   for (auto &Segment : Model->Segments())
-    if (not Segment.Type().UnqualifiedType().isValid())
+    if (Segment.Type().UnqualifiedType().empty())
       Segment.Type() = populateSegmentTypeStruct(*Model, Segment, DataSymbols);
 
   // Create a default prototype
@@ -438,11 +438,12 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
 
   for (auto &ModelOfDep : ModelsOfLibraries) {
     auto &TheModel = ModelOfDep.second;
-    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel);
+    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel,
+                                                                 Model);
   }
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (Fn.Prototype().isValid() or Fn.OriginalName().size() == 0) {
+    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
       continue;
     }
 
@@ -450,18 +451,20 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
               "Searching for prototype for " << Fn.OriginalName());
     auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
     if (TypeLocation) {
+      model::TypePath MatchingType = (*TypeLocation).Type;
       revng_log(ELFImporterLog,
                 "Found type for " << Fn.OriginalName() << " in "
-                                  << (*TypeLocation).ModuleName);
-      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName];
-      auto Type = TheTypeCopier->copyTypeInto((*TypeLocation).Type, Model);
-      if (!Type) {
+                                  << (*TypeLocation).ModuleName << ": "
+                                  << MatchingType.toString());
+      TypeCopier *TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName].get();
+      auto MaybeType = TheTypeCopier->copyTypeInto(MatchingType);
+      if (!MaybeType) {
         revng_log(ELFImporterLog,
                   "Failed to copy prototype " << Fn.OriginalName() << " from "
                                               << (*TypeLocation).ModuleName);
         continue;
       }
-      Fn.Prototype() = *Type;
+      Fn.Prototype() = *MaybeType;
 
       // Copy the Attributes (all but the `Inline`).
       auto &Attributes = (*TypeLocation).Attributes;
@@ -471,6 +474,10 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
       }
     }
   }
+
+  // Finalize the copies
+  for (auto &[_, TC] : TypeCopiers)
+    TC->finalize();
 
   // Purge cached references and update the reference to Root.
   Model.evictCachedReferences();

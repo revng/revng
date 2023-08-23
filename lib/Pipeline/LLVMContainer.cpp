@@ -17,6 +17,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -245,10 +246,25 @@ llvm::Error LLVMContainer::serialize(llvm::raw_ostream &OS) const {
 llvm::Error LLVMContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
   llvm::SMDiagnostic Error;
   auto M = llvm::parseIR(Buffer, Error, Module->getContext());
-  if (!M)
+  std::string ErrorMessage;
+  llvm::raw_string_ostream Stream(ErrorMessage);
+  if (not M) {
+    Stream << "Cannot load LLVM IR module.\n";
+    Error.print("revng", Stream);
+    Stream.flush();
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Could not parse buffer");
+                                   ErrorMessage);
+  }
+
+  // NOLINTNEXTLINE
+  bool Failed = llvm::verifyModule(*M.get(), &Stream);
+  if (Failed) {
+    Stream.flush();
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   ErrorMessage);
+  }
 
   Module = std::move(M);
+
   return llvm::Error::success();
 }
