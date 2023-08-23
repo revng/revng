@@ -136,8 +136,32 @@ getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model) {
   }
 
   // We want to print ints in hex format when they are left operand of shifts or
-  // operands of and/or/xor instructions.
-  llvm::ConstantInt *IntConstant = dyn_cast<llvm::ConstantInt>(U);
+  // operands of and/or/xor instructions. Look through model implicit casts as
+  // well, since they are noops.
+  using llvm::ConstantInt;
+  llvm::Use *UseToPrettyPrint = &U;
+  // Handle multiple layers of calls to implicit ModelCast.
+  llvm::Value *ValueToCheckIfModelCast = U.get();
+  while (auto *ModelCast = getCallToTagged(ValueToCheckIfModelCast,
+                                           FunctionTags::ModelCast)) {
+    // Check if it is an implicit cast.
+    if (cast<llvm::ConstantInt>(ModelCast->getArgOperand(2))->isOne()) {
+      llvm::Value *ValuteToCast = ModelCast->getArgOperand(1);
+      if (llvm::isa<ConstantInt>(ValuteToCast)) {
+        llvm::ConstantInt
+          *IntConstantToCast = cast<llvm::ConstantInt>(ValuteToCast);
+        if (not IntConstantToCast->isZero())
+          UseToPrettyPrint = &ModelCast->getOperandUse(1);
+        break;
+      } else {
+        ValueToCheckIfModelCast = ModelCast->getArgOperand(1);
+      }
+    }
+    break;
+  }
+
+  llvm::ConstantInt
+    *IntConstant = dyn_cast<llvm::ConstantInt>(UseToPrettyPrint);
   if (not IntConstant)
     return std::nullopt;
 
@@ -145,29 +169,33 @@ getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model) {
       || I.getOpcode() == llvm::Instruction::AShr
       || I.getOpcode() == llvm::Instruction::LShr) {
     if (U.getOperandNo() == 0) {
-      return FormatInt{ IntFormatting::HEX, &U };
+      return FormatInt{ IntFormatting::HEX, UseToPrettyPrint };
     }
   } else if (I.getOpcode() == llvm::Instruction::And
              || I.getOpcode() == llvm::Instruction::Or
              || I.getOpcode() == llvm::Instruction::Xor) {
-    return FormatInt{ IntFormatting::HEX, &U };
+    return FormatInt{ IntFormatting::HEX, UseToPrettyPrint };
   } else if (auto *Call = getCallToTagged(&I, FunctionTags::ModelCast)) {
-    // If it's a ModelCast casting a zero constanto to a pointer, then we
-    // decorate the constant so that it's printed as NULL.
-    if (IntConstant->isZero()) {
-      model::QualifiedType
-        Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-      if (Type.isPointer())
-        return FormatInt{ IntFormatting::NULLPTR, &U };
+    if (Call->getArgOperandNo(&U) == 1) {
+      if (IntConstant->isZero()) {
+        // If it's a ModelCast casting a zero constanto to a pointer, then we
+        // decorate the constant so that it's printed as NULL.
+        model::QualifiedType
+          Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+        if (Type.isPointer())
+          return FormatInt{ IntFormatting::NULLPTR, UseToPrettyPrint };
+      }
     }
+    return std::nullopt;
   }
 
-  if (U->getType() == llvm::IntegerType::getInt8Ty(Context)) {
-    return FormatInt{ IntFormatting::CHAR, &U };
+  using llvm::IntegerType;
+  if (UseToPrettyPrint->get()->getType() == IntegerType::getInt8Ty(Context)) {
+    return FormatInt{ IntFormatting::CHAR, UseToPrettyPrint };
   }
 
-  if (U->getType() == llvm::IntegerType::getInt1Ty(Context)) {
-    return FormatInt{ IntFormatting::BOOL, &U };
+  if (UseToPrettyPrint->get()->getType() == IntegerType::getInt1Ty(Context)) {
+    return FormatInt{ IntFormatting::BOOL, UseToPrettyPrint };
   }
 
   return std::nullopt;

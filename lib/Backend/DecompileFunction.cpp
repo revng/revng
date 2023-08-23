@@ -797,10 +797,15 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     // Second argument is the base llvm::Value
     ++CurArg;
     llvm::Value *BaseValue = CurArg->get();
+    std::string Token = rc_recur getToken(BaseValue);
 
-    // Emit the parenthesized cast expr, and we are done
-    std::string StringToCast = rc_recur getToken(BaseValue);
-    rc_return buildCastExpr(StringToCast, TypeMap.at(BaseValue), CurType);
+    // If it is an implicit cast, omit it.
+    bool IsImplicit = cast<llvm::ConstantInt>(Call->getArgOperand(2))->isOne();
+    if (IsImplicit)
+      rc_return Token;
+
+    // Emit the parenthesized cast expr, and we are done.
+    rc_return buildCastExpr(Token, TypeMap.at(BaseValue), CurType);
   }
 
   if (isCallToTagged(Call, FunctionTags::AddressOf)) {

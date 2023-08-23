@@ -149,6 +149,7 @@ Branches:
               - dce
               - switch-to-statements
               - make-model-cast
+              - implicit-model-cast
               - operatorprecedence-resolution
               - pretty-int-formatting
       - Name: decompile

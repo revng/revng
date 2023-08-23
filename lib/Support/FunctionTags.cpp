@@ -150,7 +150,7 @@ void initModelCastPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Initialize the pool from its internal llvm::Module if possible.
   for (llvm::Function &F : FunctionTags::ModelCast.functions(M)) {
     auto *FunctionType = F.getFunctionType();
-    revng_assert(FunctionType->getNumParams() == 2);
+    revng_assert(FunctionType->getNumParams() == 3);
     revng_assert(not FunctionType->isVarArg());
     auto *ReturnType = F.getFunctionType()->getReturnType();
     auto *OperandToCastType = F.getFunctionType()->getParamType(1);

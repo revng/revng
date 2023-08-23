@@ -176,26 +176,54 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
   return Result;
 }
 
+static FunctionType *getModelCastType(TypePair Key) {
+  LLVMContext &LLVMCtxt = Key.RetType->getContext();
+  Type *StringPtrType = getStringPtrType(LLVMCtxt);
+  IntegerType *Int1 = llvm::IntegerType::getInt1Ty(LLVMCtxt);
+  return FunctionType::get(Key.RetType,
+                           { StringPtrType, Key.ArgType, Int1 },
+                           /* VarArg */ false);
+}
+
+static Function *
+getModelCastFunction(TypePair Key,
+                     OpaqueFunctionsPool<TypePair> &ModelCastPool) {
+  FunctionType *ModelCastType = getModelCastType(Key);
+  return ModelCastPool.get(Key, ModelCastType, "ModelCast");
+}
+
+// Create a call to explicit ModelCast. Later on, we run `ImplicitModelCastPass`
+// to detect implicit casts.
+static Value *createCallToModelCast(IRBuilder<> &Builder,
+                                    TypePair Key,
+                                    Constant *SerializedTypeAsString,
+                                    Value *Operand,
+                                    OpaqueFunctionsPool<TypePair> &Pool) {
+  auto *ModelCastFunction = getModelCastFunction(Key, Pool);
+  LLVMContext &Context = Builder.getContext();
+  ConstantInt *IsImplicit = llvm::ConstantInt::getFalse(Context);
+  Value *Call = Builder.CreateCall(ModelCastFunction,
+                                   { SerializedTypeAsString,
+                                     Operand,
+                                     IsImplicit });
+  return Call;
+}
+
 void MMCP::createAndInjectModelCast(Instruction *Ins,
                                     const SerializedType &ST,
                                     OpaqueFunctionsPool<TypePair> &Pool) {
   IRBuilder<> Builder(Ins);
 
   uint64_t OperandId = ST.OperandId;
-  Constant *StringType = ST.StringType;
+  Value *Operand = Ins->getOperand(OperandId);
   Type *BaseAddressTy = Ins->getOperand(OperandId)->getType();
-
-  llvm::Type *StringPtrType = getStringPtrType(Ins->getContext());
-  auto *ModelCastType = FunctionType::get(BaseAddressTy,
-                                          { StringPtrType, BaseAddressTy },
-                                          false);
-  auto *ModelCastFunction = Pool.get({ BaseAddressTy, BaseAddressTy },
-                                     ModelCastType,
-                                     "ModelCast");
-
-  Value *Call = Builder.CreateCall(ModelCastFunction,
-                                   { StringType, Ins->getOperand(OperandId) });
-  Ins->setOperand(OperandId, Call);
+  Value *CallToModelCast = createCallToModelCast(Builder,
+                                                 { BaseAddressTy,
+                                                   BaseAddressTy },
+                                                 ST.StringType,
+                                                 Operand,
+                                                 Pool);
+  Ins->setOperand(OperandId, CallToModelCast);
 }
 
 bool MMCP::runOnFunction(Function &F) {
@@ -230,17 +258,8 @@ bool MMCP::runOnFunction(Function &F) {
         // Build a FunctionType for the ModelCast function, and add it to the
         // pool
         auto *ResultTypeOnLLVM = cast<IntegerType>(I.getType());
-        llvm::Type *StringPtrType = getStringPtrType(LLVMCtxt);
-        auto *ModelCastType = FunctionType::get(ResultTypeOnLLVM,
-                                                { StringPtrType,
-                                                  CastedOperand->getType() },
-                                                /* IsVarArg */ false);
-        auto *ModelCastFunction = ModelCastPool
-                                    .get({ ResultTypeOnLLVM,
-                                           CastedOperand->getType() },
-                                         ModelCastType,
-                                         "ModelCast");
-
+        TypePair Key = TypePair{ .RetType = ResultTypeOnLLVM,
+                                 .ArgType = CastedOperand->getType() };
         // Create the ModelCast call.
         Builder.SetInsertPoint(&I);
 
@@ -268,11 +287,12 @@ bool MMCP::runOnFunction(Function &F) {
                                                                 *M);
         revng_assert(TargetModelTypeString);
 
-        Value *Call = Builder.CreateCall(ModelCastFunction,
-                                         { TargetModelTypeString,
-                                           CastedOperand });
-
-        I.replaceAllUsesWith(Call);
+        Value *CallToModelCast = createCallToModelCast(Builder,
+                                                       Key,
+                                                       TargetModelTypeString,
+                                                       CastedOperand,
+                                                       ModelCastPool);
+        I.replaceAllUsesWith(CallToModelCast);
         I.eraseFromParent();
       }
     }
