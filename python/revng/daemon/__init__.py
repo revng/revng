@@ -26,7 +26,6 @@ from revng.api import Manager
 from revng.api._capi import initialize as capi_initialize
 from revng.api._capi import shutdown as capi_shutdown
 
-from .demo_webpage import generate_demo_page
 from .event_manager import EventManager
 from .schema_generator import SchemaGenerator
 from .util import project_workdir
@@ -91,6 +90,12 @@ def make_startlette() -> Starlette:
     event_manager = EventManager(manager)
     startup_done = False
 
+    if DEBUG:
+        print(f"Manager workdir is: {manager.workdir}")
+
+    async def index_page(request):
+        return PlainTextResponse("")
+
     async def status(request):
         if startup_done:
             return PlainTextResponse("OK")
@@ -105,7 +110,7 @@ def make_startlette() -> Starlette:
         }
 
     routes = [
-        Route("/", generate_demo_page(manager.workdir, DEBUG), methods=["GET"]),
+        Route("/", index_page, methods=["GET"]),
         Route("/status", status, methods=["GET"]),
         Mount(
             "/graphql",

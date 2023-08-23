@@ -21,6 +21,11 @@ class Step:
         name = _api.rp_step_get_name(self._step)
         return make_python_string(name)
 
+    @property
+    def component(self) -> str:
+        component = _api.rp_step_get_component(self._step)
+        return make_python_string(component)
+
     def save(self, destination_directory: Union[Path, str]):
         dest_dir = Path(destination_directory).resolve()
         _dest_dir = make_c_string(str(dest_dir))
@@ -59,7 +64,7 @@ class Step:
         return make_generator(self.analyses_count(), self._get_analysis_from_index)
 
     def as_dict(self) -> Dict[str, str]:
-        ret = {"name": self.name}
+        ret = {"name": self.name, "component": self.component}
 
         parent = self.get_parent()
         if parent is not None:

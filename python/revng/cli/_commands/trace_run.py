@@ -3,7 +3,8 @@
 #
 
 from revng.cli.commands_registry import Command, CommandsRegistry, Options
-from revng.cli.support import collect_files, collect_libraries, get_command, handle_asan, run
+from revng.cli.support import get_command, handle_asan, run
+from revng.support.collect import collect_libraries, collect_pipelines
 
 
 class TraceRunCommand(Command):
@@ -17,7 +18,7 @@ class TraceRunCommand(Command):
         cmd = get_command("revng-trace-run", options.search_prefixes)
         libraries, dependencies = collect_libraries(options.search_prefixes)
         asan_prefix = handle_asan(dependencies, options.search_prefixes)
-        pipelines = collect_files(options.search_prefixes, ["share", "revng", "pipelines"], "*.yml")
+        pipelines = collect_pipelines(options.search_prefixes)
 
         args_combined = [
             *[f"-load={p}" for p in libraries],

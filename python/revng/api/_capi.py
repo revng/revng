@@ -13,7 +13,7 @@ from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
 
 from revng.support import AnyPaths, get_root, to_iterable
-from revng.support.collect import collect_files, collect_libraries, collect_one
+from revng.support.collect import collect_libraries, collect_one, collect_pipelines
 
 
 # This counter is used to count the pointers released by PipelineC, since
@@ -168,7 +168,7 @@ def initialize(
         libraries = to_iterable(libraries)
 
     if pipelines is None:
-        pipelines = collect_files(ROOT, ["share", "revng", "pipelines"], "*.yml")
+        pipelines = collect_pipelines(ROOT)
     else:
         pipelines = to_iterable(libraries)
 

@@ -77,6 +77,7 @@ struct AnalysesListDeclaration {
 };
 
 struct PipelineDeclaration {
+  std::string Component;
   std::vector<ContainerDeclaration> Containers;
   std::vector<BranchDeclaration> Branches;
   std::vector<AnalysisDeclaration> Analyses = {};
@@ -182,10 +183,10 @@ public:
   }
 
 private:
-  llvm::Error
-  parseSteps(Runner &Runner,
-             const BranchDeclaration &Declaration,
-             const llvm::StringMap<std::string> &ReadOnlyNames) const;
+  llvm::Error parseSteps(Runner &Runner,
+                         const BranchDeclaration &Declaration,
+                         const llvm::StringMap<std::string> &ReadOnlyNames,
+                         const llvm::StringRef Component) const;
   llvm::Error
   parseDeclarations(Runner &Runner,
                     const PipelineDeclaration &Declaration,
@@ -195,7 +196,8 @@ private:
   parseStepDeclaration(Runner &Runner,
                        const StepDeclaration &,
                        std::string &LastAddedStep,
-                       const llvm::StringMap<std::string> &ReadOnlyNames) const;
+                       const llvm::StringMap<std::string> &ReadOnlyNames,
+                       const llvm::StringRef Component) const;
 
   llvm::Expected<PipeWrapper>
   parseInvocation(Step &Step,
@@ -271,6 +273,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::AnalysesListDeclaration)
 template<>
 struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration> {
   static void mapping(IO &TheIO, pipeline::PipelineDeclaration &Info) {
+    TheIO.mapRequired("Component", Info.Component);
     TheIO.mapOptional("Containers", Info.Containers);
     TheIO.mapOptional("Branches", Info.Branches);
     TheIO.mapOptional("Analyses", Info.Analyses);

@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Component: revng
 Containers:
   - Name: assembly-internal.yml
     Type: FunctionAssemblyInternal

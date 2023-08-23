@@ -7,14 +7,15 @@ import os
 import sys
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
+from typing import List
 
 from revng.cli.commands_registry import Command, CommandsRegistry, Options
 
 from .daemon_handler import DaemonHandler, ExternalDaemonHandler, InternalDaemonHandler
-from .test import run_self_test
+from .runner import Runner, produce_artifacts, run_analyses_lists, run_on_daemon, upload_file
 
 
-class DaemonSelfTestCommand(Command):
+class GraphQLCommand(Command):
     FILTER_ENV = [
         "STARLETTE_DEBUG",
         "REVNG_NOTIFY_FIFOS",
@@ -24,10 +25,7 @@ class DaemonSelfTestCommand(Command):
     ]
 
     def __init__(self):
-        super().__init__(
-            ("daemon-self-test",),
-            "Check if revng-daemon can produce all artifacts given an executable",
-        )
+        super().__init__(("graphql",), "Perform operations on a revng-daemon via GraphQL")
 
     def register_arguments(self, parser: ArgumentParser):
         parser.add_argument(
@@ -36,9 +34,15 @@ class DaemonSelfTestCommand(Command):
             help="Use the specified external address instead of using the local daemon",
         )
         parser.add_argument(
-            "--revng-c",
-            action="store_true",
-            help="Enable additional checks, which assume revng-c is installed",
+            "--produce-artifacts", action="store_true", help="Produce all possible artifacts"
+        )
+        parser.add_argument(
+            "--filter-artifacts",
+            action="append",
+            help="Only produce artifacts with the specified component",
+        )
+        parser.add_argument(
+            "--analyses-list", action="append", help="Analyses lists to run after upload"
         )
         parser.add_argument(
             "executable", metavar="EXECUTABLE", help="Executable to run the test with"
@@ -46,6 +50,10 @@ class DaemonSelfTestCommand(Command):
 
     def run(self, options: Options):
         args = options.parsed_args
+
+        if not args.produce_artifacts and args.filter_artifacts is not None:
+            self.log("Specifying --filter-artifacts without --produce-artifacts is unsupported")
+            return 1
 
         if args.external is not None:
             url = args.external
@@ -57,14 +65,23 @@ class DaemonSelfTestCommand(Command):
             env = {k: v for k, v in os.environ.items() if k not in self.FILTER_ENV}
             self.daemon_handler = InternalDaemonHandler(url, options, env)
 
-        self.log(f"Starting daemon self-test, url: {url}")
         executable_path = args.executable
         assert os.path.isfile(executable_path), "Executable file not found"
-        asyncio.run(run_self_test(self.daemon_handler, executable_path, args.revng_c))
+        runners: List[Runner] = [upload_file(executable_path)]
+
+        if args.analyses_list is not None:
+            runners.append(run_analyses_lists(args.analyses_list))
+
+        if args.produce_artifacts:
+            runners.append(produce_artifacts(args.filter_artifacts))
+
+        asyncio.run(run_on_daemon(self.daemon_handler, runners))
 
         rc = self.daemon_handler.terminate()
         if rc != 0:
             raise RuntimeError(f"Daemon exited with code {rc}")
+
+        return 0
 
     @staticmethod
     def log(string: str):
@@ -73,4 +90,4 @@ class DaemonSelfTestCommand(Command):
 
 
 def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(DaemonSelfTestCommand())
+    commands_registry.register_command(GraphQLCommand())

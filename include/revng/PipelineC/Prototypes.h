@@ -436,6 +436,11 @@ rp_container *rp_step_get_container(rp_step *step,
 const rp_step *rp_step_get_parent(const rp_step *step);
 
 /**
+ * \return a \p step 's component
+ */
+char * /*owning*/ rp_step_get_component(const rp_step *step);
+
+/**
  * \return the artifacts kind of the step
  */
 const rp_kind *rp_step_get_artifacts_kind(const rp_step *step);

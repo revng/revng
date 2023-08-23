@@ -3,7 +3,8 @@
 #
 
 from revng.cli.commands_registry import Command, CommandsRegistry, Options
-from revng.cli.support import build_command_with_loads, collect_files, interleave, run
+from revng.cli.support import build_command_with_loads, interleave, run
+from revng.support.collect import collect_pipelines
 
 
 class PipelineToolCommand(Command):
@@ -14,7 +15,7 @@ class PipelineToolCommand(Command):
         pass
 
     def run(self, options: Options):
-        pipelines = collect_files(options.search_prefixes, ["share", "revng", "pipelines"], "*.yml")
+        pipelines = collect_pipelines(options.search_prefixes)
         pipelines_args = interleave(pipelines, "-P")
         command = build_command_with_loads(
             f"revng-{self.name}", pipelines_args + options.remaining_args, options
