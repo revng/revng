@@ -11,20 +11,20 @@ Types:
     PrimitiveKind: Signed
     Size: 16
   - Kind: UnionType
-    ID: 1
+    ID: 3000
     Fields:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1552"
+          UnqualifiedType: "/Types/1552-PrimitiveType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1552"
+          UnqualifiedType: "/Types/1552-PrimitiveType"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1552"
+          UnqualifiedType: "/Types/1552-PrimitiveType"
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1552"
+          UnqualifiedType: "/Types/1552-PrimitiveType"
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1552"
+          UnqualifiedType: "/Types/1552-PrimitiveType"

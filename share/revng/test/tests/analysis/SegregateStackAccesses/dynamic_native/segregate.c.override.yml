@@ -4,23 +4,23 @@
 ---
 Functions:
   - OriginalName: raw_primitives_on_registers
-    Prototype: "/Types/RawFunctionType-100000"
+    Prototype: "/Types/100000-RawFunctionType"
   - OriginalName: raw_pointers_on_registers
-    Prototype: "/Types/RawFunctionType-100001"
+    Prototype: "/Types/100001-RawFunctionType"
   - OriginalName: raw_primitives_on_stack
-    Prototype: "/Types/RawFunctionType-100002"
+    Prototype: "/Types/100002-RawFunctionType"
   - OriginalName: cabi_primitives_on_registers
-    Prototype: "/Types/CABIFunctionType-100004"
+    Prototype: "/Types/100004-CABIFunctionType"
   - OriginalName: cabi_primitives_on_stack
-    Prototype: "/Types/CABIFunctionType-100005"
+    Prototype: "/Types/100005-CABIFunctionType"
   - OriginalName: cabi_aggregate_on_registers
-    Prototype: "/Types/CABIFunctionType-100006"
+    Prototype: "/Types/100006-CABIFunctionType"
   - OriginalName: cabi_aggregate_on_stack
-    Prototype: "/Types/CABIFunctionType-100007"
+    Prototype: "/Types/100007-CABIFunctionType"
   - OriginalName: cabi_aggregate_on_stack_and_registers
-    Prototype: "/Types/CABIFunctionType-100008"
+    Prototype: "/Types/100008-CABIFunctionType"
   - OriginalName: cabi_return_big_aggregate
-    Prototype: "/Types/CABIFunctionType-100010"
+    Prototype: "/Types/100010-CABIFunctionType"
 Types:
   - Kind: PrimitiveType
     ID: 256
@@ -35,24 +35,24 @@ Types:
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 8
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     Size: 16
   - Kind: RawFunctionType
     ID: 100000
     Arguments:
       - Location: rdi_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Location: rsi_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     PreservedRegisters: []
     FinalStackOffset: 8
   - Kind: RawFunctionType
@@ -63,17 +63,17 @@ Types:
           Qualifiers:
             - Kind: Pointer
               Size: 8
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Location: rsi_x86_64
         Type:
           Qualifiers:
             - Kind: Pointer
               Size: 8
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     PreservedRegisters: []
     FinalStackOffset: 8
   - Kind: RawFunctionType
@@ -81,163 +81,163 @@ Types:
     Arguments:
       - Location: rdi_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Location: rsi_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Location: rdx_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Location: r8_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Location: r9_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     StackArgumentsType:
-      UnqualifiedType: "/Types/StructType-100003"
+      UnqualifiedType: "/Types/100003-StructType"
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     PreservedRegisters: []
     FinalStackOffset: 8
   - Kind: CABIFunctionType
     ID: 100004
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
+      UnqualifiedType: "/Types/520-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
   - Kind: CABIFunctionType
     ID: 100005
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
+      UnqualifiedType: "/Types/520-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 6
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 7
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
   - Kind: CABIFunctionType
     ID: 100006
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
+      UnqualifiedType: "/Types/520-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/StructType-100003"
+          UnqualifiedType: "/Types/100003-StructType"
   - Kind: CABIFunctionType
     ID: 100007
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
+      UnqualifiedType: "/Types/520-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 6
         Type:
-          UnqualifiedType: "/Types/StructType-100003"
+          UnqualifiedType: "/Types/100003-StructType"
   - Kind: CABIFunctionType
     ID: 100008
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
+      UnqualifiedType: "/Types/520-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/StructType-100003"
+          UnqualifiedType: "/Types/100003-StructType"
   - Kind: StructType
     ID: 100009
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 8
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 16
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 24
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 32
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 40
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 48
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 56
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     Size: 64
   - Kind: CABIFunctionType
     ID: 100010
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/StructType-100009"
+      UnqualifiedType: "/Types/100009-StructType"
     Arguments: []

@@ -13,8 +13,9 @@
 // NOLINTNEXTLINE
 // clang-format on
 
-#define REG(x) __attribute__((annotate(REG_ATTRIBUTE_STRING(x))))
-#define ABI(x) __attribute__((annotate(ABI_ATTRIBUTE_STRING(x))))
-#define STACK __attribute__((annotate("stack")))
+#define _REG(x) __attribute__((annotate(REG_ATTRIBUTE_STRING(x))))
+#define _ABI(x) __attribute__((annotate(ABI_ATTRIBUTE_STRING(x))))
+#define _STACK __attribute__((annotate("stack")))
 
-#define ENUM_UNDERLYING(x) __attribute__((annotate(ENUM_ATTRIBUTE_STRING(x))))
+#define _ENUM_UNDERLYING(x) __attribute__((annotate(ENUM_ATTRIBUTE_STRING(x))))
+#define _PACKED __attribute__((packed))

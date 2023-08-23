@@ -19,6 +19,7 @@ target_link_libraries(
   revngcModelToHeader
   clangBasic
   clangAST
+  clangDriver
   clangSerialization
   clangFrontend
   clangTooling

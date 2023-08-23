@@ -31,7 +31,7 @@ void ModelToHeader::run(const pipeline::Context &Ctx,
     revng_abort(EC.message().c_str());
 
   const model::Binary &Model = *getModelFromContext(Ctx);
-  dumpModelToHeader(Model, Header);
+  dumpModelToHeader(Model, Header, {});
 
   Header.flush();
   EC = Header.error();

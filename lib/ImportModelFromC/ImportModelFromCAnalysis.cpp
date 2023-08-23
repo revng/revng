@@ -13,6 +13,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include "clang/Driver/Driver.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Lex/PreprocessorOptions.h"
@@ -26,6 +27,7 @@
 #include "revng/Pipeline/Option.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Support/PathList.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
@@ -39,7 +41,7 @@ using namespace llvm;
 using namespace clang;
 using namespace clang::tooling;
 
-static constexpr std::string_view RevngInputCFile = "revng-input.c";
+static constexpr std::string_view InputCFile = "revng-input.c";
 
 static std::vector<std::string>
 getOptionsfromCFGFile(llvm::StringRef FilePath) {
@@ -121,8 +123,7 @@ struct ImportModelFromCAnalysis {
         TheOption = ImportModelFromCOption::EditType;
       } else {
         return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                       "Please provide a location that is "
-                                       "supported by our Model");
+                                       "Invalid location");
       }
     }
 
@@ -146,36 +147,34 @@ struct ImportModelFromCAnalysis {
                                        + EC.message());
     }
 
+    ModelToHeaderOptions Options;
+    Options.GeneratePlainC = true;
+
     if (TheOption == ImportModelFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward
       // declarations.
       if (not isa<model::RawFunctionType>(*TypeToEdit)
           and not isa<model::CABIFunctionType>(*TypeToEdit)
           and not isa<model::TypedefType>(*TypeToEdit)) {
-        ptml::PTMLCBuilder ThePTMLCBuilder(true);
-        ptml::PTMLIndentedOstream ThePTMLStream(Header, 4, true);
-        Header << ThePTMLCBuilder.getLineComment("The type we are editing.");
+        llvm::raw_string_ostream Stream(Options.PostIncludes);
+        ptml::PTMLCBuilder B(true);
+        ptml::PTMLIndentedOstream ThePTMLStream(Stream, 4, true);
+        Stream << B.getLineComment("The type we are editing");
         // The definition of this type will be at the end of the file.
-        printForwardDeclaration(**TypeToEdit, ThePTMLStream, ThePTMLCBuilder);
-        Header << '\n';
+        printForwardDeclaration(**TypeToEdit, ThePTMLStream, B);
+        Stream << '\n';
       }
 
       // Find all types whose definition depends on the type we are editing.
-      auto TypesThatDependOnTypeWeEdit = populateDependencies(*TypeToEdit,
-                                                              Model);
-      dumpModelToHeader(*Model,
-                        Header,
-                        TypesThatDependOnTypeWeEdit,
-                        MetaAddress::invalid(),
-                        true);
+      Options.TypesToOmit = populateDependencies(*TypeToEdit, Model);
     } else if (TheOption == ImportModelFromCOption::EditFunctionPrototype) {
-      auto FunctionAddress = FunctionToBeEdited->Entry();
-      dumpModelToHeader(*Model, Header, {}, FunctionAddress, true);
+      Options.FunctionsToOmit.insert(FunctionToBeEdited->Entry());
     } else {
       revng_assert(TheOption == ImportModelFromCOption::AddType);
-      // We have nothing to ignore.
-      dumpModelToHeader(*Model, Header, {}, MetaAddress::invalid(), true);
+      // We have nothing to ignore
     }
+
+    dumpModelToHeader(*Model, Header, Options);
 
     Header.close();
 
@@ -201,9 +200,8 @@ struct ImportModelFromCAnalysis {
     }
 
     // Find compile flags to be applied to clang.
-    auto MaybeCompileCFGPath = revng::ResourceFinder.findFile("share/revng-c/"
-                                                              "compile-flags."
-                                                              "cfg");
+    StringRef CompileFlagsPath = "share/revng-c/compile-flags.cfg";
+    auto MaybeCompileCFGPath = revng::ResourceFinder.findFile(CompileFlagsPath);
     if (not MaybeCompileCFGPath) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Couldn't find compile-flags.cfg");
@@ -215,41 +213,28 @@ struct ImportModelFromCAnalysis {
     std::vector<std::string> Compilation(FromCFGFile);
     Compilation.push_back("-xc");
 
-    // Find stdbool.h.
-    auto MaybeStdBoolHeaderPath = findHeaderFile("lib64/llvm/"
-                                                 "llvm/lib/"
-                                                 "clang/16/"
-                                                 "include/"
-                                                 "stdbool.h");
-    if (not MaybeStdBoolHeaderPath) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Couldn't find stdbool.h");
+    SmallString<16> CompilerHeadersPath;
+    {
+      StringRef LLVMLibrary = getLibrariesFullPath().at("libLLVMSupport");
+      using namespace llvm::sys::path;
+      SmallString<16> ClangPath;
+      append(ClangPath, parent_path(parent_path(LLVMLibrary)));
+      append(ClangPath, Twine("bin"));
+      append(ClangPath, Twine("clang"));
+      CompilerHeadersPath = clang::driver::Driver::GetResourcesPath(ClangPath);
+      append(CompilerHeadersPath, Twine("include"));
     }
-    Compilation.push_back("-I" + *MaybeStdBoolHeaderPath);
-
-    // Find stdint.h.
-    auto MaybeStdIntHeaderPath = findHeaderFile("lib64/llvm/"
-                                                "llvm/lib/"
-                                                "clang/16/"
-                                                "include/"
-                                                "stdint.h");
-    if (not MaybeStdIntHeaderPath) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Couldn't find stdint.h");
-    }
-    Compilation.push_back("-I" + *MaybeStdIntHeaderPath);
+    Compilation.push_back("-I" + CompilerHeadersPath.str().str());
 
     // Find revng-primitive-types.h and revng-attributes.h.
-    auto MaybeRevngHeaderPath = findHeaderFile("share/revng-c/"
-                                               "include/"
-                                               "revng-"
-                                               "primitive-"
-                                               "types.h");
-    if (not MaybeRevngHeaderPath) {
+    const char *PrimitivesHeader = "share/revng-c/include/"
+                                   "revng-primitive-types.h";
+    auto MaybePrimitiveHeaderPath = findHeaderFile(PrimitivesHeader);
+    if (not MaybePrimitiveHeaderPath) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Couldn't find revng-primitive-types.h");
     }
-    Compilation.push_back("-I" + *MaybeRevngHeaderPath);
+    Compilation.push_back("-I" + *MaybePrimitiveHeaderPath);
 
     FilteredHeader += "\n";
     FilteredHeader += CCode;
@@ -257,7 +242,7 @@ struct ImportModelFromCAnalysis {
     if (not clang::tooling::runToolOnCodeWithArgs(std::move(Action),
                                                   FilteredHeader,
                                                   Compilation,
-                                                  RevngInputCFile)) {
+                                                  InputCFile)) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Unable to run clang");
     }

@@ -5,7 +5,7 @@
 
 Types:
   - Kind: StructType
-    ID: 1
+    ID: 3001
     CustomName: "B"
     OriginalName: B
     Fields:
@@ -13,7 +13,7 @@ Types:
         CustomName: "next"
         OriginalName: next
         Type:
-          UnqualifiedType: "/Types/StructType-1"
+          UnqualifiedType: "/Types/3001-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 8

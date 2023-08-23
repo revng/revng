@@ -164,7 +164,7 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         // it means we could not recover type information about the pointer
         // operand. Hence, we need to use the stored operand to understand the
         // type pointed by the `Store` instruction.
-        if (not StoredQT.UnqualifiedType().isValid())
+        if (StoredQT.UnqualifiedType().empty())
           StoredQT = TypeMap.at(ValueOp);
 
         revng_assert(areMemOpCompatible(StoredQT, *ValueOp->getType(), *Model));

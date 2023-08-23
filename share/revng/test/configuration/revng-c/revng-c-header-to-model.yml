@@ -24,11 +24,10 @@ commands:
         filter: HeaderToModel
     command: |-
       RESUME=$$(temp -d);
-      mkdir "$$RESUME/context/";
-      touch "$$RESUME/context/model.yml";
-      cat "$INPUT" > "$$RESUME/context/model.yml";
+      mkdir -p "$$RESUME/context/";
+      cp "$INPUT" "$$RESUME/context/model.yml";
       revng analyze --resume "$$RESUME" ImportModelFromC
-      --ImportModelFromC-location-to-edit="$$(head -1 ${SOURCE}.location)"
-      --ImportModelFromC-ccode="$$(cat ${SOURCE}.ccode)" a.out -o /dev/null;
-      FileCheck --input-file="$$RESUME/context/model.yml" "${SOURCE}.filecheck";
-      rm -rf "$$RESUME/context/model.yml";
+      --ImportModelFromC-location-to-edit="$$(grep -vE '^(#|$$)' ${SOURCE}.location)"
+      --ImportModelFromC-ccode="$$(cat ${SOURCE}.ccode)" /dev/null -o /dev/null;
+      revng model compare "${SOURCE}.reference.yml"
+      "$$RESUME/context/model.yml";

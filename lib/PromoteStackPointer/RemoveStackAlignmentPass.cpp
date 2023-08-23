@@ -29,7 +29,7 @@ bool RemoveStackAlignmentPass::runOnModule(Module &Module) {
   if (FunctionTags::Isolated.functions(&Module).empty())
     return false;
 
-  auto *InitFunction = Module.getFunction("revng_init_local_sp");
+  auto *InitFunction = Module.getFunction("_init_local_sp");
   revng_assert(InitFunction != nullptr);
 
   bool Result = false;

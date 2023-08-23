@@ -15,49 +15,49 @@ Types:
     PrimitiveKind: Signed
     Size: 1
   - Kind: StructType
-    ID: 5
+    ID: 3005
     Fields:
       - Offset: 0
         CustomName: "can_do_threads"
         OriginalName: can_do_threads
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
     Size: 4
   - Kind: StructType
-    ID: 6
+    ID: 3006
     Fields:
       - Offset: 0
         CustomName: "do_threads"
         OriginalName: do_threads
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1537"
+          UnqualifiedType: "/Types/1537-PrimitiveType"
     Size: 1
   - Kind: TypedefType
-    ID: 13
+    ID: 3013
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
   - Kind: TypedefType
-    ID: 12
+    ID: 3012
     UnderlyingType:
-      UnqualifiedType: "/Types/TypedefType-13"
+      UnqualifiedType: "/Types/3013-TypedefType"
   - Kind: TypedefType
-    ID: 11
+    ID: 3011
     UnderlyingType:
-      UnqualifiedType: "/Types/TypedefType-12"
+      UnqualifiedType: "/Types/3012-TypedefType"
   - Kind: CABIFunctionType
-    ID: 1
+    ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
         CustomName: "argc"
         OriginalName: argc
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1537"
+          UnqualifiedType: "/Types/1537-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8

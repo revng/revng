@@ -2,7 +2,7 @@
 ; Copyright rev.ng Labs Srl. See LICENSE.md for details.
 ;
 
-; RUN: %revngopt %s -S --dla --model-type-id-seed=0xDEADBEEF -o - | revng model dump | revng model compare %s.yml -
+; RUN: %revngopt %s -S --dla -o - | revng model dump | revng model compare %s.yml -
 ; This file is meant to be used to test that the DLA is able to merge the
 ; recovered type information with an already existing model.
 ; In particular, in this file all functions and indirect calls share the same
@@ -90,9 +90,9 @@ ControlFlowGraph:
 EntryPoint: \220x401200:Code_x86_64\22
 Functions:
   - Entry:           \220x401200:Code_x86_64\22
-    Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
+    Prototype:       \22/Types/6646220838590018230-RawFunctionType\22
   - Entry:           \220x401060:Code_x86_64\22
-    Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
+    Prototype:       \22/Types/6646220838590018230-RawFunctionType\22
 ImportedDynamicFunctions: []
 Types:
   - Kind:            PrimitiveType
@@ -108,10 +108,10 @@ Types:
     Arguments:
       - Location:        rax_x86_64
         Type:
-          UnqualifiedType: \22/Types/PrimitiveType-520\22
+          UnqualifiedType: \22/Types/520-PrimitiveType\22
       - Location:        rdx_x86_64
         Type:
-          UnqualifiedType: \22/Types/PrimitiveType-520\22
+          UnqualifiedType: \22/Types/520-PrimitiveType\22
     ReturnValues:    []
     PreservedRegisters: []
     FinalStackOffset: 0

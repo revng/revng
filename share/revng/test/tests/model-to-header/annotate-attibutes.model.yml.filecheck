@@ -2,17 +2,18 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-# CHECK: typedef  ABI(SystemV_x86_64) void function_type_cabifunction_1(int32_t, generic64_t, uint16_t);
+# CHECK: typedef _ABI(SystemV_x86_64) void _cabifunction_3001(int32_t, generic64_t, uint16_t);
 
-# CHECK: typedef enum __attribute__((packed)) prefix_enum_9 prefix_enum_9;
-# CHECK: enum ENUM_UNDERLYING(int64_t) __attribute__((packed)) prefix_enum_9 {
-# CHECK:     prefix_enum_9_prefix_enum_9_none = 0x0U,
-# CHECK:     prefix_enum_9_prefix_enum_9_positive = 0x1U,
-# CHECK:     prefix_enum_9_prefix_enum_9_max_held_value = 0xffffffffU,
-# CHECK:     prefix_enum_9_max_held_value = 0xffffffffffffffffU,
+# CHECK: typedef _ABI(raw) void _rawfunction_3008(generic64_t _REG(rcx_x86_64), generic64_t _REG(rdx_x86_64), generic64_t _REG(rsi_x86_64), generic64_t _REG(rdi_x86_64), generic64_t _REG(r8_x86_64), generic64_t _REG(r9_x86_64));
+
+# CHECK: typedef enum _PACKED prefix_enum_9 prefix_enum_9;
+# CHECK: enum _ENUM_UNDERLYING(int64_t) _PACKED prefix_enum_9 {
+# CHECK:     prefix_enum_9_none = 0x0U,
+# CHECK:     prefix_enum_9_positive = 0x1U,
+# CHECK:     prefix_enum_9_max_held_value = 0xffffffffU,
+# CHECK:     _enum_max_value_prefix_enum_9 = 0xffffffffffffffffU,
 # CHECK: };
 
-# CHECK: typedef  ABI(raw) void function_type_rawfunction_8(generic64_t REG(rcx), generic64_t REG(rdx), generic64_t REG(rsi), generic64_t REG(rdi), generic64_t REG(r8), generic64_t REG(r9));
 
-# CHECK: ABI(SystemV_x86_64) void fn(int32_t b, generic64_t c, uint16_t d);
-# CHECK: ABI(raw) void fn2(generic64_t rcx REG(rcx), generic64_t rdx REG(rdx), generic64_t rsi REG(rsi), generic64_t rdi REG(rdi), generic64_t r8 REG(r8), generic64_t r9 REG(r9));
+# CHECK: _ABI(SystemV_x86_64) void fn(int32_t b, generic64_t c, uint16_t d);
+# CHECK: _ABI(raw) void fn2(generic64_t _argument_rcx _REG(rcx_x86_64), generic64_t _argument_rdx _REG(rdx_x86_64), generic64_t _argument_rsi _REG(rsi_x86_64), generic64_t _argument_rdi _REG(rdi_x86_64), generic64_t _argument_r8 _REG(r8_x86_64), generic64_t _argument_r9 _REG(r9_x86_64));

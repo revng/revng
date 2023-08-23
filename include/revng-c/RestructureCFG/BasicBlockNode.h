@@ -193,8 +193,6 @@ public:
   RegionCFGT *getParent() { return Parent; }
   void setParent(RegionCFGT *P) { Parent = P; }
 
-  // void removeNode();
-
   // TODO: Check why this implementation is really necessary.
   void printAsOperand(llvm::raw_ostream &O, bool /* PrintType */) const;
 

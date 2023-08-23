@@ -32,11 +32,6 @@
 
 using llvm::dyn_cast;
 
-using pipeline::serializedLocation;
-namespace tags = ptml::tags;
-namespace attributes = ptml::attributes;
-namespace ranks = revng::ranks;
-
 static Logger<> Log{ "helpers-to-header" };
 
 /// Print the declaration a C struct corresponding to an LLVM struct
@@ -44,45 +39,39 @@ static Logger<> Log{ "helpers-to-header" };
 static void printDefinition(const llvm::StructType *S,
                             const llvm::Function &F,
                             ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &ThePTMLCBuilder) {
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
-         << " "
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Struct)
-         << " " << ThePTMLCBuilder.getAttributePacked() << " ";
+                            ptml::PTMLCBuilder &B) {
+  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
+         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+         << B.getAttributePacked() << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
 
     for (const auto &Field : llvm::enumerate(S->elements())) {
-      Header << getReturnStructFieldType(&F, Field.index(), ThePTMLCBuilder)
-             << " "
-             << getReturnStructFieldLocationDefinition(&F,
-                                                       Field.index(),
-                                                       ThePTMLCBuilder)
+      Header << getReturnStructFieldType(&F, Field.index(), B) << " "
+             << getReturnStructFieldLocationDefinition(&F, Field.index(), B)
              << ";\n";
     }
   }
 
-  Header << " " << getReturnTypeLocationDefinition(&F, ThePTMLCBuilder)
-         << ";\n";
+  Header << " " << getReturnTypeLocationDefinition(&F, B) << ";\n";
 }
 
 /// Print the prototype of a helper .
 static void printHelperPrototype(const llvm::Function *Func,
                                  ptml::PTMLIndentedOstream &Header,
-                                 ptml::PTMLCBuilder &ThePTMLCBuilder) {
-  Header << getReturnTypeLocationReference(Func, ThePTMLCBuilder) << " "
-         << getHelperFunctionLocationDefinition(Func, ThePTMLCBuilder);
+                                 ptml::PTMLCBuilder &B) {
+  Header << getReturnTypeLocationReference(Func, B) << " "
+         << getHelperFunctionLocationDefinition(Func, B);
 
   if (Func->arg_empty()) {
-    Header << "(" + ThePTMLCBuilder.tokenTag("void", ptml::c::tokens::Type)
-                + ");\n";
+    Header << "(" + B.tokenTag("void", ptml::c::tokens::Type) + ");\n";
   } else {
     const llvm::StringRef Open = "(";
     const llvm::StringRef Comma = ", ";
     llvm::StringRef Separator = Open;
     for (const auto &Arg : Func->args()) {
-      Header << Separator << getScalarCType(Arg.getType(), ThePTMLCBuilder);
+      Header << Separator << getScalarCType(Arg.getType(), B);
       Separator = Comma;
     }
     Header << ");\n";
@@ -104,14 +93,14 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
 
 bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
-  PTMLCBuilder ThePTMLCBuilder;
+  PTMLCBuilder B;
   auto Header = ptml::PTMLIndentedOstream(Out, 4);
   {
-    auto Scope = ThePTMLCBuilder.getTag(ptml::tags::Div).scope(Header);
-    Header << ThePTMLCBuilder.getPragmaOnce();
-    Header << ThePTMLCBuilder.getIncludeAngle("stdint.h");
-    Header << ThePTMLCBuilder.getIncludeAngle("stdbool.h");
-    Header << ThePTMLCBuilder.getIncludeQuote("revng-primitive-types.h");
+    auto Scope = B.getTag(ptml::tags::Div).scope(Header);
+    Header << B.getPragmaOnce();
+    Header << B.getIncludeAngle("stdint.h");
+    Header << B.getIncludeAngle("stdbool.h");
+    Header << B.getIncludeQuote("revng-primitive-types.h");
     Header << "\n";
 
     for (const llvm::Function &F : M.functions()) {
@@ -146,17 +135,15 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
         continue;
 
       if (Log.isEnabled()) {
-        auto
-          LineCommentScope = helpers::LineComment(Header,
-                                                  ThePTMLCBuilder
-                                                    .isGenerateTagLessPTML());
+        auto LineCommentScope = helpers::LineComment(Header,
+                                                     B.isGenerateTagLessPTML());
         Header << *F.getType();
       }
 
       // Print the declaration of the return type, if it's not scalar
       const auto *RetTy = F.getReturnType();
       if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
-        printDefinition(RetStructTy, F, Header, ThePTMLCBuilder);
+        printDefinition(RetStructTy, F, Header, B);
         Header << '\n';
       }
 
@@ -164,7 +151,7 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
         revng_assert(Arg.getType()->isSingleValueType());
       }
 
-      printHelperPrototype(&F, Header, ThePTMLCBuilder);
+      printHelperPrototype(&F, Header, B);
       Header << '\n';
     }
   }

@@ -22,10 +22,10 @@
 using namespace model;
 using namespace revng;
 
-static Logger<> DILogger("header-to-model");
-static constexpr std::string_view RevngInputCFile = "revng-input.c";
-static constexpr std::string_view RevngPrimitiveTypeHeader = "revng-primitive-"
-                                                             "types.h";
+static Logger<> Log("header-to-model");
+static constexpr std::string_view InputCFile = "revng-input.c";
+static constexpr std::string_view PrimitiveTypeHeader = "revng-primitive-"
+                                                        "types.h";
 static constexpr std::string_view RawABI = "raw";
 
 static constexpr const char *ABIAnnotatePrefix = "abi:";
@@ -39,6 +39,18 @@ static constexpr size_t
 static constexpr const char *EnumAnnotatePrefix = "enum_underlying_type:";
 static constexpr size_t
   EnumAnnotatePrefixLength = std::char_traits<char>::length(EnumAnnotatePrefix);
+
+template<typename T>
+concept HasCustomName = requires(const T &Element) {
+  { Element.CustomName() } -> std::same_as<const model::Identifier &>;
+  { Element.name() } -> std::same_as<model::Identifier>;
+};
+
+template<HasCustomName T>
+static void setCustomName(T &Element, llvm::StringRef NewName) {
+  if (Element.name() != NewName)
+    Element.CustomName() = NewName;
+}
 
 namespace clang {
 namespace tooling {
@@ -113,7 +125,7 @@ private:
 
   // This checks that the declaration comes from revng-primitive-types header
   // file.
-  bool comesFromRevngPrimitiveTypesHeader(const clang::RecordDecl *RD);
+  bool comesFromPrimitiveTypesHeader(const clang::RecordDecl *RD);
 
   // Set up line and column for the declaratrion.
   void setupLineAndColumn(const clang::Decl *D);
@@ -185,137 +197,16 @@ parseEnumUnderlyingType(llvm::StringRef Annotate) {
   return std::string(Annotate.substr(EnumAnnotatePrefixLength));
 }
 
-static bool isPrimitiveType(const std::string &TypeName) {
-  // Generic.
-  if (TypeName == "generic8_t" or TypeName == "generic16_t"
-      or TypeName == "generic32_t" or TypeName == "generic64_t"
-      or TypeName == "generic80_t" or TypeName == "generic96_t"
-      or TypeName == "generic128_t")
-    return true;
-
-  // Pointer or number.
-  if (TypeName == "pointer_or_number8_t" or TypeName == "pointer_or_number16_t"
-      or TypeName == "pointer_or_number32_t"
-      or TypeName == "pointer_or_number64_t"
-      or TypeName == "pointer_or_number128_t")
-    return true;
-
-  // Number.
-  if (TypeName == "number8_t" or TypeName == "number16_t"
-      or TypeName == "number32_t" or TypeName == "number64_t"
-      or TypeName == "number128_t")
-    return true;
-
-  // Signed.
-  if (TypeName == "int8_t" or TypeName == "int16_t" or TypeName == "int32_t"
-      or TypeName == "int64_t" or TypeName == "int128_t")
-    return true;
-
-  // Unsigned.
-  if (TypeName == "uint8_t" or TypeName == "uint16_t" or TypeName == "uint32_t"
-      or TypeName == "uint64_t" or TypeName == "uint128_t")
-    return true;
-
-  // Float.
-  if (TypeName == "float16_t" or TypeName == "float32_t"
-      or TypeName == "float64_t" or TypeName == "float80_t"
-      or TypeName == "float96_t" or TypeName == "float128_t")
-    return true;
-
-  return false;
-}
-
-static std::optional<model::PrimitiveTypeKind::Values>
-getPrimitiveKind(const std::string &TypeName) {
-  if (TypeName == "generic8_t" or TypeName == "generic16_t"
-      or TypeName == "generic32_t" or TypeName == "generic64_t"
-      or TypeName == "generic80_t" or TypeName == "generic96_t"
-      or TypeName == "generic128_t")
-    return model::PrimitiveTypeKind::Generic;
-
-  if (TypeName == "pointer_or_number8_t" or TypeName == "pointer_or_number16_t"
-      or TypeName == "pointer_or_number32_t"
-      or TypeName == "pointer_or_number64_t"
-      or TypeName == "pointer_or_number128_t")
-    return model::PrimitiveTypeKind::PointerOrNumber;
-
-  // Number.
-  if (TypeName == "number8_t" or TypeName == "number16_t"
-      or TypeName == "number32_t" or TypeName == "number64_t"
-      or TypeName == "number128_t")
-    return model::PrimitiveTypeKind::Number;
-
-  // Signed.
-  if (TypeName == "int8_t" or TypeName == "int16_t" or TypeName == "int32_t"
-      or TypeName == "int64_t" or TypeName == "int128_t")
-    return model::PrimitiveTypeKind::Signed;
-
-  // Unsigned.
-  if (TypeName == "uint8_t" or TypeName == "uint16_t" or TypeName == "uint32_t"
-      or TypeName == "uint64_t" or TypeName == "uint128_t")
-    return model::PrimitiveTypeKind::Unsigned;
-
-  // Float.
-  if (TypeName == "float16_t" or TypeName == "float32_t"
-      or TypeName == "float64_t" or TypeName == "float80_t"
-      or TypeName == "float96_t" or TypeName == "float128_t")
-    return model::PrimitiveTypeKind::Float;
-
-  return std::nullopt;
-}
-
-static std::optional<unsigned> getPrimitiveSize(const std::string &TypeName) {
-  if (TypeName == "generic8_t" or TypeName == "pointer_or_number8_t"
-      or TypeName == "number8_t" or TypeName == "int8_t"
-      or TypeName == "uint8_t")
-    return 1;
-
-  if (TypeName == "generic16_t" or TypeName == "pointer_or_number16_t"
-      or TypeName == "number16_t" or TypeName == "int16_t"
-      or TypeName == "uint16_t" or TypeName == "float16_t")
-    return 2;
-
-  if (TypeName == "generic32_t" or TypeName == "pointer_or_number32_t"
-      or TypeName == "number32_t" or TypeName == "int32_t"
-      or TypeName == "uint32_t" or TypeName == "float32_t")
-    return 4;
-
-  if (TypeName == "generic64_t" or TypeName == "pointer_or_number64_t"
-      or TypeName == "number64_t" or TypeName == "int64_t"
-      or TypeName == "uint64_t" or TypeName == "float64_t")
-    return 8;
-
-  if (TypeName == "generic80_t" or TypeName == "float80_t")
-    return 10;
-
-  if (TypeName == "generic96_t" or TypeName == "float96_t")
-    return 12;
-
-  if (TypeName == "generic128_t" or TypeName == "pointer_or_number128_t"
-      or TypeName == "number128_t" or TypeName == "int128_t"
-      or TypeName == "uint128_t" or TypeName == "float128_t")
-    return 16;
-
-  return std::nullopt;
-}
-
 std::optional<model::TypePath>
 DeclVisitor::getEnumUnderlyingType(const std::string &TypeName) {
-  if (not isPrimitiveType(TypeName)) {
-    revng_log(DILogger, "Not a primitive type");
+  auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+  if (not MaybePrimitive) {
+    revng_log(Log, "Not a primitive type");
     return std::nullopt;
   }
 
-  auto Kind = getPrimitiveKind(TypeName);
-  if (not Kind
-      or (Kind != model::PrimitiveTypeKind::Signed
-          and Kind != model::PrimitiveTypeKind::Unsigned))
-    return std::nullopt;
-
-  auto TypeSize = getPrimitiveSize(TypeName);
-  revng_check(TypeSize);
-
-  return Model->getPrimitiveType(*Kind, *TypeSize);
+  return Model->getPrimitiveType(MaybePrimitive->PrimitiveKind(),
+                                 MaybePrimitive->Size());
 }
 
 std::optional<model::TypePath>
@@ -342,7 +233,9 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
     AsElaboratedType = TheUnderlyingType->getAs<ElaboratedType>();
   }
 
-  if (not isPrimitiveType(AsElaboratedType->getNamedType().getAsString())) {
+  std::string TypeName = AsElaboratedType->getNamedType().getAsString();
+  auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+  if (not MaybePrimitive.has_value()) {
     std::string ErrorMessage = "revng: `"
                                + AsElaboratedType->getNamedType().getAsString()
                                + "`, please use a revng model::PrimitiveType "
@@ -413,7 +306,7 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
   }
 
   default: {
-    revng_log(DILogger, "Unable to handle a primitive type");
+    revng_log(Log, "Unable to handle a primitive type");
     break;
   }
   }
@@ -459,7 +352,7 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name, TypeKind::Values Kind) {
     std::istringstream TheStream(ID);
     TheStream >> TypeID;
 
-    auto KeyType = model::Type::Key{ Kind, TypeID };
+    auto KeyType = model::Type::Key{ TypeID, Kind };
 
     auto TheType = Model->getTypePath(KeyType);
     if (TheType.get())
@@ -475,27 +368,25 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
   revng_assert(RecordType);
 
   // Check if it is a primitive type described with a struct.
-  if (comesFromRevngPrimitiveTypesHeader(RecordType->getDecl())) {
+  if (comesFromPrimitiveTypesHeader(RecordType->getDecl())) {
     const TypedefType *AsTypedef = ClangType->getAs<TypedefType>();
     if (not AsTypedef) {
-      revng_log(DILogger,
+      revng_log(Log,
                 "There should be a typedef for struct that defines the "
                 "primitive type");
       return std::nullopt;
     }
     auto TypeName = AsTypedef->getDecl()->getName();
-    revng_check(isPrimitiveType(TypeName.str()));
-    auto Kind = getPrimitiveKind(TypeName.str());
-    revng_check(Kind);
-    auto TypeSize = getPrimitiveSize(TypeName.str());
-    revng_check(TypeSize);
+    auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+    revng_assert(MaybePrimitive);
 
-    return Model->getPrimitiveType(*Kind, *TypeSize);
+    return Model->getPrimitiveType(MaybePrimitive->PrimitiveKind(),
+                                   MaybePrimitive->Size());
   }
 
   auto Name = RecordType->getDecl()->getName();
   if (Name.empty()) {
-    revng_log(DILogger, "Unable to find record type without name");
+    revng_log(Log, "Unable to find record type without name");
     return std::nullopt;
   }
 
@@ -509,7 +400,7 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
       return *TheUnionType;
   }
 
-  revng_log(DILogger, "Unable to find record type " << Name);
+  revng_log(Log, "Unable to find record type " << Name);
   return std::nullopt;
 }
 
@@ -520,7 +411,7 @@ DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
 
   auto EnumName = EnumType->getDecl()->getName();
   if (EnumName.empty()) {
-    revng_log(DILogger, "Unable to find enum type without name");
+    revng_log(Log, "Unable to find enum type without name");
     return std::nullopt;
   }
 
@@ -528,7 +419,7 @@ DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
   if (TheEnumType)
     return *TheEnumType;
 
-  revng_log(DILogger, "Unable to find enum type " << EnumName);
+  revng_log(Log, "Unable to find enum type " << EnumName);
   return std::nullopt;
 }
 
@@ -536,29 +427,28 @@ bool DeclVisitor::comesFromInternalFile(const clang::Decl *D) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc Loc = SM.getPresumedLoc(D->getLocation());
   if (!Loc.isValid()) {
-    revng_log(DILogger, "Invalid source location found");
+    revng_log(Log, "Invalid source location found");
     return false;
   }
 
   StringRef TheFileName(Loc.getFilename());
   // Process the new type only.
-  if (TheFileName.contains(RevngInputCFile))
+  if (TheFileName.contains(InputCFile))
     return true;
 
   return false;
 }
 
-bool DeclVisitor::comesFromRevngPrimitiveTypesHeader(const clang::RecordDecl
-                                                       *RD) {
+bool DeclVisitor::comesFromPrimitiveTypesHeader(const clang::RecordDecl *RD) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc Loc = SM.getPresumedLoc(RD->getLocation());
   if (!Loc.isValid()) {
-    revng_log(DILogger, "Invalid source location found");
+    revng_log(Log, "Invalid source location found");
     return false;
   }
 
   StringRef TheFileName(Loc.getFilename());
-  if (TheFileName.contains(RevngPrimitiveTypeHeader))
+  if (TheFileName.contains(PrimitiveTypeHeader))
     return true;
 
   return false;
@@ -568,7 +458,7 @@ void DeclVisitor::setupLineAndColumn(const clang::Decl *D) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc Loc = SM.getPresumedLoc(D->getLocation());
   if (!Loc.isValid()) {
-    revng_log(DILogger, "Invalid source location found");
+    revng_log(Log, "Invalid source location found");
     return;
   }
 
@@ -617,7 +507,7 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
                                                  ->getAs<FunctionProtoType>()) {
       const TypedefType *AsTypedef = BaseType->getAs<TypedefType>();
       if (not AsTypedef) {
-        revng_log(DILogger, "There should be a typedef for function type");
+        revng_log(Log, "There should be a typedef for function type");
         return std::nullopt;
       }
 
@@ -631,13 +521,13 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
                                                   RawFunctionTypeKind);
 
       if (not TheCABIFunctionType and not TheRawFunctionType) {
-        revng_log(DILogger, "Did not find function type in the model");
+        revng_log(Log, "Did not find function type in the model");
         return std::nullopt;
       }
       TheTypePath = TheCABIFunctionType ? *TheCABIFunctionType :
                                           *TheRawFunctionType;
     } else {
-      revng_log(DILogger, "Unsupported type used as pointer");
+      revng_log(Log, "Unsupported type used as pointer");
       return std::nullopt;
     }
   } else if (QT->isArrayType()) {
@@ -647,7 +537,7 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
     } else {
       // Here we can face clang::VariableArrayType and
       // clang::IncompleteArrayType.
-      revng_log(DILogger, "Unsupported type used as an array");
+      revng_log(Log, "Unsupported type used as an array");
       return std::nullopt;
     }
 
@@ -668,7 +558,7 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
       if (not TheTypePath)
         return std::nullopt;
     } else {
-      revng_log(DILogger, "Unsupported array element type");
+      revng_log(Log, "Unsupported array element type");
       return std::nullopt;
     }
   } else if (const RecordType *AsRecordType = QT->getAs<RecordType>()) {
@@ -680,7 +570,7 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
     if (not TheTypePath)
       return std::nullopt;
   } else {
-    revng_log(DILogger, "Unsupported QualType");
+    revng_log(Log, "Unsupported QualType");
     return std::nullopt;
   }
 
@@ -696,43 +586,41 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   revng_assert(FD);
   revng_assert(AnalysisOption == ImportModelFromCOption::EditFunctionPrototype);
-  std::optional<llvm::StringRef> ABI;
-  std::vector<Attr *> AnnotateAttrs;
+  std::optional<std::string> MaybeABI;
+  std::vector<AnnotateAttr *> AnnotateAttrs;
 
-  if (FD->hasAttr<AnnotateAttr>()) {
+  {
     // May be multiple Annotate attributes. One for ABI, one for return value.
     std::for_each(begin(FD->getAttrs()),
                   end(FD->getAttrs()),
                   [&](Attr *Attribute) {
-                    if (isa<AnnotateAttr>(Attribute))
-                      AnnotateAttrs.push_back(Attribute);
+                    if (auto *Annotation = dyn_cast<AnnotateAttr>(Attribute))
+                      AnnotateAttrs.push_back(Annotation);
                   });
 
-    std::optional<std::string> MaybeABI;
     for (auto *Annotate : AnnotateAttrs) {
-      MaybeABI = getABI(cast<AnnotateAttr>(*Annotate).getAnnotation());
+      MaybeABI = getABI(Annotate->getAnnotation());
       if (MaybeABI)
         break;
     }
 
     if (not MaybeABI or MaybeABI->empty()) {
-      revng_log(DILogger,
+      revng_log(Log,
                 "Functions should have attribute annotate with abi: "
                 "specification");
       return false;
     }
-
-    ABI = *MaybeABI;
   }
 
-  bool IsRawFunctionType = *ABI == std::string(RawABI);
+  revng_assert(MaybeABI.has_value());
+  bool IsRawFunctionType = *MaybeABI == std::string(RawABI);
   auto NewType = IsRawFunctionType ? makeType<RawFunctionType>() :
                                      makeType<CABIFunctionType>();
 
   if (not IsRawFunctionType) {
-    auto TheModelABI = model::ABI::fromName(*ABI);
+    auto TheModelABI = model::ABI::fromName(*MaybeABI);
     if (TheModelABI == model::ABI::Invalid) {
-      revng_log(DILogger, "Invalid ABI provided");
+      revng_log(Log, "Invalid ABI provided");
       return false;
     }
 
@@ -741,7 +629,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     auto TheRetClangType = FD->getReturnType();
     auto TheRetType = getModelTypeForClangType(TheRetClangType);
     if (not TheRetType) {
-      revng_log(DILogger, "Unsupported type for function return value");
+      revng_log(Log, "Unsupported type for function return value");
       return false;
     }
 
@@ -753,12 +641,12 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       auto QT = FD->getParamDecl(I)->getType();
       auto ParamType = getModelTypeForClangType(QT);
       if (not ParamType) {
-        revng_log(DILogger, "Unsupported type for function parameter");
+        revng_log(Log, "Unsupported type for function parameter");
         return false;
       }
 
       model::Argument &NewArgument = FunctionType->Arguments()[Index];
-      NewArgument.CustomName() = FD->getParamDecl(I)->getName();
+      setCustomName(NewArgument, FD->getParamDecl(I)->getName());
       NewArgument.Type() = *ParamType;
       ++Index;
     }
@@ -771,7 +659,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     // This represents multiple register location for return values.
     if (TheRetClangType->isStructureType()) {
       if (not MultiRegisterReturnValue) {
-        revng_log(DILogger, "Return value should be already parsed");
+        revng_log(Log, "Return value should be already parsed");
         return false;
       }
 
@@ -786,19 +674,19 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       std::for_each(begin(FD->getAttrs()),
                     end(FD->getAttrs()),
                     [&](Attr *Attribute) {
-                      if (isa<AnnotateAttr>(Attribute))
-                        AnnotateAttrs.push_back(Attribute);
+                      if (auto *Annotation = dyn_cast<AnnotateAttr>(Attribute))
+                        AnnotateAttrs.push_back(Annotation);
                     });
 
       std::optional<std::string> ReturnValue;
       for (auto *Annotate : AnnotateAttrs) {
-        ReturnValue = getLoc(cast<AnnotateAttr>(*Annotate).getAnnotation());
+        ReturnValue = getLoc(Annotate->getAnnotation());
         if (ReturnValue)
           break;
       }
 
       if (not ReturnValue or ReturnValue->empty()) {
-        revng_log(DILogger,
+        revng_log(Log,
                   "Return value should have attribute annotate with reg or "
                   "stack");
         return false;
@@ -806,20 +694,20 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
       // TODO: Handle stack location.
       if (*ReturnValue == "stack") {
-        revng_log(DILogger, "We don't support Return value on stack for now");
+        revng_log(Log, "We don't support Return value on stack for now");
         return false;
       }
 
       auto TheRetType = getModelTypeForClangType(TheRetClangType);
       if (not TheRetType) {
-        revng_log(DILogger, "Unsupported type for function return value");
+        revng_log(Log, "Unsupported type for function return value");
         return false;
       }
 
       auto RegisterID = model::Register::fromCSVName(*ReturnValue,
                                                      Model->Architecture());
       if (RegisterID == model::Register::Invalid) {
-        revng_log(DILogger, "Unsupported register location");
+        revng_log(Log, "Unsupported register location");
         return false;
       }
 
@@ -839,7 +727,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
                                      });
         auto Loc = getLoc(cast<AnnotateAttr>(*Annotate)->getAnnotation());
         if (not Loc or Loc->empty()) {
-          revng_log(DILogger,
+          revng_log(Log,
                     "Parameters should have attribute annotate with reg or "
                     "stack");
           return false;
@@ -847,21 +735,21 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
         // TODO: Handle stack location.
         if (*Loc == "stack") {
-          revng_log(DILogger, "We don't support parameters on stack for now");
+          revng_log(Log, "We don't support parameters on stack for now");
           return false;
         }
 
         auto LocationID = model::Register::fromCSVName(*Loc,
                                                        Model->Architecture());
         if (LocationID == model::Register::Invalid) {
-          revng_log(DILogger, "Unsupported register location");
+          revng_log(Log, "Unsupported register location");
           return false;
         }
 
         auto QT = ParamDecl->getType();
         auto ParamType = getModelTypeForClangType(QT);
         if (not ParamType) {
-          revng_log(DILogger, "Unsupported type for raw function parameter");
+          revng_log(Log, "Unsupported type for raw function parameter");
           return false;
         }
 
@@ -874,13 +762,13 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   // Update the name if in the case it got changed.
   auto &ModelFunction = Model->Functions()[Function->Entry()];
-  ModelFunction.CustomName() = FD->getName();
+  setCustomName(ModelFunction, FD->getName());
 
   // Clone the other stuff.
   ModelFunction.OriginalName() = Function->OriginalName();
   ModelFunction.ExportedNames() = Function->ExportedNames();
 
-  // TODO: Remember/clone StackFrameType as well.
+  // TODO: remember/clone StackFrameType as well.
 
   auto Prototype = Model->recordNewType(std::move(NewType));
   ModelFunction.Prototype() = Prototype;
@@ -894,7 +782,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 
   revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
 
-  auto TheType = D->getUnderlyingType();
+  QualType TheType = D->getUnderlyingType();
   if (auto Fn = llvm::dyn_cast<FunctionProtoType>(TheType)) {
     // Parse the ABI from annotate attribute attached to the typedef
     // declaration. Please do note that annotations on the parameters are not
@@ -903,7 +791,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     // TODO: Should we change the annotate attached to function types to have
     // info about parameters in the toplevel annotate attribute attached to
     // the typedef itself?
-    std::optional<llvm::StringRef> TheABI;
+    std::optional<std::string> TheABI;
     if (D->hasAttr<AnnotateAttr>()) {
       auto TheAnnotateAttr = std::find_if(begin(D->getAttrs()),
                                           end(D->getAttrs()),
@@ -911,13 +799,12 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
                                             return isa<AnnotateAttr>(Attribute);
                                           });
 
-      auto ABI = getABI(cast<AnnotateAttr>(*TheAnnotateAttr)->getAnnotation());
-      if (not ABI or ABI->empty()) {
-        revng_log(DILogger,
-                  "Unable to parse `abi:` from the annotate attribute");
-      } else {
-        TheABI = (*ABI);
-      }
+      TheABI = getABI(cast<AnnotateAttr>(*TheAnnotateAttr)->getAnnotation());
+    }
+
+    if (not TheABI or TheABI->empty()) {
+      revng_log(Log, "Unable to parse `abi:` from the annotate attribute");
+      return false;
     }
 
     return VisitFunctionPrototype(Fn, TheABI);
@@ -926,7 +813,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   // Regular, non-function, typedef.
   auto ModelTypedefType = getModelTypeForClangType(TheType);
   if (not ModelTypedefType) {
-    revng_log(DILogger, "Unsupported underlying type for typedef");
+    revng_log(Log, "Unsupported underlying type for typedef");
     return false;
   }
   auto TypeTypedef = model::makeType<model::TypedefType>();
@@ -935,15 +822,18 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 
   auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
   TheTypeTypeDef->UnderlyingType() = *ModelTypedefType;
+  setCustomName(*TheTypeTypeDef, D->getName());
 
   if (AnalysisOption == ImportModelFromCOption::EditType) {
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
-  }
 
-  Model->recordNewType(std::move(TypeTypedef));
+    Model->Types().insert(std::move(TypeTypedef));
+  } else {
+    Model->recordNewType(std::move(TypeTypedef));
+  }
 
   return true;
 }
@@ -953,7 +843,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
   revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
 
   if (not ABI) {
-    revng_log(DILogger, "No annotate attribute found with `abi:` information");
+    revng_log(Log, "No annotate attribute found with `abi:` information");
     return false;
   }
 
@@ -968,7 +858,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     auto FunctionType = cast<CABIFunctionType>(NewType.get());
     auto TheModelABI = model::ABI::fromName(*ABI);
     if (TheModelABI == model::ABI::Invalid) {
-      revng_log(DILogger, "An invalid ABI found as an input");
+      revng_log(Log, "An invalid ABI found as an input");
       return false;
     }
 
@@ -977,7 +867,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     auto TheRetClangType = FP->getReturnType();
     auto TheRetModelType = getModelTypeForClangType(TheRetClangType);
     if (not TheRetModelType) {
-      revng_log(DILogger, "Unsupported type for function return value");
+      revng_log(Log, "Unsupported type for function return value");
       return false;
     }
 
@@ -988,7 +878,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     for (auto QT : FP->getParamTypes()) {
       auto ParamType = getModelTypeForClangType(QT);
       if (not ParamType) {
-        revng_log(DILogger, "Unsupported type for function parameter");
+        revng_log(Log, "Unsupported type for function parameter");
         return false;
       }
 
@@ -1014,9 +904,11 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
-  }
 
-  Model->recordNewType(std::move(NewType));
+    Model->Types().insert(std::move(NewType));
+  } else {
+    Model->recordNewType(std::move(NewType));
+  }
 
   return true;
 }
@@ -1025,11 +917,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   const RecordDecl *Definition = RD->getDefinition();
 
   auto NewType = makeType<model::StructType>();
-
-  // We add "prefix_" to guarantee that there are no collisions.
-  std::string CustomName = std::string("prefix_") + RD->getName().str();
-  auto StructName = std::string(model::Identifier::fromString(CustomName));
-  NewType->CustomName() = StructName;
+  setCustomName(*NewType, RD->getName());
 
   if (AnalysisOption == ImportModelFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
@@ -1037,18 +925,21 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   auto Struct = cast<model::StructType>(NewType.get());
   uint64_t CurrentOffset = 0;
 
+  //
+  // Iterate over the struct fields
+  //
   llvm::SmallVector<std::pair<model::Register::Values, ModelType>, 4>
     ReturnValues;
   for (const FieldDecl *Field : Definition->fields()) {
     if (Field->isInvalidDecl()) {
-      revng_log(DILogger, "Invalid declaration for a struct field");
+      revng_log(Log, "Invalid declaration for a struct field");
       return false;
     }
 
     std::optional<model::Register::Values> LocationID;
     if (AnalysisOption == ImportModelFromCOption::EditFunctionPrototype) {
       if (not Field->hasAttr<AnnotateAttr>()) {
-        revng_log(DILogger,
+        revng_log(Log,
                   "Struct field representing return value should have annotate "
                   "attribute describing location");
         return false;
@@ -1062,7 +953,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
       auto Loc = getLoc(cast<AnnotateAttr>(*Annotate)->getAnnotation());
       if (not Loc or Loc->empty()) {
-        revng_log(DILogger,
+        revng_log(Log,
                   "Return value should have attribute annotate with reg or "
                   "stack");
         return false;
@@ -1070,13 +961,13 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
       // TODO: Handle stack location.
       if (*Loc == "stack") {
-        revng_log(DILogger, "We don't support Return value on stack for now");
+        revng_log(Log, "We don't support Return value on stack for now");
         return false;
       }
 
       LocationID = model::Register::fromCSVName(*Loc, Model->Architecture());
       if (*LocationID == model::Register::Invalid) {
-        revng_log(DILogger, "Unsupported register location");
+        revng_log(Log, "Unsupported register location");
         return false;
       }
     }
@@ -1086,7 +977,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     auto TheFieldType = getModelTypeForClangType(FieldType);
 
     if (not TheFieldType) {
-      revng_log(DILogger, "Unsupported type for a struct field");
+      revng_log(Log, "Unsupported type for a struct field");
       return false;
     }
 
@@ -1105,7 +996,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       if (const auto *CAT = dyn_cast<ConstantArrayType>(FieldType)) {
         NumberOfElements = CAT->getSize().getZExtValue();
       } else {
-        revng_log(DILogger, "Unsupported array type");
+        revng_log(Log, "Unsupported array type");
         return false;
       }
       Size = *(TheFieldType->UnqualifiedType().get()->size())
@@ -1114,10 +1005,12 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       Size = *(TheFieldType->UnqualifiedType().get()->size());
     }
 
-    auto &FieldModelType = Struct->Fields()[CurrentOffset];
-    FieldModelType.CustomName() = Field->getName();
-
-    FieldModelType.Type() = *TheFieldType;
+    // Do not create fields for padding fields
+    if (not Field->getName().starts_with(StructPaddingPrefix)) {
+      auto &FieldModelType = Struct->Fields()[CurrentOffset];
+      setCustomName(FieldModelType, Field->getName());
+      FieldModelType.Type() = *TheFieldType;
+    }
 
     revng_assert(Size);
     CurrentOffset += *Size;
@@ -1126,18 +1019,23 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   // TODO: Can this be calculated/fetched automatically?
   Struct->Size() = CurrentOffset;
 
-  if (AnalysisOption == ImportModelFromCOption::EditType) {
+  switch (AnalysisOption) {
+  case ImportModelFromCOption::EditType:
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
-  }
+    Model->Types().insert(std::move(NewType));
+    break;
 
-  if (AnalysisOption != ImportModelFromCOption::EditFunctionPrototype)
-    Model->recordNewType(std::move(NewType));
-
-  if (AnalysisOption == ImportModelFromCOption::EditFunctionPrototype)
+  case ImportModelFromCOption::EditFunctionPrototype:
     MultiRegisterReturnValue = ReturnValues;
+    break;
+
+  case ImportModelFromCOption::AddType:
+    Model->recordNewType(std::move(NewType));
+    break;
+  }
 
   return true;
 }
@@ -1147,11 +1045,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
 
   const RecordDecl *Definition = RD->getDefinition();
   auto NewType = makeType<model::UnionType>();
-
-  // We add "prefix_" to guarantee that there are no collisions.
-  std::string CustomName = std::string("prefix_") + RD->getName().str();
-  auto UnionName = std::string(model::Identifier::fromString(CustomName));
-  NewType->CustomName() = UnionName;
+  setCustomName(*NewType, RD->getName().str());
 
   auto Union = cast<model::UnionType>(NewType.get());
 
@@ -1161,7 +1055,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   uint64_t CurrentIndex = 0;
   for (const FieldDecl *Field : Definition->fields()) {
     if (Field->isInvalidDecl()) {
-      revng_log(DILogger, "Invalid declaration for a union field");
+      revng_log(Log, "Invalid declaration for a union field");
       return false;
     }
 
@@ -1171,12 +1065,12 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     auto TheFieldType = getModelTypeForClangType(FieldType);
 
     if (not TheFieldType) {
-      revng_log(DILogger, "Unsupported type for an union field");
+      revng_log(Log, "Unsupported type for an union field");
       return false;
     }
 
     auto &FieldModelType = Union->Fields()[CurrentIndex];
-    FieldModelType.CustomName() = Field->getName();
+    setCustomName(FieldModelType, Field->getName());
     FieldModelType.Type() = *TheFieldType;
 
     ++CurrentIndex;
@@ -1187,9 +1081,11 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
+    Model->Types().insert(std::move(NewType));
+  } else {
+    Model->recordNewType(std::move(NewType));
   }
 
-  Model->recordNewType(std::move(NewType));
   return true;
 }
 
@@ -1199,7 +1095,7 @@ bool DeclVisitor::VisitRecordDecl(const clang::RecordDecl *RD) {
 
   if (AnalysisOption != ImportModelFromCOption::EditFunctionPrototype
       and not RD->hasAttr<PackedAttr>()) {
-    revng_log(DILogger, "Unions and Structs should have attribute packed");
+    revng_log(Log, "Unions and Structs should have attribute packed");
     return false;
   }
 
@@ -1209,7 +1105,7 @@ bool DeclVisitor::VisitRecordDecl(const clang::RecordDecl *RD) {
   } else if (TheType->isUnionType()) {
     return handleUnionType(RD);
   } else {
-    revng_log(DILogger, "Unhandled record type declaration");
+    revng_log(Log, "Unhandled record type declaration");
     return false;
   }
 
@@ -1223,12 +1119,12 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
 
   if (not D->hasAttr<PackedAttr>()) {
-    revng_log(DILogger, "Enums should have attribute packed");
+    revng_log(Log, "Enums should have attribute packed");
     return false;
   }
 
   // Parse annotate attribute used for specifying underlying type.
-  std::optional<llvm::StringRef> UnderlyingType;
+  std::optional<std::string> UnderlyingType;
   if (D->hasAttr<AnnotateAttr>()) {
     auto Annotate = std::find_if(begin(D->getAttrs()),
                                  end(D->getAttrs()),
@@ -1237,20 +1133,19 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
                                  });
 
     llvm::StringRef Annotation = cast<AnnotateAttr>(*Annotate)->getAnnotation();
-    auto TheUnderlyingType = parseEnumUnderlyingType(Annotation);
-    if (not TheUnderlyingType or TheUnderlyingType->empty()) {
-      revng_log(DILogger,
+    UnderlyingType = parseEnumUnderlyingType(Annotation);
+    if (not UnderlyingType or UnderlyingType->empty()) {
+      revng_log(Log,
                 "Unable to parse `enum_underlying_type:` from the annotate "
                 "attribute");
       return false;
-    } else {
-      UnderlyingType = (*TheUnderlyingType);
     }
   }
 
-  auto TheUnderlyingModelType = getEnumUnderlyingType((*UnderlyingType).str());
+  revng_assert(UnderlyingType.has_value());
+  auto TheUnderlyingModelType = getEnumUnderlyingType(*UnderlyingType);
   if (not TheUnderlyingModelType) {
-    revng_log(DILogger,
+    revng_log(Log,
               "UnderlyingType of a EnumType can only be Signed or Unsigned");
     return false;
   }
@@ -1263,15 +1158,13 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   auto TypeEnum = cast<model::EnumType>(NewType.get());
   model::QualifiedType TheUnderlyingType(*TheUnderlyingModelType, {});
   TypeEnum->UnderlyingType() = TheUnderlyingType;
-
-  // We add "prefix_" to guarantee that there are no collisions.
-  std::string CustomName = std::string("prefix_") + Definition->getName().str();
-  auto EnumName = std::string(model::Identifier::fromString(CustomName));
-  NewType->CustomName() = EnumName;
+  setCustomName(*TypeEnum, Definition->getName());
 
   for (const auto *Enum : Definition->enumerators()) {
     auto &EnumEntry = TypeEnum->Entries()[Enum->getInitVal().getExtValue()];
-    EnumEntry.CustomName() = Enum->getName();
+    std::string NewName = Enum->getName().str();
+    if (TypeEnum->entryName(EnumEntry) != NewName)
+      EnumEntry.CustomName() = NewName;
   }
 
   if (AnalysisOption == ImportModelFromCOption::EditType) {
@@ -1279,9 +1172,12 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
     });
+
+    Model->Types().insert(std::move(NewType));
+  } else {
+    Model->recordNewType(std::move(NewType));
   }
 
-  Model->recordNewType(std::move(NewType));
   return true;
 }
 

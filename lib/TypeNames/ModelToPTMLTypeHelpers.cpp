@@ -31,10 +31,6 @@
 #include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
-namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokens;
-namespace ranks = revng::ranks;
-
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeSet = std::set<const model::Type *>;
 using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
@@ -70,7 +66,7 @@ TypeSet TypeInlineHelper::findTypesToInline(const model::Binary &Model,
   // once somewhere else in Types:, but we do not want to inline it if that is
   // the case.
   for (auto &Function : Model.Functions()) {
-    if (Function.StackFrameType().isValid()) {
+    if (not Function.StackFrameType().empty()) {
       const model::Type *StackT = Function.StackFrameType().getConst();
       ShouldIgnore.insert(StackT);
     }
@@ -177,13 +173,15 @@ TypeSet TypeInlineHelper::collectStackTypes(const model::Binary &Model) const {
   for (auto &Function : Model.Functions()) {
     if (not Function.StackFrameType().empty()) {
       const model::Type *StackT = Function.StackFrameType().getConst();
+      revng_assert(StackT->Kind() == model::TypeKind::StructType);
+
       // Do not inline stack types that are being used somewhere else.
       auto TheTypeToNumOfRefs = TypeToNumOfRefs.find(StackT);
       if (TheTypeToNumOfRefs != TypeToNumOfRefs.end()
           and TheTypeToNumOfRefs->second != 0)
         continue;
 
-      revng_assert(StackT->Kind() == model::TypeKind::StructType);
+      revng_assert(StackT != nullptr);
       Result.insert(StackT);
       auto AllNestedTypes = getTypesToInlineInTypeTy(Model, StackT);
       Result.merge(AllNestedTypes);
@@ -200,20 +198,20 @@ bool declarationIsDefinition(const model::Type *T) {
 }
 
 static ptml::Tag getTypeKeyword(const model::Type &T,
-                                const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                                const ptml::PTMLCBuilder &B) {
 
   switch (T.Kind()) {
 
   case model::TypeKind::EnumType: {
-    return ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Enum);
+    return B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum);
   }
 
   case model::TypeKind::StructType: {
-    return ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Struct);
+    return B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct);
   }
 
   case model::TypeKind::UnionType: {
-    return ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Union);
+    return B.getKeyword(ptml::PTMLCBuilder::Keyword::Union);
   }
 
   default:
@@ -223,23 +221,23 @@ static ptml::Tag getTypeKeyword(const model::Type &T,
 
 void printForwardDeclaration(const model::Type &T,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                             ptml::PTMLCBuilder &B) {
   if (declarationIsDefinition(&T))
-    Header << ThePTMLCBuilder.getModelComment(T);
+    Header << B.getModelComment(T);
 
-  auto TypeNameReference = ThePTMLCBuilder.getLocationReference(T);
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
-         << " " << getTypeKeyword(T, ThePTMLCBuilder) << " "
-         << ThePTMLCBuilder.getAttributePacked() << " " << TypeNameReference
-         << " " << TypeNameReference << ";\n";
+  auto TypeNameReference = B.getLocationReference(T);
+  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
+         << getTypeKeyword(T, B) << " " << B.getAttributePacked() << " "
+         << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
 static void printDefinition(const model::EnumType &E,
                             ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &ThePTMLCBuilder,
+                            ptml::PTMLCBuilder &B,
                             const TypeSet &TypesToInline,
                             llvm::StringRef NameOfInlineInstance,
-                            const std::vector<model::Qualifier> *Qualifiers) {
+                            const std::vector<model::Qualifier> *Qualifiers,
+                            bool ForEditing) {
   // We have to make the enum of the correct size of the underlying type
   auto ByteSize = *E.size();
   revng_assert(ByteSize <= 8);
@@ -249,30 +247,29 @@ static void printDefinition(const model::EnumType &E,
                                  ((FullMask) xor (FullMask << (8 * ByteSize)));
 
   Header
-    << ThePTMLCBuilder.getModelComment(E)
-    << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
-    << ThePTMLCBuilder
-         .getAnnotateEnum(E.UnderlyingType().UnqualifiedType().get()->name())
-    << " " << ThePTMLCBuilder.getAttributePacked() << " "
-    << ThePTMLCBuilder.getLocationDefinition(E) << " ";
+    << B.getModelComment(E) << B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum)
+    << " "
+    << B.getAnnotateEnum(E.UnderlyingType().UnqualifiedType().get()->name())
+    << " " << B.getAttributePacked() << " " << B.getLocationDefinition(E)
+    << " ";
 
   {
     Scope Scope(Header);
 
     using PTMLOperator = ptml::PTMLCBuilder::Operator;
     for (const auto &Entry : E.Entries()) {
-      revng_assert(not Entry.CustomName().empty());
-      Header << ThePTMLCBuilder.getModelComment(Entry)
-             << ThePTMLCBuilder.getLocationDefinition(E, Entry) << " "
-             << ThePTMLCBuilder.getOperator(PTMLOperator::Assign) << " "
-             << ThePTMLCBuilder.getHex(Entry.Value()) << ",\n";
+      Header << B.getModelComment(Entry) << B.getLocationDefinition(E, Entry)
+             << " " << B.getOperator(PTMLOperator::Assign) << " "
+             << B.getHex(Entry.Value()) << ",\n";
     }
 
-    // This ensures the enum is large exactly like the Underlying type
-    Header << ThePTMLCBuilder.tokenTag((E.name() + "_max_held_value").str(),
-                                       ptml::c::tokens::Field)
-           << " " + ThePTMLCBuilder.getOperator(PTMLOperator::Assign) + " "
-           << ThePTMLCBuilder.getHex(MaxBitPatternInEnum) << ",\n";
+    if (not ForEditing) {
+      // This ensures the enum is large exactly like the Underlying type
+      Header << B.tokenTag(("_enum_max_value_" + E.name()).str(),
+                           ptml::c::tokens::Field)
+             << " " + B.getOperator(PTMLOperator::Assign) + " "
+             << B.getHex(MaxBitPatternInEnum) << ",\n";
+    }
   }
 
   if (not NameOfInlineInstance.empty())
@@ -284,52 +281,44 @@ static void printDefinition(const model::EnumType &E,
 void printDefinition(Logger<> &Log,
                      const model::StructType &S,
                      ptml::PTMLIndentedOstream &Header,
-                     ptml::PTMLCBuilder &ThePTMLCBuilder,
+                     ptml::PTMLCBuilder &B,
                      const TypeSet &TypesToInline,
                      QualifiedTypeNameMap &AdditionalNames,
                      const model::Binary &Model,
                      llvm::StringRef NameOfInlineInstance,
                      const std::vector<model::Qualifier> *Qualifiers) {
 
-  Header << ThePTMLCBuilder.getModelComment(S)
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Struct)
-         << " " << ThePTMLCBuilder.getAttributePacked() << " ";
-  Header << ThePTMLCBuilder.getLocationDefinition(S) << " ";
+  Header << B.getModelComment(S)
+         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+         << B.getAttributePacked() << " ";
+  Header << B.getLocationDefinition(S) << " ";
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
 
     size_t NextOffset = 0ULL;
     for (const auto &Field : S.Fields()) {
-      if (NextOffset < Field.Offset())
-        Header << ThePTMLCBuilder.tokenTag("uint8_t", ptml::c::tokens::Type)
-               << " "
-               << ThePTMLCBuilder.tokenTag("padding_at_offset_"
-                                             + std::to_string(NextOffset),
-                                           ptml::c::tokens::Field)
-               << "[" << ThePTMLCBuilder.getNumber(Field.Offset() - NextOffset)
-               << "];\n";
+      if (NextOffset < Field.Offset()) {
+        Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
+               << B.tokenTag(StructPaddingPrefix + std::to_string(NextOffset),
+                             ptml::c::tokens::Field)
+               << "[" << B.getNumber(Field.Offset() - NextOffset) << "];\n";
+      }
 
       auto TheType = Field.Type().UnqualifiedType().get();
       if (not TypesToInline.contains(TheType)) {
-        auto F = ThePTMLCBuilder.getLocationDefinition(S, Field);
-        Header << ThePTMLCBuilder.getModelComment(Field)
-               << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
+        auto F = B.getLocationDefinition(S, Field);
+        Header << B.getModelComment(Field)
+               << getNamedCInstance(Field.Type(), F, B) << ";\n";
       } else {
-        std::string Name = std::string(Field.CustomName());
-        if (Name == "") {
-          Name = std::string("unnamed_field_at_offset_")
-                 + std::to_string(Field.Offset());
-        }
-
         auto Qualifiers = Field.Type().Qualifiers();
         printDefinition(Log,
                         *TheType,
                         Header,
-                        ThePTMLCBuilder,
+                        B,
                         AdditionalNames,
                         Model,
                         TypesToInline,
-                        llvm::StringRef(Name.c_str()),
+                        Field.name().str(),
                         &Qualifiers);
       }
 
@@ -337,21 +326,15 @@ void printDefinition(Logger<> &Log,
     }
 
     if (NextOffset < S.Size())
-      Header << ThePTMLCBuilder.tokenTag("uint8_t", ptml::c::tokens::Type)
-             << " "
-             << ThePTMLCBuilder.tokenTag("padding_at_offset_"
-                                           + std::to_string(NextOffset),
-                                         ptml::c::tokens::Field)
-             << "[" << ThePTMLCBuilder.getNumber(S.Size() - NextOffset)
-             << "];\n";
+      Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
+             << B.tokenTag(StructPaddingPrefix + std::to_string(NextOffset),
+                           ptml::c::tokens::Field)
+             << "[" << B.getNumber(S.Size() - NextOffset) << "];\n";
   }
   if (not NameOfInlineInstance.empty()) {
     if (Qualifiers) {
       Header << " "
-             << getNamedCInstance("",
-                                  *Qualifiers,
-                                  NameOfInlineInstance,
-                                  ThePTMLCBuilder);
+             << getNamedCInstance("", *Qualifiers, NameOfInlineInstance, B);
     } else {
       Header << " " << NameOfInlineInstance;
     }
@@ -362,36 +345,33 @@ void printDefinition(Logger<> &Log,
 static void printDefinition(Logger<> &Log,
                             const model::UnionType &U,
                             ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &ThePTMLCBuilder,
+                            ptml::PTMLCBuilder &B,
                             const TypeSet &TypesToInline,
                             QualifiedTypeNameMap &AdditionalTypeNames,
                             const model::Binary &Model,
                             llvm::StringRef NameOfInlineInstance,
                             const std::vector<model::Qualifier> *Qualifiers) {
-  Header << ThePTMLCBuilder.getModelComment(U)
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Union)
-         << " " << ThePTMLCBuilder.getAttributePacked() << " ";
-  Header << ThePTMLCBuilder.getLocationDefinition(U) << " ";
+  Header << B.getModelComment(U)
+         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Union) << " "
+         << B.getAttributePacked() << " ";
+  Header << B.getLocationDefinition(U) << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::UnionBody);
     for (const auto &Field : U.Fields()) {
       auto TheType = Field.Type().UnqualifiedType().get();
       if (not TypesToInline.contains(TheType)) {
-        auto F = ThePTMLCBuilder.getLocationDefinition(U, Field);
-        Header << ThePTMLCBuilder.getModelComment(Field)
-               << getNamedCInstance(Field.Type(), F, ThePTMLCBuilder) << ";\n";
+        auto F = B.getLocationDefinition(U, Field);
+        Header << B.getModelComment(Field)
+               << getNamedCInstance(Field.Type(), F, B) << ";\n";
       } else {
-        std::string Name = std::string(Field.CustomName());
-        if (Name == "") {
-          Name = std::string("unnamed_field_") + std::to_string(Field.Index());
-        }
+        std::string Name = Field.name().str().str();
 
         auto Qualifiers = Field.Type().Qualifiers();
         printDefinition(Log,
                         *TheType,
                         Header,
-                        ThePTMLCBuilder,
+                        B,
                         AdditionalTypeNames,
                         Model,
                         TypesToInline,
@@ -404,10 +384,7 @@ static void printDefinition(Logger<> &Log,
   if (not NameOfInlineInstance.empty()) {
     if (Qualifiers) {
       Header << " "
-             << getNamedCInstance("",
-                                  *Qualifiers,
-                                  NameOfInlineInstance,
-                                  ThePTMLCBuilder);
+             << getNamedCInstance("", *Qualifiers, NameOfInlineInstance, B);
     } else {
       Header << " " << NameOfInlineInstance;
     }
@@ -417,14 +394,13 @@ static void printDefinition(Logger<> &Log,
 
 void printDeclaration(const model::TypedefType &TD,
                       ptml::PTMLIndentedOstream &Header,
-                      ptml::PTMLCBuilder &ThePTMLCBuilder) {
+                      ptml::PTMLCBuilder &B) {
   if (declarationIsDefinition(&TD))
-    Header << ThePTMLCBuilder.getModelComment(TD);
+    Header << B.getModelComment(TD);
 
-  auto Type = ThePTMLCBuilder.getLocationDefinition(TD);
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
-         << " " << getNamedCInstance(TD.UnderlyingType(), Type, ThePTMLCBuilder)
-         << ";\n";
+  auto Type = B.getLocationDefinition(TD);
+  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
+         << getNamedCInstance(TD.UnderlyingType(), Type, B) << ";\n";
 }
 
 /// Generate the definition of a new struct type that wraps all the
@@ -433,17 +409,16 @@ void printDeclaration(const model::TypedefType &TD,
 static void generateReturnValueWrapper(Logger<> &Log,
                                        const model::RawFunctionType &F,
                                        ptml::PTMLIndentedOstream &Header,
-                                       ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                       ptml::PTMLCBuilder &B,
                                        const model::Binary &Model) {
   revng_assert(F.ReturnValues().size() > 1);
   if (Log.isEnabled())
-    Header << ThePTMLCBuilder.getLineComment("definition the of return type "
-                                             "needed");
+    Header << B.getLineComment("definition the of return type "
+                               "needed");
 
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
-         << " "
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Struct)
-         << " " << ThePTMLCBuilder.getAttributePacked() << " ";
+  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
+         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+         << B.getAttributePacked() << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
@@ -451,15 +426,14 @@ static void generateReturnValueWrapper(Logger<> &Log,
       const model::QualifiedType &RetTy = Group.value().Type();
       const auto &FieldName = getReturnField(F, Group.index(), Model);
       Header << getNamedCInstance(RetTy,
-                                  ThePTMLCBuilder
-                                    .tokenTag(FieldName, ptml::c::tokens::Field)
+                                  B.tokenTag(FieldName, ptml::c::tokens::Field)
                                     .serialize(),
-                                  ThePTMLCBuilder)
+                                  B)
              << ";\n";
     }
   }
 
-  Header << " " << getReturnTypeName(F, ThePTMLCBuilder) << ";\n";
+  Header << " " << getReturnTypeName(F, B) << ";\n";
 }
 
 /// If the function has more than one return value, generate a wrapper
@@ -467,10 +441,10 @@ static void generateReturnValueWrapper(Logger<> &Log,
 static void printRawFunctionWrappers(Logger<> &Log,
                                      const model::RawFunctionType *F,
                                      ptml::PTMLIndentedOstream &Header,
-                                     ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                     ptml::PTMLCBuilder &B,
                                      const model::Binary &Model) {
   if (F->ReturnValues().size() > 1)
-    generateReturnValueWrapper(Log, *F, Header, ThePTMLCBuilder, Model);
+    generateReturnValueWrapper(Log, *F, Header, B, Model);
 
   for (auto &Arg : F->Arguments())
     revng_assert(Arg.Type().isScalar());
@@ -481,16 +455,15 @@ static void printRawFunctionWrappers(Logger<> &Log,
 static void printDeclaration(Logger<> &Log,
                              const model::RawFunctionType &F,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &ThePTMLCBuilder,
+                             ptml::PTMLCBuilder &B,
                              const model::Binary &Model) {
-  printRawFunctionWrappers(Log, &F, Header, ThePTMLCBuilder, Model);
+  printRawFunctionWrappers(Log, &F, Header, B, Model);
 
-  Header << ThePTMLCBuilder.getModelComment(F)
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
-         << " ";
+  Header << B.getModelComment(F)
+         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionTypeDeclaration(F, Header, ThePTMLCBuilder, Model);
+  printFunctionTypeDeclaration(F, Header, B, Model);
   Header << ";\n";
 }
 
@@ -499,75 +472,72 @@ static void printDeclaration(Logger<> &Log,
 ///        CABIFunctionTypes.
 static void generateArrayWrapper(const model::QualifiedType &ArrayType,
                                  ptml::PTMLIndentedOstream &Header,
-                                 ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                 ptml::PTMLCBuilder &B,
                                  QualifiedTypeNameMap &NamesCache) {
   revng_assert(ArrayType.isArray());
-  auto WrapperName = getArrayWrapper(ArrayType, ThePTMLCBuilder);
+  auto WrapperName = getArrayWrapper(ArrayType, B);
 
   // Check if the wrapper was already added
   bool IsNew = NamesCache.emplace(ArrayType, WrapperName).second;
   if (not IsNew)
     return;
 
-  Header << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
-         << " "
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Struct)
-         << " " << ThePTMLCBuilder.getAttributePacked() << " ";
+  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
+         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+         << B.getAttributePacked() << " ";
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     Header << getNamedCInstance(ArrayType,
                                 ArtificialTypes::ArrayWrapperFieldName,
-                                ThePTMLCBuilder)
+                                B)
            << ";\n";
   }
-  Header << " " << ThePTMLCBuilder.tokenTag(WrapperName, ptml::c::tokens::Type)
-         << ";\n";
+  Header << " " << B.tokenTag(WrapperName, ptml::c::tokens::Type) << ";\n";
 }
 
 /// If the return value or any of the arguments is an array, generate
 ///        a wrapper struct for each of them, if it's not already in the cache.
 static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
                                       ptml::PTMLIndentedOstream &Header,
-                                      ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                      ptml::PTMLCBuilder &B,
                                       QualifiedTypeNameMap &NamesCache) {
   if (F->ReturnType().isArray())
-    generateArrayWrapper(F->ReturnType(), Header, ThePTMLCBuilder, NamesCache);
+    generateArrayWrapper(F->ReturnType(), Header, B, NamesCache);
 
   for (auto &Arg : F->Arguments())
     if (Arg.Type().isArray())
-      generateArrayWrapper(Arg.Type(), Header, ThePTMLCBuilder, NamesCache);
+      generateArrayWrapper(Arg.Type(), Header, B, NamesCache);
 }
 
 /// Print a typedef for a CABIFunctionType, that can be used when you
 ///        have a variable that is a pointer to a function.
 static void printDeclaration(const model::CABIFunctionType &F,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &ThePTMLCBuilder,
+                             ptml::PTMLCBuilder &B,
                              QualifiedTypeNameMap &NamesCache,
                              const model::Binary &Model) {
-  printCABIFunctionWrappers(&F, Header, ThePTMLCBuilder, NamesCache);
+  printCABIFunctionWrappers(&F, Header, B, NamesCache);
 
-  Header << ThePTMLCBuilder.getModelComment(F)
-         << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef)
-         << " ";
+  Header << B.getModelComment(F)
+         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionTypeDeclaration(F, Header, ThePTMLCBuilder, Model);
+  printFunctionTypeDeclaration(F, Header, B, Model);
   Header << ";\n";
 }
 
 void printDeclaration(Logger<> &Log,
                       const model::Type &T,
                       ptml::PTMLIndentedOstream &Header,
-                      ptml::PTMLCBuilder &ThePTMLCBuilder,
+                      ptml::PTMLCBuilder &B,
                       QualifiedTypeNameMap &AdditionalNames,
                       const model::Binary &Model,
                       const TypeSet &TypesToInline,
                       llvm::StringRef NameOfInlineInstance,
-                      const std::vector<model::Qualifier> *Qualifiers) {
+                      const std::vector<model::Qualifier> *Qualifiers,
+                      bool ForEditing) {
   if (Log.isEnabled()) {
-    auto Scope = helpers::LineComment(Header,
-                                      ThePTMLCBuilder.isGenerateTagLessPTML());
+    auto Scope = helpers::LineComment(Header, B.isGenerateTagLessPTML());
     Header << "Declaration of " << getNameFromYAMLScalar(T.key());
   }
 
@@ -577,7 +547,7 @@ void printDeclaration(Logger<> &Log,
 
   case model::TypeKind::Invalid: {
     if (Log.isEnabled())
-      Header << ThePTMLCBuilder.getLineComment("invalid");
+      Header << B.getLineComment("invalid");
   } break;
 
   case model::TypeKind::PrimitiveType: {
@@ -586,41 +556,33 @@ void printDeclaration(Logger<> &Log,
   } break;
 
   case model::TypeKind::EnumType: {
-    printForwardDeclaration(llvm::cast<model::EnumType>(T),
-                            Header,
-                            ThePTMLCBuilder);
+    printForwardDeclaration(llvm::cast<model::EnumType>(T), Header, B);
   } break;
 
   case model::TypeKind::StructType: {
-    printForwardDeclaration(llvm::cast<model::StructType>(T),
-                            Header,
-                            ThePTMLCBuilder);
+    printForwardDeclaration(llvm::cast<model::StructType>(T), Header, B);
   } break;
 
   case model::TypeKind::UnionType: {
-    printForwardDeclaration(llvm::cast<model::UnionType>(T),
-                            Header,
-                            ThePTMLCBuilder);
+    printForwardDeclaration(llvm::cast<model::UnionType>(T), Header, B);
   } break;
 
   case model::TypeKind::TypedefType: {
-    printDeclaration(llvm::cast<model::TypedefType>(T),
-                     Header,
-                     ThePTMLCBuilder);
+    printDeclaration(llvm::cast<model::TypedefType>(T), Header, B);
   } break;
 
   case model::TypeKind::RawFunctionType: {
     printDeclaration(Log,
                      llvm::cast<model::RawFunctionType>(T),
                      Header,
-                     ThePTMLCBuilder,
+                     B,
                      Model);
   } break;
 
   case model::TypeKind::CABIFunctionType: {
     printDeclaration(llvm::cast<model::CABIFunctionType>(T),
                      Header,
-                     ThePTMLCBuilder,
+                     B,
                      AdditionalNames,
                      Model);
   } break;
@@ -632,40 +594,42 @@ void printDeclaration(Logger<> &Log,
 void printDefinition(Logger<> &Log,
                      const model::Type &T,
                      ptml::PTMLIndentedOstream &Header,
-                     ptml::PTMLCBuilder &ThePTMLCBuilder,
+                     ptml::PTMLCBuilder &B,
                      QualifiedTypeNameMap &AdditionalNames,
                      const model::Binary &Model,
                      const TypeSet &TypesToInline,
                      llvm::StringRef NameOfInlineInstance,
-                     const std::vector<model::Qualifier> *Qualifiers) {
+                     const std::vector<model::Qualifier> *Qualifiers,
+                     bool ForEditing) {
   if (Log.isEnabled())
-    Header << ThePTMLCBuilder.getLineComment("Definition of "
-                                             + getNameFromYAMLScalar(T.key()));
+    Header << B.getLineComment("Definition of "
+                               + getNameFromYAMLScalar(T.key()));
 
   revng_log(Log, "Defining " << getNameFromYAMLScalar(T.key()));
   if (declarationIsDefinition(&T)) {
     printDeclaration(Log,
                      T,
                      Header,
-                     ThePTMLCBuilder,
+                     B,
                      AdditionalNames,
                      Model,
                      TypesToInline,
                      NameOfInlineInstance,
-                     Qualifiers);
+                     Qualifiers,
+                     ForEditing);
   } else {
     switch (T.Kind()) {
 
     case model::TypeKind::Invalid: {
       if (Log.isEnabled())
-        Header << ThePTMLCBuilder.getLineComment("invalid");
+        Header << B.getLineComment("invalid");
     } break;
 
     case model::TypeKind::StructType: {
       printDefinition(Log,
                       llvm::cast<model::StructType>(T),
                       Header,
-                      ThePTMLCBuilder,
+                      B,
                       TypesToInline,
                       AdditionalNames,
                       Model,
@@ -677,7 +641,7 @@ void printDefinition(Logger<> &Log,
       printDefinition(Log,
                       llvm::cast<model::UnionType>(T),
                       Header,
-                      ThePTMLCBuilder,
+                      B,
                       TypesToInline,
                       AdditionalNames,
                       Model,
@@ -688,10 +652,11 @@ void printDefinition(Logger<> &Log,
     case model::TypeKind::EnumType: {
       printDefinition(llvm::cast<model::EnumType>(T),
                       Header,
-                      ThePTMLCBuilder,
+                      B,
                       TypesToInline,
                       NameOfInlineInstance,
-                      Qualifiers);
+                      Qualifiers,
+                      ForEditing);
     } break;
 
     default:

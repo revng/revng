@@ -13,14 +13,14 @@ Types:
         CustomName: "the_a"
         OriginalName: the_a
         Type:
-          UnqualifiedType: "/Types/EnumType-2"
+          UnqualifiedType: "/Types/3002-EnumType"
     Size: 4
   - Kind: EnumType
-    ID: 2
+    ID: 3002
     CustomName: "A"
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1284"
+      UnqualifiedType: "/Types/1284-PrimitiveType"
     Entries:
       - Value: 0
         CustomName: "FIRST"

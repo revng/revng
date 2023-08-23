@@ -105,8 +105,7 @@ public:
   static ModelTypedIRAddress invalid() { return ModelTypedIRAddress(); }
 
   bool isValid() const {
-    return nullptr != Address and PointeeType.UnqualifiedType().isValid()
-           and not PointeeType.UnqualifiedType().empty();
+    return nullptr != Address and not PointeeType.UnqualifiedType().empty();
   }
 
   const auto &getPointeeType() const { return PointeeType; }

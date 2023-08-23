@@ -3,4 +3,4 @@
 #
 
 # Stack types will be generated inline in the decompiled functions.
-CHECK-NOT: struct_1
+CHECK-NOT: struct_3001

@@ -1,0 +1,20 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: StructType
+    ID: 3003
+  - Kind: StructType
+    ID: 3001
+    CustomName: "my_struct"
+    Size: 40
+    # The leading $ means that the size of the Fields list must match
+    $Fields:
+      - Offset: 0
+        CustomName: "first_field"
+        Type:
+          UnqualifiedType: "/Types/3003-StructType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8

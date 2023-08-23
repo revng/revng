@@ -63,7 +63,7 @@ int main(int Argc, const char *Argv[]) {
   if (EC)
     revng_abort(EC.message().c_str());
 
-  dumpModelToHeader(Model, Header);
+  dumpModelToHeader(Model, Header, {});
 
   Header.flush();
   EC = Header.error();

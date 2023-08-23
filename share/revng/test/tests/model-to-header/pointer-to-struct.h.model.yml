@@ -7,19 +7,19 @@ Functions:
   - Entry: "0x401129:Code_x86_64"
     CustomName: "fn"
     OriginalName: fn
-    Prototype: "/Types/CABIFunctionType-1"
+    Prototype: "/Types/3001-CABIFunctionType"
     ExportedNames:
       - fn
 Types:
   - Kind: CABIFunctionType
-    ID: 1
+    ID: 3001
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/StructType-2"
+          UnqualifiedType: "/Types/3002-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
@@ -30,7 +30,7 @@ Types:
     PrimitiveKind: Void
     Size: 0
   - Kind: StructType
-    ID: 2
+    ID: 3002
     CustomName: "B"
     OriginalName: B
     Fields:
@@ -38,12 +38,12 @@ Types:
         CustomName: "a1"
         OriginalName: a1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1284"
+          UnqualifiedType: "/Types/1284-PrimitiveType"
       - Offset: 4
         CustomName: "a2"
         OriginalName: a2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1284"
+          UnqualifiedType: "/Types/1284-PrimitiveType"
     Size: 8
   - Kind: PrimitiveType
     ID: 1284

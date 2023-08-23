@@ -31,11 +31,7 @@
 
 #include "DependencyGraph.h"
 
-using ArtificialTypes::ArrayWrapperFieldName;
-
-using llvm::cast;
 using llvm::isa;
-using llvm::Twine;
 
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
@@ -45,19 +41,18 @@ static Logger<> Log{ "model-to-header" };
 
 static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header,
-                               const ptml::PTMLCBuilder &ThePTMLCBuilder) {
-  auto S = ThePTMLCBuilder.getLocationDefinition(Segment);
-  Header << getNamedCInstance(Segment.Type(), S, ThePTMLCBuilder) << ";\n";
+                               const ptml::PTMLCBuilder &B) {
+  auto S = B.getLocationDefinition(Segment);
+  Header << getNamedCInstance(Segment.Type(), S, B) << ";\n";
 }
 
 /// Print all type definitions for the types in the model
-static void
-printTypeDefinitions(const model::Binary &Model,
-                     const TypeInlineHelper &TheTypeInlineHelper,
-                     ptml::PTMLIndentedOstream &Header,
-                     ptml::PTMLCBuilder &ThePTMLCBuilder,
-                     QualifiedTypeNameMap &AdditionalTypeNames,
-                     const std::set<const model::Type *> &IgnoreTypes) {
+static void printTypeDefinitions(const model::Binary &Model,
+                                 const TypeInlineHelper &TheTypeInlineHelper,
+                                 ptml::PTMLIndentedOstream &Header,
+                                 ptml::PTMLCBuilder &B,
+                                 QualifiedTypeNameMap &AdditionalTypeNames,
+                                 const ModelToHeaderOptions &Options) {
   auto StackTypes = TheTypeInlineHelper.collectStackTypes(Model);
   DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
   const auto &TypeNodes = Dependencies.TypeNodes();
@@ -88,7 +83,7 @@ printTypeDefinitions(const model::Binary &Model,
       constexpr auto TypeName = TypeNode::Kind::TypeName;
       constexpr auto FullType = TypeNode::Kind::FullType;
 
-      if (IgnoreTypes.contains(NodeT))
+      if (Options.TypesToOmit.contains(NodeT))
         continue;
 
       if (DeclKind == FullType) {
@@ -100,7 +95,7 @@ printTypeDefinitions(const model::Binary &Model,
           printDeclaration(Log,
                            *NodeT,
                            Header,
-                           ThePTMLCBuilder,
+                           B,
                            AdditionalTypeNames,
                            Model,
                            ToInline);
@@ -119,7 +114,7 @@ printTypeDefinitions(const model::Binary &Model,
               printDeclaration(Log,
                                *Type,
                                Header,
-                               ThePTMLCBuilder,
+                               B,
                                AdditionalTypeNames,
                                Model,
                                ToInline);
@@ -129,7 +124,7 @@ printTypeDefinitions(const model::Binary &Model,
           printDefinition(Log,
                           *NodeT,
                           Header,
-                          ThePTMLCBuilder,
+                          B,
                           AdditionalTypeNames,
                           Model,
                           ToInline);
@@ -139,14 +134,15 @@ printTypeDefinitions(const model::Binary &Model,
         Defined.insert(TypeNodes.at({ NodeT, FullType }));
       } else {
         if (not ToInline.contains(NodeT)) {
-          if (not IgnoreTypes.contains(Node->T))
+          if (not Options.TypesToOmit.contains(Node->T)) {
             printDeclaration(Log,
                              *NodeT,
                              Header,
-                             ThePTMLCBuilder,
+                             B,
                              AdditionalTypeNames,
                              Model,
                              ToInline);
+          }
           Defined.insert(TypeNodes.at({ NodeT, TypeName }));
         }
 
@@ -170,40 +166,40 @@ printTypeDefinitions(const model::Binary &Model,
 
 bool dumpModelToHeader(const model::Binary &Model,
                        llvm::raw_ostream &Out,
-                       const std::set<const model::Type *> &IgnoreTypes,
-                       MetaAddress FunctionToIgnore,
-                       bool GeneratePlainC) {
+                       const ModelToHeaderOptions &Options) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
   using Scopes = ptml::PTMLCBuilder::Scopes;
 
-  PTMLCBuilder ThePTMLCBuilder(GeneratePlainC);
+  PTMLCBuilder B(Options.GeneratePlainC);
   ptml::PTMLIndentedOstream Header(Out, 4, true);
   {
-    auto Scope = ThePTMLCBuilder.getTag(ptml::tags::Div).scope(Header);
+    auto Scope = B.getTag(ptml::tags::Div).scope(Header);
 
-    Header << ThePTMLCBuilder.getPragmaOnce();
-    Header << ThePTMLCBuilder.getIncludeAngle("stdint.h");
-    Header << ThePTMLCBuilder.getIncludeAngle("stdbool.h");
-    Header << ThePTMLCBuilder.getIncludeQuote("revng-primitive-types.h");
-    Header << ThePTMLCBuilder.getIncludeQuote("revng-attributes.h");
+    Header << B.getPragmaOnce();
+    Header << "\n";
+    Header << B.getIncludeAngle("stdint.h");
+    Header << B.getIncludeAngle("stdbool.h");
+    Header << B.getIncludeQuote("revng-primitive-types.h");
+    Header << B.getIncludeQuote("revng-attributes.h");
     Header << "\n";
 
-    Header << ThePTMLCBuilder.getDirective(PTMLCBuilder::Directive::IfNotDef)
-           << " " << ThePTMLCBuilder.getNullTag() << "\n"
-           << ThePTMLCBuilder.getDirective(PTMLCBuilder::Directive::Define)
-           << " " << ThePTMLCBuilder.getNullTag() << " ("
-           << ThePTMLCBuilder.getZeroTag() << ")\n"
-           << ThePTMLCBuilder.getDirective(PTMLCBuilder::Directive::EndIf)
-           << "\n";
+    if (Options.PostIncludes.size())
+      Header << Options.PostIncludes << "\n";
+
+    Header << B.getDirective(PTMLCBuilder::Directive::IfNotDef) << " "
+           << B.getNullTag() << "\n"
+           << B.getDirective(PTMLCBuilder::Directive::Define) << " "
+           << B.getNullTag() << " (" << B.getZeroTag() << ")\n"
+           << B.getDirective(PTMLCBuilder::Directive::EndIf) << "\n";
 
     if (not Model.Types().empty()) {
-      auto Foldable = ThePTMLCBuilder.getScope(Scopes::TypeDeclarations)
+      auto Foldable = B.getScope(Scopes::TypeDeclarations)
                         .scope(Out,
                                /* Newline */ true);
 
-      Header << ThePTMLCBuilder.getLineComment("===============");
-      Header << ThePTMLCBuilder.getLineComment("==== Types ====");
-      Header << ThePTMLCBuilder.getLineComment("===============");
+      Header << B.getLineComment("===============");
+      Header << B.getLineComment("==== Types ====");
+      Header << B.getLineComment("===============");
       Header << '\n';
       QualifiedTypeNameMap AdditionalTypeNames;
       TypeInlineHelper TheTypeInlineHelper(Model);
@@ -211,86 +207,83 @@ bool dumpModelToHeader(const model::Binary &Model,
       printTypeDefinitions(Model,
                            TheTypeInlineHelper,
                            Header,
-                           ThePTMLCBuilder,
+                           B,
                            AdditionalTypeNames,
-                           IgnoreTypes);
+                           Options);
     }
 
     if (not Model.Functions().empty()) {
-      auto Foldable = ThePTMLCBuilder.getScope(Scopes::FunctionDeclarations)
+      auto Foldable = B.getScope(Scopes::FunctionDeclarations)
                         .scope(Out,
                                /* Newline */ true);
-      Header << ThePTMLCBuilder.getLineComment("===================");
-      Header << ThePTMLCBuilder.getLineComment("==== Functions ====");
-      Header << ThePTMLCBuilder.getLineComment("===================");
+      Header << B.getLineComment("===================");
+      Header << B.getLineComment("==== Functions ====");
+      Header << B.getLineComment("===================");
       Header << '\n';
       for (const model::Function &MF : Model.Functions()) {
-        if (FunctionToIgnore.isValid() and MF.Entry() == FunctionToIgnore)
+        if (Options.FunctionsToOmit.contains(MF.Entry()))
           continue;
 
         const model::Type *FT = MF.Prototype().get();
-        if (IgnoreTypes.contains(FT))
+        if (Options.TypesToOmit.contains(FT))
           continue;
 
-        auto FName = model::Identifier::fromString(MF.name());
+        auto FName = MF.name();
 
         if (Log.isEnabled()) {
-          helpers::BlockComment
-            CommentScope(Header, ThePTMLCBuilder.isGenerateTagLessPTML());
+          helpers::BlockComment CommentScope(Header, B.isGenerateTagLessPTML());
           Header << "Analyzing Model function " << FName << "\n";
           serialize(Header, MF);
           Header << "Prototype\n";
           serialize(Header, *FT);
         }
 
-        printFunctionPrototype(*FT, MF, Header, ThePTMLCBuilder, Model, true);
+        printFunctionPrototype(*FT, MF, Header, B, Model, true);
         Header << ";\n";
       }
     }
 
     if (not Model.ImportedDynamicFunctions().empty()) {
-      auto Foldable = ThePTMLCBuilder
-                        .getScope(Scopes::DynamicFunctionDeclarations)
+      auto Foldable = B.getScope(Scopes::DynamicFunctionDeclarations)
                         .scope(Out, /* Newline */ true);
-      Header << ThePTMLCBuilder.getLineComment("==============================="
-                                               "===");
-      Header << ThePTMLCBuilder.getLineComment("==== ImportedDynamicFunctions "
-                                               "====");
-      Header << ThePTMLCBuilder.getLineComment("==============================="
-                                               "===");
+      Header << B.getLineComment("==============================="
+                                 "===");
+      Header << B.getLineComment("==== ImportedDynamicFunctions "
+                                 "====");
+      Header << B.getLineComment("==============================="
+                                 "===");
       Header << '\n';
       for (const model::DynamicFunction &MF :
            Model.ImportedDynamicFunctions()) {
         const model::Type *FT = MF.prototype(Model).get();
         revng_assert(FT != nullptr);
-        if (IgnoreTypes.contains(FT))
+        if (Options.TypesToOmit.contains(FT))
           continue;
 
-        auto FName = model::Identifier::fromString(MF.name());
+        auto FName = MF.name();
 
         if (Log.isEnabled()) {
-          helpers::BlockComment
-            CommentScope(Header, ThePTMLCBuilder.isGenerateTagLessPTML());
+          helpers::BlockComment CommentScope(Header, B.isGenerateTagLessPTML());
           Header << "Analyzing dynamic function " << FName << "\n";
           serialize(Header, MF);
           Header << "Prototype\n";
           serialize(Header, *FT);
         }
-        printFunctionPrototype(*FT, MF, Header, ThePTMLCBuilder, Model, true);
+        printFunctionPrototype(*FT, MF, Header, B, Model, true);
         Header << ";\n";
       }
     }
 
     if (not Model.Segments().empty()) {
-      auto Foldable = ThePTMLCBuilder.getScope(Scopes::SegmentDeclarations)
+      auto Foldable = B.getScope(Scopes::SegmentDeclarations)
                         .scope(Out,
                                /* Newline */ true);
-      Header << ThePTMLCBuilder.getLineComment("==================");
-      Header << ThePTMLCBuilder.getLineComment("==== Segments ====");
-      Header << ThePTMLCBuilder.getLineComment("==================");
+      Header << B.getLineComment("==================");
+      Header << B.getLineComment("==== Segments ====");
+      Header << B.getLineComment("==================");
       Header << '\n';
       for (const model::Segment &Segment : Model.Segments())
-        printSegmentsTypes(Segment, Header, ThePTMLCBuilder);
+        printSegmentsTypes(Segment, Header, B);
       Header << '\n';
     }
   }

@@ -23,7 +23,7 @@
 using llvm::Twine;
 using PTMLCBuilder = ptml::PTMLCBuilder;
 
-constexpr const char *const StructWrapperPrefix = "artificial_struct_returned_"
+constexpr const char *const StructWrapperPrefix = "_artificial_struct_returned_"
                                                   "by_";
 constexpr const char *const StructFieldPrefix = "field_";
 
@@ -65,63 +65,51 @@ bool isScalarCType(const llvm::Type *LLVMType) {
   return false;
 }
 
-std::string getScalarCType(const llvm::Type *LLVMType,
-                           const PTMLCBuilder &ThePTMLCBuilder) {
+std::string getScalarCType(const llvm::Type *LLVMType, const PTMLCBuilder &B) {
   revng_assert(isScalarCType(LLVMType));
   using Operator = PTMLCBuilder::Operator;
   switch (LLVMType->getTypeID()) {
   case llvm::Type::HalfTyID:
   case llvm::Type::BFloatTyID:
-    return ThePTMLCBuilder.tokenTag("float16_t", ptml::c::tokens::Type)
-      .serialize();
+    return B.tokenTag("float16_t", ptml::c::tokens::Type).serialize();
     break;
   case llvm::Type::FloatTyID:
-    return ThePTMLCBuilder.tokenTag("float32_t", ptml::c::tokens::Type)
-      .serialize();
+    return B.tokenTag("float32_t", ptml::c::tokens::Type).serialize();
     break;
   case llvm::Type::DoubleTyID:
-    return ThePTMLCBuilder.tokenTag("float64_t", ptml::c::tokens::Type)
-      .serialize();
+    return B.tokenTag("float64_t", ptml::c::tokens::Type).serialize();
     break;
   case llvm::Type::X86_FP80TyID:
     // TODO: 80-bit float have 96 bit storage, how should we call them?
-    return ThePTMLCBuilder.tokenTag("float96_t", ptml::c::tokens::Type)
-      .serialize();
+    return B.tokenTag("float96_t", ptml::c::tokens::Type).serialize();
     break;
   case llvm::Type::FP128TyID:
   case llvm::Type::PPC_FP128TyID:
-    return ThePTMLCBuilder.tokenTag("float128_t", ptml::c::tokens::Type)
-      .serialize();
+    return B.tokenTag("float128_t", ptml::c::tokens::Type).serialize();
     break;
 
   case llvm::Type::VoidTyID: {
-    return ThePTMLCBuilder.tokenTag("void", ptml::c::tokens::Type).serialize();
+    return B.tokenTag("void", ptml::c::tokens::Type).serialize();
     break;
 
   case llvm::Type::IntegerTyID: {
     auto *IntType = cast<llvm::IntegerType>(LLVMType);
     switch (IntType->getIntegerBitWidth()) {
     case 1:
-      return ThePTMLCBuilder.tokenTag("bool", ptml::c::tokens::Type)
-        .serialize();
+      return B.tokenTag("bool", ptml::c::tokens::Type).serialize();
     case 8:
-      return ThePTMLCBuilder.tokenTag("uint8_t", ptml::c::tokens::Type)
-        .serialize();
+      return B.tokenTag("uint8_t", ptml::c::tokens::Type).serialize();
     case 16:
-      return ThePTMLCBuilder.tokenTag("uint16_t", ptml::c::tokens::Type)
-        .serialize();
+      return B.tokenTag("uint16_t", ptml::c::tokens::Type).serialize();
       break;
     case 32:
-      return ThePTMLCBuilder.tokenTag("uint32_t", ptml::c::tokens::Type)
-        .serialize();
+      return B.tokenTag("uint32_t", ptml::c::tokens::Type).serialize();
       break;
     case 64:
-      return ThePTMLCBuilder.tokenTag("uint64_t", ptml::c::tokens::Type)
-        .serialize();
+      return B.tokenTag("uint64_t", ptml::c::tokens::Type).serialize();
       break;
     case 128:
-      return ThePTMLCBuilder.tokenTag("uint128_t", ptml::c::tokens::Type)
-        .serialize();
+      return B.tokenTag("uint128_t", ptml::c::tokens::Type).serialize();
       break;
     default:
       revng_abort("Found an LLVM integer with a size that is not a power of "
@@ -130,8 +118,8 @@ std::string getScalarCType(const llvm::Type *LLVMType,
   } break;
 
   case llvm::Type::PointerTyID: {
-    return ThePTMLCBuilder.tokenTag("void", ptml::c::tokens::Type) + " "
-           + ThePTMLCBuilder.getOperator(Operator::PointerDereference);
+    return B.tokenTag("void", ptml::c::tokens::Type) + " "
+           + B.getOperator(Operator::PointerDereference);
   } break;
 
   default:
@@ -142,7 +130,7 @@ std::string getScalarCType(const llvm::Type *LLVMType,
 
 static std::string getHelperFunctionIdentifier(const llvm::Function *F) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
-  return model::Identifier::fromString(F->getName()).str().str();
+  return (Twine("_") + model::Identifier::sanitize(F->getName())).str();
 }
 
 static std::string getReturnedStructIdentifier(const llvm::Function *F) {
@@ -157,41 +145,39 @@ static std::string serializeHelperStructLocation(const std::string &Name) {
 }
 
 template<bool IsDefinition>
-static std::string getReturnTypeLocation(const llvm::Function *F,
-                                         const PTMLCBuilder &ThePTMLCBuilder) {
+static std::string
+getReturnTypeLocation(const llvm::Function *F, const PTMLCBuilder &B) {
   auto *RetType = F->getReturnType();
   // Isolated functions' return types must be converted using model types
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
 
   if (RetType->isAggregateType()) {
     std::string StructName = getReturnedStructIdentifier(F);
-    return ThePTMLCBuilder.tokenTag(StructName, ptml::c::tokens::Type)
-      .addAttribute(ThePTMLCBuilder.getLocationAttribute(IsDefinition),
+    return B.tokenTag(StructName, ptml::c::tokens::Type)
+      .addAttribute(B.getLocationAttribute(IsDefinition),
                     serializeHelperStructLocation(StructName))
       .serialize();
   } else {
-    return getScalarCType(RetType, ThePTMLCBuilder);
+    return getScalarCType(RetType, B);
   }
 }
 
-std::string
-getReturnTypeLocationDefinition(const llvm::Function *F,
-                                const PTMLCBuilder &ThePTMLCBuilder) {
-  return getReturnTypeLocation<false>(F, ThePTMLCBuilder);
+std::string getReturnTypeLocationDefinition(const llvm::Function *F,
+                                            const PTMLCBuilder &B) {
+  return getReturnTypeLocation<false>(F, B);
 }
 
-std::string
-getReturnTypeLocationReference(const llvm::Function *F,
-                               const PTMLCBuilder &ThePTMLCBuilder) {
-  return getReturnTypeLocation<true>(F, ThePTMLCBuilder);
+std::string getReturnTypeLocationReference(const llvm::Function *F,
+                                           const PTMLCBuilder &B) {
+  return getReturnTypeLocation<true>(F, B);
 }
 
 std::string getReturnStructFieldType(const llvm::Function *F,
                                      size_t Index,
-                                     const PTMLCBuilder &ThePTMLCBuilder) {
+                                     const PTMLCBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   auto *StructTy = llvm::cast<llvm::StructType>(F->getReturnType());
-  return getScalarCType(StructTy->getTypeAtIndex(Index), ThePTMLCBuilder);
+  return getScalarCType(StructTy->getTypeAtIndex(Index), B);
 }
 
 static std::string
@@ -204,34 +190,31 @@ serializeHelperStructFieldLocation(const std::string &StructName,
 }
 
 template<bool IsDefinition>
-static std::string
-getReturnStructFieldLocation(const llvm::Function *F,
-                             size_t Index,
-                             const PTMLCBuilder &ThePTMLCBuilder) {
+static std::string getReturnStructFieldLocation(const llvm::Function *F,
+                                                size_t Index,
+                                                const PTMLCBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(F->getReturnType()->isStructTy());
 
   std::string StructName = getReturnedStructIdentifier(F);
   std::string FieldName = (Twine(StructFieldPrefix) + Twine(Index)).str();
-  return ThePTMLCBuilder.getTag(ptml::tags::Span, FieldName)
+  return B.getTag(ptml::tags::Span, FieldName)
     .addAttribute(attributes::Token, tokens::Field)
-    .addAttribute(ThePTMLCBuilder.getLocationAttribute(IsDefinition),
+    .addAttribute(B.getLocationAttribute(IsDefinition),
                   serializeHelperStructFieldLocation(StructName, FieldName))
     .serialize();
 }
 
-std::string
-getReturnStructFieldLocationDefinition(const llvm::Function *F,
-                                       size_t Index,
-                                       const PTMLCBuilder &ThePTMLCBuilder) {
-  return getReturnStructFieldLocation<true>(F, Index, ThePTMLCBuilder);
+std::string getReturnStructFieldLocationDefinition(const llvm::Function *F,
+                                                   size_t Index,
+                                                   const PTMLCBuilder &B) {
+  return getReturnStructFieldLocation<true>(F, Index, B);
 }
 
-std::string
-getReturnStructFieldLocationReference(const llvm::Function *F,
-                                      size_t Index,
-                                      const PTMLCBuilder &ThePTMLCBuilder) {
-  return getReturnStructFieldLocation<false>(F, Index, ThePTMLCBuilder);
+std::string getReturnStructFieldLocationReference(const llvm::Function *F,
+                                                  size_t Index,
+                                                  const PTMLCBuilder &B) {
+  return getReturnStructFieldLocation<false>(F, Index, B);
 }
 
 static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
@@ -241,23 +224,19 @@ static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
 
 template<bool IsDefinition>
 static std::string
-getHelperFunctionLocation(const llvm::Function *F,
-                          const PTMLCBuilder &ThePTMLCBuilder) {
-  return ThePTMLCBuilder
-    .tokenTag(getHelperFunctionIdentifier(F), ptml::c::tokens::Function)
-    .addAttribute(ThePTMLCBuilder.getLocationAttribute(IsDefinition),
+getHelperFunctionLocation(const llvm::Function *F, const PTMLCBuilder &B) {
+  return B.tokenTag(getHelperFunctionIdentifier(F), ptml::c::tokens::Function)
+    .addAttribute(B.getLocationAttribute(IsDefinition),
                   serializeHelperFunctionLocation(F))
     .serialize();
 }
 
-std::string
-getHelperFunctionLocationDefinition(const llvm::Function *F,
-                                    const PTMLCBuilder &ThePTMLCBuilder) {
-  return getHelperFunctionLocation<true>(F, ThePTMLCBuilder);
+std::string getHelperFunctionLocationDefinition(const llvm::Function *F,
+                                                const PTMLCBuilder &B) {
+  return getHelperFunctionLocation<true>(F, B);
 }
 
-std::string
-getHelperFunctionLocationReference(const llvm::Function *F,
-                                   const PTMLCBuilder &ThePTMLCBuilder) {
-  return getHelperFunctionLocation<false>(F, ThePTMLCBuilder);
+std::string getHelperFunctionLocationReference(const llvm::Function *F,
+                                               const PTMLCBuilder &B) {
+  return getHelperFunctionLocation<false>(F, B);
 }

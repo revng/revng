@@ -85,7 +85,7 @@ extern bool declarationIsDefinition(const model::Type *T);
 
 extern void printForwardDeclaration(const model::Type &T,
                                     ptml::PTMLIndentedOstream &Header,
-                                    ptml::PTMLCBuilder &ThePTMLCBuilder);
+                                    ptml::PTMLCBuilder &B);
 
 // Print a declaration for a Type. The last three arguments (`TypesToInline`
 // `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
@@ -96,12 +96,13 @@ extern void
 printDeclaration(Logger<> &Log,
                  const model::Type &T,
                  ptml::PTMLIndentedOstream &Header,
-                 ptml::PTMLCBuilder &ThePTMLCBuilder,
+                 ptml::PTMLCBuilder &B,
                  std::map<model::QualifiedType, std::string> &AdditionalNames,
                  const model::Binary &Model,
                  const std::set<const model::Type *> &TypesToInline,
                  llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                 const std::vector<model::Qualifier> *Qualifiers = nullptr);
+                 const std::vector<model::Qualifier> *Qualifiers = nullptr,
+                 bool ForEditing = false);
 
 // Print a definition for a Type. The last three arguments (`TypesToInline`
 // `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
@@ -112,12 +113,13 @@ extern void
 printDefinition(Logger<> &Log,
                 const model::Type &T,
                 ptml::PTMLIndentedOstream &Header,
-                ptml::PTMLCBuilder &ThePTMLCBuilder,
+                ptml::PTMLCBuilder &B,
                 std::map<model::QualifiedType, std::string> &AdditionalNames,
                 const model::Binary &Model,
                 const std::set<const model::Type *> &TypesToInline,
                 llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                const std::vector<model::Qualifier> *Qualifiers = nullptr);
+                const std::vector<model::Qualifier> *Qualifiers = nullptr,
+                bool ForEditing = false);
 
 // Print a definition for a struct. The last three arguments (`TypesToInline`
 // `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
@@ -127,7 +129,7 @@ extern void
 printDefinition(Logger<> &Log,
                 const model::StructType &S,
                 ptml::PTMLIndentedOstream &Header,
-                ptml::PTMLCBuilder &ThePTMLCBuilder,
+                ptml::PTMLCBuilder &B,
                 const std::set<const model::Type *> &TypesToInline,
                 std::map<model::QualifiedType, std::string> &AdditionalNames,
                 const model::Binary &Model,
@@ -141,4 +143,4 @@ extern bool isCandidateForInline(const model::Type *T);
 // Print a typedef declaration.
 extern void printDeclaration(const model::TypedefType &TD,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &ThePTMLCBuilder);
+                             ptml::PTMLCBuilder &B);

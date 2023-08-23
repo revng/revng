@@ -79,14 +79,7 @@ include_directories(${MLIR_INCLUDE_DIRS})
 #
 # Link Clang
 #
-
-# TODO: Typically we don't need to set this by hand, but clang/ is missing some
-# cmake configs for out-of tree builds, so it fails to find ClangConfig.cmake
-# without this, and it tries to find it in the system libraries.
-set(CLANG_DIR ${CMAKE_INSTALL_PREFIX}/lib64/llvm/llvm/lib/cmake/clang/)
-
-find_package(Clang REQUIRED CONFIG PATHS ${CLANG_DIR} NO_DEFAULT_PATH)
-list(APPEND CMAKE_MODULE_PATH ${LLVM_CMAKE_DIR} ${CLANG_CMAKE_DIR})
+find_package(Clang REQUIRED CONFIG)
 
 #
 # share/revng

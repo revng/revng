@@ -426,46 +426,28 @@ public:
            + "\n";
   }
 
-  std::string getAttribute(const llvm::StringRef Str) const {
-    return getDirective(Directive::Attribute) + "((" + Str.str() + "))";
-  }
-
   std::string getAnnotateEnum(const llvm::StringRef Annotate) const {
-    std::string AnnotateMacro = "ENUM_UNDERLYING(" + Annotate.str() + ")";
+    std::string AnnotateMacro = "_ENUM_UNDERLYING(" + Annotate.str() + ")";
     return AnnotateMacro;
   }
 
   std::string getAnnotateABI(const llvm::StringRef ABI) const {
-    std::string AnnotateMacro = "ABI(" + ABI.str() + ")";
+    std::string AnnotateMacro = "_ABI(" + ABI.str() + ")";
     return AnnotateMacro;
   }
 
   std::string getAnnotateReg(const llvm::StringRef RegName) const {
-    std::string AnnotateMacro = "REG(" + RegName.str() + ")";
+    std::string AnnotateMacro = "_REG(" + RegName.str() + ")";
     return AnnotateMacro;
   }
 
-  std::string getAnnotateStack() const { return "STACK"; }
+  std::string getAnnotateStack() const { return "_STACK"; }
 
-  std::string getAttributePacked() { return getAttribute("packed"); }
+  std::string getAttributePacked() { return "_PACKED"; }
 
   Tag getNameTag(const model::Type &T) const {
-    constexpr const char *const FunctionTypedefPrefix = "function_type_";
-    model::Identifier Name;
-
-    // Prefix for function types
-    if (llvm::isa<model::RawFunctionType>(T)
-        or llvm::isa<model::CABIFunctionType>(T))
-      Name.append(FunctionTypedefPrefix);
-
-    // Primitive types have reserved names, using model::Identifier adds an
-    // unwanted prefix
-    if (llvm::isa<model::PrimitiveType>(T))
-      Name.append(T.name());
-    else
-      Name.append(model::Identifier::fromString(T.name()));
-
-    return ptml::PTMLBuilder::tokenTag(Name.str().str(), ptml::c::tokens::Type);
+    return ptml::PTMLBuilder::tokenTag(T.name().str().str(),
+                                       ptml::c::tokens::Type);
   }
 
   // Locations.
@@ -560,8 +542,7 @@ public:
 
   Tag getNameTag(const model::EnumType &Enum,
                  const model::EnumEntry &Entry) const {
-    return ptml::PTMLBuilder::tokenTag(Enum.name().str().str() + "_"
-                                         + Entry.CustomName().str().str(),
+    return ptml::PTMLBuilder::tokenTag(Enum.entryName(Entry),
                                        ptml::c::tokens::Field);
   }
 
@@ -576,15 +557,15 @@ public:
       .serialize();
   }
 
-  template<class Field>
-  Tag getNameTag(const Field &F) const {
+  template<class Aggregate, class Field>
+  Tag getNameTag(const Aggregate &, const Field &F) const {
     return ptml::PTMLBuilder::tokenTag(F.name(), c::tokens::Field);
   }
 
   template<typename Aggregate, typename Field>
   std::string
   getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
-    return getNameTag(F)
+    return getNameTag(A, F)
       .addAttribute(getLocationAttribute(IsDefinition), serializeLocation(A, F))
       .addAttribute(attributes::ModelEditPath,
                     model::editPath::customName(A, F))

@@ -2,4 +2,4 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-typedef ABI(SystemV_x86_64) struct_5 function_type_cabifunction_1(struct_5, struct_6[], struct_6**, typedef_11*);
+typedef _ABI(SystemV_x86_64) _struct_3005 function_type_cabifunction_1(_struct_3005, _struct_3006[], _struct_3006**, _typedef_3011*);

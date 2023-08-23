@@ -5,7 +5,7 @@
 
 Types:
   - Kind: StructType
-    ID: 1
+    ID: 3001
     CustomName: "B"
     OriginalName: B
     Fields:
@@ -13,10 +13,10 @@ Types:
         CustomName: "a1"
         OriginalName: a1
         Type:
-          UnqualifiedType: "/Types/UnionType-2"
+          UnqualifiedType: "/Types/3002-UnionType"
     Size: 4
   - Kind: UnionType
-    ID: 2
+    ID: 3002
     CustomName: "A"
     OriginalName: A
     Fields:
@@ -24,7 +24,7 @@ Types:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          UnqualifiedType: "/Types/1540-PrimitiveType"
   - Kind: PrimitiveType
     ID: 1540
     PrimitiveKind: Signed

@@ -152,7 +152,7 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   Module *M = F.getParent();
   LLVMContext &Ctx = F.getContext();
   Type *SPType = GlobalSP->getValueType();
-  auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
+  auto InitFunction = M->getOrInsertFunction("_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
   InitLocalSP->addFnAttr(Attribute::WillReturn);

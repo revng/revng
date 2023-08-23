@@ -19,7 +19,7 @@
 ///   stack arguments.
 ///
 /// After this pass, all stack accesses have positive offsets and
-/// `revng_init_local_sp` is dropped entirely.
+/// `_init_local_sp` is dropped entirely.
 struct SegregateStackAccessesPass : public llvm::ModulePass {
 public:
   static char ID;

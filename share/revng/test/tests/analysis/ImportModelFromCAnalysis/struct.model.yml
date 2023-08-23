@@ -11,87 +11,87 @@ Types:
     PrimitiveKind: Generic
     Size: 8
   - Kind: StructType
-    ID: 2
+    ID: 3002
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/StructType-3"
+          UnqualifiedType: "/Types/3003-StructType"
     Size: 40
   - Kind: StructType
-    ID: 6
+    ID: 3006
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/StructType-2"
+          UnqualifiedType: "/Types/3002-StructType"
     Size: 40
   - Kind: StructType
-    ID: 7
+    ID: 3007
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/StructType-3"
+          UnqualifiedType: "/Types/3003-StructType"
     Size: 40
   - Kind: StructType
-    ID: 8
+    ID: 3008
     Fields:
       - Offset: 27
         Type:
-          UnqualifiedType: "/Types/StructType-4"
+          UnqualifiedType: "/Types/3004-StructType"
     Size: 175
   - Kind: StructType
-    ID: 9
+    ID: 3009
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/StructType-4"
+          UnqualifiedType: "/Types/3004-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
     Size: 40
   - Kind: StructType
-    ID: 5
+    ID: 3005
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/StructType-4"
+          UnqualifiedType: "/Types/3004-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
     Size: 40
   - Kind: StructType
-    ID: 3
+    ID: 3003
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/StructType-1"
+          UnqualifiedType: "/Types/3001-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
     Size: 8
   - Kind: StructType
-    ID: 1
+    ID: 3001
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/StructType-10"
+          UnqualifiedType: "/Types/3010-StructType"
     Size: 40
   - Kind: StructType
-    ID: 4
+    ID: 3004
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
       - Offset: 8
         Type:
-          UnqualifiedType: "/Types/StructType-4"
+          UnqualifiedType: "/Types/3004-StructType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
     Size: 48
   - Kind: StructType
-    ID: 10
+    ID: 3010
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
+          UnqualifiedType: "/Types/520-PrimitiveType"
     Size: 8

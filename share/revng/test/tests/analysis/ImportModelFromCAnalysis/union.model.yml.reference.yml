@@ -1,0 +1,25 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: PrimitiveType
+    ID: 1288
+    PrimitiveKind: Unsigned
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1284
+    PrimitiveKind: Unsigned
+    Size: 4
+  - Kind: UnionType
+    ID: 3000
+    CustomName: new_union_name
+    Fields:
+      - Index: 0
+        CustomName: "first_field"
+        Type:
+          UnqualifiedType: "/Types/1288-PrimitiveType"
+      - Index: 1
+        CustomName: "second_field"
+        Type:
+          UnqualifiedType: "/Types/1284-PrimitiveType"
