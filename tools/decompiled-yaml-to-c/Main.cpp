@@ -87,8 +87,8 @@ int main(int Argc, const char *Argv[]) {
   }
 
   using PTMLCBuilder = ptml::PTMLCBuilder;
-  PTMLCBuilder ThePTMLCBuilder;
-  printSingleCFile(OutputCCodeFile, ThePTMLCBuilder, Functions, Targets);
+  PTMLCBuilder B;
+  printSingleCFile(OutputCCodeFile, B, Functions, Targets);
 
   OutputCCodeFile.flush();
   OutEC = OutputCCodeFile.error();

@@ -31,25 +31,23 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 extern tokenDefinition::types::TypeString
 getNamedCInstance(const model::QualifiedType &QT,
                   llvm::StringRef InstanceName,
-                  const ptml::PTMLCBuilder &ThePTMLCBuilder);
+                  const ptml::PTMLCBuilder &B);
 
 extern tokenDefinition::types::TypeString
 getNamedCInstance(llvm::StringRef TypeName,
                   const std::vector<model::Qualifier> &Qualifiers,
                   llvm::StringRef InstanceName,
-                  const ptml::PTMLCBuilder &ThePTMLCBuilder);
+                  const ptml::PTMLCBuilder &B);
 
 inline tokenDefinition::types::TypeString
-getTypeName(const model::QualifiedType &QT,
-            const ptml::PTMLCBuilder &ThePTMLCBuilder) {
-  return getNamedCInstance(QT, "", ThePTMLCBuilder);
+getTypeName(const model::QualifiedType &QT, const ptml::PTMLCBuilder &B) {
+  return getNamedCInstance(QT, "", B);
 }
 
 /// Return the name of the array wrapper that wraps \a QT (QT must be
 /// an array).
 extern tokenDefinition::types::TypeString
-getArrayWrapper(const model::QualifiedType &QT,
-                const ptml::PTMLCBuilder &ThePTMLCBuilder);
+getArrayWrapper(const model::QualifiedType &QT, const ptml::PTMLCBuilder &B);
 
 /// Return a string containing the C Type name of the return type of \a
 /// FunctionType, and a (possibly empty) \a InstanceName.
@@ -58,12 +56,12 @@ getArrayWrapper(const model::QualifiedType &QT,
 extern tokenDefinition::types::TypeString
 getNamedInstanceOfReturnType(const model::Type &FunctionType,
                              llvm::StringRef InstanceName,
-                             const ptml::PTMLCBuilder &ThePTMLCBuilder);
+                             const ptml::PTMLCBuilder &B);
 
 inline tokenDefinition::types::TypeString
 getReturnTypeName(const model::Type &FunctionType,
-                  const ptml::PTMLCBuilder &ThePTMLCBuilder) {
-  return getNamedInstanceOfReturnType(FunctionType, "", ThePTMLCBuilder);
+                  const ptml::PTMLCBuilder &B) {
+  return getNamedInstanceOfReturnType(FunctionType, "", B);
 }
 
 /// Return the name of the \a Index -th field of the struct returned
@@ -83,29 +81,26 @@ getReturnField(const model::Type &FunctionType,
 extern void printFunctionPrototype(const model::Type &FT,
                                    const model::Function &Function,
                                    llvm::raw_ostream &Header,
-                                   ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                   ptml::PTMLCBuilder &B,
                                    const model::Binary &Model,
                                    bool Definition);
 extern void printFunctionPrototype(const model::Type &FT,
                                    const model::DynamicFunction &Function,
                                    llvm::raw_ostream &Header,
-                                   ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                   ptml::PTMLCBuilder &B,
                                    const model::Binary &Model,
                                    bool Definition);
 extern void printFunctionTypeDeclaration(const model::Type &FT,
                                          llvm::raw_ostream &Header,
-                                         ptml::PTMLCBuilder &ThePTMLCBuilder,
+                                         ptml::PTMLCBuilder &B,
                                          const model::Binary &Model);
 
-extern std::string
-getArgumentLocationReference(llvm::StringRef ArgumentName,
-                             const model::Function &F,
-                             ptml::PTMLCBuilder &ThePTMLCBuilder);
-extern std::string
-getVariableLocationDefinition(llvm::StringRef VariableName,
-                              const model::Function &F,
-                              ptml::PTMLCBuilder &ThePTMLCBuilder);
-extern std::string
-getVariableLocationReference(llvm::StringRef VariableName,
-                             const model::Function &F,
-                             ptml::PTMLCBuilder &ThePTMLCBuilder);
+extern std::string getArgumentLocationReference(llvm::StringRef ArgumentName,
+                                                const model::Function &F,
+                                                ptml::PTMLCBuilder &B);
+extern std::string getVariableLocationDefinition(llvm::StringRef VariableName,
+                                                 const model::Function &F,
+                                                 ptml::PTMLCBuilder &B);
+extern std::string getVariableLocationReference(llvm::StringRef VariableName,
+                                                const model::Function &F,
+                                                ptml::PTMLCBuilder &B);

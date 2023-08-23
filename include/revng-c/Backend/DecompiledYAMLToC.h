@@ -17,6 +17,6 @@ using DecompiledStringMap = revng::pipes::DecompiledCCodeInYAMLStringMap;
 }
 
 void printSingleCFile(llvm::raw_ostream &Out,
-                      ptml::PTMLCBuilder &ThePTMLCBuilder,
+                      ptml::PTMLCBuilder &B,
                       const detail::DecompiledStringMap &Functions,
                       const std::set<MetaAddress> &Targets);

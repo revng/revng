@@ -157,11 +157,11 @@ struct ImportModelFromCAnalysis {
           and not isa<model::CABIFunctionType>(*TypeToEdit)
           and not isa<model::TypedefType>(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(Options.PostIncludes);
-        ptml::PTMLCBuilder ThePTMLCBuilder(true);
+        ptml::PTMLCBuilder B(true);
         ptml::PTMLIndentedOstream ThePTMLStream(Stream, 4, true);
-        Stream << ThePTMLCBuilder.getLineComment("The type we are editing");
+        Stream << B.getLineComment("The type we are editing");
         // The definition of this type will be at the end of the file.
-        printForwardDeclaration(**TypeToEdit, ThePTMLStream, ThePTMLCBuilder);
+        printForwardDeclaration(**TypeToEdit, ThePTMLStream, B);
         Stream << '\n';
       }
 
