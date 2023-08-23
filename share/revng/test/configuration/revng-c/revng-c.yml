@@ -166,3 +166,13 @@ commands:
       revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -
+  - type: revng-c.test-daemon-all-artifacts
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      TMP="$$(temp)";
+      if ! revng graphql --analyses-list=revng-initial-auto-analysis --analyses-list=revng-c-initial-auto-analysis --produce-artifacts --filter-artifacts=revng-c "$INPUT" &> "$$TMP"; then
+        cat "$$TMP";
+        exit 1;
+      fi;
