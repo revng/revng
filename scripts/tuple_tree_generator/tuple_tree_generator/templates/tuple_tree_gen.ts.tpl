@@ -220,5 +220,7 @@ export function setElementByPath<T>(path: string, tree: {{ global_name }}, value
   return _setElementByPath(path, tree, value);
 }
 
+{% if global_name != metadata.root %}
 export type I{{ global_name }} = I{{ metadata.root }};
 export class {{ global_name }} extends {{ metadata.root }} {};
+{% endif %}
