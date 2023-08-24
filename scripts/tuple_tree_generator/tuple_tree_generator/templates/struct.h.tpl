@@ -13,6 +13,7 @@ The notice below applies to the generated files.
 #include <compare>
 
 #include "revng/ADT/TrackingContainer.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/TupleTreeReference.h"
 #include "revng/Support/Assert.h"
 /**- if emit_tracking **/
