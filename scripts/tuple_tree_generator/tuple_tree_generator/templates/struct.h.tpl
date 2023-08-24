@@ -43,11 +43,11 @@ struct /*= struct | fullname =*/
 
   /** if struct.inherits **/
   static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
-  using Parent = /*= struct.inherits | user_fullname =*/;
+  using BaseClass = /*= struct.inherits | user_fullname =*/;
   /**- else **//** if struct.abstract **/
-  using Parent = /*= struct | user_fullname =*/;
+  using BaseClass = /*= struct | user_fullname =*/;
   /**- else **/
-  using Parent = void;
+  using BaseClass = void;
   /**- endif **//** endif **/
 
   /*#- --- Member list --- #*/
