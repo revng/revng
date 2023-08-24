@@ -16,10 +16,11 @@ from revng.tupletree import (
     dataclass_kwargs,
     no_default,
     typedlist_factory,
+    force_constructor_kwarg,
+    force_kw_only
 )
 from revng.tupletree import YamlLoader as _ExternalYamlLoader
 from revng.tupletree import YamlDumper as _ExternalYamlDumper
-from .._util import force_constructor_kwarg, force_kw_only
 
 ##- for t in generator.external_types ##
 from .external import 't'
