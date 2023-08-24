@@ -101,9 +101,9 @@ private:
   static constexpr std::size_t Size = std::tuple_size_v<typename TLT::tuple>;
   static constexpr auto Index = compile_time::select<Size>([]<std::size_t I> {
     using Element = typename std::tuple_element_t<I, typename TLT::tuple>;
-    return std::is_same_v<typename T::Parent, void> ?
+    return std::is_same_v<typename T::BaseClass, void> ?
              EntityWithValueType<Element, T> :
-             EntityWithUpcastableValueType<Element, typename T::Parent>;
+             EntityWithUpcastableValueType<Element, typename T::BaseClass>;
   });
   static_assert(Index.has_value());
 
