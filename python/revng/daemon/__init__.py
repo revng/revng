@@ -42,11 +42,16 @@ def get_middlewares() -> List[Middleware]:
     if "REVNG_ORIGINS" in os.environ:
         origins = os.environ["REVNG_ORIGINS"].split(",")
 
+    expose_headers: List[str] = []
+    if "REVNG_EXPOSE_HEADERS" in os.environ:
+        expose_headers = os.environ["REVNG_EXPOSE_HEADERS"].split(",")
+
     return [
         *extra_middlewares_early,
         Middleware(
             CORSMiddleware,
             allow_origins=origins,
+            expose_headers=expose_headers,
             allow_methods=["*"],
             allow_headers=["*"],
         ),
