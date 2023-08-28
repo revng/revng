@@ -48,8 +48,6 @@ Branches:
         Pipes:
           - Type: MakeSegmentRefs
             UsedContainers: [input, module.ll]
-            Passes:
-              - make-segment-ref
         Artifacts:
           Container: module.ll
           Kind: StackAccessesSegregated
