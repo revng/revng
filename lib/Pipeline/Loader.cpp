@@ -124,6 +124,12 @@ Loader::parseInvocation(Step &Step,
   if (Invocation.Type == "LLVMPipe")
     return parseLLVMPass(Invocation);
 
+  if (not Invocation.Passes.empty())
+    return createStringError(inconvertibleErrorCode(),
+                             "while parsing pipe %s: Passes declarations are "
+                             "not allowed in non-llvm pipes\n",
+                             Invocation.Type.c_str());
+
   auto It = KnownPipesTypes.find(Invocation.Type);
   if (It == KnownPipesTypes.end()) {
     auto *Message = "while parsing pipe invocation: No known Pipe with "
