@@ -346,7 +346,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
                                                 + Step.getName() + ":");
   }
 
-  Task T(ToExec.size() - 1, "Produce step " + EndingStepName);
+  Task T(ToExec.size() - 1, "Produce steps required up to " + EndingStepName);
   for (PipelineExecutionEntry &StepGoalsPairs : llvm::drop_begin(ToExec)) {
     auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
     T.advance(Step->getName(), true);
