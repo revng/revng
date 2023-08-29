@@ -320,7 +320,7 @@ PipelineManager::invalidateAllPossibleTargets() {
   auto Stream = ExplanationLogger.getAsLLVMStream();
   recalculateAllPossibleTargets();
 
-  Task T(CurrentState.size(), "");
+  Task T(CurrentState.size(), "invalidateAllPossibleTargets");
   for (const auto &Step : CurrentState) {
     T.advance(Step.first(), true);
     if (Step.first() == Runner->begin()->getName())
