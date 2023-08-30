@@ -55,11 +55,11 @@ public:
 
   void replaceNodes(BasicBlockNodeTUPVect &NewNodes);
 
-  void updateNodes(BasicBlockNodeTSet &Removal,
+  void updateNodes(const BasicBlockNodeTSet &Removal,
                    BasicBlockNodeT *Collapsed,
-                   BasicBlockNodeTVect &Dispatcher,
-                   BasicBlockNodeTVect &DefaultEntrySet,
-                   BasicBlockNodeTVect &OutlinedNodes);
+                   BasicBlockNodeT *ExitDispatcher,
+                   const BasicBlockNodeTVect &DefaultEntrySet,
+                   const BasicBlockNodeTVect &OutlinedNodes);
 
   void setParent(MetaRegion<NodeT> *Parent) { ParentRegion = Parent; }
 

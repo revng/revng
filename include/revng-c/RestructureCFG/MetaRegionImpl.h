@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "llvm/ADT/STLExtras.h"
+
 #include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFG/MetaRegion.h"
 
@@ -20,24 +22,34 @@ void MetaRegion<NodeT>::replaceNodes(BasicBlockNodeTUPVect &N) {
 }
 
 template<class NodeT>
-void MetaRegion<NodeT>::updateNodes(BasicBlockNodeTSet &Removal,
+void MetaRegion<NodeT>::updateNodes(const BasicBlockNodeTSet &ToRemove,
                                     BasicBlockNodeT *Collapsed,
-                                    BasicBlockNodeTVect &Dispatcher,
-                                    BasicBlockNodeTVect &DefaultEntrySet,
-                                    BasicBlockNodeTVect &OutlinedNodes) {
+                                    BasicBlockNodeT *ExitDispatcher,
+                                    const BasicBlockNodeTVect &DefaultEntrySet,
+                                    const BasicBlockNodeTVect &OutlinedNodes) {
   // Remove the old SCS nodes
-  bool NeedSubstitution = false;
-  for (BasicBlockNodeT *Node : Removal)
-    if (Nodes.erase(Node))
-      NeedSubstitution = true;
+  for (BasicBlockNodeT *Node : ToRemove)
+    Nodes.erase(Node);
 
   // Add the collapsed node.
-  if (NeedSubstitution) {
-    Nodes.insert(Collapsed);
-    Nodes.insert(Dispatcher.begin(), Dispatcher.end());
-    Nodes.insert(DefaultEntrySet.begin(), DefaultEntrySet.end());
-    Nodes.insert(OutlinedNodes.begin(), OutlinedNodes.end());
-  }
+  revng_assert(nullptr != Collapsed);
+  Nodes.insert(Collapsed);
+
+  // Add the exit dispatcher if present
+  if (ExitDispatcher)
+    Nodes.insert(ExitDispatcher);
+
+  // Add the set nodes that come from outside if present
+  revng_assert(not llvm::any_of(DefaultEntrySet, [this](BasicBlockNodeT *B) {
+    return this->containsNode(B);
+  }));
+  Nodes.insert(DefaultEntrySet.begin(), DefaultEntrySet.end());
+
+  // Add the nodes that were generated with first iteration outlining
+  revng_assert(not llvm::any_of(OutlinedNodes, [this](BasicBlockNodeT *B) {
+    return this->containsNode(B);
+  }));
+  Nodes.insert(OutlinedNodes.begin(), OutlinedNodes.end());
 }
 
 template<class NodeT>

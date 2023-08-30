@@ -895,13 +895,11 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     bool NewExitNeeded = DeduplicatedRegionSuccessors.size() > 1;
     revng_log(CombLogger, "New exit needed: " << NewExitNeeded);
 
-    std::vector<BasicBlockNodeBB *> ExitDispatcherNodes;
-    BasicBlockNodeBB *Exit = nullptr;
+    BasicBlockNodeBB *ExitDispatcher = nullptr;
     if (NewExitNeeded) {
 
       // Create the dispatcher.
-      Exit = RootCFG.addExitDispatcher();
-      ExitDispatcherNodes.push_back(Exit);
+      ExitDispatcher = RootCFG.addExitDispatcher();
 
       // For each target of the dispatcher add the edge and add it in the map.
       std::map<BasicBlockNodeBB *, unsigned> SuccessorsIdxMap;
@@ -916,7 +914,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         Labels.insert(Idx);
         using EdgeInfo = typename BasicBlockNodeBB::EdgeInfo;
         EdgeInfo EI = { Labels, false };
-        addEdge(EdgeDescriptor(Exit, Successor), EI);
+        addEdge(EdgeDescriptor(ExitDispatcher, Successor), EI);
       }
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
@@ -931,7 +929,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         addPlainEdge(EdgeDescriptor(IdxSetNode, Edge.second));
       }
 
-      revng_log(CombLogger, "New exit name is: " << Exit->getNameStr());
+      revng_log(CombLogger,
+                "New exit name is: " << ExitDispatcher->getNameStr());
     }
 
     // Collapse Region.
@@ -1002,8 +1001,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     // Connect the outgoing edges to the collapsed node.
     if (NewExitNeeded) {
-      revng_assert(Exit != nullptr);
-      addPlainEdge(EdgeDescriptor(Collapsed, Exit));
+      revng_assert(ExitDispatcher != nullptr);
+      addPlainEdge(EdgeDescriptor(Collapsed, ExitDispatcher));
     } else {
 
       // Double check that we have at most a single successor
@@ -1018,24 +1017,28 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     // Remove collapsed nodes from the outer region.
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
-      if (CombLogger.isEnabled()) {
-        CombLogger << "Removing from main graph node :" << Node->getNameStr()
-                   << "\n";
-      }
+      revng_log(CombLogger,
+                "Removing from main graph node :" << Node->getNameStr());
       RootCFG.removeNode(Node);
       llvm::erase_value(RPOT, Node);
     }
 
+    LogMetaRegions(OrderedMetaRegions, "MetaRegions before update");
     // Substitute in the other SCSs the nodes of the current SCS with the
     // collapsed node and the exit dispatcher structure.
-    for (MetaRegionBB *OtherMeta : OrderedMetaRegions) {
-      if (OtherMeta != Meta) {
-        OtherMeta->updateNodes(Meta->getNodes(),
-                               Collapsed,
-                               ExitDispatcherNodes,
-                               DefaultEntrySet,
-                               OutlinedNodes);
+    MetaRegionBB *ParentMetaRegion = Meta->getParent();
+    if (nullptr != ParentMetaRegion) {
+      while (ParentMetaRegion) {
+        ParentMetaRegion->updateNodes(Meta->getNodes(),
+                                      Collapsed,
+                                      ExitDispatcher,
+                                      DefaultEntrySet,
+                                      OutlinedNodes);
+        ParentMetaRegion = ParentMetaRegion->getParent();
       }
+    } else {
+      revng_assert(nullptr == ExitDispatcher and DefaultEntrySet.empty()
+                   and OutlinedNodes.empty());
     }
 
     // Replace the pointers inside SCS.
