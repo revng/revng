@@ -192,6 +192,8 @@ public:
     return ExecutionDirectory;
   }
 
+  llvm::Error setStorageCredentials(llvm::StringRef Credentials);
+
 private:
   llvm::Error produceAllPossibleTargets(bool ExpandTargets);
 };

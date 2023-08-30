@@ -11,12 +11,14 @@ from typing import List
 
 from starlette.applications import Starlette
 from starlette.config import Config
+from starlette.datastructures import Headers
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 from starlette.routing import Mount, Route
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from ariadne.asgi import GraphQL
 from ariadne.asgi.handlers import GraphQLHTTPHandler, GraphQLTransportWSHandler
@@ -34,7 +36,23 @@ config = Config()
 DEBUG = config("STARLETTE_DEBUG", cast=bool, default=False)
 
 
-def get_middlewares() -> List[Middleware]:
+class ManagerCredentialsMiddleware:
+    def __init__(self, app: ASGIApp, event_manager: EventManager):
+        self.app = app
+        self.event_manager = event_manager
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        credentials = Headers(scope=scope).get("x-revng-set-credentials")
+        if credentials is not None:
+            self.event_manager.set_credentials(credentials)
+
+        return await self.app(scope, receive, send)
+
+
+def get_middlewares(event_manager: EventManager) -> List[Middleware]:
     extra_middlewares_early = parse_middleware_env(os.environ.get("STARLETTE_MIDDLEWARES_EARLY"))
     extra_middlewares_late = parse_middleware_env(os.environ.get("STARLETTE_MIDDLEWARES_LATE"))
 
@@ -57,6 +75,7 @@ def get_middlewares() -> List[Middleware]:
         ),
         Middleware(GZipMiddleware, minimum_size=1024),
         *extra_middlewares_late,
+        Middleware(ManagerCredentialsMiddleware, event_manager=event_manager),
     ]
 
 
@@ -146,7 +165,7 @@ def make_startlette() -> Starlette:
 
     return Starlette(
         debug=DEBUG,
-        middleware=get_middlewares(),
+        middleware=get_middlewares(event_manager),
         routes=routes,
         on_startup=[startup],
         on_shutdown=[shutdown],

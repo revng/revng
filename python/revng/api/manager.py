@@ -477,3 +477,7 @@ class Manager:
             raise RevngException(
                 f"Failed loading user provided input for container {container_name}"
             )
+
+    def set_storage_credentials(self, credentials: str):
+        _credentials = make_c_string(credentials)
+        assert _api.rp_manager_set_storage_credentials(self._manager, _credentials)

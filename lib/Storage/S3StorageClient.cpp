@@ -9,6 +9,7 @@
 
 #include "aws/core/Aws.h"
 #include "aws/core/auth/AWSCredentials.h"
+#include "aws/core/auth/AWSCredentialsProvider.h"
 #include "aws/core/utils/logging/FormattedLogSystem.h"
 #include "aws/s3/S3Client.h"
 #include "aws/s3/model/CopyObjectRequest.h"
@@ -142,6 +143,12 @@ static std::string generateNewFilename(llvm::StringRef Path) {
   return Base.str() + "/" + Output + "-" + Filename.str();
 }
 
+static Aws::Auth::AWSCredentials readCredentials(llvm::StringRef Credentials) {
+  llvm::StringRef Username = consumeSplit(Credentials, ':');
+  llvm::StringRef Password = Credentials;
+  return Aws::Auth::AWSCredentials{ Username.str(), Password.str() };
+}
+
 class S3ReadableFile : public ReadableFile {
 private:
   TemporaryFile TempFile;
@@ -206,6 +213,17 @@ public:
   }
 };
 
+class S3CredentialsProvider : public Aws::Auth::AWSCredentialsProvider {
+private:
+  Aws::Auth::AWSCredentials &Credentials;
+
+public:
+  explicit S3CredentialsProvider(Aws::Auth::AWSCredentials &Credentials) :
+    Credentials(Credentials) {}
+  ~S3CredentialsProvider() override = default;
+  Aws::Auth::AWSCredentials GetAWSCredentials() override { return Credentials; }
+};
+
 S3StorageClient::S3StorageClient(llvm::StringRef RawURL) {
   // Url format is:
   // s3://<username>:<password>@<region>+<host:port>/<bucket name>/<path>
@@ -226,17 +244,15 @@ S3StorageClient::S3StorageClient(llvm::StringRef RawURL) {
     revng_assert(URL.consume_front("s3s://"));
   }
 
-  llvm::StringRef Username = consumeSplit(URL, ':');
-  llvm::StringRef Password = consumeSplit(URL, '@');
+  llvm::StringRef CredentialsString = consumeSplit(URL, '@');
+  Credentials = readCredentials(CredentialsString);
   RedactedURL += "<user>:<pwd>@";
-
-  Aws::Auth::AWSCredentials Credentials(Username.str(), Password.str());
 
   Config.region = consumeSplit(URL, '+').str();
   Config.endpointOverride = consumeSplit(URL, '/').str();
   RedactedURL += Config.region + '+' + Config.endpointOverride + '/';
 
-  Client = { Credentials,
+  Client = { std::make_shared<S3CredentialsProvider>(Credentials),
              Config,
              Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Always,
              false };
@@ -427,6 +443,11 @@ llvm::Error S3StorageClient::commit() {
   if (not Result.IsSuccess())
     return toError(Result);
 
+  return llvm::Error::success();
+}
+
+llvm::Error S3StorageClient::setCredentials(llvm::StringRef Credentials) {
+  this->Credentials = readCredentials(Credentials);
   return llvm::Error::success();
 }
 

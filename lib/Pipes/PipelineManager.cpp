@@ -494,3 +494,13 @@ PipelineManager::produceTargets(const llvm::StringRef StepName,
   const auto &ToFilter = Targets.at(TheContainer.second->name());
   return TheContainer.second->cloneFiltered(ToFilter);
 }
+
+llvm::Error
+PipelineManager::setStorageCredentials(llvm::StringRef Credentials) {
+  if (StorageClient == nullptr) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Client missing");
+  }
+
+  return StorageClient->setCredentials(Credentials);
+}
