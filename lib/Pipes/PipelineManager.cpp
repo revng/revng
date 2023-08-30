@@ -525,3 +525,13 @@ llvm::Error PipelineManager::computeDescription() {
 
   return MaybeWritableFile.get()->commit();
 }
+
+llvm::Error
+PipelineManager::setStorageCredentials(llvm::StringRef Credentials) {
+  if (StorageClient == nullptr) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Client missing");
+  }
+
+  return StorageClient->setCredentials(Credentials);
+}

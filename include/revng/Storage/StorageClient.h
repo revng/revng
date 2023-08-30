@@ -106,6 +106,11 @@ public:
 
   virtual llvm::Error commit() { return llvm::Error::success(); };
 
+  virtual llvm::Error setCredentials(llvm::StringRef Credentials) {
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Not Supported");
+  }
+
 private:
   virtual std::string dumpString() const = 0;
 };

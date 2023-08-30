@@ -195,6 +195,8 @@ public:
 
   const llvm::StringRef getPipelineDescription() const { return Description; }
 
+  llvm::Error setStorageCredentials(llvm::StringRef Credentials);
+
 private:
   llvm::Error produceAllPossibleTargets(bool ExpandTargets);
   llvm::Error computeDescription();

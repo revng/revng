@@ -294,6 +294,13 @@ rp_manager_get_container_targets_list(const rp_manager *manager,
  */
 const char *rp_manager_get_pipeline_description(rp_manager *manager);
 
+/**
+ * Set the storage credentials of the manager
+ * \return true if successful, false otherwise
+ */
+bool rp_manager_set_storage_credentials(rp_manager *manager,
+                                        const char *credentials);
+
 /** \} */
 
 /**

@@ -394,3 +394,7 @@ class Manager:
 
     def get_pipeline_description(self):
         return self._description_str
+
+    def set_storage_credentials(self, credentials: str):
+        _credentials = make_c_string(credentials)
+        assert _api.rp_manager_set_storage_credentials(self._manager, _credentials)

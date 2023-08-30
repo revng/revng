@@ -40,6 +40,7 @@ class EventManager(Thread):
         self.manager = manager
         self.running = True
         self.next_save: float | None = None
+        self.credentials: str | None = None
 
     def run(self):
         while self.running:
@@ -54,3 +55,7 @@ class EventManager(Thread):
 
     def handle_event(self, type_: EventType):
         self.next_save = time.time() + 300
+
+    def set_credentials(self, credentials: str):
+        self.credentials = credentials
+        self.manager.set_storage_credentials(credentials)

@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "aws/core/auth/AWSCredentials.h"
 #include "aws/s3/S3Client.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -16,6 +17,7 @@ class S3WritableFile;
 
 class S3StorageClient : public StorageClient {
 private:
+  Aws::Auth::AWSCredentials Credentials;
   Aws::S3::S3Client Client;
   std::string Bucket;
   std::string SubPath;
@@ -49,6 +51,10 @@ public:
   getWritableFile(llvm::StringRef Path, ContentEncoding Encoding) override;
 
   llvm::Error commit() override;
+
+  // In S3StorageClient, the Credentials are in the format:
+  // '<username>:<password>'
+  llvm::Error setCredentials(llvm::StringRef Credentials) override;
 
 private:
   std::string dumpString() const override;
