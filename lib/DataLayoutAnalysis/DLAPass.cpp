@@ -33,6 +33,11 @@ void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 }
 
 bool DLAPass::runOnModule(llvm::Module &M) {
+
+  llvm::Task T(3, "DLAPass::runOnModule");
+
+  T.advance("DLA Frontend");
+
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
@@ -46,6 +51,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
     Builder.dumpValuesMapping("DLA-values-initial.csv");
 
   // Middle-end Steps: manipulate nodes and edges of the DLATypeSystem graph
+  T.advance("DLA Middleend");
   dla::StepManager SM;
   size_t PtrSize = getPointerSize(Model.Architecture());
   revng_check(SM.addStep<dla::RemoveInvalidPointers>(PtrSize));
@@ -86,6 +92,8 @@ bool DLAPass::runOnModule(llvm::Module &M) {
 
   if (BuilderLog.isEnabled())
     Builder.dumpValuesMapping("DLA-values-after-ME.csv");
+
+  T.advance("DLA Backend");
 
   // Generate model types
   auto &WritableModel = ModelWrapper.getWriteableModel();

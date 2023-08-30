@@ -10,6 +10,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/Support/Progress.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Debug.h"
@@ -193,10 +194,12 @@ bool CollapseEqualitySCC::runOnTypeSystem(LayoutTypeSystem &TS) {
 }
 
 bool CollapseInstanceAtOffset0SCC::runOnTypeSystem(LayoutTypeSystem &TS) {
+  Task T(2, "runOnTypeSystem");
 
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyConsistency());
 
+  T.advance("collapseInstanceAtOffset0SCC");
   revng_log(LogVerbose, "#### Collapsing Instance-at-offset-0 SCC: ... ");
   bool Changed = collapseInstanceAtOffset0SCC(TS);
   revng_log(LogVerbose, "#### Collapsing Instance-at-offset-0 SCC: Done!");
@@ -206,6 +209,7 @@ bool CollapseInstanceAtOffset0SCC::runOnTypeSystem(LayoutTypeSystem &TS) {
     revng_assert(TS.verifyInstanceAtOffset0DAG());
   }
 
+  T.advance("removeInstanceBackedgesFromInstanceAtOffset0Loops");
   Changed |= removeInstanceBackedgesFromInstanceAtOffset0Loops(TS);
 
   if (VerifyLog.isEnabled()) {

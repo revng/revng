@@ -11,6 +11,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Support/Progress.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -84,6 +85,8 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
 
   revng_log(Log, "Removing Backedges From Loops");
 
+  llvm::Task T(2, "removeBackedgesFromSCC");
+  T.advance("Detect Colors");
   // Color all the nodes, except those that have no incoming nor outgoing
   // SCCNodeView edges.
   // The goal is to identify the subsets of nodes that are connected by means of
@@ -184,6 +187,7 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
 
   using MixedNodeT = EdgeFilteredGraph<LTSN *, isMixedEdge<SCC>>;
 
+  T.advance("Remove Backedges");
   for (const auto &Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
     // We start from SCCNodeView roots and look if we find an SCC with mixed

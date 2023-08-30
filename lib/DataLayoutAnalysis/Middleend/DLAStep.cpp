@@ -2,6 +2,8 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Progress.h"
+
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
@@ -25,6 +27,43 @@ const char RemoveInvalidStrideEdges::ID = 0;
 const char RemoveInvalidPointers::ID = 0;
 const char ResolveLeafUnions::ID = 0;
 const char SimplifyInstanceAtOffset0::ID = 0;
+
+static std::string getStepNameFromID(const void *ID) {
+  if (ID == ArrangeAccessesHierarchically::getID())
+    return "ArrangeAccessesHierarchically";
+  else if (ID == CollapseEqualitySCC::getID())
+    return "CollapseEqualitySCC";
+  else if (ID == CollapseInstanceAtOffset0SCC::getID())
+    return "CollapseInstanceAtOffset0SCC";
+  else if (ID == CollapseSingleChild::getID())
+    return "CollapseSingleChild";
+  else if (ID == CompactCompatibleArrays::getID())
+    return "CompactCompatibleArrays";
+  else if (ID == ComputeNonInterferingComponents::getID())
+    return "ComputeNonInterferingComponents";
+  else if (ID == ComputeUpperMemberAccesses::getID())
+    return "ComputeUpperMemberAccesses";
+  else if (ID == DecomposeStridedEdges::getID())
+    return "DecomposeStridedEdges";
+  else if (ID == DeduplicateFields::getID())
+    return "DeduplicateFields";
+  else if (ID == MergePointerNodes::getID())
+    return "MergePointerNodes";
+  else if (ID == PruneLayoutNodesWithoutLayout::getID())
+    return "PruneLayoutNodesWithoutLayout";
+  else if (ID == PushDownPointers::getID())
+    return "PushDownPointers";
+  else if (ID == RemoveInvalidStrideEdges::getID())
+    return "RemoveInvalidStrideEdges";
+  else if (ID == RemoveInvalidPointers::getID())
+    return "RemoveInvalidPointers";
+  else if (ID == ResolveLeafUnions::getID())
+    return "ResolveLeafUnions";
+  else if (ID == SimplifyInstanceAtOffset0::getID())
+    return "SimplifyInstanceAtOffset0";
+  else
+    revng_abort("Unexpected ID for DLAStep");
+}
 
 static Logger<> DLAStepManagerLog("dla-step-manager");
 static Logger<> DLADumpDot("dla-step-dump-dot");
@@ -81,7 +120,10 @@ void StepManager::run(LayoutTypeSystem &TS) {
   int x = 0;
   if (DLADumpDot.isEnabled())
     TS.dumpDotOnFile("type-system-0.dot", true);
+
+  llvm::Task T{ Schedule.size(), "StepManager::run" };
   for (auto &S : Schedule) {
+    T.advance(getStepNameFromID(S->getStepID()));
     S->runOnTypeSystem(TS);
     ++x;
     if (DLADumpDot.isEnabled()) {
