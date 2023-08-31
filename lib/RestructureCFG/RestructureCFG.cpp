@@ -186,8 +186,7 @@ static bool checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
   return ComparisonState;
 }
 
-static void computeParents(MetaRegionBBVect &MetaRegions,
-                           MetaRegionBB *RootMetaRegion) {
+static void computeParents(MetaRegionBBVect &MetaRegions) {
   for (MetaRegionBB &MetaRegion1 : MetaRegions) {
     bool ParentFound = false;
     for (MetaRegionBB &MetaRegion2 : MetaRegions) {
@@ -214,7 +213,7 @@ static void computeParents(MetaRegionBBVect &MetaRegions,
         CombLogger << "no parent found\n";
       }
 
-      MetaRegion1.setParent(RootMetaRegion);
+      MetaRegion1.setParent(nullptr);
     }
   }
 }
@@ -465,9 +464,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   LogMetaRegions(MetaRegions, "Metaregions after second ordering:");
 
   // Compute parent relations for the identified SCSs.
-  std::set<BasicBlockNodeBB *> Empty;
-  MetaRegionBB RootMetaRegion(0, Empty);
-  computeParents(MetaRegions, &RootMetaRegion);
+  computeParents(MetaRegions);
 
   // Print metaregions after ordering.
   LogMetaRegions(MetaRegions, "Metaregions parent relationship:");
