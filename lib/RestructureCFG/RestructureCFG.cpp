@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/BreadthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
@@ -249,15 +250,9 @@ static MetaRegionBBPtrVect applyPartialOrder(MetaRegionBBVect &V) {
 }
 
 static bool alreadyInMetaregion(MetaRegionBBVect &V, BasicBlockNodeBB *N) {
-
-  // Scan all the metaregions and check if a node is already contained in one of
-  // them
-  for (MetaRegionBB &Region : V) {
-    if (Region.containsNode(N)) {
+  for (MetaRegionBB &Region : V)
+    if (Region.containsNode(N))
       return true;
-    }
-  }
-
   return false;
 }
 
@@ -511,9 +506,6 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     }
   }
 
-  DominatorTreeBase<BasicBlockNodeBB, false> DT;
-  DT.recalculate(RootCFG);
-
   // Reserve enough space for all the OrderedMetaRegions.
   // The following algorithms stores pointers to the elements of this vector, so
   // we need to make sure that no reallocation happens.
@@ -676,68 +668,90 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     }
 
     revng_assert(Head != nullptr);
-    if (CombLogger.isEnabled()) {
-      CombLogger << "New head name is: " << Head->getNameStr() << "\n";
-    }
+    revng_log(CombLogger, "New head name is: " << Head->getNameStr());
 
     // Successor refinement step.
     std::set<BasicBlockNodeBB *> Successors = Meta->getSuccessors();
-
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Region successors are:\n";
-      for (BasicBlockNodeBB *Node : Successors) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
+    revng_log(CombLogger, "Initial region successors are:");
+    for (BasicBlockNodeBB *Node : Successors) {
+      LoggerIndent Indent(CombLogger);
+      revng_log(CombLogger, Node->getNameStr());
     }
 
+    revng_log(CombLogger, "Successors Address: " << &Successors);
+
     bool AnotherIteration = true;
+    revng_log(CombLogger, "Adjusting regions successors");
     while (AnotherIteration and Successors.size() > 1) {
+      LoggerIndent Indent(CombLogger);
       AnotherIteration = false;
-      std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
+      for (BasicBlockNodeBB *S : llvm::make_early_inc_range(Successors)) {
+        revng_log(CombLogger, "Successor: " << S->getID());
+        LoggerIndent Indent(CombLogger);
 
-      std::vector<BasicBlockNodeBB *> Frontiers;
-      std::map<BasicBlockNodeBB *, pair<BasicBlockNodeBB *, BasicBlockNodeBB *>>
-        EdgeExtremal;
+        // If S is already in another metaregion, we don't include it in this
+        // one, because that could disrupt the well-nestedness of the meta
+        // regions (and possibly force us to recompute the OrderedMetaRegion).
+        // TODO: this condition is very likely to be overly strict, because it
+        // prevents some good cases to be handled gracefully. In principle I
+        // think that we could include any node that is only in the parent
+        // region (but not in sibling meta regions), making sure that we never
+        // "ingest" a backedge, but this should be thought through before
+        // jumping to an implementation.
+        if (alreadyInMetaregion(MetaRegions, S)) {
+          revng_log(CombLogger, "AlreadyInMetaRegion");
+          continue;
+        }
 
-      for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNodeBB *Frontier = RootCFG.addArtificialNode("frontier "
-                                                               "dummy");
-        BasicBlockNodeBB *OldSource = Edge.first;
-        BasicBlockNodeBB *OldTarget = Edge.second;
-        EdgeExtremal[Frontier] = std::make_pair(OldSource, OldTarget);
-        moveEdgeTarget(Edge, Frontier);
-        addPlainEdge(EdgeDescriptor(Frontier, OldTarget));
-        Meta->insertNode(Frontier);
-        Frontiers.push_back(Frontier);
-      }
+        // If any of the predecessors of S is not in the Meta
+        // metaregion we don't do anything
+        if (llvm::any_of(S->predecessors(), [Meta](auto *P) {
+              return not Meta->containsNode(P);
+            })) {
+          revng_log(CombLogger, "PredecessorIsOutside");
+          continue;
+        }
 
-      DT.recalculate(RootCFG);
-      for (BasicBlockNodeBB *Frontier : Frontiers) {
-        for (BasicBlockNodeBB *Successor : Successors) {
-          if ((DT.dominates(Head, Successor))
-              and (DT.dominates(Frontier, Successor))
-              and not alreadyInMetaregion(MetaRegions, Successor)) {
-            Meta->insertNode(Successor);
-            AnotherIteration = true;
-            if (CombLogger.isEnabled()) {
-              CombLogger << "Identified new candidate for successor "
-                            "refinement:";
-              CombLogger << Successor->getNameStr() << "\n";
-            }
+        // Otherwise we include S in the Meta metaregion, since
+        // all its predecessors are part of it (which means it's
+        // dominated by the region).
+        revng_assert(not Meta->containsNode(S));
+        Meta->insertNode(S);
+        revng_log(CombLogger,
+                  "Successor has been included in "
+                  "the metaregion: "
+                    << S->getNameStr());
+
+        // Mark that we want to do another iteration
+        AnotherIteration = true;
+
+        // The following is safe because Successors is a std::set
+        // and we're using llvm::make_early_inc_range. S has been
+        // included in the metaregion, so we have to erase it
+        // from Successors, since it's not a successor of the
+        // metaregion anymore. Also, all successors of Successor
+        // that are not in the metaregion now have to be inserted
+        // in Successors, because they are now new successors.
+        bool Erased = Successors.erase(S);
+        revng_assert(Erased);
+        for (BasicBlockNodeBB *NewSuccessor : S->successors()) {
+          if (not Meta->containsNode(NewSuccessor)) {
+            Successors.insert(NewSuccessor);
+            revng_log(CombLogger,
+                      "New Successor of the "
+                      "metaregion: "
+                        << NewSuccessor->getNameStr());
           }
         }
       }
 
-      // Remove the frontier nodes since we do not need them anymore.
-      for (BasicBlockNodeBB *Frontier : Frontiers) {
-        BasicBlockNodeBB *OriginalSource = EdgeExtremal[Frontier].first;
-        BasicBlockNodeBB *OriginalTarget = EdgeExtremal[Frontier].second;
-        moveEdgeTarget({ OriginalSource, Frontier }, OriginalTarget);
-        RootCFG.removeNode(Frontier);
-        Meta->removeNode(Frontier);
-      }
+      revng_log(CombLogger, "AnotherIteration: " << AnotherIteration);
 
-      Successors = Meta->getSuccessors();
+      revng_log(CombLogger, "Adjusted region successors are:");
+      for (BasicBlockNodeBB *Node : Successors) {
+        LoggerIndent Indent(CombLogger);
+        revng_log(CombLogger, Node->getNameStr());
+      }
     }
 
     // First Iteration outlining.
