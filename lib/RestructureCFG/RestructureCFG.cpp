@@ -1027,18 +1027,13 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     // Substitute in the other SCSs the nodes of the current SCS with the
     // collapsed node and the exit dispatcher structure.
     MetaRegionBB *ParentMetaRegion = Meta->getParent();
-    if (nullptr != ParentMetaRegion) {
-      while (ParentMetaRegion) {
-        ParentMetaRegion->updateNodes(Meta->getNodes(),
-                                      Collapsed,
-                                      ExitDispatcher,
-                                      DefaultEntrySet,
-                                      OutlinedNodes);
-        ParentMetaRegion = ParentMetaRegion->getParent();
-      }
-    } else {
-      revng_assert(nullptr == ExitDispatcher and DefaultEntrySet.empty()
-                   and OutlinedNodes.empty());
+    while (ParentMetaRegion) {
+      ParentMetaRegion->updateNodes(Meta->getNodes(),
+                                    Collapsed,
+                                    ExitDispatcher,
+                                    DefaultEntrySet,
+                                    OutlinedNodes);
+      ParentMetaRegion = ParentMetaRegion->getParent();
     }
 
     // Replace the pointers inside SCS.
