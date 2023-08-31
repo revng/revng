@@ -741,70 +741,73 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     }
 
     // First Iteration outlining.
-    // Clone all the nodes of the SCS except for the head.
-    std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> ClonedMap;
     std::vector<BasicBlockNodeBB *> OutlinedNodes;
-    for (BasicBlockNodeBB *Node : Meta->nodes()) {
-      if (Node != Head) {
-        BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
+    if (Entries.size() > 1) {
+      // Clone all the nodes of the SCS except for the head.
+      std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> ClonedMap;
+      for (BasicBlockNodeBB *Node : Meta->nodes()) {
+        if (Node != Head) {
+          BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
 
-        // In case we are cloning nodes that may become entry candidates of
-        // regions, we need to assign to them a value in the
-        // `ShortestPathFromEntry` map.
-        if (Node->isCollapsed() or Node->isCode()) {
-          ShortestPathFromEntry[Clone] = ShortestPathFromEntry.at(Node);
-        }
-        Clone->setName(Node->getName().str() + " outlined");
-        ClonedMap[Node] = Clone;
-
-        // Add the nodes to the additional vector
-        OutlinedNodes.push_back(Clone);
-      }
-    }
-
-    // Restore edges between cloned nodes.
-    for (BasicBlockNodeBB *Node : Meta->nodes()) {
-      if (Node != Head) {
-
-        // Handle outgoing edges from SCS nodes.
-        for (const auto &[Successor, Labels] : Node->labeled_successors()) {
-          revng_assert(not Backedges.contains(EdgeDescriptor(Node, Successor)));
-          using ED = EdgeDescriptor;
-          auto *NewEdgeSrc = ClonedMap.at(Node);
-          auto *NewEdgeTgt = Successor;
-          if (Meta->containsNode(Successor)) {
-            // Handle edges pointing inside the SCS.
-            if (Successor == Head) {
-              // Retreating edges should point to the new head.
-              NewEdgeTgt = Head;
-            } else {
-              // Other edges should be restored between cloned nodes.
-              NewEdgeTgt = ClonedMap.at(Successor);
-            }
+          // In case we are cloning nodes that may become entry candidates of
+          // regions, we need to assign to them a value in the
+          // `ShortestPathFromEntry` map.
+          if (Node->isCollapsed() or Node->isCode()) {
+            ShortestPathFromEntry[Clone] = ShortestPathFromEntry.at(Node);
           }
-          addEdge(ED(NewEdgeSrc, NewEdgeTgt), Labels);
-        }
+          Clone->setName(Node->getName().str() + " outlined");
+          ClonedMap[Node] = Clone;
 
-        // We need this temporary vector to avoid invalidating iterators.
-        std::vector<BasicBlockNodeBB *> Predecessors;
-        for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
-          Predecessors.push_back(Predecessor);
+          // Add the nodes to the additional vector
+          OutlinedNodes.push_back(Clone);
         }
-        for (BasicBlockNodeBB *Predecessor : Predecessors) {
-          if (not Meta->containsNode(Predecessor)) {
-            // Is the edge we are moving a backedge ?.
-            if (CombLogger.isEnabled()) {
-              CombLogger << "Index region: " << Meta->getIndex() << "\n";
-              CombLogger << "Backedge that we would insert: "
-                         << Predecessor->getNameStr() << " -> "
-                         << Node->getNameStr() << "\n";
+      }
+
+      // Restore edges between cloned nodes.
+      for (BasicBlockNodeBB *Node : Meta->nodes()) {
+        if (Node != Head) {
+
+          // Handle outgoing edges from SCS nodes.
+          for (const auto &[Successor, Labels] : Node->labeled_successors()) {
+            revng_assert(not Backedges.contains(EdgeDescriptor(Node,
+                                                               Successor)));
+            using ED = EdgeDescriptor;
+            auto *NewEdgeSrc = ClonedMap.at(Node);
+            auto *NewEdgeTgt = Successor;
+            if (Meta->containsNode(Successor)) {
+              // Handle edges pointing inside the SCS.
+              if (Successor == Head) {
+                // Retreating edges should point to the new head.
+                NewEdgeTgt = Head;
+              } else {
+                // Other edges should be restored between cloned nodes.
+                NewEdgeTgt = ClonedMap.at(Successor);
+              }
             }
+            addEdge(ED(NewEdgeSrc, NewEdgeTgt), Labels);
+          }
 
-            // Are we moving a backedge with the first iteration outlining?
-            revng_assert(not Backedges.contains({ Predecessor, Node }));
+          // We need this temporary vector to avoid invalidating iterators.
+          std::vector<BasicBlockNodeBB *> Predecessors;
+          for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
+            Predecessors.push_back(Predecessor);
+          }
+          for (BasicBlockNodeBB *Predecessor : Predecessors) {
+            if (not Meta->containsNode(Predecessor)) {
 
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Node),
-                           ClonedMap.at(Node));
+              if (CombLogger.isEnabled()) {
+                CombLogger << "Index region: " << Meta->getIndex() << "\n";
+                CombLogger << "Edge that now points to an outlined iteration: "
+                           << Predecessor->getNameStr() << " -> "
+                           << Node->getNameStr() << "\n";
+              }
+
+              // Are we moving a backedge with the first iteration outlining?
+              revng_assert(not Backedges.contains({ Predecessor, Node }));
+
+              moveEdgeTarget(EdgeDescriptor(Predecessor, Node),
+                             ClonedMap.at(Node));
+            }
           }
         }
       }
