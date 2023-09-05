@@ -31,7 +31,7 @@ using namespace llvm;
 
 std::optional<pipeline::Target>
 TaggedFunctionKind::symbolToTarget(const llvm::Function &Symbol) const {
-  if (not Tag->isTagOf(&Symbol) or Symbol.isDeclaration())
+  if (not Tag->isExactTagOf(&Symbol) or Symbol.isDeclaration())
     return std::nullopt;
 
   auto Address = getMetaAddressOfIsolatedFunction(Symbol);
