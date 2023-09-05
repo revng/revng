@@ -27,6 +27,21 @@ public:
     return ToReturn;
   }
 
+private:
+  static const Global *
+  dereferenceIterator(const MapType::const_iterator::value_type &Pair) {
+    return Pair.second.get();
+  }
+
+public:
+  auto begin() const {
+    return llvm::map_iterator(Map.begin(), dereferenceIterator);
+  }
+
+  auto end() const {
+    return llvm::map_iterator(Map.end(), dereferenceIterator);
+  }
+
   template<typename ToAdd, typename... T>
   void emplace(llvm::StringRef Name, T &&...Args) {
     Map.try_emplace(Name.str(),
@@ -116,6 +131,15 @@ public:
   llvm::Error load(const revng::DirectoryPath &Path);
 
   size_t size() const { return Map.size(); }
+
+  std::vector<llvm::StringRef> getGlobalNames() const {
+    std::vector<llvm::StringRef> ToReturn;
+
+    for (const auto &Global : Map)
+      ToReturn.push_back(Global.first);
+
+    return ToReturn;
+  }
 
 public:
   GlobalsMap() = default;

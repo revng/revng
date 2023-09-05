@@ -20,6 +20,16 @@ class TaggedFunctionKind : public pipeline::LLVMKind {
 private:
   const FunctionTags::Tag *Tag;
 
+  // It is on the heap to avoid Initialization Order Fiasco
+  std::unique_ptr<llvm::SmallVector<TaggedFunctionKind *>> Children = nullptr;
+
+  void registerChild(TaggedFunctionKind *Child) {
+    if (Children == nullptr)
+      Children = std::make_unique<llvm::SmallVector<TaggedFunctionKind *>>();
+
+    Children->push_back(Child);
+  }
+
 public:
   template<typename BaseRank>
   TaggedFunctionKind(llvm::StringRef Name,

@@ -66,6 +66,18 @@ private:
     }
   };
 
+  struct StopTrackingVisitor {
+    template<revng::SetOrKOC Type>
+    static void visitKeyedObjectContainer(const Type &CurrentItem) {
+      CurrentItem.stopTracking();
+    }
+
+    template<typename Type, size_t FieldIndex>
+    static void visitTupleElement(const Type &CurrentItem) {
+      CurrentItem.template getTracker<FieldIndex>().stopTracking();
+    }
+  };
+
 private:
   template<typename M, size_t I = 0, typename T>
   static void
@@ -182,6 +194,11 @@ public:
   template<typename M>
   static void pop(const M &LHS) {
     visitTuple<M, PopVisitor>(LHS);
+  }
+
+  template<typename M>
+  static void stop(const M &LHS) {
+    visitTuple<M, StopTrackingVisitor>(LHS);
   }
 };
 
