@@ -119,16 +119,6 @@ std::string S3StorageClient::resolvePath(llvm::StringRef Path) {
 static std::string generateNewFilename(llvm::StringRef Path) {
   revng_assert(not Path.ends_with("/"));
 
-  llvm::StringRef Base;
-  llvm::StringRef Filename;
-  if (Path.contains("/")) {
-    auto Parts = Path.rsplit("/");
-    Base = Parts.first;
-    Filename = Parts.second;
-  } else {
-    Filename = Path;
-  }
-
   using uuid_t = uint8_t[16];
   uuid_t UUID;
   for (int I = 0; I < 16; I++)
@@ -139,7 +129,12 @@ static std::string generateNewFilename(llvm::StringRef Path) {
   OS.write_uuid(UUID);
   OS.flush();
 
-  return Base.str() + "/" + Output + "-" + Filename.str();
+  if (Path.contains("/")) {
+    auto Parts = Path.rsplit("/");
+    return Parts.first.str() + "/" + Output + "-" + Parts.second.str();
+  } else {
+    return Output + "-" + Path.str();
+  }
 }
 
 class S3ReadableFile : public ReadableFile {
