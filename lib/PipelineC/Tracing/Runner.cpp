@@ -395,17 +395,6 @@ argumentTransformer(RunnerContext &Context,
     ReplaceWithTmpDir(2);
   } else if (Command.Name == "rp_manager_create_from_string") {
     ReplaceWithTmpDir(4);
-  } else if (Command.Name == "rp_step_save"
-             || Command.Name == "rp_manager_save_context") {
-    ReplaceWithTmpDir(1);
-  } else if (Command.Name == "rp_manager_save") {
-    // In rp_manager_save if the argument is nullptr it means to save onto the
-    // manager's work directory
-    auto &Argument = Command.Arguments[1];
-    revng_assert(Argument.isScalar());
-    if (Argument.getScalar() != NullPointer) {
-      ReplaceWithTmpDir(1);
-    }
   }
   return NewArguments;
 }

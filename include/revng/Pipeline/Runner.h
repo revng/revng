@@ -19,6 +19,7 @@
 #include "revng/Pipeline/KindsRegistry.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Storage/Path.h"
 #include "revng/Support/Debug.h"
 
 namespace pipeline {
@@ -202,13 +203,13 @@ public:
   llvm::Error invalidate(const pipeline::InvalidationMap &Invalidations);
 
 public:
-  llvm::Error storeToDisk(llvm::StringRef DirPath) const;
-  llvm::Error storeToDiskDebug(const char *DirPath) const debug_function {
-    return storeToDisk(DirPath);
+  llvm::Error store(const revng::DirectoryPath &DirPath) const;
+  llvm::Error dump(const char *DirPath) const debug_function {
+    return store(revng::DirectoryPath::fromLocalStorage(DirPath));
   }
   llvm::Error storeStepToDisk(llvm::StringRef StepName,
-                              llvm::StringRef DirPath) const;
-  llvm::Error loadFromDisk(llvm::StringRef DirPath);
+                              const revng::DirectoryPath &DirPath) const;
+  llvm::Error load(const revng::DirectoryPath &DirPath);
 
 public:
   void deduceAllPossibleTargets(State &State) const;
@@ -269,20 +270,20 @@ class PipelineFileMapping {
 private:
   std::string Step;
   std::string Container;
-  std::string InputFile;
+  revng::FilePath Path;
 
 public:
   PipelineFileMapping(llvm::StringRef Step,
                       llvm::StringRef Container,
-                      llvm::StringRef InputFile) :
-    Step(Step.str()), Container(Container.str()), InputFile(InputFile.str()) {}
+                      revng::FilePath &&Path) :
+    Step(Step.str()), Container(Container.str()), Path(std::move(Path)) {}
 
 public:
   static llvm::Expected<PipelineFileMapping> parse(llvm::StringRef ToParse);
 
 public:
-  llvm::Error loadFromDisk(Runner &LoadInto) const;
-  llvm::Error storeToDisk(Runner &LoadInto) const;
+  llvm::Error load(Runner &LoadInto) const;
+  llvm::Error store(Runner &LoadInto) const;
 };
 
 } // namespace pipeline

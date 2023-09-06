@@ -15,6 +15,7 @@
 #include "revng/ADT/Concepts.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Storage/Path.h"
 #include "revng/Support/Assert.h"
 
 namespace pipeline {
@@ -113,11 +114,11 @@ public:
 
   /// The implementation must ensure that there exists a file at the provided
   /// path that contains the serialized version of this object.
-  virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
+  virtual llvm::Error store(const revng::FilePath &Path) const;
 
   /// The implementation must ensure that the content of this file will be
   /// loaded from the provided path.
-  virtual llvm::Error loadFromDisk(llvm::StringRef Path);
+  virtual llvm::Error load(const revng::FilePath &Path);
 
   /// Checks that the content of the this container is valid.
   virtual llvm::Error verify() const { return enumerate().verify(*this); }

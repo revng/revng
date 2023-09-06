@@ -199,38 +199,10 @@ static rp_manager *_rp_manager_create(uint64_t pipeline_flags_count,
                                 true);
 }
 
-static bool _rp_manager_save(rp_manager *manager, const char *path) {
+static bool _rp_manager_save(rp_manager *manager) {
   revng_check(manager != nullptr);
 
-  llvm::StringRef DirPath;
-  if (path != nullptr)
-    DirPath = llvm::StringRef(path);
-
-  auto Error = manager->storeToDisk(DirPath);
-  if (not Error)
-    return true;
-
-  llvm::consumeError(std::move(Error));
-  return false;
-}
-
-static bool _rp_step_save(rp_step *step, const char *path) {
-  revng_check(step != nullptr);
-  revng_check(path != nullptr);
-
-  auto Error = step->storeToDisk(path);
-  if (not Error)
-    return true;
-
-  llvm::consumeError(std::move(Error));
-  return false;
-}
-
-static bool _rp_manager_save_context(rp_manager *manager, const char *path) {
-  revng_check(manager != nullptr);
-  revng_check(path != nullptr);
-
-  auto Error = manager->context().storeToDisk(path);
+  auto Error = manager->store();
   if (not Error)
     return true;
 
@@ -452,7 +424,9 @@ static bool _rp_container_store(const rp_container *container,
                                 const char *path) {
   revng_check(container != nullptr);
   revng_check(path != nullptr);
-  auto Error = container->second->storeToDisk(path);
+
+  revng::FilePath Path = revng::FilePath::fromLocalStorage(path);
+  auto Error = container->second->store(Path);
   if (not Error)
     return true;
 
@@ -497,24 +471,6 @@ static const char *_rp_target_get_path_component(rp_target *target,
   revng_check(index < PathComponents.size());
 
   return PathComponents[index].c_str();
-}
-
-static char *_rp_manager_create_container_path(rp_manager *manager,
-                                               const char *step_name,
-                                               const char *container_name) {
-  revng_check(manager != nullptr);
-  revng_check(step_name != nullptr);
-  revng_check(container_name != nullptr);
-
-  if (manager->executionDirectory().empty())
-    return nullptr;
-
-  llvm::SmallString<128> Path;
-  llvm::sys::path::append(Path,
-                          manager->executionDirectory(),
-                          step_name,
-                          container_name);
-  return copyString(Path);
 }
 
 static rp_targets_list *

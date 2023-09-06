@@ -38,15 +38,14 @@ static cl::list<string> Arguments(Positional,
                                   desc("<ArtifactToProduce> <InputBinary>"),
                                   cat(MainCategory));
 
-static opt<string> Output("o",
-                          desc("Output filepath of produced artifact"),
-                          cat(MainCategory),
-                          init("-"));
+static OutputPathOpt Output("o",
+                            desc("Output filepath of produced artifact"),
+                            cat(MainCategory),
+                            init(revng::PathInit::Dash));
 
-static opt<string> SaveModel("save-model",
-                             desc("Save the model at the end of the run"),
-                             cat(MainCategory),
-                             init(""));
+static OutputPathOpt SaveModel("save-model",
+                               desc("Save the model at the end of the run"),
+                               cat(MainCategory));
 
 static opt<bool> ListArtifacts("list",
                                desc("list all possible targets of artifact and "
@@ -63,6 +62,7 @@ static ToolCLOptions BaseOptions(MainCategory);
 static ExitOnError AbortOnError;
 
 int main(int argc, char *argv[]) {
+  using revng::FilePath;
   revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   Registry::runAllInitializationRoutines();
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
   }
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
-  AbortOnError(InputContainer.loadFromDisk(Arguments[1]));
+  AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
 
   InvalidationMap InvMap;
   for (auto &AnalysesListName : AnalysesLists) {
@@ -143,19 +143,19 @@ int main(int argc, char *argv[]) {
   }
   AbortOnError(Manager.getRunner().run(Step.getName(), Map));
 
-  AbortOnError(Manager.storeToDisk());
+  AbortOnError(Manager.store());
 
   const TargetsList &Targets = Map.contains(ContainerName) ?
                                  Map.at(ContainerName) :
                                  TargetsList();
   auto Produced = Container.second->cloneFiltered(Targets);
-  AbortOnError(Produced->storeToDisk(Output));
+  AbortOnError(Produced->store(*Output));
 
-  if (not SaveModel.empty()) {
+  if (SaveModel.hasValue()) {
     auto Context = Manager.context();
     const auto &ModelName = revng::ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
-    AbortOnError(FinalModel->storeToDisk(SaveModel));
+    AbortOnError(FinalModel->store(*SaveModel));
   }
 
   return EXIT_SUCCESS;

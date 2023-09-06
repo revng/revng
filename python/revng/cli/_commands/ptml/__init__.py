@@ -20,8 +20,8 @@ class PTMLCommand(Command):
         parser.description = "Tool to manipulate PTML files"
         parser.add_argument(
             "input",
-            type=argparse.FileType("r+"),
-            default=sys.stdin,
+            type=argparse.FileType("rb+"),
+            default=sys.stdin.buffer,
             nargs="?",
             help="Input file (stdin if omitted)",
         )
@@ -67,10 +67,7 @@ class PTMLCommand(Command):
 
     def run(self, options: Options) -> Optional[int]:
         args = options.parsed_args
-        if args.plain or args.color:
-            return suppress_brokenpipe(cmd_text, args)
-        else:
-            return suppress_brokenpipe(cmd_text, args)
+        return suppress_brokenpipe(cmd_text, args)
 
 
 def setup(commands_registry: CommandsRegistry):

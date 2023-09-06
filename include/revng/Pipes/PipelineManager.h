@@ -14,6 +14,8 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Storage/Path.h"
+#include "revng/Storage/StorageClient.h"
 
 namespace revng::pipes {
 
@@ -25,9 +27,11 @@ namespace revng::pipes {
 class PipelineManager {
 private:
   using Container = pipeline::ContainerSet::value_type;
-  explicit PipelineManager() = default;
+  explicit PipelineManager(llvm::ArrayRef<std::string> EnablingFlags,
+                           std::unique_ptr<revng::StorageClient> &&Client);
 
-  std::string ExecutionDirectory;
+  std::unique_ptr<revng::StorageClient> StorageClient;
+  revng::DirectoryPath ExecutionDirectory;
   /// The various member here MUST be unique_ptr to ensure that the various
   /// pointer that go from one to the other are stable, Since there a create
   /// method that returns a expected<PipelineManager>, this is the only way to
@@ -40,10 +44,6 @@ private:
   std::map<const pipeline::ContainerSet::value_type *,
            const pipeline::TargetsList *>
     ContainerToEnumeration;
-
-  static llvm::Expected<PipelineManager>
-  createContexts(llvm::ArrayRef<std::string> EnablingFlags,
-                 llvm::StringRef ExecutionDirectory);
 
 public:
   PipelineManager(PipelineManager &&Other) = default;
@@ -71,6 +71,13 @@ public:
                    llvm::ArrayRef<std::string> EnablingFlags,
                    llvm::StringRef ExecutionDirectory);
 
+  // This works exactly like the one above, but uses the provided StorageClient
+  // rather than parsing ExecutionDirectory
+  static llvm::Expected<PipelineManager>
+  createFromMemory(llvm::ArrayRef<std::string> InMemoryPipeline,
+                   llvm::ArrayRef<std::string> EnablingFlags,
+                   std::unique_ptr<revng::StorageClient> &&Client);
+
   /// Entirelly replaces the container indicated by the mapping with the file
   /// indicated by the mapping
   llvm::Error overrideContainer(pipeline::PipelineFileMapping Mapping);
@@ -88,12 +95,11 @@ public:
 
   /// Triggers the full serialization of every step and every container to the
   /// the specified DirPath or the Execution directory if omitted.
-  llvm::Error storeToDisk(llvm::StringRef DirPath = llvm::StringRef());
+  llvm::Error store();
 
   /// Trigger the serialization of a single Step to the specified DirPath or
   /// the Execution directory if omitted.
-  llvm::Error storeStepToDisk(llvm::StringRef StepName,
-                              llvm::StringRef DirPath = llvm::StringRef());
+  llvm::Error storeStepToDisk(llvm::StringRef StepName);
 
   const pipeline::Step::AnalysisValueType &
   getAnalysis(const pipeline::AnalysisReference &Reference) const;
@@ -182,7 +188,9 @@ public:
   /// be produced by the pipeline in the current state
   void writeAllPossibleTargets(llvm::raw_ostream &OS) const;
 
-  llvm::StringRef executionDirectory() const { return ExecutionDirectory; }
+  const revng::DirectoryPath &executionDirectory() const {
+    return ExecutionDirectory;
+  }
 
 private:
   llvm::Error produceAllPossibleTargets(bool ExpandTargets);

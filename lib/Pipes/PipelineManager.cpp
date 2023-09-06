@@ -86,24 +86,23 @@ static Loader setupLoader(pipeline::Context &PipelineContext,
 
 llvm::Error
 PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
-
   auto MaybeMapping = PipelineFileMapping::parse(PipelineFileMapping);
   if (not MaybeMapping)
     return MaybeMapping.takeError();
-  return MaybeMapping->loadFromDisk(*Runner);
+  return MaybeMapping->load(*Runner);
 }
 
 static llvm::Expected<Runner>
 setUpPipeline(pipeline::Context &PipelineContext,
               Loader &Loader,
               llvm::ArrayRef<std::string> TextPipelines,
-              llvm::StringRef ExecutionDirectory) {
+              const revng::DirectoryPath &ExecutionDirectory) {
   auto MaybePipeline = Loader.load(TextPipelines);
   if (not MaybePipeline)
     return MaybePipeline.takeError();
 
-  if (not ExecutionDirectory.empty())
-    if (auto Error = MaybePipeline->loadFromDisk(ExecutionDirectory); Error)
+  if (ExecutionDirectory.isValid())
+    if (auto Error = MaybePipeline->load(ExecutionDirectory); Error)
       return std::move(Error);
 
   return MaybePipeline;
@@ -113,12 +112,6 @@ llvm::Expected<PipelineManager>
 PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
                         llvm::ArrayRef<std::string> EnablingFlags,
                         llvm::StringRef ExecutionDirectory) {
-
-  auto MaybeManager = createContexts(EnablingFlags, ExecutionDirectory);
-  if (not MaybeManager)
-    return MaybeManager.takeError();
-  auto &Manager = *MaybeManager;
-
   std::vector<std::string> LoadedPipelines;
 
   std::vector<std::string> OrderedPipelines(Pipelines.begin(), Pipelines.end());
@@ -132,46 +125,48 @@ PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
       return MaybeBuffer.takeError();
     LoadedPipelines.emplace_back((*MaybeBuffer)->getBuffer().str());
   }
-  if (auto MaybePipeline = setUpPipeline(*Manager.PipelineContext,
-                                         *Manager.Loader,
-                                         LoadedPipelines,
-                                         ExecutionDirectory);
-      MaybePipeline)
-    Manager.Runner = make_unique<pipeline::Runner>(std::move(*MaybePipeline));
-  else
-    return MaybePipeline.takeError();
 
-  Manager.recalculateAllPossibleTargets();
-  return std::move(Manager);
+  return createFromMemory(LoadedPipelines, EnablingFlags, ExecutionDirectory);
 }
 
-llvm::Expected<PipelineManager>
-PipelineManager::createContexts(llvm::ArrayRef<std::string> EnablingFlags,
-                                llvm::StringRef ExecutionDirectory) {
-  PipelineManager Manager;
-  Manager.ExecutionDirectory = ExecutionDirectory.str();
-  Manager.Context = std::make_unique<llvm::LLVMContext>();
-  auto Ctx = setUpContext(*Manager.Context);
-  Manager.PipelineContext = make_unique<pipeline::Context>(std::move(Ctx));
+PipelineManager::PipelineManager(llvm::ArrayRef<std::string> EnablingFlags,
+                                 std::unique_ptr<revng::StorageClient>
+                                   &&Client) :
+  StorageClient(std::move(Client)),
+  ExecutionDirectory(StorageClient.get(), "") {
+  Context = std::make_unique<llvm::LLVMContext>();
+  auto Ctx = setUpContext(*Context);
+  PipelineContext = make_unique<pipeline::Context>(std::move(Ctx));
 
-  auto Loader = setupLoader(*Manager.PipelineContext, EnablingFlags);
-  Manager.Loader = make_unique<pipeline::Loader>(std::move(Loader));
-  return Manager;
+  auto Loader = setupLoader(*PipelineContext, EnablingFlags);
+  this->Loader = make_unique<pipeline::Loader>(std::move(Loader));
 }
 
 llvm::Expected<PipelineManager>
 PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
                                   llvm::ArrayRef<std::string> EnablingFlags,
                                   llvm::StringRef ExecutionDirectory) {
+  std::unique_ptr<revng::StorageClient> Client;
+  if (not ExecutionDirectory.empty()) {
+    auto MaybeClient = revng::StorageClient::fromPathOrURL(ExecutionDirectory);
+    if (!MaybeClient)
+      return MaybeClient.takeError();
+    Client = std::move(MaybeClient.get());
+  }
 
-  auto MaybeManager = createContexts(EnablingFlags, ExecutionDirectory);
-  if (not MaybeManager)
-    return MaybeManager.takeError();
-  auto &Manager = *MaybeManager;
+  return createFromMemory(PipelineContent, EnablingFlags, std::move(Client));
+}
+
+llvm::Expected<PipelineManager>
+PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
+                                  llvm::ArrayRef<std::string> EnablingFlags,
+                                  std::unique_ptr<revng::StorageClient>
+                                    &&Client) {
+  PipelineManager Manager(EnablingFlags, std::move(Client));
   if (auto MaybePipeline = setUpPipeline(*Manager.PipelineContext,
                                          *Manager.Loader,
                                          PipelineContent,
-                                         ExecutionDirectory);
+                                         Manager.executionDirectory());
       MaybePipeline)
     Manager.Runner = make_unique<pipeline::Runner>(std::move(*MaybePipeline));
   else
@@ -249,26 +244,28 @@ void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
   }
 }
 
-llvm::Error PipelineManager::storeToDisk(llvm::StringRef DirPath) {
-  if (!DirPath.empty())
-    return Runner->storeToDisk(DirPath);
-
-  if (ExecutionDirectory.empty())
+llvm::Error PipelineManager::store() {
+  // If we are in ephemeral mode (resume was "") then we don't store anything
+  if (StorageClient == nullptr)
     return llvm::Error::success();
 
-  return Runner->storeToDisk(ExecutionDirectory);
+  // Run store on the runner, this will serialize all step/containers
+  // inside the resume directory
+  if (auto Error = Runner->store(ExecutionDirectory); Error)
+    return Error;
+
+  // Commit all the changes to storage
+  return StorageClient->commit();
 }
 
-llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName,
-                                             llvm::StringRef DirPath) {
-  auto &Step = Runner->getStep(StepName);
-  if (!DirPath.empty())
-    return Runner->storeStepToDisk(StepName, DirPath);
-
-  if (ExecutionDirectory.empty())
+llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName) {
+  if (StorageClient == nullptr)
     return llvm::Error::success();
 
-  return Runner->storeStepToDisk(StepName, ExecutionDirectory);
+  auto &Step = Runner->getStep(StepName);
+  if (auto Error = Runner->storeStepToDisk(StepName, ExecutionDirectory); Error)
+    return Error;
+  return StorageClient->commit();
 }
 
 llvm::Error
@@ -294,11 +291,11 @@ PipelineManager::deserializeContainer(pipeline::Step &Step,
 }
 
 llvm::Error PipelineManager::store(const PipelineFileMapping &Mapping) {
-  return Mapping.storeToDisk(*Runner);
+  return Mapping.store(*Runner);
 }
 
 llvm::Error PipelineManager::overrideContainer(PipelineFileMapping Mapping) {
-  return Mapping.loadFromDisk(*Runner);
+  return Mapping.load(*Runner);
 }
 
 llvm::Error
@@ -308,7 +305,7 @@ PipelineManager::store(llvm::ArrayRef<std::string> StoresOverrides) {
     if (not MaybeMapping)
       return MaybeMapping.takeError();
 
-    if (auto Error = MaybeMapping->storeToDisk(*Runner))
+    if (auto Error = MaybeMapping->store(*Runner))
       return Error;
   }
   return llvm::Error::success();

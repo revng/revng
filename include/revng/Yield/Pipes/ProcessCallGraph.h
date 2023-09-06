@@ -46,7 +46,8 @@ inline constexpr char CallGraphSliceName[] = "CallGraphSliceSVG";
 
 using CallGraphSliceSVGStringMap = FunctionStringMap<&kinds::CallGraphSliceSVG,
                                                      CallGraphSliceName,
-                                                     CallGraphSliceMIMEType>;
+                                                     CallGraphSliceMIMEType,
+                                                     CallGraphSVGSuffix>;
 
 class ProcessCallGraph {
 public:

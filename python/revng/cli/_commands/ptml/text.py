@@ -80,7 +80,7 @@ def _parse_ptml_node(node: Document, console, indent: str, metadata: Dict[str, s
 
 
 def cmd_text(args):
-    if args.inplace and args.input == sys.stdin:
+    if args.inplace and args.input == sys.stdin.buffer:
         log("Cannot strip inplace while reading from stdin")
         return 1
 
@@ -90,7 +90,7 @@ def cmd_text(args):
     if args.inplace:
         args.input.seek(0)
         args.input.truncate(0)
-        output = args.input
+        output = TextIOWrapper(args.input, "utf-8")
     else:
         output = args.output
 

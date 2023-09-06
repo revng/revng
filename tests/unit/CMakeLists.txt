@@ -426,3 +426,24 @@ target_link_libraries(test_PipelineCTracing revngPipelineC revngSupport
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
 revng_add_test(NAME test_PipelineCTracing COMMAND test_PipelineCTracing)
 set_tests_properties(test_PipelineCTracing PROPERTIES LABELS "unit")
+
+#
+# test_GzipTarFile
+#
+
+revng_add_test_executable(test_GzipTarFile "${SRC}/GzipTarFile.cpp")
+target_compile_definitions(test_GzipTarFile PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_GzipTarFile PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_GzipTarFile revngSupport revngUnitTestHelpers
+                      Boost::unit_test_framework ${LLVM_LIBRARIES})
+revng_add_test(NAME test_GzipTarFile COMMAND test_GzipTarFile)
+set_tests_properties(test_GzipTarFile PROPERTIES LABELS "unit")
+
+revng_add_test_executable(test_GzipTarFileGenerator
+                          "${SRC}/GzipTarFileGenerator.cpp")
+target_link_libraries(test_GzipTarFileGenerator revngSupport ${LLVM_LIBRARIES})
+revng_add_test(
+  NAME test_GzipTarFileGenerator COMMAND
+  "${CMAKE_CURRENT_SOURCE_DIR}/GzipTarFileGeneratorTest.sh"
+  "${CMAKE_BINARY_DIR}")
+set_tests_properties(test_GzipTarFileGenerator PROPERTIES LABELS "unit")

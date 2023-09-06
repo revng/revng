@@ -17,10 +17,18 @@ const std::map<std::string, std::string> &getLibrariesFullPath();
 
 template<typename... T>
   requires(std::is_convertible_v<T, llvm::StringRef> && ...)
-std::string joinPath(const llvm::StringRef First, const T... Parts) {
+inline std::string joinPath(llvm::sys::path::Style Style,
+                            const llvm::StringRef First,
+                            const T... Parts) {
   llvm::SmallString<128> ResultPath(First);
-  (llvm::sys::path::append(ResultPath, Parts), ...);
+  (llvm::sys::path::append(ResultPath, Style, Parts), ...);
   return ResultPath.str().str();
+}
+
+template<typename... T>
+  requires(std::is_convertible_v<T, llvm::StringRef> && ...)
+inline std::string joinPath(const llvm::StringRef First, const T... Parts) {
+  return joinPath(llvm::sys::path::Style::native, First, Parts...);
 }
 
 class PathList {

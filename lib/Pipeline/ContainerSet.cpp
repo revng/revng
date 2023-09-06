@@ -74,30 +74,32 @@ void ContainerSet::intersect(ContainerToTargetsMap &ToIntersect) const {
   }
 }
 
-llvm::Error ContainerSet::storeToDisk(StringRef Directory) const {
+llvm::Error ContainerSet::store(const revng::DirectoryPath &Directory) const {
   for (const auto &Pair : Content) {
-    llvm::SmallString<128> Filename;
-    llvm::sys::path::append(Filename, Directory, Pair.first());
+    revng::FilePath Filename = Directory.getFile(Pair.first());
     const auto &Container = Pair.second;
     if (Container == nullptr)
       continue;
 
-    if (auto Error = Container->storeToDisk(Filename); !!Error)
+    if (auto Error = Container->store(Filename); !!Error)
       return Error;
   }
   return Error::success();
 }
 
-llvm::Error ContainerSet::loadFromDisk(StringRef Directory) {
+llvm::Error ContainerSet::load(const revng::DirectoryPath &Directory) {
   for (auto &Pair : Content) {
-    llvm::SmallString<128> Filename;
-    llvm::sys::path::append(Filename, Directory, Pair.first());
-    if (not llvm::sys::fs::exists(Filename)) {
+    revng::FilePath Filename = Directory.getFile(Pair.first());
+    auto MaybeExists = Filename.exists();
+    if (!MaybeExists)
+      return MaybeExists.takeError();
+
+    if (not MaybeExists.get()) {
       Pair.second = nullptr;
       continue;
     }
 
-    if (auto Error = (*this)[Pair.first()].loadFromDisk(Filename); !!Error)
+    if (auto Error = (*this)[Pair.first()].load(Filename); !!Error)
       return Error;
   }
   return Error::success();
@@ -127,26 +129,33 @@ ContainerToTargetsMap ContainerSet::enumerate() const {
   return Status;
 }
 
-llvm::Error ContainerBase::storeToDisk(llvm::StringRef Path) const {
-  std::error_code EC;
-  llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::OF_None);
-  if (EC)
-    return llvm::createStringError(EC,
-                                   "could not write file at %s",
-                                   Path.str().c_str());
+llvm::Error ContainerBase::store(const revng::FilePath &Path) const {
+  auto MaybeWritableFile = Path.getWritableFile();
+  if (not MaybeWritableFile) {
+    return MaybeWritableFile.takeError();
+  }
 
-  return serialize(OS);
+  if (auto Error = serialize(MaybeWritableFile.get()->os()); Error)
+    return Error;
+
+  return MaybeWritableFile.get()->commit();
 }
 
-llvm::Error ContainerBase::loadFromDisk(llvm::StringRef Path) {
-  if (not llvm::sys::fs::exists(Path)) {
+llvm::Error ContainerBase::load(const revng::FilePath &Path) {
+  auto MaybeExists = Path.exists();
+  if (not MaybeExists)
+    return MaybeExists.takeError();
+
+  if (not MaybeExists.get()) {
     clear();
     return llvm::Error::success();
   }
 
-  if (auto MaybeBuffer = MemoryBuffer::getFile(Path); !MaybeBuffer)
-    return llvm::createStringError(MaybeBuffer.getError(),
-                                   "could not read file");
-  else
-    return deserialize(**MaybeBuffer);
+  auto MaybeBuffer = Path.getReadableFile();
+  if (not MaybeBuffer)
+    return MaybeBuffer.takeError();
+
+  auto &Buffer = MaybeBuffer.get();
+  auto Error = deserialize(Buffer->buffer());
+  return Error;
 }

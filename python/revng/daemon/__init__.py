@@ -88,6 +88,7 @@ def make_startlette() -> Starlette:
     )
     manager = Manager(project_workdir())
     event_manager = EventManager(manager)
+    event_manager.start()
     startup_done = False
 
     if DEBUG:
@@ -131,6 +132,7 @@ def make_startlette() -> Starlette:
         startup_done = True
 
     def shutdown():
+        event_manager.running = False
         store_result = manager.save()
         if not store_result:
             logging.warning("Failed to store manager's containers")

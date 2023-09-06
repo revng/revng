@@ -219,8 +219,8 @@ public:
   llvm::Error invalidate(const ContainerToTargetsMap &ToRemove);
 
 public:
-  llvm::Error storeToDisk(llvm::StringRef DirPath) const;
-  llvm::Error loadFromDisk(llvm::StringRef DirPath);
+  llvm::Error store(const revng::DirectoryPath &DirPath) const;
+  llvm::Error load(const revng::DirectoryPath &DirPath);
 
 public:
   template<typename OStream>

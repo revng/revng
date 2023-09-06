@@ -157,8 +157,8 @@ public:
   void intersect(ContainerToTargetsMap &ToIntersect) const;
 
 public:
-  llvm::Error storeToDisk(llvm::StringRef DirectoryPath) const;
-  llvm::Error loadFromDisk(llvm::StringRef DirectoryPath);
+  llvm::Error store(const revng::DirectoryPath &DirectoryPath) const;
+  llvm::Error load(const revng::DirectoryPath &DirectoryPath);
 
 public:
   template<typename OStream>

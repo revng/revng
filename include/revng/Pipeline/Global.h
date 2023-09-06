@@ -13,6 +13,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
+#include "revng/Storage/Path.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
@@ -59,8 +60,8 @@ public:
   createNew(llvm::StringRef Name, const llvm::MemoryBuffer &Buffer) const = 0;
   virtual std::unique_ptr<Global> clone() const = 0;
 
-  virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
-  virtual llvm::Error loadFromDisk(llvm::StringRef Path);
+  virtual llvm::Error store(const revng::FilePath &Path) const;
+  virtual llvm::Error load(const revng::FilePath &Path);
 };
 
 template<TupleTreeCompatibleAndVerifiable Object>

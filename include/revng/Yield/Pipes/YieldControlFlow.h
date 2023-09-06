@@ -18,25 +18,31 @@ namespace revng::pipes {
 
 inline constexpr char FunctionAssemblyYamlMIMEType[] = "text/x.yaml";
 inline constexpr char FunctionAssemblyYamlName[] = "FunctionAssemblyInternal";
+inline constexpr char FunctionAssemblyYamlExtension[] = ".yml";
 using FunctionAssemblyStringMap = FunctionStringMap<
   &kinds::FunctionAssemblyInternal,
   FunctionAssemblyYamlName,
-  FunctionAssemblyYamlMIMEType>;
+  FunctionAssemblyYamlMIMEType,
+  FunctionAssemblyYamlExtension>;
 
 inline constexpr char FunctionAssemblyPTMLMIMEType[] = "text/x.asm+ptml+yaml";
 inline constexpr char FunctionAssemblyPTMLName[] = "FunctionAssemblyPTML";
+inline constexpr char FunctionAssemblyPTMLExtension[] = ".asm.ptml";
 
 using FunctionAssemblyPTMLStringMap = FunctionStringMap<
   &kinds::FunctionAssemblyPTML,
   FunctionAssemblyPTMLName,
-  FunctionAssemblyPTMLMIMEType>;
+  FunctionAssemblyPTMLMIMEType,
+  FunctionAssemblyPTMLExtension>;
 
 inline constexpr char FunctionControlFlowMIMEType[] = "image/svg";
 inline constexpr char FunctionControlFlowName[] = "FunctionControlFlowGraphSVG";
+inline constexpr char FunctionControlFlowExtension[] = ".svg";
 using FunctionControlFlowStringMap = FunctionStringMap<
   &kinds::FunctionControlFlowGraphSVG,
   FunctionControlFlowName,
-  FunctionControlFlowMIMEType>;
+  FunctionControlFlowMIMEType,
+  FunctionControlFlowExtension>;
 
 class YieldControlFlow {
 public:

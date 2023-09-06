@@ -10,12 +10,13 @@
 #include "llvm/Support/PluginLoader.h"
 
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Storage/CLPathOpt.h"
 
 namespace revng::pipes {
 class ToolCLOptions {
 private:
   llvm::cl::list<std::string> InputPipeline;
-  llvm::cl::opt<std::string> ModelOverride;
+  InputPathOpt ModelOverride;
   llvm::cl::list<std::string> EnablingFlags;
   llvm::cl::opt<std::string> ExecutionDirectory;
   llvm::cl::alias A1;
@@ -26,8 +27,7 @@ public:
     InputPipeline("P", llvm::cl::desc("<Pipeline>"), llvm::cl::cat(Category)),
     ModelOverride("m",
                   llvm::cl::desc("Load the model from a provided file"),
-                  llvm::cl::cat(Category),
-                  llvm::cl::init("")),
+                  llvm::cl::cat(Category)),
     EnablingFlags("f",
                   llvm::cl::desc("list of pipeline enabling flags"),
                   llvm::cl::cat(Category)),
@@ -44,11 +44,11 @@ public:
 
   {}
 
-  llvm::Error overrideModel(llvm::StringRef ModelOverride,
+  llvm::Error overrideModel(revng::FilePath ModelOverride,
                             PipelineManager &Manager) {
     const auto &Name = ModelGlobalName;
     auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
-    return Model->loadFromDisk(ModelOverride);
+    return Model->load(ModelOverride);
   }
 
   llvm::Expected<revng::pipes::PipelineManager> makeManager() {
@@ -58,8 +58,8 @@ public:
     if (not Manager)
       return Manager;
 
-    if (not ModelOverride.empty())
-      if (auto Err = overrideModel(ModelOverride, *Manager); Err)
+    if (ModelOverride.hasValue())
+      if (auto Err = overrideModel(*ModelOverride, *Manager); Err)
         return std::move(Err);
 
     return Manager;

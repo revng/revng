@@ -17,21 +17,19 @@ using namespace std;
 using namespace pipeline;
 using namespace llvm;
 
-llvm::Error GlobalsMap::storeToDisk(llvm::StringRef Path) const {
+llvm::Error GlobalsMap::store(const revng::DirectoryPath &Path) const {
   for (const auto &Global : Map) {
-    llvm::SmallString<128> Filename;
-    llvm::sys::path::append(Filename, Path, Global.first);
-    if (auto E = Global.second->storeToDisk(Filename); !!E)
+    revng::FilePath Filename = Path.getFile(Global.first);
+    if (auto E = Global.second->store(Filename); !!E)
       return E;
   }
   return llvm::Error::success();
 }
 
-llvm::Error GlobalsMap::loadFromDisk(llvm::StringRef Path) {
+llvm::Error GlobalsMap::load(const revng::DirectoryPath &Path) {
   for (const auto &Global : Map) {
-    llvm::SmallString<128> Filename;
-    llvm::sys::path::append(Filename, Path, Global.first);
-    if (auto E = Global.second->loadFromDisk(Filename); !!E)
+    revng::FilePath Filename = Path.getFile(Global.first);
+    if (auto E = Global.second->load(Filename); !!E)
       return E;
   }
   return llvm::Error::success();

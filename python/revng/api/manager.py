@@ -2,11 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Generator, Iterable, List, Mapping, Optional, Union
-
-from revng.support import AnyPath
 
 from ._capi import _api, ffi
 from .analysis import AnalysesList, Analysis
@@ -26,19 +23,17 @@ INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
 class Manager:
     def __init__(
         self,
-        workdir: Optional[AnyPath] = None,
+        workdir: Optional[str] = None,
         flags: Iterable[str] = (),
     ):
         if workdir is None:
             self.temporary_workdir = TemporaryDirectory(prefix="revng-manager-workdir-")
-            self.workdir = Path(self.temporary_workdir.name)
+            self.workdir = self.temporary_workdir.name
         else:
-            self.workdir = Path(workdir)
-
-        self.workdir.mkdir(parents=True, exist_ok=True)
+            self.workdir = workdir
 
         _flags = [make_c_string(s) for s in flags]
-        _workdir = make_c_string(str(self.workdir))
+        _workdir = make_c_string(self.workdir)
 
         # Ensures that the _manager property is always defined even if the API call fails
         self._manager = None
@@ -55,20 +50,8 @@ class Manager:
     def uid(self) -> int:
         return int(ffi.cast("uintptr_t", self._manager))
 
-    def save(self, destination_directory: Optional[Union[Path, str]] = None):
-        if destination_directory is None:
-            _dir_path = ffi.NULL
-        else:
-            dir_path = Path(destination_directory)
-            if not dir_path.is_dir():
-                dir_path.mkdir()
-            _dir_path = make_c_string(str(dir_path.resolve()))
-        return _api.rp_manager_save(self._manager, _dir_path)
-
-    def save_context(self, destination_directory: Union[Path, str]):
-        dest_dir = Path(destination_directory).resolve()
-        _dest_dir = make_c_string(str(dest_dir))
-        return _api.rp_manager_save_context(self._manager, _dest_dir)
+    def save(self):
+        return _api.rp_manager_save(self._manager)
 
     # Kind-related Functions
 
@@ -213,15 +196,6 @@ class Manager:
         return TargetsList(targets_list, container) if targets_list != ffi.NULL else None
 
     # Container-related functions
-
-    def container_path(self, step_name: str, container_name: str) -> Optional[str]:
-        _step_name = make_c_string(step_name)
-        _container_name = make_c_string(container_name)
-        _path = _api.rp_manager_create_container_path(self._manager, _step_name, _container_name)
-        if not _path:
-            return None
-        return make_python_string(_path)
-
     @property
     def containers_count(self) -> int:
         return _api.rp_manager_containers_count(self._manager)
