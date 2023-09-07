@@ -202,7 +202,7 @@ public:
     return InternalMap.insert(std::make_pair(Block, OnStack));
   }
 
-  // Return true if b is currently on the active stack of visit
+  // Return true if Block is currently on the active stack of visit
   bool onStack(NodeT Block) const {
     auto Iter = InternalMap.find(Block);
     return Iter != InternalMap.end() && Iter->second;
@@ -246,106 +246,6 @@ public:
   }
 
   bool onStack(NodeT Block) const { return VisitStack.onStack(Block); }
-
-  void completed(NodeT Block) { return VisitStack.completed(Block); }
-};
-
-template<FilterSet FilterSetType, class NodeT>
-class DFStackReachable {
-  using InternalMapT = DFStack<NodeT>::InternalMapT;
-
-  template<typename T, unsigned S = 4>
-  using SmallSetVector = llvm::SmallSetVector<T, S>;
-
-private:
-  DFStack<NodeT> VisitStack;
-
-private:
-  // Set which contains the desired targets nodes marked as reachable during
-  // the visit
-  SmallSetVector<NodeT> Targets;
-  llvm::SmallPtrSet<NodeT, 4> &Set;
-  llvm::SmallDenseMap<NodeT, SmallSetVector<NodeT>, 4> AdditionalNodes;
-  NodeT Source = nullptr;
-  NodeT Target = nullptr;
-  bool FirstInvocation = true;
-
-public:
-  DFStackReachable(llvm::SmallPtrSet<NodeT, 4> &Set) : Set(Set) {}
-
-  // Insert the initial target node at the beginning of the visit
-  void insertTarget(NodeT Block) { Targets.insert(Block); }
-
-  // Assign the `Source` node
-  void assignSource(NodeT Block) { Source = Block; }
-
-  // Assign the `Target` node
-  void assignTarget(NodeT Block) { Target = Block; }
-
-  SmallSetVector<NodeT> getReachables() { return Targets; }
-
-  SmallSetVector<NodeT> &getAdditional(NodeT Block) {
-    return AdditionalNodes[Block];
-  }
-
-  // Customize the `insert` method, in order to add the reachable nodes during
-  // the DFS
-  std::pair<typename InternalMapT::iterator, bool> insert(NodeT Block) {
-
-    if ((FilterSetType == FilterSet::WhiteList and Set.contains(Block))
-        or (FilterSetType == FilterSet::BlackList
-            and not Set.contains(Block))) {
-
-      // We need to insert the `Source` node, which is the first element on
-      // which the `insert` method is called, only once, and later on skip it,
-      // otherwise we may loop back from the `Source` and add additional nodes
-      revng_assert(Source != nullptr);
-      if (!FirstInvocation and Block == Source) {
-        return VisitStack.insertInMap(Block, false);
-      }
-      FirstInvocation = false;
-
-      // Check that, if we are trying to insert a block which is the `Targets`
-      // set, we add all the nodes on the current visiting stack in the
-      // `Targets` set
-      auto SuccessorRange = graph_successors(Block);
-      if (Targets.contains(Block)
-          or (Target == nullptr and std::ranges::empty(SuccessorRange))) {
-        for (auto const &[K, V] : VisitStack) {
-          if (V) {
-            Targets.insert(K);
-          }
-        }
-      }
-
-      // When we encounter a loop, we add to the additional set of nodes the
-      // nodes that are onStack, for later additional post-processing
-      if (VisitStack.onStack(Block)) {
-        SmallSetVector<NodeT> &AdditionalSet = AdditionalNodes[Block];
-        for (auto const &[K, V] : VisitStack) {
-          if (V) {
-            AdditionalSet.insert(K);
-          }
-        }
-      }
-
-      // Return the insertion iterator as usual
-      return VisitStack.insertInMap(Block, true);
-    } else {
-
-      // We want to completely ignore the fact that we inserted an element in
-      // the `DFStack`, otherwise we will explore it anyway, therefore we
-      // manually return `false`, so the node is not explored at all, in
-      // addition of adding it as not on the exploration stack
-      auto InsertIt = VisitStack.insertInMap(Block, false);
-      return std::make_pair(InsertIt.first, false);
-    }
-  }
-
-  std::pair<typename InternalMapT::iterator, bool> insertInMap(NodeT Block,
-                                                               bool OnStack) {
-    return VisitStack.insertInMap(Block, OnStack);
-  }
 
   void completed(NodeT Block) { return VisitStack.completed(Block); }
 };
@@ -406,138 +306,135 @@ getBackedgesBlackList(GraphT Block,
   return getBackedgesImpl<revng::detail::FilterSet::BlackList>(Block, Set);
 }
 
-// TODO: remove the `BlackList`/`WhiteList` parameter once the new AVI
-//       implementation is merged, checking that no other uses are still present
-template<revng::detail::FilterSet FilterSetType,
-         class GraphT,
-         class GT = llvm::GraphTraits<GraphT>>
-llvm::SmallSetVector<typename GT::NodeRef, 4>
-nodesBetweenImpl(GraphT Source,
-                 GraphT Target,
-                 llvm::SmallPtrSet<typename GT::NodeRef, 4> &Set) {
-  using NodeRef = typename GT::NodeRef;
-  using StateType = typename revng::detail::DFStackReachable<FilterSetType,
-                                                             NodeRef>;
-  StateType State(Set);
-
-  using SmallSetVector = llvm::SmallSetVector<NodeRef, 4>;
-
-  // Assign the `Source` node
-  State.assignSource(Source);
-
-  // Initialize the visited set with the target node, which is the boundary
-  // that we don't want to trepass when finding reachable nodes
-  State.assignTarget(Target);
-  State.insertTarget(Target);
-  State.insertInMap(Target, false);
-
-  using nbdf_iterator = llvm::df_iterator<GraphT, StateType, true, GT>;
-  auto Begin = nbdf_iterator::begin(Source, State);
-  auto End = nbdf_iterator::end(Source, State);
-
-  for (NodeRef Block : llvm::make_range(Begin, End)) {
-    (void) Block;
+template<class GraphT, class GT>
+bool hasSuccessor(GraphT Pred, GraphT Succ) {
+  for (auto Child :
+       llvm::make_range(GT::child_begin(Pred), GT::child_end(Pred))) {
+    if (Child == Succ) {
+      return true;
+    }
   }
 
-  auto Targets = State.getReachables();
-  // Add in a fixed point fashion the additional nodes
-  SmallSetVector OldTargets;
-  do {
-    // At each iteration obtain a copy of the old set, so that we are able to
-    // exit from the loop as soon no change is made to the `Targets` set
+  return false;
+}
 
-    OldTargets = Targets;
+/// The `findReachableNodes` primitive returns the set of nodes reachable from
+/// the `Source` node, stopping at the `Stop` node.
+/// \param Source The node where the DFS starts from
+/// \param Stop The node where the DFS should stop, if present
+/// \return Note that the return value is a `SmallSetVector`, so we have
+///         additional guarantees about the deterministic iteration order over
+///         the returned set
+template<class GraphT, class GT>
+llvm::SmallSetVector<typename llvm::GraphTraits<GraphT>::NodeRef, 4>
+findReachableNodesImpl(GraphT Source, GraphT Stop = nullptr) {
+  using NodeRef = typename GT::NodeRef;
 
-    // Temporary storage for the nodes to add at each iteration, to avoid
-    // invalidation on the `Targets` set
-    SmallSetVector NodesToAdd;
+  using SmallSetVector = llvm::SmallSetVector<NodeRef, 4>;
+  SmallSetVector DFSNodes;
 
-    for (NodeRef Block : Targets) {
-      SmallSetVector &AdditionalSet = State.getAdditional(Block);
-      NodesToAdd.insert(AdditionalSet.begin(), AdditionalSet.end());
-    }
+  // Verify that the `Source` node is valid
+  revng_assert(Source != nullptr);
 
-    // Add all the additional nodes found in this step
-    Targets.insert(NodesToAdd.begin(), NodesToAdd.end());
-    NodesToAdd.clear();
+  // Perform the forward DFS visit, stopping at the `Stop` node, if present
+  using ExtType = typename llvm::df_iterator_default_set<NodeRef>;
+  ExtType ExtSet;
+  if (Stop != nullptr) {
+    ExtSet.insert(Stop);
+  }
 
-  } while (Targets != OldTargets);
+  using df_iterator = llvm::df_iterator<GraphT, ExtType, false, GT>;
+  auto Begin = df_iterator::begin(Source, ExtSet);
+  auto End = df_iterator::end(Source, ExtSet);
 
-  return Targets;
+  for (NodeRef Block : llvm::make_range(Begin, End)) {
+    DFSNodes.insert(Block);
+  }
+
+  return DFSNodes;
+}
+
+template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
+inline llvm::SmallSetVector<GraphT, 4>
+findReachableNodes(GraphT Source, GraphT Stop = nullptr) {
+  return findReachableNodesImpl<GraphT, GT>(Source, Stop);
+}
+
+/// The `nodesBetween` primitive, collects all the nodes present on any path
+/// that connects the `Source` node and the `Target` node.
+/// \return Note that the return value is a `SmallSetVector`, so we have
+///         additional guarantees about the deterministic iteration order over
+///         the returned set
+template<class GraphT, class GraphDirection>
+llvm::SmallSetVector<typename llvm::GraphTraits<GraphT>::NodeRef, 4>
+nodesBetweenImpl(GraphT Source, GraphT Target) {
+  using FGT = llvm::GraphTraits<GraphDirection>;
+  using BGT = llvm::GraphTraits<llvm::Inverse<GraphDirection>>;
+  using NodeRef = typename FGT::NodeRef;
+  using SmallSetVector = llvm::SmallSetVector<NodeRef, 4>;
+
+  // We cannot perform a `nodesBetween` search either starting from a null
+  // `Source` or ending in a null `Target`
+  revng_assert(Source != nullptr);
+  revng_assert(Target != nullptr);
+
+  // Perform the forward DFS visit, stopping at the `Target` node
+  SmallSetVector ForwardDFSNodes = findReachableNodes<NodeRef, FGT>(Source,
+                                                                    Target);
+
+  // Perform the backward DFS visit, stopping at the `Source` node
+  SmallSetVector BackwardDFSNodes = findReachableNodes<NodeRef, BGT>(Target,
+                                                                     Source);
+
+  // Perform the set intersection between the forward and backward set nodes
+  SmallSetVector Result = llvm::set_intersection(ForwardDFSNodes,
+                                                 BackwardDFSNodes);
+
+  // Corner case handling
+  if (not Result.empty()) {
+
+    // We found some nodes in the intersection of the two DFSs, therefore we
+    // actually have some reachables nodes, and we add both the `Source` and the
+    // `Target` in the `Result` set (they are not automatically included because
+    // the are part of the respective ext sets, and therefore not present in the
+    // intersection)
+    Result.insert(Target);
+    Result.insert(Source);
+  } else if (hasSuccessor<GraphT, FGT>(Source, Target)) {
+
+    // If the `Target` is a direct successor of `Source`, we may have that the
+    // resulting intersection is empty, if the only path connecting them is the
+    // trivial one, but the reachable nodes are actually `Source` and `Target`
+    revng_assert(Result.empty());
+    Result.insert(Target);
+    Result.insert(Source);
+  } else if (Source == Target) {
+
+    // If `Source` is equal to `Target`, due to fact that `Target` (which is `==
+    // Source`) is added to the ext set, (and vice-versa), we will not find any
+    // candidate note in our exploration, therefore we need to manually add it
+    // to the `Result` set
+    Result.insert(Source);
+  }
+
+  // The only situation where we can have a `Result` set of dimension 1, is when
+  // `Source` == `Target`.
+  revng_assert(Source == Target or Result.size() != 1);
+
+  return Result;
 }
 
 template<class GraphT>
 inline llvm::SmallSetVector<GraphT, 4>
 nodesBetween(GraphT Source, GraphT Destination) {
-  llvm::SmallPtrSet<typename llvm::GraphTraits<GraphT>::NodeRef, 4> EmptySet;
-  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
-                          GraphT,
-                          llvm::GraphTraits<GraphT>>(Source,
-                                                     Destination,
-                                                     EmptySet);
-}
-
-template<class GraphT,
-         typename NodeRef = typename llvm::GraphTraits<GraphT>::NodeRef>
-inline llvm::SmallSetVector<GraphT, 4>
-nodesBetweenWhiteList(GraphT Source,
-                      GraphT Destination,
-                      llvm::SmallPtrSet<NodeRef, 4> &Set) {
-  return nodesBetweenImpl<revng::detail::FilterSet::WhiteList,
-                          GraphT,
-                          llvm::GraphTraits<GraphT>>(Source, Destination, Set);
-}
-
-template<class GraphT,
-         typename NodeRef = typename llvm::GraphTraits<GraphT>::NodeRef>
-inline llvm::SmallSetVector<GraphT, 4>
-nodesBetweenBlackList(GraphT Source,
-                      GraphT Destination,
-                      llvm::SmallPtrSet<NodeRef, 4> &Set) {
-  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
-                          GraphT,
-                          llvm::GraphTraits<GraphT>>(Source, Destination, Set);
+  return nodesBetweenImpl<GraphT, GraphT>(Source, Destination);
 }
 
 template<class GraphT>
 inline llvm::SmallSetVector<GraphT, 4>
 nodesBetweenReverse(GraphT Source, GraphT Destination) {
   using namespace llvm;
-  llvm::SmallPtrSet<typename llvm::GraphTraits<GraphT>::NodeRef, 4> EmptySet;
-  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
-                          GraphT,
-                          GraphTraits<Inverse<GraphT>>>(Source,
-                                                        Destination,
-                                                        EmptySet);
-}
-
-template<
-  class GraphT,
-  typename NodeRef = typename llvm::GraphTraits<llvm::Inverse<GraphT>>::NodeRef>
-inline llvm::SmallSetVector<GraphT, 4>
-nodesBetweenReverseWhiteList(GraphT Source,
-                             GraphT Destination,
-                             llvm::SmallPtrSet<NodeRef, 4> &Set) {
-  using namespace llvm;
-  return nodesBetweenImpl<revng::detail::FilterSet::WhiteList,
-                          GraphT,
-                          GraphTraits<Inverse<GraphT>>>(Source,
-                                                        Destination,
-                                                        Set);
-}
-
-template<class GraphT,
-         typename NodeRef = typename llvm::GraphTraits<GraphT>::NodeRef>
-inline llvm::SmallSetVector<GraphT, 4>
-nodesBetweenReverseBlackList(GraphT Source,
-                             GraphT Destination,
-                             llvm::SmallPtrSet<NodeRef, 4> &Set) {
-  using namespace llvm;
-  return nodesBetweenImpl<revng::detail::FilterSet::BlackList,
-                          GraphT,
-                          GraphTraits<Inverse<GraphT>>>(Source,
-                                                        Destination,
-                                                        Set);
+  return nodesBetweenImpl<GraphT, Inverse<GraphT>>(Source, Destination);
 }
 
 template<class GraphT>
