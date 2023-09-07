@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -86,104 +87,59 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
   revng_log(Log, "Removing Backedges From Loops");
 
   llvm::Task T(2, "removeBackedgesFromSCC");
-  T.advance("Detect Colors");
-  // Color all the nodes, except those that have no incoming nor outgoing
-  // SCCNodeView edges.
-  // The goal is to identify the subsets of nodes that are connected by means of
-  // SCCNodeView edges.
-  // In this way we divide the graph in subgraphs, such that for each pair of
-  // nodes P and Q with (P != Q) in the same sugraphs (i.e. with the same
-  // color), either P is reachable from Q, or Q is reachable from P (even if not
-  // at step one), by means of SCCNodeView edges.
-  // Each of this subgraphs is called "component".
-  // The idea is that SCCNodeView edges are more meaningful than SCCBackedgeView
-  // edges, so we don't want to remove any of them, but we need to identify
-  // suc edges that create loops across multiple components, and cut them.
-  std::map<const LTSN *, unsigned> NodeColors;
+  T.advance("Detect SCC Node View Components");
+  // Assign each node to a Component, except for those that have no incoming nor
+  // outgoing SCCNodeView edges. The goal is to identify the subsets of nodes
+  // that are connected by means of SCCNodeView edges. In this way we divide the
+  // graph in subgraphs, such that for each pair of nodes P and Q with (P != Q)
+  // in the same sugraphs (i.e. with the same component) P is reachable from Q
+  // lookin only at **undirected** SCCNodeView edges. Each of this subgraphs is
+  // called "component". The idea is that SCCNodeView edges are more meaningful
+  // than SCCBackedgeView edges, so we don't want to remove any of them, but we
+  // need to identify such edges that create loops across multiple components,
+  // and cut them.
+  llvm::EquivalenceClasses<const LTSN *> Components;
   {
-    // Holds a set of nodes.
-    using NodeSet = llvm::df_iterator_default_set<const LTSN *, 16>;
+    // Depth first visit across SCCNodeView edges.
+    llvm::df_iterator_default_set<const LTSN *, 16> Visited;
 
-    // Map colors to set of nodes with that color.
-    std::map<unsigned, NodeSet> ColorToNodes;
-    unsigned NewColor = 0UL;
-
-    revng_log(Log, "Detect colors");
-    for (const LTSN *Root : llvm::nodes(&TS)) {
-      revng_assert(Root != nullptr);
-      revng_log(Log, "Root->ID: " << Root->ID);
-      // Skip nodes that have no incoming or outgoing SCCNodeView edges.
-      if (hasNoSCCEdge<SCC>(Root))
-        continue;
-      // Start visiting only from roots of SCCNodeView edges.
-      if (not isSCCRoot<SCC>(Root))
-        continue;
-
-      revng_log(Log, "DFS from Root->ID: " << Root->ID);
-      revng_log(Log, "NewColor: " << NewColor);
+    revng_log(Log, "Detect components");
+    for (const LTSN *N : llvm::nodes(&TS)) {
+      revng_assert(N != nullptr);
+      revng_log(Log, "N->ID: " << N->ID);
       LoggerIndent Indent{ Log };
 
-      // Depth first visit across SCCNodeView edges.
-      llvm::df_iterator_default_set<const LTSN *, 16> Visited;
-      // Tracks the set of colors we found during this visit.
-      llvm::SmallSet<unsigned, 16> FoundColors;
-      for (auto *N :
-           llvm::depth_first_ext(typename SCC::SCCNodeView(Root), Visited)) {
-        revng_log(Log, "N->ID: " << N->ID);
-        LoggerIndent MoreIndent{ Log };
-        // If N is colored, we have already visited it starting from another
-        // Root. We add it to the FoundColors and mark its SCCNodeView children
-        // as visited, so that they are skipped in the depth first visit.
-        if (auto NodeColorIt = NodeColors.find(N);
-            NodeColorIt != NodeColors.end()) {
-          unsigned Color = NodeColorIt->second;
-          revng_log(Log, "already colored - color: " << Color);
-          FoundColors.insert(Color);
-          for (const LTSN *Child :
-               llvm::children<typename SCC::SCCNodeView>(N)) {
-            LoggerIndent MoreMoreIndent{ Log };
-            revng_log(Log, "push Child->ID: " << Child->ID);
-            Visited.insert(Child);
-          }
-        } else {
-          revng_log(Log, "not colored");
-        }
+      for (const LTSN *Child : llvm::children<typename SCC::SCCNodeView>(N)) {
+        revng_log(Log, "Merging with SCCNodeView Child with ID: " << Child->ID);
+        Components.unionSets(N, Child);
       }
-
-      // Add the visited nodes to the ColorToNodesMap, with a new color.
-      auto It = ColorToNodes.insert({ NewColor, std::move(Visited) }).first;
-      // If we encountered other colors during the visit, all the merged colors
-      // need to be merged into the new color.
-      if (not FoundColors.empty()) {
-        llvm::SmallVector<decltype(ColorToNodes)::iterator, 8> OldToErase;
-        // Merge all the sets of nodes with the colors we found with the new
-        // set of nodes with the new color.
-        for (unsigned OldColor : FoundColors) {
-          auto ColorToNodesIt = ColorToNodes.find(OldColor);
-          revng_assert(ColorToNodesIt != ColorToNodes.end());
-          auto &OldColoredNodes = ColorToNodesIt->second;
-          It->second.insert(OldColoredNodes.begin(), OldColoredNodes.end());
-          // Mark this iterator as OldToErase, because after we're done merging
-          // the old color sets need to be dropped.
-          OldToErase.push_back(ColorToNodesIt);
-        }
-
-        // Drop the set of nodes with old colors.
-        for (auto &ColorToNodesIt : OldToErase)
-          ColorToNodes.erase(ColorToNodesIt);
-      }
-
-      // Set the proper color to all the newly found nodes.
-      for (auto *Node : It->second)
-        NodeColors[Node] = NewColor;
-
-      ++NewColor;
     }
   }
 
-  // Here all the nodes are colored.
-  // Each component has a different color, while nodes that have no incoming or
-  // outgoing SCCNodeView edges do not have a color.
+  if (Log.isEnabled()) {
+    revng_log(Log, "Detected components:");
+    LoggerIndent Indent{ Log };
+    for (auto I = Components.begin(), E = Components.end(); I != E;
+         ++I) { // Iterate over all of the equivalence sets.
+
+      if (!I->isLeader()) {
+        // Ignore non-leader sets.
+        continue;
+      }
+
+      revng_log(Log,
+                "Component for Node with ID: "
+                  << (*Components.findLeader(I))->ID);
+      LoggerIndent MoreIndent{ Log };
+      // Loop over members in this set.
+      for (const LTSN *N : llvm::make_range(Components.member_begin(I),
+                                            Components.member_end()))
+        revng_log(Log, "ID: " << N->ID);
+    }
+  }
+
+  // Here all the nodes are nodes have a component, except nodes that have no
+  // incoming or outgoing SCCNodeView edges
 
   using MixedNodeT = EdgeFilteredGraph<LTSN *, isMixedEdge<SCC>>;
 
@@ -213,19 +169,21 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
 
     struct StackEntry {
       LTSN *Node;
-      unsigned Color;
+      const LTSN *ComponentLeader;
       typename MixedNodeT::ChildEdgeIteratorType NextToVisitIt;
     };
     std::vector<StackEntry> VisitStack;
 
-    const auto TryPush = [&](LTSN *N, unsigned Color) {
+    const auto TryPush = [&](LTSN *N, const LTSN *ComponentLeader) {
       revng_log(Log, "--* try_push(" << N->ID << ')');
+      LoggerIndent Indent{ Log };
       bool NewVisit = Visited.insert(N).second;
       if (NewVisit) {
-        revng_log(Log, "    color: " << Color);
-        revng_assert(Color != std::numeric_limits<unsigned>::max());
+        revng_log(Log, "component leader: " << ComponentLeader);
 
-        VisitStack.push_back({ N, Color, MixedNodeT::child_edge_begin(N) });
+        VisitStack.push_back({ N,
+                               ComponentLeader,
+                               MixedNodeT::child_edge_begin(N) });
         InStack.insert(N);
         revng_assert(InStack.size() == VisitStack.size());
         revng_log(Log, "--> pushed!");
@@ -243,20 +201,22 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
     };
 
     llvm::SmallSet<EdgeInfo, 8> ToRemove;
-    llvm::SmallVector<EdgeInfo, 8> CrossColorEdges;
+    llvm::SmallVector<EdgeInfo, 8> CrossComponentEdges;
 
-    TryPush(Root, NodeColors.at(Root));
+    revng_assert(Components.findValue(Root) != Components.end());
+    TryPush(Root, Components.getLeaderValue(Root));
     while (not VisitStack.empty()) {
       StackEntry &Top = VisitStack.back();
 
-      unsigned TopColor = Top.Color;
+      const LTSN *TopComponent = Top.ComponentLeader;
       LTSN *TopNode = Top.Node;
       typename MixedNodeT::ChildEdgeIteratorType
         &NextEdgeToVisit = Top.NextToVisitIt;
 
       revng_log(Log,
-                "## Stack top is: " << TopNode->ID
-                                    << "\n          color: " << TopColor);
+                "## Stack top has ID: " << TopNode->ID
+                                        << " ComponentLeader ID: "
+                                        << TopComponent->ID);
 
       bool StartNew = false;
       while (not StartNew
@@ -266,28 +226,28 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
         const TypeLinkTag *NextTag = NextEdgeToVisit->second;
         EdgeInfo E = { TopNode, NextChild, NextTag };
 
-        revng_log(Log, "### Next child:: " << NextChild->ID);
+        revng_log(Log, "### Next child ID: " << NextChild->ID);
 
-        // Check if the next children is colored.
-        // If it's not, leave the same color of the top of the stack, so that we
-        // can identify the first edge that closes the crossing from one
+        // Check if the next children is in a component.
+        // If it's not, leave the same component of the top of the stack, so
+        // that we can identify the first edge that closes the crossing from one
         // component to another.
-        unsigned NextColor = TopColor;
-        if (auto ColorsIt = NodeColors.find(NextChild);
-            ColorsIt != NodeColors.end()) {
-          revng_log(Log, "Colored");
-          NextColor = ColorsIt->second;
-          if (NextColor != TopColor) {
+        const LTSN *NextComponent = TopComponent;
+        if (auto ComponentIt = Components.findValue(NextChild);
+            ComponentIt != Components.end()) {
+          revng_log(Log, "Next is in a Component");
+          NextComponent = *Components.findLeader(ComponentIt);
+          if (NextComponent != TopComponent) {
             revng_log(Log,
-                      "Push Cross-Color Edge " << TopNode->ID << " -> "
-                                               << NextChild->ID);
+                      "Push Cross-Component Edge " << TopNode->ID << " -> "
+                                                   << NextChild->ID);
             revng_assert(SCC::BackedgeNodeView::filter()({ nullptr, E.Tag }));
-            CrossColorEdges.push_back(std::move(E));
+            CrossComponentEdges.push_back(std::move(E));
           }
         }
 
         ++NextEdgeToVisit;
-        StartNew = TryPush(NextChild, NextColor);
+        StartNew = TryPush(NextChild, NextComponent);
 
         if (not StartNew) {
 
@@ -296,24 +256,25 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
           if (InStack.contains(NextChild)) {
 
             // If it's on the stack, we're closing a loop.
-            // Add all the cross color edges to the edges ToRemove.
+            // Add all the cross-component edges to the edges ToRemove.
             revng_log(Log, "Closes Loop");
             if (Log.isEnabled()) {
-              for (EdgeInfo &E : CrossColorEdges) {
+              for (EdgeInfo &E : CrossComponentEdges) {
                 revng_log(Log,
                           "Is to remove: " << E.Src->ID << " -> " << E.Tgt->ID);
               }
             }
-            ToRemove.insert(CrossColorEdges.begin(), CrossColorEdges.end());
+            ToRemove.insert(CrossComponentEdges.begin(),
+                            CrossComponentEdges.end());
 
             // This an optimization.
-            // All the CrossColorEdges have just been added to the edges
+            // All the CrossComponentEdges have just been added to the edges
             // ToRemove, so there's no point keeping them also in
-            // CrossColorEdges, and possibly trying to insert them again later.
-            // We can drop all of them here.
-            CrossColorEdges.clear();
+            // CrossComponentEdges, and possibly trying to insert them again
+            // later. We can drop all of them here.
+            CrossComponentEdges.clear();
 
-            if (NextColor == TopColor
+            if (NextComponent == TopComponent
                 and SCC::BackedgeNodeView::filter()({ nullptr, E.Tag })) {
               // This means that the edge E we tried to push on the stack is an
               // BackedgeNodeView edge closing a loop.
@@ -321,11 +282,12 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
             }
           }
 
-          if (NextColor != TopColor and not CrossColorEdges.empty()) {
-            EdgeInfo E = CrossColorEdges.pop_back_val();
+          if (NextComponent != TopComponent
+              and not CrossComponentEdges.empty()) {
+            EdgeInfo E = CrossComponentEdges.pop_back_val();
             revng_log(Log,
-                      "Pop Cross-Color Edge " << E.Src->ID << " -> "
-                                              << E.Tgt->ID);
+                      "Pop Cross-Component Edge " << E.Src->ID << " -> "
+                                                  << E.Tgt->ID);
           }
         }
       }
@@ -340,12 +302,13 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
 
       Pop();
 
-      if (not VisitStack.empty() and not CrossColorEdges.empty()
-          and TopColor != VisitStack.back().Color) {
-        // We are popping back a cross-color edge. Remove it.
-        EdgeInfo E = CrossColorEdges.pop_back_val();
+      if (not VisitStack.empty() and not CrossComponentEdges.empty()
+          and TopComponent != VisitStack.back().ComponentLeader) {
+        // We are popping back a cross-component edge. Remove it.
+        EdgeInfo E = CrossComponentEdges.pop_back_val();
         revng_log(Log,
-                  "Pop Cross-Color Edge " << E.Src->ID << " -> " << E.Tgt->ID);
+                  "Pop Cross-Component Edge " << E.Src->ID << " -> "
+                                              << E.Tgt->ID);
       }
     }
 
