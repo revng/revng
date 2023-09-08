@@ -686,6 +686,16 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   using namespace model::Architecture;
   int64_t CallPushSize = getCallPushSize(Binary->Architecture());
 
+  if (Log.isEnabled()) {
+    Log << "Milking info for " << OutlinedFunction->Address.toString();
+    Log << DoLog;
+
+    Log << "CFG:\n";
+    for (const efa::BasicBlock &Block : CFG)
+      serialize(Log, Block);
+    Log << DoLog;
+  }
+
   using EdgeType = UpcastablePointer<efa::FunctionEdgeBase>;
   SmallVector<std::pair<CallBase *, EdgeType>, 4> IBIResult;
 
@@ -766,6 +776,26 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
       // We're leaving the stack pointer in an unknown state
       IBIResult.emplace_back(CI, makeIndirectEdge(LongJmp));
     }
+  }
+
+  if (Log.isEnabled()) {
+    Log << "TailCalls:\n";
+    for (const auto &[Call, FSO, Summary] : TailCalls) {
+      Log << "  " << ::getName(Call) << " (FSO: " << FSO << ")\n";
+    }
+    Log << DoLog;
+
+    Log << "MaybeReturns:\n";
+    for (const auto &[Call, FSO] : MaybeReturns) {
+      Log << "  " << ::getName(Call) << " (FSO: " << FSO << ")\n";
+    }
+    Log << DoLog;
+
+    Log << "MaybeIndirectTailCalls:\n";
+    for (const auto &[Call, FSO, Summary] : MaybeIndirectTailCalls) {
+      Log << "  " << ::getName(Call) << " (FSO: " << FSO << ")\n";
+    }
+    Log << DoLog;
   }
 
   // Elect a final stack offset
@@ -857,6 +887,30 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     }
   }
 
+  if (Log.isEnabled()) {
+    Log << "MaybeWinFSO: ";
+    if (MaybeWinFSO)
+      Log << *MaybeWinFSO;
+    else
+      Log << "(nullopt)";
+    Log << DoLog;
+
+    Log << "ClobberedRegisters: {";
+    const char *Prefix = "";
+    for (GlobalVariable *CSV : ClobberedRegisters.getClobberedRegisters()) {
+      Log << Prefix << CSV->getName();
+      Prefix = ", ";
+    }
+    Log << "}" << DoLog;
+
+    Log << "IBIResults:\n";
+    for (const auto &[Call, Edge] : IBIResult) {
+      Log << "  " << ::getName(Call) << ":\n";
+      serialize(Log, Edge);
+    }
+    Log << DoLog;
+  }
+
   //
   // Commit  IBIResults to the CFG
   //
@@ -885,6 +939,11 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     }
   }
 
+  revng_log(Log, "FoundReturn: " << FoundReturn);
+  revng_log(Log, "FoundBrokenReturn: " << FoundBrokenReturn);
+  revng_log(Log, "BrokenReturnCount: " << BrokenReturnCount);
+  revng_log(Log, "NoReturnCount: " << NoReturnCount);
+
   // Function is elected to inline if there is one and only one broken return
   AttributesSet Attributes;
   if (FoundReturn) {
@@ -900,11 +959,19 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   for (efa::BasicBlock &Block : CFG)
     revng_assert(Block.Successors().size() > 0);
 
-  return FunctionSummary(Attributes,
+  FunctionSummary Result(Attributes,
                          ClobberedRegisters.getClobberedRegisters(),
                          {},
                          std::move(CFG),
                          MaybeWinFSO);
+
+  if (Log.isEnabled()) {
+    Log << "Result:\n";
+    Result.dump(Log);
+    Log << DoLog;
+  }
+
+  return Result;
 }
 
 FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
