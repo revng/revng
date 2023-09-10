@@ -4,12 +4,8 @@
 
 ---
 Segments:
-  - Type: "/Types/12084688553483582712-StructType"
+  - Type: "/Types/1815-StructType"
 Types:
-  - Kind: PrimitiveType
-    ID: 513
-    PrimitiveKind: Generic
-    Size: 1
   - Kind: PrimitiveType
     ID: 516
     PrimitiveKind: Generic
@@ -19,16 +15,22 @@ Types:
     PrimitiveKind: Generic
     Size: 8
   - Kind: StructType
-    ID: 12084688553483582712
+    ID: 1815
+    Size: 92
+    Fields:
+      - Offset: 0
+        CustomName: "unreserved__custom_data"
+        OriginalName: .custom_data
+        Type:
+          UnqualifiedType: "/Types/1816-StructType"
+  - Kind: StructType
+    ID: 1816
     Size: 92
     Fields:
       - Offset: 0
         OriginalName: char_80_global
         Type:
-          UnqualifiedType: "/Types/513-PrimitiveType"
-          Qualifiers:
-            - Kind: Array
-              Size: 80
+          UnqualifiedType: "/Types/1817-StructType"
       - Offset: 80
         OriginalName: uint64_global
         Type:
@@ -37,3 +39,7 @@ Types:
         OriginalName: uint32_global
         Type:
           UnqualifiedType: "/Types/516-PrimitiveType"
+  - Kind: StructType
+    ID: 1817
+    Size: 80
+    Fields: []
