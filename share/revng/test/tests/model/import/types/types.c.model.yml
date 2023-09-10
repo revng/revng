@@ -4,7 +4,7 @@
 
 ---
 Segments:
-  - Type: "/Types/12084688553483582712-StructType"
+  - Type: "/Types/1815-StructType"
 Types:
   - Kind: PrimitiveType
     ID: 513
@@ -19,7 +19,16 @@ Types:
     PrimitiveKind: Generic
     Size: 8
   - Kind: StructType
-    ID: 12084688553483582712
+    ID: 1815
+    Size: 92
+    Fields:
+      - Offset: 0
+        CustomName: "unreserved__custom_data"
+        OriginalName: .custom_data
+        Type:
+          UnqualifiedType: "/Types/1816-StructType"
+  - Kind: StructType
+    ID: 1816
     Size: 92
     Fields:
       - Offset: 0
