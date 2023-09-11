@@ -87,7 +87,7 @@ public:
         }
 
         // The first type that was visited is the function type itself
-        if (!Result)
+        if (P->ID() == Type.get()->ID())
           Result = TheType;
       }
     }
