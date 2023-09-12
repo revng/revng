@@ -626,6 +626,10 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     bool NewHeadNeeded = RetreatingTargets.size() > 1;
     revng_log(CombLogger, "New head needed: " << NewHeadNeeded);
 
+    // Set to contain the retreating edges, which eventually will be connected
+    // to the `continue` nodes
+    llvm::SmallVector<EdgeDescriptor> ContinueBackedges;
+
     BasicBlockNodeBB *Head = Entry;
     if (NewHeadNeeded) {
       // Create the dispatcher.
@@ -655,21 +659,33 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         // dispatcher.
         unsigned Idx = RetreatingIdxMap.at(R.second);
         if (OriginalSource->isSet()) {
+
+          // TODO: double check the following behavior, it seems that the
+          //       `SetNode` is not connected to anything
           BasicBlockNodeBB *OldSetNode = OriginalSource;
           revng_assert(OldSetNode->predecessor_size() == 1);
           BasicBlockNodeBB *Predecessor = *OldSetNode->predecessors().begin();
           auto *SetNode = RootCFG.addSetStateNode(Idx, OldSetNode->getName());
           Meta->insertNode(SetNode);
           moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
+
+          // Save the `continue` edges, that will be later processed during the
+          // `continue` phase insertion
+          ContinueBackedges.push_back(EdgeDescriptor(OldSetNode, Head));
         } else {
           auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
           Meta->insertNode(SetNode);
           moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
           addPlainEdge(EdgeDescriptor(SetNode, Head));
+
+          // Save the `continue` edges, that will be later processed during the
+          // `continue` phase insertion
+          ContinueBackedges.push_back(EdgeDescriptor(SetNode, Head));
         }
       }
 
-      // Move the incoming edge from the old head to new one.
+      // Move the remaining (the retreatings have been handled in the above
+      // code) incoming edges from the old head to the new one.
       std::vector<BasicBlockNodeBB *> Predecessors;
       for (BasicBlockNodeBB *Predecessor : Entry->predecessors())
         Predecessors.push_back(Predecessor);
@@ -677,6 +693,15 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       for (BasicBlockNodeBB *Predecessor : Predecessors)
         if (not Meta->containsNode(Predecessor))
           moveEdgeTarget(EdgeDescriptor(Predecessor, Entry), Head);
+    } else {
+
+      // No head dispatcher has been inserted, so we should insert all the
+      // retreating edges in the `ContinueBackedges` set, checking that they
+      // point to the `Entry` node
+      for (EdgeDescriptor R : Retreatings) {
+        revng_assert(R.second == Entry);
+        ContinueBackedges.push_back(R);
+      }
     }
 
     revng_assert(Head != nullptr);
@@ -1007,7 +1032,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     CollapsedGraph.insertBulkNodes(Meta->getNodes(),
                                    Head,
                                    SubstitutionMap,
-                                   OutgoingEdges);
+                                   OutgoingEdges,
+                                   ContinueBackedges);
 
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
