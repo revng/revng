@@ -23,6 +23,9 @@ argparser.add_argument("--include-path-prefix", required=True, help="Prefixed to
 argparser.add_argument(
     "--tracking", action="store_true", help="Emits tracking sequences", default=False
 )
+argparser.add_argument(
+    "--tracking-debug", action="store_true", help="Emits tracking debugging helpers", default=False
+)
 
 
 def is_clang_format_available():
@@ -45,7 +48,9 @@ def main(args):
         raw_schema = yaml.safe_load(f)
 
     schema = Schema(raw_schema, args.namespace, args.scalar_type)
-    sources = generate_cpp_headers(schema, args.root_type, args.include_path_prefix, args.tracking)
+    sources = generate_cpp_headers(
+        schema, args.root_type, args.include_path_prefix, args.tracking, args.tracking_debug
+    )
 
     if is_clang_format_available():
         sources = {name: reformat(source) for name, source in sources.items()}

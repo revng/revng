@@ -5,11 +5,14 @@ from .generators import TypeScriptGenerator
 from .schema import Schema
 
 
-def generate_cpp_headers(schema: Schema, root_type, user_include_path, emit_tracking):
+def generate_cpp_headers(
+    schema: Schema, root_type, user_include_path, emit_tracking, emit_tracking_debug
+):
     generator = CppHeadersGenerator(
         schema,
         root_type=root_type,
         emit_tracking=emit_tracking,
+        emit_tracking_debug=emit_tracking_debug,
         user_include_path=user_include_path,
     )
     return generator.emit()

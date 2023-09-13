@@ -20,6 +20,8 @@ The notice below applies to the generated files.
 #include "revng/Support/AccessTracker.h"
 /**- endif **/
 
+void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName);
+
 /**- for header in includes **/
 #include "/*= generator.user_include_path =*//*= header =*/"
 /**- endfor **/
@@ -69,8 +71,15 @@ public:
     /**- if emit_tracking **/
     /**- if not field in struct.key_fields **/
     /*= field.name =*/Tracker.access();
+
+    /**- if emit_tracking_debug **/
+    if (/*= field.name =*/Tracker.peak())
+      fieldAccessed("/*= field.name =*/" , "/*= struct | fullname =*/");
+    /** endif -**/
+
     /** endif -**/
     /** endif -**/
+
     return The/*= field.name =*/;
   }
 

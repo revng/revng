@@ -22,6 +22,62 @@
 
 using namespace llvm;
 
+namespace {
+
+Logger<> FieldAccessedLogger("field-accessed");
+
+constexpr const char *StructNameHelpText = "regex that will make the program "
+                                           "assert when a model struct which "
+                                           "name matches this option is "
+                                           "accessed. NOTE: enable "
+                                           "field-accessed logger, optionally "
+                                           "break on onFieldAccess from gdb.";
+cl::opt<std::string> StructNameRegex("tracking-debug-struct-name",
+                                     cl::desc(StructNameHelpText),
+                                     cl::init(""),
+                                     cl::cat(MainCategory));
+constexpr const char *FieldNameHelpText = "regex that will "
+                                          "make the "
+                                          "program assert when "
+                                          "a field "
+                                          "of a model struct "
+                                          "which name "
+                                          "matches this "
+                                          "option accessed. NOTE: enable "
+                                          "field-accessed logger, optionally "
+                                          "break on onFieldAccess from gdb.";
+
+cl::opt<std::string> FieldNameRegex("tracking-debug-field-name",
+                                    cl::desc(FieldNameHelpText),
+                                    cl::init(""),
+                                    cl::cat(MainCategory));
+
+void onFieldAccess(StringRef FieldName, StringRef StructName) debug_function;
+
+void onFieldAccess(StringRef FieldName, StringRef StructName) {
+  FieldAccessedLogger << ((StringRef("Field ") + FieldName + " of struct "
+                           + StructName + " accessed")
+                            .str()
+                            .c_str());
+  FieldAccessedLogger.flush();
+}
+} // namespace
+
+void fieldAccessed(StringRef FieldName, StringRef StructName) {
+  if (StructNameRegex == "" and FieldNameRegex == "")
+    return;
+
+  Regex Reg(StructNameRegex);
+  if (StructNameRegex != "" and not Reg.match(StructName))
+    return;
+
+  Regex Reg2(FieldNameRegex);
+  if (FieldNameRegex != "" and not Reg2.match(FieldName))
+    return;
+
+  onFieldAccess(FieldName, StructName);
+}
+
 static std::string toIdentifier(const MetaAddress &Address) {
   return model::Identifier::sanitize(Address.toString()).str().str();
 }
