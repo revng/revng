@@ -13,6 +13,7 @@ The notice below applies to the generated files.
 #include <compare>
 
 #include "revng/ADT/TrackingContainer.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/TupleTreeReference.h"
 #include "revng/Support/Assert.h"
 /**- if emit_tracking **/
@@ -42,11 +43,11 @@ struct /*= struct | fullname =*/
 
   /** if struct.inherits **/
   static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
-  using Parent = /*= struct.inherits | user_fullname =*/;
+  using BaseClass = /*= struct.inherits | user_fullname =*/;
   /**- else **//** if struct.abstract **/
-  using Parent = /*= struct | user_fullname =*/;
+  using BaseClass = /*= struct | user_fullname =*/;
   /**- else **/
-  using Parent = void;
+  using BaseClass = void;
   /**- endif **//** endif **/
 
   /*#- --- Member list --- #*/

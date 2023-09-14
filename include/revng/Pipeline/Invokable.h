@@ -253,14 +253,14 @@ std::vector<std::string> getOptionsTypesImpl(auto (T::*F)(CtxT &, Args...)) {
     OptionArgsIndexes = std::make_integer_sequence<size_t, OptionArgsCount>();
 
   std::vector<std::string> Out;
-  getOptionNamesFromIndexes<T>(Out, OptionArgsIndexes);
+  getOptionTypeFromIndexes<T>(Out, OptionArgsIndexes);
 
   return Out;
 }
 
 template<typename T>
 std::vector<std::string> getOptionsTypes() {
-  return getOptionsNamesImpl<T>(&T::run);
+  return getOptionsTypesImpl<T>(&T::run);
 }
 
 template<typename First, typename... Rest>

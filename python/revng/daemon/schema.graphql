@@ -1,0 +1,34 @@
+# This file is distributed under the MIT License. See LICENSE.md for details.
+
+type Query {
+    produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean): String
+    produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean): String
+    target(step: String!, container: String!, target: String!): Target
+    targets(step: String!, container: String!): [Target!]!
+    getGlobal(name: String!): String!
+    verifyGlobal(name: String!, content: String!): Boolean!
+    verifyDiff(globalName: String!, content: String!): Boolean!
+    pipelineDescription: String!
+}
+
+type Target {
+  serialized: String
+  pathComponents: [String!]!
+  kind: String
+  ready: Boolean
+}
+
+type Mutation {
+    uploadB64(input: String!, container: String!): Boolean!
+    uploadFile(file: Upload, container: String!): Boolean!
+    runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): String!
+    runAnalysesList(name: String!, options: String): String!
+    setGlobal(name: String!, content: String!, verify: Boolean): Boolean!
+    applyDiff(globalName: String!, content: String!, verify: Boolean): Boolean!
+}
+
+type Subscription {
+    invalidations: String!
+}
+
+scalar Upload

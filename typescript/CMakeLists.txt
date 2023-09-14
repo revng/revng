@@ -17,23 +17,37 @@ add_custom_target(
           "${CMAKE_BINARY_DIR}/node_build/package.json")
 
 # Model package generation
-add_custom_command(
-  OUTPUT "${CMAKE_BINARY_DIR}/model.ts.tgz"
-         "${CMAKE_BINARY_DIR}/lib/node_modules/revng-model/dist/model.js"
-  COMMAND
-    "${CMAKE_CURRENT_SOURCE_DIR}/build-model.sh" "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${CMAKE_BINARY_DIR}/node_build/node_modules"
-  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-  DEPENDS "${CMAKE_BINARY_DIR}/lib/typescript/model.ts")
+function(typescript_module)
+  set(options)
+  set(oneValueArgs TARGET_NAME)
+  set(multiValueArgs)
+  cmake_parse_arguments(TYPESCRIPT_MODULE "${options}" "${oneValueArgs}"
+                        "${multiValueArgs}" ${ARGN})
 
-add_custom_target(generate-model.ts.tgz ALL
-                  DEPENDS "${CMAKE_BINARY_DIR}/model.ts.tgz")
+  set(TARGET_NAME "${TYPESCRIPT_MODULE_TARGET_NAME}")
+  add_custom_command(
+    OUTPUT
+      "${CMAKE_BINARY_DIR}/${TARGET_NAME}.ts.tgz"
+      "${CMAKE_BINARY_DIR}/lib/node_modules/revng-model/dist/${TARGET_NAME}.js"
+    COMMAND
+      "${CMAKE_CURRENT_SOURCE_DIR}/build-tupletree.sh"
+      "${CMAKE_CURRENT_SOURCE_DIR}"
+      "${CMAKE_BINARY_DIR}/node_build/node_modules" "${TARGET_NAME}"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+    DEPENDS "${CMAKE_BINARY_DIR}/lib/typescript/${TARGET_NAME}.ts")
 
-install(FILES "${CMAKE_BINARY_DIR}/model.ts.tgz"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/typescript")
+  add_custom_target("generate-${TARGET_NAME}.ts.tgz" ALL
+                    DEPENDS "${CMAKE_BINARY_DIR}/${TARGET_NAME}.ts.tgz")
 
-install(FILES "${CMAKE_BINARY_DIR}/model.ts.tgz"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/node_cache")
+  install(FILES "${CMAKE_BINARY_DIR}/${TARGET_NAME}.ts.tgz"
+          DESTINATION "${CMAKE_INSTALL_PREFIX}/share/typescript")
+
+  install(FILES "${CMAKE_BINARY_DIR}/${TARGET_NAME}.ts.tgz"
+          DESTINATION "${CMAKE_INSTALL_PREFIX}/share/node_cache")
+endfunction()
+
+typescript_module(TARGET_NAME model)
+typescript_module(TARGET_NAME pipeline-description)
 
 install(DIRECTORY "${CMAKE_BINARY_DIR}/lib/node_modules"
         DESTINATION "${CMAKE_INSTALL_PREFIX}/lib")

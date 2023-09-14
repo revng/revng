@@ -3,7 +3,6 @@
 #
 
 from pathlib import Path
-from typing import Callable, Generator, Optional, TypeVar, Union
 
 from ._capi import ffi
 
@@ -15,7 +14,7 @@ def make_python_string(s: ffi.CData) -> str:
     return bytestring.decode("utf-8")
 
 
-def make_c_string(s: Union[bytes, str]):
+def make_c_string(s: bytes | str):
     if isinstance(s, bytes):
         return ffi.new("char[]", s)
     if isinstance(s, str):
@@ -23,17 +22,7 @@ def make_c_string(s: Union[bytes, str]):
     raise TypeError(f"Invalid type: {s.__class__}")
 
 
-T = TypeVar("T")
-
-
-def make_generator(count: int, get_idx: Callable[[int], Optional[T]]) -> Generator[T, None, None]:
-    for i in range(count):
-        ret = get_idx(i)
-        if ret is not None:
-            yield ret
-
-
-def save_file(path: Path, content: Union[bytes, str]):
+def save_file(path: Path, content: bytes | str):
     if isinstance(content, str):
         with open(path.resolve(), "w", encoding="utf-8") as str_f:
             str_f.write(content)

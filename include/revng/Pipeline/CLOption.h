@@ -40,28 +40,6 @@ private:
   }
 };
 
-namespace detail {
-
-template<typename T>
-llvm::StringRef typeNameImpl();
-
-template<>
-inline llvm::StringRef typeNameImpl<std::string>() {
-  return "string";
-}
-
-template<>
-inline llvm::StringRef typeNameImpl<int>() {
-  return "int";
-}
-
-template<>
-inline llvm::StringRef typeNameImpl<uint64_t>() {
-  return "uint64_t";
-}
-
-}; // namespace detail
-
 template<typename T>
 class CLOptionWrapper : public CLOptionBase {
 public:

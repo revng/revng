@@ -5,28 +5,29 @@
 
 set -euo pipefail
 
-rm -rf model.ts-package
+PACKAGE_DIR="$3.ts-package"
+rm -rf "$PACKAGE_DIR"
 
-mkdir model.ts-package
-BUILD_DIR="$(realpath model.ts-package)"
+mkdir "$PACKAGE_DIR"
+BUILD_DIR="$(realpath "$PACKAGE_DIR")"
 function cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
   rm -rf "$BUILD_DIR"
 }
 trap cleanup SIGINT SIGTERM ERR EXIT
 
-cd model.ts-package
+cd "$PACKAGE_DIR"
 
-cp "$1/package-model.json" package.json
-cp "$1/tsconfig-model.json" tsconfig.json
+cp "$1/package-$3.json" package.json
+cp "$1/tsconfig.json" tsconfig.json
 cp "$1/tuple_tree.ts" tuple_tree.ts
-cp ../lib/typescript/model.ts .
-CHECKSUM=$(cat model.ts tuple_tree.ts | sha1sum - | cut -d' ' -f1)
+cp ../lib/typescript/"$3".ts .
+CHECKSUM=$(cat "$3.ts" "tuple_tree.ts" | sha1sum - | cut -d' ' -f1)
 sed -i "s;##CHECKSUM##;$CHECKSUM;g" package.json
 cp -rT "$2" node_modules
 ./node_modules/.bin/tsc -p .
 npm pack --silent > /dev/null
-cp revng-model-1.*.tgz ../model.ts.tgz
+cp "revng-$3-1."*.tgz ../"$3".ts.tgz
 
 cd ..
 
@@ -35,7 +36,7 @@ if test -e lib64/node_modules; then
     exit 1
 fi
 
-npm --silent install --global --prefix=. ./model.ts.tgz
+npm --silent install --global --prefix=. "./$3.ts.tgz"
 
 # Handle npm implementations using lib64
 if test -e lib64/node_modules; then

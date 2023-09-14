@@ -15,6 +15,7 @@
 
 #include "revng/Pipeline/AnalysesList.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
+#include "revng/Pipeline/Description/PipelineDescription.h"
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/KindsRegistry.h"
 #include "revng/Pipeline/Step.h"
@@ -118,6 +119,8 @@ public:
     revng_assert(not hasAnalysesList(Name));
     AnalysesLists.try_emplace(Name, pipeline::AnalysesList(Name, Analyses));
   }
+
+  pipeline::description::PipelineDescription description() const;
 
 public:
   /// Given a target, all occurrences of that target from every container in

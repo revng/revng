@@ -24,7 +24,6 @@ mkdir testmodule/v1
 mkdir testmodule/v2
 
 # Copy required files from the model module in the test module directory
-cp -ar "$SOURCE_ROOT/python/revng/model/_util.py" testmodule
 cp -ar "$SOURCE_ROOT/python/revng/model/metaaddress.py" testmodule
 touch testmodule/__init__.py
 

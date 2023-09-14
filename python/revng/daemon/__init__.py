@@ -27,7 +27,7 @@ from revng.api._capi import initialize as capi_initialize
 from revng.api._capi import shutdown as capi_shutdown
 
 from .event_manager import EventManager
-from .schema_generator import SchemaGenerator
+from .graphql import get_schema
 from .util import project_workdir
 
 config = Config()
@@ -121,7 +121,7 @@ def make_startlette() -> Starlette:
         Mount(
             "/graphql",
             GraphQL(
-                SchemaGenerator().get_schema(manager),
+                get_schema(),
                 context_value=generate_context,
                 http_handler=GraphQLHTTPHandler(extensions=[ApolloTracingExtension]),
                 websocket_handler=GraphQLTransportWSHandler(
