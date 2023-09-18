@@ -1,12 +1,22 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 
+# Failable operations are denoted by returning a union of a result type and
+# *Error types. This allows the schema to explicitly mark which operations are
+# failable and allows users to properly inspect the error's fields.
+
 type Query {
-    produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean): String
-    produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean): String
+    produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean): ProduceResult!
+    produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean): ProduceResult!
     target(step: String!, container: String!, target: String!): Target
     targets(step: String!, container: String!): [Target!]!
     getGlobal(name: String!): String!
     pipelineDescription: String!
+}
+
+union ProduceResult = Produced | SimpleError | DocumentError
+
+type Produced {
+    result: String!
 }
 
 type Target {
@@ -19,8 +29,30 @@ type Target {
 type Mutation {
     uploadB64(input: String!, container: String!): Boolean!
     uploadFile(file: Upload, container: String!): Boolean!
-    runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): String!
-    runAnalysesList(name: String!, options: String): String!
+    runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): AnalysisResult!
+    runAnalysesList(name: String!, options: String): AnalysisResult!
+}
+
+union AnalysisResult = Diff | SimpleError | DocumentError
+
+type Diff {
+    diff: String!
+}
+
+type SimpleError {
+    errorType: String!
+    message: String!
+}
+
+type DocumentError {
+    errorType: String!
+    locationType: String!
+    reasons: [DocumentErrorReason!]!
+}
+
+type DocumentErrorReason {
+    message: String!
+    location: String!
 }
 
 type Subscription {

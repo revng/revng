@@ -67,6 +67,37 @@ public:
   T *operator->() { return Pointer; }
 };
 
+static void llvmErrorToRpError(llvm::Error Error, rp_error *Out) {
+  if (Out == nullptr) {
+    llvm::consumeError(std::move(Error));
+    return;
+  }
+
+  auto DocumentedErrorHandler = [&Out](const revng::DocumentErrorBase &Error) {
+    rp_document_error ErrorBody(Error.getTypeName(),
+                                Error.getLocationTypeName());
+
+    for (size_t I = 0; I < Error.size(); I++) {
+      rp_error_reason Reason(Error.getMessage(I), Error.getLocation(I));
+      ErrorBody.Reasons.emplace_back(Reason);
+    }
+
+    *Out = std::move(ErrorBody);
+  };
+
+  auto OtherErrorHandler = [&Out](const llvm::ErrorInfoBase &OtherErrors) {
+    std::string Reason;
+    llvm::raw_string_ostream OS(Reason);
+    OtherErrors.log(OS);
+    OS.flush();
+    *Out = rp_simple_error(Reason, "");
+  };
+
+  llvm::handleAllErrors(std::move(Error),
+                        DocumentedErrorHandler,
+                        OtherErrorHandler);
+}
+
 void revng::tracing::setTracing(llvm::raw_ostream *OS) {
   Tracing.swap(OS);
 }
@@ -254,8 +285,9 @@ _rp_manager_run_analysis(rp_manager *manager,
                          const char *step_name,
                          const char *analysis_name,
                          const rp_container_targets_map *target_map,
+                         const rp_string_map *options,
                          rp_invalidations *invalidations,
-                         const rp_string_map *options) {
+                         rp_error *error) {
   revng_check(manager != nullptr);
   revng_check(step_name != nullptr);
   revng_check(analysis_name != nullptr);
@@ -269,8 +301,8 @@ _rp_manager_run_analysis(rp_manager *manager,
                                          *target_map,
                                          *Invalidations,
                                          *Options);
-  if (!MaybeDiffs) {
-    llvm::consumeError(MaybeDiffs.takeError());
+  if (not MaybeDiffs) {
+    llvmErrorToRpError(MaybeDiffs.takeError(), error);
     return nullptr;
   }
 
@@ -299,15 +331,16 @@ static char *_rp_diff_map_get_diff(const rp_diff_map *map,
 }
 
 static rp_buffer *_rp_manager_produce_targets(rp_manager *manager,
+                                              const rp_step *step,
+                                              const rp_container *container,
                                               uint64_t targets_count,
                                               rp_target *targets[],
-                                              const rp_step *step,
-                                              const rp_container *container) {
+                                              rp_error *error) {
   revng_check(manager != nullptr);
-  revng_check(targets_count != 0);
-  revng_check(targets != nullptr);
   revng_check(step != nullptr);
   revng_check(container != nullptr);
+  revng_check(targets_count != 0);
+  revng_check(targets != nullptr);
 
   TargetsList List;
   for (size_t I = 0; I < targets_count; I++)
@@ -318,7 +351,7 @@ static rp_buffer *_rp_manager_produce_targets(rp_manager *manager,
                                                List);
 
   if (!ErrorOrCloned) {
-    llvm::consumeError(ErrorOrCloned.takeError());
+    llvmErrorToRpError(ErrorOrCloned.takeError(), error);
     return nullptr;
   }
 
@@ -452,39 +485,6 @@ static char *_rp_manager_create_global_copy(const rp_manager *manager,
   return copyString(Out);
 }
 
-static bool llvmErrorToRpError(llvm::Error Error,
-                               ExistingOrNew<rp_error> &Out) {
-  bool Success = true;
-
-  auto DocumentedErrorHandler = [&](const revng::DocumentErrorBase &Error) {
-    rp_document_error ErrorBody(Error.getTypeName(),
-                                Error.getLocationTypeName());
-
-    for (size_t I = 0; I < Error.size(); I++) {
-      rp_error_reason reason(Error.getMessage(I), Error.getLocation(I));
-      ErrorBody.Reasons.emplace_back(reason);
-    }
-
-    *Out = std::move(ErrorBody);
-    Success = false;
-  };
-
-  auto OtherErrorHandler = [&](const llvm::ErrorInfoBase &OtherErrors) {
-    std::string Reason;
-    llvm::raw_string_ostream OS(Reason);
-    OtherErrors.log(OS);
-    OS.flush();
-    *Out = rp_simple_error(Reason, "");
-    Success = false;
-  };
-
-  llvm::handleAllErrors(std::move(Error),
-                        DocumentedErrorHandler,
-                        OtherErrorHandler);
-
-  return Success;
-}
-
 static const char *_rp_container_get_mime(const rp_container *container) {
   revng_check(container != nullptr);
   return container->getValue()->mimeType().data();
@@ -509,8 +509,9 @@ static rp_buffer *_rp_container_extract_one(const rp_container *container,
 static rp_diff_map *
 _rp_manager_run_analyses_list(rp_manager *manager,
                               const char *list_name,
+                              const rp_string_map *options,
                               rp_invalidations *invalidations,
-                              const rp_string_map *options) {
+                              rp_error *error) {
   revng_check(manager != nullptr);
   revng_check(list_name != nullptr);
 
@@ -519,8 +520,8 @@ _rp_manager_run_analyses_list(rp_manager *manager,
 
   const AnalysesList &AL = manager->getRunner().getAnalysesList(list_name);
   auto MaybeDiffs = manager->runAnalyses(AL, *Invalidations, *Options);
-  if (!MaybeDiffs) {
-    llvm::consumeError(MaybeDiffs.takeError());
+  if (not MaybeDiffs) {
+    llvmErrorToRpError(MaybeDiffs.takeError(), error);
     return nullptr;
   }
 

@@ -12,8 +12,7 @@ from .utils import make_python_string
 
 class DocumentError:
     def __init__(self, error: "Error"):
-        if not _api.rp_error_is_document_error(error._error):
-            raise ValueError("Error is not a DocumentError")
+        assert _api.rp_error_is_document_error(error._error), "Error is not a DocumentError"
 
         # We must keep the original error to avoid destruction
         self.base_error = error
@@ -80,8 +79,7 @@ class DocumentErrorReasonList(Sequence[DocumentErrorReason]):
 
 class SimpleError:
     def __init__(self, error: "Error"):
-        if _api.rp_error_is_document_error(error._error):
-            raise ValueError("Error is not a SimpleError")
+        assert not _api.rp_error_is_document_error(error._error), "Error is not a SimpleError"
 
         # We must keep the original error to avoid destruction
         self.base_error = error
