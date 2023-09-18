@@ -14,7 +14,7 @@ from typing import AsyncGenerator, Awaitable, Callable, Optional, ParamSpec, Typ
 
 from starlette.datastructures import UploadFile
 
-from ariadne import MutationType, ObjectType, QueryType, SubscriptionType, UnionType
+from ariadne import MutationType, ObjectType, QueryType, ScalarType, SubscriptionType, UnionType
 from ariadne import make_executable_schema, upload_scalar
 
 from revng.api.errors import DocumentError, Error, SimpleError
@@ -67,6 +67,8 @@ document_error_type = ObjectType("DocumentError")
 document_error_type.set_alias("errorType", "error_type")
 document_error_type.set_alias("locationType", "location_type")
 
+bigint_scalar = ScalarType("BigInt", serializer=str, value_parser=int)
+
 
 @query.field("produce")
 async def resolve_produce(
@@ -118,6 +120,12 @@ async def resolve_get_global(_, info, *, name: str) -> str:
 async def resolve_pipeline_description(_, info) -> str:
     manager: Manager = info.context["manager"]
     return await run_in_executor(manager.get_pipeline_description)
+
+
+@query.field("contextCommitIndex")
+async def resolve_context_commit_index(_, info) -> int:
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(manager.get_context_commit_index)
 
 
 @mutation.field("uploadB64")
@@ -224,6 +232,7 @@ def get_schema():
         mutation,
         subscription,
         upload_scalar,
+        bigint_scalar,
         analysis_result_type,
         produce_result_type,
         simple_error_type,
