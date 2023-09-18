@@ -2,6 +2,8 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <utility>
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -24,6 +26,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Progress.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -2155,23 +2158,37 @@ void decompile(FunctionMetadataCache &Cache,
   // since we want to emit forward declarations for all of them.
   auto StackTypes = TheTypeInlineHelper.findStackTypesPerFunction(Model);
 
+  auto
+    T = llvm::make_task_on_set(llvm::make_address_range(FunctionTags::Isolated
+                                                          .functions(&Module)),
+                               "decompile");
+
   for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
+    T.advance(&F,
+              llvm::Twine("decompile Function: ") + llvm::Twine(F.getName()));
 
     if (F.empty())
       continue;
+
+    llvm::Task T2(3,
+                  llvm::Twine("decompile Function: ")
+                    + llvm::Twine(F.getName()));
 
     // TODO: this will eventually become a GHASTContainer for revng pipeline
     ASTTree GHAST;
 
     // Generate the GHAST and beautify it.
     {
+      T2.advance("restructureCFG");
       restructureCFG(F, GHAST);
       // TODO: beautification should be optional, but at the moment it's not
       // truly so (if disabled, things crash). We should strive to make it
       // optional for real.
+      T2.advance("beautifyAST");
       beautifyAST(F, GHAST);
     }
 
+    T2.advance("decompileFunction");
     if (Log.isEnabled()) {
       std::string ASTFileName = F.getName().str()
                                 + "GHAST-during-c-codegen.dot";
