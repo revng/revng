@@ -568,8 +568,6 @@ bool LayoutTypeSystem::verifyDAG() const {
   if (not verifyInstanceDAG())
     return false;
 
-  std::set<const LayoutTypeSystemNode *> SCCHeads;
-
   // A graph is a DAG if and only if all its strongly connected components have
   // size 1
   std::set<const LayoutTypeSystemNode *> Visited;
