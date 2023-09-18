@@ -66,7 +66,9 @@ def run_analyses_lists(analyses_lists: List[str]):
             assert list_name in list_names, f"Missing analyses list {list_name}"
 
             log(f"Running analyses list {list_name}")
-            await client.execute(gql(f'mutation {{ runAnalysesList(name: "{list_name}") }}'))
+            q = gql(f'mutation {{ runAnalysesList(name: "{list_name}") {{ __typename }} }}')
+            res = await client.execute(q)
+            assert res["runAnalysesList"]["__typename"] == "Diff"
 
     return runner
 
@@ -125,11 +127,17 @@ def produce_artifacts(filter_: List[str] | None = None):
             q = gql(
                 """
             query($step: String!, $container: String!, $target: String!) {
-                produce(step: $step, container: $container, targetList: $target)
+                produce(step: $step, container: $container, targetList: $target) {
+                    __typename
+                    ... on Produced {
+                        result
+                    }
+                }
             }"""
             )
             result = await client.execute(q, {**arguments, "target": targets})
-            json_result = json.loads(result["produce"])
+            assert result["produce"]["__typename"] == "Produced"
+            json_result = json.loads(result["produce"]["result"])
             assert target_list == set(json_result.keys()), "Some targets were not produced"
 
     return runner

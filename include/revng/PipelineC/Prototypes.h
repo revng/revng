@@ -183,11 +183,12 @@ const rp_kind *rp_manager_get_kind_from_name(const rp_manager *manager,
  */
 rp_buffer * /*owning*/
 rp_manager_produce_targets(rp_manager *manager,
+                           const rp_step *step,
+                           const rp_container *container,
                            uint64_t targets_count,
                            const rp_target *targets[],
-                           const rp_step *step,
-                           const rp_container *container);
-LENGTH_HINT(rp_manager_produce_targets, 2, 1)
+                           rp_error *error);
+LENGTH_HINT(rp_manager_produce_targets, 4, 3)
 
 /**
  * Request to run the required analysis
@@ -208,8 +209,9 @@ rp_manager_run_analysis(rp_manager *manager,
                         const char *step_name,
                         const char *analysis_name,
                         const rp_container_targets_map *target_map,
+                        const rp_string_map *options,
                         rp_invalidations *invalidations,
-                        const rp_string_map *options);
+                        rp_error *error);
 
 /**
  * Request to run all analyses of the given list on all targets
@@ -223,8 +225,9 @@ rp_manager_run_analysis(rp_manager *manager,
 rp_diff_map * /*owning*/
 rp_manager_run_analyses_list(rp_manager *manager,
                              const char *list_name,
+                             const rp_string_map *options,
                              rp_invalidations *invalidations,
-                             const rp_string_map *options);
+                             rp_error *error);
 
 /**
  * \return the container status associated to the provided \p container

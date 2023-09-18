@@ -3,7 +3,7 @@
 #
 
 from tempfile import TemporaryDirectory
-from typing import Dict, Iterable, List, Mapping, Optional, Union
+from typing import Dict, Iterable, List, Mapping, Optional
 
 import yaml
 
@@ -116,40 +116,13 @@ class Manager:
         targets = self.get_targets(step_name, container_name)
         return next((t for t in targets if t.serialize() == target), None)
 
-    def _produce_target(
-        self,
-        step_name: str,
-        target: Union[Target, List[Target]],
-        container_name: str,
-    ) -> Dict[str, str | bytes]:
-        if isinstance(target, Target):
-            targets = [target]
-        else:
-            targets = target
-
-        _step, _container = self._get_step_container_ptr(step_name, container_name)
-        product = _api.rp_manager_produce_targets(
-            self._manager, len(targets), [t._target for t in targets], _step, _container
-        )
-        if not product:
-            # TODO: we really should be able to provide a detailed error here
-            raise RevngException("Failed to produce targets")
-
-        result = {}
-        for target in targets:
-            extracted_target = target.extract()
-            if extracted_target is None:
-                raise RevngException(f"Target {target.serialize()} extraction failed")
-            result[target.serialize()] = extracted_target
-        return result
-
     def produce_target(
         self,
         step_name: str,
         target: None | str | List[str],
         container_name: Optional[str] = None,
         only_if_ready=False,
-    ) -> Dict[str, str | bytes]:
+    ) -> Dict[str, str | bytes] | Error:
         step = self.step_from_name(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")
@@ -162,13 +135,9 @@ class Manager:
                 raise RevngException(f"Step {step_name} does not have an artifacts container")
 
         if target is None:
-            _targets = [
-                "",
-            ]
+            _targets = [""]
         elif isinstance(target, str):
-            _targets = [
-                target,
-            ]
+            _targets = [target]
         else:
             _targets = target
 
@@ -181,12 +150,27 @@ class Manager:
         if only_if_ready and any(not t.is_ready for t in targets):
             raise RevngException("Requested production of unready targets")
 
-        product = self._produce_target(step_name, targets, container)
-        if not product:
-            # TODO: we really should be able to provide a detailed error here
-            raise RevngException("Failed to produce target")
+        _step, _container = self._get_step_container_ptr(step_name, container)
+        error = Error()
+        product = _api.rp_manager_produce_targets(
+            self._manager,
+            _step,
+            _container,
+            len(targets),
+            [t._target for t in targets],
+            error._error,
+        )
 
-        return product
+        if product == ffi.NULL:
+            return error
+
+        result = {}
+        for produced_target in targets:
+            extracted_target = produced_target.extract()
+            if extracted_target is None:
+                raise RevngException(f"Target {produced_target.serialize()} extraction failed")
+            result[produced_target.serialize()] = extracted_target
+        return result
 
     def create_target(
         self, step_name: str, container_name: str, target_path: str, use_artifact_kind: bool
@@ -245,7 +229,7 @@ class Manager:
         analysis_name: str,
         target_mapping: Dict[str, List[str]],
         options: Dict[str, str] | None = None,
-    ) -> ResultWithInvalidations[Dict[str, str]]:
+    ) -> Expected[ResultWithInvalidations[Dict[str, str]]]:
         step = self.step_from_name(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")
@@ -274,9 +258,7 @@ class Manager:
         analysis_result = self._run_analysis(
             step_name, analysis_name, concrete_target_mapping, options_map
         )
-        if analysis_result.result is None:
-            raise RevngException("Failed to run analysis")
-        return analysis_result  # type: ignore
+        return analysis_result
 
     def _run_analysis(
         self,
@@ -284,7 +266,7 @@ class Manager:
         analysis_name: str,
         target_mapping: Dict[str, List[Target]],
         options: StringMap,
-    ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
+    ) -> Expected[ResultWithInvalidations[Dict[str, str]]]:
         target_map = ContainerToTargetsMap()
         step_ptr = self._get_step_ptr(step_name)
 
@@ -294,40 +276,52 @@ class Manager:
                 target_map.add(container_ptr, target)
 
         invalidations = Invalidations()
+        error = Error()
         result = _api.rp_manager_run_analysis(
             self._manager,
             make_c_string(step_name),
             make_c_string(analysis_name),
             target_map._map,
-            invalidations._invalidations,
             options._string_map,
+            invalidations._invalidations,
+            error._error,
         )
 
         if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
             self.save()
-        return ResultWithInvalidations(
-            self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
+
+        return Expected(
+            ResultWithInvalidations(
+                self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
+            ),
+            error,
         )
 
     def run_analyses_list(
         self, analyses_list_name: str, options: Mapping[str, str] | None = None
-    ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
+    ) -> Expected[ResultWithInvalidations[Dict[str, str]]]:
         if self.analyses_list_from_name(analyses_list_name) is None:
             raise RevngException(f"Could not find analyses list {analyses_list_name}")
 
         options_map = StringMap(options)
         invalidations = Invalidations()
+        error = Error()
         result = _api.rp_manager_run_analyses_list(
             self._manager,
             make_c_string(analyses_list_name),
-            invalidations._invalidations,
             options_map._string_map,
+            invalidations._invalidations,
+            error._error,
         )
 
         if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
             self.save()
-        return ResultWithInvalidations(
-            self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
+
+        return Expected(
+            ResultWithInvalidations(
+                self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
+            ),
+            error,
         )
 
     def parse_diff_map(self, diff_map) -> Dict[str, str]:

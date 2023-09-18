@@ -7,15 +7,17 @@ import json
 import logging
 from base64 import b64decode
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from typing import AsyncGenerator, Awaitable, Callable, Optional, ParamSpec, TypeVar
 
 from starlette.datastructures import UploadFile
 
-from ariadne import MutationType, QueryType, SubscriptionType, make_executable_schema
-from ariadne import upload_scalar
+from ariadne import MutationType, ObjectType, QueryType, SubscriptionType, UnionType
+from ariadne import make_executable_schema, upload_scalar
 
+from revng.api.errors import DocumentError, Error, SimpleError
 from revng.api.manager import Manager
 from revng.api.target import Target
 
@@ -41,9 +43,29 @@ def run_in_executor(function: Callable[P, T], *args: P.args, **kwargs: P.kwargs)
     return loop.run_in_executor(executor, partial(function, *args, **kwargs))
 
 
+@dataclass
+class Diff:
+    diff: str
+
+
+@dataclass
+class Produced:
+    result: str
+
+
 query = QueryType()
 mutation = MutationType()
 subscription = SubscriptionType()
+
+analysis_result_type = UnionType("AnalysisResult")
+produce_result_type = UnionType("ProduceResult")
+
+simple_error_type = ObjectType("SimpleError")
+simple_error_type.set_alias("errorType", "error_type")
+
+document_error_type = ObjectType("DocumentError")
+document_error_type.set_alias("errorType", "error_type")
+document_error_type.set_alias("locationType", "location_type")
 
 
 @query.field("produce")
@@ -53,7 +75,10 @@ async def resolve_produce(
     manager: Manager = info.context["manager"]
     targets = targetList.split(",")
     result = await run_in_executor(manager.produce_target, step, targets, container, onlyIfReady)
-    return produce_serializer(result)
+    if isinstance(result, Error):
+        return result.unwrap()
+    else:
+        return Produced(produce_serializer(result))
 
 
 @query.field("produceArtifacts")
@@ -61,11 +86,12 @@ async def resolve_produce_artifacts(
     obj, info, *, step: str, paths: Optional[str] = None, onlyIfReady=False  # noqa: N803
 ):
     manager: Manager = info.context["manager"]
-    target_paths = paths.split(",") if paths is not None else None
-    result = await run_in_executor(
-        manager.produce_target, step, target_paths, only_if_ready=onlyIfReady
-    )
-    return produce_serializer(result)
+    targets = paths.split(",") if paths is not None else None
+    result = await run_in_executor(manager.produce_target, step, targets, only_if_ready=onlyIfReady)
+    if isinstance(result, Error):
+        return result.unwrap()
+    else:
+        return Produced(produce_serializer(result))
 
 
 @query.field("targets")
@@ -130,8 +156,13 @@ async def resolve_run_analysis(
     target_map = json.loads(containerToTargets) if containerToTargets is not None else {}
     parse_options = json.loads(options) if options is not None else {}
     result = await run_in_executor(manager.run_analysis, step, analysis, target_map, parse_options)
-    await invalidation_queue.send(str(result.invalidations))
-    return json.dumps(result.result)
+
+    if result:
+        real_result = result.unwrap()
+        await invalidation_queue.send(str(real_result.invalidations))
+        return Diff(json.dumps(real_result.result))
+    else:
+        return result.error.unwrap()
 
 
 @mutation.field("runAnalysesList")
@@ -140,8 +171,37 @@ async def resolve_run_analyses_list(_, info, *, name: str, options: str | None =
     manager: Manager = info.context["manager"]
     parse_options = json.loads(options) if options is not None else {}
     result = await run_in_executor(manager.run_analyses_list, name, parse_options)
-    await invalidation_queue.send(str(result.invalidations))
-    return json.dumps(result.result)
+
+    if result:
+        real_result = result.unwrap()
+        await invalidation_queue.send(str(real_result.invalidations))
+        return Diff(json.dumps(real_result.result))
+    else:
+        return result.error.unwrap()
+
+
+@analysis_result_type.type_resolver
+def resolve_analysis_result(obj, *_):
+    if isinstance(obj, SimpleError):
+        return "SimpleError"
+    elif isinstance(obj, DocumentError):
+        return "DocumentError"
+    elif isinstance(obj, Diff):
+        return "Diff"
+    else:
+        raise ValueError("Unknown Analysis result")
+
+
+@produce_result_type.type_resolver
+def resolve_produce_result(obj, *_):
+    if isinstance(obj, SimpleError):
+        return "SimpleError"
+    elif isinstance(obj, DocumentError):
+        return "DocumentError"
+    elif isinstance(obj, Produced):
+        return "Produced"
+    else:
+        raise ValueError("Unknown Produce result")
 
 
 @subscription.source("invalidations")
@@ -164,4 +224,8 @@ def get_schema():
         mutation,
         subscription,
         upload_scalar,
+        analysis_result_type,
+        produce_result_type,
+        simple_error_type,
+        document_error_type,
     )
