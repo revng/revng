@@ -168,59 +168,6 @@ rp_manager_create_global_copy(const rp_manager *manager,
                               const char *global_name);
 
 /**
- * Sets the contents of the specified global
- * \param serialied a c-string representing the serialized new global
- * \param global_name the name of the global
- * \param invalidations see \ref pipelineC_invalidations
- * \param error see \ref pipelineC_error_reporting
- * \return true on success, false otherwise
- */
-bool rp_manager_set_global(rp_manager *manager,
-                           const char *serialized,
-                           const char *global_name,
-                           rp_invalidations *invalidations,
-                           rp_error *error);
-
-/**
- * Checks that the serialized global would be correct if set as global_name
- * \param serialied a c-string representing the serialized new global
- * \param global_name the name of the global
- * \param error see \ref pipelineC_error_reporting
- * \return true on success, false otherwise
- */
-bool rp_manager_verify_global(rp_manager *manager,
-                              const char *serialized,
-                              const char *global_name,
-                              rp_error *error);
-
-/**
- * Apply the specified diff to the global
- * \param diff a string representing the serialized diff
- * \param global_name the name of the global
- * \param invalidations see \ref pipelineC_invalidations
- * \param error see \ref pipelineC_error_reporting
- *
- * \return true on success, false otherwise
- */
-bool rp_manager_apply_diff(rp_manager *manager,
-                           const char *diff,
-                           const char *global_name,
-                           rp_invalidations *invalidations,
-                           rp_error *error);
-
-/**
- * Checks that the specified diff would apply correctly to the global
- * \param diff a c-string representing the serialized diff
- * \param global_name the name of the global
- * \param error see \ref pipelineC_error_reporting
- * \return true on success, false otherwise
- */
-bool rp_manager_verify_diff(rp_manager *manager,
-                            const char *diff,
-                            const char *global_name,
-                            rp_error *error);
-
-/**
  * \return the kind with the provided name, NULL if no kind had the provided
  *         name.
  */

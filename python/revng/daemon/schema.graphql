@@ -6,8 +6,6 @@ type Query {
     target(step: String!, container: String!, target: String!): Target
     targets(step: String!, container: String!): [Target!]!
     getGlobal(name: String!): String!
-    verifyGlobal(name: String!, content: String!): Boolean!
-    verifyDiff(globalName: String!, content: String!): Boolean!
     pipelineDescription: String!
 }
 
@@ -23,8 +21,6 @@ type Mutation {
     uploadFile(file: Upload, container: String!): Boolean!
     runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): String!
     runAnalysesList(name: String!, options: String): String!
-    setGlobal(name: String!, content: String!, verify: Boolean): Boolean!
-    applyDiff(globalName: String!, content: String!, verify: Boolean): Boolean!
 }
 
 type Subscription {

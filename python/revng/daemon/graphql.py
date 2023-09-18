@@ -88,20 +88,6 @@ async def resolve_get_global(_, info, *, name: str) -> str:
     return await run_in_executor(manager.get_global, name)
 
 
-@query.field("verifyGlobal")
-async def resolve_verify_global(_, info, *, name: str, content: str) -> bool:
-    manager: Manager = info.context["manager"]
-    result = await run_in_executor(manager.verify_global, name, content)
-    return result.unwrap()
-
-
-@query.field("verifyDiff")
-async def resolve_verify_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
-    manager: Manager = info.context["manager"]
-    result = await run_in_executor(manager.verify_diff, globalName, content)
-    return result.unwrap()
-
-
 @query.field("pipelineDescription")
 async def resolve_pipeline_description(_, info) -> str:
     manager: Manager = info.context["manager"]
@@ -156,24 +142,6 @@ async def resolve_run_analyses_list(_, info, *, name: str, options: str | None =
     result = await run_in_executor(manager.run_analyses_list, name, parse_options)
     await invalidation_queue.send(str(result.invalidations))
     return json.dumps(result.result)
-
-
-@mutation.field("setGlobal")
-@emit_event(EventType.CONTEXT)
-async def mutation_set_global(_, info, *, name: str, content: str) -> bool:
-    manager: Manager = info.context["manager"]
-    result = await run_in_executor(manager.set_global, name, content)
-    await invalidation_queue.send(str(result.invalidations))
-    return result.result.unwrap()
-
-
-@mutation.field("applyDiff")
-@emit_event(EventType.CONTEXT)
-async def mutation_apply_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
-    manager: Manager = info.context["manager"]
-    result = await run_in_executor(manager.apply_diff, globalName, content)
-    await invalidation_queue.send(str(result.invalidations))
-    return result.result.unwrap()
 
 
 @subscription.source("invalidations")
