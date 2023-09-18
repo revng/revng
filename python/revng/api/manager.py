@@ -345,40 +345,6 @@ class Manager:
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
         return make_python_string(_out)
 
-    def set_global(self, name, content) -> ResultWithInvalidations[Expected[bool]]:
-        _name = make_c_string(name)
-        _content = make_c_string(content)
-        invalidations = Invalidations()
-        error = Error()
-        res = _api.rp_manager_set_global(
-            self._manager, _content, _name, invalidations._invalidations, error._error
-        )
-        return ResultWithInvalidations(Expected(res, error), invalidations)
-
-    def verify_global(self, name, content) -> Expected[bool]:
-        _name = make_c_string(name)
-        _content = make_c_string(content)
-        error = Error()
-        res = _api.rp_manager_verify_global(self._manager, _content, _name, error._error)
-        return Expected(res, error)
-
-    def apply_diff(self, name, diff) -> ResultWithInvalidations[Expected[bool]]:
-        _name = make_c_string(name)
-        _diff = make_c_string(diff)
-        invalidations = Invalidations()
-        error = Error()
-        res = _api.rp_manager_apply_diff(
-            self._manager, _diff, _name, invalidations._invalidations, error._error
-        )
-        return ResultWithInvalidations(Expected(res, error), invalidations)
-
-    def verify_diff(self, name, diff) -> Expected[bool]:
-        _name = make_c_string(name)
-        _diff = make_c_string(diff)
-        error = Error()
-        res = _api.rp_manager_verify_diff(self._manager, _diff, _name, error._error)
-        return Expected(res, error)
-
     def set_input(self, container_name: str, content: bytes, _key=None):
         step_ptr = self._get_step_ptr("begin")
 
