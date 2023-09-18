@@ -25,8 +25,8 @@ template<class NodeT>
 void MetaRegion<NodeT>::updateNodes(const BasicBlockNodeTSet &ToRemove,
                                     BasicBlockNodeT *Collapsed,
                                     BasicBlockNodeT *ExitDispatcher,
-                                    const BasicBlockNodeTVect &DefaultEntrySet,
-                                    const BasicBlockNodeTVect &OutlinedNodes) {
+                                    const BasicBlockNodeTVect
+                                      &DefaultEntrySet) {
   // Remove the old SCS nodes
   for (BasicBlockNodeT *Node : ToRemove)
     Nodes.erase(Node);
@@ -44,12 +44,6 @@ void MetaRegion<NodeT>::updateNodes(const BasicBlockNodeTSet &ToRemove,
     return this->containsNode(B);
   }));
   Nodes.insert(DefaultEntrySet.begin(), DefaultEntrySet.end());
-
-  // Add the nodes that were generated with first iteration outlining
-  revng_assert(not llvm::any_of(OutlinedNodes, [this](BasicBlockNodeT *B) {
-    return this->containsNode(B);
-  }));
-  Nodes.insert(OutlinedNodes.begin(), OutlinedNodes.end());
 }
 
 template<class NodeT>
