@@ -86,8 +86,6 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
   OpaqueFunctionsPool<Type *> CopyPool(M, false);
   initCopyPool(CopyPool);
 
-  std::map<CallInst *, CallInst *> StructCallToLocalVarType;
-
   for (auto &[I, Flag] : Assignments) {
     auto *IType = I->getType();
 
