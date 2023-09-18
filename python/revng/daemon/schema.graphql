@@ -11,6 +11,7 @@ type Query {
     targets(step: String!, container: String!): [Target!]!
     getGlobal(name: String!): String!
     pipelineDescription: String!
+    contextCommitIndex: BigInt!
 }
 
 union ProduceResult = Produced | SimpleError | DocumentError
@@ -60,3 +61,4 @@ type Subscription {
 }
 
 scalar Upload
+scalar BigInt

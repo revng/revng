@@ -366,3 +366,6 @@ class Manager:
     def set_storage_credentials(self, credentials: str):
         _credentials = make_c_string(credentials)
         assert _api.rp_manager_set_storage_credentials(self._manager, _credentials)
+
+    def get_context_commit_index(self) -> int:
+        return _api.rp_manager_get_context_commit_index(self._manager)

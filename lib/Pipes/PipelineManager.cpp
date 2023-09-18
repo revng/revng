@@ -293,6 +293,7 @@ PipelineManager::deserializeContainer(pipeline::Step &Step,
   if (auto Error = storeStepToDisk(Step.getName()); !!Error)
     return Error;
 
+  PipelineContext->bumpCommitIndex();
   return MaybeInvalidations.get();
 }
 
@@ -416,6 +417,7 @@ PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
   else
     return Invalidations.takeError();
 
+  PipelineContext->bumpCommitIndex();
   return Result;
 }
 
@@ -442,6 +444,7 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
   else
     return Invalidations.takeError();
 
+  PipelineContext->bumpCommitIndex();
   return Result;
 }
 

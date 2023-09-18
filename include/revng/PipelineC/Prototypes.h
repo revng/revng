@@ -249,6 +249,11 @@ const char *rp_manager_get_pipeline_description(rp_manager *manager);
 bool rp_manager_set_storage_credentials(rp_manager *manager,
                                         const char *credentials);
 
+/**
+ * Returns the Context Commit Index
+ */
+uint64_t rp_manager_get_context_commit_index(rp_manager *manager);
+
 /** \} */
 
 /**
