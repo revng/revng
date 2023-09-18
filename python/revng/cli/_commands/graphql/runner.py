@@ -64,9 +64,9 @@ def run_analyses_lists(analyses_lists: List[str]):
 
         for list_name in analyses_lists:
             assert list_name in list_names, f"Missing analyses list {list_name}"
-            await client.execute(gql(f'mutation {{ runAnalysesList(name: "{list_name}") }}'))
 
-        log("Autoanalysis complete")
+            log(f"Running analyses list {list_name}")
+            await client.execute(gql(f'mutation {{ runAnalysesList(name: "{list_name}") }}'))
 
     return runner
 
