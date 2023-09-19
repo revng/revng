@@ -5,8 +5,8 @@
 # failable and allows users to properly inspect the error's fields.
 
 type Query {
-    produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean): ProduceResult!
-    produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean): ProduceResult!
+    produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean, index: BigInt!): ProduceResult!
+    produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean, index: BigInt!): ProduceResult!
     target(step: String!, container: String!, target: String!): Target
     targets(step: String!, container: String!): [Target!]!
     getGlobal(name: String!): String!
@@ -14,7 +14,7 @@ type Query {
     contextCommitIndex: BigInt!
 }
 
-union ProduceResult = Produced | SimpleError | DocumentError
+union ProduceResult = Produced | SimpleError | DocumentError | IndexError
 
 type Produced {
     result: String!
@@ -30,11 +30,11 @@ type Target {
 type Mutation {
     uploadB64(input: String!, container: String!): Boolean!
     uploadFile(file: Upload, container: String!): Boolean!
-    runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): AnalysisResult!
-    runAnalysesList(name: String!, options: String): AnalysisResult!
+    runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String, index: BigInt!): AnalysisResult!
+    runAnalysesList(name: String!, options: String, index: BigInt!): AnalysisResult!
 }
 
-union AnalysisResult = Diff | SimpleError | DocumentError
+union AnalysisResult = Diff | SimpleError | DocumentError | IndexError
 
 type Diff {
     diff: String!
@@ -54,6 +54,10 @@ type DocumentError {
 type DocumentErrorReason {
     message: String!
     location: String!
+}
+
+type IndexError {
+    expectedIndex: BigInt!
 }
 
 type Subscription {
