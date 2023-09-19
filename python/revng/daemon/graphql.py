@@ -149,6 +149,7 @@ async def resolve_run_analysis(
 
 
 @mutation.field("runAnalysesList")
+@emit_event(EventType.CONTEXT)
 async def resolve_run_analyses_list(_, info, *, name: str, options: str | None = None):
     manager: Manager = info.context["manager"]
     parse_options = json.loads(options) if options is not None else {}
