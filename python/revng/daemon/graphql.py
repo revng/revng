@@ -60,6 +60,11 @@ class Produced:
     result: str
 
 
+@dataclass
+class CommitIndexError:
+    expectedIndex: int  # noqa: N815
+
+
 query = QueryType()
 mutation = MutationType()
 subscription = SubscriptionType()
@@ -79,28 +84,57 @@ bigint_scalar = ScalarType("BigInt", serializer=str, value_parser=int)
 
 @query.field("produce")
 async def resolve_produce(
-    obj, info, *, step: str, container: str, targetList: str, onlyIfReady=False  # noqa: N803
+    obj,
+    info,
+    *,
+    step: str,
+    container: str,
+    targetList: str,  # noqa: N803
+    onlyIfReady=False,  # noqa: N803
+    index: int,
 ):
     manager: Manager = info.context["manager"]
-    targets = targetList.split(",")
-    result = await run_in_executor(manager.produce_target, step, targets, container, onlyIfReady)
-    if isinstance(result, Error):
-        return result.unwrap()
-    else:
-        return Produced(produce_serializer(result))
+    index_lock: asyncio.Lock = info.context["index_lock"]
+    async with index_lock:
+        current_index = await run_in_executor(manager.get_context_commit_index)
+        if current_index != index:
+            return CommitIndexError(current_index)
+
+        targets = targetList.split(",")
+        result = await run_in_executor(
+            manager.produce_target, step, targets, container, onlyIfReady
+        )
+        if isinstance(result, Error):
+            return result.unwrap()
+        else:
+            return Produced(produce_serializer(result))
 
 
 @query.field("produceArtifacts")
 async def resolve_produce_artifacts(
-    obj, info, *, step: str, paths: Optional[str] = None, onlyIfReady=False  # noqa: N803
+    obj,
+    info,
+    *,
+    step: str,
+    paths: Optional[str] = None,
+    onlyIfReady=False,  # noqa: N803
+    index: int,
 ):
     manager: Manager = info.context["manager"]
-    targets = paths.split(",") if paths is not None else None
-    result = await run_in_executor(manager.produce_target, step, targets, only_if_ready=onlyIfReady)
-    if isinstance(result, Error):
-        return result.unwrap()
-    else:
-        return Produced(produce_serializer(result))
+    index_lock: asyncio.Lock = info.context["index_lock"]
+    async with index_lock:
+        current_index = await run_in_executor(manager.get_context_commit_index)
+        if current_index != index:
+            return CommitIndexError(current_index)
+
+        targets = paths.split(",") if paths is not None else None
+        result = await run_in_executor(
+            manager.produce_target, step, targets, only_if_ready=onlyIfReady
+        )
+        if isinstance(result, Error):
+            return result.unwrap()
+        else:
+            return Produced(produce_serializer(result))
 
 
 @query.field("targets")
@@ -139,23 +173,27 @@ async def resolve_context_commit_index(_, info) -> int:
 @emit_event(EventType.BEGIN)
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
     manager: Manager = info.context["manager"]
-    invalidations = await run_in_executor(manager.set_input, container, b64decode(input))
-    index = await run_in_executor(manager.get_context_global_index)
-    await invalidation_queue.send(Invalidation(index, str(invalidations)))
-    logging.info(f"Saved file for container {container}")
-    return True
+    index_lock: asyncio.Lock = info.context["index_lock"]
+    async with index_lock:
+        invalidations = await run_in_executor(manager.set_input, container, b64decode(input))
+        index = await run_in_executor(manager.get_context_commit_index)
+        await invalidation_queue.send(Invalidation(index, str(invalidations)))
+        logging.info(f"Saved file for container {container}")
+        return True
 
 
 @mutation.field("uploadFile")
 @emit_event(EventType.BEGIN)
 async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
     manager: Manager = info.context["manager"]
-    contents = await file.read()
-    invalidations = await run_in_executor(manager.set_input, container, contents)
-    index = await run_in_executor(manager.get_context_global_index)
-    await invalidation_queue.send(Invalidation(index, str(invalidations)))
-    logging.info(f"Saved file for container {container}")
-    return True
+    index_lock: asyncio.Lock = info.context["index_lock"]
+    async with index_lock:
+        contents = await file.read()
+        invalidations = await run_in_executor(manager.set_input, container, contents)
+        index = await run_in_executor(manager.get_context_commit_index)
+        await invalidation_queue.send(Invalidation(index, str(invalidations)))
+        logging.info(f"Saved file for container {container}")
+        return True
 
 
 @mutation.field("runAnalysis")
@@ -168,35 +206,50 @@ async def resolve_run_analysis(
     analysis: str,
     containerToTargets: str | None = None,  # noqa: N803
     options: str | None = None,
+    index: int,
 ):
     manager: Manager = info.context["manager"]
-    target_map = json.loads(containerToTargets) if containerToTargets is not None else {}
-    parse_options = json.loads(options) if options is not None else {}
-    result = await run_in_executor(manager.run_analysis, step, analysis, target_map, parse_options)
+    index_lock: asyncio.Lock = info.context["index_lock"]
+    async with index_lock:
+        current_index = await run_in_executor(manager.get_context_commit_index)
+        if current_index != index:
+            return CommitIndexError(current_index)
 
-    if result:
-        real_result = result.unwrap()
-        new_index = await run_in_executor(manager.get_context_global_index)
-        await invalidation_queue.send(Invalidation(new_index, str(real_result.invalidations)))
-        return Diff(json.dumps(real_result.result))
-    else:
-        return result.error.unwrap()
+        target_map = json.loads(containerToTargets) if containerToTargets is not None else {}
+        parse_options = json.loads(options) if options is not None else {}
+        result = await run_in_executor(
+            manager.run_analysis, step, analysis, target_map, parse_options
+        )
+
+        if result:
+            real_result = result.unwrap()
+            new_index = await run_in_executor(manager.get_context_commit_index)
+            await invalidation_queue.send(Invalidation(new_index, str(real_result.invalidations)))
+            return Diff(json.dumps(real_result.result))
+        else:
+            return result.error.unwrap()
 
 
 @mutation.field("runAnalysesList")
 @emit_event(EventType.CONTEXT)
-async def resolve_run_analyses_list(_, info, *, name: str, options: str | None = None):
+async def resolve_run_analyses_list(_, info, *, name: str, options: str | None = None, index: int):
     manager: Manager = info.context["manager"]
-    parse_options = json.loads(options) if options is not None else {}
-    result = await run_in_executor(manager.run_analyses_list, name, parse_options)
+    index_lock: asyncio.Lock = info.context["index_lock"]
+    async with index_lock:
+        current_index = await run_in_executor(manager.get_context_commit_index)
+        if current_index != index:
+            return CommitIndexError(current_index)
 
-    if result:
-        real_result = result.unwrap()
-        new_index = await run_in_executor(manager.get_context_global_index)
-        await invalidation_queue.send(Invalidation(new_index, str(real_result.invalidations)))
-        return Diff(json.dumps(real_result.result))
-    else:
-        return result.error.unwrap()
+        parse_options = json.loads(options) if options is not None else {}
+        result = await run_in_executor(manager.run_analyses_list, name, parse_options)
+
+        if result:
+            real_result = result.unwrap()
+            new_index = await run_in_executor(manager.get_context_commit_index)
+            await invalidation_queue.send(Invalidation(new_index, str(real_result.invalidations)))
+            return Diff(json.dumps(real_result.result))
+        else:
+            return result.error.unwrap()
 
 
 @analysis_result_type.type_resolver
@@ -205,6 +258,8 @@ def resolve_analysis_result(obj, *_):
         return "SimpleError"
     elif isinstance(obj, DocumentError):
         return "DocumentError"
+    elif isinstance(obj, CommitIndexError):
+        return "IndexError"
     elif isinstance(obj, Diff):
         return "Diff"
     else:
@@ -217,6 +272,8 @@ def resolve_produce_result(obj, *_):
         return "SimpleError"
     elif isinstance(obj, DocumentError):
         return "DocumentError"
+    elif isinstance(obj, CommitIndexError):
+        return "IndexError"
     elif isinstance(obj, Produced):
         return "Produced"
     else:
