@@ -3,7 +3,6 @@
 #
 
 from collections.abc import Sequence
-from itertools import islice
 from typing import Any, Generic, Optional, TypeVar, cast, overload
 
 from ._capi import _api, ffi
@@ -73,8 +72,10 @@ class DocumentErrorReasonList(Sequence[DocumentErrorReason]):
                 return DocumentErrorReason(self.document_error, idx)
             else:
                 raise IndexError("list index out of range")
+        elif isinstance(idx, slice):
+            return [self[i] for i in range(*idx.indices(len(self)))]
         else:
-            return list(islice(self, idx.start, idx.stop, idx.step))
+            raise TypeError("Invalid index type")
 
 
 class SimpleError:
