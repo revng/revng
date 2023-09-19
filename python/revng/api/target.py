@@ -3,7 +3,6 @@
 #
 
 from collections.abc import Sequence
-from itertools import islice
 from typing import Any, Generator, List, Optional
 
 from ._capi import _api, ffi
@@ -90,8 +89,10 @@ class TargetsList(Sequence):
                 return self._get_target(idx)
             else:
                 raise IndexError("list index out of range")
+        elif isinstance(idx, slice):
+            return [self[i] for i in range(*idx.indices(len(self)))]
         else:
-            return list(islice(self, idx.start, idx.stop, idx.step))
+            raise TypeError("Invalid index type")
 
 
 class ContainerToTargetsMap:
