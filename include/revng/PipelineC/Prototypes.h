@@ -364,7 +364,8 @@ bool rp_manager_container_deserialize(rp_manager *manager,
                                       rp_step *step,
                                       const char *container_name,
                                       const char *content,
-                                      uint64_t size);
+                                      uint64_t size,
+                                      rp_invalidations *invalidations);
 LENGTH_HINT(rp_manager_container_deserialize, 3, 4)
 
 /**

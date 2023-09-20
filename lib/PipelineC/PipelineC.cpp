@@ -387,20 +387,25 @@ static bool _rp_manager_container_deserialize(rp_manager *manager,
                                               rp_step *step,
                                               const char *container_name,
                                               const char *content,
-                                              uint64_t size) {
+                                              uint64_t size,
+                                              rp_invalidations *invalidations) {
   revng_check(manager != nullptr);
   revng_check(step != nullptr);
   revng_check(container_name != nullptr);
   revng_check(content != nullptr);
 
-  auto Buffer = llvm::MemoryBuffer::getMemBuffer(llvm::StringRef(content, size),
-                                                 "",
-                                                 false);
-  auto Error = manager->deserializeContainer(*step, container_name, *Buffer);
-  if (!!Error) {
-    llvm::consumeError(std::move(Error));
+  llvm::StringRef String(content, size);
+  auto Buffer = llvm::MemoryBuffer::getMemBuffer(String, "", false);
+  auto MaybeInvalidations = manager->deserializeContainer(*step,
+                                                          container_name,
+                                                          *Buffer);
+  if (not MaybeInvalidations) {
+    llvm::consumeError(MaybeInvalidations.takeError());
     return false;
   }
+
+  ExistingOrNew<rp_invalidations> Invalidations(invalidations);
+  *Invalidations = MaybeInvalidations.get();
   return true;
 }
 

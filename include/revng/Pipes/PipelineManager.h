@@ -105,9 +105,10 @@ public:
   const pipeline::Step::AnalysisValueType &
   getAnalysis(const pipeline::AnalysisReference &Reference) const;
 
-  llvm::Error deserializeContainer(pipeline::Step &Step,
-                                   llvm::StringRef ContainerName,
-                                   const llvm::MemoryBuffer &Buffer);
+  llvm::Expected<pipeline::InvalidationMap>
+  deserializeContainer(pipeline::Step &Step,
+                       llvm::StringRef ContainerName,
+                       const llvm::MemoryBuffer &Buffer);
 
   const pipeline::Context &context() const { return *PipelineContext; }
 
