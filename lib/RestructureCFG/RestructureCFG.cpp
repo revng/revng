@@ -41,6 +41,7 @@ using std::to_string;
 // TODO: Move the initialization of the logger here from "Utils.h"
 // Debug logger.
 Logger<> CombLogger("restructure");
+Logger<> LogShortestPath("restructure-shortest-path");
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.
@@ -495,19 +496,26 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   }
 
   // Compute shortest path to reach all nodes from Entry.
-  // Uset later for picking the entry point of each region.
+  // Used later for picking the entry point of each region.
   std::map<BasicBlockNodeBB *, size_t> ShortestPathFromEntry;
   {
+    revng_log(LogShortestPath, "Computing ShortestPathFromEntry");
+    LoggerIndent Indent(LogShortestPath);
     auto BFSIt = llvm::bf_begin(&RootCFG.getEntryNode());
     auto BFSEnd = llvm::bf_end(&RootCFG.getEntryNode());
     for (; BFSIt != BFSEnd; ++BFSIt) {
       BasicBlockNodeBB *Node = *BFSIt;
       size_t Depth = BFSIt.getLevel();
+      revng_log(LogShortestPath, "Node = " << Node);
       auto ShortestIt = ShortestPathFromEntry.lower_bound(Node);
+      LoggerIndent MoreIndent(LogShortestPath);
       if (ShortestIt == ShortestPathFromEntry.end()
           or Node < ShortestIt->first) {
+        revng_log(LogShortestPath, "New shortest path Depth: " << Depth);
         ShortestPathFromEntry.insert(ShortestIt, { Node, Depth });
       } else {
+        revng_log(LogShortestPath,
+                  "Known shortest path Depth: " << ShortestIt->second);
         revng_assert(ShortestIt->second <= Depth);
       }
     }
