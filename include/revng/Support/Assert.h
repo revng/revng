@@ -191,9 +191,6 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
   MACRO_OVERLOAD_1_OR_2(__VA_ARGS__, revng_check_impl, revng_check_impl_nomsg) \
   (__VA_ARGS__)
 
-typedef void (*AbortHook)(void);
-void setAbortHook(AbortHook Hook);
-
 #ifdef __cplusplus
 }
 #endif
