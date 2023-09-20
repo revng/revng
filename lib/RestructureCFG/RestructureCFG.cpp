@@ -336,10 +336,8 @@ static void LogMetaRegions(const MetaRegionBBPtrVect &MetaRegions,
       CombLogger << "With index " << Meta->getIndex() << '\n';
       CombLogger << "With size " << Meta->nodes_size() << '\n';
       CombLogger << "Is composed of nodes:\n";
-      const auto &Nodes = Meta->getNodes();
-      for (auto *Node : Nodes) {
+      for (auto *Node : Meta->nodes())
         CombLogger << Node->getNameStr() << '\n';
-      }
       CombLogger << "Is SCS: " << Meta->isSCS() << '\n';
       CombLogger << "Has parent: ";
       if (Meta->getParent())
@@ -362,10 +360,8 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
       CombLogger << "With index " << Meta.getIndex() << '\n';
       CombLogger << "With size " << Meta.nodes_size() << '\n';
       CombLogger << "Is composed of nodes:\n";
-      const auto &Nodes = Meta.getNodes();
-      for (auto *Node : Nodes) {
+      for (auto *Node : Meta.nodes())
         CombLogger << Node->getNameStr() << '\n';
-      }
       CombLogger << "Is SCS: " << Meta.isSCS() << '\n';
       CombLogger << "Has parent: ";
       if (Meta.getParent())
@@ -375,6 +371,11 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
       CombLogger << '\n';
     }
   }
+}
+
+static debug_function void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
+                                          const char *HeaderMsg) {
+  LogMetaRegions(MetaRegions, std::string(HeaderMsg));
 }
 
 static std::map<BasicBlockNodeBB *, size_t>
@@ -417,12 +418,12 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   // Identify SCS regions.
   llvm::SmallDenseSet<EdgeDescriptor>
     Backedges = getBackedges(&RootCFG.getEntryNode()).takeSet();
-  if (CombLogger.isEnabled()) {
-    CombLogger << "Backedges in the graph:\n";
-    for (auto &Backedge : Backedges) {
-      CombLogger << Backedge.first->getNameStr() << " -> "
-                 << Backedge.second->getNameStr() << "\n";
-    }
+  revng_log(CombLogger, "Initial Backedges in the graph:");
+  for (auto &Backedge : Backedges) {
+    LoggerIndent Indent(CombLogger);
+    revng_log(CombLogger,
+              Backedge.first->getNameStr()
+                << " -> " << Backedge.second->getNameStr());
   }
 
   // Insert a dummy node for each retreating node.
@@ -436,8 +437,14 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   Backedges = getBackedges(&RootCFG.getEntryNode()).takeSet();
 
   // Check that the source node of each retreating edge is a dummy node.
-  for (EdgeDescriptor Backedge : Backedges)
+  revng_log(CombLogger, "Backedges in the graph after dummy insertion:");
+  for (auto &Backedge : Backedges) {
+    LoggerIndent Indent(CombLogger);
+    revng_log(CombLogger,
+              Backedge.first->getNameStr()
+                << " -> " << Backedge.second->getNameStr());
     revng_assert(Backedge.first->isEmpty());
+  }
 
   // Create meta regions
   MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
@@ -515,11 +522,9 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
 
-      auto &Nodes = Meta->getNodes();
       CombLogger << "Which is composed of nodes:\n";
-      for (auto *Node : Nodes) {
+      for (auto *Node : Meta->nodes())
         CombLogger << Node->getNameStr() << "\n";
-      }
 
       CombLogger << "Dumping main graph snapshot before restructuring\n";
       RootCFG.dumpCFGOnFile(F.getName().str(),
@@ -593,9 +598,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     // `getBackedgesWhitelist` helper to collect the retreating contained in the
     // current metaregion.
     llvm::SmallSet<BasicBlockNodeBB *, 4> MetaNodes;
-    for (BasicBlockNodeBB *Node : Meta->nodes()) {
+    for (BasicBlockNodeBB *Node : Meta->nodes())
       MetaNodes.insert(Node);
-    }
 
     llvm::SmallDenseSet<EdgeDescriptor>
       Retreatings = getBackedgesWhiteList(Entry, MetaNodes).takeSet();
