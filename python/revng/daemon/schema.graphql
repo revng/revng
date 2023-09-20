@@ -57,6 +57,11 @@ type DocumentErrorReason {
 }
 
 type Subscription {
+    invalidations: Invalidation!
+}
+
+type Invalidation {
+    commitIndex: BigInt!
     invalidations: String!
 }
 

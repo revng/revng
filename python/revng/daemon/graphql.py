@@ -25,8 +25,15 @@ from .event_manager import EventType, emit_event
 from .multiqueue import MultiQueue
 from .util import produce_serializer
 
+
+@dataclass
+class Invalidation:
+    commitIndex: int  # noqa: N815
+    invalidations: str
+
+
 executor = ThreadPoolExecutor(1)
-invalidation_queue: MultiQueue[str] = MultiQueue()
+invalidation_queue: MultiQueue[Invalidation] = MultiQueue()
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -132,8 +139,9 @@ async def resolve_context_commit_index(_, info) -> int:
 @emit_event(EventType.BEGIN)
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
     manager: Manager = info.context["manager"]
-    await run_in_executor(manager.set_input, container, b64decode(input))
-    await invalidation_queue.send("begin/input/:Binary")
+    invalidations = await run_in_executor(manager.set_input, container, b64decode(input))
+    index = await run_in_executor(manager.get_context_global_index)
+    await invalidation_queue.send(Invalidation(index, str(invalidations)))
     logging.info(f"Saved file for container {container}")
     return True
 
@@ -143,8 +151,9 @@ async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A
 async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
     manager: Manager = info.context["manager"]
     contents = await file.read()
-    await run_in_executor(manager.set_input, container, contents)
-    await invalidation_queue.send("begin/input/:Binary")
+    invalidations = await run_in_executor(manager.set_input, container, contents)
+    index = await run_in_executor(manager.get_context_global_index)
+    await invalidation_queue.send(Invalidation(index, str(invalidations)))
     logging.info(f"Saved file for container {container}")
     return True
 
@@ -167,7 +176,8 @@ async def resolve_run_analysis(
 
     if result:
         real_result = result.unwrap()
-        await invalidation_queue.send(str(real_result.invalidations))
+        new_index = await run_in_executor(manager.get_context_global_index)
+        await invalidation_queue.send(Invalidation(new_index, str(real_result.invalidations)))
         return Diff(json.dumps(real_result.result))
     else:
         return result.error.unwrap()
@@ -182,7 +192,8 @@ async def resolve_run_analyses_list(_, info, *, name: str, options: str | None =
 
     if result:
         real_result = result.unwrap()
-        await invalidation_queue.send(str(real_result.invalidations))
+        new_index = await run_in_executor(manager.get_context_global_index)
+        await invalidation_queue.send(Invalidation(new_index, str(real_result.invalidations)))
         return Diff(json.dumps(real_result.result))
     else:
         return result.error.unwrap()
@@ -213,14 +224,14 @@ def resolve_produce_result(obj, *_):
 
 
 @subscription.source("invalidations")
-async def invalidations_generator(_, info) -> AsyncGenerator[str, None]:
+async def invalidations_generator(_, info) -> AsyncGenerator[Invalidation, None]:
     with invalidation_queue.stream() as stream:
         async for message in stream:
             yield message
 
 
 @subscription.field("invalidations")
-async def invalidations(message: str, info):
+async def invalidations(message: Invalidation, info):
     return message
 
 
