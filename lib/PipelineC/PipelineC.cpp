@@ -218,6 +218,7 @@ static void _rp_manager_destroy(rp_manager *manager) {
 static rp_step *_rp_manager_get_step_from_name(rp_manager *manager,
                                                const char *name) {
   revng_check(manager != nullptr);
+  revng_check(name != nullptr);
   return &manager->getRunner().getStep(name);
 }
 
@@ -225,6 +226,7 @@ static rp_container *
 _rp_step_get_container(rp_step *step, rp_container_identifier *container) {
   revng_check(step != nullptr);
   revng_check(container != nullptr);
+
   if (step->containers().isContainerRegistered(container->first())) {
     step->containers()[container->first()];
     return &*step->containers().find(container->first());
@@ -275,12 +277,16 @@ _rp_manager_run_analysis(rp_manager *manager,
   return new rp_diff_map(std::move(*MaybeDiffs));
 }
 
-static void _rp_diff_map_destroy(rp_diff_map *to_free) {
-  delete to_free;
+static void _rp_diff_map_destroy(rp_diff_map *map) {
+  revng_check(map != nullptr);
+  delete map;
 }
 
 static char *_rp_diff_map_get_diff(const rp_diff_map *map,
                                    const char *global_name) {
+  revng_check(map != nullptr);
+  revng_check(global_name != nullptr);
+
   auto It = map->find(global_name);
   if (It == map->end())
     return nullptr;
@@ -374,6 +380,7 @@ static uint64_t _rp_target_path_components_count(rp_target *target) {
   revng_check(target != nullptr);
   return target->getPathComponents().size();
 }
+
 static const char *_rp_target_get_path_component(rp_target *target,
                                                  uint64_t index) {
   revng_check(target != nullptr);
@@ -431,6 +438,9 @@ static bool _rp_target_is_ready(const rp_target *target,
 /// directly to a buffer to return.
 static char *_rp_manager_create_global_copy(const rp_manager *manager,
                                             const char *global_name) {
+  revng_check(manager != nullptr);
+  revng_check(global_name != nullptr);
+
   std::string Out;
   llvm::raw_string_ostream Serialized(Out);
   auto &GlobalsMap = manager->context().getGlobals();
@@ -634,6 +644,9 @@ static const char *_rp_container_get_mime(const rp_container *container) {
 
 static rp_buffer *_rp_container_extract_one(const rp_container *container,
                                             const rp_target *target) {
+  revng_check(container != nullptr);
+  revng_check(target != nullptr);
+
   if (!container->second->enumerate().contains(*target)) {
     return nullptr;
   }
@@ -758,11 +771,16 @@ static rp_string_map *_rp_string_map_create() {
 }
 
 static void _rp_string_map_destroy(rp_string_map *map) {
+  revng_check(map != nullptr);
   delete map;
 }
 
 static void
 _rp_string_map_insert(rp_string_map *map, const char *key, const char *value) {
+  revng_check(map != nullptr);
+  revng_check(key != nullptr);
+  revng_check(value != nullptr);
+
   auto Result = map->insert_or_assign(key, value);
   revng_assert(Result.second);
 }
@@ -772,11 +790,13 @@ static rp_invalidations *_rp_invalidations_create() {
 }
 
 static void _rp_invalidations_destroy(rp_invalidations *invalidations) {
+  revng_check(invalidations != nullptr);
   delete invalidations;
 }
 
 static char *
 _rp_invalidations_serialize(const rp_invalidations *invalidations) {
+  revng_check(invalidations != nullptr);
   std::string Out;
 
   for (auto &StepPair : *invalidations) {
@@ -795,14 +815,17 @@ _rp_invalidations_serialize(const rp_invalidations *invalidations) {
 }
 
 static uint64_t _rp_buffer_size(const rp_buffer *buffer) {
+  revng_check(buffer != nullptr);
   return buffer->size();
 }
 
 static const char *_rp_buffer_data(const rp_buffer *buffer) {
+  revng_check(buffer != nullptr);
   return buffer->data();
 }
 
 static void _rp_buffer_destroy(rp_buffer *buffer) {
+  revng_check(buffer != nullptr);
   delete buffer;
 }
 
