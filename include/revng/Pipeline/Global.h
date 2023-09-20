@@ -17,11 +17,6 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-template<typename T>
-concept HasVerify = requires(const T &Object) {
-  { Object.verify() } -> std::same_as<bool>;
-};
-
 namespace pipeline {
 
 class Global {
