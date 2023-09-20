@@ -84,7 +84,6 @@ bool rp_initialize(int argc,
                    int signals_to_preserve[]);
 LENGTH_HINT(rp_initialize, 1, 0)
 LENGTH_HINT(rp_initialize, 3, 2)
-LENGTH_HINT(rp_initialize, 5, 4)
 
 /**
  * Should be called on clean exit to clean up all LLVM-related stuff used by
@@ -120,7 +119,6 @@ rp_manager * /*owning*/ rp_manager_create(uint64_t pipeline_flags_count,
                                           const char *pipeline_flags[],
                                           const char *execution_directory);
 LENGTH_HINT(rp_manager_create, 1, 0)
-LENGTH_HINT(rp_manager_create, 3, 2)
 
 /**
  * Takes the same arguments as \related rp_manager_create but, instead of the
