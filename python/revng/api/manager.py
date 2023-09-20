@@ -339,18 +339,26 @@ class Manager:
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
         return make_python_string(_out)
 
-    def set_input(self, container_name: str, content: bytes, _key=None):
+    def set_input(self, container_name: str, content: bytes, _key=None) -> Invalidations:
         step_ptr = self._get_step_ptr("begin")
 
         _content = ffi.from_buffer(content)
+        invalidations = Invalidations()
         success = _api.rp_manager_container_deserialize(
-            self._manager, step_ptr, make_c_string(container_name), _content, len(_content)
+            self._manager,
+            step_ptr,
+            make_c_string(container_name),
+            _content,
+            len(_content),
+            invalidations._invalidations,
         )
 
         if not success:
             raise RevngException(
                 f"Failed loading user provided input for container {container_name}"
             )
+
+        return invalidations
 
     def get_pipeline_description(self):
         return self._description_str
