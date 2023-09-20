@@ -4,8 +4,15 @@
 
 #include <iostream>
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
+
+#include "revng/Support/Debug.h"
 
 #include "DLAStep.h"
 
@@ -18,10 +25,19 @@ using InstanceZeroT = EdgeFilteredGraph<dla::LayoutTypeSystemNode *,
 using CInstanceT = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
                                      dla::isInstanceEdge>;
 
+using InverseCInstanceT = llvm::Inverse<CInstanceT>;
+
+using InverseInstanceT = llvm::Inverse<InstanceT>;
+
 using CPointerT = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
                                     dla::isPointerEdge>;
 
+static Logger<> Log{ "dla-simplify-instance-off0" };
+
 namespace dla {
+
+using NodeSet = llvm::SmallPtrSet<const LayoutTypeSystemNode *, 8>;
+using ReachabilityMap = llvm::DenseMap<const LayoutTypeSystemNode *, NodeSet>;
 
 static bool hasOutgoingPointer(const LayoutTypeSystemNode *N) {
   using PointerGraph = llvm::GraphTraits<CPointerT>;
@@ -30,16 +46,77 @@ static bool hasOutgoingPointer(const LayoutTypeSystemNode *N) {
   return It != End;
 };
 
-static bool canBeCollapsed(const LayoutTypeSystemNode *Node,
-                           const LayoutTypeSystemNode *Child) {
+class ReachabilityCache {
+  NodeSet Visited;
+  ReachabilityMap CanReach;
+
+public:
+  bool existsPath(const LayoutTypeSystemNode *From,
+                  const LayoutTypeSystemNode *To) {
+    revng_log(Log, "existPath: " << From->ID << " -> " << To->ID);
+    LoggerIndent ExistsIndent(Log);
+
+    if (auto It = CanReach.find(From); It != CanReach.end()) {
+      bool Exists = It->second.contains(To);
+      revng_log(Log, "cached: " << (Exists ? 'Y' : 'N'));
+      return Exists;
+    }
+
+    {
+      revng_log(Log, "Compute reachability for: " << From->ID);
+      LoggerIndent ReachabilityIndent(Log);
+
+      for (const LayoutTypeSystemNode *Node :
+           llvm::post_order_ext(CInstanceT(From), Visited)) {
+        NodeSet &ReachableFromNode = CanReach[Node];
+        revng_log(Log, "Node: " << From->ID);
+        LoggerIndent NodeIndent(Log);
+
+        for (const LayoutTypeSystemNode *Child :
+             llvm::children<CInstanceT>(Node)) {
+
+          revng_log(Log, "can reach child: " << Child->ID);
+          LoggerIndent ChildIndent(Log);
+
+          ReachableFromNode.insert(Child);
+
+          auto ReachableFromChildIt = CanReach.find(Child);
+          revng_assert(ReachableFromChildIt != CanReach.end());
+          const NodeSet &ReachableFromChild = ReachableFromChildIt->second;
+
+          for (const LayoutTypeSystemNode *R : ReachableFromChild) {
+            revng_log(Log, "can reach: " << R->ID << " transitive");
+            ReachableFromNode.insert(R);
+          }
+        }
+      }
+    }
+
+    auto ReachableIt = CanReach.find(From);
+    revng_assert(ReachableIt != CanReach.end());
+    const NodeSet &Reachable = ReachableIt->second;
+    bool Exists = Reachable.contains(To);
+    revng_log(Log, "computed: " << (Exists ? 'Y' : 'N'));
+    return Exists;
+  }
+};
+
+static bool canBeCollapsed( // const ReachabilityMap &CanReach,
+  ReachabilityCache Cache,
+  const LayoutTypeSystemNode *Node,
+  const LayoutTypeSystemNode *Child) {
+  LoggerIndent Indent(Log);
   // If Child has size or has an outgoing pointer edge, it can never be
   // collapsed.
-  if (Child->Size or hasOutgoingPointer(Child))
+  if (Child->Size) {
+    revng_log(Log, "has Size");
     return false;
+  }
 
-  llvm::SmallPtrSet<const LayoutTypeSystemNode *, 8> ChildrenOfChild;
-  for (const auto *C : llvm::children<CInstanceT>(Child))
-    ChildrenOfChild.insert(C);
+  if (hasOutgoingPointer(Child)) {
+    revng_log(Log, "has outgoing pointer");
+    return false;
+  }
 
   // If we find a successor of Node (different from Child at offset 0) such that
   // it can reach Child, then the instance-0 from Node to Child cannot be
@@ -51,81 +128,142 @@ static bool canBeCollapsed(const LayoutTypeSystemNode *Node,
   // other edge to Child into a self-loop.
   for (const auto &Link : llvm::children_edges<CInstanceT>(Node)) {
     const auto &[OtherChild, EdgeTag] = Link;
-    if (Child == OtherChild and not isInstanceOff0(Link))
+    if (Child == OtherChild and not isInstanceOff0(Link)) {
+      revng_log(Log, "has another incoming edge");
       return false;
+    }
   }
 
-  for (const auto &Link : llvm::children_edges<CInstanceT>(Node)) {
-    const auto &[OtherChild, EdgeTag] = Link;
-
-    revng_assert(OtherChild != Child or isInstanceOff0(Link));
-
+  // Then check if Child is actually reachable from any other instance children
+  // (OtherChildren) of Node.
+  // If that happens, collapsing Child into Node, would create a loop, so we
+  // have to bail out.
+  revng_log(Log, "check mutual reachability");
+  LoggerIndent MoreIndent(Log);
+  for (const LayoutTypeSystemNode *OtherChild :
+       llvm::children<CInstanceT>(Node)) {
     // Ignore the edge that would be collapsed.
-    if (OtherChild == Child and isInstanceOff0(Link))
+    if (OtherChild == Child)
       continue;
 
-    auto DFIt = llvm::df_begin(CInstanceT(OtherChild));
-    auto DFEnd = llvm::df_end(CInstanceT(OtherChild));
-    while (DFIt != DFEnd) {
-      const auto *N = *DFIt;
-      // Skip this DFS path early if we've reached a children of Child without
-      // passing from Child.
-      if (ChildrenOfChild.contains(N)) {
-        DFIt.skipChildren();
-        continue;
-      }
+    revng_log(Log, "OtherChild: " << OtherChild->ID);
+    LoggerIndent MoreMoreIndent(Log);
 
-      if (N == Child)
-        return false;
-
-      ++DFIt;
+    // We're using the cache here since otherwise we might end up exploring a
+    // big chunk of the graph very many times, as experiments on real-world
+    // examples have shown.
+    if (Cache.existsPath(OtherChild, Child)) {
+      revng_log(Log, "can reach: " << Child->ID);
+      return false;
     }
+    revng_log(Log, "cannot reach: " << Child->ID << " BUT: ");
   }
 
   // In all the other cases we can collapse.
   return true;
 }
 
+static LayoutTypeSystemNode *addArtificialRoot(LayoutTypeSystem &TS) {
+
+  LayoutTypeSystemNode *FakeRoot = TS.createArtificialLayoutType();
+  revng_log(Log, "Adding FakeRoot ID: " << FakeRoot->ID);
+  LoggerIndent Indent(Log);
+  for (LayoutTypeSystemNode *Node : llvm::nodes(&TS)) {
+    if (Node == FakeRoot)
+      continue;
+
+    if (isInstanceRoot(Node)) {
+      revng_log(Log,
+                "adding Instance-0 edge: " << FakeRoot->ID << " -> "
+                                           << Node->ID);
+      TS.addInstanceLink(FakeRoot, Node, OffsetExpression{});
+    }
+  }
+  return FakeRoot;
+}
+
+static llvm::SmallVector<LayoutTypeSystemNode *>
+getPostOrder(LayoutTypeSystemNode *Root) {
+
+  llvm::SmallVector<LayoutTypeSystemNode *> PostOrder;
+  revng_log(Log, "PostOrder:");
+  LoggerIndent Indent(Log);
+  for (LayoutTypeSystemNode *Node : llvm::post_order(InstanceT(Root))) {
+    revng_log(Log, Node->ID);
+    PostOrder.push_back(Node);
+  }
+  return PostOrder;
+}
+
 bool SimplifyInstanceAtOffset0::runOnTypeSystem(LayoutTypeSystem &TS) {
-  if (VerifyLog.isEnabled())
+
+  if (VerifyLog.isEnabled()) {
+    TS.dumpDotOnFile("before-SimplifyInstanceAtOffset0.dot", true);
     revng_assert(TS.verifyInstanceDAG());
+  }
+
+  LayoutTypeSystemNode *FakeRoot = addArtificialRoot(TS);
+  llvm::SmallVector<LayoutTypeSystemNode *> PostOrder = getPostOrder(FakeRoot);
 
   bool Changed = false;
 
-  for (LayoutTypeSystemNode *Root : llvm::nodes(&TS)) {
-    if (not isInstanceRoot(Root))
+  uint64_t I = 0;
+
+  revng_log(Log, "Process Nodes:");
+  LoggerIndent Indent(Log);
+  for (LayoutTypeSystemNode *Node : PostOrder) {
+
+    if (Node == FakeRoot)
       continue;
 
-    // Pre-compute the post-order, since we're going to make changes to the
-    // graphs while iterating on it, so we could invalidate post_order
-    // iterators.
-    llvm::SmallVector<LayoutTypeSystemNode *, 16> PostOrder;
-    for (LayoutTypeSystemNode *Node : llvm::post_order(InstanceT(Root)))
-      PostOrder.push_back(Node);
+    revng_log(Log, "Node: " << Node->ID);
+    LoggerIndent NodeIndent(Log);
 
-    for (LayoutTypeSystemNode *Node : PostOrder) {
-      using InstanceZeroGraph = llvm::GraphTraits<InstanceZeroT>;
-      auto It = InstanceZeroGraph::child_begin(Node);
-      auto End = InstanceZeroGraph::child_end(Node);
-      while (It != End) {
-        // Check if it can be collapsed
-        LayoutTypeSystemNode *ChildToCollapse = nullptr;
-        if (canBeCollapsed(Node, *It))
-          ChildToCollapse = *It;
+    ReachabilityCache RC;
 
-        // Increment the iterator, so we don't invalidate when merging the
-        // ChildToCollapse
-        ++It;
+    // For each instance children of Node at offset 0, compute if it can be
+    // collapsed into Node, and if it's possible collapse it.
+    for (LayoutTypeSystemNode *Child :
+         llvm::make_early_inc_range(llvm::children<InstanceZeroT>(Node))) {
 
-        // If necessary, collapse the child into the parent
-        if (ChildToCollapse)
-          TS.mergeNodes({ Node, ChildToCollapse });
+      revng_log(Log, "Child: " << Child->ID);
+      LoggerIndent ChildIndent(Log);
+
+      if (not canBeCollapsed(RC, Node, Child)) {
+        revng_log(Log, "NOT canBeCollapsed()");
+        continue;
+      }
+
+      revng_log(Log, "canBeCollapsed()");
+
+      auto IDToCollapse = Child->ID;
+      if (Log.isEnabled()) {
+        TS.dumpDotOnFile((llvm::Twine(I) + "-before-"
+                          + llvm::Twine(IDToCollapse) + ".dot")
+                           .str(),
+                         true);
+      }
+
+      TS.mergeNodes({ Node, Child });
+      Changed = true;
+
+      if (Log.isEnabled()) {
+        TS.dumpDotOnFile((llvm::Twine(I) + "-after-" + llvm::Twine(IDToCollapse)
+                          + ".dot")
+                           .str(),
+                         true);
+        ++I;
+        revng_assert(TS.verifyInstanceDAG());
       }
     }
   }
 
-  if (VerifyLog.isEnabled())
+  TS.removeNode(FakeRoot);
+
+  if (VerifyLog.isEnabled()) {
+    TS.dumpDotOnFile("after-SimplifyInstanceAtOffset0.dot", true);
     revng_assert(TS.verifyInstanceDAG());
+  }
 
   return Changed;
 }
