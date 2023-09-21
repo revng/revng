@@ -197,10 +197,11 @@ getPostOrder(LayoutTypeSystemNode *Root) {
 
 bool SimplifyInstanceAtOffset0::runOnTypeSystem(LayoutTypeSystem &TS) {
 
-  if (VerifyLog.isEnabled()) {
+  if (Log.isEnabled())
     TS.dumpDotOnFile("before-SimplifyInstanceAtOffset0.dot", true);
+
+  if (VerifyLog.isEnabled())
     revng_assert(TS.verifyInstanceDAG());
-  }
 
   LayoutTypeSystemNode *FakeRoot = addArtificialRoot(TS);
   llvm::SmallVector<LayoutTypeSystemNode *> PostOrder = getPostOrder(FakeRoot);
@@ -260,10 +261,11 @@ bool SimplifyInstanceAtOffset0::runOnTypeSystem(LayoutTypeSystem &TS) {
 
   TS.removeNode(FakeRoot);
 
-  if (VerifyLog.isEnabled()) {
+  if (Log.isEnabled())
     TS.dumpDotOnFile("after-SimplifyInstanceAtOffset0.dot", true);
+
+  if (VerifyLog.isEnabled())
     revng_assert(TS.verifyInstanceDAG());
-  }
 
   return Changed;
 }
