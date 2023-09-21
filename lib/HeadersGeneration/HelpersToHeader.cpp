@@ -24,6 +24,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
+#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/HelpersToHeader.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/FunctionTags.h"
@@ -94,7 +95,7 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
 bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
   PTMLCBuilder B;
-  auto Header = ptml::PTMLIndentedOstream(Out, 4);
+  auto Header = ptml::PTMLIndentedOstream(Out, DecompiledCCodeIndentation);
   {
     auto Scope = B.getTag(ptml::tags::Div).scope(Header);
     Header << B.getPragmaOnce();

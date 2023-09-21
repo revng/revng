@@ -22,6 +22,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
+#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/ModelHelpers.h"
@@ -171,7 +172,7 @@ bool dumpModelToHeader(const model::Binary &Model,
   using Scopes = ptml::PTMLCBuilder::Scopes;
 
   PTMLCBuilder B(Options.GeneratePlainC);
-  ptml::PTMLIndentedOstream Header(Out, 4, true);
+  ptml::PTMLIndentedOstream Header(Out, DecompiledCCodeIndentation, true);
   {
     auto Scope = B.getTag(ptml::tags::Div).scope(Header);
 

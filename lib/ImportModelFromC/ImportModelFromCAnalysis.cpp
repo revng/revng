@@ -32,6 +32,7 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
+#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 
 #include "HeaderToModel.h"
@@ -159,7 +160,9 @@ struct ImportModelFromCAnalysis {
           and not isa<model::TypedefType>(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(Options.PostIncludes);
         ptml::PTMLCBuilder B(true);
-        ptml::PTMLIndentedOstream ThePTMLStream(Stream, 4, true);
+        ptml::PTMLIndentedOstream ThePTMLStream(Stream,
+                                                DecompiledCCodeIndentation,
+                                                true);
         Stream << B.getLineComment("The type we are editing");
         // The definition of this type will be at the end of the file.
         printForwardDeclaration(**TypeToEdit, ThePTMLStream, B);

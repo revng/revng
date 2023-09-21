@@ -54,6 +54,7 @@
 #include "revng/Yield/PTML.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
+#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/RestructureCFG/ASTNode.h"
@@ -360,7 +361,7 @@ public:
                            &ModelFunction,
                            Model,
                            /*PointersOnly=*/false)),
-    Out(Out, 4),
+    Out(Out, DecompiledCCodeIndentation),
     B(B),
     SwitchStateVars(),
     Cache(Cache) {
