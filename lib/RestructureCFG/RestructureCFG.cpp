@@ -654,34 +654,18 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
       for (EdgeDescriptor R : Retreatings) {
         BasicBlockNodeBB *OriginalSource = R.first;
-
-        // If the original source is a set node, move it after the entry
-        // dispatcher.
         unsigned Idx = RetreatingIdxMap.at(R.second);
-        if (OriginalSource->isSet()) {
+        revng_assert(not OriginalSource->isSet(),
+                     "A set node is not expected as predecessor source of a "
+                     "retreating edge");
+        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
+        Meta->insertNode(SetNode);
+        moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
+        addPlainEdge(EdgeDescriptor(SetNode, Head));
 
-          // TODO: double check the following behavior, it seems that the
-          //       `SetNode` is not connected to anything
-          BasicBlockNodeBB *OldSetNode = OriginalSource;
-          revng_assert(OldSetNode->predecessor_size() == 1);
-          BasicBlockNodeBB *Predecessor = *OldSetNode->predecessors().begin();
-          auto *SetNode = RootCFG.addSetStateNode(Idx, OldSetNode->getName());
-          Meta->insertNode(SetNode);
-          moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
-
-          // Save the `continue` edges, that will be later processed during the
-          // `continue` phase insertion
-          ContinueBackedges.push_back(EdgeDescriptor(OldSetNode, Head));
-        } else {
-          auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
-          Meta->insertNode(SetNode);
-          moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
-          addPlainEdge(EdgeDescriptor(SetNode, Head));
-
-          // Save the `continue` edges, that will be later processed during the
-          // `continue` phase insertion
-          ContinueBackedges.push_back(EdgeDescriptor(SetNode, Head));
-        }
+        // Save the `continue` edges, that will be later processed during the
+        // `continue` phase insertion
+        ContinueBackedges.push_back(EdgeDescriptor(SetNode, Head));
       }
 
       // Move the remaining (the retreatings have been handled in the above
