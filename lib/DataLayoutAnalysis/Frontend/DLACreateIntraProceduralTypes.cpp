@@ -111,9 +111,33 @@ protected:
       return Created;
 
     const SCEV *PointerValSCEV = SE->getSCEV(PointerVal);
-    Type *PointerType = PointerValSCEV->getType();
-    if (BaseAddrSCEV->getType() != PointerType) {
-      BaseAddrSCEV = SE->getZeroExtendExpr(BaseAddrSCEV, PointerType);
+    if (PointerValSCEV->getType()->isPointerTy()) {
+      auto PointerByteSize = getPointerSize(Model.Architecture());
+      llvm::Type *IntType = llvm::IntegerType::getIntNTy(PointerVal
+                                                           ->getContext(),
+                                                         PointerByteSize * 8);
+      PointerValSCEV = SE->getPtrToIntExpr(PointerValSCEV, IntType);
+    }
+
+    if (BaseAddrSCEV->getType()->isPointerTy()) {
+      auto PointerByteSize = getPointerSize(Model.Architecture());
+      llvm::Type *IntType = llvm::IntegerType::getIntNTy(PointerVal
+                                                           ->getContext(),
+                                                         PointerByteSize * 8);
+      BaseAddrSCEV = SE->getPtrToIntExpr(BaseAddrSCEV, IntType);
+    }
+
+    revng_assert(isa<IntegerType>(BaseAddrSCEV->getType())
+                 and isa<IntegerType>(PointerValSCEV->getType()));
+
+    auto BaseAddrBitWidth = BaseAddrSCEV->getType()->getIntegerBitWidth();
+    auto PointerValBitWidth = PointerValSCEV->getType()->getIntegerBitWidth();
+    if (BaseAddrBitWidth < PointerValBitWidth) {
+      BaseAddrSCEV = SE->getZeroExtendExpr(BaseAddrSCEV,
+                                           PointerValSCEV->getType());
+    } else if (BaseAddrBitWidth > PointerValBitWidth) {
+      PointerValSCEV = SE->getZeroExtendExpr(PointerValSCEV,
+                                             BaseAddrSCEV->getType());
     }
 
     const SCEV *NegBaseAddrSCEV = SE->getNegativeSCEV(BaseAddrSCEV);
