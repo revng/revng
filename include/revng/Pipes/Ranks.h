@@ -40,6 +40,9 @@ inline auto UnionField = defineRank<"union-field", detail::UFK>(Type);
 inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(Type);
 inline auto CABIArgument = defineRank<"cabi-argument", detail::CAK>(Type);
 inline auto RawArgument = defineRank<"raw-argument", detail::RAK>(Type);
+inline auto ReturnValue = defineRank<"return-value", model::Type::Key>(Binary);
+inline auto ReturnRegister = defineRank<"return-register",
+                                        model::TypedRegister::Key>(Type);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
