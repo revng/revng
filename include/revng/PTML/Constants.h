@@ -19,10 +19,18 @@ inline constexpr auto Scope = "data-scope";
 inline constexpr auto Token = "data-token";
 inline constexpr auto LocationDefinition = "data-location-definition";
 inline constexpr auto LocationReferences = "data-location-references";
-inline constexpr auto ModelEditPath = "data-model-edit-path";
-inline constexpr auto ScopeLocation = "data-scope-location";
+inline constexpr auto ActionContextLocation = "data-action-context-location";
+inline constexpr auto AllowedActions = "data-allowed-actions";
 
 } // namespace attributes
+
+namespace actions {
+
+inline constexpr auto Rename = "rename";
+inline constexpr auto Comment = "comment";
+inline constexpr auto CodeSwitch = "codeSwitch";
+
+} // namespace actions
 
 namespace scopes {} // namespace scopes
 
