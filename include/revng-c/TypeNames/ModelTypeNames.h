@@ -31,7 +31,8 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 extern tokenDefinition::types::TypeString
 getNamedCInstance(const model::QualifiedType &QT,
                   llvm::StringRef InstanceName,
-                  const ptml::PTMLCBuilder &B);
+                  const ptml::PTMLCBuilder &B,
+                  llvm::ArrayRef<std::string> AllowedActions = {});
 
 extern tokenDefinition::types::TypeString
 getNamedCInstance(llvm::StringRef TypeName,

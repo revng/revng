@@ -462,26 +462,35 @@ public:
     return pipeline::serializedLocation(revng::ranks::Type, T.key());
   }
 
-  std::string getLocation(bool IsDefinition, const model::Type &T) const {
+  std::string getLocation(bool IsDefinition,
+                          const model::Type &T,
+                          llvm::ArrayRef<std::string> AllowedActions) const {
     auto Result = getNameTag(T);
     if (isGenerateTagLessPTML())
       return Result.serialize();
 
-    Result.addAttribute(getLocationAttribute(IsDefinition),
-                        serializeLocation(T));
+    std::string Location = serializeLocation(T);
+    Result.addAttribute(getLocationAttribute(IsDefinition), Location);
     // non-primitive types are editable
     if (not llvm::isa<model::PrimitiveType>(&T))
-      Result.addAttribute(ptml::attributes::ModelEditPath,
-                          model::editPath::customName(T));
+      Result.addAttribute(attributes::ActionContextLocation, Location);
+
+    if (not AllowedActions.empty())
+      Result.addListAttribute(attributes::AllowedActions, AllowedActions);
+
     return Result.serialize();
   }
 
-  std::string getLocationDefinition(const model::Type &T) const {
-    return getLocation(true, T);
+  std::string
+  getLocationDefinition(const model::Type &T,
+                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
+    return getLocation(true, T, AllowedActions);
   }
 
-  std::string getLocationReference(const model::Type &T) const {
-    return getLocation(false, T);
+  std::string
+  getLocationReference(const model::Type &T,
+                       llvm::ArrayRef<std::string> AllowedActions = {}) const {
+    return getLocation(false, T, AllowedActions);
   }
 
   std::string serializeLocation(const model::Segment &T) const {
@@ -495,10 +504,10 @@ public:
   }
 
   std::string getLocation(bool IsDefinition, const model::Segment &S) const {
+    std::string Location = serializeLocation(S);
     return getNameTag(S)
-      .addAttribute(getLocationAttribute(IsDefinition), serializeLocation(S))
-      .addAttribute(ptml::attributes::ModelEditPath,
-                    model::editPath::customName(S))
+      .addAttribute(getLocationAttribute(IsDefinition), Location)
+      .addAttribute(ptml::attributes::ActionContextLocation, Location)
       .serialize();
   }
 
@@ -549,11 +558,10 @@ public:
   std::string getLocation(bool IsDefinition,
                           const model::EnumType &Enum,
                           const model::EnumEntry &Entry) const {
+    std::string Location = serializeLocation(Enum, Entry);
     return getNameTag(Enum, Entry)
-      .addAttribute(getLocationAttribute(IsDefinition),
-                    serializeLocation(Enum, Entry))
-      .addAttribute(ptml::attributes::ModelEditPath,
-                    model::editPath::customName(Enum, Entry))
+      .addAttribute(getLocationAttribute(IsDefinition), Location)
+      .addAttribute(ptml::attributes::ActionContextLocation, Location)
       .serialize();
   }
 
@@ -565,10 +573,10 @@ public:
   template<typename Aggregate, typename Field>
   std::string
   getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
+    std::string Location = serializeLocation(A, F);
     return getNameTag(A, F)
-      .addAttribute(getLocationAttribute(IsDefinition), serializeLocation(A, F))
-      .addAttribute(attributes::ModelEditPath,
-                    model::editPath::customName(A, F))
+      .addAttribute(getLocationAttribute(IsDefinition), Location)
+      .addAttribute(attributes::ActionContextLocation, Location)
       .serialize();
   }
 

@@ -986,8 +986,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
                                                 DynamicFunc.key());
       CalleeToken = B.getTag(ptml::tags::Span, DynamicFunc.name().str())
                       .addAttribute(attributes::Token, tokens::Function)
-                      .addAttribute(attributes::ModelEditPath,
-                                    model::editPath::customName(DynamicFunc))
+                      .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
                       .serialize();
     } else {
@@ -997,13 +996,12 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       const model::Function *ModelFunc = llvmToModelFunction(Model,
                                                              *CalledFunc);
       revng_assert(ModelFunc);
+      std::string Location = serializedLocation(ranks::Function,
+                                                ModelFunc->key());
       CalleeToken = B.getTag(ptml::tags::Span, ModelFunc->name().str())
                       .addAttribute(attributes::Token, tokens::Function)
-                      .addAttribute(attributes::ModelEditPath,
-                                    model::editPath::customName(*ModelFunc))
-                      .addAttribute(attributes::LocationReferences,
-                                    serializedLocation(ranks::Function,
-                                                       ModelFunc->key()))
+                      .addAttribute(attributes::ActionContextLocation, Location)
+                      .addAttribute(attributes::LocationReferences, Location)
                       .serialize();
     }
   }
@@ -1041,13 +1039,13 @@ static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
 static std::string addDebugInfo(const llvm::Instruction *I,
                                 const std::string &Str,
                                 const ptml::PTMLCBuilder &B) {
-  if (shouldGenerateDebugInfoAsPTML(*I))
+  if (shouldGenerateDebugInfoAsPTML(*I)) {
+    std::string Location = I->getDebugLoc()->getScope()->getName().str();
     return B.getTag(ptml::tags::Span, Str)
-      .addAttribute(ptml::attributes::LocationReferences,
-                    I->getDebugLoc()->getScope()->getName())
-      .addAttribute(ptml::attributes::ScopeLocation,
-                    I->getDebugLoc()->getScope()->getName())
+      .addAttribute(ptml::attributes::LocationReferences, Location)
+      .addAttribute(ptml::attributes::ActionContextLocation, Location)
       .serialize();
+  }
   return Str;
 }
 

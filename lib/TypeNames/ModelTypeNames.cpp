@@ -130,16 +130,18 @@ TypeString getReturnField(const model::Type &Function,
 
 TypeString getNamedCInstance(const model::QualifiedType &QT,
                              StringRef InstanceName,
-                             const ptml::PTMLCBuilder &B) {
+                             const ptml::PTMLCBuilder &B,
+                             llvm::ArrayRef<std::string> AllowedActions) {
   const model::Type &Unqualified = *QT.UnqualifiedType().getConst();
-  std::string TypeName = B.getLocationReference(Unqualified);
+  std::string TypeName = B.getLocationReference(Unqualified, AllowedActions);
 
   if (auto *Enum = dyn_cast<model::EnumType>(&Unqualified)) {
     const model::QualifiedType &Underlying = Enum->UnderlyingType();
     revng_assert(Underlying.Qualifiers().empty());
     std::string UnderlyingName = B.getLocationReference(*Underlying
                                                            .UnqualifiedType()
-                                                           .getConst());
+                                                           .getConst(),
+                                                        AllowedActions);
 
     std::string EnumTypeWithAttribute = B.getAnnotateEnum(UnderlyingName);
     EnumTypeWithAttribute += " " + std::move(TypeName);
@@ -328,6 +330,7 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
                                         llvm::StringRef InstanceName,
                                         const ptml::PTMLCBuilder &B) {
   TypeString Result;
+  std::vector<std::string> AllowedActions = { ptml::actions::Rename };
 
   const auto Layout = abi::FunctionType::Layout::make(Function);
   if (Layout.returnsAggregateType()) {
@@ -337,7 +340,8 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
     revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
     Result = getNamedCInstance(stripPointer(ShadowArgument.Type),
                                InstanceName,
-                               B);
+                               B,
+                               AllowedActions);
   } else {
     if (Layout.ReturnValues.size() == 0) {
       Result = B.getTag(ptml::tags::Span, "void")
@@ -354,7 +358,7 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
         if (not InstanceName.empty())
           Result.append((Twine(" ") + Twine(InstanceName)).str());
       } else {
-        Result = getNamedCInstance(RetTy, InstanceName, B);
+        Result = getNamedCInstance(RetTy, InstanceName, B, AllowedActions);
       }
     } else {
       // RawFunctionTypes can return multiple values, which need to be wrapped
@@ -371,7 +375,11 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
   }
 
   revng_assert(not llvm::StringRef(Result).trim().empty());
-  return Result;
+  return TypeString(B.getTag(ptml::tags::Span, Result)
+                      .addAttribute(attributes::ActionContextLocation,
+                                    serializedLocation(ranks::ReturnValue,
+                                                       Function.key()))
+                      .serialize());
 }
 
 static std::string
@@ -431,26 +439,32 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
     StringRef Separator = Open;
     for (const model::NamedTypedRegister &Arg : RF.Arguments()) {
       std::string ArgName = Arg.name().str().str();
-      std::string ArgString = Function ?
-                                getArgumentLocationDefinition(ArgName,
-                                                              *Function,
-                                                              B) :
-                                "";
-      Header << Separator << getNamedCInstance(Arg.Type(), ArgString, B);
-      Header << " "
-             << B.getAnnotateReg(model::Register::getName(Arg.Location()));
+      std::string ArgString;
+      if (Function != nullptr)
+        ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
 
+      std::string
+        MarkedType = getNamedCInstance(Arg.Type(), ArgString, B).str().str();
+      std::string
+        MarkedReg = B.getAnnotateReg(model::Register::getName(Arg.Location()));
+      Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + MarkedReg);
+      ArgTag.addAttribute(attributes::ActionContextLocation,
+                          serializedLocation(ranks::RawArgument,
+                                             RF.key(),
+                                             Arg.key()));
+
+      Header << Separator << ArgTag.serialize();
       Separator = Comma;
     }
 
     revng_assert(RF.StackArgumentsType().Qualifiers().empty());
     if (not RF.StackArgumentsType().UnqualifiedType().empty()) {
       // Add last argument representing a pointer to the stack arguments
-      auto StackArgName = Function ? getArgumentLocationDefinition("_stack_"
-                                                                   "arguments",
-                                                                   *Function,
-                                                                   B) :
-                                     "";
+      std::string StackArgName;
+      if (Function != nullptr)
+        StackArgName = getArgumentLocationDefinition("_stack_arguments",
+                                                     *Function,
+                                                     B);
       Header << Separator
              << getNamedCInstance(RF.StackArgumentsType(), StackArgName, B);
       Header << " " << B.getAnnotateStack();
@@ -482,11 +496,10 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
     for (const auto &Arg : CF.Arguments()) {
       std::string ArgName = Arg.name().str().str();
-      std::string ArgString = Function ?
-                                getArgumentLocationDefinition(ArgName,
-                                                              *Function,
-                                                              B) :
-                                "";
+      std::string ArgString;
+      if (Function != nullptr)
+        ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
+
       TypeString ArgDeclaration;
       if (Arg.Type().isArray()) {
         ArgDeclaration = getArrayWrapper(Arg.Type(), B);
@@ -497,7 +510,13 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
       } else {
         ArgDeclaration = getNamedCInstance(Arg.Type(), ArgString, B);
       }
-      Header << Separator << ArgDeclaration;
+
+      Tag ArgTag = B.getTag(ptml::tags::Span, ArgDeclaration);
+      ArgTag.addAttribute(attributes::ActionContextLocation,
+                          serializedLocation(ranks::CABIArgument,
+                                             CF.key(),
+                                             Arg.key()));
+      Header << Separator << ArgTag.serialize();
       Separator = Comma;
     }
     Header << ")";
@@ -510,12 +529,10 @@ void printFunctionPrototype(const model::Type &FT,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
+  std::string Location = serializedLocation(ranks::Function, Function.key());
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
-                      .addAttribute(attributes::ModelEditPath,
-                                    model::editPath::customName(Function))
-                      .addAttribute(attributes::LocationDefinition,
-                                    serializedLocation(ranks::Function,
-                                                       Function.key()));
+                      .addAttribute(attributes::ActionContextLocation, Location)
+                      .addAttribute(attributes::LocationDefinition, Location);
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *RF,
@@ -543,12 +560,11 @@ void printFunctionPrototype(const model::Type &FT,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
+  std::string Location = serializedLocation(ranks::DynamicFunction,
+                                            Function.key());
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
-                      .addAttribute(attributes::ModelEditPath,
-                                    model::editPath::customName(Function))
-                      .addAttribute(attributes::LocationDefinition,
-                                    serializedLocation(ranks::DynamicFunction,
-                                                       Function.key()));
+                      .addAttribute(attributes::ActionContextLocation, Location)
+                      .addAttribute(attributes::LocationDefinition, Location);
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *RF,
