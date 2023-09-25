@@ -16,6 +16,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -205,6 +206,8 @@ static auto getIncomingUsesOfValuesFromBlocks(const std::set<PHINode *> &PHIs) {
   for (auto *PHI : PHIs) {
     for (Use &IncomingUse : PHI->incoming_values()) {
       Value *Incoming = IncomingUse;
+      if (isa<llvm::UndefValue>(Incoming))
+        continue;
       // If the incoming is internal to the equivalence class (PHIs) we ignore
       // it.
       if (auto *PHIIncoming = dyn_cast<PHINode>(Incoming);
@@ -221,8 +224,6 @@ static auto getIncomingUsesOfValuesFromBlocks(const std::set<PHINode *> &PHIs) {
   // Then we sort everything so that entries with the same BasicBlock are
   // contiguous, and the first Value in a given block is the one with the
   // highest number of uses.
-
-  revng_assert(not IncomingUsesOfValueFromBlock.empty());
   auto Result = IncomingUsesOfValueFromBlock.takeVector();
 
   const auto Cmp =
