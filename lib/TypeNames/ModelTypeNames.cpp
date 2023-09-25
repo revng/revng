@@ -32,14 +32,12 @@
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using llvm::dyn_cast;
-using llvm::isa;
 using llvm::StringRef;
 using llvm::Twine;
 using tokenDefinition::types::TypeString;
 
 using pipeline::serializedLocation;
 using ptml::Tag;
-namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
 namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;

@@ -83,7 +83,6 @@ using llvm::StringRef;
 using model::Binary;
 using model::CABIFunctionType;
 using model::QualifiedType;
-using model::Qualifier;
 using model::RawFunctionType;
 using model::TypedefType;
 
@@ -92,7 +91,6 @@ using ptml::Tag;
 namespace ranks = revng::ranks;
 namespace attributes = ptml::attributes;
 namespace tokens = ptml::c::tokens;
-namespace tags = ptml::tags;
 
 using tokenDefinition::types::StringToken;
 using tokenDefinition::types::TypeString;
