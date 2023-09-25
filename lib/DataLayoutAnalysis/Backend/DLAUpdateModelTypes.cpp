@@ -436,84 +436,67 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     return;
 
   } else if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
-    // If DLA recoverd a struct, whose size is too large, we have to shrink
-    // it. For now the shrinking does not look deeply inside the types, only
-    // at step one into the fields of the struct. We drop all the fields
-    // that go over the OriginalStructSize.
-    if (RecoveredStructSize > OriginalStructSize) {
-      const auto IsTooLarge = [OriginalStructSize](const auto &Field) {
-        return (Field.Offset() + *Field.Type().size()) > OriginalStructSize;
-      };
-      auto It = llvm::find_if(NewS->Fields(), IsTooLarge);
-      auto End = NewS->Fields().end();
-      NewS->Fields().erase(It, End);
-      NewS->Size() = OriginalStructSize;
-    }
 
-    // Best case scenario, the recovered type struct size is less or equal than
-    // the size of the original struct. In this case, just make sure we are not
-    // introducing new overlapping fields with the original ones, if they exist.
-    std::set<model::StructField *> CompatibleFields;
     auto OriginalFieldsIt = OriginalStructType->Fields().begin();
     auto OriginalFieldsEnd = OriginalStructType->Fields().end();
+    ;
     auto NewFieldsIt = NewS->Fields().begin();
     auto NewFieldsEnd = NewS->Fields().end();
 
+    std::set<model::StructField *> CompatibleFields;
     while (NewFieldsIt != NewFieldsEnd) {
-      // If we've reached the end of the original fields, all the remaining new
-      // fields are compatible, because we've already filtered out all the
-      // fields that start or end past the end of the original.
-      if (OriginalFieldsIt == OriginalFieldsEnd) {
-        for (model::StructField &Field :
-             llvm::make_range(NewFieldsIt, NewFieldsEnd))
-          CompatibleFields.insert(&Field);
-        // Then we're done, because we've marked all the remaining new fields as
-        // compatible.
+
+      // If a fields starts at the end, or after it, it's not compatible, nor is
+      // any of the following fields.
+      uint64_t NewStart = NewFieldsIt->Offset();
+      if (NewStart >= OriginalStructSize)
         break;
+
+      // If a fields ends after the end it's not compatible, nor is any of the
+      // following fields.
+      uint64_t NewEnd = NewFieldsIt->Offset() + *NewFieldsIt->Type().size();
+      revng_assert(NewStart < NewEnd);
+      if (NewEnd > OriginalStructSize)
+        break;
+
+      // If we've reached the end of the original fields, the field is
+      // compatible, and we can compare the next new field.
+      if (OriginalFieldsIt == OriginalFieldsEnd) {
+        CompatibleFields.insert(&*NewFieldsIt);
+        ++NewFieldsIt;
+        continue;
       }
 
+      // If the new field ends before the start of the old field, it's
+      // definitely compatible, and we can check the next new field.
       uint64_t OriginalStart = OriginalFieldsIt->Offset();
-      uint64_t OriginalEnd = OriginalFieldsIt->Offset()
-                             + *OriginalFieldsIt->Type().size();
-
-      uint64_t NewStart = NewFieldsIt->Offset();
-      uint64_t NewEnd = NewFieldsIt->Offset() + *NewFieldsIt->Type().size();
-
       if (NewEnd <= OriginalStart) {
         CompatibleFields.insert(&*NewFieldsIt);
         ++NewFieldsIt;
         continue;
       }
 
+      // If we reach this point we don't know yet if its compatible or not.
+      // First we have to make sure that we're comparing it against a meaningful
+      // original field.
+
+      // If the original field we're looking at is too far back, meaning that it
+      // ends before this new field starts, the comparison is not meaningful,
+      // because the two don't overlap but the new field could overlap with a
+      // subsequent original field.
+      // So we have to skip to the next original field.
+      uint64_t OriginalEnd = OriginalFieldsIt->Offset()
+                             + *OriginalFieldsIt->Type().size();
+      revng_assert(OriginalStart < OriginalEnd);
       if (OriginalEnd <= NewStart) {
         ++OriginalFieldsIt;
         continue;
       }
 
       // If we reach this point, the new field is definitely overlapping, so we
-      // have to skip to the next.
+      // are sure that the new field is incompatible, and we can skip to the
+      // next new field to check its compatibility.
       ++NewFieldsIt;
-    }
-
-    // If all the fields are compatible, and the RecoveredType fits, try to
-    // inject it as a single field of the OldStructType.
-    bool AllNewAreCompatible = CompatibleFields.size() == NewS->Fields().size();
-    if (AllNewAreCompatible) {
-
-      // If the original struct was empty, the new one always fits.
-      if (OriginalStructType->Fields().empty()) {
-        OriginalStructType->Fields()[0].Type() = RecoveredType;
-        return;
-      }
-
-      auto FirstFieldIt = OriginalStructType->Fields().begin();
-      model::StructField &First = *FirstFieldIt;
-      // If the first field of the original struct started after the new
-      // recovered struct should end, we can always inject it.
-      if (First.Offset() >= RecoveredStructSize) {
-        OriginalStructType->Fields()[0].Type() = RecoveredType;
-        return;
-      }
     }
 
     for (model::StructField *NewField : CompatibleFields)
