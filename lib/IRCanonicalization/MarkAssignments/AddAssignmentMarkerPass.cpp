@@ -155,8 +155,8 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
           using namespace abi::FunctionType;
           abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
           revng_assert(Layout.returnsAggregateType());
+          VariableType = llvmIntToModelType(IType, *Model);
         }
-        VariableType = llvmIntToModelType(IType, *Model);
       } else {
         revng_assert(IType->isPointerTy());
         using model::Architecture::getPointerSize;
