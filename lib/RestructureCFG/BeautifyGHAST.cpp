@@ -11,6 +11,9 @@
 #include "llvm/Support/Path.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/IRHelpers.h"
+#include "revng/Model/LoadModelPass.h"
+#include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
@@ -809,8 +812,27 @@ computeCumulativeNodeWeight(ASTNode *Node,
   rc_return 0;
 }
 
+static const model::DynamicFunction &
+getDynamicFunction(const model::Binary &Model, StringRef &SymbolName) {
+  SymbolName.consume_front("dynamic_");
+  auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
+  revng_assert(It != Model.ImportedDynamicFunctions().end());
+  return *It;
+}
+
+using AttributesSet = TrackingMutableSet<model::FunctionAttribute::Values>;
+static bool containsAttributeNoReturn(const AttributesSet &Attributes) {
+  using namespace model::FunctionAttribute;
+  if (Attributes.contains(NoReturn)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static RecursiveCoroutine<bool>
-fallThroughScope(ASTNode *Node,
+fallThroughScope(const model::Binary &Model,
+                 ASTNode *Node,
                  std::map<const ASTNode *, bool> &FallThroughMap) {
   switch (Node->getKind()) {
   case ASTNode::NK_List: {
@@ -823,7 +845,7 @@ fallThroughScope(ASTNode *Node,
     // other portions of the AST benefiting from this analysis and
     // transformation could exist.
     for (ASTNode *N : Seq->nodes()) {
-      bool NFallThrough = rc_recur fallThroughScope(N, FallThroughMap);
+      bool NFallThrough = rc_recur fallThroughScope(Model, N, FallThroughMap);
       FallThroughMap[N] = NFallThrough;
     }
 
@@ -838,7 +860,9 @@ fallThroughScope(ASTNode *Node,
     // The loop node inherits the attribute from the body node of the SCS.
     if (Loop->hasBody()) {
       ASTNode *Body = Loop->getBody();
-      bool BFallThrough = rc_recur fallThroughScope(Body, FallThroughMap);
+      bool BFallThrough = rc_recur fallThroughScope(Model,
+                                                    Body,
+                                                    FallThroughMap);
       FallThroughMap[Body] = BFallThrough;
       rc_return BFallThrough;
     } else {
@@ -852,14 +876,14 @@ fallThroughScope(ASTNode *Node,
     bool ThenFallThrough = false;
     if (If->hasThen()) {
       ASTNode *Then = If->getThen();
-      ThenFallThrough = rc_recur fallThroughScope(Then, FallThroughMap);
+      ThenFallThrough = rc_recur fallThroughScope(Model, Then, FallThroughMap);
       FallThroughMap[Then] = ThenFallThrough;
     }
 
     bool ElseFallThrough = false;
     if (If->hasElse()) {
       ASTNode *Else = If->getElse();
-      ElseFallThrough = rc_recur fallThroughScope(Else, FallThroughMap);
+      ElseFallThrough = rc_recur fallThroughScope(Model, Else, FallThroughMap);
       FallThroughMap[Else] = ElseFallThrough;
     }
 
@@ -872,7 +896,9 @@ fallThroughScope(ASTNode *Node,
     bool AllNoFallthrough = true;
     for (auto &LabelCasePair : Switch->cases()) {
       ASTNode *Case = LabelCasePair.second;
-      bool CaseFallThrough = rc_recur fallThroughScope(Case, FallThroughMap);
+      bool CaseFallThrough = rc_recur fallThroughScope(Model,
+                                                       Case,
+                                                       FallThroughMap);
       FallThroughMap[Case] = CaseFallThrough;
       AllNoFallthrough &= not CaseFallThrough;
     }
@@ -884,8 +910,54 @@ fallThroughScope(ASTNode *Node,
     CodeNode *Code = llvm::cast<CodeNode>(Node);
     llvm::BasicBlock *BB = Code->getBB();
     llvm::Instruction &I = BB->back();
-    bool ReturnEnd = llvm::isa<ReturnInst>(&I);
-    rc_return not ReturnEnd;
+
+    if (auto *ReturnI = llvm::dyn_cast<ReturnInst>(&I)) {
+
+      // A return instruction make the current scope nofallthrough
+      rc_return false;
+    } else if (auto *UnreachableI = llvm::dyn_cast<UnreachableInst>(&I)) {
+
+      // In place of an `UnreachableInst`, we should check if we have a call to
+      // a `noreturn` function as previous instruction We may not have a
+      // previous instruction
+      // TODO: confirm the assumption that the call to a `NoReturn` is always
+      //       exactly before an `UnreachableInst`, and in case relax this
+      //       assumption
+      if (Instruction *PrevI = UnreachableI->getPrevNode()) {
+
+        if (const CallInst *Call = getCallToTagged(PrevI,
+                                                   FunctionTags::Isolated)) {
+
+          // The called function may be an isolated function. In this case we
+          // use the `llvmToModelFunction` helper in order to retrieve the
+          // corresponding `model::Function` to check for the `NoReturn`
+          // attribute.
+          const Function *CalleeFunction = Call->getCalledFunction();
+          const model::Function
+            *CalleeFunctionModel = llvmToModelFunction(Model, *CalleeFunction);
+          if (containsAttributeNoReturn(CalleeFunctionModel->Attributes())) {
+            rc_return false;
+          }
+        } else if (const CallInst
+                     *Call = getCallToTagged(PrevI,
+                                             FunctionTags::DynamicFunction)) {
+
+          // The called function may be a dynamic function. In this case, we use
+          // the name of the dyamic symbol in order to retrieve the
+          // `model::DynamicFunction` and check for the `NoReturn` attribute.
+          const Function *CalleeFunction = Call->getCalledFunction();
+          llvm::StringRef SymbolName = CalleeFunction->getName()
+                                         .drop_front(strlen("dynamic_"));
+          const model::DynamicFunction
+            &CalleeFunctionModel = getDynamicFunction(Model, SymbolName);
+          if (containsAttributeNoReturn(CalleeFunctionModel.Attributes())) {
+            rc_return false;
+          }
+        }
+      }
+    }
+
+    rc_return true;
   } break;
   case ASTNode::NK_Set: {
     rc_return true;
@@ -1156,7 +1228,9 @@ static RecursiveCoroutine<ASTNode *> collapseSequences(ASTTree &AST,
   rc_return Node;
 }
 
-static ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
+static ASTNode *promoteNoFallthroughIf(const model::Binary &Model,
+                                       ASTNode *RootNode,
+                                       ASTTree &AST) {
 
   // This map will contain the result of the fallthough analysis.
   // We considered using a `std::set` in place of the `std::map`, but the `map`
@@ -1173,7 +1247,7 @@ static ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
   std::map<const ASTNode *, unsigned> NodeWeight;
 
   // Run the analysis which marks the fallthrough property of the nodes.
-  bool RootFallThrough = fallThroughScope(RootNode, FallThroughMap);
+  bool RootFallThrough = fallThroughScope(Model, RootNode, FallThroughMap);
   FallThroughMap[RootNode] = RootFallThrough;
 
   // Run the analysis which computes the AST weight of the nodes on the tree.
@@ -1192,7 +1266,7 @@ static ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
   return RootNode;
 }
 
-void beautifyAST(Function &F, ASTTree &CombedAST) {
+void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // If the --short-circuit-metrics-output-dir=dir argument was passed from
   // command line, we need to print the statistics for the short circuit metrics
@@ -1309,7 +1383,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
 
   // Remove unnecessary scopes under the fallthrough analysis.
   revng_log(BeautifyLogger, "Analyzing fallthrough scopes\n");
-  RootNode = promoteNoFallthroughIf(RootNode, CombedAST);
+  RootNode = promoteNoFallthroughIf(Model, RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",

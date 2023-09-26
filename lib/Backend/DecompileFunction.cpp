@@ -2304,7 +2304,7 @@ void decompile(FunctionMetadataCache &Cache,
       // truly so (if disabled, things crash). We should strive to make it
       // optional for real.
       T2.advance("beautifyAST");
-      beautifyAST(F, GHAST);
+      beautifyAST(Model, F, GHAST);
     }
 
     T2.advance("decompileFunction");
