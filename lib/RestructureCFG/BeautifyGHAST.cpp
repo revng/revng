@@ -144,7 +144,7 @@ static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
 
   case ExprNode::NodeKind::NK_Not: {
     auto *Not = llvm::cast<NotNode>(Expr);
-    rc_return not rc_recur hasSideEffects(Not->getNegatedNode());
+    rc_return rc_recur hasSideEffects(Not->getNegatedNode());
   } break;
 
   case ExprNode::NodeKind::NK_And: {
