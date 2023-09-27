@@ -129,14 +129,8 @@ static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
         // explicitly ask if they have side effects.
         rc_return true;
       } else {
-        // For Instruction with non-void type, the side effects are marked by
-        // the MarkAssignment pass, so we take that in consideration.
-        if (auto *Call = getCallToTagged(&I, FunctionTags::Assign)) {
-          // If it's a call to an @Assign, look at the second argument.
-          auto *Arg0 = Call->getArgOperand(0);
-          if (hasSideEffects(llvm::cast<Instruction>(*Arg0)))
-            rc_return true;
-        }
+        revng_assert(not isCallToTagged(&I, FunctionTags::Assign),
+                     "call to assign should have matched void+hasSideEffects");
       }
     }
     rc_return false;
