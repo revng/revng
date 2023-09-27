@@ -338,6 +338,11 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
         }
       }
     }
+
+    if (If->hasThen())
+      simplifyShortCircuit(If->getThen(), AST);
+    if (If->hasElse())
+      simplifyShortCircuit(If->getElse(), AST);
   }
 }
 
