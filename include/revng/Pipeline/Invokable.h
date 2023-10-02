@@ -110,6 +110,16 @@ OptionType<T, I> getOption(const llvm::StringMap<std::string> &Map) {
     return deserializeImpl<T, I>(Iter->second);
   } else if (auto &Option = CLOptionBase::getOption<OptionT>(Name);
              Option.isSet()) {
+    if constexpr (std::is_same_v<OptionT, std::string>) {
+      auto &PathOpt = CLOptionBase::getOption<std::string>(Name + "-path");
+      if (not PathOpt.get().empty()) {
+        using llvm::MemoryBuffer;
+        auto MaybeBuffer = MemoryBuffer::getFile(PathOpt.get());
+        revng_assert(MaybeBuffer);
+        return MaybeBuffer->get()->getBuffer().str();
+      }
+    }
+
     return Option.get();
   } else {
     return getOptionDefault<T, I>();
@@ -197,12 +207,26 @@ void createAndAppend(std::vector<std::unique_ptr<CLOptionBase>> &Out,
   Out.emplace_back(std::make_unique<Wrapper>(std::forward<ArgsT>(Args)...));
 }
 
+template<typename T, size_t S, typename... ArgsT>
+void createAndAppendPathSwitch(std::vector<std::unique_ptr<CLOptionBase>> &Out,
+                               ArgsT &&...Args) {
+  if constexpr (std::is_same_v<OptionType<T, S>, std::string>) {
+    using Wrapper = CLOptionWrapper<std::string>;
+    Out.emplace_back(std::make_unique<Wrapper>(std::forward<ArgsT>(Args)...));
+  }
+}
+
 template<typename T, size_t... S>
 void createCLOption(std::vector<std::unique_ptr<CLOptionBase>> &Out,
                     const std::integer_sequence<size_t, S...> &,
                     llvm::cl::OptionCategory *Cat = nullptr) {
   using cat = llvm::cl::cat;
   (createAndAppend<T, S>(Out, T::Name, getOptionName<T, S>(), cat(*Cat)), ...);
+  (createAndAppendPathSwitch<T, S>(Out,
+                                   T::Name,
+                                   getOptionName<T, S>().str() + "-path",
+                                   cat(*Cat)),
+   ...);
 }
 
 template<typename T, typename DeducedContextType, typename... AllArgs>
