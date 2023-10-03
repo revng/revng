@@ -43,13 +43,17 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
                                                                 { Start },
                                                                 { Start });
 
-  for (auto &[BB, Result] : Results) {
-    for (auto &[GV, RegState] : Result.OutValue) {
+  const BasicBlock *Entrypoint = &CallSiteBlock->getParent()->getEntryBlock();
+
+  auto It = Results.find(Entrypoint);
+  if (It != Results.end()) {
+    for (auto &[GV, RegState] : It->second.OutValue) {
       if (RegState == CoreLattice::NoOrDead) {
         RegNoOrDead[GV] = State::NoOrDead;
       }
     }
   }
+
   return RegNoOrDead;
 }
 } // namespace ABIAnalyses::DeadReturnValuesOfFunctionCall

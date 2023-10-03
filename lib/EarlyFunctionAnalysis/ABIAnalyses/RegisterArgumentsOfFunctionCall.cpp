@@ -40,18 +40,18 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
                                                                 { Start },
                                                                 { Start });
 
-  DenseSet<const GlobalVariable *> RegUnknown{};
-  std::map<const GlobalVariable *, State> RegYes{};
+  std::map<const GlobalVariable *, State> RegYes;
 
-  for (auto &[BB, Result] : Results)
-    for (auto &[GV, RegState] : Result.OutValue)
-      if (RegState == CoreLattice::Unknown)
-        RegUnknown.insert(GV);
+  const BasicBlock *Entrypoint = &CallSiteBlock->getParent()->getEntryBlock();
 
-  for (auto &[BB, Result] : Results)
-    for (auto &[GV, RegState] : Result.OutValue)
-      if (RegState == CoreLattice::Yes && !RegUnknown.contains(GV))
-        RegYes[GV] = State::Yes;
+  auto It = Results.find(Entrypoint);
+  if (It != Results.end()) {
+    for (auto &[GV, RegState] : It->second.OutValue) {
+      if (RegState == CoreLattice::Yes) {
+        RegYes[GV] = State::NoOrDead;
+      }
+    }
+  }
 
   return RegYes;
 }

@@ -49,6 +49,7 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
       }
     }
   }
+
   return RegYes;
 }
 } // namespace ABIAnalyses::UsedReturnValuesOfFunctionCall

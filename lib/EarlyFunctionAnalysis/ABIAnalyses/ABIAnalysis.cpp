@@ -241,6 +241,7 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
   PartialAnalysisResults Results;
 
   // Initial population of partial results
+  // TODO: merge the following analyses in a single one
   Results.UAOF = UAOF::analyze(&F->getEntryBlock(), GCBI);
   Results.DRAOF = DRAOF::analyze(&F->getEntryBlock(), GCBI);
   for (auto &I : instructions(F)) {
@@ -257,6 +258,7 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
       if (isCallTo(Call, PreCallSiteHook)) {
         Results.RAOFC[{ PC, BB }] = RAOFC::analyze(BB, GCBI);
       } else if (isCallTo(Call, PostCallSiteHook)) {
+        // TODO: merge the following analyses in a single one
         Results.URVOFC[{ PC, BB }] = URVOFC::analyze(BB, GCBI);
         Results.DRVOFC[{ PC, BB }] = DRVOFC::analyze(BB, GCBI);
       } else if (isCallTo(Call, RetHook)) {
