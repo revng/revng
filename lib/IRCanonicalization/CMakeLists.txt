@@ -11,6 +11,7 @@ revng_add_analyses_library(
   FoldModelGEP.cpp
   HoistStructPhis.cpp
   LoopRewriteWithCanonicalIV.cpp
+  PrepareLLVMIRForMLIR.cpp
   MakeLocalVariables.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
@@ -26,8 +27,10 @@ revng_add_analyses_library(
 target_link_libraries(
   revngcIRCanonicalization
   revngcInitModelTypes
+  revngcTypeNames
   revngcSupport
   revng::revngABI
   revng::revngModel
+  revng::revngPTML
   revng::revngSupport
   ${LLVM_LIBRARIES})

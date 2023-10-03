@@ -47,6 +47,9 @@ inline FunctionKind DecompiledToYAML("DecompiledToYAML",
 inline pipeline::SingleElementKind
   HelpersHeader("HelpersHeader", Binary, ranks::Binary, {}, {});
 
+inline pipeline::SingleElementKind
+  MLIRLLVMModule("MLIRLLVMModule", Binary, ranks::Binary, {}, {});
+
 inline pipeline::SingleElementKind DecompiledToC("DecompiledToC",
                                                  Binary,
                                                  ranks::Binary,

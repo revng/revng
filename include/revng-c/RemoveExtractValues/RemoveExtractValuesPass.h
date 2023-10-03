@@ -14,4 +14,5 @@ public:
   RemoveExtractValues() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &) override;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };

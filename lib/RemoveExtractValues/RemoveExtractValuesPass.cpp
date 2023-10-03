@@ -11,6 +11,9 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/Model/IRHelpers.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -18,6 +21,9 @@
 
 #include "revng-c/RemoveExtractValues/RemoveExtractValuesPass.h"
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/PTMLC.h"
+#include "revng-c/TypeNames/LLVMTypeNames.h"
+#include "revng-c/TypeNames/ModelTypeNames.h"
 
 using namespace llvm;
 
@@ -28,6 +34,12 @@ static Reg X("remove-extractvalues",
              "get optimized",
              true,
              true);
+
+void RemoveExtractValues::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<LoadModelWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
+}
 
 bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
   using namespace llvm;
@@ -41,6 +53,9 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
 
   if (ToReplace.empty())
     return false;
+
+  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
+  auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
 
   // Create a pool of functions with the same behavior: we will need a different
   // function for each different struct
@@ -71,6 +86,27 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
     // Emit a call to the new function
     CallInst *InjectedCall = Builder.CreateCall(ExtractValueFunction,
                                                 ArgValues);
+    using PTMLCBuilder = ptml::PTMLCBuilder;
+    PTMLCBuilder B(/*GeneratePlainC*/ true);
+    std::string StructName;
+    revng_assert(isa<CallInst>(I->getAggregateOperand()));
+    auto *CallReturningAggregate = cast<CallInst>(I->getAggregateOperand());
+    if (isCallToIsolatedFunction(CallReturningAggregate)) {
+      auto Prototype = Cache.getCallSitePrototype(*Model,
+                                                  CallReturningAggregate);
+      revng_assert(Prototype.get());
+      StructName = std::string(getReturnTypeName(*Prototype.get(), B));
+    } else {
+      // If it is not a isolated function, it must be a helper function.
+      auto CalledFunction = CallReturningAggregate->getCalledFunction();
+      revng_assert(CalledFunction);
+      StructName = getReturnTypeLocationDefinition(CalledFunction, B);
+    }
+
+    auto AggregateType = I->getAggregateOperand()->getType();
+    auto *TheStructType = llvm::cast<llvm::StructType>(AggregateType);
+    if (not TheStructType->isLiteral())
+      TheStructType->setName(StructName);
 
     I->replaceAllUsesWith(InjectedCall);
     InjectedCall->copyMetadata(*I);
