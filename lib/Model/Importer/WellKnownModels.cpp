@@ -95,9 +95,7 @@ public:
         auto NewPrototype = WellKnownFunction->Prototype();
         if (not NewPrototype.empty()) {
           TypeCopier &Copier = It->second.first->Copier;
-          auto MaybePath = Copier.copyTypeInto(NewPrototype);
-          revng_assert(MaybePath.has_value());
-          F.Prototype() = *MaybePath;
+          F.Prototype() = Copier.copyTypeInto(NewPrototype);
         }
       }
     }

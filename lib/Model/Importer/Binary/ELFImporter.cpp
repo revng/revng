@@ -456,14 +456,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
                                   << (*TypeLocation).ModuleName << ": "
                                   << MatchingType.toString());
       TypeCopier *TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName].get();
-      auto MaybeType = TheTypeCopier->copyTypeInto(MatchingType);
-      if (!MaybeType) {
-        revng_log(ELFImporterLog,
-                  "Failed to copy prototype " << Fn.OriginalName() << " from "
-                                              << (*TypeLocation).ModuleName);
-        continue;
-      }
-      Fn.Prototype() = *MaybeType;
+      Fn.Prototype() = TheTypeCopier->copyTypeInto(MatchingType);
 
       // Copy the Attributes (all but the `Inline`).
       auto &Attributes = (*TypeLocation).Attributes;
