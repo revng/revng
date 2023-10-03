@@ -99,7 +99,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
   for (auto &[Key, StateMap] : URVOF) {
     Output << Prefix << "  " << Key.second->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
-      Output << Prefix << "  " << GV->getName().str() << " = "
+      Output << Prefix << "    " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
     }
   }
@@ -267,8 +267,9 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
 
   if (ABIAnalysesLog.isEnabled()) {
     ABIAnalysesLog << "Dumping ABIAnalyses results for function "
-                   << F->getName() << ": \n";
-    Results.dump();
+                   << F->getName() << ":\n";
+    Results.dump(ABIAnalysesLog, "  ");
+    ABIAnalysesLog << DoLog;
   }
 
   // Finalize results. Combine UAOF and DRAOF.
