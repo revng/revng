@@ -117,6 +117,8 @@ public:
 public:
   std::string toString() const { return *pathAsString<RootT>(Path); }
 
+  void dump() const debug_function { dbg << toString() << "\n"; }
+
   const TupleTreePath &path() const { return Path; }
 
 private:
