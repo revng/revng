@@ -908,6 +908,8 @@ private:
           if (DynamicFunction.Prototype().isValid())
             continue;
           DynamicFunction.Prototype() = *MaybePath;
+          revng_assert(isa<model::CABIFunctionType>(DynamicFunction.Prototype()
+                                                      .get()));
 
           if (isNoReturn(*CU.get(), Die)) {
             using namespace model;

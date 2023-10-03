@@ -305,8 +305,7 @@ gatherArgumentComments(const model::Function &Function) {
       const std::string &Comment = FT->Arguments().at(Index).Comment();
       if (Comment.size() > 0) {
         Line->emplace_back(DoxygenToken::Types::Untagged, " ");
-        auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
-                                       FT->Arguments().at(Index).Comment());
+        auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged, Comment);
         Tag.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
                                          model::editPath::comment(*FT,
                                                                   Argument));

@@ -441,7 +441,6 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel,
                                                                  Model);
   }
-
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
     if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
       continue;

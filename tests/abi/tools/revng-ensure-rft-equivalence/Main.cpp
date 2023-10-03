@@ -138,8 +138,7 @@ int main(int Argc, char *Argv[]) {
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
 
-    auto *Left = llvm::dyn_cast<model::RawFunctionType>(LF.Prototype().get());
-    revng_assert(Left != nullptr);
+    auto *Left = llvm::cast<model::RawFunctionType>(LF.Prototype().get());
     FunctionIDLookup.emplace(Left->ID());
 
     if (Left->ID() == DefaultPrototype.ID())
@@ -160,8 +159,7 @@ int main(int Argc, char *Argv[]) {
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
 
-    auto *Right = llvm::dyn_cast<model::RawFunctionType>(RF.Prototype().get());
-    revng_assert(Right != nullptr);
+    auto *Right = llvm::cast<model::RawFunctionType>(RF.Prototype().get());
 
     if (Right->ID() == DefaultPrototype.ID())
       continue; // Skip the default prototype.
