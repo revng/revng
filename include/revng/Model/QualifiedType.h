@@ -62,6 +62,18 @@ public:
   /// Checks if is of a given TypeKind, unwrapping typedefs
   bool is(model::TypeKind::Values K) const;
 
+  /// If this QualifiedType is a Typedef with no qualifiers, unwrap the typedef
+  /// and repeat
+  model::QualifiedType skipTypedefs() const;
+
+  /// If this QualifiedType is a function type, return it skipping over typedefs
+  std::optional<model::TypePath> getFunctionType() const;
+
+  static std::optional<model::TypePath>
+  getFunctionType(const model::TypePath &TypePath) {
+    return model::QualifiedType{ TypePath, {} }.getFunctionType();
+  }
+
 public:
   model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
     QualifiedType Result = *this;

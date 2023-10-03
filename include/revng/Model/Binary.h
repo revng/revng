@@ -211,13 +211,4 @@ private:
   }
 };
 
-inline model::TypePath
-getPrototype(const model::Binary &Binary,
-             const model::DynamicFunction &DynamicFunction) {
-  if (not DynamicFunction.Prototype().empty())
-    return DynamicFunction.Prototype();
-  else
-    return Binary.DefaultPrototype();
-}
-
 #include "revng/Model/Generated/Late/Binary.h"

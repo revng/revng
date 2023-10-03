@@ -257,12 +257,13 @@ using pipeline::serializedLocation;
 namespace ranks = revng::ranks;
 
 static llvm::SmallVector<DoxygenLine, 16>
-gatherArgumentComments(const model::Function &Function) {
+gatherArgumentComments(const model::Binary &Binary,
+                       const model::Function &Function) {
   llvm::SmallVector<DoxygenLine, 16> Result;
 
   static constexpr std::string_view Keyword = "\\param ";
 
-  const model::Type *Prototype = Function.Prototype().get();
+  const model::Type *Prototype = Function.prototype(Binary).get();
   if (auto *FT = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
     abi::FunctionType::Layout Layout(*FT);
 
@@ -402,12 +403,13 @@ gatherArgumentComments(const model::Function &Function) {
 }
 
 static llvm::SmallVector<DoxygenLine, 16>
-gatherReturnValueComments(const model::Function &Function) {
+gatherReturnValueComments(const model::Binary &Binary,
+                          const model::Function &Function) {
   llvm::SmallVector<DoxygenLine, 16> Result;
 
   static constexpr std::string_view Keyword = "\\returns ";
 
-  const model::Type *Prototype = Function.Prototype().get();
+  const model::Type *Prototype = Function.prototype(Binary).get();
   if (auto *F = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
     if (!F->ReturnValueComment().empty()) {
       DoxygenLine &Line = Result.emplace_back();
@@ -481,7 +483,7 @@ std::string ptml::functionComment(const ::ptml::PTMLBuilder &PTML,
     Result.emplace_back(DoxygenLine{ .Tags = { std::move(Tag) } });
   }
 
-  auto ArgumentComments = gatherArgumentComments(Function);
+  auto ArgumentComments = gatherArgumentComments(Binary, Function);
   if (!ArgumentComments.empty()) {
     if (!Result.empty())
       Result.emplace_back();
@@ -490,7 +492,7 @@ std::string ptml::functionComment(const ::ptml::PTMLBuilder &PTML,
     std::ranges::move(ArgumentComments, std::back_inserter(Result));
   }
 
-  auto ReturnValueComments = gatherReturnValueComments(Function);
+  auto ReturnValueComments = gatherReturnValueComments(Binary, Function);
   if (!ReturnValueComments.empty()) {
     if (!Result.empty())
       Result.emplace_back();

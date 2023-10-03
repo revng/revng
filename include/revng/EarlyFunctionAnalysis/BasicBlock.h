@@ -99,7 +99,7 @@ inline model::TypePath getPrototype(const model::Binary &Binary,
   if (Result.empty())
     Result = Binary.DefaultPrototype();
 
-  return Result;
+  return model::QualifiedType::getFunctionType(Result).value();
 }
 
 #include "revng/EarlyFunctionAnalysis/Generated/Late/BasicBlock.h"
