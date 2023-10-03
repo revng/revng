@@ -10,8 +10,11 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/ADT/Concepts.h"
+
 namespace pipeline {
 template<typename T>
+  requires(anyOf<T, int, uint64_t, const char *>())
 class Option {
 public:
   constexpr Option(const char *Name, T Default) :
