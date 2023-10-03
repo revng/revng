@@ -332,11 +332,17 @@ gatherArgumentComments(const model::Binary &Binary,
       Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
       Line->emplace_back(DoxygenToken::Types::Identifier,
                          model::Register::getRegisterName(Register).str());
-      Line->emplace_back(DoxygenToken::Types::Untagged, ") ");
-      auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
-                                     Argument.Comment());
-      Tag.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
-                                       model::editPath::comment(*FT, Argument));
+      Line->emplace_back(DoxygenToken::Types::Untagged, ")");
+
+      // Emit the comment body
+      const std::string &Comment = Argument.Comment();
+      if (Comment.size() > 0) {
+        Line->emplace_back(DoxygenToken::Types::Untagged, " ");
+        auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged, Comment);
+        Tag.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
+                                         model::editPath::comment(*FT,
+                                                                  Argument));
+      }
     }
 
     if (not FT->StackArgumentsType().UnqualifiedType().empty()) {
