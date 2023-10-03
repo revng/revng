@@ -130,7 +130,7 @@ int main(int Argc, char *Argv[]) {
 
   // Gather all the `RawFunctionType`s prototypes present in the first model.
   for (model::Function &LF : LeftModel->Functions()) {
-    if (LF.Prototype().get() == nullptr)
+    if (LF.Prototype().empty())
       continue; // Skip functions without prototypes.
 
     revng_assert(LF.name() != "",
@@ -151,7 +151,7 @@ int main(int Argc, char *Argv[]) {
 
   // Gather all the `RawFunctionType`s prototypes present in the second model.
   for (model::Function &RF : RightModel->Functions()) {
-    if (RF.Prototype().get() == nullptr)
+    if (RF.Prototype().empty())
       continue; // Skip functions without prototypes.
 
     revng_assert(RF.name() != "",
