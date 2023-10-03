@@ -31,7 +31,7 @@ static bool isTrue(const llvm::Value *V) {
 
 static void handleFunction(DIBuilder &DIB,
                            llvm::Function &F,
-                           DISubprogram *RootSubprogram,
+                           DISubprogram *TheSubprogram,
                            efa::FunctionMetadata &FM,
                            GeneratedCodeBasicInfo &GCBI) {
   namespace ranks = revng::ranks;
@@ -68,10 +68,10 @@ static void handleFunction(DIBuilder &DIB,
                                                           FM.Entry(),
                                                           LastJumpTarget,
                                                           Address.start());
-        auto Subprogram = DIB.createFunction(RootSubprogram->getFile(), // Scope
+        auto Subprogram = DIB.createFunction(TheSubprogram->getFile(), // Scope
                                              NewDebugLocation, // Name
                                              StringRef(), // LinkageName
-                                             RootSubprogram->getFile(), // File
+                                             TheSubprogram->getFile(), // File
                                              1, // LineNo
                                              Type, // Ty (subroutine type)
                                              1, // ScopeLine
@@ -81,7 +81,7 @@ static void handleFunction(DIBuilder &DIB,
         auto InlineLocationForMetaAddress = DILocation::get(Context,
                                                             0,
                                                             0,
-                                                            RootSubprogram,
+                                                            TheSubprogram,
                                                             nullptr);
         // Represent debug info for all the isolated functions as if they were
         // inlined in the root.
@@ -115,23 +115,6 @@ bool AttachDebugInfo::runOnModule(llvm::Module &M) {
                                             "", // Flags
                                             0 // RV
   );
-  // Create debug info for the 'root' function.
-  auto SPFlags = DISubprogram::toSPFlags(false, // isLocalToUnit
-                                         true, // isDefinition
-                                         false // isOptimized
-  );
-  auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
-  DISubprogram
-    *RootSubprogram = DIB.createFunction(CU->getFile(), // Scope
-                                         "root", // Name
-                                         StringRef(), // LinkageName
-                                         CU->getFile(), // File
-                                         1, // LineNo
-                                         SPType, // Ty (subroutine type)
-                                         1, // ScopeLine
-                                         DINode::FlagPrototyped, // Flags
-                                         SPFlags);
-  DIB.finalizeSubprogram(RootSubprogram);
 
   for (auto &F : M) {
     // Skip non-isolated functions (e.g. helpers from QEMU).
@@ -151,7 +134,25 @@ bool AttachDebugInfo::runOnModule(llvm::Module &M) {
               "Metadata for Function " << F.getName() << ":"
                                        << FM.Entry().toString());
 
-    handleFunction(DIB, F, RootSubprogram, FM, GCBI);
+    // Create debug info for the function.
+    auto SPFlags = DISubprogram::toSPFlags(false, // isLocalToUnit
+                                           true, // isDefinition
+                                           false // isOptimized
+    );
+    auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
+    DISubprogram
+      *TheSubprogram = DIB.createFunction(CU->getFile(), // Scope
+                                          F.getName(), // Name
+                                          StringRef(), // LinkageName
+                                          CU->getFile(), // File
+                                          1, // LineNo
+                                          SPType, // Ty (subroutine type)
+                                          1, // ScopeLine
+                                          DINode::FlagPrototyped, // Flags
+                                          SPFlags);
+    DIB.finalizeSubprogram(TheSubprogram);
+
+    handleFunction(DIB, F, TheSubprogram, FM, GCBI);
   }
 
   return true;

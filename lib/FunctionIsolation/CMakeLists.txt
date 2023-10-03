@@ -11,6 +11,7 @@ revng_add_analyses_library_internal(
   IsolateFunctions.cpp
   PromoteCSVs.cpp
   RemoveExceptionalCalls.cpp
+  StripDebugInfoFromHelpers.cpp
   StructInitializers.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES TransformUtils)
