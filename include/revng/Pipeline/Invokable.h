@@ -87,24 +87,30 @@ auto &getContainer(ContainerSet &Containers, llvm::StringRef Name) {
 }
 
 template<typename T, size_t I>
+  requires PipelineOptionType<OptionType<T, I>>
 OptionType<T, I> deserializeImpl(llvm::StringRef Value) {
   using ReturnType = OptionType<T, I>;
 
-  if constexpr (std::is_same_v<std::string, ReturnType>)
+  if constexpr (std::is_same_v<std::string, ReturnType>) {
     return Value.str();
-  else
-    return llvm::cantFail(deserialize<ReturnType>(Value));
+  } else {
+    ReturnType Result;
+    revng_assert(not Value.consumeInteger(10, Result));
+    return Result;
+  }
 }
 
 template<typename T, size_t I>
 OptionType<T, I> getOption(const llvm::StringMap<std::string> &Map) {
-  auto Name = getOptionName<T, I>();
+  using OptionT = OptionType<T, I>;
+  using llvm::StringRef;
+  std::string Name = (StringRef(T::Name) + "-" + getOptionName<T, I>()).str();
+
   if (auto Iter = Map.find(Name); Iter != Map.end()) {
     return deserializeImpl<T, I>(Iter->second);
-  } else if (CLOptionBase::hasOption(Name)
-             and CLOptionBase::getOption(Name).isSet()) {
-    const CLOptionBase &Option = CLOptionBase::getOption(Name);
-    return deserializeImpl<T, I>(Option.get());
+  } else if (auto &Option = CLOptionBase::getOption<OptionT>(Name);
+             Option.isSet()) {
+    return Option.get();
   } else {
     return getOptionDefault<T, I>();
   }

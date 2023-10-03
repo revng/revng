@@ -1334,6 +1334,7 @@ public:
 };
 
 BOOST_AUTO_TEST_CASE(PipeOptions) {
+  RegisterAnalysis<ArgumentTestAnalysis> Dummy;
   pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container_name" });
   Context Ctx;
   ContainerSet Set;

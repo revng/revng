@@ -144,12 +144,12 @@ public:
   inline static const std::tuple Options = {
     // Allows overriding the default ABI with a specific value when invoking
     // the analysis.
-    pipeline::Option("abi", "Invalid"s),
+    pipeline::Option("abi", "Invalid"),
 
     // Allows specifying the mode of operation,
     // - safe: only convert the function if ABI belongs to the "tested" list.
     // - unsafe: always convert the function.
-    pipeline::Option("mode", "safe"s),
+    pipeline::Option("mode", "safe"),
 
     // Allows specifying the confidence we have in the ABI, which then leads to
     // different levels of strictness when doing the argument deductions
@@ -160,7 +160,7 @@ public:
     // - high: override/discard any information about the function that does not
     //         comply with an ABI (i.e. an argument in a register that is not
     //         dedicated for passing arguments, etc.).
-    pipeline::Option("confidence", "low"s)
+    pipeline::Option("confidence", "low")
   };
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 

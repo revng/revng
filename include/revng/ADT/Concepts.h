@@ -143,3 +143,9 @@ template<class R, typename ValueType>
 concept range_with_value_type = std::ranges::range<R>
                                 && std::is_convertible_v<typename R::value_type,
                                                          ValueType>;
+
+template<typename T, typename... Types>
+  requires(sizeof...(Types) > 0)
+inline constexpr bool anyOf() {
+  return (std::is_same_v<T, Types> || ...);
+}

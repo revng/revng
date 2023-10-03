@@ -6,31 +6,43 @@
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/Support/Assert.h"
 
 namespace pipeline {
 
+template<typename T>
+concept PipelineOptionType = anyOf<T, int, uint64_t, std::string>();
+
+template<PipelineOptionType T>
+class CLOptionWrapper;
+
 class CLOptionBase {
+private:
+  const char *ID;
+
 public:
-  explicit CLOptionBase(llvm::StringRef Name) {
-    getRegisteredOptions()[Name] = this;
+  explicit CLOptionBase(const char *ID, llvm::StringRef Name) : ID(ID) {
+    auto &Map = getRegisteredOptions();
+    revng_assert(Map.count(Name) == 0);
+    Map[Name] = this;
   }
+
   virtual ~CLOptionBase() = default;
-  virtual bool isSet() const = 0;
-  virtual std::string get() const = 0;
-  virtual llvm::StringRef name() const = 0;
 
-  static const CLOptionBase &getOption(llvm::StringRef Name) {
+  const char *getID() const { return ID; }
+
+  template<PipelineOptionType T>
+  static const CLOptionWrapper<T> &getOption(llvm::StringRef Name) {
+    auto &Map = getRegisteredOptions();
+
     std::string Msg = "option has not been registered " + Name.str();
+    revng_assert(Map.count(Name) != 0, Msg.c_str());
 
-    revng_assert(hasOption(Name), Msg.c_str());
-    return *getRegisteredOptions()[Name];
-  }
-
-  static bool hasOption(llvm::StringRef Name) {
-    return getRegisteredOptions().count(Name) != 0;
+    return *llvm::dyn_cast<const CLOptionWrapper<T>>(Map[Name]);
   }
 
 private:
@@ -40,8 +52,17 @@ private:
   }
 };
 
-template<typename T>
-class CLOptionWrapper : public CLOptionBase {
+template<PipelineOptionType T>
+class CLOptionWrapper final : public CLOptionBase {
+private:
+  std::string FullName;
+  llvm::cl::opt<T> Option;
+
+  static const char &getID() {
+    static char ID;
+    return ID;
+  }
+
 public:
   CLOptionWrapper(const CLOptionWrapper &) = delete;
   CLOptionWrapper(CLOptionWrapper &&) = delete;
@@ -52,22 +73,17 @@ public:
   CLOptionWrapper(llvm::StringRef InvokableType,
                   llvm::StringRef Name,
                   Args &&...Arguments) :
-    CLOptionBase(Name),
+    CLOptionBase(&getID(), (InvokableType + "-" + Name).str()),
     FullName((InvokableType + "-" + Name).str()),
     Option(llvm::StringRef(FullName), std::forward<Args>(Arguments)...) {}
 
-  bool isSet() const override { return Option.getNumOccurrences() != 0; }
-  std::string get() const override {
-    std::string ToReturn;
-    llvm::raw_string_ostream SO(ToReturn);
-    SO << Option.getValue();
-    SO.flush();
-    return ToReturn;
+  static bool classof(const CLOptionBase *Base) {
+    return Base->getID() == &getID();
   }
-  llvm::StringRef name() const override { return Option.ArgStr; }
 
-private:
-  std::string FullName;
-  llvm::cl::opt<T> Option;
+  bool isSet() const { return Option.getNumOccurrences() != 0; }
+  llvm::StringRef name() const { return Option.ArgStr; }
+  T get() const { return Option.getValue(); }
 };
+
 } // namespace pipeline
