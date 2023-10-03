@@ -483,7 +483,10 @@ void DetectABI::finalizeModel() {
         }
       }
     }
+  }
 
+  for (auto &Function : Functions) {
+    auto &Summary = Oracle.getLocalFunction(Function->Entry());
     efa::FunctionMetadata FM(Function->Entry(), Summary.CFG);
     FM.verify(*Binary, true);
   }
