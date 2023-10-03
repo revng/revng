@@ -158,15 +158,15 @@ public:
     // Propagate results between call-sites and functions
     interproceduralPropagation();
 
-    // Propagate prototypes
-    propagatePrototypes();
-
     // Refine results with ABI-specific information
     applyABIDeductions();
 
     // Commit the results onto the model. A non-const model is taken as
     // argument to be written.
     finalizeModel();
+
+    // Propagate prototypes
+    propagatePrototypes();
   }
 
 private:
