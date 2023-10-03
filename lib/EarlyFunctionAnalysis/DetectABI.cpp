@@ -23,6 +23,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Pass/PromoteOriginalName.h"
 #include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
@@ -583,8 +584,25 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
                                << ") with wrapped function's prototype: "
                                << Prototype.toString());
       Function.Prototype() = Prototype;
+
+      if (Function.CustomName().empty() and Function.OriginalName().empty()) {
+        if (not Call->DynamicFunction().empty()) {
+          Function.OriginalName() = Call->DynamicFunction();
+        } else if (Call->Destination().isValid()) {
+          const model::Function &Callee = Binary->Functions()
+                                            .at(Call->Destination()
+                                                  .notInlinedAddress());
+          if (not Callee.CustomName().empty())
+            Function.OriginalName() = Callee.CustomName().str();
+          else if (not Callee.OriginalName().empty())
+            Function.OriginalName() = Callee.OriginalName();
+        }
+      }
     }
   }
+
+  // TODO: should this be done at an higher abstraction level?
+  model::promoteOriginalName(Binary);
 }
 
 void DetectABI::propagatePrototypes() {

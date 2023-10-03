@@ -3,7 +3,7 @@
 #
 
 ---
-- OriginalName: ""
+- OriginalName: "strlen"
   FunctionMetadata:
     ControlFlowGraph:
       - Successors:
