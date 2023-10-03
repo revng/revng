@@ -106,8 +106,6 @@ using UpcastableType = UpcastablePointer<model::Type>;
 
 model::UpcastableType makeTypeWithID(uint64_t ID, model::TypeKind::Values Kind);
 
-using TypePath = TupleTreeReference<model::Type, model::Binary>;
-
 template<IsModelType T, typename... Args>
 inline UpcastableType makeType(Args &&...A) {
   return UpcastableType::make<T>(std::forward<Args>(A)...);

@@ -92,10 +92,6 @@ TUPLE-TREE-YAML */
 // TODO: Prevent changing the keys. Currently we need them to be public and
 //       non-const for serialization purposes.
 
-namespace model {
-using TypePath = TupleTreeReference<model::Type, model::Binary>;
-}
-
 class model::Binary : public model::generated::Binary {
 public:
   using generated::Binary::Binary;

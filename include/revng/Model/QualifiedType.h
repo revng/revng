@@ -29,6 +29,10 @@ fields:
     optional: true
 TUPLE-TREE-YAML */
 
+namespace model {
+using TypePath = TupleTreeReference<model::Type, model::Binary>;
+}
+
 #include "revng/Model/Generated/Early/QualifiedType.h"
 
 class model::QualifiedType : public model::generated::QualifiedType {
