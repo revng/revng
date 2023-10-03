@@ -25,9 +25,11 @@
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/EarlyFunctionAnalysis/AAWriterPass.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
+#include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
+#include "revng/Model/Generated/Early/FunctionAttribute.h"
 #include "revng/Support/RegisterClobberer.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
@@ -679,6 +681,25 @@ static std::optional<int64_t> electFSO(const auto &MaybeReturns) {
   return std::get<1>(*It);
 }
 
+static bool isNoReturn(const model::Binary &Binary,
+                       const FunctionSummaryOracle &Oracle,
+                       const efa::CallEdge &Edge) {
+  if (Edge.Attributes().contains(model::FunctionAttribute::NoReturn))
+    return true;
+
+  if (not Edge.DynamicFunction().empty())
+    return Binary.ImportedDynamicFunctions()
+      .at(Edge.DynamicFunction())
+      .Attributes()
+      .contains(model::FunctionAttribute::NoReturn);
+
+  if (Edge.Destination().isValid())
+    return Oracle.getLocalFunction(Edge.Destination().notInlinedAddress())
+      .Attributes.contains(model::FunctionAttribute::NoReturn);
+
+  return false;
+}
+
 FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
                                       SortedVector<efa::BasicBlock> &&CFG) {
   using namespace llvm;
@@ -926,10 +947,12 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   int BrokenReturnCount = 0;
   int NoReturnCount = 0;
   for (const auto &[CI, Edge] : IBIResult) {
+    using namespace model::FunctionAttribute;
+    auto *Call = dyn_cast<CallEdge>(Edge.get());
     if (Edge->Type() == Return) {
       FoundReturn = true;
-    } else if (Edge->Type() == FunctionCall
-               and cast<CallEdge>(Edge.get())->IsTailCall()) {
+    } else if (Call != nullptr and Call->IsTailCall()
+               and not isNoReturn(*Binary, Oracle, *Call)) {
       FoundReturn = true;
     } else if (Edge->Type() == BrokenReturn) {
       FoundBrokenReturn = true;
