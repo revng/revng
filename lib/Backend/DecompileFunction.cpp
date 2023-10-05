@@ -1918,7 +1918,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
   Out << B.getFunctionComment(ModelFunction, Model);
 
   // Print function's prototype
-  printFunctionPrototype(ParentPrototype, ModelFunction, Out, B, Model, true);
+  printFunctionPrototype(ParentPrototype, ModelFunction, Out, B, Model, false);
 
   // Set up the argument identifiers to be used in the function's body.
   for (const auto &Arg : LLVMFunction.args()) {

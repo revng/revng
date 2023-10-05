@@ -239,7 +239,7 @@ bool dumpModelToHeader(const model::Binary &Model,
           serialize(Header, *FT);
         }
 
-        printFunctionPrototype(*FT, MF, Header, B, Model, true);
+        printFunctionPrototype(*FT, MF, Header, B, Model, false);
         Header << ";\n";
       }
     }
@@ -270,7 +270,7 @@ bool dumpModelToHeader(const model::Binary &Model,
           Header << "Prototype\n";
           serialize(Header, *FT);
         }
-        printFunctionPrototype(*FT, MF, Header, B, Model, true);
+        printFunctionPrototype(*FT, MF, Header, B, Model, false);
         Header << ";\n";
       }
     }
