@@ -540,6 +540,7 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
 
   case ELF::DT_INIT:
   case ELF::DT_FINI:
+    revng_assert(PCAddress.isValid());
     Model->Functions()[PCAddress];
     break;
 
@@ -600,6 +601,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
       Address = relocate(fromGeneric(Symbol.st_value));
 
     if (IsCode) {
+      revng_assert(Address.isValid());
       auto It = Model->Functions().find(Address);
       if (It == Model->Functions().end()) {
         model::Function &Function = Model->Functions()[Address];
@@ -796,6 +798,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
       Address = relocate(fromPC(Symbol.st_value));
       // TODO: record model::Function::IsDynamic = true
       model::Function *Function = nullptr;
+      revng_assert(Address.isValid());
       auto It = Model->Functions().find(Address);
       if (It != Model->Functions().end()) {
         Function = &*It;
