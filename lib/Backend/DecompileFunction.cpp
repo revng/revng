@@ -1444,44 +1444,34 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
   for (const Instruction &I : *BB) {
     revng_log(Log, "Analyzing: " << dumpToString(I));
 
+    auto *Call = dyn_cast<llvm::CallInst>(&I);
+
     if (not isStatement(&I)) {
       revng_log(Log, "Ignoring: non-statement instruction");
-      continue;
-    }
 
-    if (I.getType()->isVoidTy()) {
+    } else if (I.getType()->isVoidTy()) {
       revng_assert(isa<llvm::ReturnInst>(I) or isCallToIsolatedFunction(&I)
                    or isCallToNonIsolated(&I) or isAssignment(&I));
       Out << getToken(&I) << ";\n";
-      continue;
-    }
 
-    // At this point we're left with only CallInst
-    auto *Call = cast<llvm::CallInst>(&I);
-
-    // Emit variable declaration statements
-    if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
+    } else if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
       // Emit missing local variable declarations
       std::string VarName = createLocalVarDeclName(Call);
       revng_assert(not VarName.empty());
       Out << getNamedCInstance(TypeMap.at(Call), VarName, B) << ";\n";
-      continue;
-    }
 
-    if (isStackFrameDecl(Call)) {
+    } else if (isStackFrameDecl(Call)) {
       // Stack frame declaration is a statement, but we've handled explicitly
       // to emit it as the first declaration in this function. So we just
       // assert and go to the next instruction.
       revng_assert(TokenMap.contains(Call));
-      continue;
-    }
 
-    // This is a call but it actually needs an assignment to the associated
-    // variable. The variable has not been declared in the IR with
-    // LocalVariable, because LocalVariable needs a model type, and aggregates
-    // types on the LLVM IR are not on the model.
-    bool IsTopScopeVariable = TopScopeVariables.contains(Call);
-    if (IsTopScopeVariable or isArtificialAggregateLocalVarDecl(Call)) {
+    } else if (bool IsTopScopeVariable = TopScopeVariables.contains(Call);
+               IsTopScopeVariable or isArtificialAggregateLocalVarDecl(Call)) {
+      // This is a call but it actually needs an assignment to the associated
+      // variable. The variable has not been declared in the IR with
+      // LocalVariable, because LocalVariable needs a model type, and aggregates
+      // types on the LLVM IR are not on the model.
       revng_assert(Call->getType()->isAggregateType());
 
       if (not IsTopScopeVariable) {
@@ -1492,6 +1482,7 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
         const auto *FunctionType = Prototype.getConst();
         Out << getNamedInstanceOfReturnType(*FunctionType, VarName, B) << ";\n";
       }
+
       std::string VarName = getVarName(Call);
       revng_assert(not VarName.empty());
 
@@ -1507,12 +1498,17 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
       Out << VarName << " "
           << B.getOperator(ptml::PTMLCBuilder::Operator::Assign) << " "
           << std::move(RHSExpression) << ";\n";
-      continue;
+    } else {
+      std::string Error = "Cannot emit statement: ";
+      Error += dumpToString(Call).c_str();
+      revng_abort(Error.c_str());
     }
 
-    std::string Error = "Cannot emit statement: ";
-    Error += dumpToString(Call).c_str();
-    revng_abort(Error.c_str());
+    if (Call != nullptr and isCallToIsolatedFunction(Call)) {
+      const auto &[CallEdge, _] = Cache.getCallEdge(Model, Call);
+      if (CallEdge->hasAttribute(Model, model::FunctionAttribute::NoReturn))
+        Out << "// The previous function call does not return\n";
+    }
   }
 }
 
