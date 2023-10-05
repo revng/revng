@@ -288,7 +288,7 @@ private:
   /// The model function corresponding to LLVMFunction
   const model::Function &ModelFunction;
   /// The model prototype of ModelFunction
-  const model::Type &ParentPrototype;
+  const model::Type &Prototype;
   /// The (combed) control flow AST
   const ASTTree &GHAST;
 
@@ -353,7 +353,7 @@ public:
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
-    ParentPrototype(*ModelFunction.prototype(Model).getConst()),
+    Prototype(*ModelFunction.prototype(Model).getConst()),
     GHAST(GHAST),
     TopScopeVariables(TopScopeVariables),
     TypeMap(initModelTypes(Cache,
@@ -854,7 +854,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     auto *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
     revng_assert(LLVMFunction.getReturnType() == StructTy);
-    auto StrucTypeName = getNamedInstanceOfReturnType(ParentPrototype, "", B);
+    auto StrucTypeName = getNamedInstanceOfReturnType(Prototype, "", B);
     std::string StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
@@ -1918,11 +1918,11 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
   Out << B.getFunctionComment(ModelFunction, Model);
 
   // Print function's prototype
-  printFunctionPrototype(ParentPrototype, ModelFunction, Out, B, Model, false);
+  printFunctionPrototype(Prototype, ModelFunction, Out, B, Model, false);
 
   // Set up the argument identifiers to be used in the function's body.
   for (const auto &Arg : LLVMFunction.args()) {
-    std::string ArgString = getModelArgIdentifier(&ParentPrototype, Arg);
+    std::string ArgString = getModelArgIdentifier(&Prototype, Arg);
     TokenMap[&Arg] = getArgumentLocationReference(ArgString, ModelFunction, B);
   }
 
