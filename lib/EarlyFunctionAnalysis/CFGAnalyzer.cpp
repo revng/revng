@@ -1061,11 +1061,7 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
   PreCallHook(PreCallHook),
   PostCallHook(PostCallHook),
   RetHook(RetHook),
-  SPCSV(SPCSV),
-  RegistersClobberedPool(M, false) {
-  RegistersClobberedPool.setMemoryEffects(MemoryEffects::readOnly());
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::WillReturn);
+  SPCSV(SPCSV) {
 }
 
 using CSVSet = std::set<llvm::GlobalVariable *>;

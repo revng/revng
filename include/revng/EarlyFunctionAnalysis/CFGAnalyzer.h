@@ -31,7 +31,6 @@ private:
   llvm::Function *PostCallHook = nullptr;
   llvm::Function *RetHook = nullptr;
   llvm::GlobalVariable *SPCSV = nullptr;
-  OpaqueFunctionsPool<llvm::StringRef> RegistersClobberedPool;
 
 public:
   CallSummarizer(llvm::Module *M,
