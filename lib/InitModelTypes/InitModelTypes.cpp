@@ -324,7 +324,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
                              bool PointersOnly) {
   ModelTypesMap TypeMap;
 
-  const model::Type *Prototype = ModelF->Prototype().getConst();
+  const model::Type *Prototype = ModelF->prototype(Model).getConst();
   revng_assert(Prototype);
 
   addArgumentsTypes(F, Prototype, Model, TypeMap, PointersOnly);

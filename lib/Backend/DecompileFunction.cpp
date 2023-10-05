@@ -353,7 +353,7 @@ public:
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
-    ParentPrototype(*ModelFunction.Prototype().getConst()),
+    ParentPrototype(*ModelFunction.prototype(Model).getConst()),
     GHAST(GHAST),
     TopScopeVariables(TopScopeVariables),
     TypeMap(initModelTypes(Cache,

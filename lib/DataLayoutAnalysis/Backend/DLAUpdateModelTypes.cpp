@@ -657,7 +657,10 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     if (not ModelFunc)
       continue;
 
-    Type *ModelPrototype = ModelFunc->Prototype().get();
+    TypePath WrappedPrototypePath = ModelFunc->prototype(*Model);
+    using model::QualifiedType;
+    auto PrototypePath = QualifiedType::getFunctionType(WrappedPrototypePath);
+    Type *ModelPrototype = PrototypePath->get();
     revng_log(Log,
               "Updating prototype of function "
                 << LLVMFunc.getNameOrAsOperand());

@@ -225,7 +225,7 @@ bool dumpModelToHeader(const model::Binary &Model,
         if (Options.FunctionsToOmit.contains(MF.Entry()))
           continue;
 
-        const model::Type *FT = MF.Prototype().get();
+        const model::Type *FT = MF.prototype(Model).get();
         if (Options.TypesToOmit.contains(FT))
           continue;
 

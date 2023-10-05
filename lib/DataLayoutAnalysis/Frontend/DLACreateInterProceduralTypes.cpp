@@ -56,7 +56,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
       revng_assert(It != Model.ImportedDynamicFunctions().end());
       const model::DynamicFunction &DF = *It;
-      const auto &TTR = getPrototype(Model, DF);
+      const auto &TTR = DF.prototype(Model);
       revng_assert(TTR.isValid());
       Prototype = TTR.getConst();
     }
