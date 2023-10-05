@@ -29,6 +29,7 @@
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/LLVMAnalysisImplementation.h"
+#include "revng/Support/Debug.h"
 
 using namespace llvm;
 using namespace llvm::cl;
@@ -526,6 +527,9 @@ void DetectABI::interproceduralPropagation() {
 void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   const MetaAddress &Entry = Function.Entry();
 
+  revng_log(Log, "Trying to propagate prototypes for " << Entry.toString());
+  LoggerIndent<> Indent(Log);
+
   FunctionSummary &Summary = Oracle.getLocalFunction(Entry);
   ABIAnalyses::ABIAnalysesResults &ABI = Summary.ABIResults;
   SortedVector<efa::BasicBlock> &CFG = Summary.CFG;
@@ -535,21 +539,27 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   bool HasReturns = ABI.FinalReturnValuesRegisters.size() > 0;
   bool IsSingleNode = CFG.size() == 1;
 
-  if (HasReturns or HasArguments or not IsSingleNode) {
+  revng_log(Log, "HasArguments: " << HasArguments);
+  revng_log(Log, "HasReturns: " << HasReturns);
+  revng_log(Log, "IsSingleNode: " << IsSingleNode);
+
+  if (HasReturns or HasArguments or not IsSingleNode)
     return;
-  }
 
   efa::BasicBlock &Block = *CFG.begin();
-
   bool HasSingleSuccessor = Block.Successors().size() == 1;
-  if (!HasSingleSuccessor) {
+  revng_log(Log, "HasSingleSuccessor: " << HasSingleSuccessor);
+
+  if (not HasSingleSuccessor)
     return;
-  }
 
   auto &Successor = *Block.Successors().begin();
+  const auto *Call = dyn_cast<efa::CallEdge>(Successor.get());
+  bool SuccessorIsCall = Call != nullptr;
+  revng_log(Log, "SuccessorIsCall: " << SuccessorIsCall);
 
   // Select new prototype for wrapper function
-  if (const auto &Call = dyn_cast<efa::CallEdge>(Successor.get())) {
+  if (SuccessorIsCall) {
     model::TypePath Prototype = getPrototype(*Binary, Entry, Block, *Call);
 
     using abi::FunctionType::Layout;
@@ -578,6 +588,10 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     const bool WritesToMemory = count_if(*BB, isWritingToMemory) > 0;
     const bool WritesOnlyRegisters = WritesToMemory == 0;
 
+    revng_log(Log, "WritesSP: " << WritesSP);
+    revng_log(Log, "WritesCalleeArgs: " << WritesCalleeArgs);
+    revng_log(Log, "WritesOnlyRegisters: " << WritesOnlyRegisters);
+
     // When above conditions are met, overwrite wrappers prototype with
     // wrapped function prototype (CABIFunctionType or RawFunctionType)
     if (not WritesSP and not WritesCalleeArgs and WritesOnlyRegisters) {
@@ -586,6 +600,7 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
                                << Function.Prototype().toString()
                                << ") with wrapped function's prototype: "
                                << Prototype.toString());
+
       Function.Prototype() = Prototype;
 
       if (Function.CustomName().empty() and Function.OriginalName().empty()) {
