@@ -39,7 +39,11 @@ public:
   ControlFlowEdgesGraph() = default;
 
 public:
-  Node *at(llvm::BasicBlock *BB) { return NodeMap[BB]; }
+  Node *at(llvm::BasicBlock *BB) {
+    auto It = NodeMap.find(BB);
+    revng_assert(It != NodeMap.end());
+    return It->second;
+  }
 
   const auto &interstingInstructions() const { return Interesting; }
 
