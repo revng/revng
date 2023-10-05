@@ -393,6 +393,9 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
+  if (not Entry().isValid())
+    return VH.fail("Invalid Entry", *this);
+
   if (not Prototype().empty() and not Prototype().isValid())
     return VH.fail("Invalid prototype", *this);
 
