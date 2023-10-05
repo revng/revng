@@ -858,7 +858,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     std::string StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
-    llvm::StringRef Separator = "{";
+    llvm::StringRef Separator = " {";
     for (const auto &Arg : Call->args()) {
       StructInit += Separator.str() + " " + rc_recur getToken(Arg);
       Separator = ",";
