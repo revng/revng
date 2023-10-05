@@ -507,10 +507,18 @@ inline void RegionCFG<NodeT>::untangle() {
     BasicBlockNode<NodeT> *ElseChild = Conditional->getSuccessorI(1);
 
     // Collect all the nodes laying between the branches
-    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4>
+    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4> ThenNodes;
+    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4> ElseNodes;
+
+    // If the `PostDominator` is present, we use the `nodesBetween` primitive to
+    // stop at the `PostDominator`, otherwise we collect all the reachable nodes
+    if (PostDominator != nullptr) {
       ThenNodes = nodesBetween(ThenChild, PostDominator);
-    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4>
       ElseNodes = nodesBetween(ElseChild, PostDominator);
+    } else {
+      ThenNodes = findReachableNodes(ThenChild);
+      ElseNodes = findReachableNodes(ElseChild);
+    }
 
     // Remove the postdominator from both the sets.
     ThenNodes.remove(PostDominator);
