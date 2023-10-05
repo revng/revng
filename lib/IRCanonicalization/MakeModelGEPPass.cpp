@@ -1786,7 +1786,7 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
 
       const llvm::Function *CalledF = Call->getCalledFunction();
 
-      // special case for struct initializers
+      // Special case for struct initializers
       unsigned ArgNum = Call->getArgOperandNo(&U);
 
       const model::Function *CalledFType = llvmToModelFunction(Model, *CalledF);

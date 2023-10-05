@@ -356,7 +356,7 @@ static bool updateReturnType(model::Binary &Model,
   return false;
 }
 
-/// Update the prototype of a model::Function or of a call siet with the types
+/// Update the prototype of a model::Function or of a call site with the types
 /// recovered by DLA.
 template<typename T>
   requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
