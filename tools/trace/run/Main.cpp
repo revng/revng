@@ -48,7 +48,7 @@ public:
 
 using BoolStringOpt = opt<detail::BoolString, false, detail::BoolStringParser>;
 
-static OptionCategory TraceRunToolCategory("Tool options", "");
+static OptionCategory TraceRunToolCategory("Trace run options");
 
 static opt<std::string> TraceFile(Positional,
                                   Required,
@@ -67,6 +67,10 @@ static llvm::cl::list<uint64_t> BreakAt("break-at",
                                         ZeroOrMore,
                                         cat(TraceRunToolCategory),
                                         desc("Command Indexes to break at"));
+static opt<std::string> Resume("trace-resume",
+                               cat(TraceRunToolCategory),
+                               desc("Use the provided directory as a resume "
+                                    "directory"));
 
 static alias SoftAssertsA("s",
                           desc("Alias for --soft-asserts"),
@@ -83,6 +87,11 @@ static alias TemporaryRootA("t",
                             aliasopt(TemporaryRoot),
                             NotHidden,
                             cat(TraceRunToolCategory));
+static alias ResumeA("r",
+                     desc("Alias for --trace-resume"),
+                     aliasopt(Resume),
+                     NotHidden,
+                     cat(TraceRunToolCategory));
 
 } // namespace Options
 
@@ -109,6 +118,7 @@ int main(int argc, const char *argv[]) {
     .SoftAsserts = Options::SoftAsserts,
     .BreakAt = { Options::BreakAt.begin(), Options::BreakAt.end() },
     .TemporaryRoot = TemporaryRoot,
+    .ResumeDirectory = Options::Resume,
   };
   AbortOnError(TheTrace.run(Options));
 
