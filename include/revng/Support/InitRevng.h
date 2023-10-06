@@ -30,8 +30,11 @@ public:
                           "https://github.com/revng/revng and include the "
                           "crash backtrace\n");
 
-    // NOLINTNEXTLINE
-    llvm::cl::HideUnrelatedOptions(CategoriesToHide);
+    if (not CategoriesToHide.empty()) {
+      // NOLINTNEXTLINE
+      llvm::cl::HideUnrelatedOptions(CategoriesToHide);
+    }
+
     // NOLINTNEXTLINE
     bool Result = llvm::cl::ParseCommandLineOptions(Argc,
                                                     Argv,
