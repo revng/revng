@@ -381,11 +381,11 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        llvm::raw_ostream &Header,
                                        ptml::PTMLCBuilder &B,
                                        const model::Binary &Model,
-                                       bool Declaration) {
+                                       bool SingleLine) {
   auto Layout = abi::FunctionType::Layout::make(RF);
   revng_assert(not Layout.returnsAggregateType());
 
-  Header << B.getAnnotateABI("raw") << " ";
+  Header << B.getAnnotateABI("raw") << (SingleLine ? " " : "\n");
   Header << getNamedInstanceOfReturnType(RF, FunctionName, B);
 
   revng_assert(RF.StackArgumentsType().Qualifiers().empty());
@@ -433,8 +433,9 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        llvm::raw_ostream &Header,
                                        ptml::PTMLCBuilder &B,
                                        const model::Binary &Model,
-                                       bool Declaration) {
-  Header << B.getAnnotateABI(model::ABI::getName(CF.ABI())) << " ";
+                                       bool SingleLine) {
+  Header << B.getAnnotateABI(model::ABI::getName(CF.ABI()))
+         << (SingleLine ? " " : "\n");
   Header << getNamedInstanceOfReturnType(CF, FunctionName, B);
 
   if (CF.Arguments().empty()) {
@@ -473,8 +474,8 @@ void printFunctionPrototype(const model::Type &FT,
                             llvm::raw_ostream &Header,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
-                            bool Declaration) {
-  auto LocationAttribute = B.getLocationAttribute(Declaration);
+                            bool SingleLine) {
+  auto LocationAttribute = B.getLocationAttribute(false);
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     model::editPath::customName(Function))
@@ -488,7 +489,7 @@ void printFunctionPrototype(const model::Type &FT,
                                Header,
                                B,
                                Model,
-                               Declaration);
+                               SingleLine);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *CF,
@@ -496,7 +497,7 @@ void printFunctionPrototype(const model::Type &FT,
                                Header,
                                B,
                                Model,
-                               Declaration);
+                               SingleLine);
   } else {
     revng_abort();
   }
@@ -507,8 +508,8 @@ void printFunctionPrototype(const model::Type &FT,
                             llvm::raw_ostream &Header,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
-                            bool Declaration) {
-  auto LocationAttribute = B.getLocationAttribute(Declaration);
+                            bool SingleLine) {
+  auto LocationAttribute = B.getLocationAttribute(false);
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     model::editPath::customName(Function))
@@ -522,7 +523,7 @@ void printFunctionPrototype(const model::Type &FT,
                                Header,
                                B,
                                Model,
-                               Declaration);
+                               SingleLine);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *CF,
@@ -530,7 +531,7 @@ void printFunctionPrototype(const model::Type &FT,
                                Header,
                                B,
                                Model,
-                               Declaration);
+                               SingleLine);
   } else {
     revng_abort();
   }

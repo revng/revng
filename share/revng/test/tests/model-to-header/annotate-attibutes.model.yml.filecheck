@@ -15,5 +15,7 @@
 # CHECK: };
 
 
-# CHECK: _ABI(SystemV_x86_64) void fn(int32_t b, generic64_t c, uint16_t d);
-# CHECK: _ABI(raw) void fn2(generic64_t _argument_rcx _REG(rcx_x86_64), generic64_t _argument_rdx _REG(rdx_x86_64), generic64_t _argument_rsi _REG(rsi_x86_64), generic64_t _argument_rdi _REG(rdi_x86_64), generic64_t _argument_r8 _REG(r8_x86_64), generic64_t _argument_r9 _REG(r9_x86_64));
+# CHECK: _ABI(SystemV_x86_64)
+# CHECK: void fn(int32_t b, generic64_t c, uint16_t d);
+# CHECK: _ABI(raw)
+# CHECK: void fn2(generic64_t _argument_rcx _REG(rcx_x86_64), generic64_t _argument_rdx _REG(rdx_x86_64), generic64_t _argument_rsi _REG(rsi_x86_64), generic64_t _argument_rdi _REG(rdi_x86_64), generic64_t _argument_r8 _REG(r8_x86_64), generic64_t _argument_r9 _REG(r9_x86_64));

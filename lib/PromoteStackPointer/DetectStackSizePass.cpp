@@ -151,7 +151,7 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
   // frame/arguments
   bool NeedsStackFrame = ModelFunction.StackFrameType().empty();
   bool NeedsStackArguments = false;
-  model::Type *Prototype = ModelFunction.Prototype().get();
+  model::Type *Prototype = ModelFunction.prototype(*Binary).get();
   RawFunctionType *RawPrototype = nullptr;
   if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype))) {
     revng_assert(RawPrototype->StackArgumentsType().Qualifiers().empty());

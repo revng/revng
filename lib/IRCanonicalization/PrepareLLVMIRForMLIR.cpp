@@ -164,7 +164,7 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
       llvm::StringRef SymbolName = F.getName().drop_front(strlen("dynamic_"));
       auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
       revng_assert(It != Model.ImportedDynamicFunctions().end());
-      const auto &TTR = getPrototype(Model, *It);
+      const auto &TTR = It->prototype(Model);
       revng_assert(TTR.isValid());
       Prototype = TTR.getConst();
     }

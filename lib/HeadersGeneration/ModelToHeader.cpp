@@ -225,7 +225,7 @@ bool dumpModelToHeader(const model::Binary &Model,
         if (Options.FunctionsToOmit.contains(MF.Entry()))
           continue;
 
-        const model::Type *FT = MF.Prototype().get();
+        const model::Type *FT = MF.prototype(Model).get();
         if (Options.TypesToOmit.contains(FT))
           continue;
 
@@ -239,7 +239,7 @@ bool dumpModelToHeader(const model::Binary &Model,
           serialize(Header, *FT);
         }
 
-        printFunctionPrototype(*FT, MF, Header, B, Model, true);
+        printFunctionPrototype(*FT, MF, Header, B, Model, false);
         Header << ";\n";
       }
     }
@@ -270,7 +270,7 @@ bool dumpModelToHeader(const model::Binary &Model,
           Header << "Prototype\n";
           serialize(Header, *FT);
         }
-        printFunctionPrototype(*FT, MF, Header, B, Model, true);
+        printFunctionPrototype(*FT, MF, Header, B, Model, false);
         Header << ";\n";
       }
     }

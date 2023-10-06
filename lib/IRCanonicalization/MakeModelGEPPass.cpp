@@ -1723,7 +1723,7 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
     const model::Function *MF = llvmToModelFunction(Model, *ReturningF);
     revng_assert(MF);
 
-    const auto Layout = abi::FunctionType::Layout::make(MF->Prototype());
+    const auto Layout = abi::FunctionType::Layout::make(MF->prototype(Model));
 
     bool HasNoReturnValues = (Layout.ReturnValues.empty()
                               and not Layout.returnsAggregateType());
@@ -1786,11 +1786,12 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
 
       const llvm::Function *CalledF = Call->getCalledFunction();
 
-      // special case for struct initializers
+      // Special case for struct initializers
       unsigned ArgNum = Call->getArgOperandNo(&U);
 
       const model::Function *CalledFType = llvmToModelFunction(Model, *CalledF);
-      const model::Type *CalledPrototype = CalledFType->Prototype().getConst();
+      const model::Type *CalledPrototype = CalledFType->prototype(Model)
+                                             .getConst();
 
       if (auto *RFT = dyn_cast<RawFunctionType>(CalledPrototype)) {
         revng_log(ModelGEPLog, "Has RawFunctionType prototype.");

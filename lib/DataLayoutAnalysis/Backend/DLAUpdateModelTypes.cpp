@@ -356,7 +356,7 @@ static bool updateReturnType(model::Binary &Model,
   return false;
 }
 
-/// Update the prototype of a model::Function or of a call siet with the types
+/// Update the prototype of a model::Function or of a call site with the types
 /// recovered by DLA.
 template<typename T>
   requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
@@ -657,7 +657,10 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     if (not ModelFunc)
       continue;
 
-    Type *ModelPrototype = ModelFunc->Prototype().get();
+    TypePath WrappedPrototypePath = ModelFunc->prototype(*Model);
+    using model::QualifiedType;
+    auto PrototypePath = QualifiedType::getFunctionType(WrappedPrototypePath);
+    Type *ModelPrototype = PrototypePath->get();
     revng_log(Log,
               "Updating prototype of function "
                 << LLVMFunc.getNameOrAsOperand());

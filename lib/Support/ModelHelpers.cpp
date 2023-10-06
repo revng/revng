@@ -440,7 +440,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        ReturnTypes = handleReturnValue(ParentFunc()->Prototype(), Model);
+        ReturnTypes = handleReturnValue(ParentFunc()->prototype(Model), Model);
 
       } else if (FTags.contains(FunctionTags::SegmentRef)) {
         const auto &[StartAddress,
@@ -562,14 +562,14 @@ getExpectedModelType(FunctionMetadataCache &Cache,
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
 
         llvm::SmallVector<QualifiedType> ReturnTypes;
-        ReturnTypes = handleReturnValue(ParentFunc()->Prototype(), Model);
+        ReturnTypes = handleReturnValue(ParentFunc()->prototype(Model), Model);
         return { ReturnTypes[ArgOperandIdx] };
       } else if (FTags.contains(FunctionTags::BinaryNot)) {
         return { llvmIntToModelType(Call->getType(), Model) };
       }
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
-    return handleReturnValue(ParentFunc()->Prototype(), Model);
+    return handleReturnValue(ParentFunc()->prototype(Model), Model);
   } else if (auto *BinaryOp = dyn_cast<llvm::BinaryOperator>(User)) {
     using namespace model::PrimitiveTypeKind;
     auto Opcode = BinaryOp->getOpcode();

@@ -288,7 +288,7 @@ private:
   /// The model function corresponding to LLVMFunction
   const model::Function &ModelFunction;
   /// The model prototype of ModelFunction
-  const model::Type &ParentPrototype;
+  const model::Type &Prototype;
   /// The (combed) control flow AST
   const ASTTree &GHAST;
 
@@ -353,7 +353,7 @@ public:
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
-    ParentPrototype(*ModelFunction.Prototype().getConst()),
+    Prototype(*ModelFunction.prototype(Model).getConst()),
     GHAST(GHAST),
     TopScopeVariables(TopScopeVariables),
     TypeMap(initModelTypes(Cache,
@@ -854,11 +854,11 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     auto *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
     revng_assert(LLVMFunction.getReturnType() == StructTy);
-    auto StrucTypeName = getNamedInstanceOfReturnType(ParentPrototype, "", B);
+    auto StrucTypeName = getNamedInstanceOfReturnType(Prototype, "", B);
     std::string StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
-    llvm::StringRef Separator = "{";
+    llvm::StringRef Separator = " {";
     for (const auto &Arg : Call->args()) {
       StructInit += Separator.str() + " " + rc_recur getToken(Arg);
       Separator = ",";
@@ -1444,44 +1444,34 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
   for (const Instruction &I : *BB) {
     revng_log(Log, "Analyzing: " << dumpToString(I));
 
+    auto *Call = dyn_cast<llvm::CallInst>(&I);
+
     if (not isStatement(&I)) {
       revng_log(Log, "Ignoring: non-statement instruction");
-      continue;
-    }
 
-    if (I.getType()->isVoidTy()) {
+    } else if (I.getType()->isVoidTy()) {
       revng_assert(isa<llvm::ReturnInst>(I) or isCallToIsolatedFunction(&I)
                    or isCallToNonIsolated(&I) or isAssignment(&I));
       Out << getToken(&I) << ";\n";
-      continue;
-    }
 
-    // At this point we're left with only CallInst
-    auto *Call = cast<llvm::CallInst>(&I);
-
-    // Emit variable declaration statements
-    if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
+    } else if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
       // Emit missing local variable declarations
       std::string VarName = createLocalVarDeclName(Call);
       revng_assert(not VarName.empty());
       Out << getNamedCInstance(TypeMap.at(Call), VarName, B) << ";\n";
-      continue;
-    }
 
-    if (isStackFrameDecl(Call)) {
+    } else if (isStackFrameDecl(Call)) {
       // Stack frame declaration is a statement, but we've handled explicitly
       // to emit it as the first declaration in this function. So we just
       // assert and go to the next instruction.
       revng_assert(TokenMap.contains(Call));
-      continue;
-    }
 
-    // This is a call but it actually needs an assignment to the associated
-    // variable. The variable has not been declared in the IR with
-    // LocalVariable, because LocalVariable needs a model type, and aggregates
-    // types on the LLVM IR are not on the model.
-    bool IsTopScopeVariable = TopScopeVariables.contains(Call);
-    if (IsTopScopeVariable or isArtificialAggregateLocalVarDecl(Call)) {
+    } else if (bool IsTopScopeVariable = TopScopeVariables.contains(Call);
+               IsTopScopeVariable or isArtificialAggregateLocalVarDecl(Call)) {
+      // This is a call but it actually needs an assignment to the associated
+      // variable. The variable has not been declared in the IR with
+      // LocalVariable, because LocalVariable needs a model type, and aggregates
+      // types on the LLVM IR are not on the model.
       revng_assert(Call->getType()->isAggregateType());
 
       if (not IsTopScopeVariable) {
@@ -1492,6 +1482,7 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
         const auto *FunctionType = Prototype.getConst();
         Out << getNamedInstanceOfReturnType(*FunctionType, VarName, B) << ";\n";
       }
+
       std::string VarName = getVarName(Call);
       revng_assert(not VarName.empty());
 
@@ -1507,12 +1498,17 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
       Out << VarName << " "
           << B.getOperator(ptml::PTMLCBuilder::Operator::Assign) << " "
           << std::move(RHSExpression) << ";\n";
-      continue;
+    } else {
+      std::string Error = "Cannot emit statement: ";
+      Error += dumpToString(Call).c_str();
+      revng_abort(Error.c_str());
     }
 
-    std::string Error = "Cannot emit statement: ";
-    Error += dumpToString(Call).c_str();
-    revng_abort(Error.c_str());
+    if (Call != nullptr and isCallToIsolatedFunction(Call)) {
+      const auto &[CallEdge, _] = Cache.getCallEdge(Model, Call);
+      if (CallEdge->hasAttribute(Model, model::FunctionAttribute::NoReturn))
+        Out << "// The previous function call does not return\n";
+    }
   }
 }
 
@@ -1922,11 +1918,11 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
   Out << B.getFunctionComment(ModelFunction, Model);
 
   // Print function's prototype
-  printFunctionPrototype(ParentPrototype, ModelFunction, Out, B, Model, true);
+  printFunctionPrototype(Prototype, ModelFunction, Out, B, Model, false);
 
   // Set up the argument identifiers to be used in the function's body.
   for (const auto &Arg : LLVMFunction.args()) {
-    std::string ArgString = getModelArgIdentifier(&ParentPrototype, Arg);
+    std::string ArgString = getModelArgIdentifier(&Prototype, Arg);
     TokenMap[&Arg] = getArgumentLocationReference(ArgString, ModelFunction, B);
   }
 

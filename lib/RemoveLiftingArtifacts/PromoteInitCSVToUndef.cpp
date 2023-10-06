@@ -18,12 +18,13 @@ using namespace llvm;
 
 static bool
 undefPreservedRegistersInitialization(Function &F,
-                                      const model::Function &ModelFunction) {
+                                      const model::Function &ModelFunction,
+                                      const model::Binary &Binary) {
   bool Changed = false;
   QuickMetadata QMD(F.getParent()->getContext());
 
   using abi::FunctionType::Layout;
-  auto Layout = Layout::make(*ModelFunction.Prototype().get());
+  auto Layout = Layout::make(*ModelFunction.prototype(Binary).get());
 
   for (auto &BB : F) {
     auto It = BB.begin();
@@ -74,7 +75,7 @@ public:
       const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
       MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
       auto &ModelFunction = Binary.Functions().at(Entry);
-      return undefPreservedRegistersInitialization(F, ModelFunction);
+      return undefPreservedRegistersInitialization(F, ModelFunction, Binary);
     }
 
     return false;
