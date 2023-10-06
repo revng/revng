@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Intrinsics.h"
@@ -503,6 +504,9 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                                  "newpc",
                                  &TheModule);
   FunctionTags::Marker.addTo(NewPCMarker);
+  NewPCMarker->addFnAttr(Attribute::WillReturn);
+  NewPCMarker->addFnAttr(Attribute::NoUnwind);
+  NewPCMarker->addFnAttr(Attribute::NoMerge);
 }
 
 void IT::finalizeNewPCMarkers() {
