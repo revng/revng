@@ -875,12 +875,19 @@ private:
         if (Die.getTag() != DW_TAG_subprogram)
           continue;
 
+        auto &Functions = Model->ImportedDynamicFunctions();
         auto MaybePath = getSubprogramPrototype(Die);
         std::string SymbolName = getName(Die);
-        auto MaybeLowPC = getAddress(Die);
-        if (MaybeLowPC) {
+
+        MetaAddress LowPC;
+        if (auto MaybeLowPC = getAddress(Die)) {
+          // TODO: do a proper check to see if it's in a valid segment
+          if (*MaybeLowPC != 0)
+            LowPC = relocate(fromPC(*MaybeLowPC));
+        }
+
+        if (LowPC.isValid()) {
           // Get/create the local function
-          MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
           auto &Function = Model->Functions()[LowPC];
 
           if (MaybePath && not Function.Prototype().isValid())
@@ -893,8 +900,7 @@ private:
 
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
-        } else if (auto &Functions = Model->ImportedDynamicFunctions();
-                   not SymbolName.empty() and Functions.contains(SymbolName)) {
+        } else if (not SymbolName.empty() and Functions.contains(SymbolName)) {
           // It's a dynamic function
           if (not MaybePath) {
             reportIgnoredDie(Die, "Couldn't build subprogram prototype");
@@ -908,6 +914,8 @@ private:
           if (DynamicFunction.Prototype().isValid())
             continue;
           DynamicFunction.Prototype() = *MaybePath;
+          revng_assert(isa<model::CABIFunctionType>(DynamicFunction.Prototype()
+                                                      .get()));
 
           if (isNoReturn(*CU.get(), Die)) {
             using namespace model;

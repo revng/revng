@@ -25,9 +25,11 @@
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/EarlyFunctionAnalysis/AAWriterPass.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
+#include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
+#include "revng/Model/Generated/Early/FunctionAttribute.h"
 #include "revng/Support/RegisterClobberer.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
@@ -679,12 +681,41 @@ static std::optional<int64_t> electFSO(const auto &MaybeReturns) {
   return std::get<1>(*It);
 }
 
+static bool isNoReturn(const model::Binary &Binary,
+                       const FunctionSummaryOracle &Oracle,
+                       const efa::CallEdge &Edge) {
+  if (Edge.Attributes().contains(model::FunctionAttribute::NoReturn))
+    return true;
+
+  if (not Edge.DynamicFunction().empty())
+    return Binary.ImportedDynamicFunctions()
+      .at(Edge.DynamicFunction())
+      .Attributes()
+      .contains(model::FunctionAttribute::NoReturn);
+
+  if (Edge.Destination().isValid())
+    return Oracle.getLocalFunction(Edge.Destination().notInlinedAddress())
+      .Attributes.contains(model::FunctionAttribute::NoReturn);
+
+  return false;
+}
+
 FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
                                       SortedVector<efa::BasicBlock> &&CFG) {
   using namespace llvm;
   using namespace efa::FunctionEdgeType;
   using namespace model::Architecture;
   int64_t CallPushSize = getCallPushSize(Binary->Architecture());
+
+  if (Log.isEnabled()) {
+    Log << "Milking info for " << OutlinedFunction->Address.toString();
+    Log << DoLog;
+
+    Log << "CFG:\n";
+    for (const efa::BasicBlock &Block : CFG)
+      serialize(Log, Block);
+    Log << DoLog;
+  }
 
   using EdgeType = UpcastablePointer<efa::FunctionEdgeBase>;
   SmallVector<std::pair<CallBase *, EdgeType>, 4> IBIResult;
@@ -766,6 +797,26 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
       // We're leaving the stack pointer in an unknown state
       IBIResult.emplace_back(CI, makeIndirectEdge(LongJmp));
     }
+  }
+
+  if (Log.isEnabled()) {
+    Log << "TailCalls:\n";
+    for (const auto &[Call, FSO, Summary] : TailCalls) {
+      Log << "  " << ::getName(Call) << " (FSO: " << FSO << ")\n";
+    }
+    Log << DoLog;
+
+    Log << "MaybeReturns:\n";
+    for (const auto &[Call, FSO] : MaybeReturns) {
+      Log << "  " << ::getName(Call) << " (FSO: " << FSO << ")\n";
+    }
+    Log << DoLog;
+
+    Log << "MaybeIndirectTailCalls:\n";
+    for (const auto &[Call, FSO, Summary] : MaybeIndirectTailCalls) {
+      Log << "  " << ::getName(Call) << " (FSO: " << FSO << ")\n";
+    }
+    Log << DoLog;
   }
 
   // Elect a final stack offset
@@ -857,6 +908,30 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     }
   }
 
+  if (Log.isEnabled()) {
+    Log << "MaybeWinFSO: ";
+    if (MaybeWinFSO)
+      Log << *MaybeWinFSO;
+    else
+      Log << "(nullopt)";
+    Log << DoLog;
+
+    Log << "ClobberedRegisters: {";
+    const char *Prefix = "";
+    for (GlobalVariable *CSV : ClobberedRegisters.getClobberedRegisters()) {
+      Log << Prefix << CSV->getName();
+      Prefix = ", ";
+    }
+    Log << "}" << DoLog;
+
+    Log << "IBIResults:\n";
+    for (const auto &[Call, Edge] : IBIResult) {
+      Log << "  " << ::getName(Call) << ":\n";
+      serialize(Log, Edge);
+    }
+    Log << DoLog;
+  }
+
   //
   // Commit  IBIResults to the CFG
   //
@@ -872,10 +947,12 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   int BrokenReturnCount = 0;
   int NoReturnCount = 0;
   for (const auto &[CI, Edge] : IBIResult) {
+    using namespace model::FunctionAttribute;
+    auto *Call = dyn_cast<CallEdge>(Edge.get());
     if (Edge->Type() == Return) {
       FoundReturn = true;
-    } else if (Edge->Type() == FunctionCall
-               and cast<CallEdge>(Edge.get())->IsTailCall()) {
+    } else if (Call != nullptr and Call->IsTailCall()
+               and not isNoReturn(*Binary, Oracle, *Call)) {
       FoundReturn = true;
     } else if (Edge->Type() == BrokenReturn) {
       FoundBrokenReturn = true;
@@ -884,6 +961,11 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
       NoReturnCount++;
     }
   }
+
+  revng_log(Log, "FoundReturn: " << FoundReturn);
+  revng_log(Log, "FoundBrokenReturn: " << FoundBrokenReturn);
+  revng_log(Log, "BrokenReturnCount: " << BrokenReturnCount);
+  revng_log(Log, "NoReturnCount: " << NoReturnCount);
 
   // Function is elected to inline if there is one and only one broken return
   AttributesSet Attributes;
@@ -900,11 +982,19 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   for (efa::BasicBlock &Block : CFG)
     revng_assert(Block.Successors().size() > 0);
 
-  return FunctionSummary(Attributes,
+  FunctionSummary Result(Attributes,
                          ClobberedRegisters.getClobberedRegisters(),
                          {},
                          std::move(CFG),
                          MaybeWinFSO);
+
+  if (Log.isEnabled()) {
+    Log << "Result:\n";
+    Result.dump(Log);
+    Log << DoLog;
+  }
+
+  return Result;
 }
 
 FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {

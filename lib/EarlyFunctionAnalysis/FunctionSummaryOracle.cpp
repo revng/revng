@@ -172,7 +172,7 @@ void importModel(Module &M,
                               importPrototype(M,
                                               ABICSVs,
                                               Attributes,
-                                              CallSite.Prototype()),
+                                              CallSite.prototype()),
                               CallSite.IsTailCall());
     }
 
@@ -193,7 +193,7 @@ void importModel(Module &M,
 
   // Register all dynamic symbols
   for (const auto &DynamicFunction : Binary.ImportedDynamicFunctions()) {
-    const auto &Prototype = getPrototype(Binary, DynamicFunction);
+    const auto &Prototype = DynamicFunction.prototype(Binary);
     AttributesSet Attributes;
     for (auto &ToCopy : DynamicFunction.Attributes())
       Attributes.insert(ToCopy);

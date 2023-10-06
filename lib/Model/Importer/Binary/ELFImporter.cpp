@@ -441,7 +441,6 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel,
                                                                  Model);
   }
-
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
     if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
       continue;
@@ -457,14 +456,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
                                   << (*TypeLocation).ModuleName << ": "
                                   << MatchingType.toString());
       TypeCopier *TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName].get();
-      auto MaybeType = TheTypeCopier->copyTypeInto(MatchingType);
-      if (!MaybeType) {
-        revng_log(ELFImporterLog,
-                  "Failed to copy prototype " << Fn.OriginalName() << " from "
-                                              << (*TypeLocation).ModuleName);
-        continue;
-      }
-      Fn.Prototype() = *MaybeType;
+      Fn.Prototype() = TheTypeCopier->copyTypeInto(MatchingType);
 
       // Copy the Attributes (all but the `Inline`).
       auto &Attributes = (*TypeLocation).Attributes;
@@ -548,6 +540,7 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
 
   case ELF::DT_INIT:
   case ELF::DT_FINI:
+    revng_assert(PCAddress.isValid());
     Model->Functions()[PCAddress];
     break;
 
@@ -608,6 +601,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
       Address = relocate(fromGeneric(Symbol.st_value));
 
     if (IsCode) {
+      revng_assert(Address.isValid());
       auto It = Model->Functions().find(Address);
       if (It == Model->Functions().end()) {
         model::Function &Function = Model->Functions()[Address];
@@ -804,6 +798,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
       Address = relocate(fromPC(Symbol.st_value));
       // TODO: record model::Function::IsDynamic = true
       model::Function *Function = nullptr;
+      revng_assert(Address.isValid());
       auto It = Model->Functions().find(Address);
       if (It != Model->Functions().end()) {
         Function = &*It;

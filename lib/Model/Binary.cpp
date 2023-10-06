@@ -252,8 +252,9 @@ static const model::TypePath &prototypeOr(const model::TypePath &Prototype,
   return Default;
 }
 
-const model::TypePath &Function::prototype(const model::Binary &Root) const {
-  return prototypeOr(Prototype(), Root.DefaultPrototype());
+model::TypePath Function::prototype(const model::Binary &Root) const {
+  auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());
+  return model::QualifiedType::getFunctionType(ThePrototype).value();
 }
 
 Identifier DynamicFunction::name() const {
@@ -266,9 +267,9 @@ Identifier DynamicFunction::name() const {
   }
 }
 
-const model::TypePath &
-DynamicFunction::prototype(const model::Binary &Root) const {
-  return prototypeOr(Prototype(), Root.DefaultPrototype());
+model::TypePath DynamicFunction::prototype(const model::Binary &Root) const {
+  auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());
+  return model::QualifiedType::getFunctionType(ThePrototype).value();
 }
 
 bool Relocation::verify() const {
@@ -392,6 +393,9 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
+  if (not Entry().isValid())
+    return VH.fail("Invalid Entry", *this);
+
   if (not Prototype().empty() and not Prototype().isValid())
     return VH.fail("Invalid prototype", *this);
 
@@ -400,10 +404,8 @@ bool Function::verify(VerifyHelper &VH) const {
     if (not Prototype().get()->verify(VH))
       return VH.fail("Function prototype does not verify", *this);
 
-    const model::Type *FunctionType = Prototype().get();
-    if (not(isa<RawFunctionType>(FunctionType)
-            or isa<CABIFunctionType>(FunctionType))) {
-      return VH.fail("Function prototype is not a RawFunctionType or "
+    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
+      return VH.fail("The prototype is neither a RawFunctionType nor a "
                      "CABIFunctionType",
                      *this);
     }
@@ -442,9 +444,7 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
     if (not Prototype().get()->verify(VH))
       return VH.fail();
 
-    const model::Type *FunctionType = Prototype().get();
-    if (not(isa<RawFunctionType>(FunctionType)
-            or isa<CABIFunctionType>(FunctionType))) {
+    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
       return VH.fail("The prototype is neither a RawFunctionType nor a "
                      "CABIFunctionType",
                      *this);
@@ -480,6 +480,12 @@ bool CallSitePrototype::verify(VerifyHelper &VH) const {
   // Prototype is valid
   if (not Prototype().get()->verify(VH))
     return VH.fail();
+
+  if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
+    return VH.fail("The prototype is neither a RawFunctionType nor a "
+                   "CABIFunctionType",
+                   *this);
+  }
 
   return true;
 }

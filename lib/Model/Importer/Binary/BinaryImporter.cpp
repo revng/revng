@@ -4,10 +4,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Object/Archive.h"
+#include "llvm/Object/Binary.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/MachO.h"
+#include "llvm/Object/MachOUniversal.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/Options.h"
@@ -43,7 +47,16 @@ Error importBinary(TupleTree<model::Binary> &Model,
   if (not BinaryOrError)
     return BinaryOrError.takeError();
 
-  return importBinary(Model,
-                      *cast<object::ObjectFile>(BinaryOrError->getBinary()),
-                      Options);
+  auto *Binary = BinaryOrError->getBinary();
+  if (isa<object::MachOUniversalBinary>(Binary)) {
+    return createStringError(inconvertibleErrorCode(),
+                             "Unsupported format: MachO universal binary.");
+  } else if (isa<llvm::object::Archive>(Binary)) {
+    return createStringError(inconvertibleErrorCode(),
+                             "Unsupported format: archive.");
+  } else if (not isa<object::ObjectFile>(Binary)) {
+    return createStringError(inconvertibleErrorCode(), "Unsupported format");
+  }
+
+  return importBinary(Model, *cast<object::ObjectFile>(Binary), Options);
 }

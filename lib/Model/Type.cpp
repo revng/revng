@@ -789,6 +789,39 @@ bool QualifiedType::is(model::TypeKind::Values K) const {
   return isImpl(*this, K);
 }
 
+static std::optional<model::QualifiedType>
+unwrapTypedef(const model::QualifiedType &QT) {
+  if (QT.UnqualifiedType().empty() or QT.Qualifiers().size() != 0)
+    return std::nullopt;
+
+  if (auto Typedef = llvm::dyn_cast<TypedefType>(QT.UnqualifiedType().get())) {
+    return Typedef->UnderlyingType();
+  } else {
+    return std::nullopt;
+  }
+}
+
+model::QualifiedType QualifiedType::skipTypedefs() const {
+  model::QualifiedType Result = *this;
+
+  while (auto MaybeUnwrapped = unwrapTypedef(Result))
+    Result = *MaybeUnwrapped;
+
+  return Result;
+}
+
+std::optional<model::TypePath> model::QualifiedType::getFunctionType() const {
+  model::QualifiedType Unwrapped = skipTypedefs();
+  if (Unwrapped.Qualifiers().size() != 0 or Unwrapped.UnqualifiedType().empty())
+    return nullopt;
+
+  const model::Type *Result = Unwrapped.UnqualifiedType().get();
+  if (llvm::isa<RawFunctionType>(Result) or llvm::isa<CABIFunctionType>(Result))
+    return Unwrapped.UnqualifiedType();
+  else
+    return nullopt;
+}
+
 std::optional<uint64_t> Type::size() const {
   VerifyHelper VH;
   return size(VH);

@@ -47,6 +47,7 @@ private:
   using FunctionMap = std::map<MetaAddress, FunctionInfo>;
 
 private:
+  const model::Binary &Binary;
   Function *RootFunction;
   Module *M;
   LLVMContext &Context;
@@ -57,6 +58,7 @@ public:
   InvokeIsolatedFunctions(const model::Binary &Binary,
                           Function *RootFunction,
                           GeneratedCodeBasicInfo &GCBI) :
+    Binary(Binary),
     RootFunction(RootFunction),
     M(RootFunction->getParent()),
     Context(M->getContext()),
@@ -166,7 +168,8 @@ public:
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;
       if (F->getFunctionType()->getNumParams() > 0) {
-        auto Layout = abi::FunctionType::Layout::make(ModelF->Prototype());
+        auto ThePrototype = ModelF->prototype(Binary);
+        auto Layout = abi::FunctionType::Layout::make(ThePrototype);
         for (const auto &ArgumentLayout : Layout.Arguments) {
           for (model::Register::Values Register : ArgumentLayout.Registers) {
             auto Name = model::Register::getCSVName(Register);

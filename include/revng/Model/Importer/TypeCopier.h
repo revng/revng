@@ -41,12 +41,12 @@ public:
     FromModel(FromModel), DestinationModel(DestinationModel) {}
   ~TypeCopier() { revng_assert(Finalized); }
 
-  std::optional<model::TypePath> copyTypeInto(model::TypePath &Type) {
+  model::TypePath copyTypeInto(model::TypePath &Type) {
     ensureGraph();
 
     revng_assert(Type.isValid());
 
-    std::optional<model::TypePath> Result = std::nullopt;
+    model::TypePath Result;
     llvm::df_iterator_default_set<Node *> VisitedFromTheType;
     for (Node *N :
          depth_first_ext(TypeToNode.at(Type.get()), VisitedFromTheType))
@@ -54,6 +54,7 @@ public:
 
     for (const auto &P : FromModel->Types()) {
       if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(P.get())) {
+        // Ensure we have all the necessary primitive types
         DestinationModel->getPrimitiveType(Primitive->PrimitiveKind(),
                                            Primitive->Size());
       } else if (AlreadyCopied.count(P.get()->ID()) == 0
@@ -86,12 +87,13 @@ public:
           AlreadyCopied.insert({ P.get()->ID(), NewType->ID() });
         }
 
-        // The first type that was visited is the function type itself
+        // Record the type we were looking for originally
         if (P->ID() == Type.get()->ID())
           Result = TheType;
       }
     }
 
+    // TODO: consider fixing only the necessary references
     DestinationModel.initializeReferences();
 
     return Result;
@@ -113,10 +115,10 @@ public:
         // Extract ID from the key
         const TupleTreeKeyWrapper &TypeKey = Path.path().toArrayRef()[1];
         auto [ID, Kind] = *TypeKey.tryGet<model::Type::Key>();
-        if (AlreadyCopied.count(ID) == 0)
-          return;
-
-        Path = DestinationModel->getTypePath({ AlreadyCopied[ID], Kind });
+        if (Kind != model::TypeKind::PrimitiveType) {
+          revng_assert(AlreadyCopied.count(ID) == 1);
+          Path = DestinationModel->getTypePath({ AlreadyCopied[ID], Kind });
+        }
       }
     };
 

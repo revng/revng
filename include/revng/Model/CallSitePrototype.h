@@ -42,6 +42,11 @@ class model::CallSitePrototype : public model::generated::CallSitePrototype {
 public:
   using generated::CallSitePrototype::CallSitePrototype;
 
+  /// Get the actual prototype, skipping any typedefs
+  model::TypePath prototype() const {
+    return model::QualifiedType::getFunctionType(Prototype()).value();
+  }
+
 public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
