@@ -86,6 +86,7 @@ static void cleanTemporaryDirectories(void *) {
 class RunnerContext {
 private:
   llvm::StringMap<uintptr_t> Pointers;
+  bool ResumeDirectoryUsed = false;
 
 public:
   const revng::tracing::RunTraceOptions Options;
@@ -101,6 +102,17 @@ public:
   RunnerContext(RunnerContext &&Other) = delete;
   RunnerContext &operator=(const RunnerContext &Other) = delete;
   RunnerContext &operator=(RunnerContext &&Other) = delete;
+
+  std::string getResumeDirectory() {
+    if (not Options.ResumeDirectory.empty()) {
+      revng_assert(not ResumeDirectoryUsed,
+                   "ResumeDirectory specified with multiple managers");
+      ResumeDirectoryUsed = true;
+      return Options.ResumeDirectory;
+    } else {
+      return getTemporaryDirectory();
+    }
+  }
 
   std::string getTemporaryDirectory() {
     llvm::SmallString<128> Output;
@@ -385,17 +397,18 @@ static std::vector<revng::tracing::Argument>
 argumentTransformer(RunnerContext &Context,
                     const revng::tracing::Command &Command) {
   decltype(Command.Arguments) NewArguments(Command.Arguments);
-  auto ReplaceWithTmpDir = [&](size_t Index) {
+  auto ReplaceWithResumeDirectory = [&](size_t Index) {
     revng_assert(Command.Arguments[Index].isScalar(), "Argument is not scalar");
-    NewArguments[Index].getScalar() = Context.getTemporaryDirectory();
+    NewArguments[Index].getScalar() = Context.getResumeDirectory();
   };
 
   // Replace workdir with a temporary directory
   if (Command.Name == "rp_manager_create") {
-    ReplaceWithTmpDir(2);
+    ReplaceWithResumeDirectory(2);
   } else if (Command.Name == "rp_manager_create_from_string") {
-    ReplaceWithTmpDir(4);
+    ReplaceWithResumeDirectory(4);
   }
+
   return NewArguments;
 }
 
