@@ -26,7 +26,7 @@ CalleeSavedRegisters:
   - edi_x86
   - esi_x86
 
-ReturnValueLocationRegister: ecx_x86
+ReturnValueLocationOnStack: true
 
 ScalarTypes:
   - Size: 1
