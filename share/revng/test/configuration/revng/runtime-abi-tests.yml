@@ -1,0 +1,14 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-function-type-conversion
+    from:
+      - type: revng.runtime-abi-tests
+      - type: revng-qa.runtime-abi-tests
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/abi/verify-abi-test-binaries.sh"
+        "${ABI_NAME}"
+        "${INPUT1}"
+        "${INPUT2}/functions"
