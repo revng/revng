@@ -145,7 +145,9 @@ template<class NodeT>
 inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
                                               BasicBlockNodeT *Head,
                                               BBNodeMap &SubMap,
-                                              std::set<EdgeDescriptor> &Out) {
+                                              std::set<EdgeDescriptor> &Out,
+                                              llvm::SmallVector<EdgeDescriptor>
+                                                &ContinueBackedges) {
   revng_assert(BlockNodes.empty());
 
   for (BasicBlockNodeT *Node : Nodes) {
@@ -204,20 +206,22 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
   for (BBNodeTUniquePtr &Node : BlockNodes)
     Node->updatePointers(SubMap);
 
-  // We now create and connect the continue nodes.
-  BasicBlockNodeTVect ContinueNodes;
+  // Connect all the `ContinueBackedges` to `continue` nodes
+  for (EdgeDescriptor &Backedge : ContinueBackedges) {
 
-  // We need to pre-save the edges to avoid breaking the predecessor iterator.
-  for (BasicBlockNode<NodeT> *Source : EntryNode->predecessors()) {
-    ContinueNodes.push_back(Source);
-  }
-
-  for (BasicBlockNode<NodeT> *Source : ContinueNodes) {
+    // Confirm that the retreating edge points to the `Head` (the previous entry
+    // node)
+    revng_assert(Backedge.second == Head);
 
     // Create a new continue node for each retreating edge.
-    BasicBlockNode<NodeT> *Continue = addContinue();
-    moveEdgeTarget(EdgeDescriptor(Source, EntryNode), Continue);
+    BasicBlockNodeT *Continue = addContinue();
+    BasicBlockNodeT *RetreatingSource = SubMap[Backedge.first];
+    revng_assert(RetreatingSource != nullptr);
+    moveEdgeTarget(EdgeDescriptor(RetreatingSource, EntryNode), Continue);
   }
+
+  // After the processing, confirm that the `EntryNode` has no more predecessor
+  revng_assert(EntryNode->predecessor_size() == 0);
 }
 
 template<class NodeT>
@@ -503,10 +507,18 @@ inline void RegionCFG<NodeT>::untangle() {
     BasicBlockNode<NodeT> *ElseChild = Conditional->getSuccessorI(1);
 
     // Collect all the nodes laying between the branches
-    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4>
+    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4> ThenNodes;
+    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4> ElseNodes;
+
+    // If the `PostDominator` is present, we use the `nodesBetween` primitive to
+    // stop at the `PostDominator`, otherwise we collect all the reachable nodes
+    if (PostDominator != nullptr) {
       ThenNodes = nodesBetween(ThenChild, PostDominator);
-    llvm::SmallSetVector<BasicBlockNode<NodeT> *, 4>
       ElseNodes = nodesBetween(ElseChild, PostDominator);
+    } else {
+      ThenNodes = findReachableNodes(ThenChild);
+      ElseNodes = findReachableNodes(ElseChild);
+    }
 
     // Remove the postdominator from both the sets.
     ThenNodes.remove(PostDominator);

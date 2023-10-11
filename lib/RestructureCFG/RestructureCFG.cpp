@@ -5,9 +5,11 @@
 #include <iterator>
 #include <limits>
 #include <sstream>
+#include <utility>
 
 #include "llvm/ADT/BreadthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Dominators.h"
@@ -40,6 +42,7 @@ using std::to_string;
 // TODO: Move the initialization of the logger here from "Utils.h"
 // Debug logger.
 Logger<> CombLogger("restructure");
+Logger<> LogShortestPath("restructure-shortest-path");
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.
@@ -186,8 +189,7 @@ static bool checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
   return ComparisonState;
 }
 
-static void computeParents(MetaRegionBBVect &MetaRegions,
-                           MetaRegionBB *RootMetaRegion) {
+static void computeParents(MetaRegionBBVect &MetaRegions) {
   for (MetaRegionBB &MetaRegion1 : MetaRegions) {
     bool ParentFound = false;
     for (MetaRegionBB &MetaRegion2 : MetaRegions) {
@@ -214,7 +216,7 @@ static void computeParents(MetaRegionBBVect &MetaRegions,
         CombLogger << "no parent found\n";
       }
 
-      MetaRegion1.setParent(RootMetaRegion);
+      MetaRegion1.setParent(nullptr);
     }
   }
 }
@@ -250,15 +252,9 @@ static MetaRegionBBPtrVect applyPartialOrder(MetaRegionBBVect &V) {
 }
 
 static bool alreadyInMetaregion(MetaRegionBBVect &V, BasicBlockNodeBB *N) {
-
-  // Scan all the metaregions and check if a node is already contained in one of
-  // them
-  for (MetaRegionBB &Region : V) {
-    if (Region.containsNode(N)) {
+  for (MetaRegionBB &Region : V)
+    if (Region.containsNode(N))
       return true;
-    }
-  }
-
   return false;
 }
 
@@ -342,10 +338,8 @@ static void LogMetaRegions(const MetaRegionBBPtrVect &MetaRegions,
       CombLogger << "With index " << Meta->getIndex() << '\n';
       CombLogger << "With size " << Meta->nodes_size() << '\n';
       CombLogger << "Is composed of nodes:\n";
-      const auto &Nodes = Meta->getNodes();
-      for (auto *Node : Nodes) {
+      for (auto *Node : Meta->nodes())
         CombLogger << Node->getNameStr() << '\n';
-      }
       CombLogger << "Is SCS: " << Meta->isSCS() << '\n';
       CombLogger << "Has parent: ";
       if (Meta->getParent())
@@ -368,10 +362,8 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
       CombLogger << "With index " << Meta.getIndex() << '\n';
       CombLogger << "With size " << Meta.nodes_size() << '\n';
       CombLogger << "Is composed of nodes:\n";
-      const auto &Nodes = Meta.getNodes();
-      for (auto *Node : Nodes) {
+      for (auto *Node : Meta.nodes())
         CombLogger << Node->getNameStr() << '\n';
-      }
       CombLogger << "Is SCS: " << Meta.isSCS() << '\n';
       CombLogger << "Has parent: ";
       if (Meta.getParent())
@@ -383,6 +375,11 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
   }
 }
 
+static debug_function void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
+                                          const char *HeaderMsg) {
+  LogMetaRegions(MetaRegions, std::string(HeaderMsg));
+}
+
 static std::map<BasicBlockNodeBB *, size_t>
 getCandidateEntries(MetaRegionBB *Meta) {
   std::map<BasicBlockNodeBB *, size_t> Result;
@@ -390,6 +387,75 @@ getCandidateEntries(MetaRegionBB *Meta) {
   for (const auto &[Src, Tgt] : InEdges)
     ++Result[Tgt];
   return Result;
+}
+
+// Function to compute the most nested regions between the ones passed in the
+// parameter `SmallSet`. The assumption is that the candidate `MetaRegion`s
+// passed as parameters all lie on a single nesting derivation line, i.e., the
+// need to be all descendant of one another.
+static MetaRegionBB *
+mostNestedRegion(llvm::SmallSet<MetaRegionBB *, 4> &MetaRegions) {
+
+  // Select the most nested `MetaRegion`
+  MetaRegionBB *MaxMetaRegion = nullptr;
+  size_t MaxLevel = 0;
+  for (MetaRegionBB *Meta : MetaRegions) {
+
+    // If we encounter the `root` `MetaRegion`, we do not proceed with the body
+    // of the loop, since the initialization value already represents the `root`
+    if (Meta == nullptr) {
+      continue;
+    }
+
+    // Compute the nesting level for each `MetaRegion`
+    MetaRegionBB *UpwardMeta = Meta;
+    size_t Level = 0;
+    while (UpwardMeta != nullptr) {
+      UpwardMeta = UpwardMeta->getParent();
+      Level++;
+    }
+
+    // Due to the initial assumption that all the input `MetaRegion`s lie on a
+    // single nesting tree in the `MetaRegion` containement tree, we should
+    // never encounter the same level twice
+    revng_assert(Level != MaxLevel);
+
+    // If the level reached at this iteration is greater than what found
+    // previously, we update the value
+    if (Level > MaxLevel) {
+      MaxMetaRegion = Meta;
+      MaxLevel = Level;
+    }
+  }
+
+  return MaxMetaRegion;
+}
+
+// Function that computes the most nested `MetaRegion` parent between the
+// predecessors of the `Node` input block.
+static MetaRegionBB *computePredecessorsParent(MetaRegionBBPtrVect &MetaRegions,
+                                               BasicBlockNodeBB *Node) {
+
+  // Elect the parent `MetaRegion` for each of the `Node` predecessor
+  llvm::SmallSet<MetaRegionBB *, 4> PredecessorMetaRegions;
+  for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
+
+    // Collect all the `MetaRegion`s containing the `Predecessor`
+    llvm::SmallSet<MetaRegionBB *, 4> ContainingMetaRegions;
+    for (MetaRegionBB *Meta : MetaRegions) {
+      if (Meta->containsNode(Predecessor)) {
+        ContainingMetaRegions.insert(Meta);
+      }
+    }
+
+    // Elect the most nested `MetaRegion` for each `Predecessor`
+    MetaRegionBB *Meta = mostNestedRegion(ContainingMetaRegions);
+    PredecessorMetaRegions.insert(Meta);
+  }
+
+  // Elect the most nested `MetaRegion` between each one selected from the input
+  // `MetaRegion
+  return mostNestedRegion(PredecessorMetaRegions);
 }
 
 bool restructureCFG(Function &F, ASTTree &AST) {
@@ -423,12 +489,12 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   // Identify SCS regions.
   llvm::SmallDenseSet<EdgeDescriptor>
     Backedges = getBackedges(&RootCFG.getEntryNode()).takeSet();
-  if (CombLogger.isEnabled()) {
-    CombLogger << "Backedges in the graph:\n";
-    for (auto &Backedge : Backedges) {
-      CombLogger << Backedge.first->getNameStr() << " -> "
-                 << Backedge.second->getNameStr() << "\n";
-    }
+  revng_log(CombLogger, "Initial Backedges in the graph:");
+  for (auto &Backedge : Backedges) {
+    LoggerIndent Indent(CombLogger);
+    revng_log(CombLogger,
+              Backedge.first->getNameStr()
+                << " -> " << Backedge.second->getNameStr());
   }
 
   // Insert a dummy node for each retreating node.
@@ -442,8 +508,14 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   Backedges = getBackedges(&RootCFG.getEntryNode()).takeSet();
 
   // Check that the source node of each retreating edge is a dummy node.
-  for (EdgeDescriptor Backedge : Backedges)
+  revng_log(CombLogger, "Backedges in the graph after dummy insertion:");
+  for (auto &Backedge : Backedges) {
+    LoggerIndent Indent(CombLogger);
+    revng_log(CombLogger,
+              Backedge.first->getNameStr()
+                << " -> " << Backedge.second->getNameStr());
     revng_assert(Backedge.first->isEmpty());
+  }
 
   // Create meta regions
   MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
@@ -465,9 +537,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   LogMetaRegions(MetaRegions, "Metaregions after second ordering:");
 
   // Compute parent relations for the identified SCSs.
-  std::set<BasicBlockNodeBB *> Empty;
-  MetaRegionBB RootMetaRegion(0, Empty);
-  computeParents(MetaRegions, &RootMetaRegion);
+  computeParents(MetaRegions);
 
   // Print metaregions after ordering.
   LogMetaRegions(MetaRegions, "Metaregions parent relationship:");
@@ -496,26 +566,30 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   }
 
   // Compute shortest path to reach all nodes from Entry.
-  // Uset later for picking the entry point of each region.
+  // Used later for picking the entry point of each region.
   std::map<BasicBlockNodeBB *, size_t> ShortestPathFromEntry;
   {
+    revng_log(LogShortestPath, "Computing ShortestPathFromEntry");
+    LoggerIndent Indent(LogShortestPath);
     auto BFSIt = llvm::bf_begin(&RootCFG.getEntryNode());
     auto BFSEnd = llvm::bf_end(&RootCFG.getEntryNode());
     for (; BFSIt != BFSEnd; ++BFSIt) {
       BasicBlockNodeBB *Node = *BFSIt;
       size_t Depth = BFSIt.getLevel();
+      revng_log(LogShortestPath, "Node = " << Node);
       auto ShortestIt = ShortestPathFromEntry.lower_bound(Node);
+      LoggerIndent MoreIndent(LogShortestPath);
       if (ShortestIt == ShortestPathFromEntry.end()
           or Node < ShortestIt->first) {
+        revng_log(LogShortestPath, "New shortest path Depth: " << Depth);
         ShortestPathFromEntry.insert(ShortestIt, { Node, Depth });
       } else {
+        revng_log(LogShortestPath,
+                  "Known shortest path Depth: " << ShortestIt->second);
         revng_assert(ShortestIt->second <= Depth);
       }
     }
   }
-
-  DominatorTreeBase<BasicBlockNodeBB, false> DT;
-  DT.recalculate(RootCFG);
 
   // Reserve enough space for all the OrderedMetaRegions.
   // The following algorithms stores pointers to the elements of this vector, so
@@ -526,11 +600,9 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     if (CombLogger.isEnabled()) {
       CombLogger << "\nAnalyzing region: " << Meta->getIndex() << "\n";
 
-      auto &Nodes = Meta->getNodes();
       CombLogger << "Which is composed of nodes:\n";
-      for (auto *Node : Nodes) {
+      for (auto *Node : Meta->nodes())
         CombLogger << Node->getNameStr() << "\n";
-      }
 
       CombLogger << "Dumping main graph snapshot before restructuring\n";
       RootCFG.dumpCFGOnFile(F.getName().str(),
@@ -604,9 +676,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     // `getBackedgesWhitelist` helper to collect the retreating contained in the
     // current metaregion.
     llvm::SmallSet<BasicBlockNodeBB *, 4> MetaNodes;
-    for (BasicBlockNodeBB *Node : Meta->nodes()) {
+    for (BasicBlockNodeBB *Node : Meta->nodes())
       MetaNodes.insert(Node);
-    }
 
     llvm::SmallDenseSet<EdgeDescriptor>
       Retreatings = getBackedgesWhiteList(Entry, MetaNodes).takeSet();
@@ -624,6 +695,10 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     bool NewHeadNeeded = RetreatingTargets.size() > 1;
     revng_log(CombLogger, "New head needed: " << NewHeadNeeded);
+
+    // Set to contain the retreating edges, which eventually will be connected
+    // to the `continue` nodes
+    llvm::SmallVector<EdgeDescriptor> ContinueBackedges;
 
     BasicBlockNodeBB *Head = Entry;
     if (NewHeadNeeded) {
@@ -649,26 +724,22 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
       for (EdgeDescriptor R : Retreatings) {
         BasicBlockNodeBB *OriginalSource = R.first;
-
-        // If the original source is a set node, move it after the entry
-        // dispatcher.
         unsigned Idx = RetreatingIdxMap.at(R.second);
-        if (OriginalSource->isSet()) {
-          BasicBlockNodeBB *OldSetNode = OriginalSource;
-          revng_assert(OldSetNode->predecessor_size() == 1);
-          BasicBlockNodeBB *Predecessor = *OldSetNode->predecessors().begin();
-          auto *SetNode = RootCFG.addSetStateNode(Idx, OldSetNode->getName());
-          Meta->insertNode(SetNode);
-          moveEdgeTarget(EdgeDescriptor(Predecessor, OldSetNode), Head);
-        } else {
-          auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
-          Meta->insertNode(SetNode);
-          moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
-          addPlainEdge(EdgeDescriptor(SetNode, Head));
-        }
+        revng_assert(not OriginalSource->isSet(),
+                     "A set node is not expected as predecessor source of a "
+                     "retreating edge");
+        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
+        Meta->insertNode(SetNode);
+        moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
+        addPlainEdge(EdgeDescriptor(SetNode, Head));
+
+        // Save the `continue` edges, that will be later processed during the
+        // `continue` phase insertion
+        ContinueBackedges.push_back(EdgeDescriptor(SetNode, Head));
       }
 
-      // Move the incoming edge from the old head to new one.
+      // Move the remaining (the retreatings have been handled in the above
+      // code) incoming edges from the old head to the new one.
       std::vector<BasicBlockNodeBB *> Predecessors;
       for (BasicBlockNodeBB *Predecessor : Entry->predecessors())
         Predecessors.push_back(Predecessor);
@@ -676,138 +747,328 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       for (BasicBlockNodeBB *Predecessor : Predecessors)
         if (not Meta->containsNode(Predecessor))
           moveEdgeTarget(EdgeDescriptor(Predecessor, Entry), Head);
+    } else {
+
+      // No head dispatcher has been inserted, so we should insert all the
+      // retreating edges in the `ContinueBackedges` set, checking that they
+      // point to the `Entry` node
+      for (EdgeDescriptor R : Retreatings) {
+        revng_assert(R.second == Entry);
+        ContinueBackedges.push_back(R);
+      }
     }
 
+    // Verify that we found at least one backedge
+    revng_assert(ContinueBackedges.size() > 0);
+
     revng_assert(Head != nullptr);
-    if (CombLogger.isEnabled()) {
-      CombLogger << "New head name is: " << Head->getNameStr() << "\n";
-    }
+    revng_log(CombLogger, "New head name is: " << Head->getNameStr());
 
     // Successor refinement step.
     std::set<BasicBlockNodeBB *> Successors = Meta->getSuccessors();
-
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Region successors are:\n";
-      for (BasicBlockNodeBB *Node : Successors) {
-        CombLogger << Node->getNameStr() << "\n";
-      }
+    revng_log(CombLogger, "Initial region successors are:");
+    for (BasicBlockNodeBB *Node : Successors) {
+      LoggerIndent Indent(CombLogger);
+      revng_log(CombLogger, Node->getNameStr());
     }
 
+    revng_log(CombLogger, "Successors Address: " << &Successors);
+
     bool AnotherIteration = true;
+    revng_log(CombLogger, "Adjusting regions successors");
     while (AnotherIteration and Successors.size() > 1) {
+      LoggerIndent Indent(CombLogger);
       AnotherIteration = false;
-      std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
+      for (BasicBlockNodeBB *S : llvm::make_early_inc_range(Successors)) {
+        revng_log(CombLogger, "Successor: " << S->getID());
+        LoggerIndent Indent(CombLogger);
 
-      std::vector<BasicBlockNodeBB *> Frontiers;
-      std::map<BasicBlockNodeBB *, pair<BasicBlockNodeBB *, BasicBlockNodeBB *>>
-        EdgeExtremal;
+        // If S is already in another metaregion, we don't include it in this
+        // one, because that could disrupt the well-nestedness of the meta
+        // regions (and possibly force us to recompute the OrderedMetaRegion).
+        // TODO: this condition is very likely to be overly strict, because it
+        // prevents some good cases to be handled gracefully. In principle I
+        // think that we could include any node that is only in the parent
+        // region (but not in sibling meta regions), making sure that we never
+        // "ingest" a backedge, but this should be thought through before
+        // jumping to an implementation.
+        if (alreadyInMetaregion(MetaRegions, S)) {
+          revng_log(CombLogger, "AlreadyInMetaRegion");
+          continue;
+        }
 
-      for (EdgeDescriptor Edge : OutgoingEdges) {
-        BasicBlockNodeBB *Frontier = RootCFG.addArtificialNode("frontier "
-                                                               "dummy");
-        BasicBlockNodeBB *OldSource = Edge.first;
-        BasicBlockNodeBB *OldTarget = Edge.second;
-        EdgeExtremal[Frontier] = std::make_pair(OldSource, OldTarget);
-        moveEdgeTarget(Edge, Frontier);
-        addPlainEdge(EdgeDescriptor(Frontier, OldTarget));
-        Meta->insertNode(Frontier);
-        Frontiers.push_back(Frontier);
-      }
+        // If any of the predecessors of S is not in the Meta
+        // metaregion we don't do anything
+        if (llvm::any_of(S->predecessors(), [Meta](auto *P) {
+              return not Meta->containsNode(P);
+            })) {
+          revng_log(CombLogger, "PredecessorIsOutside");
+          continue;
+        }
 
-      DT.recalculate(RootCFG);
-      for (BasicBlockNodeBB *Frontier : Frontiers) {
-        for (BasicBlockNodeBB *Successor : Successors) {
-          if ((DT.dominates(Head, Successor))
-              and (DT.dominates(Frontier, Successor))
-              and not alreadyInMetaregion(MetaRegions, Successor)) {
-            Meta->insertNode(Successor);
-            AnotherIteration = true;
-            if (CombLogger.isEnabled()) {
-              CombLogger << "Identified new candidate for successor "
-                            "refinement:";
-              CombLogger << Successor->getNameStr() << "\n";
-            }
+        // Otherwise we include S in the Meta metaregion, since
+        // all its predecessors are part of it (which means it's
+        // dominated by the region).
+        revng_assert(not Meta->containsNode(S));
+        Meta->insertNode(S);
+        revng_log(CombLogger,
+                  "Successor has been included in "
+                  "the metaregion: "
+                    << S->getNameStr());
+
+        // Mark that we want to do another iteration
+        AnotherIteration = true;
+
+        // The following is safe because Successors is a std::set
+        // and we're using llvm::make_early_inc_range. S has been
+        // included in the metaregion, so we have to erase it
+        // from Successors, since it's not a successor of the
+        // metaregion anymore. Also, all successors of Successor
+        // that are not in the metaregion now have to be inserted
+        // in Successors, because they are now new successors.
+        bool Erased = Successors.erase(S);
+        revng_assert(Erased);
+        for (BasicBlockNodeBB *NewSuccessor : S->successors()) {
+          if (not Meta->containsNode(NewSuccessor)) {
+            Successors.insert(NewSuccessor);
+            revng_log(CombLogger,
+                      "New Successor of the "
+                      "metaregion: "
+                        << NewSuccessor->getNameStr());
           }
         }
       }
 
-      // Remove the frontier nodes since we do not need them anymore.
-      for (BasicBlockNodeBB *Frontier : Frontiers) {
-        BasicBlockNodeBB *OriginalSource = EdgeExtremal[Frontier].first;
-        BasicBlockNodeBB *OriginalTarget = EdgeExtremal[Frontier].second;
-        moveEdgeTarget({ OriginalSource, Frontier }, OriginalTarget);
-        RootCFG.removeNode(Frontier);
-        Meta->removeNode(Frontier);
-      }
+      revng_log(CombLogger, "AnotherIteration: " << AnotherIteration);
 
-      Successors = Meta->getSuccessors();
+      revng_log(CombLogger, "Adjusted region successors are:");
+      for (BasicBlockNodeBB *Node : Successors) {
+        LoggerIndent Indent(CombLogger);
+        revng_log(CombLogger, Node->getNameStr());
+      }
     }
 
     // First Iteration outlining.
-    // Clone all the nodes of the SCS except for the head.
-    std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> ClonedMap;
-    std::vector<BasicBlockNodeBB *> OutlinedNodes;
-    for (BasicBlockNodeBB *Node : Meta->nodes()) {
-      if (Node != Head) {
-        BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
+    llvm::SmallSet<BasicBlockNodeBB *, 4> OutlinedClonedNodes;
+    llvm::SmallSet<BasicBlockNodeBB *, 4> OutlinedOriginalNodes;
+    if (Entries.size() > 1) {
+      std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> ClonedMap;
 
-        // In case we are cloning nodes that may become entry candidates of
-        // regions, we need to assign to them a value in the
-        // `ShortestPathFromEntry` map.
-        if (Node->isCollapsed() or Node->isCode()) {
-          ShortestPathFromEntry[Clone] = ShortestPathFromEntry.at(Node);
+      llvm::df_iterator_default_set<BasicBlockNodeBB *> VisitedForOutlining;
+      VisitedForOutlining.insert(Head);
+      Entries.erase(Head);
+
+      // We perform the cloning of the nodes interested by the first iteration
+      // outlining, performing a DFS starting from all the `Entries` nodes, and
+      // not proceeding towards node that are not in the `MetaRegion` under
+      // restructuring
+      for (const auto &[LateEntry, Value] : Entries) {
+        auto ItBegin = llvm::df_ext_begin(LateEntry, VisitedForOutlining);
+        auto ItEnd = llvm::df_ext_end(LateEntry, VisitedForOutlining);
+
+        while (ItBegin != ItEnd) {
+
+          // Extract the currently visited node
+          BasicBlockNodeBB *Node = *ItBegin;
+
+          // If the node is not in the `MetaRegion`, we do not want to proceed
+          // in this direction
+          if (not Meta->containsNode(Node)) {
+
+            // Skip over the children of `Node`
+            ItBegin.skipChildren();
+
+            // Skip the cloning process for the current `Node`, since it is not
+            // part of the outlined iteration
+            continue;
+          }
+
+          // If we reach this point, we are inspecting a node part of the first
+          // outlined iteration, therefore we proceed with the cloning
+          BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
+
+          // In case we are cloning nodes that may become entry candidates of
+          // regions, we need to assign to them a value in the
+          // `ShortestPathFromEntry` map
+          if (Node->isCollapsed() or Node->isCode()) {
+            ShortestPathFromEntry[Clone] = ShortestPathFromEntry.at(Node);
+          }
+          Clone->setName(Node->getName().str() + " outlined");
+          ClonedMap[Node] = Clone;
+
+          // Add the nodes to two additional vectors used later in the
+          // postprocessing that assigns each node to the correct `MetaRegion`
+          OutlinedClonedNodes.insert(Clone);
+          OutlinedOriginalNodes.insert(Node);
+
+          // Increment the `df_iterator`
+          ItBegin++;
         }
-        Clone->setName(Node->getName().str() + " outlined");
-        ClonedMap[Node] = Clone;
-
-        // Add the nodes to the additional vector
-        OutlinedNodes.push_back(Clone);
       }
-    }
 
-    // Restore edges between cloned nodes.
-    for (BasicBlockNodeBB *Node : Meta->nodes()) {
-      if (Node != Head) {
+      // Restore the edges between the node cloned during the first step of the
+      // outlining
+      for (BasicBlockNodeBB *Node : OutlinedOriginalNodes) {
+        revng_assert(Node != Head);
 
-        // Handle outgoing edges from SCS nodes.
+        // Handle the successors of each node
         for (const auto &[Successor, Labels] : Node->labeled_successors()) {
           revng_assert(not Backedges.contains(EdgeDescriptor(Node, Successor)));
-          using ED = EdgeDescriptor;
-          auto *NewEdgeSrc = ClonedMap.at(Node);
-          auto *NewEdgeTgt = Successor;
+
+          BasicBlockNodeBB *NewEdgeSrc = ClonedMap.at(Node);
+          BasicBlockNodeBB *NewEdgeTgt = nullptr;
+
           if (Meta->containsNode(Successor)) {
-            // Handle edges pointing inside the SCS.
-            if (Successor == Head) {
-              // Retreating edges should point to the new head.
+            if (OutlinedOriginalNodes.contains(Successor)) {
+
+              // The successor may be another outlined node
+              NewEdgeTgt = ClonedMap.at(Successor);
+            } else if (Successor == Head) {
+
+              // The successor is the `Head`, so we should reconnect it
               NewEdgeTgt = Head;
             } else {
-              // Other edges should be restored between cloned nodes.
-              NewEdgeTgt = ClonedMap.at(Successor);
+
+              // We should not encounter another type of successor
+              revng_abort();
             }
+          } else {
+
+            // If the successor is not part of the `MetaRegion`, we expect it to
+            // be part of the loop successors previously identified
+            revng_assert(Successors.contains(Successor));
+
+            NewEdgeTgt = Successor;
           }
-          addEdge(ED(NewEdgeSrc, NewEdgeTgt), Labels);
+          addEdge(EdgeDescriptor(NewEdgeSrc, NewEdgeTgt), Labels);
         }
 
-        // We need this temporary vector to avoid invalidating iterators.
-        std::vector<BasicBlockNodeBB *> Predecessors;
+        // Handle the predecessors. Note that we are interested in handling here
+        // only predecessors not belonging to the `MetaRegion`, since the
+        // predecessors of each node that lies in the outlined iteration, should
+        // have been already handled (or will be) as successors of other nodes
+        // in the outlined iteration.
+        // We do not iterate directly on the predecessors to avoid iterator
+        // invalidation
+        llvm::SmallVector<BasicBlockNodeBB *> Predecessors;
         for (BasicBlockNodeBB *Predecessor : Node->predecessors()) {
           Predecessors.push_back(Predecessor);
         }
-        for (BasicBlockNodeBB *Predecessor : Predecessors) {
-          if (not Meta->containsNode(Predecessor)) {
-            // Is the edge we are moving a backedge ?.
-            if (CombLogger.isEnabled()) {
-              CombLogger << "Index region: " << Meta->getIndex() << "\n";
-              CombLogger << "Backedge that we would insert: "
-                         << Predecessor->getNameStr() << " -> "
-                         << Node->getNameStr() << "\n";
-            }
 
-            // Are we moving a backedge with the first iteration outlining?
+        for (BasicBlockNodeBB *Predecessor : Predecessors) {
+          if (not(Meta->containsNode(Predecessor))) {
+            // We handle edges incoming in nodes from outside the outlined
+            // iteration
+
+            // Are we moving a backedge with the first iteration outlinig?
             revng_assert(not Backedges.contains({ Predecessor, Node }));
 
-            moveEdgeTarget(EdgeDescriptor(Predecessor, Node),
-                           ClonedMap.at(Node));
+            // If we are on the border of the outlined iteration, `Node` must be
+            // one of the late entries
+            revng_assert(Entries.contains(Node));
+
+            BasicBlockNodeBB *Clone = ClonedMap.at(Node);
+            moveEdgeTarget(EdgeDescriptor(Predecessor, Node), Clone);
+          } else {
+
+            // We should do nothing, we already took care of these edges while
+            // iterating over the successors of the group of nodes
+          }
+        }
+      }
+
+      // Postprocessing that encapsules each node that has been outlined in the
+      // correct `MetaRegion`. The process, at a macro level, proceeds as
+      // follows:
+      // 1) We need to process all the outlined nodes, with the guarantee that
+      //    when we visit each node, all its predecessors must have been already
+      //    processed (a requirement for point 3). To do that, we instantiate
+      //    multiple `post order` visits, that starts from each successor of
+      //    nodes in the outlined iteration. All the visits share the same `ext`
+      //    set, which is pre-populated with the nodes that are the entries of
+      //    the outlined iteration, so that we only visit nodes we are
+      //    interested to postprocess (i.e., the nodes in the outlined
+      //    iteration). post order over the `Inverse` graph, using an `ext` DFS
+      //    visit that stops at predecessor of the outline iteration.
+      // 2) For each node encountered, we proceed at the election of the correct
+      //    `MetaRegion` to which the node will be assigned, on the basis of the
+      //    following criterion.
+      // 3) We collect the predecessors of each node, and collect all the
+      //    `MetaRegion`s to which they do belong. After this, we select the
+      //    most nested `MetaRegion` between them. This is done under the
+      //    assumption that all the candidate `MetaRegion`s must fall on a
+      //    single inheritance line on the `MetaRegion` inclusion tree.
+
+      // Collect the `Head` plus the successors, which are the point from where
+      // the DFSs for the `po_ext` should start. More in detail, the DFS used by
+      // the post order should not start from the `Head` and the `Successors`,
+      // but only from their predecessors contained inside the outlined
+      // iteration.
+      llvm::SmallVector<BasicBlockNodeBB *> BoundaryNodes;
+      BoundaryNodes.push_back(Head);
+      for (BasicBlockNodeBB *Successor : Successors) {
+        BoundaryNodes.push_back(Successor);
+      }
+      llvm::SmallSet<BasicBlockNodeBB *, 4> DFSOrigins;
+      for (BasicBlockNodeBB *BoundaryNode : BoundaryNodes) {
+        for (BasicBlockNodeBB *Predecessor : BoundaryNode->predecessors()) {
+          if (OutlinedClonedNodes.contains(Predecessor)) {
+            DFSOrigins.insert(Predecessor);
+            revng_assert(Predecessor != Head);
+          }
+        }
+      }
+
+      // This is the `ext` set used to stop all the subsequents `post order`
+      // visits
+      llvm::SmallSet<BasicBlockNodeBB *, 4> DFSExtSet;
+
+      // We prepopulate the `DFSExtSet` with all the predecessors of the `Head`
+      // that are not part of the outlined iteration
+      for (BasicBlockNodeBB *Predecessor : Head->predecessors()) {
+        if (not OutlinedClonedNodes.contains(Predecessor)) {
+          revng_assert(Predecessor != Head);
+          DFSExtSet.insert(Predecessor);
+        }
+      }
+
+      // We also insert all the predecessors of each `LateEntry`, which are not
+      // part of the `OutlinedClonedNodes`
+      for (const auto &[LateEntry, Value] : Entries) {
+        revng_assert(LateEntry != Head);
+        BasicBlockNodeBB *LateEntryCloned = ClonedMap.at(LateEntry);
+        for (BasicBlockNodeBB *Predecessor : LateEntryCloned->predecessors()) {
+          if (not OutlinedClonedNodes.contains(Predecessor)) {
+            revng_assert(Predecessor != Head);
+            DFSExtSet.insert(Predecessor);
+          }
+        }
+      }
+
+      // We need to instantiate a new `post order` over the Inverse graph, for
+      // each exit point from the outlined iteration. The relevant nodes, have
+      // been collected in `DFSOrigins`.
+      for (BasicBlockNodeBB *DFSEntry : DFSOrigins) {
+        for (BasicBlockNodeBB *OutlinedNode :
+             llvm::inverse_post_order_ext(DFSEntry, DFSExtSet)) {
+
+          // We should not encounter a node not part of the outlined iteration
+          // during the DFSs
+          if (not OutlinedClonedNodes.contains(OutlinedNode)) {
+            revng_abort();
+          }
+
+          // Find the region where each outlined node should be placed
+          MetaRegionBB
+            *CandidateParent = computePredecessorsParent(OrderedMetaRegions,
+                                                         OutlinedNode);
+
+          // The `CandidateParent` may be `nullptr`, if the `root` region is
+          // selected as `CandidateParent`, which is an admissible situation,
+          // and since the `root` `MetaRegion` is no more materialized, in such
+          // case we do not need to insert the nodes anywhere
+          if (CandidateParent != nullptr) {
+            CandidateParent->insertNode(OutlinedNode);
           }
         }
       }
@@ -895,13 +1156,11 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     bool NewExitNeeded = DeduplicatedRegionSuccessors.size() > 1;
     revng_log(CombLogger, "New exit needed: " << NewExitNeeded);
 
-    std::vector<BasicBlockNodeBB *> ExitDispatcherNodes;
-    BasicBlockNodeBB *Exit = nullptr;
+    BasicBlockNodeBB *ExitDispatcher = nullptr;
     if (NewExitNeeded) {
 
       // Create the dispatcher.
-      Exit = RootCFG.addExitDispatcher();
-      ExitDispatcherNodes.push_back(Exit);
+      ExitDispatcher = RootCFG.addExitDispatcher();
 
       // For each target of the dispatcher add the edge and add it in the map.
       std::map<BasicBlockNodeBB *, unsigned> SuccessorsIdxMap;
@@ -916,7 +1175,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         Labels.insert(Idx);
         using EdgeInfo = typename BasicBlockNodeBB::EdgeInfo;
         EdgeInfo EI = { Labels, false };
-        addEdge(EdgeDescriptor(Exit, Successor), EI);
+        addEdge(EdgeDescriptor(ExitDispatcher, Successor), EI);
       }
 
       std::set<EdgeDescriptor> OutEdges = Meta->getOutEdges();
@@ -931,7 +1190,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         addPlainEdge(EdgeDescriptor(IdxSetNode, Edge.second));
       }
 
-      revng_log(CombLogger, "New exit name is: " << Exit->getNameStr());
+      revng_log(CombLogger,
+                "New exit name is: " << ExitDispatcher->getNameStr());
     }
 
     // Collapse Region.
@@ -982,7 +1242,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     CollapsedGraph.insertBulkNodes(Meta->getNodes(),
                                    Head,
                                    SubstitutionMap,
-                                   OutgoingEdges);
+                                   OutgoingEdges,
+                                   ContinueBackedges);
 
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
@@ -1002,8 +1263,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     // Connect the outgoing edges to the collapsed node.
     if (NewExitNeeded) {
-      revng_assert(Exit != nullptr);
-      addPlainEdge(EdgeDescriptor(Collapsed, Exit));
+      revng_assert(ExitDispatcher != nullptr);
+      addPlainEdge(EdgeDescriptor(Collapsed, ExitDispatcher));
     } else {
 
       // Double check that we have at most a single successor
@@ -1018,24 +1279,22 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     // Remove collapsed nodes from the outer region.
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
-      if (CombLogger.isEnabled()) {
-        CombLogger << "Removing from main graph node :" << Node->getNameStr()
-                   << "\n";
-      }
+      revng_log(CombLogger,
+                "Removing from main graph node :" << Node->getNameStr());
       RootCFG.removeNode(Node);
       llvm::erase_value(RPOT, Node);
     }
 
+    LogMetaRegions(OrderedMetaRegions, "MetaRegions before update");
     // Substitute in the other SCSs the nodes of the current SCS with the
     // collapsed node and the exit dispatcher structure.
-    for (MetaRegionBB *OtherMeta : OrderedMetaRegions) {
-      if (OtherMeta != Meta) {
-        OtherMeta->updateNodes(Meta->getNodes(),
-                               Collapsed,
-                               ExitDispatcherNodes,
-                               DefaultEntrySet,
-                               OutlinedNodes);
-      }
+    MetaRegionBB *ParentMetaRegion = Meta->getParent();
+    while (ParentMetaRegion) {
+      ParentMetaRegion->updateNodes(Meta->getNodes(),
+                                    Collapsed,
+                                    ExitDispatcher,
+                                    DefaultEntrySet);
+      ParentMetaRegion = ParentMetaRegion->getParent();
     }
 
     // Replace the pointers inside SCS.

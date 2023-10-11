@@ -325,7 +325,8 @@ public:
   void insertBulkNodes(BasicBlockNodeTSet &Nodes,
                        BasicBlockNodeT *Head,
                        BBNodeMap &SubstitutionMap,
-                       std::set<EdgeDescriptor> &Out);
+                       std::set<EdgeDescriptor> &Out,
+                       llvm::SmallVector<EdgeDescriptor> &ContinueBackedges);
 
   BBNodeT &getEntryNode() const { return *EntryNode; }
 

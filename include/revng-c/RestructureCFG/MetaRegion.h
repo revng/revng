@@ -49,17 +49,16 @@ private:
 
 public:
   MetaRegion(int Index, BasicBlockNodeTSet &Nodes, bool IsSCS = false) :
-    Index(Index), Nodes(Nodes), IsSCS(IsSCS) {}
+    Index(Index), Nodes(Nodes), ParentRegion(nullptr), IsSCS(IsSCS) {}
 
   int getIndex() const { return Index; }
 
   void replaceNodes(BasicBlockNodeTUPVect &NewNodes);
 
-  void updateNodes(BasicBlockNodeTSet &Removal,
+  void updateNodes(const BasicBlockNodeTSet &Removal,
                    BasicBlockNodeT *Collapsed,
-                   BasicBlockNodeTVect &Dispatcher,
-                   BasicBlockNodeTVect &DefaultEntrySet,
-                   BasicBlockNodeTVect &OutlinedNodes);
+                   BasicBlockNodeT *ExitDispatcher,
+                   const BasicBlockNodeTVect &DefaultEntrySet);
 
   void setParent(MetaRegion<NodeT> *Parent) { ParentRegion = Parent; }
 
