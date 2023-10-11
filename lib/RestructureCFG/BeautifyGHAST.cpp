@@ -111,9 +111,6 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       flipEmptyThen(LabelCasePair.second, AST);
-
-    if (ASTNode *Default = Switch->getDefault())
-      flipEmptyThen(Default, AST);
   }
 }
 
@@ -181,8 +178,6 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       simplifyShortCircuit(LabelCasePair.second, AST);
-    if (ASTNode *Default = Switch->getDefault())
-      simplifyShortCircuit(Default, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
@@ -354,8 +349,6 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       simplifyTrivialShortCircuit(LabelCasePair.second, AST);
-    if (ASTNode *Default = Switch->getDefault())
-      simplifyTrivialShortCircuit(Default, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
@@ -424,9 +417,6 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
     // revng_assert(Switch->CaseSize() >= 2);
     for (auto &LabelCasePair : Switch->cases())
       LabelCasePair.second = matchSwitch(AST, LabelCasePair.second);
-
-    if (ASTNode *Default = Switch->getDefault())
-      Default = matchSwitch(AST, Default);
   }
   return RootNode;
 }
@@ -451,9 +441,6 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       matchDoWhile(LabelCasePair.second, AST);
-
-    if (ASTNode *Default = Switch->getDefault())
-      matchDoWhile(Default, AST);
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
@@ -532,8 +519,6 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
 
     for (auto &LabelCasePair : Switch->cases())
       addComputationToContinue(LabelCasePair.second, ConditionIf);
-    if (ASTNode *Default = Switch->getDefault())
-      addComputationToContinue(Default, ConditionIf);
 
   } else if (auto *Continue = llvm::dyn_cast<ContinueNode>(RootNode)) {
     Continue->addComputationIfNode(ConditionIf);
@@ -557,8 +542,6 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       matchWhile(LabelCasePair.second, AST);
-    if (ASTNode *Default = Switch->getDefault())
-      matchWhile(Default, AST);
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
@@ -676,8 +659,6 @@ protected:
         LoopStack.back().second.push_back(Switch);
       for (auto &LabelCasePair : Switch->cases())
         exec(LabelCasePair.second, AST);
-      if (ASTNode *Default = Switch->getDefault())
-        exec(Default, AST);
       if (not LoopStack.empty())
         LoopStack.back().second.pop_back();
     } break;
@@ -777,12 +758,6 @@ computeCumulativeNodeWeight(ASTNode *Node,
                                                                  NodeWeight);
       NodeWeight[Case] = CaseWeight;
       SwitchWeight += CaseWeight;
-    }
-    if (ASTNode *Default = Switch->getDefault()) {
-      unsigned DefaultWeight = rc_recur computeCumulativeNodeWeight(Default,
-                                                                    NodeWeight);
-      NodeWeight[Default] = DefaultWeight;
-      SwitchWeight += DefaultWeight;
     }
     rc_return SwitchWeight + 1;
   } break;
@@ -897,12 +872,6 @@ fallThroughScope(ASTNode *Node,
       bool CaseFallThrough = rc_recur fallThroughScope(Case, FallThroughMap);
       FallThroughMap[Case] = CaseFallThrough;
       AllNoFallthrough &= not CaseFallThrough;
-    }
-    if (ASTNode *Default = Switch->getDefault()) {
-      bool DefaultFallThrough = rc_recur fallThroughScope(Default,
-                                                          FallThroughMap);
-      FallThroughMap[Default] = DefaultFallThrough;
-      AllNoFallthrough &= not DefaultFallThrough;
     }
 
     // TODO: consider flipping a number of `not` in the code.
@@ -1057,14 +1026,6 @@ promoteNoFallthrough(ASTTree &AST,
                                                            LabelCasePair.second,
                                                            FallThroughMap,
                                                            NodeWeight);
-
-    if (ASTNode *Default = Switch->getDefault()) {
-      ASTNode *NewDefault = rc_recur promoteNoFallthrough(AST,
-                                                          Default,
-                                                          FallThroughMap,
-                                                          NodeWeight);
-      Switch->replaceDefault(NewDefault);
-    }
   } break;
   case ASTNode::NK_Code:
   case ASTNode::NK_Set:
@@ -1178,11 +1139,6 @@ static RecursiveCoroutine<ASTNode *> collapseSequences(ASTTree &AST,
     for (auto &LabelCasePair : Switch->cases())
       LabelCasePair.second = rc_recur collapseSequences(AST,
                                                         LabelCasePair.second);
-
-    if (ASTNode *Default = Switch->getDefault()) {
-      ASTNode *NewDefault = rc_recur collapseSequences(AST, Default);
-      Switch->replaceDefault(NewDefault);
-    }
   } break;
   case ASTNode::NK_Code:
   case ASTNode::NK_Set:

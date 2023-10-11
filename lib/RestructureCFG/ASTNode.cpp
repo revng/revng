@@ -63,11 +63,11 @@ void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 }
 
 void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+
+  // The `default` case, if present, is now handled in the normal iteration over
+  // the `case`s
   for (auto &LabelCasePair : LabelCaseVec)
     LabelCasePair.second = SubstitutionMap.at(LabelCasePair.second);
-
-  if (Default != nullptr)
-    Default = SubstitutionMap.at(Default);
 }
 
 // #### isEqual methods ####
@@ -87,15 +87,7 @@ bool SwitchNode::nodeIsEqual(const ASTNode *Node) const {
   if (getOriginalBB() != Node->getOriginalBB())
     return false;
 
-  ASTNode *OtherDefault = OtherSwitch->getDefault();
-  ASTNode *ThisDefault = this->getDefault();
-  if ((OtherDefault == nullptr) != (ThisDefault == nullptr))
-    return false;
-
-  if (ThisDefault and not ThisDefault->isEqual(OtherDefault))
-    return false;
-
-  // Continue the comparison only if the sequence node size are the same
+  // Continue the comparison only if the `case` nodes size are the same
   if (LabelCaseVec.size() != OtherSwitch->LabelCaseVec.size())
     return false;
 
@@ -293,6 +285,13 @@ void SwitchNode::dump(llvm::raw_fd_ostream &ASTFile) {
 
 void SwitchNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   for (const auto &[LabelSet, Case] : cases()) {
+
+    // Skip the serialization of the `default` case, if present, it will be
+    // handled separately
+    if (LabelSet.empty() == true) {
+      continue;
+    }
+
     ASTFile << "node_" << this->getID() << " -> node_" << Case->getID()
             << " [color=green,label=\"case ";
 

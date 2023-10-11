@@ -1804,7 +1804,12 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
       // Generate the body of the switch (except for the default)
       for (const auto &[Labels, CaseNode] : Switch->cases_const_range()) {
-        revng_assert(not Labels.empty());
+
+        // If we encounter the `default` case, skip it, as it is emitted later
+        if (Labels.empty() == true) {
+          continue;
+        }
+
         // Generate the case label(s) (multiple case labels might share the
         // same body)
         for (uint64_t CaseVal : Labels) {
@@ -2111,10 +2116,6 @@ static RecursiveCoroutine<bool> needsLoopVar(ASTNode *N) {
 
     for (const auto &[Labels, CaseNode] : Switch->cases())
       if (rc_recur needsLoopVar(CaseNode))
-        rc_return true;
-
-    if (auto *Default = Switch->getDefault())
-      if (rc_recur needsLoopVar(Default))
         rc_return true;
 
     rc_return false;

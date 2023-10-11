@@ -497,27 +497,26 @@ public:
   using case_const_range = llvm::iterator_range<case_const_iterator>;
 
 public:
+  // To represent the `default` case, if present, contained in the `SwitchNode`,
+  // we employ an empty set in the `LabeledCases` `SmallVector`.
+
   SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              const case_container &LabeledCases,
-             ASTNode *Def,
              ASTNode *Successor) :
 
     ASTNode(NK_Switch, CFGNode, Successor),
     Condition(Cond),
     LabelCaseVec(LabeledCases),
-    Default(Def),
     IsWeaved(CFGNode->isWeaved()) {}
 
   SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              case_container &&LabeledCases,
-             ASTNode *Def,
              ASTNode *Successor) :
     ASTNode(NK_Switch, CFGNode, Successor),
     Condition(Cond),
     LabelCaseVec(std::move(LabeledCases)),
-    Default(Def),
     IsWeaved(CFGNode->isWeaved()) {}
 
   SwitchNode(const SwitchNode &) = default;
@@ -553,9 +552,24 @@ public:
     NeedLoopBreakDispatcher = N;
   }
 
-  ASTNode *getDefault() const { return Default; }
+  ASTNode *getDefault() const {
+    ASTNode *Default = nullptr;
+    for (const auto &[LabelSet, Successor] : LabelCaseVec) {
 
-  void replaceDefault(ASTNode *NewDefault) { Default = NewDefault; }
+      // The `default` case is signaled by having an empty associated label set.
+      if (LabelSet.empty() == true) {
+
+        // We should have not already found the `default`.
+        revng_assert(Default == nullptr);
+
+        Default = Successor;
+      }
+    }
+
+    return Default;
+  }
+
+  bool hasDefault() const { return nullptr != getDefault(); }
 
   llvm::Value *getCondition() const { return Condition; }
 
@@ -564,7 +578,6 @@ public:
 protected:
   llvm::Value *Condition;
   case_container LabelCaseVec;
-  ASTNode *Default;
   bool IsWeaved;
   bool NeedStateVariable = false; // for breaking directly out of a loop
   bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
