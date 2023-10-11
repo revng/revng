@@ -391,7 +391,7 @@ private:
   RecursiveCoroutine<std::string> buildGHASTCondition(const ExprNode *E);
 
   /// Serialize a basic block into a series of C statements.
-  void emitBasicBlock(const BasicBlock *BB);
+  void emitBasicBlock(const BasicBlock *BB, bool EmitReturn);
 
 private:
   RecursiveCoroutine<std::string> getToken(const llvm::Value *V) const;
@@ -1440,7 +1440,8 @@ static bool isStatement(const llvm::Instruction *I) {
   return false;
 }
 
-void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
+void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
+                                    bool EmitReturn) {
   LoggerIndent Indent{ VisitLog };
   revng_log(VisitLog, "|__ Visiting BB " << BB->getName());
   LoggerIndent MoreIndent{ VisitLog };
@@ -1457,8 +1458,12 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
     } else if (I.getType()->isVoidTy()) {
       revng_assert(isa<llvm::ReturnInst>(I) or isCallToIsolatedFunction(&I)
                    or isCallToNonIsolated(&I) or isAssignment(&I));
-      Out << getToken(&I) << ";\n";
 
+      // Handle the implicit `return` emission. If the correct parameter is set,
+      // avoid the emission of the `Instruction` token.
+      if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn)) {
+        Out << getToken(&I) << ";\n";
+      }
     } else if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
       // Emit missing local variable declarations
       std::string VarName = createLocalVarDeclName(Call);
@@ -1538,7 +1543,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     const AtomicNode *Atomic = cast<AtomicNode>(E);
     llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
     revng_assert(BB);
-    emitBasicBlock(BB);
+    emitBasicBlock(BB, true);
 
     // Then, extract the token of the last instruction (must be a
     // conditional branch instruction)
@@ -1655,7 +1660,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     const CodeNode *Code = cast<CodeNode>(N);
     llvm::BasicBlock *BB = Code->getOriginalBB();
     revng_assert(BB != nullptr);
-    emitBasicBlock(BB);
+    emitBasicBlock(BB, not Code->containsImplicitReturn());
   } break;
 
   case ASTNode::NodeKind::NK_If: {
@@ -1763,7 +1768,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       if (not Switch->isWeaved()) {
         llvm::BasicBlock *BB = Switch->getOriginalBB();
         revng_assert(BB != nullptr); // This is not a switch dispatcher.
-        emitBasicBlock(BB);
+        emitBasicBlock(BB, true);
       }
       std::string SwitchVarString = getToken(SwitchVar);
       SwitchVarToken = SwitchVarString;

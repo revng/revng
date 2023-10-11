@@ -125,6 +125,9 @@ public:
 class CodeNode : public ASTNode {
   friend class ASTNode;
 
+private:
+  bool ImplicitReturn = false;
+
 public:
   CodeNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
     ASTNode(NK_Code, CFGNode, Successor) {}
@@ -138,6 +141,9 @@ protected:
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
+
+  bool containsImplicitReturn() const { return ImplicitReturn; }
+  void setImplicitReturn() { ImplicitReturn = true; }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
 

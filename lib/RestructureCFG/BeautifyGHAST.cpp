@@ -22,6 +22,7 @@
 #include "revng-c/Support/DecompilationHelpers.h"
 
 #include "SimplifyHybridNot.h"
+#include "SimplifyImplicitStatement.h"
 
 using std::make_unique;
 using std::unique_ptr;
@@ -428,29 +429,6 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
       Default = matchSwitch(AST, Default);
   }
   return RootNode;
-}
-
-static void simplifyLastContinue(ASTTree &AST) {
-  for (ASTNode *Node : AST.nodes()) {
-    auto *Scs = llvm::dyn_cast<ScsNode>(Node);
-    if (not Scs or not Scs->hasBody())
-      continue;
-
-    auto *Body = Scs->getBody();
-    if (auto *Continue = llvm::dyn_cast<ContinueNode>(Body)) {
-      Continue->setImplicit();
-      continue;
-    }
-
-    auto *SequenceBody = dyn_cast<SequenceNode>(Body);
-    if (not SequenceBody)
-      continue;
-
-    revng_assert(not SequenceBody->nodes().empty());
-    ASTNode *LastNode = *std::prev(SequenceBody->nodes().end());
-    if (auto *Continue = llvm::dyn_cast<ContinueNode>(LastNode))
-      Continue->setImplicit();
-  }
 }
 
 static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
@@ -1337,7 +1315,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
-  simplifyLastContinue(CombedAST);
+  simplifyImplicitContinue(CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
@@ -1388,6 +1366,16 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
                             "14-After-double-not-simplify");
+  }
+
+  // Perform the simplification of the implicit `return`, i.e., a `return` of
+  // type `void`, which lies on a path followed by no other statements.
+  revng_log(BeautifyLogger, "Performing the implicit return simplification\n");
+  simplifyImplicitReturn(CombedAST, RootNode);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "17-After-implicit-return-simplify");
   }
 
   // Serialize the collected metrics in the statistics file if necessary
