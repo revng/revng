@@ -424,6 +424,21 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
   return false;
 }
 
+static bool isPHI(const llvm::User *U) {
+  if (dyn_cast_or_null<PHINode>(U))
+    return true;
+
+  return false;
+}
+
+static bool shouldBeAdded(const llvm::Value &V) {
+  return isa<Instruction>(V) or isa<Argument>(V);
+}
+
+static bool shouldBeAdded(const llvm::Use &U) {
+  return shouldBeAdded(*U.get());
+}
+
 TypeFlowGraph vma::makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
                                                  const llvm::Function *F,
                                                  const model::Binary *Model) {
@@ -434,18 +449,6 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
   // Visit values before users (a part from phis)
   for (const BasicBlock *BB : ReversePostOrderTraversal(F)) {
     for (const Instruction &I : *BB) {
-
-      auto IsPhiInstr = [](const llvm::User *Inst) {
-        return cast<Instruction>(Inst)->getOpcode() == Instruction::PHI;
-      };
-
-      const auto ShouldValueBeAdded = [](const llvm::Value *V) {
-        return isa<Instruction>(V) or isa<Argument>(V);
-      };
-
-      const auto ShouldUseBeAdded = [&ShouldValueBeAdded](const llvm::Use *U) {
-        return ShouldValueBeAdded(U->get());
-      };
 
       if (TGLog.isEnabled()) {
         std::string S;
@@ -459,9 +462,9 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
       if (TG.ContentToNodeMap.contains(&I)) {
         // If the instruction has already been added, it must be because of a
         // phi
-        revng_assert(any_of(I.users(), IsPhiInstr));
+        revng_assert(any_of(I.users(), isPHI));
         InstNode = TG.ContentToNodeMap[&I];
-      } else if (ShouldValueBeAdded(&I)) {
+      } else if (shouldBeAdded(I)) {
         InstNode = TG.addNodeContaining(Cache, &I);
       } else {
         // Skip values that should not be added to the TypeFlowGraph
@@ -473,7 +476,7 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
       // Add a Use node for each operand
       SmallVector<TypeFlowNode *, 2> PrevOperands;
       for (const Use &Op : I.operands()) {
-        if (not ShouldUseBeAdded(&Op))
+        if (not shouldBeAdded(Op))
           continue;
 
         TypeFlowNode *UseNode = TG.addNodeContaining(Cache, &Op);
