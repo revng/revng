@@ -9,7 +9,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 
-#include "ABIArtifactParser.h"
+#include "ABIRuntimeTestResultParser.h"
 
 namespace State {
 

@@ -10,7 +10,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 
-#include "ABIArtifactParser.h"
+#include "ABIRuntimeTestResultParser.h"
 
 void verifyABI(const TupleTree<model::Binary> &Binary,
                llvm::StringRef RuntimeArtifact,

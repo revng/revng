@@ -24,7 +24,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Support/InitRevng.h"
 
-#include "ABIArtifactParser.h"
+#include "ABIRuntimeTestResultParser.h"
 
 void verifyABI(const TupleTree<model::Binary> &Binary,
                llvm::StringRef RuntimeArtifact,
