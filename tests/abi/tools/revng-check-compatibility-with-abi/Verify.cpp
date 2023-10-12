@@ -11,279 +11,426 @@
 #include "revng/Model/Binary.h"
 
 #include "ABIRuntimeTestResultParser.h"
-
-void verifyABI(const TupleTree<model::Binary> &Binary,
-               llvm::StringRef RuntimeArtifact,
-               model::ABI::Values ABI);
+#include "Verify.h"
 
 struct VerificationHelper {
-public:
-  void verify(const abi::FunctionType::Layout &FunctionLayout,
-              const abi::artifact::FunctionArtifact &Artifact) const;
-
-public:
   const model::Architecture::Values Architecture;
   const abi::Definition &ABI;
   const bool IsLittleEndian;
 
 public:
   llvm::StringRef FunctionName = "";
-};
-
-struct IterationAccessHelper {
-public:
-  IterationAccessHelper(const abi::artifact::Iteration &Iteration,
-                        const model::Architecture::Values Architecture) :
-    Iteration(Iteration),
-    RegisterSize(model::Architecture::getPointerSize(Architecture)) {}
-
-  std::optional<llvm::ArrayRef<std::byte>>
-  registerValue(model::Register::Values Register) {
-    auto Iterator = Iteration.Registers.find(Register);
-    if (Iterator != Iteration.Registers.end())
-      return Iterator->Bytes;
-    else
-      return std::nullopt;
-  }
+  abi::FunctionType::Layout FunctionLayout = {};
 
 public:
-  const abi::artifact::Iteration &Iteration;
-  const std::size_t RegisterSize;
+  void arguments(const abi::runtime_test::ArgumentTest &Test) const;
+  void returnValue(const abi::runtime_test::ReturnValueTest &Test) const;
+
+private:
+  std::vector<std::byte>
+  dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const;
+
+  struct LeftToVerify {
+    llvm::ArrayRef<model::Register::Values> Registers;
+    llvm::ArrayRef<std::byte> Stack;
+  };
+  LeftToVerify adjustForSPTAR(LeftToVerify Remaining) const;
+  LeftToVerify verifyAnArgument(const abi::runtime_test::State &State,
+                                llvm::ArrayRef<std::byte> ExpectedValue,
+                                LeftToVerify Remaining,
+                                uint64_t Index) const;
+
+  bool tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
+                        llvm::ArrayRef<std::byte> ExpectedBytes) const;
+  uint64_t valueFromBytes(llvm::ArrayRef<std::byte> Input) const;
+
+  [[noreturn]] void fail(std::string &&Message) const;
 };
 
 using VH = VerificationHelper;
-void VH::verify(const abi::FunctionType::Layout &FunctionLayout,
-                const abi::artifact::FunctionArtifact &Artifact) const {
-  for (std::size_t Index = 0; Index < Artifact.Iterations.size(); ++Index) {
-    IterationAccessHelper Helper(Artifact.Iterations[Index], Architecture);
 
-    // Sort the argument registers
-    auto ArgumentRegisters = FunctionLayout.argumentRegisters();
-    auto OrderedRegisterList = ABI.sortArguments(std::move(ArgumentRegisters));
+void VH::fail(std::string &&Message) const {
+  dbg << "Verification of '" << FunctionName.str() << "' failed.\n"
+      << "The layout is:\n";
+  FunctionLayout.dump();
+  revng_abort(Message.c_str());
+}
 
-    // Compute the relevant piece of the stack leaving padding behind.
-    abi::artifact::Stack ExtractedStackBytes;
-    std::size_t PreviousArgumentEndsAt = 0;
-    std::size_t CombinedArgumentSize = 0;
-    for (const auto &Argument : FunctionLayout.Arguments) {
-      if (Argument.Stack.has_value()) {
-        revng_assert(Argument.Stack->Size != 0);
-        if (Argument.Stack->Offset < PreviousArgumentEndsAt) {
-          std::string Error = "Layout of '" + FunctionName.str()
-                              + "' is not valid: stack arguments must not "
-                                "overlap.";
-          revng_abort(Error.c_str());
-        }
+namespace runtime_test = abi::runtime_test;
+std::vector<std::byte>
+VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const {
+  std::vector<std::byte> Result;
+  std::size_t PreviousArgumentEndsAt = 0;
+  for (const auto &Argument : FunctionLayout.Arguments) {
+    if (Argument.Stack.has_value()) {
+      revng_assert(Argument.Stack->Size != 0);
+      if (Argument.Stack->Offset < PreviousArgumentEndsAt)
+        fail("Stack arguments must not overlap");
 
-        auto PaddingSize = Argument.Stack->Offset - PreviousArgumentEndsAt;
-        if (PaddingSize > ABI.getPointerSize()) {
-          // TODO: this check can be improved quite a bit by taking
-          // `ABI::Types()` into the account.
-          std::string Error = "Layout of '" + FunctionName.str()
-                              + "' is not valid: padding exceeds the register "
-                                "size.\n";
-          Error += "The current argument is expected at offset "
-                   + std::to_string(Argument.Stack->Offset)
-                   + " while the previous one ends at "
-                   + std::to_string(PreviousArgumentEndsAt) + "\n";
-          revng_abort(Error.c_str());
-        }
-
-        std::size_t CurrentSize = ExtractedStackBytes.size();
-        ExtractedStackBytes.resize(CurrentSize + Argument.Stack->Size);
-
-        llvm::ArrayRef<std::byte> Bytes = Helper.Iteration.Stack;
-        Bytes = Bytes.slice(Argument.Stack->Offset, Argument.Stack->Size);
-        llvm::copy(Bytes, std::next(ExtractedStackBytes.begin(), CurrentSize));
-        PreviousArgumentEndsAt = Argument.Stack->Offset + Argument.Stack->Size;
-        CombinedArgumentSize += (Argument.Stack->Size);
-      }
-    }
-    llvm::ArrayRef<std::byte> StackBytes = ExtractedStackBytes;
-    if (StackBytes.size() != CombinedArgumentSize) {
-      std::string Error = "Verification of '" + FunctionName.str()
-                          + "' failed: the piece of stack provided by the "
-                            "artifact has a different size from what the "
-                            "layout expects.";
-      revng_abort(Error.c_str());
-    }
-
-    std::size_t CurrentRegisterIndex = 0;
-    if (FunctionLayout.returnsAggregateType()) {
-      // Account for the shadow pointer to the return value.
-      revng_assert(not FunctionLayout.Arguments.empty());
-      auto &ShadowArgument = FunctionLayout.Arguments[0];
-      using namespace abi::FunctionType::ArgumentKind;
-      revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
-      if (ShadowArgument.Registers.size() == 1) {
-        // It's in a register, drop one if needed.
-        model::Register::Values Register = *ShadowArgument.Registers.begin();
-        revng_assert(Register == ABI.ReturnValueLocationRegister());
-        if (!OrderedRegisterList.empty())
-          if (*OrderedRegisterList.begin() == ABI.ReturnValueLocationRegister())
-            ++CurrentRegisterIndex;
-
-      } else if (ShadowArgument.Stack.has_value()) {
-        // It's on the stack, drop enough bytes for a pointer from the front.
-        revng_assert(ShadowArgument.Stack->Offset == 0);
-        revng_assert(ShadowArgument.Stack->Size == ABI.getPointerSize());
-        StackBytes = StackBytes.drop_front(ABI.getPointerSize());
-      } else {
-        std::string Error = "Verification of the return value of '"
-                            + FunctionName.str()
-                            + "' failed: layout is not valid, did it verify?";
-        revng_abort(Error.c_str());
-      }
-    }
-
-    // Check the arguments.
-    uint64_t ArgumentIndex = 0;
-    for (const abi::artifact::Argument &Argument : Helper.Iteration.Arguments) {
-      llvm::ArrayRef<std::byte> ArgumentBytes = Argument.Bytes;
-      if (ArgumentBytes.empty()) {
-        std::string Error = "The `Bytes` field of the artifact is empty for "
-                            "the argument #"
-                            + std::to_string(ArgumentIndex) + " of '"
-                            + FunctionName.str() + "' function.";
-        revng_abort(Error.c_str());
+      auto PaddingSize = Argument.Stack->Offset - PreviousArgumentEndsAt;
+      if (PaddingSize > ABI.getPointerSize()) {
+        // TODO: this check can be improved quite a bit by taking
+        // `abi::Definition::ScalarTypes()` into the account.
+        fail("Padding exceeds the register size.\n"
+             "Current argument is expected at offset "
+             + std::to_string(Argument.Stack->Offset)
+             + " while the previous one ends at "
+             + std::to_string(PreviousArgumentEndsAt) + "\n");
       }
 
-      do {
-        if (CurrentRegisterIndex < OrderedRegisterList.size()) {
-          auto Current = OrderedRegisterList[CurrentRegisterIndex];
-          auto RegValue = Helper.registerValue(Current);
-          if (!RegValue.has_value()) {
-            std::string Error = "Verification of '"
-                                + model::Register::getName(Current).str()
-                                + "' register failed: it's not specified by "
-                                  "the artifact for '"
-                                + FunctionName.str() + "'.";
-            revng_abort(Error.c_str());
-          }
+      // Since the view we want is fragmented, we'd have to keep a "view of
+      // views" which is not easy to work with, easier to just copy the relevant
+      // bytes out.
+      llvm::copy(Bytes.slice(Argument.Stack->Offset, Argument.Stack->Size),
+                 std::back_inserter(Result));
 
-          if (ArgumentBytes.take_front(RegValue->size()).equals(*RegValue)) {
-            ++CurrentRegisterIndex;
-            ArgumentBytes = ArgumentBytes.drop_front(RegValue->size());
+      PreviousArgumentEndsAt = Argument.Stack->Offset + Argument.Stack->Size;
+    }
+  }
 
-            // Current register value checks out, go to the next one.
-            continue;
-          } else if (auto RegPiece = RegValue->take_front(ArgumentBytes.size());
-                     RegPiece.equals(ArgumentBytes)) {
-            ++CurrentRegisterIndex;
-            ArgumentBytes = {};
+  return Result;
+}
 
-            break; // The last part of the argument was found.
-          }
-        }
+VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
+  if (FunctionLayout.returnsAggregateType()) {
+    // Account for the shadow pointer to the return value.
+    revng_assert(not FunctionLayout.Arguments.empty());
+    auto &ShadowArgument = FunctionLayout.Arguments[0];
+    using namespace abi::FunctionType::ArgumentKind;
+    revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
+    if (ShadowArgument.Registers.size() == 1) {
+      // It's in a register, drop one if needed.
+      model::Register::Values Register = *ShadowArgument.Registers.begin();
+      revng_assert(Register == ABI.ReturnValueLocationRegister());
+      if (!Remaining.Registers.empty())
+        if (Remaining.Registers.front() == ABI.ReturnValueLocationRegister())
+          Remaining.Registers = Remaining.Registers.drop_front();
 
-        if (StackBytes.take_front(ArgumentBytes.size()).equals(ArgumentBytes)) {
-          std::size_t BytesToDrop = ABI.paddedSizeOnStack(ArgumentBytes.size());
-          if (StackBytes.size() < BytesToDrop)
-            StackBytes = {};
-          else
-            StackBytes = StackBytes.drop_front(BytesToDrop);
-          break; // Stack checks out, go to the next argument.
-        }
+    } else if (ShadowArgument.Stack.has_value()) {
+      // It's on the stack, drop enough bytes for a pointer from the front.
+      revng_assert(ShadowArgument.Stack->Offset == 0);
+      revng_assert(ShadowArgument.Stack->Size == ABI.getPointerSize());
+      Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
+    } else {
+      fail("Layout is not valid, does it verify?");
+    }
+  }
 
-        revng_assert(!ABI.ScalarTypes().empty());
-        auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
-        if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
-          // If the ABI supports unusual alignment, try to account for it,
-          // by dropping an conflicting part of the stack data.
-          if (StackBytes.size() < ABI.getPointerSize())
-            StackBytes = {};
-          else
-            StackBytes = StackBytes.drop_front(ABI.getPointerSize());
-        }
+  return Remaining;
+}
 
-        if (StackBytes.take_front(ArgumentBytes.size()).equals(ArgumentBytes)) {
-          std::size_t BytesToDrop = ABI.paddedSizeOnStack(ArgumentBytes.size());
-          if (StackBytes.size() < BytesToDrop)
-            StackBytes = {};
-          else
-            StackBytes = StackBytes.drop_front(BytesToDrop);
-          break; // Stack matches after accounting for alignment.
-        }
+bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
+                          llvm::ArrayRef<std::byte> ExpectedBytes) const {
+  if (Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes)) {
+    std::size_t BytesToDrop = ABI.paddedSizeOnStack(ExpectedBytes.size());
+    if (Bytes.size() >= BytesToDrop)
+      Bytes = Bytes.drop_front(BytesToDrop);
+    else
+      Bytes = {};
 
-        std::string Error = "The argument #" + std::to_string(ArgumentIndex)
-                            + " of '" + FunctionName.str()
-                            + "' cannot be found: it uses neither the expected "
-                              "stack part nor the expected registers.";
-        revng_abort(Error.c_str());
-      } while (!ArgumentBytes.empty());
+    return true;
+  }
 
-      ++ArgumentIndex;
+  return false;
+}
+
+VH::LeftToVerify VH::verifyAnArgument(const abi::runtime_test::State &State,
+                                      llvm::ArrayRef<std::byte> ExpectedBytes,
+                                      LeftToVerify Remaining,
+                                      uint64_t Index) const {
+  // Check bytes one piece at a time, consuming those that match.
+  while (!ExpectedBytes.empty()) {
+    // If there are still unverified registers, try to verify the next one.
+    if (!Remaining.Registers.empty()) {
+      llvm::ArrayRef Bytes = State.Registers.at(Remaining.Registers[0]).Bytes;
+      if (ExpectedBytes.take_front(Bytes.size()).equals(Bytes)) {
+        // Current register value matches: drop found bytes and start looking
+        // for the rest.
+        ExpectedBytes = ExpectedBytes.drop_front(Bytes.size());
+        Remaining.Registers = Remaining.Registers.drop_front();
+        continue;
+      } else if (Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes)) {
+        // Current register matches all the remaining bytes.
+        Remaining.Registers = Remaining.Registers.drop_front();
+        ExpectedBytes = {};
+
+        break;
+      }
     }
 
-    if (CurrentRegisterIndex != OrderedRegisterList.size()) {
-      std::string Error = "'" + FunctionName.str()
-                          + "' signature indicates the need for more registers "
-                            "to pass an argument than the maximum allowed "
-                            "count.";
-      revng_abort(Error.c_str());
+    // We're out of registers, turn to the stack next.
+    if (tryToVerifyStack(Remaining.Stack, ExpectedBytes))
+      break; // Stack matches, go to the next argument.
+
+    revng_assert(!ABI.ScalarTypes().empty());
+    auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
+    if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
+      // If the ABI supports unusual alignment, try to account for it,
+      // by dropping an conflicting part of the stack data.
+      if (Remaining.Stack.size() < ABI.getPointerSize())
+        Remaining.Stack = {};
+      else
+        Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
     }
 
-    if (!StackBytes.empty()) {
-      std::string Error = "The combined stack argument size of '"
-                          + FunctionName.str()
-                          + "' is different from what was "
-                            "expected.";
-      revng_abort(Error.c_str());
-    }
+    if (tryToVerifyStack(Remaining.Stack, ExpectedBytes))
+      break; // Stack matches after accounting for alignment.
 
-    // Check the return value.
-    auto RVR = FunctionLayout.returnValueRegisters();
-    auto ReturnValueRegisterList = ABI.sortReturnValues(std::move(RVR));
-    if (!Helper.Iteration.ReturnValue.Bytes.empty()) {
-      if (ReturnValueRegisterList.size() == 0) {
-        std::string Error = "Verification of the return value of '"
-                            + FunctionName.str()
-                            + "' failed: found a return value that should not "
-                              "be there";
-        revng_abort(Error.c_str());
+    fail("Argument #" + std::to_string(Index)
+         + " uses neither the expected stack part nor the expected "
+           "registers.");
+  }
+
+  return Remaining;
+}
+
+void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
+  // List all the things (currently registers and stack bytes) that are still
+  // pending verification.
+  // NOTE: they are going to be consumed piece by piece during the verification
+  //       process.
+  auto Registers = ABI.sortArguments(FunctionLayout.argumentRegisters());
+  auto Stack = dropInterArgumentPadding(Test.StateBeforeTheCall.Stack);
+  LeftToVerify Remaining{ .Registers = Registers, .Stack = Stack };
+
+  // In case of SPTAR, handle the "extra" argument.
+  Remaining = adjustForSPTAR(Remaining);
+
+  // Verify each argument separately.
+  for (uint64_t I = 0; I < Test.Arguments.size(); ++I) {
+    const auto &Bytes = Test.Arguments[I].Bytes;
+    if (Bytes.empty())
+      fail("The `Bytes` field is empty for the argument #" + std::to_string(I));
+
+    Remaining = verifyAnArgument(Test.StateBeforeTheCall, Bytes, Remaining, I);
+  }
+
+  // Do final checks to make sure no unverified state is still remaining.
+  if (!Remaining.Registers.empty()) {
+    fail("There are leftover registers: the argument type size is inconsistent "
+         "(model value differs from the real one) or the layout is straight up "
+         "broken.");
+  }
+
+  if (!Remaining.Stack.empty()) {
+    fail("There are unconsumed stack bytes: the layout shows the need for more "
+         "stack bytes than necessary.");
+  }
+}
+
+uint64_t VH::valueFromBytes(llvm::ArrayRef<std::byte> Input) const {
+  std::size_t PointerSize = model::Architecture::getPointerSize(Architecture);
+  revng_assert(Input.size() <= PointerSize);
+
+  uint64_t Result = 0;
+  for (std::size_t I = 0; I < PointerSize; ++I) {
+    if (I != 0)
+      Result <<= 8;
+
+    std::size_t Index = IsLittleEndian ? (PointerSize - I - 1) : I;
+    if (Index < Input.size())
+      Result += static_cast<uint64_t>(Input[Index]);
+  }
+
+  return Result;
+}
+
+void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
+  auto PointerSize = model::Architecture::getPointerSize(Architecture);
+
+  const auto &Found = Test.ReturnValue;
+  const auto &Expected = Test.ExpectedReturnValue;
+  if (Found.Bytes.size() != Expected.Bytes.size()) {
+    fail("Return value size  is not consistent: something is *very* wrong with "
+         "the test toolchain.");
+  }
+
+  uint64_t MatchingByteCount = 0;
+  for (auto [FByte, EByte] : llvm::zip(Found.Bytes, Expected.Bytes))
+    if (FByte == EByte)
+      ++MatchingByteCount;
+
+  // Sadly, we cannot do a full comparison since return value structs often
+  // contain padding, value of which is not guaranteed to be preserved,
+  // causing the test to fail. We either need a way to tell if a specific byte
+  // belongs to the padding or not (which would restrict stuff we can test,
+  // for example, nested structs) or assume that non-perfect matches are
+  // acceptable.
+  // An example of a struct that exhibits this behaviour (i386):
+  // struct ReturnValue {
+  //   uint8_t b; // _Alignof(uint8_t) == 1
+  //   // 3 invisible bytes here
+  //   // (_Alignof(ReturnValue) - _Alignof(uint8_t) = 4 - 1 = 3)
+  //   uint32_t a; // _Alignof(uint32_t) == 4
+  // };
+  //
+  // So, when looking at the return value we detect, it looks something like
+  // `[ 0x11, 0xXX, 0xXX, 0xXX, 0x22, 0x33, 0x44, 0x55 ]`
+  // where `0xXX` is unuinitialized value that is not stable and changes from
+  // execution to execution.
+  //
+  // But, luckily, by the definition of how such padding is introduced, we are
+  // guaranteed that in the worst case it's going to occupy `half_the_size - 1`
+  // bytes. So, we can at least enforce that. And, thanks to doing multiple
+  // iterations for each tests, the chance of false positives is extremely low.
+  if (MatchingByteCount * 2 < Found.Bytes.size())
+    fail("Return value was lost: something went *very* wrong.");
+
+  // Because we have no way to represent functions that use SPTAR in `rft`
+  // format - they are misdetected here (and are tested as simple functions
+  // that just happen to accept and return a pointer).
+  //
+  // To avoid that, manually flag such functions, which is safe because
+  // we know for sure that a test function has EITHER arguments OR a return
+  // value: never both. Because of which it's safe to assume that if
+  // a function happen to have both - it's because of the `cft->rft`
+  // conversion.
+  bool UsesSPTAR = FunctionLayout.returnsAggregateType();
+  if (!UsesSPTAR) {
+    bool SingleArgument = FunctionLayout.Arguments.size() == 1;
+    bool SingleReturnValue = FunctionLayout.ReturnValues.size() == 1;
+    if (SingleArgument && SingleReturnValue) {
+      const auto &ArgumentType = FunctionLayout.Arguments[0].Type;
+      const auto &ReturnValueType = FunctionLayout.ReturnValues[0].Type;
+      bool TypesMatch = ArgumentType == ReturnValueType;
+      bool ReturnValueIsAPointer = ReturnValueType.isPointer();
+
+      // Case for a register SPTAR - types must match.
+      if (TypesMatch && ReturnValueIsAPointer)
+        UsesSPTAR = true;
+
+      // Case for a stack SPTAR - allow any type as the argument as long as
+      // it's pointer-sized.
+      if (*ArgumentType.size() == PointerSize && ReturnValueIsAPointer)
+        UsesSPTAR = true;
+    }
+  }
+
+  if (UsesSPTAR) {
+    // The return value location is passed in as a pointer.
+    abi::FunctionType::Layout::Argument SPTAR = FunctionLayout.Arguments[0];
+
+    // First, check whether the location (pointer to it) of the return value
+    // matches the expected register or stack location.
+    //
+    // Layout represents such a location as the first argument.
+    llvm::ArrayRef<std::byte> ReturnValueLocationBytes;
+    uint64_t ReturnValueLocationValue;
+    if (!SPTAR.Registers.empty()) {
+      // The pointer is in a register.
+      if (SPTAR.Registers.size() != 1) {
+        fail("Multi-register pointers are not supported. Either a new obscure "
+             "architecture was added, or something went *very* wrong.");
       }
 
-      std::size_t UsedRegisterCounter = 0;
-      llvm::ArrayRef ReturnValueBytes = Helper.Iteration.ReturnValue.Bytes;
-      for (auto &CurrentRegister : ReturnValueRegisterList) {
-        auto RegValue = Helper.registerValue(CurrentRegister);
-        if (!RegValue.has_value()) {
-          std::string Error = "Verification of '"
-                              + model::Register::getName(CurrentRegister).str()
-                              + "' register failed: it's not specified by the "
-                                "artifact.";
-          revng_abort(Error.c_str());
-        }
-
-        if (ReturnValueBytes.take_front(RegValue->size()).equals(*RegValue)) {
-          ReturnValueBytes = ReturnValueBytes.drop_front(RegValue->size());
-          ++UsedRegisterCounter;
-        } else if (auto Piece = RegValue->take_front(ReturnValueBytes.size());
-                   Piece.equals(ReturnValueBytes)) {
-          ReturnValueBytes = {};
-          ++UsedRegisterCounter;
-        } else {
-          std::string Error = "Verification of the return value of '"
-                              + FunctionName.str()
-                              + "' failed: unable to locate it.";
-          revng_abort(Error.c_str());
-        }
+      // Check if SPTAR is where we expect to be.
+      const auto &Registers = Test.StateBeforeTheCall.Registers;
+      llvm::ArrayRef RegisterBytes = Registers.at(SPTAR.Registers[0]).Bytes;
+      if (RegisterBytes != llvm::ArrayRef(Test.ReturnValueAddress.Bytes)) {
+        fail("Verification of the return value location register ('"
+             + model::Register::getName(SPTAR.Registers[0]).str()
+             + "') failed.");
       }
 
-      if (UsedRegisterCounter != ReturnValueRegisterList.size()) {
-        std::string Error = "'" + FunctionName.str()
-                            + "' signature indicates the need for more "
-                              "registers "
-                              "to return a value than the maximum allowed "
-                              "count.";
-        revng_abort(Error.c_str());
-      }
-    } else if (ReturnValueRegisterList.size() != 0) {
-      std::string Error = "'" + FunctionName.str()
-                          + "' signature does not mention a return value even "
-                            "though it's expected.";
-      revng_abort(Error.c_str());
+      // Save the location to be used further up.
+      ReturnValueLocationBytes = Test.ReturnValueAddress.Bytes;
+      ReturnValueLocationValue = Test.ReturnValueAddress.Value;
+    } else if (SPTAR.Stack.has_value()) {
+      // The pointer is on the stack.
+      if (SPTAR.Stack->Size != PointerSize)
+        fail("Only pointer-sized return value locations are supported.");
+
+      ReturnValueLocationBytes = llvm::ArrayRef(Test.StateBeforeTheCall.Stack)
+                                   .slice(SPTAR.Stack->Offset,
+                                          SPTAR.Stack->Size);
+      ReturnValueLocationValue = valueFromBytes(ReturnValueLocationBytes);
+    } else {
+      fail("ABI definition for '" + std::string(ABI.getName())
+           + "' does not define a return value location. Does the ABI support "
+             "returning big values?");
     }
+
+    // Only check the return value pointers if layout reports it to be there,
+    // since there are architectures where its presence is not guaranteed,
+    // for example AArch64.
+    if (!FunctionLayout.ReturnValues.empty()) {
+      if (FunctionLayout.ReturnValues.size() != 1
+          && FunctionLayout.ReturnValues[0].Registers.size() != 1) {
+        fail("At most one register is allowed as the return value for SPTAR "
+             "functions.");
+      }
+
+      const auto &RVReg = FunctionLayout.ReturnValues[0].Registers[0];
+      llvm::ArrayRef Bytes = Test.StateAfterTheReturn.Registers.at(RVReg).Bytes;
+      if (ReturnValueLocationBytes != Bytes) {
+        fail("Returned pointer ('" + model::Register::getName(RVReg).str()
+             + "') doesn't match SPTAR value.");
+      }
+    }
+
+    // The only thing that's left is to verify that the return value is
+    // actually present at the location the pointers point to.
+    auto StackPointer = model::Architecture::getStackPointer(Architecture);
+    auto SPValue = Test.StateAfterTheReturn.Registers.at(StackPointer).Value;
+    std::ptrdiff_t StackOffset = ReturnValueLocationValue - SPValue;
+    revng_assert(StackOffset >= 0);
+    llvm::ArrayRef OnStack = Test.StateAfterTheReturn.Stack;
+    OnStack = OnStack.slice(StackOffset, Test.ReturnValue.Bytes.size());
+    if (OnStack != llvm::ArrayRef(Test.ReturnValue.Bytes))
+      fail("The return value doesn't match the one that was expected.");
+  } else {
+    // The value is returned normally.
+
+    llvm::ArrayRef ReturnValueBytes = Test.ReturnValue.Bytes;
+
+    for (const auto &ReturnValue : FunctionLayout.ReturnValues) {
+      for (const auto &Register : ReturnValue.Registers) {
+        const auto &RegState = Test.StateAfterTheReturn.Registers.at(Register);
+        llvm::ArrayRef Bytes = RegState.Bytes;
+        revng_assert(Bytes.size() <= PointerSize);
+        Bytes = Bytes.take_front(ReturnValueBytes.size());
+        if (!ReturnValueBytes.take_front(Bytes.size()).equals(Bytes)) {
+          fail("A piece of the return value found in the '"
+               + model::Register::getName(Register).str()
+               + "' register doesn't match the expected value.");
+        }
+
+        ReturnValueBytes = ReturnValueBytes.drop_front(Bytes.size());
+      }
+    }
+
+    if (!ReturnValueBytes.empty()) {
+      fail("Unable to find some parts of the return value. Should some "
+           "additional registers be mentioned in the definition of '"
+           + std::string(ABI.getName()) + "' abi?");
+    }
+  }
+}
+
+static abi::FunctionType::Layout
+getPrototypeLayout(const model::Function &Function, model::ABI::Values ABI) {
+  const model::Type *Prototype = Function.Prototype().getConst();
+  revng_assert(Prototype != nullptr);
+  if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
+    // Copy the prototype since we might have to modify it before testing.
+    model::CABIFunctionType PrototypeCopy = *CABI;
+
+    if (ABI != PrototypeCopy.ABI()) {
+      // Workaround for dwarf sometimes misdetecting a very specific ABI,
+      // for example, it labels `SystemV_x86_regparam_N` as just `SystemV_x86`
+      // despite them being incompatible.
+      std::array AllowedABIs = { model::ABI::SystemV_x86_regparm_3,
+                                 model::ABI::SystemV_x86_regparm_2,
+                                 model::ABI::SystemV_x86_regparm_1 };
+      revng_assert(llvm::is_contained(AllowedABIs, ABI));
+      PrototypeCopy.ABI() = ABI;
+    }
+
+    return abi::FunctionType::Layout(PrototypeCopy);
+  } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
+    return abi::FunctionType::Layout(*Raw);
+  } else {
+    revng_abort("Layouts of non-function types are not supported.");
   }
 }
 
@@ -291,53 +438,54 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
                llvm::StringRef RuntimeArtifact,
                model::ABI::Values ABI) {
   model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
-  auto ParsedArtifact = abi::artifact::parse(RuntimeArtifact, Architecture);
+  auto Parsed = abi::runtime_test::parse(RuntimeArtifact, Architecture);
 
   llvm::StringRef ArchitectureName = model::Architecture::getName(Architecture);
-  revng_assert(ArchitectureName == ParsedArtifact.Architecture);
+  revng_check(ArchitectureName == Parsed.Architecture);
 
   const abi::Definition &Def = abi::Definition::get(ABI);
-  VerificationHelper Helper{ Architecture, Def, ParsedArtifact.IsLittleEndian };
-
-  std::size_t TestedCount = 0;
+  VerificationHelper Helper{ Architecture, Def, Parsed.IsLittleEndian };
+  std::size_t ArgumentTestCount = 0, ReturnValueTestCount = 0;
   for (auto &Function : Binary->Functions()) {
-    const std::string &Name = Function.OriginalName();
-    auto CurrentFunction = ParsedArtifact.Functions.find(Name);
-    if (CurrentFunction == ParsedArtifact.Functions.end()) {
-      // Ignore types not present in the artifact.
-      continue;
-    }
-
-    ++TestedCount;
-    Helper.FunctionName = Name;
-
-    using Layout = abi::FunctionType::Layout;
-    const model::Type *Prototype = Function.Prototype().getConst();
-    revng_assert(Prototype != nullptr);
-    if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
-      // Copy the prototype since we might have to modify it before testing.
-      model::CABIFunctionType PrototypeCopy = *CABI;
-
-      if (ABI != PrototypeCopy.ABI()) {
-        // Workaround for dwarf sometimes misdetecting a very specific ABI,
-        // for example, it labels `SystemV_x86_regparam_N` as just `SystemV_x86`
-        // despite them being incompatible.
-        std::array AllowedABIs = { model::ABI::SystemV_x86_regparm_3,
-                                   model::ABI::SystemV_x86_regparm_2,
-                                   model::ABI::SystemV_x86_regparm_1 };
-        revng_assert(llvm::is_contained(AllowedABIs, ABI));
-        PrototypeCopy.ABI() = ABI;
-      }
-
-      Helper.verify(Layout(PrototypeCopy), *CurrentFunction);
-    } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
-      Helper.verify(Layout(*Raw), *CurrentFunction);
+    Helper.FunctionName = Function.OriginalName();
+    if (Helper.FunctionName.take_front(5) == "test_")
+      Helper.FunctionName = Helper.FunctionName.drop_front(5);
+    if (auto Test = Parsed.ArgumentTests.find(Helper.FunctionName);
+        Test != Parsed.ArgumentTests.end()) {
+      Helper.FunctionLayout = getPrototypeLayout(Function, ABI);
+      for (const abi::runtime_test::ArgumentTest &Iteration : Test->second)
+        Helper.arguments(Iteration);
+      ++ArgumentTestCount;
+    } else if (auto Test = Parsed.ReturnValueTests.find(Helper.FunctionName);
+               Test != Parsed.ReturnValueTests.end()) {
+      Helper.FunctionLayout = getPrototypeLayout(Function, ABI);
+      for (const abi::runtime_test::ReturnValueTest &Iteration : Test->second)
+        Helper.returnValue(Iteration);
+      ++ReturnValueTestCount;
     } else {
-      // Ignore non-function types.
+      // Ignore types from the model, that are not mentioned in
+      // the runtime test artifact.
+      continue;
     }
   }
 
-  revng_check(TestedCount == ParsedArtifact.Functions.size(),
-              "Not every function from the artifact was found in the binary. "
-              "Does the binary match the artifact?");
+  if (ArgumentTestCount != Parsed.ArgumentTests.size()) {
+    std::string Error = std::to_string(ArgumentTestCount)
+                        + " functions from the binary were tested, but "
+                          "artifact contains "
+                        + std::to_string(Parsed.ArgumentTests.size())
+                        + " argument test functions.\n"
+                          "Does the binary match the artifact?";
+    revng_abort(Error.c_str());
+  }
+
+  if (ReturnValueTestCount != Parsed.ReturnValueTests.size()) {
+    std::string Error = std::to_string(ReturnValueTestCount)
+                        + " functions from the binary were tested, but "
+                          "artifact contains "
+                        + std::to_string(Parsed.ReturnValueTests.size())
+                        + " return value test functions.\n"
+                          "Does the binary match the artifact?";
+    revng_abort(Error.c_str());
+  }
 }
