@@ -476,9 +476,8 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       // Now compare each root only with other roots
       auto ARootIt = ChildrenHierarchy.begin();
       auto ARootNext = ARootIt;
-      auto HierarchyEnd = ChildrenHierarchy.begin();
+      auto HierarchyEnd = ChildrenHierarchy.end();
       for (; ARootIt != HierarchyEnd; ARootIt = ARootNext) {
-        ARootNext = std::next(ARootIt);
 
         auto &[AEdgeIt, PushedInsideA] = *ARootIt;
 
@@ -493,8 +492,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         // through them.
         llvm::SmallVector<EdgeWithOffset> ContainsA;
 
-        for (auto BRootIt = std::next(ARootIt); BRootIt != HierarchyEnd;
-             ++BRootIt) {
+        for (auto BRootIt = ARootNext; BRootIt != HierarchyEnd; ++BRootIt) {
 
           auto &[BEdgeIt, ContainedInB] = *BRootIt;
 
@@ -505,6 +503,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
           auto &[ToPush, Through, OEAfterPush] = MaybePushThrough.value();
           revng_assert(ToPush == AEdgeIt or ToPush == BEdgeIt);
           revng_assert(Through == AEdgeIt or Through == BEdgeIt);
+          revng_assert(Through != ToPush);
           if (ToPush == AEdgeIt) {
             revng_assert(Through == BEdgeIt);
             // AEdgeIt can be pushed inside BEdgeIt
@@ -532,6 +531,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         // A itself (that transitively can be pushed through the others too).
         // After we've pushed A through all edges in ContainsA, we can remove A
         // itelf from ChildrenHierarchy, since it's not a root anymore.
+        ARootNext = std::next(ARootIt);
         if (not ContainsA.empty()) {
           for (const auto &[LargerThanA, FinalOE] : ContainsA) {
 
