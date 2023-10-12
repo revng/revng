@@ -25,10 +25,7 @@
 #include "revng/Support/InitRevng.h"
 
 #include "ABIRuntimeTestResultParser.h"
-
-void verifyABI(const TupleTree<model::Binary> &Binary,
-               llvm::StringRef RuntimeArtifact,
-               model::ABI::Values ABI);
+#include "Verify.h"
 
 namespace Options {
 
