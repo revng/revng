@@ -332,12 +332,10 @@ void printDefinition(Logger<> &Log,
              << "[" << B.getNumber(S.Size() - NextOffset) << "];\n";
   }
   if (not NameOfInlineInstance.empty()) {
-    if (not Qualifiers.empty()) {
-      Header << " "
-             << getNamedCInstance("", Qualifiers, NameOfInlineInstance, B);
-    } else {
+    if (Qualifiers.empty())
       Header << " " << NameOfInlineInstance;
-    }
+    else
+      Header << getNamedCInstance("", Qualifiers, NameOfInlineInstance, B);
   }
   Header << ";\n";
 }
@@ -382,12 +380,10 @@ static void printDefinition(Logger<> &Log,
   }
 
   if (not NameOfInlineInstance.empty()) {
-    if (not Qualifiers.empty()) {
-      Header << " "
-             << getNamedCInstance("", Qualifiers, NameOfInlineInstance, B);
-    } else {
+    if (Qualifiers.empty())
       Header << " " << NameOfInlineInstance;
-    }
+    else
+      Header << getNamedCInstance("", Qualifiers, NameOfInlineInstance, B);
   }
   Header << ";\n";
 }
