@@ -97,11 +97,11 @@ printDeclaration(Logger<> &Log,
                  const model::Type &T,
                  ptml::PTMLIndentedOstream &Header,
                  ptml::PTMLCBuilder &B,
-                 std::map<model::QualifiedType, std::string> &AdditionalNames,
                  const model::Binary &Model,
+                 std::map<model::QualifiedType, std::string> &AdditionalNames,
                  const std::set<const model::Type *> &TypesToInline,
                  llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                 const std::vector<model::Qualifier> *Qualifiers = nullptr,
+                 const std::vector<model::Qualifier> &Qualifiers = {},
                  bool ForEditing = false);
 
 // Print a definition for a Type. The last three arguments (`TypesToInline`
@@ -114,11 +114,11 @@ printDefinition(Logger<> &Log,
                 const model::Type &T,
                 ptml::PTMLIndentedOstream &Header,
                 ptml::PTMLCBuilder &B,
-                std::map<model::QualifiedType, std::string> &AdditionalNames,
                 const model::Binary &Model,
+                std::map<model::QualifiedType, std::string> &AdditionalNames,
                 const std::set<const model::Type *> &TypesToInline,
                 llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                const std::vector<model::Qualifier> *Qualifiers = nullptr,
+                const std::vector<model::Qualifier> &Qualifiers = {},
                 bool ForEditing = false);
 
 // Print a definition for a struct. The last three arguments (`TypesToInline`
@@ -130,11 +130,11 @@ printDefinition(Logger<> &Log,
                 const model::StructType &S,
                 ptml::PTMLIndentedOstream &Header,
                 ptml::PTMLCBuilder &B,
-                const std::set<const model::Type *> &TypesToInline,
-                std::map<model::QualifiedType, std::string> &AdditionalNames,
                 const model::Binary &Model,
+                std::map<model::QualifiedType, std::string> &AdditionalNames,
+                const std::set<const model::Type *> &TypesToInline,
                 llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                const std::vector<model::Qualifier> *Qualifiers = nullptr);
+                const std::vector<model::Qualifier> &Qualifiers = {});
 
 // Checks if a Type is valid candidate to inline. Types that can be inline are
 // structs, unions and enums.

@@ -97,8 +97,8 @@ static void printTypeDefinitions(const model::Binary &Model,
                            *NodeT,
                            Header,
                            B,
-                           AdditionalTypeNames,
                            Model,
+                           AdditionalTypeNames,
                            ToInline);
         }
 
@@ -116,8 +116,8 @@ static void printTypeDefinitions(const model::Binary &Model,
                                *Type,
                                Header,
                                B,
-                               AdditionalTypeNames,
                                Model,
+                               AdditionalTypeNames,
                                ToInline);
             }
           }
@@ -126,8 +126,8 @@ static void printTypeDefinitions(const model::Binary &Model,
                           *NodeT,
                           Header,
                           B,
-                          AdditionalTypeNames,
                           Model,
+                          AdditionalTypeNames,
                           ToInline);
         }
 
@@ -140,8 +140,8 @@ static void printTypeDefinitions(const model::Binary &Model,
                              *NodeT,
                              Header,
                              B,
-                             AdditionalTypeNames,
                              Model,
+                             AdditionalTypeNames,
                              ToInline);
           }
           Defined.insert(TypeNodes.at({ NodeT, TypeName }));

@@ -1964,9 +1964,9 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
                           *cast<model::StructType>(TheType),
                           Out,
                           B,
-                          TheStackTypes,
-                          AdditionalTypeNames,
                           Model,
+                          AdditionalTypeNames,
+                          TheStackTypes,
                           VarName);
         } else {
           Out << getNamedCInstance(TypeMap.at(Call), VarName, B) << ";\n";

@@ -236,7 +236,7 @@ static void printDefinition(const model::EnumType &E,
                             ptml::PTMLCBuilder &B,
                             const TypeSet &TypesToInline,
                             llvm::StringRef NameOfInlineInstance,
-                            const std::vector<model::Qualifier> *Qualifiers,
+                            const std::vector<model::Qualifier> &Qualifiers,
                             bool ForEditing) {
   // We have to make the enum of the correct size of the underlying type
   auto ByteSize = *E.size();
@@ -282,11 +282,11 @@ void printDefinition(Logger<> &Log,
                      const model::StructType &S,
                      ptml::PTMLIndentedOstream &Header,
                      ptml::PTMLCBuilder &B,
-                     const TypeSet &TypesToInline,
-                     QualifiedTypeNameMap &AdditionalNames,
                      const model::Binary &Model,
+                     QualifiedTypeNameMap &AdditionalNames,
+                     const TypeSet &TypesToInline,
                      llvm::StringRef NameOfInlineInstance,
-                     const std::vector<model::Qualifier> *Qualifiers) {
+                     const std::vector<model::Qualifier> &Qualifiers) {
 
   Header << B.getModelComment(S)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
@@ -315,11 +315,11 @@ void printDefinition(Logger<> &Log,
                         *TheType,
                         Header,
                         B,
-                        AdditionalNames,
                         Model,
+                        AdditionalNames,
                         TypesToInline,
                         Field.name().str(),
-                        &Qualifiers);
+                        Qualifiers);
       }
 
       NextOffset = Field.Offset() + Field.Type().size().value();
@@ -332,9 +332,9 @@ void printDefinition(Logger<> &Log,
              << "[" << B.getNumber(S.Size() - NextOffset) << "];\n";
   }
   if (not NameOfInlineInstance.empty()) {
-    if (Qualifiers) {
+    if (not Qualifiers.empty()) {
       Header << " "
-             << getNamedCInstance("", *Qualifiers, NameOfInlineInstance, B);
+             << getNamedCInstance("", Qualifiers, NameOfInlineInstance, B);
     } else {
       Header << " " << NameOfInlineInstance;
     }
@@ -346,11 +346,11 @@ static void printDefinition(Logger<> &Log,
                             const model::UnionType &U,
                             ptml::PTMLIndentedOstream &Header,
                             ptml::PTMLCBuilder &B,
-                            const TypeSet &TypesToInline,
-                            QualifiedTypeNameMap &AdditionalTypeNames,
                             const model::Binary &Model,
+                            QualifiedTypeNameMap &AdditionalTypeNames,
+                            const TypeSet &TypesToInline,
                             llvm::StringRef NameOfInlineInstance,
-                            const std::vector<model::Qualifier> *Qualifiers) {
+                            const std::vector<model::Qualifier> &Qualifiers) {
   Header << B.getModelComment(U)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Union) << " "
          << B.getAttributePacked() << " ";
@@ -372,19 +372,19 @@ static void printDefinition(Logger<> &Log,
                         *TheType,
                         Header,
                         B,
-                        AdditionalTypeNames,
                         Model,
+                        AdditionalTypeNames,
                         TypesToInline,
                         llvm::StringRef(Name.c_str()),
-                        &Qualifiers);
+                        Qualifiers);
       }
     }
   }
 
   if (not NameOfInlineInstance.empty()) {
-    if (Qualifiers) {
+    if (not Qualifiers.empty()) {
       Header << " "
-             << getNamedCInstance("", *Qualifiers, NameOfInlineInstance, B);
+             << getNamedCInstance("", Qualifiers, NameOfInlineInstance, B);
     } else {
       Header << " " << NameOfInlineInstance;
     }
@@ -530,11 +530,11 @@ void printDeclaration(Logger<> &Log,
                       const model::Type &T,
                       ptml::PTMLIndentedOstream &Header,
                       ptml::PTMLCBuilder &B,
-                      QualifiedTypeNameMap &AdditionalNames,
                       const model::Binary &Model,
+                      QualifiedTypeNameMap &AdditionalNames,
                       const TypeSet &TypesToInline,
                       llvm::StringRef NameOfInlineInstance,
-                      const std::vector<model::Qualifier> *Qualifiers,
+                      const std::vector<model::Qualifier> &Qualifiers,
                       bool ForEditing) {
   if (Log.isEnabled()) {
     auto Scope = helpers::LineComment(Header, B.isGenerateTagLessPTML());
@@ -595,11 +595,11 @@ void printDefinition(Logger<> &Log,
                      const model::Type &T,
                      ptml::PTMLIndentedOstream &Header,
                      ptml::PTMLCBuilder &B,
-                     QualifiedTypeNameMap &AdditionalNames,
                      const model::Binary &Model,
+                     QualifiedTypeNameMap &AdditionalNames,
                      const TypeSet &TypesToInline,
                      llvm::StringRef NameOfInlineInstance,
-                     const std::vector<model::Qualifier> *Qualifiers,
+                     const std::vector<model::Qualifier> &Qualifiers,
                      bool ForEditing) {
   if (Log.isEnabled())
     Header << B.getLineComment("Definition of "
@@ -611,8 +611,8 @@ void printDefinition(Logger<> &Log,
                      T,
                      Header,
                      B,
-                     AdditionalNames,
                      Model,
+                     AdditionalNames,
                      TypesToInline,
                      NameOfInlineInstance,
                      Qualifiers,
@@ -630,9 +630,9 @@ void printDefinition(Logger<> &Log,
                       llvm::cast<model::StructType>(T),
                       Header,
                       B,
-                      TypesToInline,
-                      AdditionalNames,
                       Model,
+                      AdditionalNames,
+                      TypesToInline,
                       NameOfInlineInstance,
                       Qualifiers);
     } break;
@@ -642,9 +642,9 @@ void printDefinition(Logger<> &Log,
                       llvm::cast<model::UnionType>(T),
                       Header,
                       B,
-                      TypesToInline,
-                      AdditionalNames,
                       Model,
+                      AdditionalNames,
+                      TypesToInline,
                       NameOfInlineInstance,
                       Qualifiers);
     } break;
