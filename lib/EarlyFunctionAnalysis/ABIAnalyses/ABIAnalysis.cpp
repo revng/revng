@@ -70,7 +70,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "UsedReturnValuesOfFunctionCall:\n";
   for (auto &[Key, StateMap] : URVOFC) {
-    Output << Prefix << "  " << Key.second->getName().str() << '\n';
+    Output << Prefix << "  " << getName(Key.second) << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
@@ -79,7 +79,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "RegisterArgumentsOfFunctionCall:\n";
   for (auto &[Key, StateMap] : RAOFC) {
-    Output << Prefix << "  " << Key.second->getName().str() << '\n';
+    Output << Prefix << "  " << getName(Key.second) << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
@@ -88,7 +88,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "DeadReturnValuesOfFunctionCall:\n";
   for (auto &[Key, StateMap] : DRVOFC) {
-    Output << Prefix << "  " << Key.second->getName().str() << '\n';
+    Output << Prefix << "  " << getName(Key.second) << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
@@ -323,7 +323,7 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "Call site:\n";
   for (auto &[PC, StateMap] : CallSites) {
-    Output << Prefix << "  " << PC.toString() << '\n';
+    Output << Prefix << "  Call in basic block " << PC.toString() << '\n';
     Output << Prefix << "  "
            << "  "
            << "Arguments:\n";
