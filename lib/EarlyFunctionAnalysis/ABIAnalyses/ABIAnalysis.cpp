@@ -286,7 +286,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
   for (auto &[Key, RSMap] : Results.RAOFC) {
     BasicBlockID PC = Key.first;
     revng_assert(PC.isValid());
-    FinalResults.CallSites[PC] = ABIAnalysesResults::CallSiteResults();
     for (auto &[CSV, RS] : RSMap)
       FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;
   }
