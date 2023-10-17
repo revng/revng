@@ -302,22 +302,22 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     // Initialize all allocas with opaque, CSV-specific values
     Type *CSVType = CSV->getValueType();
     llvm::StringRef CSVName = CSV->getName();
-    auto *Initializer = CSVInitializers.get(CSVName,
-                                            CSVType,
-                                            {},
-                                            Twine("_init_") + CSVName);
+    using namespace model::Register;
+    Values Register = fromCSVName(CSVName, Binary.Architecture());
+    if (Register != Invalid) {
+      auto *Initializer = CSVInitializers.get(CSVName,
+                                              CSVType,
+                                              {},
+                                              Twine("_init_") + CSVName);
 
-    if (not Initializer->hasMetadata("revng.abi_register")) {
-      model::Register::Values
-        Register = model::Register::fromCSVName(CSVName, Binary.Architecture());
-      if (Register != model::Register::Invalid) {
+      if (not Initializer->hasMetadata("revng.abi_register")) {
         Initializer->setMetadata("revng.abi_register",
-                                 QMD.tuple(model::Register::getName(Register)));
+                                 QMD.tuple(getName(Register)));
       }
-    }
 
-    CSVForInitializer[Initializer] = CSV;
-    InitializerForCSV[CSV] = Initializer;
+      CSVForInitializer[Initializer] = CSV;
+      InitializerForCSV[CSV] = Initializer;
+    }
   }
 
   // Collect existing CSV allocas
@@ -354,11 +354,17 @@ void PromoteCSVs::promoteCSVs(Function *F) {
       Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
 
       // Check if already have an initializer
-      Function *Initializer = InitializerForCSV.at(CSV);
-      auto *InitializerCall = InitializersBuilder.CreateCall(Initializer);
+      Value *Initializer = nullptr;
+      auto It = InitializerForCSV.find(CSV);
+      if (It != InitializerForCSV.end()) {
+        Function *InitializerFunction = InitializerForCSV.at(CSV);
+        Initializer = InitializersBuilder.CreateCall(InitializerFunction);
+      } else {
+        Initializer = CSV->getInitializer();
+      }
 
       // Initialize the alloca
-      InitializersBuilder.CreateStore(InitializerCall, Alloca);
+      InitializersBuilder.CreateStore(Initializer, Alloca);
     }
 
     // Replace users
