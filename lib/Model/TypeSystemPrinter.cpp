@@ -453,7 +453,9 @@ void TypeSystemPrinter::print(const model::Type &T) {
 }
 
 void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
-  const model::Type *PrototypeT = F.Prototype().getConst();
+  bool HasPrototype = not F.Prototype().empty();
+  const model::Type *Prototype = HasPrototype ? F.Prototype().getConst() :
+                                                nullptr;
 
   // Print the name of the node
   Out << "node_" << to_string(NodeID) << "[";
@@ -479,13 +481,19 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
 
   // Second row of the inner table (actual types)
   Out << "<TR>";
-  paddedCell(Out, PrototypeT->name(), /*port=*/0);
+
+  if (HasPrototype)
+    paddedCell(Out, Prototype->name(), /*port=*/0);
+  else
+    Out << "<TD></TD>";
+
   if (not F.StackFrameType().empty()) {
     const model::Type *StackT = F.StackFrameType().getConst();
     paddedCell(Out, StackT->name(), /*port=*/1);
   } else {
     Out << "<TD></TD>";
   }
+
   Out << "</TR>";
 
   // End of inner table
@@ -501,20 +509,22 @@ void TypeSystemPrinter::print(const model::Function &F) {
   dumpFunctionNode(F, FunctionNodeID);
   NextID++;
 
-  // Nodes of the subtypes if they do not already exist
-  const model::Type *PrototypeT = F.Prototype().getConst();
-  bool HasStackFrame = not F.StackFrameType().empty();
-  const model::Type *StackT = HasStackFrame ? F.StackFrameType().getConst() :
-                                              nullptr;
+  // Node of prototype type, if present
+  if (not F.Prototype().empty()) {
+    const model::Type *PrototypeT = F.Prototype().getConst();
+    print(*PrototypeT);
 
-  print(*PrototypeT);
-  if (StackT)
+    // Edges
+    auto PrototypeNodeID = NodesMap.at(PrototypeT);
+    addEdge(FunctionNodeID, 0, PrototypeNodeID);
+  }
+
+  // Node of the stack type, if present
+  if (not F.StackFrameType().empty()) {
+    const model::Type *StackT = F.StackFrameType().getConst();
     print(*StackT);
 
-  // Edges
-  auto PrototypeNodeID = NodesMap.at(PrototypeT);
-  addEdge(FunctionNodeID, 0, PrototypeNodeID);
-  if (StackT) {
+    // Edges
     auto StackNodeID = NodesMap.at(StackT);
     addEdge(FunctionNodeID, 1, StackNodeID);
   }
@@ -522,7 +532,9 @@ void TypeSystemPrinter::print(const model::Function &F) {
 
 void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
                                          int NodeID) {
-  const model::Type *PrototypeT = F.Prototype().getConst();
+  bool HasPrototype = not F.Prototype().empty();
+  const model::Type *Prototype = HasPrototype ? F.Prototype().getConst() :
+                                                nullptr;
 
   // Print the name of the node
   Out << "node_" << to_string(NodeID) << "[";
@@ -547,7 +559,12 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
 
   // Second row of the inner table (actual types)
   Out << "<TR>";
-  paddedCell(Out, PrototypeT->name(), /*port=*/0);
+
+  if (HasPrototype)
+    paddedCell(Out, Prototype->name(), /*port=*/0);
+  else
+    Out << "<TD></TD>";
+
   Out << "</TR>";
 
   // End of inner table
@@ -563,13 +580,15 @@ void TypeSystemPrinter::print(const model::DynamicFunction &F) {
   dumpFunctionNode(F, FunctionNodeID);
   NextID++;
 
-  // Nodes of the subtypes if they do not already exist
-  const model::Type *PrototypeT = F.Prototype().getConst();
-  print(*PrototypeT);
+  // Node of the prototype type, if present
+  if (not F.Prototype().empty()) {
+    const model::Type *PrototypeT = F.Prototype().getConst();
+    print(*PrototypeT);
 
-  // Edges
-  auto PrototypeNodeID = NodesMap.at(PrototypeT);
-  addEdge(FunctionNodeID, 0, PrototypeNodeID);
+    // Edges
+    auto PrototypeNodeID = NodesMap.at(PrototypeT);
+    addEdge(FunctionNodeID, 0, PrototypeNodeID);
+  }
 }
 
 void TypeSystemPrinter::print(const model::Binary &Model) {
