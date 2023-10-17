@@ -32,13 +32,48 @@ static Logger<> TraceRunnerLogger("trace-runner");
 namespace utils {
 // Utility functions for decoding arguments
 
-// Put a nullptr at the end of the array and poison it, this will make it so
-// out-of-bounds errors are caught quickly
+// Utility class to store pointer arrays. When `.data()` is called, a nullptr is
+// added at the end of the array and it's poisoned by ASAN. This allows to spot
+// out of bounds accesses. After `.data()` has been called the internal vector
+// cannot be modified unless `.clear()` is called.
 template<typename T>
-inline void poisonTail(std::vector<T *> &Vector) {
-  Vector.push_back(nullptr);
-  ASAN_POISON_MEMORY_REGION(Vector.back(), sizeof(T *));
-}
+  requires std::is_pointer_v<T>
+class PointerVector {
+private:
+  std::vector<T> Pointers;
+  bool TailPoisoned = false;
+
+public:
+  PointerVector() {}
+  ~PointerVector() { clear(); }
+
+  PointerVector(const PointerVector &) = delete;
+  PointerVector &operator=(const PointerVector &) = delete;
+  PointerVector(PointerVector &&) = default;
+  PointerVector &operator=(const PointerVector &&) = default;
+
+  void push_back(T Pointer) {
+    revng_assert(not TailPoisoned);
+    Pointers.push_back(Pointer);
+  }
+
+  void clear() {
+    if (TailPoisoned) {
+      ASAN_UNPOISON_MEMORY_REGION(Pointers.back(), sizeof(T));
+      TailPoisoned = false;
+    }
+    Pointers.clear();
+  }
+
+  T *data() {
+    if (not TailPoisoned) {
+      Pointers.push_back(nullptr);
+      ASAN_POISON_MEMORY_REGION(Pointers.back(), sizeof(T));
+      TailPoisoned = true;
+    }
+    return Pointers.data();
+  }
+};
 
 // Utility class to represent a list of strings for C usage.
 // It will copy the strings from the source string list and store them
@@ -47,7 +82,7 @@ inline void poisonTail(std::vector<T *> &Vector) {
 class CStringList {
 private:
   std::vector<std::string> Storage;
-  std::vector<const char *> Pointers;
+  PointerVector<const char *> Pointers;
 
 public:
   CStringList(const llvm::ArrayRef<llvm::StringRef> Source) {
@@ -70,7 +105,6 @@ private:
     for (const std::string &String : Storage) {
       Pointers.push_back(String.c_str());
     }
-    poisonTail(Pointers);
   }
 };
 
@@ -198,18 +232,17 @@ private:
   template<ConstexprString Name, typename ArgT>
     requires(isList<ArgT>()
              && isRPType<remove_constptr<remove_constptr<ArgT>>>())
-  std::vector<std::remove_pointer_t<ArgT>>
+  utils::PointerVector<std::remove_pointer_t<ArgT>>
   parseArgumentImpl(ArgumentRef Argument) {
     revng_check(Argument.isSequence(), "Argument is not a sequence");
     using ElementT = std::remove_pointer_t<ArgT>;
-    std::vector<ElementT> Result;
+    utils::PointerVector<ElementT> Result;
     for (auto &Elem : Argument.getSequence()) {
       Result.push_back(getPointer<ElementT>(Elem));
       if constexpr (isDestroy<Name>())
         invalidatePointer(Elem);
     }
 
-    utils::poisonTail(Result);
     return Result;
   }
 
@@ -223,7 +256,7 @@ public:
   }
 
   template<ConstexprString Name, typename ArgT, size_t I, typename... Args>
-  ArgT unwrapStorage(std::tuple<Args...> Arguments) {
+  ArgT unwrapStorage(std::tuple<Args...> &Arguments) {
     if constexpr (isList<ArgT>()) {
       // In case of string lists the storage used is utils::CStringList
       if constexpr (anyOf<ArgT, char **, const char **>()) {
