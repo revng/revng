@@ -4,9 +4,9 @@
 
 Component: revng
 Containers:
-  - Name: call-graph-svg.yml
+  - Name: call-graph.svg.yml
     Type: CallGraphSVG
-  - Name: call-graph-slice-svg.tar.gz
+  - Name: call-graph-slice.svg.tar.gz
     Type: CallGraphSliceSVG
 Branches:
   - From: Isolate
@@ -14,9 +14,9 @@ Branches:
       - Name: YieldCallGraph
         Pipes:
           - Type: YieldCallGraph
-            UsedContainers: [cross-relations.yml, call-graph-svg.yml]
+            UsedContainers: [cross-relations.yml, call-graph.svg.yml]
         Artifacts:
-          Container: call-graph-svg.yml
+          Container: call-graph.svg.yml
           Kind: CallGraphSVG
           SingleTargetFilename: call-graph.svg
   - From: Isolate
@@ -24,8 +24,8 @@ Branches:
       - Name: YieldCallGraphSlice
         Pipes:
           - Type: YieldCallGraphSlice
-            UsedContainers: [module.ll, cross-relations.yml, call-graph-slice-svg.tar.gz]
+            UsedContainers: [module.ll, cross-relations.yml, call-graph-slice.svg.tar.gz]
         Artifacts:
-          Container: call-graph-slice-svg.tar.gz
+          Container: call-graph-slice.svg.tar.gz
           Kind: CallGraphSliceSVG
           SingleTargetFilename: call-graph-slice.svg

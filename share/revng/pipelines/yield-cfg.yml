@@ -4,7 +4,7 @@
 
 Component: revng
 Containers:
-  - Name: cfg-svg.tar.gz
+  - Name: cfg.svg.tar.gz
     Type: FunctionControlFlowGraphSVG
 Branches:
   - From: ProcessAssembly
@@ -12,8 +12,8 @@ Branches:
       - Name: YieldCFG
         Pipes:
           - Type: YieldCFG
-            UsedContainers: [assembly-internal.tar.gz, cfg-svg.tar.gz]
+            UsedContainers: [assembly-internal.yml.tar.gz, cfg.svg.tar.gz]
         Artifacts:
-          Container: cfg-svg.tar.gz
+          Container: cfg.svg.tar.gz
           Kind: FunctionControlFlowGraphSVG
           SingleTargetFilename: cfg.svg
