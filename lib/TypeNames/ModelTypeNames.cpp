@@ -9,10 +9,12 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
+#include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
@@ -374,6 +376,36 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
   return Result;
 }
 
+static std::string
+getFunctionAttributeString(const model::FunctionAttribute::Values &A) {
+
+  using namespace model::FunctionAttribute;
+
+  switch (A) {
+
+  case NoReturn:
+    return "_Noreturn";
+
+  case Inline:
+    return "inline";
+
+  default:
+    revng_abort("cannot print unexpected model::FunctionAttribute");
+  }
+
+  return "";
+}
+
+using AttributesSet = TrackingMutableSet<model::FunctionAttribute::Values>;
+
+static std::string
+getFunctionAttributesString(const AttributesSet &Attributes) {
+  std::string Result;
+  for (const auto &A : Attributes)
+    Result += " " + getFunctionAttributeString(A);
+  return Result;
+}
+
 template<ModelFunction FunctionType>
 static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::RawFunctionType &RF,
@@ -385,7 +417,10 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   auto Layout = abi::FunctionType::Layout::make(RF);
   revng_assert(not Layout.returnsAggregateType());
 
-  Header << B.getAnnotateABI("raw") << (SingleLine ? " " : "\n");
+  Header << B.getAnnotateABI("raw");
+  if (Function and not Function->Attributes().empty())
+    Header << getFunctionAttributesString(Function->Attributes());
+  Header << (SingleLine ? " " : "\n");
   Header << getNamedInstanceOfReturnType(RF, FunctionName, B);
 
   revng_assert(RF.StackArgumentsType().Qualifiers().empty());
@@ -434,8 +469,10 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        ptml::PTMLCBuilder &B,
                                        const model::Binary &Model,
                                        bool SingleLine) {
-  Header << B.getAnnotateABI(model::ABI::getName(CF.ABI()))
-         << (SingleLine ? " " : "\n");
+  Header << B.getAnnotateABI(model::ABI::getName(CF.ABI()));
+  if (Function and not Function->Attributes().empty())
+    Header << getFunctionAttributesString(Function->Attributes());
+  Header << (SingleLine ? " " : "\n");
   Header << getNamedInstanceOfReturnType(CF, FunctionName, B);
 
   if (CF.Arguments().empty()) {
