@@ -270,41 +270,41 @@ gatherArgumentComments(const model::Binary &Binary,
     std::size_t IndOffset = Layout.returnsAggregateType() ? 1 : 0;
     revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
     for (std::size_t Index = 0; Index < FT->Arguments().size(); ++Index) {
-      DoxygenLine &Line = Result.emplace_back();
-      Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));
-      Line.InternalIndentation = Keyword.size();
-
-      const model::Argument &Argument = FT->Arguments().at(Index);
-      auto &Name = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                      Argument.name().str().str());
-      Name.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
-                                        model::editPath::customName(*FT,
-                                                                    Argument));
-      Name.ExtraAttributes.emplace_back(ptml::attributes::LocationReferences,
-                                        serializedLocation(ranks::CABIArgument,
-                                                           FT->key(),
-                                                           Argument.key()));
-
-      const auto CurrentArgument = Layout.Arguments[Index + IndOffset];
-      if (!CurrentArgument.Registers.empty()) {
-        Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
-        for (auto Register : skip_back(CurrentArgument.Registers)) {
-          Line->emplace_back(DoxygenToken::Types::Identifier,
-                             model::Register::getRegisterName(Register).str());
-          Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
-        }
-        auto Last = CurrentArgument.Registers.back();
-        Line->emplace_back(DoxygenToken::Types::Identifier,
-                           model::Register::getRegisterName(Last).str());
-        Line->emplace_back(DoxygenToken::Types::Untagged, ")");
-      } else {
-        revng_assert(CurrentArgument.Stack && CurrentArgument.Stack->Size != 0);
-        Line->emplace_back(DoxygenToken::Types::Untagged, " (on the stack)");
-      }
-
-      // Emit the comment body
       const std::string &Comment = FT->Arguments().at(Index).Comment();
-      if (Comment.size() > 0) {
+      if (!Comment.empty()) {
+        DoxygenLine &Line = Result.emplace_back();
+        Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));
+        Line.InternalIndentation = Keyword.size();
+
+        const model::Argument &Argument = FT->Arguments().at(Index);
+        auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
+                                     Argument.name().str().str());
+        N.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
+                                       model::editPath::customName(*FT,
+                                                                   Argument));
+        N.ExtraAttributes.emplace_back(ptml::attributes::LocationReferences,
+                                       serializedLocation(ranks::CABIArgument,
+                                                          FT->key(),
+                                                          Argument.key()));
+
+        const auto CurrentArgument = Layout.Arguments[Index + IndOffset];
+        if (!CurrentArgument.Registers.empty()) {
+          Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
+          for (auto Reg : skip_back(CurrentArgument.Registers)) {
+            Line->emplace_back(DoxygenToken::Types::Identifier,
+                               model::Register::getRegisterName(Reg).str());
+            Line->emplace_back(DoxygenToken::Types::Untagged, ", ");
+          }
+          auto Last = CurrentArgument.Registers.back();
+          Line->emplace_back(DoxygenToken::Types::Identifier,
+                             model::Register::getRegisterName(Last).str());
+          Line->emplace_back(DoxygenToken::Types::Untagged, ")");
+        } else {
+          revng_assert(CurrentArgument.Stack
+                       && CurrentArgument.Stack->Size != 0);
+          Line->emplace_back(DoxygenToken::Types::Untagged, " (on the stack)");
+        }
+
         Line->emplace_back(DoxygenToken::Types::Untagged, " ");
         auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged, Comment);
         Tag.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
@@ -314,31 +314,28 @@ gatherArgumentComments(const model::Binary &Binary,
     }
   } else if (auto *FT = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
     for (const model::NamedTypedRegister &Argument : FT->Arguments()) {
-      model::Register::Values Register = Argument.Location();
+      if (!Argument.Comment().empty()) {
+        model::Register::Values Register = Argument.Location();
 
-      DoxygenLine &Line = Result.emplace_back();
-      Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));
-      Line.InternalIndentation = Keyword.size();
+        DoxygenLine &Line = Result.emplace_back();
+        Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));
+        Line.InternalIndentation = Keyword.size();
 
-      auto &Name = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                      Argument.name().str().str());
-      Name.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
-                                        model::editPath::customName(*FT,
-                                                                    Argument));
-      Name.ExtraAttributes.emplace_back(ptml::attributes::LocationReferences,
-                                        serializedLocation(ranks::RawArgument,
-                                                           FT->key(),
-                                                           Argument.key()));
-      Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
-      Line->emplace_back(DoxygenToken::Types::Identifier,
-                         model::Register::getRegisterName(Register).str());
-      Line->emplace_back(DoxygenToken::Types::Untagged, ")");
-
-      // Emit the comment body
-      const std::string &Comment = Argument.Comment();
-      if (Comment.size() > 0) {
-        Line->emplace_back(DoxygenToken::Types::Untagged, " ");
-        auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged, Comment);
+        auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
+                                     Argument.name().str().str());
+        N.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
+                                       model::editPath::customName(*FT,
+                                                                   Argument));
+        N.ExtraAttributes.emplace_back(ptml::attributes::LocationReferences,
+                                       serializedLocation(ranks::RawArgument,
+                                                          FT->key(),
+                                                          Argument.key()));
+        Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
+        Line->emplace_back(DoxygenToken::Types::Identifier,
+                           model::Register::getRegisterName(Register).str());
+        Line->emplace_back(DoxygenToken::Types::Untagged, ")");
+        auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
+                                       Argument.Comment());
         Tag.ExtraAttributes.emplace_back(ptml::attributes::ModelEditPath,
                                          model::editPath::comment(*FT,
                                                                   Argument));
