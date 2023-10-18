@@ -565,8 +565,15 @@ private:
             OffsetInNewArgument += OldArgumentSize;
           }
 
-          if (ModelArgument.Stack)
-            ToRecordSpan = &NewArgument;
+          if (ModelArgument.Stack) {
+            auto *Alloca = new AllocaInst(NewArgument.getType(),
+                                          0,
+                                          "",
+                                          &*NewFunction->getEntryBlock()
+                                              .begin());
+            B.CreateStore(&NewArgument, Alloca);
+            ToRecordSpan = B.CreatePtrToInt(Alloca, StackPointerType);
+          }
 
         } else if (ModelArgument.Kind == ReferenceToAggregate) {
 
@@ -768,7 +775,6 @@ private:
     // Find call to _init_local_sp
     //
     Function *Caller = SSACSCall->getParent()->getParent();
-    CallInst *StackPointer = findCallTo(Caller, InitLocalSP);
 
     // Get stack size at call site
     auto MaybeStackSize = getSignedConstantArg(SSACSCall, 0);
@@ -867,21 +873,21 @@ private:
         } else if (ModelArgument.Stack) {
           revng_assert(ModelArgument.Stack->Size <= 128 / 8);
           unsigned OldSize = ModelArgument.Stack->Size;
-          Type *LoadTy = B.getIntNTy(OldSize * 8);
-          revng_assert(StackPointer != nullptr);
-
           revng_assert(MaybeStackSize);
-          auto ArgumentStackOffset = (-*MaybeStackSize + CallInstructionPushSize
-                                      + ModelArgument.Stack->Offset);
 
-          // Compute load address
-          Constant *Offset = ConstantInt::get(StackPointer->getType(),
-                                              ArgumentStackOffset);
-          Value *Address = B.CreateAdd(StackPointer, Offset);
+          // Create an alloca
+          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
+                                                    * 8),
+                                        0,
+                                        "",
+                                        &*Caller->getEntryBlock().begin());
 
-          // Load value
-          Value *Pointer = B.CreateIntToPtr(Address, OpaquePointerType);
-          Value *Loaded = B.CreateLoad(LoadTy, Pointer);
+          // Record its portion of the stack for redirection
+          Redirector.recordSpan(*ModelArgument.Stack,
+                                SABuilder.CreatePtrToInt(Alloca,
+                                                         StackPointerType));
+
+          Value *Loaded = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
 
           // Extend, shift and or in Accumulator
           // Note: here we might truncate too, since certain architectures
