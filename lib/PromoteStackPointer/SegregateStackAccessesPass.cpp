@@ -718,22 +718,22 @@ private:
                                                          { Entry });
     }
 
-    for (BasicBlock &BB : F) {
-      for (Instruction &I : BB) {
-        if (CallInst *SSACSCall = getCallTo(&I, SSACS)) {
-          //
-          // Handle a call to an isolated function
-          //
+    //
+    // Handle a call to an isolated function
+    //
+    for (BasicBlock &BB : F)
+      for (Instruction &I : BB)
+        if (CallInst *SSACSCall = getCallTo(&I, SSACS))
           handleCallSite(Cache, ModelFunction, AnalysisResult, SSACSCall);
-        } else if ((isa<LoadInst>(&I) or isa<StoreInst>(&I))
-                   and Redirector != nullptr) {
-          //
-          // Handle memory access, possibly targeting stack arguments
-          //
-          handleMemoryAccess(*Redirector, &I);
-        }
-      }
-    }
+
+    //
+    // Handle memory access, possibly targeting stack arguments
+    //
+    if (Redirector != nullptr)
+      for (BasicBlock &BB : F)
+        for (Instruction &I : BB)
+          if (isa<LoadInst>(&I) or isa<StoreInst>(&I))
+            handleMemoryAccess(*Redirector, &I);
 
     //
     // Fix stack frame
