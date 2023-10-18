@@ -125,7 +125,7 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
 
   case llvm::scConstant: {
     // Constants should be checked with isConstantAddress.
-    revng_unreachable();
+    revng_abort();
   } break;
 
   case llvm::scUnknown: {

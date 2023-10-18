@@ -123,6 +123,7 @@ public:
   StackAccessRedirector(int64_t BaseOffset) : BaseOffset(BaseOffset) {}
 
   void recordSpan(const Span &Span, Value *BaseAddress) {
+    revng_assert(BaseAddress->getType()->isIntegerTy());
     auto Offset = BaseOffset + Span.Offset;
     revng_assert(!Map.contains(Offset));
     Map[Offset] = { Span.Size, BaseAddress };
@@ -603,9 +604,10 @@ private:
             ToRecordSpan = AddressOfNewArgument;
         }
 
-        if (ToRecordSpan)
+        if (ToRecordSpan) {
           Redirector->recordSpan(*ModelArgument.Stack + CallInstructionPushSize,
                                  ToRecordSpan);
+        }
       }
 
       SmallVector<ReturnInst *, 4> Returns;

@@ -267,7 +267,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
     auto MaybeNewCandidate = handleCallSite(CallSite);
     if (MaybeNewCandidate) {
       uint64_t NewCandidate = *MaybeNewCandidate;
-      revng_log(Log, "Considering new candidate" << NewCandidate);
+      revng_log(Log, "Considering new candidate: " << NewCandidate);
       StackSize = std::max(StackSize.value_or(NewCandidate), NewCandidate);
     }
   }
@@ -318,10 +318,13 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
 
   int64_t Result = (*CallSite.StackSize - StackArgumentsSize
                     - CallInstructionPushSize);
+
+  revng_log(Log, "Result: " << Result);
+
   if (Result >= 0)
     return static_cast<uint64_t>(Result);
   else
-    return {};
+    return std::nullopt;
 }
 
 bool DetectStackSizePass::runOnModule(Module &M) {
