@@ -6,6 +6,7 @@ import time
 from enum import StrEnum, auto
 from functools import wraps
 from threading import Thread
+from typing import Callable, Iterable
 
 from revng.api import Manager
 
@@ -35,9 +36,10 @@ def emit_event(event_type: EventType):
 
 
 class EventManager(Thread):
-    def __init__(self, manager: Manager):
+    def __init__(self, manager: Manager, save_hooks: Iterable[Callable[[Manager, str], None]]):
         super().__init__()
         self.manager = manager
+        self.save_hooks = save_hooks
         self.running = True
         self.next_save: float | None = None
         self.credentials: str | None = None
@@ -49,9 +51,16 @@ class EventManager(Thread):
             # pipeline manager from saving (e.g. detecting dirtiness in containers) need to be
             # implemented before this can be dropped
             if self.next_save is not None and self.next_save < time.time():
-                self.manager.save()
-                self.next_save = None
+                self.save()
             time.sleep(10)
+
+    def save(self):
+        result = self.manager.save()
+        if result:
+            self.next_save = None
+            for hook in self.save_hooks:
+                hook(self.manager, self.credentials)
+        return result
 
     def handle_event(self, type_: EventType):
         self.next_save = time.time() + 300

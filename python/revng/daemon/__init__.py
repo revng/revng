@@ -8,7 +8,7 @@ import os
 import signal
 from datetime import timedelta
 from importlib import import_module
-from typing import List
+from typing import Callable, List
 
 from starlette.applications import Starlette
 from starlette.config import Config
@@ -53,10 +53,40 @@ class ManagerCredentialsMiddleware:
         return await self.app(scope, receive, send)
 
 
-def get_middlewares(event_manager: EventManager) -> List[Middleware]:
-    extra_middlewares_early = parse_middleware_env(os.environ.get("STARLETTE_MIDDLEWARES_EARLY"))
-    extra_middlewares_late = parse_middleware_env(os.environ.get("STARLETTE_MIDDLEWARES_LATE"))
+class PluginHooks:
+    def __init__(self):
+        self.middlewares_early = []
+        self.middlewares_late = []
+        self.save_hooks = []
 
+    def register_early_middleware(self, middleware: Middleware):
+        self.middlewares_early.append(middleware)
+
+    def register_late_middleware(self, middleware: Middleware):
+        self.middlewares_late.append(middleware)
+
+    def register_save_hook(self, hook: Callable[[Manager, str], None]):
+        self.save_hooks.append(hook)
+
+
+def load_plugins() -> PluginHooks:
+    hooks = PluginHooks()
+
+    plugins = os.environ.get("REVNG_DAEMON_PLUGINS", "")
+    if plugins == "":
+        return hooks
+
+    for module_path in plugins.split(","):
+        module = import_module(module_path)
+        module_setup = getattr(module, "setup", None)
+        if module_setup is None:
+            raise ValueError(f"Malformed plugin: {module_path}")
+        module_setup(hooks)
+
+    return hooks
+
+
+def get_middlewares(event_manager: EventManager, hooks: PluginHooks) -> List[Middleware]:
     origins: List[str] = []
     if "REVNG_ORIGINS" in os.environ:
         origins = os.environ["REVNG_ORIGINS"].split(",")
@@ -66,7 +96,7 @@ def get_middlewares(event_manager: EventManager) -> List[Middleware]:
         expose_headers = os.environ["REVNG_EXPOSE_HEADERS"].split(",")
 
     return [
-        *extra_middlewares_early,
+        *hooks.middlewares_early,
         Middleware(
             CORSMiddleware,
             allow_origins=origins,
@@ -75,24 +105,9 @@ def get_middlewares(event_manager: EventManager) -> List[Middleware]:
             allow_headers=["*"],
         ),
         Middleware(GZipMiddleware, minimum_size=1024),
-        *extra_middlewares_late,
+        *hooks.middlewares_late,
         Middleware(ManagerCredentialsMiddleware, event_manager=event_manager),
     ]
-
-
-def parse_middleware_env(string: str | None) -> List[Middleware]:
-    if string is None:
-        return []
-
-    result = []
-    for element in string.split(","):
-        module_path, attribute_name = element.rsplit(".", 1)
-        module = import_module(module_path)
-        if not hasattr(module, attribute_name):
-            raise ValueError(f"Middleware not found: {element}")
-        result.append(getattr(module, attribute_name))
-
-    return result
 
 
 def make_startlette() -> Starlette:
@@ -112,7 +127,9 @@ def make_startlette() -> Starlette:
         )
     )
     manager = Manager(project_workdir())
-    event_manager = EventManager(manager)
+
+    hooks = load_plugins()
+    event_manager = EventManager(manager, hooks.save_hooks)
     event_manager.start()
     startup_done = False
 
@@ -162,7 +179,7 @@ def make_startlette() -> Starlette:
 
     def shutdown():
         event_manager.running = False
-        store_result = manager.save()
+        store_result = event_manager.save()
         if not store_result:
             logging.warning("Failed to store manager's containers")
         manager._manager = None
@@ -170,7 +187,7 @@ def make_startlette() -> Starlette:
 
     return Starlette(
         debug=DEBUG,
-        middleware=get_middlewares(event_manager),
+        middleware=get_middlewares(event_manager, hooks),
         routes=routes,
         on_startup=[startup],
         on_shutdown=[shutdown],
