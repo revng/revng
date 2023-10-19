@@ -2,14 +2,19 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# Declares a python module as a target Named arguments: - TARGET_NAME: the name
-# of the CMake target to be created - MODULE_FILES: list of relative paths of
-# the python module sources - MODULE_GENERATED_FILES: list of relative paths of
-# the python module generated sources The module sources will be copied to the
-# build directory (in the lib/python folder) and installed in /lib/python.
+# ~~~
+# Declares a python module as a target
+# Named arguments:
+# - TARGET_NAME: the name of the CMake target to be created
+# - WHEEL: the name of the wheel where the files will be included into
+# - MODULE_FILES: list of relative paths of the python module sources
+# - MODULE_GENERATED_FILES: list of relative paths of the python module
+#                           generated sources
+# The module sources will be copied to the build directory
+# ~~~
 function(python_module)
   set(options)
-  set(oneValueArgs TARGET_NAME)
+  set(oneValueArgs TARGET_NAME WHEEL)
   set(multiValueArgs MODULE_FILES MODULE_GENERATED_FILES)
   cmake_parse_arguments(PYTHON_MODULE "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
@@ -18,17 +23,32 @@ function(python_module)
     configure_file(
       "${MODULE_FILE}"
       "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}" COPYONLY)
+    configure_file(
+      "${MODULE_FILE}"
+      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}"
+      COPYONLY)
+    list(
+      APPEND "WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
+      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}")
   endforeach()
 
-  foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_FILES}
-                      ${PYTHON_MODULE_MODULE_GENERATED_FILES})
-    # Copy module in the root at install time
-    get_filename_component(MODULE_FILE_DIR "${MODULE_FILE}" DIRECTORY)
-    install(
-      FILES "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}"
-      DESTINATION
-        "${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PATH}/${MODULE_FILE_DIR}")
+  foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_GENERATED_FILES})
+    add_custom_command(
+      OUTPUT
+        "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}"
+      DEPENDS "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}"
+      COMMAND
+        cp -a "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}"
+        "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}")
+    list(
+      APPEND "WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
+      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}")
   endforeach()
+
+  set("WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
+      "${WHEEL_FILES_${PYTHON_MODULE_WHEEL}}"
+      PARENT_SCOPE)
+
   add_custom_target(
     "${PYTHON_MODULE_TARGET_NAME}"
     DEPENDS ${PYTHON_MODULE_MODULE_FILES}
@@ -36,100 +56,165 @@ function(python_module)
 endfunction()
 
 #
+# Wheel generation
+#
+function(python_wheel)
+  set(options)
+  set(oneValueArgs NAME)
+  set(multiValueArgs)
+  cmake_parse_arguments(PYTHON_WHEEL "${options}" "${oneValueArgs}"
+                        "${multiValueArgs}" ${ARGN})
+
+  set(WHEEL_OUTPUT_NAME "${PYTHON_WHEEL_NAME}-1.0.0-py3-none-any.whl")
+  configure_file(
+    "pyproject_${PYTHON_WHEEL_NAME}.toml"
+    "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/pyproject.toml"
+    COPYONLY)
+
+  add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+    COMMAND python -m build --no-isolation --wheel --outdir
+            "${CMAKE_BINARY_DIR}" &> /dev/null
+    DEPENDS
+      "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/pyproject.toml"
+      "${WHEEL_FILES_${PYTHON_WHEEL_NAME}}"
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}")
+
+  add_custom_target("generate-${PYTHON_WHEEL_NAME}-wheel" ALL
+                    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}")
+  install(FILES "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+          DESTINATION "${CMAKE_INSTALL_PREFIX}/share/python")
+  install(
+    CODE "execute_process(COMMAND \"${CMAKE_CURRENT_SOURCE_DIR}/wheel-install.sh\" \
+\"${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}\")")
+endfunction()
+
+#
 # Install scripts
 #
 configure_file("scripts/revng" "${CMAKE_BINARY_DIR}/bin/revng")
-install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/revng" DESTINATION bin/)
+
+#
+# Install revng
+#
+set(PYTHON_TOP_MODULE_FILES revng/__init__.py revng/py.typed)
+python_module(TARGET_NAME python-top-module WHEEL revng MODULE_FILES
+              ${PYTHON_TOP_MODULE_FILES})
+
+#
+# Install revng.internal
+#
+set(PYTHON_TOP_INTERNAL_MODULE_FILES revng/internal/__init__.py
+                                     revng/internal/py.typed)
+python_module(TARGET_NAME python-top-internal-module WHEEL revng_internal
+              MODULE_FILES ${PYTHON_TOP_INTERNAL_MODULE_FILES})
 
 #
 # Install revng.model (including autogenerated classes)
 #
 set(PYTHON_MODEL_FILES revng/model/__init__.py revng/model/metaaddress.py
                        revng/model/v1/__init__.py revng/model/v1/external.py)
-python_module(TARGET_NAME python-model MODULE_FILES ${PYTHON_MODEL_FILES}
-              MODULE_GENERATED_FILES "${PYTHON_GENERATED_MODEL_PATH}")
+python_module(
+  TARGET_NAME
+  python-model
+  WHEEL
+  revng
+  MODULE_FILES
+  ${PYTHON_MODEL_FILES}
+  MODULE_GENERATED_FILES
+  "${PYTHON_GENERATED_MODEL_PATH}")
 
 #
 # Install revng.tupletree
 #
-set(PYTHON_TUPLETREE_FILES revng/tupletree.py)
-python_module(TARGET_NAME python-tupletree MODULE_FILES
+set(PYTHON_TUPLETREE_FILES revng/tupletree/__init__.py)
+python_module(TARGET_NAME python-tupletree WHEEL revng MODULE_FILES
               ${PYTHON_TUPLETREE_FILES})
 
 set(MERGE_DYNAMIC_MODULE_FILES
-    revng/cli/_commands/merge_dynamic/__init__.py
-    revng/cli/_commands/merge_dynamic/log.py
-    revng/cli/_commands/merge_dynamic/merge_dynamic.py
-    revng/cli/_commands/merge_dynamic/parsed_elf.py
-    revng/cli/_commands/merge_dynamic/util.py)
-python_module(TARGET_NAME revng-merge-dynamic MODULE_FILES
+    revng/internal/cli/_commands/merge_dynamic/__init__.py
+    revng/internal/cli/_commands/merge_dynamic/log.py
+    revng/internal/cli/_commands/merge_dynamic/merge_dynamic.py
+    revng/internal/cli/_commands/merge_dynamic/parsed_elf.py
+    revng/internal/cli/_commands/merge_dynamic/util.py)
+python_module(TARGET_NAME revng-merge-dynamic WHEEL revng_internal MODULE_FILES
               ${MERGE_DYNAMIC_MODULE_FILES})
 
 #
 # Install revng.model_dump
 #
-set(DUMP_MODEL_MODULE_FILES "revng/cli/_commands/model_to_json/__init__.py"
-                            "revng/cli/_commands/model_to_json/remap.py")
-python_module(TARGET_NAME revng-dump-model MODULE_FILES
+set(DUMP_MODEL_MODULE_FILES
+    revng/internal/cli/_commands/model_to_json/__init__.py
+    revng/internal/cli/_commands/model_to_json/remap.py)
+python_module(TARGET_NAME revng-dump-model WHEEL revng_internal MODULE_FILES
               ${DUMP_MODEL_MODULE_FILES})
 
 #
 # Install revng.cli
 #
-set(REVNG_CLI_MODULE_FILES revng/cli/commands_registry.py revng/cli/__init__.py
-                           revng/cli/revng.py revng/cli/support.py)
-python_module(TARGET_NAME revng-python-cli MODULE_FILES
+set(REVNG_CLI_MODULE_FILES
+    revng/internal/cli/commands_registry.py revng/internal/cli/__init__.py
+    revng/internal/cli/revng.py revng/internal/cli/support.py)
+python_module(TARGET_NAME revng-python-cli WHEEL revng_internal MODULE_FILES
               ${REVNG_CLI_MODULE_FILES})
 
 #
 # Install revng.cli._commands
 #
 set(REVNG_CLI_COMMANDS_MODULE_FILES
-    revng/cli/_commands/translate.py revng/cli/_commands/llvm_pipeline.py
-    revng/cli/_commands/lift.py revng/cli/_commands/idb_converter.py
-    revng/cli/_commands/opt.py revng/cli/_commands/pipeline_tools.py
-    revng/cli/_commands/override_by_name.py revng/cli/_commands/daemon.py
-    revng/cli/_commands/hard_purge.py revng/cli/_commands/import_idb.py
-    revng/cli/_commands/trace_run.py revng/cli/_commands/model_compare.py)
-
-python_module(TARGET_NAME revng-python-cli-commands MODULE_FILES
-              ${REVNG_CLI_COMMANDS_MODULE_FILES})
+    revng/internal/cli/_commands/translate.py
+    revng/internal/cli/_commands/llvm_pipeline.py
+    revng/internal/cli/_commands/lift.py
+    revng/internal/cli/_commands/idb_converter.py
+    revng/internal/cli/_commands/opt.py
+    revng/internal/cli/_commands/pipeline_tools.py
+    revng/internal/cli/_commands/override_by_name.py
+    revng/internal/cli/_commands/daemon.py
+    revng/internal/cli/_commands/hard_purge.py
+    revng/internal/cli/_commands/import_idb.py
+    revng/internal/cli/_commands/trace_run.py
+    revng/internal/cli/_commands/model_compare.py)
+python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
+              MODULE_FILES ${REVNG_CLI_COMMANDS_MODULE_FILES})
 
 set(REVNG_CLI_COMMANDS_PTML_MODULE_FILES
-    revng/cli/_commands/ptml/text.py revng/cli/_commands/ptml/common.py
-    revng/cli/_commands/ptml/__init__.py)
-python_module(TARGET_NAME revng-python-cli-commands-ptml MODULE_FILES
-              ${REVNG_CLI_COMMANDS_PTML_MODULE_FILES})
+    revng/internal/cli/_commands/ptml/text.py
+    revng/internal/cli/_commands/ptml/common.py
+    revng/internal/cli/_commands/ptml/__init__.py)
+python_module(TARGET_NAME revng-python-cli-commands-ptml WHEEL revng_internal
+              MODULE_FILES ${REVNG_CLI_COMMANDS_PTML_MODULE_FILES})
 
 set(REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES
-    revng/cli/_commands/fetch_debuginfo/pe.py
-    revng/cli/_commands/fetch_debuginfo/elf.py
-    revng/cli/_commands/fetch_debuginfo/common.py
-    revng/cli/_commands/fetch_debuginfo/__init__.py)
-python_module(TARGET_NAME revng-python-cli-commands-fetchdebuginfo MODULE_FILES
-              ${REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES})
+    revng/internal/cli/_commands/fetch_debuginfo/pe.py
+    revng/internal/cli/_commands/fetch_debuginfo/elf.py
+    revng/internal/cli/_commands/fetch_debuginfo/common.py
+    revng/internal/cli/_commands/fetch_debuginfo/__init__.py)
+python_module(
+  TARGET_NAME revng-python-cli-commands-fetchdebuginfo WHEEL revng_internal
+  MODULE_FILES ${REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES})
 
 set(REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES
-    revng/cli/_commands/graphql/__init__.py
-    revng/cli/_commands/graphql/runner.py
-    revng/cli/_commands/graphql/daemon_handler.py)
-python_module(TARGET_NAME revng-python-cli-commands-graphql MODULE_FILES
-              ${REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES})
+    revng/internal/cli/_commands/graphql/__init__.py
+    revng/internal/cli/_commands/graphql/runner.py
+    revng/internal/cli/_commands/graphql/daemon_handler.py)
+python_module(
+  TARGET_NAME revng-python-cli-commands-graphql WHEEL revng_internal
+  MODULE_FILES ${REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES})
 
 #
 # Install revng.api
 #
 set(REVNG_API_MODULE_FILES
-    revng/api/__init__.py
-    revng/api/_capi.py
-    revng/api/errors.py
-    revng/api/exceptions.py
-    revng/api/invalidations.py
-    revng/api/manager.py
-    revng/api/string_map.py
-    revng/api/target.py
-    revng/api/utils.py)
-python_module(TARGET_NAME revng-python-api MODULE_FILES
+    revng/internal/api/__init__.py
+    revng/internal/api/_capi.py
+    revng/internal/api/errors.py
+    revng/internal/api/exceptions.py
+    revng/internal/api/invalidations.py
+    revng/internal/api/manager.py
+    revng/internal/api/string_map.py
+    revng/internal/api/target.py
+    revng/internal/api/utils.py)
+python_module(TARGET_NAME revng-python-api WHEEL revng_internal MODULE_FILES
               ${REVNG_API_MODULE_FILES})
 
 # Also copy PipelineC headers in the build directory so revng.api can use them
@@ -147,25 +232,37 @@ endforeach()
 # Install revng.daemon
 #
 set(REVNG_DAEMON_MODULE_FILES
-    revng/daemon/__init__.py revng/daemon/multiqueue.py
-    revng/daemon/event_manager.py revng/daemon/schema.graphql
-    revng/daemon/graphql.py revng/daemon/util.py)
-python_module(TARGET_NAME revng-python-daemon MODULE_FILES
+    revng/internal/daemon/__init__.py revng/internal/daemon/multiqueue.py
+    revng/internal/daemon/event_manager.py revng/internal/daemon/schema.graphql
+    revng/internal/daemon/graphql.py revng/internal/daemon/util.py)
+python_module(TARGET_NAME revng-python-daemon WHEEL revng_internal MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
 
 #
 # Install revng.support
 #
-set(REVNG_SUPPORT_MODULE_FILES revng/support/__init__.py revng/support/elf.py
-                               revng/support/collect.py)
-python_module(TARGET_NAME revng-python-support MODULE_FILES
-              ${REVNG_SUPPORT_MODULE_FILES})
+set(REVNG_SUPPORT_MODULE_FILES
+    revng/internal/support/__init__.py revng/internal/support/elf.py
+    revng/internal/support/collect.py)
+python_module(TARGET_NAME revng-python-support WHEEL revng_internal
+              MODULE_FILES ${REVNG_SUPPORT_MODULE_FILES})
 
 #
 # Install revng.pipeline_description
 #
 set(PYTHON_PIPELINEDESCRIPTION_FILES revng/pipeline_description/__init__.py)
 python_module(
-  TARGET_NAME python-pipeline-description MODULE_FILES
-  ${PYTHON_PIPELINEDESCRIPTION_FILES} MODULE_GENERATED_FILES
+  TARGET_NAME
+  python-pipeline-description
+  WHEEL
+  revng
+  MODULE_FILES
+  ${PYTHON_PIPELINEDESCRIPTION_FILES}
+  MODULE_GENERATED_FILES
   revng/pipeline_description/_generated.py)
+
+#
+# Generate actual wheel rules
+#
+python_wheel(NAME revng)
+python_wheel(NAME revng_internal)

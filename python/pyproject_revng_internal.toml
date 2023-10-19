@@ -1,0 +1,46 @@
+# This file is distributed under the MIT License. See LICENSE.md for details.
+
+[project]
+name = "revng_internal"
+description = "Internal revng modules"
+version = "1.0.0"
+
+dependencies = [
+  # Requirements for revng_merge_dynamic
+  "pyelftools",
+  # revng.api
+  "cffi",
+  # revng.daemon
+  "ariadne",
+  "uvicorn",
+  "python-multipart",
+  "starlette",
+  "xdg",
+  # CLI: revng graphql
+  "aiohttp",
+  "gql",
+  "psutil",
+  # CLI: revng model fetch-debuginfo
+  "requests",
+  "requests-toolbelt",
+  "pefile",
+  # CLI: revng model import idb
+  "python-idb",
+  # CLI: revng model compare
+  "networkx",
+  "grandiso",
+  # General dependencies
+  "revng",
+  "PyYAML",
+  "Jinja2",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+revng = ["internal/py.typed", "internal/daemon/schema.graphql"]
+
+[project.entry-points.console_scripts]
+revng = "revng.internal.cli.revng:main"

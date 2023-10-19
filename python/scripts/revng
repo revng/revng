@@ -19,7 +19,7 @@ if str(new_path) not in sys.path:
         os.environ["PYTHONPATH"] = str(new_path)
     sys.path.insert(0, str(new_path))
 
-from revng.cli.revng import main  # noqa: E402
-
 if __name__ == "__main__":
+    from revng.internal.cli.revng import main
+
     sys.exit(main())
