@@ -4,7 +4,7 @@
 
 Component: revng-c
 Containers:
-  - Name: model_header.h
+  - Name: types-and-globals.h
     Type: ModelHeader
 Branches:
   - From: IRCanonicalization
@@ -12,8 +12,8 @@ Branches:
       - Name: PrintModelHeader
         Pipes:
           - Type: ModelToHeader
-            UsedContainers: [input, model_header.h]
+            UsedContainers: [input, types-and-globals.h]
         Artifacts:
-          Container: model_header.h
+          Container: types-and-globals.h
           Kind: ModelHeader
-          SingleTargetFilename: model_header.h
+          SingleTargetFilename: types-and-globals.h

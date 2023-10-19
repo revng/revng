@@ -4,7 +4,7 @@
 
 Component: revng-c
 Containers:
-  - Name: helpers_header.h
+  - Name: helpers.h
     Type: HelpersHeader
 Branches:
   - From: IRCanonicalization
@@ -12,8 +12,8 @@ Branches:
       - Name: PrintHelpersHeader
         Pipes:
           - Type: HelpersToHeader
-            UsedContainers: [module.ll, helpers_header.h]
+            UsedContainers: [module.ll, helpers.h]
         Artifacts:
-          Container: helpers_header.h
+          Container: helpers.h
           Kind: HelpersHeader
-          SingleTargetFilename: helpers_header.h
+          SingleTargetFilename: helpers.h

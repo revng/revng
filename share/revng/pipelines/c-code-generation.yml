@@ -12,9 +12,9 @@ Branches:
       - Name: DecompileToCInYAML
         Pipes:
           - Type: HelpersToHeader
-            UsedContainers: [module.ll, helpers_header.h]
+            UsedContainers: [module.ll, helpers.h]
           - Type: ModelToHeader
-            UsedContainers: [input, model_header.h]
+            UsedContainers: [input, types-and-globals.h]
           - Type: CDecompilation
             UsedContainers: [module.ll, decompiled.tar.gz]
         Artifacts:
