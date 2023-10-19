@@ -392,9 +392,10 @@ public:
       // Instructions only allocating a local variable and integer print
       // decorators never need an assignment.
       if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable)
-          || isCallToTagged(&I, FunctionTags::HexInteger)
-          || isCallToTagged(&I, FunctionTags::CharInteger)
-          || isCallToTagged(&I, FunctionTags::BoolInteger)) {
+          or isCallToTagged(&I, FunctionTags::HexInteger)
+          or isCallToTagged(&I, FunctionTags::CharInteger)
+          or isCallToTagged(&I, FunctionTags::BoolInteger)
+          or isCallToTagged(&I, FunctionTags::NullPtr)) {
         // The OperandTaintSet is discarded here. This is not a problem,
         // because it should always be empty.
         revng_assert(not hasSideEffects(I));

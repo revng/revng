@@ -230,8 +230,9 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
     QualifiedType CharTy(Model.getPrimitiveType(Unsigned, 1), {});
     ReturnTypes.push_back(CharTy.getPointerTo(Model.Architecture()));
   } else if (FunctionTags::HexInteger.isTagOf(CalledFunc)
-             || FunctionTags::CharInteger.isTagOf(CalledFunc)
-             || FunctionTags::BoolInteger.isTagOf(CalledFunc)) {
+             or FunctionTags::CharInteger.isTagOf(CalledFunc)
+             or FunctionTags::BoolInteger.isTagOf(CalledFunc)
+             or FunctionTags::NullPtr.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
     ReturnTypes.push_back(llvmIntToModelType(Arg->getType(), Model));
   } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {

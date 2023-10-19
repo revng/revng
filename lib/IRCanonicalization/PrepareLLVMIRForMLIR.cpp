@@ -218,6 +218,7 @@ static void tagFunction(Function &F) {
     &FunctionTags::HexInteger,
     &FunctionTags::CharInteger,
     &FunctionTags::BoolInteger,
+    &FunctionTags::NullPtr,
     &FunctionTags::ReadsMemory,
     &FunctionTags::UnaryMinus,
     &FunctionTags::BinaryNot,

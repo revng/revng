@@ -30,6 +30,7 @@ extern Tag Parentheses;
 extern Tag HexInteger;
 extern Tag CharInteger;
 extern Tag BoolInteger;
+extern Tag NullPtr;
 extern Tag LocalVariable;
 extern Tag Assign;
 extern Tag Copy;
@@ -105,6 +106,9 @@ void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// Initializes a pool of bool literals printing functions
 void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of NULL pointer literals printing functions
+void initNullPtrPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// Initializes a pool of unary_minus functions
 void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool);

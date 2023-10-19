@@ -32,6 +32,7 @@ Tag Parentheses("Parentheses");
 Tag HexInteger("HexInteger");
 Tag CharInteger("CharInteger");
 Tag BoolInteger("BoolInteger");
+Tag NullPtr("NullPtr");
 Tag LocalVariable("LocalVariable");
 Tag Assign("Assign");
 Tag Copy("Copy");
@@ -197,6 +198,19 @@ void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::BoolInteger);
+}
+
+void initNullPtrPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::NullPtr });
+
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::NullPtr);
 }
 
 void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {

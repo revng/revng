@@ -177,7 +177,8 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
 static bool isIntegerConstFormatting(const llvm::Value *Call) {
   return isCallToTagged(Call, FunctionTags::HexInteger)
          or isCallToTagged(Call, FunctionTags::CharInteger)
-         or isCallToTagged(Call, FunctionTags::BoolInteger);
+         or isCallToTagged(Call, FunctionTags::BoolInteger)
+         or isCallToTagged(Call, FunctionTags::NullPtr);
 }
 
 static bool isCConstant(const llvm::Value *V) {
@@ -527,6 +528,12 @@ static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
     return B.getConstantTag(boolLiteral(Value)).serialize();
   }
 
+  if (isCallToTagged(Call, FunctionTags::NullPtr)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto *Value = cast<llvm::ConstantInt>(Operand);
+    revng_assert(Value->isZero());
+    return B.getNullTag().serialize();
+  }
   std::string Error = "Cannot get token for custom opcode: "
                       + dumpToString(Call);
   revng_abort(Error.c_str());

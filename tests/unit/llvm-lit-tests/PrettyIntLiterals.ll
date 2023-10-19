@@ -60,4 +60,8 @@ define i1 @check_bool(i1 %print) !revng.tags !0 {
   ret i1 %z
 }
 
+!revng.model = !{!1}
 !0 = !{!"Isolated"}
+!1 = !{!"---
+...
+"}

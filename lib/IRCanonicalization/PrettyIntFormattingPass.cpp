@@ -16,18 +16,21 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Pass.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-#include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
+#include "revng-c/Support/ModelHelpers.h"
 
 enum class IntFormatting : uint32_t {
   NONE, // no formatting
   HEX,
   CHAR,
-  BOOL
+  BOOL,
+  NULLPTR
 };
 
 struct FormatInt {
@@ -35,8 +38,8 @@ struct FormatInt {
   llvm::Use *Use;
 };
 
-static std::optional<FormatInt> getIntFormat(llvm::Instruction &I,
-                                             llvm::Use &U);
+static std::optional<FormatInt>
+getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model);
 
 struct PrettyIntFormatting : public llvm::FunctionPass {
 public:
@@ -45,12 +48,20 @@ public:
   PrettyIntFormatting() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.setPreservesCFG();
+    AU.addRequired<LoadModelWrapperPass>();
+  }
 };
 
 bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
-  if (!FunctionTags::TagsSet::from(&F).contains(FunctionTags::Isolated)) {
+
+  if (not FunctionTags::TagsSet::from(&F).contains(FunctionTags::Isolated))
     return false;
-  }
+
+  const model::Binary
+    &Model = *getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
 
   OpaqueFunctionsPool<llvm::Type *> HexIntegerPool(F.getParent(), false);
   initHexPrintPool(HexIntegerPool);
@@ -61,11 +72,14 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
   OpaqueFunctionsPool<llvm::Type *> BoolIntegerPool(F.getParent(), false);
   initBoolPrintPool(BoolIntegerPool);
 
+  OpaqueFunctionsPool<llvm::Type *> NullPtrPool(F.getParent(), false);
+  initNullPtrPrintPool(NullPtrPool);
+
   std::vector<FormatInt> IntsToBeFormatted;
 
   for (llvm::Instruction &I : llvm::instructions(F)) {
     for (llvm::Use &U : I.operands()) {
-      if (auto formatting = getIntFormat(I, U); formatting) {
+      if (auto formatting = getIntFormat(I, U, Model); formatting) {
         IntsToBeFormatted.push_back(*formatting);
       }
     }
@@ -84,6 +98,8 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
         return CharIntegerPool.get(IntType, IntType, { IntType }, "print_char");
       case IntFormatting::BOOL:
         return BoolIntegerPool.get(IntType, IntType, { IntType }, "print_bool");
+      case IntFormatting::NULLPTR:
+        return NullPtrPool.get(IntType, IntType, { IntType }, "print_nullptr");
       case IntFormatting::NONE:
       default:
         return nullptr;
@@ -101,7 +117,8 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
   return true;
 }
 
-std::optional<FormatInt> getIntFormat(llvm::Instruction &I, llvm::Use &U) {
+std::optional<FormatInt>
+getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model) {
   auto &Context = I.getContext();
 
   // We cannot print properly characters when they are part of switch
@@ -120,26 +137,37 @@ std::optional<FormatInt> getIntFormat(llvm::Instruction &I, llvm::Use &U) {
 
   // We want to print ints in hex format when they are left operand of shifts or
   // operands of and/or/xor instructions.
-  if (isa<llvm::ConstantInt>(U)) {
-    if (I.getOpcode() == llvm::Instruction::Shl
-        || I.getOpcode() == llvm::Instruction::AShr
-        || I.getOpcode() == llvm::Instruction::LShr) {
-      if (U.getOperandNo() == 0) {
-        return FormatInt{ IntFormatting::HEX, &U };
-      }
-    } else if (I.getOpcode() == llvm::Instruction::And
-               || I.getOpcode() == llvm::Instruction::Or
-               || I.getOpcode() == llvm::Instruction::Xor) {
+  llvm::ConstantInt *IntConstant = dyn_cast<llvm::ConstantInt>(U);
+  if (not IntConstant)
+    return std::nullopt;
+
+  if (I.getOpcode() == llvm::Instruction::Shl
+      || I.getOpcode() == llvm::Instruction::AShr
+      || I.getOpcode() == llvm::Instruction::LShr) {
+    if (U.getOperandNo() == 0) {
       return FormatInt{ IntFormatting::HEX, &U };
     }
-
-    if (U->getType() == llvm::IntegerType::getInt8Ty(Context)) {
-      return FormatInt{ IntFormatting::CHAR, &U };
+  } else if (I.getOpcode() == llvm::Instruction::And
+             || I.getOpcode() == llvm::Instruction::Or
+             || I.getOpcode() == llvm::Instruction::Xor) {
+    return FormatInt{ IntFormatting::HEX, &U };
+  } else if (auto *Call = getCallToTagged(&I, FunctionTags::ModelCast)) {
+    // If it's a ModelCast casting a zero constanto to a pointer, then we
+    // decorate the constant so that it's printed as NULL.
+    if (IntConstant->isZero()) {
+      model::QualifiedType
+        Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+      if (Type.isPointer())
+        return FormatInt{ IntFormatting::NULLPTR, &U };
     }
+  }
 
-    if (U->getType() == llvm::IntegerType::getInt1Ty(Context)) {
-      return FormatInt{ IntFormatting::BOOL, &U };
-    }
+  if (U->getType() == llvm::IntegerType::getInt8Ty(Context)) {
+    return FormatInt{ IntFormatting::CHAR, &U };
+  }
+
+  if (U->getType() == llvm::IntegerType::getInt1Ty(Context)) {
+    return FormatInt{ IntFormatting::BOOL, &U };
   }
 
   return std::nullopt;
