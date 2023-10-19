@@ -14,8 +14,8 @@ void printSingleCFile(llvm::raw_ostream &Out,
                       const std::set<MetaAddress> &Targets) {
   auto Scope = B.getTag(ptml::tags::Div).scope(Out);
   // Print headers
-  Out << B.getIncludeQuote("revng-model-declarations.h")
-      << B.getIncludeQuote("revng-qemu-helpers-declarations.h") << "\n";
+  Out << B.getIncludeQuote("types-and-globals.h")
+      << B.getIncludeQuote("helpers.h") << "\n";
 
   if (Targets.empty()) {
     // If Targets is empty print all the Functions' bodies
