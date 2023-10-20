@@ -386,9 +386,10 @@ private:
 
   /// Recursively build a C string representing the condition contained
   /// in an ExprNode (which might be composed by one or more subexpressions).
-  /// Whenever an atomic node is encountered, the associated basic block is
-  /// emitted on-the-fly.
-  RecursiveCoroutine<std::string> buildGHASTCondition(const ExprNode *E);
+  /// An additional parameter is used to decide whether the basic block
+  /// associated to an atomic or compare node should be emitted on-the-fly.
+  RecursiveCoroutine<std::string> buildGHASTCondition(const ExprNode *E,
+                                                      bool EmitBB);
 
   /// Serialize a basic block into a series of C statements.
   void emitBasicBlock(const BasicBlock *BB, bool EmitReturn);
@@ -1523,13 +1524,101 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
 }
 
 RecursiveCoroutine<std::string>
-CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
+CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
   LoggerIndent Indent{ VisitLog };
   revng_log(VisitLog, "|__ Visiting Condition " << E);
   LoggerIndent MoreIndent{ VisitLog };
 
   using NodeKind = ExprNode::NodeKind;
   switch (E->getKind()) {
+
+  case NodeKind::NK_ValueCompare:
+  case NodeKind::NK_LoopStateCompare: {
+    revng_log(VisitLog, "(compare)");
+
+    // A compare node, is used to represent a pre-computed condition, which is
+    // the result of a `switch` promotion to `if`. The compare node can appear
+    // in multiple variants. Specifically, we may have that the LHS of the
+    // condition is an actual `llvm::Value` on the IR, or it is a placeholder
+    // for the loop state variable.
+    const CompareNode *Compare = cast<CompareNode>(E);
+
+    // String that will contain the serialization of the `CompareNode`
+    std::string CompareNodeString;
+
+    // Decide whether to emit the LHS in the form of a pre-existing
+    // `llvm::Value` or the use of the `LoopStateVar`
+    switch (E->getKind()) {
+    case NodeKind::NK_ValueCompare: {
+      revng_log(VisitLog, "(value compare)");
+      const ValueCompareNode *ValueCompare = cast<ValueCompareNode>(E);
+
+      // We emit the instruction in the basic block before the llvm::Value
+      llvm::BasicBlock *BB = ValueCompare->getBasicBlock();
+      revng_assert(BB != nullptr);
+
+      // If we are emitting an `IfNode` which derives from the promotion of a
+      // `DualSwitch`, which in turn was a weaved one, we should not double emit
+      // the instructions that compute the condition, because they have been
+      // already emitted by the above switch.
+      if (EmitBB) {
+        emitBasicBlock(BB, true);
+      }
+
+      // Retrieve the `llvm::Value` representing the switch condition
+      llvm::Instruction *Terminator = BB->getTerminator();
+      llvm::SwitchInst *SwitchInst = llvm::cast<llvm::SwitchInst>(Terminator);
+      llvm::Value *ConditionValue = SwitchInst->getCondition();
+      revng_assert(ConditionValue);
+
+      // Emit the condition variable
+      std::string ConditionVarString = getToken(ConditionValue);
+      CompareNodeString += ConditionVarString;
+
+    } break;
+    case NodeKind::NK_LoopStateCompare: {
+      revng_log(VisitLog, "(loop state compare)");
+
+      // Insert the loop state variable representing string
+      CompareNodeString += LoopStateVar;
+
+    } break;
+    default: {
+      revng_abort();
+    }
+    }
+
+    // If the `ComparisonKind` is of the `NotPresent` kind, we don't need to
+    // print out the comparison operator nor the RHS
+    auto Comparison = Compare->getComparison();
+    if (Comparison != CompareNode::ComparisonKind::Comparison_NotPresent) {
+
+      // We either generate the `==` or a `!=`, depending on the operator
+      // contained in the `CompareNode`
+      auto Comparison = Compare->getComparison();
+      using Operator = ptml::PTMLCBuilder::Operator;
+      switch (Comparison) {
+      case CompareNode::ComparisonKind::Comparison_Equal: {
+        auto CmpString = B.getOperator(Operator::CmpEq);
+        CompareNodeString += " " + CmpString;
+      } break;
+      case CompareNode::ComparisonKind::Comparison_NotEqual: {
+        auto CmpString = B.getOperator(Operator::CmpNeq);
+        CompareNodeString += " " + CmpString;
+      } break;
+      default: {
+        revng_abort();
+      }
+      }
+
+      // Build the RHS comparison constant
+      size_t Constant = Compare->getConstant();
+      CompareNodeString += " " + B.getNumber(Constant);
+    }
+
+    rc_return CompareNodeString;
+
+  } break;
 
   case NodeKind::NK_Atomic: {
     revng_log(VisitLog, "(atomic)");
@@ -1543,7 +1632,14 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     const AtomicNode *Atomic = cast<AtomicNode>(E);
     llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
     revng_assert(BB);
-    emitBasicBlock(BB, true);
+
+    // If we are emitting an `IfNode` which derives from the promotion of a
+    // `DualSwitch`, which in turn was a weaved one, we should not double emit
+    // the instructions that compute the condition, because they have been
+    // already emitted by the above switch.
+    if (EmitBB) {
+      emitBasicBlock(BB, true);
+    }
 
     // Then, extract the token of the last instruction (must be a
     // conditional branch instruction)
@@ -1581,7 +1677,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     const NotNode *N = cast<NotNode>(E);
     ExprNode *Negated = N->getNegatedNode();
     rc_return B.getOperator(ptml::PTMLCBuilder::Operator::BoolNot)
-      + addAlwaysParentheses(rc_recur buildGHASTCondition(Negated));
+      + addAlwaysParentheses(rc_recur buildGHASTCondition(Negated, EmitBB));
   } break;
 
   case NodeKind::NK_And:
@@ -1591,8 +1687,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     const BinaryNode *Binary = cast<BinaryNode>(E);
 
     const auto &[Child1, Child2] = Binary->getInternalNodes();
-    std::string Child1Token = rc_recur buildGHASTCondition(Child1);
-    std::string Child2Token = rc_recur buildGHASTCondition(Child2);
+    std::string Child1Token = rc_recur buildGHASTCondition(Child1, EmitBB);
+    std::string Child2Token = rc_recur buildGHASTCondition(Child2, EmitBB);
     using PTMLOperator = ptml::PTMLCBuilder::Operator;
     const Tag &OpToken = E->getKind() == NodeKind::NK_And ?
                            B.getOperator(PTMLOperator::BoolAnd) :
@@ -1645,7 +1741,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // Print the condition computation code of the if statement.
     if (Continue->hasComputation()) {
       IfNode *ComputationIfNode = Continue->getComputationIfNode();
-      rc_recur buildGHASTCondition(ComputationIfNode->getCondExpr());
+      bool EmitBB = not ComputationIfNode->isWeaved();
+      rc_recur buildGHASTCondition(ComputationIfNode->getCondExpr(), EmitBB);
     }
 
     // Actually print the continue statement only if the continue is not
@@ -1667,7 +1764,19 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     revng_log(VisitLog, "(NK_If)");
 
     const IfNode *If = cast<IfNode>(N);
-    std::string CondExpr = rc_recur buildGHASTCondition(If->getCondExpr());
+
+    std::string CondExpr;
+    if (If->getCondExpr()) {
+
+      // If we are in presence of a standard `IfNode`, construct the `CondExpr`
+      bool EmitBB = not If->isWeaved();
+      CondExpr = rc_recur buildGHASTCondition(If->getCondExpr(), EmitBB);
+    } else {
+
+      // We are emitting a `IfNode` promoted from a dispatcher `SwitchNode` with
+      // two `case`s
+      CondExpr = LoopStateVar;
+    }
     // "If" expression
     // TODO: possibly cast the CondExpr if it's not convertible to boolean?
     revng_assert(not CondExpr.empty());
@@ -1705,7 +1814,9 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
       // Retrieve the expression of the condition as well as emitting its
       // associated basic block
-      CondExpr = rc_recur buildGHASTCondition(LoopCondition->getCondExpr());
+      bool EmitBB = not LoopCondition->isWeaved();
+      CondExpr = rc_recur buildGHASTCondition(LoopCondition->getCondExpr(),
+                                              EmitBB);
       revng_assert(not CondExpr.empty());
     }
 

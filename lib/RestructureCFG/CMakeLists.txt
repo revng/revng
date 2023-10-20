@@ -13,6 +13,8 @@ revng_add_analyses_library(
   MetaRegion.cpp
   RegionCFGTree.cpp
   RestructureCFG.cpp
+  SimplifyCompareNode.cpp
+  SimplifyDualSwitch.cpp
   SimplifyHybridNot.cpp
   SimplifyImplicitStatement.cpp)
 

@@ -63,6 +63,12 @@ static RecursiveCoroutine<void> collectExprBB(ExprNode **Expr,
                                               BBExprsMap &BBExprs) {
 
   switch ((*Expr)->getKind()) {
+  case ExprNode::NodeKind::NK_ValueCompare:
+  case ExprNode::NodeKind::NK_LoopStateCompare: {
+    // In the `CompareNode` the associated `BasicBlock` does not contain a full
+    // comparison, but only the expected LHS of it. Therefore, we have no hybrid
+    // IR component for the hybrid simplification, and we do nothing.
+  } break;
   case ExprNode::NodeKind::NK_Atomic: {
     auto *Atomic = llvm::cast<AtomicNode>(*Expr);
     BasicBlock *BB = Atomic->getConditionalBasicBlock();

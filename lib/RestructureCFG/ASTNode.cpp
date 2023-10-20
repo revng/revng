@@ -205,6 +205,41 @@ static std::string printBBName(ExprNode *Condition) {
     return "not (" + printBBName(Not->getNegatedNode()) + ")";
   }
 
+  if (auto *Compare = llvm::dyn_cast<CompareNode>(Condition)) {
+    std::string CompareName;
+    CompareName = "compare (";
+
+    // Handle the LHS
+    if (auto *ValueCompare = llvm::dyn_cast<ValueCompareNode>(Condition)) {
+      CompareName = CompareName
+                    + ValueCompare->getBasicBlock()->getName().str();
+    }
+
+    if (auto
+          *LoopStateCompare = llvm::dyn_cast<LoopStateCompareNode>(Condition)) {
+      CompareName = CompareName + "loop_state_var";
+    }
+
+    // Handle the comparison
+    auto Comparison = Compare->getComparison();
+    if (Comparison != CompareNode::Comparison_NotPresent) {
+      if (Comparison == CompareNode::Comparison_Equal) {
+        CompareName = CompareName + " ==";
+      } else if (Comparison == CompareNode::Comparison_NotEqual) {
+        CompareName = CompareName + " !=";
+      } else {
+        revng_abort();
+      }
+
+      // Handle the RHS
+      CompareName = CompareName + " " + std::to_string(Compare->getConstant());
+    }
+
+    CompareName = CompareName + ")";
+
+    return CompareName;
+  }
+
   revng_abort();
 }
 

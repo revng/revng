@@ -43,30 +43,43 @@ size_t ASTTree::size() const {
   return ASTNodeList.size();
 }
 
-void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
-                         ast_unique_ptr &&ASTObject) {
+ASTNode *ASTTree::addASTNodeImpl(ast_unique_ptr &&ASTObject) {
   ASTNodeList.emplace_back(std::move(ASTObject));
-
   ASTNode *ASTNode = ASTNodeList.back().get();
 
   // Set the Node ID
   ASTNode->setID(getNewID());
 
+  return ASTNode;
+}
+
+void ASTTree::addASTNode(BasicBlockNode<BasicBlock *> *Node,
+                         ast_unique_ptr &&ASTObject) {
+  ASTNode *ASTNode = addASTNodeImpl(std::move(ASTObject));
+
+  // Proceed with the new insertion
   bool New = BBASTMap.insert({ Node, ASTNode }).second;
   revng_assert(New);
   New = ASTBBMap.insert({ ASTNode, Node }).second;
   revng_assert(New);
 }
 
+ASTNode *ASTTree::addASTNode(ast_unique_ptr &&ASTObject) {
+  return addASTNodeImpl(std::move(ASTObject));
+}
+
 void ASTTree::removeASTNode(ASTNode *Node) {
   revng_log(CombLogger, "Removing AST node named: " << Node->getName() << "\n");
 
+  bool Removed = false;
   for (auto It = ASTNodeList.begin(); It != ASTNodeList.end(); It++) {
     if ((*It).get() == Node) {
       ASTNodeList.erase(It);
+      Removed = true;
       break;
     }
   }
+  revng_assert(Removed);
 }
 
 ASTNode *ASTTree::findASTNode(BasicBlockNode<BasicBlock *> *BlockNode) {

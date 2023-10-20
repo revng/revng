@@ -57,8 +57,10 @@ protected:
   /// will be inserted in an ASTTree.
   unsigned ID = 0;
 
-  ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
-    Kind(K), Name(Name), Successor(Successor) {}
+  ASTNode(NodeKind K, const std::string &Name) : Kind(K), Name(Name) {}
+
+  ASTNode(NodeKind K, const std::string &Name, llvm::BasicBlock *BB) :
+    Kind(K), BB(BB), Name(Name) {}
 
 public:
   ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
@@ -165,7 +167,14 @@ protected:
   ASTNode *Else;
   ExprNode *ConditionExpression;
 
+  // Field that represents if the enclosing node needs the emission of the
+  // associated basic block instructions. This is currently used to prevent the
+  // double emission of the instructions in case of `IfNode`s that are the
+  // result of a `DualSwitch` promotion from a weaved switch.
+  bool IsWeaved = false;
+
 public:
+  // Constructor used in the `RegionCFG` creation phase
   IfNode(BasicBlockNodeBB *CFGNode,
          ExprNode *CondExpr,
          ASTNode *Then,
@@ -174,7 +183,38 @@ public:
     ASTNode(NK_If, CFGNode, PostDom),
     Then(Then),
     Else(Else),
+    ConditionExpression(CondExpr),
+    IsWeaved(CFGNode->isWeaved()) {}
+
+  // Constructor used in the beautify phase, where the `CFGNode`s underlying the
+  // `ASTNode`s have gone out of scope. The `PostDom` field is not necessary
+  // here, because we have exit the hybrid state of the AST where we have a link
+  // to our postdominator, in favour of having `Sequence` nodes to represent
+  // consequentiality, as customary in an AST representation.
+  IfNode(ExprNode *CondExpr, ASTNode *Then, ASTNode *Else) :
+    ASTNode(NK_If, "dispatcher_if"),
+    Then(Then),
+    Else(Else),
     ConditionExpression(CondExpr) {}
+
+  // Constructor used in the beautify phase, where the `CFGNode`s underlying the
+  // `ASTNode`s have gone out of scope. The `PostDom` field is not necessary
+  // here, because we have exit the hybrid state of the AST where we have a link
+  // to our postdominator, in favour of having `Sequence` nodes to represent
+  // consequentiality, as customary in an AST representation. The many
+  // parameters, are necessary to propagate attributes that cannot be extracted
+  // anymore directly from the `CFGNode`.
+  IfNode(ExprNode *CondExpr,
+         ASTNode *Then,
+         ASTNode *Else,
+         const std::string &Name,
+         bool IsWeaved,
+         llvm::BasicBlock *BB) :
+    ASTNode(NK_If, Name, BB),
+    Then(Then),
+    Else(Else),
+    ConditionExpression(CondExpr),
+    IsWeaved(IsWeaved) {}
 
 protected:
   IfNode(const IfNode &) = default;
@@ -231,6 +271,8 @@ public:
   void replaceCondExpr(ExprNode *NewExpr) { ConditionExpression = NewExpr; }
 
   void updateCondExprPtr(ExprNodeMap &Map);
+
+  bool isWeaved() const { return IsWeaved; }
 };
 
 class ScsNode : public ASTNode {
@@ -539,6 +581,8 @@ public:
   case_const_range cases_const_range() const {
     return llvm::iterator_range(LabelCaseVec.begin(), LabelCaseVec.end());
   }
+
+  size_t cases_size() { return LabelCaseVec.size(); }
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
