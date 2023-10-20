@@ -510,11 +510,10 @@ void printFunctionPrototype(const model::Type &FT,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
-  auto LocationAttribute = B.getLocationAttribute(false);
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     model::editPath::customName(Function))
-                      .addAttribute(LocationAttribute,
+                      .addAttribute(attributes::LocationDefinition,
                                     serializedLocation(ranks::Function,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
@@ -544,11 +543,10 @@ void printFunctionPrototype(const model::Type &FT,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
-  auto LocationAttribute = B.getLocationAttribute(false);
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     model::editPath::customName(Function))
-                      .addAttribute(LocationAttribute,
+                      .addAttribute(attributes::LocationDefinition,
                                     serializedLocation(ranks::DynamicFunction,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
