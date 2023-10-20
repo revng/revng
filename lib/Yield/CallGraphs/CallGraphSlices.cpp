@@ -112,14 +112,14 @@ yield::calls::PreLayoutGraph
 yield::calls::makeCalleeTree(const PreLayoutGraph &Input,
                              std::string_view SlicePoint) {
   // Forwards direction, makes sure no successor relation ever gets lost.
-  return makeTreeImpl<llvm::Inverse<const PreLayoutNode *>,
-                      const PreLayoutNode *>(Input, SlicePoint);
+  return makeTreeImpl<const PreLayoutNode *,
+                      llvm::Inverse<const PreLayoutNode *>>(Input, SlicePoint);
 }
 
 yield::calls::PreLayoutGraph
 yield::calls::makeCallerTree(const PreLayoutGraph &Input,
                              std::string_view SlicePoint) {
   // Backwards direction, makes sure no predecessor relation ever gets lost.
-  return makeTreeImpl<const PreLayoutNode *,
-                      llvm::Inverse<const PreLayoutNode *>>(Input, SlicePoint);
+  return makeTreeImpl<llvm::Inverse<const PreLayoutNode *>,
+                      const PreLayoutNode *>(Input, SlicePoint);
 }
