@@ -131,7 +131,7 @@ install(
   DESTINATION share/revng/cmake)
 
 # Build the support module for each architecture and in several configurations
-set(CLANG "${LLVM_TOOLS_BINARY_DIR}/clang")
+set(CLANG "clang")
 
 set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
