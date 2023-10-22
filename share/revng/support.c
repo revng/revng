@@ -129,7 +129,7 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   // Compute the value of stack pointer once we'll be done
 
   // WARNING: keep this number in sync with the number of auxiliary entries
-  const unsigned aux_count = 17;
+  const unsigned aux_count = 16;
   unsigned entries_count = aux_count * 2 + 1 + env_count + 1 + argc + 1;
   uintptr_t final_stack = ((uintptr_t) stack
                            - entries_count * sizeof(target_reg));
@@ -159,7 +159,6 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   PUSH_AUX(stack, AT_GID, getgid());
   PUSH_AUX(stack, AT_EGID, getegid());
   PUSH_AUX(stack, AT_HWCAP, 0);
-  PUSH_AUX(stack, AT_HWCAP2, 0);
   PUSH_AUX(stack, AT_CLKTCK, sysconf(_SC_CLK_TCK));
   PUSH_AUX(stack, AT_RANDOM, random_address);
   PUSH_AUX(stack, AT_PLATFORM, platform_address);
