@@ -352,9 +352,9 @@ public:
   std::optional<uint64_t> alignment(model::VerifyHelper &VH,
                                     const model::QualifiedType &Type) const;
 
-  std::uint64_t alignedOffset(std::uint64_t Offset,
-                              const model::QualifiedType &Type) const {
-    const std::uint64_t Alignment = *alignment(Type);
+  uint64_t alignedOffset(uint64_t Offset,
+                         const model::QualifiedType &Type) const {
+    const uint64_t Alignment = *alignment(Type);
     if (Offset % Alignment != 0)
       return Offset + Alignment - Offset % Alignment;
 

@@ -14,11 +14,11 @@ using SR = llvm::StringRef;
 namespace cl = llvm::cl;
 
 constexpr SR DescBA = "Base address where dynamic objects should be loaded.";
-cl::opt<std::uint64_t> BaseAddress("base",
-                                   cl::desc(DescBA),
-                                   cl::value_desc("address"),
-                                   cl::cat(MainCategory),
-                                   cl::init(0x400000));
+cl::opt<uint64_t> BaseAddress("base",
+                              cl::desc(DescBA),
+                              cl::value_desc("address"),
+                              cl::cat(MainCategory),
+                              cl::init(0x400000));
 
 // TODO: This option could benefit from a better name,
 //       maybe `external-debug-info`, etc.

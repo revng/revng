@@ -938,12 +938,12 @@ private:
       //
       if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
         llvm::erase_if(Struct->Fields(), [&VH](model::StructField &Field) {
-          std::optional<std::uint64_t> MaybeSize = Field.Type().trySize(VH);
+          std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
           return !MaybeSize || not *MaybeSize;
         });
       } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
         llvm::erase_if(Union->Fields(), [&VH](model::UnionField &Field) {
-          std::optional<std::uint64_t> MaybeSize = Field.Type().trySize(VH);
+          std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
           return !MaybeSize || not *MaybeSize;
         });
       }
@@ -962,7 +962,7 @@ private:
       for (const model::QualifiedType &QT : Type->edges()) {
         model::TypePath Unqualified = QT.UnqualifiedType();
         if (Unqualified.isValid()) {
-          std::optional<std::uint64_t> Size = Unqualified.get()->trySize(VH);
+          std::optional<uint64_t> Size = Unqualified.get()->trySize(VH);
           if (Size.has_value())
             continue;
         }
@@ -1475,7 +1475,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
 
 void DwarfImporter::import(const llvm::object::Binary &TheBinary,
                            StringRef FileName,
-                           std::uint64_t PreferredBaseAddress) {
+                           uint64_t PreferredBaseAddress) {
   using namespace llvm::object;
 
   if (auto *ELF = dyn_cast<ELFObjectFileBase>(&TheBinary)) {

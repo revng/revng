@@ -1067,7 +1067,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     }
 
     if (Field.Offset() >= T->Size()) {
-      std::uint64_t Size = *Field.Type().size();
+      uint64_t Size = *Field.Type().size();
       rc_return VH.fail("Field at offset " + Twine(Field.Offset())
                           + " is out of struct boundaries (field size: "
                           + Twine(Size) + ", field offset + size: "

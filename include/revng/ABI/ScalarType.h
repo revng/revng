@@ -36,7 +36,7 @@ class ScalarType : public generated::ScalarType {
 public:
   using generated::ScalarType::ScalarType;
 
-  std::uint64_t alignedAt() const {
+  uint64_t alignedAt() const {
     revng_assert(Size() != 0);
     return AlignedAt() != 0 ? AlignedAt() : Size();
   }

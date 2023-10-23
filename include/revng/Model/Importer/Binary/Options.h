@@ -18,7 +18,7 @@ enum class DebugInfoLevel {
 };
 
 struct ImporterOptions {
-  const std::uint64_t BaseAddress;
+  const uint64_t BaseAddress;
 
   const DebugInfoLevel DebugInfo;
   const bool EnableRemoteDebugInfo;
@@ -28,7 +28,7 @@ struct ImporterOptions {
 
 [[nodiscard]] const ImporterOptions importerOptions();
 
-extern llvm::cl::opt<std::uint64_t> BaseAddress;
+extern llvm::cl::opt<uint64_t> BaseAddress;
 extern llvm::cl::list<std::string> ImportDebugInfo;
 extern llvm::cl::opt<DebugInfoLevel> DebugInfo;
 extern llvm::cl::opt<bool> EnableRemoteDebugInfo;
