@@ -83,13 +83,13 @@ extern void printFunctionPrototype(const model::Type &FT,
                                    llvm::raw_ostream &Header,
                                    ptml::PTMLCBuilder &B,
                                    const model::Binary &Model,
-                                   bool Definition);
+                                   bool SingleLine);
 extern void printFunctionPrototype(const model::Type &FT,
                                    const model::DynamicFunction &Function,
                                    llvm::raw_ostream &Header,
                                    ptml::PTMLCBuilder &B,
                                    const model::Binary &Model,
-                                   bool Definition);
+                                   bool SingleLine);
 extern void printFunctionTypeDeclaration(const model::Type &FT,
                                          llvm::raw_ostream &Header,
                                          ptml::PTMLCBuilder &B,
