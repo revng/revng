@@ -40,5 +40,5 @@ public:
 private:
   void import(const llvm::object::Binary &TheBinary,
               llvm::StringRef FileName,
-              std::uint64_t PreferredBaseAddress);
+              uint64_t PreferredBaseAddress);
 };

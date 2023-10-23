@@ -24,9 +24,9 @@ using DataSymbolVecTy = llvm::SmallVectorImpl<DataSymbol>;
 
 inline bool checkForOverlap(const model::StructType &Struct,
                             const model::StructField &Field) {
-  std::uint64_t Size = *Field.Type().size();
+  uint64_t Size = *Field.Type().size();
   for (auto &Current : Struct.Fields()) {
-    std::uint64_t CurrentSize = *Current.Type().size();
+    uint64_t CurrentSize = *Current.Type().size();
     if ((Current.Offset() < Field.Offset() + Size))
       if (Current.Offset() + CurrentSize > Field.Offset())
         return true;

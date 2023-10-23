@@ -16,7 +16,7 @@ namespace revng {
 ///
 class AccessTracker {
 private:
-  std::uint8_t Counter = 0;
+  uint8_t Counter = 0;
 
 public:
   bool operator==(const AccessTracker &Other) const = default;

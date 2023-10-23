@@ -137,7 +137,7 @@ void VH::verify(const abi::FunctionType::Layout &FunctionLayout,
     }
 
     // Check the arguments.
-    std::uint64_t ArgumentIndex = 0;
+    uint64_t ArgumentIndex = 0;
     for (const abi::artifact::Argument &Argument : Helper.Iteration.Arguments) {
       llvm::ArrayRef<std::byte> ArgumentBytes = Argument.Bytes;
       if (ArgumentBytes.empty()) {
