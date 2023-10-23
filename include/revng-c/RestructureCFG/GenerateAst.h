@@ -55,9 +55,6 @@ inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
       auto *Switch = llvm::cast<SwitchNode>(Node);
       for (auto &LabelCasePair : Switch->cases())
         LabelCasePair.second = createSequence(Tree, LabelCasePair.second);
-
-      if (ASTNode *Default = Switch->getDefault())
-        Switch->replaceDefault(createSequence(Tree, Default));
     } break;
 
     case ASTNode::NK_Scs: {
@@ -95,7 +92,7 @@ inline void simplifyDummies(ASTTree &AST, ASTNode *RootNode) {
     auto *Sequence = llvm::cast<SequenceNode>(RootNode);
     std::vector<ASTNode *> UselessDummies;
     for (ASTNode *Node : Sequence->nodes()) {
-      if (Node->isEmpty()) {
+      if (Node->isDummy()) {
         UselessDummies.push_back(Node);
       } else {
         simplifyDummies(AST, Node);
@@ -123,9 +120,6 @@ inline void simplifyDummies(ASTTree &AST, ASTNode *RootNode) {
 
     for (auto &LabelCaseNodePair : Switch->cases())
       simplifyDummies(AST, LabelCaseNodePair.second);
-
-    if (auto *Default = Switch->getDefault())
-      simplifyDummies(AST, Default);
 
   } break;
 
@@ -202,18 +196,12 @@ inline ASTNode *simplifyAtomicSequence(ASTTree &AST, ASTNode *RootNode) {
     // corresponding `ASTNode` to `nullptr` already does the job, since having
     // the corresponding `Default` field set to `nullptr` means that the switch
     // node has no default.
-    if (ASTNode *Default = Switch->getDefault()) {
-      auto *NewDefault = simplifyAtomicSequence(AST, Default);
-      if (NewDefault != Default)
-        Switch->replaceDefault(NewDefault);
-    }
-
     auto LabelCasePairIt = Switch->cases().begin();
     auto LabelCasePairEnd = Switch->cases().end();
     while (LabelCasePairIt != LabelCasePairEnd) {
       auto *NewCaseNode = simplifyAtomicSequence(AST, LabelCasePairIt->second);
       if (nullptr == NewCaseNode) {
-        if (nullptr == Switch->getDefault()) {
+        if (not Switch->hasDefault()) {
           LabelCasePairIt = Switch->cases().erase(LabelCasePairIt);
           LabelCasePairEnd = Switch->cases().end();
         } else {
@@ -411,10 +399,11 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
   }
 
   // After we are done with the combing, we need to pre-compute the weight of
-  // the current RegionCFG, so that during the untangle phase the weight of
-  // collapsed node is ready to consume. Indeed, after the tiling phase, the
-  // `RegionCFG` is destroyed, so the last place where we can compute it is
-  // here.
+  // the current RegionCFG, so that during the untangle phase of other
+  // `RegionCFG` that contain a collapsed node pointing to the current
+  // `RegionCFG`. the weight of collapsed node is ready to consume. Indeed,
+  // after the tiling phase, the `RegionCFG` is destroyed, so the last place
+  // where we can compute it is here.
   Region.computeUntangleWeight();
 
   // TODO: factorize out the AST generation phase.
@@ -518,7 +507,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
       SwitchNode::case_container LabeledCases;
       llvm::SmallVector<ASTNode *> SwitchBreakVector;
-      ASTNode *DefaultASTNode = nullptr;
+      bool HasDefault = false;
       for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
 
         ASTNode *ASTPointer = nullptr;
@@ -532,13 +521,12 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
         revng_assert(nullptr != ASTPointer);
 
         if (EdgeInfos.Labels.empty()) {
-          revng_assert(nullptr == DefaultASTNode);
-          DefaultASTNode = ASTPointer;
-        } else {
-          LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
+          revng_assert(HasDefault == false);
+          HasDefault = true;
         }
+        LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
       }
-      revng_assert(DefaultASTNode or Node->isWeaved() or Node->isDispatcher());
+      revng_assert(HasDefault or Node->isWeaved() or Node->isDispatcher());
       revng_assert(not Fallthrough or Children.size() < Node->successor_size());
       revng_assert(Fallthrough or Children.size() >= Node->successor_size());
 
@@ -643,7 +631,6 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       ASTObject.reset(new SwitchNode(Node,
                                      SwitchCondition,
                                      std::move(LabeledCases),
-                                     DefaultASTNode,
                                      PostDomASTNode));
       for (ASTNode *Break : SwitchBreakVector) {
         SwitchBreakNode *SwitchBreakCast = llvm::cast<SwitchBreakNode>(Break);
@@ -907,9 +894,9 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
       case 0: {
         if (Node->isBreak())
-          ASTObject.reset(new BreakNode());
+          ASTObject.reset(new BreakNode(Node));
         else if (Node->isContinue())
-          ASTObject.reset(new ContinueNode());
+          ASTObject.reset(new ContinueNode(Node));
         else if (Node->isSet())
           ASTObject.reset(new SetNode(Node));
         else if (Node->isEmpty() or Node->isCode())

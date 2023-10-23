@@ -15,11 +15,14 @@ class OrNode;
 
 namespace llvm {
 class BasicBlock;
-}
+class Value;
+} // namespace llvm
 
 class ExprNode {
 public:
   enum NodeKind {
+    NK_ValueCompare,
+    NK_LoopStateCompare,
     NK_Atomic,
     NK_Not,
     NK_And,
@@ -40,6 +43,125 @@ public:
 protected:
   ExprNode(NodeKind K) : Kind(K) {}
   ~ExprNode() = default;
+};
+
+class CompareNode : public ExprNode {
+public:
+  enum ComparisonKind {
+
+    // The comparison has a `==` operator between LHS and RHS
+    Comparison_Equal,
+
+    // The comparison has a `!=` operator between LHS and RHS
+    Comparison_NotEqual,
+
+    // The comparison is an implicit `LHS != 0`, so we can represent it with
+    // just the LHS
+    Comparison_NotPresent
+  };
+
+private:
+  // Field that contains the compare kind
+  ComparisonKind Comparison;
+
+  // Field that contains the constant
+  size_t Constant;
+
+public:
+  friend ExprNode;
+
+  static bool classof(const ExprNode *E) {
+    return E->getKind() >= NK_ValueCompare
+           and E->getKind() <= NK_LoopStateCompare;
+  }
+
+protected:
+  CompareNode(NodeKind Kind, ComparisonKind Comparison, size_t Constant = 0) :
+    ExprNode(Kind), Comparison(Comparison), Constant(Constant) {}
+
+  CompareNode(const CompareNode &) = default;
+  CompareNode(CompareNode &&) = default;
+
+  CompareNode() = delete;
+
+protected:
+  ~CompareNode() = default;
+
+public:
+  ComparisonKind getComparison() const { return Comparison; }
+
+  size_t getConstant() const { return Constant; }
+
+  void flipComparison() {
+    if (Comparison == Comparison_Equal) {
+      Comparison = Comparison_NotEqual;
+    } else if (Comparison == Comparison_NotEqual) {
+      Comparison = Comparison_Equal;
+    } else if (Comparison == Comparison_NotPresent) {
+      Comparison = Comparison_Equal;
+      Constant = 0;
+    } else {
+      revng_abort();
+    }
+  }
+
+  void setNotPresentKind() {
+    revng_assert(Comparison != Comparison_NotPresent);
+    Comparison = Comparison_NotPresent;
+  }
+};
+
+class ValueCompareNode : public CompareNode {
+private:
+  // Pointer filed to the the llvm::BasicBlock containing the LHS of the
+  // condition
+  llvm::BasicBlock *BB = nullptr;
+
+public:
+  friend ExprNode;
+  static bool classof(const ExprNode *E) {
+    return E->getKind() == NK_ValueCompare;
+  }
+
+  ValueCompareNode(ComparisonKind Comparison,
+                   llvm::BasicBlock *BB,
+                   size_t Constant = 0) :
+    CompareNode(NK_ValueCompare, Comparison, Constant), BB(BB) {
+    revng_assert(BB != nullptr);
+  }
+
+  ValueCompareNode(const ValueCompareNode &) = default;
+  ValueCompareNode(ValueCompareNode &&) = default;
+
+  ValueCompareNode() = delete;
+
+protected:
+  ~ValueCompareNode() = default;
+
+public:
+  llvm::BasicBlock *getBasicBlock() const {
+    revng_assert(BB);
+    return BB;
+  }
+};
+
+class LoopStateCompareNode : public CompareNode {
+public:
+  friend ExprNode;
+  static bool classof(const ExprNode *E) {
+    return E->getKind() == NK_LoopStateCompare;
+  }
+
+  LoopStateCompareNode(ComparisonKind Comparison, size_t Constant = 0) :
+    CompareNode(NK_LoopStateCompare, Comparison, Constant) {}
+
+  LoopStateCompareNode(const LoopStateCompareNode &) = default;
+  LoopStateCompareNode(LoopStateCompareNode &&) = default;
+
+  LoopStateCompareNode() = delete;
+
+protected:
+  ~LoopStateCompareNode() = default;
 };
 
 class AtomicNode : public ExprNode {

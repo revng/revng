@@ -46,7 +46,6 @@ public:
 
 private:
   const NodeKind Kind;
-  bool IsEmpty = false;
 
 protected:
   llvm::BasicBlock *BB = nullptr;
@@ -58,13 +57,14 @@ protected:
   /// will be inserted in an ASTTree.
   unsigned ID = 0;
 
-  ASTNode(NodeKind K, const std::string &Name, ASTNode *Successor = nullptr) :
-    Kind(K), Name(Name), Successor(Successor) {}
+  ASTNode(NodeKind K, const std::string &Name) : Kind(K), Name(Name) {}
+
+  ASTNode(NodeKind K, const std::string &Name, llvm::BasicBlock *BB) :
+    Kind(K), BB(BB), Name(Name) {}
 
 public:
   ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
-    IsEmpty(CFGNode->isEmpty()),
     BB(CFGNode->isCode() ? CFGNode->getOriginalNode() : nullptr),
     Name(CFGNode->getNameStr()),
     Successor(Successor) {}
@@ -106,11 +106,11 @@ public:
     return SuccessorTmp;
   }
 
-  bool isEmpty() {
+  bool isDummy() {
 
-    // Since we do not have a pointer to the CFGNode anymore, we need to save
-    // this information in a field inside the constructor.
-    return IsEmpty;
+    // An empty node, is a dummy node on the `RegionCFG`, which we model in the
+    // AST as a `CodeNode`, with the `BB` field set to `nullptr`
+    return Kind == NK_Code and BB == nullptr;
   }
 
   llvm::BasicBlock *getOriginalBB() const { return BB; }
@@ -127,6 +127,9 @@ public:
 class CodeNode : public ASTNode {
   friend class ASTNode;
 
+private:
+  bool ImplicitReturn = false;
+
 public:
   CodeNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
     ASTNode(NK_Code, CFGNode, Successor) {}
@@ -140,6 +143,9 @@ protected:
 
 public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Code; }
+
+  bool containsImplicitReturn() const { return ImplicitReturn; }
+  void setImplicitReturn() { ImplicitReturn = true; }
 
   void dump(llvm::raw_fd_ostream &ASTFile);
 
@@ -161,7 +167,14 @@ protected:
   ASTNode *Else;
   ExprNode *ConditionExpression;
 
+  // Field that represents if the enclosing node needs the emission of the
+  // associated basic block instructions. This is currently used to prevent the
+  // double emission of the instructions in case of `IfNode`s that are the
+  // result of a `DualSwitch` promotion from a weaved switch.
+  bool IsWeaved = false;
+
 public:
+  // Constructor used in the `RegionCFG` creation phase
   IfNode(BasicBlockNodeBB *CFGNode,
          ExprNode *CondExpr,
          ASTNode *Then,
@@ -170,7 +183,38 @@ public:
     ASTNode(NK_If, CFGNode, PostDom),
     Then(Then),
     Else(Else),
+    ConditionExpression(CondExpr),
+    IsWeaved(CFGNode->isWeaved()) {}
+
+  // Constructor used in the beautify phase, where the `CFGNode`s underlying the
+  // `ASTNode`s have gone out of scope. The `PostDom` field is not necessary
+  // here, because we have exit the hybrid state of the AST where we have a link
+  // to our postdominator, in favour of having `Sequence` nodes to represent
+  // consequentiality, as customary in an AST representation.
+  IfNode(ExprNode *CondExpr, ASTNode *Then, ASTNode *Else) :
+    ASTNode(NK_If, "dispatcher_if"),
+    Then(Then),
+    Else(Else),
     ConditionExpression(CondExpr) {}
+
+  // Constructor used in the beautify phase, where the `CFGNode`s underlying the
+  // `ASTNode`s have gone out of scope. The `PostDom` field is not necessary
+  // here, because we have exit the hybrid state of the AST where we have a link
+  // to our postdominator, in favour of having `Sequence` nodes to represent
+  // consequentiality, as customary in an AST representation. The many
+  // parameters, are necessary to propagate attributes that cannot be extracted
+  // anymore directly from the `CFGNode`.
+  IfNode(ExprNode *CondExpr,
+         ASTNode *Then,
+         ASTNode *Else,
+         const std::string &Name,
+         bool IsWeaved,
+         llvm::BasicBlock *BB) :
+    ASTNode(NK_If, Name, BB),
+    Then(Then),
+    Else(Else),
+    ConditionExpression(CondExpr),
+    IsWeaved(IsWeaved) {}
 
 protected:
   IfNode(const IfNode &) = default;
@@ -227,6 +271,8 @@ public:
   void replaceCondExpr(ExprNode *NewExpr) { ConditionExpression = NewExpr; }
 
   void updateCondExprPtr(ExprNodeMap &Map);
+
+  bool isWeaved() const { return IsWeaved; }
 };
 
 class ScsNode : public ASTNode {
@@ -378,7 +424,7 @@ private:
   bool IsImplicit = false;
 
 public:
-  ContinueNode() : ASTNode(NK_Continue, "continue") {}
+  ContinueNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_Continue, CFGNode) {}
 
 protected:
   ContinueNode(const ContinueNode &) = default;
@@ -413,7 +459,7 @@ class BreakNode : public ASTNode {
   friend class ASTNode;
 
 public:
-  BreakNode() : ASTNode(NK_Break, "loop break") {}
+  BreakNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_Break, CFGNode) {}
 
   static bool classof(const ASTNode *N) { return N->getKind() == NK_Break; }
 
@@ -493,27 +539,26 @@ public:
   using case_const_range = llvm::iterator_range<case_const_iterator>;
 
 public:
+  // To represent the `default` case, if present, contained in the `SwitchNode`,
+  // we employ an empty set in the `LabeledCases` `SmallVector`.
+
   SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              const case_container &LabeledCases,
-             ASTNode *Def,
              ASTNode *Successor) :
 
     ASTNode(NK_Switch, CFGNode, Successor),
     Condition(Cond),
     LabelCaseVec(LabeledCases),
-    Default(Def),
     IsWeaved(CFGNode->isWeaved()) {}
 
   SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              case_container &&LabeledCases,
-             ASTNode *Def,
              ASTNode *Successor) :
     ASTNode(NK_Switch, CFGNode, Successor),
     Condition(Cond),
     LabelCaseVec(std::move(LabeledCases)),
-    Default(Def),
     IsWeaved(CFGNode->isWeaved()) {}
 
   SwitchNode(const SwitchNode &) = default;
@@ -537,6 +582,8 @@ public:
     return llvm::iterator_range(LabelCaseVec.begin(), LabelCaseVec.end());
   }
 
+  size_t cases_size() { return LabelCaseVec.size(); }
+
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   bool needsStateVariable() const { return NeedStateVariable; }
@@ -549,9 +596,24 @@ public:
     NeedLoopBreakDispatcher = N;
   }
 
-  ASTNode *getDefault() const { return Default; }
+  ASTNode *getDefault() const {
+    ASTNode *Default = nullptr;
+    for (const auto &[LabelSet, Successor] : LabelCaseVec) {
 
-  void replaceDefault(ASTNode *NewDefault) { Default = NewDefault; }
+      // The `default` case is signaled by having an empty associated label set.
+      if (LabelSet.empty() == true) {
+
+        // We should have not already found the `default`.
+        revng_assert(Default == nullptr);
+
+        Default = Successor;
+      }
+    }
+
+    return Default;
+  }
+
+  bool hasDefault() const { return nullptr != getDefault(); }
 
   llvm::Value *getCondition() const { return Condition; }
 
@@ -560,7 +622,6 @@ public:
 protected:
   llvm::Value *Condition;
   case_container LabelCaseVec;
-  ASTNode *Default;
   bool IsWeaved;
   bool NeedStateVariable = false; // for breaking directly out of a loop
   bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop

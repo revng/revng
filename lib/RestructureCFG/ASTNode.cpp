@@ -63,11 +63,11 @@ void SequenceNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 }
 
 void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+
+  // The `default` case, if present, is now handled in the normal iteration over
+  // the `case`s
   for (auto &LabelCasePair : LabelCaseVec)
     LabelCasePair.second = SubstitutionMap.at(LabelCasePair.second);
-
-  if (Default != nullptr)
-    Default = SubstitutionMap.at(Default);
 }
 
 // #### isEqual methods ####
@@ -87,15 +87,7 @@ bool SwitchNode::nodeIsEqual(const ASTNode *Node) const {
   if (getOriginalBB() != Node->getOriginalBB())
     return false;
 
-  ASTNode *OtherDefault = OtherSwitch->getDefault();
-  ASTNode *ThisDefault = this->getDefault();
-  if ((OtherDefault == nullptr) != (ThisDefault == nullptr))
-    return false;
-
-  if (ThisDefault and not ThisDefault->isEqual(OtherDefault))
-    return false;
-
-  // Continue the comparison only if the sequence node size are the same
+  // Continue the comparison only if the `case` nodes size are the same
   if (LabelCaseVec.size() != OtherSwitch->LabelCaseVec.size())
     return false;
 
@@ -213,6 +205,41 @@ static std::string printBBName(ExprNode *Condition) {
     return "not (" + printBBName(Not->getNegatedNode()) + ")";
   }
 
+  if (auto *Compare = llvm::dyn_cast<CompareNode>(Condition)) {
+    std::string CompareName;
+    CompareName = "compare (";
+
+    // Handle the LHS
+    if (auto *ValueCompare = llvm::dyn_cast<ValueCompareNode>(Condition)) {
+      CompareName = CompareName
+                    + ValueCompare->getBasicBlock()->getName().str();
+    }
+
+    if (auto
+          *LoopStateCompare = llvm::dyn_cast<LoopStateCompareNode>(Condition)) {
+      CompareName = CompareName + "loop_state_var";
+    }
+
+    // Handle the comparison
+    auto Comparison = Compare->getComparison();
+    if (Comparison != CompareNode::Comparison_NotPresent) {
+      if (Comparison == CompareNode::Comparison_Equal) {
+        CompareName = CompareName + " ==";
+      } else if (Comparison == CompareNode::Comparison_NotEqual) {
+        CompareName = CompareName + " !=";
+      } else {
+        revng_abort();
+      }
+
+      // Handle the RHS
+      CompareName = CompareName + " " + std::to_string(Compare->getConstant());
+    }
+
+    CompareName = CompareName + ")";
+
+    return CompareName;
+  }
+
   revng_abort();
 }
 
@@ -293,6 +320,13 @@ void SwitchNode::dump(llvm::raw_fd_ostream &ASTFile) {
 
 void SwitchNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   for (const auto &[LabelSet, Case] : cases()) {
+
+    // Skip the serialization of the `default` case, if present, it will be
+    // handled separately
+    if (LabelSet.empty() == true) {
+      continue;
+    }
+
     ASTFile << "node_" << this->getID() << " -> node_" << Case->getID()
             << " [color=green,label=\"case ";
 
@@ -315,7 +349,7 @@ void SwitchNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 
 void BreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
-  ASTFile << "label=\"loop break\"";
+  ASTFile << "label=\"loop break " << this->getName() << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
@@ -324,7 +358,7 @@ void BreakNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 
 void SwitchBreakNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
-  ASTFile << "label=\"switch break\"";
+  ASTFile << "label=\"switch break " << this->getName() << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 
@@ -333,7 +367,7 @@ void SwitchBreakNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 
 void ContinueNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
-  ASTFile << "label=\"continue\"";
+  ASTFile << "label=\"continue " << this->getName() << "\"";
   ASTFile << ",shape=\"box\",color=\"red\"];\n";
 }
 

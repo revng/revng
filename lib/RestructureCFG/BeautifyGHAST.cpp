@@ -11,6 +11,9 @@
 #include "llvm/Support/Path.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/IRHelpers.h"
+#include "revng/Model/LoadModelPass.h"
+#include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
@@ -19,8 +22,12 @@
 #include "revng-c/RestructureCFG/ExprNode.h"
 #include "revng-c/RestructureCFG/GenerateAst.h"
 #include "revng-c/RestructureCFG/RegionCFGTree.h"
-#include "revng-c/RestructureCFG/SimplifyHybridNot.h"
 #include "revng-c/Support/DecompilationHelpers.h"
+
+#include "SimplifyCompareNode.h"
+#include "SimplifyDualSwitch.h"
+#include "SimplifyHybridNot.h"
+#include "SimplifyImplicitStatement.h"
 
 using std::make_unique;
 using std::unique_ptr;
@@ -86,6 +93,7 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
 
       // Invert the conditional expression of the current `IfNode`.
       UniqueExpr Not;
+      revng_assert(If->getCondExpr());
       Not.reset(new NotNode(If->getCondExpr()));
       ExprNode *NotNode = AST.addCondExpr(std::move(Not));
       If->replaceCondExpr(NotNode);
@@ -109,9 +117,6 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       flipEmptyThen(LabelCasePair.second, AST);
-
-    if (ASTNode *Default = Switch->getDefault())
-      flipEmptyThen(Default, AST);
   }
 }
 
@@ -179,8 +184,6 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       simplifyShortCircuit(LabelCasePair.second, AST);
-    if (ASTNode *Default = Switch->getDefault())
-      simplifyShortCircuit(Default, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
@@ -352,8 +355,6 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       simplifyTrivialShortCircuit(LabelCasePair.second, AST);
-    if (ASTNode *Default = Switch->getDefault())
-      simplifyTrivialShortCircuit(Default, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
@@ -422,34 +423,8 @@ static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
     // revng_assert(Switch->CaseSize() >= 2);
     for (auto &LabelCasePair : Switch->cases())
       LabelCasePair.second = matchSwitch(AST, LabelCasePair.second);
-
-    if (ASTNode *Default = Switch->getDefault())
-      Default = matchSwitch(AST, Default);
   }
   return RootNode;
-}
-
-static void simplifyLastContinue(ASTTree &AST) {
-  for (ASTNode *Node : AST.nodes()) {
-    auto *Scs = llvm::dyn_cast<ScsNode>(Node);
-    if (not Scs or not Scs->hasBody())
-      continue;
-
-    auto *Body = Scs->getBody();
-    if (auto *Continue = llvm::dyn_cast<ContinueNode>(Body)) {
-      Continue->setImplicit();
-      continue;
-    }
-
-    auto *SequenceBody = dyn_cast<SequenceNode>(Body);
-    if (not SequenceBody)
-      continue;
-
-    revng_assert(not SequenceBody->nodes().empty());
-    ASTNode *LastNode = *std::prev(SequenceBody->nodes().end());
-    if (auto *Continue = llvm::dyn_cast<ContinueNode>(LastNode))
-      Continue->setImplicit();
-  }
 }
 
 static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
@@ -472,9 +447,6 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       matchDoWhile(LabelCasePair.second, AST);
-
-    if (ASTNode *Default = Switch->getDefault())
-      matchDoWhile(Default, AST);
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
@@ -553,8 +525,6 @@ static void addComputationToContinue(ASTNode *RootNode, IfNode *ConditionIf) {
 
     for (auto &LabelCasePair : Switch->cases())
       addComputationToContinue(LabelCasePair.second, ConditionIf);
-    if (ASTNode *Default = Switch->getDefault())
-      addComputationToContinue(Default, ConditionIf);
 
   } else if (auto *Continue = llvm::dyn_cast<ContinueNode>(RootNode)) {
     Continue->addComputationIfNode(ConditionIf);
@@ -578,8 +548,6 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
     for (auto &LabelCasePair : Switch->cases())
       matchWhile(LabelCasePair.second, AST);
-    if (ASTNode *Default = Switch->getDefault())
-      matchWhile(Default, AST);
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
@@ -697,8 +665,6 @@ protected:
         LoopStack.back().second.push_back(Switch);
       for (auto &LabelCasePair : Switch->cases())
         exec(LabelCasePair.second, AST);
-      if (ASTNode *Default = Switch->getDefault())
-        exec(Default, AST);
       if (not LoopStack.empty())
         LoopStack.back().second.pop_back();
     } break;
@@ -799,12 +765,6 @@ computeCumulativeNodeWeight(ASTNode *Node,
       NodeWeight[Case] = CaseWeight;
       SwitchWeight += CaseWeight;
     }
-    if (ASTNode *Default = Switch->getDefault()) {
-      unsigned DefaultWeight = rc_recur computeCumulativeNodeWeight(Default,
-                                                                    NodeWeight);
-      NodeWeight[Default] = DefaultWeight;
-      SwitchWeight += DefaultWeight;
-    }
     rc_return SwitchWeight + 1;
   } break;
   case ASTNode::NK_Code: {
@@ -852,8 +812,27 @@ computeCumulativeNodeWeight(ASTNode *Node,
   rc_return 0;
 }
 
+static const model::DynamicFunction &
+getDynamicFunction(const model::Binary &Model, StringRef &SymbolName) {
+  SymbolName.consume_front("dynamic_");
+  auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
+  revng_assert(It != Model.ImportedDynamicFunctions().end());
+  return *It;
+}
+
+using AttributesSet = TrackingMutableSet<model::FunctionAttribute::Values>;
+static bool containsAttributeNoReturn(const AttributesSet &Attributes) {
+  using namespace model::FunctionAttribute;
+  if (Attributes.contains(NoReturn)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static RecursiveCoroutine<bool>
-fallThroughScope(ASTNode *Node,
+fallThroughScope(const model::Binary &Model,
+                 ASTNode *Node,
                  std::map<const ASTNode *, bool> &FallThroughMap) {
   switch (Node->getKind()) {
   case ASTNode::NK_List: {
@@ -866,7 +845,7 @@ fallThroughScope(ASTNode *Node,
     // other portions of the AST benefiting from this analysis and
     // transformation could exist.
     for (ASTNode *N : Seq->nodes()) {
-      bool NFallThrough = rc_recur fallThroughScope(N, FallThroughMap);
+      bool NFallThrough = rc_recur fallThroughScope(Model, N, FallThroughMap);
       FallThroughMap[N] = NFallThrough;
     }
 
@@ -881,7 +860,9 @@ fallThroughScope(ASTNode *Node,
     // The loop node inherits the attribute from the body node of the SCS.
     if (Loop->hasBody()) {
       ASTNode *Body = Loop->getBody();
-      bool BFallThrough = rc_recur fallThroughScope(Body, FallThroughMap);
+      bool BFallThrough = rc_recur fallThroughScope(Model,
+                                                    Body,
+                                                    FallThroughMap);
       FallThroughMap[Body] = BFallThrough;
       rc_return BFallThrough;
     } else {
@@ -895,14 +876,14 @@ fallThroughScope(ASTNode *Node,
     bool ThenFallThrough = false;
     if (If->hasThen()) {
       ASTNode *Then = If->getThen();
-      ThenFallThrough = rc_recur fallThroughScope(Then, FallThroughMap);
+      ThenFallThrough = rc_recur fallThroughScope(Model, Then, FallThroughMap);
       FallThroughMap[Then] = ThenFallThrough;
     }
 
     bool ElseFallThrough = false;
     if (If->hasElse()) {
       ASTNode *Else = If->getElse();
-      ElseFallThrough = rc_recur fallThroughScope(Else, FallThroughMap);
+      ElseFallThrough = rc_recur fallThroughScope(Model, Else, FallThroughMap);
       FallThroughMap[Else] = ElseFallThrough;
     }
 
@@ -915,15 +896,11 @@ fallThroughScope(ASTNode *Node,
     bool AllNoFallthrough = true;
     for (auto &LabelCasePair : Switch->cases()) {
       ASTNode *Case = LabelCasePair.second;
-      bool CaseFallThrough = rc_recur fallThroughScope(Case, FallThroughMap);
+      bool CaseFallThrough = rc_recur fallThroughScope(Model,
+                                                       Case,
+                                                       FallThroughMap);
       FallThroughMap[Case] = CaseFallThrough;
       AllNoFallthrough &= not CaseFallThrough;
-    }
-    if (ASTNode *Default = Switch->getDefault()) {
-      bool DefaultFallThrough = rc_recur fallThroughScope(Default,
-                                                          FallThroughMap);
-      FallThroughMap[Default] = DefaultFallThrough;
-      AllNoFallthrough &= not DefaultFallThrough;
     }
 
     // TODO: consider flipping a number of `not` in the code.
@@ -933,8 +910,54 @@ fallThroughScope(ASTNode *Node,
     CodeNode *Code = llvm::cast<CodeNode>(Node);
     llvm::BasicBlock *BB = Code->getBB();
     llvm::Instruction &I = BB->back();
-    bool ReturnEnd = llvm::isa<ReturnInst>(&I);
-    rc_return not ReturnEnd;
+
+    if (auto *ReturnI = llvm::dyn_cast<ReturnInst>(&I)) {
+
+      // A return instruction make the current scope nofallthrough
+      rc_return false;
+    } else if (auto *UnreachableI = llvm::dyn_cast<UnreachableInst>(&I)) {
+
+      // In place of an `UnreachableInst`, we should check if we have a call to
+      // a `noreturn` function as previous instruction We may not have a
+      // previous instruction
+      // TODO: confirm the assumption that the call to a `NoReturn` is always
+      //       exactly before an `UnreachableInst`, and in case relax this
+      //       assumption
+      if (Instruction *PrevI = UnreachableI->getPrevNode()) {
+
+        if (const CallInst *Call = getCallToTagged(PrevI,
+                                                   FunctionTags::Isolated)) {
+
+          // The called function may be an isolated function. In this case we
+          // use the `llvmToModelFunction` helper in order to retrieve the
+          // corresponding `model::Function` to check for the `NoReturn`
+          // attribute.
+          const Function *CalleeFunction = Call->getCalledFunction();
+          const model::Function
+            *CalleeFunctionModel = llvmToModelFunction(Model, *CalleeFunction);
+          if (containsAttributeNoReturn(CalleeFunctionModel->Attributes())) {
+            rc_return false;
+          }
+        } else if (const CallInst
+                     *Call = getCallToTagged(PrevI,
+                                             FunctionTags::DynamicFunction)) {
+
+          // The called function may be a dynamic function. In this case, we use
+          // the name of the dyamic symbol in order to retrieve the
+          // `model::DynamicFunction` and check for the `NoReturn` attribute.
+          const Function *CalleeFunction = Call->getCalledFunction();
+          llvm::StringRef SymbolName = CalleeFunction->getName()
+                                         .drop_front(strlen("dynamic_"));
+          const model::DynamicFunction
+            &CalleeFunctionModel = getDynamicFunction(Model, SymbolName);
+          if (containsAttributeNoReturn(CalleeFunctionModel.Attributes())) {
+            rc_return false;
+          }
+        }
+      }
+    }
+
+    rc_return true;
   } break;
   case ASTNode::NK_Set: {
     rc_return true;
@@ -1078,14 +1101,6 @@ promoteNoFallthrough(ASTTree &AST,
                                                            LabelCasePair.second,
                                                            FallThroughMap,
                                                            NodeWeight);
-
-    if (ASTNode *Default = Switch->getDefault()) {
-      ASTNode *NewDefault = rc_recur promoteNoFallthrough(AST,
-                                                          Default,
-                                                          FallThroughMap,
-                                                          NodeWeight);
-      Switch->replaceDefault(NewDefault);
-    }
   } break;
   case ASTNode::NK_Code:
   case ASTNode::NK_Set:
@@ -1199,11 +1214,6 @@ static RecursiveCoroutine<ASTNode *> collapseSequences(ASTTree &AST,
     for (auto &LabelCasePair : Switch->cases())
       LabelCasePair.second = rc_recur collapseSequences(AST,
                                                         LabelCasePair.second);
-
-    if (ASTNode *Default = Switch->getDefault()) {
-      ASTNode *NewDefault = rc_recur collapseSequences(AST, Default);
-      Switch->replaceDefault(NewDefault);
-    }
   } break;
   case ASTNode::NK_Code:
   case ASTNode::NK_Set:
@@ -1218,7 +1228,9 @@ static RecursiveCoroutine<ASTNode *> collapseSequences(ASTTree &AST,
   rc_return Node;
 }
 
-static ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
+static ASTNode *promoteNoFallthroughIf(const model::Binary &Model,
+                                       ASTNode *RootNode,
+                                       ASTTree &AST) {
 
   // This map will contain the result of the fallthough analysis.
   // We considered using a `std::set` in place of the `std::map`, but the `map`
@@ -1235,7 +1247,7 @@ static ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
   std::map<const ASTNode *, unsigned> NodeWeight;
 
   // Run the analysis which marks the fallthrough property of the nodes.
-  bool RootFallThrough = fallThroughScope(RootNode, FallThroughMap);
+  bool RootFallThrough = fallThroughScope(Model, RootNode, FallThroughMap);
   FallThroughMap[RootNode] = RootFallThrough;
 
   // Run the analysis which computes the AST weight of the nodes on the tree.
@@ -1254,7 +1266,7 @@ static ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
   return RootNode;
 }
 
-void beautifyAST(Function &F, ASTTree &CombedAST) {
+void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // If the --short-circuit-metrics-output-dir=dir argument was passed from
   // command line, we need to print the statistics for the short circuit metrics
@@ -1336,11 +1348,20 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
-  simplifyLastContinue(CombedAST);
+  simplifyImplicitContinue(CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
                             "09-After-continue-removal");
+  }
+
+  // Perform the simplification of `switch` with two entries in a `if`
+  revng_log(BeautifyLogger, "Performing the dual switch simplification\n");
+  RootNode = simplifyDualSwitch(CombedAST, RootNode);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "10-After-dual-switch-simplify");
   }
 
   // Fix loop breaks from within switches
@@ -1349,7 +1370,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled())
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "10-After-fix-switch-breaks");
+                            "11-After-fix-switch-breaks");
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
@@ -1357,16 +1378,16 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "11-After-removal-empty-sequences");
+                            "12-After-removal-empty-sequences");
   }
 
   // Remove unnecessary scopes under the fallthrough analysis.
   revng_log(BeautifyLogger, "Analyzing fallthrough scopes\n");
-  RootNode = promoteNoFallthroughIf(RootNode, CombedAST);
+  RootNode = promoteNoFallthroughIf(Model, RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "12-After-fallthrough-scope-analysis");
+                            "13-After-fallthrough-scope-analysis");
   }
 
   // Flip IFs with empty then branches.
@@ -1376,7 +1397,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "13-After-if-flip-3");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "14-After-if-flip-3");
   }
 
   // Perform the double `not` simplification (`not` on the GHAST and `not` in
@@ -1386,7 +1407,28 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "14-After-double-not-simplify");
+                            "15-After-double-not-simplify");
+  }
+
+  // Perform the `CompareNode` simplification. A `CompareNode` preceded by a
+  // `not` is transformed in the `CompareNode` itself with the flipped
+  // comparison predicate
+  revng_log(BeautifyLogger, "Performing the compare node simplification\n");
+  simplifyCompareNode(CombedAST, RootNode);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "16-After-compare-node-simplify-3");
+  }
+
+  // Perform the simplification of the implicit `return`, i.e., a `return` of
+  // type `void`, which lies on a path followed by no other statements.
+  revng_log(BeautifyLogger, "Performing the implicit return simplification\n");
+  simplifyImplicitReturn(CombedAST, RootNode);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "17-After-implicit-return-simplify");
   }
 
   // Serialize the collected metrics in the statistics file if necessary

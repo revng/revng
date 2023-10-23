@@ -79,6 +79,9 @@ public:
   ASTTree(const ASTTree &) = delete;
   ASTTree &operator=(const ASTTree &) = delete;
 
+private:
+  ASTNode *addASTNodeImpl(ast_unique_ptr &&ASTObject);
+
 public:
   SequenceNode *addSequenceNode();
 
@@ -95,6 +98,8 @@ public:
   links_container::size_type size() const;
 
   void addASTNode(BasicBlockNodeBB *Node, ast_unique_ptr &&ASTObject);
+
+  ASTNode *addASTNode(ast_unique_ptr &&ASTObject);
 
   void removeASTNode(ASTNode *Node);
 

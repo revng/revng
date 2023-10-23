@@ -8,6 +8,12 @@
 
 void ExprNode::deleteExprNode(ExprNode *E) {
   switch (E->getKind()) {
+  case NodeKind::NK_ValueCompare:
+    delete static_cast<ValueCompareNode *>(E);
+    break;
+  case NodeKind::NK_LoopStateCompare:
+    delete static_cast<LoopStateCompareNode *>(E);
+    break;
   case NodeKind::NK_Atomic:
     delete static_cast<AtomicNode *>(E);
     break;
