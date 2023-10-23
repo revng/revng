@@ -95,7 +95,7 @@ inline void simplifyDummies(ASTTree &AST, ASTNode *RootNode) {
     auto *Sequence = llvm::cast<SequenceNode>(RootNode);
     std::vector<ASTNode *> UselessDummies;
     for (ASTNode *Node : Sequence->nodes()) {
-      if (Node->isEmpty()) {
+      if (Node->isDummy()) {
         UselessDummies.push_back(Node);
       } else {
         simplifyDummies(AST, Node);

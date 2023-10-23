@@ -46,7 +46,6 @@ public:
 
 private:
   const NodeKind Kind;
-  bool IsEmpty = false;
 
 protected:
   llvm::BasicBlock *BB = nullptr;
@@ -64,7 +63,6 @@ protected:
 public:
   ASTNode(NodeKind K, BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
     Kind(K),
-    IsEmpty(CFGNode->isEmpty()),
     BB(CFGNode->isCode() ? CFGNode->getOriginalNode() : nullptr),
     Name(CFGNode->getNameStr()),
     Successor(Successor) {}
@@ -106,11 +104,11 @@ public:
     return SuccessorTmp;
   }
 
-  bool isEmpty() {
+  bool isDummy() {
 
-    // Since we do not have a pointer to the CFGNode anymore, we need to save
-    // this information in a field inside the constructor.
-    return IsEmpty;
+    // An empty node, is a dummy node on the `RegionCFG`, which we model in the
+    // AST as a `CodeNode`, with the `BB` field set to `nullptr`
+    return Kind == NK_Code and BB == nullptr;
   }
 
   llvm::BasicBlock *getOriginalBB() const { return BB; }
