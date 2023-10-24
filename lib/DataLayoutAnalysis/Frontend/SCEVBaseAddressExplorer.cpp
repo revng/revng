@@ -144,6 +144,7 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
     Worklist.push_back(ZE->getOperand());
   } break;
 
+  case llvm::scPtrToInt:
   case llvm::scTruncate:
   case llvm::scSignExtend: {
     // Truncate and Extend are basically casts, so in the first implementation
