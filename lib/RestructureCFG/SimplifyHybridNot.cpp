@@ -24,8 +24,8 @@
 using namespace llvm;
 
 struct AssociatedExprs {
-  llvm::SmallVector<ExprNode **> DirectExprs;
-  llvm::SmallVector<ExprNode **> NegatedExprs;
+  llvm::SmallSet<ExprNode **, 1> DirectExprs;
+  llvm::SmallSet<ExprNode **, 1> NegatedExprs;
 };
 
 using BBExprsMap = llvm::SmallDenseMap<BasicBlock *, AssociatedExprs>;
@@ -45,15 +45,17 @@ static void insertInAssociatedExprs(BBExprsMap &BBExprs,
   if (It == BBExprs.end()) {
 
     // Insert in the map the corresponding entry if not already present, and
-    // reassing the iterator so we can use it
+    // reassign the iterator so we can use it
     It = BBExprs.insert(std::make_pair(BB, AssociatedExprs())).first;
   }
 
   // Insert the pointer to the `ExprNode` in the correct vector
   if (Direction == Direct) {
-    It->second.DirectExprs.push_back(Node);
+    auto InsertIt = It->second.DirectExprs.insert(Node);
+    revng_assert(InsertIt.second == true);
   } else if (Direction == Negated) {
-    It->second.NegatedExprs.push_back(Node);
+    auto InsertIt = It->second.NegatedExprs.insert(Node);
+    revng_assert(InsertIt.second == true);
   } else {
     revng_abort();
   }
