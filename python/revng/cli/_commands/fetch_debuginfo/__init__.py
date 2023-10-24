@@ -4,7 +4,6 @@
 
 from pathlib import Path
 
-import pefile
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
@@ -65,14 +64,9 @@ class FetchDebugInfoCommand(Command):
                     return 1
             else:
                 # Should be a PE/COFF otherwise.
-                try:
-                    the_pefile = pefile.PE(args.input)
-                    if not args.urls:
-                        args.urls.append(microsoft_symbol_server_url)
-                    result = fetch_pdb(the_pefile, path, args.urls)
-                except pefile.PEFormatError as pe_error:
-                    log_error(str(pe_error))
-                    return 1
+                if not args.urls:
+                    args.urls.append(microsoft_symbol_server_url)
+                result = fetch_pdb(path, args.urls)
 
         if result is None:
             # We have not found the debug info file.
