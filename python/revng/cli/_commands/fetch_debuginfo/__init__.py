@@ -16,7 +16,7 @@ from .elf import fetch_dwarf
 from .pe import fetch_pdb
 
 default_elf_debug_server = "https://debuginfod.elfutils.org/"
-microsoft_symbol_server_url = "http://msdl.microsoft.com/download/symbols/"
+microsoft_symbol_server_url = "https://msdl.microsoft.com/download/symbols/"
 
 
 def log_success(file_path):
