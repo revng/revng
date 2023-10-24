@@ -1102,10 +1102,17 @@ promoteNoFallthrough(ASTTree &AST,
                                                            FallThroughMap,
                                                            NodeWeight);
   } break;
+  case ASTNode::NK_Continue: {
+    auto *Continue = llvm::cast<ContinueNode>(Node);
+
+    // This transformation changes heavily the structure of the AST, and can
+    // invalidate the `implicitContinue` analysis assumptions. Therefore, we
+    // check that at this stage no implicit `continue` has been set.
+    revng_assert(not Continue->isImplicit());
+  } break;
   case ASTNode::NK_Code:
   case ASTNode::NK_Set:
   case ASTNode::NK_SwitchBreak:
-  case ASTNode::NK_Continue:
   case ASTNode::NK_Break:
     // Do nothing.
     break;
@@ -1346,22 +1353,13 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
                             "08-After-match-do-while");
   }
 
-  // Remove useless continues.
-  revng_log(BeautifyLogger, "Removing useless continue nodes\n");
-  simplifyImplicitContinue(CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "09-After-continue-removal");
-  }
-
   // Perform the simplification of `switch` with two entries in a `if`
   revng_log(BeautifyLogger, "Performing the dual switch simplification\n");
   RootNode = simplifyDualSwitch(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "10-After-dual-switch-simplify");
+                            "09-After-dual-switch-simplify");
   }
 
   // Fix loop breaks from within switches
@@ -1370,7 +1368,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled())
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "11-After-fix-switch-breaks");
+                            "10-After-fix-switch-breaks");
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
@@ -1378,7 +1376,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "12-After-removal-empty-sequences");
+                            "11-After-removal-empty-sequences");
   }
 
   // Remove unnecessary scopes under the fallthrough analysis.
@@ -1387,7 +1385,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "13-After-fallthrough-scope-analysis");
+                            "12-After-fallthrough-scope-analysis");
   }
 
   // Flip IFs with empty then branches.
@@ -1397,7 +1395,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "14-After-if-flip-3");
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "13-After-if-flip-3");
   }
 
   // Perform the double `not` simplification (`not` on the GHAST and `not` in
@@ -1407,7 +1405,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "15-After-double-not-simplify");
+                            "14-After-double-not-simplify");
   }
 
   // Perform the `CompareNode` simplification. A `CompareNode` preceded by a
@@ -1418,7 +1416,16 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "16-After-compare-node-simplify-3");
+                            "15-After-compare-node-simplify-3");
+  }
+
+  // Remove useless continues.
+  revng_log(BeautifyLogger, "Removing useless continue nodes\n");
+  simplifyImplicitContinue(CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "16-After-continue-removal");
   }
 
   // Perform the simplification of the implicit `return`, i.e., a `return` of
