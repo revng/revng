@@ -61,7 +61,6 @@ class FetchDebugInfoCommand(Command):
                         args.urls.append(default_elf_debug_server)
                     result = fetch_dwarf(the_elffile, path, args.urls)
                 except ELFError as elf_error:
-                    # Unable to parse ELF file.
                     log_error(str(elf_error))
                     return 1
             else:
@@ -71,8 +70,7 @@ class FetchDebugInfoCommand(Command):
                     if not args.urls:
                         args.urls.append(microsoft_symbol_server_url)
                     result = fetch_pdb(the_pefile, path, args.urls)
-                except Exception as pe_error:
-                    # Unable to parse PE file.
+                except pefile.PEFormatError as pe_error:
                     log_error(str(pe_error))
                     return 1
 
