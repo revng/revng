@@ -900,7 +900,7 @@ private:
                                              OldSize);
           Value *Shifted = Extended;
           if (ShiftAmount != 0)
-            B.CreateShl(Extended, ShiftAmount);
+            Shifted = B.CreateShl(Extended, ShiftAmount);
 
           Accumulator = B.CreateOr(Accumulator, Shifted);
         }
