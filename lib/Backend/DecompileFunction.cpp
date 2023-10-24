@@ -1171,8 +1171,40 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     const QualifiedType &OpType1 = TypeMap.at(Op1);
 
     revng_assert(OpType0.isScalar() and OpType1.isScalar());
-    revng_assert(*OpType0.size() == *OpType1.size());
     uint64_t ByteSize = *OpType0.size();
+
+    // In principle, OpType0 and OpType1 should always have the same size.
+    // There is a notable exception though: we use LLVM with a 64bit DataLayout
+    // for which pointers are always 64-bits wide on LLVM IR, while they can be
+    // 32-bits wide on the model, depending on the binary we're decompiling.
+    // So the only situation where sizes are allowed to mismatch is when one of
+    // the operands is a pointer (on the model) and the other isn't.
+    if (*OpType0.size() != *OpType1.size()) {
+      // If this happens, only one of the two operands must be a pointer, and
+      // the other must be a constant integer that fits in the pointer size, at
+      // most masked behind a decorator.
+      revng_assert(OpType0.isPointer() xor OpType1.isPointer());
+      const QualifiedType &PointerModelType = OpType0.isPointer() ? OpType0 :
+                                                                    OpType1;
+      const QualifiedType &IntegerModelType = OpType0.isPointer() ? OpType1 :
+                                                                    OpType0;
+      auto PointerByteSize = *PointerModelType.size();
+      auto IntegerByteSize = *IntegerModelType.size();
+      revng_assert(PointerByteSize < IntegerByteSize);
+
+      const llvm::Value *IntegerOperand = OpType0.isPointer() ? Op1 : Op0;
+      auto *Integer = dyn_cast<llvm::ConstantInt>(IntegerOperand);
+      if (not Integer) {
+        using namespace FunctionTags;
+        auto *CallToDecorator = getCallToTagged(IntegerOperand,
+                                                LiteralPrintDecorator);
+        revng_assert(CallToDecorator);
+        Integer = cast<llvm::ConstantInt>(CallToDecorator->getArgOperand(0));
+      }
+      revng_assert(nullptr != Integer);
+      // In this case the size of the pointer wins
+      ByteSize = PointerByteSize;
+    }
 
     if (auto *ICmp = dyn_cast<llvm::ICmpInst>(I)) {
 
