@@ -215,6 +215,7 @@ static void tagFunction(Function &F) {
   static const FunctionTags::TagsSet UnexpectedTags = {
     &FunctionTags::ModelCast,
     &FunctionTags::Parentheses,
+    &FunctionTags::LiteralPrintDecorator,
     &FunctionTags::HexInteger,
     &FunctionTags::CharInteger,
     &FunctionTags::BoolInteger,

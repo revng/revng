@@ -29,6 +29,7 @@ Tag ModelGEP(ModelGEPName);
 Tag ModelGEPRef(ModelGEPRefName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
+Tag LiteralPrintDecorator("LiteralPrintDecorator");
 Tag HexInteger("HexInteger");
 Tag CharInteger("CharInteger");
 Tag BoolInteger("BoolInteger");
@@ -168,7 +169,8 @@ void initHexPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::HexInteger });
+  Pool.setTags({ &FunctionTags::HexInteger,
+                 &FunctionTags::LiteralPrintDecorator });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::HexInteger);
@@ -181,7 +183,8 @@ void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::CharInteger });
+  Pool.setTags({ &FunctionTags::CharInteger,
+                 &FunctionTags::LiteralPrintDecorator });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::CharInteger);
@@ -194,7 +197,8 @@ void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::BoolInteger });
+  Pool.setTags({ &FunctionTags::BoolInteger,
+                 &FunctionTags::LiteralPrintDecorator });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::BoolInteger);
@@ -207,7 +211,8 @@ void initNullPtrPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::NullPtr });
+  Pool.setTags({ &FunctionTags::NullPtr,
+                 &FunctionTags::LiteralPrintDecorator });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::NullPtr);

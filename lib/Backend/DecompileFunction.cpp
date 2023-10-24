@@ -172,15 +172,9 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::StringLiteral);
 }
 
-static bool isIntegerConstFormatting(const llvm::Value *Call) {
-  return isCallToTagged(Call, FunctionTags::HexInteger)
-         or isCallToTagged(Call, FunctionTags::CharInteger)
-         or isCallToTagged(Call, FunctionTags::BoolInteger)
-         or isCallToTagged(Call, FunctionTags::NullPtr);
-}
-
 static bool isCConstant(const llvm::Value *V) {
-  return isa<llvm::Constant>(V) or isIntegerConstFormatting(V);
+  return isa<llvm::Constant>(V)
+         or isCallToTagged(V, FunctionTags::LiteralPrintDecorator);
 }
 
 static std::string addAlwaysParentheses(llvm::StringRef Expr) {
@@ -611,7 +605,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
     }
   }
 
-  if (isIntegerConstFormatting(C))
+  if (isCallToTagged(C, FunctionTags::LiteralPrintDecorator))
     rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C), B, Model);
 
   std::string Error = "Cannot get token for llvm::Constant: ";

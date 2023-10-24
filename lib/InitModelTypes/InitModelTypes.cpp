@@ -229,10 +229,7 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
     using model::PrimitiveTypeKind::Values::Unsigned;
     QualifiedType CharTy(Model.getPrimitiveType(Unsigned, 1), {});
     ReturnTypes.push_back(CharTy.getPointerTo(Model.Architecture()));
-  } else if (FunctionTags::HexInteger.isTagOf(CalledFunc)
-             or FunctionTags::CharInteger.isTagOf(CalledFunc)
-             or FunctionTags::BoolInteger.isTagOf(CalledFunc)
-             or FunctionTags::NullPtr.isTagOf(CalledFunc)) {
+  } else if (FunctionTags::LiteralPrintDecorator.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
     ReturnTypes.push_back(llvmIntToModelType(Arg->getType(), Model));
   } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {

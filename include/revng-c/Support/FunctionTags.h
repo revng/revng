@@ -27,6 +27,7 @@ extern Tag ModelGEP;
 extern Tag ModelGEPRef;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
+extern Tag LiteralPrintDecorator;
 extern Tag HexInteger;
 extern Tag CharInteger;
 extern Tag BoolInteger;
