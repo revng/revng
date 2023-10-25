@@ -132,20 +132,18 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
       const llvm::DataLayout &DL = I->getModule()->getDataLayout();
       auto ModelSize = VariableType.size().value();
       auto IRSize = DL.getTypeAllocSize(IType);
-      if (ModelSize >= IRSize) {
-        if (ModelSize > IRSize) {
-          auto Prototype = Cache.getCallSitePrototype(*Model,
-                                                      cast<CallInst>(I));
-          using namespace abi::FunctionType;
-          abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
-          revng_assert(Layout.hasSPTAR());
-          VariableType = llvmIntToModelType(IType, *Model);
-        }
-      } else {
+      if (ModelSize < IRSize) {
         revng_assert(IType->isPointerTy());
         using model::Architecture::getPointerSize;
         auto PtrSize = getPointerSize(Model->Architecture());
         revng_assert(ModelSize == PtrSize);
+      } else if (ModelSize > IRSize) {
+        auto Prototype = Cache.getCallSitePrototype(*Model, cast<CallInst>(I));
+        using namespace abi::FunctionType;
+        abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
+        revng_assert(Layout.returnMethod() == ReturnMethod::ModelAggregate);
+        if (Layout.hasSPTAR())
+          revng_assert(0 == I->getNumUses());
       }
 
       // TODO: until we don't properly handle variable declarations with inline

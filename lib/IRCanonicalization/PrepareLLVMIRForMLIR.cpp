@@ -188,7 +188,8 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
       CallInst *Call = getCallToIsolatedFunction(&I);
       if (Call != nullptr and T->isStructTy()) {
         const auto &Prototype = *Cache.getCallSitePrototype(Model, Call).get();
-        auto ReturnTypeName = getReturnTypeName(Prototype, B).str().str();
+        auto
+          ReturnTypeName = getReturnTypeName(Prototype, B, false).str().str();
         setStructNameIfNeeded(T, ReturnTypeName);
       }
     }
