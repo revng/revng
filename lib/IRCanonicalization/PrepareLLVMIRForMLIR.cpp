@@ -171,31 +171,14 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
 
     revng_assert(Prototype);
 
-    const auto *RFT = dyn_cast<model::RawFunctionType>(Prototype);
-    if (RFT) {
-      llvm::Type *ReturnType = F.getReturnType();
-      std::string ReturnTypeName = std::string(getReturnTypeName(*RFT,
-                                                                 B,
-                                                                 false));
-      setStructNameIfNeeded(ReturnType, ReturnTypeName);
+    for (Argument &Argument : F.args())
+      revng_assert(not Argument.getType()->isStructTy());
 
-      const auto &ModelArgs = RFT->Arguments();
-      auto NumModelArguments = ModelArgs.size();
-      for (unsigned I = 0; I < F.arg_size(); ++I) {
-        model::QualifiedType ArgumentModelType;
-        if (I < NumModelArguments) {
-          auto ArgIt = std::next(ModelArgs.begin(), I);
-          ArgumentModelType = ArgIt->Type();
-        } else {
-          ArgumentModelType = { RFT->StackArgumentsType(), {} };
-        }
-
-        std::string ArgTypeName = std::string(getTypeName(ArgumentModelType,
-                                                          B));
-        llvm::Type *ArgumentType = F.getArg(I)->getType();
-        setStructNameIfNeeded(ArgumentType, ArgTypeName);
-      }
-    }
+    llvm::Type *ReturnType = F.getReturnType();
+    std::string ReturnTypeName = std::string(getReturnTypeName(*Prototype,
+                                                               B,
+                                                               false));
+    setStructNameIfNeeded(ReturnType, ReturnTypeName);
   }
 
   // Make sure we have no nameless structs.
