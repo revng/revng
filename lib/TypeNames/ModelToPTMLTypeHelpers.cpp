@@ -429,7 +429,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
     }
   }
 
-  Header << " " << getReturnTypeName(F, B) << ";\n";
+  Header << " " << getReturnTypeName(F, B, true) << ";\n";
 }
 
 /// If the function has more than one return value, generate a wrapper

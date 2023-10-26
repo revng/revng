@@ -174,7 +174,9 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
     const auto *RFT = dyn_cast<model::RawFunctionType>(Prototype);
     if (RFT) {
       llvm::Type *ReturnType = F.getReturnType();
-      std::string ReturnTypeName = std::string(getReturnTypeName(*RFT, B));
+      std::string ReturnTypeName = std::string(getReturnTypeName(*RFT,
+                                                                 B,
+                                                                 false));
       setStructNameIfNeeded(ReturnType, ReturnTypeName);
 
       const auto &ModelArgs = RFT->Arguments();

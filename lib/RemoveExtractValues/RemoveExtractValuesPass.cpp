@@ -95,7 +95,7 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
       auto Prototype = Cache.getCallSitePrototype(*Model,
                                                   CallReturningAggregate);
       revng_assert(Prototype.get());
-      StructName = std::string(getReturnTypeName(*Prototype.get(), B));
+      StructName = std::string(getReturnTypeName(*Prototype.get(), B, false));
     } else {
       // If it is not a isolated function, it must be a helper function.
       auto CalledFunction = CallReturningAggregate->getCalledFunction();
