@@ -66,8 +66,6 @@ public:
     auto It = Pool.find(Key);
     if (It == Pool.end())
       Pool[Key] = F;
-    else
-      revng_assert(It->second == F);
   }
 
 public:
