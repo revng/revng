@@ -22,7 +22,7 @@ namespace abi::FunctionType {
 class ToCABIConverter {
 private:
   using ArgumentRegisters = TrackingSortedVector<model::NamedTypedRegister>;
-  using ReturnValueRegisters = TrackingSortedVector<model::TypedRegister>;
+  using ReturnValueRegisters = TrackingSortedVector<model::NamedTypedRegister>;
 
 public:
   struct Converted {
@@ -161,7 +161,7 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
   // Since CABI-FT only have one field for return value comments - we have no
   // choice but to resort to concatenation in order to preserve as much
   // information as possible.
-  for (model::TypedRegister ReturnValue : FunctionType.ReturnValues()) {
+  for (model::NamedTypedRegister ReturnValue : FunctionType.ReturnValues()) {
     if (!ReturnValue.Comment().empty()) {
       if (!NewType.ReturnValueComment().empty())
         NewType.ReturnValueComment() += '\n';
@@ -400,7 +400,7 @@ TCC::tryConvertingReturnValue(const ReturnValueRegisters &Registers) {
   // but for now the dumb approach should suffice.
 
   abi::RegisterState::Map Map(model::ABI::getArchitecture(ABI.ABI()));
-  for (const model::TypedRegister &Register : Registers)
+  for (const model::NamedTypedRegister &Register : Registers)
     Map[Register.Location()].IsUsedForReturningValues = abi::RegisterState::Yes;
   abi::RegisterState::Map DeductionResults = Map;
   if (UseSoftRegisterStateDeductions) {

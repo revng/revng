@@ -456,7 +456,7 @@ gatherReturnValueComments(const model::Binary &Binary,
                                      ptml::actions::Comment);
     }
 
-    for (const model::TypedRegister &ReturnValue : FT->ReturnValues()) {
+    for (const model::NamedTypedRegister &ReturnValue : FT->ReturnValues()) {
       model::Register::Values Register = ReturnValue.Location();
 
       if (!ReturnValue.Comment().empty()) {

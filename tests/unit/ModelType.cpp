@@ -573,7 +573,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
 
   // Add a return value
   {
-    model::TypedRegister RAXReturnValue(model::Register::rax_x86_64);
+    model::NamedTypedRegister RAXReturnValue(model::Register::rax_x86_64);
     RAXReturnValue.Type() = Generic64;
     revng_check(RAXReturnValue.verify(true));
     RAF->ReturnValues().insert(RAXReturnValue);

@@ -42,7 +42,7 @@ inline auto CABIArgument = defineRank<"cabi-argument", detail::CAK>(Type);
 inline auto RawArgument = defineRank<"raw-argument", detail::RAK>(Type);
 inline auto ReturnValue = defineRank<"return-value", model::Type::Key>(Binary);
 inline auto ReturnRegister = defineRank<"return-register",
-                                        model::TypedRegister::Key>(Type);
+                                        model::NamedTypedRegister::Key>(Type);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
