@@ -1227,7 +1227,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     }
   }
 
-  for (const TypedRegister &Return : T->ReturnValues())
+  for (const NamedTypedRegister &Return : T->ReturnValues())
     if (not rc_recur Return.verify(VH))
       rc_return VH.fail();
 
