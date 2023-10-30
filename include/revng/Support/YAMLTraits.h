@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <bit>
+
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -292,3 +294,26 @@ struct llvm::yaml::ScalarTraits<std::tuple<T>> {
     return ValueTrait().mustQuote(String);
   }
 };
+
+template<>
+struct llvm::yaml::ScalarTraits<std::byte> {
+  static_assert(HasScalarTraits<uint8_t>);
+  static_assert(sizeof(std::byte) == sizeof(uint8_t));
+
+  static void output(const std::byte &Value, void *, llvm::raw_ostream &Out) {
+    Out << std::bit_cast<uint8_t>(Value);
+  }
+
+  static StringRef input(StringRef Scalar, void *Ptr, std::byte &Value) {
+    uint8_t Temporary;
+    auto Err = llvm::yaml::ScalarTraits<uint8_t>::input(Scalar, Ptr, Temporary);
+    if (Err.empty())
+      Value = std::bit_cast<std::byte>(Temporary);
+    return Err;
+  }
+
+  static QuotingType mustQuote(StringRef Scalar) {
+    return llvm::yaml::ScalarTraits<uint8_t>::mustQuote(Scalar);
+  }
+};
+LLVM_YAML_IS_FLOW_SEQUENCE_VECTOR(std::byte);
