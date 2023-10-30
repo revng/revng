@@ -526,10 +526,11 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
   } else if (isa<ConstantExpr>(AddressArith)
              or isa<Instruction>(AddressArith)) {
 
-    revng_log(ModelGEPLog, "Traverse cast!");
     auto *ConstantValue = dyn_cast<ConstantInt>(skipCasts(AddressArith));
-    if (ConstantValue)
+    if (ConstantValue) {
+      revng_log(ModelGEPLog, "Constant !");
       rc_return IRArithmetic::constant(ConstantValue);
+    }
 
     auto *AddrArithmeticInst = dyn_cast<Instruction>(AddressArith);
     auto *ConstExprAddrArith = dyn_cast<ConstantExpr>(AddressArith);
