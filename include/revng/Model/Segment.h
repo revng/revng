@@ -57,7 +57,10 @@ fields:
     doc: If there's at least one Section, only Sections where
          ContainsCode == true will be searched for code.
   - name: Type
-    type: QualifiedType
+    doc: The type of the segment
+    reference:
+      pointeeType: Type
+      rootType: Binary
     optional: true
 
 key:

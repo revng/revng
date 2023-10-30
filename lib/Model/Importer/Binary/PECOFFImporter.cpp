@@ -131,9 +131,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // TODO: replace the following with `populateSegmentTypeStruct`, when
     // symbol table and dynamic symbol table parsing is finalized
-    model::TypePath StructPath = createEmptyStruct(*Model,
-                                                   Segment.VirtualSize());
-    Segment.Type() = model::QualifiedType(std::move(StructPath), {});
+    Segment.Type() = createEmptyStruct(*Model, Segment.VirtualSize());
 
     // NOTE: Unlike ELF, PE/COFF does not have segments. Instead, it has
     // sections only. All the raw data in a section must be loaded
