@@ -187,13 +187,15 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert(1ULL == ActualTypes.size() == FormalTypes.size());
 
             auto FieldNum = FormalTypes.size();
-            for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
-              TS.addInstanceLink(ActualTypes[FieldId].first,
-                                 FormalTypes[FieldId].first,
-                                 OffsetExpression{});
-              auto *Placeholder = TS.createArtificialLayoutType();
-              Placeholder->Size = getPointerSize(Model.Architecture());
-              TS.addPointerLink(Placeholder, ActualTypes[FieldId].first);
+            if (not isa<ConstantInt>(ActualArg)) {
+              for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
+                TS.addInstanceLink(ActualTypes[FieldId].first,
+                                   FormalTypes[FieldId].first,
+                                   OffsetExpression{});
+                auto *Placeholder = TS.createArtificialLayoutType();
+                Placeholder->Size = getPointerSize(Model.Architecture());
+                TS.addPointerLink(Placeholder, ActualTypes[FieldId].first);
+              }
             }
             ++ArgNo;
           }
@@ -211,10 +213,12 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert((PHITypes.size() == 1ULL)
                          or isa<StructType>(PHI->getType()));
             auto FieldNum = PHITypes.size();
-            for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
-              TS.addInstanceLink(InTypes[FieldId].first,
-                                 PHITypes[FieldId].first,
-                                 OffsetExpression{});
+            if (not isa<ConstantInt>(Incoming)) {
+              for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
+                TS.addInstanceLink(InTypes[FieldId].first,
+                                   PHITypes[FieldId].first,
+                                   OffsetExpression{});
+              }
             }
           }
         } else if (auto *RetI = dyn_cast<ReturnInst>(&I)) {
@@ -225,14 +229,16 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             auto RetTypes = getOrCreateLayoutTypes(*RetVal);
             revng_assert(RetTypes.size() == FRetTypes.size());
             auto FieldNum = RetTypes.size();
-            for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
-              if (RetTypes[FieldId].first != nullptr) {
-                TS.addInstanceLink(RetTypes[FieldId].first,
-                                   FRetTypes[FieldId].first,
-                                   OffsetExpression{});
-                auto *Placeholder = TS.createArtificialLayoutType();
-                Placeholder->Size = getPointerSize(Model.Architecture());
-                TS.addPointerLink(Placeholder, RetTypes[FieldId].first);
+            if (not isa<ConstantInt>(RetVal)) {
+              for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
+                if (RetTypes[FieldId].first != nullptr) {
+                  TS.addInstanceLink(RetTypes[FieldId].first,
+                                     FRetTypes[FieldId].first,
+                                     OffsetExpression{});
+                  auto *Placeholder = TS.createArtificialLayoutType();
+                  Placeholder->Size = getPointerSize(Model.Architecture());
+                  TS.addPointerLink(Placeholder, RetTypes[FieldId].first);
+                }
               }
             }
           }
