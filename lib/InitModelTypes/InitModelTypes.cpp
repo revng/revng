@@ -2,17 +2,23 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <cstddef>
+#include <optional>
+
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
@@ -315,11 +321,393 @@ static void handleCallInstruction(FunctionMetadataCache &Cache,
   }
 }
 
-ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
-                             const llvm::Function &F,
-                             const model::Function *ModelF,
-                             const Binary &Model,
-                             bool PointersOnly) {
+static model::PrimitiveTypeKind::Values
+getPrimitiveKind(const model::QualifiedType &QT) {
+  revng_assert(QT.isPrimitive());
+  model::QualifiedType Unwrapped = peelConstAndTypedefs(QT);
+  revng_assert(Unwrapped.Qualifiers().empty());
+  auto *Primitive = llvm::cast<model::PrimitiveType>(Unwrapped.UnqualifiedType()
+                                                       .getConst());
+  return Primitive->PrimitiveKind();
+}
+
+static model::PrimitiveTypeKind::Values
+getCommonPrimitiveKind(model::PrimitiveTypeKind::Values A,
+                       model::PrimitiveTypeKind::Values B) {
+  if (A == B)
+    return A;
+
+  if (A == model::PrimitiveTypeKind::Generic
+      or B == model::PrimitiveTypeKind::Generic)
+    return model::PrimitiveTypeKind::Generic;
+
+  // Here, neither A nor B are Generic
+
+  // Given that A != B, and they're not generic, if either of them is Float, we
+  // directly go to Generic.
+  if (A == model::PrimitiveTypeKind::Float
+      or B == model::PrimitiveTypeKind::Float)
+    return model::PrimitiveTypeKind::Generic;
+
+  // Here neither A nor B is Generic nor Float
+
+  // If either is PointerOrNumber, we go to PointerOrNumber.
+  if (A == model::PrimitiveTypeKind::PointerOrNumber
+      or B == model::PrimitiveTypeKind::PointerOrNumber)
+    return model::PrimitiveTypeKind::PointerOrNumber;
+
+  // Here neither A nor B is Generic, Float, nor PointerOrNumber
+  // Here A and B can only be Number, Signed or Unsigned.
+  // Given that they are different, we always go to Number.
+  return model::PrimitiveTypeKind::Number;
+}
+
+static model::QualifiedType
+getEnumUnderlyingType(const model::QualifiedType &QT) {
+  revng_assert(QT.is(model::TypeKind::EnumType));
+  model::QualifiedType Unwrapped = peelConstAndTypedefs(QT);
+  revng_assert(Unwrapped.Qualifiers().empty());
+  auto *Enum = llvm::cast<model::EnumType>(Unwrapped.UnqualifiedType()
+                                             .getConst());
+  return Enum->UnderlyingType();
+}
+
+static std::optional<model::QualifiedType>
+getCommonScalarType(const model::QualifiedType &A,
+                    const model::QualifiedType &B,
+                    const model::Binary &Model) {
+
+  using model::PrimitiveTypeKind::Values::Float;
+  using model::PrimitiveTypeKind::Values::Generic;
+  using model::PrimitiveTypeKind::Values::PointerOrNumber;
+
+  revng_assert(A.isScalar());
+  revng_assert(B.isScalar());
+
+  if (A == B)
+    return A;
+
+  revng_assert(A.isPrimitive() or A.isPointer()
+               or A.is(model::TypeKind::EnumType));
+  revng_assert(B.isPrimitive() or B.isPointer()
+               or B.is(model::TypeKind::EnumType));
+
+  revng_assert(A.size() == B.size());
+  uint64_t Size = A.size().value();
+
+  if (A.isPrimitive() and B.isPrimitive()) {
+    model::PrimitiveTypeKind::Values AKind = getPrimitiveKind(A);
+    model::PrimitiveTypeKind::Values BKind = getPrimitiveKind(B);
+    model::PrimitiveTypeKind::Values CommonKind = getCommonPrimitiveKind(AKind,
+                                                                         BKind);
+    return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
+  }
+
+  if (A.isPrimitive() or B.isPrimitive()) {
+
+    const model::QualifiedType &Primitive = A.isPrimitive() ? A : B;
+    model::PrimitiveTypeKind::Values
+      PrimitiveKind = getPrimitiveKind(Primitive);
+
+    const model::QualifiedType &Other = A.isPrimitive() ? B : A;
+
+    if (Other.isPointer()) {
+
+      if (PrimitiveKind == Generic)
+        return Other;
+
+      if (PrimitiveKind == Float)
+        return model::QualifiedType(Model.getPrimitiveType(Generic, Size), {});
+
+      return model::QualifiedType(Model.getPrimitiveType(PointerOrNumber, Size),
+                                  {});
+
+    } else if (Other.is(model::TypeKind::EnumType)) {
+
+      model::PrimitiveTypeKind::Values
+        OtherKind = getPrimitiveKind(getEnumUnderlyingType(Other));
+
+      model::PrimitiveTypeKind::Values
+        CommonKind = getCommonPrimitiveKind(PrimitiveKind, OtherKind);
+
+      return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
+
+    } else {
+      revng_abort();
+    }
+  }
+
+  // Here neither A nor B are primitive. They are either enums or pointers.
+  // If one is a pointer and the other is an enum, we can't find a common type.
+  if (A.isPointer() and B.is(model::TypeKind::EnumType))
+    return std::nullopt;
+  if (B.isPointer() and A.is(model::TypeKind::EnumType))
+    return std::nullopt;
+
+  if (A.is(model::TypeKind::EnumType) and B.is(model::TypeKind::EnumType)) {
+    // Make the common integer among the underlying types
+    model::PrimitiveTypeKind::Values
+      AKind = getPrimitiveKind(getEnumUnderlyingType(A));
+    model::PrimitiveTypeKind::Values
+      BKind = getPrimitiveKind(getEnumUnderlyingType(B));
+    model::PrimitiveTypeKind::Values CommonKind = getCommonPrimitiveKind(AKind,
+                                                                         BKind);
+    return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
+  }
+
+  if (A.isPointer() and B.isPointer()) {
+    // Make a pointerornumber of the proper size (or could we do a void *)
+    return model::QualifiedType(Model.getPrimitiveType(PointerOrNumber, Size),
+                                {});
+  }
+
+  // This should be unreachable, but we return a nullopt, to fail gracefully
+  return std::nullopt;
+}
+
+static llvm::SmallPtrSet<const llvm::Value *, 8>
+getTransitivePHIIncomings(const llvm::PHINode *PHI) {
+  llvm::SmallPtrSet<const llvm::Value *, 8> NonPHIIncomings;
+
+  llvm::SmallPtrSet<const llvm::PHINode *, 8> VisitedPHIs = { PHI };
+  llvm::SmallVector<const llvm::PHINode *> WorkList = { PHI };
+
+  do {
+    const llvm::PHINode *Current = WorkList.back();
+    WorkList.pop_back();
+    for (const llvm::Value *Incoming : Current->incoming_values()) {
+      if (const auto *IncomingPHI = dyn_cast<llvm::PHINode>(Incoming)) {
+        if (bool New = VisitedPHIs.insert(IncomingPHI).second)
+          WorkList.push_back(IncomingPHI);
+      } else {
+        NonPHIIncomings.insert(Incoming);
+      }
+    }
+  } while (not WorkList.empty());
+
+  return NonPHIIncomings;
+}
+
+static RecursiveCoroutine<std::optional<QualifiedType>>
+initModelTypesImpl(FunctionMetadataCache &Cache,
+                   const llvm::Instruction &I,
+                   const llvm::Function &F,
+                   const model::Function *ModelF,
+                   const Binary &Model,
+                   bool PointersOnly,
+                   ModelTypesMap &TypeMap,
+                   llvm::SmallPtrSet<const llvm::PHINode *, 8>
+                     VisitedPHIs = {}) {
+
+  const auto *InstType = I.getType();
+
+  // Ignore operands of some custom opcodes
+  if (not isCallTo(&I, "revng_call_stack_arguments")) {
+    // Visit operands, in case they are constants, globals or constexprs
+    for (const llvm::Use &Op : I.operands()) {
+
+      if (auto *Call = getCallToIsolatedFunction(&I);
+          Call and Call->isCallee(&Op)) {
+        // Isolated functions have their prototype in the model
+        //
+        // If it's a direct call to an isolated function we know the type of
+        // the function, which affects the type of the
+        auto *Called = Call->getCalledOperand();
+        if (auto *CalledFunction = dyn_cast<llvm::Function>(Called)) {
+          auto Prototype = Cache.getCallSitePrototype(Model, Call);
+          revng_assert(Prototype.isValid() and not Prototype.empty());
+          TypeMap.insert({ CalledFunction, createPointerTo(Prototype, Model) });
+          continue;
+        }
+      }
+      addOperandType(Op, Model, TypeMap, PointersOnly);
+    }
+  }
+
+  // Insert void types for consistency
+  if (InstType->isVoidTy()) {
+    using model::PrimitiveTypeKind::Values::Void;
+    QualifiedType VoidTy(Model.getPrimitiveType(Void, 0), {});
+    TypeMap.insert({ &I, VoidTy });
+    rc_return VoidTy;
+  }
+  // Function calls in the IR might correspond to real function calls in
+  // the binary or to special intrinsics used by the backend, so they need
+  // to be handled separately
+  if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
+    handleCallInstruction(Cache, Call, ModelF, Model, TypeMap, PointersOnly);
+    auto CallTypeIt = TypeMap.find(Call);
+    std::optional<QualifiedType> CallType = std::nullopt;
+    if (CallTypeIt != TypeMap.end())
+      CallType = CallTypeIt->second;
+    rc_return CallType;
+  }
+
+  // Only Call instructions can return aggregates
+  revng_assert(not InstType->isAggregateType());
+
+  // All ExtractValues should have been converted to OpaqueExtractValue
+  revng_assert(not isa<llvm::ExtractValueInst>(&I));
+
+  std::optional<QualifiedType> Type = std::nullopt;
+
+  switch (I.getOpcode()) {
+
+  case Instruction::Load: {
+    auto *Load = dyn_cast<llvm::LoadInst>(&I);
+
+    auto It = TypeMap.find(Load->getPointerOperand());
+    if (It == TypeMap.end())
+      rc_return std::nullopt;
+
+    const auto &PtrOperandType = It->second;
+
+    // If the pointer operand is a pointer in the model, we can exploit
+    // this information to assign a model type to the loaded value. Note
+    // that this makes sense only if the pointee is itself a pointer or a
+    // scalar value: if we find a load of N bits from a struct pointer, we
+    // don't know if we are loading the entire struct or only some of its
+    // fields.
+    // TODO: inspect the model to understand if we are loading the first
+    // field.
+    if (PtrOperandType.isPointer()) {
+      model::QualifiedType Pointee = dropPointer(PtrOperandType);
+
+      if (areMemOpCompatible(Pointee, *Load->getType(), Model))
+        Type = Pointee;
+    }
+
+    // If it's not a pointer or a scalar of the right size, just
+    // fallback to the LLVM type
+
+  } break;
+
+  case Instruction::Alloca: {
+    // TODO: eventually AllocaInst will be replaced by calls to
+    // revng_local_variable with a type annotation
+    llvm::Type *BaseType = cast<llvm::AllocaInst>(&I)->getAllocatedType();
+    revng_assert(BaseType->isSingleValueType());
+    const model::Architecture::Values &Architecture = Model.Architecture();
+    Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);
+  } break;
+
+  case Instruction::Select: {
+    auto *Select = dyn_cast<llvm::SelectInst>(&I);
+    const auto &Op1Entry = TypeMap.find(Select->getOperand(1));
+    const auto &Op2Entry = TypeMap.find(Select->getOperand(2));
+
+    // If the two selected values have the same type, assign that type to
+    // the result
+    if (Op1Entry != TypeMap.end() and Op2Entry != TypeMap.end()
+        and Op1Entry->second == Op2Entry->second)
+      Type = Op1Entry->second;
+
+  } break;
+
+  // Handle zext from i1 to i8
+  case Instruction::ZExt: {
+    auto *ZExt = dyn_cast<llvm::ZExtInst>(&I);
+
+    auto IsBoolZext = ZExt->getSrcTy()->getScalarSizeInBits() == 1
+                      and ZExt->getDestTy()->getScalarSizeInBits() == 8;
+
+    if (not PointersOnly and IsBoolZext) {
+      const llvm::Value *Operand = I.getOperand(0);
+
+      // Forward the type if there is one
+      auto It = TypeMap.find(Operand);
+      if (It != TypeMap.end())
+        Type = It->second;
+    }
+
+  } break;
+
+  // Handle trunc from i8 to i1
+  case Instruction::Trunc: {
+    auto *Trunc = dyn_cast<llvm::TruncInst>(&I);
+
+    auto IsBoolTrunc = Trunc->getSrcTy()->getScalarSizeInBits() == 8
+                       and Trunc->getDestTy()->getScalarSizeInBits() == 1;
+
+    if (not PointersOnly and IsBoolTrunc) {
+      const llvm::Value *Operand = I.getOperand(0);
+
+      // Forward the type if there is one
+      auto It = TypeMap.find(Operand);
+      if (It != TypeMap.end())
+        Type = It->second;
+    }
+
+  } break;
+
+  case Instruction::BitCast:
+  case Instruction::Freeze:
+  case Instruction::IntToPtr:
+  case Instruction::PtrToInt: {
+    // Forward the type if there is one
+    auto It = TypeMap.find(I.getOperand(0));
+    if (It != TypeMap.end())
+      Type = It->second;
+  } break;
+
+  case Instruction::PHI: {
+    auto *PHI = cast<llvm::PHINode>(&I);
+    bool New = VisitedPHIs.insert(PHI).second;
+    if (New) {
+      llvm::SmallPtrSet<const llvm::Value *, 8>
+        NonPHIIncomings = getTransitivePHIIncomings(PHI);
+
+      for (const llvm::Value *Incoming : NonPHIIncomings) {
+        std::optional<QualifiedType> IncomingType = std::nullopt;
+        auto IncomingTypeIt = TypeMap.find(Incoming);
+        if (IncomingTypeIt != TypeMap.end()) {
+          IncomingType = IncomingTypeIt->second;
+        } else {
+          if (auto
+                *IncomingInstruction = dyn_cast<llvm::Instruction>(Incoming)) {
+            IncomingType = rc_recur initModelTypesImpl(Cache,
+                                                       *IncomingInstruction,
+                                                       F,
+                                                       ModelF,
+                                                       Model,
+                                                       PointersOnly,
+                                                       TypeMap,
+                                                       VisitedPHIs);
+          }
+        }
+        if (not IncomingType)
+          continue;
+
+        if (not Type) {
+          Type = IncomingType;
+        } else {
+          std::optional<model::QualifiedType>
+            CommonType = getCommonScalarType(*Type, *IncomingType, Model);
+          if (CommonType.has_value())
+            Type = CommonType.value();
+          else
+            Type = llvmIntToModelType(PHI->getType(), Model);
+        }
+      }
+    }
+  } break;
+
+  default:
+    break;
+  }
+
+  rc_return Type;
+}
+
+static RecursiveCoroutine<ModelTypesMap>
+initModelTypesImpl(FunctionMetadataCache &Cache,
+                   const llvm::Function &F,
+                   const model::Function *ModelF,
+                   const Binary &Model,
+                   bool PointersOnly,
+                   llvm::SmallPtrSet<const llvm::PHINode *, 8>
+                     VisitedPHIs = {}) {
+
   ModelTypesMap TypeMap;
 
   const model::Type *Prototype = ModelF->prototype(Model).getConst();
@@ -329,165 +717,14 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
 
   for (const BasicBlock *BB : RPOT<const llvm::Function *>(&F)) {
     for (const Instruction &I : *BB) {
-
-      const auto *InstType = I.getType();
-
-      // Ignore operands of some custom opcodes
-      if (not isCallTo(&I, "revng_call_stack_arguments")) {
-        // Visit operands, in case they are constants, globals or constexprs
-        for (const llvm::Use &Op : I.operands()) {
-
-          if (auto *Call = getCallToIsolatedFunction(&I);
-              Call and Call->isCallee(&Op)) {
-            // Isolated functions have their prototype in the model
-            //
-            // If it's a direct call to an isolated function we know the type of
-            // the function, which affects the type of the
-            auto *Called = Call->getCalledOperand();
-            if (auto *CalledFunction = dyn_cast<llvm::Function>(Called)) {
-              auto Prototype = Cache.getCallSitePrototype(Model, Call);
-              revng_assert(Prototype.isValid() and not Prototype.empty());
-              TypeMap.insert({ CalledFunction,
-                               createPointerTo(Prototype, Model) });
-              continue;
-            }
-          }
-
-          addOperandType(Op, Model, TypeMap, PointersOnly);
-        }
-      }
-
-      // Insert void types for consistency
-      if (InstType->isVoidTy()) {
-        using model::PrimitiveTypeKind::Values::Void;
-        QualifiedType VoidTy(Model.getPrimitiveType(Void, 0), {});
-        TypeMap.insert({ &I, VoidTy });
-        continue;
-      }
-      // Function calls in the IR might correspond to real function calls in
-      // the binary or to special intrinsics used by the backend, so they need
-      // to be handled separately
-      if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
-        handleCallInstruction(Cache,
-                              Call,
-                              ModelF,
-                              Model,
-                              TypeMap,
-                              PointersOnly);
-        continue;
-      }
-
-      // Only Call instructions can return aggregates
-      revng_assert(not InstType->isAggregateType());
-
-      // All ExtractValues should have been converted to OpaqueExtractValue
-      revng_assert(not isa<llvm::ExtractValueInst>(&I));
-
-      std::optional<QualifiedType> Type;
-
-      switch (I.getOpcode()) {
-
-      case Instruction::Load: {
-        auto *Load = dyn_cast<llvm::LoadInst>(&I);
-
-        auto It = TypeMap.find(Load->getPointerOperand());
-        if (It == TypeMap.end())
-          continue;
-
-        const auto &PtrOperandType = It->second;
-
-        // If the pointer operand is a pointer in the model, we can exploit
-        // this information to assign a model type to the loaded value. Note
-        // that this makes sense only if the pointee is itself a pointer or a
-        // scalar value: if we find a load of N bits from a struct pointer, we
-        // don't know if we are loading the entire struct or only some of its
-        // fields.
-        // TODO: inspect the model to understand if we are loading the first
-        // field.
-        if (PtrOperandType.isPointer()) {
-          model::QualifiedType Pointee = dropPointer(PtrOperandType);
-
-          if (areMemOpCompatible(Pointee, *Load->getType(), Model))
-            Type = Pointee;
-        }
-
-        // If it's not a pointer or a scalar of the right size, just
-        // fallback to the LLVM type
-
-      } break;
-
-      case Instruction::Alloca: {
-        // TODO: eventually AllocaInst will be replaced by calls to
-        // revng_local_variable with a type annotation
-        llvm::Type *BaseType = cast<llvm::AllocaInst>(&I)->getAllocatedType();
-        revng_assert(BaseType->isSingleValueType());
-        const model::Architecture::Values &Architecture = Model.Architecture();
-        Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);
-      } break;
-
-      case Instruction::Select: {
-        auto *Select = dyn_cast<llvm::SelectInst>(&I);
-        const auto &Op1Entry = TypeMap.find(Select->getOperand(1));
-        const auto &Op2Entry = TypeMap.find(Select->getOperand(2));
-
-        // If the two selected values have the same type, assign that type to
-        // the result
-        if (Op1Entry != TypeMap.end() and Op2Entry != TypeMap.end()
-            and Op1Entry->second == Op2Entry->second)
-          Type = Op1Entry->second;
-
-      } break;
-
-      // Handle zext from i1 to i8
-      case Instruction::ZExt: {
-        auto *ZExt = dyn_cast<llvm::ZExtInst>(&I);
-
-        auto IsBoolZext = ZExt->getSrcTy()->getScalarSizeInBits() == 1
-                          and ZExt->getDestTy()->getScalarSizeInBits() == 8;
-
-        if (not PointersOnly and IsBoolZext) {
-          const llvm::Value *Operand = I.getOperand(0);
-
-          // Forward the type if there is one
-          auto It = TypeMap.find(Operand);
-          if (It != TypeMap.end())
-            Type = It->second;
-        }
-
-      } break;
-
-      // Handle trunc from i8 to i1
-      case Instruction::Trunc: {
-        auto *Trunc = dyn_cast<llvm::TruncInst>(&I);
-
-        auto IsBoolTrunc = Trunc->getSrcTy()->getScalarSizeInBits() == 8
-                           and Trunc->getDestTy()->getScalarSizeInBits() == 1;
-
-        if (not PointersOnly and IsBoolTrunc) {
-          const llvm::Value *Operand = I.getOperand(0);
-
-          // Forward the type if there is one
-          auto It = TypeMap.find(Operand);
-          if (It != TypeMap.end())
-            Type = It->second;
-        }
-
-      } break;
-
-      case Instruction::BitCast:
-      case Instruction::Freeze:
-      case Instruction::IntToPtr:
-      case Instruction::PtrToInt: {
-        // Forward the type if there is one
-        auto It = TypeMap.find(I.getOperand(0));
-        if (It != TypeMap.end())
-          Type = It->second;
-      } break;
-
-      default:
-        break;
-      }
-
+      std::optional<QualifiedType> Type = initModelTypesImpl(Cache,
+                                                             I,
+                                                             F,
+                                                             ModelF,
+                                                             Model,
+                                                             PointersOnly,
+                                                             TypeMap,
+                                                             VisitedPHIs);
       if (PointersOnly) {
         // Skip if it's not a pointer and we are only interested in pointers
         if (Type and Type->isPointer())
@@ -495,10 +732,11 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
 
       } else {
         // As a fallback, use the LLVM type to build the QualifiedType
-        if (not Type)
-          Type = llvmIntToModelType(InstType, Model);
+        if (not Type and I.getType()->isIntOrPtrTy())
+          Type = llvmIntToModelType(I.getType(), Model);
 
-        TypeMap.insert({ &I, *Type });
+        if (Type)
+          TypeMap.insert({ &I, *Type });
       }
     }
   }
@@ -514,5 +752,13 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
     VMA.run(Cache, &F);
   }
 
-  return TypeMap;
+  rc_return TypeMap;
+}
+
+ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
+                             const llvm::Function &F,
+                             const model::Function *ModelF,
+                             const Binary &Model,
+                             bool PointersOnly) {
+  return initModelTypesImpl(Cache, F, ModelF, Model, PointersOnly);
 }
