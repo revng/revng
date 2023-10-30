@@ -37,29 +37,6 @@ struct Deserialized {
 //
 
 template<>
-struct llvm::yaml::ScalarTraits<std::byte> {
-  static_assert(sizeof(std::byte) == sizeof(uint8_t));
-
-  static void output(const std::byte &Value, void *, llvm::raw_ostream &Out) {
-    Out << uint8_t(Value);
-  }
-
-  static StringRef input(StringRef Scalar, void *Ptr, std::byte &Value) {
-    uint8_t Temporary;
-    auto Err = llvm::yaml::ScalarTraits<uint8_t>::input(Scalar, Ptr, Temporary);
-    if (!Err.empty())
-      return Err;
-
-    Value = static_cast<std::byte>(Temporary);
-    return StringRef{};
-  }
-
-  static QuotingType mustQuote(StringRef Scalar) {
-    return llvm::yaml::ScalarTraits<uint8_t>::mustQuote(Scalar);
-  }
-};
-
-template<>
 struct llvm::yaml::MappingTraits<State::Register> {
   static void mapping(IO &IO, State::Register &N) {
     IO.mapRequired("Name", N.Name);
@@ -97,10 +74,6 @@ struct llvm::yaml::MappingTraits<State::Deserialized> {
   }
 };
 
-template<>
-struct llvm::yaml::SequenceElementTraits<std::byte> {
-  static constexpr bool flow = true;
-};
 template<>
 struct llvm::yaml::SequenceElementTraits<State::Register> {
   static constexpr bool flow = false;
