@@ -396,19 +396,35 @@ bool Function::verify(VerifyHelper &VH) const {
   if (not Entry().isValid())
     return VH.fail("Invalid Entry", *this);
 
-  if (not Prototype().empty() and not Prototype().isValid())
-    return VH.fail("Invalid prototype", *this);
-
   if (not Prototype().empty()) {
+
+    if (not Prototype().isValid())
+      return VH.fail("Invalid prototype", *this);
+
     // The function has a prototype
-    if (not Prototype().get()->verify(VH))
-      return VH.fail("Function prototype does not verify", *this);
 
     if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
       return VH.fail("The prototype is neither a RawFunctionType nor a "
                      "CABIFunctionType",
                      *this);
     }
+
+    if (not Prototype().get()->verify(VH))
+      return VH.fail("Function prototype does not verify", *this);
+  }
+
+  if (not StackFrameType().empty()) {
+
+    if (not StackFrameType().isValid())
+      return VH.fail("Invalid stack frame type", *this);
+
+    // The stack frame has a type
+
+    if (not isa<model::StructType>(StackFrameType().get())) {
+      return VH.fail("The stack frame type is not a StructType", *this);
+    }
+    if (not StackFrameType().get()->verify(VH))
+      return VH.fail("Stack frame type does not verify", *this);
   }
 
   for (auto &CallSitePrototype : CallSitePrototypes())
