@@ -313,9 +313,11 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       auto *Call = cast<CallInst>(U.getUser());
       LayoutTypeSystemNode *StringLiteralCall = getOrCreateLayoutType(Call)
                                                   .first;
-      // The type of each call to the StringLiteral function is the same as the
-      // type of the string literal itself.
-      TS.addEqualityLink(LiteralNode, StringLiteralCall);
+      // The type of each call to the StringLiteral function has an instance of
+      // a ByteType at the beginning.
+      // This roughly translates the idea that the call to StringLiteral returns
+      // a char * in C.
+      TS.addInstanceLink(StringLiteralCall, ByteType, OffsetExpression{ 0 });
     }
   }
 
