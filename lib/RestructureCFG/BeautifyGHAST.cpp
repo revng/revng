@@ -451,6 +451,10 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
 
+    // Body could be nullptr (previous while/dowhile semplification)
+    if (Body == nullptr)
+      return;
+
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
@@ -553,9 +557,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     ASTNode *Body = Scs->getBody();
 
     // Body could be nullptr (previous while/dowhile semplification)
-    if (Body == nullptr) {
+    if (Body == nullptr)
       return;
-    }
 
     // Recursive scs nesting handling
     matchWhile(Body, AST);

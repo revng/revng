@@ -390,6 +390,17 @@ private:
   RecursiveCoroutine<std::string> buildGHASTCondition(const ExprNode *E,
                                                       bool EmitBB);
 
+  RecursiveCoroutine<std::string>
+  makeLoopCondition(const IfNode *LoopCondition) {
+    revng_assert(LoopCondition);
+
+    // Retrieve the expression of the condition as well as emitting its
+    // associated basic block
+    bool EmitBB = not LoopCondition->isWeaved();
+    rc_return rc_recur buildGHASTCondition(LoopCondition->getCondExpr(),
+                                           EmitBB);
+  }
+
   /// Serialize a basic block into a series of C statements.
   void emitBasicBlock(const BasicBlock *BB, bool EmitReturn);
 
@@ -1705,6 +1716,13 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
   }
 }
 
+static std::string makeWhile(const ptml::PTMLCBuilder &B,
+                             const std::string &CondExpr) {
+  revng_assert(not CondExpr.empty());
+  return B.getKeyword(ptml::PTMLCBuilder::Keyword::While).serialize() + " ("
+         + CondExpr + ")";
+}
+
 RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   if (N == nullptr)
     rc_return;
@@ -1829,38 +1847,42 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   case ASTNode::NodeKind::NK_Scs: {
     revng_log(VisitLog, "(NK_Scs)");
 
-    const ScsNode *LoopBody = cast<ScsNode>(N);
+    const ScsNode *Loop = cast<ScsNode>(N);
 
-    // Calculate the string of the condition
-    // TODO: possibly cast the CondExpr if it's not convertible to boolean?
-    std::string CondExpr = B.getTrueTag().serialize();
-    if (LoopBody->isWhile()) {
-      const IfNode *LoopCondition = LoopBody->getRelatedCondition();
-      revng_assert(LoopCondition);
+    std::string CondExpr;
 
-      // Retrieve the expression of the condition as well as emitting its
-      // associated basic block
-      bool EmitBB = not LoopCondition->isWeaved();
-      CondExpr = rc_recur buildGHASTCondition(LoopCondition->getCondExpr(),
-                                              EmitBB);
-      revng_assert(not CondExpr.empty());
+    // Emit loop entry
+    if (Loop->isDoWhile()) {
+      Out << B.getKeyword(ptml::PTMLCBuilder::Keyword::Do) << " ";
+    } else {
+      if (Loop->isWhileTrue()) {
+        CondExpr = B.getTrueTag().serialize();
+      } else {
+        revng_assert(Loop->isWhile());
+        CondExpr = rc_recur makeLoopCondition(Loop->getRelatedCondition());
+      }
+      Out << makeWhile(B, CondExpr) << " ";
     }
 
-    if (LoopBody->isDoWhile())
-      Out << B.getKeyword(ptml::PTMLCBuilder::Keyword::Do) << " ";
-    else
-      Out << B.getKeyword(ptml::PTMLCBuilder::Keyword::While) + " (" + CondExpr
-               + ") ";
-
-    revng_assert(LoopBody->hasBody());
     {
       Scope TheScope(Out);
-      rc_recur emitGHASTNode(LoopBody->getBody());
+      revng_assert(Loop->hasBody() or Loop->isDoWhile());
+      if (Loop->hasBody())
+        rc_recur emitGHASTNode(Loop->getBody());
+
+      // If the loop is a do while we have to build the condition here, because
+      // the computation of the condition must be emitted before TheScope is
+      // closed to stay inside the loop body in C.
+      if (Loop->isDoWhile()) {
+        revng_assert(CondExpr.empty());
+        CondExpr = rc_recur makeLoopCondition(Loop->getRelatedCondition());
+      }
     }
 
-    if (LoopBody->isDoWhile())
-      Out << " " + B.getKeyword(ptml::PTMLCBuilder::Keyword::While) + " ("
-               + CondExpr + ");";
+    // Emit loop exit
+    if (Loop->isDoWhile()) {
+      Out << " " << makeWhile(B, CondExpr) << ";";
+    }
     Out << "\n";
 
   } break;
