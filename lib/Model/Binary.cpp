@@ -366,6 +366,30 @@ bool Segment::verify(VerifyHelper &VH) const {
       return VH.fail("Invalid relocation", Relocation);
   }
 
+  if (not Type().empty()) {
+
+    if (not Type().isValid())
+      return VH.fail("Invalid segment type", *this);
+
+    // The segment has a type
+
+    auto *Struct = dyn_cast<model::StructType>(Type().get());
+    if (not Struct)
+      return VH.fail("The segment type is not a StructType", *this);
+
+    if (VirtualSize() != Struct->Size()) {
+      return VH.fail(Twine("The segment's size (VirtualSize) is not equal to "
+                           "the size of the segment's type. VirtualSize: ")
+                       + Twine(VirtualSize())
+                       + Twine(" != Segment->Type()->Size(): ")
+                       + Twine(Struct->Size()),
+                     *this);
+    }
+
+    if (not Type().get()->verify(VH))
+      return VH.fail("Segment type does not verify", *this);
+  }
+
   return true;
 }
 
@@ -420,9 +444,9 @@ bool Function::verify(VerifyHelper &VH) const {
 
     // The stack frame has a type
 
-    if (not isa<model::StructType>(StackFrameType().get())) {
+    if (not isa<model::StructType>(StackFrameType().get()))
       return VH.fail("The stack frame type is not a StructType", *this);
-    }
+
     if (not StackFrameType().get()->verify(VH))
       return VH.fail("Stack frame type does not verify", *this);
   }

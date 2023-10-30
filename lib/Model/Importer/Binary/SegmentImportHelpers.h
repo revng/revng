@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -35,10 +36,9 @@ inline bool checkForOverlap(const model::StructType &Struct,
   return false;
 }
 
-inline model::QualifiedType
-populateSegmentTypeStruct(model::Binary &Binary,
-                          model::Segment &Segment,
-                          DataSymbolVecTy &DataSymbols) {
+inline model::TypePath populateSegmentTypeStruct(model::Binary &Binary,
+                                                 model::Segment &Segment,
+                                                 DataSymbolVecTy &DataSymbols) {
   model::TypePath StructPath = createEmptyStruct(Binary, Segment.VirtualSize());
   auto *Struct = llvm::cast<model::StructType>(StructPath.get());
 
@@ -71,5 +71,5 @@ populateSegmentTypeStruct(model::Binary &Binary,
   }
 
   revng_assert(Struct->verify());
-  return model::QualifiedType(std::move(StructPath), {});
+  return StructPath;
 }

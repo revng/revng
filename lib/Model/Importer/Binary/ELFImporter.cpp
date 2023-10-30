@@ -352,7 +352,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // `isValid` checks also for being empty.
   Task.advance("Parse segment struct from data symbols", true);
   for (auto &Segment : Model->Segments())
-    if (Segment.Type().UnqualifiedType().empty())
+    if (Segment.Type().empty())
       Segment.Type() = populateSegmentTypeStruct(*Model, Segment, DataSymbols);
 
   // Create a default prototype
