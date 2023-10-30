@@ -101,10 +101,9 @@ public:
   }
 };
 
-static bool canBeCollapsed( // const ReachabilityMap &CanReach,
-  ReachabilityCache Cache,
-  const LayoutTypeSystemNode *Node,
-  const LayoutTypeSystemNode *Child) {
+static bool canBeCollapsed(ReachabilityCache Cache,
+                           const LayoutTypeSystemNode *Node,
+                           const LayoutTypeSystemNode *Child) {
   LoggerIndent Indent(Log);
   // If Child has size or has an outgoing pointer edge, it can never be
   // collapsed.
