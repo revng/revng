@@ -21,6 +21,7 @@ const char ComputeUpperMemberAccesses::ID = 0;
 const char DecomposeStridedEdges::ID = 0;
 const char DeduplicateFields::ID = 0;
 const char MergePointerNodes::ID = 0;
+const char MergePointeesOfPointerUnion::ID = 0;
 const char PruneLayoutNodesWithoutLayout::ID = 0;
 const char PushDownPointers::ID = 0;
 const char RemoveInvalidStrideEdges::ID = 0;
@@ -47,6 +48,8 @@ static std::string getStepNameFromID(const void *ID) {
     return "DecomposeStridedEdges";
   else if (ID == DeduplicateFields::getID())
     return "DeduplicateFields";
+  else if (ID == MergePointeesOfPointerUnion::getID())
+    return "MergePointeesOfPointerUnion";
   else if (ID == MergePointerNodes::getID())
     return "MergePointerNodes";
   else if (ID == PruneLayoutNodesWithoutLayout::getID())

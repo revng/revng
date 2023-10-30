@@ -54,6 +54,10 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   T.advance("DLA Middleend");
   dla::StepManager SM;
   size_t PtrSize = getPointerSize(Model.Architecture());
+
+  //
+  // Graph normalization phase
+  //
   revng_check(SM.addStep<dla::RemoveInvalidPointers>(PtrSize));
   revng_check(SM.addStep<dla::CollapseEqualitySCC>());
   revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
@@ -63,9 +67,25 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::RemoveInvalidStrideEdges>());
   revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
-  revng_check(SM.addStep<dla::MergePointerNodes>());
   revng_check(SM.addStep<dla::DecomposeStridedEdges>());
-  // CollapseSingleChild and DeduplicateFields run becore
+
+  //
+  // Graph optimization phase
+  //
+  revng_check(SM.addStep<dla::CollapseSingleChild>());
+  revng_check(SM.addStep<dla::DeduplicateFields>());
+  revng_check(SM.addStep<dla::MergePointeesOfPointerUnion>(PtrSize));
+  revng_check(SM.addStep<dla::MergePointerNodes>());
+  revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<dla::SimplifyInstanceAtOffset0>());
+  revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<dla::RemoveInvalidStrideEdges>());
+  revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
+
+  revng_check(SM.addStep<dla::MergePointerNodes>());
+  // CollapseSingleChild and DeduplicateFields run before
   // CompactCompatibleArrays and ArrangeAccessesHierarchically, to allow them to
   // produce better results
   revng_check(SM.addStep<dla::CollapseSingleChild>());

@@ -158,6 +158,7 @@ public:
 /// dla::Step that computes and propagates information on accesses and type
 /// sizes.
 class ComputeUpperMemberAccesses : public Step {
+
   static const char ID;
 
 public:
@@ -175,6 +176,50 @@ public:
          {}) {}
 
   virtual ~ComputeUpperMemberAccesses() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
+/// dla::Step that removes invalid stride edges
+class RemoveInvalidStrideEdges : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  RemoveInvalidStrideEdges() :
+    Step(ID,
+         // Dependencies
+         { ComputeUpperMemberAccesses::getID() },
+         // Invalidated
+         { ComputeUpperMemberAccesses::getID(),
+           PruneLayoutNodesWithoutLayout::getID() }) {}
+
+  virtual ~RemoveInvalidStrideEdges() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
+/// dla::Step that merge pointee nodes of union of pointers
+class MergePointeesOfPointerUnion : public Step {
+  static const char ID;
+
+  size_t PointerSize;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  MergePointeesOfPointerUnion(size_t PtrSize) :
+    Step(ID,
+         // Dependencies
+         { ComputeUpperMemberAccesses::getID() },
+         // Invalidated
+         { ComputeUpperMemberAccesses::getID(),
+           CollapseInstanceAtOffset0SCC::getID(),
+           RemoveInvalidStrideEdges::getID() }),
+    PointerSize(PtrSize) {}
+
+  virtual ~MergePointeesOfPointerUnion() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
@@ -215,26 +260,6 @@ public:
          {}) {}
 
   virtual ~ComputeNonInterferingComponents() override = default;
-
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
-};
-
-/// dla::Step that removes invalid stride edges
-class RemoveInvalidStrideEdges : public Step {
-  static const char ID;
-
-public:
-  static const constexpr void *getID() { return &ID; }
-
-  RemoveInvalidStrideEdges() :
-    Step(ID,
-         // Dependencies
-         { ComputeUpperMemberAccesses::getID() },
-         // Invalidated
-         { ComputeUpperMemberAccesses::getID(),
-           PruneLayoutNodesWithoutLayout::getID() }) {}
-
-  virtual ~RemoveInvalidStrideEdges() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };

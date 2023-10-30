@@ -19,6 +19,7 @@ revng_add_analyses_library(
   Middleend/DeduplicateFields.cpp
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
+  Middleend/MergePointeesOfPointerUnion.cpp
   Middleend/MergePointerNodes.cpp
   Middleend/PushDownPointers.cpp
   Middleend/RemoveBackedges.cpp
