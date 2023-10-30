@@ -47,7 +47,7 @@ void IfNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
 
 void ScsNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
   if (RelatedCondition)
-    Body = SubstitutionMap.at(RelatedCondition);
+    RelatedCondition = llvm::cast<IfNode>(SubstitutionMap.at(RelatedCondition));
   revng_assert(Body);
   Body = SubstitutionMap.at(Body);
 }
