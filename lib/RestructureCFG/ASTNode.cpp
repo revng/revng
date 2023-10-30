@@ -70,6 +70,12 @@ void SwitchNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
     LabelCasePair.second = SubstitutionMap.at(LabelCasePair.second);
 }
 
+void SwitchBreakNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
+
+  // Update the `ParentSwitch` field
+  ParentSwitch = llvm::cast<SwitchNode>(SubstitutionMap.at(ParentSwitch));
+}
+
 // #### isEqual methods ####
 
 template<typename SwitchNodeType>

@@ -657,6 +657,8 @@ public:
 
   void dumpEdge(llvm::raw_fd_ostream &ASTFile);
 
+  void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
+
   void setParentSwitch(SwitchNode *Switch) { ParentSwitch = Switch; }
 
   SwitchNode *getParentSwitch() const {
@@ -715,9 +717,13 @@ inline void ASTNode::updateASTNodesPointers(ASTNodeMap &SubstitutionMap) {
     revng_assert(not Continue->hasComputation());
   } break;
 
+  case ASTNode::NK_SwitchBreak: {
+    auto *SwitchBreak = llvm::dyn_cast<SwitchBreakNode>(this);
+    SwitchBreak->updateASTNodesPointers(SubstitutionMap);
+  } break;
+
   case ASTNode::NK_Code:
   case ASTNode::NK_Break:
-  case ASTNode::NK_SwitchBreak:
   case ASTNode::NK_Set: {
     // They only have a successor
   } break;
