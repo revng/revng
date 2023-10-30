@@ -127,6 +127,9 @@ void StepManager::run(LayoutTypeSystem &TS) {
     S->runOnTypeSystem(TS);
     ++x;
     if (DLADumpDot.isEnabled()) {
+      revng_log(DLADumpDot,
+                "Step " << getStepNameFromID(S->getStepID())
+                        << " Index: " << x);
       std::string DotName = "type-system-" + std::to_string(x) + ".dot";
       TS.dumpDotOnFile(DotName.c_str(), true);
     }
