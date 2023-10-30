@@ -680,11 +680,13 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
     const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
     auto Segment = Model->Segments().at({ StartAddress, VirtualSize });
 
+    // If the Segment type is missing, we have nothing to update.
+    if (Segment.Type().empty())
+      continue;
+
     // We know that the Segment's type is of StructType.
     // It's empty, we'll fill it up.
-    auto *UnqualSegment = Segment.Type().UnqualifiedType().get();
-    revng_assert(isa<model::StructType>(UnqualSegment));
-    auto *SegmentStruct = cast<model::StructType>(UnqualSegment);
+    auto *SegmentStruct = cast<model::StructType>(Segment.Type().get());
     auto SegmentStructSize = *SegmentStruct->size();
 
     LayoutTypePtr Key{ &F, LayoutTypePtr::fieldNumNone };
@@ -694,16 +696,16 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
       auto RecoveredSegmentTypeSize = *RecoveredSegmentType.size();
 
       fillStructWithRecoveredDLAType(*Model,
-                                     UnqualSegment,
+                                     SegmentStruct,
                                      RecoveredSegmentType,
                                      SegmentStructSize,
                                      RecoveredSegmentTypeSize);
 
-      auto *NewUnqualType = Segment.Type().UnqualifiedType().get();
-      revng_log(Log, "Updated to " << NewUnqualType->ID());
-      revng_assert(isa<model::StructType>(NewUnqualType));
-      revng_assert(*NewUnqualType->size() == SegmentStructSize);
-      revng_assert(NewUnqualType->verify());
+      auto *NewSegmentType = Segment.Type().get();
+      revng_log(Log, "Updated to " << NewSegmentType->ID());
+      revng_assert(isa<model::StructType>(NewSegmentType));
+      revng_assert(*NewSegmentType->size() == SegmentStructSize);
+      revng_assert(NewSegmentType->verify());
 
       Updated = true;
     }
