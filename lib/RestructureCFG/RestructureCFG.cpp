@@ -728,7 +728,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         revng_assert(not OriginalSource->isSet(),
                      "A set node is not expected as predecessor source of a "
                      "retreating edge");
-        auto *SetNode = RootCFG.addSetStateNode(Idx, R.second->getName());
+        auto *SetNode = RootCFG.addEntrySetStateNode(Idx, R.second->getName());
         Meta->insertNode(SetNode);
         moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
         addPlainEdge(EdgeDescriptor(SetNode, Head));
@@ -1089,7 +1089,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
       unsigned long Value = RetreatingTargets.size() - 1;
       for (BasicBlockNodeBB *Pred : SetCandidates) {
-        BasicBlockNodeBB *Set = RootCFG.addSetStateNode(Value, Head->getName());
+        BasicBlockNodeBB *Set = RootCFG.addEntrySetStateNode(Value,
+                                                             Head->getName());
         DefaultEntrySet.push_back(Set);
         EdgeDescriptor PredToHead = { Pred, Head };
         EdgeDescriptor SetToHead = { Set, Head };
@@ -1184,7 +1185,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         revng_assert(not Backedges.contains(Edge));
 
         unsigned Idx = SuccessorsIdxMap.at(DeduplicationMap.at(Edge.second));
-        auto *IdxSetNode = RootCFG.addSetStateNode(Idx, Edge.second->getName());
+        auto *IdxSetNode = RootCFG.addExitSetStateNode(Idx,
+                                                       Edge.second->getName());
         Meta->insertNode(IdxSetNode);
         moveEdgeTarget(Edge, IdxSetNode);
         addPlainEdge(EdgeDescriptor(IdxSetNode, Edge.second));

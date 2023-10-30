@@ -32,9 +32,11 @@ public:
     Empty,
     Break,
     Continue,
-    Set,
+    EntrySet,
+    ExitSet,
     Collapsed,
-    Dispatcher,
+    EntryDispatcher,
+    ExitDispatcher,
     Tile,
   };
 
@@ -160,7 +162,8 @@ public:
                           Type T) :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T) {
     revng_assert(T == Type::Empty or T == Type::Break or T == Type::Continue
-                 or T == Type::Dispatcher or T == Type::Tile);
+                 or T == Type::EntryDispatcher or T == Type::ExitDispatcher
+                 or T == Type::Tile);
   }
 
   /// Constructor for dummy nodes that handle the state variable
@@ -169,19 +172,24 @@ public:
                           Type T,
                           unsigned Value) :
     BasicBlockNode(Parent, nullptr, nullptr, Name, T, Value) {
-    revng_assert(T == Type::Set);
+    revng_assert(T == Type::EntrySet or T == Type::ExitSet);
   }
 
 public:
   bool isBreak() const { return NodeType == Type::Break; }
   bool isContinue() const { return NodeType == Type::Continue; }
-  bool isSet() const { return NodeType == Type::Set; }
+  bool isSet() const {
+    return NodeType == Type::EntrySet or NodeType == Type::ExitSet;
+  }
   bool isCode() const { return NodeType == Type::Code; }
   bool isEmpty() const { return NodeType == Type::Empty; }
   bool isArtificial() const {
     return NodeType != Type::Code and NodeType != Type::Collapsed;
   }
-  bool isDispatcher() const { return NodeType == Type::Dispatcher; }
+  bool isDispatcher() const {
+    return NodeType == Type::EntryDispatcher
+           or NodeType == Type::ExitDispatcher;
+  }
   bool isTile() const { return NodeType == Type::Tile; }
   Type getNodeType() const { return NodeType; }
 
@@ -333,6 +341,11 @@ public:
 
   bool isWeaved() const { return Weaved; }
   void setWeaved(bool Val) { Weaved = Val; }
+
+  Type getDispatcherType() const {
+    revng_assert(isDispatcher() or isSet());
+    return NodeType;
+  }
 };
 
 // Provide graph traits for usage with, e.g., llvm::ReversePostOrderTraversal
