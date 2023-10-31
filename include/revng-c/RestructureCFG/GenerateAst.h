@@ -27,6 +27,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/RestructureCFG/ASTNodeUtils.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
 #include "revng-c/RestructureCFG/MetaRegionBB.h"
@@ -140,100 +141,6 @@ inline void simplifyDummies(ASTTree &AST, ASTNode *RootNode) {
   default:
     revng_unreachable();
   }
-}
-
-// Helper function which simplifies sequence nodes composed by a single AST
-// node.
-inline ASTNode *simplifyAtomicSequence(ASTTree &AST, ASTNode *RootNode) {
-  switch (RootNode->getKind()) {
-
-  case ASTNode::NK_List: {
-    auto *Sequence = llvm::cast<SequenceNode>(RootNode);
-    switch (Sequence->length()) {
-
-    case 0:
-      RootNode = nullptr;
-
-      // Actually remove the sequence node from the ASTTree.
-      AST.removeASTNode(Sequence);
-      break;
-
-    case 1:
-      RootNode = simplifyAtomicSequence(AST, Sequence->getNodeN(0));
-
-      // Actually remove the sequence node from the ASTTree.
-      AST.removeASTNode(Sequence);
-      break;
-
-    default:
-      bool Empty = true;
-      for (ASTNode *&Node : Sequence->nodes()) {
-        Node = simplifyAtomicSequence(AST, Node);
-        if (nullptr != Node)
-          Empty = false;
-      }
-      revng_assert(not Empty);
-    }
-  } break;
-
-  case ASTNode::NK_If: {
-    auto *If = llvm::cast<IfNode>(RootNode);
-
-    if (If->hasThen())
-      If->setThen(simplifyAtomicSequence(AST, If->getThen()));
-
-    if (If->hasElse())
-      If->setElse(simplifyAtomicSequence(AST, If->getElse()));
-
-  } break;
-
-  case ASTNode::NK_Switch: {
-
-    auto *Switch = llvm::cast<SwitchNode>(RootNode);
-
-    // In case the recursive call to `simplifyAtomicSequence` gives origin to a
-    // complete simplification of the default node of the switch, setting its
-    // corresponding `ASTNode` to `nullptr` already does the job, since having
-    // the corresponding `Default` field set to `nullptr` means that the switch
-    // node has no default.
-    auto LabelCasePairIt = Switch->cases().begin();
-    auto LabelCasePairEnd = Switch->cases().end();
-    while (LabelCasePairIt != LabelCasePairEnd) {
-      auto *NewCaseNode = simplifyAtomicSequence(AST, LabelCasePairIt->second);
-      if (nullptr == NewCaseNode) {
-        if (not Switch->hasDefault()) {
-          LabelCasePairIt = Switch->cases().erase(LabelCasePairIt);
-          LabelCasePairEnd = Switch->cases().end();
-        } else {
-          LabelCasePairIt->second = AST.addSwitchBreak(Switch);
-        }
-      } else {
-        LabelCasePairIt->second = NewCaseNode;
-        ++LabelCasePairIt;
-      }
-    }
-
-  } break;
-
-  case ASTNode::NK_Scs: {
-    auto *Scs = llvm::cast<ScsNode>(RootNode);
-    if (Scs->hasBody())
-      Scs->setBody(simplifyAtomicSequence(AST, Scs->getBody()));
-  } break;
-
-  case ASTNode::NK_Code:
-  case ASTNode::NK_Continue:
-  case ASTNode::NK_Break:
-  case ASTNode::NK_SwitchBreak:
-  case ASTNode::NK_Set:
-    // Do nothing
-    break;
-
-  default:
-    revng_unreachable();
-  }
-
-  return RootNode;
 }
 
 template<class NodeT>
