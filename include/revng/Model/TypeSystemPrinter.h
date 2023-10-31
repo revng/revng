@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/QualifiedType.h"
+#include "revng/Model/Segment.h"
 
 /// Use this class to print a graph representing one or more model types
 /// and their subtypes.
@@ -49,6 +50,9 @@ private:
   /// Print the given dynamic function as a node in a `.dot` graph.
   void dumpFunctionNode(const model::DynamicFunction &F, int NodeID);
 
+  /// Print the given segment as a node in a `.dot` graph.
+  void dumpSegmentNode(const model::Segment &S, int NodeID);
+
   /// Add an edge between node_SrcID:SrcPort and node_DstID
   void addEdge(int SrcID, int SrcPort, int DstID);
 
@@ -63,6 +67,9 @@ public:
 
   /// Generate a graph of the types for the given dynamic function.
   void print(const model::DynamicFunction &F);
+
+  /// Generate a graph of the types for the segment
+  void print(const model::Segment &S);
 
   /// Generate a graph of all the types in a given Module.
   void print(const model::Binary &Model);

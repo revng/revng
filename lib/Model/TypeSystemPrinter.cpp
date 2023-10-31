@@ -37,6 +37,7 @@ static constexpr const char *Green = "\"#8DB596\"";
 static constexpr const char *LightGreen = "\"#D3EBCD\"";
 static constexpr const char *Red = "\"#EC5858\"";
 static constexpr const char *Blue = "\"#93ABD3\"";
+static constexpr const char *Orange = "\"#EEEE00\"";
 static constexpr const char *Purple = "\"#C689C6\"";
 static constexpr const char *Pink = "\"#FF99CC\"";
 static constexpr const char *Grey = "\"#7C3E66\"";
@@ -176,7 +177,7 @@ static void dumpStructFields(llvm::raw_ostream &Out,
   }
 
   // Header
-  auto Color = getColor(model::TypeKind::StructType);
+  llvm::StringRef Color = getColor(model::TypeKind::StructType);
   Out << "<TR>";
   headerCell(Out, Color, "Offset");
   headerCell(Out, Color, "Size");
@@ -260,7 +261,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
   Out << "<TR><TD><TABLE " << TableOpts << ">";
 
   // Header
-  auto Color = getColor(T->Kind());
+  llvm::StringRef Color = getColor(T->Kind());
   Out << "<TR>";
   headerCell(Out, Color, "Return Types");
   headerCell(Out, Color, "Arguments");
@@ -312,7 +313,7 @@ void TypeSystemPrinter::dumpTypeNode(const model::Type *T, int NodeID) {
   Out << "node_" << to_string(NodeID) << "[";
 
   // Choose the node's border color
-  auto Color = getColor(T->Kind());
+  llvm::StringRef Color = getColor(T->Kind());
   Out << "color=" << Color << ", ";
 
   // Start of HTML-style label
@@ -461,7 +462,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   Out << "node_" << to_string(NodeID) << "[";
 
   // Choose the node's border color
-  auto Color = Purple;
+  llvm::StringRef Color = Purple;
   Out << "color=" << Color << ", ";
 
   // Start of HTML-style label
@@ -505,7 +506,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
 
 void TypeSystemPrinter::print(const model::Function &F) {
   // Node corresponding to the function
-  auto FunctionNodeID = NextID;
+  uint64_t FunctionNodeID = NextID;
   dumpFunctionNode(F, FunctionNodeID);
   NextID++;
 
@@ -515,7 +516,7 @@ void TypeSystemPrinter::print(const model::Function &F) {
     print(*PrototypeT);
 
     // Edges
-    auto PrototypeNodeID = NodesMap.at(PrototypeT);
+    uint64_t PrototypeNodeID = NodesMap.at(PrototypeT);
     addEdge(FunctionNodeID, 0, PrototypeNodeID);
   }
 
@@ -525,7 +526,7 @@ void TypeSystemPrinter::print(const model::Function &F) {
     print(*StackT);
 
     // Edges
-    auto StackNodeID = NodesMap.at(StackT);
+    uint64_t StackNodeID = NodesMap.at(StackT);
     addEdge(FunctionNodeID, 1, StackNodeID);
   }
 }
@@ -540,7 +541,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
   Out << "node_" << to_string(NodeID) << "[";
 
   // Choose the node's border color
-  auto Color = Pink;
+  llvm::StringRef Color = Pink;
   Out << "color=" << Color << ", ";
 
   // Start of HTML-style label
@@ -576,7 +577,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
 
 void TypeSystemPrinter::print(const model::DynamicFunction &F) {
   // Node corresponding to the function
-  auto FunctionNodeID = NextID;
+  uint64_t FunctionNodeID = NextID;
   dumpFunctionNode(F, FunctionNodeID);
   NextID++;
 
@@ -586,8 +587,66 @@ void TypeSystemPrinter::print(const model::DynamicFunction &F) {
     print(*PrototypeT);
 
     // Edges
-    auto PrototypeNodeID = NodesMap.at(PrototypeT);
+    uint64_t PrototypeNodeID = NodesMap.at(PrototypeT);
     addEdge(FunctionNodeID, 0, PrototypeNodeID);
+  }
+}
+
+void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
+  const model::Type *T = S.Type().empty() ? nullptr : S.Type().getConst();
+
+  // Print the name of the node
+  Out << "node_" << to_string(NodeID) << "[";
+
+  // Choose the node's border color
+  llvm::StringRef Color = Orange;
+  Out << "color=" << Color << ", ";
+
+  // Start of HTML-style label
+  Out << "label= < <TABLE " << TableOpts << ">";
+
+  // Print the name of the function on top
+  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>" << S.name()
+      << "()</B></TD></TR>";
+
+  // Print connected types in a table
+  Out << "<TR><TD><TABLE " << TableOpts << "> ";
+  // Header
+  Out << "<TR>";
+  headerCell(Out, Color, "Type");
+  Out << "</TR>";
+
+  // Second row of the inner table (actual types)
+  Out << "<TR>";
+
+  if (T)
+    paddedCell(Out, T->name(), /*port=*/0);
+  else
+    Out << "<TD></TD>";
+
+  Out << "</TR>";
+
+  // End of inner table
+  Out << "</TABLE></TD></TR>";
+
+  // End of label
+  Out << "</TABLE> >];\n";
+}
+
+void TypeSystemPrinter::print(const model::Segment &S) {
+  // Node corresponding to the function
+  uint64_t SegmentNodeID = NextID;
+  dumpSegmentNode(S, SegmentNodeID);
+  NextID++;
+
+  // Node of the prototype type, if present
+  if (not S.Type().empty()) {
+    const model::Type *T = S.Type().getConst();
+    print(*T);
+
+    // Edges
+    uint64_t PrototypeNodeID = NodesMap.at(T);
+    addEdge(SegmentNodeID, 0, PrototypeNodeID);
   }
 }
 
@@ -599,6 +658,10 @@ void TypeSystemPrinter::print(const model::Binary &Model) {
   // Print all dynamic functions and related types
   for (auto &F : Model.ImportedDynamicFunctions())
     print(F);
+
+  // Print all the segments and related types
+  for (auto &S : Model.Segments())
+    print(S);
 
   // Print remaining types, if any
   for (auto &T : Model.Types()) {
