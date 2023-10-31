@@ -58,6 +58,7 @@
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/RestructureCFG/ASTNode.h"
+#include "revng-c/RestructureCFG/ASTNodeUtils.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/RestructureCFG/BeautifyGHAST.h"
 #include "revng-c/RestructureCFG/RestructureCFG.h"
@@ -2186,71 +2187,6 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
   Out.flush();
 
   return Result;
-}
-
-/// Visit the node and all its children recursively, checking if a loop
-/// variable is needed.
-// TODO: This could be precomputed and attached to the SCS node in the GHAST.
-static RecursiveCoroutine<bool> needsLoopVar(ASTNode *N) {
-  if (N == nullptr)
-    rc_return false;
-
-  auto Kind = N->getKind();
-  switch (Kind) {
-
-  case ASTNode::NodeKind::NK_Break:
-  case ASTNode::NodeKind::NK_SwitchBreak:
-  case ASTNode::NodeKind::NK_Continue:
-  case ASTNode::NodeKind::NK_Code:
-    rc_return false;
-    break;
-
-  case ASTNode::NodeKind::NK_If: {
-    IfNode *If = cast<IfNode>(N);
-
-    if (nullptr != If->getThen())
-      if (rc_recur needsLoopVar(If->getThen()))
-        rc_return true;
-
-    if (If->hasElse())
-      if (rc_recur needsLoopVar(If->getElse()))
-        rc_return true;
-
-    rc_return false;
-  } break;
-
-  case ASTNode::NodeKind::NK_Scs: {
-    ScsNode *LoopBody = cast<ScsNode>(N);
-    rc_return rc_recur needsLoopVar(LoopBody->getBody());
-  } break;
-
-  case ASTNode::NodeKind::NK_List: {
-    SequenceNode *Seq = cast<SequenceNode>(N);
-    for (ASTNode *Child : Seq->nodes())
-      if (rc_recur needsLoopVar(Child))
-        rc_return true;
-
-    rc_return false;
-  } break;
-
-  case ASTNode::NodeKind::NK_Switch: {
-    SwitchNode *Switch = cast<SwitchNode>(N);
-    llvm::Value *SwitchVar = Switch->getCondition();
-
-    if (not SwitchVar)
-      rc_return true;
-
-    for (const auto &[Labels, CaseNode] : Switch->cases())
-      if (rc_recur needsLoopVar(CaseNode))
-        rc_return true;
-
-    rc_return false;
-  } break;
-
-  case ASTNode::NodeKind::NK_Set: {
-    rc_return true;
-  } break;
-  }
 }
 
 static bool hasLoopDispatchers(const ASTTree &GHAST) {

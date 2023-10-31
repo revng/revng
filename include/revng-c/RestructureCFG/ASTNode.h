@@ -611,6 +611,11 @@ public:
 
   size_t cases_size() { return LabelCaseVec.size(); }
 
+  void removeCaseN(size_t N) {
+    revng_assert(N < LabelCaseVec.size());
+    LabelCaseVec.erase(LabelCaseVec.begin() + N);
+  }
+
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
   bool needsStateVariable() const { return NeedStateVariable; }

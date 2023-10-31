@@ -12,6 +12,7 @@ revng_add_analyses_library(
   BeautifyGHAST.cpp
   ExprNode.cpp
   FallThroughScopeAnalysis.cpp
+  InlineDispatcherSwitch.cpp
   MetaRegion.cpp
   PromoteCallNoReturn.cpp
   RegionCFGTree.cpp

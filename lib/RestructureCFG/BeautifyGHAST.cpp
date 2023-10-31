@@ -26,6 +26,7 @@
 #include "revng-c/Support/DecompilationHelpers.h"
 
 #include "FallThroughScopeAnalysis.h"
+#include "InlineDispatcherSwitch.h"
 #include "PromoteCallNoReturn.h"
 #include "SimplifyCompareNode.h"
 #include "SimplifyDualSwitch.h"
@@ -1041,6 +1042,11 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Matching while\n");
   matchWhile(RootNode, CombedAST);
   Dumper.log("After-match-while");
+
+  // Perform the dispatcher `switch` inlining
+  revng_log(BeautifyLogger, "Performing dispatcher switch inlining\n");
+  RootNode = inlineDispatcherSwitch(CombedAST, RootNode);
+  Dumper.log("After-dispatcher-switch-inlining");
 
   // Perform the simplification of `switch` with two entries in a `if`
   revng_log(BeautifyLogger, "Performing the dual switch simplification\n");
