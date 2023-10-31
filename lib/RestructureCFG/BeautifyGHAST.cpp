@@ -1374,7 +1374,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
-  simplifyAtomicSequence(CombedAST, RootNode);
+  RootNode = simplifyAtomicSequence(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
