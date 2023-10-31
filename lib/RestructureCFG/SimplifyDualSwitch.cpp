@@ -102,6 +102,12 @@ simplifyDualSwitch(ASTTree &AST, ASTNode *Node) {
     for (ASTNode *&N : Seq->nodes()) {
       N = rc_recur simplifyDualSwitch(AST, N);
     }
+
+    // In this beautify, it may be that a dispatcher it is completely removed,
+    // leaving a `nullptr` as an element of the containing `SequenceNode`. We
+    // remove all these `nullptr`s from the `SequenceNode` after the processing
+    // has taken place.
+    Seq->removeNode(nullptr);
   } break;
   case ASTNode::NK_Scs: {
     ScsNode *Scs = llvm::cast<ScsNode>(Node);
@@ -212,11 +218,22 @@ simplifyDualSwitch(ASTTree &AST, ASTNode *Node) {
     // single case).
     revng_assert(Fields->Then != nullptr);
 
-    if (llvm::isa<SwitchBreakNode>(Fields->Then)) {
+    if (auto *SwitchBreak = llvm::dyn_cast<SwitchBreakNode>(Fields->Then)) {
+      revng_assert(SwitchBreak->getParentSwitch() == Switch);
       If->setThen(nullptr);
     }
-    if (Fields->Else and llvm::isa<SwitchBreakNode>(Fields->Else)) {
-      If->setElse(nullptr);
+    if (Fields->Else) {
+      if (auto *SwitchBreak = llvm::dyn_cast<SwitchBreakNode>(Fields->Else)) {
+        revng_assert(SwitchBreak->getParentSwitch() == Switch);
+        If->setElse(nullptr);
+      }
+    }
+
+    // After the `SwitchBreakNode` removal, it may be that the simplified
+    // dispatcher `if ` becomes empty. In this case, we return `nullptr` to the
+    // upper level to simplify away completely this node.
+    if (not If->getThen() and not If->getElse()) {
+      rc_return nullptr;
     }
 
     rc_return If;
