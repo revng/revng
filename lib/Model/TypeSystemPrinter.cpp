@@ -101,8 +101,8 @@ static FieldList collectFields(const model::Type *T) {
     for (auto &Field : RawFunc->Arguments())
       Fields.push_back(Field.Type());
 
-    if (not RawFunc->StackArgumentsType().UnqualifiedType().empty())
-      Fields.push_back(RawFunc->StackArgumentsType());
+    if (not RawFunc->StackArgumentsType().empty())
+      Fields.push_back({ RawFunc->StackArgumentsType(), {} });
   } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(T)) {
     Fields.push_back(Typedef->UnderlyingType());
   }
@@ -246,8 +246,8 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
     for (auto &ArgTy : RawFunc->Arguments())
       Arguments.push_back(ArgTy.Type());
 
-    if (not RawFunc->StackArgumentsType().UnqualifiedType().empty())
-      Arguments.push_back(RawFunc->StackArgumentsType());
+    if (not RawFunc->StackArgumentsType().empty())
+      Arguments.push_back({ RawFunc->StackArgumentsType(), {} });
 
   } else if (auto *CABIFunc = dyn_cast<CABIFunctionType>(T)) {
     ReturnTypes.push_back(CABIFunc->ReturnType());
