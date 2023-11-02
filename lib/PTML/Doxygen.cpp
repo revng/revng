@@ -354,9 +354,8 @@ gatherArgumentComments(const model::Binary &Binary,
       }
     }
 
-    if (not FT->StackArgumentsType().UnqualifiedType().empty()) {
-      revng_assert(FT->StackArgumentsType().Qualifiers().empty());
-      auto *Unqualified = FT->StackArgumentsType().UnqualifiedType().get();
+    if (not FT->StackArgumentsType().empty()) {
+      auto *Unqualified = FT->StackArgumentsType().get();
       const auto &Stack = *llvm::cast<model::StructType>(Unqualified);
 
       struct FieldMapEntry {
