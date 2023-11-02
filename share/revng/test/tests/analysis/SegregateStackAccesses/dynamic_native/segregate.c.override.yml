@@ -97,8 +97,7 @@ Types:
       - Location: r9_x86_64
         Type:
           UnqualifiedType: "/Types/520-PrimitiveType"
-    StackArgumentsType:
-      UnqualifiedType: "/Types/100003-StructType"
+    StackArgumentsType: "/Types/100003-StructType"
     ReturnValues:
       - Location: rax_x86_64
         Type:

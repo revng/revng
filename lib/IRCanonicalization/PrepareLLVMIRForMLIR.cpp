@@ -185,7 +185,7 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
           auto ArgIt = std::next(ModelArgs.begin(), I);
           ArgumentModelType = ArgIt->Type();
         } else {
-          ArgumentModelType = RFT->StackArgumentsType();
+          ArgumentModelType = { RFT->StackArgumentsType(), {} };
         }
 
         std::string ArgTypeName = std::string(getTypeName(ArgumentModelType,

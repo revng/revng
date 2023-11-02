@@ -9,6 +9,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
@@ -154,10 +155,7 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
   model::Type *Prototype = ModelFunction.prototype(*Binary).get();
   RawFunctionType *RawPrototype = nullptr;
   if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype))) {
-    revng_assert(RawPrototype->StackArgumentsType().Qualifiers().empty());
-    NeedsStackArguments = RawPrototype->StackArgumentsType()
-                            .UnqualifiedType()
-                            .empty();
+    NeedsStackArguments = RawPrototype->StackArgumentsType().empty();
   }
 
   revng_log(Log, "NeedsStackFrame: " << NeedsStackArguments);
@@ -228,8 +226,7 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
 using DSSI = DetectStackSize;
 void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
                                    const UpperBoundCollector &Bound) const {
-  revng_assert(Prototype->StackArgumentsType().Qualifiers().empty());
-  revng_assert(Prototype->StackArgumentsType().UnqualifiedType().empty());
+  revng_assert(Prototype->StackArgumentsType().empty());
   revng_assert(Bound.hasValue());
 
   APInt Value = Bound.value();
@@ -245,8 +242,7 @@ void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
     revng_log(Log,
               "electStackArgumentsSize for " << Prototype->ID() << ": "
                                              << Size);
-    Prototype->StackArgumentsType() = { createEmptyStruct(*Binary.get(), Size),
-                                        {} };
+    Prototype->StackArgumentsType() = createEmptyStruct(*Binary.get(), Size);
   }
 }
 
@@ -308,11 +304,10 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
 
   uint64_t StackArgumentsSize = 0;
 
-  const model::QualifiedType &StackArguments = Prototype->StackArgumentsType();
-  revng_assert(StackArguments.Qualifiers().empty());
-  if (not StackArguments.UnqualifiedType().empty()) {
-    using std::optional;
-    optional<uint64_t> MaybeStackArgumentsSize = StackArguments.size(VH);
+  const model::TypePath &StackArgumentsType = Prototype->StackArgumentsType();
+  if (not StackArgumentsType.empty()) {
+    const model::Type *StackArguments = StackArgumentsType.getConst();
+    std::optional<uint64_t> MaybeStackArgumentsSize = StackArguments->size(VH);
     revng_assert(MaybeStackArgumentsSize);
     StackArgumentsSize = *MaybeStackArgumentsSize;
   } else {

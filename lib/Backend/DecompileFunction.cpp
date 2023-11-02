@@ -2062,7 +2062,7 @@ static std::string getModelArgIdentifier(const model::Type *ModelFunctionType,
     auto NumModelArguments = RFT->Arguments().size();
     revng_assert(ArgNo <= NumModelArguments + 1);
     revng_assert(LLVMFunction->arg_size() == NumModelArguments
-                 or (not RFT->StackArgumentsType().UnqualifiedType().empty()
+                 or (not RFT->StackArgumentsType().empty()
                      and (LLVMFunction->arg_size() == NumModelArguments + 1)));
     if (ArgNo < NumModelArguments) {
       return std::next(RFT->Arguments().begin(), ArgNo)->name().str().str();

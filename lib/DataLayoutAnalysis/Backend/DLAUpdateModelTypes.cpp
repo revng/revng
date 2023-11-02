@@ -80,12 +80,9 @@ static bool updateArgumentTypes(model::Binary &Model,
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
 
   // In case of presence of stack arguments, there's an extra argument
-  if (not ModelPrototype->StackArgumentsType().UnqualifiedType().empty()) {
+  if (not ModelPrototype->StackArgumentsType().empty()) {
     revng_log(Log, "Updating stack argument");
-    auto *ModelStackArg = ModelPrototype->StackArgumentsType()
-                            .UnqualifiedType()
-                            .get();
-    revng_assert(ModelPrototype->StackArgumentsType().Qualifiers().empty());
+    auto *ModelStackArg = ModelPrototype->StackArgumentsType().get();
     revng_assert(not LLVMArgs.empty());
 
     // If the ModelStackArgs is an empty struct we have to fill it up, otherwise
