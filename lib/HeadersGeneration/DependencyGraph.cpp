@@ -124,7 +124,7 @@ static void registerDependencies(const model::Type *T,
     // air. However, given that we have enums with underlying primitive
     // types, for consistency we enforce that enums names and full
     // definitions always depend on full definition of the underlying
-    // primitive type. This adds a little unnessary edges, but makes the
+    // primitive type. This adds a little unnecessary edges, but makes the
     // overall structure of the graph easier to reason about. Moreover, full
     // definitions of primitive types can also always be conjured out of
     // thin air, so we're always sure that this does not generates infinite

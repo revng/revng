@@ -64,7 +64,7 @@ static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
     // If RHS contains a PHI that is in the same block as PHIBlock, and has a
     // different incoming value on the same incoming block, the two are
     // incompatible, because they would assign two different values to the same
-    // local variable alogn the same edge.
+    // local variable along the same edge.
     if (It != End and IncomingValue != It->IncomingValue)
       return false;
   }

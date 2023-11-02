@@ -1232,7 +1232,7 @@ static ASTNode *promoteNoFallthroughIf(const model::Binary &Model,
                                        ASTNode *RootNode,
                                        ASTTree &AST) {
 
-  // This map will contain the result of the fallthough analysis.
+  // This map will contain the result of the fallthrough analysis.
   // We considered using a `std::set` in place of the `std::map`, but the `map`
   // has the advantage of making us able to assert that the fallthrough
   // information has been computed for every node in the AST. If we only have a
@@ -1293,7 +1293,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // Flip IFs with empty then branches.
   // We need to do it before simplifyTrivialShortCircuit, otherwise that
-  // functions will need to check every possile combination of then-else to
+  // functions will need to check every possible combination of then-else to
   // simplify. In this way we can keep it simple.
   revng_log(BeautifyLogger,
             "Performing IFs with empty then branches flipping\n");

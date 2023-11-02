@@ -210,7 +210,7 @@ bool TANP::runOnFunction(llvm::Function &F) {
         if (match(Val, m_Add(m_Value(Unknown), m_APInt(RHS)))
             or match(Val, m_Sub(m_Value(Unknown), m_APInt(RHS)))) {
           // Compute the new RHS if we move the RHS to the right of the
-          // comparison operator, adusting the old value of Int.
+          // comparison operator, adjusting the old value of Int.
           using llvm::Instruction::Add;
           bool IsAdd = cast<llvm::Instruction>(Val)->getOpcode() == Add;
           APInt NewRHS = IsAdd ? (*Int - *RHS) : (*Int + *RHS);

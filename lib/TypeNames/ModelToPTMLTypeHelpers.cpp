@@ -82,7 +82,7 @@ TypeSet TypeInlineHelper::findTypesToInline(const model::Binary &Model,
         ShouldIgnore.insert(DependantType);
       } else if (isCandidateForInline(DependantType)) {
         // If it comes from a Type other than a function, consider that we are
-        // interested for the type, or if it was refferenced from a type other
+        // interested for the type, or if it was referenced from a type other
         // than itself.
         Candidates[DependantType]++;
 

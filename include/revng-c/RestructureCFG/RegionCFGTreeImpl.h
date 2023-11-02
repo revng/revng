@@ -451,7 +451,7 @@ inline void RegionCFG<NodeT>::untangle() {
                         "Region-" + RegionName + "-initial-state");
   }
 
-  // Map which contains the precomputed wheight for each node in the graph. In
+  // Map which contains the precomputed weight for each node in the graph. In
   // case of a code node the weight will be equal to the number of instruction
   // in the original basic block; in case of a collapsed node the weight will be
   // the sum of the weights of all the nodes contained in the collapsed graph.
