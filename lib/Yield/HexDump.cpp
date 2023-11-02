@@ -146,7 +146,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
       // Is current byte the first byte of interval?
       bool AtStart = CurrentInterval.lower() == CurrentAddress;
       // If interval is valid and current byte is the first byte, location tag
-      // sohuld be printed before byte.
+      // should be printed before byte.
       bool IsStartOfInterval = IsIntervalValid and AtStart;
 
       // Tag opening is printed in two situations:

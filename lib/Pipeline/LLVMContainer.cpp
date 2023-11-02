@@ -48,13 +48,13 @@ void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
 
   auto *GlobalArrayType = llvm::ArrayType::get(IntegerTy, Globals.size());
 
-  auto *Initilizer = llvm::ConstantArray::get(GlobalArrayType, Globals);
+  auto *Initializer = llvm::ConstantArray::get(GlobalArrayType, Globals);
 
   new llvm::GlobalVariable(Module,
                            GlobalArrayType,
                            false,
                            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-                           Initilizer,
+                           Initializer,
                            GlobalArrayName);
 }
 

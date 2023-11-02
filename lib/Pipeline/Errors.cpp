@@ -1,5 +1,5 @@
 /// \file Errors.cpp
-/// This file contains the various errors that can be thrown from whitin a
+/// This file contains the various errors that can be thrown from within a
 /// pipeline.
 
 //

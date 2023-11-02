@@ -624,7 +624,7 @@ public:
       // In case of dynamic graph, register successors of this label
       if (DynamicGraph) {
         // The successors must match, unless the current label has become a
-        // return label or we intiially had no successors
+        // return label or we initially had no successors
         if (Successors->size() != 0 and NewSuccessors.size() != 0)
           revng_assert(NewSuccessors == *Successors);
 

@@ -195,7 +195,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   revng_check(Enum->Entries().insert(Entry2).second);
   revng_check(Enum->Entries().size() == 4);
   revng_check(not T->verify(false));
-  // But if we remove the dupicated entry we're good again
+  // But if we remove the duplicated entry we're good again
   revng_check(Enum->Entries().erase(7));
   revng_check(Enum->Entries().size() == 3);
   revng_check(Enum->verify(true));

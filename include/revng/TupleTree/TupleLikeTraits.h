@@ -43,7 +43,7 @@ concept TraitedTupleLike = requires {
 } && detail::HasTuple<T> && std::is_enum_v<typename TupleLikeTraits<T>::Fields>;
 
 //
-// Implementation of MappingTraits for TupleLikeTraits implementors
+// Implementation of MappingTraits for TupleLikeTraits implementers
 //
 
 /// Tuple-like can implement llvm::yaml::MappingTraits inheriting this class

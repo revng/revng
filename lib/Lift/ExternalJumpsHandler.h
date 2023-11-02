@@ -21,7 +21,7 @@ class ProgramCounterHandler;
 /// This pass changes the default case of the dispatcher by checking if you're
 /// trying to jump to an address that is not in one of the executable segments.
 /// If so, the relevant a setjmp is performed, the CPU state is serialized to
-/// the actual phsyical registers and then a jump to the target address is
+/// the actual physical registers and then a jump to the target address is
 /// performed. At this point the jump might be successful or it might fail.
 ///
 /// Symmetrically, with the help of support.c, a signal handler is installed
