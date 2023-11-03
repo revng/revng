@@ -5,6 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+extern "C" {
+#include "glob.h"
+}
 #include <map>
 #include <sstream>
 #include <vector>
@@ -20,12 +23,137 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Generator.h"
 #include "revng/Support/LDDTree.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 static Logger<> Log("lddtree");
 
 using namespace llvm;
+
+constexpr unsigned MaxIncludeDepth = 5;
+
+/// \see ldconfig.c from glibc
+class LdSoConfParser {
+private:
+  SmallVectorImpl<std::string> &SearchPaths;
+  std::set<std::string> VisitedFiles;
+
+public:
+  LdSoConfParser(SmallVectorImpl<std::string> &SearchPaths) :
+    SearchPaths(SearchPaths) {}
+
+public:
+  void parse() {
+    std::set<std::string> VisitedFiles;
+    // TODO: add support for prefix?
+    parseImpl("/etc/ld.so.conf", 0);
+  }
+
+private:
+  void parseImpl(StringRef Path, unsigned Depth) {
+    revng_log(Log, "Parsing " << Path);
+
+    if (Depth > MaxIncludeDepth) {
+      revng_log(Log,
+                "More than " << MaxIncludeDepth
+                             << " nested includes in ld.so.conf");
+      return;
+    }
+
+    bool IsNew = VisitedFiles.insert(Path.str()).second;
+    if (not IsNew) {
+      revng_log(Log, "We already visited " << Path.str() << ". Ignoring.");
+      return;
+    }
+
+    using namespace llvm::sys;
+    StringRef Directory = path::parent_path(Path);
+
+    auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
+    if (not MaybeBuffer) {
+      revng_log(Log, "Can't open " << Path);
+      return;
+    }
+
+    StringRef Data = MaybeBuffer->get()->getBuffer();
+
+    // Split in lines
+    SmallVector<StringRef, 8> Lines;
+    Data.split(Lines, "\n");
+
+    for (StringRef Line : Lines) {
+      // Remove comments
+      Line = Line.split("#").first;
+
+      // Strip white spaces
+      Line = Line.trim();
+
+      // Ignore empty lines
+      if (Line.size() == 0)
+        continue;
+
+      if (Line.consume_front("include ")) {
+        Line = Line.trim();
+
+        SmallString<32> GlobExpression = makeAbsolute(Line, Directory);
+        for (StringRef File : glob(GlobExpression))
+          parseImpl(File, Depth + 1);
+
+      } else if (Line.consume_front("hwcap ")) {
+
+        revng_log(Log, "Ignoring hwcap line");
+
+      } else {
+
+        // Add the path
+        SmallString<32> SearchPath = makeAbsolute(Line, Directory);
+        revng_log(Log, "Registering " << SearchPath.str().str());
+        SearchPaths.push_back(SearchPath.str().str());
+      }
+    }
+  }
+
+private:
+  static SmallString<32> makeAbsolute(StringRef Path,
+                                      StringRef CurrentDirectory) {
+    SmallString<32> Result;
+
+    if (Path.starts_with("/")) {
+      Result.append(Path);
+    } else {
+      Result = CurrentDirectory;
+      llvm::sys::path::append(Result, Path);
+    }
+
+    return Result;
+  }
+
+  static cppcoro::generator<StringRef> glob(StringRef Pattern) {
+    glob64_t GlobResults;
+    int Result = glob64(Pattern.str().data(), 0, NULL, &GlobResults);
+
+    switch (Result) {
+    case 0:
+      for (size_t I = 0; I < GlobResults.gl_pathc; ++I)
+        co_yield StringRef(GlobResults.gl_pathv[I]);
+      globfree64(&GlobResults);
+      break;
+
+    case GLOB_NOMATCH:
+      break;
+
+    case GLOB_NOSPACE:
+    case GLOB_ABORTED:
+      revng_log(Log, "Cannot read directory");
+      break;
+
+    default:
+      revng_abort();
+      break;
+    }
+  }
+};
 
 /// \see man ld.so
 static std::optional<std::string>
@@ -67,8 +195,16 @@ findLibrary(StringRef ToImport,
   }
 
   if (not NoDefault) {
+    LdSoConfParser(SearchPaths).parse();
     SearchPaths.push_back("/" + LibName);
     SearchPaths.push_back("/usr/" + LibName);
+  }
+
+  if (Log.isEnabled()) {
+    Log << "List of search paths:\n";
+    for (const std::string &SearchPath : SearchPaths)
+      Log << "  " << SearchPath << "\n";
+    Log << DoLog;
   }
 
   for (std::string SearchPath : SearchPaths) {
