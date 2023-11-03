@@ -7,6 +7,7 @@ ABI: Microsoft_x86_vectorcall
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+NoRegisterArgumentsCanComeAfterStackOnes: true
 UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: true
 
@@ -46,7 +47,9 @@ ScalarTypes:
   - Size: 2
   - Size: 4
   - Size: 8
+    AlignedAt: 4
 
 FloatingPointScalarTypes:
   - Size: 4
   - Size: 8
+    AlignedAt: 4

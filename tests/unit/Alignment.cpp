@@ -12,15 +12,15 @@ bool init_unit_test();
 #include "revng/ADT/Concepts.h"
 #include "revng/Model/Binary.h"
 
-static std::string printAlignment(std::uint64_t Alignment) {
+static std::string printAlignment(uint64_t Alignment) {
   return Alignment != 0 ? std::to_string(Alignment) : "undefined";
 }
 
 struct Expected {
   const abi::Definition &ABI;
-  std::uint64_t Alignment;
+  uint64_t Alignment;
 
-  explicit Expected(model::ABI::Values ABIName, std::uint64_t Alignment) :
+  explicit Expected(model::ABI::Values ABIName, uint64_t Alignment) :
     ABI(abi::Definition::get(ABIName)), Alignment(Alignment) {}
 };
 
@@ -29,7 +29,7 @@ template<typename... Types>
 void testAlignment(const model::QualifiedType &Type,
                    const Types &...TestCases) {
   for (auto [ABI, Expected] : std::array{ TestCases... }) {
-    std::optional<std::uint64_t> TestResult = ABI.alignment(Type);
+    std::optional<uint64_t> TestResult = ABI.alignment(Type);
     if (TestResult.value_or(0) != Expected) {
       std::string Error = "Alignment run failed for type:\n"
                           + serializeToString(Type) + "ABI ('"
@@ -125,8 +125,8 @@ constexpr std::array TestedABIs{ model::ABI::AAPCS64,
 static void compareTypeAlignments(const abi::Definition &ABI,
                                   const model::QualifiedType &LHS,
                                   const model::QualifiedType &RHS) {
-  std::optional<std::uint64_t> Left = ABI.alignment(LHS);
-  std::optional<std::uint64_t> Right = ABI.alignment(RHS);
+  std::optional<uint64_t> Left = ABI.alignment(LHS);
+  std::optional<uint64_t> Right = ABI.alignment(RHS);
   if (Left != Right) {
     std::string Error = "Alignment comparison run failed for types:\n"
                         + serializeToString(LHS) + "and\n"
@@ -154,7 +154,7 @@ BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
     for (const auto &PrimitiveKind : RemainingTypes) {
-      for (std::uint64_t Size = 1; Size <= 16; Size *= 2) {
+      for (uint64_t Size = 1; Size <= 16; Size *= 2) {
         compareTypeAlignments(ABI,
                               makePrimitive(Primitive::Generic, Size, *Binary),
                               makePrimitive(PrimitiveKind, Size, *Binary));
@@ -163,7 +163,7 @@ BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
   }
 }
 
-static model::UnionField makeUnionField(std::uint64_t Index,
+static model::UnionField makeUnionField(uint64_t Index,
                                         model::QualifiedType Type) {
   model::UnionField Result;
   Result.Index() = Index;
@@ -237,7 +237,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   }
 }
 
-static model::StructField makeStructField(std::uint64_t Offset,
+static model::StructField makeStructField(uint64_t Offset,
                                           model::QualifiedType Type) {
   model::StructField Result;
   Result.Offset() = Offset;

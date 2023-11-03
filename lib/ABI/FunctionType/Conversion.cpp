@@ -259,7 +259,7 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
   model::StructType &Stack = *llvm::cast<model::StructType>(Unqualified);
 
   // Compute the full alignment.
-  std::uint64_t FullAlignment = *ABI.alignment(StackArgumentTypes);
+  uint64_t FullAlignment = *ABI.alignment(StackArgumentTypes);
   if (!llvm::isPowerOf2_64(FullAlignment)) {
     revng_log(Log,
               "The natural alignment of a type is not a power of two:\n"
@@ -274,7 +274,7 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
   }
 
   // Compute the alignment of the first argument.
-  std::uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
+  uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
   if (!llvm::isPowerOf2_64(FirstAlignment)) {
     revng_log(Log,
               "The natural alignment of a type is not a power of two:\n"
@@ -283,12 +283,12 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
   }
 
   // Define a helper used for finding padding holes.
-  const std::uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
-  auto VerifyAlignment = [this](std::uint64_t CurrentOffset,
-                                std::uint64_t CurrentSize,
-                                std::uint64_t NextOffset,
-                                std::uint64_t NextAlignment) -> bool {
-    std::uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
+  const uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
+  auto VerifyAlignment = [this](uint64_t CurrentOffset,
+                                uint64_t CurrentSize,
+                                uint64_t NextOffset,
+                                uint64_t NextAlignment) -> bool {
+    uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
 
     OverflowSafeInt Offset = CurrentOffset;
     Offset += PaddedSize;
@@ -302,7 +302,7 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
       // Offsets are the same, the next field makes sense.
       return true;
     } else if (*Offset < NextOffset) {
-      std::uint64_t AlignmentDelta = NextAlignment - *Offset % NextAlignment;
+      uint64_t AlignmentDelta = NextAlignment - *Offset % NextAlignment;
       if (*Offset + AlignmentDelta == NextOffset) {
         // Accounting for the next field's alignment solves it,
         // the next field makes sense.
@@ -329,10 +329,10 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
 
   // Look at all the fields pair-wise, converting them into arguments.
   for (const auto &[CurrentArgument, NextOne] : zip_pairs(Stack.Fields())) {
-    std::optional<std::uint64_t> MaybeSize = CurrentArgument.Type().size();
+    std::optional<uint64_t> MaybeSize = CurrentArgument.Type().size();
     revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
 
-    std::uint64_t NextAlignment = *ABI.alignment(NextOne.Type());
+    uint64_t NextAlignment = *ABI.alignment(NextOne.Type());
     if (!llvm::isPowerOf2_64(NextAlignment)) {
       revng_log(Log,
                 "The natural alignment of a type is not a power of two:\n"
@@ -366,7 +366,7 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
   New.Type() = LastArgument.Type();
 
   // Leave a warning in the cases when there's a hole after the very last field.
-  std::optional<std::uint64_t> LastSize = LastArgument.Type().size();
+  std::optional<uint64_t> LastSize = LastArgument.Type().size();
   revng_assert(LastSize.has_value() && LastSize.value() != 0);
   if (!VerifyAlignment(LastArgument.Offset(),
                        LastSize.value(),
@@ -449,7 +449,7 @@ TCC::tryConvertingReturnValue(const ReturnValueRegisters &Registers) {
       //
       // TODO: sadly this discards type information from the registers, look
       //       into preserving it at least partially.
-      std::uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
+      uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
       return model::QualifiedType{
         Bucket.getPrimitiveType(model::PrimitiveTypeKind::Values::Generic,
                                 PointerSize * Ordered.size()),
@@ -470,7 +470,7 @@ TCC::tryConvertingReturnValue(const ReturnValueRegisters &Registers) {
         else
           Field.Type() = { Bucket.genericRegisterType(*Ordered.begin()), {} };
 
-        std::optional<std::uint64_t> FieldSize = Field.Type().size();
+        std::optional<uint64_t> FieldSize = Field.Type().size();
         revng_assert(FieldSize.has_value() && FieldSize.value() != 0);
 
         // Round the next offset based on the natural alignment.
@@ -480,7 +480,7 @@ TCC::tryConvertingReturnValue(const ReturnValueRegisters &Registers) {
         ReturnType.Fields().insert(std::move(Field));
 
         // Update the total struct size: insert some padding if necessary.
-        std::uint64_t RegisterSize = model::ABI::getPointerSize(ABI.ABI());
+        uint64_t RegisterSize = model::ABI::getPointerSize(ABI.ABI());
         ReturnType.Size() += paddedSizeOnStack(FieldSize.value(), RegisterSize);
       }
 

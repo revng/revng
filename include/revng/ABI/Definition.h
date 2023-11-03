@@ -352,9 +352,9 @@ public:
   std::optional<uint64_t> alignment(model::VerifyHelper &VH,
                                     const model::QualifiedType &Type) const;
 
-  std::uint64_t alignedOffset(std::uint64_t Offset,
-                              const model::QualifiedType &Type) const {
-    const std::uint64_t Alignment = *alignment(Type);
+  uint64_t alignedOffset(uint64_t Offset,
+                         const model::QualifiedType &Type) const {
+    const uint64_t Alignment = *alignment(Type);
     if (Offset % Alignment != 0)
       return Offset + Alignment - Offset % Alignment;
 
@@ -379,14 +379,40 @@ public:
     }
 
     llvm::SmallVector<model::Register::Values, 8> Result;
-    for (auto Register : GeneralPurposeArgumentRegisters())
+
+    const auto &GPRs = GeneralPurposeArgumentRegisters();
+    const model::Register::Values &RVL = ReturnValueLocationRegister();
+    constexpr model::Register::Values Invalid = model::Register::Invalid;
+    bool NoRVLInGPRs = RVL != Invalid && !llvm::is_contained(GPRs, RVL);
+    if (NoRVLInGPRs && Lookup.contains(RVL))
+      Result.emplace_back(RVL);
+
+    for (auto Register : GPRs)
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
     for (auto Register : VectorArgumentRegisters())
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
-    revng_assert(Result.size() == std::size(Registers));
+    if (Result.size() != std::size(Registers)) {
+      std::string Error = "Unable to sort argument registers.\nMost likely "
+                          "some of the present registers are not allowed to be "
+                          "used for arguments under the current ABI ("
+                          + std::string(getName())
+                          + ").\nList of registers to be sorted: ";
+      for (auto Register : Registers) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += "\nSorted list: ";
+      for (auto Register : Result) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += '\n';
+      revng_abort(Error.c_str());
+    }
+
     return Result;
   }
 
@@ -408,7 +434,25 @@ public:
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
-    revng_assert(Result.size() == std::size(Registers));
+    if (Result.size() != std::size(Registers)) {
+      std::string Error = "Unable to sort return value registers.\nMost likely "
+                          "some of the present registers are not allowed to be "
+                          "used for returning values under the current ABI ("
+                          + std::string(getName())
+                          + ").\nList of registers to be sorted: ";
+      for (auto Register : Registers) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += "\nSorted list: ";
+      for (auto Register : Result) {
+        Error += model::Register::getName(Register);
+        Error += ' ';
+      }
+      Error += '\n';
+      revng_abort(Error.c_str());
+    }
+
     return Result;
   }
 

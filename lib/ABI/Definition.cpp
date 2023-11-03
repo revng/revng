@@ -203,17 +203,17 @@ const Definition &Definition::get(model::ABI::Values ABI) {
   return It->second;
 }
 
-static RecursiveCoroutine<std::optional<std::uint64_t>>
+static RecursiveCoroutine<std::optional<uint64_t>>
 naturalAlignment(const abi::Definition &ABI,
                  model::VerifyHelper &VH,
                  const model::Type &Type);
-static RecursiveCoroutine<std::optional<std::uint64_t>>
+static RecursiveCoroutine<std::optional<uint64_t>>
 naturalAlignment(const abi::Definition &ABI,
                  model::VerifyHelper &VH,
                  const model::QualifiedType &Type);
 
 template<typename RealType>
-RecursiveCoroutine<std::optional<std::uint64_t>>
+RecursiveCoroutine<std::optional<uint64_t>>
 underlyingAlignment(const abi::Definition &ABI,
                     model::VerifyHelper &VH,
                     const model::Type &Type) {
@@ -222,11 +222,11 @@ underlyingAlignment(const abi::Definition &ABI,
 }
 
 template<typename RealType>
-RecursiveCoroutine<std::optional<std::uint64_t>>
+RecursiveCoroutine<std::optional<uint64_t>>
 fieldAlignment(const abi::Definition &ABI,
                model::VerifyHelper &VH,
                const model::Type &Type) {
-  std::uint64_t Alignment = 0;
+  uint64_t Alignment = 0;
   for (const auto &Field : llvm::cast<RealType>(&Type)->Fields()) {
     if (auto A = rc_recur naturalAlignment(ABI, VH, Field.Type()))
       Alignment = std::max(Alignment, *A);
@@ -237,15 +237,15 @@ fieldAlignment(const abi::Definition &ABI,
   rc_return Alignment;
 }
 
-static RecursiveCoroutine<std::optional<std::uint64_t>>
+static RecursiveCoroutine<std::optional<uint64_t>>
 naturalAlignment(const abi::Definition &ABI,
                  model::VerifyHelper &VH,
                  const model::Type &Type) {
-  std::optional<std::uint64_t> MaybeAlignment = VH.alignment(&Type);
+  std::optional<uint64_t> MaybeAlignment = VH.alignment(&Type);
   if (MaybeAlignment)
     rc_return MaybeAlignment;
 
-  std::uint64_t Alignment = 0;
+  uint64_t Alignment = 0;
 
   // This code assumes that the type `Type` is well formed.
   switch (Type.Kind()) {
@@ -323,7 +323,7 @@ naturalAlignment(const abi::Definition &ABI,
   rc_return Alignment;
 }
 
-static RecursiveCoroutine<std::optional<std::uint64_t>>
+static RecursiveCoroutine<std::optional<uint64_t>>
 naturalAlignment(const abi::Definition &ABI,
                  model::VerifyHelper &VH,
                  const model::QualifiedType &QT) {
@@ -359,10 +359,10 @@ naturalAlignment(const abi::Definition &ABI,
   rc_return rc_recur naturalAlignment(ABI, VH, *QT.UnqualifiedType().get());
 }
 
-std::optional<std::uint64_t>
+std::optional<uint64_t>
 Definition::alignment(model::VerifyHelper &VH,
                       const model::QualifiedType &QT) const {
-  std::optional<std::uint64_t> Result = naturalAlignment(*this, VH, QT);
+  std::optional<uint64_t> Result = naturalAlignment(*this, VH, QT);
   if (Result.has_value() && Result.value() != 0)
     return Result.value();
   else

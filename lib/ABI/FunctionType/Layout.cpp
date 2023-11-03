@@ -28,14 +28,14 @@ struct DistributedArgument {
   RegisterVector Registers = {};
 
   /// The total size of the argument (including padding if necessary) in bytes.
-  std::uint64_t Size = 0;
+  uint64_t Size = 0;
 
   /// The size of the piece of the argument placed on the stack.
   /// \note: has to be equal to `0` or `this->Size` for any ABI for which
   ///        `abi::Definition::ArgumentsCanBeSplitBetweenRegistersAndStack()`
   ///        returns `false`. Otherwise, it has to be an integer value, such
   ///        that `(0 <= SizeOnStack <= this->Size)` is true.
-  std::uint64_t SizeOnStack = 0;
+  uint64_t SizeOnStack = 0;
 
   /// Mark this argument as a padding argument, which means an unused location
   /// (either a register or a piece of the stack) which needs to be seen as
@@ -118,7 +118,7 @@ private:
                 bool AllowPuttingPartOfAnArgumentOnStack) const;
 
 public:
-  std::uint64_t finalStackOffset(const DistributedArguments &Arguments) const;
+  uint64_t finalStackOffset(uint64_t SizeOfArgumentsOnStack) const;
 };
 
 /// Helper for choosing a "generic" register type, mainly used for filling
@@ -146,8 +146,8 @@ genericRegisterType(model::Register::Values Register, model::Binary &Binary) {
 static model::QualifiedType chooseType(const model::QualifiedType &ArgumentType,
                                        const model::Register::Values Register,
                                        model::Binary &Binary) {
-  std::optional<std::uint64_t> MaybeSize = ArgumentType.size();
-  std::uint64_t TargetSize = model::Register::getSize(Register);
+  std::optional<uint64_t> MaybeSize = ArgumentType.size();
+  uint64_t TargetSize = model::Register::getSize(Register);
 
   if (!MaybeSize.has_value()) {
     return model::QualifiedType{
@@ -178,12 +178,14 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   revng_log(Log, "Converting a `CABIFunctionType` to `RawFunctionType`.");
   revng_log(Log, "Original type:\n" << serializeToString(FunctionType));
   LoggerIndent Indentation(Log);
-  auto PointerQualifier = model::Qualifier::createPointer(ABI.getPointerSize());
 
   // Since this conversion cannot fail, nothing prevents us from creating
   // the result type right away.
   auto [NewType, NewTypePath] = Binary->makeType<model::RawFunctionType>();
   model::copyMetadata(NewType, FunctionType);
+
+  model::StructType StackArguments;
+  uint64_t CurrentStackOffset = 0;
 
   // Since shadow arguments are a concern, we need to deal with the return
   // value first.
@@ -214,25 +216,45 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
     revng_assert(MaybeReturnValueSize != std::nullopt);
     revng_assert(ReturnValue.Size == *MaybeReturnValueSize);
 
-    model::QualifiedType ReturnType = FunctionType.ReturnType();
-    ReturnType.Qualifiers().emplace_back(PointerQualifier);
+    const model::Architecture::Values Architecture = Binary->Architecture();
+    auto ReturnType = FunctionType.ReturnType().getPointerTo(Architecture);
 
-    revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
-    auto FirstRegister = ABI.GeneralPurposeReturnValueRegisters()[0];
-    model::TypedRegister ReturnPointer(FirstRegister);
-    ReturnPointer.Type() = std::move(ReturnType);
-    NewType.ReturnValues().insert(std::move(ReturnPointer));
+    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
+      model::NamedTypedRegister InputPointer(ABI.ReturnValueLocationRegister());
+      InputPointer.Type() = ReturnType;
+
+      revng_log(Log,
+                "Adding a register argument to represent the return value "
+                "location:\n"
+                  << serializeToString(InputPointer));
+      NewType.Arguments().emplace(std::move(InputPointer));
+    } else if (ABI.ReturnValueLocationOnStack()) {
+      model::StructField InputPointer(0);
+      InputPointer.Type() = ReturnType;
+
+      revng_log(Log,
+                "Adding a stack argument to represent the return value "
+                "location:\n"
+                  << serializeToString(InputPointer));
+      StackArguments.Fields().emplace(std::move(InputPointer));
+      CurrentStackOffset += ABI.getPointerSize();
+    } else {
+      revng_abort("Current ABI doesn't support big return values.");
+    }
 
     revng_log(Log,
               "Return value is returned through a shadow-argument-pointer:\n"
                 << serializeToString(ReturnType));
+
+    revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
+    auto FirstRegister = ABI.GeneralPurposeReturnValueRegisters()[0];
+    model::TypedRegister OutputPointer(FirstRegister);
+    OutputPointer.Type() = std::move(ReturnType);
+    NewType.ReturnValues().emplace(std::move(OutputPointer));
   } else {
     // The function returns `void`: no need to do anything special.
     revng_log(Log, "Return value is `void`\n");
   }
-
-  model::StructType StackArguments;
-  std::uint64_t CurrentStackOffset = 0;
 
   // Now that return value is figured out, the arguments are next.
   auto Arguments = distributeArguments(FunctionType.Arguments(),
@@ -266,9 +288,9 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
         // Round the next offset based on the natural alignment.
         CurrentStackOffset = ABI.alignedOffset(CurrentStackOffset,
                                                Argument.Type());
-        std::uint64_t InternalStackOffset = CurrentStackOffset;
+        uint64_t InternalStackOffset = CurrentStackOffset;
 
-        std::uint64_t OccupiedSpace = *Argument.Type().size();
+        uint64_t OccupiedSpace = *Argument.Type().size();
         if (Distributed.Registers.empty()) {
           // A stack-only argument: convert it into a struct field.
           model::StructField Field;
@@ -338,7 +360,7 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   }
 
   // Set the final stack offset
-  NewType.FinalStackOffset() = finalStackOffset(Arguments);
+  NewType.FinalStackOffset() = finalStackOffset(CurrentStackOffset);
 
   // Populate the list of preserved registers
   for (auto Inserter = NewType.PreservedRegisters().batch_insert();
@@ -359,14 +381,13 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   return NewTypePath;
 }
 
-std::uint64_t
-ToRawConverter::finalStackOffset(const DistributedArguments &Arguments) const {
+uint64_t
+ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
   const auto Architecture = model::ABI::getArchitecture(ABI.ABI());
-  std::uint64_t Result = model::Architecture::getCallPushSize(Architecture);
+  uint64_t Result = model::Architecture::getCallPushSize(Architecture);
 
   if (ABI.CalleeIsResponsibleForStackCleanup()) {
-    for (auto &Argument : Arguments)
-      Result += Argument.SizeOnStack;
+    Result += SizeOfArgumentsOnStack;
 
     // TODO: take return values into the account.
 
@@ -432,8 +453,8 @@ ToRawConverter::distributeOne(model::QualifiedType Type,
                                   << " registers are available to be used.");
   revng_log(Log, "The total number of registers is " << Registers.size());
 
-  std::uint64_t Size = *Type.size();
-  std::uint64_t Alignment = *ABI.alignment(Type);
+  uint64_t Size = *Type.size();
+  uint64_t Alignment = *ABI.alignment(Type);
   revng_log(Log, "The type:\n" << serializeToString(Type));
   revng_log(Log,
             "Its size is " << Size << " and its alignment is " << Alignment
@@ -476,7 +497,7 @@ ToRawConverter::distributeOne(model::QualifiedType Type,
   // padding to be inserted even for arguments passed in registers.
   std::optional<std::size_t> PaddingRegisterIndex = std::nullopt;
   if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
-    const std::uint64_t PointerSize = ABI.getPointerSize();
+    const uint64_t PointerSize = ABI.getPointerSize();
     bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize);
     bool LastRegisterUsed = ConsideredRegisterCounter == OccupiedRegisterCount;
     bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
@@ -687,7 +708,7 @@ Layout::Layout(const model::CABIFunctionType &Function) {
   //
 
   bool HasShadowPointerToAggregateReturnValue = false;
-  std::uint64_t CurrentStackOffset = 0;
+  uint64_t CurrentStackOffset = 0;
   const auto Architecture = model::ABI::getArchitecture(Function.ABI());
   auto RV = Converter.distributeReturnValue(Function.ReturnType());
   if (RV.SizeOnStack == 0) {
@@ -786,7 +807,7 @@ Layout::Layout(const model::CABIFunctionType &Function) {
   CalleeSavedRegisters.resize(ABI.CalleeSavedRegisters().size());
   llvm::copy(ABI.CalleeSavedRegisters(), CalleeSavedRegisters.begin());
 
-  FinalStackOffset = Converter.finalStackOffset(Converted);
+  FinalStackOffset = Converter.finalStackOffset(CurrentStackOffset);
 }
 
 Layout::Layout(const model::RawFunctionType &Function) {

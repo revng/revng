@@ -26,14 +26,16 @@ CalleeSavedRegisters:
   - edi_x86
   - esi_x86
 
-ReturnValueLocationRegister: ecx_x86
+ReturnValueLocationOnStack: true
 
 ScalarTypes:
   - Size: 1
   - Size: 2
   - Size: 4
   - Size: 8
+    AlignedAt: 4
 
 FloatingPointScalarTypes:
   - Size: 4
   - Size: 8
+    AlignedAt: 4

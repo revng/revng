@@ -981,7 +981,7 @@ namespace std {
 template<>
 class hash<MetaAddress> {
 public:
-  std::uint64_t operator()(const MetaAddress &Address) const {
+  uint64_t operator()(const MetaAddress &Address) const {
     return hash_combine(Address.arch(),
                         Address.address(),
                         Address.epoch(),
