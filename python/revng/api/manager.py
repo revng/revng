@@ -287,9 +287,6 @@ class Manager:
             error._error,
         )
 
-        if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
-            self.save()
-
         return Expected(
             ResultWithInvalidations(
                 self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
@@ -313,9 +310,6 @@ class Manager:
             invalidations._invalidations,
             error._error,
         )
-
-        if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
-            self.save()
 
         return Expected(
             ResultWithInvalidations(

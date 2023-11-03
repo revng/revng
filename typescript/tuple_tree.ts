@@ -278,6 +278,7 @@ export function _makeDiff<T>(
         ctor: "class",
         isArray: false,
         optional: false,
+        isAbstract: false,
     };
     return new DiffSet(
         makeDiffSubtree(tuple_tree_old, tuple_tree_new, "", typeHints, rootTypeInfo, false)
@@ -296,7 +297,19 @@ export function makeDiffSubtree(
     if (typeof obj_old != typeof obj_new) {
         return [];
     }
-    const infoObject = typeHints.get(typeInfo.type as Constructor | Parsable);
+
+    let infoObject: TypeInfoObject;
+    if (typeInfo.isAbstract) {
+        const derivedClass = (
+            typeInfo.type as unknown as { parseClass: (obj) => Constructor }
+        ).parseClass(obj_old);
+        const baseInfoObject = typeHints.get(typeInfo.type as Constructor | Parsable);
+        const derivedClassObject = typeHints.get(derivedClass);
+        infoObject = { ...baseInfoObject, ...derivedClassObject };
+    } else {
+        infoObject = typeHints.get(typeInfo.type as Constructor | Parsable);
+    }
+
     if (typeInfo.isArray && !inArray) {
         if ("keyed" in typeInfo.type && typeInfo.type.keyed) {
             const map_old = new Map(obj_old.map((e) => [e.key(), e]));
@@ -540,6 +553,7 @@ export type TupleTreeType = Constructor | Parsable;
 interface CommonTypeInfo {
     optional: boolean;
     isArray: boolean;
+    isAbstract: boolean;
 }
 
 interface ConstructorType extends CommonTypeInfo {

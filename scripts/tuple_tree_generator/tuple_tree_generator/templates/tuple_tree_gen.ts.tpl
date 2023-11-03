@@ -141,6 +141,17 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
         }
     }
 
+    static parseClass(obj: Type) {
+        switch(obj.Kind) {
+        {%- for child in class_.children %}
+        case "{{child.name}}":
+            return {{child.name}};
+        {%- endfor %}
+        case "Invalid":
+            throw new Error("Invalid Kind")
+        }
+    }
+
     static parseKey(key: string): {[key: string]: string} {
         const parts = key.split('-')
         return { {{ class_ | key_parser }}  };

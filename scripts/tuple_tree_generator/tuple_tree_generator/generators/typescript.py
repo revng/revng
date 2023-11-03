@@ -257,13 +257,18 @@ class TypeScriptGenerator:
         assert hint_type
 
         is_sequence = isinstance(field.resolved_type, SequenceDefinition)
+        if isinstance(field.resolved_type, SequenceDefinition):
+            is_abstract = isinstance(field.resolved_type.element_type, UpcastableDefinition)
+        else:
+            is_abstract = isinstance(field.resolved_type, UpcastableDefinition)
 
         return (
             f"{{type: {hint_type}, "
             + (f"possibleValues: {possible_values}," if possible_values is not None else "")
             + f"ctor: '{ctor}', "
             + f"optional: {'true' if field.optional else 'false'}, "
-            + f"isArray: {'true' if is_sequence else 'false'}}}"
+            + f"isArray: {'true' if is_sequence else 'false'}, "
+            + f"isAbstract: {'true' if is_abstract else 'false'}}}"
         )
 
     @staticmethod

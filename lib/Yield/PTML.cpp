@@ -95,8 +95,8 @@ static std::string labelAddress(const BasicBlockID &Address) {
 struct LabelDescription {
   std::string Name;
   std::string Location;
-  std::string Path = "";
 };
+
 static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
                                   const yield::Function &Function,
                                   const model::Binary &Binary) {
@@ -105,7 +105,6 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
     return LabelDescription{
       .Name = ModelFunction->name().str().str(),
       .Location = serializedLocation(ranks::Function, ModelFunction->key()),
-      .Path = model::editPath::customName(*ModelFunction)
     };
   } else if (CFG.contains(BasicBlock)) {
     return LabelDescription{
@@ -123,13 +122,12 @@ static std::string labelDefinition(const PTMLBuilder &ThePTMLBuilder,
                                    const BasicBlockID &BasicBlock,
                                    const yield::Function &Function,
                                    const model::Binary &Binary) {
-  auto [Name, Location, Path] = labelImpl(BasicBlock, Function, Binary);
+  auto [Name, Location] = labelImpl(BasicBlock, Function, Binary);
 
   Tag LabelTag = ThePTMLBuilder.getTag(tags::Span, Name);
   LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
-    .addAttribute(attributes::LocationDefinition, Location);
-  if (!Path.empty())
-    LabelTag.addAttribute(attributes::ModelEditPath, Path);
+    .addAttribute(attributes::LocationDefinition, Location)
+    .addAttribute(attributes::ActionContextLocation, Location);
 
   using model::Architecture::getAssemblyLabelIndicator;
   std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
@@ -143,7 +141,7 @@ static std::string labelReference(const PTMLBuilder &ThePTMLBuilder,
                                   const BasicBlockID &BasicBlock,
                                   const yield::Function &Function,
                                   const model::Binary &Binary) {
-  auto [Name, Location, _] = labelImpl(BasicBlock, Function, Binary);
+  auto [Name, Location] = labelImpl(BasicBlock, Function, Binary);
 
   Tag LabelTag = ThePTMLBuilder.getTag(tags::Span, std::move(Name));
   LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
@@ -560,7 +558,8 @@ static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
                                  InstructionLocation);
   Tag Out = ThePTMLBuilder.getTag(tags::Div, std::move(Result))
               .addAttribute(attributes::Scope, scopes::Instruction)
-              .addAttribute(attributes::ScopeLocation, InstructionLocation);
+              .addAttribute(attributes::ActionContextLocation,
+                            InstructionLocation);
 
   if (AddTargets) {
     auto Targets = targets(BasicBlock, Function, Binary);
