@@ -84,7 +84,6 @@ bool rp_initialize(int argc,
                    int signals_to_preserve[]);
 LENGTH_HINT(rp_initialize, 1, 0)
 LENGTH_HINT(rp_initialize, 3, 2)
-LENGTH_HINT(rp_initialize, 5, 4)
 
 /**
  * Should be called on clean exit to clean up all LLVM-related stuff used by
@@ -120,7 +119,6 @@ rp_manager * /*owning*/ rp_manager_create(uint64_t pipeline_flags_count,
                                           const char *pipeline_flags[],
                                           const char *execution_directory);
 LENGTH_HINT(rp_manager_create, 1, 0)
-LENGTH_HINT(rp_manager_create, 3, 2)
 
 /**
  * Takes the same arguments as \related rp_manager_create but, instead of the
@@ -170,59 +168,6 @@ rp_manager_create_global_copy(const rp_manager *manager,
                               const char *global_name);
 
 /**
- * Sets the contents of the specified global
- * \param serialied a c-string representing the serialized new global
- * \param global_name the name of the global
- * \param invalidations see \ref pipelineC_invalidations
- * \param error see \ref pipelineC_error_reporting
- * \return true on success, false otherwise
- */
-bool rp_manager_set_global(rp_manager *manager,
-                           const char *serialized,
-                           const char *global_name,
-                           rp_invalidations *invalidations,
-                           rp_error *error);
-
-/**
- * Checks that the serialized global would be correct if set as global_name
- * \param serialied a c-string representing the serialized new global
- * \param global_name the name of the global
- * \param error see \ref pipelineC_error_reporting
- * \return true on success, false otherwise
- */
-bool rp_manager_verify_global(rp_manager *manager,
-                              const char *serialized,
-                              const char *global_name,
-                              rp_error *error);
-
-/**
- * Apply the specified diff to the global
- * \param diff a string representing the serialized diff
- * \param global_name the name of the global
- * \param invalidations see \ref pipelineC_invalidations
- * \param error see \ref pipelineC_error_reporting
- *
- * \return true on success, false otherwise
- */
-bool rp_manager_apply_diff(rp_manager *manager,
-                           const char *diff,
-                           const char *global_name,
-                           rp_invalidations *invalidations,
-                           rp_error *error);
-
-/**
- * Checks that the specified diff would apply correctly to the global
- * \param diff a c-string representing the serialized diff
- * \param global_name the name of the global
- * \param error see \ref pipelineC_error_reporting
- * \return true on success, false otherwise
- */
-bool rp_manager_verify_diff(rp_manager *manager,
-                            const char *diff,
-                            const char *global_name,
-                            rp_error *error);
-
-/**
  * \return the kind with the provided name, NULL if no kind had the provided
  *         name.
  */
@@ -238,11 +183,12 @@ const rp_kind *rp_manager_get_kind_from_name(const rp_manager *manager,
  */
 rp_buffer * /*owning*/
 rp_manager_produce_targets(rp_manager *manager,
+                           const rp_step *step,
+                           const rp_container *container,
                            uint64_t targets_count,
                            const rp_target *targets[],
-                           const rp_step *step,
-                           const rp_container *container);
-LENGTH_HINT(rp_manager_produce_targets, 2, 1)
+                           rp_error *error);
+LENGTH_HINT(rp_manager_produce_targets, 4, 3)
 
 /**
  * Request to run the required analysis
@@ -263,8 +209,9 @@ rp_manager_run_analysis(rp_manager *manager,
                         const char *step_name,
                         const char *analysis_name,
                         const rp_container_targets_map *target_map,
+                        const rp_string_map *options,
                         rp_invalidations *invalidations,
-                        const rp_string_map *options);
+                        rp_error *error);
 
 /**
  * Request to run all analyses of the given list on all targets
@@ -278,8 +225,9 @@ rp_manager_run_analysis(rp_manager *manager,
 rp_diff_map * /*owning*/
 rp_manager_run_analyses_list(rp_manager *manager,
                              const char *list_name,
+                             const rp_string_map *options,
                              rp_invalidations *invalidations,
-                             const rp_string_map *options);
+                             rp_error *error);
 
 /**
  * \return the container status associated to the provided \p container
@@ -300,6 +248,11 @@ const char *rp_manager_get_pipeline_description(rp_manager *manager);
  */
 bool rp_manager_set_storage_credentials(rp_manager *manager,
                                         const char *credentials);
+
+/**
+ * Returns the Context Commit Index
+ */
+uint64_t rp_manager_get_context_commit_index(rp_manager *manager);
 
 /** \} */
 
@@ -416,7 +369,8 @@ bool rp_manager_container_deserialize(rp_manager *manager,
                                       rp_step *step,
                                       const char *container_name,
                                       const char *content,
-                                      uint64_t size);
+                                      uint64_t size,
+                                      rp_invalidations *invalidations);
 LENGTH_HINT(rp_manager_container_deserialize, 3, 4)
 
 /**

@@ -43,7 +43,6 @@ enum class PathType {
 /// Currently the following backends are supported:
 /// * Local filesystem via ordinary unix paths
 /// * S3 storage via the 's3://' and 's3s://` uris
-/// * Dummy storage via the 'dummy://' url
 ///
 /// Writing files happens in 3 steps:
 /// * A writable file is requested via ::getWritableFile

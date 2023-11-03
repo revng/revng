@@ -64,18 +64,26 @@ def run_analyses_lists(analyses_lists: List[str]):
 
         for list_name in analyses_lists:
             assert list_name in list_names, f"Missing analyses list {list_name}"
-            await client.execute(gql(f'mutation {{ runAnalysesList(name: "{list_name}") }}'))
 
-        log("Autoanalysis complete")
+            log(f"Running analyses list {list_name}")
+            index = (await client.execute(gql("{ index: contextCommitIndex }")))["index"]
+            q = gql(
+                "mutation {"
+                + f'runAnalysesList(name: "{list_name}", index: "{index}")'
+                + "{ __typename } }"
+            )
+            res = await client.execute(q)
+            assert res["runAnalysesList"]["__typename"] == "Diff"
 
     return runner
 
 
 def produce_artifacts(filter_: List[str] | None = None):
     async def runner(client: AsyncClientSession):
-        q = gql("""{ pipelineDescription }""")
-        description_req = await client.execute(q)
-        description = yaml.load(description_req["pipelineDescription"], Loader=YamlLoader)
+        q = gql("""{ pipelineDescription contextCommitIndex }""")
+        req = await client.execute(q)
+        description = yaml.load(req["pipelineDescription"], Loader=YamlLoader)
+        index = req["contextCommitIndex"]
 
         if filter_ is None:
             filtered_steps = list(description.Steps)
@@ -124,12 +132,18 @@ def produce_artifacts(filter_: List[str] | None = None):
             log(f"Producing {step_name}/{artifacts_container}/*:{artifacts_kind}")
             q = gql(
                 """
-            query($step: String!, $container: String!, $target: String!) {
-                produce(step: $step, container: $container, targetList: $target)
+            query($step: String!, $container: String!, $target: String!, $index: BigInt!) {
+                produce(step: $step, container: $container, targetList: $target, index: $index) {
+                    __typename
+                    ... on Produced {
+                        result
+                    }
+                }
             }"""
             )
-            result = await client.execute(q, {**arguments, "target": targets})
-            json_result = json.loads(result["produce"])
+            result = await client.execute(q, {**arguments, "target": targets, "index": index})
+            assert result["produce"]["__typename"] == "Produced"
+            json_result = json.loads(result["produce"]["result"])
             assert target_list == set(json_result.keys()), "Some targets were not produced"
 
     return runner

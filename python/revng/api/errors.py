@@ -3,7 +3,6 @@
 #
 
 from collections.abc import Sequence
-from itertools import islice
 from typing import Any, Generic, Optional, TypeVar, cast, overload
 
 from ._capi import _api, ffi
@@ -13,8 +12,7 @@ from .utils import make_python_string
 
 class DocumentError:
     def __init__(self, error: "Error"):
-        if not _api.rp_error_is_document_error(error._error):
-            raise ValueError("Error is not a DocumentError")
+        assert _api.rp_error_is_document_error(error._error), "Error is not a DocumentError"
 
         # We must keep the original error to avoid destruction
         self.base_error = error
@@ -73,14 +71,15 @@ class DocumentErrorReasonList(Sequence[DocumentErrorReason]):
                 return DocumentErrorReason(self.document_error, idx)
             else:
                 raise IndexError("list index out of range")
+        elif isinstance(idx, slice):
+            return [self[i] for i in range(*idx.indices(len(self)))]
         else:
-            return list(islice(self, idx.start, idx.stop, idx.step))
+            raise TypeError("Invalid index type")
 
 
 class SimpleError:
     def __init__(self, error: "Error"):
-        if _api.rp_error_is_document_error(error._error):
-            raise ValueError("Error is not a SimpleError")
+        assert not _api.rp_error_is_document_error(error._error), "Error is not a SimpleError"
 
         # We must keep the original error to avoid destruction
         self.base_error = error

@@ -36,6 +36,7 @@ extern Logger<> CommandLogger;
 class Context {
 private:
   GlobalsMap Globals;
+  uint64_t CommitIndex = 0;
   llvm::StringMap<std::any> Contexts;
   KindsRegistry TheKindRegistry;
 
@@ -66,6 +67,9 @@ public:
   void addGlobal(llvm::StringRef Name, ArgsT &&...Args) {
     Globals.emplace<T>(Name, std::forward<T>(Args)...);
   }
+
+  void bumpCommitIndex() { CommitIndex += 1; }
+  uint64_t getCommitIndex() const { return CommitIndex; }
 
   template<typename T>
   void addExternalContext(llvm::StringRef Name, T &ToAdd) {
@@ -120,13 +124,8 @@ public:
   }
 
 public:
-  llvm::Error store(const revng::DirectoryPath &Path) const {
-    return Globals.store(Path);
-  }
-
-  llvm::Error load(const revng::DirectoryPath &Path) {
-    return Globals.load(Path);
-  }
+  llvm::Error store(const revng::DirectoryPath &Path) const;
+  llvm::Error load(const revng::DirectoryPath &Path);
 };
 
 } // namespace pipeline

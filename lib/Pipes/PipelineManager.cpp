@@ -272,7 +272,7 @@ llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName) {
   return StorageClient->commit();
 }
 
-llvm::Error
+llvm::Expected<InvalidationMap>
 PipelineManager::deserializeContainer(pipeline::Step &Step,
                                       llvm::StringRef ContainerName,
                                       const llvm::MemoryBuffer &Buffer) {
@@ -286,12 +286,15 @@ PipelineManager::deserializeContainer(pipeline::Step &Step,
   if (auto Error = Container.deserialize(Buffer); !!Error)
     return Error;
 
-  recalculateAllPossibleTargets();
+  auto MaybeInvalidations = invalidateAllPossibleTargets();
+  if (not MaybeInvalidations)
+    return MaybeInvalidations.takeError();
 
   if (auto Error = storeStepToDisk(Step.getName()); !!Error)
     return Error;
 
-  return Error::success();
+  PipelineContext->bumpCommitIndex();
+  return MaybeInvalidations.get();
 }
 
 llvm::Error PipelineManager::store(const PipelineFileMapping &Mapping) {
@@ -414,6 +417,7 @@ PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
   else
     return Invalidations.takeError();
 
+  PipelineContext->bumpCommitIndex();
   return Result;
 }
 
@@ -440,6 +444,7 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
   else
     return Invalidations.takeError();
 
+  PipelineContext->bumpCommitIndex();
   return Result;
 }
 

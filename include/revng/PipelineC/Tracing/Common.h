@@ -3,15 +3,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ADT/Concepts.h"
 #include "revng/ADT/ConstexprString.h"
 
 template<typename T>
 using remove_constptr = std::remove_const_t<std::remove_pointer_t<T>>;
-
-template<typename T, typename... Types>
-inline constexpr bool anyOf() {
-  return (std::is_same_v<T, Types> || ...);
-}
 
 template<typename T>
 inline constexpr bool isInteger() {

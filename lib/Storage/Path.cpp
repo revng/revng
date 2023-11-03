@@ -17,16 +17,21 @@ revng::LocalStorageClient LocalClient("/");
 revng::StdinStorageClient StdinClient;
 revng::StdoutStorageClient StdoutClient;
 
+std::string normalizeLocalPath(llvm::StringRef Path) {
+  llvm::SmallString<256> PathCopy(Path);
+  std::error_code MakeAbsoluteError = llvm::sys::fs::make_absolute(PathCopy);
+  revng_assert(not MakeAbsoluteError);
+  llvm::sys::path::remove_dots(PathCopy, true);
+  llvm::StringRef Result(PathCopy.substr(1)); // Remove leading '/'
+  return Result.str();
+}
+
 } // namespace
 
 namespace revng {
 
 DirectoryPath DirectoryPath::fromLocalStorage(llvm::StringRef Path) {
-  llvm::SmallString<256> PathCopy(Path);
-  revng_assert(!llvm::sys::fs::make_absolute(PathCopy));
-  llvm::sys::path::remove_dots(PathCopy);
-  llvm::StringRef NewPath(PathCopy.substr(1)); // Remove leading '/'
-  return revng::DirectoryPath{ &LocalClient, NewPath };
+  return revng::DirectoryPath{ &LocalClient, normalizeLocalPath(Path) };
 }
 
 FilePath FilePath::stdin() {
@@ -38,11 +43,7 @@ FilePath FilePath::stdout() {
 }
 
 FilePath FilePath::fromLocalStorage(llvm::StringRef Path) {
-  llvm::SmallString<256> PathCopy(Path);
-  revng_assert(!llvm::sys::fs::make_absolute(PathCopy));
-  llvm::sys::path::remove_dots(PathCopy);
-  llvm::StringRef NewPath(PathCopy.substr(1)); // Remove leading '/'
-  return revng::FilePath{ &LocalClient, NewPath };
+  return revng::FilePath{ &LocalClient, normalizeLocalPath(Path) };
 }
 
 } // namespace revng

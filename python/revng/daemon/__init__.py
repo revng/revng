@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import asyncio
 import logging
 import os
 import signal
@@ -131,6 +132,10 @@ def make_startlette() -> Starlette:
         return {
             "manager": manager,
             "event_manager": event_manager,
+            # Lock for operations that have an `index` parameter. This is
+            # needed because otherwise there's a TOCTOU between when the index
+            # is checked and when the analysis actually bumps the index.
+            "index_lock": asyncio.Lock(),
             "headers": request.headers,
         }
 

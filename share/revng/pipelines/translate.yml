@@ -14,6 +14,21 @@ Containers:
     Type: Translated
 Branches:
   - Steps:
+      - Name: GlobalAnalyses
+        Analyses:
+          - Name: ApplyDiff
+            Type: ApplyDiff
+            UsedContainers: []
+          - Name: VerifyDiff
+            Type: VerifyDiff
+            UsedContainers: []
+          - Name: SetGlobal
+            Type: SetGlobal
+            UsedContainers: []
+          - Name: VerifyGlobal
+            Type: VerifyGlobal
+            UsedContainers: []
+  - Steps:
       - Name: Import
         Analyses:
           - Name: AddPrimitiveTypes
@@ -24,9 +39,6 @@ Branches:
             UsedContainers: [input]
           - Name: ImportWellKnownModels
             Type: ImportWellKnownModels
-            UsedContainers: []
-          - Name: Apply
-            Type: Apply
             UsedContainers: []
       - Name: Lift
         Pipes:

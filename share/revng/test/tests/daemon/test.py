@@ -232,29 +232,51 @@ async def test_info_global(client):
     assert result["getGlobal"] is not None
 
 
+async def get_index(client):
+    req = await client.execute(gql("{ index: contextCommitIndex }"))
+    return req["index"]
+
+
 async def run_preliminary_analyses(client):
+    index = await get_index(client)
     await client.execute(
         gql(
-            """mutation($ctt: String!) {
-                runAnalysis(step: "Import", analysis: "ImportBinary", containerToTargets: $ctt)
+            """mutation($ctt: String!, $index: BigInt!) {
+                runAnalysis(step: "Import", analysis: "ImportBinary",
+                            containerToTargets: $ctt, index: $index) {
+                    __typename
+                }
             }"""
         ),
-        {"ctt": json.dumps({"input": [":Binary"]})},
+        {"ctt": json.dumps({"input": [":Binary"]}), "index": index},
     )
+
+    index = await get_index(client)
     await client.execute(
-        gql('mutation { runAnalysis(step: "Import", analysis: "AddPrimitiveTypes") }')
+        gql(
+            "mutation {"
+            + f'runAnalysis(step: "Import", analysis: "AddPrimitiveTypes", index: "{index}")'
+            + "{ __typename } }"
+        )
     )
 
 
 async def test_lift(client):
     await run_preliminary_analyses(client)
-    result = await client.execute(gql('{ produceArtifacts(step: "Lift", paths: "") }'))
-    assert result["produceArtifacts"] is not None
+    index = await get_index(client)
+    result = await client.execute(
+        gql(f'{{ produceArtifacts(step: "Lift", paths: "", index: "{index}") {{ __typename }} }}')
+    )
+    assert result["produceArtifacts"]["__typename"] == "Produced"
 
 
 async def test_lift_ready_fail(client):
     await run_preliminary_analyses(client)
-    q = gql('{ produceArtifacts(step: "Lift", paths: ":Binary", onlyIfReady: true) }')
+    index = await get_index(client)
+    q = gql(
+        f'{{ produceArtifacts(step: "Lift", paths: ":Binary", onlyIfReady: true, index: "{index}")'
+        + "{ __typename } }"
+    )
 
     try:
         await client.execute(q)
@@ -266,7 +288,10 @@ async def test_lift_ready_fail(client):
 
 async def test_get_model(client):
     await run_preliminary_analyses(client)
-    await client.execute(gql('{ produceArtifacts(step: "Lift", paths: "") }'))
+    index = await get_index(client)
+    await client.execute(
+        gql(f'{{ produceArtifacts(step: "Lift", paths: "", index: "{index}") {{ __typename }} }}')
+    )
 
     result = await client.execute(gql('{ getGlobal(name: "model.yml") }'))
     assert result["getGlobal"] is not None
@@ -298,28 +323,38 @@ async def test_targets(client):
 
 async def test_produce(client):
     await run_preliminary_analyses(client)
-    q = gql('{ produce(step: "Lift", container: "module.ll", targetList: ":Root") }')
+    index = await get_index(client)
+    q = gql(
+        f'{{ produce(step: "Lift", container: "module.ll", targetList: ":Root", index: "{index}")'
+        + "{ __typename } }"
+    )
     result = await client.execute(q)
 
-    assert result["produce"] != ""
+    assert result["produce"]["__typename"] == "Produced"
 
 
 async def test_produce_artifact(client):
     await run_preliminary_analyses(client)
-    q = gql('{ produceArtifacts(step: "Lift") }')
+    index = await get_index(client)
+    q = gql(f'{{ produceArtifacts(step: "Lift", index: "{index}") {{ __typename }} }}')
     result = await client.execute(q)
 
-    assert "produceArtifacts" in result, result["produceArtifacts"] != ""
+    assert "produceArtifacts" in result
+    assert result["produceArtifacts"]["__typename"] == "Produced"
 
 
 async def test_function_endpoint(client):
     await run_preliminary_analyses(client)
+    index = await get_index(client)
     q = gql(
-        """mutation($ctt: String!) {
-                runAnalysis(step: "Lift", analysis: "DetectABI", containerToTargets: $ctt)
+        """mutation($ctt: String!, $index: BigInt!) {
+                runAnalysis(step: "Lift", analysis: "DetectABI",
+                            containerToTargets: $ctt, index: $index) {
+                    __typename
+                }
         }"""
     )
-    await client.execute(q, {"ctt": json.dumps({"module.ll": [":Root"]})})
+    await client.execute(q, {"ctt": json.dumps({"module.ll": [":Root"]}), "index": index})
 
     q = gql(
         """{
@@ -331,24 +366,32 @@ async def test_function_endpoint(client):
     result = await client.execute(q)
 
     first_function = next(t for t in result["targets"] if not t["serialized"].startswith(":"))
+    index = await get_index(client)
     q = gql(
-        """query function($param1: String!) {
-            produceArtifacts(step: "Isolate", paths: $param1)
+        """query function($param1: String!, $index: BigInt!) {
+            produceArtifacts(step: "Isolate", paths: $param1, index: $index) { __typename }
         }"""
     )
-    result = await client.execute(q, {"param1": first_function["serialized"].rsplit(":", 1)[0]})
+    result = await client.execute(
+        q, {"param1": first_function["serialized"].rsplit(":", 1)[0], "index": index}
+    )
 
-    assert result["produceArtifacts"] is not None
+    assert result["produceArtifacts"]["__typename"] == "Produced"
 
 
 async def test_analysis_kind_check(client):
+    ctt = json.dumps({"module.ll": [":IsolatedRoot"]})
+    index = await get_index(client)
     q = gql(
-        """mutation($ctt: String!) {
-            runAnalysis(step: "Lift", analysis: "DetectABI", containerToTargets: $ctt)
+        """mutation($ctt: String!, $index: BigInt!) {
+            runAnalysis(step: "Lift", analysis: "DetectABI",
+                        containerToTargets: $ctt, index: $index) {
+                __typename
+            }
         }"""
     )
     try:
-        await client.execute(q, {"ctt": json.dumps({"module.ll": [":IsolatedRoot"]})})
+        await client.execute(q, {"ctt": ctt, "index": index})
         raise ValueError("Expected exception")
     except TransportQueryError as e:
         assert len(e.errors) == 1
@@ -356,7 +399,12 @@ async def test_analysis_kind_check(client):
 
 
 async def test_analyses_list(client):
-    q = gql('mutation { runAnalysesList(name: "revng-initial-auto-analysis") }')
+    index = await get_index(client)
+    q = gql(
+        "mutation { "
+        + f'runAnalysesList(name: "revng-initial-auto-analysis", index: "{index}")'
+        + "{ __typename } }"
+    )
     result = await client.execute(q)
 
-    assert result["runAnalysesList"] != ""
+    assert result["runAnalysesList"]["__typename"] == "Diff"
