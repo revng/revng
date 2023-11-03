@@ -124,6 +124,9 @@ public:
   std::set<uint64_t> BreakAt;
   // If set, all temporary directories will be created within this directory
   std::string TemporaryRoot;
+  // Instead of using a temporary directory, the first invocation will use
+  // these directory instead and subsequent ones will abort
+  std::string ResumeDirectory;
 };
 
 struct Trace {
