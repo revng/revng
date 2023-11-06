@@ -135,9 +135,6 @@ private:
   bool ToInflate = true;
   size_t UntangleWeight = WeightNotComputed;
   llvm::DominatorTreeBase<BasicBlockNodeT, false> DT;
-  llvm::DominatorTreeBase<BasicBlockNodeT, true> PDT;
-
-  FDomTree IFDT;
   FPostDomTree IFPDT;
 
 private:
