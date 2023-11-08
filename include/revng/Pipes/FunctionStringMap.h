@@ -26,6 +26,7 @@
 namespace detail {
 
 struct DataOffset {
+  size_t UncompressedSize;
   size_t Start;
   size_t End;
 };
@@ -39,6 +40,7 @@ namespace llvm::yaml {
 template<>
 struct MappingTraits<::detail::DataOffset> {
   static void mapping(IO &IO, ::detail::DataOffset &Value) {
+    IO.mapRequired("UncompressedSize", Value.UncompressedSize);
     IO.mapRequired("Start", Value.Start);
     IO.mapRequired("End", Value.End);
   }
@@ -301,7 +303,8 @@ private:
       std::string Name = MetaAddr.toString() + ArchiveSuffix;
       OffsetDescriptor Offsets = Writer.append(Name,
                                                { Data.data(), Data.size() });
-      Result[MetaAddr] = { .Start = Offsets.DataStart,
+      Result[MetaAddr] = { .UncompressedSize = Data.size(),
+                           .Start = Offsets.DataStart,
                            .End = Offsets.PaddingStart - 1 };
     }
     Writer.close();
