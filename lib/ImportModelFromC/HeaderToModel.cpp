@@ -664,7 +664,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       }
 
       for (auto &ReturnValue : *MultiRegisterReturnValue) {
-        TypedRegister ReturnValueReg(ReturnValue.first);
+        NamedTypedRegister ReturnValueReg(ReturnValue.first);
         ReturnValueReg.Type() = { ReturnValue.second.first,
                                   ReturnValue.second.second };
         ReturnValuesInserter.insert(ReturnValueReg);
@@ -711,7 +711,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         return false;
       }
 
-      TypedRegister ReturnValueReg(RegisterID);
+      NamedTypedRegister ReturnValueReg(RegisterID);
       ReturnValueReg.Type() = *TheRetType;
       ReturnValuesInserter.insert(ReturnValueReg);
     }
