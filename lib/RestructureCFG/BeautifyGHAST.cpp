@@ -36,6 +36,24 @@ using namespace llvm;
 
 static Logger<> BeautifyLogger("beautify");
 
+class GHASTDumper {
+  size_t GraphLogCounter;
+  std::string FunctionName;
+  const ASTTree &AST;
+
+public:
+  GHASTDumper(const Function &F, const ASTTree &TheAST) :
+    GraphLogCounter(0), FunctionName(F.getName().str()), AST(TheAST) {}
+
+  void log(const std::string &Filename) {
+    if (BeautifyLogger.isEnabled()) {
+      AST.dumpASTOnFile(FunctionName,
+                        "ast",
+                        std::to_string(GraphLogCounter++) + "-" + Filename);
+    }
+  }
+};
+
 // Prefix for the short circuit metrics dir.
 static cl::opt<std::string> OutputPath("short-circuit-metrics-output-dir",
                                        cl::desc("Short circuit metrics dir"),
@@ -1290,16 +1308,15 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   ASTNode *RootNode = CombedAST.getRoot();
 
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "01-Before-beautify");
-  }
+  // AST dumper helper
+  GHASTDumper Dumper(F, CombedAST);
+
+  Dumper.log("Before-beautify");
 
   // Simplify short-circuit nodes.
   revng_log(BeautifyLogger, "Performing short-circuit simplification\n");
   simplifyShortCircuit(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "02-After-short-circuit");
-  }
+  Dumper.log("After-short-circuit");
 
   // Flip IFs with empty then branches.
   // We need to do it before simplifyTrivialShortCircuit, otherwise that
@@ -1308,19 +1325,13 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "03-After-if-flip-1");
-  }
+  Dumper.log("After-if-flip");
 
   // Simplify trivial short-circuit nodes.
   revng_log(BeautifyLogger,
             "Performing trivial short-circuit simplification\n");
   simplifyTrivialShortCircuit(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "04-After-trivial-short-circuit");
-  }
+  Dumper.log("After-trivial-short-circuit");
 
   // Flip IFs with empty then branches.
   // We need to do it here again, after simplifyTrivialShortCircuit, because
@@ -1329,67 +1340,42 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "05-After-if-flip-2");
-  }
+  Dumper.log("After-if-flip");
 
   // Match switch node.
   revng_log(BeautifyLogger, "Performing switch nodes matching\n");
   RootNode = matchSwitch(CombedAST, RootNode);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "06-After-switch-match");
-  }
+  Dumper.log("Aftet-switch-match");
 
   // Match dowhile.
   revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "07-After-match-do-while");
-  }
+  Dumper.log("After-match-do-while");
 
   // Match while.
   revng_log(BeautifyLogger, "Matching while\n");
   matchWhile(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
-  }
+  Dumper.log("After-match-while");
 
   // Perform the simplification of `switch` with two entries in a `if`
   revng_log(BeautifyLogger, "Performing the dual switch simplification\n");
   RootNode = simplifyDualSwitch(CombedAST, RootNode);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "09-After-dual-switch-simplify");
-  }
+  Dumper.log("After-dual-switch-simplify");
 
   // Fix loop breaks from within switches
   revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
   SwitchBreaksFixer().run(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled())
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "10-After-fix-switch-breaks");
+  Dumper.log("After-fix-switch-breaks");
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
   RootNode = simplifyAtomicSequence(CombedAST, RootNode);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "11-After-removal-empty-sequences");
-  }
+  Dumper.log("After-removal-empty-sequences");
 
   // Remove unnecessary scopes under the fallthrough analysis.
   revng_log(BeautifyLogger, "Analyzing fallthrough scopes\n");
   RootNode = promoteNoFallthroughIf(Model, RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "12-After-fallthrough-scope-analysis");
-  }
+  Dumper.log("After-fallthrough-scope-analysis");
 
   // Flip IFs with empty then branches.
   // We need to do it here again, after the promotion due to the `nofallthroguh`
@@ -1397,49 +1383,31 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger,
             "Performing IFs with empty then branches flipping\n");
   flipEmptyThen(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "13-After-if-flip-3");
-  }
+  Dumper.log("After-if-flip");
 
   // Perform the double `not` simplification (`not` on the GHAST and `not` in
   // the IR).
   revng_log(BeautifyLogger, "Performing the double not simplification\n");
   RootNode = simplifyHybridNot(CombedAST, RootNode);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "14-After-double-not-simplify");
-  }
+  Dumper.log("After-double-not-simplify");
 
   // Perform the `CompareNode` simplification. A `CompareNode` preceded by a
   // `not` is transformed in the `CompareNode` itself with the flipped
   // comparison predicate
   revng_log(BeautifyLogger, "Performing the compare node simplification\n");
   simplifyCompareNode(CombedAST, RootNode);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "15-After-compare-node-simplify-3");
-  }
+  Dumper.log("After-compare-node-simplify");
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
   simplifyImplicitContinue(CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "16-After-continue-removal");
-  }
+  Dumper.log("After-continue-removal");
 
   // Perform the simplification of the implicit `return`, i.e., a `return` of
   // type `void`, which lies on a path followed by no other statements.
   revng_log(BeautifyLogger, "Performing the implicit return simplification\n");
   simplifyImplicitReturn(CombedAST, RootNode);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(),
-                            "ast",
-                            "17-After-implicit-return-simplify");
-  }
+  Dumper.log("After-implicit-return-simplify");
 
   // Serialize the collected metrics in the statistics file if necessary
   if (StatsFileStream) {
