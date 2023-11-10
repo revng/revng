@@ -27,6 +27,8 @@ public:
   void returnValue(const abi::runtime_test::ReturnValueTest &Test) const;
 
 private:
+  void verifyValuePreservation(llvm::ArrayRef<std::byte> ExpectedBytes,
+                               llvm::ArrayRef<std::byte> FoundBytes) const;
   std::vector<std::byte>
   dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const;
 
@@ -54,6 +56,45 @@ void VH::fail(std::string &&Message) const {
       << "The layout is:\n";
   FunctionLayout.dump();
   revng_abort(Message.c_str());
+}
+
+void VH::verifyValuePreservation(llvm::ArrayRef<std::byte> ExpectedBytes,
+                                 llvm::ArrayRef<std::byte> FoundBytes) const {
+  if (FoundBytes.size() != ExpectedBytes.size()) {
+    fail("Return value size  is not consistent: something is *very* wrong with "
+         "the test toolchain.");
+  }
+
+  uint64_t MatchingByteCount = 0;
+  for (auto [FByte, EByte] : llvm::zip(FoundBytes, ExpectedBytes))
+    if (FByte == EByte)
+      ++MatchingByteCount;
+
+  // Sadly, we cannot do a full comparison since return value structs often
+  // contain padding, value of which is not guaranteed to be preserved,
+  // causing the test to fail. We either need a way to tell if a specific byte
+  // belongs to the padding or not (which would restrict stuff we can test,
+  // for example, nested structs) or assume that non-perfect matches are
+  // acceptable.
+  // An example of a struct that exhibits this behaviour (i386):
+  // struct ReturnValue {
+  //   uint8_t b; // _Alignof(uint8_t) == 1
+  //   // 3 invisible bytes here
+  //   // (_Alignof(ReturnValue) - _Alignof(uint8_t) = 4 - 1 = 3)
+  //   uint32_t a; // _Alignof(uint32_t) == 4
+  // };
+  //
+  // So, when looking at the return value we detect, it looks something like
+  // `[ 0x11, 0xXX, 0xXX, 0xXX, 0x22, 0x33, 0x44, 0x55 ]`
+  // where `0xXX` is unuinitialized value that is not stable and changes from
+  // execution to execution.
+  //
+  // But, luckily, by the definition of how such padding is introduced, we are
+  // guaranteed that in the worst case it's going to occupy `half_the_size - 1`
+  // bytes. So, we can at least enforce that. And, thanks to doing multiple
+  // iterations for each tests, the chance of false positives is extremely low.
+  if (MatchingByteCount * 2 < FoundBytes.size())
+    fail("The value was lost during the call: something went *very* wrong.");
 }
 
 namespace runtime_test = abi::runtime_test;
@@ -238,43 +279,9 @@ uint64_t VH::valueFromBytes(llvm::ArrayRef<std::byte> Input) const {
 void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
   uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
 
-  const auto &Found = Test.ReturnValue;
-  const auto &Expected = Test.ExpectedReturnValue;
-  if (Found.Bytes.size() != Expected.Bytes.size()) {
-    fail("Return value size  is not consistent: something is *very* wrong with "
-         "the test toolchain.");
-  }
-
-  uint64_t MatchingByteCount = 0;
-  for (auto [FByte, EByte] : llvm::zip(Found.Bytes, Expected.Bytes))
-    if (FByte == EByte)
-      ++MatchingByteCount;
-
-  // Sadly, we cannot do a full comparison since return value structs often
-  // contain padding, value of which is not guaranteed to be preserved,
-  // causing the test to fail. We either need a way to tell if a specific byte
-  // belongs to the padding or not (which would restrict stuff we can test,
-  // for example, nested structs) or assume that non-perfect matches are
-  // acceptable.
-  // An example of a struct that exhibits this behaviour (i386):
-  // struct ReturnValue {
-  //   uint8_t b; // _Alignof(uint8_t) == 1
-  //   // 3 invisible bytes here
-  //   // (_Alignof(ReturnValue) - _Alignof(uint8_t) = 4 - 1 = 3)
-  //   uint32_t a; // _Alignof(uint32_t) == 4
-  // };
-  //
-  // So, when looking at the return value we detect, it looks something like
-  // `[ 0x11, 0xXX, 0xXX, 0xXX, 0x22, 0x33, 0x44, 0x55 ]`
-  // where `0xXX` is unuinitialized value that is not stable and changes from
-  // execution to execution.
-  //
-  // But, luckily, by the definition of how such padding is introduced, we are
-  // guaranteed that in the worst case it's going to occupy `half_the_size - 1`
-  // bytes. So, we can at least enforce that. And, thanks to doing multiple
-  // iterations for each tests, the chance of false positives is extremely low.
-  if (MatchingByteCount * 2 < Found.Bytes.size())
-    fail("Return value was lost: something went *very* wrong.");
+  // Make sure the value is the same both before and after the call.
+  verifyValuePreservation(Test.ReturnValue.Bytes,
+                          Test.ExpectedReturnValue.Bytes);
 
   // Because we have no way to represent functions that use SPTAR in `rft`
   // format - they are misdetected here (and are tested as simple functions
