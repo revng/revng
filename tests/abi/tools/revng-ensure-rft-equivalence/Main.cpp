@@ -73,7 +73,10 @@ ensureMatchingIDs(const model::Type::Key &Left,
     // Replace the ID of the moved out type.
     MovedOut->ID() = LeftID;
 
-    // Reinsert the type
+    // Make sure the ID is not in use already.
+    revng_check(Model.Types().find(MovedOut->key()) == Model.Types().end());
+
+    // Reinsert the type.
     auto [It, Success] = Model.Types().insert(std::move(MovedOut));
     revng_assert(Success);
     model::TypePath NewPath = Model.getTypePath(It->get());
@@ -110,9 +113,12 @@ int main(int Argc, char *Argv[]) {
 
   // Introduce a function pair container to allow grouping them based on their
   // `CustomName`.
-  struct FunctionPair {
-    model::RawFunctionType *Left = nullptr;
-    model::RawFunctionType *Right = nullptr;
+  struct KeyPair {
+    std::optional<model::Type::Key> Left = std::nullopt;
+    std::optional<model::Type::Key> Right = std::nullopt;
+    bool operator<(const KeyPair &Another) const {
+      return Left < Another.Left && Right < Another.Right;
+    }
   };
   struct TransparentComparator {
     using is_transparent = std::true_type;
@@ -121,7 +127,7 @@ int main(int Argc, char *Argv[]) {
       return LHS < RHS;
     }
   };
-  std::map<model::Identifier, FunctionPair, TransparentComparator> Functions;
+  std::map<model::Identifier, KeyPair, TransparentComparator> Functions;
   std::unordered_set<uint64_t> FunctionIDLookup;
 
   // Make sure the default prototype is valid.
@@ -139,14 +145,12 @@ int main(int Argc, char *Argv[]) {
                  "hence it's not allowed.");
 
     auto *Left = llvm::cast<model::RawFunctionType>(LF.Prototype().get());
-    FunctionIDLookup.emplace(Left->ID());
-
     if (Left->ID() == DefaultPrototype.ID())
       continue; // Skip the default prototype.
 
     auto [Iterator, Success] = Functions.try_emplace(LF.name());
     revng_assert(Success);
-    Iterator->second.Left = Left;
+    Iterator->second.Left = Left->key();
   }
 
   // Gather all the `RawFunctionType`s prototypes present in the second model.
@@ -160,7 +164,6 @@ int main(int Argc, char *Argv[]) {
                  "hence it's not allowed.");
 
     auto *Right = llvm::cast<model::RawFunctionType>(RF.Prototype().get());
-
     if (Right->ID() == DefaultPrototype.ID())
       continue; // Skip the default prototype.
 
@@ -171,27 +174,27 @@ int main(int Argc, char *Argv[]) {
                           + RF.name().str().str();
       revng_abort(Error.c_str());
     }
-    revng_assert(Iterator->second.Right == nullptr);
-    Iterator->second.Right = Right;
+    revng_assert(Iterator->second.Right == std::nullopt);
+    Iterator->second.Right = Right->key();
   }
 
   // Ensure both the functions themselves and their stack argument structs have
   // the same IDs. This makes it possible to use simple diff for comparing two
   // models instead of doing that manually, since the ID is the only piece
   // of the types that is allowed to change.
-  std::map<model::TypePath, model::TypePath> LeftReplacements;
   std::map<model::TypePath, model::TypePath> RightReplacements;
   for (auto [Name, Pair] : Functions) {
-    auto [Left, Right] = Pair;
+    auto [LeftKey, RightKey] = Pair;
 
-    revng_assert(Left != nullptr,
-                 "This should never happen, something is VERY wrong.");
-    if (Right == nullptr) {
-      std::string Error = "A function present in the left model is missing in "
-                          "the right one: "
-                          + Name.str().str();
-      revng_abort(Error.c_str());
-    }
+    auto LeftIterator = LeftModel->Types().find(LeftKey.value());
+    revng_assert(LeftIterator != LeftModel->Types().end());
+    auto *Left = llvm::cast<model::RawFunctionType>(LeftIterator->get());
+
+    auto RightIterator = RightModel->Types().find(RightKey.value());
+    revng_assert(RightIterator != RightModel->Types().end());
+    auto *Right = llvm::cast<model::RawFunctionType>(RightIterator->get());
+
+    revng_check(Left->Kind() == Right->Kind());
 
     // Try and access the argument struct.
     auto *LeftStack = Left->StackArgumentsType().get();
@@ -206,12 +209,11 @@ int main(int Argc, char *Argv[]) {
         RightReplacements.emplace(std::move(R.value()));
     }
 
-    if (auto R = ensureMatchingIDs(Left->key(), Right->key(), *RightModel))
+    if (auto R = ensureMatchingIDs(*LeftKey, *RightKey, *RightModel))
       RightReplacements.emplace(std::move(R.value()));
   }
 
   // Replace references to modified types.
-  LeftModel.replaceReferences(LeftReplacements);
   RightModel.replaceReferences(RightReplacements);
 
   // Remove all the dynamic functions so that they don't interfere
