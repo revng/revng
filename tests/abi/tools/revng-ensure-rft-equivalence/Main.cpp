@@ -178,6 +178,31 @@ int main(int Argc, char *Argv[]) {
     Iterator->second.Right = Right->key();
   }
 
+  // Deduplicate the list of IDs to replace.
+  // We have to do this because in case a single prototype is used for multiple
+  // functions (common in binaries lifted from PE/COFF) we still only want to
+  // "replace" it once.
+  std::set<KeyPair> DeduplicationHelper;
+  for (auto Iterator = Functions.begin(); Iterator != Functions.end();) {
+    if (Iterator->second.Left == std::nullopt) {
+      std::string Error = "This should never happen, something is VERY wrong. "
+                          "A function is missing in the left model: "
+                          + Iterator->first.str().str() + "?";
+    }
+    if (Iterator->second.Right == std::nullopt) {
+      std::string Error = "A function present in the left model is missing in "
+                          "the right one: "
+                          + Iterator->first.str().str();
+      revng_abort(Error.c_str());
+    }
+
+    auto [_, Success] = DeduplicationHelper.emplace(Iterator->second);
+    if (!Success)
+      Iterator = Functions.erase(Iterator);
+    else
+      ++Iterator;
+  }
+
   // Ensure both the functions themselves and their stack argument structs have
   // the same IDs. This makes it possible to use simple diff for comparing two
   // models instead of doing that manually, since the ID is the only piece
