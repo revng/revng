@@ -38,7 +38,7 @@ private:
   };
   LeftToVerify adjustForSPTAR(LeftToVerify Remaining) const;
   LeftToVerify verifyAnArgument(const abi::runtime_test::State &State,
-                                llvm::ArrayRef<std::byte> ExpectedValue,
+                                const abi::runtime_test::Argument &Argument,
                                 LeftToVerify Remaining,
                                 uint64_t Index) const;
 
@@ -175,32 +175,36 @@ bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
   return false;
 }
 
-VH::LeftToVerify VH::verifyAnArgument(const abi::runtime_test::State &State,
-                                      llvm::ArrayRef<std::byte> ExpectedBytes,
+VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
+                                      const runtime_test::Argument &Argument,
                                       LeftToVerify Remaining,
                                       uint64_t Index) const {
+  // Make sure the value is the same both before and after the call.
+  verifyValuePreservation(Argument.ExpectedBytes, Argument.FoundBytes);
+
   // Check bytes one piece at a time, consuming those that match.
-  while (!ExpectedBytes.empty()) {
+  llvm::ArrayRef<std::byte> ArgumentBytes = Argument.FoundBytes;
+  while (!ArgumentBytes.empty()) {
     // If there are still unverified registers, try to verify the next one.
     if (!Remaining.Registers.empty()) {
       llvm::ArrayRef Bytes = State.Registers.at(Remaining.Registers[0]).Bytes;
-      if (ExpectedBytes.take_front(Bytes.size()).equals(Bytes)) {
+      if (ArgumentBytes.take_front(Bytes.size()).equals(Bytes)) {
         // Current register value matches: drop found bytes and start looking
         // for the rest.
-        ExpectedBytes = ExpectedBytes.drop_front(Bytes.size());
+        ArgumentBytes = ArgumentBytes.drop_front(Bytes.size());
         Remaining.Registers = Remaining.Registers.drop_front();
         continue;
-      } else if (Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes)) {
+      } else if (Bytes.take_front(ArgumentBytes.size()).equals(ArgumentBytes)) {
         // Current register matches all the remaining bytes.
         Remaining.Registers = Remaining.Registers.drop_front();
-        ExpectedBytes = {};
+        ArgumentBytes = {};
 
         break;
       }
     }
 
     // We're out of registers, turn to the stack next.
-    if (tryToVerifyStack(Remaining.Stack, ExpectedBytes))
+    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes))
       break; // Stack matches, go to the next argument.
 
     revng_assert(!ABI.ScalarTypes().empty());
@@ -214,7 +218,7 @@ VH::LeftToVerify VH::verifyAnArgument(const abi::runtime_test::State &State,
         Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
     }
 
-    if (tryToVerifyStack(Remaining.Stack, ExpectedBytes))
+    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes))
       break; // Stack matches after accounting for alignment.
 
     fail("Argument #" + std::to_string(Index)
@@ -238,12 +242,11 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
   Remaining = adjustForSPTAR(Remaining);
 
   // Verify each argument separately.
-  for (uint64_t I = 0; I < Test.Arguments.size(); ++I) {
-    const auto &Bytes = Test.Arguments[I].Bytes;
-    if (Bytes.empty())
-      fail("The `Bytes` field is empty for the argument #" + std::to_string(I));
-
-    Remaining = verifyAnArgument(Test.StateBeforeTheCall, Bytes, Remaining, I);
+  for (uint64_t Index = 0; Index < Test.Arguments.size(); ++Index) {
+    Remaining = verifyAnArgument(Test.StateBeforeTheCall,
+                                 Test.Arguments[Index],
+                                 Remaining,
+                                 Index);
   }
 
   // Do final checks to make sure no unverified state is still remaining.
@@ -280,8 +283,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
   uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
 
   // Make sure the value is the same both before and after the call.
-  verifyValuePreservation(Test.ReturnValue.Bytes,
-                          Test.ExpectedReturnValue.Bytes);
+  verifyValuePreservation(Test.ReturnValue.ExpectedBytes,
+                          Test.ReturnValue.FoundBytes);
 
   // Because we have no way to represent functions that use SPTAR in `rft`
   // format - they are misdetected here (and are tested as simple functions
@@ -333,15 +336,15 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       // Check if SPTAR is where we expect to be.
       const auto &Registers = Test.StateBeforeTheCall.Registers;
       llvm::ArrayRef RegisterBytes = Registers.at(SPTAR.Registers[0]).Bytes;
-      if (RegisterBytes != llvm::ArrayRef(Test.ReturnValueAddress.Bytes)) {
+      if (RegisterBytes != llvm::ArrayRef(Test.ReturnValue.AddressBytes)) {
         fail("Verification of the return value location register ('"
              + model::Register::getName(SPTAR.Registers[0]).str()
              + "') failed.");
       }
 
       // Save the location to be used further up.
-      ReturnValueLocationBytes = Test.ReturnValueAddress.Bytes;
-      ReturnValueLocationValue = Test.ReturnValueAddress.Value;
+      ReturnValueLocationBytes = Test.ReturnValue.AddressBytes;
+      ReturnValueLocationValue = Test.ReturnValue.Address;
     } else if (SPTAR.Stack.has_value()) {
       // The pointer is on the stack.
       if (SPTAR.Stack->Size != PointerSize)
@@ -376,19 +379,19 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
     }
 
     // The only thing that's left is to verify that the return value is
-    // actually present at the location the pointers point to.
+    // actually present at the location the pointer points to.
     auto StackPointer = model::Architecture::getStackPointer(Architecture);
     auto SPValue = Test.StateAfterTheReturn.Registers.at(StackPointer).Value;
     std::ptrdiff_t StackOffset = ReturnValueLocationValue - SPValue;
     revng_assert(StackOffset >= 0);
     llvm::ArrayRef OnStack = Test.StateAfterTheReturn.Stack;
-    OnStack = OnStack.slice(StackOffset, Test.ReturnValue.Bytes.size());
-    if (OnStack != llvm::ArrayRef(Test.ReturnValue.Bytes))
+    OnStack = OnStack.slice(StackOffset, Test.ReturnValue.FoundBytes.size());
+    if (OnStack != llvm::ArrayRef(Test.ReturnValue.FoundBytes))
       fail("The return value doesn't match the one that was expected.");
   } else {
     // The value is returned normally.
 
-    llvm::ArrayRef ReturnValueBytes = Test.ReturnValue.Bytes;
+    llvm::ArrayRef ReturnValueBytes = Test.ReturnValue.FoundBytes;
 
     for (const auto &ReturnValue : FunctionLayout.ReturnValues) {
       for (const auto &Register : ReturnValue.Registers) {

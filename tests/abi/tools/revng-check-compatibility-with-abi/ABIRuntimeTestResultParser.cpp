@@ -56,19 +56,15 @@ struct Iteration {
   RawState StateAfterTheReturn;
 
   // Test specific.
-  std::vector<RawWord> ReturnValueAddress; // Return value tests only.
-  std::vector<Argument> ReturnValue; // Return value tests only.
-  std::vector<Argument> ExpectedReturnValue; // Return value tests only.
   std::vector<Argument> Arguments; // Argument tests only.
+  std::vector<Argument> ReturnValues; // Return value tests only.
 
   bool isArgumentTest() const {
-    return !Arguments.empty() && ReturnValueAddress.empty()
-           && ReturnValue.empty() && ExpectedReturnValue.empty();
+    return !Arguments.empty() && ReturnValues.empty();
   }
 
   bool isReturnValueTest() const {
-    return Arguments.empty() && !ReturnValueAddress.empty()
-           && !ReturnValue.empty() && !ExpectedReturnValue.empty();
+    return Arguments.empty() && !ReturnValues.empty();
   }
 };
 
@@ -112,8 +108,10 @@ template<>
 struct llvm::yaml::MappingTraits<abi::runtime_test::Argument> {
   static void mapping(IO &IO, abi::runtime_test::Argument &N) {
     IO.mapRequired("Type", N.Type);
-    IO.mapRequired("Bytes", N.Bytes);
-    IO.mapOptional("Pointer", N.MaybePointer);
+    IO.mapRequired("Address", N.Address);
+    IO.mapRequired("AddressBytes", N.AddressBytes);
+    IO.mapRequired("ExpectedBytes", N.ExpectedBytes);
+    IO.mapRequired("FoundBytes", N.FoundBytes);
   }
 };
 LLVM_YAML_IS_SEQUENCE_VECTOR(abi::runtime_test::Argument);
@@ -124,14 +122,12 @@ struct llvm::yaml::MappingTraits<abi::runtime_test::Iteration> {
     IO.mapRequired("Function", N.Function);
     IO.mapRequired("Iteration", N.Index);
 
-    IO.mapOptional("StateBeforeTheCall", N.StateBeforeTheCall);
-    IO.mapOptional("StateAfterTheCall", N.StateAfterTheCall);
-    IO.mapOptional("StateAfterTheReturn", N.StateAfterTheReturn);
+    IO.mapRequired("StateBeforeTheCall", N.StateBeforeTheCall);
+    IO.mapRequired("StateAfterTheCall", N.StateAfterTheCall);
+    IO.mapRequired("StateAfterTheReturn", N.StateAfterTheReturn);
 
-    IO.mapOptional("ReturnValueAddress", N.ReturnValueAddress);
-    IO.mapOptional("ReturnValue", N.ReturnValue);
-    IO.mapOptional("ExpectedReturnValue", N.ExpectedReturnValue);
     IO.mapOptional("Arguments", N.Arguments);
+    IO.mapOptional("ReturnValues", N.ReturnValues);
   }
 };
 LLVM_YAML_IS_SEQUENCE_VECTOR(abi::runtime_test::Iteration);
@@ -157,9 +153,9 @@ static void verify(const abi::runtime_test::Deserialized &Data) {
 
   std::map<llvm::StringRef, Counts> Counter;
   for (const abi::runtime_test::Iteration &Run : Data.Iterations) {
-    if (!Run.Arguments.empty())
+    if (Run.isArgumentTest())
       ++Counter[Run.Function].ArgumentIterations;
-    if (!Run.ReturnValue.empty())
+    if (Run.isReturnValueTest())
       ++Counter[Run.Function].ReturnValueIterations;
   }
 
@@ -219,14 +215,8 @@ abi::runtime_test::parse(llvm::StringRef RuntimeArtifact,
       Test.StateAfterTheCall = I.StateAfterTheCall.extract(Architecture);
       Test.StateAfterTheReturn = I.StateAfterTheReturn.extract(Architecture);
 
-      revng_assert(I.ReturnValueAddress.size() == 1);
-      Test.ReturnValueAddress = I.ReturnValueAddress[0];
-
-      revng_assert(I.ReturnValue.size() == 1);
-      Test.ReturnValue = I.ReturnValue[0];
-
-      revng_assert(I.ExpectedReturnValue.size() == 1);
-      Test.ExpectedReturnValue = I.ExpectedReturnValue[0];
+      revng_assert(I.ReturnValues.size() == 1);
+      Test.ReturnValue = I.ReturnValues[0];
     }
   }
 
