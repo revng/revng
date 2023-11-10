@@ -28,6 +28,7 @@ revng \
     analyze \
     import-binary \
     "$BINARY" \
+    --use-pdb="${BINARY}.pdb" \
     -o="${TEMPORARY_DIRECTORY}/imported_binary.yml"
 
 # Force-override the ABI because DWARF information is not always reliable
