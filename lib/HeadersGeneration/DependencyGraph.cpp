@@ -2,6 +2,9 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <optional>
+
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/DOTGraphTraits.h"
@@ -13,6 +16,8 @@
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+
+#include "revng-c/Support/ModelHelpers.h"
 
 #include "DependencyGraph.h"
 
@@ -54,48 +59,71 @@ std::string llvm::DOTGraphTraits<DepGraph *>::getNodeLabel(const DepNode *N,
   return ::getNodeLabel(N);
 }
 
+template<TypeNode::Kind K>
 static TypeDependencyNode *
-getDependencyForTypeName(const model::QualifiedType &QT,
-                         const TypeToDependencyNodeMap &TypeToNode) {
+getDependencyFor(const model::QualifiedType &QT,
+                 const TypeToDependencyNodeMap &TypeToNode) {
+
+  // TODO: Unfortunately, here we have to deal with some quirks of the C
+  // language concerning pointers to arrays of struct/union.
+  // Basically, in C, `struct X (*ptr_to_array)[2];` declares a variable
+  // `ptr_to_array` that points to an array with two elements of type `struct
+  // X`. The problem is that, because of a quirk of paragraph 6.7.6.2 of the
+  // C11 standard (Array declarators), to declare `ptr_to_array` it is required
+  // to see the copmlete definition of `struct X`.
+  // Even if MSVC seems to compile it just fine, clang and gcc don't.
+  //
+  // In principle this could be worked around by
+  // 1) introducing wrapper structs around arrays of struct/union that are used
+  // as pointees
+  // 2) postpone the complete definition of the wrapper to after the element
+  // type of the array is complete.
+  //
+  // However for now we just inject a stronger dependency to enforce ordering.
+  // This is actually stricter than necessary and can yield to be unable to
+  // print valid C code for model that was otherwise perfectly valid and could
+  // have been fixed if injected the wrapper structs properly.
+  //
+  // This particular handling of pointers to array is more strict than actually
+  // necessary. It has been implemented as a workaround, instead of handling
+  // the emission of wrapper structs. This latter solution of emitting structs
+  // has already been used in other places but, in all the other places where we
+  // currently do it, it is possible to do it on-the-fly, locally.
+  // On the other hand, for dealing with this case properly we'd have to keep
+  // track of dependencies between the forward declaration of the wrapper, and
+  // the full definition of the element type of the wrapped array.
+  // The emission of the full definition of the wrapper must be postponed until
+  // the element type of the wrapped type is fully defined, otherwise it would
+  // fail compilation. So fow now we've put this forced dependency, that could
+  // be relaxed if we properly handle the array wrappers.
+
   const auto *Unqualified = QT.UnqualifiedType().get();
 
-  // If we find at least a pointer qualifier, then we only need the name of
-  // the unqualified type, not its full definition.
-  bool ArrayFound = false;
+  bool LastIsArray = false;
+  bool PointerFound = false;
   for (const auto &Qualifier : QT.Qualifiers()) {
-    if (model::Qualifier::isPointer(Qualifier))
-      return TypeToNode.at({ Unqualified, TypeNode::Kind::TypeName });
-    if (model::Qualifier::isArray(Qualifier))
-      ArrayFound = true;
+    if (model::Qualifier::isArray(Qualifier)) {
+      LastIsArray = true;
+    } else if (model::Qualifier::isPointer(Qualifier)) {
+      PointerFound = true;
+      LastIsArray = false;
+    }
   }
 
-  // If we reach this point we haven't found not even a single pointer
-  // qualifier.
-
-  // If we did find an array qualifier, we need the full type of the
-  // unqualified type.
-  if (ArrayFound)
+  // If the last non-const qualifier was an array, because of the quirks of the
+  // C standard mentioned above, we have to depend on the FullType of the
+  // element type of the array.
+  if (LastIsArray)
     return TypeToNode.at({ Unqualified, TypeNode::Kind::FullType });
 
-  // Otherwise we can get away with just the name of the unqualified type.
-  return TypeToNode.at({ Unqualified, TypeNode::Kind::TypeName });
-}
+  // Otherwise, if we've found at least a pointer, we only depend on the name of
+  // the UnqualifiedType.
+  if (PointerFound)
+    return TypeToNode.at({ Unqualified, TypeNode::Kind::TypeName });
 
-static TypeDependencyNode *
-getDependencyForFullType(const model::QualifiedType &QT,
-                         const TypeToDependencyNodeMap &TypeToNode) {
-  const auto *Unqualified = QT.UnqualifiedType().get();
-
-  // If we find at least a pointer qualifier, then we only need the name of
-  // the unqualified type, not its full definition.
-  for (const auto &Qualifier : QT.Qualifiers())
-    if (model::Qualifier::isPointer(Qualifier))
-      return TypeToNode.at({ Unqualified, TypeNode::TypeName });
-
-  // If we reach this point we haven't found not even a single pointer
-  // qualifier. Given that we need the full definition, we need the full
-  // type of of the unqualified type.
-  return TypeToNode.at({ Unqualified, TypeNode::FullType });
+  // In all the other cases we depend on the UnqualifiedType with the kind
+  // indicated by K.
+  return TypeToNode.at({ Unqualified, K });
 }
 
 static void registerDependencies(const model::Type *T,
@@ -155,7 +183,8 @@ static void registerDependencies(const model::Type *T,
     // definition and the full definition of their fields.
     auto *Full = TypeToNode.at({ T, TypeNode::Kind::FullType });
     for (const model::QualifiedType &QT : T->edges()) {
-      TypeDependencyNode *Dep = getDependencyForFullType(QT, TypeToNode);
+      TypeDependencyNode
+        *Dep = getDependencyFor<TypeNode::FullType>(QT, TypeToNode);
       Deps.push_back({ Full, Dep });
       revng_log(Log, getNodeLabel(Full) << " depends on " << getNodeLabel(Dep));
     }
@@ -167,15 +196,15 @@ static void registerDependencies(const model::Type *T,
     const model::QualifiedType &Underlying = TD->UnderlyingType();
 
     auto *TDName = TypeToNode.at({ TD, TypeNode::Kind::TypeName });
-    TypeDependencyNode *NameDep = getDependencyForTypeName(Underlying,
-                                                           TypeToNode);
+    TypeDependencyNode
+      *NameDep = getDependencyFor<TypeNode::TypeName>(Underlying, TypeToNode);
     Deps.push_back({ TDName, NameDep });
     revng_log(Log,
               getNodeLabel(TDName) << " depends on " << getNodeLabel(NameDep));
 
     auto *TDFull = TypeToNode.at({ TD, TypeNode::Kind::FullType });
-    TypeDependencyNode *FullDep = getDependencyForFullType(Underlying,
-                                                           TypeToNode);
+    TypeDependencyNode
+      *FullDep = getDependencyFor<TypeNode::FullType>(Underlying, TypeToNode);
     Deps.push_back({ TDFull, FullDep });
     revng_log(Log,
               getNodeLabel(TDFull) << " depends on " << getNodeLabel(FullDep));
@@ -205,15 +234,16 @@ static void registerDependencies(const model::Type *T,
       // this dependencies, or pre-processing the model so that what reaches
       // this point is always guaranteed to be in a form that can be emitted.
 
-      TypeDependencyNode *FullDep = getDependencyForFullType(QT, TypeToNode);
+      TypeDependencyNode
+        *FullDep = getDependencyFor<TypeNode::FullType>(QT, TypeToNode);
       Deps.push_back({ FullNode, FullDep });
-
-      TypeDependencyNode *NameDep = getDependencyForTypeName(QT, TypeToNode);
-      Deps.push_back({ NameNode, NameDep });
-
       revng_log(Log,
                 getNodeLabel(FullNode)
                   << " depends on " << getNodeLabel(FullDep));
+
+      TypeDependencyNode
+        *NameDep = getDependencyFor<TypeNode::TypeName>(QT, TypeToNode);
+      Deps.push_back({ NameNode, NameDep });
       revng_log(Log,
                 getNodeLabel(NameNode)
                   << " depends on " << getNodeLabel(NameDep));
