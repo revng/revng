@@ -38,8 +38,6 @@ using namespace dla;
 using namespace llvm;
 using namespace model::Architecture;
 
-static Logger<> AccessLog("dla-accesses");
-
 using LayoutTypeSystemNode = dla::LayoutTypeSystemNode;
 using SCEVTypeMekerMap = std::map<const SCEV *, uint64_t>;
 using SCEVTypeMap = SCEVBaseAddressExplorer::SCEVTypeMap;
@@ -701,21 +699,6 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
   bool Changed = false;
   InstanceLinkAdder ILA(Model, *Cache);
 
-  raw_fd_ostream *OutFile = nullptr;
-
-  if (AccessLog.isEnabled()) {
-    std::error_code EC;
-    OutFile = new raw_fd_ostream("DLA_pointer_accesses.csv", EC);
-    revng_check(not EC, "Cannot open DLA_pointer_accesses.csv");
-
-    (*OutFile) << "Value Node ID;"
-               << "Value;"
-               << "Access Node ID;"
-               << "Access Node Size;"
-               << "Accessed By;"
-               << "\n";
-  }
-
   for (Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (F.isIntrinsic() or not FTags.contains(FunctionTags::Isolated))
@@ -785,13 +768,6 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           auto *PointerNode = getLayoutType(PointerVal);
           revng_assert(PointerNode);
           TS.addInstanceLink(PointerNode, AccessNode, OffsetExpression{});
-
-          if (AccessLog.isEnabled()) {
-            revng_assert(OutFile);
-            (*OutFile) << PointerNode->ID << ";" << *PointerVal << ";"
-                       << AccessNode->ID << ";" << AccessNode->Size << ";" << I
-                       << "\n";
-          }
 
           // Create pointer edge between the access node and the pointee node.
           const auto &[PointeeNode, HasChanged] = getOrCreateLayoutType(Val);
