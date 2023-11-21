@@ -20,6 +20,7 @@ revng_add_analyses_library(
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
   SplitOverflowIntrinsicsPass.cpp
+  TernaryReductionPass.cpp
   TwosComplementArithmeticNormalizationPass.cpp
   OperatorPrecedenceResolutionPass.cpp
   PrettyIntFormattingPass.cpp)

@@ -19,6 +19,7 @@ Branches:
               - dce
               - exit-ssa
               - twoscomplement-normalization
+              - ternary-reduction
               - make-local-variables
               - remove-load-store
               - fold-model-gep
