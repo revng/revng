@@ -595,7 +595,7 @@ public:
           const SCEV *LoadSCEV = SE->getSCEV(A);
           SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
         } else if (isa<IntToPtrInst>(&I) or isa<PtrToIntInst>(&I)
-                   or isa<BitCastInst>(&I)) {
+                   or isa<BitCastInst>(&I) or isa<ZExtInst>(&I)) {
           Value *Op = I.getOperand(0);
 
           bool New = false;
@@ -867,7 +867,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
             Pointers.push_back(PointerVal);
 
         } else if (isa<PtrToIntInst>(&I) or isa<IntToPtrInst>(&I)
-                   or isa<BitCastInst>(&I)) {
+                   or isa<BitCastInst>(&I) or isa<ZExtInst>(&I)) {
           Pointers.push_back(I.getOperand(0));
         } else {
 
