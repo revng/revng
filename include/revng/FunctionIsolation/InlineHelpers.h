@@ -8,12 +8,12 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 
-class InlineHelpersPass : public llvm::FunctionPass {
+class InlineHelpersPass : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
-  InlineHelpersPass() : FunctionPass(ID) {}
+  InlineHelpersPass() : ModulePass(ID) {}
 
-  bool runOnFunction(llvm::Function &F) override;
+  bool runOnModule(llvm::Module &M) override;
 };
