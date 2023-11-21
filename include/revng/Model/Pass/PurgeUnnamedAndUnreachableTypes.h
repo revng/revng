@@ -8,14 +8,11 @@
 
 namespace model {
 
-/// Remove all the types that cannot be reached from any named type or a type
-/// "outside" the type system itself.
+/// Remove all the types that cannot be reached from outside Binary::Types and
+/// have no OriginalName or CustomName
 void purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model);
 
-/// Remove all the types that cannot be reached from any type from `Functions`.
-void pruneUnusedTypes(TupleTree<model::Binary> &Model);
+/// Remove all the types that cannot be reached from outside Binary::Types
+void purgeUnreachableTypes(TupleTree<model::Binary> &Model);
 
-/// Implement the purge logic.
-template<bool PruneAllUnusedTypes>
-void purgeTypesImpl(TupleTree<model::Binary> &Model);
 } // namespace model

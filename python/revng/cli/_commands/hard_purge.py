@@ -103,7 +103,7 @@ class HardPurgeCommand(Command):
                 [
                     "model",
                     "opt",
-                    "-prune-unused-types",
+                    "-purge-unreachable-types",
                     model_file.name,
                     "-o",
                     args.purged_model_path,

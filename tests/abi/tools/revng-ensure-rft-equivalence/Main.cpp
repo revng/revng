@@ -225,8 +225,8 @@ int main(int Argc, char *Argv[]) {
   RightModel->DefaultPrototype() = model::TypePath{};
 
   // Streamline both models and diff them
-  model::pruneUnusedTypes(LeftModel);
-  model::pruneUnusedTypes(RightModel);
+  model::purgeUnreachableTypes(LeftModel);
+  model::purgeUnreachableTypes(RightModel);
   TupleTreeDiff Diff = diff(*LeftModel, *RightModel);
 
   if (Diff.Changes.empty()) {

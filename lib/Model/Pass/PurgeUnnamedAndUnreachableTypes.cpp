@@ -18,11 +18,16 @@ static RegisterModelPass R("purge-unnamed-and-unreachable-types",
                            "system itself",
                            model::purgeUnnamedAndUnreachableTypes);
 
-static RegisterModelPass RPruneUnusedTypes("prune-unused-types",
-                                           "Remove all the types that cannot "
-                                           "be reached from "
-                                           "any type from a Function ",
-                                           model::pruneUnusedTypes);
+static RegisterModelPass R2("purge-unreachable-types",
+                            "Remove all the types that cannot be reached from "
+                            "a type \"outside\" the type "
+                            "system itself",
+                            model::purgeUnreachableTypes);
+
+namespace model {
+static void purgeTypesImpl(TupleTree<model::Binary> &Model,
+                           bool KeepTypesWithName);
+}
 
 template<typename V, typename T, size_t... Indices>
 static void
@@ -53,15 +58,15 @@ static auto visitTupleExcept(V &&Visitor, T &Tuple, E *Exclude) {
 }
 
 void model::purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model) {
-  purgeTypesImpl<false>(Model);
+  purgeTypesImpl(Model, true);
 }
 
-void model::pruneUnusedTypes(TupleTree<model::Binary> &Model) {
-  purgeTypesImpl<true>(Model);
+void model::purgeUnreachableTypes(TupleTree<model::Binary> &Model) {
+  purgeTypesImpl(Model, false);
 }
 
-template<bool PruneAllUnusedTypes>
-void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
+static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
+                                  bool KeepTypesWithName) {
   struct NodeData {
     model::Type *T;
   };
@@ -74,24 +79,13 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
   llvm::SmallPtrSet<Type *, 16> ToKeep;
 
   // Remember those types we want to preserve.
-  if constexpr (PruneAllUnusedTypes) {
-    for (const auto &Function : Model->Functions()) {
-      if (not Function.Prototype().empty()) {
-        ToKeep.insert(const_cast<Type *>(Function.Prototype().get()));
-      }
-    }
+  for (UpcastablePointer<model::Type> &T : Model->Types()) {
 
-    for (UpcastablePointer<model::Type> &T : Model->Types()) {
-      TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
-    }
-  } else {
-    for (UpcastablePointer<model::Type> &T : Model->Types()) {
-
+    if (KeepTypesWithName)
       if (not T->CustomName().empty() or not T->OriginalName().empty())
         ToKeep.insert(T.get());
 
-      TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
-    }
+    TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
   }
 
   // Create type system edges
@@ -103,18 +97,16 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
   }
 
   // Record references to types *outside* of Model->Types
-  if constexpr (!PruneAllUnusedTypes) {
-    auto VisitBinary = [&](auto &Field) {
-      auto Visitor = [&](auto &Element) {
-        using type = std::decay_t<decltype(Element)>;
-        if constexpr (std::is_same_v<type, TypePath>)
-          if (Element.isValid())
-            ToKeep.insert(Element.get());
-      };
-      visitTupleTree(Field, Visitor, [](auto) {});
+  auto VisitBinary = [&](auto &Field) {
+    auto Visitor = [&](auto &Element) {
+      using type = std::decay_t<decltype(Element)>;
+      if constexpr (std::is_same_v<type, TypePath>)
+        if (Element.isValid())
+          ToKeep.insert(Element.get());
     };
-    visitTupleExcept(VisitBinary, *Model, &Model->Types());
-  }
+    visitTupleTree(Field, Visitor, [](auto) {});
+  };
+  visitTupleExcept(VisitBinary, *Model, &Model->Types());
 
   // Visit all the nodes reachable from ToKeep
   df_iterator_default_set<Node *> Visited;
