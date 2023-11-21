@@ -139,7 +139,7 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
 
   case llvm::scZeroExtend: {
     // Zero extension never changes the value of pointers, so we can safely
-    // traversi it.
+    // traverse it.
     const llvm::SCEVZeroExtendExpr *ZE = cast<llvm::SCEVZeroExtendExpr>(S);
     Worklist.push_back(ZE->getOperand());
   } break;
