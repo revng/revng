@@ -69,6 +69,8 @@ simplifyImplicitStatementImpl(ASTTree &AST,
       rc_return rc_recur simplifyImplicitStatementImpl<Ty>(AST,
                                                            Body,
                                                            SuccessorEmpty);
+    } else {
+      rc_return false;
     }
   } break;
   case ASTNode::NK_If: {
