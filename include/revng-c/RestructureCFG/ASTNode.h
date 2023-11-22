@@ -541,17 +541,6 @@ public:
 public:
   // To represent the `default` case, if present, contained in the `SwitchNode`,
   // we employ an empty set in the `LabeledCases` `SmallVector`.
-
-  SwitchNode(BasicBlockNodeBB *CFGNode,
-             llvm::Value *Cond,
-             const case_container &LabeledCases,
-             ASTNode *Successor) :
-
-    ASTNode(NK_Switch, CFGNode, Successor),
-    Condition(Cond),
-    LabelCaseVec(LabeledCases),
-    IsWeaved(CFGNode->isWeaved()) {}
-
   SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              case_container &&LabeledCases,
