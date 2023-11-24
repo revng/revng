@@ -12,6 +12,8 @@
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "revng/EarlyFunctionAnalysis/BasicBlock.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawFunctionType.h"
@@ -146,6 +148,7 @@ static void setStructNameIfNeeded(llvm::Type *Type,
 static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
   PTMLCBuilder B(/*GeneratePlainC*/ true);
+  FunctionMetadataCache Cache;
 
   for (llvm::Function &F : M) {
     auto FunctionTags = FunctionTags::TagsSet::from(&F);
@@ -175,10 +178,20 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
       revng_assert(not Argument.getType()->isStructTy());
 
     llvm::Type *ReturnType = F.getReturnType();
-    std::string ReturnTypeName = std::string(getReturnTypeName(*Prototype,
-                                                               B,
-                                                               false));
+    std::string
+      ReturnTypeName = getReturnTypeName(*Prototype, B, false).str().str();
     setStructNameIfNeeded(ReturnType, ReturnTypeName);
+
+    // Look for all the call sites: they might return anonymous structs too
+    for (Instruction &I : llvm::instructions(F)) {
+      auto *T = I.getType();
+      CallInst *Call = getCallToIsolatedFunction(&I);
+      if (Call != nullptr and T->isStructTy()) {
+        const auto &Prototype = *Cache.getCallSitePrototype(Model, Call).get();
+        auto ReturnTypeName = getReturnTypeName(Prototype, B).str().str();
+        setStructNameIfNeeded(T, ReturnTypeName);
+      }
+    }
   }
 
   // Make sure we have no nameless structs.
