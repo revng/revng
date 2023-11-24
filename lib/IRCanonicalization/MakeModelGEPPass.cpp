@@ -1727,10 +1727,10 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
     const auto Layout = abi::FunctionType::Layout::make(MF->prototype(Model));
 
     bool HasNoReturnValues = (Layout.ReturnValues.empty()
-                              and not Layout.returnsAggregateType());
+                              and not Layout.hasSPTAR());
     const model::QualifiedType *SingleReturnType = nullptr;
 
-    if (Layout.returnsAggregateType()) {
+    if (Layout.hasSPTAR()) {
       SingleReturnType = &Layout.Arguments[0].Type;
     } else if (Layout.ReturnValues.size() == 1) {
       SingleReturnType = &Layout.ReturnValues[0].Type;

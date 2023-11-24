@@ -138,7 +138,7 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
                                                       cast<CallInst>(I));
           using namespace abi::FunctionType;
           abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
-          revng_assert(Layout.returnsAggregateType());
+          revng_assert(Layout.hasSPTAR());
           VariableType = llvmIntToModelType(IType, *Model);
         }
       } else {

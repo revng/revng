@@ -322,7 +322,7 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
   std::vector<std::string> AllowedActions = { ptml::actions::Rename };
 
   const auto Layout = abi::FunctionType::Layout::make(Function);
-  if (Layout.returnsAggregateType()) {
+  if (Layout.hasSPTAR()) {
     revng_assert(not Layout.Arguments.empty());
     auto &ShadowArgument = Layout.Arguments[0];
     using namespace abi::FunctionType::ArgumentKind;
@@ -412,7 +412,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::Binary &Model,
                                        bool SingleLine) {
   auto Layout = abi::FunctionType::Layout::make(RF);
-  revng_assert(not Layout.returnsAggregateType());
+  revng_assert(not Layout.hasSPTAR());
 
   Header << B.getAnnotateABI("raw");
   if (Function and not Function->Attributes().empty())

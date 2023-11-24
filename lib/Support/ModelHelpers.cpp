@@ -351,7 +351,7 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
 
   llvm::SmallVector<QualifiedType> ReturnTypes;
 
-  if (Layout.returnsAggregateType())
+  if (Layout.hasSPTAR())
     return { Layout.Arguments[0].Type };
 
   auto PointerS = model::Architecture::getPointerSize(Model.Architecture());
@@ -396,7 +396,7 @@ static llvm::SmallVector<QualifiedType>
 handleReturnValue(const model::TypePath &Prototype,
                   const model::Binary &Model) {
   const auto Layout = abi::FunctionType::Layout::make(Prototype);
-  if (Layout.returnsAggregateType()) {
+  if (Layout.hasSPTAR()) {
     revng_assert(not Layout.Arguments.empty());
     auto &Argument = Layout.Arguments[0];
     using namespace abi::FunctionType::ArgumentKind;
