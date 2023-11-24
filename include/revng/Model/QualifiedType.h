@@ -86,6 +86,14 @@ public:
     return Result;
   }
 
+  model::QualifiedType stripPointer() const {
+    model::QualifiedType Result = *this;
+    revng_assert(not Result.Qualifiers().empty()
+                 and model::Qualifier::isPointer(Result.Qualifiers().front()));
+    Result.Qualifiers().erase(Result.Qualifiers().begin());
+    return Result;
+  }
+
 public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
