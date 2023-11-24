@@ -92,7 +92,7 @@ VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const {
 }
 
 VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
-  if (FunctionLayout.returnsAggregateType()) {
+  if (FunctionLayout.hasSPTAR()) {
     // Account for the shadow pointer to the return value.
     revng_assert(not FunctionLayout.Arguments.empty());
     auto &ShadowArgument = FunctionLayout.Arguments[0];
@@ -285,7 +285,7 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
   // value: never both. Because of which it's safe to assume that if
   // a function happen to have both - it's because of the `cft->rft`
   // conversion.
-  bool UsesSPTAR = FunctionLayout.returnsAggregateType();
+  bool UsesSPTAR = FunctionLayout.hasSPTAR();
   if (!UsesSPTAR) {
     bool SingleArgument = FunctionLayout.Arguments.size() == 1;
     bool SingleReturnValue = FunctionLayout.ReturnValues.size() == 1;

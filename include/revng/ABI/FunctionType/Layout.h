@@ -100,7 +100,7 @@ public:
   llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
   llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
 
-  bool returnsAggregateType() const {
+  bool hasSPTAR() const {
     using namespace abi::FunctionType::ArgumentKind;
     auto SPTAR = ShadowPointerToAggregateReturnValue;
     return (Arguments.size() >= 1 and Arguments[0].Kind == SPTAR);
