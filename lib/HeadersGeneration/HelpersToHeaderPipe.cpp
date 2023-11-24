@@ -15,12 +15,13 @@ namespace revng::pipes {
 using namespace pipeline;
 static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer> Reg;
 
-void HelpersToHeader::run(const pipeline::Context &Ctx,
+void HelpersToHeader::run(const pipeline::ExecutionContext &Ctx,
                           pipeline::LLVMContainer &IRContainer,
                           HelpersHeaderFileContainer &HeaderFile) {
 
   auto Enumeration = IRContainer.enumerate();
-  if (not Enumeration.contains(kinds::StackAccessesSegregated.allTargets(Ctx)))
+  auto Targets = kinds::StackAccessesSegregated.allTargets(Ctx.getContext());
+  if (not Enumeration.contains(Targets))
     return;
 
   std::error_code EC;

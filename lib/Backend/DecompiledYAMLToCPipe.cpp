@@ -19,7 +19,7 @@ static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
   Reg;
 
 using Container = DecompiledCCodeInYAMLStringMap;
-void DecompiledYAMLToC::run(const pipeline::Context &Ctx,
+void DecompiledYAMLToC::run(const pipeline::ExecutionContext &Ctx,
                             const Container &DecompiledFunctions,
                             DecompiledFileContainer &OutCFile) {
 

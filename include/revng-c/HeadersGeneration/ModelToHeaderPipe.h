@@ -39,7 +39,7 @@ public:
     return { ContractGroup({ C1 }) };
   }
 
-  void run(const pipeline::Context &Ctx,
+  void run(const pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &BinaryFile,
            ModelHeaderFileContainer &HeaderFile);
 

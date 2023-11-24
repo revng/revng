@@ -82,8 +82,9 @@ struct ImportModelFromCAnalysis {
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  llvm::Error
-  run(pipeline::Context &Ctx, std::string LocationToEdit, std::string CCode) {
+  llvm::Error run(pipeline::ExecutionContext &Ctx,
+                  std::string LocationToEdit,
+                  std::string CCode) {
     enum ImportModelFromCOption TheOption;
     auto &Model = revng::getWritableModelFromContext(Ctx);
 

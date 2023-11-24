@@ -115,12 +115,12 @@ public:
     { &revng::kinds::StackAccessesSegregated }
   };
 
-  void run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
+  void run(pipeline::ExecutionContext &Ctx, pipeline::LLVMContainer &Module) {
     using namespace revng;
 
     llvm::legacy::PassManager Manager;
-    auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
-    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
+    auto &Global = getWritableModelFromContext(Ctx);
+    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));
     Manager.add(new DLAPass());
     Manager.run(Module.getModule());
   }

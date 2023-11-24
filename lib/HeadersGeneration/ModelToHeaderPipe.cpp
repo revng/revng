@@ -21,7 +21,7 @@ static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
 // At the moment revng-pipeline does not support pipes with no inputs, so we
 // had to resort to this trick. Whenever pipes with no inputs are supported
 // BinaryFile can be dropped.
-void ModelToHeader::run(const pipeline::Context &Ctx,
+void ModelToHeader::run(const pipeline::ExecutionContext &Ctx,
                         const BinaryFileContainer &BinaryFile,
                         ModelHeaderFileContainer &HeaderFile) {
 
