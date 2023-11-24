@@ -327,7 +327,7 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
     auto &ShadowArgument = Layout.Arguments[0];
     using namespace abi::FunctionType::ArgumentKind;
     revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
-    Result = getNamedCInstance(stripPointer(ShadowArgument.Type),
+    Result = getNamedCInstance(ShadowArgument.Type.stripPointer(),
                                InstanceName,
                                B,
                                AllowedActions);

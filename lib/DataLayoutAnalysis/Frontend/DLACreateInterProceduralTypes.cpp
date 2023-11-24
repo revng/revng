@@ -124,7 +124,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       if (ArgumentModelType.UnqualifiedType().isValid()
           and ArgumentModelType.isPointer()) {
         const model::QualifiedType
-          Pointee = stripPointer(peelConstAndTypedefs(ArgumentModelType));
+          Pointee = peelConstAndTypedefs(ArgumentModelType).stripPointer();
 
         bool IsScalar = Pointee.isScalar();
 
