@@ -77,34 +77,3 @@ inline bool areMemOpCompatible(const model::QualifiedType &ModelType,
 
   return ModelSize * 8 == LLVMSize;
 }
-
-/// Decide whether a single instruction needs a top-scope variable or not.
-inline bool needsTopScopeDeclaration(const llvm::Instruction &I) {
-
-  if (I.getType()->isVoidTy())
-    return false;
-
-  const llvm::BasicBlock *CurBB = I.getParent();
-  const llvm::BasicBlock &EntryBB = CurBB->getParent()->getEntryBlock();
-
-  if (CurBB == &EntryBB) {
-    // An instruction located in the first basic block of a function is already
-    // in the top scope, so there is no need to add a separate variable for it.
-    return false;
-  }
-
-  if (isCallToIsolatedFunction(&I) and I.getType()->isAggregateType())
-    return true;
-
-  // If the instruction has uses outside its own basic block, we need a top
-  // scope variable for it.
-  // TODO: we can further refine this logic introducing the concept of
-  // scopes and associating variable declarations to a scope.
-  // For now, we decided to declare all variables that have at least one
-  // use outside of their basic block right at the start of the
-  // function, which is correct but overly conservative.
-  auto HasDifferentParent = [Parent = I.getParent()](const llvm::User *U) {
-    return cast<const llvm::Instruction>(U)->getParent() != Parent;
-  };
-  return any_of(I.users(), HasDifferentParent);
-}

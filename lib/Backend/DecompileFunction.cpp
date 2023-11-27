@@ -93,15 +93,14 @@ namespace attributes = ptml::attributes;
 namespace tokens = ptml::c::tokens;
 
 using tokenDefinition::types::StringToken;
-using tokenDefinition::types::TypeString;
+
 using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
-using InstrSetVec = llvm::SmallSetVector<const llvm::Instruction *, 8>;
 using InlineableTypesMap = std::unordered_map<const model::Function *,
                                               std::set<const model::Type *>>;
-using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
-using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
-using GraphInfo = TypeInlineHelper::GraphInfo;
+
+using LocalVarDeclSet = llvm::SmallSetVector<const CallInst *, 4>;
+using ASTVarDeclMap = std::unordered_map<const ASTNode *, LocalVarDeclSet>;
 
 static constexpr const char *StackFrameVarName = "_stack";
 
@@ -110,10 +109,6 @@ static Logger<> VisitLog{ "c-backend-visit-order" };
 
 static bool isAssignment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Assign);
-}
-
-static bool isArtificialAggregateLocalVarDecl(const llvm::Value *I) {
-  return isCallToIsolatedFunction(I) and I->getType()->isAggregateType();
 }
 
 static bool isLocalVarDecl(const llvm::Value *I) {
@@ -144,7 +139,7 @@ static bool isStackFrameDecl(const llvm::Value *I) {
   return Callee->getName().startswith("revng_stack_frame");
 }
 
-static const llvm::CallInst *isCallToNonIsolated(const llvm::Instruction *I) {
+static const llvm::CallInst *isCallToNonIsolated(const llvm::Value *I) {
   if (isCallToTagged(I, FunctionTags::QEMU)
       or isCallToTagged(I, FunctionTags::Helper)
       or isCallToTagged(I, FunctionTags::Exceptional)
@@ -152,6 +147,14 @@ static const llvm::CallInst *isCallToNonIsolated(const llvm::Instruction *I) {
     return llvm::cast<CallInst>(I);
 
   return nullptr;
+}
+
+static bool isArtificialAggregateLocalVarDecl(const llvm::Value *I) {
+  return isCallToIsolatedFunction(I) and I->getType()->isAggregateType();
+}
+
+static bool isHelperAggregateLocalVarDecl(const llvm::Value *I) {
+  return isCallToNonIsolated(I) and I->getType()->isAggregateType();
 }
 
 static bool isCallToCustomOpcode(const llvm::Instruction *I) {
@@ -285,9 +288,11 @@ private:
   /// The (combed) control flow AST
   const ASTTree &GHAST;
 
-  /// Set of values that have a corresponding local variable which should be
-  /// declared at the start of the function
-  const InstrSetVec &TopScopeVariables;
+  /// A map that associates to each ASTNode, a set of variables to be declared
+  /// in that scope, with a specific order.
+  /// A variable is represented by a CallInst to LocalVariable
+  const ASTVarDeclMap &VariablesToDeclare;
+
   /// A map containing a model type for each LLVM value in the function
   const ModelTypesMap TypeMap;
 
@@ -340,7 +345,7 @@ public:
                  const Binary &Model,
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
-                 const InstrSetVec &TopScopeVariables,
+                 const ASTVarDeclMap &VarToDeclare,
                  raw_ostream &Out,
                  ptml::PTMLCBuilder &B) :
     Model(Model),
@@ -348,7 +353,7 @@ public:
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
     Prototype(*ModelFunction.prototype(Model).getConst()),
     GHAST(GHAST),
-    TopScopeVariables(TopScopeVariables),
+    VariablesToDeclare(VarToDeclare),
     TypeMap(initModelTypes(Cache,
                            LLVMFunction,
                            &ModelFunction,
@@ -428,13 +433,11 @@ private:
                             const model::QualifiedType &DestType) const;
 
 private:
-  std::string createTopScopeVarDeclName(const llvm::Instruction *I) {
-    revng_assert(isStackFrameDecl(I) or TopScopeVariables.contains(I));
+  std::string createStackFrameVarDeclName(const llvm::Instruction *I) {
+    revng_assert(isStackFrameDecl(I));
     revng_assert(not TokenMap.contains(I));
 
-    std::string VarName = isStackFrameDecl(I) ? std::string(StackFrameVarName) :
-                                                NameGenerator.nextVarName();
-
+    std::string VarName = StackFrameVarName;
     TokenMap[I] = getVariableLocationReference(VarName, ModelFunction, B);
     return getVariableLocationDefinition(VarName, ModelFunction, B);
   }
@@ -1379,14 +1382,17 @@ CCodeGenerator::getToken(const llvm::Value *V) const {
   if (It != TokenMap.end()) {
     revng_assert(isa<llvm::Argument>(V) or isStackFrameDecl(V)
                  or isCallStackArgumentDecl(V) or isLocalVarDecl(V)
-                 or isArtificialAggregateLocalVarDecl(V));
+                 or isArtificialAggregateLocalVarDecl(V)
+                 or isHelperAggregateLocalVarDecl(V));
     revng_log(Log, "Found!");
     rc_return It->second;
   }
 
   // We should always have names for stuff that is expected to have a name.
   revng_assert(not isa<llvm::Argument>(V) and not isStackFrameDecl(V)
-               and not isCallStackArgumentDecl(V) and not isLocalVarDecl(V));
+               and not isCallStackArgumentDecl(V) and not isLocalVarDecl(V)
+               and not isArtificialAggregateLocalVarDecl(V)
+               and not isHelperAggregateLocalVarDecl(V));
 
   if (isCConstant(V))
     rc_return rc_recur getConstantToken(V);
@@ -1432,22 +1438,21 @@ static bool isStatement(const llvm::Instruction *I) {
     return false;
 
   // Calls to Assign and LocalVariable are statemements.
-  if (isAssignment(Call) or isLocalVarDecl(Call))
+  // Stack frame declarations and call stack arguments declarations are
+  // statements.
+  if (isAssignment(Call))
     return true;
 
-  // Calls to isolated functions that require a local variable of artificial
-  // aggregate type (that is not on the model) are statemements.
-  if (isArtificialAggregateLocalVarDecl(Call))
-    return true;
-
-  // If the call returns an aggregate, and it needs a top scope declaration, we
-  // have to handle it as if it was an assignment to the local variable declared
-  // in the top scope declaration.
-  // This is due to the fact that AddAssignmentMarkerPass cannot really inject
-  // LocalVariables and Assign/Copy for stuff that has aggregate type on the
-  // LLVM IR (because those types are not on the model), so we need to handle it
-  // now.
-  if (Call->getType()->isAggregateType() and needsTopScopeDeclaration(*Call))
+  // Calls to isolated functions or helpers that return struct types on LLVM IR
+  // need a statement.
+  // This is necessary as a result of the fact that there is no direct mapping
+  // between struct types on LLVM IR and on the model, so whenever a function
+  // returns a struct in LLVM IR we cannot generally create a call to
+  // LocalVariable nor to Copy/Assign (because we'd need to tag them with model
+  // Type and we can't do that.), so we have to deal with it here on the fly.
+  // We do it by marking these as statements, and emitting an assignment in C
+  if (isArtificialAggregateLocalVarDecl(Call)
+      or isHelperAggregateLocalVarDecl(Call))
     return true;
 
   // Calls to isolated functions and helpers that return void are statements.
@@ -1456,11 +1461,6 @@ static bool isStatement(const llvm::Instruction *I) {
   // statements.
   if (isCallToIsolatedFunction(Call) or isCallToNonIsolated(Call))
     return Call->getType()->isVoidTy();
-
-  // Stack frame declarations and call stack arguments declarations are
-  // statements.
-  if (isStackFrameDecl(Call) or isCallStackArgumentDecl(Call))
-    return true;
 
   return false;
 }
@@ -1489,34 +1489,13 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
       if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn)) {
         Out << getToken(&I) << ";\n";
       }
-    } else if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)) {
-      // Emit missing local variable declarations
-      std::string VarName = createLocalVarDeclName(Call);
-      revng_assert(not VarName.empty());
-      Out << getNamedCInstance(TypeMap.at(Call), VarName, B) << ";\n";
-
-    } else if (isStackFrameDecl(Call)) {
-      // Stack frame declaration is a statement, but we've handled explicitly
-      // to emit it as the first declaration in this function. So we just
-      // assert and go to the next instruction.
-      revng_assert(TokenMap.contains(Call));
-
-    } else if (bool IsTopScopeVariable = TopScopeVariables.contains(Call);
-               IsTopScopeVariable or isArtificialAggregateLocalVarDecl(Call)) {
+    } else if (isHelperAggregateLocalVarDecl(Call)
+               or isArtificialAggregateLocalVarDecl(Call)) {
       // This is a call but it actually needs an assignment to the associated
       // variable. The variable has not been declared in the IR with
       // LocalVariable, because LocalVariable needs a model type, and aggregates
       // types on the LLVM IR are not on the model.
       revng_assert(Call->getType()->isAggregateType());
-
-      if (not IsTopScopeVariable) {
-        // Create missing local variable declarations
-        std::string VarName = createLocalVarDeclName(Call);
-        const auto &Prototype = Cache.getCallSitePrototype(Model, Call);
-        revng_assert(Prototype.isValid() and not Prototype.empty());
-        const auto *FunctionType = Prototype.getConst();
-        Out << getNamedInstanceOfReturnType(*FunctionType, VarName, B) << ";\n";
-      }
 
       std::string VarName = getVarName(Call);
       revng_assert(not VarName.empty());
@@ -1729,6 +1708,29 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
 RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   if (N == nullptr)
     rc_return;
+
+  auto VarToDeclareIt = VariablesToDeclare.find(N);
+  if (VarToDeclareIt != VariablesToDeclare.end()) {
+    for (const CallInst *VarDeclCall : VarToDeclareIt->second) {
+      // Emit missing local variable declarations
+      if (isLocalVarDecl(VarDeclCall) or isCallStackArgumentDecl(VarDeclCall)) {
+        std::string VarName = createLocalVarDeclName(VarDeclCall);
+        revng_assert(not VarName.empty());
+        Out << getNamedCInstance(TypeMap.at(VarDeclCall), VarName, B) << ";\n";
+      } else if (isHelperAggregateLocalVarDecl(VarDeclCall)
+                 or isArtificialAggregateLocalVarDecl(VarDeclCall)) {
+        // Create missing local variable declarations
+        std::string VarName = createLocalVarDeclName(VarDeclCall);
+        revng_assert(not VarName.empty());
+        const auto &Prototype = Cache.getCallSitePrototype(Model, VarDeclCall);
+        revng_assert(Prototype.isValid() and not Prototype.empty());
+        const auto *FunctionType = Prototype.getConst();
+        Out << getNamedInstanceOfReturnType(*FunctionType, VarName, B) << ";\n";
+      } else {
+        revng_assert(not VarDeclCall->getType()->isAggregateType());
+      }
+    }
+  }
 
   revng_log(VisitLog, "|__ GHAST Node " << N->getID());
   LoggerIndent Indent{ VisitLog };
@@ -2094,7 +2096,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
                               IsStackFrameDecl);
       if (It != llvm::instructions(LLVMFunction).end()) {
         const auto *Call = &cast<llvm::CallInst>(*It);
-        std::string VarName = createTopScopeVarDeclName(Call);
+        std::string VarName = createStackFrameVarDeclName(Call);
         revng_assert(not VarName.empty());
         auto *TheType = ModelFunction.StackFrameType().getConst();
         // This will contain the stack types that we can inline, since
@@ -2103,7 +2105,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
         auto TheStackTypes = StackTypes.at(&ModelFunction);
         if (TheStackTypes.contains(TheType) and !IsStackDefined) {
           IsStackDefined = true;
-          QualifiedTypeNameMap AdditionalTypeNames;
+          std::map<model::QualifiedType, std::string> AdditionalTypeNames;
           // For all nested types within stack definition we print forward
           // declarations.
           for (auto *Type : TheStackTypes) {
@@ -2130,39 +2132,6 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
       }
     }
 
-    // Declare all variables that have the entire function as a scope
-    if (not TopScopeVariables.empty()) {
-
-      revng_log(Log, "Top-Scope Declarations");
-      for (const llvm::Instruction *VarToDeclare : TopScopeVariables) {
-        revng_log(Log, "VarToDeclare: " + dumpToString(VarToDeclare));
-
-        std::string VarName = createTopScopeVarDeclName(VarToDeclare);
-        revng_assert(not VarName.empty());
-
-        auto VarTypeIt = TypeMap.find(VarToDeclare);
-        if (VarTypeIt != TypeMap.end()) {
-          Out << getNamedCInstance(VarTypeIt->second, VarName, B) << ";\n";
-        } else {
-          // The only types that are allowed to be missing from the TypeMap
-          // are LLVM aggregates returned by RawFunctionTypes or by helpers
-          auto *Call = llvm::cast<CallInst>(VarToDeclare);
-          const auto &Prototype = Cache.getCallSitePrototype(Model, Call);
-          if (not Prototype.empty()) {
-            const auto *FunctionType = Prototype.getConst();
-            Out << getNamedInstanceOfReturnType(*FunctionType, VarName, B)
-                << ";\n";
-          } else {
-            auto *CalledFunction = Call->getCalledFunction();
-            revng_assert(CalledFunction);
-            Out << getReturnTypeLocationReference(CalledFunction, B) << " "
-                << VarName << ";\n";
-          }
-        }
-      }
-      revng_log(Log, "End of Top-Scope Declarations");
-    }
-
     // Emit a declaration for the loop state variable, which is used to
     // redirect control flow inside loops (e.g. if we want to jump in the
     // middle of a loop during a certain iteration)
@@ -2181,7 +2150,7 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
                                      const llvm::Function &LLVMFunc,
                                      const ASTTree &CombedAST,
                                      const Binary &Model,
-                                     const InstrSetVec &TopScopeVariables,
+                                     const ASTVarDeclMap &VarToDeclare,
                                      bool NeedsLocalStateVar,
                                      InlineableTypesMap &StackTypes) {
   std::string Result;
@@ -2190,7 +2159,7 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
   ptml::PTMLCBuilder B;
 
   CCodeGenerator
-    Backend(Cache, Model, LLVMFunc, CombedAST, TopScopeVariables, Out, B);
+    Backend(Cache, Model, LLVMFunc, CombedAST, VarToDeclare, Out, B);
   Backend.emitFunction(NeedsLocalStateVar, StackTypes);
   Out.flush();
 
@@ -2266,28 +2235,33 @@ static bool hasLoopDispatchers(const ASTTree &GHAST) {
   return needsLoopVar(GHAST.getRoot());
 }
 
-static InstrSetVec collectTopScopeVariables(const llvm::Function &F) {
-  InstrSetVec TopScopeVars;
+static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
+                                                     const ASTTree &GHAST) {
+  const ASTNode *Entry = GHAST.getRoot();
+  ASTVarDeclMap Result;
   for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {
-      if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
-        // All the others have already been promoted to LocalVariable Copy and
-        // Assign.
-        if (not Call->getType()->isAggregateType())
-          continue;
 
-        if (isCallToNonIsolated(Call) or isCallToIsolatedFunction(Call)) {
-          const auto *Called = Call->getCalledFunction();
-          revng_assert(not Called or not Called->isTargetIntrinsic());
+      auto *Call = dyn_cast<llvm::CallInst>(&I);
+      if (not Call)
+        continue;
 
-          if (needsTopScopeDeclaration(*Call))
-            TopScopeVars.insert(Call);
-        }
-      }
+      // Ignore the stack frame, which is handled separately.
+      if (isStackFrameDecl(Call))
+        continue;
+
+      // All local variable declarations should go in the entry scope for now
+      if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)
+          or isArtificialAggregateLocalVarDecl(Call)
+          or isHelperAggregateLocalVarDecl(Call))
+        Result[Entry].insert(Call);
+
+      revng_assert(not isCallToNonIsolated(Call)
+                   or not Call->getCalledFunction()->isTargetIntrinsic());
     }
   }
 
-  return TopScopeVars;
+  return Result;
 }
 
 using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
@@ -2339,13 +2313,13 @@ void decompile(FunctionMetadataCache &Cache,
     }
 
     // Generated C code for F
-    auto TopScopeVariables = collectTopScopeVariables(F);
+    auto VariablesToDeclare = computeVariableDeclarationScope(F, GHAST);
     auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
     std::string CCode = decompileFunction(Cache,
                                           F,
                                           GHAST,
                                           Model,
-                                          TopScopeVariables,
+                                          VariablesToDeclare,
                                           NeedsLoopStateVar,
                                           StackTypes);
 
