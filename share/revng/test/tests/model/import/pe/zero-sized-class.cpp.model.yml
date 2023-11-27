@@ -5,9 +5,9 @@
 ---
 Functions:
   - OriginalName: main
-    Prototype: "/Types/14349581157410972103-CABIFunctionType"
+    Prototype: "/Types/1815-CABIFunctionType"
   - OriginalName: doSomething
-    Prototype: "/Types/12460153539718472348-CABIFunctionType"
+    Prototype: "/Types/1818-CABIFunctionType"
 Types:
   - Kind: PrimitiveType
     ID: 256
@@ -18,29 +18,40 @@ Types:
     PrimitiveKind: Signed
     Size: 4
   - Kind: CABIFunctionType
-    ID: 14349581157410972103
+    ID: 1815
     ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments: []
   - Kind: CABIFunctionType
-    ID: 12460153539718472348
+    ID: 1818
     ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/15633732224814581737-TypedefType"
+          UnqualifiedType: "/Types/1817-TypedefType"
   - Kind: TypedefType
-    ID: 15633732224814581737
+    ID: 1817
     UnderlyingType:
-      UnqualifiedType: "/Types/7275868073853708434-TypedefType"
+      UnqualifiedType: "/Types/1822-StructType"
       Qualifiers:
         - Kind: Pointer
           Size: 4
-  - Kind: TypedefType
-    ID: 7275868073853708434
+  - Kind: StructType
+    ID: 1822
+    CustomName: "Foo"
     OriginalName: Foo
-    UnderlyingType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
+    Size: 8
+    Fields:
+      - Offset: 0
+        CustomName: "x"
+        OriginalName: x
+        Type:
+          UnqualifiedType: "/Types/1540-PrimitiveType"
+      - Offset: 4
+        CustomName: "y"
+        OriginalName: "y"
+        Type:
+          UnqualifiedType: "/Types/1540-PrimitiveType"
