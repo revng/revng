@@ -1,0 +1,204 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Component: revng-c
+Containers:
+  - Name: types-and-globals.h
+    Type: ModelHeader
+  - Name: helpers.h
+    Type: HelpersHeader
+  - Name: decompiled.c
+    Type: DecompiledCCode
+  - Name: decompiled.tar.gz
+    Type: DecompiledCCodeInYAML
+  - Name: module.mlir
+    Type: MLIRModule
+Branches:
+  - From: EnforceABI
+    Steps:
+      - Name: RemoveLiftingArtifacts
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - dce
+              - remove-lifting-artifacts
+              - promote-init-csv-to-undef
+      - Name: PromoteStackPointer
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - measure-stack-size-at-call-sites
+              - promote-stack-pointer
+      - Name: EarlyOptimizeForDecompilation
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - dce
+              - remove-extractvalues
+              - simplify-cfg-with-hoist-and-sink
+              - dse
+              - instcombine
+              - remove-extractvalues
+              - sroa
+              - instsimplify
+              - jump-threading
+              - licm
+              - unreachableblockelim
+              - instcombine
+              - remove-extractvalues
+              - early-cse
+              - simplify-cfg-with-hoist-and-sink
+              - type-shrinking
+              - early-cse
+              - instsimplify
+              - gvn
+              - instsimplify
+              - dse
+              - dce
+      - Name: DetectStackSize
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - remove-stack-alignment
+              - instrument-stack-accesses
+              - instcombine
+              - remove-extractvalues
+              - compute-stack-accesses-bounds
+        Analyses:
+          - Name: detect-stack-size
+            Type: detect-stack-size
+            UsedContainers: [module.ll]
+      - Name: SegregateStackAccesses
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - hoist-struct-phis
+              - segregate-stack-accesses
+      - Name: LateOptimizeForDecompilation
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - cleanup-stack-size-markers
+              - dce
+              - sroa
+              - instcombine
+              - remove-extractvalues
+              - sroa
+              - simplify-cfg-with-hoist-and-sink
+              - loop-rewrite-with-canonical-induction-variable
+              - simplify-cfg-with-hoist-and-sink
+              - instcombine
+              - remove-extractvalues
+              - early-cse
+              - dce
+              - strip-dead-prototypes
+              - split-overflow-intrinsics
+              - dce
+      - Name: MakeSegmentRefs
+        Pipes:
+          - Type: MakeSegmentRefs
+            UsedContainers: [input, module.ll]
+        Artifacts:
+          Container: module.ll
+          Kind: StackAccessesSegregated
+          SingleTargetFilename: stack_access_segregate.ll
+        Analyses:
+          - Name: dla
+            Type: dla
+            UsedContainers: [module.ll]
+          - Name: ConvertToCABIFunctionType
+            Type: ConvertToCABIFunctionType
+            UsedContainers: []
+      - Name: IRCanonicalization
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - hoist-struct-phis
+              - remove-llvmassume-calls
+              - dce
+              - remove-pointer-casts
+              - make-model-gep
+              - dce
+              - exit-ssa
+              - twoscomplement-normalization
+              - ternary-reduction
+              - make-local-variables
+              - remove-load-store
+              - fold-model-gep
+              - remove-ref-deref
+              - dce
+              - add-assignment-markers
+              - make-model-cast
+              - operatorprecedence-resolution
+              - pretty-int-formatting
+      - Name: DecompileToCInYAML
+        Pipes:
+          - Type: HelpersToHeader
+            UsedContainers: [module.ll, helpers.h]
+          - Type: ModelToHeader
+            UsedContainers: [input, types-and-globals.h]
+          - Type: CDecompilation
+            UsedContainers: [module.ll, decompiled.tar.gz]
+        Artifacts:
+          Container: decompiled.tar.gz
+          Kind: DecompiledToYAML
+          SingleTargetFilename: decompiled.c
+        Analyses:
+          - Name: ImportModelFromC
+            Type: ImportModelFromC
+            UsedContainers: []
+      - Name: DecompiledYAMLToC
+        Pipes:
+          - Type: DecompiledYAMLToC
+            UsedContainers: [decompiled.tar.gz, decompiled.c]
+        Artifacts:
+          Container: decompiled.c
+          Kind: DecompiledToC
+          SingleTargetFilename: binary_decompiled.c
+  - From: IRCanonicalization
+    Steps:
+      - Name: PrintHelpersHeader
+        Pipes:
+          - Type: HelpersToHeader
+            UsedContainers: [module.ll, helpers.h]
+        Artifacts:
+          Container: helpers.h
+          Kind: HelpersHeader
+          SingleTargetFilename: helpers.h
+  - From: IRCanonicalization
+    Steps:
+      - Name: PrintModelHeader
+        Pipes:
+          - Type: ModelToHeader
+            UsedContainers: [input, types-and-globals.h]
+        Artifacts:
+          Container: types-and-globals.h
+          Kind: ModelHeader
+          SingleTargetFilename: types-and-globals.h
+  - From: MakeSegmentRefs
+    Steps:
+      - Name: LLVMIRToMLIR
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - prepare-llvmir-for-mlir
+          - Type: ImportLLVMToMLIRPipe
+            UsedContainers: [module.ll, module.mlir]
+        Artifacts:
+          Container: module.mlir
+          Kind: MLIRLLVMModule
+          SingleTargetFilename: mlir-llvm-dialect.mlir
+AnalysesLists:
+  - Name: revng-c-initial-auto-analysis
+    Analyses:
+      - detect-stack-size
+      - dla
