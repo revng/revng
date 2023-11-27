@@ -23,6 +23,9 @@ class Use;
 extern model::QualifiedType
 peelConstAndTypedefs(const model::QualifiedType &QT);
 
+/// Strip off all the constness from QT, possibly having to traverse typedefs
+extern model::QualifiedType getNonConst(const model::QualifiedType &QT);
+
 /// Get the model type of an llvm::Value
 ///
 /// \p V must be of IntegerType or an AllocaInst/GlobalVariable of IntegerType
