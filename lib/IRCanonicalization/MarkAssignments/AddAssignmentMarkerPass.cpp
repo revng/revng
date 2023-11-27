@@ -164,6 +164,15 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
         revng_assert(ModelSize == PtrSize);
       }
 
+      // TODO: until we don't properly handle variable declarations with inline
+      // initialization (might need MLIR), we cannot declare const local
+      // variables, because their initialization (which is forcibly out-of-line)
+      // would assign them and fail to compile.
+      // For this reason if at this point we're trying to declare a constant
+      // local variable, we're forced to throw away the const-qualifier.
+      if (VariableType.isConst())
+        VariableType = getNonConst(VariableType);
+
       Constant *ModelTypeString = serializeToLLVMString(VariableType, *M);
 
       // Inject call to LocalVariable
