@@ -427,11 +427,17 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     }
   }
 
-  // Look at all the fields pair-wise, converting them into arguments.
+  // Go over all the `[CurrentArgument, TheNextOne]` field pairs.
+  // `CurrentRange` is used to keep track of the "remaining" ones.
+  // This allows us to keep its value when the loop to be aborted (which
+  // happens when we meet an argument we cannot just convert "as is").
   llvm::SmallVector<model::Argument, 8> Result;
-  for (const auto &[CurrentArgument, TheNextOne] : zip_pairs(Stack.Fields())) {
-    std::optional<uint64_t> MaybeSize = CurrentArgument.Type().size();
-    revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
+  uint64_t InitialIndexOffset = Distributor.ArgumentIndex;
+  auto CurrentRange = std::ranges::subrange(Stack.Fields().begin(),
+                                            Stack.Fields().end());
+  bool NaiveConversionFailed = CurrentRange.empty();
+  while (CurrentRange.size() > 1) {
+    auto [CurrentArgument, TheNextOne] = takeAsTuple<2>(CurrentRange);
 
     uint64_t NextAlignment = *ABI.alignment(TheNextOne.Type());
     if (!llvm::isPowerOf2_64(NextAlignment)) {
@@ -446,7 +452,9 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
                    CurrentArgument.Offset(),
                    TheNextOne.Offset(),
                    NextAlignment)) {
-      return std::nullopt;
+      // We met a argument we cannot just "add" as is.
+      NaiveConversionFailed = true;
+      break;
     }
 
     // Create the argument from this field.
@@ -454,24 +462,104 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     model::copyMetadata(New, CurrentArgument);
     New.Index() = Distributor.ArgumentIndex - 1;
     New.Type() = CurrentArgument.Type();
+
+    CurrentRange = std::ranges::subrange(std::next(CurrentRange.begin()),
+                                         Stack.Fields().end());
   }
 
-  // And don't forget to convert the very last field.
-  const model::StructField &LastArgument = *std::prev(Stack.Fields().end());
-  std::optional<uint64_t> LastSize = LastArgument.Type().size();
-  revng_assert(LastSize.has_value() && LastSize.value() != 0);
+  // The main loop is over. Which means that we either converted everything but
+  // the very last argument correctly, OR that we aborted half-way through.
+  if (CurrentRange.size() == 1) {
+    revng_assert(NaiveConversionFailed == false);
+
+    // Having only one element in the "remaining" range means that only the last
+    // field is left - add it too after checking.
+    const model::StructField &LastArgument = CurrentRange.front();
+
+    // This is a workaround for the cases where expected alignment is missing
+    // at the very end of the RFT-style stack argument struct:
+    uint64_t FullSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
+                                                             FullAlignment);
+
+    std::optional<uint64_t> LastSize = LastArgument.Type().size();
+    revng_assert(LastSize.has_value() && LastSize.value() != 0);
+    if (canBeNext(Distributor,
+                  LastArgument.Type(),
+                  LastArgument.Offset(),
+                  FullSize,
+                  FullAlignment)) {
+      model::Argument &New = Result.emplace_back();
+      model::copyMetadata(New, LastArgument);
+      New.Type() = LastArgument.Type();
+      New.Index() = Distributor.ArgumentIndex - 1;
+      return Result;
+    }
+
+    NaiveConversionFailed = true;
+  }
+
+  // Getting to this point (past the return statement in the last element
+  // section) means that there is at least one argument we cannot just "add".
+  //
+  // TODO: consider using more robust approaches here, maybe an attempt to
+  //       re-start adding argument normally after some "nonconforming" structs
+  //       are added.
+  revng_assert(NaiveConversionFailed == true);
+  revng_log(Log,
+            "Naive conversion failed. Try to fall back on using structs "
+            "instead.");
+  if (CurrentRange.size() != Stack.Fields().size()) {
+    // This condition being true means that we did succeed in converting some
+    // of the arguments, but failed on some others. Let's try to wrap
+    // the remainder into a struct and see if bundled together they make more
+    // sense in c-like representation.
+    revng_log(Log,
+              "Some fields were converted successfully, try to slot in the "
+              "rest as a struct.");
+    const model::StructField &LastSuccessful = *std::prev(CurrentRange.begin());
+    std::uint64_t Offset = LastSuccessful.Offset();
+    Offset += ABI.paddedSizeOnStack(*LastSuccessful.Type().size());
+
+    model::StructType RemainingArguments;
+    RemainingArguments.Size() = Stack.Size() - Offset;
+    for (const auto &Field : CurrentRange) {
+      model::StructField Copy = Field;
+      Copy.Offset() -= Offset;
+      RemainingArguments.Fields().emplace(std::move(Copy));
+    }
+
+    auto &RA = RemainingArguments;
+    if (canBeNext(Distributor, RA, Offset, Stack.Size(), FullAlignment)) {
+      revng_log(Log, "Struct for the remaining argument worked.");
+      model::Argument &New = Result.emplace_back();
+      New.Index() = Stack.Fields().size() - CurrentRange.size();
+      New.Index() += InitialIndexOffset;
+
+      auto [_, Path] = Bucket.makeType<model::StructType>(std::move(RA));
+      New.Type() = model::QualifiedType{ Path, {} };
+      return Result;
+    }
+  }
+
+  // Reaching this far means that we either aborted on the very first argument
+  // OR that the partial conversion didn't work well either - let's try and see
+  // if it would make sense to add the whole "stack" struct as one argument.
   if (!canBeNext(Distributor,
-                 LastArgument.Type(),
-                 LastArgument.Offset(),
+                 model::QualifiedType(StackArgumentTypes, {}),
+                 0,
                  Stack.Size(),
                  FullAlignment)) {
+    // Nope, stack struct didn't work either. There's nothing else we can do.
+    // Just report that this function cannot be converted.
     return std::nullopt;
   }
 
+  revng_log(Log,
+            "Adding the whole stack as a single argument is the best we can "
+            "do.");
   model::Argument &New = Result.emplace_back();
-  model::copyMetadata(New, LastArgument);
-  New.Index() = Distributor.ArgumentIndex - 1;
-  New.Type() = LastArgument.Type();
+  New.Type() = model::QualifiedType(StackArgumentTypes, {});
+  New.Index() = InitialIndexOffset;
 
   return Result;
 }
