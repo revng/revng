@@ -299,9 +299,21 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
     revng_assert(!StackArguments.Fields().empty());
     StackArguments.Size() = CurrentStackOffset;
 
-    using namespace model;
-    auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-    NewType.StackArgumentsType() = Binary->recordNewType(std::move(Type));
+    // If the resulting type is a single stack-like struct, reuse it.
+    if (StackArguments.Fields().size() == 1) {
+      auto FirstFieldType = StackArguments.Fields().begin()->Type();
+      if (FirstFieldType.Qualifiers().empty()) {
+        auto *Unqualified = FirstFieldType.UnqualifiedType().get();
+        if (auto *Struct = llvm::dyn_cast<model::StructType>(Unqualified))
+          if (Struct->Size() == StackArguments.Size())
+            NewType.StackArgumentsType() = Binary->getTypePath(Struct->key());
+      }
+    }
+
+    if (NewType.StackArgumentsType().empty()) {
+      auto [_, Path] = Binary->makeType<model::StructType>(StackArguments);
+      NewType.StackArgumentsType() = Path;
+    }
   }
 
   // Set the final stack offset
