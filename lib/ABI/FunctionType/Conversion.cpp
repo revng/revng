@@ -246,6 +246,48 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   return Result;
 }
 
+static bool verifyAlignment(const abi::Definition &ABI,
+                            uint64_t CurrentOffset,
+                            uint64_t CurrentSize,
+                            uint64_t NextOffset,
+                            uint64_t NextAlignment) {
+  uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
+
+  OverflowSafeInt Offset = CurrentOffset;
+  Offset += PaddedSize;
+  if (!Offset) {
+    // Abandon if offset overflows.
+    revng_log(Log, "Error: Integer overflow when calculating field offsets.");
+    return false;
+  }
+
+  if (*Offset == NextOffset) {
+    // Offsets are the same, the next field makes sense.
+    return true;
+  } else if (*Offset < NextOffset) {
+    uint64_t AlignmentDelta = NextAlignment - *Offset % NextAlignment;
+    if (*Offset + AlignmentDelta == NextOffset) {
+      // Accounting for the next field's alignment solves it,
+      // the next field makes sense.
+      return true;
+    } else {
+      revng_log(Log,
+                "The natural alignment of a type would make it impossible "
+                "to represent as CABI: there would have to be a hole between "
+                "two arguments. Abandon the conversion.");
+      // TODO: we probably want to preprocess such functions and manually
+      //       "fill" the holes in before attempting the conversion.
+      return false;
+    }
+  } else {
+    revng_log(Log,
+              "The natural alignment of a type would make it impossible "
+              "to represent as CABI: the arguments (including the padding) "
+              "would have to overlap. Abandon the conversion.");
+    return false;
+  }
+}
+
 std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
                                  size_t IndexOffset) {
@@ -284,52 +326,8 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     return std::nullopt;
   }
 
-  // Define a helper used for finding padding holes.
-  const uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
-  auto VerifyAlignment = [this](uint64_t CurrentOffset,
-                                uint64_t CurrentSize,
-                                uint64_t NextOffset,
-                                uint64_t NextAlignment) -> bool {
-    uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
-
-    OverflowSafeInt Offset = CurrentOffset;
-    Offset += PaddedSize;
-    if (!Offset) {
-      // Abandon if offset overflows.
-      revng_log(Log, "Error: Integer overflow when calculating field offsets.");
-      return false;
-    }
-
-    if (*Offset == NextOffset) {
-      // Offsets are the same, the next field makes sense.
-      return true;
-    } else if (*Offset < NextOffset) {
-      uint64_t AlignmentDelta = NextAlignment - *Offset % NextAlignment;
-      if (*Offset + AlignmentDelta == NextOffset) {
-        // Accounting for the next field's alignment solves it,
-        // the next field makes sense.
-        return true;
-      } else {
-        revng_log(Log,
-                  "The natural alignment of a type would make it impossible "
-                  "to represent as CABI: there would have to be a hole between "
-                  "two arguments. Abandon the conversion.");
-        // TODO: we probably want to preprocess such functions and manually
-        //       "fill" the holes in before attempting the conversion.
-        return false;
-      }
-    } else {
-      revng_log(Log,
-                "The natural alignment of a type would make it impossible "
-                "to represent as CABI: the arguments (including the padding) "
-                "would have to overlap. Abandon the conversion.");
-      return false;
-    }
-  };
-
-  llvm::SmallVector<model::Argument, 8> Result;
-
   // Look at all the fields pair-wise, converting them into arguments.
+  llvm::SmallVector<model::Argument, 8> Result;
   for (const auto &[CurrentArgument, TheNextOne] : zip_pairs(Stack.Fields())) {
     std::optional<uint64_t> MaybeSize = CurrentArgument.Type().size();
     revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
@@ -342,7 +340,8 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
       return std::nullopt;
     }
 
-    if (!VerifyAlignment(CurrentArgument.Offset(),
+    if (!verifyAlignment(ABI,
+                         CurrentArgument.Offset(),
                          MaybeSize.value(),
                          TheNextOne.Offset(),
                          NextAlignment)) {
@@ -370,7 +369,8 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
   // Leave a warning in the cases when there's a hole after the very last field.
   std::optional<uint64_t> LastSize = LastArgument.Type().size();
   revng_assert(LastSize.has_value() && LastSize.value() != 0);
-  if (!VerifyAlignment(LastArgument.Offset(),
+  if (!verifyAlignment(ABI,
+                       LastArgument.Offset(),
                        LastSize.value(),
                        Stack.Size(),
                        FullAlignment)) {
