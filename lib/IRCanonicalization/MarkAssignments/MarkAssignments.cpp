@@ -414,12 +414,7 @@ public:
         // - the instruction has zero uses and no side effects: we want to do it
         //   for debug purposes so that it shows up in the decompiled code even
         //   if it's dead
-        // - the variable needs a top scope declaration. this is actually a
-        //   workaround we've put in place because of the limitation of the LLVM
-        //   IR, whose dominance relationships does not reflect the scoping we
-        //   have in C. This can be dropped whenever we switch to a MLIR based
-        //   on nested scopes
-        if (not I.getNumUses() or needsTopScopeDeclaration(I)) {
+        if (not I.getNumUses()) {
           if (not I.getType()->isVoidTy()) {
             Assignments[&I].set(Reasons::AlwaysAssign);
             revng_log(MarkLog, "Instr AlwaysAssign");

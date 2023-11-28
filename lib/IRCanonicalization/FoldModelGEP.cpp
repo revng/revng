@@ -135,10 +135,6 @@ bool FoldModelGEP::runOnFunction(llvm::Function &F) {
   // Collect ModelGEPs
   for (auto *BB : llvm::ReversePostOrderTraversal(&F)) {
     for (auto &I : llvm::make_early_inc_range(*BB)) {
-      // Prevent merging a ModelGEP with an addressOf that needs a top-scope
-      // variable, as this would create
-      if (needsTopScopeDeclaration(I))
-        continue;
 
       if (llvm::Value *ValueToSubstitute = getValueToSubstitute(I, *Model)) {
         auto *CallToFold = cast<CallInst>(&I);

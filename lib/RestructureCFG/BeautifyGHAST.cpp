@@ -451,6 +451,10 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
     ASTNode *Body = Scs->getBody();
 
+    // Body could be nullptr (previous while/dowhile semplification)
+    if (Body == nullptr)
+      return;
+
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
@@ -553,9 +557,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     ASTNode *Body = Scs->getBody();
 
     // Body could be nullptr (previous while/dowhile semplification)
-    if (Body == nullptr) {
+    if (Body == nullptr)
       return;
-    }
 
     // Recursive scs nesting handling
     matchWhile(Body, AST);
@@ -1337,20 +1340,20 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
     CombedAST.dumpASTOnFile(F.getName().str(), "ast", "06-After-switch-match");
   }
 
-  // Match while.
-  revng_log(BeautifyLogger, "Matching while\n");
-  matchWhile(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "07-After-match-while");
-  }
-
   // Match dowhile.
   revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
-                            "08-After-match-do-while");
+                            "07-After-match-do-while");
+  }
+
+  // Match while.
+  revng_log(BeautifyLogger, "Matching while\n");
+  matchWhile(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
   }
 
   // Perform the simplification of `switch` with two entries in a `if`

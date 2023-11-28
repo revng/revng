@@ -74,6 +74,35 @@ model::QualifiedType peelConstAndTypedefs(const model::QualifiedType &QT) {
   return peelConstAndTypedefsImpl(QT);
 }
 
+static RecursiveCoroutine<model::QualifiedType>
+getNonConstImpl(const model::QualifiedType &QT) {
+  // First look for non-const qualifiers
+  const auto &NonConst = std::not_fn(model::Qualifier::isConst);
+  auto QIt = llvm::find_if(QT.Qualifiers(), NonConst);
+  auto QEnd = QT.Qualifiers().end();
+
+  // If we find a non-const qualifier we're done unwrapping
+  if (QIt != QEnd)
+    rc_return model::QualifiedType(QT.UnqualifiedType(), { QIt, QEnd });
+
+  // Here we have only const qualifiers
+
+  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst());
+
+  // If it's not a typedef, we're done. Just throw away the remaining const
+  // qualifiers. If it's a typedef but it also doesn't wrap a const type, we are
+  // also done.
+  if (not TD or not TD->UnderlyingType().isConst())
+    rc_return model::QualifiedType(QT.UnqualifiedType(), {});
+
+  // It's a typedef wrapping a const-type, in which case we still have to recur.
+  rc_return rc_recur getNonConstImpl(TD->UnderlyingType());
+}
+
+model::QualifiedType getNonConst(const model::QualifiedType &QT) {
+  return getNonConstImpl(QT);
+}
+
 const model::QualifiedType modelType(const llvm::Value *V,
                                      const model::Binary &Model) {
   using namespace llvm;

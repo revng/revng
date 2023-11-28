@@ -114,29 +114,13 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
 
       // If we're trying to create a new local variable for a copy of another
       // existing local variable, just reuse the existing one.
-      if (auto *CallToCopy = getCallToTagged(I, FunctionTags::Copy)) {
+      if (auto *CallToCopy = getCallToTagged(I, FunctionTags::Copy))
         if (auto *CallToLocal = getCallToTagged(CallToCopy->getArgOperand(0),
-                                                FunctionTags::LocalVariable)) {
-
-          // If the existing instruction needs a top scope declaration, that
-          // property is transferred onto the already existing local variable.
-          if (needsTopScopeDeclaration(*CallToCopy)) {
-            BasicBlock *EntryBlock = &F.getEntryBlock();
-            if (CallToLocal->getParent() != EntryBlock)
-              CallToLocal->moveBefore(*EntryBlock, EntryBlock->begin());
-          }
-
-          Changed = true;
+                                                FunctionTags::LocalVariable))
           continue;
-        }
-      }
 
-      // First, we have to declare the LocalVariable, in the correct place,
-      // i.e. either the entry block or just before I.
-      if (needsTopScopeDeclaration(*I))
-        Builder.SetInsertPoint(&F.getEntryBlock().front());
-      else
-        Builder.SetInsertPoint(I);
+      // First, we have to declare the LocalVariable, always at the entry block.
+      Builder.SetInsertPoint(&F.getEntryBlock().front());
 
       auto *LocalVarFunctionType = getLocalVarType(IType);
       auto *LocalVarFunction = LocalVarPool.get(IType,
@@ -163,6 +147,15 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
         auto PtrSize = getPointerSize(Model->Architecture());
         revng_assert(ModelSize == PtrSize);
       }
+
+      // TODO: until we don't properly handle variable declarations with inline
+      // initialization (might need MLIR), we cannot declare const local
+      // variables, because their initialization (which is forcibly out-of-line)
+      // would assign them and fail to compile.
+      // For this reason if at this point we're trying to declare a constant
+      // local variable, we're forced to throw away the const-qualifier.
+      if (VariableType.isConst())
+        VariableType = getNonConst(VariableType);
 
       Constant *ModelTypeString = serializeToLLVMString(VariableType, *M);
 
