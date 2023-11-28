@@ -268,10 +268,12 @@ inline size_t BasicBlockNode<NodeT>::getWeight() const {
     return 0;
   } break;
 
-  case Type::Dispatcher:
+  case Type::EntryDispatcher:
+  case Type::ExitDispatcher:
   case Type::Break:
   case Type::Continue:
-  case Type::Set: {
+  case Type::EntrySet:
+  case Type::ExitSet: {
     // These nodes all cost 1, because they contain a single statement.
     return 1;
   } break;

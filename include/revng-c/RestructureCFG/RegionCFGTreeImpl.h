@@ -1362,7 +1362,8 @@ inline void RegionCFG<NodeT>::weave() {
           // Create the new sub-switch node.
           BasicBlockNodeT *NewSwitch = nullptr;
           if (Switch->isDispatcher()) {
-            NewSwitch = addDispatcher(Switch->getNameStr() + " weaved");
+            NewSwitch = addDispatcher(Switch->getNameStr() + " weaved",
+                                      Switch->getDispatcherType());
           } else if (Switch->isCode()) {
             NewSwitch = addNode(Switch->getOriginalNode(),
                                 Switch->getNameStr() + " weaved");

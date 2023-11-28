@@ -38,6 +38,12 @@ public:
     NK_Set
   };
 
+  enum class DispatcherKind {
+    DK_NotADispatcher,
+    DK_Entry,
+    DK_Exit,
+  };
+
   using ASTNodeMap = std::map<ASTNode *, ASTNode *>;
   // Steal the `BasicBlockNodeBB` definition from the external namespace
   using BasicBlockNodeBB = ::BasicBlockNodeBB;
@@ -493,14 +499,29 @@ class SetNode : public ASTNode {
 private:
   unsigned StateVariableValue;
 
-public:
-  SetNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor) :
-    ASTNode(NK_Set, CFGNode, Successor),
-    StateVariableValue(CFGNode->getStateVariableValue()) {}
+  // The `DispatcherKind` field is not needed in the `IfNode` too, but only in
+  // `SwitchNode`, because the `InlineDispatcherSwitch` beautify pass is
+  // scheduled before the promotion of two (or one) `case`s `switch`es to
+  // `IfNode`s. Therefore, the `InlineDispatcherSwitch` pass will never query
+  // such attribute in `IfNode`. The consequence is that rebus sic stantibus, we
+  // cannot swap the order of execution between `InlineDispatcherSwitch` and
+  // `simplifyDualSwitch` passes.
+  DispatcherKind DKind;
 
-  SetNode(BasicBlockNodeBB *CFGNode) :
-    ASTNode(NK_Set, CFGNode, nullptr),
-    StateVariableValue(CFGNode->getStateVariableValue()) {}
+public:
+  SetNode(BasicBlockNodeBB *CFGNode, ASTNode *Successor = nullptr) :
+    ASTNode(NK_Set, CFGNode, Successor),
+    StateVariableValue(CFGNode->getStateVariableValue()) {
+    using Type = BasicBlockNodeBB::Type;
+    Type CFGNodeType = CFGNode->getDispatcherType();
+    if (CFGNodeType == Type::EntrySet) {
+      DKind = DispatcherKind::DK_Entry;
+    } else if (CFGNodeType == Type::ExitSet) {
+      DKind = DispatcherKind::DK_Exit;
+    } else {
+      revng_abort("Unexpected DispatcherKind");
+    }
+  }
 
 protected:
   SetNode(const SetNode &) = default;
@@ -519,6 +540,11 @@ public:
   ASTNode *Clone() const { return new SetNode(*this); }
 
   unsigned getStateVariableValue() const { return StateVariableValue; }
+
+  DispatcherKind getDispatcherKind() const {
+    revng_assert(DKind != DispatcherKind::DK_NotADispatcher);
+    return DKind;
+  }
 };
 
 // Abstract SwitchNode. It has the concept of cases (other ASTNodes) but no
@@ -541,17 +567,6 @@ public:
 public:
   // To represent the `default` case, if present, contained in the `SwitchNode`,
   // we employ an empty set in the `LabeledCases` `SmallVector`.
-
-  SwitchNode(BasicBlockNodeBB *CFGNode,
-             llvm::Value *Cond,
-             const case_container &LabeledCases,
-             ASTNode *Successor) :
-
-    ASTNode(NK_Switch, CFGNode, Successor),
-    Condition(Cond),
-    LabelCaseVec(LabeledCases),
-    IsWeaved(CFGNode->isWeaved()) {}
-
   SwitchNode(BasicBlockNodeBB *CFGNode,
              llvm::Value *Cond,
              case_container &&LabeledCases,
@@ -559,7 +574,19 @@ public:
     ASTNode(NK_Switch, CFGNode, Successor),
     Condition(Cond),
     LabelCaseVec(std::move(LabeledCases)),
-    IsWeaved(CFGNode->isWeaved()) {}
+    IsWeaved(CFGNode->isWeaved()) {
+    if (CFGNode->isDispatcher()) {
+      using Type = BasicBlockNodeBB::Type;
+      Type CFGNodeType = CFGNode->getDispatcherType();
+      if (CFGNodeType == Type::EntryDispatcher) {
+        DKind = DispatcherKind::DK_Entry;
+      } else if (CFGNodeType == Type::ExitDispatcher) {
+        DKind = DispatcherKind::DK_Exit;
+      } else {
+        revng_abort("Unexpected DispatcherKind");
+      }
+    }
+  }
 
   SwitchNode(const SwitchNode &) = default;
   SwitchNode(SwitchNode &&) = delete;
@@ -583,6 +610,11 @@ public:
   }
 
   size_t cases_size() { return LabelCaseVec.size(); }
+
+  void removeCaseN(size_t N) {
+    revng_assert(N < LabelCaseVec.size());
+    LabelCaseVec.erase(LabelCaseVec.begin() + N);
+  }
 
   void updateASTNodesPointers(ASTNodeMap &SubstitutionMap);
 
@@ -619,12 +651,19 @@ public:
 
   bool isWeaved() const { return IsWeaved; }
 
+  DispatcherKind getDispatcherKind() const {
+    revng_assert(DKind != DispatcherKind::DK_NotADispatcher);
+    revng_assert(this->Condition == nullptr);
+    return DKind;
+  }
+
 protected:
   llvm::Value *Condition;
   case_container LabelCaseVec;
   bool IsWeaved;
   bool NeedStateVariable = false; // for breaking directly out of a loop
   bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
+  DispatcherKind DKind;
 };
 
 class SwitchBreakNode : public ASTNode {

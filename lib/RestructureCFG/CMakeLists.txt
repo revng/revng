@@ -6,11 +6,15 @@ revng_add_analyses_library(
   revngcRestructureCFG
   revngc
   ASTNode.cpp
+  ASTNodeUtils.cpp
   ASTTree.cpp
   BasicBlockNode.cpp
   BeautifyGHAST.cpp
   ExprNode.cpp
+  FallThroughScopeAnalysis.cpp
+  InlineDispatcherSwitch.cpp
   MetaRegion.cpp
+  PromoteCallNoReturn.cpp
   RegionCFGTree.cpp
   RestructureCFG.cpp
   SimplifyCompareNode.cpp

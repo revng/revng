@@ -282,30 +282,44 @@ public:
     return addArtificialNode("break", BasicBlockNodeT::Type::Break);
   }
 
-  BBNodeT *addDispatcher(llvm::StringRef Name) {
-    using Type = typename BasicBlockNodeT::Type;
+  BBNodeT *addDispatcher(llvm::StringRef Name, BasicBlockNodeT::Type T) {
     using BBNodeT = BasicBlockNodeT;
-    auto D = std::make_unique<BBNodeT>(this, Name, Type::Dispatcher);
+    auto D = std::make_unique<BBNodeT>(this, Name, T);
     return BlockNodes.emplace_back(std::move(D)).get();
   }
 
-  BBNodeT *addEntryDispatcher() { return addDispatcher("entry dispatcher"); }
+  BBNodeT *addEntryDispatcher() {
+    using Type = typename BasicBlockNodeT::Type;
+    return addDispatcher("entry dispatcher", Type::EntryDispatcher);
+  }
 
-  BBNodeT *addExitDispatcher() { return addDispatcher("exit dispatcher"); }
+  BBNodeT *addExitDispatcher() {
+    using Type = typename BasicBlockNodeT::Type;
+    return addDispatcher("exit dispatcher", Type::ExitDispatcher);
+  }
 
   BBNodeT *addSetStateNode(unsigned StateVariableValue,
-                           llvm::StringRef TargetName) {
-    using Type = typename BasicBlockNodeT::Type;
+                           llvm::StringRef TargetName,
+                           BasicBlockNodeT::Type T) {
     using BBNodeT = BasicBlockNodeT;
     std::string IdStr = std::to_string(StateVariableValue);
     std::string Name = "set idx " + IdStr + " (desired target) "
                        + TargetName.str();
-    auto Tmp = std::make_unique<BBNodeT>(this,
-                                         Name,
-                                         Type::Set,
-                                         StateVariableValue);
+    auto Tmp = std::make_unique<BBNodeT>(this, Name, T, StateVariableValue);
     BlockNodes.emplace_back(std::move(Tmp));
     return BlockNodes.back().get();
+  }
+
+  BBNodeT *addEntrySetStateNode(unsigned StateVariableValue,
+                                llvm::StringRef TargetName) {
+    using Type = typename BasicBlockNodeT::Type;
+    return addSetStateNode(StateVariableValue, TargetName, Type::EntrySet);
+  }
+
+  BBNodeT *addExitSetStateNode(unsigned StateVariableValue,
+                               llvm::StringRef TargetName) {
+    using Type = typename BasicBlockNodeT::Type;
+    return addSetStateNode(StateVariableValue, TargetName, Type::ExitSet);
   }
 
   BBNodeT *addTile() {
