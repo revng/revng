@@ -7,6 +7,7 @@
 #include <array>
 #include <iterator>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <string_view>
 #include <type_traits>
@@ -15,6 +16,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
 
+#include "revng/ADT/CompilationTime.h"
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/Debug.h"
 
@@ -406,6 +408,42 @@ static_assert(is_contained(std::array{ 1, 2, 3 }, 2) == true);
 static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
 
 } // namespace revng
+
+//
+// Some other useful small things
+//
+
+template<std::size_t ElementCount, std::ranges::forward_range RangeType>
+constexpr auto takeAsTuple(RangeType &&R) {
+  revng_assert(std::ranges::size(R) >= ElementCount);
+  return compile_time::repeat<ElementCount>([&R]<std::size_t I>() -> auto && {
+    return *std::next(R.begin(), I);
+  });
+}
+
+namespace examples {
+
+consteval int takeAsTupleExample() {
+  std::array<int, 6> Data = { 42, 43, 44, 45, 46, 47 };
+
+  {
+    // Edit some elements.
+    auto [First, Second, Third] = takeAsTuple<3>(Data);
+    ++First;
+    Second = 2;
+    Third = 3;
+  }
+
+  {
+    // Read multiple elements through a view.
+    auto [Second, Third] = takeAsTuple<2>(Data | std::views::drop(1));
+    return Second + Third;
+  }
+}
+
+static_assert(takeAsTupleExample() == 5);
+
+} // namespace examples
 
 //
 // Some views from the STL.
