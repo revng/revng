@@ -16,6 +16,8 @@
 #include "revng/Model/TypeBucket.h"
 #include "revng/Support/OverflowSafeInt.h"
 
+#include "ValueDistributor.h"
+
 static Logger Log("function-type-conversion-to-cabi");
 
 namespace abi::FunctionType {
@@ -56,9 +58,25 @@ public:
       return std::nullopt;
     }
 
+    // Count used registers.
+    ArgumentDistributor Distributor(ABI);
+    Distributor.ArgumentIndex = Arguments->size();
+    for (const auto &NTRegister : FunctionType.Arguments()) {
+      auto Kind = model::Register::primitiveKind(NTRegister.Location());
+      if (Kind == model::PrimitiveTypeKind::Values::PointerOrNumber)
+        ++Distributor.UsedGeneralPurposeRegisterCount;
+      else if (Kind == model::PrimitiveTypeKind::Float)
+        ++Distributor.UsedVectorRegisterCount;
+      else
+        revng_abort(("Register ("
+                     + model::Register::getName(NTRegister.Location()).str()
+                     + ") is not supported as an argument.")
+                      .c_str());
+    }
+
     // Then stack ones.
     auto Stack = tryConvertingStackArguments(FunctionType.StackArgumentsType(),
-                                             Arguments->size());
+                                             Distributor);
     if (!Stack.has_value()) {
       revng_log(Log, "Unable to convert stack arguments.");
       Bucket.drop();
@@ -103,7 +121,7 @@ private:
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
   tryConvertingStackArguments(model::TypePath StackArgumentTypes,
-                              size_t IndexOffset);
+                              ArgumentDistributor Distributor);
 
   /// Helper used for converting return values to the c-style representation
   ///
@@ -309,9 +327,66 @@ static bool verifyAlignment(const abi::Definition &ABI,
   }
 }
 
+static bool canBeNext(ArgumentDistributor &Distributor,
+                      model::QualifiedType CurrentType,
+                      uint64_t CurrentOffset,
+                      uint64_t NextOffset,
+                      uint64_t NextAlignment) {
+  const abi::Definition &ABI = Distributor.ABI;
+
+  revng_log(Log,
+            "Checking whether the argument #"
+              << Distributor.ArgumentIndex << " can be slotted right in:\n"
+              << serializeToString(CurrentType) << "Currently "
+              << Distributor.UsedGeneralPurposeRegisterCount
+              << " general purpose and " << Distributor.UsedVectorRegisterCount
+              << " vector registers are in use.");
+
+  std::optional<uint64_t> Size = CurrentType.size();
+  revng_assert(Size.has_value() && Size.value() != 0);
+
+  if (!verifyAlignment(ABI, CurrentOffset, *Size, NextOffset, NextAlignment))
+    return false;
+
+  for (const auto &Distributed : Distributor.nextArgument(CurrentType)) {
+    if (Distributed.RepresentsPadding)
+      continue; // Skip padding.
+
+    if (!Distributed.Registers.empty()) {
+      revng_log(Log,
+                "Error: Because there are still available registers, "
+                "an argument cannot just be added as is - resulting CFT would "
+                "not be compatible with the original function.");
+      return false;
+    }
+    if (Distributed.SizeOnStack == 0) {
+      revng_log(Log,
+                "Something went very wrong: an argument uses neither registers "
+                "nor stack.");
+      return false;
+    }
+
+    // Compute the next stack offset
+    uint64_t NextStackOffset = ABI.alignedOffset(Distributor.UsedStackOffset,
+                                                 CurrentType);
+    NextStackOffset += ABI.paddedSizeOnStack(*Size);
+    uint64_t SizeWithPadding = NextStackOffset - Distributor.UsedStackOffset;
+    if (Distributed.SizeOnStack != SizeWithPadding) {
+      revng_log(Log,
+                "Because the stack position wouldn't match due to holes in "
+                "the stack, an argument cannot just be added as is - resulting "
+                "CFT would not be compatible. Expected size is "
+                  << SizeWithPadding << " but distributor reports "
+                  << Distributed.SizeOnStack << " instead.");
+      return false;
+    }
+  }
+  return true;
+}
+
 std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
-                                 size_t IndexOffset) {
+                                 ArgumentDistributor Distributor) {
   if (StackArgumentTypes.empty()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating
@@ -361,45 +436,37 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
       return std::nullopt;
     }
 
-    if (!verifyAlignment(ABI,
-                         CurrentArgument.Offset(),
-                         MaybeSize.value(),
-                         TheNextOne.Offset(),
-                         NextAlignment)) {
+    if (!canBeNext(Distributor,
+                   CurrentArgument.Type(),
+                   CurrentArgument.Offset(),
+                   TheNextOne.Offset(),
+                   NextAlignment)) {
       return std::nullopt;
     }
 
     // Create the argument from this field.
     model::Argument &New = Result.emplace_back();
     model::copyMetadata(New, CurrentArgument);
-    New.Index() = IndexOffset++;
-
-    // TODO: ensure that the type is in fact naturally aligned
+    New.Index() = Distributor.ArgumentIndex - 1;
     New.Type() = CurrentArgument.Type();
   }
 
   // And don't forget to convert the very last field.
   const model::StructField &LastArgument = *std::prev(Stack.Fields().end());
-  model::Argument &New = Result.emplace_back();
-  model::copyMetadata(New, LastArgument);
-  New.Index() = IndexOffset++;
-
-  // TODO: ensure that the type is in fact naturally aligned
-  New.Type() = LastArgument.Type();
-
-  // Leave a warning in the cases when there's a hole after the very last field.
   std::optional<uint64_t> LastSize = LastArgument.Type().size();
   revng_assert(LastSize.has_value() && LastSize.value() != 0);
-  if (!verifyAlignment(ABI,
-                       LastArgument.Offset(),
-                       LastSize.value(),
-                       Stack.Size(),
-                       FullAlignment)) {
-    revng_log(Log,
-              "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Stack));
+  if (!canBeNext(Distributor,
+                 LastArgument.Type(),
+                 LastArgument.Offset(),
+                 Stack.Size(),
+                 FullAlignment)) {
     return std::nullopt;
   }
+
+  model::Argument &New = Result.emplace_back();
+  model::copyMetadata(New, LastArgument);
+  New.Index() = Distributor.ArgumentIndex - 1;
+  New.Type() = LastArgument.Type();
 
   return Result;
 }
