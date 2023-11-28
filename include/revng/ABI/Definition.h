@@ -216,6 +216,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: GeneralPurposeReturnValueRegisters
     doc: |
       Stores the list of general purpose registers allowed to be used for
@@ -224,6 +225,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: VectorArgumentRegisters
     doc: |
       Stores the list of vector registers allowed to be used for passing
@@ -232,6 +234,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: VectorReturnValueRegisters
     doc: |
       Stores the list of vector registers allowed to be used for returning
@@ -240,6 +243,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: CalleeSavedRegisters
     doc: |
       Stores the list of registers for which the ABI requires the callee to

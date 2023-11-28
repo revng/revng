@@ -328,21 +328,21 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
   llvm::SmallVector<model::Argument, 8> Result;
 
   // Look at all the fields pair-wise, converting them into arguments.
-  for (const auto &[CurrentArgument, NextOne] : zip_pairs(Stack.Fields())) {
+  for (const auto &[CurrentArgument, TheNextOne] : zip_pairs(Stack.Fields())) {
     std::optional<uint64_t> MaybeSize = CurrentArgument.Type().size();
     revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
 
-    uint64_t NextAlignment = *ABI.alignment(NextOne.Type());
+    uint64_t NextAlignment = *ABI.alignment(TheNextOne.Type());
     if (!llvm::isPowerOf2_64(NextAlignment)) {
       revng_log(Log,
                 "The natural alignment of a type is not a power of two:\n"
-                  << serializeToString(NextOne.Type()));
+                  << serializeToString(TheNextOne.Type()));
       return std::nullopt;
     }
 
     if (!VerifyAlignment(CurrentArgument.Offset(),
                          MaybeSize.value(),
-                         NextOne.Offset(),
+                         TheNextOne.Offset(),
                          NextAlignment)) {
       return std::nullopt;
     }

@@ -648,8 +648,7 @@ ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
 DistributedArguments
 ToRawConverter::distributeArguments(const ArgumentSet &Arguments,
                                     bool HasReturnValueLocationArgument) const {
-  bool SkippedRegisterCount = 0;
-
+  uint64_t SkippedRegisterCount = 0;
   if (HasReturnValueLocationArgument == true)
     if (const auto &GPRs = ABI.GeneralPurposeArgumentRegisters(); !GPRs.empty())
       if (ABI.ReturnValueLocationRegister() == GPRs[0])
