@@ -265,8 +265,21 @@ static bool verifyAlignment(const abi::Definition &ABI,
     // Offsets are the same, the next field makes sense.
     return true;
   } else if (*Offset < NextOffset) {
-    uint64_t AlignmentDelta = NextAlignment - *Offset % NextAlignment;
-    if (*Offset + AlignmentDelta == NextOffset) {
+    // Offsets are different, there's most likely padding between the arguments.
+    revng_assert(NextOffset % NextAlignment == 0,
+                 "Type's alignment doesn't make sense.");
+    uint64_t AdjustedAlignment = NextAlignment;
+
+    // Round all the alignment up to the register size - to avoid sub-word
+    // offsets on the stack.
+    if (AdjustedAlignment < ABI.getPointerSize())
+      AdjustedAlignment = ABI.getPointerSize();
+    revng_assert(NextOffset % AdjustedAlignment == 0,
+                 "Adjusted alignment doesn't make sense.");
+
+    // Check whether the next argument's position makes sense.
+    uint64_t Delta = AdjustedAlignment - *Offset % AdjustedAlignment;
+    if (Delta != AdjustedAlignment && *Offset + Delta == NextOffset) {
       // Accounting for the next field's alignment solves it,
       // the next field makes sense.
       return true;
