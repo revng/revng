@@ -13,10 +13,21 @@ namespace compile_time {
 
 namespace detail {
 
+template<typename T>
+using RVHelper = decltype(std::declval<T>().template operator()<0>());
+
 template<typename TemplatedCallableType, size_t... Indices>
+  requires(std::is_same_v<RVHelper<TemplatedCallableType>, void>)
 constexpr void
 repeat(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
   (Callable.template operator()<Indices>(), ...);
+}
+
+template<typename TemplatedCallableType, size_t... Indices>
+  requires(!std::is_same_v<RVHelper<TemplatedCallableType>, void>)
+constexpr auto
+repeat(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
+  return std::tie(Callable.template operator()<Indices>()...);
 }
 
 template<typename TemplatedCallableType, size_t... Indices>
@@ -50,9 +61,10 @@ select(std::index_sequence<Indices...> Is, TemplatedCallableType &&Callable) {
 
 /// Calls \ref Callable \ref IterationCount times.
 template<size_t IterationCount, typename CallableType>
-constexpr void repeat(CallableType &&Callable) {
-  detail::repeat(std::make_index_sequence<IterationCount>(),
-                 std::forward<CallableType>(Callable));
+constexpr auto repeat(CallableType &&Callable) {
+  if constexpr (IterationCount > 0)
+    return detail::repeat(std::make_index_sequence<IterationCount>(),
+                          std::forward<CallableType>(Callable));
 }
 
 /// Calls \ref Callable \ref IterationCount times, while applying logical AND
