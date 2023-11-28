@@ -549,8 +549,7 @@ Identifier model::NamedTypedRegister::name() const {
   if (not CustomName().empty()) {
     return CustomName();
   } else {
-    using namespace model::Register;
-    return Identifier((Twine("_argument_") + Twine(getRegisterName(Location())))
+    return Identifier((Twine("_register_") + getRegisterName(Location()))
                         .str());
   }
 }
