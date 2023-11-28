@@ -496,13 +496,16 @@ ValueDistributor::distribute(model::QualifiedType Type,
                                   << AllowedRegisterLimit
                                   << " registers are available to be used.");
   revng_log(Log, "The total number of registers is " << Registers.size());
+  revng_log(Log, "The type:\n" << serializeToString(Type));
 
   uint64_t Size = *Type.size();
-  uint64_t Alignment = *ABI.alignment(Type);
-  revng_log(Log, "The type:\n" << serializeToString(Type));
+  abi::Definition::AlignmentCache Cache;
+  uint64_t Alignment = *ABI.alignment(Type, Cache);
+  bool HasNaturalAlignment = *ABI.hasNaturalAlignment(Type, Cache);
   revng_log(Log,
-            "Its size is " << Size << " and its alignment is " << Alignment
-                           << ".");
+            "Its size is " << Size << " and its "
+                           << (HasNaturalAlignment ? "" : "un")
+                           << "natural alignment is " << Alignment << ".");
 
   // Precompute the last register allowed to be used.
   uint64_t LastRegister = OccupiedRegisterCount + AllowedRegisterLimit;
@@ -569,7 +572,7 @@ ValueDistributor::distribute(model::QualifiedType Type,
 
   bool AllowSplitting = !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
-  if (SizeCounter >= Size) {
+  if (SizeCounter >= Size && HasNaturalAlignment) {
     // This a register-only argument, add the registers.
     for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);

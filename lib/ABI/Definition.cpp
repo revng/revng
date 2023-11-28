@@ -203,17 +203,18 @@ const Definition &Definition::get(model::ABI::Values ABI) {
   return It->second;
 }
 
-static RecursiveCoroutine<std::optional<uint64_t>>
+using AlignmentInfo = abi::Definition::AlignmentInfo;
+static RecursiveCoroutine<std::optional<AlignmentInfo>>
 naturalAlignment(const abi::Definition &ABI,
                  const model::Type &Type,
                  abi::Definition::AlignmentCache &Cache);
-static RecursiveCoroutine<std::optional<uint64_t>>
+static RecursiveCoroutine<std::optional<AlignmentInfo>>
 naturalAlignment(const abi::Definition &ABI,
                  const model::QualifiedType &Type,
                  abi::Definition::AlignmentCache &Cache);
 
 template<typename RealType>
-RecursiveCoroutine<std::optional<uint64_t>>
+RecursiveCoroutine<std::optional<AlignmentInfo>>
 underlyingAlignment(const abi::Definition &ABI,
                     const model::Type &Type,
                     abi::Definition::AlignmentCache &Cache) {
@@ -222,29 +223,35 @@ underlyingAlignment(const abi::Definition &ABI,
 }
 
 template<typename RealType>
-RecursiveCoroutine<std::optional<uint64_t>>
+RecursiveCoroutine<std::optional<AlignmentInfo>>
 fieldAlignment(const abi::Definition &ABI,
                const model::Type &Type,
                abi::Definition::AlignmentCache &Cache) {
-  uint64_t Alignment = 0;
+  AlignmentInfo Result = { 1, true };
   for (const auto &Field : llvm::cast<RealType>(&Type)->Fields()) {
-    if (auto A = rc_recur naturalAlignment(ABI, Field.Type(), Cache))
-      Alignment = std::max(Alignment, *A);
-    else
+    if (auto A = rc_recur naturalAlignment(ABI, Field.Type(), Cache)) {
+      Result.Value = std::max(Result.Value, A->Value);
+      Result.IsNatural = Result.IsNatural && A->IsNatural;
+      if (Result.IsNatural)
+        if constexpr (std::is_same_v<RealType, model::StructType>)
+          if (Field.Offset() % A->Value != 0)
+            Result.IsNatural = false;
+    } else {
       rc_return std::nullopt;
+    }
   }
 
-  rc_return Alignment;
+  rc_return Result;
 }
 
-static RecursiveCoroutine<std::optional<uint64_t>>
+static RecursiveCoroutine<std::optional<AlignmentInfo>>
 naturalAlignment(const abi::Definition &ABI,
                  const model::Type &Type,
                  abi::Definition::AlignmentCache &Cache) {
   if (auto Iterator = Cache.find(&Type); Iterator != Cache.end())
     rc_return Iterator->second;
 
-  uint64_t Alignment = 0;
+  AlignmentInfo Result = { 0, true };
 
   // This code assumes that the type `Type` is well formed.
   switch (Type.Kind()) {
@@ -257,20 +264,20 @@ naturalAlignment(const abi::Definition &ABI,
     // The alignment of primitives is simple to figure out based on the abi
     const auto *P = llvm::cast<model::PrimitiveType>(&Type);
     if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
-      // `void` has no size either - hence no alignment.
+      // `void` has no size - hence no alignment.
       revng_assert(P->Size() == 0);
 
-      Alignment = 0;
+      Result.Value = 0;
     } else if (P->PrimitiveKind() == model::PrimitiveTypeKind::Float) {
       auto Iterator = ABI.FloatingPointScalarTypes().find(P->Size());
       if (Iterator == ABI.FloatingPointScalarTypes().end())
         rc_return std::nullopt;
-      Alignment = Iterator->alignedAt();
+      Result.Value = Iterator->alignedAt();
     } else {
       auto Iterator = ABI.ScalarTypes().find(P->Size());
       if (Iterator == ABI.ScalarTypes().end())
         rc_return std::nullopt;
-      Alignment = Iterator->alignedAt();
+      Result.Value = Iterator->alignedAt();
     }
   } break;
 
@@ -279,7 +286,7 @@ naturalAlignment(const abi::Definition &ABI,
     // type
     using modelEnumType = model::EnumType;
     if (auto A = rc_recur underlyingAlignment<modelEnumType>(ABI, Type, Cache))
-      Alignment = *A;
+      Result = *A;
     else
       rc_return std::nullopt;
     break;
@@ -289,7 +296,7 @@ naturalAlignment(const abi::Definition &ABI,
     // type
     using model::TypedefType;
     if (auto A = rc_recur underlyingAlignment<TypedefType>(ABI, Type, Cache))
-      Alignment = *A;
+      Result = *A;
     else
       rc_return std::nullopt;
     break;
@@ -298,7 +305,7 @@ naturalAlignment(const abi::Definition &ABI,
     // The alignment of a struct is the same as the alignment of its most
     // strictly aligned member.
     if (auto A = rc_recur fieldAlignment<model::StructType>(ABI, Type, Cache))
-      Alignment = *A;
+      Result = *A;
     else
       rc_return std::nullopt;
     break;
@@ -307,7 +314,7 @@ naturalAlignment(const abi::Definition &ABI,
     // The alignment of a union is the same as the alignment of its most
     // strictly aligned member.
     if (auto A = rc_recur fieldAlignment<model::UnionType>(ABI, Type, Cache))
-      Alignment = *A;
+      Result = *A;
     else
       rc_return std::nullopt;
     break;
@@ -318,11 +325,11 @@ naturalAlignment(const abi::Definition &ABI,
     revng_abort();
   }
 
-  Cache[&Type] = Alignment;
-  rc_return Alignment;
+  Cache[&Type] = Result;
+  rc_return Result;
 }
 
-static RecursiveCoroutine<std::optional<uint64_t>>
+static RecursiveCoroutine<std::optional<AlignmentInfo>>
 naturalAlignment(const abi::Definition &ABI,
                  const model::QualifiedType &QT,
                  abi::Definition::AlignmentCache &Cache) {
@@ -331,7 +338,8 @@ naturalAlignment(const abi::Definition &ABI,
     switch (It->Kind()) {
     case model::QualifierKind::Pointer:
       // Doesn't matter what the type is, use alignment of the pointer.
-      rc_return ABI.ScalarTypes().at(It->Size()).alignedAt();
+      rc_return AlignmentInfo{ ABI.ScalarTypes().at(It->Size()).alignedAt(),
+                               true };
 
     case model::QualifierKind::Array: {
       // The alignment of an array is the same as the alignment of its element.
@@ -360,9 +368,19 @@ naturalAlignment(const abi::Definition &ABI,
 
 std::optional<uint64_t> Definition::alignment(const model::QualifiedType &QT,
                                               AlignmentCache &Cache) const {
-  std::optional<uint64_t> Result = naturalAlignment(*this, QT, Cache);
-  if (Result.has_value() && Result.value() != 0)
-    return Result.value();
+  std::optional<AlignmentInfo> Result = naturalAlignment(*this, QT, Cache);
+  if (Result.has_value() && Result->Value != 0)
+    return Result->IsNatural ? Result->Value : 1;
+  else
+    return std::nullopt;
+}
+
+std::optional<bool>
+Definition::hasNaturalAlignment(const model::QualifiedType &QT,
+                                AlignmentCache &Cache) const {
+  std::optional<AlignmentInfo> Result = naturalAlignment(*this, QT, Cache);
+  if (Result.has_value() && Result->Value != 0)
+    return Result->IsNatural;
   else
     return std::nullopt;
 }
