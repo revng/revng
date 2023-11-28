@@ -420,9 +420,9 @@ static void generateReturnValueWrapper(Logger<> &Log,
     Scope Scope(Header, ptml::c::scopes::StructBody);
     for (auto &Group : llvm::enumerate(F.ReturnValues())) {
       const model::QualifiedType &RetTy = Group.value().Type();
-      const auto &FieldName = getReturnField(F, Group.index(), Model);
       Header << getNamedCInstance(RetTy,
-                                  B.tokenTag(FieldName, ptml::c::tokens::Field)
+                                  B.tokenTag(Group.value().name(),
+                                             ptml::c::tokens::Field)
                                     .serialize(),
                                   B)
              << ";\n";

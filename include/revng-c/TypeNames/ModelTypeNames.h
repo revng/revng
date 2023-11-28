@@ -67,15 +67,6 @@ getReturnTypeName(const model::Type &FunctionType,
   return getNamedInstanceOfReturnType(FunctionType, "", B, IsDefinition);
 }
 
-/// Return the name of the \a Index -th field of the struct returned
-/// by the \a FunctionType.
-/// \note FunctionType must be returning more than one value, otherwise
-/// there is no wrapping struct.
-extern tokenDefinition::types::TypeString
-getReturnField(const model::Type &FunctionType,
-               size_t Index,
-               const model::Binary &Model);
-
 /// Print the function prototype (without any trailing ';') of \a FT
 ///        using \a FunctionName as the function's name. If the return value
 ///        or any of the arguments needs a wrapper, print it with the

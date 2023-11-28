@@ -904,8 +904,10 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
                                                              B);
     } else {
       const model::Type *CalleeType = CalleePrototype.getConst();
-      StructFieldRef = getReturnField(*CalleeType, Idx->getZExtValue(), Model)
-                         .str()
+      auto RFT = llvm::cast<const model::RawFunctionType>(CalleeType);
+      uint64_t Index = Idx->getZExtValue();
+      StructFieldRef = std::next(RFT->ReturnValues().begin(), Index)
+                         ->name()
                          .str();
     }
 
