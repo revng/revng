@@ -507,6 +507,10 @@ ValueDistributor::distribute(model::QualifiedType Type,
                            << (HasNaturalAlignment ? "" : "un")
                            << "natural alignment is " << Alignment << ".");
 
+  bool CanUseRegisters = HasNaturalAlignment;
+  if (ABI.AllowUnnaturallyAlignedTypesInRegisters())
+    CanUseRegisters = true;
+
   // Precompute the last register allowed to be used.
   uint64_t LastRegister = OccupiedRegisterCount + AllowedRegisterLimit;
   if (LastRegister > Registers.size())
@@ -572,7 +576,7 @@ ValueDistributor::distribute(model::QualifiedType Type,
 
   bool AllowSplitting = !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
-  if (SizeCounter >= Size && HasNaturalAlignment) {
+  if (SizeCounter >= Size && CanUseRegisters) {
     // This a register-only argument, add the registers.
     for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);

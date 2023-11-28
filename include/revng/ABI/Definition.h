@@ -118,6 +118,14 @@ fields:
     type: bool
     optional: true
 
+  - name: AllowUnnaturallyAlignedTypesInRegisters
+    doc: |
+      States whether ABI allows unnaturally aligned types to be passed in
+      registers. When set to false, all the unnatural types will only be put
+      on stack.
+    type: bool
+    optional: true
+
   - name: UsePointerToCopyForStackArguments
     doc:
       States how the stack arguments are passed.
