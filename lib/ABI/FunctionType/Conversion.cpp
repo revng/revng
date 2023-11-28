@@ -413,13 +413,17 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
-  // Compute the alignment of the first argument.
-  uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
-  if (!llvm::isPowerOf2_64(FirstAlignment)) {
-    revng_log(Log,
-              "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Stack.Fields().begin()->Type()));
-    return std::nullopt;
+  // Verify the alignment of the first argument.
+  if (Stack.Fields().empty()) {
+    revng_log(Log, "Stack struct has no fields.");
+  } else {
+    uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
+    if (!llvm::isPowerOf2_64(FirstAlignment)) {
+      revng_log(Log,
+                "The natural alignment of a type is not a power of two:\n"
+                  << serializeToString(Stack.Fields().begin()->Type()));
+      return std::nullopt;
+    }
   }
 
   // Look at all the fields pair-wise, converting them into arguments.
