@@ -228,11 +228,13 @@ public:
         revng_log(Log,
                   "Skip a function conversion because it requires vector type "
                   "support: "
-                    << serializeToString(*Old));
+                    << serializeToString(Model->getTypePath(Old->key())));
         continue;
       }
 
-      revng_log(Log, "Converting a function: " << serializeToString(*Old));
+      revng_log(Log,
+                "Converting a function: "
+                  << serializeToString(Model->getTypePath(Old->key())));
 
       namespace FT = abi::FunctionType;
       if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
