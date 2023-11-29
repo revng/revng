@@ -9,6 +9,13 @@
 
 #include "DLAStep.h"
 
+static uint64_t
+getTripCount(uint64_t StartOffset, uint64_t EndOffset, uint64_t Stride) {
+  revng_assert(EndOffset > StartOffset);
+  auto DivRem = std::lldiv(EndOffset - StartOffset, Stride);
+  return DivRem.quot + (DivRem.rem ? 1ULL : 0ULL);
+}
+
 namespace dla {
 
 using NeighborIterator = LayoutTypeSystem::NeighborIterator;
@@ -354,14 +361,12 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           // namely represented by ArrayEndOffset and SiblingEndOffset (these
           // have not been updated yet, so they're still valid).
           // Then we take the largest of the two trip counts.
-          auto OldDivRem = std::lldiv(ArrayEndOffset - ArrayStartOffset,
-                                      Stride);
-          auto NewDivRem = std::lldiv(SiblingEndOffset - ArrayStartOffset,
-                                      Stride);
-          uint64_t OldTripCount = OldDivRem.quot
-                                  + (OldDivRem.rem ? 1ULL : 0ULL);
-          uint64_t NewTripCount = NewDivRem.quot
-                                  + (NewDivRem.rem ? 1ULL : 0ULL);
+          uint64_t OldTripCount = getTripCount(ArrayStartOffset,
+                                               ArrayEndOffset,
+                                               Stride);
+          uint64_t NewTripCount = getTripCount(ArrayStartOffset,
+                                               SiblingEndOffset,
+                                               Stride);
           TripCount = std::max(OldTripCount, NewTripCount);
 
           // Update the ArrayEndOffset, using the updated ArrayStartOffset, the
