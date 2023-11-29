@@ -2,6 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+#
+# NOTE: this file is stripped of any architecture-specific information (things
+#       like ABI, pointer sizes, and so on): it reflects all the _common_
+#       expectations for a specific source file (see revng-qa-side importPE
+#       sources) after being compiled and lifted by a variety of different
+#       msvc compiler versions.
+#
+
 ---
 Functions:
   - CustomName: "cmpfunc"
@@ -22,7 +30,6 @@ Types:
   - Kind: PrimitiveType
     ID: 1284
     PrimitiveKind: Unsigned
-    Size: 4
   - Kind: TypedefType
     ID: 14210609572455956746
     UnderlyingType:
@@ -35,10 +42,8 @@ Types:
       UnqualifiedType: "/Types/14210609572455956746-TypedefType"
       Qualifiers:
         - Kind: Pointer
-          Size: 4
   - Kind: CABIFunctionType
     ID: 5944255354151483434
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
@@ -50,7 +55,6 @@ Types:
           UnqualifiedType: "/Types/3290784804431442976-TypedefType"
   - Kind: CABIFunctionType
     ID: 17913232940792519997
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
@@ -72,11 +76,9 @@ Types:
       UnqualifiedType: "/Types/256-PrimitiveType"
       Qualifiers:
         - Kind: Pointer
-          Size: 4
   - Kind: TypedefType
     ID: 17163826859945186478
     UnderlyingType:
       UnqualifiedType: "/Types/5944255354151483434-CABIFunctionType"
       Qualifiers:
         - Kind: Pointer
-          Size: 4

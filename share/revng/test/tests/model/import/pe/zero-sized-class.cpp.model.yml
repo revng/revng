@@ -2,6 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+#
+# NOTE: this file is stripped of any architecture-specific information (things
+#       like ABI, pointer sizes, and so on): it reflects all the _common_
+#       expectations for a specific source file (see revng-qa-side importPE
+#       sources) after being compiled and lifted by a variety of different
+#       msvc compiler versions.
+#
+
 ---
 Functions:
   - OriginalName: main
@@ -19,13 +27,11 @@ Types:
     Size: 4
   - Kind: CABIFunctionType
     ID: 1815
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments: []
   - Kind: CABIFunctionType
     ID: 1818
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
@@ -38,7 +44,6 @@ Types:
       UnqualifiedType: "/Types/1822-StructType"
       Qualifiers:
         - Kind: Pointer
-          Size: 4
   - Kind: StructType
     ID: 1822
     CustomName: "Foo"

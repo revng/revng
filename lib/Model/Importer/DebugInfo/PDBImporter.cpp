@@ -266,8 +266,7 @@ void PDBImporterImpl::run(NativeSession &Session) {
   TupleTree<model::Binary> &Model = Importer.getModel();
   deduplicateEquivalentTypes(Model);
   promoteOriginalName(Model);
-  purgeUnnamedAndUnreachableTypes(Model);
-  pruneUnusedTypes(Model);
+  purgeUnreachableTypes(Model);
   revng_assert(Model->verify(true));
 }
 
