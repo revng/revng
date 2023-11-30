@@ -101,7 +101,7 @@ private:
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
   tryConvertingStackArguments(model::TypePath StackArgumentTypes,
-                              std::size_t IndexOffset);
+                              size_t IndexOffset);
 
   /// Helper used for converting return values to the c-style representation
   ///
@@ -246,7 +246,7 @@ TCC::tryConvertingRegisterArguments(const ArgumentRegisters &Registers) {
 
 std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
-                                 std::size_t IndexOffset) {
+                                 size_t IndexOffset) {
   if (StackArgumentTypes.empty()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating

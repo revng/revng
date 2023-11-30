@@ -33,7 +33,7 @@ using namespace llvm::cl;
 
 static OptionCategory ThisToolCategory("Tool options", "");
 
-template<std::size_t... Indices>
+template<size_t... Indices>
 static auto packValues(std::integer_sequence<size_t, Indices...>) {
   using namespace llvm::cl;
   using namespace model::ABI;

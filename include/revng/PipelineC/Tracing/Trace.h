@@ -112,8 +112,8 @@ public:
 
 struct BufferLocation {
   std::string CommandName;
-  std::size_t CommandNumber;
-  std::size_t ArgumentNumber;
+  size_t CommandNumber;
+  size_t ArgumentNumber;
 };
 
 struct RunTraceOptions {

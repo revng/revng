@@ -33,14 +33,14 @@ namespace pipeline {
 /// In deserialized form, the name gets lifted to a compilation time and can be
 /// accessed at `Rank::RankName`. The tuple of the keys is publicly inherited
 /// from, so it can either be accessed as normal tuple (for example, using
-/// `std::get<std::size_t>` after casting. There's a cast helper members
+/// `std::get<size_t>` after casting. There's a cast helper members
 /// (`tuple()`)) or using special accessors like `at()`.
 template<RankSpecialization Rank>
 class Location : public Rank::Tuple {
 private:
   using Tuple = typename Rank::Tuple;
   static_assert(std::tuple_size_v<Tuple> == Rank::Depth);
-  static constexpr std::size_t Size = Rank::Depth;
+  static constexpr size_t Size = Rank::Depth;
 
 private:
   constexpr static std::string_view Separator = "/";
@@ -93,7 +93,7 @@ public:
     Location<Rank> Result;
 
     constexpr auto Common = std::min(Rank::Depth, AnotherRank::Depth);
-    compile_time::repeat<Common>([&Result, &Another]<std::size_t I> {
+    compile_time::repeat<Common>([&Result, &Another]<size_t I> {
       std::get<I>(Result.tuple()) = std::get<I>(Another.tuple());
     });
 
@@ -110,7 +110,7 @@ public:
 
     Result += Separator;
     Result += Rank::RankName;
-    compile_time::repeat<Size>([&Result, this]<std::size_t Index> {
+    compile_time::repeat<Size>([&Result, this]<size_t Index> {
       Result += Separator;
       Result += serializeToString(std::get<Index>(tuple()));
     });
@@ -135,7 +135,7 @@ public:
     if (MaybeSteps->at(0) != "" || MaybeSteps->at(1) != ExpectedName)
       return std::nullopt;
 
-    auto Success = compile_time::repeatAnd<Size>([&]<std::size_t Idx> {
+    auto Success = compile_time::repeatAnd<Size>([&]<size_t Idx> {
       using T = typename std::tuple_element<Idx, Tuple>::type;
       using revng::detail::deserializeImpl;
       auto MaybeValue = deserializeImpl<T>(MaybeSteps->at(Idx + 2));
@@ -221,8 +221,8 @@ genericLocationFromString(std::string_view Serialized,
   using TupleType = std::tuple<detail::ConstP<ExpectedRank>,
                                detail::ConstP<SupportedRanks>...>;
   TupleType Tuple{ &Expected, &Supported... };
-  constexpr std::size_t TupleSize = std::tuple_size_v<TupleType>;
-  compile_time::repeat<TupleSize>([&, Serialized]<std::size_t I> {
+  constexpr size_t TupleSize = std::tuple_size_v<TupleType>;
+  compile_time::repeat<TupleSize>([&, Serialized]<size_t I> {
     auto MaybeLoc = locationFromString(*std::get<I>(Tuple), Serialized);
     if (MaybeLoc.has_value()) {
       Result = Location<ExpectedRank>::convert(*MaybeLoc);
@@ -241,7 +241,7 @@ genericLocationFromString(std::string_view Serialized,
 
 /// The simplified interface for generic location deserialization allowing for
 /// fetching a single key, indicated by \tparam Idx.
-template<std::size_t Idx, typename ExpectedRank, typename... SupportedRanks>
+template<size_t Idx, typename ExpectedRank, typename... SupportedRanks>
   requires(RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
 constexpr std::optional<std::tuple_element_t<Idx, typename ExpectedRank::Tuple>>
 genericLocationFromString(std::string_view Serialized,

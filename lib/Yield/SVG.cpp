@@ -417,7 +417,7 @@ struct LabelNodeHelper {
     for (auto *Node : Graph.nodes()) {
       if (!Node->isEmpty()) {
         // A normal node
-        std::size_t NameLength = 0;
+        size_t NameLength = 0;
         if (std::optional<model::Function::Key> Key = Node->getFunction()) {
           auto Iterator = Binary.Functions().find(std::get<0>(*Key));
           revng_assert(Iterator != Binary.Functions().end());

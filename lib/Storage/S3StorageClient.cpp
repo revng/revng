@@ -91,7 +91,7 @@ void initializeSDK() {
 namespace revng {
 
 static llvm::StringRef consumeSplit(llvm::StringRef &Input, char SplitChar) {
-  std::size_t Pos = Input.find(SplitChar);
+  size_t Pos = Input.find(SplitChar);
   revng_assert(Pos != llvm::StringRef::npos);
   llvm::StringRef Result = Input.slice(0, Pos);
   Input = Input.drop_front(Pos + 1);
@@ -286,7 +286,7 @@ S3StorageClient::fromURL(llvm::StringRef URL) {
 
   std::string SerializedIndex;
   {
-    constexpr std::size_t BufSize = 4096;
+    constexpr size_t BufSize = 4096;
     char Buffer[BufSize];
     auto &Body = Result.GetResult().GetBody();
 
@@ -374,7 +374,7 @@ S3StorageClient::getReadableFile(llvm::StringRef Path) {
                                    "Could not open temporary file");
   }
 
-  constexpr std::size_t BufSize = 4096;
+  constexpr size_t BufSize = 4096;
   llvm::SmallVector<char> Buffer;
   Buffer.resize_for_overwrite(BufSize);
   auto &Body = Result.GetResult().GetBody();

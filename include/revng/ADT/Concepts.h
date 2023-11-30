@@ -27,7 +27,7 @@ static_assert(!TupleSizeCompatible<int>);
 
 namespace revng::detail {
 
-template<class T, std::size_t N>
+template<class T, size_t N>
 concept TupleElementCompatibleHelper = requires(T Value) {
   typename std::tuple_element_t<N, std::remove_const_t<T>>;
   { get<N>(Value) } -> std::convertible_to<std::tuple_element_t<N, T> &>;
@@ -40,7 +40,7 @@ constexpr auto checkTupleElementTypes(std::index_sequence<N...>) {
 
 template<TupleSizeCompatible T>
 constexpr auto checkAllTupleElementTypes() {
-  constexpr std::size_t Size = std::tuple_size_v<T>;
+  constexpr size_t Size = std::tuple_size_v<T>;
   return checkTupleElementTypes<T>(std::make_index_sequence<Size>());
 }
 

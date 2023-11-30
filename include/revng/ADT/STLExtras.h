@@ -161,9 +161,8 @@ namespace revng::detail {
 template<bool SafeMode, typename IteratorType>
 inline auto skipImpl(IteratorType &&From,
                      IteratorType &&To,
-                     std::size_t Front = 0,
-                     std::size_t Back = 0)
-  -> llvm::iterator_range<IteratorType> {
+                     size_t Front = 0,
+                     size_t Back = 0) -> llvm::iterator_range<IteratorType> {
 
   std::ptrdiff_t TotalSkippedCount = Front + Back;
   if constexpr (std::forward_iterator<IteratorType>) {
@@ -192,7 +191,7 @@ inline auto skipImpl(IteratorType &&From,
 
 template<std::bidirectional_iterator T>
 inline decltype(auto)
-skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
+skip(T &&From, T &&To, size_t Front = 0, size_t Back = 0) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         Front,
@@ -201,7 +200,7 @@ skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
 
 template<std::input_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
-skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
+skip_front(T &&From, T &&To, size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         SkippedCount,
@@ -210,7 +209,7 @@ skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
 
 template<std::bidirectional_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
-skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
+skip_back(T &&From, T &&To, size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         0,
@@ -220,18 +219,17 @@ skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
 } // namespace revng::detail
 
 template<std::ranges::range T>
-inline decltype(auto)
-skip(T &&Range, std::size_t Front = 0, std::size_t Back = 0) {
+inline decltype(auto) skip(T &&Range, size_t Front = 0, size_t Back = 0) {
   return revng::detail::skip(Range.begin(), Range.end(), Front, Back);
 }
 
 template<std::ranges::range T> // NOLINTNEXTLINE
-inline decltype(auto) skip_front(T &&Range, std::size_t SkippedCount = 1) {
+inline decltype(auto) skip_front(T &&Range, size_t SkippedCount = 1) {
   return revng::detail::skip_front(Range.begin(), Range.end(), SkippedCount);
 }
 
 template<std::ranges::range T> // NOLINTNEXTLINE
-inline decltype(auto) skip_back(T &&Range, std::size_t SkippedCount = 1) {
+inline decltype(auto) skip_back(T &&Range, size_t SkippedCount = 1) {
   return revng::detail::skip_back(Range.begin(), Range.end(), SkippedCount);
 }
 
