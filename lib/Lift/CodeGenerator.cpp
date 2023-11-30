@@ -197,7 +197,7 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
     if (Segment.IsExecutable()) {
       // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
       // useful code anyway
-      size_t Size = Segment.FileSize();
+      uint64_t Size = Segment.FileSize();
       bool Success = ptc.mmap(Segment.StartAddress().address(),
                               static_cast<const void *>(Data.data()),
                               Size);
@@ -878,7 +878,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
     // TODO: rename this type
     PTCInstructionListPtr InstructionList(new PTCInstructionList);
-    size_t ConsumedSize = 0;
+    uint64_t ConsumedSize = 0;
 
     PTCCodeType Type = PTC_CODE_REGULAR;
 

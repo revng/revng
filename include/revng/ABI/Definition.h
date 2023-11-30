@@ -307,7 +307,7 @@ public:
 
 public:
   std::string_view getName() const { return model::ABI::getName(ABI()); }
-  size_t getPointerSize() const { return model::ABI::getPointerSize(ABI()); }
+  uint64_t getPointerSize() const { return model::ABI::getPointerSize(ABI()); }
 
   /// Make sure current definition is valid.
   bool verify() const debug_function;

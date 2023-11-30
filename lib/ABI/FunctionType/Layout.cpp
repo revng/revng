@@ -90,10 +90,10 @@ public:
 private:
   DistributedArguments
   distributePositionBasedArguments(const ArgumentSet &Arguments,
-                                   size_t SkippedCount = 0) const;
+                                   uint64_t SkippedCount = 0) const;
   DistributedArguments
   distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
-                                      size_t SkippedCount = 0) const;
+                                      uint64_t SkippedCount = 0) const;
 
   /// Helper for converting a single argument into a "distributed" state.
   ///
@@ -111,11 +111,11 @@ private:
   /// \return New distributed argument list (could be multiple if padding
   ///         arguments were required) and the new value of
   ///         \ref OccupiedRegisterCount after this argument is distributed.
-  std::pair<DistributedArguments, size_t>
+  std::pair<DistributedArguments, uint64_t>
   distributeOne(model::QualifiedType Type,
                 RegisterSpan Registers,
-                size_t OccupiedRegisterCount,
-                size_t AllowedRegisterLimit,
+                uint64_t OccupiedRegisterCount,
+                uint64_t AllowedRegisterLimit,
                 bool AllowPuttingPartOfAnArgumentOnStack) const;
 
 public:
@@ -260,7 +260,7 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   // Now that return value is figured out, the arguments are next.
   auto Arguments = distributeArguments(FunctionType.Arguments(),
                                        ReturnValue.SizeOnStack != 0);
-  size_t Index = 0;
+  uint64_t Index = 0;
   for (const DistributedArgument &Distributed : Arguments) {
     if (!Distributed.RepresentsPadding) {
       // Transfer the register arguments first.
@@ -307,10 +307,10 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
           // A piece of the argument is in registers, the rest is on the stack.
           // TODO: there must be more efficient way to handle these, but for
           //       the time being, just replace the argument type with `Generic`
-          size_t PointerSize = ABI.getPointerSize();
+          uint64_t PointerSize = ABI.getPointerSize();
           auto T = Binary->getPrimitiveType(model::PrimitiveTypeKind::Generic,
                                             PointerSize);
-          size_t RC = Distributed.Registers.size();
+          uint64_t RC = Distributed.Registers.size();
           OccupiedSpace -= PointerSize * RC;
           std::ptrdiff_t LeftoverSpace = OccupiedSpace;
           while (LeftoverSpace > 0) {
@@ -403,12 +403,12 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
 
 DistributedArguments
 ToRawConverter::distributePositionBasedArguments(const ArgumentSet &Arguments,
-                                                 size_t SkippedCount) const {
+                                                 uint64_t SkippedCount) const {
   DistributedArguments Result;
   Result.resize(Arguments.size());
 
   for (const model::Argument &Argument : Arguments) {
-    size_t RegisterIndex = Argument.Index() + SkippedCount;
+    uint64_t RegisterIndex = Argument.Index() + SkippedCount;
     revng_assert(Argument.Index() < Result.size());
     auto &Distributed = Result[Argument.Index()];
 
@@ -436,11 +436,11 @@ ToRawConverter::distributePositionBasedArguments(const ArgumentSet &Arguments,
   return Result;
 }
 
-std::pair<DistributedArguments, size_t>
+std::pair<DistributedArguments, uint64_t>
 ToRawConverter::distributeOne(model::QualifiedType Type,
                               RegisterSpan Registers,
-                              size_t OccupiedRegisterCount,
-                              size_t AllowedRegisterLimit,
+                              uint64_t OccupiedRegisterCount,
+                              uint64_t AllowedRegisterLimit,
                               bool AllowPuttingPartOfAnArgumentOnStack) const {
   DistributedArguments Result;
 
@@ -461,14 +461,14 @@ ToRawConverter::distributeOne(model::QualifiedType Type,
                            << ".");
 
   // Precompute the last register allowed to be used.
-  size_t LastRegister = OccupiedRegisterCount + AllowedRegisterLimit;
+  uint64_t LastRegister = OccupiedRegisterCount + AllowedRegisterLimit;
   if (LastRegister > Registers.size())
     LastRegister = Registers.size();
 
   // Define the counters: one for the number of registers the current value
   // could occupy, and one for the total size of said registers.
-  size_t ConsideredRegisterCounter = OccupiedRegisterCount;
-  size_t SizeCounter = 0;
+  uint64_t ConsideredRegisterCounter = OccupiedRegisterCount;
+  uint64_t SizeCounter = 0;
 
   // Keep adding the registers until either the total size exceeds needed or
   // we run out of allowed registers.
@@ -495,7 +495,6 @@ ToRawConverter::distributeOne(model::QualifiedType Type,
 
   // Take the alignment into consideration on the architectures that require
   // padding to be inserted even for arguments passed in registers.
-  std::optional<size_t> PaddingRegisterIndex = std::nullopt;
   if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
     const uint64_t PointerSize = ABI.getPointerSize();
     bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize);
@@ -526,13 +525,13 @@ ToRawConverter::distributeOne(model::QualifiedType Type,
 
   if (SizeCounter >= Size) {
     // This a register-only argument, add the registers.
-    for (size_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
+    for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
     DA.SizeOnStack = 0;
   } else if (AllowPuttingPartOfAnArgumentOnStack
              && ConsideredRegisterCounter == LastRegister) {
     // This argument is split among the registers and the stack.
-    for (size_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
+    for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
     DA.SizeOnStack = DA.Size - SizeCounter;
   } else {
@@ -565,16 +564,16 @@ ToRawConverter::distributeOne(model::QualifiedType Type,
 using ASet = ArgumentSet;
 DistributedArguments
 ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
-                                                    size_t SkippedCount) const {
+                                                    uint64_t Skipped) const {
   DistributedArguments Result;
 
-  size_t UsedVectorRegisterCounter = 0;
-  size_t UsedGeneralPurposeRegisterCounter = SkippedCount;
+  uint64_t UsedVectorRegisterCounter = 0;
+  uint64_t UsedGeneralPurposeRegisterCounter = Skipped;
   for (const model::Argument &Argument : Arguments) {
     bool CanSplit = ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
 
-    size_t RegisterLimit = 0;
-    size_t *RegisterCounter = nullptr;
+    uint64_t RegisterLimit = 0;
+    uint64_t *RegisterCounter = nullptr;
     std::span<const model::Register::Values> RegisterList;
     if (Argument.Type().isFloat()) {
       RegisterList = ABI.VectorArgumentRegisters();
@@ -619,7 +618,7 @@ ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
                                                         CanSplit);
 
     // Verify that the next register makes sense.
-    auto VerifyNextRegisterIndex = [&](size_t Current, size_t Next) {
+    auto VerifyNextRegisterIndex = [&](uint64_t Current, uint64_t Next) {
       if (Current == Next)
         return true; // No registers were used for this argument.
 
@@ -666,7 +665,7 @@ ToRawConverter::distributeReturnValue(const QualifiedType &ReturnValue) const {
   if (ReturnValue.isVoid())
     return DistributedArgument{};
 
-  size_t Limit = 0;
+  uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
   if (ReturnValue.isFloat()) {
     RegisterList = ABI.VectorReturnValueRegisters();
@@ -765,7 +764,7 @@ Layout::Layout(const model::CABIFunctionType &Function) {
   auto Converted = Converter.distributeArguments(Function.Arguments(),
                                                  RV.SizeOnStack != 0);
   revng_assert(Converted.size() >= Function.Arguments().size());
-  size_t Index = 0;
+  uint64_t Index = 0;
   for (const DistributedArgument &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
       Argument &Current = Arguments.emplace_back();

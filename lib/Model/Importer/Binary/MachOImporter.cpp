@@ -317,7 +317,7 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
   uint64_t Addend = static_cast<uint64_t>(Entry->addend());
   RelocationType::Values Type = RelocationType::Invalid;
   (void) Type;
-  auto PointerSize = Architecture::getPointerSize(Model->Architecture());
+  uint64_t PointerSize = Architecture::getPointerSize(Model->Architecture());
 
   switch (Entry->type()) {
   case BIND_TYPE_POINTER:

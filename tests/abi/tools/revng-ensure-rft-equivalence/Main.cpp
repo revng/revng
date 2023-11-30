@@ -122,7 +122,7 @@ int main(int Argc, char *Argv[]) {
     }
   };
   std::map<model::Identifier, FunctionPair, TransparentComparator> Functions;
-  std::unordered_set<size_t> FunctionIDLookup;
+  std::unordered_set<uint64_t> FunctionIDLookup;
 
   // Make sure the default prototype is valid.
   revng_assert(LeftModel->DefaultPrototype().isValid());

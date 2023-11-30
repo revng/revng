@@ -103,8 +103,7 @@ pipeline::description::PipelineDescription
 pipeline::Runner::description() const {
   pipeline::description::PipelineDescription Result;
 
-  size_t ALCount = getAnalysesListCount();
-  for (size_t I = 0; I < ALCount; I++) {
+  for (size_t I = 0; I < getAnalysesListCount(); I++) {
     const pipeline::AnalysesList &List = getAnalysesList(I);
     Result.AnalysesLists().insert(describe(List));
   }

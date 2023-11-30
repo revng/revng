@@ -153,7 +153,7 @@ static CommandList linkingArgs(const model::Binary &Model,
 
   auto UToHexStr = Twine::utohexstr;
 
-  const size_t PageSize = 4096;
+  const uint64_t PageSize = 4096;
 
   TemporaryFile &LinkerOutput = Result.createTemporary("revng-link-for-"
                                                        "translation",
@@ -274,7 +274,7 @@ static CommandList linkingArgs(const model::Binary &Model,
   appendTo({ "-l:crtend.o", "-l:crtn.o" }, Linker.Arguments);
 
   // Force text to start on the page after all the original program segments
-  auto PageAddress = PageSize * ((Max + PageSize - 1) / PageSize);
+  uint64_t PageAddress = PageSize * ((Max + PageSize - 1) / PageSize);
   auto HexPageAddress = UToHexStr(PageAddress).str();
   Linker.Arguments.push_back("-Ttext-segment=0x" + HexPageAddress);
 

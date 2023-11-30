@@ -547,7 +547,7 @@ static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
                                   BasicBlock,
                                   Function,
                                   Binary);
-  size_t Tail = Instruction.Disassembled().size() + 1;
+  uint64_t Tail = Instruction.Disassembled().size() + 1;
 
   std::string InstructionLocation = serializedLocation(ranks::Instruction,
                                                        Function.Entry(),

@@ -82,7 +82,7 @@ inline llvm::Triple::ArchType toLLVMArchitecture(Values V) {
 }
 
 /// Return the size of the pointer in bytes
-constexpr inline size_t getPointerSize(Values V) {
+constexpr inline uint64_t getPointerSize(Values V) {
   switch (V) {
   case model::Architecture::x86:
   case model::Architecture::arm:
@@ -98,7 +98,7 @@ constexpr inline size_t getPointerSize(Values V) {
   }
 }
 
-constexpr inline size_t getCallPushSize(Values V) {
+constexpr inline uint64_t getCallPushSize(Values V) {
   switch (V) {
   case x86:
     return 4;

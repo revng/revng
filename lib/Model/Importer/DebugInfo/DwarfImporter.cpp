@@ -221,7 +221,7 @@ private:
   const model::QualifiedType &record(const DWARFDie &Die,
                                      const model::QualifiedType &QT,
                                      bool IsNotPlaceholder) {
-    size_t Offset = Die.getOffset();
+    uint64_t Offset = Die.getOffset();
     revng_assert(QT.UnqualifiedType().isValid());
     if (not IsNotPlaceholder) {
       revng_assert(QT.Qualifiers().size() == 0);

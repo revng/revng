@@ -19,7 +19,7 @@ constexpr static PrimitiveTypeKind::Values selectTypeKind(Register::Values) {
 
 static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
   PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
-  size_t Size = Register::getSize(Register);
+  uint64_t Size = Register::getSize(Register);
   return QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
 }
 

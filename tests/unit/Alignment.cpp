@@ -45,7 +45,7 @@ void testAlignment(const model::QualifiedType &Type,
 
 namespace Primitive = model::PrimitiveTypeKind;
 static model::QualifiedType
-makePrimitive(Primitive::Values Kind, size_t Size, model::Binary &Binary) {
+makePrimitive(Primitive::Values Kind, uint64_t Size, model::Binary &Binary) {
   return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
 }
 
