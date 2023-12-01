@@ -373,9 +373,11 @@ public:
                        DebugLoc());
   }
 
-  void handleIndirectJump(llvm::IRBuilder<> &Builder,
-                          MetaAddress Block,
-                          llvm::Value *SymbolNamePointer) final {
+  void
+  handleIndirectJump(llvm::IRBuilder<> &Builder,
+                     MetaAddress Block,
+                     const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
+                     llvm::Value *SymbolNamePointer) final {
     revng_assert(SymbolNamePointer != nullptr);
     if (not isa<ConstantPointerNull>(SymbolNamePointer))
       handleCall(Builder, MetaAddress::invalid(), SymbolNamePointer);

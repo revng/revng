@@ -61,6 +61,7 @@ public:
 
   FunctionSummary(FunctionSummary &&Other) = default;
   FunctionSummary &operator=(FunctionSummary &&Other) = default;
+  bool operator==(const FunctionSummary &Other) const = default;
 
 public:
   void combine(const FunctionSummary &Other) {

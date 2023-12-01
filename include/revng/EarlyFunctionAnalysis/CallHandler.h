@@ -31,9 +31,11 @@ public:
   virtual void handlePostNoReturn(llvm::IRBuilder<> &Builder) = 0;
 
   /// \note Implementers should not emit a terminator
-  virtual void handleIndirectJump(llvm::IRBuilder<> &Builder,
-                                  MetaAddress Block,
-                                  llvm::Value *SymbolNamePointer) = 0;
+  virtual void
+  handleIndirectJump(llvm::IRBuilder<> &Builder,
+                     MetaAddress Block,
+                     const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
+                     llvm::Value *SymbolNamePointer) = 0;
 };
 
 } // namespace efa

@@ -116,6 +116,7 @@ bool OutlinedFunctionsMap::banRecursiveFunctions() {
 
 void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
                                        MetaAddress CallerFunction,
+                                       llvm::BasicBlock *CallerBlock,
                                        llvm::CallInst *FunctionCall,
                                        llvm::CallInst *JumpToSymbol,
                                        MetaAddress Callee,
@@ -124,6 +125,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
 
   auto [Summary, IsTailCall] = getCallSiteInfo(TheCallHandler,
                                                CallerFunction,
+                                               CallerBlock,
                                                FunctionCall,
                                                JumpToSymbol,
                                                Callee);
@@ -133,8 +135,8 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
 
   BasicBlock *BB = FunctionCall != nullptr ? FunctionCall->getParent() :
                                              JumpToSymbol->getParent();
-  MetaAddress CallerBlock = getBasicBlockAddress(getJumpTargetBlock(BB));
-  revng_assert(CallerBlock.isValid());
+  MetaAddress CallerBlockAddress = getBasicBlockAddress(getJumpTargetBlock(BB));
+  revng_assert(CallerBlockAddress.isValid());
 
   bool TargetIsSymbol = JumpToSymbol != nullptr;
   Value *SymbolNamePointer = nullptr;
@@ -186,7 +188,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
   } else {
     Instruction *Term = BB->getTerminator();
     IRBuilder<> Builder(Term);
-    TheCallHandler->handleCall(CallerBlock,
+    TheCallHandler->handleCall(CallerBlockAddress,
                                Builder,
                                Callee,
                                Summary->ClobberedRegisters,
@@ -249,6 +251,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
       CallInst *JumpToSymbol = getMarker(Current, "jump_to_symbol");
       auto [Summary, IsTailCall] = getCallSiteInfo(TheCallHandler,
                                                    FunctionAddress,
+                                                   FunctionCall->getParent(),
                                                    FunctionCall,
                                                    JumpToSymbol,
                                                    PCCallee);
@@ -308,6 +311,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
       CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
       auto [CalleeSummary, IsTailCall] = getCallSiteInfo(TheCallHandler,
                                                          FunctionAddress,
+                                                         BB,
                                                          FunctionCall,
                                                          JumpToSymbol,
                                                          PCCallee);
@@ -375,6 +379,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
     if (FunctionCall != nullptr) {
       integrateFunctionCallee(TheCallHandler,
                               FunctionAddress,
+                              &BB,
                               FunctionCall,
                               JumpToSymbol,
                               Callee,
@@ -419,14 +424,23 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
 
     using CPN = ConstantPointerNull;
     Value *SymbolName = CPN::get(Type::getInt8PtrTy(Context));
-    FunctionSummary *Summary = nullptr;
-    if (CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol")) {
+    CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
+
+    auto [Summary, _] = getCallSiteInfo(TheCallHandler,
+                                        OutlinedFunction->Address,
+                                        BB,
+                                        nullptr,
+                                        JumpToSymbol,
+                                        MetaAddress::invalid());
+
+    if (JumpToSymbol != nullptr) {
       SymbolName = JumpToSymbol->getArgOperand(0);
       eraseFromParent(JumpToSymbol);
     }
 
     TheCallHandler->handleIndirectJump(Builder,
                                        IndirectRetBBAddress,
+                                       Summary->ClobberedRegisters,
                                        SymbolName);
   }
 }
@@ -589,18 +603,18 @@ Outliner::createFunctionToInline(CallHandler *TheCallHandler,
 std::pair<const FunctionSummary *, bool>
 Outliner::getCallSiteInfo(CallHandler *TheCallHandler,
                           MetaAddress CallerFunction,
+                          llvm::BasicBlock *CallerBlock,
                           llvm::CallInst *FunctionCall,
                           llvm::CallInst *JumpToSymbol,
                           MetaAddress Callee) {
   using namespace llvm;
   using llvm::BasicBlock;
 
-  BasicBlock *BB = FunctionCall != nullptr ? FunctionCall->getParent() :
-                                             JumpToSymbol->getParent();
-  Instruction *Term = BB->getTerminator();
+  Instruction *Term = CallerBlock->getTerminator();
 
   // Extract MetaAddress of JT of the call-site
-  BasicBlockID CallSiteAddress = getBasicBlockID(getJumpTargetBlock(BB));
+  BasicBlockID
+    CallSiteAddress = getBasicBlockID(getJumpTargetBlock(CallerBlock));
   revng_assert(CallSiteAddress.isValid());
 
   StringRef CalledSymbol;
