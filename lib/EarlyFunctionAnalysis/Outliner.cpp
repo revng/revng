@@ -123,8 +123,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
                                        OutlinedFunctionsMap &FunctionsMap) {
   llvm::LLVMContext &Context = M.getContext();
 
-  auto [Summary, IsTailCall] = getCallSiteInfo(TheCallHandler,
-                                               CallerFunction,
+  auto [Summary, IsTailCall] = getCallSiteInfo(CallerFunction,
                                                CallerBlock,
                                                FunctionCall,
                                                JumpToSymbol,
@@ -249,8 +248,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
         PCCallee = getBasicBlockAddress(Next);
 
       CallInst *JumpToSymbol = getMarker(Current, "jump_to_symbol");
-      auto [Summary, IsTailCall] = getCallSiteInfo(TheCallHandler,
-                                                   FunctionAddress,
+      auto [Summary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                    FunctionCall->getParent(),
                                                    FunctionCall,
                                                    JumpToSymbol,
@@ -309,8 +307,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
       using namespace model::FunctionAttribute;
 
       CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
-      auto [CalleeSummary, IsTailCall] = getCallSiteInfo(TheCallHandler,
-                                                         FunctionAddress,
+      auto [CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                          BB,
                                                          FunctionCall,
                                                          JumpToSymbol,
@@ -426,8 +423,7 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
     Value *SymbolName = CPN::get(Type::getInt8PtrTy(Context));
     CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
 
-    auto [Summary, _] = getCallSiteInfo(TheCallHandler,
-                                        OutlinedFunction->Address,
+    auto [Summary, _] = getCallSiteInfo(OutlinedFunction->Address,
                                         BB,
                                         nullptr,
                                         JumpToSymbol,
@@ -601,8 +597,7 @@ Outliner::createFunctionToInline(CallHandler *TheCallHandler,
 }
 
 std::pair<const FunctionSummary *, bool>
-Outliner::getCallSiteInfo(CallHandler *TheCallHandler,
-                          MetaAddress CallerFunction,
+Outliner::getCallSiteInfo(MetaAddress CallerFunction,
                           llvm::BasicBlock *CallerBlock,
                           llvm::CallInst *FunctionCall,
                           llvm::CallInst *JumpToSymbol,
