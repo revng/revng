@@ -30,7 +30,7 @@
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Model/Generated/Early/FunctionAttribute.h"
-#include "revng/Support/RegisterClobberer.h"
+#include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 using namespace llvm;
@@ -1125,7 +1125,7 @@ void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
   using namespace llvm;
 
   Module *M = Builder.GetInsertBlock()->getParent()->getParent();
-  RegisterClobberer Clobberer(M);
+  OpaqueRegisterUser Clobberer(M);
 
   // Prevent the store instructions from being optimized out by storing
   // the an opaque value into clobbered registers
