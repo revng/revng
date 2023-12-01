@@ -115,8 +115,7 @@ private:
   /// \return a description of the call and boolean indicating whether the call
   ///         site is a tail call or not.
   std::pair<const FunctionSummary *, bool>
-  getCallSiteInfo(CallHandler *TheCallHandler,
-                  MetaAddress CallerFunction,
+  getCallSiteInfo(MetaAddress CallerFunction,
                   llvm::BasicBlock *CallerBlock,
                   llvm::CallInst *FunctionCall,
                   llvm::CallInst *JumpToSymbol,
