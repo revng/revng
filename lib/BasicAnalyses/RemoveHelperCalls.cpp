@@ -11,13 +11,13 @@
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/Support/IRHelpers.h"
 
-class RegisterClobberer {
+class OpaqueRegisterUser {
 private:
   llvm::Module *M;
   OpaqueFunctionsPool<std::string> Clobberers;
 
 public:
-  RegisterClobberer(llvm::Module *M) : M(M), Clobberers(M, false) {
+  OpaqueRegisterUser(llvm::Module *M) : M(M), Clobberers(M, false) {
     using namespace llvm;
     Clobberers.setMemoryEffects(MemoryEffects::readOnly());
     Clobberers.addFnAttribute(Attribute::NoUnwind);
@@ -61,7 +61,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   if (!Changed)
     return PreservedAnalyses::all();
 
-  RegisterClobberer Clobberer(F.getParent());
+  OpaqueRegisterUser Clobberer(F.getParent());
   OpaqueFunctionsPool<Type *> OFPOriginalHelper(F.getParent(), false);
   OFPOriginalHelper.setMemoryEffects(MemoryEffects::readOnly());
   OFPOriginalHelper.addFnAttribute(Attribute::NoUnwind);

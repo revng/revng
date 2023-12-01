@@ -9,7 +9,7 @@
 
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/RegisterClobberer.h"
+#include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;
 

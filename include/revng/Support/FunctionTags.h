@@ -191,6 +191,7 @@ inline Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
 inline Tag Marker("Marker");
 inline Tag DynamicFunction("DynamicFunction");
 inline Tag ClobbererFunction("ClobbererFunction");
+inline Tag ReaderFunction("ReaderFunction");
 
 inline Tag CSV("CSV");
 
