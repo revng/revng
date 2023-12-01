@@ -117,12 +117,14 @@ private:
   std::pair<const FunctionSummary *, bool>
   getCallSiteInfo(CallHandler *TheCallHandler,
                   MetaAddress CallerFunction,
+                  llvm::BasicBlock *CallerBlock,
                   llvm::CallInst *FunctionCall,
                   llvm::CallInst *JumpToSymbol,
                   MetaAddress Callee);
 
   void integrateFunctionCallee(CallHandler *TheCallHandler,
                                MetaAddress Caller,
+                               llvm::BasicBlock *CallerBlock,
                                llvm::CallInst *FunctionCall,
                                llvm::CallInst *JumpToSymbol,
                                MetaAddress Callee,

@@ -256,8 +256,18 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
       }
 
       if (isCallTo(Call, PreCallSiteHook)) {
+        // Ensure it's the first instruction in the basic block
+        revng_assert(&*BB->begin() == &I);
+
         Results.RAOFC[{ PC, BB }] = RAOFC::analyze(BB, GCBI);
+
+        // Register address of the callee
+        auto &CallSite = FinalResults.CallSites[PC];
+        CallSite.CalleeAddress = MetaAddress::fromValue(Call->getArgOperand(1));
       } else if (isCallTo(Call, PostCallSiteHook)) {
+        // Ensure it's the last instruction in the basic block
+        revng_assert(&*BB->getTerminator()->getPrevNode() == &I);
+
         // TODO: merge the following analyses in a single one
         Results.URVOFC[{ PC, BB }] = URVOFC::analyze(BB, GCBI);
         Results.DRVOFC[{ PC, BB }] = DRVOFC::analyze(BB, GCBI);
