@@ -13,6 +13,7 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Support/Debug.h"
 
 static Logger Log("function-type-conversion-to-raw");
@@ -355,8 +356,7 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
 
     using namespace model;
     auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-    NewType.StackArgumentsType() = { Binary->recordNewType(std::move(Type)),
-                                     {} };
+    NewType.StackArgumentsType() = Binary->recordNewType(std::move(Type));
   }
 
   // Set the final stack offset
@@ -829,21 +829,17 @@ Layout::Layout(const model::RawFunctionType &Function) {
   }
 
   // Lay stack arguments out.
-  if (not Function.StackArgumentsType().UnqualifiedType().empty()) {
-    const model::QualifiedType &StackArgType = Function.StackArgumentsType();
-    // The stack argument, if present, should always be a struct.
-    revng_assert(StackArgType.Qualifiers().empty());
-    revng_assert(StackArgType.is(model::TypeKind::StructType));
+  if (not Function.StackArgumentsType().empty()) {
+    const model::TypePath &StackArgTypeRef = Function.StackArgumentsType();
+    auto *StackStruct = llvm::cast<model::StructType>(StackArgTypeRef.get());
 
     auto &Argument = Arguments.emplace_back();
 
     // Stack argument is always passed by pointer for RawFunctionType
-    Argument.Type = StackArgType;
+    Argument.Type = QualifiedType{ StackArgTypeRef, {} };
     Argument.Kind = ArgumentKind::ReferenceToAggregate;
 
     // Record the size
-    const model::Type *OriginalStackType = StackArgType.UnqualifiedType().get();
-    auto *StackStruct = llvm::cast<model::StructType>(OriginalStackType);
     if (StackStruct->Size() != 0)
       Argument.Stack = { 0, StackStruct->Size() };
   }

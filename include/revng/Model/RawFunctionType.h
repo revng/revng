@@ -32,7 +32,10 @@ fields:
   - name: FinalStackOffset
     type: uint64_t
   - name: StackArgumentsType
-    type: QualifiedType
+    doc: The type of the struct representing stack arguments
+    reference:
+      pointeeType: Type
+      rootType: Binary
     optional: true
 TUPLE-TREE-YAML */
 
@@ -57,8 +60,8 @@ public:
       Result.push_back(Argument.Type());
     for (auto &RV : ReturnValues())
       Result.push_back(RV.Type());
-    if (not StackArgumentsType().UnqualifiedType().empty())
-      Result.push_back(StackArgumentsType());
+    if (not StackArgumentsType().empty())
+      Result.push_back(QualifiedType{ StackArgumentsType(), {} });
 
     return Result;
   }

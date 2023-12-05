@@ -1236,11 +1236,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (Preserved == Register::Invalid)
       rc_return VH.fail();
 
-  if (not T->StackArgumentsType().Qualifiers().empty())
-    rc_return VH.fail();
-
-  auto &Type = T->StackArgumentsType().UnqualifiedType();
-  if (not Type.empty() and not rc_recur Type.get()->verify(VH))
+  auto &StackArgumentsType = T->StackArgumentsType();
+  if (not StackArgumentsType.empty()
+      and not rc_recur StackArgumentsType.get()->verify(VH))
     rc_return VH.fail();
 
   rc_return VH.maybeFail(T->CustomName().verify(VH));

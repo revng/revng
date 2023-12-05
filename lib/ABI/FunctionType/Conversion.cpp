@@ -12,6 +12,7 @@
 #include "revng/ABI/FunctionType/TypeBucket.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 static Logger Log("function-type-conversion-to-cabi");
@@ -99,7 +100,7 @@ private:
   ///
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
-  tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
+  tryConvertingStackArguments(model::TypePath StackArgumentTypes,
                               std::size_t IndexOffset);
 
   /// Helper used for converting return values to the c-style representation
@@ -244,22 +245,21 @@ TCC::tryConvertingRegisterArguments(const ArgumentRegisters &Registers) {
 }
 
 std::optional<llvm::SmallVector<model::Argument, 8>>
-TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
+TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
                                  std::size_t IndexOffset) {
-  if (StackArgumentTypes.UnqualifiedType().empty()) {
+  if (StackArgumentTypes.empty()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating
     // a new empty type.
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
-  // Qualifiers here are not allowed since this must point to a simple struct.
-  revng_assert(StackArgumentTypes.Qualifiers().empty());
-  auto *Unqualified = StackArgumentTypes.UnqualifiedType().get();
-  model::StructType &Stack = *llvm::cast<model::StructType>(Unqualified);
+  model::StructType &Stack = *llvm::cast<model::StructType>(StackArgumentTypes
+                                                              .get());
 
   // Compute the full alignment.
-  uint64_t FullAlignment = *ABI.alignment(StackArgumentTypes);
+  uint64_t FullAlignment = *ABI.alignment(model::QualifiedType{
+    StackArgumentTypes, {} });
   if (!llvm::isPowerOf2_64(FullAlignment)) {
     revng_log(Log,
               "The natural alignment of a type is not a power of two:\n"

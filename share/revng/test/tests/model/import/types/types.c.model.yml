@@ -4,8 +4,7 @@
 
 ---
 Segments:
-  - Type:
-      UnqualifiedType: "/Types/12084688553483582712-StructType"
+  - Type: "/Types/12084688553483582712-StructType"
 Types:
   - Kind: PrimitiveType
     ID: 513

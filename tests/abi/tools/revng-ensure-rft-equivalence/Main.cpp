@@ -194,10 +194,8 @@ int main(int Argc, char *Argv[]) {
     }
 
     // Try and access the argument struct.
-    revng_check(Left->StackArgumentsType().Qualifiers().empty());
-    revng_check(Right->StackArgumentsType().Qualifiers().empty());
-    auto *LeftStack = Left->StackArgumentsType().UnqualifiedType().get();
-    auto *RightStack = Right->StackArgumentsType().UnqualifiedType().get();
+    auto *LeftStack = Left->StackArgumentsType().get();
+    auto *RightStack = Right->StackArgumentsType().get();
 
     // XOR the `bool`eans - make sure that either both functions have stack
     // argument or neither one does.
@@ -227,8 +225,8 @@ int main(int Argc, char *Argv[]) {
   RightModel->DefaultPrototype() = model::TypePath{};
 
   // Streamline both models and diff them
-  model::pruneUnusedTypes(LeftModel);
-  model::pruneUnusedTypes(RightModel);
+  model::purgeUnreachableTypes(LeftModel);
+  model::purgeUnreachableTypes(RightModel);
   TupleTreeDiff Diff = diff(*LeftModel, *RightModel);
 
   if (Diff.Changes.empty()) {
