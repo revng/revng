@@ -2,7 +2,9 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <compare>
 #include <functional>
+#include <optional>
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
@@ -68,11 +70,210 @@ struct InstanceEdge {
   bool operator==(const InstanceEdge &) const = default;
 };
 
-struct CompatibleArrayGroup {
-  std::set<InstanceEdge> Neighbors;
-  uint64_t NElems;
-  uint64_t BaseOffset;
+/// Simple struct representing all the information we need to track on an array
+/// to be created compacting many strided instance edges.
+struct CompactedArrayInfo {
+  // The start offset of the array inside the struct that owns it.
+  uint64_t StartOffset;
+
+  // The end offset of the array inside the struct that owns it.
+  uint64_t EndOffset;
+
+  // The stride of the array.
+  uint64_t Stride;
+
+  // 1 + the highest offset inside the array element for which DLA can guarantee
+  // that it can see a memory access.
+  // Should always be > 0 and <= Stride.
+  uint64_t AccessedElementSize;
+
+  // The number of bytes available outside the array, in the owning struct,
+  // before the array itself.
+  // It is an upper bound on how much it is possible to decrease the StartOffset
+  // of the array.
+  // It's always required to be at most (Stride - AccessedElementSize),
+  // otherwise it would be possible to decrease the StartOffset to "shift" the
+  // array in a way that would leave part of the AccessedElementSize out.
+  uint64_t Slack;
+
+  bool operator==(const CompactedArrayInfo &) const = default;
+  std::strong_ordering operator<=>(const CompactedArrayInfo &) const = default;
 };
+
+CompactedArrayInfo makeCompactedArrayInfo(const auto &ArrayEdge) {
+  revng_assert(isStridedInstance(ArrayEdge));
+
+  const auto &[Child, OE] = ArrayEdge;
+  const auto &[Offset, Strides, TripCounts] = OE->getOffsetExpr();
+  revng_assert(Strides.size() == 1ULL);
+  revng_assert(TripCounts.size() == 1ULL);
+
+  uint64_t ChildSize = Child->Size;
+  revng_assert(ChildSize > 0ULL);
+
+  uint64_t Stride = Strides.front();
+  revng_assert(Stride >= ChildSize);
+
+  uint64_t TripCount = TripCounts.front().value_or(1ULL);
+  revng_assert(TripCount > 0ULL);
+
+  uint64_t EndOffset = Offset + (Stride * (TripCount - 1ULL)) + ChildSize;
+
+  uint64_t Slack = std::min(Offset, Stride - ChildSize);
+
+  return CompactedArrayInfo{
+    .StartOffset = Offset,
+    .EndOffset = EndOffset,
+    .Stride = Stride,
+    .AccessedElementSize = ChildSize,
+    .Slack = Slack,
+  };
+}
+
+/// Tries to adjust ToShift slightly moving it to lower StartOffset, so that
+/// its element is aligned with AlignTo's element.
+/// If this is successful, it then tries to compact the two resulting arrays, to
+/// create a larger array that contains both the shifted ToShift, and AlignTo.
+static std::optional<CompactedArrayInfo>
+tryShiftLowerAndCompact(const CompactedArrayInfo &ToShift,
+                        const CompactedArrayInfo &AlignTo) {
+
+  revng_assert(ToShift.Stride == AlignTo.Stride);
+  uint64_t Stride = ToShift.Stride;
+
+  // Compute the RequiredSlack, i.e. the number of bytes we have to shift
+  // ToShift towards a lower StartOffset, to align its element with ToAlign's
+  // element.
+  uint64_t RequiredSlack = 0ULL;
+  {
+    // Consider AlignTo's element aligned to 0, because that's the baseline we
+    // want to align ToShift to.
+
+    uint64_t ToShiftAlignment = ToShift.StartOffset % Stride;
+    uint64_t ToMatchAlignment = AlignTo.StartOffset % Stride;
+    if (ToShiftAlignment > ToMatchAlignment) {
+      // If ToShiftAlignment is larger than ToMatchAlignment, we just shift it
+      // down by ToMatchAlignment.
+      RequiredSlack = ToShiftAlignment - ToMatchAlignment;
+    } else if (ToShiftAlignment < ToMatchAlignment) {
+      // Otherwise, we have to add Stride first, otherwise we would underflow.
+      RequiredSlack = ToShiftAlignment + Stride - ToMatchAlignment;
+    }
+  }
+  revng_assert(RequiredSlack < Stride);
+
+  // So now the two elements of the arrays are aligned like this:
+  // AlignTo |<------------Stride------------>|
+  // ToShift |<--RequiredSlack-->|<------------Stride------------>|
+
+  // Now we'd like to try to shift ToShift to a lower starting offset, so that
+  // its starting point matches the starting point of AlignTo.
+  // We can only do that if ToShift has enough Slack.
+  if (ToShift.Slack < RequiredSlack)
+    return std::nullopt;
+
+  // Now we're shifting ToShift towards lower starting addresses, so we have to
+  // decrease the StartOffset accordingly.
+  // We can assume that ToShift.StartOffset is always larger or equal to
+  // RequiredSlack because of how ToShift was generated and because of the fact
+  // that StartOffset is part of the computation used to determine the value of
+  // ToShift.Slack.
+  // Also, AlignTo could start at a lower offset than ToShift, so we actually
+  // have to take the minimum.
+  revng_assert(ToShift.StartOffset >= RequiredSlack);
+  uint64_t NewStartOffset = std::min(ToShift.StartOffset - RequiredSlack,
+                                     AlignTo.StartOffset);
+
+  // We can obtain the NewSlack by subtracting the RequiredSlack from
+  // ToShift.Slack. This is not enough though, because AlignTo.Slack could be
+  // even smaller, so we have to take the minimum.
+  uint64_t NewSlack = std::min(ToShift.Slack - RequiredSlack, AlignTo.Slack);
+
+  // We can obtain the NewElement size by adding the RequiredSlack to
+  // ToShift.AccessedElementSize. Again, this is not enough, because
+  // AlignTo.AccessedElementSize could be even larger, so we have to take the
+  // maximum.
+  revng_assert(ToShift.AccessedElementSize <= Stride - RequiredSlack);
+  uint64_t NewElementSize = std::max(ToShift.AccessedElementSize
+                                       + RequiredSlack,
+                                     AlignTo.AccessedElementSize);
+
+  // Compute the new TripCount.
+  // This a little bit tricky, because it might be tempting to just say that
+  // we can compute the new EndOffset as max(ToShift.EndOffset,
+  // AlignTo.EndOffset) and then compute the TripCount as
+  // getTripCount(NewStartOffset, EndOffset, Stride).
+  // This is wrong when the array with higher EndOffset also has a larger Slack
+  // (or a smaller AccessedElementSize, which in this case should be
+  // equivalent).
+  // The correct way to compute this is to compute the new TripCount as the max
+  // of the TripCounts to go from NewStartOffset to both ToShift.EndOffset and
+  // ToFit.EndOffset, that are never changed by previous computations.
+  // Then, with this new TripCount we can compute the new EndOffset considering
+  // the new AccessedElementSize and the Stride.
+  uint64_t TripCountA = getTripCount(NewStartOffset, ToShift.EndOffset, Stride);
+  uint64_t TripCountB = getTripCount(NewStartOffset, AlignTo.EndOffset, Stride);
+  uint64_t TripCount = std::max(TripCountA, TripCountB);
+
+  // The common EndOffset is the highest among the two.
+  uint64_t NewEndOffset = NewStartOffset + (Stride * (TripCount - 1ULL))
+                          + NewElementSize;
+
+  // If the new EndOffset is larger than the both the EndOffsets we're trying to
+  // compact, this compaction would introduce stuff to the right of what we've
+  // seen in the binary.
+  // This is something we're not allowed to do, because it might mess up the
+  // size of the containing struct.
+  if (NewEndOffset > std::max(ToShift.EndOffset, AlignTo.EndOffset))
+    return std::nullopt;
+
+  return CompactedArrayInfo{
+    .StartOffset = NewStartOffset,
+    .EndOffset = NewEndOffset,
+    .Stride = Stride,
+    .AccessedElementSize = NewElementSize,
+    .Slack = NewSlack,
+  };
+}
+
+static std::optional<CompactedArrayInfo> &
+pickBest(std::optional<CompactedArrayInfo> &MaybeA,
+         std::optional<CompactedArrayInfo> &MaybeB) {
+
+  if (not MaybeA.has_value())
+    return MaybeB;
+
+  if (not MaybeB.has_value())
+    return MaybeA;
+
+  // Here both inputs have a value
+  CompactedArrayInfo &A = MaybeA.value();
+  CompactedArrayInfo &B = MaybeB.value();
+
+  // Should have the same Stride
+  revng_assert(A.Stride == B.Stride);
+
+  // Should be aligned
+  revng_assert((A.StartOffset % A.Stride) == (B.StartOffset % B.Stride));
+
+  // Should end in the same place.
+  // If they didn't, at least one of them should have increased the maximum
+  // EndOffset among the two of them, which should be filtered away.
+  revng_assert(A.EndOffset == B.EndOffset);
+
+  // If they don't start at the same StartOffset, the one with the highest
+  // StartOffset should be picked as best, because it generates less data at the
+  // beginning.
+  if (auto Cmp = A.StartOffset <=> B.StartOffset; Cmp != 0)
+    return (Cmp < 0) ? MaybeB : MaybeA;
+
+  // Because of how the two candidates are constructed we should have the
+  // guarantee that if the new start offsets are the same, then both Slack and
+  // AccessedElementSize are the same.
+  revng_assert(A == B);
+
+  return MaybeA;
+}
 
 bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
@@ -87,8 +288,6 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
 
     using NonPointerFilter = EdgeFilteredGraph<LayoutTypeSystemNode *,
                                                isNotPointerEdge>;
-
-    std::vector<CompatibleArrayGroup> ArrayGroups;
 
     for (LayoutTypeSystemNode *Parent :
          llvm::post_order_ext(NonPointerFilter(Root), Visited)) {
@@ -122,56 +321,7 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
         // compacted array starts and ends.
         // These will be updated in flight until we finish the group and decide
         // all the siblings that need to be compacted with ArrayEdge.
-
-        const auto &[InitialChild, OE] = ArrayEdge;
-        const auto &[InitialOffset,
-                     InitialStrides,
-                     InitialTripCounts] = OE->getOffsetExpr();
-
-        // The start offset of the final compacted array.
-        // Initially it's just InitialChild Offset. This will never increase,
-        // but it could decrease if we find strong evidence that the final
-        // compacted array actually starts earlier than the point we're starting
-        // from.
-        uint64_t ArrayStartOffset = InitialOffset;
-
-        // The stride of the array. This will actually never change, because
-        // we're only going to look with others array to compact with this if
-        // they have a matching Stride.
-        uint64_t Stride = InitialStrides.front();
-
-        // The trip count of the array.
-        // This will evolve to track the trip count of the compacted array.
-        // It will only increase, never decrease.
-        uint64_t TripCount = InitialTripCounts.front().value_or(1ULL);
-
-        // The end offset of the final compacted array.
-        // Initially it's just the last byte that is guaranteed to be accessed
-        // by InitialChild. This will never decrease, but it could become
-        // bigger, if we find strong evidence in other siblings that the
-        // compacted array should actually be larger.
-        uint64_t ArrayEndOffset = InitialOffset + (Stride * (TripCount - 1ULL))
-                                  + InitialChild->Size;
-
-        // The initial slack inside an array element.
-        // It represents how much we can move the boundaries of the array
-        // element back, if we need to align it.
-        // It represents the number of empty trailing bytes at the end of an
-        // array element, but we can never move something more backwards than
-        // the start of Parent, so we have to take ArrayStartOffset in
-        // consideration.
-        // The value of AvailableSlack always decreases during the iterations.
-        revng_assert(Stride >= InitialChild->Size);
-        uint64_t AvailableSlack = std::min(ArrayStartOffset,
-                                           Stride - InitialChild->Size);
-
-        // The offset of the first byte in the array element that we're not sure
-        // that will be accessed.
-        // It is always <= Stride - AvailableSlack;
-        // Given that AvailableSlack only decreases and Stride is fixed,
-        // AccessedElemSize only increases, possibly reaching Stride, but never
-        // growing larger than that.
-        uint64_t AccessedElemSize = InitialChild->Size;
+        CompactedArrayInfo Current = makeCompactedArrayInfo(ArrayEdge);
 
         // Ok, now we start looking at other array siblings of ArrayEdge.
         // If we find an ArraySibling that strongly overlaps with the array
@@ -201,178 +351,66 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           if (not isStridedInstance(ArraySiblingEdge))
             continue;
 
-          const auto &[Sibling, SiblingOE] = ArraySiblingEdge;
-          const auto &[SiblingOffset,
-                       SiblingStrides,
-                       SiblingTripCounts] = SiblingOE->getOffsetExpr();
+          CompactedArrayInfo Sibling = makeCompactedArrayInfo(ArraySiblingEdge);
 
-          // If Sibling has a mismatching stride we don't compact it.
-          revng_assert(SiblingStrides.size() == 1);
-          if (SiblingStrides.front() != Stride)
+          // If the Sibling has a mismatching stride we don't compact it.
+          if (Sibling.Stride != Current.Stride)
             continue;
 
-          // If the Sibling starts later than ArrayEndOffset, we don't compact
-          // them.
-          if (SiblingOffset >= ArrayEndOffset)
+          // If the Sibling starts after the Current ends, they don't overlap
+          // and we don't compact them.
+          if (Sibling.StartOffset >= Current.EndOffset)
             continue;
 
-          uint64_t SiblingTripCount = SiblingTripCounts.front().value_or(1ULL);
-          uint64_t SiblingEndOffset = SiblingOffset
-                                      + (Stride * (SiblingTripCount - 1ULL))
-                                      + Sibling->Size;
-
-          // If the Sibling ends before ArrayStartOffset, we don't compact
-          // them.
-          if (SiblingEndOffset <= ArrayStartOffset)
+          // If the Sibling ends before the Current starts, they don't overlap
+          // and we dont compact them.
+          if (Sibling.EndOffset <= Current.StartOffset)
             continue;
 
-          // Here we have a strong evidence that ArraySibling overlaps the range
-          // of the compacted array we're tracking for at least one byte.
+          // Here we have a strong evidence that Sibling overlaps the range
+          // of Current for at least one byte.
           // At this point we want to find out if we can compact them.
 
-          // To make the following computation more uniform (so we need to
-          // handle less corner cases) we want to always assume that
-          // SiblingOffset >= ArrayStartOffset.
-          if (ArrayStartOffset > SiblingOffset) {
-            // We want to move the tracked range to the left so we end up with
-            // ArrayStartOffset <= SiblingOffset.
-            // This shift to the left will be done in 2 stages:
-            // - first we align the elements of ArraySibling with the array
-            //   range we're tracking, exploiting the AvailableSlack
-            // - then we add a number of entire elements to the left
-            uint64_t OffsetDifference = ArrayStartOffset - SiblingOffset;
+          // First of all we have to try and adjust the alignment of the array
+          // element, so that the elements of Current and Sibling are aligned.
+          // We can only do this by trying to move the start of an array element
+          // to a lower offset, but we have to try both to move Current and to
+          // move Sibling, and see which one gives the best results.
 
-            // If we don't have enough slack we just don't compact ArraySibling
-            // with this group of edges.
-            uint64_t RequiredSlack = OffsetDifference % Stride;
-            if (RequiredSlack > AvailableSlack)
-              continue;
+          // Try to shift Current to a lower StartOffset, to match Sibling's
+          // alignment.
+          std::optional<CompactedArrayInfo>
+            FittedShiftingCurrent = tryShiftLowerAndCompact(Current, Sibling);
 
-            // If we reach this point, we have the guarantee that we will not
-            // bail out, and that ArraySibling will be compacted, so we can
-            // update the running values we're tracking.
+          // Try to shift Sibling to a lower StartOffset, to match Current's
+          // alignment.
+          std::optional<CompactedArrayInfo>
+            FittedShiftingSibling = tryShiftLowerAndCompact(Sibling, Current);
 
-            AvailableSlack -= RequiredSlack;
-            ArrayStartOffset -= RequiredSlack;
-            OffsetDifference -= RequiredSlack;
+          std::optional<CompactedArrayInfo>
+            &MaybeBest = pickBest(FittedShiftingCurrent, FittedShiftingSibling);
 
-            // If we're moving the array start to the left we have to update the
-            // size of the accessed element in the array.
-            // It is always at least as large as the Sibling, and also at least
-            // as large as the previous AccessedElemSize adjusted by the
-            // RequiredSlack.
-            AccessedElemSize = std::max(Sibling->Size,
-                                        AccessedElemSize + RequiredSlack);
-
-            // If there is still some OffsetDifference after adjusting the
-            // slack, we have to add a whole bunch of new elements before
-            // ArrayStartOffset.
-            uint64_t NumPrecedingElements = OffsetDifference / Stride;
-            if (NumPrecedingElements) {
-              // Count how many elements we have to add before the array we're
-              // tracking.
-
-              // Effectively change the start of the range we're tracking as if
-              // we added the proper amount of elements before the beginning. We
-              // might need to subtract Stride once more (see below) if the
-              // division above had non-zero remainder.
-              ArrayStartOffset -= Stride * NumPrecedingElements;
-
-              // Update the TripCount
-              TripCount += NumPrecedingElements;
-            }
-
-            // Also, we're moving the ArrayStartOffset backward, so the the size
-            // of the range we're tracking is going to increase, we have to
-            // restart looking at array siblings because, given that the range
-            // increases, there could be new siblings that have overlapping
-            // bytes, and we have to take them into consideration too.
-            if (RequiredSlack or NumPrecedingElements)
-              SiblingEdgeNext = GT::child_edge_begin(Parent);
-
-            revng_assert(ArrayStartOffset == SiblingOffset);
-          }
-
-          // When we reach this point, the range of the array we're tracking
-          // starts earlier than the ArraySibling.
-
-          uint64_t OffsetDifference = SiblingOffset - ArrayStartOffset;
-          uint64_t OffsetOfSiblingInArray = OffsetDifference % Stride;
-
-          // We need to realign the element of the array moving it a little bit
-          // to the left, consuming slack. RequiredSlack tells us how much of
-          // the AvailableSlack we would consume doing that.
-          uint64_t RequiredSlack = 0ULL;
-          if (OffsetOfSiblingInArray + Sibling->Size > Stride)
-            RequiredSlack = Stride - OffsetOfSiblingInArray;
-
-          // If we need slack but we don't have it, the Sibling will not be
-          // compacted with the array we're tracking.
-          if (RequiredSlack > AvailableSlack)
+          // If both adjustments failed, we give up on trying to compact Current
+          // and Sibling, and skip to the next sibling.
+          if (not MaybeBest.has_value())
             continue;
+
+          CompactedArrayInfo &Best = MaybeBest.value();
+
+          // If we're moving the StartOffset backward (or the EndOffset
+          // forward) the size of the range we're tracking is going to increase.
+          // We have to restart looking at array siblings because, given that
+          // the range has increased, there could be new siblings that have
+          // overlapping bytes, and we have to take them into consideration too.
+          if (Best.StartOffset < Current.StartOffset
+              or Best.EndOffset > Current.EndOffset)
+            SiblingEdgeNext = GT::child_edge_begin(Parent);
+
+          Current = Best;
 
           // Here we know that ArraySibling can be compacted with the current
           // array we're tracking.
           CompactedWithCurrent.insert(SiblingEdgeIt);
-
-          // If the size of the range we're tracking is going to increase, we
-          // have to restart looking at array siblings because, given that the
-          // range increases, there could be new siblings that have
-          // overlapping bytes, and we have to take them into consideration
-          // too. If RequiredSlack is not zero, we're moving the
-          // ArrayStartOffset to the left, so we have to restart.
-          if (RequiredSlack)
-            SiblingEdgeNext = GT::child_edge_begin(Parent);
-          revng_assert(ArrayStartOffset >= RequiredSlack);
-          ArrayStartOffset -= RequiredSlack;
-
-          // Update the available slack.
-          // It may be smaller than AvailableSlack - RequiredSlack if
-          // SiblingSize is large, because the compacted sibling will consume
-          // more of the bytes in the Stride, effectively leaving less stride.
-          AvailableSlack = std::min(AvailableSlack - RequiredSlack,
-                                    Stride
-                                      - (OffsetOfSiblingInArray
-                                         + Sibling->Size));
-
-          // Update the AccessedElemSize.
-          // If we had a RequiredSlack it means that the array is being shifted
-          // to the left, so the new AccessedElemSize is at least large like the
-          // new Sibling, and at least large as the previous iteration adjusted
-          // for the RequiredSlack.
-          // If we didn't have a RequiredSlack, AccessedElemeSize stays the same
-          // or at most it accesses the upper byte of the Sibling.
-          if (RequiredSlack) {
-            AccessedElemSize = std::max(Sibling->Size,
-                                        AccessedElemSize + RequiredSlack);
-          } else {
-            AccessedElemSize = std::max(AccessedElemSize,
-                                        OffsetOfSiblingInArray + Sibling->Size);
-          }
-
-          // Update the TripCount.
-          // This is a little convoluted because we might have moved a little
-          // bit the array start to the left and at the same time the sibling
-          // array could end much later than the last access performed to the
-          // array up until now.
-          // So, basically starting from the new update ArrayStartOffset (that
-          // takes into account the occasional shift to the left) we compute how
-          // many trips we need to cover all the accesses that we know of,
-          // namely represented by ArrayEndOffset and SiblingEndOffset (these
-          // have not been updated yet, so they're still valid).
-          // Then we take the largest of the two trip counts.
-          uint64_t OldTripCount = getTripCount(ArrayStartOffset,
-                                               ArrayEndOffset,
-                                               Stride);
-          uint64_t NewTripCount = getTripCount(ArrayStartOffset,
-                                               SiblingEndOffset,
-                                               Stride);
-          TripCount = std::max(OldTripCount, NewTripCount);
-
-          // Update the ArrayEndOffset, using the updated ArrayStartOffset, the
-          // new updated TripCount and the newly updated AccessedElemSize.
-          ArrayEndOffset = ArrayStartOffset + (Stride * (TripCount - 1ULL))
-                           + AccessedElemSize;
         }
 
         // TODO: we should think if it's beneficial to incorporate single
@@ -384,15 +422,16 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           // New artificial node representing an element of the compacted array
           auto *New = TS.createArtificialLayoutType();
-          New->Size = AccessedElemSize;
+          New->Size = Current.AccessedElementSize;
 
           // Helper lambda to compact the various components into the compacted
           // array.
           auto Compact = [&](const NeighborIterator &ToCompactIt) {
             auto &[TargetNode, EdgeTag] = *ToCompactIt;
             uint64_t OldOffset = EdgeTag->getOffsetExpr().Offset;
-            revng_assert(OldOffset >= ArrayStartOffset);
-            uint64_t OffsetInArray = (OldOffset - ArrayStartOffset) % Stride;
+            revng_assert(OldOffset >= Current.StartOffset);
+            uint64_t OffsetInArray = (OldOffset - Current.StartOffset)
+                                     % Current.Stride;
             TS.addInstanceLink(New,
                                TargetNode,
                                OffsetExpression{ OffsetInArray });
@@ -407,9 +446,12 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           // properly to continue the outer iteration.
           ChildEdgeNext = Compact(ChildEdgeIt);
 
-          OffsetExpression NewStridedOffset{ ArrayStartOffset };
-          NewStridedOffset.Strides.push_back(Stride);
-          NewStridedOffset.TripCounts.push_back(TripCount);
+          OffsetExpression NewStridedOffset{ Current.StartOffset };
+          NewStridedOffset.Strides.push_back(Current.Stride);
+          NewStridedOffset.TripCounts
+            .push_back(getTripCount(Current.StartOffset,
+                                    Current.EndOffset,
+                                    Current.Stride));
           TS.addInstanceLink(Parent, New, std::move(NewStridedOffset));
         }
       }
