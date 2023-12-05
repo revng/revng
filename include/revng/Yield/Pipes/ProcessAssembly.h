@@ -13,7 +13,7 @@
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/FunctionStringMap.h"
+#include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Pipes/YieldControlFlow.h"
 
 namespace revng::pipes {

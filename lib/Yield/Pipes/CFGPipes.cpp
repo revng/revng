@@ -26,7 +26,7 @@ void YieldControlFlow::run(pipeline::ExecutionContext &Context,
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
     revng_assert(MaybeFunction && MaybeFunction->verify());
-    revng_assert((*MaybeFunction)->Entry() == Address);
+    revng_assert((*MaybeFunction)->Entry() == std::get<0>(Address));
 
     Output.insert_or_assign((*MaybeFunction)->Entry(),
                             yield::svg::controlFlowGraph(ThePTMLBuilder,
@@ -44,6 +44,8 @@ void YieldControlFlow::print(const pipeline::Context &,
 } // end namespace revng::pipes
 
 using namespace revng::pipes;
-static RegisterFunctionStringMap<FunctionControlFlowStringMap> GraphContainer;
+using namespace pipeline;
+static RegisterDefaultConstructibleContainer<FunctionControlFlowStringMap>
+  GraphContainer;
 
 static pipeline::RegisterPipe<revng::pipes::YieldControlFlow> CFGPipe;
