@@ -622,6 +622,12 @@ isStridedInstance(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
 }
 
 inline bool
+isNonStridedInstance(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef
+                       &E) {
+  return isInstanceEdge(E) and not isStridedInstance(E);
+}
+
+inline bool
 isInstanceOffNon0(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   return isInstanceEdge(E) and not isInstanceOff0(E);
 }
