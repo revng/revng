@@ -169,8 +169,9 @@ computeOffsetAfterPush(NeighborIterator ToBePushed,
     Final.Offset %= ThroughOE.Strides.front();
   }
 
-  auto ThroughElemSize = ToBePushedThrough->first->Size;
-  auto PushedFieldSize = getFieldSize(ToBePushed->first, ToBePushed->second);
+  uint64_t ThroughElemSize = ToBePushedThrough->first->Size;
+  uint64_t PushedFieldSize = getFieldSize(ToBePushed->first,
+                                          ToBePushed->second);
   revng_assert(ThroughElemSize >= PushedFieldSize + Final.Offset);
 
   return Final;
@@ -204,18 +205,18 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
   revng_assert(AStrides.empty() or AStrides.size() == 1);
   revng_assert(BStrides.empty() or BStrides.size() == 1);
 
-  auto AFieldSize = getFieldSize(AChild, ATag);
-  auto BFieldSize = getFieldSize(BChild, BTag);
+  uint64_t AFieldSize = getFieldSize(AChild, ATag);
+  uint64_t BFieldSize = getFieldSize(BChild, BTag);
 
   uint64_t AFieldEnd = AOffset + AFieldSize;
   uint64_t BFieldEnd = BOffset + BFieldSize;
 
   // If A and B occupy disjoint ranges of memory, none of them can be pushed
   // through the other, so they are not comparable.
-  if (AFieldEnd <= (uint64_t) (BOffset))
+  if (AFieldEnd <= BOffset)
     return std::nullopt;
 
-  if (BFieldEnd <= (uint64_t) (AOffset))
+  if (BFieldEnd <= AOffset)
     return std::nullopt;
 
   // Here we have the guarantee that A and B occupy partly overlapping ranges.
