@@ -411,6 +411,12 @@ static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
 // Some views from the STL.
 // TODO: remove these after updating the libc++ version.
 //
+template<typename EnumType>
+[[nodiscard]] constexpr std::underlying_type<EnumType>::type // NOLINTNEXTLINE
+to_underlying(EnumType Value) {
+  return static_cast<std::underlying_type<EnumType>::type>(Value);
+}
+
 template<typename RangeType> // NOLINTNEXTLINE
 auto as_rvalue(RangeType &&Range) {
   return llvm::make_range(std::make_move_iterator(Range.begin()),
