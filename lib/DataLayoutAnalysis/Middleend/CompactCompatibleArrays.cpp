@@ -6,8 +6,12 @@
 #include <functional>
 #include <optional>
 
+#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include "DLAStep.h"
 
@@ -100,21 +104,26 @@ struct CompactedArrayInfo {
   std::strong_ordering operator<=>(const CompactedArrayInfo &) const = default;
 };
 
-CompactedArrayInfo makeCompactedArrayInfo(const auto &ArrayEdge) {
-  revng_assert(isStridedInstance(ArrayEdge));
+CompactedArrayInfo makeCompactedArrayInfo(const auto &ArrayEdge,
+                                          uint64_t OuterStride = 0ULL) {
+  revng_assert(isInstanceEdge(ArrayEdge));
 
   const auto &[Child, OE] = ArrayEdge;
   const auto &[Offset, Strides, TripCounts] = OE->getOffsetExpr();
-  revng_assert(Strides.size() == 1ULL);
-  revng_assert(TripCounts.size() == 1ULL);
+
+  revng_assert(Strides.size() <= 1ULL);
+  revng_assert(Strides.size() == 1ULL xor OuterStride != 0ULL);
+  revng_assert(TripCounts.size() <= 1ULL);
+  revng_assert(TripCounts.size() == 1ULL xor OuterStride != 0ULL);
 
   uint64_t ChildSize = Child->Size;
   revng_assert(ChildSize > 0ULL);
 
-  uint64_t Stride = Strides.front();
+  uint64_t Stride = OuterStride ? std::max(OuterStride, ChildSize) :
+                                  Strides.front();
   revng_assert(Stride >= ChildSize);
 
-  uint64_t TripCount = TripCounts.front().value_or(1ULL);
+  uint64_t TripCount = OuterStride ? 1ULL : TripCounts.front().value_or(1ULL);
   revng_assert(TripCount > 0ULL);
 
   uint64_t EndOffset = Offset + (Stride * (TripCount - 1ULL)) + ChildSize;
@@ -275,6 +284,107 @@ pickBest(std::optional<CompactedArrayInfo> &MaybeA,
   return MaybeA;
 }
 
+using GT = llvm::GraphTraits<LayoutTypeSystemNode *>;
+
+using llvm::SetVector;
+using llvm::SmallSet;
+using llvm::SmallVector;
+
+using CompactedEdgeVector = SetVector<NeighborIterator,
+                                      SmallVector<NeighborIterator, 8>,
+                                      SmallSet<NeighborIterator, 8>>;
+
+template<bool StridedEdges>
+static CompactedArrayInfo
+getEdgeToCompactWithCurrent(LayoutTypeSystemNode *Parent,
+                            CompactedArrayInfo Current,
+                            CompactedEdgeVector &CompactedWithCurrent) {
+
+  constexpr auto *EdgeShouldBeConsidered = StridedEdges ? isStridedInstance :
+                                                          isNonStridedInstance;
+  const uint64_t OuterStride = StridedEdges ? 0ULL : Current.Stride;
+
+  auto SiblingEdgeIt = GT::child_edge_begin(Parent);
+  auto SiblingEdgeNext = SiblingEdgeIt;
+  auto SiblingEdgeEnd = GT::child_edge_end(Parent);
+  for (; SiblingEdgeIt != SiblingEdgeEnd; SiblingEdgeIt = SiblingEdgeNext) {
+
+    SiblingEdgeNext = std::next(SiblingEdgeIt);
+
+    // If we have already compacted that, skip it.
+    if (CompactedWithCurrent.count(SiblingEdgeIt) > 0)
+      continue;
+
+    // Ignore edges that shouldn't be considered.
+    const auto &ArraySiblingEdge = *SiblingEdgeIt;
+    if (not EdgeShouldBeConsidered(ArraySiblingEdge))
+      continue;
+
+    CompactedArrayInfo Sibling = makeCompactedArrayInfo(ArraySiblingEdge,
+                                                        OuterStride);
+
+    // If the Sibling has a mismatching stride we don't compact it.
+    if (Sibling.Stride != Current.Stride)
+      continue;
+
+    // If the Sibling starts after the Current ends, they don't overlap
+    // and we don't compact them.
+    if (Sibling.StartOffset >= Current.EndOffset)
+      continue;
+
+    // If the Sibling ends before the Current starts, they don't overlap
+    // and we dont compact them.
+    if (Sibling.EndOffset <= Current.StartOffset)
+      continue;
+
+    // Here we have a strong evidence that Sibling overlaps the range
+    // of Current for at least one byte.
+    // At this point we want to find out if we can compact them.
+
+    // First of all we have to try and adjust the alignment of the array
+    // element, so that the elements of Current and Sibling are aligned.
+    // We can only do this by trying to move the start of an array element
+    // to a lower offset, but we have to try both to move Current and to
+    // move Sibling, and see which one gives the best results.
+
+    // Try to shift Current to a lower StartOffset, to match Sibling's
+    // alignment.
+    std::optional<CompactedArrayInfo>
+      FittedShiftingCurrent = tryShiftLowerAndCompact(Current, Sibling);
+
+    // Try to shift Sibling to a lower StartOffset, to match Current's
+    // alignment.
+    std::optional<CompactedArrayInfo>
+      FittedShiftingSibling = tryShiftLowerAndCompact(Sibling, Current);
+
+    std::optional<CompactedArrayInfo>
+      &MaybeBest = pickBest(FittedShiftingCurrent, FittedShiftingSibling);
+
+    // If both adjustments failed, we give up on trying to compact Current
+    // and Sibling, and skip to the next sibling.
+    if (not MaybeBest.has_value())
+      continue;
+
+    CompactedArrayInfo &Best = MaybeBest.value();
+
+    // If we're moving the StartOffset backward (or the EndOffset
+    // forward) the size of the range we're tracking is going to increase.
+    // We have to restart looking at array siblings because, given that
+    // the range has increased, there could be new siblings that have
+    // overlapping bytes, and we have to take them into consideration too.
+    if (Best.StartOffset < Current.StartOffset
+        or Best.EndOffset > Current.EndOffset)
+      SiblingEdgeNext = GT::child_edge_begin(Parent);
+
+    Current = Best;
+
+    // Here we know that ArraySibling can be compacted with the current
+    // array we're tracking.
+    CompactedWithCurrent.insert(SiblingEdgeIt);
+  }
+  return Current;
+}
+
 bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
 
@@ -296,7 +406,6 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
       if (isLeaf(Parent))
         continue;
 
-      using GT = llvm::GraphTraits<LayoutTypeSystemNode *>;
       auto ChildEdgeIt = GT::child_edge_begin(Parent);
       auto ChildEdgeNext = ChildEdgeIt;
       auto ChildEdgeEnd = GT::child_edge_end(Parent);
@@ -325,99 +434,22 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         // Ok, now we start looking at other array siblings of ArrayEdge.
         // If we find an ArraySibling that strongly overlaps with the array
-        // we're tracking we compact them and update our running variables
-        // (ArrayStartOffset, ArrayEndOffset, AvailableSlack).
-        llvm::SetVector<NeighborIterator,
-                        llvm::SmallVector<NeighborIterator, 8>,
-                        llvm::SmallSet<NeighborIterator, 8>>
-          CompactedWithCurrent;
+        // we're tracking we compact them and update our Current.
+        CompactedEdgeVector CompactedWithCurrent = {};
+        CompactedWithCurrent.insert(ChildEdgeIt);
 
-        auto SiblingEdgeIt = GT::child_edge_begin(Parent);
-        auto SiblingEdgeNext = SiblingEdgeIt;
-        auto SiblingEdgeEnd = GT::child_edge_end(Parent);
-        for (; SiblingEdgeIt != SiblingEdgeEnd;
-             SiblingEdgeIt = SiblingEdgeNext) {
+        // Compact with strided edges first.
+        Current = getEdgeToCompactWithCurrent<true>(Parent,
+                                                    Current,
+                                                    CompactedWithCurrent);
 
-          SiblingEdgeNext = std::next(SiblingEdgeIt);
-          // Ignore ChildEdgeIt, because it's the one we've started from. We're
-          // trying to compact some other array on to it.
-          if (SiblingEdgeIt == ChildEdgeIt)
-            continue;
-
-          // Ignore non strided edges for now. We want to compact arrays first,
-          // and then consider non-strided instance edges only later, taking
-          // into account only the slack left.
-          const auto &ArraySiblingEdge = *SiblingEdgeIt;
-          if (not isStridedInstance(ArraySiblingEdge))
-            continue;
-
-          CompactedArrayInfo Sibling = makeCompactedArrayInfo(ArraySiblingEdge);
-
-          // If the Sibling has a mismatching stride we don't compact it.
-          if (Sibling.Stride != Current.Stride)
-            continue;
-
-          // If the Sibling starts after the Current ends, they don't overlap
-          // and we don't compact them.
-          if (Sibling.StartOffset >= Current.EndOffset)
-            continue;
-
-          // If the Sibling ends before the Current starts, they don't overlap
-          // and we dont compact them.
-          if (Sibling.EndOffset <= Current.StartOffset)
-            continue;
-
-          // Here we have a strong evidence that Sibling overlaps the range
-          // of Current for at least one byte.
-          // At this point we want to find out if we can compact them.
-
-          // First of all we have to try and adjust the alignment of the array
-          // element, so that the elements of Current and Sibling are aligned.
-          // We can only do this by trying to move the start of an array element
-          // to a lower offset, but we have to try both to move Current and to
-          // move Sibling, and see which one gives the best results.
-
-          // Try to shift Current to a lower StartOffset, to match Sibling's
-          // alignment.
-          std::optional<CompactedArrayInfo>
-            FittedShiftingCurrent = tryShiftLowerAndCompact(Current, Sibling);
-
-          // Try to shift Sibling to a lower StartOffset, to match Current's
-          // alignment.
-          std::optional<CompactedArrayInfo>
-            FittedShiftingSibling = tryShiftLowerAndCompact(Sibling, Current);
-
-          std::optional<CompactedArrayInfo>
-            &MaybeBest = pickBest(FittedShiftingCurrent, FittedShiftingSibling);
-
-          // If both adjustments failed, we give up on trying to compact Current
-          // and Sibling, and skip to the next sibling.
-          if (not MaybeBest.has_value())
-            continue;
-
-          CompactedArrayInfo &Best = MaybeBest.value();
-
-          // If we're moving the StartOffset backward (or the EndOffset
-          // forward) the size of the range we're tracking is going to increase.
-          // We have to restart looking at array siblings because, given that
-          // the range has increased, there could be new siblings that have
-          // overlapping bytes, and we have to take them into consideration too.
-          if (Best.StartOffset < Current.StartOffset
-              or Best.EndOffset > Current.EndOffset)
-            SiblingEdgeNext = GT::child_edge_begin(Parent);
-
-          Current = Best;
-
-          // Here we know that ArraySibling can be compacted with the current
-          // array we're tracking.
-          CompactedWithCurrent.insert(SiblingEdgeIt);
-        }
-
-        // TODO: we should think if it's beneficial to incorporate single
-        // elements, and how to treat arrays with unknown trip counts
+        // Then compact with non-strided instance edges if it's still possible.
+        Current = getEdgeToCompactWithCurrent<false>(Parent,
+                                                     Current,
+                                                     CompactedWithCurrent);
 
         // If we have something to compact, do it
-        if (not CompactedWithCurrent.empty()) {
+        if (CompactedWithCurrent.size() > 1) {
           Changed = true;
 
           // New artificial node representing an element of the compacted array
@@ -439,9 +471,12 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           };
 
           // Compact all the array components.
+          const auto VectorToCompact = CompactedWithCurrent.takeVector();
+          revng_assert(VectorToCompact.front() == ChildEdgeIt);
           for (const NeighborIterator &ToCompact :
-               CompactedWithCurrent.takeVector())
+               llvm::drop_begin(VectorToCompact))
             Compact(ToCompact);
+
           // We compact ChildEdgeIt as last, so that it updates ChildEdgeNext
           // properly to continue the outer iteration.
           ChildEdgeNext = Compact(ChildEdgeIt);
@@ -453,6 +488,9 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
                                     Current.EndOffset,
                                     Current.Stride));
           TS.addInstanceLink(Parent, New, std::move(NewStridedOffset));
+        } else {
+          revng_assert(CompactedWithCurrent.size() == 1);
+          revng_assert(CompactedWithCurrent.front() == ChildEdgeIt);
         }
       }
     }
