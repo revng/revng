@@ -8,6 +8,7 @@ ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
+AllowUnnaturallyAlignedTypesInRegisters: false
 UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: true
 

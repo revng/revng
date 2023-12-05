@@ -116,7 +116,6 @@ fields:
       if this value is set to true, both argument will be passed on stack,
       otherwise, only the struct will.
     type: bool
-    optional: true
 
   - name: AllowUnnaturallyAlignedTypesInRegisters
     doc: |
@@ -124,7 +123,6 @@ fields:
       registers. When set to false, all the unnatural types will only be put
       on stack.
     type: bool
-    optional: true
 
   - name: UsePointerToCopyForStackArguments
     doc:
