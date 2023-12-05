@@ -1827,8 +1827,7 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
 
         auto MoreIndent = LoggerIndent(ModelGEPLog);
         auto ModelArgSize = RFT->Arguments().size();
-        revng_assert(RFT->StackArgumentsType().Qualifiers().empty());
-        auto &Type = RFT->StackArgumentsType().UnqualifiedType();
+        auto &Type = RFT->StackArgumentsType();
         revng_assert((ModelArgSize == Call->arg_size() - 1 and Type.isValid())
                      or ModelArgSize == Call->arg_size());
         revng_log(ModelGEPLog, "model::RawFunctionType");
@@ -1848,7 +1847,7 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
             // function, but they do not have a corresponding argument in the
             // model. In this case, we have to retrieve the StackArgumentsType
             // from the function prototype.
-            ArgTy = RFT->StackArgumentsType();
+            ArgTy = { RFT->StackArgumentsType(), {} };
             revng_assert(ArgTy.UnqualifiedType().isValid());
           } else {
             auto ArgIt = std::next(RFT->Arguments().begin(), ArgOpNum);

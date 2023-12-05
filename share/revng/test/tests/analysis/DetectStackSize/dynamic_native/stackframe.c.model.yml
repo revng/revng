@@ -25,8 +25,7 @@ Types:
     Kind: RawFunctionType
     ID: 962527246414399901
     FinalStackOffset: 8
-    StackArgumentsType:
-      UnqualifiedType: "/Types/2914208048943782880-StructType"
+    StackArgumentsType: "/Types/2914208048943782880-StructType"
   - # stack_arguments_64 stack arguments type
     Kind: StructType
     ID: 2914208048943782880
@@ -35,8 +34,7 @@ Types:
     Kind: RawFunctionType
     ID: 15643449473528100124
     FinalStackOffset: 8
-    StackArgumentsType:
-      UnqualifiedType: "/Types/17628016926864895242-StructType"
+    StackArgumentsType: "/Types/17628016926864895242-StructType"
   - # stack_arguments_32 stack arguments type
     Kind: StructType
     ID: 17628016926864895242

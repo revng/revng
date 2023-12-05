@@ -208,7 +208,11 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
               auto SegmentType = Model->Segments()
                                    .at({ StartAddress, VirtualSize })
                                    .Type();
-              Constant *ModelTypeString = serializeToLLVMString(SegmentType, M);
+              auto SegmentQualifiedType = model::QualifiedType{ SegmentType,
+                                                                {} };
+              Constant
+                *ModelTypeString = serializeToLLVMString(SegmentQualifiedType,
+                                                         M);
               Value *AddressOfCall = IRB.CreateCall(AddressOfFunction,
                                                     { ModelTypeString,
                                                       SegmentRefCall });

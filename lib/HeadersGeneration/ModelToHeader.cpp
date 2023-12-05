@@ -44,7 +44,8 @@ static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header,
                                const ptml::PTMLCBuilder &B) {
   auto S = B.getLocationDefinition(Segment);
-  Header << getNamedCInstance(Segment.Type(), S, B) << ";\n";
+  Header << getNamedCInstance(model::QualifiedType{ Segment.Type(), {} }, S, B)
+         << ";\n";
 }
 
 /// Print all type definitions for the types in the model
