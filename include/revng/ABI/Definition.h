@@ -333,6 +333,8 @@ public:
   ///         `true` if it might be compatible.
   bool isIncompatibleWith(const model::RawFunctionType &Function) const;
 
+  using AlignmentCache = std::unordered_map<const model::Type *, uint64_t>;
+
   /// Compute the natural alignment of the type in accordance with
   /// the current ABI
   ///
@@ -347,12 +349,12 @@ public:
   /// \return either an alignment or a `std::nullopt` when it's not applicable.
   inline std::optional<uint64_t>
   alignment(const model::QualifiedType &Type) const {
-    model::VerifyHelper VH;
-    return alignment(VH, Type);
+    AlignmentCache Cache;
+    return alignment(Type, Cache);
   }
 
-  std::optional<uint64_t> alignment(model::VerifyHelper &VH,
-                                    const model::QualifiedType &Type) const;
+  std::optional<uint64_t> alignment(const model::QualifiedType &Type,
+                                    AlignmentCache &Cache) const;
 
   uint64_t alignedOffset(uint64_t Offset,
                          const model::QualifiedType &Type) const {

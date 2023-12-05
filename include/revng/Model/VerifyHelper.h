@@ -72,7 +72,6 @@ private:
 private:
   std::set<const model::Type *> VerifiedCache;
   std::map<const model::Type *, uint64_t> SizeCache;
-  std::map<const model::Type *, uint64_t> AlignmentCache;
   std::set<const model::Type *> InProgress;
   bool AssertOnFail = false;
   std::map<model::Identifier, std::string> GlobalSymbols;
@@ -138,20 +137,6 @@ public:
   std::optional<uint64_t> size(const model::Type *T) {
     auto It = SizeCache.find(T);
     if (It != SizeCache.end())
-      return It->second;
-    else
-      return std::nullopt;
-  }
-
-public:
-  void setAlignment(const model::Type *T, uint64_t NewValue) {
-    revng_assert(not alignment(T));
-    AlignmentCache[T] = NewValue;
-  }
-
-  std::optional<uint64_t> alignment(const model::Type *T) {
-    auto It = AlignmentCache.find(T);
-    if (It != AlignmentCache.end())
       return It->second;
     else
       return std::nullopt;
