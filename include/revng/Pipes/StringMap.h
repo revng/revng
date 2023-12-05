@@ -17,6 +17,7 @@
 #include "revng/Pipes/FunctionKind.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/TypeKind.h"
 #include "revng/Support/GzipTarFile.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -346,5 +347,15 @@ using FunctionStringMap = detail::GenericStringMap<&ranks::Function,
                                                    TypeName,
                                                    MIMETypeParam,
                                                    ArchiveSuffix>;
+
+template<kinds::TypeKind *TheKind,
+         const char *TypeName,
+         const char *MIMETypeParam,
+         const char *ArchiveSuffix>
+using TypeStringMap = detail::GenericStringMap<&ranks::Type,
+                                               TheKind,
+                                               TypeName,
+                                               MIMETypeParam,
+                                               ArchiveSuffix>;
 
 } // namespace revng::pipes
