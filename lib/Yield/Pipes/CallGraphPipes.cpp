@@ -9,9 +9,9 @@
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/Pipeline/RegisterPipe.h"
-#include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/StringMap.h"
 #include "revng/Pipes/TupleTreeContainer.h"
 #include "revng/Yield/CrossRelations/CrossRelations.h"
 #include "revng/Yield/Generated/ForwardDecls.h"
@@ -106,7 +106,7 @@ using namespace pipeline;
 
 static RegisterDefaultConstructibleContainer<CrossRelationsFileContainer> X1;
 static RegisterDefaultConstructibleContainer<CallGraphSVGFileContainer> X2;
-static RegisterFunctionStringMap<CallGraphSliceSVGStringMap> X3;
+static RegisterDefaultConstructibleContainer<CallGraphSliceSVGStringMap> X3;
 
 static pipeline::RegisterRole Role("BinaryCrossRelations",
                                    kinds::BinaryCrossRelationsRole);

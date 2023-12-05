@@ -31,7 +31,8 @@ struct DataOffset {
   size_t End;
 };
 
-using OffsetMap = std::map<MetaAddress, DataOffset>;
+template<typename T>
+using OffsetMap = std::map<T, DataOffset>;
 
 } // namespace detail
 
@@ -46,17 +47,19 @@ struct MappingTraits<::detail::DataOffset> {
   }
 };
 
-template<>
-struct CustomMappingTraits<::detail::OffsetMap> {
+template<typename T>
+  requires HasScalarTraits<T>
+struct CustomMappingTraits<::detail::OffsetMap<T>> {
   static void
-  inputOne(IO &IO, llvm::StringRef Key, ::detail::OffsetMap &Value) {
-    MetaAddress Address = MetaAddress::fromString(Key);
-    IO.mapRequired(Key.str().c_str(), Value[Address]);
+  inputOne(IO &IO, llvm::StringRef StringKey, ::detail::OffsetMap<T> &Value) {
+    T Key = getValueFromYAMLScalar<T>(StringKey);
+    IO.mapRequired(StringKey.str().c_str(), Value[Key]);
   }
 
-  static void output(IO &IO, ::detail::OffsetMap &Value) {
-    for (auto &[MetaAddr, Offset] : Value) {
-      IO.mapRequired(MetaAddr.toString().c_str(), Offset);
+  static void output(IO &IO, ::detail::OffsetMap<T> &Value) {
+    for (auto &[Key, Offset] : Value) {
+      std::string StringKey = serializeToString(Key);
+      IO.mapRequired(StringKey.c_str(), Offset);
     }
   }
 };
@@ -65,16 +68,27 @@ struct CustomMappingTraits<::detail::OffsetMap> {
 
 namespace revng::pipes {
 
-template<kinds::FunctionKind *K,
+namespace detail {
+
+template<auto *Rank,
+         auto *K,
          const char *TypeName,
          const char *MIMETypeParam,
          const char *ArchiveSuffix>
-class FunctionStringMap
+class GenericStringMap
   : public pipeline::Container<
-      FunctionStringMap<K, TypeName, MIMETypeParam, ArchiveSuffix>> {
+      GenericStringMap<Rank, K, TypeName, MIMETypeParam, ArchiveSuffix>> {
+private:
+  using RankType = std::remove_pointer_t<decltype(Rank)>;
+  static_assert(pipeline::RankSpecialization<RankType>);
+  static_assert(RankType::Depth == 1);
+  static_assert(HasScalarTraits<typename RankType::Type>);
+  static_assert(std::is_convertible_v<decltype(K), pipeline::Kind *>);
+
 public:
-  using MapType = typename std::map<MetaAddress, std::string>;
-  using ValueType = typename MapType::value_type;
+  using KeyType = RankType::Type;
+  using ValueType = std::string;
+  using MapType = typename std::map<KeyType, ValueType>;
   using Iterator = typename MapType::iterator;
   using ConstIterator = typename MapType::const_iterator;
 
@@ -82,40 +96,38 @@ public:
   inline static const char *Name = TypeName;
 
 private:
-  using OffsetMap = ::detail::OffsetMap;
+  using OffsetMap = ::detail::OffsetMap<KeyType>;
   MapType Map;
-  const TupleTree<model::Binary> *Model;
 
 public:
   inline static char ID = '0';
 
 public:
-  FunctionStringMap(llvm::StringRef Name,
-                    const TupleTree<model::Binary> *Model) :
-    pipeline::Container<FunctionStringMap>(Name), Map(), Model(Model) {
-    revng_assert(&K->rank() == &ranks::Function);
+  GenericStringMap(llvm::StringRef Name) :
+    pipeline::Container<GenericStringMap>(Name), Map() {
+    revng_assert(&K->rank() == Rank);
   }
 
-  FunctionStringMap(const FunctionStringMap &) = default;
-  FunctionStringMap &operator=(const FunctionStringMap &) = default;
+  GenericStringMap(const GenericStringMap &) = default;
+  GenericStringMap &operator=(const GenericStringMap &) = default;
 
-  FunctionStringMap(FunctionStringMap &&) = default;
-  FunctionStringMap &operator=(FunctionStringMap &&) = default;
+  GenericStringMap(GenericStringMap &&) = default;
+  GenericStringMap &operator=(GenericStringMap &&) = default;
 
-  ~FunctionStringMap() override = default;
+  ~GenericStringMap() override = default;
 
 public:
   void clear() override { Map.clear(); }
 
   std::unique_ptr<pipeline::ContainerBase>
   cloneFiltered(const pipeline::TargetsList &Targets) const override {
-    auto Clone = std::make_unique<FunctionStringMap>(*this);
+    auto Clone = std::make_unique<GenericStringMap>(*this);
 
     // Returns true if Targets contains a Target that matches the Entry in the
     // Map
     const auto EntryIsInTargets = [&](const auto &Entry) {
-      const auto &KeyMetaAddress = Entry.first;
-      pipeline::Target EntryTarget{ KeyMetaAddress.toString(), *K };
+      const auto &Key = Entry.first;
+      pipeline::Target EntryTarget{ keyToString(Key), *K };
       return Targets.contains(EntryTarget);
     };
 
@@ -129,9 +141,9 @@ public:
                          const pipeline::Target &Target) const override {
     revng_check(&Target.getKind() == K);
 
-    std::string MetaAddrStr = Target.getPathComponents().back();
+    std::string KeyString = Target.getPathComponents().back();
 
-    auto It = find(MetaAddress::fromString(MetaAddrStr));
+    auto It = find(keyFromString(KeyString));
     revng_check(It != end());
 
     OS << It->second;
@@ -141,8 +153,8 @@ public:
 
   pipeline::TargetsList enumerate() const override {
     pipeline::TargetsList::List Result;
-    for (const auto &[MetaAddress, Mapped] : Map)
-      Result.push_back({ MetaAddress.toString(), *K });
+    for (const auto &[Key, Value] : Map)
+      Result.push_back({ keyToString(Key), *K });
 
     return Result;
   }
@@ -154,8 +166,8 @@ public:
     for (const pipeline::Target &T : Targets) {
       revng_assert(&T.getKind() == K);
 
-      std::string MetaAddrStr = T.getPathComponents().back();
-      auto It = Map.find(MetaAddress::fromString(MetaAddrStr));
+      std::string KeyString = T.getPathComponents().back();
+      auto It = Map.find(keyFromString(KeyString));
       if (It != End) {
         Map.erase(It);
         Changed = true;
@@ -228,7 +240,7 @@ public:
   static std::vector<pipeline::Kind *> possibleKinds() { return { K }; }
 
 protected:
-  void mergeBackImpl(FunctionStringMap &&Other) override {
+  void mergeBackImpl(GenericStringMap &&Other) override {
     // Stuff in Other should overwrite what's in this container.
     // We first merge this->Map into Other.Map (which keeps Other's version if
     // present), and then we replace this->Map with the newly merged version of
@@ -240,18 +252,18 @@ protected:
 public:
   /// std::map-like methods
 
-  std::string &operator[](MetaAddress M) { return Map[M]; };
+  std::string &operator[](KeyType M) { return Map[M]; };
 
-  std::string &at(MetaAddress M) { return Map.at(M); };
-  const std::string &at(MetaAddress M) const { return Map.at(M); };
+  std::string &at(KeyType M) { return Map.at(M); };
+  const std::string &at(KeyType M) const { return Map.at(M); };
 
 private:
-  using IteratedValue = std::pair<const MetaAddress &, std::string &>;
+  using IteratedValue = std::pair<const KeyType &, std::string &>;
   inline constexpr static auto mapIt = [](auto &Iterated) -> IteratedValue {
     return { Iterated.first, Iterated.second };
   };
 
-  using IteratedCValue = std::pair<const MetaAddress &, const std::string &>;
+  using IteratedCValue = std::pair<const KeyType &, const std::string &>;
   inline constexpr static auto mapCIt = [](auto &Iterated) -> IteratedCValue {
     return { Iterated.first, Iterated.second };
   };
@@ -266,21 +278,22 @@ public:
     return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
 
-  auto insert_or_assign(MetaAddress Key, const std::string &Value) {
+  auto insert_or_assign(KeyType Key, const std::string &Value) {
     auto [Iterator, Success] = Map.insert_or_assign(Key, Value);
     return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
-  auto insert_or_assign(MetaAddress Key, std::string &&Value) {
+  auto insert_or_assign(KeyType Key, std::string &&Value) {
     auto [Iterator, Success] = Map.insert_or_assign(Key, std::move(Value));
     return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
 
-  bool contains(MetaAddress Key) const { return Map.contains(Key); }
+  bool contains(KeyType Key) const { return Map.contains(Key); }
 
-  auto find(MetaAddress Key) {
+  auto find(KeyType Key) {
     return revng::map_iterator(Map.find(Key), this->mapIt);
   }
-  auto find(MetaAddress Key) const {
+
+  auto find(KeyType Key) const {
     return revng::map_iterator(Map.find(Key), this->mapCIt);
   }
 
@@ -295,42 +308,48 @@ private:
     for (ArchiveEntry &Entry : Reader.entries()) {
       llvm::StringRef Name = Entry.Filename;
       revng_assert(Name.consume_back(ArchiveSuffix));
-      MetaAddress Address = MetaAddress::fromString(Name);
+      KeyType Key = keyFromString(Name);
       std::string Data = std::string(Entry.Data.data(), Entry.Data.size());
-      Map[Address] = Data;
+      Map[Key] = Data;
     }
   }
 
   OffsetMap serializeWithOffsets(llvm::raw_ostream &OS) const {
     OffsetMap Result;
     revng::GzipTarWriter Writer(OS);
-    for (auto &[MetaAddr, Data] : Map) {
-      std::string Name = MetaAddr.toString() + ArchiveSuffix;
+    for (auto &[Key, Data] : Map) {
+      std::string Name = keyToString(Key) + ArchiveSuffix;
       OffsetDescriptor Offsets = Writer.append(Name,
                                                { Data.data(), Data.size() });
-      Result[MetaAddr] = { .UncompressedSize = Data.size(),
-                           .Start = Offsets.DataStart,
-                           .End = Offsets.PaddingStart - 1 };
+      Result[Key] = { .UncompressedSize = Data.size(),
+                      .Start = Offsets.DataStart,
+                      .End = Offsets.PaddingStart - 1 };
     }
     Writer.close();
 
     return Result;
   }
-}; // end class FunctionStringMap
-
-template<typename ToRegister>
-class RegisterFunctionStringMap : public pipeline::Registry {
 
 public:
-  virtual ~RegisterFunctionStringMap() override = default;
-
-public:
-  void registerContainersAndPipes(pipeline::Loader &Loader) override {
-    const auto &Model = getModelFromContext(Loader.getContext());
-    auto Factory = pipeline::ContainerFactory::fromGlobal<ToRegister>(&Model);
-    Loader.addContainerFactory(ToRegister::Name, std::move(Factory));
+  static std::string keyToString(const KeyType &Key) {
+    return serializeToString(Key);
   }
-  void registerKinds(pipeline::KindsRegistry &KindDictionary) override {}
-  void libraryInitialization() override {}
-};
+
+  static KeyType keyFromString(llvm::StringRef StringKey) {
+    return getValueFromYAMLScalar<KeyType>(StringKey);
+  }
+}; // end class GenericStringMap
+
+} // namespace detail
+
+template<kinds::FunctionKind *TheKind,
+         const char *TypeName,
+         const char *MIMETypeParam,
+         const char *ArchiveSuffix>
+using FunctionStringMap = detail::GenericStringMap<&ranks::Function,
+                                                   TheKind,
+                                                   TypeName,
+                                                   MIMETypeParam,
+                                                   ArchiveSuffix>;
+
 } // namespace revng::pipes
