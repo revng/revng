@@ -245,6 +245,21 @@ int main(int Argc, char *Argv[]) {
   LeftModel->ImportedDynamicFunctions().clear();
   RightModel->ImportedDynamicFunctions().clear();
 
+  // Remove all the functions that are not strictly related to the test.
+  auto IsUnrelatedToTheTest = [](const model::Function &Function) {
+    llvm::StringRef Name = Function.OriginalName();
+    if (Name.take_front(5) == "test_")
+      return false;
+    if (Name.take_front(6) == "setup_")
+      return false;
+    if (Name == "main")
+      return false;
+
+    return true;
+  };
+  llvm::erase_if(LeftModel->Functions(), IsUnrelatedToTheTest);
+  llvm::erase_if(RightModel->Functions(), IsUnrelatedToTheTest);
+
   // Erase the default prototypes because they interfere with the test.
   LeftModel->Types().erase(LeftModel->DefaultPrototype().get()->key());
   RightModel->Types().erase(RightModel->DefaultPrototype().get()->key());
