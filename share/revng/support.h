@@ -111,6 +111,10 @@ bool is_executable(uint64_t pc);
 void set_register(uint32_t register_id, uint64_t value);
 void unknownPC(PlainMetaAddress PC);
 
-noreturn void raise_exception_helper(const char *reason,
-                                     PlainMetaAddress source,
-                                     PlainMetaAddress destination);
+noreturn void _abort(const char *reason,
+                     PlainMetaAddress source,
+                     PlainMetaAddress destination);
+
+noreturn void _unreachable(const char *reason,
+                           PlainMetaAddress source,
+                           PlainMetaAddress destination);

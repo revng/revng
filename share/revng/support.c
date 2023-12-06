@@ -269,7 +269,7 @@ void unknownPC(PlainMetaAddress PC) {
 
 void jump_to_symbol(char *Symbol) {
   PlainMetaAddress Empty = { 0 };
-  raise_exception_helper(Symbol, Empty, Empty);
+  _abort(Symbol, Empty, Empty);
 }
 
 #ifdef TRACE
@@ -466,11 +466,9 @@ int main(int argc, char *argv[]) {
   root((uintptr_t) stack);
 }
 
-// Helper function used to raise an exception
-noreturn void raise_exception_helper(const char *reason,
-                                     PlainMetaAddress source,
-                                     PlainMetaAddress destination) {
-
+static noreturn void fail(const char *reason,
+                          PlainMetaAddress source,
+                          PlainMetaAddress destination) {
   // Dump information about the exception
   fprintf(stderr, "Exception: %s", reason);
   fprintf(stderr, " (");
@@ -486,4 +484,16 @@ noreturn void raise_exception_helper(const char *reason,
   _Unwind_RaiseException(&exc);
 
   abort();
+}
+
+noreturn void _abort(const char *reason,
+                     PlainMetaAddress source,
+                     PlainMetaAddress destination) {
+  fail(reason, source, destination);
+}
+
+noreturn void _unreachable(const char *reason,
+                           PlainMetaAddress source,
+                           PlainMetaAddress destination) {
+  fail(reason, source, destination);
 }

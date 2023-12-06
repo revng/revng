@@ -14,7 +14,8 @@ intptr_t ignore(void);
 intptr_t ignore(void) {
   return (intptr_t) &saved_registers + (intptr_t) &setjmp
          + (intptr_t) &jmp_buffer + (intptr_t) &is_executable
-         + (intptr_t) &unknownPC + (intptr_t) &raise_exception_helper;
+         + (intptr_t) &unknownPC + (intptr_t) &_abort
+         + (intptr_t) &_unreachable;
 }
 
 PlainMetaAddress build_PlainMetaAddress(uint32_t Epoch,

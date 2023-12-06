@@ -144,7 +144,8 @@ private:
   LLVMContext &Context;
   GeneratedCodeBasicInfo &GCBI;
   const model::Binary &Binary;
-  Function *RaiseException = nullptr;
+  Function *AbortFunction = nullptr;
+  Function *UnreachableFunction = nullptr;
   Function *FunctionDispatcher = nullptr;
   std::map<MetaAddress, Function *> IsolatedFunctionsMap;
   std::map<StringRef, Function *> DynamicFunctionsMap;
@@ -178,27 +179,47 @@ public:
 public:
   void run();
 
-  /// Create code to throw of an exception
-  void throwException(IRBuilder<> &Builder,
-                      const Twine &Reason,
-                      const DebugLoc &DbgLocation);
+  void emitAbort(IRBuilder<> &Builder,
+                 const Twine &Reason,
+                 const DebugLoc &DbgLocation) {
+    emitCall(Builder, AbortFunction, Reason, DbgLocation);
+  }
 
-  void throwException(BasicBlock *BB,
-                      const Twine &Reason,
-                      const DebugLoc &DbgLocation) {
+  void
+  emitAbort(BasicBlock *BB, const Twine &Reason, const DebugLoc &DbgLocation) {
     IRBuilder<> Builder(BB);
-    throwException(Builder, Reason, DbgLocation);
+    emitAbort(Builder, Reason, DbgLocation);
+  }
+
+  void emitUnreachable(IRBuilder<> &Builder,
+                       const Twine &Reason,
+                       const DebugLoc &DbgLocation) {
+
+    emitCall(Builder, UnreachableFunction, Reason, DbgLocation);
+  }
+
+  void emitUnreachable(BasicBlock *BB,
+                       const Twine &Reason,
+                       const DebugLoc &DbgLocation) {
+    IRBuilder<> Builder(BB);
+    emitUnreachable(Builder, Reason, DbgLocation);
   }
 
 private:
+  void emitCall(IRBuilder<> &Builder,
+                Function *Callee,
+                const Twine &Reason,
+                const DebugLoc &DbgLocation);
+
   /// Populate the function_dispatcher, needed to handle the indirect calls
   void populateFunctionDispatcher();
 };
 
-void IFI::throwException(IRBuilder<> &Builder,
-                         const Twine &Reason,
-                         const DebugLoc &DbgLocation) {
-  revng_assert(RaiseException != nullptr);
+void IFI::emitCall(IRBuilder<> &Builder,
+                   Function *Callee,
+                   const Twine &Reason,
+                   const DebugLoc &DbgLocation) {
+  revng_assert(Callee != nullptr);
 
   SmallVector<llvm::Value *, 4> Arguments;
 
@@ -219,7 +240,7 @@ void IFI::throwException(IRBuilder<> &Builder,
   AddArguments(PCH->buildPlainMetaAddress(Builder, SourcePC));
   AddArguments(PCH->buildCurrentPCPlainMetaAddress(Builder));
 
-  auto *NewCall = Builder.CreateCall(RaiseException, Arguments);
+  auto *NewCall = Builder.CreateCall(Callee, Arguments);
   NewCall->setDebugLoc(DbgLocation);
   Builder.CreateUnreachable();
 
@@ -244,7 +265,7 @@ void IFI::populateFunctionDispatcher() {
                                               FunctionDispatcher,
                                               nullptr);
   const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
-  throwException(Unexpected, "An unexpected functions has been called", Dbg);
+  emitUnreachable(Unexpected, "An unexpected function has been called", Dbg);
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
   IRBuilder<> Builder(Context);
@@ -368,9 +389,9 @@ public:
 
   void handlePostNoReturn(llvm::IRBuilder<> &Builder) final {
     // TODO: can we do better than DebugLoc()?
-    IFI.throwException(Builder,
-                       "We return from a noreturn function call",
-                       DebugLoc());
+    IFI.emitUnreachable(Builder,
+                        "We return from a noreturn function call",
+                        DebugLoc());
   }
 
   void
@@ -467,9 +488,12 @@ public:
 };
 
 void IsolateFunctionsImpl::run() {
-  RaiseException = TheModule->getFunction("raise_exception_helper");
-  revng_assert(RaiseException != nullptr);
-  FunctionTags::Exceptional.addTo(RaiseException);
+  AbortFunction = TheModule->getFunction("_abort");
+  revng_assert(AbortFunction != nullptr);
+
+  UnreachableFunction = TheModule->getFunction("_unreachable");
+  revng_assert(UnreachableFunction != nullptr);
+  FunctionTags::Exceptional.addTo(UnreachableFunction);
 
   FunctionDispatcher = Function::Create(createFunctionType<void>(Context),
                                         GlobalValue::ExternalLinkage,
@@ -493,7 +517,7 @@ void IsolateFunctionsImpl::run() {
     NewFunction->addFnAttr(Attribute::NoMerge);
 
     auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
-    throwException(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
+    emitAbort(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
 
     // TODO: implement more efficient version.
     // if (setjmp(...) == 0) {
@@ -556,7 +580,7 @@ void IsolateFunctionsImpl::run() {
         It->eraseFromParent();
       revng_assert(UnexpectedPC->empty());
       const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
-      throwException(UnexpectedPC, "unexpectedPC", Dbg);
+      emitUnreachable(UnexpectedPC, "unexpectedPC", Dbg);
     }
 
     //
@@ -574,7 +598,7 @@ void IsolateFunctionsImpl::run() {
 
         // Get the only outgoing edge jumping to anypc
         if (Block == nullptr) {
-          throwException(Builder, "Unexpected jump", DebugLoc());
+          emitAbort(Builder, "Unexpected jump", DebugLoc());
           continue;
         }
 
@@ -592,22 +616,20 @@ void IsolateFunctionsImpl::run() {
             break;
           case efa::FunctionEdgeType::BrokenReturn:
             // TODO: can we do better than DebugLoc()?
-            throwException(Builder, "A broken return was taken", DebugLoc());
+            emitAbort(Builder, "A broken return was taken", DebugLoc());
             break;
           case efa::FunctionEdgeType::LongJmp:
-            throwException(Builder, "A longjmp was taken", DebugLoc());
+            emitAbort(Builder, "A longjmp was taken", DebugLoc());
             break;
           case efa::FunctionEdgeType::Killer:
-            throwException(Builder,
-                           "A killer block has been reached",
-                           DebugLoc());
+            emitAbort(Builder, "A killer block has been reached", DebugLoc());
             revng_abort();
             break;
           case efa::FunctionEdgeType::Unreachable:
-            throwException(Builder,
-                           "An unreachable instruction has been "
-                           "reached",
-                           DebugLoc());
+            emitAbort(Builder,
+                      "An unreachable instruction has been "
+                      "reached",
+                      DebugLoc());
             break;
           case efa::FunctionEdgeType::FunctionCall: {
             auto *Call = cast<efa::CallEdge>(Edge.get());
@@ -623,7 +645,7 @@ void IsolateFunctionsImpl::run() {
         }
 
         if (not AtLeastAMatch) {
-          throwException(Builder, "Unexpected jump", DebugLoc());
+          emitAbort(Builder, "Unexpected jump", DebugLoc());
           continue;
         }
       }
