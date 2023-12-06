@@ -93,6 +93,9 @@ typedef uint64_t target_reg;
 
 #endif
 
+extern PlainMetaAddress last_pc;
+extern PlainMetaAddress current_pc;
+
 // Register values before the signal was triggered
 extern target_reg *saved_registers;
 
@@ -109,12 +112,8 @@ extern jmp_buf jmp_buffer;
 
 bool is_executable(uint64_t pc);
 void set_register(uint32_t register_id, uint64_t value);
-void unknownPC(PlainMetaAddress PC);
+void unknown_pc();
 
-noreturn void _abort(const char *reason,
-                     PlainMetaAddress source,
-                     PlainMetaAddress destination);
+noreturn void _abort(const char *reason);
 
-noreturn void _unreachable(const char *reason,
-                           PlainMetaAddress source,
-                           PlainMetaAddress destination);
+noreturn void _unreachable(const char *reason);

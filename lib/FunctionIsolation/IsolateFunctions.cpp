@@ -234,11 +234,8 @@ void IFI::emitCall(IRBuilder<> &Builder,
 
   auto *PCH = GCBI.programCounterHandler();
 
-  auto AddArguments = [&Arguments, &Builder](llvm::Value *V) {
-    llvm::copy(unpack(Builder, V), std::back_inserter(Arguments));
-  };
-  AddArguments(PCH->buildPlainMetaAddress(Builder, SourcePC));
-  AddArguments(PCH->buildCurrentPCPlainMetaAddress(Builder));
+  PCH->setLastPCPlainMetaAddress(Builder, SourcePC);
+  PCH->setCurrentPCPlainMetaAddress(Builder);
 
   auto *NewCall = Builder.CreateCall(Callee, Arguments);
   NewCall->setDebugLoc(DbgLocation);

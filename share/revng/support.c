@@ -252,10 +252,10 @@ void g_assertion_message_expr(const char *domain,
                               const char *expr) {
 }
 
-void unknownPC(PlainMetaAddress PC) {
+void unknown_pc() {
   int arg;
   fprintf(stderr, "Unknown PC:");
-  fprint_metaaddress(stderr, &PC);
+  fprint_metaaddress(stderr, &current_pc);
   fprintf(stderr, "\n");
 
   for (arg = 0; arg < saved_argc; arg++) {
@@ -268,8 +268,7 @@ void unknownPC(PlainMetaAddress PC) {
 }
 
 void jump_to_symbol(char *Symbol) {
-  PlainMetaAddress Empty = { 0 };
-  _abort(Symbol, Empty, Empty);
+  _abort(Symbol);
 }
 
 #ifdef TRACE
@@ -467,14 +466,14 @@ int main(int argc, char *argv[]) {
 }
 
 static noreturn void fail(const char *reason,
-                          PlainMetaAddress source,
-                          PlainMetaAddress destination) {
+                          PlainMetaAddress *source,
+                          PlainMetaAddress *destination) {
   // Dump information about the exception
   fprintf(stderr, "Exception: %s", reason);
   fprintf(stderr, " (");
-  fprint_metaaddress(stderr, &source);
+  fprint_metaaddress(stderr, source);
   fprintf(stderr, " -> ");
-  fprint_metaaddress(stderr, &destination);
+  fprint_metaaddress(stderr, destination);
   fprintf(stderr, ")\n");
 
   // Declare the exception object
@@ -486,14 +485,10 @@ static noreturn void fail(const char *reason,
   abort();
 }
 
-noreturn void _abort(const char *reason,
-                     PlainMetaAddress source,
-                     PlainMetaAddress destination) {
-  fail(reason, source, destination);
+noreturn void _abort(const char *reason) {
+  fail(reason, &last_pc, &current_pc);
 }
 
-noreturn void _unreachable(const char *reason,
-                           PlainMetaAddress source,
-                           PlainMetaAddress destination) {
-  fail(reason, source, destination);
+noreturn void _unreachable(const char *reason) {
+  fail(reason, &last_pc, &current_pc);
 }
