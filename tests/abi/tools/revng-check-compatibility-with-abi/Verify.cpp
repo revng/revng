@@ -182,6 +182,15 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
   // Make sure the value is the same both before and after the call.
   verifyValuePreservation(Argument.ExpectedBytes, Argument.FoundBytes);
 
+  // Check for the "pointer-to-copy" style arguments first.
+  if (!Remaining.Registers.empty()) {
+    llvm::ArrayRef Bytes = State.Registers.at(Remaining.Registers[0]).Bytes;
+    if (Bytes.equals(Argument.AddressBytes)) {
+      Remaining.Registers = Remaining.Registers.drop_front();
+      return Remaining;
+    }
+  }
+
   // Check bytes one piece at a time, consuming those that match.
   llvm::ArrayRef<std::byte> ArgumentBytes = Argument.FoundBytes;
   while (!ArgumentBytes.empty()) {
