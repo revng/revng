@@ -965,15 +965,16 @@ void JumpTargetManager::prepareDispatcher() {
                                       TheFunction);
   Builder.SetInsertPoint(DispatcherFail);
 
-  FunctionCallee UnknownPC = TheModule.getFunction("unknownPC");
+  FunctionCallee UnknownPC = TheModule.getFunction("unknown_pc");
   {
     auto *UnknownPCFunction = cast<Function>(skipCasts(UnknownPC.getCallee()));
     FunctionTags::Exceptional.addTo(UnknownPCFunction);
   }
 
-  Builder.CreateCall(UnknownPC,
-                     unpack(Builder,
-                            PCH->buildCurrentPCPlainMetaAddress(Builder)));
+  PCH->setCurrentPCPlainMetaAddress(Builder);
+
+  Builder.CreateCall(UnknownPC);
+
   auto *FailUnreachable = Builder.CreateUnreachable();
   setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 

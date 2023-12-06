@@ -7,6 +7,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/ModRef.h"
 
+#include "revng/Support/Assert.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
 using namespace llvm;
@@ -360,49 +361,62 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   return false;
 }
 
-static llvm::Value *buildPlainMetaAddressImpl(llvm::IRBuilder<> &Builder,
-                                              Value *Epoch,
-                                              Value *AddressSpace,
-                                              Value *Type,
-                                              Value *Address) {
+static void setPlainMetaAddressImpl(IRBuilder<> &Builder,
+                                    StringRef GlobalName,
+                                    Value *Epoch,
+                                    Value *AddressSpace,
+                                    Value *Type,
+                                    Value *Address) {
   using namespace llvm;
 
   BasicBlock *BB = Builder.GetInsertBlock();
   Module *M = BB->getParent()->getParent();
 
-  Function *MetaAddressConstuctor = M->getFunction("build_PlainMetaAddress");
-  MetaAddressConstuctor->setMemoryEffects(MemoryEffects::none());
+  GlobalVariable *Global = M->getGlobalVariable(GlobalName);
+  revng_assert(Global != nullptr);
+
+  Function *MetaAddressConstuctor = M->getFunction("set_PlainMetaAddress");
+  auto WriteArguments = MemoryEffects::argMemOnly(ModRefInfo::Mod);
+  MetaAddressConstuctor->setMemoryEffects(WriteArguments);
   MetaAddressConstuctor->addFnAttr(Attribute::WillReturn);
   MetaAddressConstuctor->addFnAttr(Attribute::NoUnwind);
   auto *FT = MetaAddressConstuctor->getFunctionType();
-  return Builder
-    .CreateCall(MetaAddressConstuctor,
-                { Builder.CreateZExt(Epoch, FT->getParamType(0)),
-                  Builder.CreateZExt(AddressSpace, FT->getParamType(1)),
-                  Builder.CreateZExt(Type, FT->getParamType(2)),
-                  Builder.CreateZExt(Address, FT->getParamType(3)) });
+  Builder.CreateCall(MetaAddressConstuctor,
+                     { Global,
+                       Builder.CreateZExt(Epoch, FT->getParamType(1)),
+                       Builder.CreateZExt(AddressSpace, FT->getParamType(2)),
+                       Builder.CreateZExt(Type, FT->getParamType(3)),
+                       Builder.CreateZExt(Address, FT->getParamType(4)) });
 }
 
-Value *PCH::buildCurrentPCPlainMetaAddress(IRBuilder<> &Builder) const {
-  return buildPlainMetaAddressImpl(Builder,
-                                   createLoad(Builder, EpochCSV),
-                                   createLoad(Builder, AddressSpaceCSV),
-                                   createLoad(Builder, TypeCSV),
-                                   createLoad(Builder, AddressCSV));
+void PCH::setCurrentPCPlainMetaAddress(IRBuilder<> &Builder) const {
+  setPlainMetaAddressImpl(Builder,
+                          "current_pc",
+                          createLoad(Builder, EpochCSV),
+                          createLoad(Builder, AddressSpaceCSV),
+                          createLoad(Builder, TypeCSV),
+                          createLoad(Builder, AddressCSV));
 }
 
-llvm::Value *
-ProgramCounterHandler::buildPlainMetaAddress(llvm::IRBuilder<> &Builder,
-                                             const MetaAddress &Address) const {
+void PCH::setLastPCPlainMetaAddress(IRBuilder<> &Builder,
+                                    const MetaAddress &Address) const {
+  setPlainMetaAddress(Builder, "last_pc", Address);
+}
+
+void ProgramCounterHandler::setPlainMetaAddress(llvm::IRBuilder<> &Builder,
+                                                StringRef GlobalName,
+                                                const MetaAddress &Address)
+  const {
   auto CI = [](llvm::GlobalVariable *Example, uint64_t Value) -> ConstantInt * {
     auto *Type = Example->getValueType();
     return ConstantInt::get(cast<IntegerType>(Type), Value);
   };
-  return buildPlainMetaAddressImpl(Builder,
-                                   CI(EpochCSV, Address.Epoch),
-                                   CI(AddressSpaceCSV, Address.AddressSpace),
-                                   CI(TypeCSV, Address.Type),
-                                   CI(AddressCSV, Address.Address));
+  setPlainMetaAddressImpl(Builder,
+                          GlobalName,
+                          CI(EpochCSV, Address.Epoch),
+                          CI(AddressSpaceCSV, Address.AddressSpace),
+                          CI(TypeCSV, Address.Type),
+                          CI(AddressCSV, Address.Address));
 }
 
 std::pair<NextJumpTarget::Values, MetaAddress>

@@ -39,10 +39,10 @@ provide a quick summary of the required functions as they are implemented in
        possible to catch attempts to open ``/proc/self/map`` and redirect it
        somewhere else transparently.
 
-:unknownPC: Function handling the situation in which the code at an address that
-            should be executed has not been translated (see
-            `GeneratedIRReference.rst`_). It is basically an error handling
-            function that is supposed to never return.
+:unknown_pc: Function handling the situation in which the code at an address that
+             should be executed has not been translated (see
+             `GeneratedIRReference.rst`_). It is basically an error handling
+             function that is supposed to never return.
 
 :newpc: As seen in `GeneratedIRReference.rst`_, each input instruction is
         delimited by a call to a ``newpc`` function. This function is not just a
