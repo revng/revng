@@ -51,38 +51,56 @@ public:
     Value *CalledValue = nullptr;
     llvm::SmallVector<Value *, 2> Phis;
     llvm::SmallVector<CallInst *, 2> Calls;
-    for (auto [V, Predecessor] : zip(Phi->incoming_values(), Phi->blocks())) {
-      // We only expect pure calls
-      auto *Call = cast<CallInst>(V);
-      Calls.push_back(Call);
 
-      if (CalledValue == nullptr) {
-        // This is the first call we see, make some extra checks
-        CalledValue = Call->getCalledOperand();
-        FirstCall = Call;
+    for (auto &V : Phi->incoming_values()) {
+      if (auto *Call = dyn_cast<CallInst>(V.get())) {
+        if (CalledValue == nullptr) {
+          // This is the first call we see, make some extra checks
+          CalledValue = Call->getCalledOperand();
+          FirstCall = Call;
 
-        Function *Callee = Call->getCalledFunction();
-        revng_assert(Callee != nullptr);
+          Function *Callee = Call->getCalledFunction();
+          revng_assert(Callee != nullptr);
 
-        revng_assert(isLastBeforeTerminator(Call) or Callee->onlyReadsMemory());
+          revng_assert(isLastBeforeTerminator(Call)
+                       or Callee->onlyReadsMemory());
 
-        // Ignore isolated functions
-        if (FunctionTags::Isolated.isTagOf(Callee))
-          return;
+          // Ignore isolated functions
+          if (FunctionTags::Isolated.isTagOf(Callee))
+            return;
 
-        // First iteration, create phis
-        for (Type *ArgumentType : Call->getFunctionType()->params())
-          Phis.push_back(PHINode::Create(ArgumentType, PhiSize, "", Phi));
+          // First iteration, create phis
+          for (Type *ArgumentType : Call->getFunctionType()->params()) {
+            Phis.push_back(cast<PHINode>(PHINode::Create(ArgumentType,
+                                                         PhiSize,
+                                                         "",
+                                                         Phi)));
+          }
 
-      } else {
-        // Ensure all the incomings are calls to the same function
-        revng_assert(CalledValue == Call->getCalledOperand());
+          Calls.push_back(Call);
+
+        } else {
+          // Ensure all the incomings are calls to the same function
+          revng_assert(CalledValue == Call->getCalledOperand());
+        }
       }
+    }
 
-      // Add an incoming
-      revng_assert(Call->arg_size() == Phis.size());
-      for (auto [Argument, Phi] : zip(Call->args(), Phis))
-        cast<PHINode>(Phi)->addIncoming(Argument, Predecessor);
+    for (auto [V, Predecessor] : zip(Phi->incoming_values(), Phi->blocks())) {
+      if (isa<UndefValue>(V)) {
+        for (auto *NewPhi : Phis)
+          cast<PHINode>(NewPhi)->addIncoming(UndefValue::get(NewPhi->getType()),
+                                             Predecessor);
+      } else if (isa<PoisonValue>(V)) {
+        for (auto *NewPhi : Phis) {
+          auto *Poison = PoisonValue::get(NewPhi->getType());
+          cast<PHINode>(NewPhi)->addIncoming(Poison, Predecessor);
+        }
+      } else if (auto *Call = dyn_cast<CallInst>(V)) {
+        revng_assert(Call->arg_size() == Phis.size());
+        for (auto [Argument, NewPhi] : zip(Call->args(), Phis))
+          cast<PHINode>(NewPhi)->addIncoming(Argument, Predecessor);
+      }
     }
 
     // Create a new function call
