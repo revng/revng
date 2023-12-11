@@ -29,6 +29,7 @@
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
+#include "revng-c/TypeNames/LLVMTypeNames.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using llvm::dyn_cast;
@@ -113,19 +114,6 @@ std::string getVariableLocationReference(llvm::StringRef VariableName,
                                          const model::Function &F,
                                          ptml::PTMLCBuilder &B) {
   return getVariableLocation<false>(VariableName, F, B);
-}
-
-TypeString getReturnField(const model::Type &Function,
-                          size_t Index,
-                          const model::Binary &Model) {
-  const auto Layout = abi::FunctionType::Layout::make(Function);
-  llvm::SmallVector<model::QualifiedType>
-    ReturnValues = flattenReturnTypes(Layout, Model);
-  revng_assert(ReturnValues.size() > Index, "Index out of bounds");
-  revng_assert(ReturnValues.size() > 1,
-               "This function should only ever be called for return values "
-               "that require a struct to be created");
-  return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
 }
 
 TypeString getNamedCInstance(const model::QualifiedType &QT,
@@ -328,7 +316,8 @@ TypeString getArrayWrapper(const model::QualifiedType &QT,
 
 TypeString getNamedInstanceOfReturnType(const model::Type &Function,
                                         llvm::StringRef InstanceName,
-                                        const ptml::PTMLCBuilder &B) {
+                                        const ptml::PTMLCBuilder &B,
+                                        bool IsDefinition) {
   TypeString Result;
   std::vector<std::string> AllowedActions = { ptml::actions::Rename };
 
@@ -364,10 +353,12 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
       // RawFunctionTypes can return multiple values, which need to be wrapped
       // in a struct
       revng_assert(llvm::isa<model::RawFunctionType>(Function));
-      Result = B.tokenTag((Twine(RetStructPrefix) + "returned_by_"
-                           + Function.name())
-                            .str(),
-                          ptml::c::tokens::Type)
+      std::string Name = (Twine(RetStructPrefix) + Function.name()).str();
+      std::string
+        Location = pipeline::serializedLocation(ranks::ArtificialStruct,
+                                                Function.key());
+      Result = B.tokenTag(Name, ptml::c::tokens::Type)
+                 .addAttribute(B.getLocationAttribute(IsDefinition), Location)
                  .serialize();
       if (not InstanceName.empty())
         Result.append((Twine(" ") + Twine(InstanceName)).str());
@@ -427,7 +418,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Header << getFunctionAttributesString(Function->Attributes());
   Header << (SingleLine ? " " : "\n");
-  Header << getNamedInstanceOfReturnType(RF, FunctionName, B);
+  Header << getNamedInstanceOfReturnType(RF, FunctionName, B, false);
 
   if (RF.Arguments().empty() and RF.StackArgumentsType().empty()) {
     Header << "(" << B.tokenTag("void", ptml::c::tokens::Type) << ")";
@@ -484,7 +475,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Header << getFunctionAttributesString(Function->Attributes());
   Header << (SingleLine ? " " : "\n");
-  Header << getNamedInstanceOfReturnType(CF, FunctionName, B);
+  Header << getNamedInstanceOfReturnType(CF, FunctionName, B, false);
 
   if (CF.Arguments().empty()) {
     Header << "(" << B.tokenTag("void", ptml::c::tokens::Type) << ")";

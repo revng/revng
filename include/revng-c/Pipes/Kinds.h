@@ -7,6 +7,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 
+#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/FunctionTags.h"
 
 namespace revng::kinds {
@@ -35,7 +36,8 @@ inline pipeline::SingleElementKind ModelHeader("ModelHeader",
                                                    ranks::UnionField,
                                                    ranks::EnumEntry,
                                                    ranks::DynamicFunction,
-                                                   ranks::Segment),
+                                                   ranks::Segment,
+                                                   ranks::ArtificialStruct),
                                                { &DecompiledToYAML });
 
 inline FunctionKind DecompiledToYAML("DecompiledToYAML",

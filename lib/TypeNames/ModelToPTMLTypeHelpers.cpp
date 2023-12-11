@@ -419,17 +419,25 @@ static void generateReturnValueWrapper(Logger<> &Log,
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     for (auto &Group : llvm::enumerate(F.ReturnValues())) {
+      const model::NamedTypedRegister &RetVal = Group.value();
       const model::QualifiedType &RetTy = Group.value().Type();
-      const auto &FieldName = getReturnField(F, Group.index(), Model);
-      Header << getNamedCInstance(RetTy,
-                                  B.tokenTag(FieldName, ptml::c::tokens::Field)
-                                    .serialize(),
-                                  B)
-             << ";\n";
+
+      using pipeline::serializedLocation;
+      std::string
+        ActionLocation = serializedLocation(revng::ranks::ReturnRegister,
+                                            F.key(),
+                                            RetVal.key());
+
+      std::string
+        FieldString = B.tokenTag(RetVal.name(), ptml::c::tokens::Field)
+                        .addAttribute(ptml::attributes::ActionContextLocation,
+                                      ActionLocation)
+                        .serialize();
+      Header << getNamedCInstance(RetTy, FieldString, B) << ";\n";
     }
   }
 
-  Header << " " << getReturnTypeName(F, B) << ";\n";
+  Header << " " << getReturnTypeName(F, B, true) << ";\n";
 }
 
 /// If the function has more than one return value, generate a wrapper

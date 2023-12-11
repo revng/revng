@@ -18,7 +18,7 @@ inline const char *StructPaddingPrefix = "_padding_at_";
 
 namespace ArtificialTypes {
 
-constexpr const char *const RetStructPrefix = "_artificial_struct_";
+constexpr const char *const RetStructPrefix = "_artificial_struct_returned_by_";
 constexpr const char *const ArrayWrapperPrefix = "_artificial_wrapper_";
 
 constexpr const char *const RetFieldPrefix = "field_";
@@ -57,22 +57,15 @@ getArrayWrapper(const model::QualifiedType &QT, const ptml::PTMLCBuilder &B);
 extern tokenDefinition::types::TypeString
 getNamedInstanceOfReturnType(const model::Type &FunctionType,
                              llvm::StringRef InstanceName,
-                             const ptml::PTMLCBuilder &B);
+                             const ptml::PTMLCBuilder &B,
+                             bool IsDefinition);
 
 inline tokenDefinition::types::TypeString
 getReturnTypeName(const model::Type &FunctionType,
-                  const ptml::PTMLCBuilder &B) {
-  return getNamedInstanceOfReturnType(FunctionType, "", B);
+                  const ptml::PTMLCBuilder &B,
+                  bool IsDefinition) {
+  return getNamedInstanceOfReturnType(FunctionType, "", B, IsDefinition);
 }
-
-/// Return the name of the \a Index -th field of the struct returned
-/// by the \a FunctionType.
-/// \note FunctionType must be returning more than one value, otherwise
-/// there is no wrapping struct.
-extern tokenDefinition::types::TypeString
-getReturnField(const model::Type &FunctionType,
-               size_t Index,
-               const model::Binary &Model);
 
 /// Print the function prototype (without any trailing ';') of \a FT
 ///        using \a FunctionName as the function's name. If the return value
