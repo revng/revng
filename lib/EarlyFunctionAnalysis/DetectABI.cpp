@@ -357,7 +357,7 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
-          TypedRegister TR(RegisterID);
+          NamedTypedRegister TR(RegisterID);
           TR.Type() = { GenericType, {} };
           ReturnValuesInserter.insert(TR);
         }
@@ -428,7 +428,7 @@ void DetectABI::finalizeModel() {
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
-          TypedRegister TR(RegisterID);
+          NamedTypedRegister TR(RegisterID);
           TR.Type() = {
             Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
           };

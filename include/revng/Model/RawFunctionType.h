@@ -21,7 +21,7 @@ fields:
   - name: ReturnValues
     sequence:
       type: SortedVector
-      elementType: TypedRegister
+      elementType: NamedTypedRegister
   - name: ReturnValueComment
     type: string
     optional: true

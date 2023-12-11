@@ -549,8 +549,7 @@ Identifier model::NamedTypedRegister::name() const {
   if (not CustomName().empty()) {
     return CustomName();
   } else {
-    using namespace model::Register;
-    return Identifier((Twine("_argument_") + Twine(getRegisterName(Location())))
+    return Identifier((Twine("_register_") + getRegisterName(Location()))
                         .str());
   }
 }
@@ -1228,7 +1227,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     }
   }
 
-  for (const TypedRegister &Return : T->ReturnValues())
+  for (const NamedTypedRegister &Return : T->ReturnValues())
     if (not rc_recur Return.verify(VH))
       rc_return VH.fail();
 

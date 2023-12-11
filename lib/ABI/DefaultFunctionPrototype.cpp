@@ -35,7 +35,7 @@ static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
   }
 
   for (const auto &Register : Defined.GeneralPurposeReturnValueRegisters()) {
-    TypedRegister ReturnValue(Register);
+    NamedTypedRegister ReturnValue(Register);
     ReturnValue.Type() = buildType(Register, TheBinary);
     Prototype.ReturnValues().insert(ReturnValue);
   }
