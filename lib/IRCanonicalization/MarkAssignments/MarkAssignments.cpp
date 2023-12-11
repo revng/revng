@@ -410,15 +410,13 @@ public:
       // where we always want so serialize the instruction for aesthetic
       // reasons.
       if (not isCallToTagged(&I, FunctionTags::IsRef)) {
-        // There are 2 reasons why we'd like to force serialization
-        // - the instruction has zero uses and no side effects: we want to do it
-        //   for debug purposes so that it shows up in the decompiled code even
-        //   if it's dead
-        if (not I.getNumUses()) {
-          if (not I.getType()->isVoidTy()) {
-            Assignments[&I].set(Reasons::AlwaysAssign);
-            revng_log(MarkLog, "Instr AlwaysAssign");
-          }
+        // There is only a reason why we'd like to force serialization: the
+        // instruction has zero uses and no side effects.
+        // We want to do it for debug purposes so that it shows up in the
+        // decompiled code even if it's dead.
+        if (not I.getNumUses() and not I.getType()->isVoidTy()) {
+          Assignments[&I].set(Reasons::AlwaysAssign);
+          revng_log(MarkLog, "Instr AlwaysAssign");
         }
       } else {
         revng_assert(not Assignments.contains(&I));
