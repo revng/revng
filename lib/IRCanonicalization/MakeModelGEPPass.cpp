@@ -27,6 +27,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
@@ -1724,24 +1725,45 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
     const model::Function *MF = llvmToModelFunction(Model, *ReturningF);
     revng_assert(MF);
 
-    const auto Layout = abi::FunctionType::Layout::make(MF->prototype(Model));
+    using namespace abi::FunctionType;
+    const auto Layout = Layout::make(MF->prototype(Model));
 
-    bool HasNoReturnValues = (Layout.ReturnValues.empty()
-                              and not Layout.returnsAggregateType());
-    const model::QualifiedType *SingleReturnType = nullptr;
+    std::optional<model::QualifiedType> SingleReturnType;
 
-    if (Layout.returnsAggregateType()) {
-      SingleReturnType = &Layout.Arguments[0].Type;
-    } else if (Layout.ReturnValues.size() == 1) {
-      SingleReturnType = &Layout.ReturnValues[0].Type;
-    }
+    switch (Layout.returnMethod()) {
+    case ReturnMethod::ModelAggregate:
+      SingleReturnType = Layout.returnValueAggregateType();
+      break;
 
-    // If the callee function does not return anything, skip to the next
-    // instruction.
-    if (HasNoReturnValues) {
+    case ReturnMethod::Scalar:
+      SingleReturnType = Layout.ReturnValues[0].Type;
+      break;
+
+    case ReturnMethod::Void:
+      // If the callee function does not return anything, skip to the next
+      // instruction.
       revng_log(ModelGEPLog, "Does not return values in the model. Skip ...");
       revng_assert(not Ret->getReturnValue());
-    } else if (SingleReturnType != nullptr) {
+      break;
+
+    case ReturnMethod::RegisterSet: {
+      auto *RetVal = Ret->getReturnValue();
+      auto *StructTy = cast<llvm::StructType>(RetVal->getType());
+      revng_log(ModelGEPLog, "Has many return types.");
+      auto ReturnValuesCount = Layout.ReturnValues.size();
+      revng_assert(StructTy->getNumElements() == ReturnValuesCount);
+
+      // Assert that we're returning a proper struct, initialized with
+      // struct initializers, but don't do anything here.
+      const auto *Returned = cast<llvm::CallInst>(RetVal)->getCalledFunction();
+      revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
+    } break;
+
+    default:
+      revng_abort();
+    }
+
+    if (SingleReturnType) {
       revng_log(ModelGEPLog, "Has a single return value.");
 
       revng_assert(Ret->getReturnValue()->getType()->isVoidTy()
@@ -1759,18 +1781,6 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
                     << serializeToString(*SingleReturnType));
         return dropPointer(*SingleReturnType);
       }
-
-    } else {
-      auto *RetVal = Ret->getReturnValue();
-      auto *StructTy = cast<llvm::StructType>(RetVal->getType());
-      revng_log(ModelGEPLog, "Has many return types.");
-      auto ReturnValuesCount = Layout.ReturnValues.size();
-      revng_assert(StructTy->getNumElements() == ReturnValuesCount);
-
-      // Assert that we're returning a proper struct, initialized with
-      // struct initializers, but don't do anything here.
-      const auto *Returned = cast<llvm::CallInst>(RetVal)->getCalledFunction();
-      revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
     }
 
   } break;

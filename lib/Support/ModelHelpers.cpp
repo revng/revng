@@ -351,12 +351,11 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
 
   llvm::SmallVector<QualifiedType> ReturnTypes;
 
-  if (Layout.returnsAggregateType())
-    return { Layout.Arguments[0].Type };
+  using namespace abi::FunctionType;
+  revng_assert(Layout.returnMethod() == ReturnMethod::RegisterSet);
 
   auto PointerS = model::Architecture::getPointerSize(Model.Architecture());
-  using RV = abi::FunctionType::Layout::ReturnValue;
-  for (const RV &ReturnValue : Layout.ReturnValues) {
+  for (const Layout::ReturnValue &ReturnValue : Layout.ReturnValues) {
     if (ReturnValue.Type.isScalar()) {
       if (ReturnValue.Registers.size() > 1) {
         model::QualifiedType PointerSizedInt{
@@ -396,14 +395,21 @@ static llvm::SmallVector<QualifiedType>
 handleReturnValue(const model::TypePath &Prototype,
                   const model::Binary &Model) {
   const auto Layout = abi::FunctionType::Layout::make(Prototype);
-  if (Layout.returnsAggregateType()) {
-    revng_assert(not Layout.Arguments.empty());
-    auto &Argument = Layout.Arguments[0];
-    using namespace abi::FunctionType::ArgumentKind;
-    revng_assert(Argument.Kind == ShadowPointerToAggregateReturnValue);
-    return { stripPointer(Argument.Type) };
-  } else {
+
+  switch (Layout.returnMethod()) {
+  case abi::FunctionType::ReturnMethod::Void:
+    return {};
+  case abi::FunctionType::ReturnMethod::ModelAggregate:
+    return { Layout.returnValueAggregateType() };
+  case abi::FunctionType::ReturnMethod::Scalar:
+    revng_assert(Layout.ReturnValues.size() == 1);
+    revng_assert(Layout.ReturnValues[0].Type.isScalar());
+    return { Layout.ReturnValues[0].Type };
+    break;
+  case abi::FunctionType::ReturnMethod::RegisterSet:
     return flattenReturnTypes(Layout, Model);
+  default:
+    revng_abort();
   }
 }
 

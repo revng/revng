@@ -6,6 +6,7 @@
 
 #include "llvm/IR/Constants.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
@@ -81,7 +82,7 @@ static void setBound(BoundCollector<IsUpper> &BoundCollector, Value *V) {
 
 struct CallSite {
   std::optional<uint64_t> StackSize;
-  RawFunctionType *Prototype;
+  model::Type::Key CallType{};
 };
 
 class FunctionStackInfo {
@@ -153,12 +154,14 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
   bool NeedsStackFrame = ModelFunction.StackFrameType().empty();
   bool NeedsStackArguments = false;
   model::Type *Prototype = ModelFunction.prototype(*Binary).get();
+
+  // We only upgrade the stack size of RawFunctionType
   RawFunctionType *RawPrototype = nullptr;
   if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype))) {
     NeedsStackArguments = RawPrototype->StackArgumentsType().empty();
   }
 
-  revng_log(Log, "NeedsStackFrame: " << NeedsStackArguments);
+  revng_log(Log, "NeedsStackFrame: " << NeedsStackFrame);
   revng_log(Log, "NeedsStackArguments: " << NeedsStackArguments);
 
   if (not NeedsStackFrame and not NeedsStackArguments)
@@ -190,15 +193,10 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
               NewCallSite.StackSize = Offset->getLimitedValue();
 
             // Get the prototype
-            auto *Proto = Cache
-                            .getCallSitePrototype(*Binary.get(),
-                                                  findAssociatedCall(Call),
-                                                  &ModelFunction)
-                            .get();
-
-            NewCallSite.Prototype = nullptr;
-            if (auto *FType = dyn_cast<RawFunctionType>(Proto))
-              NewCallSite.Prototype = FType;
+            auto Proto = Cache.getCallSitePrototype(*Binary.get(),
+                                                    findAssociatedCall(Call),
+                                                    &ModelFunction);
+            NewCallSite.CallType = Proto.get()->key();
           }
         }
       }
@@ -213,6 +211,7 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
     }
 
     // Record FSI for later processing
+    revng_log(Log, "Registering function");
     FunctionsStackInfo.push_back(std::move(FSI));
   }
 
@@ -248,9 +247,7 @@ void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
 
 void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
   model::Function &ModelFunction = FSI.Function;
-  revng_log(Log,
-            "electFunctionStackFrameSize: "
-              << ModelFunction.Entry().toString());
+  revng_log(Log, "electFunctionStackFrameSize: " << ModelFunction.name().str());
   LoggerIndent<> Indent(Log);
 
   if (FSI.MaxStackSize)
@@ -267,7 +264,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
     auto MaybeNewCandidate = handleCallSite(CallSite);
     if (MaybeNewCandidate) {
       uint64_t NewCandidate = *MaybeNewCandidate;
-      revng_log(Log, "Considering new candidate" << NewCandidate);
+      revng_log(Log, "Considering new candidate: " << NewCandidate);
       StackSize = std::max(StackSize.value_or(NewCandidate), NewCandidate);
     }
   }
@@ -288,40 +285,33 @@ std::optional<uint64_t>
 DetectStackSize::handleCallSite(const CallSite &CallSite) {
   revng_log(Log, "CallSite");
   LoggerIndent<> Indent2(Log);
-  if (Log.isEnabled()) {
-    if (CallSite.StackSize)
-      Log << "StackSize: " << *CallSite.StackSize << DoLog;
-    Log << "ID: " << CallSite.Prototype->ID() << DoLog;
-  }
+  revng_log(Log, "CallSite.StackSize: " << CallSite.StackSize.value_or(0));
+  revng_log(Log, "StackArgumentsSize: " << std::get<0>(CallSite.CallType));
 
   if (not CallSite.StackSize)
-    return {};
+    return std::nullopt;
 
-  const RawFunctionType *Prototype = CallSite.Prototype;
-  // TODO: handle CABIFunctionType
-  if (Prototype == nullptr)
-    return {};
-
-  uint64_t StackArgumentsSize = 0;
-
-  const model::TypePath &StackArgumentsType = Prototype->StackArgumentsType();
-  if (not StackArgumentsType.empty()) {
-    const model::Type *StackArguments = StackArgumentsType.getConst();
-    std::optional<uint64_t> MaybeStackArgumentsSize = StackArguments->size(VH);
-    revng_assert(MaybeStackArgumentsSize);
-    StackArgumentsSize = *MaybeStackArgumentsSize;
-  } else {
-    revng_log(Log, "No stack arguments");
+  using namespace abi::FunctionType;
+  uint64_t StackArgumentSize = 0;
+  for (Layout::Argument &Argument :
+       Layout::make(*Binary->Types().at(CallSite.CallType).get()).Arguments) {
+    if (Argument.Stack.has_value()) {
+      StackArgumentSize = std::max(StackArgumentSize,
+                                   Argument.Stack->Offset
+                                     + Argument.Stack->Size);
+    }
   }
+  revng_log(Log, "StackArgumentSize: " << StackArgumentSize);
 
-  revng_log(Log, "StackArgumentsSize: " << StackArgumentsSize);
-
-  int64_t Result = (*CallSite.StackSize - StackArgumentsSize
+  int64_t Result = (*CallSite.StackSize - StackArgumentSize
                     - CallInstructionPushSize);
+
+  revng_log(Log, "Result: " << Result);
+
   if (Result >= 0)
     return static_cast<uint64_t>(Result);
   else
-    return {};
+    return std::nullopt;
 }
 
 bool DetectStackSizePass::runOnModule(Module &M) {

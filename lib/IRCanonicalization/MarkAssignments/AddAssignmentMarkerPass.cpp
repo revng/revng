@@ -49,6 +49,45 @@ public:
   bool runOnFunction(Function &F) override;
 };
 
+static bool
+usesNeedToBeReplacedWithCopiesFromLocal(const llvm::Instruction *I,
+                                        FunctionMetadataCache &Cache,
+                                        const model::Binary &Model) {
+  auto *Call = getCallToIsolatedFunction(I);
+  if (not Call)
+    return true;
+
+  auto Prototype = Cache.getCallSitePrototype(Model, cast<CallInst>(I));
+  using namespace abi::FunctionType;
+  abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
+  // If the Isolated function doesn't return an aggregate, we have to
+  // inject copies from local variables.
+  if (Layout.returnMethod() != ReturnMethod::ModelAggregate)
+    return true;
+
+  unsigned NumUses = I->getNumUses();
+
+  // SPTAR return aggregates also need copies from local variables,
+  // because they are emitted as scalar pointer variables in C.
+  if (Layout.hasSPTAR()) {
+    revng_assert(0 == NumUses);
+    return true;
+  }
+
+  // Non-SPTAR return aggregates are special in many ways:
+  // 1. they basically imply a LocalVariable;
+  // 2. their only expected use is supposed to be a call to AddressOf or a
+  //    ModelGEPRef
+  // For these reasons it would be wrong to inject a Copy.
+  for (const llvm::Use &U : I->uses()) {
+    revng_assert((isCallToTagged(U.getUser(), FunctionTags::AddressOf)
+                  and 1 == U.getOperandNo())
+                 or (isCallToTagged(U.getUser(), FunctionTags::ModelGEPRef)
+                     and 1 == U.getOperandNo()));
+  }
+  return false;
+};
+
 bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
@@ -132,20 +171,18 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
       const llvm::DataLayout &DL = I->getModule()->getDataLayout();
       auto ModelSize = VariableType.size().value();
       auto IRSize = DL.getTypeAllocSize(IType);
-      if (ModelSize >= IRSize) {
-        if (ModelSize > IRSize) {
-          auto Prototype = Cache.getCallSitePrototype(*Model,
-                                                      cast<CallInst>(I));
-          using namespace abi::FunctionType;
-          abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
-          revng_assert(Layout.returnsAggregateType());
-          VariableType = llvmIntToModelType(IType, *Model);
-        }
-      } else {
+      if (ModelSize < IRSize) {
         revng_assert(IType->isPointerTy());
         using model::Architecture::getPointerSize;
         auto PtrSize = getPointerSize(Model->Architecture());
         revng_assert(ModelSize == PtrSize);
+      } else if (ModelSize > IRSize) {
+        auto Prototype = Cache.getCallSitePrototype(*Model, cast<CallInst>(I));
+        using namespace abi::FunctionType;
+        abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
+        revng_assert(Layout.returnMethod() == ReturnMethod::ModelAggregate);
+        if (Layout.hasSPTAR())
+          revng_assert(0 == I->getNumUses());
       }
 
       // TODO: until we don't properly handle variable declarations with inline
@@ -164,18 +201,24 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
                                                   { ModelTypeString });
 
       // Then, we have to replace all the uses of I so that they make a Copy
-      // from the LocalVariable
+      // from the LocalVariable, unless it's a call to an IsolatedFunction that
+      // already returns a local variable, in which case we don't have to do
+      // anything with uses.
+      bool DoCopy = usesNeedToBeReplacedWithCopiesFromLocal(I, Cache, *Model);
       for (Use &U : llvm::make_early_inc_range(I->uses())) {
         revng_assert(isa<Instruction>(U.getUser()));
         Builder.SetInsertPoint(cast<Instruction>(U.getUser()));
 
-        // Create a Copy to dereference the LocalVariable
-        auto *CopyFnType = getCopyType(LocalVarCall->getType());
-        auto *CopyFunction = CopyPool.get(LocalVarCall->getType(),
-                                          CopyFnType,
-                                          "Copy");
-        auto *CopyCall = Builder.CreateCall(CopyFunction, { LocalVarCall });
-        U.set(CopyCall);
+        llvm::Value *ValueToUse = LocalVarCall;
+        if (DoCopy) {
+          // Create a Copy to dereference the LocalVariable
+          auto *CopyFnType = getCopyType(LocalVarCall->getType());
+          auto *CopyFunction = CopyPool.get(LocalVarCall->getType(),
+                                            CopyFnType,
+                                            "Copy");
+          ValueToUse = Builder.CreateCall(CopyFunction, { LocalVarCall });
+        }
+        U.set(ValueToUse);
       }
 
       // We have to assign the result of I to the local variable, right

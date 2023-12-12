@@ -12,6 +12,8 @@
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "revng/EarlyFunctionAnalysis/BasicBlock.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawFunctionType.h"
@@ -146,6 +148,7 @@ static void setStructNameIfNeeded(llvm::Type *Type,
 static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
   PTMLCBuilder B(/*GeneratePlainC*/ true);
+  FunctionMetadataCache Cache;
 
   for (llvm::Function &F : M) {
     auto FunctionTags = FunctionTags::TagsSet::from(&F);
@@ -171,29 +174,23 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
 
     revng_assert(Prototype);
 
-    const auto *RFT = dyn_cast<model::RawFunctionType>(Prototype);
-    if (RFT) {
-      llvm::Type *ReturnType = F.getReturnType();
-      std::string ReturnTypeName = std::string(getReturnTypeName(*RFT,
-                                                                 B,
-                                                                 false));
-      setStructNameIfNeeded(ReturnType, ReturnTypeName);
+    for (Argument &Argument : F.args())
+      revng_assert(not Argument.getType()->isStructTy());
 
-      const auto &ModelArgs = RFT->Arguments();
-      auto NumModelArguments = ModelArgs.size();
-      for (unsigned I = 0; I < F.arg_size(); ++I) {
-        model::QualifiedType ArgumentModelType;
-        if (I < NumModelArguments) {
-          auto ArgIt = std::next(ModelArgs.begin(), I);
-          ArgumentModelType = ArgIt->Type();
-        } else {
-          ArgumentModelType = { RFT->StackArgumentsType(), {} };
-        }
+    llvm::Type *ReturnType = F.getReturnType();
+    std::string
+      ReturnTypeName = getReturnTypeName(*Prototype, B, false).str().str();
+    setStructNameIfNeeded(ReturnType, ReturnTypeName);
 
-        std::string ArgTypeName = std::string(getTypeName(ArgumentModelType,
-                                                          B));
-        llvm::Type *ArgumentType = F.getArg(I)->getType();
-        setStructNameIfNeeded(ArgumentType, ArgTypeName);
+    // Look for all the call sites: they might return anonymous structs too
+    for (Instruction &I : llvm::instructions(F)) {
+      auto *T = I.getType();
+      CallInst *Call = getCallToIsolatedFunction(&I);
+      if (Call != nullptr and T->isStructTy()) {
+        const auto &Prototype = *Cache.getCallSitePrototype(Model, Call).get();
+        auto
+          ReturnTypeName = getReturnTypeName(Prototype, B, false).str().str();
+        setStructNameIfNeeded(T, ReturnTypeName);
       }
     }
   }

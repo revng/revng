@@ -42,16 +42,13 @@
 using llvm::BasicBlock;
 using llvm::Function;
 using llvm::Instruction;
-using llvm::StringRef;
 
 using llvm::cast;
 using llvm::dyn_cast;
 using llvm::isa;
 
 using model::Binary;
-using model::CABIFunctionType;
 using model::QualifiedType;
-using model::RawFunctionType;
 
 template<typename T>
 using RPOT = llvm::ReversePostOrderTraversal<T>;
@@ -273,7 +270,7 @@ static void handleCallInstruction(FunctionMetadataCache &Cache,
   if (ReturnedQualTypes.size() == 1) {
     // If the function returns just one value, associate the computed
     // QualifiedType to the Call Instruction
-    revng_assert(CallType->isSingleValueType());
+    revng_assert(not CallType->isStructTy());
 
     // Skip if it's not a pointer and we are only interested in pointers
     if (not PointersOnly or ReturnedQualTypes[0].isPointer()) {

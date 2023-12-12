@@ -202,3 +202,4 @@ AnalysesLists:
     Analyses:
       - detect-stack-size
       - dla
+      - ConvertToCABIFunctionType

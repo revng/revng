@@ -1668,10 +1668,10 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
     auto *I = dyn_cast<llvm::Instruction>(Br->getCondition());
     if (I) {
       auto *Cmp = dyn_cast<llvm::CmpInst>(I);
-      const llvm::Value *Op1 = I->getOperand(1);
+      const llvm::Value *Op1 = Cmp != nullptr ? I->getOperand(1) : nullptr;
       if (Cmp and Cmp->getPredicate() == llvm::CmpInst::ICMP_NE
           and dyn_cast<llvm::Constant>(Op1)
-          and dyn_cast<llvm::Constant>(Op1)->isZeroValue()) {
+          and cast<llvm::Constant>(Op1)->isZeroValue()) {
 
         const llvm::Value *Op0 = I->getOperand(0);
         std::string Op0String = rc_recur getToken(Op0);
