@@ -14,6 +14,9 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/TupleTree/TupleTree.h"
 
+// TODO: dismiss using VerifyHelper for this verification. Introduce a
+//       new class instead.
+
 static RecursiveCoroutine<bool>
 checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type);
 
@@ -124,10 +127,10 @@ checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type) {
     revng_abort("Unknown type.");
   }
 
-  if (Result)
+  if (Result) {
     VH.setVerified(&Type);
-
-  VH.verificationCompleted(&Type);
+    VH.verificationCompleted(&Type);
+  }
 
   rc_return VH.maybeFail(Result);
 }
