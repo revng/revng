@@ -321,17 +321,6 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   }
 
   // Collect existing CSV allocas
-  std::map<GlobalVariable *, AllocaInst *> CSVAllocas;
-  for (Instruction &I : Entry) {
-    if (auto *Call = dyn_cast<CallInst>(&I)) {
-      auto It = CSVForInitializer.find(Call->getCalledFunction());
-      if (It != CSVForInitializer.end()) {
-        auto *Initializer = cast<StoreInst>(getUniqueUser(Call));
-        auto *Alloca = cast<AllocaInst>(Initializer->getPointerOperand());
-        CSVAllocas[It->second] = Alloca;
-      }
-    }
-  }
 
   Instruction *NonAlloca = findFirstNonAlloca(&Entry);
   revng_assert(NonAlloca != nullptr);
@@ -342,6 +331,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
 
   // For each GlobalVariable representing a CSV used in F, create a dedicated
   // alloca and save it in CSVMaps.
+  std::map<GlobalVariable *, AllocaInst *> CSVAllocas;
   for (GlobalVariable *CSV : CSVs) {
     AllocaInst *Alloca = nullptr;
 

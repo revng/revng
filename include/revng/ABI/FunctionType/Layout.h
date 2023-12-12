@@ -4,7 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
+
 #include "revng/Model/Binary.h"
+#include "revng/Model/QualifiedType.h"
 
 namespace abi::FunctionType {
 
@@ -38,6 +41,15 @@ inline const char *getName(Values Kind) {
 }
 
 } // end namespace ArgumentKind
+
+namespace ReturnMethod {
+enum Values {
+  Void,
+  ModelAggregate,
+  Scalar,
+  RegisterSet
+};
+} // namespace ReturnMethod
 
 /// Indicates the layout of arguments and return values of a function.
 struct Layout {
@@ -100,10 +112,52 @@ public:
   llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
   llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
 
-  bool returnsAggregateType() const {
+  bool hasSPTAR() const {
     using namespace abi::FunctionType::ArgumentKind;
     auto SPTAR = ShadowPointerToAggregateReturnValue;
     return (Arguments.size() >= 1 and Arguments[0].Kind == SPTAR);
+  }
+
+  ReturnMethod::Values returnMethod() const {
+    if (hasSPTAR()) {
+      revng_assert(ReturnValues.size() <= 1);
+      revng_assert(Arguments.size() >= 1);
+      return ReturnMethod::ModelAggregate;
+    } else if (ReturnValues.size() == 0) {
+      return ReturnMethod::Void;
+    } else if (ReturnValues.size() > 1) {
+      return ReturnMethod::RegisterSet;
+    } else if (not ReturnValues[0].Type.isScalar()) {
+      revng_assert(ReturnValues.size() == 1);
+      return ReturnMethod::ModelAggregate;
+    } else {
+      revng_assert(ReturnValues.size() == 1);
+      revng_assert(ReturnValues[0].Type.isScalar());
+      return ReturnMethod::Scalar;
+    }
+  }
+
+  // \note Call only if returnMethod() is ModelAggregate
+  const model::QualifiedType returnValueAggregateType() const {
+    revng_assert(returnMethod() == ReturnMethod::ModelAggregate);
+
+    if (hasSPTAR()) {
+      revng_assert(ReturnValues.size() <= 1);
+      revng_assert(Arguments.size() >= 1);
+      return Arguments[0].Type.stripPointer();
+    }
+
+    bool Result = llvm::any_of(ReturnValues,
+                               [](const ReturnValue &Return) -> bool {
+                                 return not Return.Type.isScalar();
+                               });
+
+    if (Result) {
+      revng_assert(ReturnValues.size() == 1);
+      return ReturnValues[0].Type;
+    } else {
+      revng_abort();
+    }
   }
 
 public:

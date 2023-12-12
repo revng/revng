@@ -267,7 +267,7 @@ gatherArgumentComments(const model::Binary &Binary,
   if (auto *FT = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
     abi::FunctionType::Layout Layout(*FT);
 
-    std::size_t IndOffset = Layout.returnsAggregateType() ? 1 : 0;
+    std::size_t IndOffset = Layout.hasSPTAR() ? 1 : 0;
     revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
     for (std::size_t Index = 0; Index < FT->Arguments().size(); ++Index) {
       const std::string &Comment = FT->Arguments().at(Index).Comment();

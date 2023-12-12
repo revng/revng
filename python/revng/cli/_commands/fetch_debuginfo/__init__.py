@@ -4,7 +4,6 @@
 
 from pathlib import Path
 
-import pefile
 from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
@@ -16,7 +15,7 @@ from .elf import fetch_dwarf
 from .pe import fetch_pdb
 
 default_elf_debug_server = "https://debuginfod.elfutils.org/"
-microsoft_symbol_server_url = "http://msdl.microsoft.com/download/symbols/"
+microsoft_symbol_server_url = "https://msdl.microsoft.com/download/symbols/"
 
 
 def log_success(file_path):
@@ -61,20 +60,13 @@ class FetchDebugInfoCommand(Command):
                         args.urls.append(default_elf_debug_server)
                     result = fetch_dwarf(the_elffile, path, args.urls)
                 except ELFError as elf_error:
-                    # Unable to parse ELF file.
                     log_error(str(elf_error))
                     return 1
             else:
                 # Should be a PE/COFF otherwise.
-                try:
-                    the_pefile = pefile.PE(args.input)
-                    if not args.urls:
-                        args.urls.append(microsoft_symbol_server_url)
-                    result = fetch_pdb(the_pefile, path, args.urls)
-                except Exception as pe_error:
-                    # Unable to parse PE file.
-                    log_error(str(pe_error))
-                    return 1
+                if not args.urls:
+                    args.urls.append(microsoft_symbol_server_url)
+                result = fetch_pdb(path, args.urls)
 
         if result is None:
             # We have not found the debug info file.

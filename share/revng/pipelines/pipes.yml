@@ -89,6 +89,13 @@ Branches:
               - drop-root
               - enforce-abi
               - strip-debug-info-from-helpers
+              # Note: we're running promote-csvs twice: it is important to run
+              #       it before inline-helpers so that mem2reg can constant
+              #       propagate helper arguments that are constant. This enables
+              #       us to inline less code, in particular for helpers such as
+              #       `cc_compute_c` and `cc_compute_all`.
+              - promote-csvs
+              - mem2reg
               - inline-helpers
               - attach-debug-info
               - promote-csvs
