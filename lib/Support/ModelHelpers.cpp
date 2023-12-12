@@ -109,14 +109,6 @@ const model::QualifiedType modelType(const llvm::Value *V,
 
   Type *T = V->getType();
 
-  // Perform preliminary checks
-  if (isa<AllocaInst>(V) or isa<GlobalVariable>(V)) {
-    Type *Pointee = getVariableType(V);
-    revng_assert(isa<IntegerType>(Pointee) or isa<ArrayType>(Pointee));
-  } else {
-    revng_assert(isa<IntegerType>(T));
-  }
-
   bool AddPointer = false;
 
   // Handle pointers
@@ -124,6 +116,9 @@ const model::QualifiedType modelType(const llvm::Value *V,
     revng_assert(isa<AllocaInst>(V) or isa<GlobalVariable>(V));
     AddPointer = true;
     T = getVariableType(V);
+    revng_assert(isa<IntegerType>(T) or isa<ArrayType>(T));
+  } else {
+    revng_assert(isa<IntegerType>(T));
   }
 
   model::QualifiedType Result;

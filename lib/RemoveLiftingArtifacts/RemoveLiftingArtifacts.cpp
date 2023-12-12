@@ -25,16 +25,18 @@ static bool removeCallsToArtifacts(Function &F) {
     for (Instruction &I : BB) {
       if (auto *C = dyn_cast<CallInst>(&I))
         if (auto *Callee = getCallee(C)) {
-          // remove calls to newpc
-          if (Callee->getName() == "newpc")
+          // Remove calls to newpc and Exceptional functions
+          // TODO: we also remove calls to set_PlainMetaAddress since emitting C
+          //       structs is currently unsupported by the backend. We should
+          //       eventually find a better solution.
+          if (Callee->getName() == "newpc"
+              or Callee->getName() == "set_PlainMetaAddress"
+              or FunctionTags::Exceptional.isTagOf(Callee)) {
             ToErase.push_back(C);
-
-          // remove exception calls
-          if (Callee->getName() == "raise_exception_helper")
-            ToErase.push_back(C);
+          }
         }
 
-      // remove llvm debug intrisics
+      // Remove LLVM debug intrisics
       if (auto *Dbg = dyn_cast<DbgInfoIntrinsic>(&I))
         ToErase.push_back(Dbg);
     }
