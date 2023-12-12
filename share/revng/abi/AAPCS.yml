@@ -46,6 +46,7 @@ CalleeSavedRegisters:
   - r8_arm
   - r10_arm
   - r11_arm
+  - r14_arm
   - q4_arm
   - q5_arm
   - q6_arm

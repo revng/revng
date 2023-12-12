@@ -5,6 +5,7 @@
 //
 
 #include <fstream>
+#include <memory>
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallSet.h"
@@ -13,6 +14,7 @@
 
 #include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/ABI/RegisterState.h"
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
@@ -29,7 +31,10 @@
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/LLVMAnalysisImplementation.h"
+#include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
+#include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;
 using namespace llvm::cl;
@@ -127,8 +132,6 @@ private:
   FunctionSummaryOracle &Oracle;
   CFGAnalyzer &Analyzer;
 
-  BasicBlockQueue EntrypointsQueue;
-
   CallGraph ApproximateCallGraph;
 
 public:
@@ -148,17 +151,18 @@ public:
   void run() {
     computeApproximateCallGraph();
 
-    initializeInterproceduralQueue();
+    // Perform a preliminary analysis of the function
+    //
+    // We're interested:
+    //
+    // 1. the function being noreturn or not;
+    // 2. the list of callee-saved registers;
+    // 3. the final stack offset;
+    // 4. the CFG (specifically, which indirect jumps are returns);
+    preliminaryFunctionAnalysis();
 
-    // Interprocedural analysis over the collected functions in post-order
-    // traversal (leafs first).
-    runInterproceduralAnalysis();
-
-    for (model::Function &Function : Binary->Functions())
-      analyzeABI(GCBI.getBlockAt(Function.Entry()));
-
-    // Propagate results between call-sites and functions
-    interproceduralPropagation();
+    // Run the (fixed-point) analysis of the ABI of each function
+    analyzeABI();
 
     // Refine results with ABI-specific information
     applyABIDeductions();
@@ -173,34 +177,30 @@ public:
 
 private:
   void computeApproximateCallGraph();
-  void initializeInterproceduralQueue();
-  void runInterproceduralAnalysis();
-  void interproceduralPropagation();
+  void preliminaryFunctionAnalysis();
+  void analyzeABI();
+  bool analyzeFunctionABI(const model::Function &Function,
+                          OutlinedFunction &OutlinedFunction,
+                          OpaqueRegisterUser &Clobberer);
+  void applyABIDeductions();
 
-  /**
-   * Propagate prototypes to callers when caller:
-   *  1. have only one basic block
-   *  2. end with call
-   *  3. don't write arguments of callee
-   *  4. don't modify stack pointer
-   *  5. don't write to memory
-   *
-   * \param Function function for which we want to set prototype from callees if
-   * it matches requirements
-   */
-  void propagatePrototypesInFunction(model::Function &Function);
+  /// Finish the population of the model by building the prototype
+  void finalizeModel();
 
   // Calls propagatePrototypesInFunction for all functions in Binary
   void propagatePrototypes();
-  void finalizeModel();
-  void applyABIDeductions();
+
+  /// Propagate prototypes to callers
+  void propagatePrototypesInFunction(model::Function &Function);
 
 private:
   CSVSet computePreservedCSVs(const CSVSet &ClobberedRegisters) const;
 
   TrackingSortedVector<model::Register::Values>
   computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
-  void analyzeABI(llvm::BasicBlock *Entry);
+
+  bool runAnalyses(MetaAddress EntryAddress,
+                   OutlinedFunction &OutlinedFunction);
 
   CSVSet findWrittenRegisters(llvm::Function *F);
 
@@ -214,24 +214,6 @@ private:
 
   void initializeMapForDeductions(FunctionSummary &, abi::RegisterState::Map &);
 };
-
-void DetectABI::initializeInterproceduralQueue() {
-
-  // Create an over-approximated call graph of the program. A queue of all the
-  // function entrypoints is maintained.
-  for (auto *Node : llvm::post_order(&ApproximateCallGraph)) {
-    // Ignore entry node
-    if (Node == ApproximateCallGraph.getEntryNode())
-      continue;
-
-    // The intraprocedural analysis will be scheduled only for those functions
-    // which have `Invalid` as type.
-    auto &Function = Binary->Functions().at(Node->Address);
-    EntrypointsQueue.insert(Node);
-  }
-
-  revng_assert(Binary->Functions().size() == EntrypointsQueue.size());
-}
 
 void DetectABI::computeApproximateCallGraph() {
   using llvm::BasicBlock;
@@ -311,73 +293,271 @@ void DetectABI::computeApproximateCallGraph() {
   }
 }
 
-UpcastablePointer<model::Type>
-DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
-                                         const efa::BasicBlock &CallerBlock) {
-  using namespace model;
-  using RegisterState = abi::RegisterState::Values;
+void DetectABI::preliminaryFunctionAnalysis() {
+  BasicBlockQueue EntrypointsQueue;
 
-  auto NewType = makeType<RawFunctionType>();
-  auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
-  {
-    auto ArgumentsInserter = CallType.Arguments().batch_insert();
-    auto ReturnValuesInserter = CallType.ReturnValues().batch_insert();
+  //
+  // Populate queue of entry points
+  //
 
-    bool Found = false;
-    for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
-      if (PC != CallerBlock.ID())
-        continue;
+  // Create an over-approximated call graph of the program. A queue of all the
+  // function entrypoints is maintained.
+  for (auto *Node : llvm::post_order(&ApproximateCallGraph)) {
+    // Ignore entry node
+    if (Node == ApproximateCallGraph.getEntryNode())
+      continue;
 
-      revng_assert(!Found);
-      Found = true;
+    // The intraprocedural analysis will be scheduled only for those functions
+    // which have `Invalid` as type.
+    auto &Function = Binary->Functions().at(Node->Address);
+    EntrypointsQueue.insert(Node);
+  }
 
-      for (const auto &[Arg, RV] :
-           zipmap_range(CallSites.ArgumentsRegisters,
-                        CallSites.ReturnValuesRegisters)) {
-        auto *CSV = Arg == nullptr ? RV->first : Arg->first;
-        RegisterState RSArg = Arg == nullptr ? RegisterState::Maybe :
-                                               Arg->second;
-        RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
+  revng_assert(Binary->Functions().size() == EntrypointsQueue.size());
 
-        auto RegisterID = model::Register::fromCSVName(CSV->getName(),
-                                                       Binary->Architecture());
-        if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
-          continue;
+  //
+  // Process the queue
+  //
 
-        auto *CSVType = CSV->getValueType();
-        auto CSVSize = CSVType->getIntegerBitWidth() / 8;
+  while (!EntrypointsQueue.empty()) {
+    const BasicBlockNode *EntryNode = EntrypointsQueue.pop();
+    MetaAddress EntryPointAddress = EntryNode->Address;
+    revng_log(Log, "Analyzing Entry: " << EntryPointAddress.toString());
+    LoggerIndent<> Indent(Log);
 
-        using namespace PrimitiveTypeKind;
-        TypePath GenericType = Binary->getPrimitiveType(Generic, CSVSize);
+    llvm::BasicBlock *BB = GCBI.getBlockAt(EntryNode->Address);
+    FunctionSummary AnalysisResult = Analyzer.analyze(BB);
 
-        if (abi::RegisterState::shouldEmit(RSArg)) {
-          NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
-          ArgumentsInserter.insert(TR);
-        }
+    if (Log.isEnabled()) {
+      AnalysisResult.dump(Log);
+      Log << DoLog;
+    }
 
-        if (abi::RegisterState::shouldEmit(RSRV)) {
-          NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
-          ReturnValuesInserter.insert(TR);
+    // Serialize CFG in root
+    {
+      efa::FunctionMetadata New;
+      New.Entry() = EntryNode->Address;
+      New.ControlFlowGraph() = AnalysisResult.CFG;
+      New.simplify(*Binary);
+      New.serialize(GCBI);
+    }
+
+    // Perform some early sanity checks once the CFG is ready
+    revng_assert(AnalysisResult.CFG.size() > 0);
+
+    if (not Binary->Functions()[EntryPointAddress].Prototype().empty()) {
+      Oracle.getLocalFunction(EntryPointAddress)
+        .CFG = std::move(AnalysisResult.CFG);
+      continue;
+    }
+
+    bool Changed = Oracle.registerLocalFunction(EntryPointAddress,
+                                                std::move(AnalysisResult));
+
+    revng_assert(Oracle.getLocalFunction(EntryPointAddress).CFG.size() > 0);
+
+    // If we got improved results for a function, we need to recompute its
+    // callers, and if a caller turns out to be an inline function, the
+    // callers of the inline function too.
+    if (Changed) {
+      revng_log(Log,
+                "Entry " << EntryPointAddress.toString() << " has changed");
+      LoggerIndent<> Indent(Log);
+      OnceQueue<const BasicBlockNode *> InlineFunctionWorklist;
+      InlineFunctionWorklist.insert(EntryNode);
+
+      while (!InlineFunctionWorklist.empty()) {
+        const BasicBlockNode *Node = InlineFunctionWorklist.pop();
+        MetaAddress NodeAddress = Node->Address;
+        revng_log(Log,
+                  "Re-enqueuing callers of " << NodeAddress.toString() << ":");
+        LoggerIndent<> Indent(Log);
+        for (auto *Caller : Node->predecessors()) {
+          // Root node?
+          if (Caller->Address.isInvalid())
+            continue;
+
+          // If it's inline, re-enqueue its callers too
+          MetaAddress CallerPC = Caller->Address;
+          const auto &CallerSummary = Oracle.getLocalFunction(CallerPC);
+          using namespace model::FunctionAttribute;
+          if (CallerSummary.Attributes.contains(Inline))
+            InlineFunctionWorklist.insert(Caller);
+
+          if (Binary->Functions().at(CallerPC).Prototype().empty()) {
+            revng_log(Log, CallerPC.toString());
+            EntrypointsQueue.insert(Caller);
+          }
         }
       }
     }
-    revng_assert(Found);
-
-    // Import FinalStackOffset and CalleeSavedRegisters from the default
-    // prototype
-    const FunctionSummary &DefaultSummary = Oracle.getDefault();
-    const auto &Clobbered = DefaultSummary.ClobberedRegisters;
-    CallType.PreservedRegisters() = computePreservedRegisters(Clobbered);
-
-    CallType.FinalStackOffset() = DefaultSummary.ElectedFSO.value_or(0);
   }
-
-  return NewType;
 }
 
-/// Finish the population of the model by building the prototype
+void DetectABI::analyzeABI() {
+  std::map<MetaAddress, std::unique_ptr<OutlinedFunction>> Functions;
+
+  // Create all temporary functions
+  for (model::Function &Function : Binary->Functions()) {
+    llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry());
+    auto NewFunction = make_unique<OutlinedFunction>(Analyzer.outline(Entry));
+    Functions[Function.Entry()] = std::move(NewFunction);
+  }
+
+  // Push this into analyzeFunction
+  OpaqueRegisterUser RegisterReader(&M);
+
+  // TODO: this really needs to become a monotone framework
+  bool Changed = true;
+  unsigned Runs = 0;
+  while (Changed) {
+    ++Runs;
+    revng_log(Log, "Run #" << Runs);
+    LoggerIndent<> Indent(Log);
+
+    Changed = false;
+
+    for (model::Function &Function : Binary->Functions()) {
+      OutlinedFunction &OutlinedFunction = *Functions.at(Function.Entry());
+      Changed = analyzeFunctionABI(Function, OutlinedFunction, RegisterReader)
+                or Changed;
+    }
+  }
+}
+
+bool DetectABI::analyzeFunctionABI(const model::Function &Function,
+                                   OutlinedFunction &OutlinedFunction,
+                                   OpaqueRegisterUser &RegisterReader) {
+  //
+  // Enrich all the call sites
+  //
+
+  // Collect all calls to precall_hook and postcall_hook
+  SmallVector<std::pair<CallInst *, bool>> Hooks;
+  for (Instruction &I : instructions(OutlinedFunction.Function.get())) {
+    if (CallInst *CallToPreHook = getCallTo(&I, Analyzer.preCallHook())) {
+      Hooks.emplace_back(CallToPreHook, true);
+    } else if (CallInst *CallToPostHook = getCallTo(&I,
+                                                    Analyzer.postCallHook())) {
+      Hooks.emplace_back(CallToPostHook, false);
+    }
+  }
+
+  //
+  for (auto &[Call, IsPreHook] : Hooks) {
+    auto CallerBlock = BasicBlockID::fromValue(Call->getArgOperand(0));
+    auto CalleeAddress = MetaAddress::fromValue(Call->getArgOperand(1));
+    auto ExtractString = extractFromConstantStringPtr;
+    StringRef CalleeSymbol = ExtractString(Call->getArgOperand(2));
+    auto [Summary, _] = Oracle.getCallSite(Function.Entry(),
+                                           CallerBlock,
+                                           CalleeAddress,
+                                           CalleeSymbol);
+    auto &ABIResults = Summary->ABIResults;
+
+    IRBuilder<> Builder(M.getContext());
+    if (IsPreHook) {
+      Builder.SetInsertPoint(Call);
+      for (auto &[Register, Value] : ABIResults.ArgumentsRegisters) {
+        if (Value == abi::RegisterState::Yes) {
+          // Inject a virtual read of the arguments of the callee
+
+          // Note: injecting this is detrimental for RAOFC, it prevents it from
+          //       detecting an argument of a call site. However, this is not a
+          //       problem, since we already marked the current register as an
+          //       argument of the all site, and we only add (never remove)
+          //       registers to the set of arguments.
+          // TODO: we should also do this for return values of the function
+          // TODO: drop const_cast. Unfortunately it requires a significant
+          //       refactoring.
+          RegisterReader.read(Builder, const_cast<GlobalVariable *>(Register));
+        }
+      }
+
+      // Ensure the precall_hook is the first instruction of the block
+      Call->getParent()->splitBasicBlockBefore(Call);
+    } else {
+      // Ensure the postcall_hook is the last instruction of the block
+      Call->getParent()->splitBasicBlockBefore(Call->getNextNode());
+    }
+  }
+
+  // Perform the analysis
+  bool Result = runAnalyses(Function.Entry(), OutlinedFunction);
+
+  RegisterReader.purgeCreated();
+
+  return Result;
+}
+
+void DetectABI::applyABIDeductions() {
+  using namespace abi;
+
+  if (ABIEnforcement == NoABIEnforcement)
+    return;
+
+  for (const model::Function &Function : Binary->Functions()) {
+    auto &Summary = Oracle.getLocalFunction(Function.Entry());
+
+    RegisterState::Map StateMap(Binary->Architecture());
+    initializeMapForDeductions(Summary, StateMap);
+
+    bool EnforceABIConformance = ABIEnforcement == FullABIEnforcement;
+    std::optional<abi::RegisterState::Map> ResultMap;
+
+    // TODO: drop this.
+    // Since function type conversion is capable of handling the holes
+    // internally, there's not much reason to push such invasive changes
+    // this early in the pipeline.
+    auto ABI = abi::Definition::get(Binary->DefaultABI());
+    if (EnforceABIConformance)
+      ResultMap = ABI.enforceRegisterState(StateMap);
+    else
+      ResultMap = ABI.tryDeducingRegisterState(StateMap);
+
+    if (!ResultMap.has_value())
+      continue;
+
+    for (const auto &[Register, State] : *ResultMap) {
+      llvm::StringRef Name = model::Register::getCSVName(Register);
+      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
+        auto MaybeArg = State.IsUsedForPassingArguments;
+        auto MaybeRV = State.IsUsedForReturningValues;
+
+        // ABI-refined results per function
+        if (Summary.ABIResults.ArgumentsRegisters.contains(CSV))
+          Summary.ABIResults.ArgumentsRegisters[CSV] = MaybeArg;
+
+        if (Summary.ABIResults.FinalReturnValuesRegisters.contains(CSV))
+          Summary.ABIResults.FinalReturnValuesRegisters[CSV] = MaybeRV;
+
+        // ABI-refined results per indirect call-site
+        for (auto &Block : Summary.CFG) {
+          for (auto &Edge : Block.Successors()) {
+            if (efa::FunctionEdgeType::isCall(Edge->Type())
+                && Edge->Type() != efa::FunctionEdgeType::FunctionCall) {
+              revng_assert(Block.ID().isValid());
+              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.ID());
+
+              if (CSSummary.ArgumentsRegisters.contains(CSV))
+                CSSummary.ArgumentsRegisters[CSV] = MaybeArg;
+
+              if (CSSummary.ReturnValuesRegisters.contains(CSV))
+                CSSummary.ReturnValuesRegisters[CSV] = MaybeRV;
+            }
+          }
+        }
+      }
+    }
+
+    if (Log.isEnabled()) {
+      Log << "Summary for " << Function.OriginalName() << ":\n";
+      Summary.dump(Log);
+      Log << DoLog;
+    }
+  }
+}
+
 void DetectABI::finalizeModel() {
   using namespace model;
   using RegisterState = abi::RegisterState::Values;
@@ -495,32 +675,9 @@ void DetectABI::finalizeModel() {
   revng_check(Binary->verify(true));
 }
 
-static void combineCrossCallSites(auto &CallSite, auto &Callee) {
-  using namespace ABIAnalyses;
-  using RegisterState = abi::RegisterState::Values;
-
-  for (auto &[FuncArg, CSArg] :
-       zipmap_range(Callee.ArgumentsRegisters, CallSite.ArgumentsRegisters)) {
-    auto *CSV = FuncArg == nullptr ? CSArg->first : FuncArg->first;
-    auto RSFArg = FuncArg == nullptr ? RegisterState::Maybe : FuncArg->second;
-    auto RSCSArg = CSArg == nullptr ? RegisterState::Maybe : CSArg->second;
-
-    Callee.ArgumentsRegisters[CSV] = combine(RSFArg, RSCSArg);
-  }
-}
-
-/// Perform cross-call site propagation
-void DetectABI::interproceduralPropagation() {
-  for (const model::Function &Function : Binary->Functions()) {
-    auto &Summary = Oracle.getLocalFunction(Function.Entry());
-    for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
-
-      if (PC.isInlined())
-        continue;
-
-      if (PC.notInlinedAddress() == Function.Entry())
-        combineCrossCallSites(CallSite, Summary.ABIResults);
-    }
+void DetectABI::propagatePrototypes() {
+  for (model::Function &Function : Binary->Functions()) {
+    propagatePrototypesInFunction(Function);
   }
 }
 
@@ -535,15 +692,11 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   SortedVector<efa::BasicBlock> &CFG = Summary.CFG;
   std::set<llvm::GlobalVariable *> &WrittenRegisters = Summary.WrittenRegisters;
 
-  bool HasArguments = ABI.ArgumentsRegisters.size() > 0;
-  bool HasReturns = ABI.FinalReturnValuesRegisters.size() > 0;
   bool IsSingleNode = CFG.size() == 1;
 
-  revng_log(Log, "HasArguments: " << HasArguments);
-  revng_log(Log, "HasReturns: " << HasReturns);
   revng_log(Log, "IsSingleNode: " << IsSingleNode);
 
-  if (HasReturns or HasArguments or not IsSingleNode)
+  if (not IsSingleNode)
     return;
 
   efa::BasicBlock &Block = *CFG.begin();
@@ -583,10 +736,12 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
       return WrittenRegisters.count(CSV);
     };
     const auto &Arguments = CalleeLayout.argumentRegisters();
-    const bool WritesCalleeArgs = count_if(Arguments, IsWrittenByCaller) > 0;
+    bool WritesCalleeArgs = any_of(Arguments, IsWrittenByCaller);
+    const auto &ReturnValues = CalleeLayout.returnValueRegisters();
+    bool WritesCalleeReturnValues = any_of(ReturnValues, IsWrittenByCaller);
 
-    const bool WritesToMemory = count_if(*BB, isWritingToMemory) > 0;
-    const bool WritesOnlyRegisters = WritesToMemory == 0;
+    bool WritesToMemory = count_if(*BB, isWritingToMemory) > 0;
+    bool WritesOnlyRegisters = WritesToMemory == 0;
 
     revng_log(Log, "WritesSP: " << WritesSP);
     revng_log(Log, "WritesCalleeArgs: " << WritesCalleeArgs);
@@ -594,13 +749,14 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
 
     // When above conditions are met, overwrite wrappers prototype with
     // wrapped function prototype (CABIFunctionType or RawFunctionType)
-    if (not WritesSP and not WritesCalleeArgs and WritesOnlyRegisters) {
+    if (not WritesSP and not WritesCalleeArgs and not WritesCalleeReturnValues
+        and WritesOnlyRegisters) {
+
       revng_log(Log,
                 "Overwriting " << Entry.toString() << " prototype ("
                                << Function.Prototype().toString()
                                << ") with wrapped function's prototype: "
                                << Prototype.toString());
-
       Function.Prototype() = Prototype;
 
       if (Function.CustomName().empty() and Function.OriginalName().empty()) {
@@ -623,9 +779,83 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   model::promoteOriginalName(Binary);
 }
 
-void DetectABI::propagatePrototypes() {
-  for (model::Function &Function : Binary->Functions()) {
-    propagatePrototypesInFunction(Function);
+UpcastablePointer<model::Type>
+DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
+                                         const efa::BasicBlock &CallerBlock) {
+  using namespace model;
+  using RegisterState = abi::RegisterState::Values;
+
+  auto NewType = makeType<RawFunctionType>();
+  auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
+  {
+    auto ArgumentsInserter = CallType.Arguments().batch_insert();
+    auto ReturnValuesInserter = CallType.ReturnValues().batch_insert();
+
+    bool Found = false;
+    for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
+      if (PC != CallerBlock.ID())
+        continue;
+
+      revng_assert(!Found);
+      Found = true;
+
+      for (const auto &[Arg, RV] :
+           zipmap_range(CallSites.ArgumentsRegisters,
+                        CallSites.ReturnValuesRegisters)) {
+        auto *CSV = Arg == nullptr ? RV->first : Arg->first;
+        RegisterState RSArg = Arg == nullptr ? RegisterState::Maybe :
+                                               Arg->second;
+        RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
+
+        auto RegisterID = model::Register::fromCSVName(CSV->getName(),
+                                                       Binary->Architecture());
+        if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
+          continue;
+
+        auto *CSVType = CSV->getValueType();
+        auto CSVSize = CSVType->getIntegerBitWidth() / 8;
+
+        using namespace PrimitiveTypeKind;
+        TypePath GenericType = Binary->getPrimitiveType(Generic, CSVSize);
+
+        if (abi::RegisterState::shouldEmit(RSArg)) {
+          NamedTypedRegister TR(RegisterID);
+          TR.Type() = { GenericType, {} };
+          ArgumentsInserter.insert(TR);
+        }
+
+        if (abi::RegisterState::shouldEmit(RSRV)) {
+          NamedTypedRegister TR(RegisterID);
+          TR.Type() = { GenericType, {} };
+          ReturnValuesInserter.insert(TR);
+        }
+      }
+    }
+    revng_assert(Found);
+
+    // Import FinalStackOffset and CalleeSavedRegisters from the default
+    // prototype
+    const FunctionSummary &DefaultSummary = Oracle.getDefault();
+    const auto &Clobbered = DefaultSummary.ClobberedRegisters;
+    CallType.PreservedRegisters() = computePreservedRegisters(Clobbered);
+
+    CallType.FinalStackOffset() = DefaultSummary.ElectedFSO.value_or(0);
+  }
+
+  return NewType;
+}
+
+static void combineCrossCallSites(auto &CallSite, auto &Callee) {
+  using namespace ABIAnalyses;
+  using RegisterState = abi::RegisterState::Values;
+
+  for (auto &[FuncArg, CSArg] :
+       zipmap_range(Callee.ArgumentsRegisters, CallSite.ArgumentsRegisters)) {
+    auto *CSV = FuncArg == nullptr ? CSArg->first : FuncArg->first;
+    auto RSFArg = FuncArg == nullptr ? RegisterState::Maybe : FuncArg->second;
+    auto RSCSArg = CSArg == nullptr ? RegisterState::Maybe : CSArg->second;
+
+    Callee.ArgumentsRegisters[CSV] = combine(RSFArg, RSCSArg);
   }
 }
 
@@ -663,74 +893,6 @@ void DetectABI::initializeMapForDeductions(FunctionSummary &Summary,
 
     if (auto MaybeState = tryGetRegisterState(Reg, RVRegisters))
       Map[Reg].IsUsedForReturningValues = *MaybeState;
-  }
-}
-
-void DetectABI::applyABIDeductions() {
-  using namespace abi;
-
-  if (ABIEnforcement == NoABIEnforcement)
-    return;
-
-  for (const model::Function &Function : Binary->Functions()) {
-    auto &Summary = Oracle.getLocalFunction(Function.Entry());
-
-    RegisterState::Map StateMap(Binary->Architecture());
-    initializeMapForDeductions(Summary, StateMap);
-
-    bool EnforceABIConformance = ABIEnforcement == FullABIEnforcement;
-    std::optional<abi::RegisterState::Map> ResultMap;
-
-    // TODO: drop this.
-    // Since function type conversion is capable of handling the holes
-    // internally, there's not much reason to push such invasive changes
-    // this early in the pipeline.
-    auto ABI = abi::Definition::get(Binary->DefaultABI());
-    if (EnforceABIConformance)
-      ResultMap = ABI.enforceRegisterState(StateMap);
-    else
-      ResultMap = ABI.tryDeducingRegisterState(StateMap);
-
-    if (!ResultMap.has_value())
-      continue;
-
-    for (const auto &[Register, State] : *ResultMap) {
-      llvm::StringRef Name = model::Register::getCSVName(Register);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
-        auto MaybeArg = State.IsUsedForPassingArguments;
-        auto MaybeRV = State.IsUsedForReturningValues;
-
-        // ABI-refined results per function
-        if (Summary.ABIResults.ArgumentsRegisters.contains(CSV))
-          Summary.ABIResults.ArgumentsRegisters[CSV] = MaybeArg;
-
-        if (Summary.ABIResults.FinalReturnValuesRegisters.contains(CSV))
-          Summary.ABIResults.FinalReturnValuesRegisters[CSV] = MaybeRV;
-
-        // ABI-refined results per indirect call-site
-        for (auto &Block : Summary.CFG) {
-          for (auto &Edge : Block.Successors()) {
-            if (efa::FunctionEdgeType::isCall(Edge->Type())
-                && Edge->Type() != efa::FunctionEdgeType::FunctionCall) {
-              revng_assert(Block.ID().isValid());
-              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.ID());
-
-              if (CSSummary.ArgumentsRegisters.contains(CSV))
-                CSSummary.ArgumentsRegisters[CSV] = MaybeArg;
-
-              if (CSSummary.ReturnValuesRegisters.contains(CSV))
-                CSSummary.ReturnValuesRegisters[CSV] = MaybeRV;
-            }
-          }
-        }
-      }
-    }
-
-    if (Log.isEnabled()) {
-      Log << "Summary for " << Function.OriginalName() << ":\n";
-      Summary.dump(Log);
-      Log << DoLog;
-    }
   }
 }
 
@@ -819,18 +981,14 @@ suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
   }
 }
 
-void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
+bool DetectABI::runAnalyses(MetaAddress EntryAddress,
+                            OutlinedFunction &OutlinedFunction) {
   using namespace llvm;
   using llvm::BasicBlock;
   using namespace ABIAnalyses;
 
-  MetaAddress EntryAddress = getBasicBlockAddress(Entry);
-
   IRBuilder<> Builder(M.getContext());
   ABIAnalysesResults ABIResults;
-
-  // Detect function boundaries
-  OutlinedFunction OutlinedFunction = Analyzer.outline(Entry);
 
   // Find registers that may be target of at least one store. This helps
   // refine the final results.
@@ -860,91 +1018,40 @@ void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
   ABIAnalyses::finalizeReturnValues(ABIResults);
 
   // Commit ABI analysis results to the oracle
-  Summary.ABIResults = ABIResults;
+  auto Old = Summary.ABIResults;
+  ABIResults.normalize();
+  Summary.ABIResults.combine(ABIResults);
   Summary.WrittenRegisters = WrittenRegisters;
-}
 
-void DetectABI::runInterproceduralAnalysis() {
-  std::set<MetaAddress> Set;
+  bool Changed = Old != Summary.ABIResults;
 
-  while (!EntrypointsQueue.empty()) {
-    const BasicBlockNode *EntryNode = EntrypointsQueue.pop();
-    MetaAddress EntryPointAddress = EntryNode->Address;
-    revng_log(Log, "Analyzing Entry: " << EntryPointAddress.toString());
-    LoggerIndent<> Indent(Log);
-
-    // Intraprocedural analysis
-
-    // TODO: here we are interested in 1) being noreturn or not,
-    //       2) callee-saved registers and 3) FSO.
-    //       However, `analyze` also computes the CFG. There's a refactoring
-    //       opportunity.
-    llvm::BasicBlock *BB = GCBI.getBlockAt(EntryNode->Address);
-    FunctionSummary AnalysisResult = Analyzer.analyze(BB);
-
-    if (Log.isEnabled()) {
-      AnalysisResult.dump(Log);
-      Log << DoLog;
-    }
-
-    // Serialize CFG in root
-    {
-      efa::FunctionMetadata New;
-      New.Entry() = EntryNode->Address;
-      New.ControlFlowGraph() = AnalysisResult.CFG;
-      New.simplify(*Binary);
-      New.serialize(GCBI);
-    }
-
-    // Perform some early sanity checks once the CFG is ready
-    revng_assert(AnalysisResult.CFG.size() > 0);
-    for (const MetaAddress &MA : Set)
-      revng_assert(Oracle.getLocalFunction(MA).CFG.size() > 0);
-
-    if (not Binary->Functions()[EntryPointAddress].Prototype().empty())
+  for (auto &[BlockID, CallSite] : ABIResults.CallSites) {
+    if (BlockID.isInlined())
       continue;
 
-    bool Changed = Oracle.registerLocalFunction(EntryPointAddress,
-                                                std::move(AnalysisResult));
-
-    Set.insert(EntryPointAddress);
-
-    // If we got improved results for a function, we need to recompute its
-    // callers, and if a caller turns out to be an inline function, the
-    // callers of the inline function too.
-    if (Changed) {
-      revng_log(Log,
-                "Entry " << EntryPointAddress.toString() << " has changed");
-      LoggerIndent<> Indent(Log);
-      OnceQueue<const BasicBlockNode *> InlineFunctionWorklist;
-      InlineFunctionWorklist.insert(EntryNode);
-
-      while (!InlineFunctionWorklist.empty()) {
-        const BasicBlockNode *Node = InlineFunctionWorklist.pop();
-        MetaAddress NodeAddress = Node->Address;
-        revng_log(Log,
-                  "Re-enqueuing callers of " << NodeAddress.toString() << ":");
-        LoggerIndent<> Indent(Log);
-        for (auto *Caller : Node->predecessors()) {
-          // Root node?
-          if (Caller->Address.isInvalid())
-            continue;
-
-          // If it's inline, re-enqueue its callers too
-          MetaAddress CallerPC = Caller->Address;
-          const auto &CallerSummary = Oracle.getLocalFunction(CallerPC);
-          using namespace model::FunctionAttribute;
-          if (CallerSummary.Attributes.contains(Inline))
-            InlineFunctionWorklist.insert(Caller);
-
-          if (Binary->Functions().at(CallerPC).Prototype().empty()) {
-            revng_log(Log, CallerPC.toString());
-            EntrypointsQueue.insert(Caller);
-          }
-        }
+    auto Set = [&Changed](abi::RegisterState::Values &Value) {
+      const auto Yes = abi::RegisterState::Yes;
+      if (Value != Yes) {
+        Value = Yes;
+        Changed = true;
       }
+    };
+
+    // TODO: eventually we'll want to add arguments/return values to dynamic
+    //       functions too
+    MetaAddress Callee = CallSite.CalleeAddress;
+    if (Callee.isValid()) {
+      auto &CalleeSummary = Oracle.getLocalFunction(Callee);
+
+      for (auto &[CSV, Value] : CallSite.ArgumentsRegisters)
+        Set(CalleeSummary.ABIResults.ArgumentsRegisters[CSV]);
+
+      for (auto &[CSV, Value] : CallSite.ReturnValuesRegisters)
+        Set(CalleeSummary.ABIResults.FinalReturnValuesRegisters[CSV]);
     }
   }
+
+  return Changed;
 }
 
 bool DetectABIPass::runOnModule(Module &M) {

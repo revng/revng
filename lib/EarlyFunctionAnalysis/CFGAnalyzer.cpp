@@ -30,7 +30,7 @@
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Model/Generated/Early/FunctionAttribute.h"
-#include "revng/Support/RegisterClobberer.h"
+#include "revng/Support/Generator.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 using namespace llvm;
@@ -124,11 +124,6 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
   PreCallHook(createCallMarkerType(M), "precall_hook", &M),
   PostCallHook(PreCallHook.get()->getFunctionType(), "postcall_hook", &M),
   RetHook(createRetMarkerType(M), "retcall_hook", &M),
-  Summarizer(&M,
-             PreCallHook.get(),
-             PostCallHook.get(),
-             RetHook.get(),
-             GCBI.spReg()),
   Outliner(M, GCBI, Oracle),
   OpaqueBranchConditionsPool(&M, false),
   OutputAAWriter(streamFromOption(AAWriterPath)),
@@ -147,6 +142,23 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
 }
 
 OutlinedFunction CFGAnalyzer::outline(llvm::BasicBlock *Entry) {
+  auto &CFG = Oracle.getLocalFunction(getBasicBlockAddress(Entry)).CFG;
+  bool HasCFG = CFG.size() != 0;
+  llvm::SmallSet<MetaAddress, 4> ReturnBlocks;
+
+  if (HasCFG)
+    for (const efa::BasicBlock &Block : CFG)
+      for (const auto &Successor : Block.Successors())
+        if (Successor->Type() == efa::FunctionEdgeType::Return)
+          ReturnBlocks.insert(Block.ID().start());
+
+  CallSummarizer Summarizer(&M,
+                            PreCallHook.get(),
+                            PostCallHook.get(),
+                            RetHook.get(),
+                            GCBI.spReg(),
+                            HasCFG ? &ReturnBlocks : nullptr);
+
   OutlinedFunction Result = Outliner.outline(Entry, &Summarizer);
 
   // Make sure we start a new block before a PreCallHook
@@ -396,6 +408,14 @@ CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
   return { SP0, IntegerPC, CSVs };
 }
 
+static cppcoro::generator<llvm::Instruction *>
+previousInstructions(llvm::BasicBlock *BB) {
+  do {
+    for (Instruction &I : make_range(BB->rbegin(), BB->rend()))
+      co_yield &I;
+  } while ((BB = BB->getSinglePredecessor()));
+}
+
 void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   using namespace llvm;
   using llvm::BasicBlock;
@@ -471,12 +491,15 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
     // Record the name of the symbol, if any
     using CPN = ConstantPointerNull;
     Value *SymbolName = CPN::get(Type::getInt8PtrTy(Context));
-    for (Instruction &I : reverse(*Term->getParent())) {
-      if (auto *Call = getCallTo(&I, PreCallHook.get())) {
+    BasicBlock *BB = Term->getParent();
+
+    for (Instruction *I : previousInstructions(BB)) {
+      if (auto *Call = getCallTo(I, PreCallHook.get())) {
         SymbolName = Call->getArgOperand(2);
         break;
       }
     }
+
     ArgValues[CalledSymbolIndex] = SymbolName;
 
     // Compute the difference between the final PC at this program point and
@@ -1056,16 +1079,15 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
                                Function *PreCallHook,
                                Function *PostCallHook,
                                llvm::Function *RetHook,
-                               GlobalVariable *SPCSV) :
+                               GlobalVariable *SPCSV,
+                               llvm::SmallSet<MetaAddress, 4> *ReturnBlocks) :
   M(M),
   PreCallHook(PreCallHook),
   PostCallHook(PostCallHook),
   RetHook(RetHook),
   SPCSV(SPCSV),
-  RegistersClobberedPool(M, false) {
-  RegistersClobberedPool.setMemoryEffects(MemoryEffects::readOnly());
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::WillReturn);
+  ReturnBlocks(ReturnBlocks),
+  Clobberer(M) {
 }
 
 using CSVSet = std::set<llvm::GlobalVariable *>;
@@ -1089,9 +1111,13 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
                                    SymbolNamePointer,
                                    IsTailCallValue };
 
+  Module *M = Builder.GetInsertBlock()->getParent()->getParent();
+
   Builder.CreateCall(PreCallHook, Args);
 
-  clobberCSVs(Builder, ClobberedRegisters);
+  // Emulate registers being clobbered
+  for (GlobalVariable *Register : ClobberedRegisters)
+    Clobberer.clobber(Builder, Register);
 
   // Adjust back the stack pointer
   if (not IsTailCall) {
@@ -1114,27 +1140,43 @@ void CallSummarizer::handlePostNoReturn(llvm::IRBuilder<> &Builder) {
 
 void CallSummarizer::handleIndirectJump(llvm::IRBuilder<> &Builder,
                                         MetaAddress Block,
+                                        const std::set<llvm::GlobalVariable *>
+                                          &ClobberedRegisters,
                                         llvm::Value *SymbolNamePointer) {
-  Builder.CreateCall(PreCallHook,
-                     { Block.toValue(M),
-                       MetaAddress::invalid().toValue(M),
-                       SymbolNamePointer,
-                       Builder.getTrue() });
+  bool EmitCallHook = true;
+
+  if (ReturnBlocks != nullptr) {
+    bool IsReturn = ReturnBlocks->count(Block) != 0;
+    EmitCallHook = not IsReturn;
+  }
+
+  CallInst *NewPreCallHook = nullptr;
+  CallInst *NewPostCallHook = nullptr;
+  if (EmitCallHook) {
+    NewPreCallHook = Builder.CreateCall(PreCallHook,
+                                        { Block.toValue(M),
+                                          MetaAddress::invalid().toValue(M),
+                                          SymbolNamePointer,
+                                          Builder.getTrue() });
+
+    // Emulate registers being clobbered
+    for (GlobalVariable *Register : ClobberedRegisters)
+      Clobberer.clobber(Builder, Register);
+
+    NewPostCallHook = Builder.CreateCall(PostCallHook,
+                                         { Block.toValue(M),
+                                           MetaAddress::invalid().toValue(M),
+                                           SymbolNamePointer,
+                                           Builder.getTrue() });
+  }
 
   Builder.CreateCall(RetHook, { Block.toValue(M) });
-}
 
-void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
-                                 const CSVSet &ClobberedRegisters) {
-  using namespace llvm;
-
-  Module *M = Builder.GetInsertBlock()->getParent()->getParent();
-  RegisterClobberer Clobberer(M);
-
-  // Prevent the store instructions from being optimized out by storing
-  // the an opaque value into clobbered registers
-  for (GlobalVariable *Register : ClobberedRegisters)
-    Clobberer.clobber(Builder, Register);
+  if (EmitCallHook) {
+    NewPreCallHook->getParent()->splitBasicBlockBefore(NewPreCallHook);
+    auto *PostPostCallHook = NewPostCallHook->getNextNode();
+    NewPostCallHook->getParent()->splitBasicBlockBefore(PostPostCallHook);
+  }
 }
 
 } // namespace efa

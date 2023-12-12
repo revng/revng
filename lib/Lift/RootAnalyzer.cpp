@@ -21,7 +21,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
-#include "revng/Support/RegisterClobberer.h"
+#include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/Statistics.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/TypeShrinking.h"
@@ -407,7 +407,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     const model::TypePath &DefaultPrototype = Model->DefaultPrototype();
     DefaultPreservedRegisters = getPreservedRegisters(DefaultPrototype);
 
-    RegisterClobberer Clobberer(M);
+    OpaqueRegisterUser Clobberer(M);
     SmallVector<CallBase *, 16> FunctionCallCalls;
     llvm::copy(callersIn(FunctionCall, OptimizedFunction),
                std::back_inserter(FunctionCallCalls));

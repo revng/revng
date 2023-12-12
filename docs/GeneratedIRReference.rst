@@ -294,7 +294,7 @@ program to the first basic block containing the code generated due to A.
                           counter might be actually invalid or it could belong
                           to a function in a dynamic library. In this case, we
                           simply leave the translated realm and jump there.
-:``dispatcher.default``: calls the ``unknownPC`` function, whose definition is
+:``dispatcher.default``: calls the ``unknown_pc`` function, whose definition is
                          left to the user. The default implementation in
                          ``support.c`` aborts the program execution.
 :``anypc``: handles the situation in which we were not able to fully enumerate
@@ -342,7 +342,7 @@ Here's how it looks like in our example:
       br i1 %46, label %dispatcher.default, label %setjmp
 
     dispatcher.default:                               ; preds = %dispatcher.entry
-      call void @unknownPC()
+      call void @unknown_pc()
       unreachable
 
     anypc:                                            ; preds = %entrypoint

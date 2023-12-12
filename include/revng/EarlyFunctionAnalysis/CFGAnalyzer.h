@@ -11,6 +11,7 @@
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
+#include "revng/Support/OpaqueRegisterUser.h"
 
 class GeneratedCodeBasicInfo;
 class ProgramCounterHandler;
@@ -31,14 +32,16 @@ private:
   llvm::Function *PostCallHook = nullptr;
   llvm::Function *RetHook = nullptr;
   llvm::GlobalVariable *SPCSV = nullptr;
-  OpaqueFunctionsPool<llvm::StringRef> RegistersClobberedPool;
+  llvm::SmallSet<MetaAddress, 4> *ReturnBlocks = nullptr;
+  OpaqueRegisterUser Clobberer;
 
 public:
   CallSummarizer(llvm::Module *M,
                  llvm::Function *PreCallHook,
                  llvm::Function *PostCallHook,
                  llvm::Function *RetHook,
-                 llvm::GlobalVariable *SPCSV);
+                 llvm::GlobalVariable *SPCSV,
+                 llvm::SmallSet<MetaAddress, 4> *ReturnBlocks);
 
 public:
   void handleCall(MetaAddress CallerBlock,
@@ -52,13 +55,11 @@ public:
 
   void handlePostNoReturn(llvm::IRBuilder<> &Builder) final;
 
-  void handleIndirectJump(llvm::IRBuilder<> &Builder,
-                          MetaAddress Block,
-                          llvm::Value *SymbolNamePointer) final;
-
-private:
-  void clobberCSVs(llvm::IRBuilder<> &Builder,
-                   const std::set<llvm::GlobalVariable *> &ClobberedRegisters);
+  void
+  handleIndirectJump(llvm::IRBuilder<> &Builder,
+                     MetaAddress Block,
+                     const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
+                     llvm::Value *SymbolNamePointer) final;
 };
 
 /// This class, given an Oracle, analyzes a function returning its CFG, the set
@@ -82,7 +83,6 @@ private:
   TemporaryOpaqueFunction PostCallHook;
   TemporaryOpaqueFunction RetHook;
 
-  CallSummarizer Summarizer;
   Outliner Outliner;
 
   OpaqueFunctionsPool<llvm::Type *> OpaqueBranchConditionsPool;

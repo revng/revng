@@ -55,10 +55,10 @@ protected:
 
 protected:
   unsigned Alignment;
-  llvm::GlobalVariable *AddressCSV;
-  llvm::GlobalVariable *EpochCSV;
-  llvm::GlobalVariable *AddressSpaceCSV;
-  llvm::GlobalVariable *TypeCSV;
+  llvm::GlobalVariable *AddressCSV = nullptr;
+  llvm::GlobalVariable *EpochCSV = nullptr;
+  llvm::GlobalVariable *AddressSpaceCSV = nullptr;
+  llvm::GlobalVariable *TypeCSV = nullptr;
 
   std::set<llvm::GlobalVariable *> CSVsAffectingPC;
 
@@ -67,12 +67,7 @@ public:
   using DispatcherTargets = std::vector<DispatcherTarget>;
 
 protected:
-  ProgramCounterHandler(unsigned Alignment) :
-    Alignment(Alignment),
-    AddressCSV(nullptr),
-    EpochCSV(nullptr),
-    AddressSpaceCSV(nullptr),
-    TypeCSV(nullptr) {}
+  ProgramCounterHandler(unsigned Alignment) : Alignment(Alignment) {}
 
 public:
   virtual ~ProgramCounterHandler() {}
@@ -124,9 +119,12 @@ public:
     setPC(Builder, Address);
   }
 
-  llvm::Value *buildCurrentPCPlainMetaAddress(llvm::IRBuilder<> &Builder) const;
-  llvm::Value *buildPlainMetaAddress(llvm::IRBuilder<> &Builder,
-                                     const MetaAddress &Address) const;
+  void setCurrentPCPlainMetaAddress(llvm::IRBuilder<> &Builder) const;
+  void setLastPCPlainMetaAddress(llvm::IRBuilder<> &Builder,
+                                 const MetaAddress &Address) const;
+  void setPlainMetaAddress(llvm::IRBuilder<> &Builder,
+                           llvm::StringRef GlobalName,
+                           const MetaAddress &Address) const;
 
 protected:
   virtual void initializePCInternal(llvm::IRBuilder<> &Builder,

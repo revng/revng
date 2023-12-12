@@ -70,7 +70,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "UsedReturnValuesOfFunctionCall:\n";
   for (auto &[Key, StateMap] : URVOFC) {
-    Output << Prefix << "  " << Key.second->getName().str() << '\n';
+    Output << Prefix << "  " << getName(Key.second) << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
@@ -79,7 +79,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "RegisterArgumentsOfFunctionCall:\n";
   for (auto &[Key, StateMap] : RAOFC) {
-    Output << Prefix << "  " << Key.second->getName().str() << '\n';
+    Output << Prefix << "  " << getName(Key.second) << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
@@ -88,7 +88,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "DeadReturnValuesOfFunctionCall:\n";
   for (auto &[Key, StateMap] : DRVOFC) {
-    Output << Prefix << "  " << Key.second->getName().str() << '\n';
+    Output << Prefix << "  " << getName(Key.second) << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
@@ -256,8 +256,18 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
       }
 
       if (isCallTo(Call, PreCallSiteHook)) {
+        // Ensure it's the first instruction in the basic block
+        revng_assert(&*BB->begin() == &I);
+
         Results.RAOFC[{ PC, BB }] = RAOFC::analyze(BB, GCBI);
+
+        // Register address of the callee
+        auto &CallSite = FinalResults.CallSites[PC];
+        CallSite.CalleeAddress = MetaAddress::fromValue(Call->getArgOperand(1));
       } else if (isCallTo(Call, PostCallSiteHook)) {
+        // Ensure it's the last instruction in the basic block
+        revng_assert(&*BB->getTerminator()->getPrevNode() == &I);
+
         // TODO: merge the following analyses in a single one
         Results.URVOFC[{ PC, BB }] = URVOFC::analyze(BB, GCBI);
         Results.DRVOFC[{ PC, BB }] = DRVOFC::analyze(BB, GCBI);
@@ -286,7 +296,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
   for (auto &[Key, RSMap] : Results.RAOFC) {
     BasicBlockID PC = Key.first;
     revng_assert(PC.isValid());
-    FinalResults.CallSites[PC] = ABIAnalysesResults::CallSiteResults();
     for (auto &[CSV, RS] : RSMap)
       FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;
   }
@@ -324,7 +333,7 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "Call site:\n";
   for (auto &[PC, StateMap] : CallSites) {
-    Output << Prefix << "  " << PC.toString() << '\n';
+    Output << Prefix << "  Call in basic block " << PC.toString() << '\n';
     Output << Prefix << "  "
            << "  "
            << "Arguments:\n";
