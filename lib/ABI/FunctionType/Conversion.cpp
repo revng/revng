@@ -401,12 +401,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
   // Compute the full alignment.
   uint64_t FullAlignment = *ABI.alignment(model::QualifiedType{
     StackArgumentTypes, {} });
-  if (!llvm::isPowerOf2_64(FullAlignment)) {
-    revng_log(Log,
-              "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Stack));
-    return std::nullopt;
-  }
+  revng_assert(llvm::isPowerOf2_64(FullAlignment));
 
   // If the struct is empty, it indicates that there are no stack arguments.
   if (Stack.size() == 0) {
@@ -419,12 +414,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     revng_log(Log, "Stack struct has no fields.");
   } else {
     uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
-    if (!llvm::isPowerOf2_64(FirstAlignment)) {
-      revng_log(Log,
-                "The natural alignment of a type is not a power of two:\n"
-                  << serializeToString(Stack.Fields().begin()->Type()));
-      return std::nullopt;
-    }
+    revng_assert(llvm::isPowerOf2_64(FirstAlignment));
   }
 
   // Go over all the `[CurrentArgument, TheNextOne]` field pairs.
@@ -440,12 +430,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     auto [CurrentArgument, TheNextOne] = takeAsTuple<2>(CurrentRange);
 
     uint64_t NextAlignment = *ABI.alignment(TheNextOne.Type());
-    if (!llvm::isPowerOf2_64(NextAlignment)) {
-      revng_log(Log,
-                "The natural alignment of a type is not a power of two:\n"
-                  << serializeToString(TheNextOne.Type()));
-      return std::nullopt;
-    }
+    revng_assert(llvm::isPowerOf2_64(NextAlignment));
 
     if (!canBeNext(Distributor,
                    CurrentArgument.Type(),
