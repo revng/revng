@@ -1,0 +1,15 @@
+# This file is distributed under the MIT License. See LICENSE.md for details.
+
+[project]
+name = "revng"
+description = "Redistributable revng python package"
+version = "1.0.0"
+
+dependencies = ["PyYAML>=6.0.1,<7.0", ]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+revng = ["py.typed"]
