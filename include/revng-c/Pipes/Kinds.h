@@ -6,6 +6,7 @@
 
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
+#include "revng/Pipes/TypeKind.h"
 
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/FunctionTags.h"
@@ -45,6 +46,9 @@ inline FunctionKind DecompiledToYAML("DecompiledToYAML",
                                      ranks::Function,
                                      fat(ranks::Function),
                                      { &ModelHeader });
+
+inline TypeKind
+  ModelTypeDefinition("ModelTypeDefinition", ModelHeader, ranks::Type, {}, {});
 
 inline pipeline::SingleElementKind
   HelpersHeader("HelpersHeader", Binary, ranks::Binary, {}, {});

@@ -14,6 +14,10 @@ Containers:
     Type: DecompiledCCodeInYAML
   - Name: module.mlir
     Type: MLIRModule
+  - Name: type-targets.yml
+    Type: TypeKindTargetContainer
+  - Name: model-type-definitions.tar.gz
+    Type: ModelTypeDefinitions
 Branches:
   - From: EnforceABI
     Steps:
@@ -186,6 +190,18 @@ Branches:
           Container: types-and-globals.h
           Kind: ModelHeader
           SingleTargetFilename: types-and-globals.h
+  - From: IRCanonicalization
+    Steps:
+      - Name: GenerateModelTypeDefinitions
+        Pipes:
+          - Type: PopulateTypeKindTargetContainer
+            UsedContainers: [input, type-targets.yml]
+          - Type: GenerateModelTypeDefinition
+            UsedContainers: [type-targets.yml, model-type-definitions.tar.gz]
+        Artifacts:
+          Container: model-type-definitions.tar.gz
+          Kind: ModelTypeDefinition
+          SingleTargetFilename: type.h
   - From: MakeSegmentRefs
     Steps:
       - Name: LLVMIRToMLIR

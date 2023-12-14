@@ -4,8 +4,14 @@
 
 # ModelToHeader
 
-revng_add_analyses_library(revngcModelToHeader revngc ModelToHeader.cpp
-                           ModelToHeaderPipe.cpp DependencyGraph.cpp)
+revng_add_analyses_library(
+  revngcModelToHeader
+  revngc
+  ModelToHeader.cpp
+  ModelToHeaderPipe.cpp
+  DependencyGraph.cpp
+  ModelTypeDefinition.cpp
+  ModelTypeDefinitionPipe.cpp)
 
 target_link_libraries(
   revngcModelToHeader
