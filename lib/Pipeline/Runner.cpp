@@ -297,13 +297,16 @@ Runner::runAnalyses(const AnalysesList &List,
       }
     }
 
+    TargetInStepSet NewInvalidationsMap;
     auto Result = runAnalysis(Ref.getAnalysisName(),
                               Step.getName(),
                               Map,
-                              InvalidationsMap,
+                              NewInvalidationsMap,
                               Options);
     if (not Result)
       return Result.takeError();
+    for (auto &NewEntry : NewInvalidationsMap)
+      InvalidationsMap[NewEntry.first()].merge(NewEntry.second);
   }
 
   T.advance("Computing analysis list diff", true);
