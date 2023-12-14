@@ -75,7 +75,7 @@ def run_analyses_lists(analyses_lists: List[str]):
             res = await client.execute(q)
 
             if res["runAnalysesList"]["__typename"] != "Diff":
-                log(f"Analysis failed: " + json.dumps(res, indent=2))
+                log(f"Analysis failed: {json.dumps(res, indent=2)}")
                 assert False
 
     return runner
