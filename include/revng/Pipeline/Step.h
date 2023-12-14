@@ -105,12 +105,20 @@ public:
   void registerTargetsDependingOn(llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
                                   TargetInStepSet &Out) const {
+    ContainerToTargetsMap OutMap;
     for (const PipeWrapper &Pipe : Pipes) {
       Pipe.InvalidationMetadata.registerTargetsDependingOn(*Ctx,
                                                            GlobalName,
                                                            Path,
-                                                           Out[getName()]);
+                                                           OutMap);
     }
+    for (auto &Container : OutMap) {
+      if (Containers.contains(Container.first()))
+        Container.second = Container.second.intersect(Containers
+                                                        .at(Container.first())
+                                                        .enumerate());
+    }
+    Out[getName()].merge(OutMap);
   }
 
   bool invalidationMetadataContains(llvm::StringRef GlobalName,
