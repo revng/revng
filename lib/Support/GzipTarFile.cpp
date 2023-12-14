@@ -155,7 +155,7 @@ OffsetDescriptor GzipTarWriter::append(llvm::StringRef Path,
   gzipCompress(*OS, { Data.data(), Data.size() });
 
   Result.PaddingStart = OS->tell();
-  if (size_t Padding = computePadding(Data.size()); Padding > 0)
+  if (size_t Padding = computePadding(Data.size()); Padding % BlockSize != 0)
     compressedPadding(*OS, Padding);
 
   Result.End = OS->tell();
