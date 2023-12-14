@@ -133,7 +133,6 @@ Branches:
               - make-local-variables
               - remove-load-store
               - fold-model-gep
-              - remove-ref-deref
               - dce
               - add-assignment-markers
               - make-model-cast
