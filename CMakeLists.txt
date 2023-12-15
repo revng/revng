@@ -87,6 +87,19 @@ include_directories(${MLIR_INCLUDE_DIRS})
 find_package(Clang REQUIRED CONFIG)
 
 #
+# Component hash
+#
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/share/revng/component-hashes")
+add_custom_target(
+  generate_component_hash ALL
+  COMMAND
+    sh -c
+    ' (git -C "${CMAKE_SOURCE_DIR}" rev-parse HEAD || echo "\"${CMAKE_PROJECT_VERSION}\"") '
+    > "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng-c")
+install(FILES "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng-c"
+        DESTINATION "${CMAKE_INSTALL_DIR}/share/revng/component-hashes/")
+
+#
 # share/revng
 #
 add_custom_target(copy_share ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/"
