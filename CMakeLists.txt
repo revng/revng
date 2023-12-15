@@ -120,6 +120,19 @@ file(RELATIVE_PATH RELATIVE_LLVM_TOOLS_BINARY_DIR "${CMAKE_INSTALL_PREFIX}"
 file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
 
 #
+# Component hash
+#
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/share/revng/component-hashes")
+add_custom_target(
+  generate_component_hash ALL
+  COMMAND
+    sh -c
+    ' (git -C "${CMAKE_SOURCE_DIR}" rev-parse HEAD || echo "\"${CMAKE_PROJECT_VERSION}\"") '
+    > "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng")
+install(FILES "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng"
+        DESTINATION "${CMAKE_INSTALL_DIR}/share/revng/component-hashes/")
+
+#
 # share/revng
 #
 add_custom_target(copy_share ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/"
