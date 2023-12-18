@@ -29,6 +29,7 @@ namespace actions {
 inline constexpr auto Rename = "rename";
 inline constexpr auto Comment = "comment";
 inline constexpr auto CodeSwitch = "codeSwitch";
+inline constexpr auto EditType = "editType";
 
 } // namespace actions
 
