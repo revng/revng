@@ -47,8 +47,8 @@ export class Reference<T, M> {
         }
     }
 
-    resolve(root: M): T {
-        return _getElementByPath<T>(this.reference, root)!;
+    resolve(root: M): T | undefined {
+        return _getElementByPath<T>(this.reference, root);
     }
 
     isValid(): boolean {
