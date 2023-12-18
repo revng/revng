@@ -236,6 +236,24 @@ Error Runner::load(const revng::DirectoryPath &DirPath) {
   return Error::success();
 }
 
+std::vector<revng::FilePath>
+Runner::getWrittenFiles(const revng::DirectoryPath &DirPath) const {
+  std::vector<revng::FilePath> Result;
+
+  for (const llvm::StringMapEntry<Step> &StepEntry : Steps) {
+    // Exclude the "begin" step from written files (since it's written
+    // manually by the user)
+    if (StepEntry.first() == begin()->getName())
+      continue;
+
+    revng::DirectoryPath StepDir = DirPath.getDirectory(StepEntry.first());
+    const pipeline::Step &Step = StepEntry.second;
+    append(Step.getWrittenFiles(StepDir), Result);
+  }
+
+  return Result;
+}
+
 llvm::Expected<DiffMap>
 Runner::runAnalysis(llvm::StringRef AnalysisName,
                     llvm::StringRef StepName,

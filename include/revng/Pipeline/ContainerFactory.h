@@ -22,6 +22,9 @@ public:
 
   virtual llvm::StringRef mimeType() const = 0;
 
+  virtual std::vector<revng::FilePath>
+  getWrittenFiles(const revng::FilePath &Path) const = 0;
+
   virtual ~ContainerFactoryBase() = default;
 
   virtual std::unique_ptr<ContainerFactoryBase> clone() const = 0;
@@ -45,6 +48,11 @@ public:
   }
 
   llvm::StringRef mimeType() const override { return ContainerT::MIMEType; }
+
+  std::vector<revng::FilePath>
+  getWrittenFiles(const revng::FilePath &Path) const override {
+    return ContainerT::getWrittenFiles(Path);
+  }
 
   std::unique_ptr<ContainerFactoryBase> clone() const override {
     return std::make_unique<ContainerFactoryWithArgs>(*this);
@@ -102,5 +110,10 @@ public:
   }
 
   llvm::StringRef mimeType() const { return Content->mimeType(); }
+
+  std::vector<revng::FilePath>
+  getWrittenFiles(const revng::FilePath &Path) const {
+    return Content->getWrittenFiles(Path);
+  }
 };
 } // namespace pipeline
