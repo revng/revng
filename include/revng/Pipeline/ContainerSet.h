@@ -160,6 +160,9 @@ public:
   llvm::Error store(const revng::DirectoryPath &DirectoryPath) const;
   llvm::Error load(const revng::DirectoryPath &DirectoryPath);
 
+  std::vector<revng::FilePath>
+  getWrittenFiles(const revng::DirectoryPath &DirectoryPath) const;
+
 public:
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const {

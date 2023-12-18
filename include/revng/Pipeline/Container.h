@@ -160,6 +160,11 @@ public:
 
   llvm::StringRef mimeType() const override { return Derived::MIMEType; }
 
+  static std::vector<revng::FilePath>
+  getWrittenFiles(const revng::FilePath &Path) {
+    return { Path };
+  }
+
 public:
   void mergeBack(ContainerBase &&Container) final {
     mergeBackImpl(std::move(llvm::cast<Derived>(Container)));

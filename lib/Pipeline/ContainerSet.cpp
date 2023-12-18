@@ -105,6 +105,18 @@ llvm::Error ContainerSet::load(const revng::DirectoryPath &Directory) {
   return Error::success();
 }
 
+std::vector<revng::FilePath>
+ContainerSet::getWrittenFiles(const revng::DirectoryPath &Directory) const {
+  std::vector<revng::FilePath> Result;
+
+  for (const auto &Pair : Factories) {
+    revng::FilePath Filename = Directory.getFile(Pair.first());
+    append(Pair.second->getWrittenFiles(Filename), Result);
+  }
+
+  return Result;
+}
+
 llvm::Error ContainerSet::verify() const {
   for (const auto &Pair : Content) {
     if (Pair.second == nullptr)
