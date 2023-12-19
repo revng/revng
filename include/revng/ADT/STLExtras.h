@@ -285,11 +285,31 @@ inline llvm::ArrayRef<uint8_t> toArrayRef(llvm::StringRef Data) {
 //
 // append
 //
+template<typename T>
+concept HasReserve = requires(T &&V, size_t S) {
+  { V.reserve(S) };
+};
+
+template<typename T>
+concept HasRangeInsert = requires(T &&V) {
+  { V.insert(V.end(), V.begin(), V.end()) };
+};
+
 template<std::ranges::sized_range FromType, std::ranges::sized_range ToType>
-auto append(FromType &&From, ToType &To) {
-  size_t ExistingElementCount = To.size();
-  To.resize(ExistingElementCount + From.size());
-  return llvm::copy(From, std::next(To.begin(), ExistingElementCount));
+void append(FromType &&From, ToType &To) {
+  // range-based insert is tremendously faster than any other method
+  if constexpr (HasRangeInsert<ToType>) {
+    To.insert(To.end(), From.begin(), From.end());
+    return;
+  }
+
+  if constexpr (HasReserve<FromType>)
+    To.reserve(To.size() + From.size());
+
+  if constexpr (std::is_lvalue_reference_v<FromType>)
+    std::ranges::copy(From, std::inserter(To, To.end()));
+  else
+    std::ranges::move(From, std::inserter(To, To.end()));
 }
 
 /// Intersects two std::sets
