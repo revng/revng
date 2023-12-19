@@ -5,6 +5,7 @@
 #include <optional>
 #include <set>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
@@ -52,17 +53,6 @@ static auto snapshot(auto &&Range) {
   SmallVector<std::decay_t<decltype(*Range.begin())>, 16> Result;
   llvm::copy(Range, std::back_inserter(Result));
   return Result;
-}
-
-static cppcoro::generator<CallInst *> extractValues(Value *Struct) {
-  revng_assert(Struct->getType()->isStructTy());
-  for (User *U : snapshot(Struct->users())) {
-    auto *Extractor = cast<CallInst>(U);
-    auto *Callee = Extractor->getCalledFunction();
-    revng_assert(FunctionTags::OpaqueExtractValue.isTagOf(Callee));
-    revng_assert(Extractor->arg_size() == 2);
-    co_yield Extractor;
-  }
 }
 
 static unsigned getBitOffsetAt(StructType *Struct, unsigned TargetFieldIndex) {
@@ -1136,15 +1126,28 @@ private:
         // We're returning an aggregate, but not via SPTAR, we're using one or
         // more registers
         if (OldReturnType->isStructTy()) {
-          unsigned Offset = 0;
-          for (CallInst *Extractor : extractValues(OldCall)) {
-            Value *Pointer = createAdd(B, ReturnValuePointer, Offset);
-            auto *Load = B.CreateLoad(Extractor->getType(),
-                                      pointer(B, Pointer));
-            Offset += Extractor->getType()->getIntegerBitWidth() / 8;
+          SmallVector<SmallPtrSet<CallInst *, 2>, 2>
+            ExtractedValues = getExtractedValuesFromInstruction(OldCall);
+          for (auto &Group : llvm::enumerate(ExtractedValues)) {
 
-            Extractor->replaceAllUsesWith(Load);
-            eraseFromParent(Extractor);
+            unsigned FieldIndex = Group.index();
+            SmallPtrSet<CallInst *, 2> &ExtractedAtIndex = Group.value();
+            if (ExtractedAtIndex.empty())
+              continue;
+
+            unsigned BitOffset = getBitOffsetAt(cast<StructType>(OldReturnType),
+                                                FieldIndex);
+            revng_assert(0 == (BitOffset % 8));
+            unsigned ByteOffset = BitOffset / 8;
+
+            Value *Pointer = createAdd(B, ReturnValuePointer, ByteOffset);
+            Type *ExtractedType = (*ExtractedAtIndex.begin())->getType();
+            auto *Load = B.CreateLoad(ExtractedType, pointer(B, Pointer));
+
+            for (CallInst *Extractor : Group.value()) {
+              Extractor->replaceAllUsesWith(Load);
+              eraseFromParent(Extractor);
+            }
           }
         } else {
           auto *Load = B.CreateLoad(ReturnValuePointer->getType(),
@@ -1170,16 +1173,25 @@ private:
       } else if (OldReturnType->isStructTy() and NewReturnType->isIntegerTy()) {
         // We're returning a large integer value through multiple values (e.g.,
         // returning a 64-bit integer through two registers in i386)
-        for (CallInst *Extractor : extractValues(OldCall)) {
-          Value *IndexOperand = Extractor->getArgOperand(1);
-          auto FieldIndex = cast<ConstantInt>(IndexOperand)->getLimitedValue();
+        SmallVector<SmallPtrSet<CallInst *, 2>, 2>
+          ExtractedValues = getExtractedValuesFromInstruction(OldCall);
+        for (auto &Group : llvm::enumerate(ExtractedValues)) {
+
+          unsigned FieldIndex = Group.index();
+          SmallPtrSet<CallInst *, 2> &ExtractedAtIndex = Group.value();
+          if (ExtractedAtIndex.empty())
+            continue;
+
           unsigned ShiftAmount = getBitOffsetAt(cast<StructType>(OldReturnType),
                                                 FieldIndex);
-          // B.SetInsertPoint(Extractor);
+          Type *TruncatedType = (*ExtractedAtIndex.begin())->getType();
           Value *Replacement = B.CreateTrunc(B.CreateLShr(NewCall, ShiftAmount),
-                                             Extractor->getType());
-          Extractor->replaceAllUsesWith(Replacement);
-          eraseFromParent(Extractor);
+                                             TruncatedType);
+          for (CallInst *Extractor : Group.value()) {
+            revng_assert(TruncatedType == Extractor->getType());
+            Extractor->replaceAllUsesWith(Replacement);
+            eraseFromParent(Extractor);
+          }
         }
       } else {
         revng_assert(not OldReturnType->isStructTy());
