@@ -76,14 +76,14 @@ usesNeedToBeReplacedWithCopiesFromLocal(const llvm::Instruction *I,
 
   // Non-SPTAR return aggregates are special in many ways:
   // 1. they basically imply a LocalVariable;
-  // 2. their only expected use is supposed to be a call to AddressOf or a
-  //    ModelGEPRef
+  // 2. their only expected use is supposed to be in custom opcodes that expect
+  //    references
   // For these reasons it would be wrong to inject a Copy.
   for (const llvm::Use &U : I->uses()) {
-    revng_assert((isCallToTagged(U.getUser(), FunctionTags::AddressOf)
-                  and 1 == U.getOperandNo())
-                 or (isCallToTagged(U.getUser(), FunctionTags::ModelGEPRef)
-                     and 1 == U.getOperandNo()));
+    revng_assert(1 == U.getOperandNo()
+                 and (isCallToTagged(U.getUser(), FunctionTags::AddressOf)
+                      or isCallToTagged(U.getUser(), FunctionTags::ModelGEPRef)
+                      or isCallToTagged(U.getUser(), FunctionTags::Assign)));
   }
   return false;
 };
