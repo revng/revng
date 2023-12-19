@@ -102,6 +102,10 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
+  // This is NoMerge, because merging two of them would cause a PHINode among
+  // IsRef opcodes.
+  Pool.addFnAttribute(llvm::Attribute::NoMerge);
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::AddressOf });
 
@@ -345,6 +349,11 @@ getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
+
+  // This is NoMerge, because merging two of them would cause a PHINode among
+  // IsRef opcodes.
+  ModelGEPFunction->addFnAttr(llvm::Attribute::NoMerge);
+
   ModelGEPFunction->setMemoryEffects(llvm::MemoryEffects::none());
   FunctionTags::ModelGEPRef.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
@@ -367,6 +376,9 @@ void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
+  // NoMerge because merging two of them would merge to local variables
+  Pool.addFnAttribute(llvm::Attribute::NoMerge);
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::LocalVariable,
@@ -400,6 +412,9 @@ void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Don't optimize these calls
   Pool.addFnAttribute(llvm::Attribute::OptimizeNone);
   Pool.addFnAttribute(llvm::Attribute::NoInline);
+  // This is NoMerge because we make strong assumptions about how
+  // OpaqueExtractValues are placed in the CFG in relationship with the CallInst
+  // they extract values from. Without NoMerge, those assumptions would fail.
   Pool.addFnAttribute(llvm::Attribute::NoMerge);
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);

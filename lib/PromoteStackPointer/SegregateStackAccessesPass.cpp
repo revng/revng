@@ -328,6 +328,9 @@ public:
                                       &M);
       Result->addFnAttr(Attribute::NoUnwind);
       Result->addFnAttr(Attribute::WillReturn);
+      // NoMerge, because merging two calls to one of these opcodes that
+      // allocate local variable would mean merging the variables.
+      Result->addFnAttr(Attribute::NoMerge);
       Result->setMemoryEffects(MemoryEffects::readOnly());
       Result->setOnlyAccessesInaccessibleMemory();
       FunctionTags::AllocatesLocalVariable.addTo(Result);
