@@ -927,8 +927,6 @@ private:
 
     model::QualifiedType ReturnType;
     SmallVector<llvm::Type *, 8> LLVMArgumentTypes;
-    Value *ReturnValuePointer = nullptr;
-    Instruction *ReturnValueReference = nullptr;
     bool HasSPTAR = Layout.hasSPTAR();
 
     auto returnMethod = Layout.returnMethod();
@@ -1074,6 +1072,7 @@ private:
 
     revng_assert(Redirector.verify());
 
+    Value *ReturnValuePointer = nullptr;
     // Handle SPTAR by dropping the actual argument and saving it for later
     if (HasSPTAR) {
       revng_assert(Arguments.size() > 0);
@@ -1107,19 +1106,16 @@ private:
     switch (Layout.returnMethod()) {
     case ReturnMethod::ModelAggregate: {
       if (HasSPTAR) {
-        revng_assert(ReturnValueReference == nullptr);
         // Make reference out of ReturnValuePointer
         Type *T = ReturnValuePointer->getType();
         Function *GetModelGEPFunction = getModelGEP(M, T, T);
         auto *BaseTypeConstantStrPtr = serializeToLLVMString(ReturnType, M);
         auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
         auto *Zero = ConstantInt::get(Int64Type, 0);
-        ReturnValueReference = B.CreateCall(GetModelGEPFunction,
-                                            { BaseTypeConstantStrPtr,
-                                              ReturnValuePointer,
-                                              Zero });
+        B.CreateCall(GetModelGEPFunction,
+                     { BaseTypeConstantStrPtr, ReturnValuePointer, Zero });
       } else {
-        ReturnValueReference = NewCall;
+        revng_assert(not ReturnValuePointer);
         auto *T = NewCall->getType();
         auto *AddressOfFunctionType = getAddressOfType(T, T);
         auto *AddressOfFunction = AddressOfPool.get({ T, T },
