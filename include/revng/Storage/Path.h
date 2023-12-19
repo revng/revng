@@ -29,7 +29,7 @@ public:
   void dump(T &OS) const debug_function {
     OS << "Client: ";
     Client->dump(OS);
-    OS << " Path: " + SubPath;
+    OS << " Path: " << SubPath << "\n";
   }
 
   bool isValid() const { return Client != nullptr; }
