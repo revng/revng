@@ -104,15 +104,15 @@ bool Definition::verify() const {
   return true;
 }
 
-using model::RawFunctionType;
-bool Definition::isIncompatibleWith(const RawFunctionType &Function) const {
+using RFT = model::RawFunctionType;
+bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
   revng_assert(verify());
   const auto Architecture = model::ABI::getRegisterArchitecture(ABI());
 
   SortedVector<model::Register::Values> Arguments;
   for (auto I = Arguments.batch_insert(); auto R : Function.Arguments()) {
     if (!model::Register::isUsedInArchitecture(R.Location(), Architecture))
-      return true;
+      return false;
 
     I.emplace(R.Location());
   }
@@ -130,13 +130,13 @@ bool Definition::isIncompatibleWith(const RawFunctionType &Function) const {
                      AllowedArguments.end(),
                      Arguments.begin(),
                      Arguments.end())) {
-    return true;
+    return false;
   }
 
   SortedVector<model::Register::Values> ReturnValues;
   for (auto I = ReturnValues.batch_insert(); auto R : Function.ReturnValues()) {
     if (!model::Register::isUsedInArchitecture(R.Location(), Architecture))
-      return true;
+      return false;
 
     I.emplace(R.Location());
   }
@@ -154,14 +154,14 @@ bool Definition::isIncompatibleWith(const RawFunctionType &Function) const {
                      AllowedReturnValues.end(),
                      ReturnValues.begin(),
                      ReturnValues.end())) {
-    return true;
+    return false;
   }
 
   for (model::Register::Values Register : Function.PreservedRegisters())
     if (!model::Register::isUsedInArchitecture(Register, Architecture))
-      return true;
+      return false;
 
-  return false;
+  return true;
 }
 
 static std::string translateABIName(model::ABI::Values ABI) {

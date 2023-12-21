@@ -151,7 +151,7 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
   LoggerIndent Indentation(Log);
 
   const abi::Definition &ABI = abi::Definition::get(*MaybeABI);
-  if (ABI.isIncompatibleWith(FunctionType)) {
+  if (!ABI.isPreliminarilyCompatibleWith(FunctionType)) {
     revng_log(Log,
               "FAIL: the function is not compatible with `"
                 << model::ABI::getName(ABI.ABI()) << "`.");

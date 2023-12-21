@@ -337,7 +337,7 @@ public:
   ///
   /// \return `false` if the function is definitely NOT compatible with the ABI,
   ///         `true` if it might be compatible.
-  bool isIncompatibleWith(const model::RawFunctionType &Function) const;
+  bool isPreliminarilyCompatibleWith(const model::RawFunctionType &) const;
 
   struct AlignmentInfo {
     uint64_t Value;
