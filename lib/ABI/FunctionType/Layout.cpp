@@ -24,7 +24,7 @@ using RegisterVector = llvm::SmallVector<model::Register::Values, 2>;
 
 /// The internal representation of the argument shared between both
 /// the to-raw conversion and the layout.
-struct DistributedArgument {
+struct DistributedValue {
   /// A list of registers the argument uses.
   RegisterVector Registers = {};
 
@@ -47,7 +47,7 @@ struct DistributedArgument {
   /// but are omitted in `Layout`.
   bool RepresentsPadding = false;
 };
-using DistributedArguments = llvm::SmallVector<DistributedArgument, 8>;
+using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 
 using RegisterSpan = std::span<const model::Register::Values>;
 using ArgumentSet = TrackingSortedVector<model::Argument>;
@@ -82,7 +82,7 @@ protected:
   ///          multiple objects are returned, only one of them corresponds to
   ///          the specified argument: all the other ones represent padding) and
   ///          the new count of occupied registers, after the current argument.
-  std::pair<DistributedArguments, uint64_t>
+  std::pair<DistributedValues, uint64_t>
   distribute(model::QualifiedType Type,
              RegisterSpan Registers,
              uint64_t OccupiedRegisterCount,
@@ -95,11 +95,11 @@ public:
   explicit ArgumentDistributor(const abi::Definition &ABI) :
     ValueDistributor(ABI){};
 
-  DistributedArguments nextArgument(const model::QualifiedType &ArgumentType);
+  DistributedValues nextArgument(const model::QualifiedType &ArgumentType);
 
 private:
-  DistributedArguments positionBased(const model::QualifiedType &Type);
-  DistributedArguments nonPositionBased(const model::QualifiedType &Type);
+  DistributedValues positionBased(const model::QualifiedType &Type);
+  DistributedValues nonPositionBased(const model::QualifiedType &Type);
 };
 
 class ReturnValueDistributor : public ValueDistributor {
@@ -107,7 +107,7 @@ public:
   explicit ReturnValueDistributor(const abi::Definition &ABI) :
     ValueDistributor(ABI){};
 
-  DistributedArgument returnValue(const model::QualifiedType &ReturnValueType);
+  DistributedValue returnValue(const model::QualifiedType &ReturnValueType);
 };
 
 class ToRawConverter {
@@ -130,7 +130,7 @@ public:
   /// \param ReturnValueType The model type that should be returned.
   /// \return Information about registers and stack that are to be used to
   ///         return the said type.
-  DistributedArgument
+  DistributedValue
   distributeReturnValue(const model::QualifiedType &ReturnValueType) const {
     return ReturnValueDistributor(ABI).returnValue(ReturnValueType);
   }
@@ -143,7 +143,7 @@ public:
   ///        slot should be occupied by a shadow return value, `false` otherwise
   /// \return Information about registers and stack that are to be used to
   ///         pass said arguments.
-  DistributedArguments
+  DistributedValues
   distributeArguments(const ArgumentSet &Arguments,
                       bool PassesReturnValueLocationAsAnArgument) const;
 
@@ -290,7 +290,7 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   auto Arguments = distributeArguments(FunctionType.Arguments(),
                                        ReturnValue.SizeOnStack != 0);
   uint64_t Index = 0;
-  for (const DistributedArgument &Distributed : Arguments) {
+  for (const DistributedValue &Distributed : Arguments) {
     if (!Distributed.RepresentsPadding) {
       // Transfer the register arguments first.
       for (model::Register::Values Register : Distributed.Registers) {
@@ -430,13 +430,13 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
   return Result;
 }
 
-DistributedArguments
+DistributedValues
 ArgumentDistributor::positionBased(const model::QualifiedType &ArgumentType) {
   uint64_t UsedRegisterCount = std::max(UsedGeneralPurposeRegisterCount,
                                         UsedVectorRegisterCount);
   uint64_t RegisterIndex = std::max(ArgumentIndex, UsedRegisterCount);
 
-  DistributedArgument Result;
+  DistributedValue Result;
   Result.Size = *ArgumentType.size();
 
   if (ArgumentType.isFloat()) {
@@ -480,13 +480,13 @@ ArgumentDistributor::positionBased(const model::QualifiedType &ArgumentType) {
 /// \return New distributed argument list (could be multiple if padding
 ///         arguments were required) and the new value of
 ///         \ref OccupiedRegisterCount after this argument is distributed.
-std::pair<DistributedArguments, uint64_t>
+std::pair<DistributedValues, uint64_t>
 ValueDistributor::distribute(model::QualifiedType Type,
                              RegisterSpan Registers,
                              uint64_t OccupiedRegisterCount,
                              uint64_t AllowedRegisterLimit,
                              bool ForbidSplittingBetweenRegistersAndStack) {
-  DistributedArguments Result;
+  DistributedValues Result;
 
   LoggerIndent Indentation(Log);
   revng_log(Log, "Distributing a value between the registers and the stack.");
@@ -552,7 +552,7 @@ ValueDistributor::distribute(model::QualifiedType Type,
                 "to be used to hold the padding.");
 
       // Add an extra "padding" argument to represent this.
-      DistributedArgument &Padding = Result.emplace_back();
+      DistributedValue &Padding = Result.emplace_back();
       Padding.Registers = { Registers[OccupiedRegisterCount++] };
       Padding.Size = model::Register::getSize(Padding.Registers[0]);
       Padding.RepresentsPadding = true;
@@ -564,7 +564,7 @@ ValueDistributor::distribute(model::QualifiedType Type,
     }
   }
 
-  DistributedArgument &DA = Result.emplace_back();
+  DistributedValue &DA = Result.emplace_back();
   DA.Size = Size;
 
   bool AllowSplitting = !ForbidSplittingBetweenRegistersAndStack
@@ -606,7 +606,7 @@ ValueDistributor::distribute(model::QualifiedType Type,
   return { std::move(Result), ConsideredRegisterCounter };
 }
 
-DistributedArguments
+DistributedValues
 ArgumentDistributor::nonPositionBased(const model::QualifiedType &Type) {
   uint64_t RegisterLimit = 0;
   bool ForbidSplitting = false;
@@ -626,7 +626,7 @@ ArgumentDistributor::nonPositionBased(const model::QualifiedType &Type) {
       //
       // TODO: find reproducers and handle the cases where multiple vector
       //       registers are used together.
-      DistributedArgument Result;
+      DistributedValue Result;
       Result.Registers.emplace_back(RegisterList[(*RegisterCounter)++]);
       return { Result };
     } else {
@@ -675,7 +675,7 @@ ArgumentDistributor::nonPositionBased(const model::QualifiedType &Type) {
   return std::move(Result);
 }
 
-DistributedArguments
+DistributedValues
 ArgumentDistributor::nextArgument(const model::QualifiedType &Type) {
   if (ABI.ArgumentsArePositionBased())
     return positionBased(Type);
@@ -683,7 +683,7 @@ ArgumentDistributor::nextArgument(const model::QualifiedType &Type) {
     return nonPositionBased(Type);
 }
 
-DistributedArguments
+DistributedValues
 ToRawConverter::distributeArguments(const ArgumentSet &Arguments,
                                     bool HasReturnValueLocationArgument) const {
   uint64_t SkippedRegisterCount = 0;
@@ -696,17 +696,17 @@ ToRawConverter::distributeArguments(const ArgumentSet &Arguments,
   Distributor.UsedGeneralPurposeRegisterCount = SkippedRegisterCount;
   Distributor.ArgumentIndex = SkippedRegisterCount;
 
-  DistributedArguments Result;
+  DistributedValues Result;
   for (const model::Argument &Argument : Arguments)
     std::ranges::move(Distributor.nextArgument(Argument.Type()),
                       std::back_inserter(Result));
   return Result;
 }
 
-DistributedArgument
+DistributedValue
 ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
   if (Type.isVoid())
-    return DistributedArgument{};
+    return DistributedValue{};
 
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
@@ -717,7 +717,7 @@ ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
     // The main offenders are the values returned in `st0`.
     // TODO: handle this properly.
     if (RegisterList.empty())
-      return DistributedArgument{};
+      return DistributedValue{};
 
     // TODO: replace this the explicit single register limit with an abi-defined
     // value. For more information see the relevant comment in
@@ -808,7 +808,7 @@ Layout::Layout(const model::CABIFunctionType &Function) {
                                                  RV.SizeOnStack != 0);
   revng_assert(Converted.size() >= Function.Arguments().size());
   uint64_t Index = 0;
-  for (const DistributedArgument &Distributed : Converted) {
+  for (const DistributedValue &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
       Argument &Current = Arguments.emplace_back();
       const auto &ArgumentType = Function.Arguments().at(Index).Type();
