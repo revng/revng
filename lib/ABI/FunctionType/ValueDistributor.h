@@ -38,6 +38,12 @@ struct DistributedValue {
   /// The "padding" arguments are emitted as normal arguments in RawFunctionType
   /// but are omitted in `Layout`.
   bool RepresentsPadding = false;
+
+  static DistributedValue voidReturnValue() {
+    return DistributedValue{
+      .Registers = {}, .Size = 0, .SizeOnStack = 0, .RepresentsPadding = false
+    };
+  }
 };
 using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 

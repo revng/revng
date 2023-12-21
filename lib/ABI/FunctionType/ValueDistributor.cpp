@@ -248,7 +248,7 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
 DistributedValue
 ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
   if (Type.isVoid())
-    return DistributedValue{};
+    return DistributedValue::voidReturnValue();
 
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
@@ -259,7 +259,7 @@ ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
     // The main offenders are the values returned in `st0`.
     // TODO: handle this properly.
     if (RegisterList.empty())
-      return DistributedValue{};
+      return DistributedValue::voidReturnValue();
 
     // TODO: replace this the explicit single register limit with an abi-defined
     // value. For more information see the relevant comment in
