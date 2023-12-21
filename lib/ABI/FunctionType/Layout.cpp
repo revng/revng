@@ -50,7 +50,6 @@ struct DistributedValue {
 using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 
 using RegisterSpan = std::span<const model::Register::Values>;
-using ArgumentSet = TrackingSortedVector<model::Argument>;
 
 class ValueDistributor {
 public:
@@ -112,6 +111,10 @@ public:
 
 class ToRawConverter {
 private:
+  using CFT = const model::CABIFunctionType &;
+  using CFTArguments = decltype(std::declval<CFT>().Arguments());
+
+private:
   const abi::Definition &ABI;
 
 public:
@@ -139,13 +142,13 @@ public:
   /// distributed across registers and the stack accordingly to the \ref ABI.
   ///
   /// \param Arguments The list of arguments to distribute.
-  /// \param PassesReturnValueLocationAsAnArgument `true` if the first argument
-  ///        slot should be occupied by a shadow return value, `false` otherwise
+  /// \param HasReturnValueLocation `true` if the first argument slot should
+  ///        be occupied by a shadow return value, `false` otherwise.
+  ///
   /// \return Information about registers and stack that are to be used to
   ///         pass said arguments.
-  DistributedValues
-  distributeArguments(const ArgumentSet &Arguments,
-                      bool PassesReturnValueLocationAsAnArgument) const;
+  DistributedValues distributeArguments(CFTArguments Arguments,
+                                        bool HasReturnValueLocation) const;
 
 public:
   uint64_t finalStackOffset(uint64_t SizeOfArgumentsOnStack) const;
@@ -691,7 +694,7 @@ ArgumentDistributor::nextArgument(const model::QualifiedType &Type) {
 }
 
 DistributedValues
-ToRawConverter::distributeArguments(const ArgumentSet &Arguments,
+ToRawConverter::distributeArguments(CFTArguments Arguments,
                                     bool HasReturnValueLocationArgument) const {
   uint64_t SkippedRegisterCount = 0;
   if (HasReturnValueLocationArgument == true)

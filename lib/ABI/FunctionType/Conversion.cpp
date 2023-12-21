@@ -22,8 +22,9 @@ namespace abi::FunctionType {
 
 class ToCABIConverter {
 private:
-  using ArgumentRegisters = TrackingSortedVector<model::NamedTypedRegister>;
-  using ReturnValueRegisters = TrackingSortedVector<model::NamedTypedRegister>;
+  using RFT = const model::RawFunctionType &;
+  using RFTArguments = decltype(std::declval<RFT>().Arguments());
+  using RFTReturnValues = decltype(std::declval<RFT>().ReturnValues());
 
 public:
   struct Converted {
@@ -89,7 +90,7 @@ private:
   /// \return a list of arguments if the conversion was successful,
   ///         `std::nullopt` otherwise.
   std::optional<llvm::SmallVector<model::Argument, 8>>
-  tryConvertingRegisterArguments(const ArgumentRegisters &Registers);
+  tryConvertingRegisterArguments(RFTArguments Registers);
 
   /// Helper used for converting stack argument struct into
   /// the c-style representation
@@ -115,7 +116,7 @@ private:
   /// \return a qualified type if conversion is possible, `std::nullopt`
   ///         otherwise.
   std::optional<model::QualifiedType>
-  tryConvertingReturnValue(const ReturnValueRegisters &Registers);
+  tryConvertingReturnValue(RFTReturnValues Registers);
 };
 
 std::optional<model::TypePath>
@@ -185,7 +186,7 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
 
 using TCC = ToCABIConverter;
 std::optional<llvm::SmallVector<model::Argument, 8>>
-TCC::tryConvertingRegisterArguments(const ArgumentRegisters &Registers) {
+TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // Rely onto the register state deduction to make sure no "holes" are
   // present in-between the argument registers.
   abi::RegisterState::Map Map(model::ABI::getArchitecture(ABI.ABI()));
@@ -383,7 +384,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
 }
 
 std::optional<model::QualifiedType>
-TCC::tryConvertingReturnValue(const ReturnValueRegisters &Registers) {
+TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   if (Registers.size() == 0) {
     // The function doesn't return anything.
     return model::QualifiedType{
