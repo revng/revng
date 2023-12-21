@@ -402,9 +402,31 @@ public:
   }
 
 public:
+  /// Try to deduce the specific "holes" in the provided register state
+  /// information.
+  ///
+  /// In short, when we have any information about arguments (for example, if
+  /// we know that `r2` is used as a function argument) - we can extrapolate it
+  /// to uncover more information about other register (in this example, that
+  /// `r0` and `r1` must also either be active _unused_ arguments _or_ padding).
+  /// This in information is embedded into the returned map.
+  ///
+  /// \returns `std::nullopt` if \ref State does not match the ABI (i.e. it
+  ///          marks a non-argument register (like `r5` in the example used) as
+  ///          an argument).
   std::optional<abi::RegisterState::Map>
   tryDeducingRegisterState(const abi::RegisterState::Map &State) const;
 
+  /// A more strict version of \ref tryDeducingRegisterState.
+  ///
+  /// The difference is that `tryDeducingRegisterState` expects all the input
+  /// information to be 100% correct, with the most likely problem being
+  /// the fact that we didn't detect ABI correctly (the original function uses
+  /// one that differs from the one specified), while this one
+  /// (`enforceRegisterState`) believes the ABI first and foremost, allowing
+  /// this deduction to discard any contradicting data (for example if `r5` is
+  /// specified as an argument, it's silently changed to `No` because ABI does
+  /// not allow it to be).
   abi::RegisterState::Map
   enforceRegisterState(const abi::RegisterState::Map &State) const;
 
