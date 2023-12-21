@@ -399,9 +399,9 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
                                                               .get());
 
   // Compute the full alignment.
-  uint64_t FullAlignment = *ABI.alignment(model::QualifiedType{
-    StackArgumentTypes, {} });
-  revng_assert(llvm::isPowerOf2_64(FullAlignment));
+  model::QualifiedType StackStruct = { StackArgumentTypes, {} };
+  uint64_t StackAlignment = *ABI.alignment(StackStruct);
+  revng_assert(llvm::isPowerOf2_64(StackAlignment));
 
   // If the struct is empty, it indicates that there are no stack arguments.
   if (Stack.size() == 0) {
@@ -463,16 +463,16 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
 
     // This is a workaround for the cases where expected alignment is missing
     // at the very end of the RFT-style stack argument struct:
-    uint64_t FullSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
-                                                             FullAlignment);
+    uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
+                                                              StackAlignment);
 
     std::optional<uint64_t> LastSize = LastArgument.Type().size();
     revng_assert(LastSize.has_value() && LastSize.value() != 0);
     if (canBeNext(Distributor,
                   LastArgument.Type(),
                   LastArgument.Offset(),
-                  FullSize,
-                  FullAlignment)) {
+                  StackSize,
+                  StackAlignment)) {
       model::Argument &New = Result.emplace_back();
       model::copyMetadata(New, LastArgument);
       New.Type() = LastArgument.Type();
@@ -514,7 +514,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     }
 
     auto &RA = RemainingArguments;
-    if (canBeNext(Distributor, RA, Offset, Stack.Size(), FullAlignment)) {
+    if (canBeNext(Distributor, RA, Offset, Stack.Size(), StackAlignment)) {
       revng_log(Log, "Struct for the remaining argument worked.");
       model::Argument &New = Result.emplace_back();
       New.Index() = Stack.Fields().size() - CurrentRange.size();
@@ -529,11 +529,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
   // Reaching this far means that we either aborted on the very first argument
   // OR that the partial conversion didn't work well either - let's try and see
   // if it would make sense to add the whole "stack" struct as one argument.
-  if (!canBeNext(Distributor,
-                 model::QualifiedType(StackArgumentTypes, {}),
-                 0,
-                 Stack.Size(),
-                 FullAlignment)) {
+  if (!canBeNext(Distributor, StackStruct, 0, Stack.Size(), StackAlignment)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;
@@ -543,7 +539,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
             "Adding the whole stack as a single argument is the best we can "
             "do.");
   model::Argument &New = Result.emplace_back();
-  New.Type() = model::QualifiedType(StackArgumentTypes, {});
+  New.Type() = StackStruct;
   New.Index() = InitialIndexOffset;
 
   return Result;
