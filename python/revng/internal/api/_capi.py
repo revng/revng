@@ -179,9 +179,9 @@ def initialize(
 
     args_combined = [
         "",  # Dummy value to respect argc/argv conventions
-        *args,
         *[f"-load={p.resolve()}" for p in path_libraries],
         *[f"-pipeline-path={p}" for p in path_pipelines],
+        *args,
     ]
     _args = [ffi.new("char[]", arg.encode("utf-8")) for arg in args_combined]
     _signals_to_preserve = [int(s) for s in signals_to_preserve]
