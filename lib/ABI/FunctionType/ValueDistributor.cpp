@@ -218,33 +218,28 @@ ArgumentDistributor::nonPositionBased(const model::QualifiedType &Type) {
 
 DistributedValues
 ArgumentDistributor::positionBased(const model::QualifiedType &ArgumentType) {
-  uint64_t UsedRegisterCount = std::max(UsedGeneralPurposeRegisterCount,
-                                        UsedVectorRegisterCount);
-  uint64_t RegisterIndex = std::max(ArgumentIndex, UsedRegisterCount);
+  std::array Helper{ UsedGeneralPurposeRegisterCount,
+                     UsedVectorRegisterCount,
+                     ArgumentIndex };
+  uint64_t Index = *std::ranges::max_element(Helper);
 
   DistributedValue Result;
   Result.Size = *ArgumentType.size();
 
-  if (ArgumentType.isFloat()) {
-    if (RegisterIndex < ABI.VectorArgumentRegisters().size()) {
-      auto Register = ABI.VectorArgumentRegisters()[RegisterIndex];
-      Result.Registers.emplace_back(Register);
+  const auto &UsedRegisterList = ArgumentType.isFloat() ?
+                                   ABI.VectorArgumentRegisters() :
+                                   ABI.GeneralPurposeArgumentRegisters();
+  uint64_t &UsedRegisterCount = ArgumentType.isFloat() ?
+                                  UsedVectorRegisterCount :
+                                  UsedGeneralPurposeRegisterCount;
 
-      revng_assert(UsedVectorRegisterCount < RegisterIndex);
-      UsedVectorRegisterCount = RegisterIndex;
-    } else {
-      Result.SizeOnStack = Result.Size;
-    }
+  if (Index < UsedRegisterList.size()) {
+    Result.Registers.emplace_back(UsedRegisterList[Index]);
+
+    revng_assert(UsedRegisterCount <= Index);
+    UsedRegisterCount = Index + 1;
   } else {
-    if (RegisterIndex < ABI.GeneralPurposeArgumentRegisters().size()) {
-      auto Register = ABI.GeneralPurposeArgumentRegisters()[RegisterIndex];
-      Result.Registers.emplace_back(Register);
-
-      revng_assert(UsedGeneralPurposeRegisterCount < RegisterIndex);
-      UsedGeneralPurposeRegisterCount = RegisterIndex;
-    } else {
-      Result.SizeOnStack = Result.Size;
-    }
+    Result.SizeOnStack = Result.Size;
   }
 
   ++ArgumentIndex;
