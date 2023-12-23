@@ -53,9 +53,10 @@ static cl::opt<std::string> OutputFilename("o",
                                            llvm::cl::value_desc("filename"));
 
 static std::optional<std::pair<model::TypePath, model::TypePath>>
-ensureMatchingIDs(const model::Type::Key &Left,
-                  const model::Type::Key &Right,
-                  model::Binary &Model) {
+ensureIDMatch(const model::Type::Key &Left,
+              const model::Type::Key &Right,
+              llvm::StringRef ExpectedName,
+              model::Binary &Model) {
   auto &[LeftID, LeftKind] = Left;
   auto &[RightID, RightKind] = Right;
   revng_assert(LeftKind == RightKind);
@@ -63,23 +64,37 @@ ensureMatchingIDs(const model::Type::Key &Left,
   if (LeftID != RightID) {
     // Find the type
     model::TypePath OldPath = Model.getTypePath(Right);
-    auto Iterator = Model.Types().find(OldPath.get()->key());
+    auto LeftIterator = Model.Types().find(Left);
+    auto RightIterator = Model.Types().find(Right);
+
+    // Make sure the replacement ID is not in use already.
+    if (LeftIterator != Model.Types().end()) {
+      if (ExpectedName == LeftIterator->get()->OriginalName()) {
+        // Original names match: assume the types are the same and skip
+        // the replacement.
+        return std::nullopt;
+      }
+
+      std::string Error = "Key in use already: "
+                          + serializeToString(LeftIterator->get()->key())
+                          + "\nLHS name is '" + ExpectedName.str()
+                          + "' while RHS name is '"
+                          + LeftIterator->get()->OriginalName() + "'.";
+      revng_abort(Error.c_str());
+    }
 
     // Since the ID is a part of the key, we cannot just modify the type,
     // we need to move the type out, and then reinsert it back in.
-    model::UpcastableType MovedOut = std::move(*Iterator);
-    Model.Types().erase(Iterator);
+    model::UpcastableType MovedOut = std::move(*RightIterator);
+    Model.Types().erase(RightIterator);
 
     // Replace the ID of the moved out type.
     MovedOut->ID() = LeftID;
-
-    // Make sure the ID is not in use already.
-    revng_check(Model.Types().find(MovedOut->key()) == Model.Types().end());
+    model::TypePath NewPath = Model.getTypePath(MovedOut->key());
 
     // Reinsert the type.
-    auto [It, Success] = Model.Types().insert(std::move(MovedOut));
+    auto [_, Success] = Model.Types().insert(std::move(MovedOut));
     revng_assert(Success);
-    model::TypePath NewPath = Model.getTypePath(It->get());
 
     // Return the "replacement pair", so that the caller is able to gather them
     // and invoke `TupleTree::replaceReferences` on all of them at once.
@@ -229,12 +244,15 @@ int main(int Argc, char *Argv[]) {
     // argument or neither one does.
     revng_check(!LeftStack == !RightStack);
     if (LeftStack != nullptr) {
-      model::Binary &RM = *RightModel;
-      if (auto R = ensureMatchingIDs(LeftStack->key(), RightStack->key(), RM))
+      model::Type::Key LeftSKey = LeftStack->key();
+      model::Type::Key RightSKey = RightStack->key();
+      llvm::StringRef ExpName = LeftModel->Types().at(LeftSKey)->OriginalName();
+      if (auto R = ensureIDMatch(LeftSKey, RightSKey, ExpName, *RightModel))
         RightReplacements.emplace(std::move(R.value()));
     }
 
-    if (auto R = ensureMatchingIDs(*LeftKey, *RightKey, *RightModel))
+    llvm::StringRef ExpName = LeftModel->Types().at(*LeftKey)->OriginalName();
+    if (auto R = ensureIDMatch(*LeftKey, *RightKey, ExpName, *RightModel))
       RightReplacements.emplace(std::move(R.value()));
   }
 
