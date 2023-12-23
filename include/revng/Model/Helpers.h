@@ -78,4 +78,25 @@ LHS &moveMetadata(LHS &To, RHS &&From) {
   return To;
 }
 
+template<typename Type>
+bool hasMetadata(Type &Value) {
+  if constexpr (EntityWithCustomName<Type>)
+    if (!Value.CustomName().empty())
+      return true;
+
+  if constexpr (EntityWithOriginalName<Type>)
+    if (!Value.OriginalName().empty())
+      return true;
+
+  if constexpr (EntityWithComment<Type>)
+    if (!Value.Comment().empty())
+      return true;
+
+  if constexpr (EntityWithReturnValueComment<Type>)
+    if (!Value.ReturnValueComment().empty())
+      return true;
+
+  return false;
+}
+
 } // namespace model
