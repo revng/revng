@@ -617,3 +617,177 @@ BOOST_AUTO_TEST_CASE(MutableEdgeNodeRemovalTest) {
   revng_check(C->successorCount() == 0);
   revng_check(C->predecessorCount() == 1);
 }
+
+// Helper to verify a node edge neighbors
+template<typename NodeType>
+static void
+verifyNeighbors(NodeType *N,
+                std::vector<std::pair<NodeType *, size_t>> Predecessors,
+                std::vector<std::pair<NodeType *, size_t>> Successors) {
+  auto NSuccessorEdges = N->successor_edges();
+  auto NSuccessorDistance = std::distance(NSuccessorEdges.begin(),
+                                          NSuccessorEdges.end());
+  auto NPredecessorEdges = N->predecessor_edges();
+  auto NPredecessorDistance = std::distance(NPredecessorEdges.begin(),
+                                            NPredecessorEdges.end());
+  auto NUndirectedEdges = N->undirected_child_edges();
+  auto NUndirectedDistance = std::distance(NUndirectedEdges.begin(),
+                                           NUndirectedEdges.end());
+  auto Count = N->successorCount() + N->predecessorCount();
+
+  long PredecessorNum = Predecessors.size();
+  long SuccessorNum = Successors.size();
+
+  // We test that the node as the expected successors, predecessors, and
+  // undirected edges
+  revng_check(PredecessorNum == NPredecessorDistance);
+  revng_check(SuccessorNum == NSuccessorDistance);
+  revng_check((SuccessorNum + PredecessorNum) == NUndirectedDistance);
+  revng_check(next(NUndirectedEdges.begin(), Count) == NUndirectedEdges.end());
+
+  // We check the order in which predecessors are visited
+  for (const auto &[Index, NEdgeView] : llvm::enumerate(NPredecessorEdges)) {
+    revng_check(NEdgeView.Neighbor == Predecessors.at(Index).first);
+    revng_check(*NEdgeView.Label == Predecessors.at(Index).second);
+  }
+
+  // We check the order in which successors are visited
+  for (const auto &[Index, NEdgeView] : llvm::enumerate(NSuccessorEdges)) {
+    revng_check(NEdgeView.Neighbor == Successors.at(Index).first);
+    revng_check(*NEdgeView.Label == Successors.at(Index).second);
+  }
+
+  // We check that the iteration on the undirected children is the expected one
+  // (successors first, and then the predecessors)
+  long Index = 0;
+  for (revng::detail::EdgeView NEdgeView : NUndirectedEdges) {
+
+    // Depending on whether we are in the successor or predecessor halves of the
+    // undirected iteration, we need to access either `Successors` or
+    // `Predecessors`
+    if (Index < SuccessorNum) {
+      revng_check(NEdgeView.Neighbor == Successors.at(Index).first);
+      revng_check(*NEdgeView.Label == Successors.at(Index).second);
+    } else {
+      long CorrectedIndex = Index - SuccessorNum;
+      revng_check(NEdgeView.Neighbor == Predecessors.at(CorrectedIndex).first);
+      revng_check(*NEdgeView.Label == Predecessors.at(CorrectedIndex).second);
+    }
+
+    Index++;
+  }
+}
+
+// Helper to verify the DFS order starting from a node
+template<typename NodeType>
+static void
+verifyDirectedDFSOrder(NodeType *Entry, std::vector<NodeType *> Order) {
+  size_t Index = 0;
+  for (const auto *DFSNode : llvm::depth_first(Entry)) {
+    revng_check(Order.at(Index) == DFSNode);
+    Index++;
+  }
+}
+
+// Helper to verify the DFS order on the undirected graph starting from a node
+template<typename NodeType>
+static void
+verifyUndirectedDFSOrder(NodeType *Entry, std::vector<NodeType *> Order) {
+  size_t Index = 0;
+  for (const auto *DFSNode : llvm::depth_first(llvm::Undirected(Entry))) {
+    revng_check(Order.at(Index) == DFSNode);
+    Index++;
+  }
+}
+
+// Test for the UndirectedChildIterator implementation
+BOOST_AUTO_TEST_CASE(MutableEdgeNodeUndirectedIteratorTest) {
+  GenericGraph<MutableEdgeNode<std::string, size_t>> Graph;
+
+  // We create a diamond shaped graph
+  auto *A = Graph.addNode("A");
+  auto *B = Graph.addNode("B");
+  auto *C = Graph.addNode("C");
+  auto *D = Graph.addNode("D");
+
+  Graph.setEntryNode(A);
+
+  A->addSuccessor(B, 1);
+  A->addSuccessor(C, 2);
+  B->addSuccessor(D, 3);
+  C->addSuccessor(D, 4);
+
+  verifyNeighbors(A, {}, { { B, 1 }, { C, 2 } });
+  verifyNeighbors(B, { { A, 1 } }, { { D, 3 } });
+  verifyNeighbors(C, { { A, 2 } }, { { D, 4 } });
+  verifyNeighbors(D, { { B, 3 }, { C, 4 } }, {});
+}
+
+// Test the the UndirectedChildIterator implementation with multiple edges
+// between the same node pair
+BOOST_AUTO_TEST_CASE(MultipleEdgesMutableEdgeNodeUndirectedIteratorTest) {
+  GenericGraph<MutableEdgeNode<std::string, size_t>> Graph;
+
+  // We create multiple edges between the same node pair
+  auto *A = Graph.addNode("A");
+  auto *B = Graph.addNode("B");
+
+  Graph.setEntryNode(A);
+
+  A->addSuccessor(B, 1);
+  A->addSuccessor(B, 2);
+
+  verifyNeighbors(A, {}, { { B, 1 }, { B, 2 } });
+  verifyNeighbors(B, { { A, 1 }, { A, 2 } }, {});
+
+  // We test that the undirected visit explores correctly the graph
+  verifyUndirectedDFSOrder(Graph.getEntryNode(), { A, B });
+}
+
+// Test the the UndirectedChildIterator implementation with multiple edges
+// between the same node pair
+BOOST_AUTO_TEST_CASE(LoopsMutableEdgeNodeUndirectedIteratorTest) {
+  GenericGraph<MutableEdgeNode<std::string, size_t>> Graph;
+
+  // We a graph with a main loop and a self loop
+  auto *A = Graph.addNode("A");
+  auto *B = Graph.addNode("B");
+  auto *C = Graph.addNode("C");
+
+  Graph.setEntryNode(A);
+
+  A->addSuccessor(B, 1);
+  B->addSuccessor(C, 2);
+  C->addSuccessor(A, 3);
+  C->addSuccessor(C, 4);
+
+  verifyNeighbors(A, { { C, 3 } }, { { B, 1 } });
+  verifyNeighbors(B, { { A, 1 } }, { { C, 2 } });
+  verifyNeighbors(C, { { B, 2 }, { C, 4 } }, { { A, 3 }, { C, 4 } });
+
+  // We test that the undirected visit explores correctly the graph
+  verifyUndirectedDFSOrder(Graph.getEntryNode(), { A, B, C });
+}
+
+BOOST_AUTO_TEST_CASE(MutableEdgeNodeUndirectedIteratorUndirectedVisitTest) {
+  GenericGraph<MutableEdgeNode<std::string, size_t>> Graph;
+
+  auto *A = Graph.addNode("A");
+  auto *B = Graph.addNode("B");
+  auto *C = Graph.addNode("C");
+  auto *D = Graph.addNode("D");
+  auto *E = Graph.addNode("E");
+
+  Graph.setEntryNode(A);
+
+  A->addSuccessor(B, 1);
+  A->addSuccessor(C, 2);
+  B->addSuccessor(E, 3);
+  C->addSuccessor(D, 4);
+  D->addSuccessor(E, 5);
+
+  // We test that the undirected visit gives a different order between node C
+  // and D visits
+  verifyDirectedDFSOrder(Graph.getEntryNode(), { A, B, E, C, D });
+  verifyUndirectedDFSOrder(Graph.getEntryNode(), { A, B, E, D, C });
+}
