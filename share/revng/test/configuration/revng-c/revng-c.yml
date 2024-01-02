@@ -3,74 +3,30 @@
 #
 
 commands:
-  - type: revng-c.lifting-artifacts-removed
+  - type: revng-c.ptml-decompiled-c
     from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
     suffix: .bc
     command: |-
-      revng llvm pipeline
-        "$INPUT"
-        "$OUTPUT"
-        EnforceABI
-        RemoveLiftingArtifacts
-        "*:LiftingArtifactsRemoved"
-  - type: revng-c.stack-pointer-promoted
-    from:
-      - type: revng-c.lifting-artifacts-removed
-    suffix: .bc
-    command: |-
-      revng llvm pipeline
-        "$INPUT"
-        "$OUTPUT"
-        RemoveLiftingArtifacts
-        PromoteStackPointer
-        "*:StackPointerPromoted"
-  - type: revng-c.analyzed
-    from:
-      - type: revng-c.stack-pointer-promoted
-      - type: revng-qa.compiled
-        filter: one-per-architecture
-    suffix: .bc
-    command: |-
-      revng llvm pipeline
-        "$INPUT1"
-        "$OUTPUT"
-        PromoteStackPointer
-        DetectStackSize
-        "*:StackPointerPromoted"
-        --analysis detect-stack-size;
-      revng llvm pipeline
-        --binary "$INPUT2"
-        "$OUTPUT"
-        "$OUTPUT"
-        DetectStackSize
-        MakeSegmentRefs
-        "*:StackAccessesSegregated"
-        --analysis dla
+      revng analyze revng-initial-auto-analysis "$INPUT1" --resume "$OUTPUT" -o /dev/null;
+      revng analyze detect-stack-size "$INPUT1" --resume "$OUTPUT" -o /dev/null;
+      revng analyze dla "$INPUT1" --resume "$OUTPUT" -o /dev/null;
+      revng artifact DecompiledYAMLToC "$INPUT1" --resume "$OUTPUT" -o /dev/null;
   - type: revng-c.vma
     from:
-      - type: revng-c.analyzed
-    command: revng opt -vma -vma-mincut-iter=50 "$INPUT" -o /dev/null
-  - type: revng-c.canonicalized
-    from:
-      - type: revng-c.analyzed
-      - type: revng-qa.compiled
-        filter: one-per-architecture
-    suffix: .bc
+      - type: revng-c.ptml-decompiled-c
     command: |-
-      revng llvm pipeline
-        --binary "$INPUT2"
-        "$INPUT1"
-        "$OUTPUT"
-        MakeSegmentRefs
-        IRCanonicalization
-        "*:StackAccessesSegregated"
+      LL_WITH_MODEL=$$(temp);
+      revng model inject "$INPUT"/context/model.yml "$INPUT"/MakeSegmentRefs/module.ll -o "$$LL_WITH_MODEL";
+      revng opt -vma -vma-mincut-iter=50 "$$LL_WITH_MODEL" -o /dev/null;
   - type: revng-c.ptml-model-to-header
     from:
-      - type: revng-c.analyzed
+      - type: revng-c.ptml-decompiled-c
     suffix: .ptml.model.h
     command: |-
-      revng model to-header -i "$INPUT" -o "$OUTPUT";
+      revng model to-header -i "$INPUT"/context/model.yml -o "$OUTPUT";
   - type: revng-c.model-to-header
     from:
       - type: revng-c.ptml-model-to-header
@@ -80,10 +36,12 @@ commands:
       revng check-decompiled-c "$OUTPUT";
   - type: revng-c.ptml-helpers-to-header
     from:
-      - type: revng-c.canonicalized
+      - type: revng-c.ptml-decompiled-c
     suffix: .ptml.helpers.h
     command: |-
-      revng helpers-to-header -i "$INPUT" -o "$OUTPUT";
+      LL_WITH_MODEL=$$(temp);
+      revng model inject "$INPUT"/context/model.yml "$INPUT"/IRCanonicalization/module.ll -o "$$LL_WITH_MODEL";
+      revng helpers-to-header -i "$$LL_WITH_MODEL" -o "$OUTPUT";
   - type: revng-c.helpers-to-header
     from:
       - type: revng-c.ptml-helpers-to-header
@@ -91,24 +49,12 @@ commands:
     command: |-
       revng ptml --plain "$INPUT" -o "$OUTPUT"
       revng check-decompiled-c "$OUTPUT"
-  - type: revng-c.ptml-decompiled-c
-    from:
-      - type: revng-c.canonicalized
-    suffix: .ptml.c
-    command: |-
-      MODEL=$$(temp);
-      revng model dump "$INPUT" > "$$MODEL";
-      revng pipeline
-        -m "$$MODEL"
-        -i "$INPUT:IRCanonicalization/module.ll"
-        -o "$OUTPUT:DecompiledYAMLToC/decompiled.c"
-        --produce DecompiledYAMLToC/decompiled.c/:DecompiledToC
   - type: revng-c.decompiled-c
     from:
       - type: revng-c.ptml-decompiled-c
     suffix: .c
     command: |-
-      revng ptml --plain "$INPUT" -o "$OUTPUT"
+      revng ptml --plain "$INPUT"/DecompiledYAMLToC/decompiled.c -o "$OUTPUT"
   - type: revng-c.check-decompiled-c-arch-i386
     from:
       - type: revng-c.decompiled-c

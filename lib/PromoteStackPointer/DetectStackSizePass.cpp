@@ -355,20 +355,20 @@ public:
     { &revng::kinds::StackPointerPromoted }
   };
 
-  llvm::Error run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
+  llvm::Error run(pipeline::ExecutionContext &Ctx,
+                  pipeline::LLVMContainer &Module) {
     using namespace revng;
 
     llvm::legacy::PassManager Manager;
-    auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
+    auto &Global = getWritableModelFromContext(Ctx);
 
-    const TupleTree<model::Binary> &Model = Global->get();
-    if (Model->Architecture() == model::Architecture::Invalid) {
+    if (Global->Architecture() == model::Architecture::Invalid) {
       return createStringError(inconvertibleErrorCode(),
                                "DetectStackSize analysis require a valid"
                                " Architecture");
     }
 
-    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
+    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));
     Manager.add(new DetectStackSizePass());
     Manager.run(Module.getModule());
 

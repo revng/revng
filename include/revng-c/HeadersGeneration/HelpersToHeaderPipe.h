@@ -42,7 +42,7 @@ public:
                                      InputPreservation::Preserve) } };
   }
 
-  void run(const pipeline::Context &Ctx,
+  void run(const pipeline::ExecutionContext &Ctx,
            pipeline::LLVMContainer &IRContainer,
            HelpersHeaderFileContainer &HeaderFile);
 

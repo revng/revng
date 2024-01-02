@@ -5,13 +5,7 @@
 commands:
   - type: revng-c.convert-llvm-to-mlir-llvm-dialect
     from:
-      - type: revng-c.analyzed
+      - type: revng-c.ptml-decompiled-c
     suffix: .mlir
     command: |-
-      MODEL=$$(temp);
-      revng model dump "$INPUT" > "$$MODEL";
-      revng pipeline
-        -m "$$MODEL"
-        -i "$INPUT:MakeSegmentRefs/module.ll"
-        -o "$OUTPUT:LLVMIRToMLIR/module.mlir"
-        --produce LLVMIRToMLIR/module.mlir/:MLIRLLVMModule
+      revng artifact LLVMIRToMLIR "$INPUT/begin/binary" --resume "$INPUT" -o "$OUTPUT"

@@ -83,7 +83,7 @@ class VMAPipeline {
 private:
   vma::TypeFlowGraph *TFG;
 
-  const model::Binary Model;
+  const model::Binary &Model;
 
 private:
   /// Initializers kickstart the VMA process by coloring some of the nodes of

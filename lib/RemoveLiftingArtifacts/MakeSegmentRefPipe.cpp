@@ -32,7 +32,7 @@ public:
     return { pipeline::ContractGroup({ BinaryPart, FunctionsPart }) };
   }
 
-  void run(pipeline::Context &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
 
@@ -48,7 +48,7 @@ public:
   }
 };
 
-void MakeSegmentRefs::run(pipeline::Context &Ctx,
+void MakeSegmentRefs::run(pipeline::ExecutionContext &Ctx,
                           const BinaryFileContainer &SourceBinary,
                           pipeline::LLVMContainer &TargetsList) {
   if (not SourceBinary.exists())

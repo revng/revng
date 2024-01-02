@@ -44,7 +44,7 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(const pipeline::Context &Ctx,
+  void run(const pipeline::ExecutionContext &Ctx,
            const DecompiledCCodeInYAMLStringMap &DecompiledFunctionsContainer,
            DecompiledFileContainer &OutCFile);
 
