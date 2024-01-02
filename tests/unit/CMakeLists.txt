@@ -315,22 +315,6 @@ revng_add_test(NAME test_pipeline COMMAND test_pipeline)
 set_tests_properties(test_pipeline PROPERTIES LABELS "unit")
 
 #
-# test_diff_invalidation_event
-#
-
-revng_add_test_executable(test_diff_invalidation_event
-                          "${SRC}/DiffInvalidationEvent.cpp")
-target_compile_definitions(test_diff_invalidation_event
-                           PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(test_diff_invalidation_event
-                           PRIVATE "${CMAKE_SOURCE_DIR}")
-target_link_libraries(test_diff_invalidation_event revngUnitTestHelpers
-                      revngPipes Boost::unit_test_framework ${LLVM_LIBRARIES})
-revng_add_test(NAME test_diff_invalidation_event COMMAND
-               test_diff_invalidation_event)
-set_tests_properties(test_diff_invalidation_event PROPERTIES LABELS "unit")
-
-#
 # test_pipeline_c
 #
 

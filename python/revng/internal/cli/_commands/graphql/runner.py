@@ -70,10 +70,13 @@ def run_analyses_lists(analyses_lists: List[str]):
             q = gql(
                 "mutation {"
                 + f'runAnalysesList(name: "{list_name}", index: "{index}")'
-                + "{ __typename } }"
+                + "{ __typename ... on SimpleError { errorType message } } }"
             )
             res = await client.execute(q)
-            assert res["runAnalysesList"]["__typename"] == "Diff"
+
+            if res["runAnalysesList"]["__typename"] != "Diff":
+                log(f"Analysis failed: {json.dumps(res, indent=2)}")
+                assert False
 
     return runner
 

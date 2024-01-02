@@ -11,11 +11,17 @@ commands:
     command: revng lift "$INPUT" "$OUTPUT"
   - type: revng.abi-enforced-for-decompilation
     from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
       - type: revng.lifted
     suffix: .bc
     command: |-
-      revng llvm pipeline "$INPUT" "$OUTPUT" Lift Lift ":Root" --analysis DetectABI;
-      revng llvm pipeline "$OUTPUT" "$OUTPUT" Lift EnforceABI "*:CSVsPromoted";
+      MODEL="$$(temp)";
+      TMP="$$(temp -d)";
+      revng model dump "$INPUT2" -o "$$MODEL";
+      revng analyze DetectABI "$INPUT1" --resume "$$TMP" -m "$$MODEL" -o /dev/null;
+      revng artifact EnforceABI "$INPUT1" --resume "$$TMP" -o /dev/null;
+      revng model inject "$$TMP"/context/model.yml "$$TMP"/EnforceABI/module.ll -o "$OUTPUT";
   - type: revng.test-python-model-serialization-roundtrip
     from:
       - type: revng.abi-enforced-for-decompilation

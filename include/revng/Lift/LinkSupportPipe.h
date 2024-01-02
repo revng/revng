@@ -27,7 +27,8 @@ public:
                                      pipeline::InputPreservation::Preserve) };
   }
 
-  void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &TargetsList);
+  void run(const pipeline::ExecutionContext &Ctx,
+           pipeline::LLVMContainer &TargetsList);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

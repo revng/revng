@@ -23,7 +23,7 @@
 #include "revng/Pipeline/CLOption.h"
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
-#include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/Option.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
@@ -63,9 +63,9 @@ concept ReturnsError = invokableTypeReturnsError<Invokable>();
 ///
 /// * It must have a static constexpr field named Name that is a string
 ///   describing its name. Mostly used for debug purposes.
-/// * a RetT run(T...) method where the first argument must be a Context& or
-///   const Context&, arguments after the first must be K& or const K& where
-///   K is derived from a container.
+/// * a RetT run(T...) method where the first argument must be a
+///   ExecutionContext& or const ExecutionContext&, arguments after the first
+///   must be K& or const K& where K is derived from a container.
 ///
 ///   Options after the last container can be of any type, but for each of
 ///   them there must exists an entry in a constexpr tuple named Options that
@@ -74,8 +74,8 @@ concept ReturnsError = invokableTypeReturnsError<Invokable>();
 ///   RetT can either be llvm::Error or void, if it is void then the invokable
 ///   never fails.
 ///
-template<typename InvokableType, typename FirstRunArg, typename... Rest>
-concept Invokable = convertible_to<Context &, std::remove_cv_t<FirstRunArg>>
+template<typename InvokableType, typename First, typename... Rest>
+concept Invokable = convertible_to<ExecutionContext &, std::remove_cv_t<First>>
                     and HasName<InvokableType>;
 
 namespace detail {
@@ -325,7 +325,7 @@ createCLOptions(llvm::cl::OptionCategory *Category = nullptr) {
 /// Invokes the F member function on the Pipe Pipe passing as nth argument the
 /// container with the name equal to the nth element of ArgsNames.
 template<typename InvokableType, typename ContextT, typename... Args>
-auto invokePipeFunction(Context &Ctx,
+auto invokePipeFunction(ExecutionContext &Ctx,
                         InvokableType &Pipe,
                         auto (InvokableType::*F)(ContextT &, Args...),
                         ContainerSet &Containers,
@@ -371,7 +371,7 @@ concept Printable = requires(InvokableType Pipe) {
 
 class InvokableWrapperBase {
 public:
-  virtual llvm::Error run(Context &Ctx,
+  virtual llvm::Error run(ExecutionContext &Ctx,
                           ContainerSet &Containers,
                           const llvm::StringMap<std::string> &Options = {}) = 0;
   virtual ~InvokableWrapperBase() = default;
@@ -412,7 +412,7 @@ public:
   std::string getName() const override { return InvokableType::Name; }
 
 public:
-  llvm::Error run(Context &Ctx,
+  llvm::Error run(ExecutionContext &Ctx,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &OptionArgs) override {
     if constexpr (invokableTypeReturnsError<InvokableType>()) {

@@ -133,7 +133,7 @@ static void runAnalysis(Runner &Pipeline, llvm::StringRef Target) {
   auto [AnalysisName, Rest2] = Rest.split("/");
 
   ContainerToTargetsMap ToProduce;
-  InvalidationMap Map;
+  TargetInStepSet Map;
   AbortOnError(parseTarget(Pipeline.getContext(), ToProduce, Rest2, Registry));
   AbortOnError(Pipeline.runAnalysis(AnalysisName, Step, ToProduce, Map));
 }
@@ -183,11 +183,12 @@ int main(int argc, char *argv[]) {
     auto Diff = AbortOnError(deserializeFileOrSTDIN<Type>(ApplyModelDiff));
 
     auto &Runner = Manager.getRunner();
-    InvalidationMap Map;
-    AbortOnError(Runner.apply(GlobalTupleTreeDiff(std::move(Diff)), Map));
+    TargetInStepSet Map;
+    GlobalTupleTreeDiff GlobalDiff(std::move(Diff), ModelGlobalName);
+    AbortOnError(Runner.apply(GlobalDiff, Map));
   }
 
-  InvalidationMap InvMap;
+  TargetInStepSet InvMap;
   for (auto &AnalysesListName : AnalysesLists) {
     if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
       AbortOnError(createStringError(inconvertibleErrorCode(),

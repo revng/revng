@@ -105,7 +105,7 @@ public:
   const pipeline::Step::AnalysisValueType &
   getAnalysis(const pipeline::AnalysisReference &Reference) const;
 
-  llvm::Expected<pipeline::InvalidationMap>
+  llvm::Expected<pipeline::TargetInStepSet>
   deserializeContainer(pipeline::Step &Step,
                        llvm::StringRef ContainerName,
                        const llvm::MemoryBuffer &Buffer);
@@ -140,8 +140,8 @@ public:
     return produceAllPossibleTargets(true);
   }
 
-  llvm::Expected<pipeline::InvalidationMap> invalidateAllPossibleTargets();
-  llvm::Expected<pipeline::InvalidationMap>
+  llvm::Expected<pipeline::TargetInStepSet> invalidateAllPossibleTargets();
+  llvm::Expected<pipeline::TargetInStepSet>
   invalidateFromDiff(const llvm::StringRef Name,
                      const pipeline::GlobalTupleTreeDiff &Diff);
 
@@ -171,7 +171,7 @@ public:
 
   llvm::Expected<pipeline::DiffMap>
   runAnalyses(const pipeline::AnalysesList &List,
-              pipeline::InvalidationMap &Map,
+              pipeline::TargetInStepSet &Map,
               const llvm::StringMap<std::string> &Options = {},
               llvm::raw_ostream *DiagnosticLog = nullptr);
 
@@ -179,7 +179,7 @@ public:
   runAnalysis(llvm::StringRef AnalysisName,
               llvm::StringRef StepName,
               const pipeline::ContainerToTargetsMap &Targets,
-              pipeline::InvalidationMap &Map,
+              pipeline::TargetInStepSet &Map,
               const llvm::StringMap<std::string> &Options = {},
               llvm::raw_ostream *DiagnosticLog = nullptr);
 

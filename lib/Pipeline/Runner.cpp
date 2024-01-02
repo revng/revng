@@ -40,11 +40,11 @@ static Error getObjectives(Runner &Runner,
                            const ContainerToTargetsMap &Targets,
                            std::vector<PipelineExecutionEntry> &ToExec) {
   ContainerToTargetsMap ToLoad = Targets;
-  auto *CurrentStep = &(Runner[EndingStepName]);
+  Step *CurrentStep = &(Runner[EndingStepName]);
   while (CurrentStep != nullptr and not ToLoad.empty()) {
 
     ContainerToTargetsMap Output = ToLoad;
-    ToLoad = CurrentStep->analyzeGoals(Runner.getContext(), ToLoad);
+    ToLoad = CurrentStep->analyzeGoals(ToLoad);
     ToExec.emplace_back(*CurrentStep, Output, ToLoad);
     CurrentStep = CurrentStep->hasPredecessor() ?
                     &CurrentStep->getPredecessor() :
@@ -82,7 +82,7 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
 
   for (size_t I = Requirements.size(); I != 0; I--) {
     StringRef StepName = Requirements[I - 1].ToExecute->getName();
-    const auto &TargetsNeeded = Requirements[I - 1].Input;
+    const ContainerToTargetsMap &TargetsNeeded = Requirements[I - 1].Input;
 
     indent(ExplanationLogger, 1);
     ExplanationLogger << StepName << ":\n";
@@ -92,9 +92,9 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   ExplanationLogger << DoLog;
 }
 
-Error Runner::getInvalidations(InvalidationMap &Invalidated) const {
+Error Runner::getInvalidations(TargetInStepSet &Invalidated) const {
 
-  for (const auto &NextS : *this) {
+  for (const Step &NextS : *this) {
     if (not NextS.hasPredecessor())
       continue;
 
@@ -104,7 +104,7 @@ Error Runner::getInvalidations(InvalidationMap &Invalidated) const {
 
     ContainerToTargetsMap &Outputs = Invalidated[NextS.getName()];
 
-    auto Deduced = NextS.deduceResults(getContext(), Inputs);
+    ContainerToTargetsMap Deduced = NextS.deduceResults(Inputs);
     NextS.containers().intersect(Deduced);
     Outputs.merge(Deduced);
   }
@@ -121,8 +121,8 @@ Step &Runner::addStep(Step &&NewStep) {
 }
 
 llvm::Error Runner::getInvalidations(const Target &Target,
-                                     InvalidationMap &Invalidations) const {
-  for (const auto &Step : *this)
+                                     TargetInStepSet &Invalidations) const {
+  for (const Step &Step : *this)
     for (const auto &Container : Step.containers()) {
       if (Container.second == nullptr)
         continue;
@@ -131,7 +131,7 @@ llvm::Error Runner::getInvalidations(const Target &Target,
         Invalidations[Step.getName()].add(Container.first(), Target);
       }
     }
-  if (auto Error = getInvalidations(Invalidations); !!Error)
+  if (llvm::Error Error = getInvalidations(Invalidations); !!Error)
     return Error;
 
   return llvm::Error::success();
@@ -139,7 +139,7 @@ llvm::Error Runner::getInvalidations(const Target &Target,
 
 Error Runner::invalidate(const Target &Target) {
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
-  if (auto Error = getInvalidations(Target, Invalidations); !!Error)
+  if (llvm::Error Error = getInvalidations(Target, Invalidations); !!Error)
     return Error;
   return invalidate(Invalidations);
 }
@@ -192,7 +192,7 @@ Error Runner::store(const revng::DirectoryPath &DirPath) const {
     return Error;
 
   for (const auto &StepName : Steps.keys()) {
-    if (auto Error = storeStepToDisk(StepName, DirPath); !!Error) {
+    if (llvm::Error Error = storeStepToDisk(StepName, DirPath); !!Error) {
       return Error;
     }
   }
@@ -240,10 +240,10 @@ llvm::Expected<DiffMap>
 Runner::runAnalysis(llvm::StringRef AnalysisName,
                     llvm::StringRef StepName,
                     const ContainerToTargetsMap &Targets,
-                    InvalidationMap &InvalidationsMap,
+                    TargetInStepSet &InvalidationsMap,
                     const llvm::StringMap<std::string> &Options) {
 
-  auto Before = getContext().getGlobals();
+  GlobalsMap Before = getContext().getGlobals();
 
   auto MaybeStep = Steps.find(StepName);
 
@@ -255,23 +255,22 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 
   Task T(3, "Analysis execution");
   T.advance("Produce step " + StepName, true);
-  if (auto Error = run(StepName, Targets))
+  if (llvm::Error Error = run(StepName, Targets))
     return std::move(Error);
 
   T.advance("Run analysis", true);
-  if (auto Error = MaybeStep->second.runAnalysis(AnalysisName,
-                                                 *TheContext,
-                                                 Targets,
-                                                 Options);
+  if (llvm::Error Error = MaybeStep->second.runAnalysis(AnalysisName,
+                                                        Targets,
+                                                        Options);
       Error) {
     return std::move(Error);
   }
 
   T.advance("Apply diff produced by the analysis", true);
-  auto &After = getContext().getGlobals();
-  auto Map = Before.diff(After);
+  const GlobalsMap &After = getContext().getGlobals();
+  DiffMap Map = Before.diff(After);
   for (const auto &GlobalNameDiffPair : Map)
-    if (auto Error = apply(GlobalNameDiffPair.second, InvalidationsMap))
+    if (llvm::Error Error = apply(GlobalNameDiffPair.second, InvalidationsMap))
       return std::move(Error);
 
   return std::move(Map);
@@ -280,34 +279,38 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 /// Run all analysis in reverse post order (that is: parents first),
 llvm::Expected<DiffMap>
 Runner::runAnalyses(const AnalysesList &List,
-                    InvalidationMap &InvalidationsMap,
+                    TargetInStepSet &InvalidationsMap,
                     const llvm::StringMap<std::string> &Options) {
-  auto Before = getContext().getGlobals();
+  GlobalsMap Before = getContext().getGlobals();
 
   Task T(List.size() + 1, "Analysis list " + List.getName());
   for (const AnalysisReference &Ref : List) {
     T.advance(Ref.getAnalysisName(), true);
-    const auto &Step = getStep(Ref.getStepName());
-    const auto &Analysis = Step.getAnalysis(Ref.getAnalysisName());
+    const Step &Step = getStep(Ref.getStepName());
+    const AnalysisWrapper &Analysis = Step.getAnalysis(Ref.getAnalysisName());
     ContainerToTargetsMap Map;
-    const auto &Containers = Analysis->getRunningContainersNames();
+    const std::vector<std::string>
+      &Containers = Analysis->getRunningContainersNames();
     for (size_t I = 0; I < Containers.size(); I++) {
       for (const Kind *K : Analysis->getAcceptedKinds(I)) {
         Map.add(Containers[I], TargetsList::allTargets(getContext(), *K));
       }
     }
 
+    TargetInStepSet NewInvalidationsMap;
     auto Result = runAnalysis(Ref.getAnalysisName(),
                               Step.getName(),
                               Map,
-                              InvalidationsMap,
+                              NewInvalidationsMap,
                               Options);
     if (not Result)
       return Result.takeError();
+    for (auto &NewEntry : NewInvalidationsMap)
+      InvalidationsMap[NewEntry.first()].merge(NewEntry.second);
   }
 
   T.advance("Computing analysis list diff", true);
-  auto &After = getContext().getGlobals();
+  const GlobalsMap &After = getContext().getGlobals();
   return Before.diff(After);
 }
 
@@ -315,7 +318,7 @@ Error Runner::run(const State &ToProduce) {
   Task T(ToProduce.size(), "Multi-step pipeline run");
   for (const auto &Request : ToProduce) {
     T.advance(Request.first(), true);
-    if (auto Error = run(Request.first(), Request.second))
+    if (llvm::Error Error = run(Request.first(), Request.second))
       return Error;
   }
 
@@ -327,7 +330,8 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
   vector<PipelineExecutionEntry> ToExec;
 
-  if (auto Error = getObjectives(*this, EndingStepName, Targets, ToExec); Error)
+  if (llvm::Error Error = getObjectives(*this, EndingStepName, Targets, ToExec);
+      Error)
     return Error;
 
   explainPipeline(Targets, ToExec);
@@ -335,9 +339,9 @@ Error Runner::run(llvm::StringRef EndingStepName,
   if (ToExec.size() <= 1)
     return Error::success();
 
-  for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
-    auto &Step = *StepGoalsPairs.ToExecute;
-    if (auto Error = Step.checkPrecondition(getContext()); Error)
+  for (PipelineExecutionEntry &StepGoalsPairs : llvm::drop_begin(ToExec)) {
+    Step &Step = *StepGoalsPairs.ToExecute;
+    if (llvm::Error Error = Step.checkPrecondition(); Error)
       return llvm::make_error<AnnotatedError>(std::move(Error),
                                               "While scheduling step "
                                                 + Step.getName() + ":");
@@ -351,16 +355,16 @@ Error Runner::run(llvm::StringRef EndingStepName,
     Task T2(3, "Run step");
     T2.advance("Clone and filter input containers", true);
 
-    auto &Parent = Step->getPredecessor();
-    auto CurrentContainer = Parent.containers().cloneFiltered(Input);
+    ::Step &Parent = Step->getPredecessor();
+    ContainerSet CurrentContainer = Parent.containers().cloneFiltered(Input);
 
     // Run the step
     T2.advance("Run the step", true);
-    Step->run(*TheContext, std::move(CurrentContainer));
+    Step->run(std::move(CurrentContainer));
 
     T2.advance("Extract the requested targets", true);
     if (VerifyLog.isEnabled()) {
-      auto Produced = Step->containers().cloneFiltered(PredictedOutput);
+      ContainerSet Produced = Step->containers().cloneFiltered(PredictedOutput);
       revng_check(Produced.enumerate().contains(PredictedOutput),
                   "predicted output was not fully contained in actually "
                   "produced");
@@ -381,11 +385,11 @@ Error Runner::run(llvm::StringRef EndingStepName,
   return Error::success();
 }
 
-Error Runner::invalidate(const InvalidationMap &Invalidations) {
+Error Runner::invalidate(const TargetInStepSet &Invalidations) {
   for (const auto &Step : Invalidations) {
-    const auto &StepName = Step.first();
-    const auto &ToRemove = Step.second;
-    if (auto Error = operator[](StepName).invalidate(ToRemove); Error)
+    llvm::StringRef StepName = Step.first();
+    const ContainerToTargetsMap &ToRemove = Step.second;
+    if (llvm::Error Error = operator[](StepName).invalidate(ToRemove); Error)
       return Error;
   }
   return Error::success();
@@ -406,7 +410,7 @@ void Runner::deduceAllPossibleTargets(State &Out) const {
       continue;
 
     const Step &Step = NextStep.getPredecessor();
-    auto Result = NextStep.deduceResults(getContext(), Out[Step.getName()]);
+    auto Result = NextStep.deduceResults(Out[Step.getName()]);
     Out[NextStep.getName()].merge(std::move(Result));
   }
 }
@@ -415,36 +419,38 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 }
 
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
-                                  InvalidationMap &Map) const {
-  // the custom write invalidation rules do not know what is the current
-  // content of each container, so first we overestimate the targets to be
-  // invalidated, and then we do the intersection between the overestimated one
-  // and those that do exists.
-  TargetsList OverestimatedTargets;
-  for (const Kind &Kind : getKindsRegistry())
-    Kind.getInvalidations(getContext(), OverestimatedTargets, Diff);
+                                  TargetInStepSet &Map) const {
 
-  for (const auto &Step : llvm::drop_begin(*this)) {
+  for (const Step &Step : llvm::drop_begin(*this)) {
     auto &StepInvalidations = Map[Step.getName()];
     for (const auto &Container : Step.containers()) {
       if (not Container.second)
         continue;
 
-      const TargetsList &ExisitingTargets = Container.second->enumerate();
-      TargetsList NewTargets;
-      for (const auto &Target : OverestimatedTargets)
-        if (ExisitingTargets.contains(Target))
-          NewTargets.emplace_back(Target);
+      const TargetsList &ExistingTargets = Container.second->enumerate();
+      // for all targets that are not cached anywhere, mark them to be deleated
+      // every time, since we must be conservative
+      for (const Target &Target : ExistingTargets) {
 
-      StepInvalidations[Container.first()] = NewTargets;
+        TargetInContainer ToFind(Target, Container.first().str());
+        if (Step.invalidationMetadataContains(Diff.getGlobalName(), ToFind))
+          continue;
+
+        StepInvalidations[Container.first()].push_back(Target);
+      }
+    }
+
+    for (const TupleTreePath *Path : Diff.getPaths()) {
+      Step.registerTargetsDependingOn(Diff.getGlobalName(), *Path, Map);
     }
   }
 }
 
 llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff,
-                          InvalidationMap &Map) {
+                          TargetInStepSet &Map) {
   getDiffInvalidations(Diff, Map);
   if (auto Error = getInvalidations(Map); Error)
     return Error;
+
   return invalidate(Map);
 }

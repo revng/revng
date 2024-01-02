@@ -256,13 +256,13 @@ public:
                      pipeline::InputPreservation::Preserve);
     return { pipeline::ContractGroup({ FunctionsContract, BinaryContract }) };
   }
-  void run(const pipeline::Context &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            const pipeline::LLVMContainer &Module,
            HexDumpFileContainer &Output) {
     pipeline::TargetsList Enumeration = Module.enumerate();
 
-    if (not Enumeration.contains(kinds::Isolated.allTargets(Ctx)))
+    if (not Enumeration.contains(kinds::Isolated.allTargets(Ctx.getContext())))
       return;
 
     if (not SourceBinary.exists())

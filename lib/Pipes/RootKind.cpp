@@ -42,27 +42,6 @@ IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
   return std::nullopt;
 }
 
-void RootKind::getInvalidations(const Context &Ctx,
-                                TargetsList &ToRemove,
-                                const GlobalTupleTreeDiff &Base) const {
-
-  const auto *Diff = Base.getAs<model::Binary>();
-  if (not Diff)
-    return;
-
-  const TupleTreePath ToCheck = *stringAsPath<model::Binary>("/ExtraCodeAddre"
-                                                             "ss"
-                                                             "es");
-
-  bool RootChanged = llvm::any_of(Diff->Changes, [&ToCheck](const auto &Entry) {
-    const auto &[Path, Old, New] = Entry;
-    return ToCheck.isPrefixOf(Path);
-  });
-
-  if (RootChanged)
-    ToRemove.emplace_back(*this);
-}
-
 void RootKind::appendAllTargets(const Context &Ctx, TargetsList &Out) const {
   Out.push_back(Target(*this));
 }

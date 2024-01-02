@@ -176,7 +176,7 @@ public:
     return Contract;
   }
 
-  void run(const Context &, LLVMContainer &Container);
+  void run(const ExecutionContext &, LLVMContainer &Container);
 
   void addPass(const PureLLVMPassWrapper &Pass) {
     Passes.emplace_back(Pass.clone());

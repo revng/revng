@@ -391,14 +391,14 @@ private:
   }
 };
 
-using InvalidationMap = llvm::StringMap<ContainerToTargetsMap>;
+using TargetInStepSet = llvm::StringMap<ContainerToTargetsMap>;
 
 llvm::Error parseTarget(const Context &Ctx,
                         ContainerToTargetsMap &CurrentStatus,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict);
 
-inline void merge(InvalidationMap &Map, const InvalidationMap &Other) {
+inline void merge(TargetInStepSet &Map, const TargetInStepSet &Other) {
   for (const auto &Entry : Other) {
     if (auto Iter = Map.find(Entry.first()); Iter != Map.end()) {
       Iter->second.merge(Entry.second);

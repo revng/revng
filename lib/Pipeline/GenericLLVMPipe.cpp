@@ -29,7 +29,7 @@ std::unique_ptr<LLVMPassWrapperBase> PureLLVMPassWrapper::clone() const {
   return std::make_unique<PureLLVMPassWrapper>(*this);
 }
 
-void GenericLLVMPipe::run(const Context &, LLVMContainer &Container) {
+void GenericLLVMPipe::run(const ExecutionContext &, LLVMContainer &Container) {
   llvm::legacy::PassManager Manager;
   for (const auto &Element : Passes)
     Element->registerPasses(Manager);

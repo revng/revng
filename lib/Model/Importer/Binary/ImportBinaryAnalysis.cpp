@@ -16,7 +16,7 @@
 
 using namespace revng::pipes;
 
-llvm::Error ImportBinaryAnalysis::run(pipeline::Context &Context,
+llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
                                       const BinaryFileContainer &SourceBinary) {
   if (not SourceBinary.exists())
     return llvm::Error::success();

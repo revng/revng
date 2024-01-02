@@ -30,6 +30,11 @@ getModelFromContext(const pipeline::Context &Ctx) {
   return Model->get();
 }
 
+inline const TupleTree<model::Binary> &
+getModelFromContext(const pipeline::ExecutionContext &Ctx) {
+  return getModelFromContext(Ctx.getContext());
+}
+
 inline TupleTree<model::Binary> &
 getWritableModelFromContext(pipeline::Context &Ctx) {
   using Wrapper = ModelGlobal;
@@ -38,4 +43,8 @@ getWritableModelFromContext(pipeline::Context &Ctx) {
   return Model->get();
 }
 
+inline TupleTree<model::Binary> &
+getWritableModelFromContext(pipeline::ExecutionContext &Ctx) {
+  return getWritableModelFromContext(Ctx.getContext());
+}
 } // namespace revng

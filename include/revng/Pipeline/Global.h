@@ -13,8 +13,10 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
+#include "revng/Pipeline/PathTargetBimap.h"
 #include "revng/Storage/Path.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/Tracking.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
 namespace pipeline {
@@ -57,6 +59,18 @@ public:
 
   virtual llvm::Error store(const revng::FilePath &Path) const;
   virtual llvm::Error load(const revng::FilePath &Path);
+
+  virtual std::optional<TupleTreePath>
+  deserializePath(llvm::StringRef Serialized) const = 0;
+  virtual std::optional<std::string>
+  serializePath(const TupleTreePath &Path) const = 0;
+
+  virtual void collectReadFields(const TargetInContainer &Target,
+                                 PathTargetBimap &Out) = 0;
+  virtual void clearAndResume() const = 0;
+  virtual void pushReadFields() const = 0;
+  virtual void popReadFields() const = 0;
+  virtual void stopTracking() const = 0;
 };
 
 template<TupleTreeCompatibleAndVerifiable Object>
@@ -124,7 +138,10 @@ public:
 
   llvm::Expected<GlobalTupleTreeDiff>
   deserializeDiff(const llvm::MemoryBuffer &Buffer) override {
-    return ::deserialize<TupleTreeDiff<Object>>(Buffer.getBuffer());
+    auto MaybeDiff = ::deserialize<TupleTreeDiff<Object>>(Buffer.getBuffer());
+    if (not MaybeDiff)
+      return MaybeDiff.takeError();
+    return GlobalTupleTreeDiff(std::move(*MaybeDiff), getName());
   }
 
   bool verify() const override { return Value->verify(); }
@@ -132,7 +149,7 @@ public:
   GlobalTupleTreeDiff diff(const Global &Other) const override {
     const TupleTreeGlobal &Casted = llvm::cast<TupleTreeGlobal>(Other);
     auto Diff = ::diff(*Value, *Casted.Value);
-    return GlobalTupleTreeDiff(std::move(Diff));
+    return GlobalTupleTreeDiff(std::move(Diff), getName());
   }
 
   llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) override {
@@ -159,6 +176,33 @@ public:
 
   const TupleTree<Object> &get() const { return Value; }
   TupleTree<Object> &get() { return Value; }
+
+  std::optional<TupleTreePath>
+  deserializePath(llvm::StringRef Serialized) const override {
+    return stringAsPath<Object>(Serialized);
+  }
+
+  std::optional<std::string>
+  serializePath(const TupleTreePath &Path) const override {
+    return pathAsString<Object>(Path);
+  }
+
+  void collectReadFields(const TargetInContainer &Target,
+                         PathTargetBimap &Out) override {
+    const TupleTree<Object> &AsConst = Value;
+    ReadFields Results = revng::Tracking::collect(*AsConst);
+    for (const TupleTreePath &Result : Results.Read)
+      Out.insert(Target, Result);
+    for (const TupleTreePath &Result : Results.ExactVectors)
+      Out.insert(Target, Result);
+  }
+
+  void clearAndResume() const override {
+    revng::Tracking::clearAndResume(*Value);
+  }
+  void pushReadFields() const override { revng::Tracking::push(*Value); }
+  void popReadFields() const override { revng::Tracking::pop(*Value); }
+  void stopTracking() const override { revng::Tracking::stop(*Value); }
 };
 
 } // namespace pipeline

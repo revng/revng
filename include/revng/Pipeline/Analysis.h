@@ -74,7 +74,7 @@ public:
     Invokable.print(Ctx, OS, Indentation);
   }
 
-  llvm::Error run(Context &Ctx,
+  llvm::Error run(ExecutionContext &Ctx,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &ExtraArgs) override {
     return Invokable.run(Ctx, Containers, ExtraArgs);

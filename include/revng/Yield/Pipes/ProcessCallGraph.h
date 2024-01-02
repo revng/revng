@@ -63,7 +63,7 @@ public:
   }
 
 public:
-  void run(pipeline::Context &Context,
+  void run(pipeline::ExecutionContext &Context,
            const pipeline::LLVMContainer &TargetsList,
            CrossRelationsFileContainer &OutputFile);
 

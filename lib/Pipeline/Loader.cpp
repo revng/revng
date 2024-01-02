@@ -148,7 +148,7 @@ Loader::parseInvocation(Step &Step,
       continue;
 
     const auto &RoleName = ReadOnlyNames.find(ContainerName)->second;
-    if (Pipe->isContainerArgumentConst(Index))
+    if (Pipe.Pipe->isContainerArgumentConst(Index))
       continue;
 
     if (PipelineContext->hasRegisteredReadOnlyContainer(ContainerName)) {

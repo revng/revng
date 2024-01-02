@@ -343,7 +343,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCompile) {
 
 BOOST_AUTO_TEST_CASE(TrackingResetterShouldCompile) {
   model::Binary Model;
-  revng::Tracking::clear(Model);
+  revng::Tracking::clearAndResume(Model);
 }
 
 BOOST_AUTO_TEST_CASE(TrackingPushAndPopperShouldCompile) {
@@ -356,7 +356,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldBeEmptyAtFirst) {
   model::Binary Model;
   auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64, 0);
   Model.Segments().insert(Segment(MetaAddress, 1000));
-  revng::Tracking::clear(Model);
+  revng::Tracking::clearAndResume(Model);
 
   auto Collected = revng::Tracking::collect(Model);
   BOOST_TEST(Collected.Read.size() == 0);
@@ -367,7 +367,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
   const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
                                                0);
   Model.Segments().insert(Segment(MetaAddress, 1000));
-  revng::Tracking::clear(Model);
+  revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
   ConstModel.Segments().at(Segment::Key(MetaAddress, 1000)).StartAddress();
 
@@ -389,7 +389,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
   model::Binary Model;
   const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
                                                0);
-  revng::Tracking::clear(Model);
+  revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
   ConstModel.Segments().tryGet(Segment::Key(MetaAddress, 1000));
 
@@ -407,7 +407,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
   const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
                                                0);
   Model.Segments().insert(Segment(MetaAddress, 1000));
-  revng::Tracking::clear(Model);
+  revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
   ConstModel.Segments().begin();
 
@@ -428,7 +428,7 @@ BOOST_AUTO_TEST_CASE(QualifiersInsideAVectorAreNotVisited) {
   const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
                                                0);
   Type.Qualifiers().push_back(Qualifier());
-  revng::Tracking::clear(Type);
+  revng::Tracking::clearAndResume(Type);
   const auto &ConstType = Type;
   ConstType.Qualifiers().at(0).Size();
 

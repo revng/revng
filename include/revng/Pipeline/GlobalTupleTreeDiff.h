@@ -12,14 +12,26 @@ namespace pipeline {
 class GlobalTupleTreeDiffBase {
 private:
   char *ID;
+  llvm::StringRef GlobalName;
+
+public:
+  virtual ~GlobalTupleTreeDiffBase() = default;
+  GlobalTupleTreeDiffBase(char *ID, llvm::StringRef GlobalName) :
+    ID(ID), GlobalName(GlobalName) {}
 
 public:
   virtual void serialize(llvm::raw_ostream &OS) const = 0;
-  virtual ~GlobalTupleTreeDiffBase() = default;
+
+public:
   virtual std::unique_ptr<GlobalTupleTreeDiffBase> clone() const = 0;
-  virtual bool isEmpty() const = 0;
-  GlobalTupleTreeDiffBase(char *ID) : ID(ID) {}
+
+public:
   const char *getID() const { return ID; }
+
+public:
+  virtual bool isEmpty() const = 0;
+  llvm::StringRef getGlobalName() const { return GlobalName; }
+  virtual llvm::SmallVector<const TupleTreePath *, 4> getPaths() const = 0;
 };
 
 template<TupleTreeCompatible T>
@@ -33,8 +45,8 @@ private:
   }
 
 public:
-  GlobalTupleTreeDiffImpl(TupleTreeDiff<T> Diff) :
-    GlobalTupleTreeDiffBase(getID()), Diff(std::move(Diff)) {}
+  GlobalTupleTreeDiffImpl(TupleTreeDiff<T> Diff, llvm::StringRef GlobalName) :
+    GlobalTupleTreeDiffBase(getID(), GlobalName), Diff(std::move(Diff)) {}
 
   ~GlobalTupleTreeDiffImpl() override = default;
 
@@ -55,6 +67,14 @@ public:
 
   TupleTreeDiff<T> &getDiff() { return Diff; }
   const TupleTreeDiff<T> &getDiff() const { return Diff; }
+
+  llvm::SmallVector<const TupleTreePath *, 4> getPaths() const override {
+    llvm::SmallVector<const TupleTreePath *, 4> ToReturn;
+    for (const Change<T> &Entry : Diff.Changes) {
+      ToReturn.emplace_back(&Entry.Path);
+    }
+    return ToReturn;
+  }
 };
 
 class GlobalTupleTreeDiff {
@@ -63,8 +83,8 @@ private:
 
 public:
   template<TupleTreeCompatible T>
-  GlobalTupleTreeDiff(TupleTreeDiff<T> Diff) :
-    Diff(new GlobalTupleTreeDiffImpl<T>(std::move(Diff))) {}
+  GlobalTupleTreeDiff(TupleTreeDiff<T> Diff, llvm::StringRef GlobalName) :
+    Diff(new GlobalTupleTreeDiffImpl<T>(std::move(Diff), GlobalName)) {}
 
   GlobalTupleTreeDiff(GlobalTupleTreeDiff &&) = default;
   GlobalTupleTreeDiff &operator=(GlobalTupleTreeDiff &&) = default;
@@ -101,7 +121,12 @@ public:
     return &Casted->getDiff();
   }
 
+  llvm::SmallVector<const TupleTreePath *, 4> getPaths() const {
+    return Diff->getPaths();
+  }
+
   bool isEmpty() const { return Diff.get()->isEmpty(); }
+  llvm::StringRef getGlobalName() const { return Diff->getGlobalName(); }
 };
 
 using DiffMap = llvm::StringMap<GlobalTupleTreeDiff>;

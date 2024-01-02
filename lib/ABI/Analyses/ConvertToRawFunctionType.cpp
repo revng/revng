@@ -20,7 +20,7 @@ public:
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  void run(pipeline::Context &Context) {
+  void run(pipeline::ExecutionContext &Context) {
     auto &Model = revng::getWritableModelFromContext(Context);
 
     model::VerifyHelper VH;

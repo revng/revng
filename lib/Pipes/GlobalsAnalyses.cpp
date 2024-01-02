@@ -16,7 +16,7 @@
 namespace revng::pipes {
 
 template<bool commit>
-static llvm::Error applyDiffImpl(pipeline::Context &Ctx,
+static llvm::Error applyDiffImpl(pipeline::ExecutionContext &Ctx,
                                  std::string DiffGlobalName,
                                  std::string DiffContent) {
   if (DiffGlobalName.empty()) {
@@ -27,7 +27,7 @@ static llvm::Error applyDiffImpl(pipeline::Context &Ctx,
   std::unique_ptr<llvm::MemoryBuffer>
     Buffer = llvm::MemoryBuffer::getMemBuffer(DiffContent);
 
-  auto GlobalOrError = Ctx.getGlobals().get(DiffGlobalName);
+  auto GlobalOrError = Ctx.getContext().getGlobals().get(DiffGlobalName);
   if (not GlobalOrError)
     return GlobalOrError.takeError();
 
@@ -54,20 +54,20 @@ static llvm::Error applyDiffImpl(pipeline::Context &Ctx,
   return llvm::Error::success();
 }
 
-llvm::Error ApplyDiffAnalysis::run(pipeline::Context &Ctx,
+llvm::Error ApplyDiffAnalysis::run(pipeline::ExecutionContext &Ctx,
                                    std::string DiffGlobalName,
                                    std::string DiffContent) {
   return applyDiffImpl<true>(Ctx, DiffGlobalName, DiffContent);
 }
 
-llvm::Error VerifyDiffAnalysis::run(pipeline::Context &Ctx,
+llvm::Error VerifyDiffAnalysis::run(pipeline::ExecutionContext &Ctx,
                                     std::string DiffGlobalName,
                                     std::string DiffContent) {
   return applyDiffImpl<false>(Ctx, DiffGlobalName, DiffContent);
 }
 
 template<bool commit>
-inline llvm::Error setGlobalImpl(pipeline::Context &Ctx,
+inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &Ctx,
                                  std::string SetGlobalName,
                                  std::string GlobalContent) {
   if (SetGlobalName.empty()) {
@@ -78,7 +78,8 @@ inline llvm::Error setGlobalImpl(pipeline::Context &Ctx,
   std::unique_ptr<llvm::MemoryBuffer>
     Buffer = llvm::MemoryBuffer::getMemBuffer(GlobalContent);
 
-  auto MaybeNewGlobal = Ctx.getGlobals().createNew(SetGlobalName, *Buffer);
+  auto MaybeNewGlobal = Ctx.getContext().getGlobals().createNew(SetGlobalName,
+                                                                *Buffer);
   if (not MaybeNewGlobal)
     return MaybeNewGlobal.takeError();
 
@@ -89,7 +90,7 @@ inline llvm::Error setGlobalImpl(pipeline::Context &Ctx,
   }
 
   if constexpr (commit) {
-    auto GlobalOrError = Ctx.getGlobals().get(SetGlobalName);
+    auto GlobalOrError = Ctx.getContext().getGlobals().get(SetGlobalName);
     if (not GlobalOrError)
       return GlobalOrError.takeError();
 
@@ -99,13 +100,13 @@ inline llvm::Error setGlobalImpl(pipeline::Context &Ctx,
   return llvm::Error::success();
 }
 
-llvm::Error SetGlobalAnalysis::run(pipeline::Context &Ctx,
+llvm::Error SetGlobalAnalysis::run(pipeline::ExecutionContext &Ctx,
                                    std::string SetGlobalName,
                                    std::string GlobalContent) {
   return setGlobalImpl<true>(Ctx, SetGlobalName, GlobalContent);
 }
 
-llvm::Error VerifyGlobalAnalysis::run(pipeline::Context &Ctx,
+llvm::Error VerifyGlobalAnalysis::run(pipeline::ExecutionContext &Ctx,
                                       std::string SetGlobalName,
                                       std::string GlobalContent) {
   return setGlobalImpl<false>(Ctx, SetGlobalName, GlobalContent);

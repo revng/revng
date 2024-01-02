@@ -27,6 +27,21 @@ public:
     return ToReturn;
   }
 
+private:
+  static const Global *
+  dereferenceIterator(const MapType::const_iterator::value_type &Pair) {
+    return Pair.second.get();
+  }
+
+public:
+  auto begin() const {
+    return llvm::map_iterator(Map.begin(), dereferenceIterator);
+  }
+
+  auto end() const {
+    return llvm::map_iterator(Map.end(), dereferenceIterator);
+  }
+
   template<typename ToAdd, typename... T>
   void emplace(llvm::StringRef Name, T &&...Args) {
     Map.try_emplace(Name.str(),
@@ -137,6 +152,29 @@ public:
       Map.try_emplace(Entry.first, Entry.second->clone());
 
     return *this;
+  }
+  void collectReadFields(const TargetInContainer &Target,
+                         llvm::StringMap<PathTargetBimap> &Out) const {
+    for (const auto &Global : Map) {
+      Global.second->collectReadFields(Target, Out[Global.first]);
+    }
+  }
+
+  void clearAndResume() const {
+    for (const auto &Global : Map)
+      Global.second->clearAndResume();
+  }
+  void pushReadFields() const {
+    for (const auto &Global : Map)
+      Global.second->pushReadFields();
+  }
+  void popReadFields() const {
+    for (const auto &Global : Map)
+      Global.second->popReadFields();
+  }
+  void stopTracking() const {
+    for (const auto &Global : Map)
+      Global.second->stopTracking();
   }
 };
 } // namespace pipeline

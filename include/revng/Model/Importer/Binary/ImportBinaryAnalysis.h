@@ -24,7 +24,7 @@ public:
   };
 
 public:
-  llvm::Error run(pipeline::Context &Context,
+  llvm::Error run(pipeline::ExecutionContext &Context,
                   const BinaryFileContainer &SourceBinary);
 };
 

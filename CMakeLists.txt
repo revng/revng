@@ -36,6 +36,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG OFF)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   add_flag_if_available("-Wno-unused-local-typedefs")

@@ -20,11 +20,13 @@ class CppHeadersGenerator:
         schema: Schema,
         root_type: str,
         emit_tracking: bool,
+        emit_tracking_debug: bool,
         user_include_path: Optional[str] = None,
     ):
         self.schema = schema
         self.root_type = root_type
         self.emit_tracking = emit_tracking
+        self.emit_tracking_debug = emit_tracking_debug
 
         if not user_include_path:
             user_include_path = ""
@@ -134,6 +136,7 @@ class CppHeadersGenerator:
                     generator=self,
                     includes=includes,
                     emit_tracking=self.emit_tracking,
+                    emit_tracking_debug=self.emit_tracking_debug,
                 )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = self.enum_template.render(enum=type_to_emit)

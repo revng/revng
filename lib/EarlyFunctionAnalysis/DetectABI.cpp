@@ -99,7 +99,8 @@ public:
     Implementation.print(Ctx, OS, ContainerNames);
   }
 
-  void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &Container) {
+  void run(const pipeline::ExecutionContext &Ctx,
+           pipeline::LLVMContainer &Container) {
     Implementation.run(Ctx, Container);
   }
 };

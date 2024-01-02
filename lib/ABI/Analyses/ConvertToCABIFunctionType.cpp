@@ -165,7 +165,7 @@ public:
   };
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  void run(pipeline::Context &Context,
+  void run(pipeline::ExecutionContext &Context,
            std::string TargetABI,
            std::string Mode,
            std::string ABIConfidence) {

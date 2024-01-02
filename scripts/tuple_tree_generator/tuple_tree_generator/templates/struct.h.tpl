@@ -20,6 +20,8 @@ The notice below applies to the generated files.
 #include "revng/Support/AccessTracker.h"
 /**- endif **/
 
+void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName);
+
 /**- for header in includes **/
 #include "/*= generator.user_include_path =*//*= header =*/"
 /**- endfor **/
@@ -39,6 +41,7 @@ struct /*= struct | fullname =*/
 {
   /** if emit_tracking -**/
   friend struct revng::Tracking;
+  inline static constexpr bool HasTracking = true;
   /**- endif **/
 
   /** if struct.inherits **/
@@ -57,7 +60,7 @@ private:
   static_assert(Yamlizable</*= field | field_type =*/>);
 
   /**- if emit_tracking **/
-  mutable revng::AccessTracker /*= field.name =*/Tracker;
+  mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
   /** endif -**/
 
 public:
@@ -68,8 +71,15 @@ public:
     /**- if emit_tracking **/
     /**- if not field in struct.key_fields **/
     /*= field.name =*/Tracker.access();
+
+    /**- if emit_tracking_debug **/
+    if (/*= field.name =*/Tracker.peak())
+      fieldAccessed("/*= field.name =*/" , "/*= struct | fullname =*/");
+    /** endif -**/
+
     /** endif -**/
     /** endif -**/
+
     return The/*= field.name =*/;
   }
 

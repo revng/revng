@@ -20,6 +20,19 @@ class TaggedFunctionKind : public pipeline::LLVMKind {
 private:
   const FunctionTags::Tag *Tag;
 
+  // It is on the heap to avoid Initialization Order Fiasco
+  std::unique_ptr<llvm::SmallVector<TaggedFunctionKind *>> Children = nullptr;
+
+  // we have a redundant extra list of children here that would be a subset of
+  // that present in kind because kinds are not upcastable, and so we would not
+  // be able to know which one we care about without a second list.
+  void registerChild(TaggedFunctionKind *Child) {
+    if (Children == nullptr)
+      Children = std::make_unique<llvm::SmallVector<TaggedFunctionKind *>>();
+
+    Children->push_back(Child);
+  }
+
 public:
   template<typename BaseRank>
   TaggedFunctionKind(llvm::StringRef Name,
@@ -32,15 +45,12 @@ public:
                      TaggedFunctionKind &Parent,
                      const BaseRank &Rank,
                      const FunctionTags::Tag &Tag) :
-    pipeline::LLVMKind(Name, Parent, Rank), Tag(&Tag) {}
+    pipeline::LLVMKind(Name, Parent, Rank), Tag(&Tag) {
+    Parent.registerChild(this);
+  }
 
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
-
-  void
-  getInvalidations(const pipeline::Context &Ctx,
-                   pipeline::TargetsList &ToRemove,
-                   const pipeline::GlobalTupleTreeDiff &Diff) const override;
 
   void appendAllTargets(const pipeline::Context &Ctx,
                         pipeline::TargetsList &Out) const override;

@@ -18,6 +18,7 @@ revng_add_library_internal(
   RegisterKind.cpp
   Registry.cpp
   Step.cpp
+  ExecutionContext.cpp
   Target.cpp
   Global.cpp
   GlobalsMap.cpp)

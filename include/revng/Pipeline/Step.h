@@ -69,10 +69,12 @@ private:
   Step *PreviousStep;
   ArtifactsInfo Artifacts;
   AnalysisMapType AnalysisMap;
+  Context *Ctx;
 
 public:
   template<typename... PipeWrapperTypes>
-  Step(std::string Name,
+  Step(Context &Ctx,
+       std::string Name,
        std::string Component,
        ContainerSet Containers,
        PipeWrapperTypes &&...PipeWrappers) :
@@ -80,10 +82,12 @@ public:
     Component(std::move(Component)),
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
-    PreviousStep(nullptr) {}
+    PreviousStep(nullptr),
+    Ctx(&Ctx) {}
 
   template<typename... PipeWrapperTypes>
-  Step(std::string Name,
+  Step(Context &Ctx,
+       std::string Name,
        std::string Component,
        ContainerSet Containers,
        Step &PreviousStep,
@@ -92,7 +96,48 @@ public:
     Component(std::move(Component)),
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
-    PreviousStep(&PreviousStep) {}
+    PreviousStep(&PreviousStep),
+    Ctx(&Ctx) {}
+
+public:
+  // TODO: drop the Out parameter pattern if favour of coorutines in the whole
+  // codebase.
+  void registerTargetsDependingOn(llvm::StringRef GlobalName,
+                                  const TupleTreePath &Path,
+                                  TargetInStepSet &Out) const {
+    ContainerToTargetsMap OutMap;
+    for (const PipeWrapper &Pipe : Pipes) {
+      Pipe.InvalidationMetadata.registerTargetsDependingOn(*Ctx,
+                                                           GlobalName,
+                                                           Path,
+                                                           OutMap);
+    }
+    for (auto &Container : OutMap) {
+      if (Containers.contains(Container.first()))
+        Container.second = Container.second.intersect(Containers
+                                                        .at(Container.first())
+                                                        .enumerate());
+    }
+    Out[getName()].merge(OutMap);
+  }
+
+  bool invalidationMetadataContains(llvm::StringRef GlobalName,
+                                    const TargetInContainer &Target) const {
+    for (const PipeWrapper &Pipe : Pipes) {
+      if (Pipe.InvalidationMetadata.contains(GlobalName, Target))
+        return false;
+    }
+    return true;
+  }
+
+private:
+  llvm::Error loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
+                                           ContainerSet::value_type &Pair);
+
+private:
+  llvm::Error loadInvalidationMetadata(const revng::DirectoryPath &Path);
+
+  llvm::Error storeInvalidationMetadata(const revng::DirectoryPath &Path) const;
 
 public:
   void addAnalysis(llvm::StringRef Name, AnalysisWrapper Analysis) {
@@ -164,7 +209,7 @@ public:
       return nullptr;
     }
 
-    auto &ContainerName = Artifacts.Container;
+    const std::string &ContainerName = Artifacts.Container;
     if (Containers.isContainerRegistered(ContainerName)) {
       Containers[ContainerName];
       return &*Containers.find(ContainerName);
@@ -196,27 +241,24 @@ public:
 
 public:
   llvm::Error runAnalysis(llvm::StringRef AnalysisName,
-                          Context &Ctx,
                           const ContainerToTargetsMap &Targets,
                           const llvm::StringMap<std::string> &ExtraArgs = {});
 
   /// Executes all the pipes of this step, merges the results in the final
   /// containers and returns the containers filtered according to the request.
-  ContainerSet run(Context &Ctx, ContainerSet &&Targets);
+  ContainerSet run(ContainerSet &&Targets);
 
   /// Returns the set of goals that are already contained in the backing
   /// containers of this step, furthermore adds to the container ToLoad those
   /// that were not present.
   ContainerToTargetsMap
-  analyzeGoals(const Context &Ctx,
-               const ContainerToTargetsMap &RequiredGoals) const;
+  analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const;
 
-  llvm::Error checkPrecondition(const Context &Ctx) const;
+  llvm::Error checkPrecondition() const;
 
   /// Returns the predicted state of the Input containers status after the
   /// execution of all the pipes in this step.
-  ContainerToTargetsMap deduceResults(const Context &Ctx,
-                                      ContainerToTargetsMap Input) const;
+  ContainerToTargetsMap deduceResults(ContainerToTargetsMap Input) const;
 
 public:
   void addPipe(PipeWrapper Wrapper) { Pipes.push_back(std::move(Wrapper)); }
@@ -237,8 +279,8 @@ public:
 
     indent(OS, Indentation + 1);
     OS << "Pipes: \n";
-    for (const auto &Pipe : Pipes)
-      Pipe.dump(OS, Indentation + 2);
+    for (const PipeWrapper &Pipe : Pipes)
+      Pipe.Pipe.dump(OS, Indentation + 2);
 
     indent(OS, Indentation + 1);
     OS << " containers: \n";
@@ -256,8 +298,7 @@ private:
   void removeSatisfiedGoals(ContainerToTargetsMap &Targets,
                             ContainerToTargetsMap &ToLoad) const;
 
-  void explainExecutedPipe(const Context &Ctx,
-                           const InvokableWrapperBase &Wrapper,
+  void explainExecutedPipe(const InvokableWrapperBase &Wrapper,
                            size_t Indentation = 0) const;
   void explainStartStep(const ContainerToTargetsMap &Wrapper,
                         size_t Indentation = 0) const;

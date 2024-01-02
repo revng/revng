@@ -49,8 +49,8 @@ static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
 
-static InvalidationMap getInvalidationMap(Runner &Pipeline) {
-  InvalidationMap Invalidations;
+static TargetInStepSet getTargetInStepSet(Runner &Pipeline) {
+  TargetInStepSet Invalidations;
 
   const auto &Registry = Pipeline.getKindsRegistry();
   for (llvm::StringRef Target : Targets) {
@@ -63,8 +63,8 @@ static InvalidationMap getInvalidationMap(Runner &Pipeline) {
   return Invalidations;
 }
 
-static void dumpInvalidationMap(llvm::raw_ostream &OS,
-                                const InvalidationMap &Map) {
+static void dumpTargetInStepSet(llvm::raw_ostream &OS,
+                                const TargetInStepSet &Map) {
   for (const auto &Pair : Map) {
     OS << Pair.first();
     Pair.second.dump(OS, 1);
@@ -78,11 +78,11 @@ int main(int argc, char *argv[]) {
 
   auto Manager = AbortOnError(BaseOptions.makeManager());
 
-  auto Map = getInvalidationMap(Manager.getRunner());
+  auto Map = getTargetInStepSet(Manager.getRunner());
   AbortOnError(Manager.getRunner().getInvalidations(Map));
 
   if (DumpPredictedRemovals) {
-    dumpInvalidationMap(llvm::outs(), Map);
+    dumpTargetInStepSet(llvm::outs(), Map);
     return EXIT_SUCCESS;
   }
 

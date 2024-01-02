@@ -248,12 +248,18 @@ function(
     set(TRACKING "")
   endif()
 
+  if(${TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG})
+    set(TRACKING_DEBUG "--tracking-debug")
+  else()
+    set(TRACKING_DEBUG "")
+  endif()
+
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py" --namespace
       "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}" --root-type
       \""${ROOT_TYPE}"\" ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
-      "${OUTPUT_DIR}" ${TRACKING}
+      "${OUTPUT_DIR}" ${TRACKING} ${TRACKING_DEBUG}
     OUTPUT ${EXPECTED_GENERATED_HEADERS} ${EXPECTED_GENERATED_IMPLS}
     DEPENDS "${YAML_DEFINITIONS}" ${CPP_TEMPLATES}
             "${SCRIPTS_ROOT_DIR}/extract_yaml.py"

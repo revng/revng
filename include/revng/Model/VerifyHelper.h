@@ -21,8 +21,54 @@ inline Logger<> ModelVerifyLogger("model-verify");
 namespace model {
 class Type;
 class Identifier;
-
 class VerifyHelper {
+private:
+  template<typename TrackableTupleTree>
+  class TrackingSuspender {
+  private:
+    VerifyHelper *TheContext;
+    std::optional<TrackGuard<TrackableTupleTree>> Guard;
+
+  public:
+    TrackingSuspender(TrackingSuspender &&Other) :
+      TheContext(Other.TheContext), Guard(std::move(Other.Guard)) {}
+    TrackingSuspender &operator=(TrackingSuspender &Other) {
+      if (this == Other)
+        return *this;
+
+      onDestruction();
+      TheContext = Other.TheContext;
+      Guard = std::move(Other.Guard);
+      return *this;
+    }
+    TrackingSuspender(const TrackingSuspender &Other) = delete;
+    TrackingSuspender &operator=(const TrackingSuspender &Other) = delete;
+
+  public:
+    TrackingSuspender(VerifyHelper &Context,
+                      const TrackableTupleTree &Trackable) :
+      TheContext(&Context), Guard(std::nullopt) {
+      revng_assert(TheContext != nullptr);
+      if (not Context.hasPushedTracking()) {
+        Context.setPushedTracking();
+        Guard = TrackGuard<TrackableTupleTree>(Trackable);
+      }
+    }
+
+  public:
+    ~TrackingSuspender() { onDestruction(); }
+
+  private:
+    void onDestruction() {
+      if (Guard.has_value()) {
+        TheContext->setPushedTracking(false);
+        Guard = std::nullopt;
+      }
+    }
+  };
+
+  friend class VerifyHelper;
+
 private:
   std::set<const model::Type *> VerifiedCache;
   std::map<const model::Type *, uint64_t> SizeCache;
@@ -30,6 +76,7 @@ private:
   std::set<const model::Type *> InProgress;
   bool AssertOnFail = false;
   std::map<model::Identifier, std::string> GlobalSymbols;
+  bool HasPushedTracking = false;
 
   // TODO: This is a hack for now, but the methods, when the Model does not
   // verify, should return an llvm::Error with the error message found by this.
@@ -40,6 +87,19 @@ public:
   VerifyHelper(bool AssertOnFail) : AssertOnFail(AssertOnFail) {}
 
   ~VerifyHelper() { revng_assert(InProgress.size() == 0); }
+
+private:
+  bool hasPushedTracking() const { return HasPushedTracking; }
+
+  void setPushedTracking(bool HasPushed = true) {
+    HasPushedTracking = HasPushed;
+  }
+
+public:
+  template<typename T>
+  TrackingSuspender<T> suspendTracking(const T &Trackable) {
+    return TrackingSuspender<T>(*this, Trackable);
+  }
 
 public:
   void setVerified(const model::Type *T) {

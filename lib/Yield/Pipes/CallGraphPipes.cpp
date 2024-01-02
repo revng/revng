@@ -24,7 +24,7 @@ using ptml::PTMLBuilder;
 
 namespace revng::pipes {
 
-void ProcessCallGraph::run(pipeline::Context &Context,
+void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
                            const pipeline::LLVMContainer &TargetList,
                            CrossRelationsFileContainer &OutputFile) {
   // Access the model
@@ -51,7 +51,7 @@ void ProcessCallGraph::print(const pipeline::Context &,
   OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
-void YieldCallGraph::run(pipeline::Context &Context,
+void YieldCallGraph::run(pipeline::ExecutionContext &Context,
                          const CrossRelationsFileContainer &Relations,
                          CallGraphSVGFileContainer &Output) {
   // Access the model
@@ -71,7 +71,7 @@ void YieldCallGraph::print(const pipeline::Context &,
   OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
-void YieldCallGraphSlice::run(pipeline::Context &Context,
+void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
                               const pipeline::LLVMContainer &TargetList,
                               const CrossRelationsFileContainer &Relations,
                               CallGraphSliceSVGStringMap &Output) {

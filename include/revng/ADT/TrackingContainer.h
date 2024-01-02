@@ -57,7 +57,7 @@ public:
 
 private:
   T Content;
-  mutable AccessTracker Exact;
+  mutable AccessTracker Exact = AccessTracker(false);
   mutable std::vector<TrackingSet> NonExisting;
   mutable std::vector<llvm::BitVector> Existing;
 
@@ -67,7 +67,7 @@ public:
   /// \defgroup Methods related to tracking
   /// @{
 
-  void stopTracking() { TrackingIsActive = false; }
+  void stopTracking() const { TrackingIsActive = false; }
   void clearTracking() const {
     Exact.clear();
     NonExisting = {};
@@ -107,7 +107,7 @@ public:
     if (NonExisting.empty())
       NonExisting.push_back(TrackingSet());
 
-    Exact.push();
+    Exact.pop();
   }
 
   /// @}
@@ -316,6 +316,7 @@ private:
       return;
     auto Iter = Content.find(Key);
     revng_assert(Iter != Content.end());
+    revng_assert(Existing.back().size() == Content.size());
 
     Existing.back()[std::distance(Content.begin(), Iter)] = true;
   }

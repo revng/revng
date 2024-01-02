@@ -56,9 +56,7 @@ public:
   auto end() const { return Tags.end(); }
 
 public:
-  bool containsExactly(const Tag &Target) const {
-    return Tags.contains(&Target);
-  }
+  bool containsExactly(const Tag &Target) const;
 
   // TODO: This seems non-obvious to me. I feel like it would be more natural
   //       for this to be called `containsDescendants`, while `containsExactly`
@@ -150,6 +148,19 @@ public:
     return make_filter_range(M->globals(), Filter);
   }
 };
+
+inline bool TagsSet::containsExactly(const Tag &Target) const {
+  // if the input is not inside me, return false
+  if (Tags.count(&Target) == 0)
+    return false;
+
+  // for each element of me, if the target is a ancestor but is not exactly that
+  // tag, return false
+  for (const Tag *T : Tags)
+    if (Target.ancestorOf(*T) and &Target != T)
+      return false;
+  return true;
+}
 
 inline bool TagsSet::contains(const Tag &Target) const {
   for (const Tag *T : Tags)

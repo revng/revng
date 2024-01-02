@@ -46,7 +46,7 @@ public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds;
 
 public:
-  llvm::Error run(pipeline::Context &Context) {
+  llvm::Error run(pipeline::ExecutionContext &Context) {
     std::vector<std::unique_ptr<WellKnownModel>> WellKnownModels;
     std::map<WellKnownFunctionKey,
              std::pair<WellKnownModel *, model::Function *>>

@@ -20,6 +20,10 @@
 /// The field Read is the set of paths of fields that were accessed.
 /// The exact vectors contains the paths of all vectors that were marked as
 /// requiring being identical.
+///
+/// We divide into read and exact vectors because when we will introduce the
+/// cold start invalidation based on the hash, the hash will be different
+/// depending if they are just read or if they are vectors required to be exact.
 struct ReadFields {
   std::set<TupleTreePath> Read;
   std::set<TupleTreePath> ExactVectors;
@@ -66,6 +70,18 @@ private:
     }
   };
 
+  struct StopTrackingVisitor {
+    template<revng::SetOrKOC Type>
+    static void visitKeyedObjectContainer(const Type &CurrentItem) {
+      CurrentItem.stopTracking();
+    }
+
+    template<typename Type, size_t FieldIndex>
+    static void visitTupleElement(const Type &CurrentItem) {
+      CurrentItem.template getTracker<FieldIndex>().stopTracking();
+    }
+  };
+
 private:
   template<typename M, size_t I = 0, typename T>
   static void
@@ -73,8 +89,9 @@ private:
     if constexpr (I < std::tuple_size_v<T>) {
 
       Stack.push_back(size_t(I));
-      if (LHS.template getTracker<I>().isSet())
+      if (LHS.template getTracker<I>().isSet()) {
         Info.Read.insert(Stack);
+      }
       collectImpl<M>(LHS.template untrackedGet<I>(), Stack, Info);
       Stack.pop_back();
 
@@ -102,7 +119,8 @@ private:
     if (TrackingResult.Exact)
       Info.ExactVectors.insert(Stack);
 
-    for (auto &Key : TrackingResult.InspectedKeys) {
+    using KeyType = std::remove_cv_t<typename T::key_type>;
+    for (KeyType Key : TrackingResult.InspectedKeys) {
       Stack.push_back(Key);
       Info.Read.insert(Stack);
       Stack.pop_back();
@@ -110,10 +128,7 @@ private:
     for (auto &LHSElement : LHS.Content) {
       using value_type = typename T::value_type;
 
-      if constexpr (TupleSizeCompatible<value_type>)
-        Stack.push_back(LHSElement.untrackedKey());
-      else
-        Stack.push_back(KeyedObjectTraits<value_type>::key(LHSElement));
+      Stack.push_back(KeyedObjectTraits<value_type>::key(LHSElement));
 
       collectImpl<M>(LHSElement, Stack, Info);
       Stack.pop_back();
@@ -163,14 +178,16 @@ private:
 public:
   template<typename M>
   static ReadFields collect(const M &LHS) {
+    stop(LHS);
     TupleTreePath Stack;
     ReadFields Info;
     collectImpl<M>(LHS, Stack, Info);
+    clearAndResume(LHS);
     return Info;
   }
 
   template<typename M>
-  static void clear(const M &LHS) {
+  static void clearAndResume(const M &LHS) {
     visitTuple<M, ClearVisitor>(LHS);
   }
 
@@ -183,6 +200,10 @@ public:
   static void pop(const M &LHS) {
     visitTuple<M, PopVisitor>(LHS);
   }
-};
 
+  template<typename M>
+  static void stop(const M &LHS) {
+    visitTuple<M, StopTrackingVisitor>(LHS);
+  }
+};
 } // namespace revng

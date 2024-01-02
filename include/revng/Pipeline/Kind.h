@@ -108,10 +108,6 @@ public:
 public:
   virtual ~Kind() = default;
 
-  virtual void getInvalidations(const Context &Ctx,
-                                pipeline::TargetsList &ToRemove,
-                                const GlobalTupleTreeDiff &Diff) const {}
-
   virtual void appendAllTargets(const Context &Ctx, TargetsList &Out) const = 0;
   TargetsList allTargets(const Context &Ctx) const;
 

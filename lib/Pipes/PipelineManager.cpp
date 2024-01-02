@@ -272,7 +272,7 @@ llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName) {
   return StorageClient->commit();
 }
 
-llvm::Expected<InvalidationMap>
+llvm::Expected<TargetInStepSet>
 PipelineManager::deserializeContainer(pipeline::Step &Step,
                                       llvm::StringRef ContainerName,
                                       const llvm::MemoryBuffer &Buffer) {
@@ -318,9 +318,9 @@ PipelineManager::store(llvm::ArrayRef<std::string> StoresOverrides) {
   return llvm::Error::success();
 }
 
-llvm::Expected<InvalidationMap>
+llvm::Expected<TargetInStepSet>
 PipelineManager::invalidateAllPossibleTargets() {
-  InvalidationMap ResultMap;
+  TargetInStepSet ResultMap;
   auto Stream = ExplanationLogger.getAsLLVMStream();
   recalculateAllPossibleTargets();
 
@@ -346,7 +346,7 @@ PipelineManager::invalidateAllPossibleTargets() {
         *Stream << Step.first() << "/" << Container.first() << "/";
         Target.dump(*Stream);
 
-        InvalidationMap Map;
+        TargetInStepSet Map;
         Map[Step.first()][Container.first()].push_back(Target);
         if (auto Error = Runner->getInvalidations(Map); Error)
           return std::move(Error);
@@ -403,7 +403,7 @@ PipelineManager::getAnalysis(const AnalysisReference &Reference) const {
 
 llvm::Expected<DiffMap>
 PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
-                             InvalidationMap &Map,
+                             TargetInStepSet &Map,
                              const llvm::StringMap<std::string> &Options,
                              llvm::raw_ostream *DiagnosticLog) {
   auto Result = Runner->runAnalyses(List, Map, Options);
@@ -411,11 +411,7 @@ PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
   if (not Result)
     return Result.takeError();
 
-  // TODO: to remove once invalidations are working
-  if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
-    Map = Invalidations.get();
-  else
-    return Invalidations.takeError();
+  recalculateAllPossibleTargets();
 
   PipelineContext->bumpCommitIndex();
   return Result;
@@ -425,7 +421,7 @@ llvm::Expected<DiffMap>
 PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
                              llvm::StringRef StepName,
                              const ContainerToTargetsMap &Targets,
-                             InvalidationMap &Map,
+                             TargetInStepSet &Map,
                              const llvm::StringMap<std::string> &Options,
                              llvm::raw_ostream *DiagnosticLog) {
   auto Result = Runner->runAnalysis(AnalysisName,
@@ -438,20 +434,14 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
 
   recalculateAllPossibleTargets();
 
-  // TODO: to remove once invalidations are working
-  if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
-    Map = Invalidations.get();
-  else
-    return Invalidations.takeError();
-
   PipelineContext->bumpCommitIndex();
   return Result;
 }
 
-llvm::Expected<InvalidationMap>
+llvm::Expected<TargetInStepSet>
 PipelineManager::invalidateFromDiff(const llvm::StringRef Name,
                                     const pipeline::GlobalTupleTreeDiff &Diff) {
-  InvalidationMap Map;
+  TargetInStepSet Map;
   if (auto ApplyError = getRunner().apply(Diff, Map); !!ApplyError)
     return std::move(ApplyError);
 

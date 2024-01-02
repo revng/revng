@@ -143,16 +143,16 @@ static void compileModuleRunImpl(const Context &Ctx,
   fs::setPermissions(*TargetBinary.path(), Permissions);
 }
 
-void CompileModule::run(const Context &Ctx,
+void CompileModule::run(const ExecutionContext &Ctx,
                         LLVMContainer &Module,
                         ObjectFileContainer &TargetBinary) {
-  compileModuleRunImpl(Ctx, Module, TargetBinary);
+  compileModuleRunImpl(Ctx.getContext(), Module, TargetBinary);
 }
 
-void CompileIsolatedModule::run(const Context &Ctx,
+void CompileIsolatedModule::run(const ExecutionContext &Ctx,
                                 LLVMContainer &Module,
                                 ObjectFileContainer &TargetBinary) {
-  compileModuleRunImpl(Ctx, Module, TargetBinary);
+  compileModuleRunImpl(Ctx.getContext(), Module, TargetBinary);
 }
 
 static RegisterPipe<CompileModule> E2;

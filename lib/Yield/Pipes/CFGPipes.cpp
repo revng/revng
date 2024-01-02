@@ -16,7 +16,7 @@ using ptml::PTMLBuilder;
 
 namespace revng::pipes {
 
-void YieldControlFlow::run(pipeline::Context &Context,
+void YieldControlFlow::run(pipeline::ExecutionContext &Context,
                            const FunctionAssemblyStringMap &Input,
                            FunctionControlFlowStringMap &Output) {
   // Access the model

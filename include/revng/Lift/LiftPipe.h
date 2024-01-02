@@ -36,7 +36,7 @@ public:
                                      pipeline::InputPreservation::Preserve) };
   }
 
-  void run(pipeline::Context &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
 

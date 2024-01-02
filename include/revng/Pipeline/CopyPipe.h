@@ -21,7 +21,7 @@ public:
   }
 
 public:
-  void run(const Context &, const Source &S, Destination &T) { T = S; }
+  void run(const ExecutionContext &, const Source &S, Destination &T) { T = S; }
 };
 
 } // namespace pipeline
