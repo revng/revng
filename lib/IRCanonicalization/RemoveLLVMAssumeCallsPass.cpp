@@ -32,7 +32,6 @@ static Reg
   X("remove-llvmassume-calls", "Removes calls to assume intrinsic", true, true);
 
 void RemoveAssumePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelWrapperPass>();
 }
 
 bool RemoveAssumePass::runOnFunction(Function &F) {
