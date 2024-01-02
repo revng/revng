@@ -369,8 +369,6 @@ private:
   SequenceNode(const std::string &Name) : ASTNode(NK_List, Name) {}
 
 public:
-  SequenceNode(BasicBlockNodeBB *CFGNode) : ASTNode(NK_List, CFGNode) {}
-
   static SequenceNode *createEmpty(const std::string &Name) {
     return new SequenceNode(Name);
   }
