@@ -70,6 +70,8 @@
 #include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
+#include "ALAPVariableDeclaration.h"
+
 using llvm::cast;
 using llvm::dyn_cast;
 using llvm::isa;
@@ -98,9 +100,6 @@ using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
 using InlineableTypesMap = std::unordered_map<const model::Function *,
                                               std::set<const model::Type *>>;
-
-using LocalVarDeclSet = llvm::SmallSetVector<const CallInst *, 4>;
-using ASTVarDeclMap = std::unordered_map<const ASTNode *, LocalVarDeclSet>;
 
 static constexpr const char *StackFrameVarName = "_stack";
 
@@ -2152,8 +2151,7 @@ static bool hasLoopDispatchers(const ASTTree &GHAST) {
 
 static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
                                                      const ASTTree &GHAST) {
-  const ASTNode *Entry = GHAST.getRoot();
-  ASTVarDeclMap Result;
+  PendingVariableListType PendingVariables;
   for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {
 
@@ -2168,15 +2166,16 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
       // All local variable declarations should go in the entry scope for now
       if (isLocalVarDecl(Call) or isCallStackArgumentDecl(Call)
           or isArtificialAggregateLocalVarDecl(Call)
-          or isHelperAggregateLocalVarDecl(Call))
-        Result[Entry].insert(Call);
+          or isHelperAggregateLocalVarDecl(Call)) {
+        PendingVariables.push_back(Call);
+      }
 
       revng_assert(not isCallToNonIsolated(Call)
                    or not Call->getCalledFunction()->isTargetIntrinsic());
     }
   }
 
-  return Result;
+  return computeVarDeclMap(GHAST, PendingVariables);
 }
 
 using Container = revng::pipes::DecompileStringMap;

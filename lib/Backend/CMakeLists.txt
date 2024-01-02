@@ -3,8 +3,13 @@
 #
 
 revng_add_analyses_library(
-  revngcBackend revngc DecompilePipe.cpp DecompileFunction.cpp
-  DecompileToSingleFile.cpp DecompileToSingleFilePipe.cpp)
+  revngcBackend
+  revngc
+  ALAPVariableDeclaration.cpp
+  DecompilePipe.cpp
+  DecompileFunction.cpp
+  DecompileToSingleFile.cpp
+  DecompileToSingleFilePipe.cpp)
 
 target_link_libraries(
   revngcBackend
