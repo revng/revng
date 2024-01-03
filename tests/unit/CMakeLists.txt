@@ -431,3 +431,13 @@ revng_add_test(
   "${CMAKE_CURRENT_SOURCE_DIR}/GzipTarFileGeneratorTest.sh"
   "${CMAKE_BINARY_DIR}")
 set_tests_properties(test_GzipTarFileGenerator PROPERTIES LABELS "unit")
+
+revng_add_test_executable(test_type_bucket "${SRC}/TypeBucket.cpp")
+target_compile_definitions(test_type_bucket PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_type_bucket PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(
+  test_type_bucket revngModel revngSupport revngUnitTestHelpers
+  Boost::unit_test_framework ${LLVM_LIBRARIES})
+revng_add_test(NAME test_type_bucket COMMAND test_type_bucket)
+set_tests_properties(test_type_bucket PROPERTIES LABELS
+                                                 "unit;model;type_bucket")
