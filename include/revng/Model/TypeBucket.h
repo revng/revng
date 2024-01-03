@@ -4,23 +4,29 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 
-namespace abi::FunctionType {
+namespace model {
 
 /// This is simple type container that allows keeping types connected to
 /// a specific binary without inserting them in.
-struct TypeBucket {
+class TypeBucket {
 private:
   using TypeVector = llvm::SmallVector<UpcastablePointer<model::Type>, 16>;
+
+private:
   TypeVector Types;
   model::Binary &Binary;
-  uint64_t NextAvailableTypeID = 0;
+  uint64_t FirstAvailableTypeID;
+  uint64_t NextAvailableTypeID;
 
 public:
   TypeBucket(model::Binary &Binary) :
-    Binary(Binary), NextAvailableTypeID(Binary.getAvailableTypeID()) {}
+    Binary(Binary),
+    FirstAvailableTypeID(Binary.getAvailableTypeID()),
+    NextAvailableTypeID(FirstAvailableTypeID) {}
+  TypeBucket(const TypeBucket &Another) = delete;
+  TypeBucket(TypeBucket &&Another) = default;
   ~TypeBucket() {
     revng_assert(Types.empty(),
                  "The bucket has to be explicitly committed or dropped.");
@@ -31,7 +37,11 @@ public:
   ///
   /// The managed model is the one \ref Binary points to.
   void commit() {
+    revng_assert(Binary.getAvailableTypeID() == FirstAvailableTypeID,
+                 "Unable to commit: owner's id requirements have changed");
+
     Binary.recordNewTypes(std::move(Types));
+    NextAvailableTypeID = FirstAvailableTypeID = Binary.getAvailableTypeID();
     Types.clear();
   }
 
@@ -39,7 +49,10 @@ public:
   /// the managed model made in the \ref Types vector.
   ///
   /// The managed model is the one \ref Binary points to.
-  void drop() { Types.clear(); }
+  void drop() {
+    NextAvailableTypeID = FirstAvailableTypeID;
+    Types.clear();
+  }
 
   [[nodiscard]] bool empty() const { return Types.empty(); }
 
@@ -94,4 +107,4 @@ public:
   }
 };
 
-} // namespace abi::FunctionType
+} // namespace model

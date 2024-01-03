@@ -9,10 +9,11 @@
 #include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
-#include "revng/ABI/FunctionType/TypeBucket.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/QualifiedType.h"
+#include "revng/Model/TypeBucket.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 static Logger Log("function-type-conversion-to-cabi");
@@ -33,7 +34,7 @@ public:
 
 private:
   const abi::Definition &ABI;
-  TypeBucket Bucket;
+  model::TypeBucket Bucket;
   const bool UseSoftRegisterStateDeductions = false;
 
 public:
