@@ -101,7 +101,7 @@ namespace runtime_test = abi::runtime_test;
 std::vector<std::byte>
 VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const {
   std::vector<std::byte> Result;
-  uint64_t PreviousArgumentEndsAt = 0;
+  auto PreviousArgumentEndsAt = ABI.StackBytesAllocatedForRegisterArguments();
   for (const auto &Argument : FunctionLayout.Arguments) {
     if (Argument.Stack.has_value()) {
       revng_assert(Argument.Stack->Size != 0);
@@ -446,7 +446,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 }
 
 static abi::FunctionType::Layout
-getPrototypeLayout(const model::Function &Function, model::ABI::Values ABI) {
+getPrototypeLayout(const model::Function &Function,
+                   const abi::Definition &ABI) {
   const model::Type *Prototype = Function.Prototype().getConst();
   revng_assert(Prototype != nullptr);
   if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
@@ -461,7 +462,28 @@ getPrototypeLayout(const model::Function &Function, model::ABI::Values ABI) {
 
     return abi::FunctionType::Layout(*CABI);
   } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
-    return abi::FunctionType::Layout(*Raw);
+    auto Result = abi::FunctionType::Layout(*Raw);
+
+    // Because RFT layouts are not ABI aware, there's no way for it to detect
+    // the shadow argument space. To work around that, just subtract
+    // the difference here.
+    if (ABI.StackBytesAllocatedForRegisterArguments() != 0
+        && !Raw->StackArgumentsType().empty()) {
+      uint64_t FirstArgOffset = ABI.StackBytesAllocatedForRegisterArguments();
+      const model::TypePath &StackArgTypeRef = Raw->StackArgumentsType();
+      auto &StackStruct = *llvm::cast<model::StructType>(StackArgTypeRef.get());
+      if (!StackStruct.Fields().empty())
+        if (StackStruct.Fields().begin()->Offset() < FirstArgOffset)
+          revng_abort("Stack arguments in the shadow space?");
+
+      auto &LastArgument = *std::prev(Result.Arguments.end());
+      revng_assert(LastArgument.Stack && LastArgument.Stack->Offset == 0);
+      revng_assert(LastArgument.Stack->Size > FirstArgOffset);
+      LastArgument.Stack->Offset = FirstArgOffset;
+      LastArgument.Stack->Size -= FirstArgOffset;
+    }
+
+    return Result;
   } else {
     revng_abort("Layouts of non-function types are not supported.");
   }
@@ -485,13 +507,13 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
       Helper.FunctionName = Helper.FunctionName.drop_front(5);
     if (auto Test = Parsed.ArgumentTests.find(Helper.FunctionName);
         Test != Parsed.ArgumentTests.end()) {
-      Helper.FunctionLayout = getPrototypeLayout(Function, ABI);
+      Helper.FunctionLayout = getPrototypeLayout(Function, Def);
       for (const abi::runtime_test::ArgumentTest &Iteration : Test->second)
         Helper.arguments(Iteration);
       ++ArgumentTestCount;
     } else if (auto Test = Parsed.ReturnValueTests.find(Helper.FunctionName);
                Test != Parsed.ReturnValueTests.end()) {
-      Helper.FunctionLayout = getPrototypeLayout(Function, ABI);
+      Helper.FunctionLayout = getPrototypeLayout(Function, Def);
       for (const abi::runtime_test::ReturnValueTest &Iteration : Test->second)
         Helper.returnValue(Iteration);
       ++ReturnValueTestCount;
