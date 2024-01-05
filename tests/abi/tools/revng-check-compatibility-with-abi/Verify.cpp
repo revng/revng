@@ -257,8 +257,9 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
   }
 
   if (!Remaining.Stack.empty()) {
-    fail("There are unconsumed stack bytes: the layout shows the need for more "
-         "stack bytes than necessary.");
+    fail("There are " + std::to_string(Remaining.Stack.size())
+         + " unconsumed stack bytes: the layout shows the need for more "
+           "stack bytes than necessary.");
   }
 }
 
