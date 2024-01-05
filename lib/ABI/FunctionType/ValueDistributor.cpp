@@ -105,19 +105,29 @@ ValueDistributor::distribute(uint64_t Size,
 
   bool AllowSplitting = !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
+  bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
     // This a register-only argument, add the registers.
     for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
     DA.SizeOnStack = 0;
-  } else if (AllowSplitting && ConsideredRegisterCounter == LastRegister) {
+  } else if (AllowSplitting && AllTheRegistersAreInUse && SizeCounter > 0) {
     // This argument is split among the registers and the stack.
     for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
-    DA.SizeOnStack = DA.Size - SizeCounter;
+    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.Size - SizeCounter);
+    DA.PostPaddingSize = DA.SizeOnStack - DA.Size + SizeCounter;
+    DA.OffsetOnStack = UsedStackOffset;
   } else {
     // This is a stack-only argument.
-    DA.SizeOnStack = DA.Size;
+    uint64_t PrePaddedOffset = ABI.alignedOffset(UsedStackOffset, Alignment);
+    revng_assert(PrePaddedOffset >= UsedStackOffset);
+    DA.PrePaddingSize = PrePaddedOffset - UsedStackOffset;
+    DA.OffsetOnStack = UsedStackOffset = PrePaddedOffset;
+
+    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.Size);
+    DA.PostPaddingSize = DA.SizeOnStack - DA.Size;
+
     if (ABI.NoRegisterArgumentsCanComeAfterStackOnes()) {
       // Mark all the registers as occupied as soon as stack is used.
       ConsideredRegisterCounter = Registers.size();
@@ -127,11 +137,7 @@ ValueDistributor::distribute(uint64_t Size,
     }
   }
 
-  // Don't forget to apply the tailing padding to the stack part of the argument
-  // if it's present.
-  if (DA.SizeOnStack != 0) {
-    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.SizeOnStack);
-  }
+  UsedStackOffset += DA.SizeOnStack;
 
   revng_log(Log, "Value successfully distributed.");
   LoggerIndent FurtherIndentation(Log);
@@ -238,7 +244,21 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
     revng_assert(UsedRegisterCount <= Index);
     UsedRegisterCount = Index + 1;
   } else {
-    Result.SizeOnStack = Result.Size;
+    if (UsedStackOffset) {
+      if (ABI.paddedSizeOnStack(UsedStackOffset) != UsedStackOffset) {
+        std::string Error = "Position-based stack does not support unaligned "
+                            "stack offsets: "
+                            + std::to_string(UsedStackOffset);
+        revng_abort(Error.c_str());
+      }
+    }
+
+    Result.OffsetOnStack = UsedStackOffset;
+    Result.PrePaddingSize = 0;
+    Result.PostPaddingSize = 0;
+
+    Result.SizeOnStack = ABI.getPointerSize();
+    UsedStackOffset += Result.SizeOnStack;
   }
 
   ++ArgumentIndex;
