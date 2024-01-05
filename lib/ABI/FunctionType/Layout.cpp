@@ -352,15 +352,9 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
 DistributedValues
 ToRawConverter::distributeArguments(CFTArguments Arguments,
                                     bool HasReturnValueLocationArgument) const {
-  uint64_t SkippedRegisterCount = 0;
-  if (HasReturnValueLocationArgument == true)
-    if (const auto &GPRs = ABI.GeneralPurposeArgumentRegisters(); !GPRs.empty())
-      if (ABI.ReturnValueLocationRegister() == GPRs[0])
-        SkippedRegisterCount = 1;
-
   ArgumentDistributor Distributor(ABI);
-  Distributor.UsedGeneralPurposeRegisterCount = SkippedRegisterCount;
-  Distributor.ArgumentIndex = SkippedRegisterCount;
+  if (HasReturnValueLocationArgument == true)
+    Distributor.addShadowPointerReturnValueLocationArgument();
 
   DistributedValues Result;
   for (const model::Argument &Argument : Arguments)

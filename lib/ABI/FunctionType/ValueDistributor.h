@@ -146,6 +146,23 @@ public:
   explicit ArgumentDistributor(const abi::Definition &ABI) :
     ValueDistributor(ABI){};
 
+  void addShadowPointerReturnValueLocationArgument() {
+    revng_assert(ArgumentIndex == 0);
+    ArgumentIndex = 1;
+
+    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
+      if (const auto &Rs = ABI.GeneralPurposeArgumentRegisters(); !Rs.empty()) {
+        if (ABI.ReturnValueLocationRegister() == Rs[0]) {
+          revng_assert(UsedGeneralPurposeRegisterCount == 0);
+          UsedGeneralPurposeRegisterCount = 1;
+        }
+      }
+    } else if (ABI.ReturnValueLocationOnStack()) {
+      revng_assert(UsedStackOffset % ABI.getPointerSize() == 0);
+      UsedStackOffset += ABI.getPointerSize();
+    }
+  }
+
   DistributedValues nextArgument(const model::QualifiedType &ArgumentType) {
     if (ABI.ArgumentsArePositionBased()) {
       return positionBased(ArgumentType.isFloat(), *ArgumentType.size());
