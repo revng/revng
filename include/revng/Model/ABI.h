@@ -70,6 +70,11 @@ members:
       differences. The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/cdecl
 
+  - name: Microsoft_x86_cdecl_gcc
+    doc: |
+      32-bit Microsoft x86 `cdecl` abi as implemented in GCC (subtly different
+      from the original).
+
   - name: Microsoft_x86_stdcall
     doc: |
       A modification of the 32-bit `__cdecl` Microsoft ABI for x86 processor
@@ -77,6 +82,11 @@ members:
       responsible for stack cleanup instead of the caller.
       The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/stdcall
+
+  - name: Microsoft_x86_stdcall_gcc
+    doc: |
+      32-bit Microsoft x86 `stdcall` abi as implemented in GCC (subtly different
+      from the original).
 
   - name: Microsoft_x86_thiscall
     doc: |
@@ -94,6 +104,11 @@ members:
       first GPR-sized non-aggregate function arguments in registers.=
       The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/fastcall
+
+  - name: Microsoft_x86_fastcall_gcc
+    doc: |
+      32-bit Microsoft x86 `fastcall` abi as implemented in GCC (subtly
+      different from the original).
 
   - name: Microsoft_x86_clrcall
     doc: |
@@ -169,8 +184,11 @@ getArchitecture(model::ABI::Values V) {
   case model::ABI::Microsoft_x86_clrcall:
   case model::ABI::Microsoft_x86_vectorcall:
   case model::ABI::Microsoft_x86_cdecl:
+  case model::ABI::Microsoft_x86_cdecl_gcc:
   case model::ABI::Microsoft_x86_stdcall:
+  case model::ABI::Microsoft_x86_stdcall_gcc:
   case model::ABI::Microsoft_x86_fastcall:
+  case model::ABI::Microsoft_x86_fastcall_gcc:
   case model::ABI::Microsoft_x86_thiscall:
   case model::ABI::Pascal_x86:
     return model::Architecture::x86;
@@ -295,15 +313,24 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
     return "32-bit Microsoft x86 abi that was intended to "
            "mimic 32-bit SystemV x86 abi but has minor "
            "differences";
+  case model::ABI::Microsoft_x86_cdecl_gcc:
+    return "32-bit Microsoft x86 `cdecl` abi as implemented in GCC (subtly "
+           "different from the original).";
   case model::ABI::Microsoft_x86_stdcall:
     return "32-bit Microsoft x86 abi, it is a modification of "
            "`cdecl` that's different in a sense that the "
            "callee is responsible for stack cleanup instead "
            "of the caller";
+  case model::ABI::Microsoft_x86_stdcall_gcc:
+    return "32-bit Microsoft x86 `stdcall` abi as implemented in GCC (subtly "
+           "different from the original).";
   case model::ABI::Microsoft_x86_fastcall:
     return "32-bit Microsoft x86 abi, it extends `stdcall` by "
            "allowing two first GPR-sized function arguments "
            "to be passed using the registers";
+  case model::ABI::Microsoft_x86_fastcall_gcc:
+    return "32-bit Microsoft x86 `fastcall` abi as implemented in GCC (subtly "
+           "different from the original).";
   case model::ABI::Microsoft_x86_thiscall:
     return "32-bit Microsoft x86 abi, it extends `stdcall` by "
            "allowing `this` pointer in method-style calls to "

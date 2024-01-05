@@ -2,20 +2,20 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: Microsoft_x86_cdecl
+ABI: Microsoft_x86_cdecl_gcc
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: true
+AllowUnnaturallyAlignedTypesInRegisters: false
 UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: false
 
 StackAlignment: 4
 
 MaximumGPRsPerAggregateArgument: 0
-MaximumGPRsPerAggregateReturnValue: 2
+MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 0
 MaximumGPRsPerScalarReturnValue: 2
 

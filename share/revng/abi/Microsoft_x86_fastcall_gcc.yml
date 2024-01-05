@@ -2,23 +2,26 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: Microsoft_x86_cdecl
+ABI: Microsoft_x86_fastcall_gcc
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
-NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: true
+NoRegisterArgumentsCanComeAfterStackOnes: true
+AllowUnnaturallyAlignedTypesInRegisters: false
 UsePointerToCopyForStackArguments: false
-CalleeIsResponsibleForStackCleanup: false
+CalleeIsResponsibleForStackCleanup: true
 
 StackAlignment: 4
 
 MaximumGPRsPerAggregateArgument: 0
-MaximumGPRsPerAggregateReturnValue: 2
-MaximumGPRsPerScalarArgument: 0
+MaximumGPRsPerAggregateReturnValue: 0
+MaximumGPRsPerScalarArgument: 1
 MaximumGPRsPerScalarReturnValue: 2
 
+GeneralPurposeArgumentRegisters:
+  - ecx_x86
+  - edx_x86
 GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
@@ -28,7 +31,7 @@ CalleeSavedRegisters:
   - edi_x86
   - esi_x86
 
-ReturnValueLocationOnStack: true
+ReturnValueLocationRegister: ecx_x86
 
 ScalarTypes:
   - Size: 1
