@@ -13,6 +13,7 @@ UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: false
 
 StackAlignment: 16
+StackBytesAllocatedForRegisterArguments: 32
 
 MaximumGPRsPerAggregateArgument: 0
 MaximumGPRsPerAggregateReturnValue: 1

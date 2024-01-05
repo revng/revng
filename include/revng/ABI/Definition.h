@@ -152,6 +152,18 @@ fields:
       ARM ABI), the value of `StackAlignment` should be equal to 4.
     type: uint64_t
 
+  - name: StackBytesAllocatedForRegisterArguments
+    doc: |
+      States the number of bytes reserved for the callee to be able to "mirror"
+      register arguments on the stack. This value should be set to `0` for any
+      ABI that does not require such space.
+
+      In our context, this serves as the starting offset for the first stack
+      argument. As in, it specifies the number of byte on the top of the stack
+      struct that should be ignored.
+    type: uint64_t
+    optional: true
+
   - name: MaximumGPRsPerAggregateArgument
     doc: |
       States the maximum number of GPRs available to pass a single aggregate
