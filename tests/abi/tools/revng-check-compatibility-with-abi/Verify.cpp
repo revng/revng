@@ -79,8 +79,8 @@ VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const {
       }
 
       // Since the view we want is fragmented, we'd have to keep a "view of
-      // views" which is not easy to work with, easier to just copy the relevant
-      // bytes out.
+      // views" which is not easy to work with. Let's just copy the relevant
+      // bytes out instead.
       llvm::copy(Bytes.slice(Argument.Stack->Offset, Argument.Stack->Size),
                  std::back_inserter(Result));
 
