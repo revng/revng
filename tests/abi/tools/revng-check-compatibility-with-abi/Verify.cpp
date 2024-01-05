@@ -213,22 +213,40 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
     }
 
     // We're out of registers, turn to the stack next.
-    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes))
-      break; // Stack matches, go to the next argument.
+    if (ABI.ArgumentsArePositionBased()
+        && Argument.FoundBytes.size() > ABI.getPointerSize()) {
+      // Position based ABIs use pointer-to-copy semantics for stack too.
+      // This verifies whether that's the case here.
+      revng_assert(ArgumentBytes.equals(Argument.FoundBytes),
+                   "Only a part of the argument got consumed? That's weird.");
+      if (tryToVerifyStack(Remaining.Stack, Argument.AddressBytes)) {
+        // Stack matches the pointer to the argument: mark the entire argument
+        // as found.
+        ArgumentBytes = {};
+        break;
+      }
+    } else {
+      if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+        // Stack matches, go to the next argument.
+        break;
+      }
 
-    revng_assert(!ABI.ScalarTypes().empty());
-    auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
-    if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
-      // If the ABI supports unusual alignment, try to account for it,
-      // by dropping an conflicting part of the stack data.
-      if (Remaining.Stack.size() < ABI.getPointerSize())
-        Remaining.Stack = {};
-      else
-        Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
+      revng_assert(!ABI.ScalarTypes().empty());
+      auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
+      if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
+        // If the ABI supports unusual alignment, try to account for it,
+        // by dropping an conflicting part of the stack data.
+        if (Remaining.Stack.size() < ABI.getPointerSize())
+          Remaining.Stack = {};
+        else
+          Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
+      }
+
+      if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+        // Stack matches after accounting for alignment.
+        break;
+      }
     }
-
-    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes))
-      break; // Stack matches after accounting for alignment.
 
     fail("Argument #" + std::to_string(Index)
          + " uses neither the expected stack part nor the expected "
