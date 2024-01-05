@@ -48,6 +48,10 @@ struct DistributedValue {
   ///       this offset set to `0`.
   uint64_t OffsetOnStack = 0;
 
+  /// Marks the fact that the type of this argument needs to have a pointer
+  /// qualifier attached to it to be compatible.
+  bool UsesPointerToCopy = false;
+
   /// Mark this argument as a padding argument, which means an unused location
   /// (either a register or a piece of the stack) which needs to be seen as
   /// a separate argument to be able to place all the following arguments
@@ -64,6 +68,7 @@ struct DistributedValue {
                              .PostPaddingSize = 0,
                              .SizeOnStack = 0,
                              .OffsetOnStack = 0,
+                             .UsesPointerToCopy = false,
                              .RepresentsPadding = false };
   }
 };

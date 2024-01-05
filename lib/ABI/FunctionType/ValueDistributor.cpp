@@ -232,6 +232,13 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
 
   DistributedValue Result;
   Result.Size = Size;
+  if (Result.Size > ABI.getPointerSize()) {
+    Result.Size = ABI.getPointerSize();
+    Result.UsesPointerToCopy = true;
+
+    // Pointers never use vector registers.
+    IsFloat = false;
+  }
 
   const auto &UsedRegisters = IsFloat ? ABI.VectorArgumentRegisters() :
                                         ABI.GeneralPurposeArgumentRegisters();
