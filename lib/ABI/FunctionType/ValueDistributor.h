@@ -89,7 +89,9 @@ public:
   uint64_t ArgumentIndex = 0;
 
 protected:
-  explicit ValueDistributor(const abi::Definition &ABI) : ABI(ABI) {
+  explicit ValueDistributor(const abi::Definition &ABI) :
+    ABI(ABI), UsedStackOffset(ABI.StackBytesAllocatedForRegisterArguments()) {
+
     revng_assert(ABI.verify());
   }
 
