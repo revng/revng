@@ -81,41 +81,18 @@ genericRegisterType(model::Register::Values Register, model::Binary &Binary) {
   };
 }
 
-/// Helper for choosing the "Raw" type of a specific argument or return
-/// value based on its "C" type and the register it is to be placed in.
+/// Helper for choosing a register type, mainly used for filling typeless
+/// argument registers in.
 ///
-/// \param ArgumentType The original "C" type.
-/// \param Register Register this value is placed in.
-/// \param Binary The binary object containing the type information.
-///
-/// \return The resulting "Raw" type for the current entity.
-static model::QualifiedType chooseType(const model::QualifiedType &ArgumentType,
-                                       const model::Register::Values Register,
-                                       model::Binary &Binary) {
-  std::optional<uint64_t> MaybeSize = ArgumentType.size();
-  uint64_t TargetSize = model::Register::getSize(Register);
-
-  if (!MaybeSize.has_value()) {
-    return model::QualifiedType{
-      Binary.getPrimitiveType(model::Register::primitiveKind(Register),
-                              model::Register::getSize(Register)),
-      {}
-    };
-  } else if (*MaybeSize > TargetSize) {
-    // TODO: additional considerations should be made here
-    //       for better position-based ABI support.
-    return ArgumentType.getPointerTo(Binary.Architecture());
-  } else if (!ArgumentType.isScalar()) {
-    // TODO: this can be considerably improved, we can preserve more
-    //       information here over just returning the default type.
-    return model::QualifiedType{
-      Binary.getPrimitiveType(model::Register::primitiveKind(Register),
-                              model::Register::getSize(Register)),
-      {}
-    };
-  }
-
-  return ArgumentType;
+/// @param Register The register for which the type is created.
+/// @param Binary The binary containing the type.
+static model::QualifiedType registerType(model::Register::Values Register,
+                                         model::Binary &Binary) {
+  return model::QualifiedType{
+    Binary.getPrimitiveType(model::Register::primitiveKind(Register),
+                            model::Register::getSize(Register)),
+    {}
+  };
 }
 
 model::TypePath
@@ -145,9 +122,17 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
       Converted.Location() = Register;
 
       const model::QualifiedType &ReturnType = FunctionType.ReturnType();
-      Converted.Type() = ReturnValue.Registers.size() > 1 ?
-                           genericRegisterType(Register, *Binary) :
-                           chooseType(ReturnType, Register, *Binary);
+      uint64_t ReturnTypeSize = *ReturnType.size();
+      if (ReturnValue.Registers.size() > 1) {
+        Converted.Type() = genericRegisterType(Register, *Binary);
+      } else if (ReturnValue.UsesPointerToCopy == true) {
+        revng_assert(ReturnTypeSize > ABI.getPointerSize());
+        Converted.Type() = ReturnType.getPointerTo(ABI.getArchitecture());
+      } else if (ReturnType.isScalar()) {
+        Converted.Type() = ReturnType;
+      } else {
+        Converted.Type() = registerType(Register, *Binary);
+      }
 
       revng_log(Log,
                 "Adding a return value register:\n"
@@ -213,11 +198,17 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
         model::NamedTypedRegister Argument(Register);
 
         const auto &ArgumentType = FunctionType.Arguments().at(Index).Type();
-        const bool IsSingleRegister = Distributed.Registers.size() == 1
-                                      && Distributed.SizeOnStack == 0;
-        Argument.Type() = IsSingleRegister ?
-                            chooseType(ArgumentType, Register, *Binary) :
-                            genericRegisterType(Register, *Binary);
+        uint64_t ArgumentSize = *ArgumentType.size();
+        if (Distributed.Registers.size() > 1 || Distributed.SizeOnStack != 0) {
+          Argument.Type() = genericRegisterType(Register, *Binary);
+        } else if (Distributed.UsesPointerToCopy == true) {
+          revng_assert(ArgumentSize > ABI.getPointerSize());
+          Argument.Type() = ArgumentType.getPointerTo(ABI.getArchitecture());
+        } else if (ArgumentType.isScalar()) {
+          Argument.Type() = ArgumentType;
+        } else {
+          Argument.Type() = registerType(Register, *Binary);
+        }
 
         revng_log(Log,
                   "Adding an argument register:\n"
