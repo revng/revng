@@ -8,14 +8,14 @@ ArgumentsArePositionBased: true
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: false
+AllowUnnaturallyAlignedTypesInRegisters: true
 UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: false
 
 StackAlignment: 16
 
 MaximumGPRsPerAggregateArgument: 0
-MaximumGPRsPerAggregateReturnValue: 0
+MaximumGPRsPerAggregateReturnValue: 1
 MaximumGPRsPerScalarArgument: 1
 MaximumGPRsPerScalarReturnValue: 1
 
