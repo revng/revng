@@ -450,21 +450,16 @@ getPrototypeLayout(const model::Function &Function, model::ABI::Values ABI) {
   const model::Type *Prototype = Function.Prototype().getConst();
   revng_assert(Prototype != nullptr);
   if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
-    // Copy the prototype since we might have to modify it before testing.
-    model::CABIFunctionType PrototypeCopy = *CABI;
-
-    if (ABI != PrototypeCopy.ABI()) {
-      // Workaround for dwarf sometimes misdetecting a very specific ABI,
-      // for example, it labels `SystemV_x86_regparam_N` as just `SystemV_x86`
-      // despite them being incompatible.
-      std::array AllowedABIs = { model::ABI::SystemV_x86_regparm_3,
-                                 model::ABI::SystemV_x86_regparm_2,
-                                 model::ABI::SystemV_x86_regparm_1 };
-      revng_assert(llvm::is_contained(AllowedABIs, ABI));
-      PrototypeCopy.ABI() = ABI;
+    if (ABI != CABI->ABI()) {
+      std::string Error = "ABI mismatch. Passed argument indicates that "
+                          "the ABI to use is '"
+                          + serializeToString(ABI)
+                          + "' while the function contains '"
+                          + serializeToString(CABI->ABI()) + "'.";
+      revng_abort(Error.c_str());
     }
 
-    return abi::FunctionType::Layout(PrototypeCopy);
+    return abi::FunctionType::Layout(*CABI);
   } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
     return abi::FunctionType::Layout(*Raw);
   } else {
