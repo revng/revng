@@ -314,6 +314,9 @@ public:
 public:
   std::string_view getName() const { return model::ABI::getName(ABI()); }
   uint64_t getPointerSize() const { return model::ABI::getPointerSize(ABI()); }
+  model::Architecture::Values getArchitecture() const {
+    return model::ABI::getArchitecture(ABI());
+  }
 
   /// Make sure current definition is valid.
   bool verify() const debug_function;
