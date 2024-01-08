@@ -125,9 +125,9 @@ public:
                                     const TargetInContainer &Target) const {
     for (const PipeWrapper &Pipe : Pipes) {
       if (Pipe.InvalidationMetadata.contains(GlobalName, Target))
-        return false;
+        return true;
     }
-    return true;
+    return false;
   }
 
 private:
