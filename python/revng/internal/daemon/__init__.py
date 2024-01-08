@@ -135,6 +135,7 @@ def make_startlette() -> Starlette:
 
     if DEBUG:
         print(f"Manager workdir is: {manager.workdir}")
+        signal.signal(signal.SIGUSR2, lambda s, f: event_manager.save())
 
     async def index_page(request):
         return PlainTextResponse("")
