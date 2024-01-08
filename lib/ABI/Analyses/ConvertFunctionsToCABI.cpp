@@ -189,16 +189,36 @@ public:
       // TODO: extend this list.
       static constexpr std::array ABIsTheConversionIsEnabledFor = {
         model::ABI::SystemV_x86_64,
+        model::ABI::Microsoft_x86_64,
+        model::ABI::Microsoft_x86_64_vectorcall,
         model::ABI::SystemV_x86,
         model::ABI::SystemV_x86_regparm_3,
         model::ABI::SystemV_x86_regparm_2,
         model::ABI::SystemV_x86_regparm_1,
         model::ABI::Microsoft_x86_cdecl,
+        model::ABI::Microsoft_x86_cdecl_gcc,
         model::ABI::Microsoft_x86_fastcall,
+        model::ABI::Microsoft_x86_fastcall_gcc,
         model::ABI::Microsoft_x86_stdcall,
+        model::ABI::Microsoft_x86_stdcall_gcc,
         model::ABI::Microsoft_x86_thiscall,
         model::ABI::Microsoft_x86_vectorcall,
         model::ABI::AAPCS
+
+        // There are known issues
+        // model::ABI::AAPCS64,
+
+        // There are known issues
+        // model::ABI::SystemV_MIPS_o32,
+        // model::ABI::SystemV_MIPSEL_o32
+
+        // Unable to reliably test: no easy access to a compiler
+        // model::ABI::Microsoft_x86_64_clrcall,
+        // model::ABI::Microsoft_x86_clrcall,
+        // model::ABI::Pascal_x86,
+
+        // Unable to reliably test: QEMU aborts
+        // model::ABI::SystemZ_s390x,
       };
       if (!llvm::is_contained(ABIsTheConversionIsEnabledFor, ABI)) {
         revng_log(Log,
