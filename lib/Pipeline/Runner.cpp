@@ -115,7 +115,7 @@ Error Runner::getInvalidations(TargetInStepSet &Invalidated) const {
 Step &Runner::addStep(Step &&NewStep) {
   std::string Name = NewStep.getName().str();
   auto Info = Steps.try_emplace(Name, std::move(NewStep));
-  revng_assert(Info.second);
+  revng_assert(Info.second, ("Duplicate_step: " + Name).c_str());
   ReversePostOrderIndexes.emplace_back(&Info.first->second);
   return *ReversePostOrderIndexes.back();
 }
