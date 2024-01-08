@@ -466,10 +466,12 @@ public:
 
     for (auto Register : GPRs)
       if (Lookup.contains(Register))
-        Result.emplace_back(Register);
+        if (!llvm::is_contained(Result, Register))
+          Result.emplace_back(Register);
     for (auto Register : VectorArgumentRegisters())
       if (Lookup.contains(Register))
-        Result.emplace_back(Register);
+        if (!llvm::is_contained(Result, Register))
+          Result.emplace_back(Register);
 
     if (Result.size() != std::size(Registers)) {
       std::string Error = "Unable to sort argument registers.\nMost likely "

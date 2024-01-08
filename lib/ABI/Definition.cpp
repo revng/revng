@@ -119,11 +119,11 @@ bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
 
   SortedVector<model::Register::Values> AllowedArguments;
   {
-    auto I = AllowedArguments.batch_insert();
+    auto I = AllowedArguments.batch_insert_or_assign();
     for (model::Register::Values R : GeneralPurposeArgumentRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
     for (model::Register::Values R : VectorArgumentRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
   }
 
   if (!std::includes(AllowedArguments.begin(),
@@ -143,11 +143,11 @@ bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
 
   SortedVector<model::Register::Values> AllowedReturnValues;
   {
-    auto I = AllowedReturnValues.batch_insert();
+    auto I = AllowedReturnValues.batch_insert_or_assign();
     for (model::Register::Values R : GeneralPurposeReturnValueRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
     for (model::Register::Values R : VectorReturnValueRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
   }
 
   if (!std::includes(AllowedReturnValues.begin(),
