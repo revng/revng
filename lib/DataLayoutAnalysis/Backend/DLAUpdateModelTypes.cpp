@@ -396,15 +396,14 @@ static bool updatePrototype(model::Binary &Model,
 }
 
 static void fillStructWithRecoveredDLAType(model::Binary &Model,
-                                           model::Type *OriginalType,
-                                           model::QualifiedType RecoveredType,
-                                           uint64_t OriginalStructSize,
-                                           uint64_t RecoveredStructSize) {
-  revng_assert(isa<model::StructType>(OriginalType));
-  revng_assert(RecoveredStructSize > 0
-               and RecoveredStructSize < std::numeric_limits<int64_t>::max());
+                                           model::StructType *OriginalStruct,
+                                           model::QualifiedType RecoveredType) {
+  uint64_t RecoveredStructSize = RecoveredType.size().value_or(0ULL);
+  revng_assert(RecoveredStructSize > 0);
 
-  auto *OriginalStructType = cast<model::StructType>(OriginalType);
+  uint64_t OriginalStructSize = OriginalStruct->size().value_or(0ULL);
+  revng_assert(OriginalStructSize > 0);
+
   bool IsPointerOrArray = RecoveredType.isArray() || RecoveredType.isPointer();
   auto *RecoveredUnqualType = RecoveredType.UnqualifiedType().get();
 
@@ -412,14 +411,14 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
       or isa<model::EnumType>(RecoveredUnqualType)) {
     revng_assert(RecoveredStructSize <= OriginalStructSize);
 
-    // If OriginalStructType is an empty struct, just add the new stack type
+    // If OriginalStruct is an empty struct, just add the new stack type
     // as the first field, otherwise leave it alone.
-    if (OriginalStructType->Fields().empty()) {
-      OriginalStructType->Fields()[0].Type() = RecoveredType;
+    if (OriginalStruct->Fields().empty()) {
+      OriginalStruct->Fields()[0].Type() = RecoveredType;
       return;
     }
 
-    auto FirstFieldIt = OriginalStructType->Fields().begin();
+    auto FirstFieldIt = OriginalStruct->Fields().begin();
     model::StructField &First = *FirstFieldIt;
     // If there is already a field at offset 0, bail out
     if (First.Offset() == 0)
@@ -428,15 +427,14 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     // If the first original field is at an offset larger than 0, and the
     // RecoveredType fits, inject it as field at offset 0
     if (First.Offset() >= RecoveredStructSize)
-      OriginalStructType->Fields()[0].Type() = RecoveredType;
+      OriginalStruct->Fields()[0].Type() = RecoveredType;
 
     return;
 
   } else if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
 
-    auto OriginalFieldsIt = OriginalStructType->Fields().begin();
-    auto OriginalFieldsEnd = OriginalStructType->Fields().end();
-    ;
+    auto OriginalFieldsIt = OriginalStruct->Fields().begin();
+    auto OriginalFieldsEnd = OriginalStruct->Fields().end();
     auto NewFieldsIt = NewS->Fields().begin();
     auto NewFieldsEnd = NewS->Fields().end();
 
@@ -497,11 +495,11 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     }
 
     for (model::StructField *NewField : CompatibleFields)
-      OriginalStructType->Fields().insert(*NewField);
+      OriginalStruct->Fields().insert(*NewField);
 
   } else if (auto *NewU = dyn_cast<model::UnionType>(RecoveredUnqualType)) {
-    // If OriginalStructType is an not an empty struct, just leave it alone.
-    if (not OriginalStructType->Fields().empty())
+    // If OriginalStruct is an not an empty struct, just leave it alone.
+    if (not OriginalStruct->Fields().empty())
       return;
 
     // If DLA recoverd an union kind, whose size is too large, we have to
@@ -552,7 +550,7 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     // If there are fields left in the union, then inject the union in the
     // struct as field at offset 0.
     if (FieldsRemaining) {
-      OriginalStructType->Fields()[0]
+      OriginalStruct->Fields()[0]
         .Type() = model::QualifiedType(Model.getTypePath(NewU), {});
     }
   } else {
@@ -590,25 +588,17 @@ static bool updateStackFrameType(model::Function &ModelFunc,
 
     revng_log(Log, "Updating stack for " << LLVMFunc.getName());
     LoggerIndent Indent{ Log };
-    revng_log(Log, "Was " << OldModelStackFrameType->ID());
+    revng_log(Log, "Was " << OldStackFrameStruct->ID());
 
     LayoutTypePtr Key{ Call, LayoutTypePtr::fieldNumNone };
 
     if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
-      model::QualifiedType NewStackType = NewTypeIt->second;
-      NewStackType = peelConstAndTypedefs(NewStackType);
+      model::QualifiedType NewStack = peelConstAndTypedefs(NewTypeIt->second);
 
-      auto NewStackSize = *NewStackType.size();
       uint64_t OldStackSize = *OldStackFrameStruct->size();
-
-      fillStructWithRecoveredDLAType(Model,
-                                     OldModelStackFrameType,
-                                     NewStackType,
-                                     OldStackSize,
-                                     NewStackSize);
+      fillStructWithRecoveredDLAType(Model, OldStackFrameStruct, NewStack);
 
       revng_log(Log, "Updated to " << ModelFunc.StackFrameType().get()->ID());
-
       revng_assert(isa<model::StructType>(ModelFunc.StackFrameType().get()));
       revng_assert(*ModelFunc.StackFrameType().get()->size() == OldStackSize);
       revng_assert(ModelFunc.StackFrameType().get()->verify());
@@ -690,13 +680,10 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
     if (auto TypeIt = TypeMap.find(Key); TypeIt != TypeMap.end()) {
       // Let's examine the recovered type by DLA.
       model::QualifiedType RecoveredSegmentType = TypeIt->second;
-      auto RecoveredSegmentTypeSize = *RecoveredSegmentType.size();
 
       fillStructWithRecoveredDLAType(*Model,
                                      SegmentStruct,
-                                     RecoveredSegmentType,
-                                     SegmentStructSize,
-                                     RecoveredSegmentTypeSize);
+                                     RecoveredSegmentType);
 
       auto *NewSegmentType = Segment.Type().get();
       revng_log(Log, "Updated to " << NewSegmentType->ID());
