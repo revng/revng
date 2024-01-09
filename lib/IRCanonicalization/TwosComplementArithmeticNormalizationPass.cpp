@@ -117,10 +117,30 @@ bool TANP::runOnFunction(llvm::Function &F) {
   SmallVector<Instruction *, 8> DeadInsts;
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
+
+      if (auto *CallToIsolated = getCallToIsolatedFunction(&I)) {
+
+        for (Use &OperandUse : CallToIsolated->operands()) {
+
+          auto *ConstantOperand = dyn_cast<ConstantInt>(OperandUse.get());
+          if (not ConstantOperand)
+            continue;
+
+          if (ConstantOperand->isNegative()) {
+            BuildUnaryMinus.SetInsertPoint(&I);
+            auto UnaryMinus = BuildUnaryMinus(ConstantOperand->getType(),
+                                              ConstantOperand->getValue());
+            OperandUse.set(UnaryMinus);
+          }
+        }
+        continue;
+      }
+
+      Value *NewV = nullptr;
+
       Value *Val = nullptr;
       const APInt *Int = nullptr;
 
-      Value *NewV = nullptr;
       if ((match(&I, m_Xor(m_Value(Val), m_APInt(Int)))
            or match(&I, m_Xor(m_APInt(Int), m_Value(Val))))
           and Int->isAllOnesValue()) {
