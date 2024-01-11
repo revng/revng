@@ -152,7 +152,7 @@ static RecursiveCoroutine<ASTNode *> addToDispatcherSet(ASTTree &AST,
     auto *Switch = llvm::cast<SwitchNode>(Node);
 
     // Perform the inlining over all the cases
-    std::set<size_t> ToRemoveCaseIndex;
+    llvm::SmallVector<size_t> ToRemoveCaseIndex;
     for (auto &Group : llvm::enumerate(Switch->cases())) {
       unsigned Index = Group.index();
       auto &LabelCasePair = Group.value();
@@ -163,7 +163,7 @@ static RecursiveCoroutine<ASTNode *> addToDispatcherSet(ASTTree &AST,
                                                          RemoveSetNode);
 
       if (LabelCasePair.second == nullptr) {
-        ToRemoveCaseIndex.insert(Index);
+        ToRemoveCaseIndex.push_back(Index);
       }
     }
 
@@ -394,7 +394,7 @@ static void processNestedWeavedSwitches(SwitchNode *Switch) {
   //    care of removing those labels from the parent case containing them.
   // 2) The weaved switch disappeared entirely, so we need to remove the
   //    parent case entirely.
-  std::set<size_t> ToRemoveCaseIndex;
+  llvm::SmallVector<size_t> ToRemoveCaseIndex;
   for (auto &Group : llvm::enumerate(Switch->cases())) {
     unsigned Index = Group.index();
     auto &[LabelSet, Case] = Group.value();
@@ -403,7 +403,7 @@ static void processNestedWeavedSwitches(SwitchNode *Switch) {
     // that one of the cases has been simplified to `nullptr`, therefore, we
     // should take care of removing it
     if (Case == nullptr) {
-      ToRemoveCaseIndex.insert(Index);
+      ToRemoveCaseIndex.push_back(Index);
       continue;
     }
 
