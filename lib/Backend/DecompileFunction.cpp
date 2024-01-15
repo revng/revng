@@ -21,7 +21,6 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
@@ -108,26 +107,6 @@ static constexpr const char *StackFrameVarName = "_stack";
 static Logger<> Log{ "c-backend" };
 static Logger<> VisitLog{ "c-backend-visit-order" };
 
-static bool isAssignment(const llvm::Value *I) {
-  return isCallToTagged(I, FunctionTags::Assign);
-}
-
-static bool isLocalVarDecl(const llvm::Value *I) {
-  return isCallToTagged(I, FunctionTags::LocalVariable);
-}
-
-static bool isCallStackArgumentDecl(const llvm::Value *I) {
-  auto *Call = dyn_cast_or_null<llvm::CallInst>(I);
-  if (not Call)
-    return false;
-
-  auto *Callee = Call->getCalledFunction();
-  if (not Callee)
-    return false;
-
-  return Callee->getName().startswith("revng_call_stack_arguments");
-}
-
 static bool isStackFrameDecl(const llvm::Value *I) {
   auto *Call = dyn_cast_or_null<llvm::CallInst>(I);
   if (not Call)
@@ -138,24 +117,6 @@ static bool isStackFrameDecl(const llvm::Value *I) {
     return false;
 
   return Callee->getName().startswith("revng_stack_frame");
-}
-
-static const llvm::CallInst *isCallToNonIsolated(const llvm::Value *I) {
-  if (isCallToTagged(I, FunctionTags::QEMU)
-      or isCallToTagged(I, FunctionTags::Helper)
-      or isCallToTagged(I, FunctionTags::Exceptional)
-      or llvm::isa<llvm::IntrinsicInst>(I))
-    return llvm::cast<CallInst>(I);
-
-  return nullptr;
-}
-
-static bool isArtificialAggregateLocalVarDecl(const llvm::Value *I) {
-  return isCallToIsolatedFunction(I) and I->getType()->isAggregateType();
-}
-
-static bool isHelperAggregateLocalVarDecl(const llvm::Value *I) {
-  return isCallToNonIsolated(I) and I->getType()->isAggregateType();
 }
 
 static bool isCallToCustomOpcode(const llvm::Instruction *I) {
