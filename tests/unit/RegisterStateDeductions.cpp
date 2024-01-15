@@ -83,28 +83,22 @@ BOOST_AUTO_TEST_CASE(OneGPRegisterAndOneVRegisterWithVReturnValue) {
   auto ABI = Definition::get(model::ABI::SystemV_MIPS_o32);
   const auto &GPRArguments = ABI.GeneralPurposeArgumentRegisters();
   const auto &GPRRetValues = ABI.GeneralPurposeReturnValueRegisters();
-  const auto &VRArguments = ABI.VectorArgumentRegisters();
-  const auto &VRRetValues = ABI.VectorReturnValueRegisters();
+  revng_assert(ABI.FloatsUseGPRs());
 
-  Map[GPRArguments[0]].IsUsedForPassingArguments = Yes;
-  if (VRArguments.size() > 1)
-    Map[VRArguments[1]].IsUsedForPassingArguments = Yes;
-  if (VRRetValues.size() > 1)
-    Map[VRRetValues[1]].IsUsedForReturningValues = Yes;
+  if (GPRArguments.size() > 2)
+    Map[GPRArguments[2]].IsUsedForPassingArguments = Yes;
+  if (GPRRetValues.size() > 1)
+    Map[GPRRetValues[1]].IsUsedForReturningValues = Yes;
 
   auto Res = ABI.enforceRegisterState(Map);
-  revng_check(Res.at(GPRArguments[0]).IsUsedForPassingArguments == Yes);
-  revng_check(Res.at(VRArguments[0]).IsUsedForPassingArguments == No);
-  revng_check(Res.at(GPRRetValues[0]).IsUsedForReturningValues == No);
-  revng_check(Res.at(VRRetValues[0]).IsUsedForReturningValues == YesOrDead);
+  revng_check(Res.at(GPRArguments[0]).IsUsedForPassingArguments == YesOrDead);
+  revng_check(Res.at(GPRRetValues[0]).IsUsedForReturningValues == YesOrDead);
   if (GPRArguments.size() > 1)
-    revng_check(Res.at(GPRArguments[1]).IsUsedForPassingArguments == No);
-  if (VRArguments.size() > 1)
-    revng_check(Res.at(VRArguments[1]).IsUsedForPassingArguments == Yes);
+    revng_check(Res.at(GPRArguments[1]).IsUsedForPassingArguments == YesOrDead);
+  if (GPRArguments.size() > 2)
+    revng_check(Res.at(GPRArguments[2]).IsUsedForPassingArguments == Yes);
   if (GPRRetValues.size() > 1)
-    revng_check(Res.at(GPRRetValues[1]).IsUsedForReturningValues == No);
-  if (VRRetValues.size() > 1)
-    revng_check(Res.at(VRRetValues[1]).IsUsedForReturningValues == Yes);
+    revng_check(Res.at(GPRRetValues[1]).IsUsedForReturningValues == Yes);
 }
 
 BOOST_AUTO_TEST_CASE(DeduceFirstArgumentToBeGPR) {
