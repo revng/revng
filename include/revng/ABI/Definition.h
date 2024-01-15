@@ -403,6 +403,10 @@ public:
                                           AlignmentCache &Cache) const;
 
   uint64_t alignedOffset(uint64_t Offset, uint64_t Alignment) const {
+    if (Offset == 0)
+      return 0;
+
+    revng_assert(llvm::isPowerOf2_64(Alignment));
     if (Offset % Alignment != 0)
       return Offset + Alignment - Offset % Alignment;
 
