@@ -63,16 +63,25 @@ Types:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/1540-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "b"
         OriginalName: b
       - Index: 1
         Type:
           UnqualifiedType: "/Types/520-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "c"
         OriginalName: c
       - Index: 2
         Type:
           UnqualifiedType: "/Types/1282-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "d"
         OriginalName: d
   - Kind: CABIFunctionType
@@ -84,11 +93,17 @@ Types:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/522-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 1
         Type:
           UnqualifiedType: "/Types/524-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
@@ -100,21 +115,33 @@ Types:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/513-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
           UnqualifiedType: "/Types/514-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
           UnqualifiedType: "/Types/516-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
           UnqualifiedType: "/Types/520-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg4"
         OriginalName: arg4
   - Kind: CABIFunctionType
@@ -126,31 +153,49 @@ Types:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/528-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
           UnqualifiedType: "/Types/769-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
           UnqualifiedType: "/Types/770-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
           UnqualifiedType: "/Types/772-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
           UnqualifiedType: "/Types/776-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
           UnqualifiedType: "/Types/784-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
@@ -162,31 +207,49 @@ Types:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/1025-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
           UnqualifiedType: "/Types/1026-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
           UnqualifiedType: "/Types/1028-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
           UnqualifiedType: "/Types/1032-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
           UnqualifiedType: "/Types/1040-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
           UnqualifiedType: "/Types/1281-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
@@ -198,31 +261,49 @@ Types:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/1282-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
           UnqualifiedType: "/Types/1284-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
           UnqualifiedType: "/Types/1288-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
           UnqualifiedType: "/Types/1296-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
           UnqualifiedType: "/Types/1537-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
           UnqualifiedType: "/Types/1538-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg6"
         OriginalName: arg6
   - Kind: CABIFunctionType
@@ -234,46 +315,73 @@ Types:
       - Index: 0
         Type:
           UnqualifiedType: "/Types/1540-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
           UnqualifiedType: "/Types/1544-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
           UnqualifiedType: "/Types/1552-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
           UnqualifiedType: "/Types/1794-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
           UnqualifiedType: "/Types/1796-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
           UnqualifiedType: "/Types/1800-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg6"
         OriginalName: arg6
       - Index: 6
         Type:
           UnqualifiedType: "/Types/1802-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg7"
         OriginalName: arg7
       - Index: 7
         Type:
           UnqualifiedType: "/Types/1804-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg8"
         OriginalName: arg8
       - Index: 8
         Type:
           UnqualifiedType: "/Types/1808-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
         CustomName: "arg9"
         OriginalName: arg9
   - Kind: PrimitiveType
