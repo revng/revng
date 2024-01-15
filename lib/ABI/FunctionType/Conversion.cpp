@@ -327,11 +327,12 @@ static bool verifyAlignment(const abi::Definition &ABI,
   }
 }
 
-static bool canBeNext(ArgumentDistributor &Distributor,
-                      model::QualifiedType CurrentType,
-                      uint64_t CurrentOffset,
-                      uint64_t NextOffset,
-                      uint64_t NextAlignment) {
+template<ModelTypeLike ModelType>
+bool canBeNext(ArgumentDistributor &Distributor,
+               const ModelType &CurrentType,
+               uint64_t CurrentOffset,
+               uint64_t NextOffset,
+               uint64_t NextAlignment) {
   const abi::Definition &ABI = Distributor.ABI;
 
   revng_log(Log,

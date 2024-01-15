@@ -43,6 +43,10 @@ using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 
 using RegisterSpan = std::span<const model::Register::Values>;
 
+template<typename T>
+concept ModelTypeLike = std::derived_from<T, model::Type>
+                        || std::same_as<T, model::QualifiedType>;
+
 class ValueDistributor {
 public:
   const abi::Definition &ABI;
@@ -58,7 +62,9 @@ protected:
 
   /// Helper for converting a single object into a "distributed" state.
   ///
-  /// \param Type The type of the object.
+  /// \param Size The size of the object.
+  /// \param Alignment The alignment of the object.
+  /// \param IsNaturallyAligned `true` if the object is aligned naturally.
   /// \param Registers The list of registers allowed for usage for the type.
   /// \param OccupiedRegisterCount The count of registers in \ref Registers
   ///        Container that are already occupied.
@@ -74,11 +80,30 @@ protected:
   ///          the specified argument: all the other ones represent padding) and
   ///          the new count of occupied registers, after the current argument.
   std::pair<DistributedValues, uint64_t>
-  distribute(model::QualifiedType Type,
+  distribute(uint64_t Size,
+             uint64_t Alignment,
+             bool IsNaturallyAligned,
              RegisterSpan Registers,
              uint64_t OccupiedRegisterCount,
              uint64_t AllowedRegisterLimit,
              bool ForbidSplittingBetweenRegistersAndStack);
+
+  template<ModelTypeLike ModelType>
+  std::pair<DistributedValues, uint64_t>
+  distribute(const ModelType &Type,
+             RegisterSpan Registers,
+             uint64_t OccupiedRegisterCount,
+             uint64_t AllowedRegisterLimit,
+             bool ForbidSplittingBetweenRegistersAndStack) {
+    abi::Definition::AlignmentCache Cache;
+    return distribute(*Type.size(),
+                      *ABI.alignment(Type, Cache),
+                      *ABI.hasNaturalAlignment(Type, Cache),
+                      Registers,
+                      OccupiedRegisterCount,
+                      AllowedRegisterLimit,
+                      ForbidSplittingBetweenRegistersAndStack);
+  }
 };
 
 class ArgumentDistributor : public ValueDistributor {
@@ -86,11 +111,47 @@ public:
   explicit ArgumentDistributor(const abi::Definition &ABI) :
     ValueDistributor(ABI){};
 
-  DistributedValues nextArgument(const model::QualifiedType &ArgumentType);
+  DistributedValues nextArgument(const model::QualifiedType &ArgumentType) {
+    if (ABI.ArgumentsArePositionBased()) {
+      return positionBased(ArgumentType.isFloat(), *ArgumentType.size());
+    } else {
+      abi::Definition::AlignmentCache Cache;
+      uint64_t Alignment = *ABI.alignment(ArgumentType, Cache);
+      bool IsNatural = *ABI.hasNaturalAlignment(ArgumentType, Cache);
+      return nonPositionBased(ArgumentType.isScalar(),
+                              ArgumentType.isFloat(),
+                              *ArgumentType.size(),
+                              Alignment,
+                              IsNatural);
+    }
+  }
+  DistributedValues nextArgument(const model::Type &ArgumentType) {
+    auto *AsPrimitive = llvm::dyn_cast<model::PrimitiveType>(&ArgumentType);
+    constexpr auto FloatKind = model::PrimitiveTypeKind::Float;
+    bool IsFloat = AsPrimitive && AsPrimitive->PrimitiveKind() == FloatKind;
+
+    uint64_t Size = *ArgumentType.size();
+    if (ABI.ArgumentsArePositionBased()) {
+      return positionBased(IsFloat, Size);
+    } else {
+      bool IsScalar = llvm::isa<model::PrimitiveType>(ArgumentType)
+                      || llvm::isa<model::EnumType>(ArgumentType);
+
+      abi::Definition::AlignmentCache Cache;
+      uint64_t Alignment = *ABI.alignment(ArgumentType, Cache);
+      bool IsNatural = *ABI.hasNaturalAlignment(ArgumentType, Cache);
+
+      return nonPositionBased(IsScalar, IsFloat, Size, Alignment, IsNatural);
+    }
+  }
 
 private:
-  DistributedValues positionBased(const model::QualifiedType &Type);
-  DistributedValues nonPositionBased(const model::QualifiedType &Type);
+  DistributedValues positionBased(bool IsFloat, uint64_t Size);
+  DistributedValues nonPositionBased(bool IsScalar,
+                                     bool IsFloat,
+                                     uint64_t Size,
+                                     uint64_t Alignment,
+                                     bool HasNaturalAlignment);
 };
 
 class ReturnValueDistributor : public ValueDistributor {

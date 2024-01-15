@@ -14,7 +14,9 @@ static Logger Log("function-type-value-distributor");
 namespace abi::FunctionType {
 
 std::pair<DistributedValues, uint64_t>
-ValueDistributor::distribute(model::QualifiedType Type,
+ValueDistributor::distribute(uint64_t Size,
+                             uint64_t Alignment,
+                             bool HasNaturalAlignment,
                              RegisterSpan Registers,
                              uint64_t OccupiedRegisterCount,
                              uint64_t AllowedRegisterLimit,
@@ -29,13 +31,6 @@ ValueDistributor::distribute(model::QualifiedType Type,
                                   << AllowedRegisterLimit
                                   << " registers are available to be used.");
   revng_log(Log, "The total number of registers is " << Registers.size());
-  revng_log(Log, "The type:\n" << serializeToString(Type));
-
-  uint64_t Size = *Type.size();
-  abi::Definition::AlignmentCache Cache;
-  uint64_t Alignment = *ABI.alignment(Type, Cache);
-  bool HasNaturalAlignment = *ABI.hasNaturalAlignment(Type, Cache);
-
   revng_log(Log,
             "Its size is " << Size << " and its "
                            << (HasNaturalAlignment ? "" : "un")
@@ -148,12 +143,16 @@ ValueDistributor::distribute(model::QualifiedType Type,
 }
 
 DistributedValues
-ArgumentDistributor::nonPositionBased(const model::QualifiedType &Type) {
+ArgumentDistributor::nonPositionBased(bool IsScalar,
+                                      bool IsFloat,
+                                      uint64_t Size,
+                                      uint64_t Alignment,
+                                      bool HasNaturalAlignment) {
   uint64_t RegisterLimit = 0;
   bool ForbidSplitting = false;
   uint64_t *RegisterCounter = nullptr;
   std::span<const model::Register::Values> RegisterList;
-  if (Type.isFloat()) {
+  if (IsFloat) {
     RegisterList = ABI.VectorArgumentRegisters();
     RegisterCounter = &UsedVectorRegisterCount;
 
@@ -183,11 +182,13 @@ ArgumentDistributor::nonPositionBased(const model::QualifiedType &Type) {
   } else {
     RegisterList = ABI.GeneralPurposeArgumentRegisters();
     RegisterCounter = &UsedGeneralPurposeRegisterCount;
-    RegisterLimit = Type.isScalar() ? ABI.MaximumGPRsPerScalarArgument() :
-                                      ABI.MaximumGPRsPerAggregateArgument();
+    RegisterLimit = IsScalar ? ABI.MaximumGPRsPerScalarArgument() :
+                               ABI.MaximumGPRsPerAggregateArgument();
   }
 
-  auto [Result, NextRegisterIndex] = distribute(Type,
+  auto [Result, NextRegisterIndex] = distribute(Size,
+                                                Alignment,
+                                                HasNaturalAlignment,
                                                 RegisterList,
                                                 *RegisterCounter,
                                                 RegisterLimit,
@@ -216,25 +217,23 @@ ArgumentDistributor::nonPositionBased(const model::QualifiedType &Type) {
   return std::move(Result);
 }
 
-DistributedValues
-ArgumentDistributor::positionBased(const model::QualifiedType &ArgumentType) {
+DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
+                                                     uint64_t Size) {
   std::array Helper{ UsedGeneralPurposeRegisterCount,
                      UsedVectorRegisterCount,
                      ArgumentIndex };
   uint64_t Index = *std::ranges::max_element(Helper);
 
   DistributedValue Result;
-  Result.Size = *ArgumentType.size();
+  Result.Size = Size;
 
-  const auto &UsedRegisterList = ArgumentType.isFloat() ?
-                                   ABI.VectorArgumentRegisters() :
-                                   ABI.GeneralPurposeArgumentRegisters();
-  uint64_t &UsedRegisterCount = ArgumentType.isFloat() ?
-                                  UsedVectorRegisterCount :
-                                  UsedGeneralPurposeRegisterCount;
+  const auto &UsedRegisters = IsFloat ? ABI.VectorArgumentRegisters() :
+                                        ABI.GeneralPurposeArgumentRegisters();
+  uint64_t &UsedRegisterCount = IsFloat ? UsedVectorRegisterCount :
+                                          UsedGeneralPurposeRegisterCount;
 
-  if (Index < UsedRegisterList.size()) {
-    Result.Registers.emplace_back(UsedRegisterList[Index]);
+  if (Index < UsedRegisters.size()) {
+    Result.Registers.emplace_back(UsedRegisters[Index]);
 
     revng_assert(UsedRegisterCount <= Index);
     UsedRegisterCount = Index + 1;
@@ -244,14 +243,6 @@ ArgumentDistributor::positionBased(const model::QualifiedType &ArgumentType) {
 
   ++ArgumentIndex;
   return { Result };
-}
-
-DistributedValues
-ArgumentDistributor::nextArgument(const model::QualifiedType &Type) {
-  if (ABI.ArgumentsArePositionBased())
-    return positionBased(Type);
-  else
-    return nonPositionBased(Type);
 }
 
 DistributedValue
