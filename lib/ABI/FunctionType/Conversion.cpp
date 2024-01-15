@@ -409,120 +409,128 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
-  // Verify the alignment of the first argument.
-  if (Stack.Fields().empty()) {
-    revng_log(Log, "Stack struct has no fields.");
-  } else {
-    uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
-    revng_assert(llvm::isPowerOf2_64(FirstAlignment));
-  }
-
-  // Go over all the `[CurrentArgument, TheNextOne]` field pairs.
-  // `CurrentRange` is used to keep track of the "remaining" ones.
-  // This allows us to keep its value when the loop to be aborted (which
-  // happens when we meet an argument we cannot just convert "as is").
   llvm::SmallVector<model::Argument, 8> Result;
   uint64_t InitialIndexOffset = Distributor.ArgumentIndex;
-  auto CurrentRange = std::ranges::subrange(Stack.Fields().begin(),
-                                            Stack.Fields().end());
-  bool NaiveConversionFailed = CurrentRange.empty();
-  while (CurrentRange.size() > 1) {
-    auto [CurrentArgument, TheNextOne] = takeAsTuple<2>(CurrentRange);
+  if (!model::hasMetadata(Stack)) {
+    // NOTE: Only proceed with trying to "split" the stack struct up if it has
+    //       no metadata attached: as in, it doesn't have a user-defined
+    //       `CustomName` or a `Comment` or any other fields we'll mark as
+    //       metadata in the future.
 
-    uint64_t NextAlignment = *ABI.alignment(TheNextOne.Type());
-    revng_assert(llvm::isPowerOf2_64(NextAlignment));
-
-    if (!canBeNext(Distributor,
-                   CurrentArgument.Type(),
-                   CurrentArgument.Offset(),
-                   TheNextOne.Offset(),
-                   NextAlignment)) {
-      // We met a argument we cannot just "add" as is.
-      NaiveConversionFailed = true;
-      break;
+    // Verify the alignment of the first argument.
+    if (Stack.Fields().empty()) {
+      revng_log(Log, "Stack struct has no fields.");
+    } else {
+      uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
+      revng_assert(llvm::isPowerOf2_64(FirstAlignment));
     }
 
-    // Create the argument from this field.
-    model::Argument &New = Result.emplace_back();
-    model::copyMetadata(New, CurrentArgument);
-    New.Index() = Distributor.ArgumentIndex - 1;
-    New.Type() = CurrentArgument.Type();
+    // Go over all the `[CurrentArgument, TheNextOne]` field pairs.
+    // `CurrentRange` is used to keep track of the "remaining" ones.
+    // This allows us to keep its value when the loop to be aborted (which
+    // happens when we meet an argument we cannot just convert "as is").
+    auto CurrentRange = std::ranges::subrange(Stack.Fields().begin(),
+                                              Stack.Fields().end());
+    bool NaiveConversionFailed = CurrentRange.empty();
+    while (CurrentRange.size() > 1) {
+      auto [CurrentArgument, TheNextOne] = takeAsTuple<2>(CurrentRange);
 
-    CurrentRange = std::ranges::subrange(std::next(CurrentRange.begin()),
-                                         Stack.Fields().end());
-  }
+      uint64_t NextAlignment = *ABI.alignment(TheNextOne.Type());
+      revng_assert(llvm::isPowerOf2_64(NextAlignment));
 
-  // The main loop is over. Which means that we either converted everything but
-  // the very last argument correctly, OR that we aborted half-way through.
-  if (CurrentRange.size() == 1) {
-    revng_assert(NaiveConversionFailed == false);
+      if (!canBeNext(Distributor,
+                     CurrentArgument.Type(),
+                     CurrentArgument.Offset(),
+                     TheNextOne.Offset(),
+                     NextAlignment)) {
+        // We met a argument we cannot just "add" as is.
+        NaiveConversionFailed = true;
+        break;
+      }
 
-    // Having only one element in the "remaining" range means that only the last
-    // field is left - add it too after checking.
-    const model::StructField &LastArgument = CurrentRange.front();
-
-    // This is a workaround for the cases where expected alignment is missing
-    // at the very end of the RFT-style stack argument struct:
-    uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
-                                                              StackAlignment);
-
-    std::optional<uint64_t> LastSize = LastArgument.Type().size();
-    revng_assert(LastSize.has_value() && LastSize.value() != 0);
-    if (canBeNext(Distributor,
-                  LastArgument.Type(),
-                  LastArgument.Offset(),
-                  StackSize,
-                  StackAlignment)) {
+      // Create the argument from this field.
       model::Argument &New = Result.emplace_back();
-      model::copyMetadata(New, LastArgument);
-      New.Type() = LastArgument.Type();
+      model::copyMetadata(New, CurrentArgument);
       New.Index() = Distributor.ArgumentIndex - 1;
-      return Result;
+      New.Type() = CurrentArgument.Type();
+
+      CurrentRange = std::ranges::subrange(std::next(CurrentRange.begin()),
+                                           Stack.Fields().end());
     }
 
-    NaiveConversionFailed = true;
-  }
+    // The main loop is over. Which means that we either converted everything
+    // but the very last argument correctly, OR that we aborted half-way
+    // through.
+    if (CurrentRange.size() == 1) {
+      revng_assert(NaiveConversionFailed == false);
 
-  // Getting to this point (past the return statement in the last element
-  // section) means that there is at least one argument we cannot just "add".
-  //
-  // TODO: consider using more robust approaches here, maybe an attempt to
-  //       re-start adding argument normally after some "nonconforming" structs
-  //       are added.
-  revng_assert(NaiveConversionFailed == true);
-  revng_log(Log,
-            "Naive conversion failed. Try to fall back on using structs "
-            "instead.");
-  if (CurrentRange.size() != Stack.Fields().size()) {
-    // This condition being true means that we did succeed in converting some
-    // of the arguments, but failed on some others. Let's try to wrap
-    // the remainder into a struct and see if bundled together they make more
-    // sense in c-like representation.
+      // Having only one element in the "remaining" range means that only
+      // the last field is left - add it too after checking.
+      const model::StructField &LastArgument = CurrentRange.front();
+
+      // This is a workaround for the cases where expected alignment is missing
+      // at the very end of the RFT-style stack argument struct:
+      uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
+                                                                StackAlignment);
+
+      std::optional<uint64_t> LastSize = LastArgument.Type().size();
+      revng_assert(LastSize.has_value() && LastSize.value() != 0);
+      if (canBeNext(Distributor,
+                    LastArgument.Type(),
+                    LastArgument.Offset(),
+                    StackSize,
+                    StackAlignment)) {
+        model::Argument &New = Result.emplace_back();
+        model::copyMetadata(New, LastArgument);
+        New.Type() = LastArgument.Type();
+        New.Index() = Distributor.ArgumentIndex - 1;
+        return Result;
+      }
+
+      NaiveConversionFailed = true;
+    }
+
+    // Getting to this point (past the return statement in the last element
+    // section) means that there is at least one argument we cannot just "add".
+    //
+    // TODO: consider using more robust approaches here, maybe an attempt to
+    //       re-start adding argument normally after some "nonconforming"
+    //       structs are added.
+    revng_assert(NaiveConversionFailed == true);
     revng_log(Log,
-              "Some fields were converted successfully, try to slot in the "
-              "rest as a struct.");
-    const model::StructField &LastSuccessful = *std::prev(CurrentRange.begin());
-    std::uint64_t Offset = LastSuccessful.Offset();
-    Offset += ABI.paddedSizeOnStack(*LastSuccessful.Type().size());
+              "Naive conversion failed. Try to fall back on using structs "
+              "instead.");
+    if (CurrentRange.size() != Stack.Fields().size()) {
+      // This condition being true means that we did succeed in converting some
+      // of the arguments, but failed on some others. Let's try to wrap
+      // the remainder into a struct and see if bundled together they make more
+      // sense in c-like representation.
+      revng_log(Log,
+                "Some fields were converted successfully, try to slot in the "
+                "rest as a struct.");
+      const model::StructField &LastSuccess = *std::prev(CurrentRange.begin());
+      std::uint64_t Offset = LastSuccess.Offset();
+      Offset += ABI.paddedSizeOnStack(*LastSuccess.Type().size());
 
-    model::StructType RemainingArguments;
-    RemainingArguments.Size() = Stack.Size() - Offset;
-    for (const auto &Field : CurrentRange) {
-      model::StructField Copy = Field;
-      Copy.Offset() -= Offset;
-      RemainingArguments.Fields().emplace(std::move(Copy));
-    }
+      model::StructType RemainingArguments;
+      RemainingArguments.Size() = Stack.Size() - Offset;
+      for (const auto &Field : CurrentRange) {
+        model::StructField Copy = Field;
+        Copy.Offset() -= Offset;
+        RemainingArguments.Fields().emplace(std::move(Copy));
+      }
 
-    auto &RA = RemainingArguments;
-    if (canBeNext(Distributor, RA, Offset, Stack.Size(), StackAlignment)) {
-      revng_log(Log, "Struct for the remaining argument worked.");
-      model::Argument &New = Result.emplace_back();
-      New.Index() = Stack.Fields().size() - CurrentRange.size();
-      New.Index() += InitialIndexOffset;
+      auto &RA = RemainingArguments;
+      if (canBeNext(Distributor, RA, Offset, Stack.Size(), StackAlignment)) {
+        revng_log(Log, "Struct for the remaining argument worked.");
+        model::Argument &New = Result.emplace_back();
+        New.Index() = Stack.Fields().size() - CurrentRange.size();
+        New.Index() += InitialIndexOffset;
 
-      auto [_, Path] = Bucket.makeType<model::StructType>(std::move(RA));
-      New.Type() = model::QualifiedType{ Path, {} };
-      return Result;
+        auto [_, Path] = Bucket.makeType<model::StructType>(std::move(RA));
+        New.Type() = model::QualifiedType{ Path, {} };
+        return Result;
+      }
     }
   }
 
