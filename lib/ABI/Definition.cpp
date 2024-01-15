@@ -374,11 +374,28 @@ std::optional<uint64_t> Definition::alignment(const model::QualifiedType &QT,
   else
     return std::nullopt;
 }
+std::optional<uint64_t> Definition::alignment(const model::Type &Type,
+                                              AlignmentCache &Cache) const {
+  std::optional<AlignmentInfo> Result = naturalAlignment(*this, Type, Cache);
+  if (Result.has_value() && Result->Value != 0)
+    return Result->IsNatural ? Result->Value : 1;
+  else
+    return std::nullopt;
+}
 
 std::optional<bool>
 Definition::hasNaturalAlignment(const model::QualifiedType &QT,
                                 AlignmentCache &Cache) const {
   std::optional<AlignmentInfo> Result = naturalAlignment(*this, QT, Cache);
+  if (Result.has_value() && Result->Value != 0)
+    return Result->IsNatural;
+  else
+    return std::nullopt;
+}
+std::optional<bool>
+Definition::hasNaturalAlignment(const model::Type &Type,
+                                AlignmentCache &Cache) const {
+  std::optional<AlignmentInfo> Result = naturalAlignment(*this, Type, Cache);
   if (Result.has_value() && Result->Value != 0)
     return Result->IsNatural;
   else

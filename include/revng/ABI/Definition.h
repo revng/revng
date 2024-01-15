@@ -364,24 +364,43 @@ public:
     AlignmentCache Cache;
     return alignment(Type, Cache);
   }
+  inline std::optional<uint64_t> alignment(const model::Type &Type) const {
+    AlignmentCache Cache;
+    return alignment(Type, Cache);
+  }
+
   inline std::optional<bool>
   hasNaturalAlignment(const model::QualifiedType &Type) const {
+    AlignmentCache Cache;
+    return hasNaturalAlignment(Type, Cache);
+  }
+  inline std::optional<bool>
+  hasNaturalAlignment(const model::Type &Type) const {
     AlignmentCache Cache;
     return hasNaturalAlignment(Type, Cache);
   }
 
   std::optional<uint64_t> alignment(const model::QualifiedType &Type,
                                     AlignmentCache &Cache) const;
+  std::optional<uint64_t> alignment(const model::Type &Type,
+                                    AlignmentCache &Cache) const;
   std::optional<bool> hasNaturalAlignment(const model::QualifiedType &Type,
                                           AlignmentCache &Cache) const;
+  std::optional<bool> hasNaturalAlignment(const model::Type &Type,
+                                          AlignmentCache &Cache) const;
 
-  uint64_t alignedOffset(uint64_t Offset,
-                         const model::QualifiedType &Type) const {
-    const uint64_t Alignment = *alignment(Type);
+  uint64_t alignedOffset(uint64_t Offset, uint64_t Alignment) const {
     if (Offset % Alignment != 0)
       return Offset + Alignment - Offset % Alignment;
 
     return Offset;
+  }
+  uint64_t alignedOffset(uint64_t Offset,
+                         const model::QualifiedType &Type) const {
+    return alignedOffset(Offset, *alignment(Type));
+  }
+  uint64_t alignedOffset(uint64_t Offset, const model::Type &Type) const {
+    return alignedOffset(Offset, *alignment(Type));
   }
 
 public:
