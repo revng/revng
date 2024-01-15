@@ -38,6 +38,7 @@ const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
 inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
                                             uint64_t RegisterSize) {
   revng_assert(llvm::isPowerOf2_64(RegisterSize));
+  revng_assert(RealSize != 0, "0-sized stack entries are not supported.");
 
   if (RealSize <= RegisterSize)
     return RegisterSize;
