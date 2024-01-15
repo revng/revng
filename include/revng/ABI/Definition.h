@@ -141,6 +141,11 @@ fields:
       call. If equal to `true`, it's the callee, otherwise it the caller.
     type: bool
 
+  - name: FloatsUseGPRs
+    doc: |
+      Setting this to true disables usage of vector registers entirely.
+    type: bool
+
   - name: StackAlignment
     doc: |
       States the required alignment of the stack at the point of a function

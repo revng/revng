@@ -11,6 +11,7 @@ NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowUnnaturallyAlignedTypesInRegisters: true
 UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: false
+FloatsUseGPRs: false
 
 StackAlignment: 16
 StackBytesAllocatedForRegisterArguments: 32

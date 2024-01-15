@@ -158,7 +158,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
   bool ForbidSplitting = false;
   uint64_t *RegisterCounter = nullptr;
   std::span<const model::Register::Values> RegisterList;
-  if (IsFloat) {
+  if (IsFloat && !ABI.FloatsUseGPRs()) {
     RegisterList = ABI.VectorArgumentRegisters();
     RegisterCounter = &UsedVectorRegisterCount;
 
@@ -240,10 +240,11 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
     IsFloat = false;
   }
 
-  const auto &UsedRegisters = IsFloat ? ABI.VectorArgumentRegisters() :
-                                        ABI.GeneralPurposeArgumentRegisters();
-  uint64_t &UsedRegisterCount = IsFloat ? UsedVectorRegisterCount :
-                                          UsedGeneralPurposeRegisterCount;
+  bool UseVR = ABI.FloatsUseGPRs() ? false : IsFloat;
+  const auto &UsedRegisters = UseVR ? ABI.VectorArgumentRegisters() :
+                                      ABI.GeneralPurposeArgumentRegisters();
+  uint64_t &UsedRegisterCount = UseVR ? UsedVectorRegisterCount :
+                                        UsedGeneralPurposeRegisterCount;
 
   if (Index < UsedRegisters.size()) {
     Result.Registers.emplace_back(UsedRegisters[Index]);
@@ -279,7 +280,7 @@ ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
 
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
-  if (Type.isFloat()) {
+  if (Type.isFloat() && ABI.FloatsUseGPRs()) {
     RegisterList = ABI.VectorReturnValueRegisters();
 
     // For now replace unsupported floating point return values with `void`
