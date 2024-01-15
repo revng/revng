@@ -614,11 +614,20 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
       // TODO: sadly this discards type information from the registers, look
       //       into preserving it at least partially.
       uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
-      return model::QualifiedType{
-        Bucket.getPrimitiveType(model::PrimitiveTypeKind::Values::Generic,
-                                PointerSize * Ordered.size()),
-        {}
-      };
+      uint64_t PrimitiveSize = Ordered.size() * PointerSize;
+      if (llvm::is_contained(ABI.ScalarTypes(), PrimitiveSize)) {
+        return model::QualifiedType{
+          Bucket.getPrimitiveType(model::PrimitiveTypeKind::Values::Generic,
+                                  PrimitiveSize),
+          {}
+        };
+      } else {
+        revng_log(Log,
+                  "The primitive return value ("
+                    << Ordered.size() << " bytes) is not a valid scalar under "
+                    << model::ABI::getName(ABI.ABI()) << ":\n");
+        return std::nullopt;
+      }
     } else {
       // It could be either a struct or a scalar, go the conservative route
       // and make a struct for it.
