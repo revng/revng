@@ -31,6 +31,8 @@ private:
                                llvm::ArrayRef<std::byte> FoundBytes) const;
   std::vector<std::byte>
   dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const;
+  uint64_t checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
+                         llvm::ArrayRef<std::byte> ArgumentBytes) const;
 
   struct LeftToVerify {
     llvm::ArrayRef<model::Register::Values> Registers;
@@ -175,6 +177,23 @@ bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
   return false;
 }
 
+uint64_t VH::checkRegister(llvm::ArrayRef<std::byte> RegisterBytes,
+                           llvm::ArrayRef<std::byte> ArgumentBytes) const {
+  revng_assert(RegisterBytes.size() == ABI.getPointerSize());
+  if (ArgumentBytes.size() > ABI.getPointerSize())
+    ArgumentBytes = ArgumentBytes.take_front(ABI.getPointerSize());
+  uint64_t ComparedByteCount = std::min(RegisterBytes.size(),
+                                        ArgumentBytes.size());
+
+  llvm::ArrayRef RHS = ArgumentBytes.take_front(ComparedByteCount);
+  llvm::ArrayRef LHSTop = RegisterBytes.take_front(ComparedByteCount);
+  llvm::ArrayRef LHSBottom = RegisterBytes.take_back(ComparedByteCount);
+  if (IsLittleEndian)
+    return LHSTop.equals(RHS) ? ComparedByteCount : 0;
+  else
+    return LHSTop.equals(RHS) || LHSBottom.equals(RHS) ? ComparedByteCount : 0;
+}
+
 VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
                                       const runtime_test::Argument &Argument,
                                       LeftToVerify Remaining,
@@ -197,18 +216,12 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
     // If there are still unverified registers, try to verify the next one.
     if (!Remaining.Registers.empty()) {
       llvm::ArrayRef Bytes = State.Registers.at(Remaining.Registers[0]).Bytes;
-      if (ArgumentBytes.take_front(Bytes.size()).equals(Bytes)) {
+      if (uint64_t MatchedByteCount = checkRegister(Bytes, ArgumentBytes)) {
         // Current register value matches: drop found bytes and start looking
         // for the rest.
-        ArgumentBytes = ArgumentBytes.drop_front(Bytes.size());
+        ArgumentBytes = ArgumentBytes.drop_front(MatchedByteCount);
         Remaining.Registers = Remaining.Registers.drop_front();
         continue;
-      } else if (Bytes.take_front(ArgumentBytes.size()).equals(ArgumentBytes)) {
-        // Current register matches all the remaining bytes.
-        Remaining.Registers = Remaining.Registers.drop_front();
-        ArgumentBytes = {};
-
-        break;
       }
     }
 
