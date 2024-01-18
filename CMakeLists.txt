@@ -39,6 +39,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra ")
 
+# Uncomment the following line if errors like `Couldn't find method
+# SomeType::method` make debugging hard
+#
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-limit-debug-info")
+
 # Enable some additional warnings
 add_flag_if_available("-Wimplicit-fallthrough")
 add_flag_if_available("-Wnon-virtual-dtor")
