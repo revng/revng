@@ -1114,20 +1114,20 @@ void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
   // Make sure every generated basic block is reachable
   //
   if (CurrentCFGForm != CFGForm::SemanticPreserving) {
-    // Compute the set of reachable jump targets
-    OnceQueue<BasicBlock *> WorkList;
-    for (BasicBlock *Successor : successors(DispatcherSwitch))
-      WorkList.insert(Successor);
-
-    while (not WorkList.empty()) {
-      BasicBlock *BB = WorkList.pop();
-      for (BasicBlock *Successor : make_range(succ_begin(BB), succ_end(BB)))
-        WorkList.insert(Successor);
+    llvm::DenseSet<BasicBlock *> Reachable;
+    // Compute the set of jump targets currently reachables from the dispatcher
+    for (BasicBlock *DFSBB : llvm::depth_first(DispatcherSwitch->getParent())) {
+      Reachable.insert(DFSBB);
     }
 
-    std::set<BasicBlock *> Reachable = WorkList.visited();
-
-    // Identify all the unreachable jump targets
+    // Identify all the unreachable jump targets, and add an edge from the
+    // dispatcher to them. Note that the order we use to iterate over
+    // `JumpTargets` is fundamental, because we want to connect to the
+    // dispatcher first the jump target with the lower program counter. At the
+    // same time, we will mark as reachable all the jump targets that are
+    // transitively reachable from the elected jump target. In this way, we
+    // connect to the dispatcher all the blocks belonging to a separate SCC that
+    // were not reachable initially (e.g., a function only indirectly called).
     for (const auto &[PC, JT] : JumpTargets) {
       BasicBlock *BB = JT.head();
       bool IsWhitelisted = (not IsWhitelistActive or Whitelist->contains(PC));
@@ -1139,6 +1139,13 @@ void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
         PCH->addCaseToDispatcher(DispatcherSwitch,
                                  { PC, BB },
                                  BlockType::RootDispatcherHelperBlock);
+
+        // Add to the `Reachable` set also all the jump targets that are now
+        // reachable. We do this with a with a simple DFS visit from the
+        // newly connected one.
+        for (BasicBlock *DFSBB : llvm::depth_first(BB)) {
+          Reachable.insert(DFSBB);
+        }
       }
     }
   }
