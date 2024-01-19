@@ -9,7 +9,6 @@ OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowUnnaturallyAlignedTypesInRegisters: false
-UsePointerToCopyForStackArguments: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
 

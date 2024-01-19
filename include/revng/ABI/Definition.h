@@ -124,17 +124,6 @@ fields:
       on stack.
     type: bool
 
-  - name: UsePointerToCopyForStackArguments
-    doc:
-      States how the stack arguments are passed.
-      If `UsePointerToCopyForStackArguments` is true, pointers-to-copy are used,
-      otherwise - the whole argument is copied onto the stack.
-
-      \note this only affects the arguments with size exceeding the size of
-      a single stack "slot" (which is equal to the GPR size for the architecture
-      in question).
-    type: bool
-
   - name: CalleeIsResponsibleForStackCleanup
     doc: |
       Specifies who is responsible for cleaning the stack after the function
