@@ -659,6 +659,51 @@ uint64_t finalStackOffset(const model::CABIFunctionType &Function) {
                                    0);
 }
 
+UsedRegisters usedRegisters(const model::CABIFunctionType &Function) {
+  UsedRegisters Result;
+
+  // Ready the return value register data.
+  const abi::Definition &ABI = abi::Definition::get(Function.ABI());
+  auto RV = ToRawConverter(ABI).distributeReturnValue(Function.ReturnType());
+  std::ranges::move(RV.Registers, std::back_inserter(Result.ReturnValues));
+
+  // Handle shadow pointer return value gracefully.
+  ArgumentDistributor Distributor(ABI);
+  if (RV.SizeOnStack != 0) {
+    Distributor.addShadowPointerReturnValueLocationArgument();
+
+    revng_assert(Result.ReturnValues.empty());
+    const auto &GPRs = ABI.GeneralPurposeReturnValueRegisters();
+    revng_assert(!GPRs.empty());
+    Result.ReturnValues.emplace_back(GPRs[0]);
+
+    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid)
+      Result.Arguments.emplace_back(ABI.ReturnValueLocationRegister());
+  }
+
+  if (ABI.GeneralPurposeArgumentRegisters().empty()
+      && ABI.VectorArgumentRegisters().empty()) {
+    // Do not even look at the arguments if an ABI explicitly states that it
+    // never uses any registers in the first place.
+    return Result;
+  }
+
+  // Iterate over arguments until we are sure no further argument can use
+  // any registers.
+  for (const model::Argument &Argument : Function.Arguments().asVector()) {
+    auto Distributed = Distributor.nextArgument(Argument.Type());
+    for (DistributedValue SingleEntry : Distributed)
+      if (!SingleEntry.RepresentsPadding)
+        std::ranges::move(SingleEntry.Registers,
+                          std::back_inserter(Result.Arguments));
+
+    if (!Distributor.canNextArgumentUseRegisters())
+      break;
+  }
+
+  return Result;
+}
+
 } // namespace abi::FunctionType
 
 using FTL = abi::FunctionType::Layout;
