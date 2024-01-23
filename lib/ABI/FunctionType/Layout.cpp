@@ -67,6 +67,8 @@ public:
 
 public:
   uint64_t finalStackOffset(uint64_t SizeOfArgumentsOnStack) const;
+
+  uint64_t combinedStackArgumentSize(const model::CABIFunctionType &) const;
 };
 
 /// Helper for choosing a "generic" register type, mainly used for filling
@@ -342,6 +344,21 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
   }
 
   return Result;
+}
+
+using TRC = ToRawConverter;
+uint64_t
+TRC::combinedStackArgumentSize(const model::CABIFunctionType &Function) const {
+  auto ReturnValue = distributeReturnValue(Function.ReturnType());
+
+  ArgumentDistributor Distributor(ABI);
+  if (ReturnValue.SizeOnStack != 0)
+    Distributor.addShadowPointerReturnValueLocationArgument();
+
+  for (const model::Argument &Argument : Function.Arguments())
+    Distributor.nextArgument(Argument.Type());
+
+  return Distributor.UsedStackOffset;
 }
 
 DistributedValues
@@ -631,6 +648,15 @@ Layout::returnValueRegisters() const {
     Result.append(ReturnValue.Registers.begin(), ReturnValue.Registers.end());
 
   return Result;
+}
+
+uint64_t finalStackOffset(const model::CABIFunctionType &Function) {
+  const abi::Definition &ABI = abi::Definition::get(Function.ABI());
+  ToRawConverter Helper(ABI);
+
+  return Helper.finalStackOffset(ABI.CalleeIsResponsibleForStackCleanup() ?
+                                   Helper.combinedStackArgumentSize(Function) :
+                                   0);
 }
 
 } // namespace abi::FunctionType
