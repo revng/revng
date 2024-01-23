@@ -227,4 +227,33 @@ inline uint64_t finalStackOffset(const model::TypePath &Function) {
   return finalStackOffset(*Function.get());
 }
 
+struct UsedRegisters {
+  llvm::SmallVector<model::Register::Values, 8> Arguments;
+  llvm::SmallVector<model::Register::Values, 8> ReturnValues;
+};
+UsedRegisters usedRegisters(const model::CABIFunctionType &Function);
+
+inline UsedRegisters usedRegisters(const model::RawFunctionType &Function) {
+  UsedRegisters Result;
+  for (const model::NamedTypedRegister &Register : Function.Arguments())
+    Result.Arguments.emplace_back(Register.Location());
+  for (const model::NamedTypedRegister &Register : Function.ReturnValues())
+    Result.ReturnValues.emplace_back(Register.Location());
+  return Result;
+}
+
+inline UsedRegisters usedRegisters(const model::Type &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+    return usedRegisters(*CABI);
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+    return usedRegisters(*Raw);
+  else
+    revng_abort("Layouts of non-function types are not supported.");
+}
+
+inline UsedRegisters usedRegisters(const model::TypePath &Function) {
+  revng_assert(Function.isValid());
+  return usedRegisters(*Function.get());
+}
+
 } // namespace abi::FunctionType
