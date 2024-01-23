@@ -55,15 +55,11 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
     for (Instruction &I : BB) {
       if (isCallToIsolatedFunction(&I)) {
         // TODO: handle CABIFunctionType
-        auto *Proto = Cache
-                        .getCallSitePrototype(Binary,
-                                              cast<CallInst>(&I),
-                                              &ModelFunction)
-                        .get();
-
-        using Layout = abi::FunctionType::Layout;
-        auto TheLayout = Layout::make(*Proto);
-        auto *FSO = ConstantInt::get(SPType, TheLayout.FinalStackOffset);
+        model::TypePath P = Cache.getCallSitePrototype(Binary,
+                                                       cast<CallInst>(&I),
+                                                       &ModelFunction);
+        uint64_t FinalStackOffset = abi::FunctionType::finalStackOffset(P);
+        auto *FSO = ConstantInt::get(SPType, FinalStackOffset);
 
         // We found a function call
         Changed = true;
