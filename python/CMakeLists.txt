@@ -171,6 +171,7 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/daemon.py
     revng/internal/cli/_commands/hard_purge.py
     revng/internal/cli/_commands/import_idb.py
+    revng/internal/cli/_commands/test_docs.py
     revng/internal/cli/_commands/trace_run.py
     revng/internal/cli/_commands/model_compare.py)
 python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
