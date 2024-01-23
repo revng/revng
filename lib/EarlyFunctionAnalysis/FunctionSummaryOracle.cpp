@@ -34,31 +34,35 @@ importPrototype(Module &M,
     Summary.ABIResults.FinalReturnValuesRegisters[CSV] = State::No;
   }
 
-  auto Layout = abi::FunctionType::Layout::make(Prototype);
+  if (not Prototype.empty()) {
+    auto Layout = abi::FunctionType::Layout::make(Prototype);
 
-  for (Register ArgumentRegister : Layout.argumentRegisters()) {
-    StringRef Name = model::Register::getCSVName(ArgumentRegister);
-    if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-      Summary.ABIResults.ArgumentsRegisters.at(CSV) = State::Yes;
+    for (Register ArgumentRegister : Layout.argumentRegisters()) {
+      StringRef Name = model::Register::getCSVName(ArgumentRegister);
+      if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
+        Summary.ABIResults.ArgumentsRegisters.at(CSV) = State::Yes;
+    }
+
+    for (Register ReturnValueRegister : Layout.returnValueRegisters()) {
+      StringRef Name = model::Register::getCSVName(ReturnValueRegister);
+      if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
+        Summary.ABIResults.FinalReturnValuesRegisters.at(CSV) = State::Yes;
+    }
+
+    std::set<llvm::GlobalVariable *> PreservedRegisters;
+    for (Register CalleeSavedRegister : Layout.CalleeSavedRegisters) {
+      StringRef Name = model::Register::getCSVName(CalleeSavedRegister);
+      if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
+        PreservedRegisters.insert(CSV);
+    }
+
+    std::erase_if(Summary.ClobberedRegisters, [&](const auto &E) {
+      return PreservedRegisters.contains(E);
+    });
+
+    Summary.ElectedFSO = Layout.FinalStackOffset;
   }
 
-  for (Register ReturnValueRegister : Layout.returnValueRegisters()) {
-    StringRef Name = model::Register::getCSVName(ReturnValueRegister);
-    if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-      Summary.ABIResults.FinalReturnValuesRegisters.at(CSV) = State::Yes;
-  }
-
-  std::set<llvm::GlobalVariable *> PreservedRegisters;
-  for (Register CalleeSavedRegister : Layout.CalleeSavedRegisters) {
-    StringRef Name = model::Register::getCSVName(CalleeSavedRegister);
-    if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-      PreservedRegisters.insert(CSV);
-  }
-
-  std::erase_if(Summary.ClobberedRegisters,
-                [&](const auto &E) { return PreservedRegisters.contains(E); });
-
-  Summary.ElectedFSO = Layout.FinalStackOffset;
   return Summary;
 }
 
@@ -153,7 +157,6 @@ void importModel(Module &M,
       ABICSVs.emplace_back(CSV);
 
   // Import the default prototype
-  revng_assert(Binary.DefaultPrototype().isValid());
   Oracle.setDefault(importPrototype(M, ABICSVs, {}, Binary.DefaultPrototype()));
 
   std::map<llvm::BasicBlock *, MetaAddress> InlineFunctions;
