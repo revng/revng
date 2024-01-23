@@ -269,6 +269,28 @@ file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}"
      "${Python_SITELIB}")
 
 #
+# Build docs
+#
+find_program(MKDOCS NAMES mkdocs)
+add_custom_command(
+  OUTPUT share/doc/revng/html/404.html
+  DEPENDS share/doc/revng/references/mime-types.md
+          share/doc/revng/references/ptml.md
+          share/doc/revng/user-manual/analyses.md
+          share/doc/revng/user-manual/index.md
+          share/doc/revng/user-manual/metaaddress.md
+          share/doc/revng/user-manual/model.md
+          share/doc/revng/user-manual/model-tutorial.md
+          share/doc/revng/user-manual/working-environment.md
+          share/doc/revng/what-is-revng.md
+          share/doc/revng/index.md
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  COMMAND ${MKDOCS} build --quiet --strict --site-dir
+          "${CMAKE_CURRENT_BINARY_DIR}/share/doc/revng/html"
+  COMMENT "Generating mkdocs")
+add_custom_target(mkdocs ALL DEPENDS share/doc/revng/html/404.html)
+
+#
 # Proceed to subdirectories
 #
 add_subdirectory(docs)
