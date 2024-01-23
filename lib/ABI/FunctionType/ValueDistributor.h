@@ -204,6 +204,13 @@ private:
                                      uint64_t Size,
                                      uint64_t Alignment,
                                      bool HasNaturalAlignment);
+
+private:
+  size_t nextPositionBasedIndex() const {
+    size_t MaxRegister = std::max(UsedGeneralPurposeRegisterCount,
+                                  UsedVectorRegisterCount);
+    return std::max(MaxRegister, ArgumentIndex);
+  }
 };
 
 class ReturnValueDistributor : public ValueDistributor {
