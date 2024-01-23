@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 
+#include "revng/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/QualifiedType.h"
 
@@ -180,5 +181,31 @@ public:
 public:
   void dump() const debug_function;
 };
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::CABIFunctionType &Function) {
+  return abi::Definition::get(Function.ABI()).CalleeSavedRegisters();
+}
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::RawFunctionType &Function) {
+  return Function.PreservedRegisters();
+}
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::Type &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+    return calleeSavedRegisters(*CABI);
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+    return calleeSavedRegisters(*Raw);
+  else
+    revng_abort("Layouts of non-function types are not supported.");
+}
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::TypePath &Function) {
+  revng_assert(Function.isValid());
+  return calleeSavedRegisters(*Function.get());
+}
 
 } // namespace abi::FunctionType
