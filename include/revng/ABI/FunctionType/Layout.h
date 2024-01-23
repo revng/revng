@@ -208,4 +208,23 @@ calleeSavedRegisters(const model::TypePath &Function) {
   return calleeSavedRegisters(*Function.get());
 }
 
+uint64_t finalStackOffset(const model::CABIFunctionType &Function);
+inline uint64_t finalStackOffset(const model::RawFunctionType &Function) {
+  return Function.FinalStackOffset();
+}
+
+inline uint64_t finalStackOffset(const model::Type &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+    return finalStackOffset(*CABI);
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+    return finalStackOffset(*Raw);
+  else
+    revng_abort("Layouts of non-function types are not supported.");
+}
+
+inline uint64_t finalStackOffset(const model::TypePath &Function) {
+  revng_assert(Function.isValid());
+  return finalStackOffset(*Function.get());
+}
+
 } // namespace abi::FunctionType
