@@ -15,6 +15,8 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/NamedEnumScalarTraits.h"
 
 #include "ValueDistributor.h"
 
@@ -632,3 +634,54 @@ Layout::returnValueRegisters() const {
 }
 
 } // namespace abi::FunctionType
+
+using FTL = abi::FunctionType::Layout;
+namespace FTAK = abi::FunctionType::ArgumentKind;
+
+template<>
+struct llvm::yaml::ScalarEnumerationTraits<FTAK::Values>
+  : public NamedEnumScalarTraits<FTAK::Values> {};
+
+template<>
+struct llvm::yaml::MappingTraits<FTL::Argument::StackSpan> {
+  static void mapping(IO &IO, FTL::Argument::StackSpan &SS) {
+    IO.mapRequired("Offset", SS.Offset);
+    IO.mapRequired("Size", SS.Size);
+  }
+};
+LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument::StackSpan)
+
+template<>
+struct llvm::yaml::MappingTraits<FTL::ReturnValue> {
+  static void mapping(IO &IO, FTL::ReturnValue &RV) {
+    IO.mapRequired("Type", RV.Type);
+    IO.mapRequired("Registers", RV.Registers);
+  }
+};
+LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::ReturnValue)
+
+template<>
+struct llvm::yaml::MappingTraits<FTL::Argument> {
+  static void mapping(IO &IO, FTL::Argument &A) {
+    IO.mapRequired("Type", A.Type);
+    IO.mapRequired("Kind", A.Kind);
+    IO.mapRequired("Registers", A.Registers);
+    IO.mapOptional("Stack", A.Stack);
+  }
+};
+LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument)
+
+template<>
+struct llvm::yaml::MappingTraits<FTL> {
+  static void mapping(IO &IO, FTL &L) {
+    IO.mapRequired("Arguments", L.Arguments);
+    IO.mapRequired("ReturnValues", L.ReturnValues);
+    IO.mapRequired("CalleeSavedRegisters", L.CalleeSavedRegisters);
+    IO.mapRequired("FinalStackOffset", L.FinalStackOffset);
+  }
+};
+
+void FTL::dump() const {
+  // TODO: accept an arbitrary stream
+  serialize(dbg, *this);
+}

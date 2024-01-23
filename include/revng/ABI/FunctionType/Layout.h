@@ -178,59 +178,7 @@ public:
   }
 
 public:
-  void dump() const debug_function {
-    // TODO: accept an arbitrary stream
-
-    //
-    // Arguments
-    //
-    dbg << "Arguments:\n";
-    for (const Argument &A : Arguments) {
-      dbg << "  - Type: ";
-      A.Type.dump();
-      dbg << "\n";
-      dbg << "    Registers: [";
-      for (model::Register::Values Register : A.Registers)
-        dbg << " " << model::Register::getName(Register).str();
-      dbg << " ]\n";
-      dbg << "    StackSpan: ";
-      if (A.Stack) {
-        dbg << "{ Offset: " << A.Stack->Offset << ", Size: " << A.Stack->Size
-            << " }\n";
-      } else {
-        dbg << "no\n";
-      }
-      dbg << "    Kind: " << getName(A.Kind);
-      dbg << "\n";
-    }
-
-    //
-    // ReturnValues
-    //
-    dbg << "ReturnValues: \n";
-    for (const ReturnValue &RV : ReturnValues) {
-      dbg << "  - Type: ";
-      RV.Type.dump();
-      dbg << "\n";
-      dbg << "    Registers: [";
-      for (model::Register::Values Register : RV.Registers)
-        dbg << " " << model::Register::getName(Register).str();
-      dbg << " ]\n";
-    }
-
-    //
-    // CalleeSavedRegisters
-    //
-    dbg << "CalleeSavedRegisters: [";
-    for (model::Register::Values Register : CalleeSavedRegisters)
-      dbg << " " << model::Register::getName(Register).str();
-    dbg << " ]\n";
-
-    //
-    // FinalStackOffset
-    //
-    dbg << "FinalStackOffset: " << FinalStackOffset << "\n";
-  }
+  void dump() const debug_function;
 };
 
 } // namespace abi::FunctionType
