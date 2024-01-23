@@ -829,10 +829,10 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   } else {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Model->EntryPoint();
-    revng_assert(VirtualAddress.isCode());
   }
 
   if (VirtualAddress.isValid()) {
+    revng_assert(VirtualAddress.isCode());
     JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
     // Initialize the program counter
