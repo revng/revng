@@ -21,14 +21,15 @@ model::TypePath convertToRaw(const model::CABIFunctionType &Function,
 namespace ArgumentKind {
 
 enum Values {
-  Scalar = 0,
+  Scalar,
   PointerToCopy,
   ReferenceToAggregate,
   ShadowPointerToAggregateReturnValue,
-  Invalid,
+
+  Count
 };
 
-inline const char *getName(Values Kind) {
+inline llvm::StringRef getName(Values Kind) {
   switch (Kind) {
   case Scalar:
     return "Scalar";
@@ -38,12 +39,25 @@ inline const char *getName(Values Kind) {
     return "ReferenceToAggregate";
   case ShadowPointerToAggregateReturnValue:
     return "ShadowPointerToAggregateReturnValue";
-  default:;
+  default:
+    revng_abort("Unknown enum entry");
   }
-  return "Invalid";
 }
 
-} // end namespace ArgumentKind
+inline Values fromName(llvm::StringRef Kind) {
+  if (Kind == "Scalar")
+    return Scalar;
+  else if (Kind == "PointerToCopy")
+    return PointerToCopy;
+  else if (Kind == "ReferenceToAggregate")
+    return ReferenceToAggregate;
+  else if (Kind == "ShadowPointerToAggregateReturnValue")
+    return ShadowPointerToAggregateReturnValue;
+  else
+    revng_abort("Unknown enum entry");
+}
+
+} // namespace ArgumentKind
 
 namespace ReturnMethod {
 enum Values {
