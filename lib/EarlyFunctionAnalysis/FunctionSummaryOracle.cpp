@@ -27,6 +27,19 @@ public:
     if (Prototype.empty())
       return Summary;
 
+    std::set<llvm::GlobalVariable *> PreservedRegisters;
+    for (Register R : abi::FunctionType::calleeSavedRegisters(Prototype)) {
+      llvm::StringRef Name = model::Register::getCSVName(R);
+      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
+        PreservedRegisters.insert(CSV);
+    }
+
+    std::erase_if(Summary.ClobberedRegisters, [&](const auto &E) {
+      return PreservedRegisters.contains(E);
+    });
+
+    Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
+
     for (llvm::GlobalVariable *CSV : ABICSVs) {
       Summary.ABIResults.ArgumentsRegisters[CSV] = State::No;
       Summary.ABIResults.FinalReturnValuesRegisters[CSV] = State::No;
@@ -45,19 +58,6 @@ public:
       if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
         Summary.ABIResults.FinalReturnValuesRegisters.at(CSV) = State::Yes;
     }
-
-    std::set<llvm::GlobalVariable *> PreservedRegisters;
-    for (Register R : abi::FunctionType::calleeSavedRegisters(Prototype)) {
-      llvm::StringRef Name = model::Register::getCSVName(R);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-        PreservedRegisters.insert(CSV);
-    }
-
-    std::erase_if(Summary.ClobberedRegisters, [&](const auto &E) {
-      return PreservedRegisters.contains(E);
-    });
-
-    Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
 
     return Summary;
   }
