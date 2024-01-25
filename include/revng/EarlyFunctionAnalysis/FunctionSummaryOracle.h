@@ -11,18 +11,7 @@
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/Model/FunctionAttribute.h"
 
-namespace llvm {
-class Module;
-}
-
 namespace efa {
-
-class FunctionSummaryOracle;
-
-void importModel(llvm::Module &M,
-                 GeneratedCodeBasicInfo &GCBI,
-                 const model::Binary &Binary,
-                 FunctionSummaryOracle &Oracle);
 
 using AttributesSet = MutableSet<model::FunctionAttribute::Values>;
 
@@ -130,6 +119,28 @@ private:
 
   /// Default
   FunctionSummary Default;
+
+public:
+  /// Create an oracle based on the binary, but importing all the function
+  /// related information available in it.
+  static FunctionSummaryOracle
+  importFullPrototypes(llvm::Module &M,
+                       GeneratedCodeBasicInfo &GCBI,
+                       const model::Binary &Binary);
+
+  /// Create an oracle based on the binary, but when importing functions, only
+  /// pull preserved registers and FSO from the prototype.
+  static FunctionSummaryOracle
+  importBasicPrototypeData(llvm::Module &M,
+                           GeneratedCodeBasicInfo &GCBI,
+                           const model::Binary &Binary);
+
+  /// Create an oracle based on the binary, but when importing functions, only
+  /// pull preserved registers from the prototype.
+  static FunctionSummaryOracle
+  importWithoutPrototypes(llvm::Module &M,
+                          GeneratedCodeBasicInfo &GCBI,
+                          const model::Binary &Binary);
 
 public:
   const FunctionSummary &getDefault() const { return Default; }
