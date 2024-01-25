@@ -115,7 +115,7 @@ void InlineHelpers::run(Function *F) {
 bool InlineHelpersPass::runOnModule(llvm::Module &M) {
   for (Function &F : M) {
     if (not FunctionTags::Isolated.isTagOf(&F))
-      return false;
+      continue;
 
     InlineHelpers IH(*F.getParent());
     IH.run(&F);
