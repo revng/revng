@@ -94,6 +94,10 @@ Branches:
               - simplify-cfg-with-hoist-and-sink
               - loop-rewrite-with-canonical-induction-variable
               - simplify-cfg-with-hoist-and-sink
+              # don't run simplify-cfg{,-with-hoist-and-sink} after
+              # loop-simplify because it kills the loop-simplify form causing
+              # DLA not to identify arrays properly
+              - loop-simplify
               - instcombine
               - remove-extractvalues
               - early-cse
