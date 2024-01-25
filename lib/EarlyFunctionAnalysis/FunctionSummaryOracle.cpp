@@ -27,15 +27,19 @@ public:
     if (Prototype.empty())
       return Summary;
 
-    std::set<llvm::GlobalVariable *> PreservedRegisters;
-    for (Register R : abi::FunctionType::calleeSavedRegisters(Prototype)) {
-      llvm::StringRef Name = model::Register::getCSVName(R);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-        PreservedRegisters.insert(CSV);
-    }
+    // Drop known to be preserved registers from `Summary.ClobberedRegisters`.
+    auto TransformToCSV = std::views::transform([this](Register Register) {
+      return M.getGlobalVariable(model::Register::getCSVName(Register), true);
+    });
+    auto IgnoreNullptr = std::views::filter([](const auto *Pointer) -> bool {
+      return Pointer != nullptr;
+    });
 
-    std::erase_if(Summary.ClobberedRegisters, [&](const auto &E) {
-      return PreservedRegisters.contains(E);
+    auto Preserved = abi::FunctionType::calleeSavedRegisters(Prototype)
+                     | TransformToCSV | IgnoreNullptr
+                     | revng::to<std::set<llvm::GlobalVariable *>>();
+    std::erase_if(Summary.ClobberedRegisters, [&Preserved](const auto &E) {
+      return Preserved.contains(E);
     });
 
     Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
