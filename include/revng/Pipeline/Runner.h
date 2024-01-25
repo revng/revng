@@ -82,7 +82,8 @@ public:
   const Step &operator[](llvm::StringRef Name) const { return getStep(Name); }
 
   Step &getStep(llvm::StringRef Name) {
-    revng_assert(Steps.find(Name) != Steps.end());
+    revng_assert(Steps.find(Name) != Steps.end(),
+                 ("Can't find step " + llvm::Twine(Name)).str().c_str());
     return Steps.find(Name)->second;
   }
 
