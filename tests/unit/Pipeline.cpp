@@ -250,7 +250,6 @@ public:
     auto SrcCopy = Source;
     for (const auto &Element : SrcCopy.getMap())
       if (&Element.first.getKind() == &RootKind) {
-        llvm::outs() << "Invoked\n";
         pipeline::Target NewTar(RootKind2);
         NewTar.dump();
         Target.get(NewTar) = Element.second;
@@ -1301,12 +1300,7 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   pipeline::TargetInStepSet Invalidations;
   Invalidations[Name][CName].push_back(T);
 
-  // C2End.enumerate().dump();
-  llvm::outs() << "Invalidations\n";
   auto Error = Pipeline.getInvalidations(Invalidations);
-  // Invalidations[Name].dump();
-  // Invalidations[SecondName].dump();
-  // Invalidations["End"].dump();
   BOOST_TEST(!Error);
 
   Error = Pipeline.invalidate(Invalidations);

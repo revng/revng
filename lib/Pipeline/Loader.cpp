@@ -35,7 +35,9 @@ Error Loader::parseStepDeclaration(Runner &Runner,
     const Kind *Kind = Runner.getKindsRegistry().find(KindName);
     if (Kind == nullptr) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Artifact Kind not found");
+                                     Twine("Can't find kind ") + KindName
+                                       + Twine(" for the artifact of step ")
+                                       + LastAddedStep + Twine(" not found"));
     }
     if (auto Error = JustAdded.setArtifacts(Declaration.Artifacts.Container,
                                             Kind,
@@ -105,8 +107,7 @@ llvm::Expected<AnalysisWrapper>
 Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
   auto It = KnownAnalysisTypes.find(Declaration.Type);
   if (It == KnownAnalysisTypes.end()) {
-    auto *Message = "while parsing analyses : No known Analysis with "
-                    "name '%s'\n ";
+    auto *Message = "While parsing analyses: no known analysis named name %s\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              Declaration.Type.c_str());
@@ -132,8 +133,8 @@ Loader::parseInvocation(Step &Step,
 
   auto It = KnownPipesTypes.find(Invocation.Type);
   if (It == KnownPipesTypes.end()) {
-    auto *Message = "while parsing pipe invocation: No known Pipe with "
-                    "name %s\n ";
+    auto *Message = "While parsing pipe invocation: no known pipe with "
+                    "name %s\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              Invocation.Type.c_str());
@@ -171,7 +172,7 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
                                         const BCDecl &Dec,
                                         StringsMap &ReadOnlyNames) const {
   if (not Dec.Role.empty() and KnownContainerRoles.count(Dec.Role) == 0) {
-    auto *Message = "while parsing container declaration with Name %s has a "
+    auto *Message = "While parsing container declaration with Name %s has a "
                     "unknown role %s.\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
@@ -181,7 +182,7 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
 
   if (not Dec.Role.empty()
       and KnownContainerRoles.find(Dec.Role)->second != Dec.Type) {
-    auto *Message = "while parsing container declaration with Name %s: "
+    auto *Message = "While parsing container declaration with Name %s: "
                     "role %s was not a valid role for container of type %s.\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
@@ -192,7 +193,7 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
 
   auto It = KnownContainerTypes.find(Dec.Type);
   if (It == KnownContainerTypes.end()) {
-    auto *Message = "while parsing container declaration: No known container "
+    auto *Message = "While parsing container declaration: No known container "
                     "with name %s\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
