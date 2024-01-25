@@ -1066,9 +1066,8 @@ bool DetectABIPass::runOnModule(Module &M) {
 
   TupleTree<model::Binary> &Binary = LMP.getWriteableModel();
 
-  FunctionSummaryOracle Oracle;
-  importModel(M, GCBI, *Binary, Oracle);
-
+  using FSOracle = FunctionSummaryOracle;
+  FSOracle Oracle = FSOracle::importFullPrototypes(M, GCBI, *Binary);
   CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
 
   DetectABI ABIDetector(M, GCBI, Binary, Oracle, Analyzer);

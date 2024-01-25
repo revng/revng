@@ -381,6 +381,9 @@ public:
                   bool IsNoReturn,
                   bool IsTailCall,
                   llvm::Value *SymbolNamePointer) final {
+    revng_assert(MaybeFSO == std::nullopt,
+                 "FSO is expensive to compute for CFT but is not used, "
+                 "is there maybe a way to avoid it?");
     handleCall(Builder, Callee, SymbolNamePointer);
   }
 
@@ -463,6 +466,8 @@ inline auto toVector(R &&Range) {
   return Result;
 }
 
+using FSOracle = efa::FunctionSummaryOracle;
+
 class FunctionOutliner {
 private:
   GeneratedCodeBasicInfo &GCBI;
@@ -473,9 +478,9 @@ public:
   FunctionOutliner(llvm::Module &M,
                    const model::Binary &Binary,
                    GeneratedCodeBasicInfo &GCBI) :
-    GCBI(GCBI), Outliner(M, GCBI, Oracle) {
-    importModel(M, GCBI, Binary, Oracle);
-  }
+    GCBI(GCBI),
+    Oracle(FSOracle::importWithoutPrototypes(M, GCBI, Binary)),
+    Outliner(M, GCBI, Oracle) {}
 
 public:
   efa::OutlinedFunction outline(MetaAddress Entry,

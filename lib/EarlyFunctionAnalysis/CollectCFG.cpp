@@ -61,9 +61,8 @@ bool CollectCFGPass::runOnModule(Module &M) {
 
   const TupleTree<model::Binary> &Binary = LMP.getReadOnlyModel();
 
-  FunctionSummaryOracle Oracle;
-  importModel(M, GCBI, *Binary, Oracle);
-
+  using FSOracle = FunctionSummaryOracle;
+  FSOracle Oracle = FSOracle::importBasicPrototypeData(M, GCBI, *Binary);
   CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
 
   CollectCFG CFGCollector(GCBI, Binary, Analyzer);
