@@ -384,14 +384,13 @@ Error Runner::run(llvm::StringRef EndingStepName,
     if (VerifyLog.isEnabled()) {
       ContainerSet Produced = Step->containers().cloneFiltered(PredictedOutput);
       revng_check(Produced.enumerate().contains(PredictedOutput),
-                  "predicted output was not fully contained in actually "
-                  "produced");
+                  "Not all the expected targets have been produced");
       revng_check(Step->containers().enumerate().contains(PredictedOutput));
     }
   }
 
   if (ExplanationLogger.isEnabled()) {
-    ExplanationLogger << "PRODUCED \n";
+    ExplanationLogger << "PRODUCED\n";
     indent(ExplanationLogger, 1);
     ExplanationLogger << EndingStepName << ":\n";
     ToExec.back().ToExecute->containers().enumerate().dump(ExplanationLogger,

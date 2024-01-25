@@ -107,7 +107,7 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
   AsString.split(Parts, ':', 2);
 
   if (Parts.size() != 2) {
-    auto *Message = "string '%s' was not in expected form <path:kind>";
+    auto *Message = "String '%s' was not in expected form <path:kind>";
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    Message,
                                    AsString.str().c_str());
