@@ -306,7 +306,18 @@ gatherArgumentComments(const model::Binary &Binary,
         } else {
           revng_assert(CurrentArgument.Stack
                        && CurrentArgument.Stack->Size != 0);
-          Line->emplace_back(DoxygenToken::Types::Untagged, " (on the stack)");
+          Line->emplace_back(DoxygenToken::Types::Untagged,
+                             " (" + std::to_string(CurrentArgument.Stack->Size)
+                               + " bytes at ");
+
+          namespace Arch = model::Architecture;
+          auto SP = Arch::getStackPointer(Binary.Architecture());
+          Line->emplace_back(DoxygenToken::Types::Identifier,
+                             model::Register::getRegisterName(SP).str());
+          uint64_t Adjustment = Arch::getCallPushSize(Binary.Architecture());
+          uint64_t Adjusted = CurrentArgument.Stack->Offset + Adjustment;
+          Line->emplace_back(DoxygenToken::Types::Untagged,
+                             "+" + std::to_string(Adjusted) + ")");
         }
 
         Line->emplace_back(DoxygenToken::Types::Untagged, " ");
