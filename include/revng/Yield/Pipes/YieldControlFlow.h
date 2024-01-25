@@ -25,9 +25,9 @@ using FunctionAssemblyStringMap = FunctionStringMap<
   FunctionAssemblyYamlMIMEType,
   FunctionAssemblyYamlExtension>;
 
-inline constexpr char FunctionAssemblyPTMLMIMEType[] = "text/x.asm+ptml+yaml";
+inline constexpr char FunctionAssemblyPTMLMIMEType[] = "text/x.asm+ptml+tar+gz";
 inline constexpr char FunctionAssemblyPTMLName[] = "FunctionAssemblyPTML";
-inline constexpr char FunctionAssemblyPTMLExtension[] = ".asm.ptml";
+inline constexpr char FunctionAssemblyPTMLExtension[] = ".asm.tar.gz";
 
 using FunctionAssemblyPTMLStringMap = FunctionStringMap<
   &kinds::FunctionAssemblyPTML,
