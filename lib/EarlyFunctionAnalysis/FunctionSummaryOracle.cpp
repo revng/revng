@@ -152,11 +152,13 @@ void importModel(llvm::Module &M,
   revng_log(Log, "Importing from model");
   LoggerIndent Indent(Log);
 
-  std::set<llvm::GlobalVariable *> ABICSVs;
-  for (llvm::GlobalVariable *CSV : GCBI.abiRegisters())
-    if (CSV != nullptr && !(GCBI.isSPReg(CSV)))
-      ABICSVs.emplace(CSV);
-  PrototypeImporter Importer{ .M = M, .ABICSVs = ABICSVs };
+  using GV = llvm::GlobalVariable;
+  auto RegisterFilter = std::views::filter([SP = GCBI.spReg()](GV *CSV) {
+    return CSV != nullptr && CSV != SP;
+  });
+  PrototypeImporter Importer{ .M = M,
+                              .ABICSVs = GCBI.abiRegisters() | RegisterFilter
+                                         | revng::to<std::set<GV *>>() };
 
   // Import the default prototype
   Oracle.setDefault(Importer.prototype({}, Binary.DefaultPrototype()));
