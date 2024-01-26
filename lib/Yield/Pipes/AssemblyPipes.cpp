@@ -75,9 +75,10 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
     revng_assert(MaybeFunction && MaybeFunction->verify());
-    revng_assert((*MaybeFunction)->Entry() == Address);
+    revng_assert((*MaybeFunction)->Entry() == std::get<0>(Address));
 
-    const model::Function &ModelFunction = Model->Functions().at(Address);
+    const model::Function &ModelFunction = Model->Functions()
+                                             .at(std::get<0>(Address));
     const model::Architecture::Values A = Model->Architecture();
     auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
     std::string R = ptml::functionComment(ThePTMLBuilder,
@@ -101,8 +102,9 @@ void YieldAssembly::print(const pipeline::Context &,
 } // end namespace revng::pipes
 
 using namespace revng::pipes;
-static RegisterFunctionStringMap<FunctionAssemblyStringMap> X1;
-static RegisterFunctionStringMap<FunctionAssemblyPTMLStringMap> X2;
+using namespace pipeline;
+static RegisterDefaultConstructibleContainer<FunctionAssemblyStringMap> X1;
+static RegisterDefaultConstructibleContainer<FunctionAssemblyPTMLStringMap> X2;
 
 static pipeline::RegisterPipe<revng::pipes::ProcessAssembly> ProcessPipe;
 static pipeline::RegisterPipe<revng::pipes::YieldAssembly> YieldPipe;

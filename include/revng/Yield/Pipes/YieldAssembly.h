@@ -11,7 +11,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipes/FunctionStringMap.h"
+#include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Pipes/YieldControlFlow.h"
 
 namespace revng::pipes {

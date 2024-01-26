@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import signal
+import sys
 from datetime import timedelta
 from importlib import import_module
 from typing import Callable, List
@@ -134,7 +135,8 @@ def make_startlette() -> Starlette:
     startup_done = False
 
     if DEBUG:
-        print(f"Manager workdir is: {manager.workdir}")
+        print(f"Manager workdir is: {manager.workdir}", file=sys.stderr)
+        signal.signal(signal.SIGUSR2, lambda s, f: event_manager.save())
 
     async def index_page(request):
         return PlainTextResponse("")
