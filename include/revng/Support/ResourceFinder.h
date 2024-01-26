@@ -10,4 +10,6 @@ namespace revng {
 
 extern PathList ResourceFinder;
 
-}
+std::string getComponentsHash();
+
+} // namespace revng

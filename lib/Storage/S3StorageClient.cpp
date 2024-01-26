@@ -310,9 +310,11 @@ llvm::Expected<PathType> S3StorageClient::type(llvm::StringRef Path) {
   if (FilenameMap.count(Path) > 0) {
     return PathType::File;
   } else {
-    for (auto &[MapPath, _] : FilenameMap)
-      if (MapPath.startswith(Path))
+    std::string Prefix = Path.endswith("/") ? Path.str() : (Path.str() + "/");
+    for (auto &[MapPath, _] : FilenameMap) {
+      if (MapPath.startswith(Prefix))
         return PathType::Directory;
+    }
     return PathType::Missing;
   }
 }

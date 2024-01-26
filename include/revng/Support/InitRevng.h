@@ -7,6 +7,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Process.h"
 
 #include "revng/Support/Statistics.h"
 
@@ -35,12 +36,22 @@ public:
       llvm::cl::HideUnrelatedOptions(CategoriesToHide);
     }
 
+    // The EnvVar option in llvm::cl::ParseCommandLineOptions prepends the
+    // contents of the EnvVar environment variable to the argv, this is
+    // undesirable since we have `-load`s in the argv. Here we parse the env
+    // manually (if present) and append the command-line options at the end of
+    // the argv.
+    llvm::BumpPtrAllocator A;
+    llvm::StringSaver Saver(A);
+    llvm::SmallVector<const char *, 0> Arguments(Argv, Argv + Argc);
+    if (auto EnvValue = llvm::sys::Process::GetEnv("REVNG_OPTIONS")) {
+      llvm::cl::TokenizeGNUCommandLine(*EnvValue, Saver, Arguments);
+    }
+
     // NOLINTNEXTLINE
-    bool Result = llvm::cl::ParseCommandLineOptions(Argc,
-                                                    Argv,
-                                                    Overview,
-                                                    nullptr,
-                                                    "REVNG_OPTIONS");
+    bool Result = llvm::cl::ParseCommandLineOptions(Arguments.size(),
+                                                    Arguments.data(),
+                                                    Overview);
 
     if (not Result)
       std::exit(EXIT_FAILURE);

@@ -473,3 +473,11 @@ Step::storeInvalidationMetadata(const revng::DirectoryPath &Path) const {
 
   return llvm::Error::success();
 }
+
+std::vector<revng::FilePath>
+Step::getWrittenFiles(const revng::DirectoryPath &DirPath) const {
+  std::vector<revng::FilePath> Result = Containers.getWrittenFiles(DirPath);
+  for (auto &Container : Containers)
+    Result.push_back(DirPath.getFile(Container.first().str() + ".cache"));
+  return Result;
+}

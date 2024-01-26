@@ -220,6 +220,11 @@ public:
     return llvm::Error::success();
   }
 
+  static std::vector<revng::FilePath>
+  getWrittenFiles(const revng::FilePath &Path) {
+    return { Path, Path.addExtension("idx") };
+  }
+
   static std::vector<pipeline::Kind *> possibleKinds() { return { K }; }
 
 protected:

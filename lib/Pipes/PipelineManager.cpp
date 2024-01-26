@@ -32,6 +32,12 @@ using namespace pipeline;
 using namespace llvm;
 using namespace ::revng::pipes;
 
+static cl::opt<bool> CheckComponentsVersion("check-components-version",
+                                            cl::desc("Delete container caches "
+                                                     "if component hashes "
+                                                     "don't match"),
+                                            cl::init(false));
+
 class LoadModelPipePass {
 private:
   ModelWrapper Wrapper;
@@ -92,6 +98,68 @@ PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
   return MaybeMapping->load(*Runner);
 }
 
+static llvm::Error
+checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory,
+                       const Runner &TheRunner) {
+  revng::FilePath HashFile = ExecutionDirectory.getFile("components-hash");
+
+  // check that the if the saved hash file exists
+  auto MaybeExists = HashFile.exists();
+  if (not MaybeExists)
+    return MaybeExists.takeError();
+
+  bool HashFileExists = MaybeExists.get();
+
+  if (not CheckComponentsVersion)
+    return HashFileExists ? HashFile.remove() : llvm::Error::success();
+
+  std::string ActualHash = revng::getComponentsHash();
+  std::string SavedHash;
+
+  if (HashFileExists) {
+    // read the saved hash file
+    auto MaybeReadableFile = HashFile.getReadableFile();
+    if (not MaybeReadableFile)
+      return MaybeReadableFile.takeError();
+
+    SavedHash = MaybeReadableFile.get()->buffer().getBuffer().str();
+  }
+
+  // Check if the hashes match
+  if (ActualHash == SavedHash)
+    return llvm::Error::success();
+
+  // First thing, remove the hash file, to guarantee that at worst then next
+  // time we run we still trigger cleanup
+  if (HashFileExists) {
+    if (llvm::Error Error = HashFile.remove(); Error)
+      return Error;
+  }
+
+  std::vector<revng::FilePath>
+    FilePaths = TheRunner.getWrittenFiles(ExecutionDirectory);
+  // Remove all the files that can be re-created by the pipeline
+  for (revng::FilePath &Path : FilePaths) {
+    auto MaybeExists = Path.exists();
+    if (not MaybeExists)
+      return MaybeExists.takeError();
+
+    if (MaybeExists.get()) {
+      if (llvm::Error Error = Path.remove(); Error)
+        return Error;
+    }
+  }
+
+  // Re-write the components-hash file, to avoid re-deleting files on
+  // the next run
+  auto MaybeWritableFile = HashFile.getWritableFile();
+  if (not MaybeWritableFile)
+    return MaybeWritableFile.takeError();
+
+  MaybeWritableFile.get()->os() << ActualHash;
+  return MaybeWritableFile.get()->commit();
+}
+
 static llvm::Expected<Runner>
 setUpPipeline(pipeline::Context &PipelineContext,
               Loader &Loader,
@@ -101,9 +169,15 @@ setUpPipeline(pipeline::Context &PipelineContext,
   if (not MaybePipeline)
     return MaybePipeline.takeError();
 
-  if (ExecutionDirectory.isValid())
+  if (ExecutionDirectory.isValid()) {
+    llvm::Error Error = checkComponentsVersion(ExecutionDirectory,
+                                               MaybePipeline.get());
+    if (Error)
+      return std::move(Error);
+
     if (auto Error = MaybePipeline->load(ExecutionDirectory); Error)
       return std::move(Error);
+  }
 
   return MaybePipeline;
 }
@@ -176,6 +250,11 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
 
   if (auto Error = Manager.computeDescription(); Error)
     return Error;
+
+  if (Manager.ExecutionDirectory.isValid()) {
+    if (auto Error = Manager.StorageClient->commit(); Error)
+      return Error;
+  }
 
   return std::move(Manager);
 }
