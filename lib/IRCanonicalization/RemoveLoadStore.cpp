@@ -149,31 +149,35 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         llvm::Type *PointedType = ValueOp->getType();
 
         QualifiedType PointerOpQT = TypeMap.at(PointerOp);
-        QualifiedType StoredQT;
+        QualifiedType StoredQT = TypeMap.at(ValueOp);
 
         // Use the model information coming from pointer operand only if the
         // size is the same as the store's original size.
         if (PointerOpQT.isPointer()) {
           model::QualifiedType PointedQT = dropPointer(PointerOpQT);
 
-          if (areMemOpCompatible(PointedQT, *ValueOp->getType(), *Model))
+          // We want to make sure that the StoredType is compatible with the
+          // place it is being stored into.
+          // However, we have to work around string literals, because they are
+          // custom opcodes that return an integer on LLVM IR, but that
+          // integers always represents a pointer in the decompiled C code.
+          // TODO: this can actually be improved upon.
+          // Probably MakeSegmentRefPass (who injects calls to cstringLiteral)
+          // should emit an AddressOf, and cstringLiteral should have reference
+          // semantics. If we do this it has to be integrated with DLA.
+          if (isCallToTagged(ValueOp, FunctionTags::StringLiteral))
+            PointedType = llvm::PointerType::getUnqual(Store->getContext());
+
+          if (areMemOpCompatible(PointedQT, *PointedType, *Model))
             StoredQT = PointedQT;
         }
-
-        // If the pointer operand does not have a pointer type in the model,
-        // it means we could not recover type information about the pointer
-        // operand. Hence, we need to use the stored operand to understand the
-        // type pointed by the `Store` instruction.
-        if (StoredQT.UnqualifiedType().empty())
-          StoredQT = TypeMap.at(ValueOp);
-
-        revng_assert(areMemOpCompatible(StoredQT, *ValueOp->getType(), *Model));
+        revng_assert(areMemOpCompatible(StoredQT, *PointedType, *Model));
 
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PointerOp,
                                          StoredQT,
-                                         PointedType);
+                                         ValueOp->getType());
 
         // Add the dereferenced type to the type map
         TypeMap.insert({ DerefCall, StoredQT });
