@@ -1675,14 +1675,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
 
         const llvm::Value *Op0 = I->getOperand(0);
         std::string Op0String = rc_recur getToken(Op0);
-        model::QualifiedType BoolTy;
-        using model::PrimitiveTypeKind::Unsigned;
-        BoolTy.UnqualifiedType() = Model.getPrimitiveType(Unsigned, 1);
-        rc_return addDebugInfo(I,
-                               buildCastExpr(Op0String,
-                                             TypeMap.at(Op0),
-                                             BoolTy),
-                               B);
+        rc_return addDebugInfo(I, Op0String, B);
       }
     }
     rc_return rc_recur getToken(Br->getCondition());

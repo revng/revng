@@ -22,9 +22,6 @@ using InversePointerGraphNodeT = llvm::Inverse<PointerGraphNodeT>;
 bool MergePointerNodes::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
 
-  if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyLeafs());
-
   for (LTSN *Node : llvm::nodes(&TS)) {
     revng_assert(Node != nullptr);
 
@@ -62,9 +59,6 @@ bool MergePointerNodes::runOnTypeSystem(LayoutTypeSystem &TS) {
       TS.mergeNodes(ToMerge);
     }
   }
-
-  if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyLeafs());
 
   return Changed;
 }

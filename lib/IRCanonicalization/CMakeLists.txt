@@ -15,7 +15,6 @@ revng_add_analyses_library(
   MakeLocalVariables.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
-  RemoveRefDeref.cpp
   RemoveLLVMAssumeCallsPass.cpp
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp

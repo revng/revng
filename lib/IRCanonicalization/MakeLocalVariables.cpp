@@ -9,11 +9,14 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
+#include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
@@ -31,6 +34,7 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<LoadModelWrapperPass>();
+    AU.addRequired<FunctionMetadataCachePass>();
     AU.setPreservesCFG();
   }
 };
@@ -45,10 +49,6 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
-  // Get the model
-  const auto
-    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
-
   llvm::SmallVector<llvm::AllocaInst *, 8> ToReplace;
 
   // Collect instructions that allocate local variables
@@ -59,6 +59,11 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
 
   if (ToReplace.empty())
     return false;
+
+  // Get the model and the function metadata cache
+  const auto
+    &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
+  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::Module &M = *F.getParent();
@@ -71,14 +76,48 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   OpaqueFunctionsPool<llvm::Type *> LocalVarPool(&M, false);
   initLocalVarPool(LocalVarPool);
 
+  // Try to initialize a map for the known model types of llvm::Values
+  // that are reachable from F. If this fails, we just bail out because we
+  // cannot infer any modelGEP in F, if we have no type information to rely
+  // on.
+  const model::Function *ModelF = llvmToModelFunction(*Model, F);
+  revng_assert(ModelF);
+  using ModelTypesMap = std::map<const llvm::Value *,
+                                 const model::QualifiedType>;
+  ModelTypesMap KnownTypes = initModelTypes(Cache,
+                                            F,
+                                            ModelF,
+                                            *Model,
+                                            /*PointersOnly=*/false);
+
   for (auto *Alloca : ToReplace) {
     Builder.SetInsertPoint(Alloca);
     llvm::Type *ResultType = Alloca->getType();
 
-    // Convert the allocated llvm type to a model type
-    auto AllocatedType = llvmIntToModelType(Alloca->getAllocatedType(), *Model);
-    llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
+    // Compute the allocated type for the alloca
+    model::QualifiedType AllocatedType;
+    {
+      std::set<model::QualifiedType> StoredTypes;
+      for (const llvm::Use &U : Alloca->uses()) {
+        if (auto *Store = dyn_cast<llvm::StoreInst>(U.getUser())) {
+          if (Store->getPointerOperandIndex() == U.getOperandNo()) {
+            llvm::Value *Stored = Store->getValueOperand();
+            auto It = KnownTypes.find(Stored);
+            if (It != KnownTypes.end()) {
+              StoredTypes.insert(It->second);
+            }
+          }
+        }
+      }
 
+      if (StoredTypes.size() == 1)
+        AllocatedType = *StoredTypes.begin();
+      else
+        AllocatedType = llvmIntToModelType(Alloca->getAllocatedType(), *Model);
+    }
+    revng_assert(AllocatedType.verify());
+
+    llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
     auto LocalVarLLVMType = llvm::IntegerType::get(LLVMCtx,
                                                    AllocatedType.size().value()
                                                      * 8);

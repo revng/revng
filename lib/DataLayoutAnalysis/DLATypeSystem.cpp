@@ -355,7 +355,7 @@ static void moveEdgeTargetWithoutSumming(LayoutTypeSystemNode *OldTgt,
 
   // First, move the successor from OldTgt to NewTgt
   LayoutTypeSystemNode *Src = InverseEdgeIt->first;
-  auto SuccHandle = Src->Successors.extract({ Src, InverseEdgeIt->second });
+  auto SuccHandle = Src->Successors.extract({ OldTgt, InverseEdgeIt->second });
   revng_assert(not SuccHandle.empty());
   SuccHandle.value().first = NewTgt;
   Src->Successors.insert(std::move(SuccHandle));
