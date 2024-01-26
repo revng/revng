@@ -751,7 +751,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
   } break;
   case ASTNode::NK_Code: {
 
-    // FIXME: At the moment we use the BasicBlock size to assign a weight to the
+    // TODO: At the moment we use the BasicBlock size to assign a weight to the
     //       code nodes. In future, we would want to use the number of statement
     //       emitted in the decompiled code as weight (and use
     //       `AssignmentMarker`s to do that).
