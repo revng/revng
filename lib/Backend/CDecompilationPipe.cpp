@@ -4,9 +4,9 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/StringMap.h"
 
 #include "revng-c/Backend/CDecompilationPipe.h"
 #include "revng-c/Backend/DecompileFunction.h"
@@ -14,7 +14,9 @@
 
 namespace revng::pipes {
 
-static RegisterFunctionStringMap<DecompiledCCodeInYAMLStringMap> Reg;
+using namespace pipeline;
+static RegisterDefaultConstructibleContainer<DecompiledCCodeInYAMLStringMap>
+  Reg;
 
 void CDecompilation::run(const pipeline::ExecutionContext &Ctx,
                          pipeline::LLVMContainer &IRContainer,

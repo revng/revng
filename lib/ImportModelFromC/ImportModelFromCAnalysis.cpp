@@ -150,8 +150,10 @@ struct ImportModelFromCAnalysis {
                                        + EC.message());
     }
 
-    ModelToHeaderOptions Options;
-    Options.GeneratePlainC = true;
+    ModelToHeaderOptions Options = {
+      .GeneratePlainC = true,
+      .DisableTypeInlining = true,
+    };
 
     if (TheOption == ImportModelFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward

@@ -6,7 +6,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/Pipes/FunctionStringMap.h"
+#include "revng/Pipes/StringMap.h"
 #include "revng/Support/MetaAddress.h"
 
 #include "revng-c/Backend/CDecompilationPipe.h"

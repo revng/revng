@@ -12,9 +12,9 @@
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringBufferContainer.h"
+#include "revng/Pipes/StringMap.h"
 
 #include "revng-c/Backend/CDecompilationPipe.h"
 #include "revng-c/Pipes/Kinds.h"

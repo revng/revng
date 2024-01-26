@@ -917,11 +917,10 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   const RecordDecl *Definition = RD->getDefinition();
 
   auto NewType = makeType<model::StructType>();
-  setCustomName(*NewType, RD->getName());
-
   if (AnalysisOption == ImportModelFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
+  setCustomName(*NewType, RD->getName());
   auto Struct = cast<model::StructType>(NewType.get());
   uint64_t CurrentOffset = 0;
 
@@ -1045,12 +1044,11 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
 
   const RecordDecl *Definition = RD->getDefinition();
   auto NewType = makeType<model::UnionType>();
-  setCustomName(*NewType, RD->getName().str());
-
-  auto Union = cast<model::UnionType>(NewType.get());
-
   if (AnalysisOption == ImportModelFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
+
+  setCustomName(*NewType, RD->getName().str());
+  auto Union = cast<model::UnionType>(NewType.get());
 
   uint64_t CurrentIndex = 0;
   for (const FieldDecl *Field : Definition->fields()) {

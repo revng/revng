@@ -64,7 +64,7 @@ int main(int Argc, const char *Argv[]) {
   using revng::pipes::FunctionStringMap;
   TupleTree<model::Binary> Model;
 
-  revng::pipes::DecompiledCCodeInYAMLStringMap Functions("" /*Name*/, &Model);
+  revng::pipes::DecompiledCCodeInYAMLStringMap Functions("" /*Name*/);
 
   // Deserialize the map
   llvm::cantFail(Functions.deserialize(**InputBuffer));

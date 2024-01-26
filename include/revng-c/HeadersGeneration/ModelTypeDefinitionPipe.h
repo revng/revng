@@ -15,38 +15,43 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringMap.h"
+#include "revng/Pipes/TargetListContainer.h"
 
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
-inline constexpr char DecompiledCCodeInYAMLMime[] = "text/x.c+ptml+yaml";
-inline constexpr char DecompiledCCodeInYAMLName[] = "DecompiledCCodeInYAML";
-inline constexpr char DecompiledCCodeInYAMLExtension[] = ".c.ptml";
-using DecompiledCCodeInYAMLStringMap = FunctionStringMap<
-  &kinds::DecompiledToYAML,
-  DecompiledCCodeInYAMLName,
-  DecompiledCCodeInYAMLMime,
-  DecompiledCCodeInYAMLExtension>;
+inline constexpr char TypeContainerName[] = "TypeKindTargetContainer";
+using TypeTargetList = TargetListContainer<&kinds::ModelTypeDefinition,
+                                           TypeContainerName>;
 
-class CDecompilation {
+inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+yaml";
+inline constexpr char ModelTypeDefinitionName[] = "ModelTypeDefinitions";
+inline constexpr char ModelTypeDefinitionExtension[] = ".h";
+using ModelTypeDefinitionStringMap = TypeStringMap<
+  &kinds::ModelTypeDefinition,
+  ModelTypeDefinitionName,
+  ModelTypeDefinitionMime,
+  ModelTypeDefinitionExtension>;
+
+class GenerateModelTypeDefinition {
 public:
-  static constexpr auto Name = "CDecompilation";
+  static constexpr auto Name = "GenerateModelTypeDefinition";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(StackAccessesSegregated,
+    return { ContractGroup({ Contract(ModelTypeDefinition,
                                       0,
-                                      DecompiledToYAML,
+                                      ModelTypeDefinition,
                                       1,
                                       InputPreservation::Preserve) }) };
   }
 
   void run(const pipeline::ExecutionContext &Ctx,
-           pipeline::LLVMContainer &IRContainer,
-           DecompiledCCodeInYAMLStringMap &DecompiledFunctionsContainer);
+           TypeTargetList &TargetList,
+           ModelTypeDefinitionStringMap &ModelTypesContainer);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

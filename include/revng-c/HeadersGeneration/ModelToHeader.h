@@ -24,6 +24,12 @@ struct ModelToHeaderOptions {
   /// For example, this option disables emission of the _enum_max_value_* entry
   /// in enums.
   bool ForEditing = false;
+  /// If set to true, disables all type inlining mechanisms. These include:
+  /// 1. Not printing a type if its only use is by a single function as a stack
+  ///    type
+  /// 2. Not printing any type which its only use (either directly or
+  ///    transitively) derives from (1)
+  bool DisableTypeInlining = false;
 };
 
 /// Generate a C header containing a serialization of the type system,

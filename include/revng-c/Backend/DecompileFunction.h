@@ -8,7 +8,7 @@
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
-#include "revng/Pipes/FunctionStringMap.h"
+#include "revng/Pipes/StringMap.h"
 
 #include "revng-c/Backend/CDecompilationPipe.h"
 

@@ -114,8 +114,7 @@ int main(int Argc, const char *Argv[]) {
   }
 
   using revng::pipes::FunctionStringMap;
-  revng::pipes::DecompiledCCodeInYAMLStringMap DecompiledFunctions("" /*Name*/,
-                                                                   &Model);
+  revng::pipes::DecompiledCCodeInYAMLStringMap DecompiledFunctions("" /*Name*/);
 
   FunctionMetadataCache Cache;
   decompile(Cache, *Module, *Model, DecompiledFunctions);
