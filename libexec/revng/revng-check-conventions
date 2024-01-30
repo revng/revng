@@ -321,7 +321,7 @@ class MyPyPass(SingleCommandPass):
         script_files: List[Path] = []
         normal_files: List[Path] = []
         for filepath in files:
-            if str(filepath).startswith("python/scripts"):
+            if str(filepath).startswith("python/scripts") or filepath.name == "lit.cfg.py":
                 script_files.append(filepath)
             else:
                 normal_files.append(filepath)
