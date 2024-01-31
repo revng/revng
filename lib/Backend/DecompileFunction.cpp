@@ -2218,7 +2218,7 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
   return Result;
 }
 
-using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
+using Container = revng::pipes::DecompileStringMap;
 void decompile(FunctionMetadataCache &Cache,
                llvm::Module &Module,
                const model::Binary &Model,

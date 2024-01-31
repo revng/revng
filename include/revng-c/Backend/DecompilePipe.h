@@ -20,18 +20,17 @@
 
 namespace revng::pipes {
 
-inline constexpr char DecompiledCCodeInYAMLMime[] = "text/x.c+ptml+yaml";
-inline constexpr char DecompiledCCodeInYAMLName[] = "DecompiledCCodeInYAML";
-inline constexpr char DecompiledCCodeInYAMLExtension[] = ".c.ptml";
-using DecompiledCCodeInYAMLStringMap = FunctionStringMap<
-  &kinds::Decompiled,
-  DecompiledCCodeInYAMLName,
-  DecompiledCCodeInYAMLMime,
-  DecompiledCCodeInYAMLExtension>;
+inline constexpr char DecompileMime[] = "text/x.c+ptml+yaml";
+inline constexpr char DecompileName[] = "Decompile";
+inline constexpr char DecompileExtension[] = ".c.ptml";
+using DecompileStringMap = FunctionStringMap<&kinds::Decompiled,
+                                             DecompileName,
+                                             DecompileMime,
+                                             DecompileExtension>;
 
-class CDecompilation {
+class Decompile {
 public:
-  static constexpr auto Name = "CDecompilation";
+  static constexpr auto Name = "Decompile";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -46,7 +45,7 @@ public:
 
   void run(const pipeline::ExecutionContext &Ctx,
            pipeline::LLVMContainer &IRContainer,
-           DecompiledCCodeInYAMLStringMap &DecompiledFunctionsContainer);
+           DecompileStringMap &DecompiledFunctionsContainer);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

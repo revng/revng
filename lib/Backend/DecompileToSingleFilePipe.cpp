@@ -18,7 +18,7 @@ namespace revng::pipes {
 static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
   Reg;
 
-using Container = DecompiledCCodeInYAMLStringMap;
+using Container = DecompileStringMap;
 void DecompileToSingleFile::run(const pipeline::ExecutionContext &Ctx,
                                 const Container &DecompiledFunctions,
                                 DecompiledFileContainer &OutCFile) {

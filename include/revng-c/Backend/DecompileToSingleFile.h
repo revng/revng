@@ -9,11 +9,11 @@
 #include "revng/Pipes/StringMap.h"
 #include "revng/Support/MetaAddress.h"
 
-#include "revng-c/Backend/CDecompilationPipe.h"
+#include "revng-c/Backend/DecompilePipe.h"
 #include "revng-c/Support/PTMLC.h"
 
 namespace detail {
-using DecompiledStringMap = revng::pipes::DecompiledCCodeInYAMLStringMap;
+using DecompiledStringMap = revng::pipes::DecompileStringMap;
 }
 
 void printSingleCFile(llvm::raw_ostream &Out,

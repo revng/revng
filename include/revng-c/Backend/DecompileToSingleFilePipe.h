@@ -16,7 +16,7 @@
 #include "revng/Pipes/StringBufferContainer.h"
 #include "revng/Pipes/StringMap.h"
 
-#include "revng-c/Backend/CDecompilationPipe.h"
+#include "revng-c/Backend/DecompilePipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
@@ -45,7 +45,7 @@ public:
   }
 
   void run(const pipeline::ExecutionContext &Ctx,
-           const DecompiledCCodeInYAMLStringMap &DecompiledFunctionsContainer,
+           const DecompileStringMap &DecompiledFunctionsContainer,
            DecompiledFileContainer &OutCFile);
 
   void print(const pipeline::Context &Ctx,

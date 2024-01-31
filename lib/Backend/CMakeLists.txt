@@ -3,7 +3,7 @@
 #
 
 revng_add_analyses_library(
-  revngcBackend revngc CDecompilationPipe.cpp DecompileFunction.cpp
+  revngcBackend revngc DecompilePipe.cpp DecompileFunction.cpp
   DecompileToSingleFile.cpp DecompileToSingleFilePipe.cpp)
 
 target_link_libraries(

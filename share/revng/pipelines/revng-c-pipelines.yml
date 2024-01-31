@@ -11,7 +11,7 @@ Containers:
   - Name: decompiled.c
     Type: DecompiledCCode
   - Name: decompiled.tar.gz
-    Type: DecompiledCCodeInYAML
+    Type: Decompile
   - Name: module.mlir
     Type: MLIRModule
   - Name: type-targets.yml
@@ -152,7 +152,7 @@ Branches:
             UsedContainers: [module.ll, helpers.h]
           - Type: ModelToHeader
             UsedContainers: [input, types-and-globals.h]
-          - Type: CDecompilation
+          - Type: Decompile
             UsedContainers: [module.ll, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
