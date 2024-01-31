@@ -32,7 +32,7 @@ graph TB
   ensure-rft-equivalence(ensure-rft-equivalence)
   class check-compatibility-with-abi,ensure-rft-equivalence purple
 
-  fb -- "[ImportBinary + some extra processing]" --> reference_binary.yml
+  fb -- "[import-binary + some extra processing]" --> reference_binary.yml
   reference_binary.yml -- "[ConvertToRawFunctionType]" --> downgraded_reference_binary.yml
   downgraded_reference_binary.yml -- "[ConvertToCABIFunctionType]" --> upgraded_downgraded_reference_binary.yml
   upgraded_downgraded_reference_binary.yml -- "[ConvertToRawFunctionType]" --> downgraded_upgraded_downgraded_reference_binary.yml
@@ -59,7 +59,7 @@ strict digraph {
     "mmap'ed binary" [color=red]
     "runner binary" [color=red]
 
-    "functions binary" -> "reference_binary.yml" [label="[ImportBinary + some extra processing]"]
+    "functions binary" -> "reference_binary.yml" [label="[import-binary + some extra processing]"]
     "reference_binary.yml" -> "downgraded_reference_binary.yml" [label="[ConvertToRawFunctionType]"]
     "downgraded_reference_binary.yml" -> "upgraded_downgraded_reference_binary.yml" [label="[ConvertToCABIFunctionType]"]
     "upgraded_downgraded_reference_binary.yml" -> "downgraded_upgraded_downgraded_reference_binary.yml" [label="[ConvertToRawFunctionType]"]
@@ -94,7 +94,7 @@ Legend:
 
 The order of the operations done by the pipeline can be found in `test-conversion.sh` (`test-layout.sh` is a stripped down version of that assumes no `raw->cabi` analysis). Let me elaborate a bit further on every command:
 
-### `revng analyze ImportBinary`
+### `revng analyze import-binary`
 
 The abi testing reference binary is imported into a model using the normal means. The code for generating this "pure" is located in the [revng-qa](https://github.com/revng/revng-qa) repository.
 
@@ -102,7 +102,7 @@ The abi testing reference binary is imported into a model using the normal means
 
 Because sometimes it's impossible to detect ABI correctly based on dwarf data alone, and because having the right ABI is _really_ important for the integrity of this test, if for any CABI-FT inside the binary the recorded ABI doesn't exactly match the expected ABI, this script overrides it.
 
-### `revng analyze AddPrimitiveTypes`
+### `revng analyze add-primitive-types`
 
 Eventually this will have to go away, but for now manually make sure each primitive type is present in the model, to avoid any surprises. Let's call the model after this step a `reference_binary.yml`.
 

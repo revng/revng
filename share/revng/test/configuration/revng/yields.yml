@@ -15,9 +15,9 @@ commands:
       revng pipeline
         -m "$$MODEL"
         -i "$INPUT1:begin/input"
-        -i "$INPUT2:EnforceABI/module.ll"
-        -o "$OUTPUT:ProcessAssembly/assembly-internal.yml.tar.gz"
-        --produce ProcessAssembly/assembly-internal.yml.tar.gz/*:FunctionAssemblyInternal
+        -i "$INPUT2:enforce-abi/module.ll"
+        -o "$OUTPUT:process-assembly/assembly-internal.yml.tar.gz"
+        --produce process-assembly/assembly-internal.yml.tar.gz/*:FunctionAssemblyInternal
 
   - type: revng.assembly-ptml
     from:
@@ -29,9 +29,9 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:ProcessAssembly/assembly-internal.yml.tar.gz"
-        -o "$OUTPUT:YieldAssembly/assembly.ptml.tar.gz"
-        --produce YieldAssembly/assembly.ptml.tar.gz/*:FunctionAssemblyPTML
+        -i "$INPUT1:process-assembly/assembly-internal.yml.tar.gz"
+        -o "$OUTPUT:disassemble/assembly.ptml.tar.gz"
+        --produce disassemble/assembly.ptml.tar.gz/*:FunctionAssemblyPTML
 
   - type: revng.cfg-svg
     from:
@@ -43,9 +43,9 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:ProcessAssembly/assembly-internal.yml.tar.gz"
-        -o "$OUTPUT:YieldCFG/cfg.svg.tar.gz"
-        --produce YieldCFG/cfg.svg.tar.gz/*:FunctionControlFlowGraphSVG
+        -i "$INPUT1:process-assembly/assembly-internal.yml.tar.gz"
+        -o "$OUTPUT:render-svg-cfg/cfg.svg.tar.gz"
+        --produce render-svg-cfg/cfg.svg.tar.gz/*:FunctionControlFlowGraphSVG
 
   - type: revng.cross-relations
     from:
@@ -59,9 +59,9 @@ commands:
       revng pipeline
         -m "$$MODEL"
         -i "$INPUT1:begin/input"
-        -i "$INPUT2:EnforceABI/module.ll"
-        -o "$OUTPUT:Isolate/cross-relations.yml"
-        --produce Isolate/cross-relations.yml/:BinaryCrossRelations
+        -i "$INPUT2:enforce-abi/module.ll"
+        -o "$OUTPUT:isolate/cross-relations.yml"
+        --produce isolate/cross-relations.yml/:BinaryCrossRelations
 
   - type: revng.call-graph-svg
     from:
@@ -73,9 +73,9 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:Isolate/cross-relations.yml"
-        -o "$OUTPUT:YieldCallGraph/call-graph.svg.yml"
-        --produce YieldCallGraph/call-graph.svg.yml/:CallGraphSVG
+        -i "$INPUT1:isolate/cross-relations.yml"
+        -o "$OUTPUT:render-svg-call-graph/call-graph.svg.yml"
+        --produce render-svg-call-graph/call-graph.svg.yml/:CallGraphSVG
 
   - type: revng.call-graph-slice-svg
     from:
@@ -89,8 +89,8 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:Isolate/cross-relations.yml"
-        -i "$INPUT2:EnforceABI/module.ll"
+        -i "$INPUT1:isolate/cross-relations.yml"
+        -i "$INPUT2:enforce-abi/module.ll"
         -i "$INPUT3:begin/input"
-        -o "$OUTPUT:YieldCallGraphSlice/call-graph-slice.svg.tar.gz"
-        --produce YieldCallGraphSlice/call-graph-slice.svg.tar.gz/*:CallGraphSliceSVG
+        -o "$OUTPUT:render-svg-call-graph-slice/call-graph-slice.svg.tar.gz"
+        --produce render-svg-call-graph-slice/call-graph-slice.svg.tar.gz/*:CallGraphSliceSVG

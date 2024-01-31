@@ -29,33 +29,30 @@ Containers:
     Type: FunctionControlFlowGraphSVG
 Branches:
   - Steps:
-      - Name: GlobalAnalyses
+      - Name: initial
         Analyses:
-          - Name: ApplyDiff
+          - Name: apply-diff
             Type: ApplyDiff
             UsedContainers: []
-          - Name: VerifyDiff
+          - Name: verify-diff
             Type: VerifyDiff
             UsedContainers: []
-          - Name: SetGlobal
+          - Name: set-global
             Type: SetGlobal
             UsedContainers: []
-          - Name: VerifyGlobal
+          - Name: verify-global
             Type: VerifyGlobal
             UsedContainers: []
-  - Steps:
-      - Name: Import
-        Analyses:
-          - Name: AddPrimitiveTypes
+          - Name: add-primitive-types
             Type: AddPrimitiveTypes
             UsedContainers: []
-          - Name: ImportBinary
+          - Name: import-binary
             Type: ImportBinary
             UsedContainers: [input]
-          - Name: ImportWellKnownModels
+          - Name: import-well-known-models
             Type: ImportWellKnownModels
             UsedContainers: []
-      - Name: Lift
+      - Name: lift
         Pipes:
           - Type: Lift
             UsedContainers: [input, module.ll]
@@ -67,10 +64,10 @@ Branches:
           Kind: Root
           SingleTargetFilename: module_lifted.ll
         Analyses:
-          - Name: DetectABI
+          - Name: detect-abi
             Type: DetectABI
             UsedContainers: [module.ll]
-      - Name: Isolate
+      - Name: isolate
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -81,7 +78,7 @@ Branches:
           Container: module.ll
           Kind: Isolated
           SingleTargetFilename: module_isolated.ll
-      - Name: EnforceABI
+      - Name: enforce-abi
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -105,9 +102,9 @@ Branches:
           Container: module.ll
           Kind: CSVsPromoted
           SingleTargetFilename: module_abienforced.ll
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: HexDump
+      - Name: hexdump
         Pipes:
           - Type: HexDump
             UsedContainers: [input, module.ll, hex.dump]
@@ -115,9 +112,9 @@ Branches:
           Container: hex.dump
           Kind: HexDump
           SingleTargetFilename: hex_dump.hex
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: YieldCallGraph
+      - Name: render-svg-call-graph
         Pipes:
           - Type: YieldCallGraph
             UsedContainers: [cross-relations.yml, call-graph.svg.yml]
@@ -125,9 +122,9 @@ Branches:
           Container: call-graph.svg.yml
           Kind: CallGraphSVG
           SingleTargetFilename: call-graph.svg
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: YieldCallGraphSlice
+      - Name: render-svg-call-graph-slice
         Pipes:
           - Type: YieldCallGraphSlice
             UsedContainers: [module.ll, cross-relations.yml, call-graph-slice.svg.tar.gz]
@@ -135,13 +132,13 @@ Branches:
           Container: call-graph-slice.svg.tar.gz
           Kind: CallGraphSliceSVG
           SingleTargetFilename: call-graph-slice.svg
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: ProcessAssembly
+      - Name: process-assembly
         Pipes:
           - Type: ProcessAssembly
             UsedContainers: [input, module.ll, assembly-internal.yml.tar.gz]
-      - Name: YieldAssembly
+      - Name: disassemble
         Pipes:
           - Type: YieldAssembly
             UsedContainers: [assembly-internal.yml.tar.gz, assembly.ptml.tar.gz]
@@ -149,9 +146,9 @@ Branches:
           Container: assembly.ptml.tar.gz
           Kind: FunctionAssemblyPTML
           SingleTargetFilename: disassembly.S
-  - From: ProcessAssembly
+  - From: process-assembly
     Steps:
-      - Name: YieldCFG
+      - Name: render-svg-cfg
         Pipes:
           - Type: YieldCFG
             UsedContainers: [assembly-internal.yml.tar.gz, cfg.svg.tar.gz]
@@ -159,9 +156,9 @@ Branches:
           Container: cfg.svg.tar.gz
           Kind: FunctionControlFlowGraphSVG
           SingleTargetFilename: cfg.svg
-  - From: Lift
+  - From: lift
     Steps:
-      - Name: Recompile
+      - Name: recompile
         Pipes:
           - Type: LinkSupport
             UsedContainers: [module.ll]
@@ -177,9 +174,9 @@ Branches:
           Container: output
           Kind: Translated
           SingleTargetFilename: translated_binary
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: RecompileIsolated
+      - Name: recompile-isolated
         Pipes:
           - Type: LinkSupport
             UsedContainers: [module.ll]
@@ -198,7 +195,7 @@ Branches:
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
-      - AddPrimitiveTypes
-      - ImportBinary
-      - ImportWellKnownModels
-      - DetectABI
+      - add-primitive-types
+      - import-binary
+      - import-well-known-models
+      - detect-abi
