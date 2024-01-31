@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
     }
 
     llvm::StringRef StepName = Step->getName();
-    std::string AnalysisName = Analysis->getName();
+    std::string AnalysisName = Arguments[0];
     AbortOnError(Manager.runAnalysis(AnalysisName, StepName, Map, InvMap));
   }
 
