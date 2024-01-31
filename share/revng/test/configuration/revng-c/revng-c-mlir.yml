@@ -8,4 +8,4 @@ commands:
       - type: revng-c.ptml-decompiled-c
     suffix: .mlir
     command: |-
-      revng artifact LLVMIRToMLIR "$INPUT/begin/binary" --resume "$INPUT" -o "$OUTPUT"
+      revng artifact convert-to-mlir "$INPUT/begin/binary" --resume "$INPUT" -o "$OUTPUT"

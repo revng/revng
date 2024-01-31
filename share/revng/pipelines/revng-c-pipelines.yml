@@ -19,9 +19,9 @@ Containers:
   - Name: model-type-definitions.tar.gz
     Type: ModelTypeDefinitions
 Branches:
-  - From: EnforceABI
+  - From: enforce-abi
     Steps:
-      - Name: RemoveLiftingArtifacts
+      - Name: remove-lifting-artifacts
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -29,14 +29,14 @@ Branches:
               - dce
               - remove-lifting-artifacts
               - promote-init-csv-to-undef
-      - Name: PromoteStackPointer
+      - Name: promote-stack-pointer
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
               - measure-stack-size-at-call-sites
               - promote-stack-pointer
-      - Name: EarlyOptimizeForDecompilation
+      - Name: early-optimize
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -63,7 +63,7 @@ Branches:
               - instsimplify
               - dse
               - dce
-      - Name: DetectStackSize
+      - Name: detect-stack-size
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -77,14 +77,14 @@ Branches:
           - Name: detect-stack-size
             Type: detect-stack-size
             UsedContainers: [module.ll]
-      - Name: SegregateStackAccesses
+      - Name: segregate-stack-accesses
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
               - hoist-struct-phis
               - segregate-stack-accesses
-      - Name: LateOptimizeForDecompilation
+      - Name: late-optimize
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -109,7 +109,7 @@ Branches:
               - strip-dead-prototypes
               - split-overflow-intrinsics
               - dce
-      - Name: MakeSegmentRefs
+      - Name: make-segment-refs
         Pipes:
           - Type: MakeSegmentRefs
             UsedContainers: [input, module.ll]
@@ -118,13 +118,13 @@ Branches:
           Kind: StackAccessesSegregated
           SingleTargetFilename: stack_access_segregate.ll
         Analyses:
-          - Name: dla
+          - Name: analyze-data-layout
             Type: dla
             UsedContainers: [module.ll]
-          - Name: ConvertToCABIFunctionType
+          - Name: convert-to-cabi
             Type: ConvertToCABIFunctionType
             UsedContainers: []
-      - Name: IRCanonicalization
+      - Name: canonicalize
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -146,7 +146,7 @@ Branches:
               - make-model-cast
               - operatorprecedence-resolution
               - pretty-int-formatting
-      - Name: DecompileToCInYAML
+      - Name: decompile
         Pipes:
           - Type: HelpersToHeader
             UsedContainers: [module.ll, helpers.h]
@@ -159,10 +159,10 @@ Branches:
           Kind: DecompiledToYAML
           SingleTargetFilename: decompiled.c
         Analyses:
-          - Name: ImportModelFromC
+          - Name: import-from-c
             Type: ImportModelFromC
             UsedContainers: []
-      - Name: DecompiledYAMLToC
+      - Name: decompile-to-single-file
         Pipes:
           - Type: DecompiledYAMLToC
             UsedContainers: [decompiled.tar.gz, decompiled.c]
@@ -170,9 +170,9 @@ Branches:
           Container: decompiled.c
           Kind: DecompiledToC
           SingleTargetFilename: binary_decompiled.c
-  - From: IRCanonicalization
+  - From: canonicalize
     Steps:
-      - Name: PrintHelpersHeader
+      - Name: emit-helpers-header
         Pipes:
           - Type: HelpersToHeader
             UsedContainers: [module.ll, helpers.h]
@@ -180,9 +180,9 @@ Branches:
           Container: helpers.h
           Kind: HelpersHeader
           SingleTargetFilename: helpers.h
-  - From: IRCanonicalization
+  - From: initial
     Steps:
-      - Name: PrintModelHeader
+      - Name: emit-model-header
         Pipes:
           - Type: ModelToHeader
             UsedContainers: [input, types-and-globals.h]
@@ -190,9 +190,9 @@ Branches:
           Container: types-and-globals.h
           Kind: ModelHeader
           SingleTargetFilename: types-and-globals.h
-  - From: IRCanonicalization
+  - From: canonicalize
     Steps:
-      - Name: GenerateModelTypeDefinitions
+      - Name: emit-type-definitions
         Pipes:
           - Type: PopulateTypeKindTargetContainer
             UsedContainers: [input, type-targets.yml]
@@ -202,9 +202,9 @@ Branches:
           Container: model-type-definitions.tar.gz
           Kind: ModelTypeDefinition
           SingleTargetFilename: type.h
-  - From: MakeSegmentRefs
+  - From: make-segment-refs
     Steps:
-      - Name: LLVMIRToMLIR
+      - Name: convert-to-mlir
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -220,5 +220,5 @@ AnalysesLists:
   - Name: revng-c-initial-auto-analysis
     Analyses:
       - detect-stack-size
-      - dla
-      - ConvertToCABIFunctionType
+      - analyze-data-layout
+      - convert-functions-to-cabi

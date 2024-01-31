@@ -12,8 +12,8 @@ commands:
     command: |-
       revng analyze revng-initial-auto-analysis "$INPUT1" --resume "$OUTPUT" -o /dev/null;
       revng analyze detect-stack-size "$INPUT1" --resume "$OUTPUT" -o /dev/null;
-      revng analyze dla "$INPUT1" --resume "$OUTPUT" -o /dev/null;
-      revng artifact DecompiledYAMLToC "$INPUT1" --resume "$OUTPUT" -o /dev/null;
+      revng analyze analyze-data-layout "$INPUT1" --resume "$OUTPUT" -o /dev/null;
+      revng artifact decompile-to-single-file "$INPUT1" --resume "$OUTPUT" -o /dev/null;
   - type: revng-c.ptml-model-to-header
     from:
       - type: revng-c.ptml-decompiled-c
@@ -33,7 +33,7 @@ commands:
     suffix: .ptml.helpers.h
     command: |-
       LL_WITH_MODEL=$$(temp);
-      revng model inject "$INPUT"/context/model.yml "$INPUT"/IRCanonicalization/module.ll -o "$$LL_WITH_MODEL";
+      revng model inject "$INPUT"/context/model.yml "$INPUT"/canonicalize/module.ll -o "$$LL_WITH_MODEL";
       revng helpers-to-header -i "$$LL_WITH_MODEL" -o "$OUTPUT";
   - type: revng-c.helpers-to-header
     from:
@@ -47,7 +47,7 @@ commands:
       - type: revng-c.ptml-decompiled-c
     suffix: .c
     command: |-
-      revng ptml --plain "$INPUT"/DecompiledYAMLToC/decompiled.c -o "$OUTPUT"
+      revng ptml --plain "$INPUT"/decompile-to-single-file/decompiled.c -o "$OUTPUT"
   - type: revng-c.check-decompiled-c-arch-i386
     from:
       - type: revng-c.decompiled-c
@@ -82,8 +82,8 @@ commands:
         filter: for-segregate-stack-accesses
     command: |-
       RESUME=$$(temp -d);
-      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
-      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" import-binary "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" add-primitive-types "$INPUT" -o /dev/null;
 
       revng model override-by-name
         "$$RESUME/context/model.yml"
@@ -91,19 +91,19 @@ commands:
         > "$$RESUME/context/model-tmp.yml";
       mv "$$RESUME/context/model-tmp.yml" "$$RESUME/context/model.yml";
 
-      revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" detect-abi "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" detect-stack-size "$INPUT" -o /dev/null;
-      revng artifact --resume "$$RESUME" MakeSegmentRefs "$INPUT" | FileCheck ${SOURCE}.filecheck.ll;
-      revng artifact --resume "$$RESUME" DecompileToCInYAML "$INPUT" -o /dev/null
+      revng artifact --resume "$$RESUME" make-segment-refs "$INPUT" | FileCheck ${SOURCE}.filecheck.ll;
+      revng artifact --resume "$$RESUME" decompile "$INPUT" -o /dev/null
   - type: revng-c.test-detect-stack-size
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-detect-stack-size
     command: |-
       RESUME=$$(temp -d);
-      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
-      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
-      revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" import-binary "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" add-primitive-types "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" detect-abi "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -
   - type: revng-c.test-daemon-all-artifacts
     from:
