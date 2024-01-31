@@ -2,13 +2,13 @@
 # Copyright rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-# ImportModelFromC
+# ImportFromC
 
-revng_add_analyses_library(revngcImportModelFromCAnalysis revngc
-                           HeaderToModel.cpp ImportModelFromCAnalysis.cpp)
+revng_add_analyses_library(revngcImportFromCAnalysis revngc HeaderToModel.cpp
+                           ImportFromCAnalysis.cpp)
 
 target_link_libraries(
-  revngcImportModelFromCAnalysis
+  revngcImportFromCAnalysis
   revngcTypeNames
   revng::revngModel
   revng::revngSupport

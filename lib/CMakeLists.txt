@@ -3,7 +3,7 @@
 #
 
 add_subdirectory(Backend)
-add_subdirectory(ImportModelFromC)
+add_subdirectory(ImportFromC)
 add_subdirectory(DataLayoutAnalysis)
 add_subdirectory(IRCanonicalization)
 add_subdirectory(HeadersGeneration)

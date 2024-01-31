@@ -160,7 +160,7 @@ Branches:
           SingleTargetFilename: decompiled.c
         Analyses:
           - Name: import-from-c
-            Type: ImportModelFromC
+            Type: ImportFromC
             UsedContainers: []
       - Name: decompile-to-single-file
         Pipes:

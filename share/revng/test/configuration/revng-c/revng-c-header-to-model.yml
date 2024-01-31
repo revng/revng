@@ -6,7 +6,7 @@ tags:
   - name: HeaderToModel
 sources:
   - tags: [HeaderToModel]
-    prefix: share/revng/test/tests/analysis/ImportModelFromCAnalysis/
+    prefix: share/revng/test/tests/analysis/ImportFromCAnalysis/
     members:
       - struct.model.yml
       - union.model.yml
@@ -27,7 +27,7 @@ commands:
       mkdir -p "$$RESUME/context/";
       cp "$INPUT" "$$RESUME/context/model.yml";
       revng analyze --resume "$$RESUME" import-from-c
-      --ImportModelFromC-location-to-edit="$$(grep -vE '^(#|$$)' ${SOURCE}.location)"
-      --ImportModelFromC-ccode="$$(cat ${SOURCE}.ccode)" /dev/null -o /dev/null;
+      --ImportFromC-location-to-edit="$$(grep -vE '^(#|$$)' ${SOURCE}.location)"
+      --ImportFromC-ccode="$$(cat ${SOURCE}.ccode)" /dev/null -o /dev/null;
       revng model compare "${SOURCE}.reference.yml"
       "$$RESUME/context/model.yml";
