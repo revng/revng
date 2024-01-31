@@ -1,4 +1,4 @@
-/// \file ConvertToRawFunctionType.cpp
+/// \file ConvertFunctionsToRaw.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -14,9 +14,9 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/TupleTree/TupleTree.h"
 
-class ConvertToRawFunctionType {
+class ConvertFunctionsToRaw {
 public:
-  static constexpr auto Name = "ConvertToRawFunctionType";
+  static constexpr auto Name = "ConvertFunctionsToRaw";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
@@ -42,4 +42,4 @@ public:
   }
 };
 
-static pipeline::RegisterAnalysis<ConvertToRawFunctionType> ToRawAnalysis;
+static pipeline::RegisterAnalysis<ConvertFunctionsToRaw> ToRawAnalysis;

@@ -33,9 +33,9 @@ graph TB
   class check-compatibility-with-abi,ensure-rft-equivalence purple
 
   fb -- "[import-binary + some extra processing]" --> reference_binary.yml
-  reference_binary.yml -- "[ConvertToRawFunctionType]" --> downgraded_reference_binary.yml
+  reference_binary.yml -- "[ConvertFunctionsToRaw]" --> downgraded_reference_binary.yml
   downgraded_reference_binary.yml -- "[ConvertFunctionsToCABI]" --> upgraded_downgraded_reference_binary.yml
-  upgraded_downgraded_reference_binary.yml -- "[ConvertToRawFunctionType]" --> downgraded_upgraded_downgraded_reference_binary.yml
+  upgraded_downgraded_reference_binary.yml -- "[ConvertFunctionsToRaw]" --> downgraded_upgraded_downgraded_reference_binary.yml
 
   rb -- "[run under qemu]" --> yaml
   mb -- "[argument]" --> rb
@@ -60,9 +60,9 @@ strict digraph {
     "runner binary" [color=red]
 
     "functions binary" -> "reference_binary.yml" [label="[import-binary + some extra processing]"]
-    "reference_binary.yml" -> "downgraded_reference_binary.yml" [label="[ConvertToRawFunctionType]"]
+    "reference_binary.yml" -> "downgraded_reference_binary.yml" [label="[ConvertFunctionsToRaw]"]
     "downgraded_reference_binary.yml" -> "upgraded_downgraded_reference_binary.yml" [label="[ConvertFunctionsToCABI]"]
-    "upgraded_downgraded_reference_binary.yml" -> "downgraded_upgraded_downgraded_reference_binary.yml" [label="[ConvertToRawFunctionType]"]
+    "upgraded_downgraded_reference_binary.yml" -> "downgraded_upgraded_downgraded_reference_binary.yml" [label="[ConvertFunctionsToRaw]"]
 
     "runner binary" -> "stdout (yaml)" [label="[run under qemu]"]
     "mmap'ed binary" -> "runner binary" [label="[argument]"]
@@ -106,7 +106,7 @@ Because sometimes it's impossible to detect ABI correctly based on dwarf data al
 
 Eventually this will have to go away, but for now manually make sure each primitive type is present in the model, to avoid any surprises. Let's call the model after this step a `reference_binary.yml`.
 
-### `revng analyze ConvertToRawFunctionType`
+### `revng analyze ConvertFunctionsToRaw`
 
 This analysis converts every CABI function within the input model (`reference_binary.yml`) into its "raw" representation. The result is saved into (`downgraded_reference_binary.yml`)
 
@@ -114,7 +114,7 @@ This analysis converts every CABI function within the input model (`reference_bi
 
 This pass tries to "upgrade" every "raw" function into its CABI representation knowing the ABI it uses. The result is written to `upgraded_downgraded_reference_binary.yml`.
 
-### `revng analyze ConvertToRawFunctionType`
+### `revng analyze ConvertFunctionsToRaw`
 
 The same pass is run again to obtain one more set of "raw" functions. Those get written into `downgraded_upgraded_downgraded_reference_binary.yml`.
 
