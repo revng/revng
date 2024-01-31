@@ -56,13 +56,6 @@ members:
       The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/vectorcall
 
-  - name: Microsoft_x86_64_clrcall
-    doc: |
-      A modification of 64-bit Microsoft ABI for x86 processor architecture.
-      It uses CLR expression stack to pass function arguments.
-      The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/clrcall
-
   - name: Microsoft_x86_cdecl
     doc: |
       The default 32-bit Microsoft ABI for x86 processor architecture.
@@ -109,13 +102,6 @@ members:
     doc: |
       32-bit Microsoft x86 `fastcall` abi as implemented in GCC (subtly
       different from the original).
-
-  - name: Microsoft_x86_clrcall
-    doc: |
-      A modification of 32-bit Microsoft ABI for x86 processor architecture.
-      It uses CLR expression stack to pass function arguments.
-      The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/clrcall
 
   - name: Microsoft_x86_vectorcall
     doc: |
@@ -173,7 +159,6 @@ getArchitecture(model::ABI::Values V) {
   switch (V) {
   case model::ABI::SystemV_x86_64:
   case model::ABI::Microsoft_x86_64:
-  case model::ABI::Microsoft_x86_64_clrcall:
   case model::ABI::Microsoft_x86_64_vectorcall:
     return model::Architecture::x86_64;
 
@@ -181,7 +166,6 @@ getArchitecture(model::ABI::Values V) {
   case model::ABI::SystemV_x86_regparm_3:
   case model::ABI::SystemV_x86_regparm_2:
   case model::ABI::SystemV_x86_regparm_1:
-  case model::ABI::Microsoft_x86_clrcall:
   case model::ABI::Microsoft_x86_vectorcall:
   case model::ABI::Microsoft_x86_cdecl:
   case model::ABI::Microsoft_x86_cdecl_gcc:
@@ -282,9 +266,6 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
     return "64-bit SystemV x86 abi";
   case model::ABI::Microsoft_x86_64:
     return "64-bit Microsoft x86 abi";
-  case model::ABI::Microsoft_x86_64_clrcall:
-    return "64-bit Microsoft x86 abi that uses CLR expression "
-           "stack for passing function arguments";
   case model::ABI::Microsoft_x86_64_vectorcall:
     return "64-bit Microsoft x86 abi with extra vector "
            "registers designited for passing function "
@@ -302,9 +283,6 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
     return "32-bit SystemV x86 abi that allows the first "
            "GPR-sized scalar argument to be passed using "
            "the registers";
-  case model::ABI::Microsoft_x86_clrcall:
-    return "32-bit Microsoft x86 abi that uses CLR expression "
-           "stack for function argument passing";
   case model::ABI::Microsoft_x86_vectorcall:
     return "64-bit Microsoft x86 abi, it extends `fastcall` "
            "by allowing extra vector registers to be used for "

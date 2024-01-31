@@ -903,7 +903,7 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
     case CallingConvention::NearVector:
       return model::ABI::Microsoft_x86_64_vectorcall;
     case CallingConvention::ClrCall:
-      return model::ABI::Microsoft_x86_64_clrcall;
+      revng_abort("ClrCall is not currently supported");
     default:
       revng_abort();
     }
@@ -920,7 +920,7 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
     case CallingConvention::ThisCall:
       return model::ABI::Microsoft_x86_thiscall;
     case CallingConvention::ClrCall:
-      return model::ABI::Microsoft_x86_clrcall;
+      revng_abort("ClrCall is not currently supported");
     case CallingConvention::NearPascal:
       return model::ABI::Pascal_x86;
     case CallingConvention::NearVector:

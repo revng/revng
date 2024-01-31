@@ -213,8 +213,6 @@ public:
         // model::ABI::SystemV_MIPSEL_o32
 
         // Unable to reliably test: no easy access to a compiler
-        // model::ABI::Microsoft_x86_64_clrcall,
-        // model::ABI::Microsoft_x86_clrcall,
         // model::ABI::Pascal_x86,
 
         // Unable to reliably test: QEMU aborts
