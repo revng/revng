@@ -141,9 +141,31 @@ ValueDistributor::distribute(uint64_t Size,
 
   revng_log(Log, "Value successfully distributed.");
   LoggerIndent FurtherIndentation(Log);
-  revng_log(Log,
-            "It requires " << DA.Registers.size() << " registers, and "
-                           << DA.SizeOnStack << " bytes on stack.");
+  if (Log.isEnabled()) {
+    std::string Message = "It requires " + std::to_string(DA.Registers.size())
+                          + " registers";
+    if (!DA.Registers.empty()) {
+      Message += " (";
+      for (auto Register : DA.Registers)
+        Message += model::Register::getRegisterName(Register).str() + ", ";
+      Message.resize(Message.size() - 2);
+      Message += ")";
+    }
+    Message += ", and " + std::to_string(DA.SizeOnStack) + " bytes at offset "
+               + std::to_string(DA.OffsetOnStack) + " of the stack.\n";
+    revng_log(Log, std::move(Message));
+
+    Message = "Total size is " + std::to_string(DA.Size) + ", which includes "
+              + std::to_string(DA.PrePaddingSize) + " bytes of pre-padding and "
+              + std::to_string(DA.PostPaddingSize) + " bytes of post-padding.";
+    revng_log(Log, std::move(Message));
+
+    Message = std::string("Pointer-to-copy mechanism ")
+              + (DA.UsesPointerToCopy ? "is" : "is not") + " used, and it "
+              + (DA.RepresentsPadding ? "represents" : "does not represent")
+              + " padding.";
+    revng_log(Log, std::move(Message));
+  }
 
   return { std::move(Result), ConsideredRegisterCounter };
 }
