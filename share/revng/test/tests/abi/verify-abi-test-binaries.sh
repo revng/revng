@@ -49,7 +49,7 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertToRawFunctionType \
+    ConvertFunctionsToRaw \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml"
@@ -68,7 +68,7 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertToRawFunctionType \
+    ConvertFunctionsToRaw \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
