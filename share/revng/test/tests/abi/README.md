@@ -34,7 +34,7 @@ graph TB
 
   fb -- "[import-binary + some extra processing]" --> reference_binary.yml
   reference_binary.yml -- "[ConvertToRawFunctionType]" --> downgraded_reference_binary.yml
-  downgraded_reference_binary.yml -- "[ConvertToCABIFunctionType]" --> upgraded_downgraded_reference_binary.yml
+  downgraded_reference_binary.yml -- "[ConvertFunctionsToCABI]" --> upgraded_downgraded_reference_binary.yml
   upgraded_downgraded_reference_binary.yml -- "[ConvertToRawFunctionType]" --> downgraded_upgraded_downgraded_reference_binary.yml
 
   rb -- "[run under qemu]" --> yaml
@@ -61,7 +61,7 @@ strict digraph {
 
     "functions binary" -> "reference_binary.yml" [label="[import-binary + some extra processing]"]
     "reference_binary.yml" -> "downgraded_reference_binary.yml" [label="[ConvertToRawFunctionType]"]
-    "downgraded_reference_binary.yml" -> "upgraded_downgraded_reference_binary.yml" [label="[ConvertToCABIFunctionType]"]
+    "downgraded_reference_binary.yml" -> "upgraded_downgraded_reference_binary.yml" [label="[ConvertFunctionsToCABI]"]
     "upgraded_downgraded_reference_binary.yml" -> "downgraded_upgraded_downgraded_reference_binary.yml" [label="[ConvertToRawFunctionType]"]
 
     "runner binary" -> "stdout (yaml)" [label="[run under qemu]"]
@@ -110,7 +110,7 @@ Eventually this will have to go away, but for now manually make sure each primit
 
 This analysis converts every CABI function within the input model (`reference_binary.yml`) into its "raw" representation. The result is saved into (`downgraded_reference_binary.yml`)
 
-### `revng analyze ConvertToCABIFunctionType`
+### `revng analyze ConvertFunctionsToCABI`
 
 This pass tries to "upgrade" every "raw" function into its CABI representation knowing the ABI it uses. The result is written to `upgraded_downgraded_reference_binary.yml`.
 
