@@ -5,10 +5,10 @@
 Component: revng-test
 Branches:
   - Steps:
-      - Name: ConvertToRawFunctionType
+      - Name: ConvertFunctionsToRaw
         Analyses:
-          - Name: ConvertToRawFunctionType
-            Type: ConvertToRawFunctionType
+          - Name: ConvertFunctionsToRaw
+            Type: ConvertFunctionsToRaw
             UsedContainers: []
   - Steps:
       - Name: ConvertFunctionsToCABI
