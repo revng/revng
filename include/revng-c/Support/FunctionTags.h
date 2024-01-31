@@ -50,7 +50,7 @@ inline Tag StackPointerPromoted("StackPointerPromoted",
 inline Tag StackAccessesSegregated("StackAccessesSegregated",
                                    StackPointerPromoted);
 
-inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
+inline Tag Decompiled("Decompiled", StackPointerPromoted);
 
 inline Tag StackOffsetMarker("StackOffsetMarker");
 

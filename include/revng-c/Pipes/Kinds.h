@@ -28,7 +28,7 @@ inline TaggedFunctionKind
                           ranks::Function,
                           FunctionTags::StackAccessesSegregated);
 
-extern FunctionKind DecompiledToYAML;
+extern FunctionKind Decompiled;
 inline pipeline::SingleElementKind ModelHeader("ModelHeader",
                                                Binary,
                                                ranks::Binary,
@@ -39,13 +39,13 @@ inline pipeline::SingleElementKind ModelHeader("ModelHeader",
                                                    ranks::DynamicFunction,
                                                    ranks::Segment,
                                                    ranks::ArtificialStruct),
-                                               { &DecompiledToYAML });
+                                               { &Decompiled });
 
-inline FunctionKind DecompiledToYAML("DecompiledToYAML",
-                                     ModelHeader,
-                                     ranks::Function,
-                                     fat(ranks::Function),
-                                     { &ModelHeader });
+inline FunctionKind Decompiled("Decompiled",
+                               ModelHeader,
+                               ranks::Function,
+                               fat(ranks::Function),
+                               { &ModelHeader });
 
 inline TypeKind
   ModelTypeDefinition("ModelTypeDefinition", ModelHeader, ranks::Type, {}, {});

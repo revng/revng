@@ -24,7 +24,7 @@ inline constexpr char DecompiledCCodeInYAMLMime[] = "text/x.c+ptml+yaml";
 inline constexpr char DecompiledCCodeInYAMLName[] = "DecompiledCCodeInYAML";
 inline constexpr char DecompiledCCodeInYAMLExtension[] = ".c.ptml";
 using DecompiledCCodeInYAMLStringMap = FunctionStringMap<
-  &kinds::DecompiledToYAML,
+  &kinds::Decompiled,
   DecompiledCCodeInYAMLName,
   DecompiledCCodeInYAMLMime,
   DecompiledCCodeInYAMLExtension>;
@@ -39,7 +39,7 @@ public:
 
     return { ContractGroup({ Contract(StackAccessesSegregated,
                                       0,
-                                      DecompiledToYAML,
+                                      Decompiled,
                                       1,
                                       InputPreservation::Preserve) }) };
   }

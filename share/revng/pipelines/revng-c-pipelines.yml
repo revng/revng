@@ -156,7 +156,7 @@ Branches:
             UsedContainers: [module.ll, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
-          Kind: DecompiledToYAML
+          Kind: Decompiled
           SingleTargetFilename: decompiled.c
         Analyses:
           - Name: import-from-c

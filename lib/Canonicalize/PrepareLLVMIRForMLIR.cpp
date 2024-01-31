@@ -246,7 +246,7 @@ static void tagFunction(Function &F) {
     &FunctionTags::LiftingArtifactsRemoved,
     &FunctionTags::StackPointerPromoted,
     &FunctionTags::StackAccessesSegregated,
-    &FunctionTags::DecompiledToYAML,
+    &FunctionTags::Decompiled,
     &FunctionTags::Isolated,
     &FunctionTags::ABIEnforced,
     &FunctionTags::CSVsPromoted,

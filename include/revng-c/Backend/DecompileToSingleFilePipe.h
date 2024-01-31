@@ -37,7 +37,7 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(DecompiledToYAML,
+    return { ContractGroup({ Contract(Decompiled,
                                       0,
                                       DecompiledToC,
                                       1,
