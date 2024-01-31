@@ -385,7 +385,7 @@ public:
         }
       }
 
-      // After the new redesign of IRCanonicalization PHINodes shouldn't
+      // After the new redesign of Canonicalize PHINodes shouldn't
       // even reach this stage.
       revng_assert(not isa<PHINode>(I));
 

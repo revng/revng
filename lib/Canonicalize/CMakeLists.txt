@@ -5,7 +5,7 @@
 add_subdirectory(MarkAssignments)
 
 revng_add_analyses_library(
-  revngcIRCanonicalization
+  revngcCanonicalize
   revngc
   ExitSSAPass.cpp
   FoldModelGEP.cpp
@@ -25,7 +25,7 @@ revng_add_analyses_library(
   PrettyIntFormattingPass.cpp)
 
 target_link_libraries(
-  revngcIRCanonicalization
+  revngcCanonicalize
   revngcInitModelTypes
   revngcTypeNames
   revngcSupport

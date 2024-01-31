@@ -21,7 +21,7 @@ bool init_unit_test();
 
 #include "revng-c/Support/FunctionTags.h"
 
-#include "lib/IRCanonicalization/MarkAssignments/MarkAssignments.h"
+#include "lib/Canonicalize/MarkAssignments/MarkAssignments.h"
 
 using namespace MarkAssignments;
 using namespace MarkAssignments::Reasons;
