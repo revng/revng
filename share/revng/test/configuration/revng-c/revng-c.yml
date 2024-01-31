@@ -19,7 +19,7 @@ commands:
       - type: revng-c.ptml-decompiled-c
     suffix: .ptml.model.h
     command: |-
-      revng model to-header -i "$INPUT"/context/model.yml -o "$OUTPUT";
+      revng artifact emit-model-header /dev/null -m "$INPUT"/context/model.yml -o "$OUTPUT";
   - type: revng-c.model-to-header
     from:
       - type: revng-c.ptml-model-to-header
@@ -32,9 +32,7 @@ commands:
       - type: revng-c.ptml-decompiled-c
     suffix: .ptml.helpers.h
     command: |-
-      LL_WITH_MODEL=$$(temp);
-      revng model inject "$INPUT"/context/model.yml "$INPUT"/canonicalize/module.ll -o "$$LL_WITH_MODEL";
-      revng helpers-to-header -i "$$LL_WITH_MODEL" -o "$OUTPUT";
+      revng artifact --resume "$INPUT" emit-helpers-header /dev/null -o "$OUTPUT"
   - type: revng-c.helpers-to-header
     from:
       - type: revng-c.ptml-helpers-to-header

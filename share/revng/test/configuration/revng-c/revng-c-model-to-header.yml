@@ -26,7 +26,7 @@ commands:
         filter: model-to-header
     command: |-
       HEADER="$$(temp)";
-      cat "$INPUT" | revng model to-header | revng ptml --plain > "$$HEADER".h;
+      revng artifact emit-model-header /dev/null -m "$INPUT" | revng ptml --plain > "$$HEADER".h;
       revng check-decompiled-c "$$HEADER".h;
       FileCheck --input-file="$$HEADER".h "${SOURCE}.filecheck";
       rm -rf "$$HEADER".h;
