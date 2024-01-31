@@ -25,7 +25,7 @@ inline constexpr char TypeContainerName[] = "TypeKindTargetContainer";
 using TypeTargetList = TargetListContainer<&kinds::ModelTypeDefinition,
                                            TypeContainerName>;
 
-inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+yaml";
+inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+tar+gz";
 inline constexpr char ModelTypeDefinitionName[] = "ModelTypeDefinitions";
 inline constexpr char ModelTypeDefinitionExtension[] = ".h";
 using ModelTypeDefinitionStringMap = TypeStringMap<

@@ -20,7 +20,7 @@
 
 namespace revng::pipes {
 
-inline constexpr char DecompileMime[] = "text/x.c+ptml+yaml";
+inline constexpr char DecompileMime[] = "text/x.c+ptml+tar+gz";
 inline constexpr char DecompileName[] = "Decompile";
 inline constexpr char DecompileExtension[] = ".c.ptml";
 using DecompileStringMap = FunctionStringMap<&kinds::Decompiled,
