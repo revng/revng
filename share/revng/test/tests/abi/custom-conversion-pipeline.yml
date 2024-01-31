@@ -11,8 +11,8 @@ Branches:
             Type: ConvertToRawFunctionType
             UsedContainers: []
   - Steps:
-      - Name: ConvertToCABIFunctionType
+      - Name: ConvertFunctionsToCABI
         Analyses:
-          - Name: ConvertToCABIFunctionType
-            Type: ConvertToCABIFunctionType
+          - Name: ConvertFunctionsToCABI
+            Type: ConvertFunctionsToCABI
             UsedContainers: []

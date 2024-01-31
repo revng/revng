@@ -58,9 +58,9 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertToCABIFunctionType \
+    ConvertFunctionsToCABI \
     "$BINARY" \
-    --ConvertToCABIFunctionType-abi="${ABI_NAME}" \
+    --ConvertFunctionsToCABI-abi="${ABI_NAME}" \
     -m="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
 
