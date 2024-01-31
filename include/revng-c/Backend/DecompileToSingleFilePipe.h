@@ -29,9 +29,9 @@ using DecompiledFileContainer = StringBufferContainer<&kinds::DecompiledToC,
                                                       DecompiledMIMEType,
                                                       DecompiledSuffix>;
 
-class DecompiledYAMLToC {
+class DecompileToSingleFile {
 public:
-  static constexpr auto Name = "DecompiledYAMLToC";
+  static constexpr auto Name = "DecompileToSingleFile";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

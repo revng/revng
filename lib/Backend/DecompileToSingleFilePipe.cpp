@@ -7,8 +7,8 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 
-#include "revng-c/Backend/DecompiledYAMLToC.h"
-#include "revng-c/Backend/DecompiledYAMLToCPipe.h"
+#include "revng-c/Backend/DecompileToSingleFile.h"
+#include "revng-c/Backend/DecompileToSingleFilePipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
 using namespace revng::kinds;
@@ -19,9 +19,9 @@ static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
   Reg;
 
 using Container = DecompiledCCodeInYAMLStringMap;
-void DecompiledYAMLToC::run(const pipeline::ExecutionContext &Ctx,
-                            const Container &DecompiledFunctions,
-                            DecompiledFileContainer &OutCFile) {
+void DecompileToSingleFile::run(const pipeline::ExecutionContext &Ctx,
+                                const Container &DecompiledFunctions,
+                                DecompiledFileContainer &OutCFile) {
 
   auto Out = OutCFile.asStream();
 
@@ -33,13 +33,13 @@ void DecompiledYAMLToC::run(const pipeline::ExecutionContext &Ctx,
   Out.flush();
 }
 
-void DecompiledYAMLToC::print(const pipeline::Context &Ctx,
-                              llvm::raw_ostream &OS,
-                              llvm::ArrayRef<std::string> Names) const {
+void DecompileToSingleFile::print(const pipeline::Context &Ctx,
+                                  llvm::raw_ostream &OS,
+                                  llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
   OS << " decompiled-yaml-to-c -i " << Names[0] << " -o " << Names[1];
 }
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::DecompiledYAMLToC> Y;
+static pipeline::RegisterPipe<revng::pipes::DecompileToSingleFile> Y;

@@ -164,7 +164,7 @@ Branches:
             UsedContainers: []
       - Name: decompile-to-single-file
         Pipes:
-          - Type: DecompiledYAMLToC
+          - Type: DecompileToSingleFile
             UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c

@@ -4,7 +4,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng-c/Backend/DecompiledYAMLToC.h"
+#include "revng-c/Backend/DecompileToSingleFile.h"
 
 using namespace revng::pipes;
 
