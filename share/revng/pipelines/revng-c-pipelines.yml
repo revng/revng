@@ -119,7 +119,7 @@ Branches:
           SingleTargetFilename: stack_access_segregate.ll
         Analyses:
           - Name: analyze-data-layout
-            Type: dla
+            Type: analyze-data-layout
             UsedContainers: [module.ll]
           - Name: convert-to-cabi
             Type: ConvertToCABIFunctionType
