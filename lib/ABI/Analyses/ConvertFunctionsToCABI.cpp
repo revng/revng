@@ -1,4 +1,4 @@
-/// \file ConvertToCABIFunctionType.cpp
+/// \file ConvertFunctionsToCABI.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -139,9 +139,9 @@ using namespace std::string_literals;
 
 static Logger Log("function-type-conversion-to-cabi-analysis");
 
-class ConvertToCABIFunctionType {
+class ConvertFunctionsToCABI {
 public:
-  static constexpr auto Name = "ConvertToCABIFunctionType";
+  static constexpr auto Name = "ConvertFunctionsToCABI";
   inline static const std::tuple Options = {
     // Allows overriding the default ABI with a specific value when invoking
     // the analysis.
@@ -183,7 +183,7 @@ public:
     // Minimize the negative impact on binaries with ABI that is not fully
     // supported by disabling the conversion by default.
     //
-    // Use `--ConvertToCABIFunctionType-mode=unsafe` to force conversion even
+    // Use `--ConvertFunctionsToCABI-mode=unsafe` to force conversion even
     // when ABI is not considered fully tested.
     if (Mode != "safe") {
       // TODO: extend this list.
@@ -261,4 +261,4 @@ public:
   }
 };
 
-pipeline::RegisterAnalysis<ConvertToCABIFunctionType> ToCABIAnalysis;
+pipeline::RegisterAnalysis<ConvertFunctionsToCABI> ToCABIAnalysis;
