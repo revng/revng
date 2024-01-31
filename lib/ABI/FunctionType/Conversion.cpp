@@ -588,10 +588,10 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     DeductionResults = ABI.enforceRegisterState(Map);
   }
 
-  llvm::SmallSet<model::Register::Values, 8> ReturnValueRegisters;
+  SortedVector<model::Register::Values> ReturnValueRegisters;
   for (auto [Register, Pair] : DeductionResults)
     if (abi::RegisterState::shouldEmit(Pair.IsUsedForReturningValues))
-      ReturnValueRegisters.insert(Register);
+      ReturnValueRegisters.insert_or_assign(Register);
   auto Ordered = ABI.sortReturnValues(ReturnValueRegisters);
 
   if (Ordered.size() == 1) {

@@ -445,6 +445,69 @@ public:
   abi::RegisterState::Map
   enforceRegisterState(const abi::RegisterState::Map &State) const;
 
+private:
+  llvm::SmallVector<model::Register::Values, 8> argumentOrder() const {
+    llvm::SmallVector<model::Register::Values, 8> Result;
+
+    const auto &GPRs = GeneralPurposeArgumentRegisters();
+    const model::Register::Values &RVL = ReturnValueLocationRegister();
+    constexpr model::Register::Values Invalid = model::Register::Invalid;
+    if (RVL != Invalid && !llvm::is_contained(GPRs, RVL))
+      Result.emplace_back(RVL);
+
+    for (auto Register : GPRs)
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+    for (auto Register : VectorArgumentRegisters())
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+
+    return Result;
+  }
+
+  llvm::SmallVector<model::Register::Values, 8> returnValueOrder() const {
+    llvm::SmallVector<model::Register::Values, 8> Result;
+
+    for (auto Register : GeneralPurposeReturnValueRegisters())
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+    for (auto Register : VectorReturnValueRegisters())
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+
+    return Result;
+  }
+
+  template<ranges::sized_range InputContainer,
+           ranges::sized_range OutputContainer>
+  void assertSortingWasSuccessful(std::string_view RegisterType,
+                                  const InputContainer &Input,
+                                  const OutputContainer &Output) const {
+    if (Input.size() != Output.size()) {
+      std::string Error = "Unable to sort " + std::string(RegisterType)
+                          + " registers.\nMost likely some of the present "
+                            "registers are not allowed to be used under "
+                            "the current ABI ("
+                          + std::string(getName())
+                          + ").\nList of registers to be sorted: [ ";
+      if (Input.size() != 0) {
+        for (auto Register : Input)
+          Error += model::Register::getName(Register).str() + ", ";
+        Error.resize(Error.size() - 2);
+      }
+
+      Error += " ]\nSorted list: [ ";
+      if (Output.size() != 0) {
+        for (auto Register : Output)
+          Error += model::Register::getName(Register).str() + ", ";
+        Error.resize(Error.size() - 2);
+      }
+      Error += " ]\n";
+      revng_abort(Error.c_str());
+    }
+  }
+
+public:
   template<ranges::sized_range Container>
   llvm::SmallVector<model::Register::Values, 8>
   sortArguments(const Container &Registers) const {
@@ -456,46 +519,15 @@ public:
     }
 
     llvm::SmallVector<model::Register::Values, 8> Result;
-
-    const auto &GPRs = GeneralPurposeArgumentRegisters();
-    const model::Register::Values &RVL = ReturnValueLocationRegister();
-    constexpr model::Register::Values Invalid = model::Register::Invalid;
-    bool NoRVLInGPRs = RVL != Invalid && !llvm::is_contained(GPRs, RVL);
-    if (NoRVLInGPRs && Lookup.contains(RVL))
-      Result.emplace_back(RVL);
-
-    for (auto Register : GPRs)
+    for (auto Register : argumentOrder())
       if (Lookup.contains(Register))
-        if (!llvm::is_contained(Result, Register))
-          Result.emplace_back(Register);
-    for (auto Register : VectorArgumentRegisters())
-      if (Lookup.contains(Register))
-        if (!llvm::is_contained(Result, Register))
-          Result.emplace_back(Register);
+        Result.emplace_back(Register);
 
-    if (Result.size() != std::size(Registers)) {
-      std::string Error = "Unable to sort argument registers.\nMost likely "
-                          "some of the present registers are not allowed to be "
-                          "used for arguments under the current ABI ("
-                          + std::string(getName())
-                          + ").\nList of registers to be sorted: ";
-      for (auto Register : Registers) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += "\nSorted list: ";
-      for (auto Register : Result) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += '\n';
-      revng_abort(Error.c_str());
-    }
-
+    assertSortingWasSuccessful("argument", Registers, Result);
     return Result;
   }
 
-  template<typename Container>
+  template<ranges::sized_range Container>
   llvm::SmallVector<model::Register::Values, 8>
   sortReturnValues(const Container &Registers) const {
     SortedVector<model::Register::Values> Lookup;
@@ -506,32 +538,11 @@ public:
     }
 
     llvm::SmallVector<model::Register::Values, 8> Result;
-    for (auto Register : GeneralPurposeReturnValueRegisters())
-      if (Lookup.contains(Register))
-        Result.emplace_back(Register);
-    for (auto Register : VectorReturnValueRegisters())
+    for (auto Register : returnValueOrder())
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
-    if (Result.size() != std::size(Registers)) {
-      std::string Error = "Unable to sort return value registers.\nMost likely "
-                          "some of the present registers are not allowed to be "
-                          "used for returning values under the current ABI ("
-                          + std::string(getName())
-                          + ").\nList of registers to be sorted: ";
-      for (auto Register : Registers) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += "\nSorted list: ";
-      for (auto Register : Result) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += '\n';
-      revng_abort(Error.c_str());
-    }
-
+    assertSortingWasSuccessful("return value", Registers, Result);
     return Result;
   }
 
