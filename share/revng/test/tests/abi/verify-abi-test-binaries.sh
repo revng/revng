@@ -26,7 +26,7 @@ orc shell \
 # Import DWARF information
 revng \
     analyze \
-    ImportBinary \
+    import-binary \
     "$BINARY" \
     -o="${TEMPORARY_DIRECTORY}/imported_binary.yml"
 
@@ -40,7 +40,7 @@ python3 \
 # Make sure all the primitive types are available
 revng \
     analyze \
-    AddPrimitiveTypes \
+    add-primitive-types \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/corrected_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/reference_binary.yml"

@@ -19,9 +19,9 @@ commands:
       MODEL="$$(temp)";
       TMP="$$(temp -d)";
       revng model dump "$INPUT2" -o "$$MODEL";
-      revng analyze DetectABI "$INPUT1" --resume "$$TMP" -m "$$MODEL" -o /dev/null;
-      revng artifact EnforceABI "$INPUT1" --resume "$$TMP" -o /dev/null;
-      revng model inject "$$TMP"/context/model.yml "$$TMP"/EnforceABI/module.ll -o "$OUTPUT";
+      revng analyze detect-abi "$INPUT1" --resume "$$TMP" -m "$$MODEL" -o /dev/null;
+      revng artifact enforce-abi "$INPUT1" --resume "$$TMP" -o /dev/null;
+      revng model inject "$$TMP"/context/model.yml "$$TMP"/enforce-abi/module.ll -o "$OUTPUT";
   - type: revng.test-python-model-serialization-roundtrip
     from:
       - type: revng.abi-enforced-for-decompilation

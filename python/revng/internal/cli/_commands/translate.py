@@ -41,17 +41,17 @@ class TranslateCommand(Command):
         args = options.parsed_args
         out_file = args.output if args.output else args.input[0] + ".translated"
 
-        step_name = "Recompile"
+        step_name = "recompile"
         if args.isolate:
-            step_name = step_name + "Isolated"
+            step_name = step_name + "-isolated"
 
         command = [
             "pipeline",
         ]
 
-        command.append("--analyze=Import/ImportBinary/input/:Binary")
-        command.append("--analyze=Import/AddPrimitiveTypes/")
-        command.append("--analyze=Lift/DetectABI/module.ll/:Root")
+        command.append("--analyze=initial/import-binary/input/:Binary")
+        command.append("--analyze=initial/add-primitive-types/")
+        command.append("--analyze=lift/detect-abi/module.ll/:Root")
 
         command = command + [
             f"--produce={step_name}/output/:Translated",

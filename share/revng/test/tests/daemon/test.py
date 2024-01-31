@@ -205,9 +205,9 @@ async def test_info(client):
     assert function_rank.Parent == "binary"
 
     begin_step = next(s for s in desc.Steps if s.Name == "begin")
-    import_step = next(s for s in desc.Steps if s.Name == "Import")
+    initial_step = next(s for s in desc.Steps if s.Name == "initial")
     assert begin_step.Parent == ""
-    assert import_step.Parent == "begin"
+    assert initial_step.Parent == "begin"
 
     container_names = [c.Name for c in desc.Containers]
     assert "module.ll" in container_names
@@ -242,7 +242,7 @@ async def run_preliminary_analyses(client):
     await client.execute(
         gql(
             """mutation($ctt: String!, $index: BigInt!) {
-                runAnalysis(step: "Import", analysis: "ImportBinary",
+                runAnalysis(step: "initial", analysis: "import-binary",
                             containerToTargets: $ctt, index: $index) {
                     __typename
                 }
@@ -255,7 +255,7 @@ async def run_preliminary_analyses(client):
     await client.execute(
         gql(
             "mutation {"
-            + f'runAnalysis(step: "Import", analysis: "AddPrimitiveTypes", index: "{index}")'
+            + f'runAnalysis(step: "initial", analysis: "add-primitive-types", index: "{index}")'
             + "{ __typename } }"
         )
     )
@@ -265,7 +265,7 @@ async def test_lift(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
     result = await client.execute(
-        gql(f'{{ produceArtifacts(step: "Lift", paths: "", index: "{index}") {{ __typename }} }}')
+        gql(f'{{ produceArtifacts(step: "lift", paths: "", index: "{index}") {{ __typename }} }}')
     )
     assert result["produceArtifacts"]["__typename"] == "Produced"
 
@@ -274,7 +274,7 @@ async def test_lift_ready_fail(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
     q = gql(
-        f'{{ produceArtifacts(step: "Lift", paths: ":Binary", onlyIfReady: true, index: "{index}")'
+        f'{{ produceArtifacts(step: "lift", paths: ":Binary", onlyIfReady: true, index: "{index}")'
         + "{ __typename } }"
     )
 
@@ -290,7 +290,7 @@ async def test_get_model(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
     await client.execute(
-        gql(f'{{ produceArtifacts(step: "Lift", paths: "", index: "{index}") {{ __typename }} }}')
+        gql(f'{{ produceArtifacts(step: "lift", paths: "", index: "{index}") {{ __typename }} }}')
     )
 
     result = await client.execute(gql('{ getGlobal(name: "model.yml") }'))
@@ -306,7 +306,7 @@ async def test_targets(client):
             ready
         }
 
-        lift: targets(step: "Lift", container: "module.ll") {
+        lift: targets(step: "lift", container: "module.ll") {
             kind
             ready
         }
@@ -325,7 +325,7 @@ async def test_produce(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
     q = gql(
-        f'{{ produce(step: "Lift", container: "module.ll", targetList: ":Root", index: "{index}")'
+        f'{{ produce(step: "lift", container: "module.ll", targetList: ":Root", index: "{index}")'
         + "{ __typename } }"
     )
     result = await client.execute(q)
@@ -336,7 +336,7 @@ async def test_produce(client):
 async def test_produce_artifact(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
-    q = gql(f'{{ produceArtifacts(step: "Lift", index: "{index}") {{ __typename }} }}')
+    q = gql(f'{{ produceArtifacts(step: "lift", index: "{index}") {{ __typename }} }}')
     result = await client.execute(q)
 
     assert "produceArtifacts" in result
@@ -348,7 +348,7 @@ async def test_function_endpoint(client):
     index = await get_index(client)
     q = gql(
         """mutation($ctt: String!, $index: BigInt!) {
-                runAnalysis(step: "Lift", analysis: "DetectABI",
+                runAnalysis(step: "lift", analysis: "detect-abi",
                             containerToTargets: $ctt, index: $index) {
                     __typename
                 }
@@ -358,7 +358,7 @@ async def test_function_endpoint(client):
 
     q = gql(
         """{
-            targets(step: "Isolate", container: "module.ll") {
+            targets(step: "isolate", container: "module.ll") {
                 serialized
             }
         }"""
@@ -369,7 +369,7 @@ async def test_function_endpoint(client):
     index = await get_index(client)
     q = gql(
         """query function($param1: String!, $index: BigInt!) {
-            produceArtifacts(step: "Isolate", paths: $param1, index: $index) { __typename }
+            produceArtifacts(step: "isolate", paths: $param1, index: $index) { __typename }
         }"""
     )
     result = await client.execute(
@@ -384,7 +384,7 @@ async def test_analysis_kind_check(client):
     index = await get_index(client)
     q = gql(
         """mutation($ctt: String!, $index: BigInt!) {
-            runAnalysis(step: "Lift", analysis: "DetectABI",
+            runAnalysis(step: "lift", analysis: "detect-abi",
                         containerToTargets: $ctt, index: $index) {
                 __typename
             }
