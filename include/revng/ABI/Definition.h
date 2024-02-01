@@ -116,7 +116,13 @@ fields:
       if this value is set to true, both argument will be passed on stack,
       otherwise, only the struct will.
     type: bool
-    optional: true
+
+  - name: AllowUnnaturallyAlignedTypesInRegisters
+    doc: |
+      States whether ABI allows unnaturally aligned types to be passed in
+      registers. When set to false, all the unnatural types will only be put
+      on stack.
+    type: bool
 
   - name: UsePointerToCopyForStackArguments
     doc:
@@ -216,6 +222,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: GeneralPurposeReturnValueRegisters
     doc: |
       Stores the list of general purpose registers allowed to be used for
@@ -224,6 +231,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: VectorArgumentRegisters
     doc: |
       Stores the list of vector registers allowed to be used for passing
@@ -232,6 +240,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: VectorReturnValueRegisters
     doc: |
       Stores the list of vector registers allowed to be used for returning
@@ -240,6 +249,7 @@ fields:
       type: std::vector
       elementType: model::Register::Values
     optional: true
+
   - name: CalleeSavedRegisters
     doc: |
       Stores the list of registers for which the ABI requires the callee to
@@ -303,9 +313,7 @@ public:
 
 public:
   std::string_view getName() const { return model::ABI::getName(ABI()); }
-  std::size_t getPointerSize() const {
-    return model::ABI::getPointerSize(ABI());
-  }
+  uint64_t getPointerSize() const { return model::ABI::getPointerSize(ABI()); }
 
   /// Make sure current definition is valid.
   bool verify() const debug_function;
@@ -329,7 +337,13 @@ public:
   ///
   /// \return `false` if the function is definitely NOT compatible with the ABI,
   ///         `true` if it might be compatible.
-  bool isIncompatibleWith(const model::RawFunctionType &Function) const;
+  bool isPreliminarilyCompatibleWith(const model::RawFunctionType &) const;
+
+  struct AlignmentInfo {
+    uint64_t Value;
+    bool IsNatural;
+  };
+  using AlignmentCache = std::unordered_map<const model::Type *, AlignmentInfo>;
 
   /// Compute the natural alignment of the type in accordance with
   /// the current ABI
@@ -345,26 +359,74 @@ public:
   /// \return either an alignment or a `std::nullopt` when it's not applicable.
   inline std::optional<uint64_t>
   alignment(const model::QualifiedType &Type) const {
-    model::VerifyHelper VH;
-    return alignment(VH, Type);
+    AlignmentCache Cache;
+    return alignment(Type, Cache);
+  }
+  inline std::optional<uint64_t> alignment(const model::Type &Type) const {
+    AlignmentCache Cache;
+    return alignment(Type, Cache);
   }
 
-  std::optional<uint64_t> alignment(model::VerifyHelper &VH,
-                                    const model::QualifiedType &Type) const;
+  inline std::optional<bool>
+  hasNaturalAlignment(const model::QualifiedType &Type) const {
+    AlignmentCache Cache;
+    return hasNaturalAlignment(Type, Cache);
+  }
+  inline std::optional<bool>
+  hasNaturalAlignment(const model::Type &Type) const {
+    AlignmentCache Cache;
+    return hasNaturalAlignment(Type, Cache);
+  }
 
-  uint64_t alignedOffset(uint64_t Offset,
-                         const model::QualifiedType &Type) const {
-    const uint64_t Alignment = *alignment(Type);
+  std::optional<uint64_t> alignment(const model::QualifiedType &Type,
+                                    AlignmentCache &Cache) const;
+  std::optional<uint64_t> alignment(const model::Type &Type,
+                                    AlignmentCache &Cache) const;
+  std::optional<bool> hasNaturalAlignment(const model::QualifiedType &Type,
+                                          AlignmentCache &Cache) const;
+  std::optional<bool> hasNaturalAlignment(const model::Type &Type,
+                                          AlignmentCache &Cache) const;
+
+  uint64_t alignedOffset(uint64_t Offset, uint64_t Alignment) const {
     if (Offset % Alignment != 0)
       return Offset + Alignment - Offset % Alignment;
 
     return Offset;
   }
+  uint64_t alignedOffset(uint64_t Offset,
+                         const model::QualifiedType &Type) const {
+    return alignedOffset(Offset, *alignment(Type));
+  }
+  uint64_t alignedOffset(uint64_t Offset, const model::Type &Type) const {
+    return alignedOffset(Offset, *alignment(Type));
+  }
 
 public:
+  /// Try to deduce the specific "holes" in the provided register state
+  /// information.
+  ///
+  /// In short, when we have any information about arguments (for example, if
+  /// we know that `r2` is used as a function argument) - we can extrapolate it
+  /// to uncover more information about other register (in this example, that
+  /// `r0` and `r1` must also either be active _unused_ arguments _or_ padding).
+  /// This in information is embedded into the returned map.
+  ///
+  /// \returns `std::nullopt` if \ref State does not match the ABI (i.e. it
+  ///          marks a non-argument register (like `r5` in the example used) as
+  ///          an argument).
   std::optional<abi::RegisterState::Map>
   tryDeducingRegisterState(const abi::RegisterState::Map &State) const;
 
+  /// A more strict version of \ref tryDeducingRegisterState.
+  ///
+  /// The difference is that `tryDeducingRegisterState` expects all the input
+  /// information to be 100% correct, with the most likely problem being
+  /// the fact that we didn't detect ABI correctly (the original function uses
+  /// one that differs from the one specified), while this one
+  /// (`enforceRegisterState`) believes the ABI first and foremost, allowing
+  /// this deduction to discard any contradicting data (for example if `r5` is
+  /// specified as an argument, it's silently changed to `No` because ABI does
+  /// not allow it to be).
   abi::RegisterState::Map
   enforceRegisterState(const abi::RegisterState::Map &State) const;
 

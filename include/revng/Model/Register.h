@@ -517,7 +517,7 @@ inline llvm::StringRef getRegisterName(Values V) {
 }
 
 /// Return the size of the register in bytes
-inline size_t getSize(Values V) {
+inline uint64_t getSize(Values V) {
   model::Architecture::Values Architecture = getReferenceArchitecture(V);
 
   switch (V) {

@@ -15,7 +15,7 @@ using RPTypes = std::tuple<
 
 // Given a tuple type TupleT, this will say if the type T is one of the types
 // contained within the tuple type
-template<typename TupleT, typename T, std::size_t I = 0>
+template<typename TupleT, typename T, size_t I = 0>
 inline constexpr bool isIn() {
   using ElementT = typename std::tuple_element<I, TupleT>::type;
   if constexpr (std::is_same_v<T, ElementT>

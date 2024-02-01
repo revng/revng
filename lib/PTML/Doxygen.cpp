@@ -77,7 +77,7 @@ public:
 
 struct DoxygenLine {
   llvm::SmallVector<DoxygenToken, 8> Tags;
-  std::size_t InternalIndentation;
+  size_t InternalIndentation;
 
   llvm::SmallVector<DoxygenToken, 8> *operator->() { return &Tags; }
 };
@@ -85,8 +85,8 @@ struct DoxygenLine {
 struct CommentBuilder {
   const ptml::PTMLBuilder &PTML;
   llvm::StringRef Indicator;
-  std::size_t Indentation;
-  std::size_t WrapAt;
+  size_t Indentation;
+  size_t WrapAt;
 
 public:
   std::string emit(llvm::SmallVector<DoxygenLine, 16> &&Lines) {
@@ -124,15 +124,15 @@ public:
 
 private:
   std::string token(const DoxygenToken &Token,
-                    std::size_t InternalIndentation,
+                    size_t InternalIndentation,
                     DoxygenLine &ResultLine,
-                    std::size_t &CurrentSize,
+                    size_t &CurrentSize,
                     bool &WereTagsEmittedSinceLastBreak) {
     std::string Result;
 
     llvm::StringRef TagText = Token.Value;
     while (!TagText.empty()) {
-      if (std::size_t NewLinePosition = TagText.find('\n');
+      if (size_t NewLinePosition = TagText.find('\n');
           NewLinePosition != TagText.npos
           && NewLinePosition + CurrentSize < WrapAt) {
         revng_assert(Token.Type == DoxygenToken::Types::Untagged,
@@ -182,7 +182,7 @@ private:
         WereTagsEmittedSinceLastBreak = false;
       } else {
         // No viable breaking point, make this line longer than expected.
-        std::size_t FirstSpace = TagText.find(' ');
+        size_t FirstSpace = TagText.find(' ');
         if (FirstSpace == TagText.npos)
           FirstSpace = TagText.size();
         DoxygenToken Tag{ .Type = Token.Type,
@@ -203,7 +203,7 @@ private:
     return Result;
   }
 
-  std::tuple<DoxygenLine, std::size_t> firstLine() {
+  std::tuple<DoxygenLine, size_t> firstLine() {
     DoxygenLine Result;
 
     if (Indentation != 0)
@@ -218,8 +218,8 @@ private:
     return { std::move(Result), Indentation + Indicator.size() };
   }
 
-  std::tuple<DoxygenLine, std::size_t> line(std::size_t IndentationSize = 0) {
-    std::tuple<DoxygenLine, std::size_t> Result = firstLine();
+  std::tuple<DoxygenLine, size_t> line(size_t IndentationSize = 0) {
+    std::tuple<DoxygenLine, size_t> Result = firstLine();
 
     if (IndentationSize != 0) {
       auto &[Line, ResultSize] = Result;
@@ -246,8 +246,8 @@ private:
 std::string ptml::freeFormComment(const ::ptml::PTMLBuilder &PTML,
                                   llvm::StringRef Text,
                                   llvm::StringRef CommentIndicator,
-                                  std::size_t Indentation,
-                                  std::size_t WrapAt) {
+                                  size_t Indentation,
+                                  size_t WrapAt) {
   CommentBuilder Builder(PTML, CommentIndicator, Indentation, WrapAt);
   auto Result = Builder.emit(Text.str());
   return Result.empty() ? Result : '\n' + Result;
@@ -269,7 +269,7 @@ gatherArgumentComments(const model::Binary &Binary,
 
     std::size_t IndOffset = Layout.hasSPTAR() ? 1 : 0;
     revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
-    for (std::size_t Index = 0; Index < FT->Arguments().size(); ++Index) {
+    for (size_t Index = 0; Index < FT->Arguments().size(); ++Index) {
       const std::string &Comment = FT->Arguments().at(Index).Comment();
       if (!Comment.empty()) {
         DoxygenLine &Line = Result.emplace_back();
@@ -499,8 +499,8 @@ std::string ptml::functionComment(const ::ptml::PTMLBuilder &PTML,
                                   const model::Function &Function,
                                   const model::Binary &Binary,
                                   llvm::StringRef CommentIndicator,
-                                  std::size_t Indentation,
-                                  std::size_t WrapAt) {
+                                  size_t Indentation,
+                                  size_t WrapAt) {
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (!Function.Comment().empty()) {
     DoxygenToken Tag{ .Type = DoxygenToken::Types::Untagged,

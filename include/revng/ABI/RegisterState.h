@@ -110,15 +110,15 @@ public:
 
 private:
   std::pair<model::Register::Values, StatePair &> mapIt(StatePair &Value) {
-    size_t Offset = model::Register::getFirst(Architecture);
-    auto ResultIndex = Offset + std::distance(&Internal.front(), &Value);
-    return { model::Register::Values(ResultIndex), Value };
+    auto Offset = to_underlying(model::Register::getFirst(Architecture));
+    Offset += std::distance(&Internal.front(), &Value);
+    return { model::Register::Values(Offset), Value };
   }
   std::pair<model::Register::Values, const StatePair &>
   mapIt(const StatePair &Value) const {
-    size_t Offset = model::Register::getFirst(Architecture);
-    auto ResultIndex = Offset + std::distance(&Internal.front(), &Value);
-    return { model::Register::Values(ResultIndex), Value };
+    auto Offset = to_underlying(model::Register::getFirst(Architecture));
+    Offset += std::distance(&Internal.front(), &Value);
+    return { model::Register::Values(Offset), Value };
   }
 
   auto mapped_range() {

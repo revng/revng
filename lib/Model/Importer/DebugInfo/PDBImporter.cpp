@@ -752,7 +752,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         auto MaybeSize = ProcessedTypes[CurrentTypeIndex].get()->size();
         if (MaybeSize and *MaybeSize != 0) {
           Argument &NewArgument = TypeFunction->Arguments()[Index];
-          auto PointerSize = getPointerSize(Model->Architecture());
+          uint64_t PointerSize = getPointerSize(Model->Architecture());
           QualifiedType TheType(ProcessedTypes[CurrentTypeIndex],
                                 { Qualifier::createPointer(PointerSize) });
           NewArgument.Type() = TheType;

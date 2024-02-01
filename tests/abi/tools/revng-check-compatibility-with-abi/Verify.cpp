@@ -60,7 +60,7 @@ namespace runtime_test = abi::runtime_test;
 std::vector<std::byte>
 VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const {
   std::vector<std::byte> Result;
-  std::size_t PreviousArgumentEndsAt = 0;
+  uint64_t PreviousArgumentEndsAt = 0;
   for (const auto &Argument : FunctionLayout.Arguments) {
     if (Argument.Stack.has_value()) {
       revng_assert(Argument.Stack->Size != 0);
@@ -122,7 +122,7 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
 bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
                           llvm::ArrayRef<std::byte> ExpectedBytes) const {
   if (Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes)) {
-    std::size_t BytesToDrop = ABI.paddedSizeOnStack(ExpectedBytes.size());
+    uint64_t BytesToDrop = ABI.paddedSizeOnStack(ExpectedBytes.size());
     if (Bytes.size() >= BytesToDrop)
       Bytes = Bytes.drop_front(BytesToDrop);
     else
@@ -219,15 +219,15 @@ void VH::arguments(const abi::runtime_test::ArgumentTest &Test) const {
 }
 
 uint64_t VH::valueFromBytes(llvm::ArrayRef<std::byte> Input) const {
-  std::size_t PointerSize = model::Architecture::getPointerSize(Architecture);
+  uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
   revng_assert(Input.size() <= PointerSize);
 
   uint64_t Result = 0;
-  for (std::size_t I = 0; I < PointerSize; ++I) {
+  for (uint64_t I = 0; I < PointerSize; ++I) {
     if (I != 0)
       Result <<= 8;
 
-    std::size_t Index = IsLittleEndian ? (PointerSize - I - 1) : I;
+    uint64_t Index = IsLittleEndian ? (PointerSize - I - 1) : I;
     if (Index < Input.size())
       Result += static_cast<uint64_t>(Input[Index]);
   }
@@ -236,7 +236,7 @@ uint64_t VH::valueFromBytes(llvm::ArrayRef<std::byte> Input) const {
 }
 
 void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
-  auto PointerSize = model::Architecture::getPointerSize(Architecture);
+  uint64_t PointerSize = model::Architecture::getPointerSize(Architecture);
 
   const auto &Found = Test.ReturnValue;
   const auto &Expected = Test.ExpectedReturnValue;
@@ -445,7 +445,7 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
 
   const abi::Definition &Def = abi::Definition::get(ABI);
   VerificationHelper Helper{ Architecture, Def, Parsed.IsLittleEndian };
-  std::size_t ArgumentTestCount = 0, ReturnValueTestCount = 0;
+  size_t ArgumentTestCount = 0, ReturnValueTestCount = 0;
   for (auto &Function : Binary->Functions()) {
     Helper.FunctionName = Function.OriginalName();
     if (Helper.FunctionName.take_front(5) == "test_")

@@ -457,7 +457,7 @@ public:
     translateIndirectJumps();
 
     using namespace model::Architecture;
-    unsigned ReadSize = getPointerSize(Model->Architecture());
+    uint64_t ReadSize = getPointerSize(Model->Architecture());
     for (MetaAddress MemoryAddress : UnusedCodePointers) {
       // Read using the original endianness, we want the correct address
       auto MaybeRawPC = BinaryView.readInteger(MemoryAddress, ReadSize);

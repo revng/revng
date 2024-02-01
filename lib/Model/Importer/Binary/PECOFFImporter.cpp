@@ -71,7 +71,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
   revng_assert(Model->Architecture() != Architecture::Invalid);
   Architecture = Model->Architecture();
 
-  auto PointerSize = Architecture::getPointerSize(Architecture);
+  uint64_t PointerSize = Architecture::getPointerSize(Architecture);
   bool IsLittleEndian = Architecture::isLittleEndian(Architecture);
 
   if ((PointerSize != 4 and PointerSize != 8) or not IsLittleEndian)
@@ -211,7 +211,7 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
     // NOTE: This address will occur in the .text section as a target of a jump.
     // Once we have the address of the entry within .idata, we can access
     // the information about symbol.
-    auto PointerSize = getPointerSize(Model->Architecture());
+    uint64_t PointerSize = getPointerSize(Model->Architecture());
     MetaAddress AddressOfImportEntry = ImageBase + u64(ImportAddressTableEntry)
                                        + u64(Index * PointerSize);
 

@@ -9,11 +9,14 @@
 #include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
-#include "revng/ABI/FunctionType/TypeBucket.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/QualifiedType.h"
+#include "revng/Model/TypeBucket.h"
 #include "revng/Support/OverflowSafeInt.h"
+
+#include "ValueDistributor.h"
 
 static Logger Log("function-type-conversion-to-cabi");
 
@@ -21,8 +24,9 @@ namespace abi::FunctionType {
 
 class ToCABIConverter {
 private:
-  using ArgumentRegisters = TrackingSortedVector<model::NamedTypedRegister>;
-  using ReturnValueRegisters = TrackingSortedVector<model::NamedTypedRegister>;
+  using RFT = const model::RawFunctionType &;
+  using RFTArguments = decltype(std::declval<RFT>().Arguments());
+  using RFTReturnValues = decltype(std::declval<RFT>().ReturnValues());
 
 public:
   struct Converted {
@@ -33,7 +37,7 @@ public:
 
 private:
   const abi::Definition &ABI;
-  TypeBucket Bucket;
+  model::TypeBucket Bucket;
   const bool UseSoftRegisterStateDeductions = false;
 
 public:
@@ -54,9 +58,25 @@ public:
       return std::nullopt;
     }
 
+    // Count used registers.
+    ArgumentDistributor Distributor(ABI);
+    Distributor.ArgumentIndex = Arguments->size();
+    for (const auto &NTRegister : FunctionType.Arguments()) {
+      auto Kind = model::Register::primitiveKind(NTRegister.Location());
+      if (Kind == model::PrimitiveTypeKind::Values::PointerOrNumber)
+        ++Distributor.UsedGeneralPurposeRegisterCount;
+      else if (Kind == model::PrimitiveTypeKind::Float)
+        ++Distributor.UsedVectorRegisterCount;
+      else
+        revng_abort(("Register ("
+                     + model::Register::getName(NTRegister.Location()).str()
+                     + ") is not supported as an argument.")
+                      .c_str());
+    }
+
     // Then stack ones.
     auto Stack = tryConvertingStackArguments(FunctionType.StackArgumentsType(),
-                                             Arguments->size());
+                                             Distributor);
     if (!Stack.has_value()) {
       revng_log(Log, "Unable to convert stack arguments.");
       Bucket.drop();
@@ -88,7 +108,7 @@ private:
   /// \return a list of arguments if the conversion was successful,
   ///         `std::nullopt` otherwise.
   std::optional<llvm::SmallVector<model::Argument, 8>>
-  tryConvertingRegisterArguments(const ArgumentRegisters &Registers);
+  tryConvertingRegisterArguments(RFTArguments Registers);
 
   /// Helper used for converting stack argument struct into
   /// the c-style representation
@@ -101,7 +121,7 @@ private:
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
   tryConvertingStackArguments(model::TypePath StackArgumentTypes,
-                              std::size_t IndexOffset);
+                              ArgumentDistributor Distributor);
 
   /// Helper used for converting return values to the c-style representation
   ///
@@ -114,7 +134,7 @@ private:
   /// \return a qualified type if conversion is possible, `std::nullopt`
   ///         otherwise.
   std::optional<model::QualifiedType>
-  tryConvertingReturnValue(const ReturnValueRegisters &Registers);
+  tryConvertingReturnValue(RFTReturnValues Registers);
 };
 
 std::optional<model::TypePath>
@@ -131,7 +151,7 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
   LoggerIndent Indentation(Log);
 
   const abi::Definition &ABI = abi::Definition::get(*MaybeABI);
-  if (ABI.isIncompatibleWith(FunctionType)) {
+  if (!ABI.isPreliminarilyCompatibleWith(FunctionType)) {
     revng_log(Log,
               "FAIL: the function is not compatible with `"
                 << model::ABI::getName(ABI.ABI()) << "`.");
@@ -184,7 +204,7 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
 
 using TCC = ToCABIConverter;
 std::optional<llvm::SmallVector<model::Argument, 8>>
-TCC::tryConvertingRegisterArguments(const ArgumentRegisters &Registers) {
+TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // Rely onto the register state deduction to make sure no "holes" are
   // present in-between the argument registers.
   abi::RegisterState::Map Map(model::ABI::getArchitecture(ABI.ABI()));
@@ -244,9 +264,130 @@ TCC::tryConvertingRegisterArguments(const ArgumentRegisters &Registers) {
   return Result;
 }
 
+static bool verifyAlignment(const abi::Definition &ABI,
+                            uint64_t CurrentOffset,
+                            uint64_t CurrentSize,
+                            uint64_t NextOffset,
+                            uint64_t NextAlignment) {
+  uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
+  revng_log(Log,
+            "Attempting to verify alignment for an argument with size "
+              << CurrentSize << " (" << PaddedSize << " when padded) at offset "
+              << CurrentOffset << ". The next argument is at offset "
+              << NextOffset << " and is aligned at " << NextAlignment << ".");
+
+  OverflowSafeInt Offset = CurrentOffset;
+  Offset += PaddedSize;
+  if (!Offset) {
+    // Abandon if offset overflows.
+    revng_log(Log, "Error: Integer overflow when calculating field offsets.");
+    return false;
+  }
+
+  if (*Offset == NextOffset) {
+    revng_log(Log, "Argument slots in perfectly.");
+    return true;
+  } else if (*Offset < NextOffset) {
+    // Offsets are different, there's most likely padding between the arguments.
+    revng_assert(NextOffset % NextAlignment == 0,
+                 "Type's alignment doesn't make sense.");
+    uint64_t AdjustedAlignment = NextAlignment;
+
+    // Round all the alignment up to the register size - to avoid sub-word
+    // offsets on the stack.
+    if (AdjustedAlignment < ABI.getPointerSize())
+      AdjustedAlignment = ABI.getPointerSize();
+    revng_assert(NextOffset % AdjustedAlignment == 0,
+                 "Adjusted alignment doesn't make sense.");
+
+    // Check whether the next argument's position makes sense.
+    uint64_t Delta = AdjustedAlignment - *Offset % AdjustedAlignment;
+    if (Delta != AdjustedAlignment && *Offset + Delta == NextOffset) {
+      revng_log(Log,
+                "Argument slots in after accounting for the alignment of the "
+                "next field adjusted to "
+                  << AdjustedAlignment << " with the resulting difference of "
+                  << Delta << ".");
+      return true;
+    } else {
+      revng_log(Log,
+                "Error: The natural alignment of a type would make it "
+                "impossible to represent as CABI: there would have to be "
+                "a hole between two arguments. Abandon the conversion.");
+      // TODO: we probably want to preprocess such functions and manually
+      //       "fill" the holes in before attempting the conversion.
+      return false;
+    }
+  } else {
+    revng_log(Log,
+              "Error: The natural alignment of a type would make it "
+              "impossible to represent as CABI: the arguments (including "
+              "the padding) would have to overlap. Abandon the conversion.");
+    return false;
+  }
+}
+
+template<ModelTypeLike ModelType>
+bool canBeNext(ArgumentDistributor &Distributor,
+               const ModelType &CurrentType,
+               uint64_t CurrentOffset,
+               uint64_t NextOffset,
+               uint64_t NextAlignment) {
+  const abi::Definition &ABI = Distributor.ABI;
+
+  revng_log(Log,
+            "Checking whether the argument #"
+              << Distributor.ArgumentIndex << " can be slotted right in:\n"
+              << serializeToString(CurrentType) << "Currently "
+              << Distributor.UsedGeneralPurposeRegisterCount
+              << " general purpose and " << Distributor.UsedVectorRegisterCount
+              << " vector registers are in use.");
+
+  std::optional<uint64_t> Size = CurrentType.size();
+  revng_assert(Size.has_value() && Size.value() != 0);
+
+  if (!verifyAlignment(ABI, CurrentOffset, *Size, NextOffset, NextAlignment))
+    return false;
+
+  for (const auto &Distributed : Distributor.nextArgument(CurrentType)) {
+    if (Distributed.RepresentsPadding)
+      continue; // Skip padding.
+
+    if (!Distributed.Registers.empty()) {
+      revng_log(Log,
+                "Error: Because there are still available registers, "
+                "an argument cannot just be added as is - resulting CFT would "
+                "not be compatible with the original function.");
+      return false;
+    }
+    if (Distributed.SizeOnStack == 0) {
+      revng_log(Log,
+                "Something went very wrong: an argument uses neither registers "
+                "nor stack.");
+      return false;
+    }
+
+    // Compute the next stack offset
+    uint64_t NextStackOffset = ABI.alignedOffset(Distributor.UsedStackOffset,
+                                                 CurrentType);
+    NextStackOffset += ABI.paddedSizeOnStack(*Size);
+    uint64_t SizeWithPadding = NextStackOffset - Distributor.UsedStackOffset;
+    if (Distributed.SizeOnStack != SizeWithPadding) {
+      revng_log(Log,
+                "Because the stack position wouldn't match due to holes in "
+                "the stack, an argument cannot just be added as is - resulting "
+                "CFT would not be compatible. Expected size is "
+                  << SizeWithPadding << " but distributor reports "
+                  << Distributed.SizeOnStack << " instead.");
+      return false;
+    }
+  }
+  return true;
+}
+
 std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
-                                 std::size_t IndexOffset) {
+                                 ArgumentDistributor Distributor) {
   if (StackArgumentTypes.empty()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating
@@ -258,14 +399,9 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
                                                               .get());
 
   // Compute the full alignment.
-  uint64_t FullAlignment = *ABI.alignment(model::QualifiedType{
-    StackArgumentTypes, {} });
-  if (!llvm::isPowerOf2_64(FullAlignment)) {
-    revng_log(Log,
-              "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Stack));
-    return std::nullopt;
-  }
+  model::QualifiedType StackStruct = { StackArgumentTypes, {} };
+  uint64_t StackAlignment = *ABI.alignment(StackStruct);
+  revng_assert(llvm::isPowerOf2_64(StackAlignment));
 
   // If the struct is empty, it indicates that there are no stack arguments.
   if (Stack.size() == 0) {
@@ -273,116 +409,144 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
-  // Compute the alignment of the first argument.
-  uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
-  if (!llvm::isPowerOf2_64(FirstAlignment)) {
-    revng_log(Log,
-              "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Stack.Fields().begin()->Type()));
-    return std::nullopt;
+  // Verify the alignment of the first argument.
+  if (Stack.Fields().empty()) {
+    revng_log(Log, "Stack struct has no fields.");
+  } else {
+    uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
+    revng_assert(llvm::isPowerOf2_64(FirstAlignment));
   }
 
-  // Define a helper used for finding padding holes.
-  const uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
-  auto VerifyAlignment = [this](uint64_t CurrentOffset,
-                                uint64_t CurrentSize,
-                                uint64_t NextOffset,
-                                uint64_t NextAlignment) -> bool {
-    uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
-
-    OverflowSafeInt Offset = CurrentOffset;
-    Offset += PaddedSize;
-    if (!Offset) {
-      // Abandon if offset overflows.
-      revng_log(Log, "Error: Integer overflow when calculating field offsets.");
-      return false;
-    }
-
-    if (*Offset == NextOffset) {
-      // Offsets are the same, the next field makes sense.
-      return true;
-    } else if (*Offset < NextOffset) {
-      uint64_t AlignmentDelta = NextAlignment - *Offset % NextAlignment;
-      if (*Offset + AlignmentDelta == NextOffset) {
-        // Accounting for the next field's alignment solves it,
-        // the next field makes sense.
-        return true;
-      } else {
-        revng_log(Log,
-                  "The natural alignment of a type would make it impossible "
-                  "to represent as CABI: there would have to be a hole between "
-                  "two arguments. Abandon the conversion.");
-        // TODO: we probably want to preprocess such functions and manually
-        //       "fill" the holes in before attempting the conversion.
-        return false;
-      }
-    } else {
-      revng_log(Log,
-                "The natural alignment of a type would make it impossible "
-                "to represent as CABI: the arguments (including the padding) "
-                "would have to overlap. Abandon the conversion.");
-      return false;
-    }
-  };
-
+  // Go over all the `[CurrentArgument, TheNextOne]` field pairs.
+  // `CurrentRange` is used to keep track of the "remaining" ones.
+  // This allows us to keep its value when the loop to be aborted (which
+  // happens when we meet an argument we cannot just convert "as is").
   llvm::SmallVector<model::Argument, 8> Result;
+  uint64_t InitialIndexOffset = Distributor.ArgumentIndex;
+  auto CurrentRange = std::ranges::subrange(Stack.Fields().begin(),
+                                            Stack.Fields().end());
+  bool NaiveConversionFailed = CurrentRange.empty();
+  while (CurrentRange.size() > 1) {
+    auto [CurrentArgument, TheNextOne] = takeAsTuple<2>(CurrentRange);
 
-  // Look at all the fields pair-wise, converting them into arguments.
-  for (const auto &[CurrentArgument, NextOne] : zip_pairs(Stack.Fields())) {
-    std::optional<uint64_t> MaybeSize = CurrentArgument.Type().size();
-    revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
+    uint64_t NextAlignment = *ABI.alignment(TheNextOne.Type());
+    revng_assert(llvm::isPowerOf2_64(NextAlignment));
 
-    uint64_t NextAlignment = *ABI.alignment(NextOne.Type());
-    if (!llvm::isPowerOf2_64(NextAlignment)) {
-      revng_log(Log,
-                "The natural alignment of a type is not a power of two:\n"
-                  << serializeToString(NextOne.Type()));
-      return std::nullopt;
-    }
-
-    if (!VerifyAlignment(CurrentArgument.Offset(),
-                         MaybeSize.value(),
-                         NextOne.Offset(),
-                         NextAlignment)) {
-      return std::nullopt;
+    if (!canBeNext(Distributor,
+                   CurrentArgument.Type(),
+                   CurrentArgument.Offset(),
+                   TheNextOne.Offset(),
+                   NextAlignment)) {
+      // We met a argument we cannot just "add" as is.
+      NaiveConversionFailed = true;
+      break;
     }
 
     // Create the argument from this field.
     model::Argument &New = Result.emplace_back();
     model::copyMetadata(New, CurrentArgument);
-    New.Index() = IndexOffset++;
-
-    // TODO: ensure that the type is in fact naturally aligned
+    New.Index() = Distributor.ArgumentIndex - 1;
     New.Type() = CurrentArgument.Type();
+
+    CurrentRange = std::ranges::subrange(std::next(CurrentRange.begin()),
+                                         Stack.Fields().end());
   }
 
-  // And don't forget to convert the very last field.
-  const model::StructField &LastArgument = *std::prev(Stack.Fields().end());
-  model::Argument &New = Result.emplace_back();
-  model::copyMetadata(New, LastArgument);
-  New.Index() = IndexOffset++;
+  // The main loop is over. Which means that we either converted everything but
+  // the very last argument correctly, OR that we aborted half-way through.
+  if (CurrentRange.size() == 1) {
+    revng_assert(NaiveConversionFailed == false);
 
-  // TODO: ensure that the type is in fact naturally aligned
-  New.Type() = LastArgument.Type();
+    // Having only one element in the "remaining" range means that only the last
+    // field is left - add it too after checking.
+    const model::StructField &LastArgument = CurrentRange.front();
 
-  // Leave a warning in the cases when there's a hole after the very last field.
-  std::optional<uint64_t> LastSize = LastArgument.Type().size();
-  revng_assert(LastSize.has_value() && LastSize.value() != 0);
-  if (!VerifyAlignment(LastArgument.Offset(),
-                       LastSize.value(),
-                       Stack.Size(),
-                       FullAlignment)) {
+    // This is a workaround for the cases where expected alignment is missing
+    // at the very end of the RFT-style stack argument struct:
+    uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
+                                                              StackAlignment);
+
+    std::optional<uint64_t> LastSize = LastArgument.Type().size();
+    revng_assert(LastSize.has_value() && LastSize.value() != 0);
+    if (canBeNext(Distributor,
+                  LastArgument.Type(),
+                  LastArgument.Offset(),
+                  StackSize,
+                  StackAlignment)) {
+      model::Argument &New = Result.emplace_back();
+      model::copyMetadata(New, LastArgument);
+      New.Type() = LastArgument.Type();
+      New.Index() = Distributor.ArgumentIndex - 1;
+      return Result;
+    }
+
+    NaiveConversionFailed = true;
+  }
+
+  // Getting to this point (past the return statement in the last element
+  // section) means that there is at least one argument we cannot just "add".
+  //
+  // TODO: consider using more robust approaches here, maybe an attempt to
+  //       re-start adding argument normally after some "nonconforming" structs
+  //       are added.
+  revng_assert(NaiveConversionFailed == true);
+  revng_log(Log,
+            "Naive conversion failed. Try to fall back on using structs "
+            "instead.");
+  if (CurrentRange.size() != Stack.Fields().size()) {
+    // This condition being true means that we did succeed in converting some
+    // of the arguments, but failed on some others. Let's try to wrap
+    // the remainder into a struct and see if bundled together they make more
+    // sense in c-like representation.
     revng_log(Log,
-              "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Stack));
+              "Some fields were converted successfully, try to slot in the "
+              "rest as a struct.");
+    const model::StructField &LastSuccessful = *std::prev(CurrentRange.begin());
+    std::uint64_t Offset = LastSuccessful.Offset();
+    Offset += ABI.paddedSizeOnStack(*LastSuccessful.Type().size());
+
+    model::StructType RemainingArguments;
+    RemainingArguments.Size() = Stack.Size() - Offset;
+    for (const auto &Field : CurrentRange) {
+      model::StructField Copy = Field;
+      Copy.Offset() -= Offset;
+      RemainingArguments.Fields().emplace(std::move(Copy));
+    }
+
+    auto &RA = RemainingArguments;
+    if (canBeNext(Distributor, RA, Offset, Stack.Size(), StackAlignment)) {
+      revng_log(Log, "Struct for the remaining argument worked.");
+      model::Argument &New = Result.emplace_back();
+      New.Index() = Stack.Fields().size() - CurrentRange.size();
+      New.Index() += InitialIndexOffset;
+
+      auto [_, Path] = Bucket.makeType<model::StructType>(std::move(RA));
+      New.Type() = model::QualifiedType{ Path, {} };
+      return Result;
+    }
+  }
+
+  // Reaching this far means that we either aborted on the very first argument
+  // OR that the partial conversion didn't work well either - let's try and see
+  // if it would make sense to add the whole "stack" struct as one argument.
+  if (!canBeNext(Distributor, StackStruct, 0, Stack.Size(), StackAlignment)) {
+    // Nope, stack struct didn't work either. There's nothing else we can do.
+    // Just report that this function cannot be converted.
     return std::nullopt;
   }
+
+  revng_log(Log,
+            "Adding the whole stack as a single argument is the best we can "
+            "do.");
+  model::Argument &New = Result.emplace_back();
+  New.Type() = StackStruct;
+  New.Index() = InitialIndexOffset;
 
   return Result;
 }
 
 std::optional<model::QualifiedType>
-TCC::tryConvertingReturnValue(const ReturnValueRegisters &Registers) {
+TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   if (Registers.size() == 0) {
     // The function doesn't return anything.
     return model::QualifiedType{

@@ -16,8 +16,8 @@ namespace ptml {
 std::string freeFormComment(const ::ptml::PTMLBuilder &ThePTMLBuilder,
                             llvm::StringRef Text,
                             llvm::StringRef CommentIndicator,
-                            std::size_t Indentation,
-                            std::size_t WrapAt);
+                            size_t Indentation,
+                            size_t WrapAt);
 
 /// Emits PTML containing the comment for the specified entity with a comment
 /// field.
@@ -25,8 +25,8 @@ template<model::EntityWithComment Type>
 std::string comment(const ::ptml::PTMLBuilder &Builder,
                     const Type &V,
                     llvm::StringRef Indicator,
-                    std::size_t Indent,
-                    std::size_t WrapAt) {
+                    size_t Indent,
+                    size_t WrapAt) {
   return freeFormComment(Builder, V.Comment(), Indicator, Indent, WrapAt);
 }
 
@@ -53,7 +53,7 @@ std::string functionComment(const ::ptml::PTMLBuilder &ThePTMLBuilder,
                             const model::Function &Function,
                             const model::Binary &Binary,
                             llvm::StringRef CommentIndicator,
-                            std::size_t Indentation,
-                            std::size_t WrapAt);
+                            size_t Indentation,
+                            size_t WrapAt);
 
 } // namespace ptml

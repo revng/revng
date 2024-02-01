@@ -7,6 +7,7 @@
 #include <array>
 #include <iterator>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <string_view>
 #include <type_traits>
@@ -15,6 +16,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/iterator_range.h"
 
+#include "revng/ADT/CompilationTime.h"
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/Debug.h"
 
@@ -161,9 +163,8 @@ namespace revng::detail {
 template<bool SafeMode, typename IteratorType>
 inline auto skipImpl(IteratorType &&From,
                      IteratorType &&To,
-                     std::size_t Front = 0,
-                     std::size_t Back = 0)
-  -> llvm::iterator_range<IteratorType> {
+                     size_t Front = 0,
+                     size_t Back = 0) -> llvm::iterator_range<IteratorType> {
 
   std::ptrdiff_t TotalSkippedCount = Front + Back;
   if constexpr (std::forward_iterator<IteratorType>) {
@@ -192,7 +193,7 @@ inline auto skipImpl(IteratorType &&From,
 
 template<std::bidirectional_iterator T>
 inline decltype(auto)
-skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
+skip(T &&From, T &&To, size_t Front = 0, size_t Back = 0) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         Front,
@@ -201,7 +202,7 @@ skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
 
 template<std::input_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
-skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
+skip_front(T &&From, T &&To, size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         SkippedCount,
@@ -210,7 +211,7 @@ skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
 
 template<std::bidirectional_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
-skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
+skip_back(T &&From, T &&To, size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         0,
@@ -220,18 +221,17 @@ skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
 } // namespace revng::detail
 
 template<std::ranges::range T>
-inline decltype(auto)
-skip(T &&Range, std::size_t Front = 0, std::size_t Back = 0) {
+inline decltype(auto) skip(T &&Range, size_t Front = 0, size_t Back = 0) {
   return revng::detail::skip(Range.begin(), Range.end(), Front, Back);
 }
 
 template<std::ranges::range T> // NOLINTNEXTLINE
-inline decltype(auto) skip_front(T &&Range, std::size_t SkippedCount = 1) {
+inline decltype(auto) skip_front(T &&Range, size_t SkippedCount = 1) {
   return revng::detail::skip_front(Range.begin(), Range.end(), SkippedCount);
 }
 
 template<std::ranges::range T> // NOLINTNEXTLINE
-inline decltype(auto) skip_back(T &&Range, std::size_t SkippedCount = 1) {
+inline decltype(auto) skip_back(T &&Range, size_t SkippedCount = 1) {
   return revng::detail::skip_back(Range.begin(), Range.end(), SkippedCount);
 }
 
@@ -410,9 +410,51 @@ static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
 } // namespace revng
 
 //
+// Some other useful small things
+//
+
+template<std::size_t ElementCount, std::ranges::forward_range RangeType>
+constexpr auto takeAsTuple(RangeType &&R) {
+  revng_assert(std::ranges::size(R) >= ElementCount);
+  return compile_time::repeat<ElementCount>([&R]<std::size_t I>() -> auto && {
+    return *std::next(R.begin(), I);
+  });
+}
+
+namespace examples {
+
+consteval int takeAsTupleExample() {
+  std::array<int, 6> Data = { 42, 43, 44, 45, 46, 47 };
+
+  {
+    // Edit some elements.
+    auto [First, Second, Third] = takeAsTuple<3>(Data);
+    ++First;
+    Second = 2;
+    Third = 3;
+  }
+
+  {
+    // Read multiple elements through a view.
+    auto [Second, Third] = takeAsTuple<2>(Data | std::views::drop(1));
+    return Second + Third;
+  }
+}
+
+static_assert(takeAsTupleExample() == 5);
+
+} // namespace examples
+
+//
 // Some views from the STL.
 // TODO: remove these after updating the libc++ version.
 //
+template<typename EnumType>
+[[nodiscard]] constexpr std::underlying_type<EnumType>::type // NOLINTNEXTLINE
+to_underlying(EnumType Value) {
+  return static_cast<std::underlying_type<EnumType>::type>(Value);
+}
+
 template<typename RangeType> // NOLINTNEXTLINE
 auto as_rvalue(RangeType &&Range) {
   return llvm::make_range(std::make_move_iterator(Range.begin()),

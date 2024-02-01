@@ -16,43 +16,17 @@
 #include "revng/Model/QualifiedType.h"
 #include "revng/Support/Debug.h"
 
+#include "ValueDistributor.h"
+
 static Logger Log("function-type-conversion-to-raw");
 
 namespace abi::FunctionType {
 
-using RegisterVector = llvm::SmallVector<model::Register::Values, 2>;
-
-/// The internal representation of the argument shared between both
-/// the to-raw conversion and the layout.
-struct DistributedArgument {
-  /// A list of registers the argument uses.
-  RegisterVector Registers = {};
-
-  /// The total size of the argument (including padding if necessary) in bytes.
-  uint64_t Size = 0;
-
-  /// The size of the piece of the argument placed on the stack.
-  /// \note: has to be equal to `0` or `this->Size` for any ABI for which
-  ///        `abi::Definition::ArgumentsCanBeSplitBetweenRegistersAndStack()`
-  ///        returns `false`. Otherwise, it has to be an integer value, such
-  ///        that `(0 <= SizeOnStack <= this->Size)` is true.
-  uint64_t SizeOnStack = 0;
-
-  /// Mark this argument as a padding argument, which means an unused location
-  /// (either a register or a piece of the stack) which needs to be seen as
-  /// a separate argument to be able to place all the following arguments
-  /// in the correct positions.
-  ///
-  /// The "padding" arguments are emitted as normal arguments in RawFunctionType
-  /// but are omitted in `Layout`.
-  bool RepresentsPadding = false;
-};
-using DistributedArguments = llvm::SmallVector<DistributedArgument, 8>;
-
-using RegisterSpan = std::span<const model::Register::Values>;
-using ArgumentSet = TrackingSortedVector<model::Argument>;
-
 class ToRawConverter {
+private:
+  using CFT = const model::CABIFunctionType &;
+  using CFTArguments = decltype(std::declval<CFT>().Arguments());
+
 private:
   const abi::Definition &ABI;
 
@@ -72,51 +46,22 @@ public:
   /// \param ReturnValueType The model type that should be returned.
   /// \return Information about registers and stack that are to be used to
   ///         return the said type.
-  DistributedArgument
-  distributeReturnValue(const model::QualifiedType &ReturnValueType) const;
+  DistributedValue
+  distributeReturnValue(const model::QualifiedType &ReturnValueType) const {
+    return ReturnValueDistributor(ABI).returnValue(ReturnValueType);
+  }
 
   /// Helper used for deciding how an arbitrary set of arguments should be
   /// distributed across registers and the stack accordingly to the \ref ABI.
   ///
   /// \param Arguments The list of arguments to distribute.
-  /// \param PassesReturnValueLocationAsAnArgument `true` if the first argument
-  ///        slot should be occupied by a shadow return value, `false` otherwise
+  /// \param HasReturnValueLocation `true` if the first argument slot should
+  ///        be occupied by a shadow return value, `false` otherwise.
+  ///
   /// \return Information about registers and stack that are to be used to
   ///         pass said arguments.
-  DistributedArguments
-  distributeArguments(const ArgumentSet &Arguments,
-                      bool PassesReturnValueLocationAsAnArgument) const;
-
-private:
-  DistributedArguments
-  distributePositionBasedArguments(const ArgumentSet &Arguments,
-                                   std::size_t SkippedCount = 0) const;
-  DistributedArguments
-  distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
-                                      std::size_t SkippedCount = 0) const;
-
-  /// Helper for converting a single argument into a "distributed" state.
-  ///
-  /// \param Type The type of the arguments.
-  /// \param Registers The list of registers allowed for usage for the given
-  ///        Argument type.
-  /// \param OccupiedRegisterCount The count of registers in \ref Registers
-  ///        Container that are already occupied.
-  /// \param AllowedRegisterLimit The maximum number of registers available to
-  ///        use for the current argument.
-  /// \param AllowPuttingPartOfAnArgumentOnStack Specifies whether the ABI
-  ///        allows splitting the argument placing parts of it both into
-  ///        the registers and onto the stack.
-  ///
-  /// \return New distributed argument list (could be multiple if padding
-  ///         arguments were required) and the new value of
-  ///         \ref OccupiedRegisterCount after this argument is distributed.
-  std::pair<DistributedArguments, std::size_t>
-  distributeOne(model::QualifiedType Type,
-                RegisterSpan Registers,
-                std::size_t OccupiedRegisterCount,
-                std::size_t AllowedRegisterLimit,
-                bool AllowPuttingPartOfAnArgumentOnStack) const;
+  DistributedValues distributeArguments(CFTArguments Arguments,
+                                        bool HasReturnValueLocation) const;
 
 public:
   uint64_t finalStackOffset(uint64_t SizeOfArgumentsOnStack) const;
@@ -260,8 +205,8 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   // Now that return value is figured out, the arguments are next.
   auto Arguments = distributeArguments(FunctionType.Arguments(),
                                        ReturnValue.SizeOnStack != 0);
-  std::size_t Index = 0;
-  for (const DistributedArgument &Distributed : Arguments) {
+  uint64_t Index = 0;
+  for (const DistributedValue &Distributed : Arguments) {
     if (!Distributed.RepresentsPadding) {
       // Transfer the register arguments first.
       for (model::Register::Values Register : Distributed.Registers) {
@@ -307,10 +252,10 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
           // A piece of the argument is in registers, the rest is on the stack.
           // TODO: there must be more efficient way to handle these, but for
           //       the time being, just replace the argument type with `Generic`
-          std::size_t PointerSize = ABI.getPointerSize();
+          uint64_t PointerSize = ABI.getPointerSize();
           auto T = Binary->getPrimitiveType(model::PrimitiveTypeKind::Generic,
                                             PointerSize);
-          std::size_t RC = Distributed.Registers.size();
+          uint64_t RC = Distributed.Registers.size();
           OccupiedSpace -= PointerSize * RC;
           std::ptrdiff_t LeftoverSpace = OccupiedSpace;
           while (LeftoverSpace > 0) {
@@ -354,9 +299,21 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
     revng_assert(!StackArguments.Fields().empty());
     StackArguments.Size() = CurrentStackOffset;
 
-    using namespace model;
-    auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-    NewType.StackArgumentsType() = Binary->recordNewType(std::move(Type));
+    // If the resulting type is a single stack-like struct, reuse it.
+    if (StackArguments.Fields().size() == 1) {
+      auto FirstFieldType = StackArguments.Fields().begin()->Type();
+      if (FirstFieldType.Qualifiers().empty()) {
+        auto *Unqualified = FirstFieldType.UnqualifiedType().get();
+        if (auto *Struct = llvm::dyn_cast<model::StructType>(Unqualified))
+          if (Struct->Size() == StackArguments.Size())
+            NewType.StackArgumentsType() = Binary->getTypePath(Struct->key());
+      }
+    }
+
+    if (NewType.StackArgumentsType().empty()) {
+      auto [_, Path] = Binary->makeType<model::StructType>(StackArguments);
+      NewType.StackArgumentsType() = Path;
+    }
   }
 
   // Set the final stack offset
@@ -401,296 +358,24 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
   return Result;
 }
 
-DistributedArguments
-ToRawConverter::distributePositionBasedArguments(const ArgumentSet &Arguments,
-                                                 size_t SkippedCount) const {
-  DistributedArguments Result;
-  Result.resize(Arguments.size());
-
-  for (const model::Argument &Argument : Arguments) {
-    std::size_t RegisterIndex = Argument.Index() + SkippedCount;
-    revng_assert(Argument.Index() < Result.size());
-    auto &Distributed = Result[Argument.Index()];
-
-    auto MaybeSize = Argument.Type().size();
-    revng_assert(MaybeSize.has_value());
-    Distributed.Size = *MaybeSize;
-
-    if (Argument.Type().isFloat()) {
-      if (RegisterIndex < ABI.VectorArgumentRegisters().size()) {
-        auto Register = ABI.VectorArgumentRegisters()[RegisterIndex];
-        Distributed.Registers.emplace_back(Register);
-      } else {
-        Distributed.SizeOnStack = Distributed.Size;
-      }
-    } else {
-      if (RegisterIndex < ABI.GeneralPurposeArgumentRegisters().size()) {
-        auto Reg = ABI.GeneralPurposeArgumentRegisters()[RegisterIndex];
-        Distributed.Registers.emplace_back(Reg);
-      } else {
-        Distributed.SizeOnStack = Distributed.Size;
-      }
-    }
-  }
-
-  return Result;
-}
-
-std::pair<DistributedArguments, std::size_t>
-ToRawConverter::distributeOne(model::QualifiedType Type,
-                              RegisterSpan Registers,
-                              std::size_t OccupiedRegisterCount,
-                              std::size_t AllowedRegisterLimit,
-                              bool AllowPuttingPartOfAnArgumentOnStack) const {
-  DistributedArguments Result;
-
-  LoggerIndent Indentation(Log);
-  revng_log(Log, "Distributing a value between the registers and the stack.");
-  revng_log(Log,
-            OccupiedRegisterCount << " registers are already occupied, while "
-                                     "only "
-                                  << AllowedRegisterLimit
-                                  << " registers are available to be used.");
-  revng_log(Log, "The total number of registers is " << Registers.size());
-
-  uint64_t Size = *Type.size();
-  uint64_t Alignment = *ABI.alignment(Type);
-  revng_log(Log, "The type:\n" << serializeToString(Type));
-  revng_log(Log,
-            "Its size is " << Size << " and its alignment is " << Alignment
-                           << ".");
-
-  // Precompute the last register allowed to be used.
-  std::size_t LastRegister = OccupiedRegisterCount + AllowedRegisterLimit;
-  if (LastRegister > Registers.size())
-    LastRegister = Registers.size();
-
-  // Define the counters: one for the number of registers the current value
-  // could occupy, and one for the total size of said registers.
-  std::size_t ConsideredRegisterCounter = OccupiedRegisterCount;
-  std::size_t SizeCounter = 0;
-
-  // Keep adding the registers until either the total size exceeds needed or
-  // we run out of allowed registers.
-  if (!Registers.empty()) {
-    auto ShouldContinue = [&]() -> bool {
-      return SizeCounter < Size && ConsideredRegisterCounter < Registers.size()
-             && ConsideredRegisterCounter < LastRegister;
-    };
-    while (ShouldContinue()) {
-      const auto CurrentRegister = Registers[ConsideredRegisterCounter++];
-      SizeCounter += model::Register::getSize(CurrentRegister);
-    }
-  }
-
-  if (SizeCounter >= Size) {
-    if (ConsideredRegisterCounter - OccupiedRegisterCount == 1) {
-      revng_log(Log, "A single register is sufficient to hold the value.");
-    } else {
-      revng_log(Log,
-                (ConsideredRegisterCounter - OccupiedRegisterCount)
-                  << " registers are sufficient to hold the value.");
-    }
-  }
-
-  // Take the alignment into consideration on the architectures that require
-  // padding to be inserted even for arguments passed in registers.
-  std::optional<std::size_t> PaddingRegisterIndex = std::nullopt;
-  if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
-    const uint64_t PointerSize = ABI.getPointerSize();
-    bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize);
-    bool LastRegisterUsed = ConsideredRegisterCounter == OccupiedRegisterCount;
-    bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
-    if (MultiAligned && !LastRegisterUsed && FirstRegisterOdd) {
-      LoggerIndent Indentation(Log);
-      revng_log(Log,
-                "Because the ABI requires arguments placed in the "
-                "registers to also be aligned, an extra register needs "
-                "to be used to hold the padding.");
-
-      // Add an extra "padding" argument to represent this.
-      DistributedArgument &Padding = Result.emplace_back();
-      Padding.Registers = { Registers[OccupiedRegisterCount++] };
-      Padding.Size = model::Register::getSize(Padding.Registers[0]);
-      Padding.RepresentsPadding = true;
-
-      revng_assert(SizeCounter >= Padding.Size);
-      SizeCounter -= Padding.Size;
-      if (ConsideredRegisterCounter < LastRegister)
-        ++ConsideredRegisterCounter;
-    }
-  }
-
-  DistributedArgument &DA = Result.emplace_back();
-  DA.Size = Size;
-
-  if (SizeCounter >= Size) {
-    // This a register-only argument, add the registers.
-    for (size_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
-      DA.Registers.emplace_back(Registers[I]);
-    DA.SizeOnStack = 0;
-  } else if (AllowPuttingPartOfAnArgumentOnStack
-             && ConsideredRegisterCounter == LastRegister) {
-    // This argument is split among the registers and the stack.
-    for (size_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
-      DA.Registers.emplace_back(Registers[I]);
-    DA.SizeOnStack = DA.Size - SizeCounter;
-  } else {
-    // This is a stack-only argument.
-    DA.SizeOnStack = DA.Size;
-    if (ABI.NoRegisterArgumentsCanComeAfterStackOnes()) {
-      // Mark all the registers as occupied as soon as stack is used.
-      ConsideredRegisterCounter = Registers.size();
-    } else {
-      // Leave registers unaffected, since the argument will only use stack.
-      ConsideredRegisterCounter = OccupiedRegisterCount;
-    }
-  }
-
-  // Don't forget to apply the tailing padding to the stack part of the argument
-  // if it's present.
-  if (DA.SizeOnStack != 0) {
-    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.SizeOnStack);
-  }
-
-  revng_log(Log, "Value successfully distributed.");
-  LoggerIndent FurtherIndentation(Log);
-  revng_log(Log,
-            "It requires " << DA.Registers.size() << " registers, and "
-                           << DA.SizeOnStack << " bytes on stack.");
-
-  return { std::move(Result), ConsideredRegisterCounter };
-}
-
-using ASet = ArgumentSet;
-DistributedArguments
-ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
-                                                    size_t SkippedCount) const {
-  DistributedArguments Result;
-
-  std::size_t UsedVectorRegisterCounter = 0;
-  std::size_t UsedGeneralPurposeRegisterCounter = SkippedCount;
-  for (const model::Argument &Argument : Arguments) {
-    bool CanSplit = ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
-
-    std::size_t RegisterLimit = 0;
-    std::size_t *RegisterCounter = nullptr;
-    std::span<const model::Register::Values> RegisterList;
-    if (Argument.Type().isFloat()) {
-      RegisterList = ABI.VectorArgumentRegisters();
-      RegisterCounter = &UsedVectorRegisterCounter;
-
-      if (RegisterList.size() > *RegisterCounter) {
-        // The conventional non-position based approach is not applicable for
-        // vector registers since it's rare for multiple registers to be used
-        // to pass a single argument.
-        //
-        // For now, provide at most a single vector register for such a value,
-        // if there's a free one.
-        //
-        // TODO: find reproducers and handle the cases where multiple vector
-        //       registers are used together.
-        DistributedArgument &VectorArgument = Result.emplace_back();
-        model::Register::Values Register = RegisterList[(*RegisterCounter)++];
-        VectorArgument.Registers.emplace_back(Register);
-        continue;
-      } else {
-        // If there are no free registers left, explicitly set the limit to 0,
-        // so that the default argument distribution routine puts it on
-        // the stack.
-        RegisterLimit = 0;
-      }
-
-      // Explicitly disallow splitting vector arguments across the registers
-      // and the stack.
-      CanSplit = false;
-    } else {
-      RegisterList = ABI.GeneralPurposeArgumentRegisters();
-      RegisterCounter = &UsedGeneralPurposeRegisterCounter;
-      RegisterLimit = Argument.Type().isScalar() ?
-                        ABI.MaximumGPRsPerScalarArgument() :
-                        ABI.MaximumGPRsPerAggregateArgument();
-    }
-
-    auto [Arguments, NextRegisterIndex] = distributeOne(Argument.Type(),
-                                                        RegisterList,
-                                                        *RegisterCounter,
-                                                        RegisterLimit,
-                                                        CanSplit);
-
-    // Verify that the next register makes sense.
-    auto VerifyNextRegisterIndex = [&](std::size_t Current, std::size_t Next) {
-      if (Current == Next)
-        return true; // No registers were used for this argument.
-
-      if (Next >= Current && Next <= Current + RegisterLimit)
-        return true; // It's within the expected boundaries.
-
-      if (Next == RegisterList.size()) {
-        // All the register are marked as used. Only allow this on ABIs that
-        // don't allow register arguments to come after stack ones.
-        return ABI.NoRegisterArgumentsCanComeAfterStackOnes();
-      }
-
-      return false;
-    };
-    revng_assert(VerifyNextRegisterIndex(*RegisterCounter, NextRegisterIndex));
-    *RegisterCounter = NextRegisterIndex;
-
-    // All good - insert the arguments.
-    for (DistributedArgument &&Argument : as_rvalue(Arguments))
-      Result.emplace_back(std::move(Argument));
-  }
-
-  return Result;
-}
-
-DistributedArguments
-ToRawConverter::distributeArguments(const ArgumentSet &Arguments,
+DistributedValues
+ToRawConverter::distributeArguments(CFTArguments Arguments,
                                     bool HasReturnValueLocationArgument) const {
-  bool SkippedRegisterCount = 0;
-
+  uint64_t SkippedRegisterCount = 0;
   if (HasReturnValueLocationArgument == true)
     if (const auto &GPRs = ABI.GeneralPurposeArgumentRegisters(); !GPRs.empty())
       if (ABI.ReturnValueLocationRegister() == GPRs[0])
         SkippedRegisterCount = 1;
 
-  if (ABI.ArgumentsArePositionBased())
-    return distributePositionBasedArguments(Arguments, SkippedRegisterCount);
-  else
-    return distributeNonPositionBasedArguments(Arguments, SkippedRegisterCount);
-}
+  ArgumentDistributor Distributor(ABI);
+  Distributor.UsedGeneralPurposeRegisterCount = SkippedRegisterCount;
+  Distributor.ArgumentIndex = SkippedRegisterCount;
 
-using model::QualifiedType;
-DistributedArgument
-ToRawConverter::distributeReturnValue(const QualifiedType &ReturnValue) const {
-  if (ReturnValue.isVoid())
-    return DistributedArgument{};
-
-  std::size_t Limit = 0;
-  std::span<const model::Register::Values> RegisterList;
-  if (ReturnValue.isFloat()) {
-    RegisterList = ABI.VectorReturnValueRegisters();
-
-    // For now replace unsupported floating point return values with `void`
-    // The main offenders are the values returned in `st0`.
-    // TODO: handle this properly.
-    if (RegisterList.empty())
-      return DistributedArgument{};
-
-    // TODO: replace this the explicit single register limit with an abi-defined
-    // value. For more information see the relevant comment in
-    // `distributeRegisterArguments`.
-    Limit = 1;
-  } else {
-    RegisterList = ABI.GeneralPurposeReturnValueRegisters();
-    Limit = ReturnValue.isScalar() ? ABI.MaximumGPRsPerScalarReturnValue() :
-                                     ABI.MaximumGPRsPerAggregateReturnValue();
-  }
-
-  auto [Result, _] = distributeOne(ReturnValue, RegisterList, 0, Limit, false);
-  revng_assert(Result.size() == 1);
-  return Result[0];
+  DistributedValues Result;
+  for (const model::Argument &Argument : Arguments)
+    std::ranges::move(Distributor.nextArgument(Argument.Type()),
+                      std::back_inserter(Result));
+  return Result;
 }
 
 model::TypePath convertToRaw(const model::CABIFunctionType &FunctionType,
@@ -766,8 +451,8 @@ Layout::Layout(const model::CABIFunctionType &Function) {
   auto Converted = Converter.distributeArguments(Function.Arguments(),
                                                  RV.SizeOnStack != 0);
   revng_assert(Converted.size() >= Function.Arguments().size());
-  std::size_t Index = 0;
-  for (const DistributedArgument &Distributed : Converted) {
+  uint64_t Index = 0;
+  for (const DistributedValue &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
       Argument &Current = Arguments.emplace_back();
       const auto &ArgumentType = Function.Arguments().at(Index).Type();
@@ -836,7 +521,7 @@ Layout::Layout(const model::RawFunctionType &Function) {
     auto &Argument = Arguments.emplace_back();
 
     // Stack argument is always passed by pointer for RawFunctionType
-    Argument.Type = QualifiedType{ StackArgTypeRef, {} };
+    Argument.Type = model::QualifiedType{ StackArgTypeRef, {} };
     Argument.Kind = ArgumentKind::ReferenceToAggregate;
 
     // Record the size
@@ -934,8 +619,8 @@ bool Layout::verify() const {
   return true;
 }
 
-std::size_t Layout::argumentRegisterCount() const {
-  std::size_t Result = 0;
+size_t Layout::argumentRegisterCount() const {
+  size_t Result = 0;
 
   for (const auto &Argument : Arguments)
     Result += Argument.Registers.size();
@@ -943,8 +628,8 @@ std::size_t Layout::argumentRegisterCount() const {
   return Result;
 }
 
-std::size_t Layout::returnValueRegisterCount() const {
-  std::size_t Result = 0;
+size_t Layout::returnValueRegisterCount() const {
+  size_t Result = 0;
 
   for (const ReturnValue &ReturnValue : ReturnValues)
     Result += ReturnValue.Registers.size();

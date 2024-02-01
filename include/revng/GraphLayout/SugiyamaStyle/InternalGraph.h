@@ -23,13 +23,13 @@ struct InternalNode {
   bool IsVirtual;
 
 private:
-  std::size_t Index;
+  size_t Index;
 
 private:
   friend InternalGraph;
-  InternalNode(std::size_t Index, layout::Size &&Size) :
+  InternalNode(size_t Index, layout::Size &&Size) :
     Center({ 0, 0 }), Size(std::move(Size)), IsVirtual(false), Index(Index) {}
-  InternalNode(std::size_t Index) :
+  InternalNode(size_t Index) :
     Center({ 0, 0 }), Size({ 0, 0 }), IsVirtual(true), Index(Index) {}
 
 public:
@@ -37,7 +37,7 @@ public:
   InternalNode(InternalNode &&) = default;
   InternalNode &operator=(InternalNode &&) = default;
 
-  std::size_t index() const { return Index; }
+  size_t index() const { return Index; }
 };
 
 struct InternalEdge {
@@ -45,7 +45,7 @@ struct InternalEdge {
   bool IsBackwards;
 
 private:
-  std::size_t Index;
+  size_t Index;
 
   using PathOwnership = std::unique_ptr<layout::Path>;
   using PathReference = layout::Path *;
@@ -57,14 +57,14 @@ private:
   friend InternalGraph;
 
   /// Make a real edge.
-  explicit InternalEdge(std::size_t Index) :
+  explicit InternalEdge(size_t Index) :
     IsRouted(false),
     IsBackwards(false),
     Index(Index),
     Path(std::make_unique<layout::Path>()) {}
 
   /// Make a virtual edge pointing to a path in another edge.
-  InternalEdge(std::size_t Index, InternalEdge &Another, bool IsBackwards) :
+  InternalEdge(size_t Index, InternalEdge &Another, bool IsBackwards) :
     IsRouted(Another.IsRouted),
     IsBackwards(IsBackwards),
     Index(Index),
@@ -88,7 +88,7 @@ public:
   InternalEdge &operator=(const InternalEdge &) = delete;
   InternalEdge &operator=(InternalEdge &&) = default;
 
-  std::size_t index() const { return Index; }
+  size_t index() const { return Index; }
   bool isVirtual() const {
     return std::get_if<PathOwnership>(&Path) == nullptr;
   }
@@ -134,8 +134,8 @@ public:
   using GenericGraph<InternalNode, 16, true>::GenericGraph;
 
 private:
-  std::size_t NodeIndexCounter = 0;
-  std::size_t EdgeIndexCounter = 0;
+  size_t NodeIndexCounter = 0;
+  size_t EdgeIndexCounter = 0;
 
 public:
   template<typename NodeRef, typename EdgeRef>

@@ -242,7 +242,7 @@ template<>
 struct std::tuple_size</*= struct | fullname =*/::Key>
   : public std::tuple_size</*= struct | fullname =*/::KeyTuple> {};
 
-template<std::size_t I>
+template<size_t I>
 struct std::tuple_element<I, /*= struct | fullname =*/::Key>
   : public std::tuple_element<I, /*= struct | fullname =*/::KeyTuple> {};
 /** endif **/

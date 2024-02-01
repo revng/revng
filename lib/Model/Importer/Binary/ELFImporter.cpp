@@ -1234,7 +1234,7 @@ static std::unique_ptr<ELFImporterBase>
 createELFImporter(TupleTree<model::Binary> &M,
                   const object::ELFObjectFileBase &TheBinary,
                   bool IsLittleEndian,
-                  size_t PointerSize,
+                  uint64_t PointerSize,
                   bool HasRelocationAddend,
                   uint64_t BaseAddress) {
 
@@ -1322,7 +1322,7 @@ Error importELF(TupleTree<model::Binary> &Model,
 
   using namespace model::Architecture;
   bool IsLittleEndian = isLittleEndian(Model->Architecture());
-  size_t PointerSize = getPointerSize(Model->Architecture());
+  uint64_t PointerSize = getPointerSize(Model->Architecture());
   bool HasRelocationAddend = hasELFRelocationAddend(Model->Architecture());
 
   auto Importer = createELFImporter(Model,

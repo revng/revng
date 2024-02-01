@@ -7,6 +7,8 @@ ABI: SystemV_MIPS_o32
 ArgumentsArePositionBased: true
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
 ArgumentsCanBeSplitBetweenRegistersAndStack: true
+NoRegisterArgumentsCanComeAfterStackOnes: false
+AllowUnnaturallyAlignedTypesInRegisters: false
 UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: false
 

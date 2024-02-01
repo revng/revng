@@ -17,8 +17,8 @@ using Configuration = yield::layout::sugiyama::Configuration;
 using Point = yield::layout::Point;
 using Size = yield::layout::Size;
 
-using Index = std::size_t;
-using Rank = std::size_t;
+using Index = size_t;
+using Rank = size_t;
 using RankDelta = std::ptrdiff_t;
 
 using InternalGraph = yield::layout::sugiyama::InternalGraph;
@@ -68,7 +68,7 @@ struct hash<::NodeView> {
 /// is the `From` node.
 struct EdgeDestinationView {
   NodeView To;
-  std::size_t EdgeIndex;
+  size_t EdgeIndex;
 
   EdgeDestinationView(NodeView To, const InternalEdge &Label) :
     To(To), EdgeIndex(Label.index()) {}
