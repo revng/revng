@@ -148,6 +148,9 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
   revng_log(Log, "Converting a `RawFunctionType` to `CABIFunctionType`.");
   revng_log(Log, "ABI: " << model::ABI::getName(MaybeABI.value()).str());
   revng_log(Log, "Original Type:\n" << serializeToString(FunctionType));
+  if (auto StackRef = FunctionType.StackArgumentsType(); !StackRef.empty())
+    if (auto *Type = llvm::dyn_cast<model::StructType>(StackRef.get()); Type)
+      revng_log(Log, "Stack is:\n" << serializeToString(*Type));
   LoggerIndent Indentation(Log);
 
   const abi::Definition &ABI = abi::Definition::get(*MaybeABI);
@@ -297,8 +300,15 @@ static bool verifyAlignment(const abi::Definition &ABI,
     // offsets on the stack.
     if (AdjustedAlignment < ABI.getPointerSize())
       AdjustedAlignment = ABI.getPointerSize();
-    revng_assert(NextOffset % AdjustedAlignment == 0,
-                 "Adjusted alignment doesn't make sense.");
+    if (NextOffset % AdjustedAlignment != 0) {
+      std::string Error = "Adjusted alignment of "
+                          + std::to_string(AdjustedAlignment)
+                          + " (next alignment is "
+                          + std::to_string(NextAlignment)
+                          + ") doesn't make any sense for an offset of "
+                          + std::to_string(NextOffset) + ".";
+      revng_abort(Error.c_str());
+    }
 
     // Check whether the next argument's position makes sense.
     uint64_t Delta = AdjustedAlignment - *Offset % AdjustedAlignment;

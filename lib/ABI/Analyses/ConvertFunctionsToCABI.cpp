@@ -253,6 +253,20 @@ public:
       revng_log(Log,
                 "Converting a function: "
                   << serializeToString(Model->getTypePath(Old->key())));
+      if (Log.isEnabled()) {
+        model::TypePath Reference = Model->getTypePath(Old->key());
+        revng_assert(!Reference.empty());
+
+        std::string Message = "";
+        for (model::Function &Function : Model->Functions())
+          if (Function.Prototype() == Reference)
+            Message += "'" + Function.name().str().str() + "', ";
+
+        if (!Message.empty()) {
+          Message.resize(Message.size() - 2);
+          revng_log(Log, "It's a prototype of " << Message);
+        }
+      }
 
       namespace FT = abi::FunctionType;
       if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
