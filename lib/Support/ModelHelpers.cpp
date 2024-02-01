@@ -476,8 +476,8 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         const auto &[StartAddress,
                      VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
         auto Segment = Model.Segments().at({ StartAddress, VirtualSize });
-
-        ReturnTypes.push_back(model::QualifiedType{ Segment.Type(), {} });
+        if (not Segment.Type().empty())
+          ReturnTypes.push_back(model::QualifiedType{ Segment.Type(), {} });
 
       } else if (FTags.contains(FunctionTags::Parentheses)) {
         const llvm::Value *Op = Call->getArgOperand(0);

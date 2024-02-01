@@ -205,11 +205,27 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
                                                             SegmentRefType },
                                                           AddressOfFunctionType,
                                                           "AddressOf");
-              auto SegmentType = Model->Segments()
-                                   .at({ StartAddress, VirtualSize })
-                                   .Type();
-              auto SegmentQualifiedType = model::QualifiedType{ SegmentType,
-                                                                {} };
+              model::QualifiedType SegmentQualifiedType;
+              {
+                model::TypePath SegmentTypePath = Model->Segments()
+                                                    .at({ StartAddress,
+                                                          VirtualSize })
+                                                    .Type();
+                if (SegmentTypePath.empty()) {
+                  // If the segment has not type, we emit it as an array of
+                  // bytes.
+                  const model::Binary *Model = SegmentTypePath.getRoot();
+                  using model::PrimitiveTypeKind::Generic;
+                  model::TypePath Byte = Model->getPrimitiveType(Generic, 1);
+                  model::Qualifier
+                    Array = model::Qualifier::createArray(VirtualSize);
+                  SegmentQualifiedType = model::QualifiedType{ Byte,
+                                                               { Array } };
+                } else {
+                  SegmentQualifiedType = model::QualifiedType{ SegmentTypePath,
+                                                               {} };
+                }
+              }
               Constant
                 *ModelTypeString = serializeToLLVMString(SegmentQualifiedType,
                                                          M);

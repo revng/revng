@@ -257,11 +257,11 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     // Initialize a node for every segment
     LayoutTypeSystemNode
       *SegmentNode = SegmentNodeMap[&S] = TS.createArtificialLayoutType();
-    // With a placeholder node pointing to it so that it cannot be removed from
+    // Set the Size, which is known for segments.
+    SegmentNode->Size = S.VirtualSize();
+    // Set NonScalar to true, so that it cannot be removed from
     // the optimization steps of DLA's middle-end
-    auto *Placeholder = TS.createArtificialLayoutType();
-    Placeholder->Size = getPointerSize(Model.Architecture());
-    TS.addPointerLink(Placeholder, SegmentNode);
+    SegmentNode->NonScalar = true;
   }
 
   for (Function &F : FunctionTags::SegmentRef.functions(&M)) {
