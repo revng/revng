@@ -333,8 +333,11 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS,
 
 static auto getSuccEdgesToChild(LTSN *Parent, LTSN *Child) {
   auto &Succ = Parent->Successors;
-  return llvm::iterator_range(Succ.lower_bound({ Child, nullptr }),
-                              Succ.upper_bound({ std::next(Child), nullptr }));
+  using IDBasedKey = std::pair<uint64_t, const TypeLinkTag *>;
+  return llvm::iterator_range(Succ.lower_bound(IDBasedKey{ Child->ID,
+                                                           nullptr }),
+                              Succ.upper_bound(IDBasedKey{ Child->ID + 1,
+                                                           nullptr }));
 }
 
 bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {

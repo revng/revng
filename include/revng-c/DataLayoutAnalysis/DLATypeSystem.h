@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <type_traits>
 #include <utility>
 
 #include "llvm/ADT/ArrayRef.h"
@@ -113,11 +114,11 @@ public:
   }
 
 protected:
-  OffsetExpression OE;
   const LinkKind Kind;
+  OffsetExpression OE;
 
   explicit TypeLinkTag(LinkKind K, OffsetExpression &&O) :
-    OE(std::move(O)), Kind(K) {}
+    Kind(K), OE(std::move(O)) {}
 
   // TODO: potentially we are interested in marking TypeLinkTags with some info
   // that allows us to track which step on the type system has created them.
@@ -165,8 +166,41 @@ enum InterferingChildrenInfo {
 
 struct LayoutTypeSystemNode {
   const uint64_t ID = 0ULL;
+
   using Link = std::pair<LayoutTypeSystemNode *, const TypeLinkTag *>;
-  using NeighborsSet = std::set<Link>;
+
+  struct NeighborLinkComparison {
+    using is_transparent = std::true_type;
+
+    struct Helper {
+    private:
+      uint64_t ID;
+      const TypeLinkTag *const TagPointer;
+
+    public:
+      Helper() : ID(0), TagPointer(nullptr) {}
+      Helper(const std::pair<uint64_t, const TypeLinkTag *> &Pair) :
+        ID(Pair.first), TagPointer(Pair.second) {}
+      Helper(const Link &Pair) : Helper({ Pair.first->ID, Pair.second }) {}
+      Helper(const Helper &) = default;
+
+      bool operator<(const Helper &Other) const {
+        if (auto Cmp = ID <=> Other.ID; Cmp != 0)
+          return Cmp < 0;
+
+        if (nullptr == TagPointer or nullptr == Other.TagPointer)
+          return TagPointer < Other.TagPointer;
+
+        return *TagPointer < *Other.TagPointer;
+      }
+    };
+
+    bool operator()(const Helper &&LHS, const Helper &&RHS) const {
+      return LHS < RHS;
+    }
+  };
+
+  using NeighborsSet = std::set<Link, NeighborLinkComparison>;
   using NeighborIterator = NeighborsSet::iterator;
   NeighborsSet Successors{};
   NeighborsSet Predecessors{};
