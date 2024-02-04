@@ -7,6 +7,7 @@
 
 include "CliftTypes.td"
 include "mlir/IR/SymbolInterfaces.td"
+include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/BuiltinAttributes.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -86,8 +87,16 @@ def Clift_ConstantOp: Clift_Op<"constant", [Pure]> {
     ];
 }
 
+def Clift_ModuleOp : Clift_Op<"module", [SymbolTable, HasOnlyGraphRegion, NoRegionArguments, NoTerminator, SingleBlock, RegionKindInterface]> {
+  let regions = (region AnyRegion:$body);
+  let assemblyFormat = [{
+    $body attr-dict
+  }];
+  let hasVerifier = 1;
+}
+
 class Clift_FunctionBase<string mnemonic> :
-Clift_Op<mnemonic, [Symbol, CallableOpInterface, AutomaticAllocationScope, IsolatedFromAbove]> {
+Clift_Op<mnemonic, [Symbol, CallableOpInterface, AutomaticAllocationScope, IsolatedFromAbove, HasParent<"ModuleOp">]> {
 
   let arguments = (ins StrAttr:$sym_name, TypeAttrOf<FunctionType>:$function_type);
   let description = [{
@@ -142,6 +151,14 @@ def Clift_FunctionOp :
 Clift_FunctionBase<"function"> {
     let extraClassDeclaration = extraBaseClassDeclaration;
 
+}
+
+def Clift_UndefOp: Clift_Op<"undef"> {
+  let results = (outs AnyValueType:$result);
+
+  let assemblyFormat = [{
+    type($result) attr-dict
+  }];
 }
 
 #endif
