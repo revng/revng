@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <variant>
 
 #include "llvm/ADT/PostOrderIterator.h"
@@ -371,8 +372,24 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
                                        Model,
                                        EqClasses);
     } else {
-      MaybeResult = QualifiedType{ Model->getPrimitiveType(Generic, Node->Size),
-                                   {} };
+      const auto &IsValidPrimitiveSize = [](uint64_t Size) {
+        if (Size > std::numeric_limits<uint8_t>::max())
+          return false;
+        return model::PrimitiveType{ Generic, static_cast<uint8_t>(Size) }
+          .verify();
+      };
+
+      if (IsValidPrimitiveSize(Node->Size)) {
+        MaybeResult = QualifiedType{
+          Model->getPrimitiveType(Generic, Node->Size), {}
+        };
+      } else {
+        MaybeResult = makeStructFromNode(Node,
+                                         Types,
+                                         PointerFieldsToUpdate,
+                                         Model,
+                                         EqClasses);
+      }
     }
   } else if (isStructNode(Node)) {
     MaybeResult = makeStructFromNode(Node,
