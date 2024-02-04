@@ -3,6 +3,7 @@
 //
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/RegisterAnalysis.h"

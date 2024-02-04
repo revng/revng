@@ -230,30 +230,37 @@ static void fixPredSucc(LayoutTypeSystemNode *From,
 
   revng_assert(From != Into);
 
+  uint64_t FromID = From->ID;
+  using IDBasedKey = std::pair<uint64_t, const TypeLinkTag *>;
+
   // All the predecessors of all the successors of From are updated so that they
   // point to Into
-  for (auto &[Neighbor, Tag] : From->Successors) {
-    auto It = Neighbor->Predecessors.lower_bound({ From, nullptr });
-    auto End = Neighbor->Predecessors.upper_bound({ std::next(From), nullptr });
+  for (auto &[Successor, Tag] : From->Successors) {
+    auto It = Successor->Predecessors.lower_bound(IDBasedKey{ FromID,
+                                                              nullptr });
+    auto End = Successor->Predecessors.upper_bound(IDBasedKey{ FromID + 1,
+                                                               nullptr });
     while (It != End) {
       auto Next = std::next(It);
-      auto Extracted = Neighbor->Predecessors.extract(It);
+      auto Extracted = Successor->Predecessors.extract(It);
       revng_assert(Extracted);
-      Neighbor->Predecessors.insert({ Into, Extracted.value().second });
+      Successor->Predecessors.insert({ Into, Extracted.value().second });
       It = Next;
     }
   }
 
   // All the successors of all the predecessors of From are updated so that they
   // point to Into
-  for (auto &[Neighbor, Tag] : From->Predecessors) {
-    auto It = Neighbor->Successors.lower_bound({ From, nullptr });
-    auto End = Neighbor->Successors.upper_bound({ std::next(From), nullptr });
+  for (auto &[Predecessor, Tag] : From->Predecessors) {
+    auto It = Predecessor->Successors.lower_bound(IDBasedKey{ FromID,
+                                                              nullptr });
+    auto End = Predecessor->Successors.upper_bound(IDBasedKey{ FromID + 1,
+                                                               nullptr });
     while (It != End) {
       auto Next = std::next(It);
-      auto Extracted = Neighbor->Successors.extract(It);
+      auto Extracted = Predecessor->Successors.extract(It);
       revng_assert(Extracted);
-      Neighbor->Successors.insert({ Into, Extracted.value().second });
+      Predecessor->Successors.insert({ Into, Extracted.value().second });
       It = Next;
     }
   }
@@ -267,12 +274,15 @@ static void fixPredSucc(LayoutTypeSystemNode *From,
 
   // Remove self-references from predecessors and successors.
   {
-    const auto RemoveSelfEdges = [From, Into](auto &NeighborsSet) {
-      auto FromIt = NeighborsSet.lower_bound({ From, nullptr });
-      auto FromEnd = NeighborsSet.upper_bound({ std::next(From), nullptr });
+    const auto RemoveSelfEdges = [FromID,
+                                  IntoID = Into->ID](auto &NeighborsSet) {
+      auto FromIt = NeighborsSet.lower_bound(IDBasedKey{ FromID, nullptr });
+      auto FromEnd = NeighborsSet.upper_bound(IDBasedKey{ FromID + 1,
+                                                          nullptr });
       NeighborsSet.erase(FromIt, FromEnd);
-      auto IntoIt = NeighborsSet.lower_bound({ Into, nullptr });
-      auto IntoEnd = NeighborsSet.upper_bound({ std::next(Into), nullptr });
+      auto IntoIt = NeighborsSet.lower_bound(IDBasedKey{ IntoID, nullptr });
+      auto IntoEnd = NeighborsSet.upper_bound(IDBasedKey{ IntoID + 1,
+                                                          nullptr });
       NeighborsSet.erase(IntoIt, IntoEnd);
     };
     RemoveSelfEdges(Into->Predecessors);
@@ -324,20 +334,23 @@ void LayoutTypeSystem::mergeNodes(llvm::ArrayRef<LayoutTypeSystemNode *>
 
 void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
   // Join the node's eq class with the removed class
-  EqClasses.remove(ToRemove->ID);
+  uint64_t TheID = ToRemove->ID;
+  EqClasses.remove(TheID);
   revng_log(MergeLog, "Removing " << ToRemove->ID << "\n");
+
+  using IDBasedKey = std::pair<uint64_t, const TypeLinkTag *>;
 
   for (auto &[Neighbor, Tag] : ToRemove->Successors) {
     auto &PredOfSucc = Neighbor->Predecessors;
-    auto It = PredOfSucc.lower_bound({ ToRemove, nullptr });
-    auto End = PredOfSucc.upper_bound({ std::next(ToRemove), nullptr });
+    auto It = PredOfSucc.lower_bound(IDBasedKey{ TheID, nullptr });
+    auto End = PredOfSucc.upper_bound(IDBasedKey{ TheID + 1, nullptr });
     PredOfSucc.erase(It, End);
   }
 
   for (auto &[Neighbor, Tag] : ToRemove->Predecessors) {
     auto &SuccOfPred = Neighbor->Successors;
-    auto It = SuccOfPred.lower_bound({ ToRemove, nullptr });
-    auto End = SuccOfPred.upper_bound({ std::next(ToRemove), nullptr });
+    auto It = SuccOfPred.lower_bound(IDBasedKey{ TheID, nullptr });
+    auto End = SuccOfPred.upper_bound(IDBasedKey{ TheID + 1, nullptr });
     SuccOfPred.erase(It, End);
   }
 
