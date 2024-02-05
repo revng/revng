@@ -16,7 +16,7 @@
 
 class ConvertFunctionsToRaw {
 public:
-  static constexpr auto Name = "ConvertFunctionsToRaw";
+  static constexpr auto Name = "convert-functions-to-raw";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 

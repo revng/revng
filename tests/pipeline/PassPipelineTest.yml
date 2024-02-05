@@ -4,12 +4,12 @@
 
 Component: revng-test
 Containers:
-  - Name: C1
-    Type: LLVMContainer
+  - Name: c-1
+    Type: llvm-container
 Branches:
   - Steps:
-      - Name: FirstStep
+      - Name: first-step
         Pipes:
-          - Type: LLVMPipe
-            UsedContainers: [C1]
+          - Type: llvm-pipe
+            UsedContainers: [c-1]
             Passes: [example-pass]

@@ -24,7 +24,7 @@ namespace revng::pipes {
 
 inline constexpr char CrossRelationsFileMIMEType[] = "text/x.yaml";
 inline constexpr char CrossRelationsFileSuffix[] = "";
-inline constexpr char CrossRelationsName[] = "BinaryCrossRelations";
+inline constexpr char CrossRelationsName[] = "binary-cross-relations";
 
 using CrossRelationsFileContainer = pipes::TupleTreeContainer<
   yield::crossrelations::CrossRelations,
@@ -34,7 +34,7 @@ using CrossRelationsFileContainer = pipes::TupleTreeContainer<
 
 inline constexpr char CallGraphSVGMIMEType[] = "image/svg";
 inline constexpr char CallGraphSVGSuffix[] = ".svg";
-inline constexpr char CallGraphSVGName[] = "CallGraphSVG";
+inline constexpr char CallGraphSVGName[] = "call-graph-svg";
 
 using CallGraphSVGFileContainer = StringBufferContainer<&kinds::CallGraphSVG,
                                                         CallGraphSVGName,
@@ -42,7 +42,7 @@ using CallGraphSVGFileContainer = StringBufferContainer<&kinds::CallGraphSVG,
                                                         CallGraphSVGSuffix>;
 
 inline constexpr char CallGraphSliceMIMEType[] = "image/svg";
-inline constexpr char CallGraphSliceName[] = "CallGraphSliceSVG";
+inline constexpr char CallGraphSliceName[] = "call-graph-slice-svg";
 
 using CallGraphSliceSVGStringMap = FunctionStringMap<&kinds::CallGraphSliceSVG,
                                                      CallGraphSliceName,
@@ -51,7 +51,7 @@ using CallGraphSliceSVGStringMap = FunctionStringMap<&kinds::CallGraphSliceSVG,
 
 class ProcessCallGraph {
 public:
-  static constexpr const auto Name = "ProcessCallGraph";
+  static constexpr const auto Name = "process-call-graph";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
