@@ -54,6 +54,9 @@ Branches:
           - Name: import-well-known-models
             Type: import-well-known-models
             UsedContainers: []
+          - Name: convert-functions-to-cabi
+            Type: convert-functions-to-cabi
+            UsedContainers: []
       - Name: lift
         Pipes:
           - Type: lift
