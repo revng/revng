@@ -141,7 +141,7 @@ static Logger Log("function-type-conversion-to-cabi-analysis");
 
 class ConvertFunctionsToCABI {
 public:
-  static constexpr auto Name = "ConvertFunctionsToCABI";
+  static constexpr auto Name = "convert-functions-to-cabi";
   inline static const std::tuple Options = {
     // Allows overriding the default ABI with a specific value when invoking
     // the analysis.
@@ -183,7 +183,7 @@ public:
     // Minimize the negative impact on binaries with ABI that is not fully
     // supported by disabling the conversion by default.
     //
-    // Use `--ConvertFunctionsToCABI-mode=unsafe` to force conversion even
+    // Use `--convert-functions-to-cabi-mode=unsafe` to force conversion even
     // when ABI is not considered fully tested.
     if (Mode != "safe") {
       // TODO: extend this list.

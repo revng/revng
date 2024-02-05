@@ -185,26 +185,26 @@ inline void TagsSet::insert(const Tag &Target) {
   Tags.insert(&Target);
 }
 
-inline Tag QEMU("QEMU");
-inline Tag Helper("Helper");
+inline Tag QEMU("qemu");
+inline Tag Helper("helper");
 
-inline Tag Isolated("Isolated");
-inline Tag ABIEnforced("ABIEnforced", Isolated);
-inline Tag CSVsPromoted("CSVsPromoted", ABIEnforced);
+inline Tag Isolated("isolated");
+inline Tag ABIEnforced("abi-enforced", Isolated);
+inline Tag CSVsPromoted("csvs-promoted", ABIEnforced);
 
-inline Tag Exceptional("Exceptional");
-inline Tag StructInitializer("StructInitializer");
-inline Tag OpaqueCSVValue("OpaqueCSVValue");
-inline Tag FunctionDispatcher("FunctionDispatcher");
-inline Tag Root("Root");
-inline Tag IsolatedRoot("IsolatedRoot");
-inline Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
-inline Tag Marker("Marker");
-inline Tag DynamicFunction("DynamicFunction");
-inline Tag ClobbererFunction("ClobbererFunction");
-inline Tag ReaderFunction("ReaderFunction");
+inline Tag Exceptional("exceptional");
+inline Tag StructInitializer("struct-initializer");
+inline Tag OpaqueCSVValue("opaque-csv-value");
+inline Tag FunctionDispatcher("functin-dispatcher");
+inline Tag Root("root");
+inline Tag IsolatedRoot("isolated-root");
+inline Tag CSVsAsArgumentsWrapper("csvs-as-arguments-wrapper");
+inline Tag Marker("marker");
+inline Tag DynamicFunction("dynamic-function");
+inline Tag ClobbererFunction("clobberer-function");
+inline Tag ReaderFunction("reader-function");
 
-inline Tag CSV("CSV");
+inline Tag CSV("csv");
 
 } // namespace FunctionTags
 

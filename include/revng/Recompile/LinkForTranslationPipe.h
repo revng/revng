@@ -21,7 +21,7 @@ namespace revng::pipes {
 
 class LinkForTranslation {
 public:
-  static constexpr auto Name = "LinkForTranslation";
+  static constexpr auto Name = "link-for-translation";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     pipeline::Contract BinaryPart(kinds::Binary,

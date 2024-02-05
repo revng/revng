@@ -27,15 +27,15 @@ class StringKindType : public Kind {
   }
 };
 
-static StringKindType StringKind("StringKind", revng::ranks::Function, {}, {});
+static StringKindType StringKind("string-kind", revng::ranks::Function, {}, {});
 
 class StringContainer : public Container<StringContainer> {
 public:
   StringContainer(llvm::StringRef Name) : Container<StringContainer>(Name) {}
   ~StringContainer() override = default;
 
-  inline static const llvm::StringRef MIMEType = "String";
-  inline static const char *Name = "StringContainer";
+  inline static const llvm::StringRef MIMEType = "string";
+  inline static const char *Name = "string-container";
   static char ID;
 
   std::unique_ptr<ContainerBase>
@@ -140,6 +140,6 @@ static llvm::RegisterPass<ExamplePass> X2("example-pass", "ExamplePass");
 char StringContainer::ID;
 
 static RegisterPipe<CopyPipe<StringKindType, &StringKind, StringContainer>> E1;
-static const std::string Name = "StringContainer";
+static const std::string Name = "string-container";
 static RegisterDefaultConstructibleContainer<StringContainer> C;
-static RegisterRole R(Name, "StringRole");
+static RegisterRole R(Name, "string-role");

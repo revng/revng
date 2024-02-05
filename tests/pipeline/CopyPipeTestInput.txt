@@ -1,2 +1,2 @@
-Root
-SomethingNotToBeCopied
+root
+something-not-to-copied

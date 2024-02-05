@@ -53,7 +53,7 @@ macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
     "${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline"
     -P
     "${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE}"
-    --produce=FirstStep:dc:dc:StringKind
+    --produce=first-step:dc:dc:string-kind
     -l
     "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so"
     -d)
@@ -108,25 +108,26 @@ macro(
 endmacro()
 
 set(COPY_PIPE_TEST_INPUTS
-    "${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestInput.txt:begin/Strings1")
-set(COPY_PIPE_TEST_OUTPUTS "CopyPipeTestOutput.txt:FirstStep/Strings2")
+    "${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestInput.txt:begin/strings-1")
+set(COPY_PIPE_TEST_OUTPUTS "CopyPipeTestOutput.txt:first-step/strings-2")
 
 test_pipeline_output(
   pipeline-copy-pipe
   CopyPipeTestPipeline.yml
-  --produce=FirstStep/Strings2/Root:StringKind
+  --produce=first-step/strings-2/root:string-kind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
   CopyPipeTestOutput.txt
   "${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestExpected.txt")
 
-set(ROLE_COPY_PIPE_TEST_OUTPUTS "RoleCopyPipeTestOutput.txt:FirstStep/Strings2")
+set(ROLE_COPY_PIPE_TEST_OUTPUTS
+    "RoleCopyPipeTestOutput.txt:first-step/strings-2")
 
 test_pipeline_output(
   role-pipeline-copy-pipe
   RoleCopyPipeTestPipeline.yml
-  --produce=FirstStep/Strings2/Root:StringKind
+  --produce=first-step/strings-2/root:string-kind
   "${COPY_PIPE_TEST_INPUTS}"
   "${ROLE_COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -137,7 +138,7 @@ test_pipeline_output(
 test_pipeline_output(
   pipeline-copy-pipe-flag
   CopyPipeFlagTestPipeline.yml
-  --produce=FirstStep/Strings2/Root:StringKind
+  --produce=first-step/strings-2/root:string-kind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -147,14 +148,14 @@ test_pipeline_output(
 # Try to produce a target produced by a disabled pipe
 ensure_pipeline_failure(
   pipeline-flag-fail-test CopyPipeFlagTestPipeline.yml
-  --produce=FirstStep/Strings2/Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
-  "${COPY_PIPE_TEST_OUTPUTS}" DisableCopyPipe)
+  --produce=first-step/strings-2/root:string-kind "${COPY_PIPE_TEST_INPUTS}"
+  "${COPY_PIPE_TEST_OUTPUTS}" disable-copy-pipe)
 
 # Try to invoke a non-existing pass using a PureLLVMPipe
 ensure_pipeline_failure(
   pipeline-test-missing-pipe MissingPassPipelineTest.yml
-  --produce=FirstStep/Strings2/Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
-  "${COPY_PIPE_TEST_OUTPUTS}" DontCare)
+  --produce=first-step/strings-2/root:string-kind "${COPY_PIPE_TEST_INPUTS}"
+  "${COPY_PIPE_TEST_OUTPUTS}" dont-care)
 
 # Test an LLVMPass pipe
 add_pipeline_dump_test(pipeline-llvm-pass-test PassPipelineTest.yml)
@@ -194,7 +195,7 @@ function(add_invalidation_test TEST_NAME)
       ${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline \
       -P ${OPT_PIPELINE} \
       ${OPT_TARGETS} \
-      -i ${OPT_INPUT}:begin/Strings1 \
+      -i ${OPT_INPUT}:begin/strings-1 \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
       --resume ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
       ${CMAKE_BINARY_DIR}/libexec/revng/revng-invalidate \
@@ -210,15 +211,15 @@ endfunction()
 add_invalidation_test(
   simple_invalidation_test
   TARGETS
-  "--produce=FirstStep/Strings2/Root:StringKind"
+  "--produce=first-step/strings-2/root:string-kind"
   STEP
-  "FirstStep"
+  "first-step"
   INPUT
   "${CMAKE_CURRENT_SOURCE_DIR}/InvalidateTestInput.txt"
   PIPELINE
   "${CMAKE_CURRENT_SOURCE_DIR}/SimpleInvalidationTestPipeline.yml"
   INVALIDATIONS
-  "FirstStep/Strings1/Root:StringKind")
+  "first-step/strings-1/root:string-kind")
 
 #
 # Bad behavior handling

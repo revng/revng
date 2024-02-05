@@ -87,7 +87,7 @@ private:
     Implementation;
 
 public:
-  static constexpr auto Name = "DetectABI";
+  static constexpr auto Name = "detect-abi";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
     { &revng::kinds::Root }
