@@ -49,12 +49,12 @@ class TranslateCommand(Command):
             "pipeline",
         ]
 
-        command.append("--analyze=initial/import-binary/input/:Binary")
+        command.append("--analyze=initial/import-binary/input/:binary")
         command.append("--analyze=initial/add-primitive-types/")
-        command.append("--analyze=lift/detect-abi/module.ll/:Root")
+        command.append("--analyze=lift/detect-abi/module.ll/:root")
 
         command = command + [
-            f"--produce={step_name}/output/:Translated",
+            f"--produce={step_name}/output/:translated",
             "-i",
             f"{args.input[0]}:begin/input",
             "-o",

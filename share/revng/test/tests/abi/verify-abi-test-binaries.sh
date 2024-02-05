@@ -49,7 +49,7 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertFunctionsToRaw \
+    convert-functions-to-raw \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml"
@@ -58,9 +58,9 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertFunctionsToCABI \
+    convert-functions-to-cabi \
     "$BINARY" \
-    --ConvertFunctionsToCABI-abi="${ABI_NAME}" \
+    --convert-functions-to-cabi-abi="${ABI_NAME}" \
     -m="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
 
@@ -68,7 +68,7 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertFunctionsToRaw \
+    convert-functions-to-raw \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"

@@ -190,12 +190,12 @@ async def get_description(client):
 async def test_info(client):
     desc = await get_description(client)
 
-    binary_kind = next(k for k in desc.Kinds if k.Name == "Binary")
-    isolated_kind = next(k for k in desc.Kinds if k.Name == "IsolatedRoot")
+    binary_kind = next(k for k in desc.Kinds if k.Name == "binary")
+    isolated_kind = next(k for k in desc.Kinds if k.Name == "isolated-root")
     assert binary_kind.Rank == "binary"
     assert binary_kind.Parent == ""
     assert isolated_kind.Rank == "binary"
-    assert isolated_kind.Parent == "Root"
+    assert isolated_kind.Parent == "root"
 
     root_rank = next(r for r in desc.Ranks if r.Name == "binary")
     function_rank = next(r for r in desc.Ranks if r.Name == "function")
@@ -248,7 +248,7 @@ async def run_preliminary_analyses(client):
                 }
             }"""
         ),
-        {"ctt": json.dumps({"input": [":Binary"]}), "index": index},
+        {"ctt": json.dumps({"input": [":binary"]}), "index": index},
     )
 
     index = await get_index(client)
@@ -274,7 +274,7 @@ async def test_lift_ready_fail(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
     q = gql(
-        f'{{ produceArtifacts(step: "lift", paths: ":Binary", onlyIfReady: true, index: "{index}")'
+        f'{{ produceArtifacts(step: "lift", paths: ":binary", onlyIfReady: true, index: "{index}")'
         + "{ __typename } }"
     )
 
@@ -315,8 +315,8 @@ async def test_targets(client):
     )
     result = await client.execute(q)
 
-    binary_target = next(t for t in result["begin"] if t["kind"] == "Binary")
-    lift_target = next(t for t in result["lift"] if t["kind"] == "Root")
+    binary_target = next(t for t in result["begin"] if t["kind"] == "binary")
+    lift_target = next(t for t in result["lift"] if t["kind"] == "root")
     assert binary_target["ready"]
     assert not lift_target["ready"]
 
@@ -325,7 +325,7 @@ async def test_produce(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
     q = gql(
-        f'{{ produce(step: "lift", container: "module.ll", targetList: ":Root", index: "{index}")'
+        f'{{ produce(step: "lift", container: "module.ll", targetList: ":root", index: "{index}")'
         + "{ __typename } }"
     )
     result = await client.execute(q)
@@ -354,7 +354,7 @@ async def test_function_endpoint(client):
                 }
         }"""
     )
-    await client.execute(q, {"ctt": json.dumps({"module.ll": [":Root"]}), "index": index})
+    await client.execute(q, {"ctt": json.dumps({"module.ll": [":root"]}), "index": index})
 
     q = gql(
         """{
@@ -380,7 +380,7 @@ async def test_function_endpoint(client):
 
 
 async def test_analysis_kind_check(client):
-    ctt = json.dumps({"module.ll": [":IsolatedRoot"]})
+    ctt = json.dumps({"module.ll": [":isolated-root"]})
     index = await get_index(client)
     q = gql(
         """mutation($ctt: String!, $index: BigInt!) {

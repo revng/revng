@@ -122,7 +122,7 @@ llvm::Expected<PipeWrapper>
 Loader::parseInvocation(Step &Step,
                         const PipeInvocation &Invocation,
                         const StringsMap &ReadOnlyNames) const {
-  if (Invocation.Type == "LLVMPipe")
+  if (Invocation.Type == "llvm-pipe")
     return parseLLVMPass(Invocation);
 
   if (not Invocation.Passes.empty())

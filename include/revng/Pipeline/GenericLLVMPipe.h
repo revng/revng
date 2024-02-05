@@ -140,7 +140,7 @@ private:
   llvm::SmallVector<std::unique_ptr<LLVMPassWrapperBase>, 4> Passes;
 
 public:
-  static constexpr auto Name = "GenericLLVMPipe";
+  static constexpr auto Name = "generic-llvm-pipe";
   template<typename... T>
   explicit GenericLLVMPipe(T... Pass) {
     (addPass(std::move(Pass)), ...);
@@ -227,7 +227,7 @@ public:
 
 class O2Pipe {
 public:
-  static constexpr auto Name = "O2";
+  static constexpr auto Name = "o2";
   std::vector<ContractGroup> getContract() const { return {}; }
 
   void registerPasses(llvm::legacy::PassManager &Manager);

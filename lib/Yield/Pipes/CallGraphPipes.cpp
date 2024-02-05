@@ -108,7 +108,7 @@ static RegisterDefaultConstructibleContainer<CrossRelationsFileContainer> X1;
 static RegisterDefaultConstructibleContainer<CallGraphSVGFileContainer> X2;
 static RegisterDefaultConstructibleContainer<CallGraphSliceSVGStringMap> X3;
 
-static pipeline::RegisterRole Role("BinaryCrossRelations",
+static pipeline::RegisterRole Role("binary-cross-relations",
                                    kinds::BinaryCrossRelationsRole);
 
 static pipeline::RegisterPipe<ProcessCallGraph> ProcessPipe;

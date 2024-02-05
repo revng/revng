@@ -19,7 +19,7 @@ namespace revng::pipes {
 
 class AddPrimitiveTypesAnalysis {
 public:
-  static constexpr const auto Name = "AddPrimitiveTypes";
+  static constexpr const auto Name = "add-primitive-types";
 
 public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};

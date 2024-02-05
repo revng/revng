@@ -17,7 +17,7 @@ commands:
         -i "$INPUT1:begin/input"
         -i "$INPUT2:enforce-abi/module.ll"
         -o "$OUTPUT:process-assembly/assembly-internal.yml.tar.gz"
-        --produce process-assembly/assembly-internal.yml.tar.gz/*:FunctionAssemblyInternal
+        --produce process-assembly/assembly-internal.yml.tar.gz/*:function-assembly-internal
 
   - type: revng.assembly-ptml
     from:
@@ -31,7 +31,7 @@ commands:
         -m "$$MODEL"
         -i "$INPUT1:process-assembly/assembly-internal.yml.tar.gz"
         -o "$OUTPUT:disassemble/assembly.ptml.tar.gz"
-        --produce disassemble/assembly.ptml.tar.gz/*:FunctionAssemblyPTML
+        --produce disassemble/assembly.ptml.tar.gz/*:function-assembly-ptml
 
   - type: revng.cfg-svg
     from:
@@ -45,7 +45,7 @@ commands:
         -m "$$MODEL"
         -i "$INPUT1:process-assembly/assembly-internal.yml.tar.gz"
         -o "$OUTPUT:render-svg-cfg/cfg.svg.tar.gz"
-        --produce render-svg-cfg/cfg.svg.tar.gz/*:FunctionControlFlowGraphSVG
+        --produce render-svg-cfg/cfg.svg.tar.gz/*:function-control-flow-graph-svg
 
   - type: revng.cross-relations
     from:
@@ -61,7 +61,7 @@ commands:
         -i "$INPUT1:begin/input"
         -i "$INPUT2:enforce-abi/module.ll"
         -o "$OUTPUT:isolate/cross-relations.yml"
-        --produce isolate/cross-relations.yml/:BinaryCrossRelations
+        --produce isolate/cross-relations.yml/:binary-cross-relations
 
   - type: revng.call-graph-svg
     from:
@@ -75,7 +75,7 @@ commands:
         -m "$$MODEL"
         -i "$INPUT1:isolate/cross-relations.yml"
         -o "$OUTPUT:render-svg-call-graph/call-graph.svg.yml"
-        --produce render-svg-call-graph/call-graph.svg.yml/:CallGraphSVG
+        --produce render-svg-call-graph/call-graph.svg.yml/:call-graph-svg
 
   - type: revng.call-graph-slice-svg
     from:
@@ -93,4 +93,4 @@ commands:
         -i "$INPUT2:enforce-abi/module.ll"
         -i "$INPUT3:begin/input"
         -o "$OUTPUT:render-svg-call-graph-slice/call-graph-slice.svg.tar.gz"
-        --produce render-svg-call-graph-slice/call-graph-slice.svg.tar.gz/*:CallGraphSliceSVG
+        --produce render-svg-call-graph-slice/call-graph-slice.svg.tar.gz/*:call-graph-slice-svg

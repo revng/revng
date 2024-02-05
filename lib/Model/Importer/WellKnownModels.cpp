@@ -40,7 +40,7 @@ public:
 
 class ImportWellKnownModelsAnalysis {
 public:
-  static constexpr auto Name = "ImportWellKnownModels";
+  static constexpr auto Name = "import-well-known-models";
 
 public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds;
