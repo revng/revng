@@ -3,9 +3,9 @@
 #
 
 tags:
-  - name: HeaderToModel
+  - name: header-to-model
 sources:
-  - tags: [HeaderToModel]
+  - tags: [header-to-model]
     prefix: share/revng/test/tests/analysis/ImportFromCAnalysis/
     members:
       - struct.model.yml
@@ -18,16 +18,16 @@ sources:
       - rft-multiple-regs-for-return-val.model.yml
       - rft-single-reg-for-return-val.model.yml
 commands:
-  - type: revng-c.HeaderToModel
+  - type: revng-c.header-to-model
     from:
       - type: source
-        filter: HeaderToModel
+        filter: header-to-model
     command: |-
       RESUME=$$(temp -d);
       mkdir -p "$$RESUME/context/";
       cp "$INPUT" "$$RESUME/context/model.yml";
       revng analyze --resume "$$RESUME" import-from-c
-      --ImportFromC-location-to-edit="$$(grep -vE '^(#|$$)' ${SOURCE}.location)"
-      --ImportFromC-ccode="$$(cat ${SOURCE}.ccode)" /dev/null -o /dev/null;
+      --import-from-c-location-to-edit="$$(grep -vE '^(#|$$)' ${SOURCE}.location)"
+      --import-from-c-ccode="$$(cat ${SOURCE}.ccode)" /dev/null -o /dev/null;
       revng model compare "${SOURCE}.reference.yml"
       "$$RESUME/context/model.yml";

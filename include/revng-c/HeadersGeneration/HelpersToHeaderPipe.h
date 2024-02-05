@@ -21,7 +21,7 @@ namespace revng::pipes {
 
 inline constexpr char HelpersHeaderFactoryMIMEType[] = "text/x.c+ptml";
 inline constexpr char HelpersHeaderFactorySuffix[] = ".h";
-inline constexpr char HelpersHeaderFactoryName[] = "HelpersHeader";
+inline constexpr char HelpersHeaderFactoryName[] = "helpers-header";
 using HelpersHeaderFileContainer = FileContainer<&kinds::HelpersHeader,
                                                  HelpersHeaderFactoryName,
                                                  HelpersHeaderFactoryMIMEType,
@@ -29,7 +29,7 @@ using HelpersHeaderFileContainer = FileContainer<&kinds::HelpersHeader,
 
 class HelpersToHeader {
 public:
-  static constexpr auto Name = "HelpersToHeader";
+  static constexpr auto Name = "helpers-to-header";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

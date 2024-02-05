@@ -74,7 +74,7 @@ static std::optional<std::string> findHeaderFile(const std::string &File) {
 }
 
 struct ImportFromCAnalysis {
-  static constexpr auto Name = "ImportFromC";
+  static constexpr auto Name = "import-from-c";
 
   constexpr static std::tuple Options = { pipeline::Option("location-to-edit",
                                                            ""),

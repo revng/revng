@@ -21,7 +21,7 @@
 namespace revng::pipes {
 
 inline constexpr char DecompileMime[] = "text/x.c+ptml+tar+gz";
-inline constexpr char DecompileName[] = "Decompile";
+inline constexpr char DecompileName[] = "decompile";
 inline constexpr char DecompileExtension[] = ".c.ptml";
 using DecompileStringMap = FunctionStringMap<&kinds::Decompiled,
                                              DecompileName,
@@ -30,7 +30,7 @@ using DecompileStringMap = FunctionStringMap<&kinds::Decompiled,
 
 class Decompile {
 public:
-  static constexpr auto Name = "Decompile";
+  static constexpr auto Name = "decompile";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

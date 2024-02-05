@@ -19,9 +19,9 @@
 
 namespace revng::pipes {
 
-class MakeSegmentRefs {
+class MakeSegmentRef {
 public:
-  static constexpr auto Name = "MakeSegmentRefs";
+  static constexpr auto Name = "make-segment-ref";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     pipeline::Contract BinaryPart(kinds::Binary, 0, kinds::Binary, 0);
@@ -43,14 +43,14 @@ public:
              llvm::ArrayRef<std::string> ContainerNames) const {
     revng_check(ContainerNames.size() == 2);
     OS << *ResourceFinder.findFile("bin/revng");
-    OS << " opt MakeSegmentRefs " << ContainerNames[0] << " "
+    OS << " opt MakeSegmentRef " << ContainerNames[0] << " "
        << ContainerNames[1] << "\n";
   }
 };
 
-void MakeSegmentRefs::run(pipeline::ExecutionContext &Ctx,
-                          const BinaryFileContainer &SourceBinary,
-                          pipeline::LLVMContainer &TargetsList) {
+void MakeSegmentRef::run(pipeline::ExecutionContext &Ctx,
+                         const BinaryFileContainer &SourceBinary,
+                         pipeline::LLVMContainer &TargetsList) {
   if (not SourceBinary.exists())
     return;
 
@@ -68,10 +68,10 @@ void MakeSegmentRefs::run(pipeline::ExecutionContext &Ctx,
 }
 
 llvm::Error
-MakeSegmentRefs::checkPrecondition(const pipeline::Context &Ctx) const {
+MakeSegmentRef::checkPrecondition(const pipeline::Context &Ctx) const {
   return llvm::Error::success();
 }
 
 } // namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::MakeSegmentRefs> RegMSRPipe;
+static pipeline::RegisterPipe<revng::pipes::MakeSegmentRef> RegMSRPipe;

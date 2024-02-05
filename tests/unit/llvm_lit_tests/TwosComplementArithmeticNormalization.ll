@@ -291,4 +291,4 @@ define i1 @twoscomplement_norm_boolean_not(i8 %0) !revng.tags !0 {
   ret i1 1
 }
 
-!0 = !{!"Isolated"}
+!0 = !{!"isolated"}

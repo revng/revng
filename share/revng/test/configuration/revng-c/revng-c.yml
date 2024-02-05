@@ -91,7 +91,7 @@ commands:
 
       revng analyze --resume "$$RESUME" detect-abi "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" detect-stack-size "$INPUT" -o /dev/null;
-      revng artifact --resume "$$RESUME" make-segment-refs "$INPUT" | FileCheck ${SOURCE}.filecheck.ll;
+      revng artifact --resume "$$RESUME" make-segment-ref "$INPUT" | FileCheck ${SOURCE}.filecheck.ll;
       revng artifact --resume "$$RESUME" decompile "$INPUT" -o /dev/null
   - type: revng-c.test-detect-stack-size
     from:

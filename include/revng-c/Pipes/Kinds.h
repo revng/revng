@@ -14,22 +14,22 @@
 namespace revng::kinds {
 
 inline TaggedFunctionKind
-  LiftingArtifactsRemoved("LiftingArtifactsRemoved",
+  LiftingArtifactsRemoved("lifting-artifacts-removed",
                           ranks::Function,
                           FunctionTags::LiftingArtifactsRemoved);
 
 inline TaggedFunctionKind
-  StackPointerPromoted("StackPointerPromoted",
+  StackPointerPromoted("stack-pointer-promoted",
                        ranks::Function,
                        FunctionTags::StackPointerPromoted);
 
 inline TaggedFunctionKind
-  StackAccessesSegregated("StackAccessesSegregated",
+  StackAccessesSegregated("stack-accesses-segregated",
                           ranks::Function,
                           FunctionTags::StackAccessesSegregated);
 
 extern FunctionKind Decompiled;
-inline pipeline::SingleElementKind ModelHeader("ModelHeader",
+inline pipeline::SingleElementKind ModelHeader("model-header",
                                                Binary,
                                                ranks::Binary,
                                                fat(ranks::Type,
@@ -41,22 +41,25 @@ inline pipeline::SingleElementKind ModelHeader("ModelHeader",
                                                    ranks::ArtificialStruct),
                                                { &Decompiled });
 
-inline FunctionKind Decompiled("Decompiled",
+inline FunctionKind Decompiled("decompiled",
                                ModelHeader,
                                ranks::Function,
                                fat(ranks::Function),
                                { &ModelHeader });
 
-inline TypeKind
-  ModelTypeDefinition("ModelTypeDefinition", ModelHeader, ranks::Type, {}, {});
+inline TypeKind ModelTypeDefinition("model-type-definition",
+                                    ModelHeader,
+                                    ranks::Type,
+                                    {},
+                                    {});
 
 inline pipeline::SingleElementKind
-  HelpersHeader("HelpersHeader", Binary, ranks::Binary, {}, {});
+  HelpersHeader("helpers-header", Binary, ranks::Binary, {}, {});
 
 inline pipeline::SingleElementKind
-  MLIRLLVMModule("MLIRLLVMModule", Binary, ranks::Binary, {}, {});
+  MLIRLLVMModule("mlir-llvm-module", Binary, ranks::Binary, {}, {});
 
-inline pipeline::SingleElementKind DecompiledToC("DecompiledToC",
+inline pipeline::SingleElementKind DecompiledToC("decompiled-to-c",
                                                  Binary,
                                                  ranks::Binary,
                                                  fat(ranks::Function),

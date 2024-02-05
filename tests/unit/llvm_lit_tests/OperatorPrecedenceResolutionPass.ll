@@ -74,4 +74,4 @@ declare i32 @unary_minus(i32 %0)
 
 declare i32 @binary_not(i32 %0)
 
-!0 = !{!"Isolated"}
+!0 = !{!"isolated"}
