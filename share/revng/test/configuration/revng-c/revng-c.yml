@@ -14,13 +14,6 @@ commands:
       revng analyze detect-stack-size "$INPUT1" --resume "$OUTPUT" -o /dev/null;
       revng analyze dla "$INPUT1" --resume "$OUTPUT" -o /dev/null;
       revng artifact DecompiledYAMLToC "$INPUT1" --resume "$OUTPUT" -o /dev/null;
-  - type: revng-c.vma
-    from:
-      - type: revng-c.ptml-decompiled-c
-    command: |-
-      LL_WITH_MODEL=$$(temp);
-      revng model inject "$INPUT"/context/model.yml "$INPUT"/MakeSegmentRefs/module.ll -o "$$LL_WITH_MODEL";
-      revng opt -vma -vma-mincut-iter=50 "$$LL_WITH_MODEL" -o /dev/null;
   - type: revng-c.ptml-model-to-header
     from:
       - type: revng-c.ptml-decompiled-c
