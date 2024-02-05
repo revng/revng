@@ -21,7 +21,7 @@ from subprocess import PIPE, STDOUT, check_output
 from subprocess import run as process_run
 from textwrap import indent
 from typing import Dict, Iterable, List, Mapping, NoReturn, Optional, Protocol, Sequence, Set
-from typing import Sized, TypeVar, Union
+from typing import Sized, Tuple, TypeVar, Union
 
 import yaml
 
@@ -314,25 +314,110 @@ class ParallelCommandPass(TaggedPass):
 
 
 class MyPyPass(SingleCommandPass):
+    class PythonFileBins:
+        """
+        Helper class for dividing python files in non-conflicting bins.
+        Mypy complains if it is passed two files with the same "name" (as
+        defined in the `get_python_module_name` function). This guarantees that
+        the bins produced will never have two files with the same name.
+        """
+
+        def __init__(self) -> None:
+            self.bins: List[Tuple[List[Path], Set[str]]] = []
+
+        @staticmethod
+        def get_python_module_name(filepath: Path):
+            if filepath.suffixes == [".py"]:
+                return filepath.stem
+            elif filepath.suffixes == []:
+                return "__main__"
+            else:
+                return filepath.name
+
+        def add(self, path: Path):
+            i = 0
+            while True:
+                if i >= len(self.bins):
+                    self.bins.append(([], set()))
+
+                name = self.get_python_module_name(path)
+                if name not in self.bins[i][1]:
+                    self.bins[i][0].append(path)
+                    self.bins[i][1].add(name)
+                    break
+
+                i += 1
+
+        def get_bins(self) -> List[List[Path]]:
+            return [paths for paths, _ in self.bins]
+
     def __init__(self, command: List[str]):
         super().__init__("mypy", "python", command)
+        # Cache for `is_module_dir`, stores whether a path is a module
+        # directory or not
+        self.module_path_cache: Dict[Path, bool] = {}
+
+    def is_module_dir(self, directory: Path):
+        """
+        Given a directory, determines if it is a module directory.
+        A directory is *not* a module directory for python if itself and all of
+        its parent directories do not contain `__init__.py`.
+        For efficiency reasons, the code will try to leverage the
+        `module_path_cache` as much as possible and avoid as many `stat`s as
+        possible.
+        """
+
+        path_copy = Path(directory)
+        path_parts: List[Path] = []
+
+        while path_copy.parent != path_copy:
+            path_parts.insert(0, path_copy)
+            path_copy = path_copy.parent
+
+        while len(path_parts) != 0:
+            path = path_parts.pop(0)
+
+            if path in self.module_path_cache:
+                if self.module_path_cache[path]:
+                    return True
+                else:
+                    continue
+
+            if (path / "__init__.py").exists():
+                self.module_path_cache[path] = True
+                for part in path_parts:
+                    self.module_path_cache[part] = True
+                return True
+            else:
+                self.module_path_cache[path] = False
+        return False
 
     async def process(self, files: Dict[Path, str], args) -> PassResult:
-        script_files: List[Path] = []
-        normal_files: List[Path] = []
+        other_file_bins = self.__class__.PythonFileBins()
+        module_files: List[Path] = []
         for filepath in files:
-            if str(filepath).startswith("python/scripts") or filepath.name == "lit.cfg.py":
-                script_files.append(filepath)
+            if self.is_module_dir(filepath.parent):
+                # Module files can be all run together fine
+                module_files.append(filepath)
             else:
-                normal_files.append(filepath)
+                # Non-module files need special handling
+                other_file_bins.add(filepath)
+
+        bins = other_file_bins.get_bins()
+        sorted_files: List[List[Path]] = []
+        sorted_files.append(module_files)
+
+        # We can add the first non-module files bin to the list of module
+        # files, to save on a mypy invocation
+        if len(bins) >= 1:
+            sorted_files[0].extend(bins.pop(0))
+        sorted_files.extend(bins)
 
         runs = []
+        for file_group in sorted_files:
+            if len(file_group) > 0:
+                runs.append(await super().process({f: "" for f in file_group}, args))
 
-        if normal_files:
-            runs.append(await super().process({f: "" for f in normal_files}, args))
-
-        for script in script_files:
-            runs.append(await super().process({script: ""}, args))
         return PassResult.combine(*runs)
 
 
