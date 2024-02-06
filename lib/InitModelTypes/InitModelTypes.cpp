@@ -37,7 +37,6 @@
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
-#include "revng-c/ValueManipulationAnalysis/VMAPipeline.h"
 
 using llvm::BasicBlock;
 using llvm::Function;
@@ -736,17 +735,6 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
           TypeMap.insert({ &I, *Type });
       }
     }
-  }
-
-  if (not PointersOnly) {
-    // Run VMA
-    VMAPipeline VMA(Model);
-    VMA.addInitializer(std::make_unique<LLVMInitializer>());
-    VMA.addInitializer(std::make_unique<TypeMapInitializer>(TypeMap));
-    VMA.setUpdater(std::make_unique<TypeMapUpdater>(TypeMap, &Model));
-    VMA.disableSolver();
-
-    VMA.run(Cache, &F);
   }
 
   rc_return TypeMap;

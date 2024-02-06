@@ -30,19 +30,6 @@ target_link_libraries(
 add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
 
 #
-# test_vma
-#
-
-revng_add_test_executable(test_vma "${SRC}/ValueManipulationAnalysis.cpp")
-target_compile_definitions(test_vma PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(test_vma PRIVATE "${CMAKE_SOURCE_DIR}")
-target_link_libraries(
-  test_vma revngcValueManipulationAnalysis revng::revngModel
-  revng::revngSupport Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_vma COMMAND test_vma)
-set_tests_properties(test_vma PROPERTIES LABELS "unit")
-
-#
 # dla_step_manager
 #
 
