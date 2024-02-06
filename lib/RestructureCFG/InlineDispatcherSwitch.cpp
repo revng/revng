@@ -180,10 +180,17 @@ static RecursiveCoroutine<ASTNode *> addToDispatcherSet(ASTTree &AST,
       if (RemoveSetNode) {
         rc_return InlinedBody;
       } else {
-        SequenceNode *Sequence = AST.addSequenceNode();
-        Sequence->addNode(InlinedBody);
-        Sequence->addNode(Set);
-        rc_return Sequence;
+        if (InlinedBody) {
+          // If we are inlining the `InlinedBody` and preserving the `SetNode`,
+          // we need to create a new `SequenceNode` to group them together
+          SequenceNode *Sequence = AST.addSequenceNode();
+          Sequence->addNode(InlinedBody);
+          Sequence->addNode(Set);
+          rc_return Sequence;
+        } else {
+          // We don't have to inline anything, and we preserve the `SetNode`
+          rc_return Set;
+        }
       }
     }
   } break;
