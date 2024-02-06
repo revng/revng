@@ -1647,7 +1647,7 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
     // the size of the loaded value
     revng_assert(Load->getType()->isIntOrPtrTy());
     const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
-    auto PointeeSize = DL.getTypeAllocSize(Load->getType());
+    auto PointeeSize = DL.getTypeStoreSize(Load->getType());
 
     model::QualifiedType QPointee;
     auto *PtrOp = Load->getPointerOperand();
@@ -1680,7 +1680,7 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
 
       revng_assert(Stored->getType()->isIntOrPtrTy());
       const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
-      unsigned long PointeeSize = DL.getTypeAllocSize(Stored->getType());
+      unsigned long PointeeSize = DL.getTypeStoreSize(Stored->getType());
 
       model::TypePath
         Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,

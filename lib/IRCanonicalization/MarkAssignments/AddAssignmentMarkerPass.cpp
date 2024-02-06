@@ -170,7 +170,7 @@ bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
       model::QualifiedType VariableType = TypeMap.at(I);
       const llvm::DataLayout &DL = I->getModule()->getDataLayout();
       auto ModelSize = VariableType.size().value();
-      auto IRSize = DL.getTypeAllocSize(IType);
+      auto IRSize = DL.getTypeStoreSize(IType);
       if (ModelSize < IRSize) {
         revng_assert(IType->isPointerTy());
         using model::Architecture::getPointerSize;
