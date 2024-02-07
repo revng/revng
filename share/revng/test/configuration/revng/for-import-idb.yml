@@ -7,5 +7,5 @@ commands:
     from:
       - type: revng-qa.idb
     command: |-
-      revng model import idb $INPUT
+      revng model import idb "$INPUT"
         | revng model compare "${SOURCE}.model.yml"

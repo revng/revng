@@ -3,6 +3,24 @@
 #
 
 commands:
+  #
+  # End-to-end translation of executables
+  #
+  - type: revng.translated
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-runtime and for-comparison
+    command: |-
+      revng artifact
+        --analyses-list=revng-initial-auto-analysis
+        recompile-isolated
+        "$INPUT"
+        -o "$OUTPUT";
+      chmod +x "$OUTPUT"
+
+  #
+  # Run original executables with QEMU
+  #
   - type: revng.qemu-run
     from:
       - type: revng-qa.compiled-with-debug-info
@@ -12,28 +30,10 @@ commands:
       ( grep RUN $SOURCE || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
           qemu-$QEMU_NAME $INPUT $$ARGUMENTS > $OUTPUT/$$NAME.stdout || true;
       done
-  - type: revng.runtime-abi-tests
-    from:
-      - type: revng-qa.runtime-abi-tests
-        filter: "!x86-64 and !i386"
-    suffix: .stdout.yml
-    command: qemu-$QEMU_NAME ${INPUT}/probe-calls ${INPUT}/foreign-executable > $OUTPUT
-  # Because of the limitations of our (outdated) version of QEMU, we are unable to use signals
-  # for x86-64 and i386 architectures. So, for now, run them natively. Once we update QEMU,
-  # both `revng.runtime-abi-tests` can be merged into one.
-  - type: revng.runtime-abi-tests
-    from:
-      - type: revng-qa.runtime-abi-tests
-        filter: x86-64 or i386
-    suffix: .stdout.yml
-    command: ${INPUT}/probe-calls ${INPUT}/foreign-executable > $OUTPUT
-  - type: revng.translated
-    from:
-      - type: revng-qa.compiled-with-debug-info
-        filter: for-runtime and for-comparison
-    command: |-
-      revng translate -i "$INPUT" -o "$OUTPUT";
-      chmod +x "$OUTPUT"
+
+  #
+  # Run translated executables
+  #
   - type: revng.translated-run
     from:
       - type: revng.translated
@@ -43,6 +43,10 @@ commands:
       ( grep RUN $SOURCE || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
         $INPUT $$ARGUMENTS 2>/dev/null > $OUTPUT/$$NAME.stdout || true;
       done
+
+  #
+  # Compare QEMU and translated executables runs
+  #
   - type: revng.diff-runs
     from:
       - type: revng.qemu-run
