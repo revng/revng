@@ -7,6 +7,10 @@
 
 #include <cstdlib>
 
+#define BOOST_TEST_MODULE Clift
+bool init_unit_test();
+#include "boost/test/unit_test.hpp"
+
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
@@ -14,13 +18,11 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "revng/UnitTestHelpers/UnitTestHelpers.h"
+
 #include "revng-c/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOps.h"
-
-#define BOOST_TEST_MODULE Clift
-bool init_unit_test();
-#include "boost/test/unit_test.hpp"
 
 class CliftTest {
 public:
