@@ -1,0 +1,18 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+commands:
+  #
+  # Make revng-daemon produce all the artifacts
+  #
+  - type: revng-c.test-daemon-all-artifacts
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      TMP="$$(temp)";
+      if ! revng graphql --analyses-list=revng-initial-auto-analysis --analyses-list=revng-c-initial-auto-analysis --produce-artifacts --filter-artifacts=revng-c "$INPUT" &> "$$TMP"; then
+        cat "$$TMP";
+        exit 1;
+      fi;
