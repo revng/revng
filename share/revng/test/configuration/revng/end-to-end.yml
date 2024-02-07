@@ -1,0 +1,103 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  #
+  # Run revng's initial autoanalysis
+  #
+  - type: revng.analyzed-model
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+    suffix: .yml
+    command: revng analyze revng-initial-auto-analysis "$INPUT" -o "$OUTPUT"
+
+  #
+  # Perform lifting
+  #
+  - type: revng.lifted
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.analyzed-model
+    suffix: /
+    command: revng artifact --resume "$OUTPUT" lift "$INPUT1" --model "$INPUT2" -o /dev/null
+
+  #
+  # Produce enforce-abi artifact from revng.lifted
+  #
+  - type: revng.enforce-abi
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.lifted
+    suffix: /
+    command: |-
+      cp -Tar "$INPUT2" "$OUTPUT";
+      revng artifact --resume "$OUTPUT" enforce-abi "$INPUT1" -o /dev/null;
+
+  #
+  # Produce hexdump artifact from revng.lifted
+  #
+  - type: revng.hexdump
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.lifted
+    suffix: /
+    command: |-
+      cp -Tar "$INPUT2" "$OUTPUT";
+      revng artifact --resume "$OUTPUT" hexdump "$INPUT1" -o /dev/null;
+
+  #
+  # Produce render-svg-call-graph artifact from revng.lifted
+  #
+  - type: revng.render-svg-call-graph
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.lifted
+    suffix: /
+    command: |-
+      cp -Tar "$INPUT2" "$OUTPUT";
+      revng artifact --resume "$OUTPUT" render-svg-call-graph "$INPUT1" -o /dev/null;
+
+  #
+  # Produce render-svg-call-graph-slice artifact from revng.lifted
+  #
+  - type: revng.render-svg-call-graph-slice
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.lifted
+    suffix: /
+    command: |-
+      cp -Tar "$INPUT2" "$OUTPUT";
+      revng artifact --resume "$OUTPUT" render-svg-call-graph-slice "$INPUT1" -o /dev/null;
+
+  #
+  # Produce disassemble artifact from revng.lifted
+  #
+  - type: revng.disassemble
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.lifted
+    suffix: /
+    command: |-
+      cp -Tar "$INPUT2" "$OUTPUT";
+      revng artifact --resume "$OUTPUT" disassemble "$INPUT1" -o /dev/null;
+
+  #
+  # Produce render-svg-cfg artifact from revng.lifted
+  #
+  - type: revng.render-svg-cfg
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.lifted
+    suffix: /
+    command: |-
+      cp -Tar "$INPUT2" "$OUTPUT";
+      revng artifact --resume "$OUTPUT" render-svg-cfg "$INPUT1" -o /dev/null;

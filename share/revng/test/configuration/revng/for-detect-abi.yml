@@ -5,9 +5,11 @@
 command:
   - type: revng.test-detect-abi
     from:
-      - type: revng.lifted
+      - type: revng-qa.compiled-stripped
         filter: for-detect-abi
     command: |-
-      revng opt --abi-enforcement-level=no --detect-abi "$INPUT"
-        | revng model dump
-        | revng model compare "${SOURCE}.model.yml"
+      revng analyze
+        --abi-enforcement-level=no
+        revng-initial-auto-analysis
+        "${INPUT}" |
+        revng model compare "${SOURCE}.model.yml"
