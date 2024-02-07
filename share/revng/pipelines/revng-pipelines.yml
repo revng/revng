@@ -27,6 +27,8 @@ Containers:
     Type: call-graph-slice-svg
   - Name: cfg.svg.tar.gz
     Type: function-control-flow-graph-svg
+  - Name: cfg.yml
+    Type: cfg
 Branches:
   - Steps:
       - Name: initial
@@ -192,6 +194,16 @@ Branches:
           Container: output
           Kind: translated
           SingleTargetFilename: isolated-translated-binary
+  - From: isolate
+    Steps:
+      - Name: emit-cfg
+        Pipes:
+          - Type: emit-cfg
+            UsedContainers: [module.ll, cfg.yml]
+        Artifacts:
+          Container: cfg.yml
+          Kind: cfg
+          SingleTargetFilename: cfg.yml
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
