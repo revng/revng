@@ -34,6 +34,8 @@ inline pipeline::SingleElementKind Object("object", ranks::Binary, {}, {});
 inline pipeline::SingleElementKind
   Translated("translated", ranks::Binary, {}, {});
 
+inline pipeline::SingleElementKind CFG("cfg", ranks::Binary, {}, {});
+
 inline FunctionKind FunctionAssemblyInternal("function-assembly-internal",
                                              ranks::Function,
                                              {},

@@ -4,7 +4,6 @@
 
 ---
 - OriginalName: __start
-  Attributes: []
   FunctionMetadata:
     ControlFlowGraph:
       - Successors:
@@ -29,7 +28,6 @@
           - Destination: :Invalid
             Type: LongJmp
 - OriginalName: function
-  Attributes: []
   FunctionMetadata:
     ControlFlowGraph:
       - Successors:
