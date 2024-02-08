@@ -16,7 +16,7 @@ add_custom_target(
   DEPENDS "${CMAKE_BINARY_DIR}/node_build/node_modules/.package-lock.json"
           "${CMAKE_BINARY_DIR}/node_build/package.json")
 
-# Model package generation
+# Typescript package generation
 function(typescript_module)
   set(options)
   set(oneValueArgs TARGET_NAME)
@@ -28,7 +28,7 @@ function(typescript_module)
   add_custom_command(
     OUTPUT
       "${CMAKE_BINARY_DIR}/${TARGET_NAME}.ts.tgz"
-      "${CMAKE_BINARY_DIR}/lib/node_modules/revng-model/dist/${TARGET_NAME}.js"
+      "${CMAKE_BINARY_DIR}/lib/node_modules/revng-${TARGET_NAME}/dist/${TARGET_NAME}.js"
     COMMAND
       "${CMAKE_CURRENT_SOURCE_DIR}/build-tupletree.sh"
       "${CMAKE_CURRENT_SOURCE_DIR}"
