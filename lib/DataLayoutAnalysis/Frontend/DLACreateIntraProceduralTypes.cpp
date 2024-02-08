@@ -39,7 +39,6 @@ using namespace llvm;
 using namespace model::Architecture;
 
 using LayoutTypeSystemNode = dla::LayoutTypeSystemNode;
-using SCEVTypeMekerMap = std::map<const SCEV *, uint64_t>;
 using SCEVTypeMap = SCEVBaseAddressExplorer::SCEVTypeMap;
 
 static int64_t getSCEVConstantSExtVal(const SCEV *S) {

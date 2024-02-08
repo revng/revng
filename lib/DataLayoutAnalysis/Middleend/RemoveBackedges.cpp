@@ -100,9 +100,6 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
   // and cut them.
   llvm::EquivalenceClasses<const LTSN *> Components;
   {
-    // Depth first visit across SCCNodeView edges.
-    llvm::df_iterator_default_set<const LTSN *, 16> Visited;
-
     revng_log(Log, "Detect components");
     for (const LTSN *N : llvm::nodes(&TS)) {
       revng_assert(N != nullptr);
