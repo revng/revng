@@ -60,7 +60,6 @@ ScalarTypes:
   - Size: 2
   - Size: 4
   - Size: 8
-  - Size: 16
 
 FloatingPointScalarTypes:
   - Size: 2
