@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <string>
 #include <utility>
 
 #include "llvm/ADT/PostOrderIterator.h"
@@ -21,6 +22,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
@@ -395,48 +397,116 @@ static bool updatePrototype(model::Binary &Model,
   return Updated;
 }
 
-static void fillStructWithRecoveredDLAType(model::Binary &Model,
-                                           model::Type *OriginalType,
-                                           model::QualifiedType RecoveredType,
-                                           uint64_t OriginalStructSize,
-                                           uint64_t RecoveredStructSize) {
-  revng_assert(isa<model::StructType>(OriginalType));
-  revng_assert(RecoveredStructSize > 0
-               and RecoveredStructSize < std::numeric_limits<int64_t>::max());
+static RecursiveCoroutine<void>
+fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
+                                       model::StructType *OriginalStruct,
+                                       model::QualifiedType RecoveredType,
+                                       uint64_t Offset = 0ULL) {
+  uint64_t RecoveredSize = RecoveredType.size().value_or(0ULL);
+  revng_assert(RecoveredSize > 0);
 
-  auto *OriginalStructType = cast<model::StructType>(OriginalType);
-  bool IsPointerOrArray = RecoveredType.isArray() || RecoveredType.isPointer();
+  uint64_t OriginalStructSize = OriginalStruct->size().value_or(0ULL);
+  revng_assert(OriginalStructSize > 0);
+
+  bool IsPointerOrArray = RecoveredType.isArray() or RecoveredType.isPointer();
   auto *RecoveredUnqualType = RecoveredType.UnqualifiedType().get();
 
   if (IsPointerOrArray or isa<model::PrimitiveType>(RecoveredUnqualType)
       or isa<model::EnumType>(RecoveredUnqualType)) {
-    revng_assert(RecoveredStructSize <= OriginalStructSize);
 
-    // If OriginalStructType is an empty struct, just add the new stack type
-    // as the first field, otherwise leave it alone.
-    if (OriginalStructType->Fields().empty()) {
-      OriginalStructType->Fields()[0].Type() = RecoveredType;
-      return;
+    revng_assert(RecoveredSize + Offset <= OriginalStructSize);
+
+    auto &OriginalFields = OriginalStruct->Fields();
+    auto OriginalFieldsBegin = OriginalFields.begin();
+    auto OriginalFieldsEnd = OriginalFields.end();
+
+    auto FieldAtHigherOffsetIt = OriginalFields.upper_bound(Offset);
+    if (FieldAtHigherOffsetIt != OriginalFieldsEnd) {
+      uint64_t HigherOffset = FieldAtHigherOffsetIt->Offset();
+      revng_assert(HigherOffset > Offset);
+      // If the RecoveredType ends after the *FieldAtHigherOffsetIt starts, they
+      // overlap, so we have to bail out.
+      if (Offset + RecoveredSize > HigherOffset)
+        rc_return;
+
+      // Otherwise we can inject RecoveredType directly in OriginalStruct at
+      // Offset. For that we don't need to change neither NewOffset, nor
+      // TargetOriginalFieldIt.
     }
 
-    auto FirstFieldIt = OriginalStructType->Fields().begin();
-    model::StructField &First = *FirstFieldIt;
-    // If there is already a field at offset 0, bail out
-    if (First.Offset() == 0)
-      return;
+    auto FieldAtGTEOffsetIt = FieldAtHigherOffsetIt == OriginalFieldsBegin ?
+                                OriginalFieldsEnd :
+                                --FieldAtHigherOffsetIt;
 
-    // If the first original field is at an offset larger than 0, and the
-    // RecoveredType fits, inject it as field at offset 0
-    if (First.Offset() >= RecoveredStructSize)
-      OriginalStructType->Fields()[0].Type() = RecoveredType;
+    auto TargetOriginalFieldIt = OriginalFieldsEnd;
+    uint64_t NewOffset = Offset;
 
-    return;
+    // If there is a field in OriginalStruct at lower offset than Offset, we
+    // have to see if RecoveredType fits entirely into it, partially overlaps,
+    // or is entirely past the end.
+    if (FieldAtGTEOffsetIt != OriginalFieldsEnd) {
 
-  } else if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
+      uint64_t LowerOffset = FieldAtGTEOffsetIt->Offset();
+      revng_assert(Offset >= LowerOffset);
 
-    auto OriginalFieldsIt = OriginalStructType->Fields().begin();
-    auto OriginalFieldsEnd = OriginalStructType->Fields().end();
-    ;
+      model::QualifiedType TypeAtLowerOffset = FieldAtGTEOffsetIt->Type();
+      uint64_t FieldAtLowerOffsetSize = *TypeAtLowerOffset.size();
+
+      if (Offset < LowerOffset + FieldAtLowerOffsetSize) {
+        // Here RecoveredType starts inside *FieldAtGTEOffsetIt.
+        // If RecoveredType ends after the end of *FieldAtGTEOffsetIt we bail
+        // out, because we can't do anything sensible.
+        if (Offset + RecoveredSize > LowerOffset + FieldAtLowerOffsetSize)
+          rc_return;
+
+        // Otherwise we have found a candidate target field. If the candidate
+        // target field is a struct, we can compute the NewOffset, otherwise we
+        // bail out, because if it's not a StructType we cannot inject anything.
+        if (not TypeAtLowerOffset.is(model::TypeKind::StructType))
+          rc_return;
+
+        TargetOriginalFieldIt = FieldAtGTEOffsetIt;
+        NewOffset -= LowerOffset;
+      }
+    }
+
+    // If we reach this point without bailing out it means that we can inject
+    // the field somewhere, either in OriginalStruct or in
+    // *TargetOriginalFieldIt.
+
+    // If we haven't found TargetOriginalFieldIt it means that the RecoveredType
+    // can be injected directly as a field in OriginalStruct at Offset.
+    if (TargetOriginalFieldIt == OriginalFieldsEnd) {
+      revng_assert(Offset == NewOffset);
+      OriginalStruct->Fields()[Offset].Type() = RecoveredType;
+      rc_return;
+    }
+
+    // Otherwise we have to insert RecoveredType in *TargetOriginalFieldIt at
+    // NewOffset.
+    model::QualifiedType OriginalFieldType = TargetOriginalFieldIt->Type();
+    model::Type *TargetFieldType = peelConstAndTypedefs(OriginalFieldType)
+                                     .UnqualifiedType()
+                                     .get();
+    auto *TargetFieldStruct = cast<model::StructType>(TargetFieldType);
+
+    uint64_t OldFieldSize = *TargetFieldStruct->size();
+    rc_recur fillStructWithRecoveredDLATypeAtOffset(Model,
+                                                    TargetFieldStruct,
+                                                    RecoveredType,
+                                                    NewOffset);
+
+    revng_log(Log, "Updated field StructType: " << TargetFieldStruct->ID());
+    revng_assert(*TargetFieldStruct->size() == OldFieldSize);
+    revng_assert(TargetFieldStruct->verify());
+
+    rc_return;
+  }
+
+  if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
+
+    auto OriginalFieldsIt = OriginalStruct->Fields().begin();
+    auto OriginalFieldsEnd = OriginalStruct->Fields().end();
     auto NewFieldsIt = NewS->Fields().begin();
     auto NewFieldsEnd = NewS->Fields().end();
 
@@ -451,7 +521,8 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
 
       // If a fields ends after the end it's not compatible, nor is any of the
       // following fields.
-      uint64_t NewEnd = NewFieldsIt->Offset() + *NewFieldsIt->Type().size();
+      model::QualifiedType &NewFieldType = NewFieldsIt->Type();
+      uint64_t NewEnd = NewFieldsIt->Offset() + *NewFieldType.size();
       revng_assert(NewStart < NewEnd);
       if (NewEnd > OriginalStructSize)
         break;
@@ -490,24 +561,47 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
         continue;
       }
 
-      // If we reach this point, the new field is definitely overlapping, so we
-      // are sure that the new field is incompatible, and we can skip to the
-      // next new field to check its compatibility.
+      // If we reach this point, the new field is definitely overlapping.
+      // Overlapping doesn't necessarily means incompatible though: the new
+      // field might fall entirely inside one of the existing original fields.
+      // If that's the case, and the original field has a struct type, we recur.
+      if (OriginalStart <= NewStart and NewEnd <= OriginalEnd) {
+        model::QualifiedType &OriginalFieldType = OriginalFieldsIt->Type();
+
+        if (OriginalFieldType.is(model::TypeKind::StructType)) {
+
+          model::Type *TargetFieldType = peelConstAndTypedefs(OriginalFieldType)
+                                           .UnqualifiedType()
+                                           .get();
+          auto *OldFieldStruct = cast<model::StructType>(TargetFieldType);
+
+          uint64_t OldFieldSize = *OldFieldStruct->size();
+          rc_recur fillStructWithRecoveredDLATypeAtOffset(Model,
+                                                          OldFieldStruct,
+                                                          NewFieldType,
+                                                          NewStart
+                                                            - OriginalStart);
+
+          revng_log(Log, "Updated field StructType: " << OldFieldStruct->ID());
+          revng_assert(*OldFieldStruct->size() == OldFieldSize);
+          revng_assert(OldFieldStruct->verify());
+        }
+      }
       ++NewFieldsIt;
     }
 
     for (model::StructField *NewField : CompatibleFields)
-      OriginalStructType->Fields().insert(*NewField);
+      OriginalStruct->Fields().insert(*NewField);
 
   } else if (auto *NewU = dyn_cast<model::UnionType>(RecoveredUnqualType)) {
-    // If OriginalStructType is an not an empty struct, just leave it alone.
-    if (not OriginalStructType->Fields().empty())
-      return;
+    // If OriginalStruct is an not an empty struct, just leave it alone.
+    if (not OriginalStruct->Fields().empty())
+      rc_return;
 
     // If DLA recoverd an union kind, whose size is too large, we have to
     // shrink it, like we did with a struct kind.
     auto FieldsRemaining = NewU->Fields().size();
-    if (RecoveredStructSize > OriginalStructSize) {
+    if (RecoveredSize > OriginalStructSize) {
 
       const auto IsTooLarge =
         [OriginalStructSize](const model::UnionField &Field) {
@@ -550,9 +644,9 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     }
 
     // If there are fields left in the union, then inject the union in the
-    // struct as field at offset 0.
+    // struct as field at Offset.
     if (FieldsRemaining) {
-      OriginalStructType->Fields()[0]
+      OriginalStruct->Fields()[Offset]
         .Type() = model::QualifiedType(Model.getTypePath(NewU), {});
     }
   } else {
@@ -590,25 +684,21 @@ static bool updateStackFrameType(model::Function &ModelFunc,
 
     revng_log(Log, "Updating stack for " << LLVMFunc.getName());
     LoggerIndent Indent{ Log };
-    revng_log(Log, "Was " << OldModelStackFrameType->ID());
+    revng_log(Log, "Was " << OldStackFrameStruct->ID());
 
     LayoutTypePtr Key{ Call, LayoutTypePtr::fieldNumNone };
 
     if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
-      model::QualifiedType NewStackType = NewTypeIt->second;
-      NewStackType = peelConstAndTypedefs(NewStackType);
+      model::QualifiedType NewStack = peelConstAndTypedefs(NewTypeIt->second);
 
-      auto NewStackSize = *NewStackType.size();
       uint64_t OldStackSize = *OldStackFrameStruct->size();
+      fillStructWithRecoveredDLATypeAtOffset(Model,
+                                             OldStackFrameStruct,
+                                             NewStack);
 
-      fillStructWithRecoveredDLAType(Model,
-                                     OldModelStackFrameType,
-                                     NewStackType,
-                                     OldStackSize,
-                                     NewStackSize);
-
-      revng_log(Log, "Updated to " << ModelFunc.StackFrameType().get()->ID());
-
+      revng_log(Log,
+                "Updated stack frame StructType: "
+                  << ModelFunc.StackFrameType().get()->ID());
       revng_assert(isa<model::StructType>(ModelFunc.StackFrameType().get()));
       revng_assert(*ModelFunc.StackFrameType().get()->size() == OldStackSize);
       revng_assert(ModelFunc.StackFrameType().get()->verify());
@@ -690,16 +780,13 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
     if (auto TypeIt = TypeMap.find(Key); TypeIt != TypeMap.end()) {
       // Let's examine the recovered type by DLA.
       model::QualifiedType RecoveredSegmentType = TypeIt->second;
-      auto RecoveredSegmentTypeSize = *RecoveredSegmentType.size();
 
-      fillStructWithRecoveredDLAType(*Model,
-                                     SegmentStruct,
-                                     RecoveredSegmentType,
-                                     SegmentStructSize,
-                                     RecoveredSegmentTypeSize);
+      fillStructWithRecoveredDLATypeAtOffset(*Model,
+                                             SegmentStruct,
+                                             RecoveredSegmentType);
 
       auto *NewSegmentType = Segment.Type().get();
-      revng_log(Log, "Updated to " << NewSegmentType->ID());
+      revng_log(Log, "Updated segment StructType: " << NewSegmentType->ID());
       revng_assert(isa<model::StructType>(NewSegmentType));
       revng_assert(*NewSegmentType->size() == SegmentStructSize);
       revng_assert(NewSegmentType->verify());
