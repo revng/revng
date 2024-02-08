@@ -8,7 +8,7 @@ set -euo pipefail
 TEMP_FILE=$(mktemp --tmpdir --suffix=.tar.gz tmp.revng.GzipTarFileGeneratorTest.XXXXXXXXXX)
 trap 'rm -f -- "$TEMP_FILE"' EXIT
 
-"$1/test_GzipTarFileGenerator" foo foo2 bar bar2 > "$TEMP_FILE"
+"$1/test_gzip_tar_fileGenerator" foo foo2 bar bar2 > "$TEMP_FILE"
 CONTENTS=$(tar -tf "$TEMP_FILE")
 
 [[ $(wc -l <<< "$CONTENTS") -eq 2 ]]
