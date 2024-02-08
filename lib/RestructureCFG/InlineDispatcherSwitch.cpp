@@ -151,14 +151,27 @@ static RecursiveCoroutine<ASTNode *> addToDispatcherSet(ASTTree &AST,
   case ASTNode::NK_Switch: {
     auto *Switch = llvm::cast<SwitchNode>(Node);
 
-    // First of all, we recursively process the `case` nodes contained in the
-    // `switch` in order to process the inner portion of the AST
-    for (auto &LabelCasePair : Switch->cases()) {
+    // Perform the inlining over all the cases
+    std::set<size_t> ToRemoveCaseIndex;
+    for (auto &Group : llvm::enumerate(Switch->cases())) {
+      unsigned Index = Group.index();
+      auto &LabelCasePair = Group.value();
       LabelCasePair.second = rc_recur addToDispatcherSet(AST,
                                                          LabelCasePair.second,
                                                          InlinedBody,
                                                          InlinedSet,
                                                          RemoveSetNode);
+
+      if (LabelCasePair.second == nullptr) {
+        ToRemoveCaseIndex.insert(Index);
+      }
+    }
+
+    // The inlining step may remove the body of some case, in such situation we
+    // need to remove the case from the switch (leaving the `nullptr` breaks the
+    // semantics of the AST)
+    for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+      Switch->removeCaseN(ToRemoveCase);
     }
   } break;
   case ASTNode::NK_Set: {
