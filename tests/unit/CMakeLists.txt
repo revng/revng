@@ -30,33 +30,37 @@ target_link_libraries(
 add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
 
 #
-# dla_step_manager
+# test_dla_step_manager
 #
 
-revng_add_test_executable(dla_step_manager "${SRC}/DLAStepManager.cpp")
-target_compile_definitions(dla_step_manager PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(dla_step_manager PRIVATE "${CMAKE_SOURCE_DIR}"
-                                                    "${Boost_INCLUDE_DIRS}")
+revng_add_test_executable(test_dla_step_manager "${SRC}/DLAStepManager.cpp")
+target_compile_definitions(test_dla_step_manager
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(
+  test_dla_step_manager PRIVATE "${CMAKE_SOURCE_DIR}" "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
-  dla_step_manager
+  test_dla_step_manager
   revngcDataLayoutAnalysis
   revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME dla_step_manager COMMAND dla_step_manager)
+add_test(NAME test_dla_step_manager COMMAND test_dla_step_manager)
 
 #
-# MarkAssignmentsTest
+# test_mark_assignments_test
 #
 
-revng_add_test_executable(MarkAssignmentsTest "${SRC}/MarkAssignmentsTest.cpp")
-target_compile_definitions(MarkAssignmentsTest PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(MarkAssignmentsTest PRIVATE "${CMAKE_SOURCE_DIR}"
-                                                       "${Boost_INCLUDE_DIRS}")
+revng_add_test_executable(test_mark_assignments_test
+                          "${SRC}/MarkAssignmentsTest.cpp")
+target_compile_definitions(test_mark_assignments_test
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(
+  test_mark_assignments_test PRIVATE "${CMAKE_SOURCE_DIR}"
+                                     "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
-  MarkAssignmentsTest
+  test_mark_assignments_test
   revngcMarkAssignments
   revngcSupport
   revng::revngModel
@@ -64,34 +68,34 @@ target_link_libraries(
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME MarkAssignmentsTest COMMAND MarkAssignmentsTest)
+add_test(NAME test_mark_assignments_test COMMAND test_mark_assignments_test)
 
 #
-# DLASteps
+# test_dla_steps
 #
 
-revng_add_test_executable(dla_steps "${SRC}/DLASteps.cpp")
-target_compile_definitions(dla_steps PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(dla_steps PRIVATE "${CMAKE_SOURCE_DIR}"
-                                             "${Boost_INCLUDE_DIRS}")
+revng_add_test_executable(test_dla_steps "${SRC}/DLASteps.cpp")
+target_compile_definitions(test_dla_steps PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_dla_steps PRIVATE "${CMAKE_SOURCE_DIR}"
+                                                  "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
-  dla_steps
+  test_dla_steps
   revngcDataLayoutAnalysis
   revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME dla_steps COMMAND dla_steps)
+add_test(NAME test_dla_steps COMMAND test_dla_steps)
 
 #
-# Clift
+# test_clift
 #
 
-revng_add_test_executable(clitTest "${SRC}/Clift.cpp")
-target_compile_definitions(clitTest PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(clitTest PRIVATE "${CMAKE_SOURCE_DIR}"
-                                            "${Boost_INCLUDE_DIRS}")
-target_link_libraries(clitTest MLIRCliftDialect Boost::unit_test_framework
+revng_add_test_executable(test_clift "${SRC}/Clift.cpp")
+target_compile_definitions(test_clift PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_clift PRIVATE "${CMAKE_SOURCE_DIR}"
+                                              "${Boost_INCLUDE_DIRS}")
+target_link_libraries(test_clift MLIRCliftDialect Boost::unit_test_framework
                       revng::revngUnitTestHelpers ${LLVM_LIBRARIES})
-add_test(NAME clitTest COMMAND clitTest)
+add_test(NAME test_clift COMMAND test_clift)
