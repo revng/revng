@@ -34,13 +34,7 @@ void LinkForTranslation::run(const ExecutionContext &Ctx,
 void LinkForTranslation::print(const Context &Ctx,
                                llvm::raw_ostream &OS,
                                llvm::ArrayRef<std::string> Names) const {
-  // TODO: we should switch to invoke this *right before* the pipe is invoked
-  //       and use printLinkForTranslationCommands. We can't do this as of now,
-  //       since that function needs to read the input binary in order to
-  //       compose the list of commands to invoke.
-  OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " link-for-translation " << Names[0] << " model.yml " << Names[1]
-     << " -o=" << Names[2] << "\n";
+  OS << "(unavailable)\n";
 }
 
 static RegisterPipe<LinkForTranslation> E5;
