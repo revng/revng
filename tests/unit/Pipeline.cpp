@@ -51,11 +51,11 @@ using namespace pipeline;
 using namespace std;
 using namespace llvm;
 
-static auto Root = defineRootRank<"Root">();
-static auto FunctionRank = defineRank<"Function", std::string>(Root);
+static auto Root = defineRootRank<"root">();
+static auto FunctionRank = defineRank<"function", std::string>(Root);
 class RootKindType : public LLVMKind {
 public:
-  RootKindType() : LLVMKind("RootKind", Root) { revng_assert(depth() == 0); };
+  RootKindType() : LLVMKind("root-kind", Root) { revng_assert(depth() == 0); };
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
@@ -73,8 +73,8 @@ public:
 };
 
 static RootKindType RootKind;
-static SingleElementKind RootKind2("RootKind2", RootKind, Root, {}, {});
-static SingleElementKind RootKind3("RootKind3", Root, {}, {});
+static SingleElementKind RootKind2("root-kind-2", RootKind, Root, {}, {});
+static SingleElementKind RootKind3("root-kind-3", Root, {}, {});
 
 class SingleFunctionKind : public LLVMKind {
 public:
@@ -97,9 +97,9 @@ public:
 
   ~SingleFunctionKind() override {}
 };
-static SingleFunctionKind FunctionKind("FunctionKind", FunctionRank);
+static SingleFunctionKind FunctionKind("function-kind", FunctionRank);
 
-static std::string CName = "ContainerName";
+static std::string CName = "container-name";
 
 class MapContainer : public Container<MapContainer> {
 public:
@@ -211,7 +211,7 @@ BOOST_AUTO_TEST_CASE(ContainerIsa) {
   std::map<Target, int> Map;
   Map[ExampleTarget] = 1;
 
-  auto Ptr = make_unique<MapContainer>(std::move(Map), "dont_care");
+  auto Ptr = make_unique<MapContainer>(std::move(Map), "dont-care");
   ContainerBase *BasePtr = Ptr.get();
   BOOST_TEST(llvm::isa<MapContainer>(BasePtr));
   BOOST_TEST(llvm::cast<MapContainer>(BasePtr) != nullptr);
@@ -225,7 +225,7 @@ static ContainerFactory getMapFactoryContainer() {
 BOOST_AUTO_TEST_CASE(ContainersCanBeCreated) {
   ContainerSet Containers;
   auto Factory = getMapFactoryContainer();
-  Containers.add(CName, Factory, Factory("RandomName"));
+  Containers.add(CName, Factory, Factory("random-name"));
   BOOST_TEST(Containers.contains(CName));
   auto &Container = llvm::cast<MapContainer>(Containers[CName]);
   Container.get(ExampleTarget) = 1;
@@ -235,7 +235,7 @@ BOOST_AUTO_TEST_CASE(ContainersCanBeCreated) {
 class TestPipe {
 
 public:
-  static constexpr auto Name = "TestPipe";
+  static constexpr auto Name = "test";
 
   std::vector<ContractGroup> getContract() const {
     return {
@@ -250,7 +250,6 @@ public:
     auto SrcCopy = Source;
     for (const auto &Element : SrcCopy.getMap())
       if (&Element.first.getKind() == &RootKind) {
-        llvm::outs() << "Invoked\n";
         pipeline::Target NewTar(RootKind2);
         NewTar.dump();
         Target.get(NewTar) = Element.second;
@@ -264,7 +263,7 @@ BOOST_AUTO_TEST_CASE(PipeCanBeWrapper) {
   Context Ctx;
   Step FakeStep(Ctx, "dc", "", {});
   ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
-  MapContainer Map("RandomName");
+  MapContainer Map("random-name");
   Map.get({ {}, RootKind }) = 1;
   TestPipe Enf;
   Enf.run(ExecutionCtx, Map, Map);
@@ -456,9 +455,9 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
 
   ContainerSet Containers;
   auto Factory = getMapFactoryContainer();
-  Containers.add(CName, Factory, Factory("dont_care"));
+  Containers.add(CName, Factory, Factory("dont-care"));
   Step Step(Ctx,
-            "first_step",
+            "first-step",
             "",
             std::move(Containers),
             PipeWrapper::bind<TestPipe>(CName, CName));
@@ -468,7 +467,7 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
 
   Containers = ContainerSet();
   auto Factory2 = getMapFactoryContainer();
-  Containers.add(CName, Factory, Factory("dont_care"));
+  Containers.add(CName, Factory, Factory("dont-care"));
   cast<MapContainer>(Containers[CName]).get(Target({}, RootKind)) = 1;
   auto Result = Step.run(std::move(Containers));
 
@@ -483,7 +482,7 @@ BOOST_AUTO_TEST_CASE(PipelineCanBeManuallyExectued) {
   Context Ctx;
   Runner Pip(Ctx);
   Pip.addStep(Step(Ctx,
-                   "first_step",
+                   "first-step",
                    "",
                    Registry.createEmpty(),
                    PipeWrapper::bind<TestPipe>(CName, CName)));
@@ -492,9 +491,9 @@ BOOST_AUTO_TEST_CASE(PipelineCanBeManuallyExectued) {
   auto &C1 = Containers.getOrCreate<MapContainer>(CName);
   C1.get(Target(RootKind)) = 1;
 
-  auto Res = Pip["first_step"].run(std::move(Containers));
+  auto Res = Pip["first-step"].run(std::move(Containers));
   BOOST_TEST(cast<MapContainer>(Res.at(CName)).get(Target(RootKind2)) == 1);
-  const auto &StartingContainer = Pip["first_step"]
+  const auto &StartingContainer = Pip["first-step"]
                                     .containers()
                                     .getOrCreate<MapContainer>(CName);
   auto Val = StartingContainer.get(Target(RootKind2));
@@ -507,36 +506,36 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineCanBeRunned) {
 
   ContainerSet Content;
   auto Factory = getMapFactoryContainer();
-  Content.add(CName, Factory, Factory("dont_care"));
+  Content.add(CName, Factory, Factory("dont-care"));
   auto &C1 = cast<MapContainer>(Content[CName]);
   C1.get(Target(RootKind)) = 1;
 
-  Step StepToAdd(Ctx, "first_step", "", std::move(Content));
+  Step StepToAdd(Ctx, "first-step", "", std::move(Content));
   Pip.addStep(std::move(StepToAdd));
-  ContainerSet &BCI = Pip["first_step"].containers();
+  ContainerSet &BCI = Pip["first-step"].containers();
   BOOST_TEST(cast<MapContainer>(BCI.at(CName)).get(Target(RootKind)) == 1);
 
   ContainerSet Containers2;
-  Containers2.add(CName, Factory, make_unique<MapContainer>("dont_care"));
+  Containers2.add(CName, Factory, make_unique<MapContainer>("dont-care"));
   Pip.addStep(Step(Ctx,
-                   "End",
+                   "end",
                    "",
                    std::move(Containers2),
-                   Pip["first_step"],
+                   Pip["first-step"],
                    PipeWrapper::bind<TestPipe>(CName, CName)));
 
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target(RootKind2));
-  auto Error = Pip.run("End", Targets);
+  auto Error = Pip.run("end", Targets);
   BOOST_TEST(!Error);
-  ContainerSet &BC = Pip["End"].containers();
+  ContainerSet &BC = Pip["end"].containers();
   BOOST_TEST(cast<MapContainer>(BC.at(CName)).get(Target(RootKind2)) == 1);
 }
 
-class FineGranerPipe {
+class FineGrainPipe {
 
 public:
-  static constexpr auto Name = "FinedGranedPipe";
+  static constexpr auto Name = "fine-grain";
   std::vector<ContractGroup> getContract() const {
     return {
       ContractGroup(RootKind, 0, FunctionKind, 1, InputPreservation::Preserve)
@@ -564,7 +563,7 @@ public:
 class CopyPipe {
 
 public:
-  static constexpr auto Name = "CopyPipe";
+  static constexpr auto Name = "copy";
   std::vector<ContractGroup> getContract() const {
     return { ContractGroup(FunctionKind,
                            0,
@@ -586,12 +585,12 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineBackwardFinedGrained) {
   Runner Pipeline(Ctx);
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
-  const std::string Name = "first_step";
+  const std::string Name = "first-step";
   Pipeline.emplaceStep("", Name, "");
   Pipeline.emplaceStep(Name,
-                       "End",
+                       "end",
                        "",
-                       PipeWrapper::bind<FineGranerPipe>(CName, CName));
+                       PipeWrapper::bind<FineGrainPipe>(CName, CName));
 
   auto &Container(Pipeline[Name].containers().getOrCreate<MapContainer>(CName));
   Container.get(Target(RootKind)) = 1;
@@ -599,9 +598,9 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineBackwardFinedGrained) {
   ContainerToTargetsMap Targets;
   Targets.add(CName, { "f1" }, FunctionKind);
 
-  auto Error = Pipeline.run("End", Targets);
+  auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
-  auto &FinalContainer = Pipeline["End"].containers().get<MapContainer>(CName);
+  auto &FinalContainer = Pipeline["end"].containers().get<MapContainer>(CName);
   Target FinalTarget({ "f1" }, FunctionKind);
   auto Val = FinalContainer.get(FinalTarget);
 
@@ -609,7 +608,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineBackwardFinedGrained) {
 }
 
 BOOST_AUTO_TEST_CASE(DifferentNamesAreNotCompatible) {
-  Target Target1({ "f1Wrong" }, FunctionKind);
+  Target Target1({ "f1-wrong" }, FunctionKind);
   Target Target2({ "f1" }, FunctionKind);
 
   BOOST_TEST((Target1 != Target2));
@@ -617,7 +616,7 @@ BOOST_AUTO_TEST_CASE(DifferentNamesAreNotCompatible) {
 }
 
 BOOST_AUTO_TEST_CASE(DifferentNamesRootOnlyAreNotCompatibleSet) {
-  Target Target1({ "f1Wrong" }, FunctionKind);
+  Target Target1({ "f1-wrong" }, FunctionKind);
   Target Target2({ "f1" }, FunctionKind);
   TargetsList TargetList;
   TargetList.push_back(Target1);
@@ -631,12 +630,12 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineFailure) {
   Runner Pipeline(Ctx);
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
-  const std::string Name = "first_step";
+  const std::string Name = "first-step";
   Pipeline.emplaceStep("",
                        Name,
                        "",
-                       PipeWrapper::bind<FineGranerPipe>(CName, CName));
-  Pipeline.emplaceStep(Name, "End", "");
+                       PipeWrapper::bind<FineGrainPipe>(CName, CName));
+  Pipeline.emplaceStep(Name, "end", "");
 
   auto &Container(Pipeline[Name].containers().getOrCreate<MapContainer>(CName));
   Container.get(Target(RootKind)) = 1;
@@ -644,7 +643,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineFailure) {
   ContainerToTargetsMap Targets;
   Targets.add(CName, {}, RootKind2);
 
-  auto Error = Pipeline.run("End", Targets);
+  auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!!Error);
   consumeError(std::move(Error));
 }
@@ -683,10 +682,10 @@ struct IdentityPass : public llvm::ModulePass {
 
 char IdentityPass::ID = '_';
 
-static llvm::RegisterPass<IdentityPass> X2("IdentityPass", "IdentityPass");
+static llvm::RegisterPass<IdentityPass> X2("identity-pass", "identity-pass");
 
 struct LLVMPassFunctionCreator {
-  static constexpr auto Name = "Function Creator";
+  static constexpr auto Name = "function-creator";
 
   std::vector<ContractGroup> getContract() const {
     return { ContractGroup(RootKind, 0, FunctionKind) };
@@ -698,7 +697,7 @@ struct LLVMPassFunctionCreator {
 };
 
 struct LLVMPassFunctionIdentity {
-  static constexpr auto Name = "Identity";
+  static constexpr auto Name = "identity";
 
   std::vector<ContractGroup> getContract() const {
     return { ContractGroup(FunctionKind) };
@@ -718,11 +717,11 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
                                ContainerFactory::fromGlobal<LLVMContainer>(&Ctx,
                                                                            &C));
 
-  const std::string Name = "first_step";
+  const std::string Name = "first-step";
   Pipeline.emplaceStep("", Name, "");
   Pipeline
     .emplaceStep(Name,
-                 "End",
+                 "end",
                  "",
                  LLVMContainer::wrapLLVMPasses(CName,
                                                LLVMPassFunctionCreator(),
@@ -734,10 +733,10 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
   ContainerToTargetsMap Targets;
   Targets.add(CName, Target({ "f1" }, FunctionKind));
 
-  auto Error = Pipeline.run("End", Targets);
+  auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
 
-  const auto &Final = Pipeline["End"].containers().get<LLVMContainer>(CName);
+  const auto &Final = Pipeline["end"].containers().get<LLVMContainer>(CName);
   const auto *F = Final.getModule().getFunction("f1");
 
   BOOST_TEST(F != nullptr);
@@ -752,11 +751,11 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
                                ContainerFactory::fromGlobal<LLVMContainer>(&Ctx,
                                                                            &C));
 
-  const std::string Name = "first_step";
-  PureLLVMPassWrapper IdentityPass("IdentityPass");
+  const std::string Name = "first-_step";
+  PureLLVMPassWrapper IdentityPass("identity-pass");
   Pipeline.emplaceStep("", Name, "");
   Pipeline.emplaceStep(Name,
-                       "End",
+                       "end",
                        "",
                        LLVMContainer::wrapLLVMPasses(CName,
                                                      LLVMPassFunctionCreator(),
@@ -768,10 +767,10 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
   ContainerToTargetsMap Targets;
   Targets.add(CName, Target({ "f1" }, FunctionKind));
 
-  auto Error = Pipeline.run("End", Targets);
+  auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
 
-  const auto &Final = Pipeline["End"].containers().get<LLVMContainer>(CName);
+  const auto &Final = Pipeline["end"].containers().get<LLVMContainer>(CName);
   const auto *F = Final.getModule().getFunction("f1");
 
   BOOST_TEST(F != nullptr);
@@ -782,16 +781,16 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   Runner Pipeline(Ctx);
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
-  const std::string Name = "first_step";
+  const std::string Name = "first-step";
   Pipeline.emplaceStep("", Name, "");
   Pipeline.emplaceStep(Name,
-                       "End",
+                       "end",
                        "",
-                       PipeWrapper::bind<FineGranerPipe>(CName, CName));
+                       PipeWrapper::bind<FineGrainPipe>(CName, CName));
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({}, RootKind)) = 1;
-  auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
+  auto &C2 = Pipeline["end"].containers().getOrCreate<MapContainer>(CName);
 
   const auto T = Target({ "f1" }, FunctionKind);
   const auto T2 = Target({ "f2" }, FunctionKind);
@@ -804,7 +803,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   auto Error = Pipeline.getInvalidations(Invalidations);
   BOOST_TEST(!Error);
 
-  const auto &EndContainerInvalidations = Invalidations["End"][CName];
+  const auto &EndContainerInvalidations = Invalidations["end"][CName];
   BOOST_TEST(not EndContainerInvalidations.empty());
   BOOST_TEST((EndContainerInvalidations == TargetsList({ T, T2 })));
 }
@@ -814,16 +813,16 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   Runner Pipeline(Ctx);
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
-  const std::string Name = "first_step";
+  const std::string Name = "first-step";
   Pipeline.emplaceStep("", Name, "");
   Pipeline.emplaceStep(Name,
-                       "End",
+                       "end",
                        "",
-                       PipeWrapper::bind<FineGranerPipe>(CName, CName));
+                       PipeWrapper::bind<FineGrainPipe>(CName, CName));
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({}, RootKind)) = 1;
-  auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
+  auto &C2 = Pipeline["end"].containers().getOrCreate<MapContainer>(CName);
 
   const auto T = Target({ "f1" }, FunctionKind);
   const auto T2 = Target({ "f2" }, FunctionKind);
@@ -835,7 +834,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   auto Error = Pipeline.getInvalidations(ToKill, Invalidations);
   BOOST_TEST(!Error);
-  const auto &QuantifOfInvalidated = Invalidations["End"][CName]
+  const auto &QuantifOfInvalidated = Invalidations["end"][CName]
                                        .front()
                                        .getPathComponents();
   BOOST_TEST((QuantifOfInvalidated.front() == "f1"));
@@ -846,12 +845,12 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineWithRemove) {
   Runner Pipeline(Ctx);
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
-  const std::string Name = "first_step";
+  const std::string Name = "first-step";
   Pipeline.emplaceStep("",
                        Name,
                        "",
-                       PipeWrapper::bind<FineGranerPipe>(CName, CName));
-  Pipeline.emplaceStep(Name, "End", "");
+                       PipeWrapper::bind<FineGrainPipe>(CName, CName));
+  Pipeline.emplaceStep(Name, "end", "");
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target(RootKind)) = 1;
@@ -866,22 +865,22 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineWithRemove) {
 }
 
 BOOST_AUTO_TEST_CASE(LoaderTest) {
-  StepDeclaration SDeclaration{ "FirstStep",
-                                { { "FineGranerPipe", { CName, CName } } } };
+  StepDeclaration SDeclaration{ "first-step",
+                                { { "fine-grain", { CName, CName } } } };
   BranchDeclaration BDeclaration{ "", { std::move(SDeclaration) } };
   PipelineDeclaration PDeclaration{ "revng-test",
-                                    { { CName, "MapContainer" } },
+                                    { { CName, "map-container" } },
                                     { std::move(BDeclaration) } };
 
   auto Ctx = Context::fromRegistry(Registry::registerAllKinds());
   Loader Loader(Ctx);
-  Loader.addDefaultConstructibleContainer<MapContainer>("MapContainer");
-  Loader.registerPipe<FineGranerPipe>("FineGranerPipe");
+  Loader.addDefaultConstructibleContainer<MapContainer>("map-container");
+  Loader.registerPipe<FineGrainPipe>("fine-grain");
 
   auto MaybePipeline = Loader.load(PDeclaration);
   BOOST_TEST(!!MaybePipeline);
   auto &Pipeline = *MaybePipeline;
-  const std::string Name = "FirstStep";
+  const std::string Name = "first-step";
   BOOST_TEST((Pipeline[Name].getName() == Name));
   BOOST_TEST((Pipeline["begin"].getName() == "begin"));
 
@@ -902,23 +901,23 @@ BOOST_AUTO_TEST_CASE(LoaderTest) {
 static const std::string Pipeline(R"(---
                        Component: revng-test
                        Containers:
-                         - Name:            ContainerName
-                           Type:            MapContainer
+                         - Name:            container-name
+                           Type:            map-container
                        Branches:
                          - Steps:
-                             - Name:            FirstStep
+                             - Name:            first-step
                                Pipes:
-                                 - Type:            FineGranerPipe
+                                 - Type:            fine-grain
                                    UsedContainers:
-                                     - ContainerName
-                                     - ContainerName
+                                     - container-name
+                                     - container-name
                        )");
 
 BOOST_AUTO_TEST_CASE(LoaderTestFromYaml) {
   Context Ctx;
   Loader Loader(Ctx);
-  Loader.addDefaultConstructibleContainer<MapContainer>("MapContainer");
-  Loader.registerPipe<FineGranerPipe>("FineGranerPipe");
+  Loader.addDefaultConstructibleContainer<MapContainer>("map-container");
+  Loader.registerPipe<FineGrainPipe>("fine-grain");
   auto MaybePipeline = Loader.load(Pipeline);
   BOOST_TEST(!!MaybePipeline);
 }
@@ -926,41 +925,41 @@ BOOST_AUTO_TEST_CASE(LoaderTestFromYaml) {
 static const std::string PipelineTree(R"(---
                        Component: revng-test
                        Containers:
-                         - Name:            ContainerName
-                           Type:            MapContainer
+                         - Name:            container-name
+                           Type:            map-container
                        Branches:
                          - Steps:
-                             - Name:            FirstStep
+                             - Name:            first-step
                                Pipes:
-                                 - Type:            FineGranerPipe
+                                 - Type:            fine-grain
                                    UsedContainers:
-                                     - ContainerName
-                                     - ContainerName
+                                     - container-name
+                                     - container-name
                        )");
 
 static const std::string PipelineTree2(R"(---
                        Component: revng-test
                        Containers:
                        Branches:
-                         - From:      FirstStep
+                         - From:      first-step
                            Steps:
-                             - Name:            SecondStep
+                             - Name:            second-step
                        )");
 
 static const std::string PipelineTree3(R"(---
                        Component: revng-test
                        Containers:
                        Branches:
-                         - From:      FirstStep
+                         - From:      first-step
                            Steps:
-                             - Name:            ThirdStep
+                             - Name:            third-step
                        )");
 
 BOOST_AUTO_TEST_CASE(LoaderTestFromYamlTree) {
   Context Ctx;
   Loader Loader(Ctx);
-  Loader.addDefaultConstructibleContainer<MapContainer>("MapContainer");
-  Loader.registerPipe<FineGranerPipe>("FineGranerPipe");
+  Loader.addDefaultConstructibleContainer<MapContainer>("map-container");
+  Loader.registerPipe<FineGrainPipe>("fine-grain");
   vector ToLoad({ PipelineTree2, PipelineTree3, PipelineTree });
   auto MaybePipeline = Loader.load(ToLoad);
   BOOST_TEST(!!MaybePipeline);
@@ -971,29 +970,29 @@ BOOST_AUTO_TEST_CASE(LoaderTestFromYamlLLVM) {
   Context Ctx;
   Loader Loader(Ctx);
 
-  Loader.addContainerFactory("LLVMContainer",
+  Loader.addContainerFactory("llvm-container",
                              ContainerFactory::fromGlobal<LLVMContainer>(&Ctx,
                                                                          &C));
-  auto *Name = "CreateFunctionPass";
+  auto *Name = "create-function-pass";
   Loader.registerLLVMPass<LLVMPassFunctionCreator>(Name);
-  Name = "IdentityPass";
+  Name = "identity-pass";
   Loader.registerLLVMPass<LLVMPassFunctionIdentity>(Name);
 
   std::string LLVMPipeline(R"(---
                        Component: revng-test
                        Containers:
-                         - Name:            CustomName
-                           Type:            LLVMContainer
+                         - Name:            custom-name
+                           Type:            llvm-container
                        Branches:
                          - Steps:
-                             - Name:            FirstStep
+                             - Name:            first-step
                                Pipes:
-                                 - Type:             LLVMPipe
+                                 - Type:             llvm-pipe
                                    UsedContainers:
-                                     - CustomName
+                                     - custom-name
                                    Passes:
-                                     - CreateFunctionPass
-                                     - IdentityPass
+                                     - create-function-pass
+                                     - identity-pass
                        )");
 
   auto MaybePipeline = Loader.load(LLVMPipeline);
@@ -1014,12 +1013,12 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelinestore) {
   revng::DirectoryPath Path = getCurrentPath();
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
-  const std::string Name = "first_step";
+  const std::string Name = "first-step";
   Pipeline.emplaceStep("",
                        Name,
                        "",
-                       PipeWrapper::bind<FineGranerPipe>(CName, CName));
-  Pipeline.emplaceStep(Name, "End", "");
+                       PipeWrapper::bind<FineGrainPipe>(CName, CName));
+  Pipeline.emplaceStep(Name, "end", "");
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({}, RootKind)) = 1;
@@ -1039,16 +1038,16 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelinestore) {
 BOOST_AUTO_TEST_CASE(SingleElementPipelinestoreWithOverrides) {
   Context Ctx;
   Loader Loader(Ctx);
-  Loader.addDefaultConstructibleContainer<MapContainer>("MapContainer");
-  Loader.registerPipe<FineGranerPipe>("FineGranerPipe");
+  Loader.addDefaultConstructibleContainer<MapContainer>("map-container");
+  Loader.registerPipe<FineGrainPipe>("fine-grain");
   auto MaybePipeline = Loader.load(Pipeline);
   BOOST_TEST(!!MaybePipeline);
   auto &Pipeline = *MaybePipeline;
-  auto *Mapping = "DontCareSourceFile:FirstStep/ContainerName";
+  auto *Mapping = "DontCareSourceFile:first-step/container-name";
   auto MaybeMapping = PipelineFileMapping::parse(Mapping);
   BOOST_TEST(!!MaybeMapping);
 
-  const std::string Name = "FirstStep";
+  const std::string Name = "first-step";
   auto &Container(Pipeline[Name].containers().getOrCreate<MapContainer>(CName));
 
   Container.get(Target({}, RootKind)) = 1;
@@ -1153,7 +1152,7 @@ static ExampleContainerInpsector Example;
 
 BOOST_AUTO_TEST_CASE(EnumerableContainersTest) {
   Context Ctx;
-  EnumerableContainerExample Example(Ctx, "dont_care");
+  EnumerableContainerExample Example(Ctx, "dont-care");
   Target T({}, RootKind);
   Example.Targets.insert(T);
   BOOST_TEST(Example.contains(T));
@@ -1204,13 +1203,13 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   Pipeline.addContainerFactory(CName,
                                ContainerFactory::fromGlobal<Cont>(&Ctx, &C));
 
-  Pipeline.emplaceStep("", "first_step", "");
-  Pipeline.emplaceStep("first_step",
-                       "End",
+  Pipeline.emplaceStep("", "first-step", "");
+  Pipeline.emplaceStep("first-step",
+                       "end",
                        "",
                        Cont::wrapLLVMPasses(CName, LLVMPassFunctionCreator()));
 
-  makeF(Pipeline["first_step"]
+  makeF(Pipeline["first-step"]
           .containers()
           .getOrCreate<Cont>(CName)
           .getModule(),
@@ -1219,10 +1218,10 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   ContainerToTargetsMap Targets;
   Targets.add(CName, Target({ "f1" }, FunctionKind));
 
-  auto Error = Pipeline.run("End", Targets);
+  auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
 
-  const auto &Final = Pipeline["End"].containers().get<Cont>(CName);
+  const auto &Final = Pipeline["end"].containers().get<Cont>(CName);
   const auto *F = Final.getModule().getFunction("f1");
 
   BOOST_TEST(F != nullptr);
@@ -1230,7 +1229,7 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
 
 class InspectorKindExample : public LLVMKind {
 public:
-  InspectorKindExample() : LLVMKind("ExampleName", FunctionRank) {}
+  InspectorKindExample() : LLVMKind("example-name", FunctionRank) {}
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const final {
@@ -1254,7 +1253,7 @@ BOOST_AUTO_TEST_CASE(InspectorKindTest) {
   using Cont = LLVMContainer;
   auto Factory = ContainerFactory::fromGlobal<Cont>(&Ctx, &C);
 
-  auto Container = Factory("dont_care");
+  auto Container = Factory("dont-care");
 
   makeF(cast<Cont>(*Container).getModule(), "root");
 
@@ -1269,21 +1268,21 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName2);
 
-  const std::string Name = "first_step";
-  const std::string SecondName = "second_step";
+  const std::string Name = "first-step";
+  const std::string SecondName = "second-step";
   Pipeline.emplaceStep("", Name, "");
   Pipeline.emplaceStep(Name,
                        SecondName,
                        "",
-                       PipeWrapper::bind<FineGranerPipe>(CName, CName));
+                       PipeWrapper::bind<FineGrainPipe>(CName, CName));
   Pipeline.emplaceStep(SecondName,
-                       "End",
+                       "end",
                        "",
                        PipeWrapper::bind<CopyPipe>(CName, CName2));
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
-  auto &C1End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
-  auto &C2End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName2);
+  auto &C1End = Pipeline["end"].containers().getOrCreate<MapContainer>(CName);
+  auto &C2End = Pipeline["end"].containers().getOrCreate<MapContainer>(CName2);
 
   const auto T = Target(RootKind);
   C1.get(T) = 1;
@@ -1291,7 +1290,7 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   const auto ToProduce = Target({ "f1" }, FunctionKind);
   ContainerToTargetsMap Map;
   Map[CName2].emplace_back(ToProduce);
-  cantFail(Pipeline.run("End", Map));
+  cantFail(Pipeline.run("end", Map));
 
   BOOST_TEST(C1.get(T) == 1);
   BOOST_TEST(C1End.get(T) == 1);
@@ -1301,12 +1300,7 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   pipeline::TargetInStepSet Invalidations;
   Invalidations[Name][CName].push_back(T);
 
-  // C2End.enumerate().dump();
-  llvm::outs() << "Invalidations\n";
   auto Error = Pipeline.getInvalidations(Invalidations);
-  // Invalidations[Name].dump();
-  // Invalidations[SecondName].dump();
-  // Invalidations["End"].dump();
   BOOST_TEST(!Error);
 
   Error = Pipeline.invalidate(Invalidations);
@@ -1321,7 +1315,7 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
 
 class ArgumentTestAnalysis {
 public:
-  constexpr static const char *Name = "dont_care";
+  constexpr static const char *Name = "dont-care";
 
   constexpr static std::tuple Options = {
     pipeline::Option("first", 10),
@@ -1344,14 +1338,14 @@ public:
 
 BOOST_AUTO_TEST_CASE(PipeOptions) {
   RegisterAnalysis<ArgumentTestAnalysis> Dummy;
-  pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container_name" });
+  pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container-name" });
   Context Ctx;
   Step FakeStep(Ctx, "dc", "", {});
   ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
   ContainerSet Set;
   auto Factory = ContainerFactory::create<MapContainer>();
-  Set.add("container_name", Factory);
-  Set["container_name"];
+  Set.add("container-name", Factory);
+  Set["container-name"];
   if (auto Error = W.run(ExecutionCtx, Set, {}); Error)
     BOOST_FAIL("unreachable");
 }

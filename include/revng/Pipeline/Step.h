@@ -205,6 +205,7 @@ public:
   }
 
   const ContainerSet::value_type *getArtifactsContainer() {
+
     if (!Artifacts.isValid()) {
       return nullptr;
     }

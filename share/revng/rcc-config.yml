@@ -19,6 +19,9 @@ matchers:
   prettier:
     type: suffix_or_shebang
     suffixes: ["html", "js", "json", "ts", "yaml", "yml"]
+  codespell:
+    type: all_except
+    suffixes: ["css"]
   all: { type: all_filter }
 
 write_passes:
@@ -154,7 +157,7 @@ read_passes:
   - type: WhitespaceCheckPass
   - type: SingleCommandPass
     name: codespell
-    tag: all
+    tag: codespell
     command:
       - codespell
       - -c

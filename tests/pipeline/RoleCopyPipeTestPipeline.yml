@@ -4,14 +4,14 @@
 
 Component: revng-test
 Containers:
-  - Name: Strings1
-    Type: StringContainer
-  - Name: Strings2
-    Type: StringContainer
-    Role: StringRole
+  - Name: strings-1
+    Type: string-container
+  - Name: strings-2
+    Type: string-container
+    Role: string-role
 Branches:
   - Steps:
-      - Name: FirstStep
+      - Name: first-step
         Pipes:
-          - Type: CopyPipe
-            UsedContainers: [Strings1, Strings2]
+          - Type: copy-pipe
+            UsedContainers: [strings-1, strings-2]

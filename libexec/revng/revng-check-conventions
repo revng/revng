@@ -591,6 +591,15 @@ def suffix_or_shebang(suffixes: Sequence[str] = (), shebang: str = "") -> FileFi
     return matcher
 
 
+def all_except(suffixes: Sequence[str] = ()) -> FileFilter:
+    def matcher(path: Path, content: str) -> bool:
+        if len(suffixes) == 0:
+            return True
+        return not (path.suffix.startswith(".") and path.suffix[1:] in suffixes)
+
+    return matcher
+
+
 def cmake_filter() -> FileFilter:
     return lambda path, content: "cmake" in path.name.lower()
 

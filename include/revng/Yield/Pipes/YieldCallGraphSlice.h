@@ -18,7 +18,7 @@ namespace revng::pipes {
 
 class YieldCallGraphSlice {
 public:
-  static constexpr const auto Name = "YieldCallGraphSlice";
+  static constexpr const auto Name = "yield-call-graph-slice";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {

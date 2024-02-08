@@ -259,11 +259,13 @@ namespace ranks = revng::ranks;
 static llvm::SmallVector<DoxygenLine, 16>
 gatherArgumentComments(const model::Binary &Binary,
                        const model::Function &Function) {
-  llvm::SmallVector<DoxygenLine, 16> Result;
+  if (Function.Prototype().empty())
+    return {};
 
   static constexpr std::string_view Keyword = "\\param ";
 
-  const model::Type *Prototype = Function.prototype(Binary).get();
+  llvm::SmallVector<DoxygenLine, 16> Result;
+  const model::Type *Prototype = Function.Prototype().get();
   if (auto *FT = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
     abi::FunctionType::Layout Layout(*FT);
 
@@ -422,11 +424,13 @@ gatherArgumentComments(const model::Binary &Binary,
 static llvm::SmallVector<DoxygenLine, 16>
 gatherReturnValueComments(const model::Binary &Binary,
                           const model::Function &Function) {
-  llvm::SmallVector<DoxygenLine, 16> Result;
+  if (Function.Prototype().empty())
+    return {};
 
   static constexpr std::string_view Keyword = "\\returns ";
 
-  const model::Type *Prototype = Function.prototype(Binary).get();
+  llvm::SmallVector<DoxygenLine, 16> Result;
+  const model::Type *Prototype = Function.Prototype().get();
   std::string ContextLocation = serializedLocation(ranks::ReturnValue,
                                                    Prototype->key());
   if (auto *F = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {

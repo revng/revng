@@ -23,7 +23,9 @@ public:
 
   llvm::Error createDirectory(llvm::StringRef Path) override { revng_abort(); };
   llvm::Error remove(llvm::StringRef Path) override { revng_abort(); };
-  llvm::sys::path::Style getStyle() const override { revng_abort(); };
+  llvm::sys::path::Style getStyle() const override {
+    return llvm::sys::path::Style::posix;
+  };
 
   llvm::Error copy(llvm::StringRef Source,
                    llvm::StringRef Destination) override {
@@ -70,7 +72,11 @@ public:
   llvm::Expected<std::unique_ptr<WritableFile>>
   getWritableFile(llvm::StringRef Path, ContentEncoding Encoding) override {
     using llvm::sys::fs::OF_None;
-    revng_assert(Path == "");
+    if (Path != "") {
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Cannot open file");
+    }
+
     std::error_code EC;
     auto OS = std::make_unique<llvm::raw_fd_ostream>("-", EC, OF_None);
     if (EC)

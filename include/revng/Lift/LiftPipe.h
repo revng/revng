@@ -27,7 +27,7 @@ namespace revng::pipes {
 
 class Lift {
 public:
-  static constexpr auto Name = "Lift";
+  static constexpr auto Name = "lift";
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Binary,
                                      0,

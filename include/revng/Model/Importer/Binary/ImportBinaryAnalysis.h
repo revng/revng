@@ -16,7 +16,7 @@ namespace revng::pipes {
 
 class ImportBinaryAnalysis {
 public:
-  static constexpr auto Name = "ImportBinary";
+  static constexpr auto Name = "import-binary";
 
 public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {

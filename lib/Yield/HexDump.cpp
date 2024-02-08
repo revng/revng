@@ -240,7 +240,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 
 class HexDumpPipe {
 public:
-  static constexpr auto Name = "HexDump";
+  static constexpr auto Name = "hex-dump";
   std::array<pipeline::ContractGroup, 2> getContract() const {
     const pipeline::Contract
       FunctionsContract(kinds::Isolated,

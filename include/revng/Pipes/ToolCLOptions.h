@@ -20,12 +20,13 @@ private:
   llvm::cl::list<std::string> EnablingFlags;
   llvm::cl::opt<std::string> ExecutionDirectory;
   llvm::cl::alias A1;
+  llvm::cl::alias A2;
 
 public:
   ToolCLOptions(llvm::cl::OptionCategory &Category) :
 
     InputPipeline("P", llvm::cl::desc("<Pipeline>"), llvm::cl::cat(Category)),
-    ModelOverride("m",
+    ModelOverride("model",
                   llvm::cl::desc("Load the model from a provided file"),
                   llvm::cl::cat(Category)),
     EnablingFlags("f",
@@ -40,6 +41,10 @@ public:
     A1("l",
        llvm::cl::desc("Alias for --load"),
        llvm::cl::aliasopt(llvm::LoadOpt),
+       llvm::cl::cat(Category)),
+    A2("m",
+       llvm::cl::desc("Alias for --model"),
+       llvm::cl::aliasopt(ModelOverride),
        llvm::cl::cat(Category)) {}
 
   llvm::Error overrideModel(revng::FilePath ModelOverride,

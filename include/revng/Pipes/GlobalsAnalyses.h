@@ -27,7 +27,7 @@ constexpr inline std::tuple SetOptions = { Option("global-name", ""),
 /// This analysis that applies a tuple-tree diff to the specified global. If
 /// applying the diff fails the global is guaranteed to be left untouched.
 struct ApplyDiffAnalysis {
-  static constexpr auto Name = "ApplyDiff";
+  static constexpr auto Name = "apply-diff";
   constexpr static std::tuple Options = options::DiffOptions;
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
@@ -41,7 +41,7 @@ struct ApplyDiffAnalysis {
 /// llvm::Error::success() is returned then the diff is safe to be applied to
 /// the current global, otherwise an Error is returned.
 struct VerifyDiffAnalysis {
-  static constexpr auto Name = "VerifyDiff";
+  static constexpr auto Name = "verify-diff";
   constexpr static std::tuple Options = options::DiffOptions;
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
@@ -56,7 +56,7 @@ struct VerifyDiffAnalysis {
 /// be returned if it's not conformant. In case of error this analysis does not
 /// change the contents of the global.
 struct SetGlobalAnalysis {
-  static constexpr auto Name = "SetGlobal";
+  static constexpr auto Name = "set-global";
   constexpr static std::tuple Options = options::SetOptions;
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
@@ -70,7 +70,7 @@ struct SetGlobalAnalysis {
 /// method of the specified global. If successful a llvm::Error::success() is
 /// returned, otherwise the error from the `verify` is returned.
 struct VerifyGlobalAnalysis {
-  static constexpr auto Name = "VerifyGlobal";
+  static constexpr auto Name = "verify-global";
   constexpr static std::tuple Options = options::SetOptions;
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};

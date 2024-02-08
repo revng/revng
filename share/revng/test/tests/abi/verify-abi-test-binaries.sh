@@ -26,7 +26,7 @@ orc shell \
 # Import DWARF information
 revng \
     analyze \
-    ImportBinary \
+    import-binary \
     "$BINARY" \
     -o="${TEMPORARY_DIRECTORY}/imported_binary.yml"
 
@@ -40,7 +40,7 @@ python3 \
 # Make sure all the primitive types are available
 revng \
     analyze \
-    AddPrimitiveTypes \
+    add-primitive-types \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/corrected_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/reference_binary.yml"
@@ -49,7 +49,7 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertToRawFunctionType \
+    convert-functions-to-raw \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml"
@@ -58,9 +58,9 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertToCABIFunctionType \
+    convert-functions-to-cabi \
     "$BINARY" \
-    --ConvertToCABIFunctionType-abi="${ABI_NAME}" \
+    --convert-functions-to-cabi-abi="${ABI_NAME}" \
     -m="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
 
@@ -68,7 +68,7 @@ revng \
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    ConvertToRawFunctionType \
+    convert-functions-to-raw \
     "$BINARY" \
     -m="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"

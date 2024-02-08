@@ -17,45 +17,48 @@ inline std::tuple<const T &...> fat(const T &...Refs) {
   return std::forward_as_tuple(Refs...);
 }
 
-inline pipeline::SingleElementKind Binary("Binary", ranks::Binary, {}, {});
-inline pipeline::SingleElementKind HexDump("HexDump", ranks::Binary, {}, {});
+inline pipeline::SingleElementKind Binary("binary", ranks::Binary, {}, {});
+inline pipeline::SingleElementKind HexDump("hex-dump", ranks::Binary, {}, {});
 
-inline RootKind Root("Root", ranks::Binary);
-inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root, ranks::Binary);
+inline RootKind Root("root", ranks::Binary);
+inline IsolatedRootKind IsolatedRoot("isolated-root", Root, ranks::Binary);
 
 inline TaggedFunctionKind
-  Isolated("Isolated", ranks::Function, FunctionTags::Isolated);
+  Isolated("isolated", ranks::Function, FunctionTags::Isolated);
 inline TaggedFunctionKind
-  ABIEnforced("ABIEnforced", ranks::Function, FunctionTags::ABIEnforced);
+  ABIEnforced("abi-enforced", ranks::Function, FunctionTags::ABIEnforced);
 inline TaggedFunctionKind
-  CSVsPromoted("CSVsPromoted", ranks::Function, FunctionTags::CSVsPromoted);
+  CSVsPromoted("csvs-promoted", ranks::Function, FunctionTags::CSVsPromoted);
 
-inline pipeline::SingleElementKind Object("Object", ranks::Binary, {}, {});
+inline pipeline::SingleElementKind Object("object", ranks::Binary, {}, {});
 inline pipeline::SingleElementKind
-  Translated("Translated", ranks::Binary, {}, {});
+  Translated("translated", ranks::Binary, {}, {});
 
-inline FunctionKind
-  FunctionAssemblyInternal("FunctionAssemblyInternal", ranks::Function, {}, {});
+inline FunctionKind FunctionAssemblyInternal("function-assembly-internal",
+                                             ranks::Function,
+                                             {},
+                                             {});
 
-inline FunctionKind FunctionAssemblyPTML("FunctionAssemblyPTML",
+inline FunctionKind FunctionAssemblyPTML("function-assembly-ptml",
                                          ranks::Function,
                                          fat(ranks::Function,
                                              ranks::BasicBlock,
                                              ranks::Instruction),
                                          {});
 
-inline FunctionKind FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG",
+inline auto FunctionControlFlowGraphSVGName = "function-control-flow-graph-svg";
+inline FunctionKind FunctionControlFlowGraphSVG(FunctionControlFlowGraphSVGName,
                                                 ranks::Function,
                                                 {},
                                                 {});
 
 inline pipeline::SingleElementKind
-  BinaryCrossRelations("BinaryCrossRelations", ranks::Binary, {}, {});
+  BinaryCrossRelations("binary-cross-relations", ranks::Binary, {}, {});
 inline pipeline::SingleElementKind
-  CallGraphSVG("CallGraphSVG", ranks::Binary, {}, {});
+  CallGraphSVG("call-graph-svg", ranks::Binary, {}, {});
 inline FunctionKind
-  CallGraphSliceSVG("CallGraphSliceSVG", ranks::Function, {}, {});
+  CallGraphSliceSVG("call-graph-slice-svg", ranks::Function, {}, {});
 
-inline constexpr auto BinaryCrossRelationsRole = "CrossRelations";
+inline constexpr auto BinaryCrossRelationsRole = "cross-relations";
 
 } // namespace revng::kinds

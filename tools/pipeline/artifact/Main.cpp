@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <iostream>
+
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
@@ -35,7 +37,7 @@ using namespace ::revng;
 
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
-                                  desc("<ArtifactToProduce> <InputBinary>"),
+                                  desc("<artifact> <binary>"),
                                   cat(MainCategory));
 
 static OutputPathOpt Output("o",
@@ -61,8 +63,21 @@ static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
 
+inline void
+printStringPair(const std::vector<std::pair<std::string, std::string>> &Pairs) {
+  unsigned Longest = 0;
+  for (auto &[First, Second] : Pairs)
+    if (First.size() > Longest)
+      Longest = First.size();
+
+  for (auto &[First, Second] : Pairs)
+    std::cout << "  " << First << std::string(Longest + 1 - First.size(), ' ')
+              << "- " << Second << "\n";
+}
+
 int main(int argc, char *argv[]) {
   using revng::FilePath;
+
   revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   Registry::runAllInitializationRoutines();
@@ -70,9 +85,18 @@ int main(int argc, char *argv[]) {
   auto Manager = AbortOnError(BaseOptions.makeManager());
 
   if (Arguments.size() == 0) {
-    for (const auto &Step : Manager.getRunner())
+    std::cout << "USAGE: revng-artifact [options] <artifact> <binary>\n\n";
+    std::cout << "<artifact> can be one of:\n\n";
+
+    std::vector<std::pair<std::string, std::string>> Pairs;
+    for (auto &Step : Manager.getRunner())
       if (Step.getArtifactsKind() != nullptr)
-        dbg << Step.getName().str() << "\n";
+        Pairs
+          .emplace_back(Step.getName().str(),
+                        Step.getArtifactsContainer()->second->mimeType().str());
+
+    printStringPair(Pairs);
+
     return EXIT_SUCCESS;
   }
 

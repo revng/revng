@@ -1,0 +1,315 @@
+/*
+ * This file is distributed under the MIT License. See LICENSE.md for details.
+ */
+
+/*
+*   TYPO
+*/
+
+body .md-typeset a.headerlink {
+  text-decoration: none;
+  -webkit-text-fill-color: initial;
+  text-fill-color: initial;
+  background: none;
+
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--md-accent-fg-color);
+  box-shadow: 0 0 1px 1px var(--md-default-fg-color--lighter);
+  background-color: var(--md-default-fg-color--lightest);
+  padding: 0.3em 0.4em;
+  border-radius: 8px;
+  border-width: 0px;
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.md-typeset h1 {
+  margin: 0 0 1.2rem;
+
+  display: inline-block;
+  background: linear-gradient(131.31deg, #f25b01 9.12%, #ee3220 50.55%, #d0075f 88.66%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-fill-color: transparent;
+}
+
+.md-typeset h2,
+.md-typeset h3 {
+  margin: 1.6rem 0 1.2rem;
+}
+
+.md-typeset h1 + h2,
+.md-typeset h1 + h3 {
+  margin-top: 0;
+}
+
+.md-typeset h1 code,
+.md-typeset h2 code,
+.md-typeset h3 code,
+.md-typeset h4 code,
+.md-typeset h5 code,
+.md-typeset h6 code {
+  background-color: transparent;
+  color: var(--md-typeset-color);
+  padding: 0;
+}
+
+.md-typeset blockquote,
+.md-typeset dl,
+.md-typeset figure,
+.md-typeset ol,
+.md-typeset pre,
+.md-typeset ul,
+.md-typeset .tabbed-set {
+  margin-top: 1.2rem;
+  margin-bottom: 1.2rem;
+}
+
+.md-typeset a {
+  text-decoration: underline;
+}
+
+.md-typeset a:hover,
+.md-typeset a:focus {
+  color: var(--md-typeset-a-color);
+}
+
+/*
+*   CODE
+*/
+
+.md-typeset code {
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.md-typeset a code {
+  color: var(--md-accent-fg-color);
+}
+
+.md-typeset a:focus code,
+.md-typeset a:hover code {
+  background-color: var(--md-code-bg-color);
+}
+
+.md-typeset pre > code {
+  background-color: var(--md-default-bg-color--lighter);
+  border: 1px solid var(--md-typeset-a-color);
+  padding: 8px 16px;
+  border-radius: 8px !important;
+}
+
+.md-typeset table.highlighttable {
+  margin-top: 1.2rem;
+  margin-bottom: 1.2rem;
+}
+
+table.highlighttable td.linenos {
+  background-color: var(--md-default-bg-color--lighter);
+  border: 1px solid var(--md-typeset-a-color);
+  border-right-width: 0px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 8px 0 0 8px !important;
+}
+
+table.highlighttable td.linenos .linenodiv {
+  box-shadow: none;
+  padding: 0;
+}
+
+table.highlighttable td.linenos pre {
+  margin: 0;
+  color: rgba(239, 249, 255, 0.4);
+}
+
+table.highlighttable td.linenos + td.code pre {
+  margin: 0;
+}
+
+.highlighttable .linenos + .code pre code {
+  border-left-width: 0;
+  border-bottom-left-radius: 0 !important;
+  border-top-left-radius: 0 !important;
+}
+
+.highlight span.filename {
+  border-top-left-radius: 8px !important;
+  border-top-right-radius: 8px !important;
+  border: 1px solid var(--md-typeset-a-color);
+  border-bottom-width: 0;
+  color: var(--md-accent-fg-color);
+  background-color: var(--md-default-bg-color--lighter);
+  margin-top: 1.2rem;
+  font-size: 12px;
+  line-height: 16px;
+  padding-bottom: 0;
+}
+
+.highlight span.filename + pre code {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+  border-top-width: 0;
+}
+
+.js .md-typeset .tabbed-labels:before {
+  height: 100%;
+  border-radius: 8px 8px 0 0;
+  background-color: var(--md-code-hl-color);
+}
+
+@media screen and (max-width: 44.9375em) {
+  .md-content__inner > .highlight {
+    margin-left: 0px;
+    margin-right: 0px;
+  }
+}
+
+/*
+*   HEADER
+*/
+
+.md-header--shadow {
+  box-shadow: none;
+}
+
+.md-header__inner {
+  padding: 0.8rem 0.4rem;
+}
+
+.md-header__title {
+  color: var(--md-accent-fg-color);
+}
+
+[dir='rtl'] .md-header__title,
+[dir='ltr'] .md-header__title {
+  margin-left: 0.6rem;
+  margin-right: 0.6rem;
+}
+
+.md-header__topic:first-child {
+  font-weight: 400;
+}
+
+@media screen and (min-width: 60em) {
+  .md-header__inner {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+  }
+}
+
+/*
+*   NAVBAR
+*/
+
+.md-nav__title {
+  font-family: var(--md-code-font);
+  text-transform: uppercase;
+  color: var(--md-primary-bg-color);
+}
+
+.md-nav__title .md-nav__button.md-logo img {
+  height: 32px;
+  width: 32px;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-sidebar.md-sidebar--primary .md-nav__link {
+    margin-top: 0.8rem;
+  }
+}
+
+/*
+*   SEARCH
+*/
+
+[data-md-toggle='search']:checked ~ .md-header .md-search__form,
+.md-search__form {
+  border-radius: 8px;
+  box-shadow: 0 0 1px 1px var(--md-default-fg-color--lighter);
+  background-color: var(--md-accent-fg-color--transparent);
+}
+
+.md-search-result .md-typeset,
+.md-search-result__icon,
+.md-search-result__more > summary > div {
+  color: var(--md-default-fg-color);
+}
+
+.md-search-result__icon {
+  height: 16px;
+  width: 16px;
+  margin: 0.7rem 0.5rem;
+}
+
+.md-search-result mark {
+  font-weight: 700;
+  color: var(--md-accent-fg-color);
+  text-decoration: none;
+}
+
+@media screen and (min-width: 60em) {
+  [data-md-toggle='search']:checked ~ .md-header .md-search__inner,
+  .md-search__scrollwrap {
+    width: 23.4rem !important;
+  }
+
+  .md-search__input {
+    border-radius: 8px;
+    border: 2px solid transparent;
+  }
+
+  .md-search__form:hover {
+    background-color: var(--md-accent-fg-color--transparent);
+  }
+
+  .md-search__input.focus-visible {
+    border-color: var(--md-typeset-a-color);
+  }
+
+  .md-search__output {
+    margin-top: 1px;
+    border-radius: 8px !important;
+    box-shadow: 0 0 1px 1px var(--md-default-fg-color--lighter) !important;
+  }
+}
+
+/*
+*   MAIN
+*/
+
+.md-main {
+  margin-bottom: 4rem;
+}
+
+.md-main__inner {
+  margin-top: 3.2rem;
+}
+
+.md-content__inner {
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+/*
+*   FOOTER
+*/
+.md-footer-meta .md-copyright {
+  font-family: var(--md-code-font);
+}
+
+.md-footer__title .md-footer__direction {
+  font-family: var(--md-code-font);
+  text-transform: uppercase;
+}
+
+.md-footer__link:focus,
+.md-footer__link:hover {
+  opacity: 1;
+}
+
+.md-footer-meta__inner {
+  padding: 0.4rem 0.2rem;
+}

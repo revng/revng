@@ -8,5 +8,5 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-import-types
     command: |-
-      revng analyze ImportBinary "$INPUT"
+      revng analyze import-binary "$INPUT"
           | revng model compare "${SOURCE}.model.yml";

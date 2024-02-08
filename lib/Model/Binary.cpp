@@ -317,13 +317,16 @@ static const model::TypePath &prototypeOr(const model::TypePath &Prototype,
     return Prototype;
   }
 
-  revng_assert(Default.isValid());
   return Default;
 }
 
 model::TypePath Function::prototype(const model::Binary &Root) const {
+  model::TypePath Result;
   auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());
-  return model::QualifiedType::getFunctionType(ThePrototype).value();
+  if (not ThePrototype.empty())
+    return model::QualifiedType::getFunctionType(ThePrototype).value();
+  else
+    return Result;
 }
 
 Identifier DynamicFunction::name() const {

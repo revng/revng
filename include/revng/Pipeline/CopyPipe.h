@@ -13,7 +13,7 @@ namespace pipeline {
 template<typename Kind, Kind *K, typename Source, typename Destination = Source>
 class CopyPipe {
 public:
-  static constexpr auto Name = "CopyPipe";
+  static constexpr auto Name = "copy-pipe";
 
 public:
   std::array<ContractGroup, 1> getContract() const {

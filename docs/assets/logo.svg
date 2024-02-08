@@ -1,0 +1,19 @@
+<!--
+This file is distributed under the MIT License. See LICENSE.md for details.
+-->
+
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M13.2256 30.9965C6.16319 29.6929 0.800049 23.4939 0.800049 16.018C0.800049 13.0382 1.67621 10.2713 3.13647 7.9035L13.2256 30.9965ZM18.7745 30.9965C25.8369 29.6929 31.2001 23.4939 31.2001 16.018C31.2001 13.0382 30.3239 10.2713 28.8636 7.9035L18.7745 30.9965ZM16.0664 25.2765L25.359 4.01919C22.7836 1.99722 19.5445 0.799999 16.0133 0.799999C12.5883 0.799999 9.45542 1.94401 6.9066 3.85956L16.0664 25.2765Z" fill="url(#paint0_linear_997_74486)"/>
+<defs>
+<linearGradient id="paint0_linear_997_74486" x1="12.0752" y1="30.7473" x2="19.976" y2="1.32181" gradientUnits="userSpaceOnUse">
+<stop stop-color="#D56B36"/>
+<stop offset="0.0446233" stop-color="#D76331"/>
+<stop offset="0.2232" stop-color="#DF4820"/>
+<stop offset="0.3818" stop-color="#E33816"/>
+<stop offset="0.5031" stop-color="#E53212"/>
+<stop offset="0.6426" stop-color="#E02723"/>
+<stop offset="0.9161" stop-color="#D20A4E"/>
+<stop offset="1" stop-color="#CD005C"/>
+</linearGradient>
+</defs>
+</svg>

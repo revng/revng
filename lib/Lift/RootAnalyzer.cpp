@@ -18,6 +18,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
+#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
@@ -404,8 +405,18 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     // Compute preserved registers using the default prototype
     using RegisterSet = llvm::SmallSet<model::Register::Values, 16>;
     RegisterSet DefaultPreservedRegisters;
+    model::ABI::Values ABI = Model->DefaultABI();
     const model::TypePath &DefaultPrototype = Model->DefaultPrototype();
-    DefaultPreservedRegisters = getPreservedRegisters(DefaultPrototype);
+    if (not DefaultPrototype.empty()) {
+      DefaultPreservedRegisters = getPreservedRegisters(DefaultPrototype);
+    } else if (ABI != model::ABI::Invalid) {
+      for (auto &Register : abi::Definition::get(ABI).CalleeSavedRegisters())
+        DefaultPreservedRegisters.insert(Register);
+    } else {
+      // TODO: this must be a preliminary check
+      revng_abort("Either DefaultABI or DefaultPrototype needs to be "
+                  "specified");
+    }
 
     OpaqueRegisterUser Clobberer(M);
     SmallVector<CallBase *, 16> FunctionCallCalls;

@@ -16,16 +16,16 @@ bool init_unit_test();
 const auto PipelineTextContent =
   R"(Component: revng-test
 Containers:
- - Name:            Strings1
-   Type:            StringContainer
- - Name:            Strings2
-   Type:            StringContainer
+ - Name:            strings-1
+   Type:            string-container
+ - Name:            strings-2
+   Type:            string-container
 Branches:
   -  Steps:
-     - Name:            FirstStep
+     - Name:            first-step
        Pipes:
-         - Type:             CopyPipe
-           UsedContainers: [Strings1, Strings2]
+         - Type:             copy-pipe
+           UsedContainers: [strings-1, strings-2]
 )";
 
 static rp_manager *Manager;
@@ -53,9 +53,9 @@ BOOST_AUTO_TEST_SUITE(PipelineCTestSuite, *boost::unit_test::fixture<Fixture>())
 
 BOOST_AUTO_TEST_CASE(CAPILoadTest) {
   rp_manager_get_step_from_name(Manager, "begin");
-  rp_manager_get_step_from_name(Manager, "FirstStep");
+  rp_manager_get_step_from_name(Manager, "first-step");
   BOOST_TEST(rp_manager_get_kind_from_name(Manager, "MISSING") == nullptr);
-  BOOST_TEST(rp_manager_get_kind_from_name(Manager, "Root") != nullptr);
+  BOOST_TEST(rp_manager_get_kind_from_name(Manager, "root") != nullptr);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

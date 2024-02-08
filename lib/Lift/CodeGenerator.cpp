@@ -169,6 +169,9 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
     FunctionTags::QEMU.addTo(&G);
 
   for (Function &F : HelpersModule->functions()) {
+    if (F.isIntrinsic())
+      continue;
+
     F.setDSOLocal(false);
 
     FunctionTags::QEMU.addTo(&F);
@@ -179,8 +182,12 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
   }
 
   EarlyLinkedModule = parseIR(EarlyLinked, Context);
-  for (llvm::Function &F : *EarlyLinkedModule)
+  for (llvm::Function &F : *EarlyLinkedModule) {
+    if (F.isIntrinsic())
+      continue;
+
     FunctionTags::QEMU.addTo(&F);
+  }
 
   auto *Uint8Ty = Type::getInt8Ty(Context);
   auto *ElfHeaderHelper = new GlobalVariable(*TheModule,
@@ -822,10 +829,10 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   } else {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Model->EntryPoint();
-    revng_assert(VirtualAddress.isCode());
   }
 
   if (VirtualAddress.isValid()) {
+    revng_assert(VirtualAddress.isCode());
     JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
     // Initialize the program counter

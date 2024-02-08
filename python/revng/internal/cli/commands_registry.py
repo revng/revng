@@ -65,6 +65,7 @@ class CommandsRegistry:
         parser.add_argument(
             "--callgrind", action="store_true", help="Run programs under callgrind."
         )
+        parser.add_argument("--rr", action="store_true", help="Run programs under rr.")
         parser.add_argument(
             "--prefix", action="append", metavar="PREFIX", help="Additional search prefix."
         )
@@ -123,6 +124,9 @@ class CommandsRegistry:
 
             if args.callgrind:
                 options.command_prefix += ["valgrind", "--tool=callgrind"]
+
+            if args.rr:
+                options.command_prefix += ["rr"]
 
             if args.perf:
                 options.command_prefix += [

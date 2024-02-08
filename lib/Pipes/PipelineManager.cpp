@@ -43,7 +43,8 @@ private:
   ModelWrapper Wrapper;
 
 public:
-  static constexpr auto Name = "Load Model";
+  static constexpr auto Name = "load-model";
+
   std::vector<ContractGroup> getContract() const { return {}; }
 
   explicit LoadModelPipePass(ModelWrapper Wrapper) :

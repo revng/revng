@@ -17,7 +17,7 @@
 namespace revng::pipes {
 
 inline constexpr char FunctionAssemblyYamlMIMEType[] = "text/x.yaml";
-inline constexpr char FunctionAssemblyYamlName[] = "FunctionAssemblyInternal";
+inline constexpr char FunctionAssemblyYamlName[] = "function-assembly-internal";
 inline constexpr char FunctionAssemblyYamlExtension[] = ".yml";
 using FunctionAssemblyStringMap = FunctionStringMap<
   &kinds::FunctionAssemblyInternal,
@@ -25,9 +25,9 @@ using FunctionAssemblyStringMap = FunctionStringMap<
   FunctionAssemblyYamlMIMEType,
   FunctionAssemblyYamlExtension>;
 
-inline constexpr char FunctionAssemblyPTMLMIMEType[] = "text/x.asm+ptml+yaml";
-inline constexpr char FunctionAssemblyPTMLName[] = "FunctionAssemblyPTML";
-inline constexpr char FunctionAssemblyPTMLExtension[] = ".asm.ptml";
+inline constexpr char FunctionAssemblyPTMLMIMEType[] = "text/x.asm+ptml+tar+gz";
+inline constexpr char FunctionAssemblyPTMLName[] = "function-assembly-ptml";
+inline constexpr char FunctionAssemblyPTMLExtension[] = ".asm.tar.gz";
 
 using FunctionAssemblyPTMLStringMap = FunctionStringMap<
   &kinds::FunctionAssemblyPTML,
@@ -36,7 +36,9 @@ using FunctionAssemblyPTMLStringMap = FunctionStringMap<
   FunctionAssemblyPTMLExtension>;
 
 inline constexpr char FunctionControlFlowMIMEType[] = "image/svg";
-inline constexpr char FunctionControlFlowName[] = "FunctionControlFlowGraphSVG";
+#define NAME "function-control-flow-graph-svg"
+inline constexpr char FunctionControlFlowName[] = NAME;
+#undef NAME
 inline constexpr char FunctionControlFlowExtension[] = ".svg";
 using FunctionControlFlowStringMap = FunctionStringMap<
   &kinds::FunctionControlFlowGraphSVG,
@@ -46,7 +48,7 @@ using FunctionControlFlowStringMap = FunctionStringMap<
 
 class YieldControlFlow {
 public:
-  static constexpr const auto Name = "YieldCFG";
+  static constexpr const auto Name = "yield-cfg";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {

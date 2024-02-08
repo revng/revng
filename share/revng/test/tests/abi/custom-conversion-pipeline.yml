@@ -5,14 +5,14 @@
 Component: revng-test
 Branches:
   - Steps:
-      - Name: ConvertToRawFunctionType
+      - Name: convert-functions-to-raw
         Analyses:
-          - Name: ConvertToRawFunctionType
-            Type: ConvertToRawFunctionType
+          - Name: convert-functions-to-raw
+            Type: convert-functions-to-raw
             UsedContainers: []
   - Steps:
-      - Name: ConvertToCABIFunctionType
+      - Name: convert-functions-to-cabi
         Analyses:
-          - Name: ConvertToCABIFunctionType
-            Type: ConvertToCABIFunctionType
+          - Name: convert-functions-to-cabi
+            Type: convert-functions-to-cabi
             UsedContainers: []

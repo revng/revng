@@ -15,9 +15,9 @@ REFERENCE_OUTPUT="$SCRIPT_DIR/MultiStepPipelineOutput.txt"
 function run() {
   "$PWD/libexec/revng/revng-pipeline" \
     -P="$SCRIPT_DIR/MultiStepPipeline.yml" \
-    --produce=SecondStep/Strings3/Root:StringKind\
-    -i "$SCRIPT_DIR/MultiStepPipelineInput.txt:begin/Strings1" \
-    -o "$OUTPUT:SecondStep/Strings3" \
+    --produce=second-step/strings-3/root:string-kind\
+    -i "$SCRIPT_DIR/MultiStepPipelineInput.txt:begin/strings-1" \
+    -o "$OUTPUT:second-step/strings-3" \
     --resume "$WORKING_DIRECTORY" \
     "$@"
 }
@@ -35,7 +35,7 @@ run "$@"
 diff "$OUTPUT" "$REFERENCE_OUTPUT"
 
 # Drop an intermediate results and recompute
-rm "$WORKING_DIRECTORY/SecondStep/Strings1"
+rm "$WORKING_DIRECTORY/second-step/strings-1"
 run "$@"
 diff "$OUTPUT" "$REFERENCE_OUTPUT"
 

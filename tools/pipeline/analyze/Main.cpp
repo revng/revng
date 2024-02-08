@@ -5,6 +5,7 @@
 //
 
 #include <system_error>
+#include <utility>
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -43,7 +44,7 @@ using namespace revng;
 
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
-                                  desc("<AnalysisToRun> <InputBinary>"),
+                                  desc("<analysis> <binary>"),
                                   cat(MainCategory));
 
 static OutputPathOpt Output("o",
@@ -102,13 +103,21 @@ int main(int argc, char *argv[]) {
   auto OriginalModel = *AbortOnError(Ctx.getGlobal<BinaryRef>(ModelGlobalName));
 
   if (Arguments.size() == 0) {
+    std::cout << "USAGE: revng-analyze [options] <analysis> <binary>\n\n";
+    std::vector<std::pair<std::string, std::string>> Pairs;
+
+    std::cout << "<analysis> can be one of the following analyses list:\n\n";
+
     for (size_t I = 0; I < Manager.getRunner().getAnalysesListCount(); I++) {
       AnalysesList AL = Manager.getRunner().getAnalysesList(I);
-      dbg << AL.getName().str() << "\n";
+      std::cout << "  " << AL.getName().str() << "\n";
     }
+
+    std::cout << "\n<analysis> can also be one of the following analyses:\n\n";
     for (const auto &Step : Manager.getRunner())
       for (const auto &Analysis : Step.analyses())
-        dbg << Analysis.getKey().str() << "\n";
+        std::cout << "  " << Analysis.getKey().str() << "\n";
+
     return EXIT_SUCCESS;
   }
 
@@ -149,7 +158,7 @@ int main(int argc, char *argv[]) {
     }
 
     llvm::StringRef StepName = Step->getName();
-    std::string AnalysisName = Analysis->getName();
+    std::string AnalysisName = Arguments[0];
     AbortOnError(Manager.runAnalysis(AnalysisName, StepName, Map, InvMap));
   }
 

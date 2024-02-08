@@ -20,7 +20,7 @@ revng artifact \
   --resume="s3://S3RVER:S3RVER@region+127.0.0.1:$S3_PORT/test/project-test-dir" \
   --analyses-list=revng-initial-auto-analysis \
   -o /dev/null \
-  YieldAssembly "$1"
+  disassemble "$1"
 
 # Simple file check, this looks into the persistence directory of s3rver and
 # checks that the input file and the file in 'begin/input' have the same
