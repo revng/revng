@@ -33,17 +33,17 @@ revng \
 
 # Force-override the ABI because DWARF information is not always reliable
 python3 \
-    "${SCRIPT_DIRECTORY}/replace-abi.py" \
+    "${SCRIPT_DIRECTORY}/prepare-tested-model.py" \
     "$ABI_NAME" \
     "${TEMPORARY_DIRECTORY}/imported_binary.yml" \
-    "${TEMPORARY_DIRECTORY}/corrected_binary.yml"
+    "${TEMPORARY_DIRECTORY}/prepared_binary.yml"
 
 # Make sure all the primitive types are available
 revng \
     analyze \
     add-primitive-types \
     "$BINARY" \
-    -m="${TEMPORARY_DIRECTORY}/corrected_binary.yml" \
+    -m="${TEMPORARY_DIRECTORY}/prepared_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/reference_binary.yml"
 
 # Convert CABIFunctionType to RawFunctionType
