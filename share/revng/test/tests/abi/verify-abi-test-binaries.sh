@@ -31,7 +31,9 @@ revng \
     --use-pdb="${BINARY}.pdb" \
     -o="${TEMPORARY_DIRECTORY}/imported_binary.yml"
 
-# Force-override the ABI because DWARF information is not always reliable
+# Remove all the functions we don't find relevant, then force-override the ABI
+# field of all the renaming prototypes because DWARF information is not always
+# reliable
 python3 \
     "${SCRIPT_DIRECTORY}/prepare-tested-model.py" \
     "$ABI_NAME" \
