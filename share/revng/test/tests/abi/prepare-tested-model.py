@@ -4,6 +4,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# This script is used for model preparation for the tests using runtime-abi
+# artifacts. It ensures that the prototypes of all the functions have their
+# ABI set correctly to work around the limitations of ABI detection when
+# importing from dwarf.
+
 import argparse
 import sys
 
