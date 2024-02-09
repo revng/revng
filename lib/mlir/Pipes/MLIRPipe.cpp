@@ -27,7 +27,7 @@
 namespace revng::pipes {
 
 static constexpr char MLIRModuleMime[] = "text/mlir";
-static constexpr char MLIRModuleName[] = "MLIRModule";
+static constexpr char MLIRModuleName[] = "mlir-module";
 static constexpr char MLIRModuleSuffix[] = ".mlir";
 using MLIRFileContainer = FileContainer<&kinds::MLIRLLVMModule,
                                         MLIRModuleName,
@@ -38,7 +38,7 @@ static pipeline::RegisterDefaultConstructibleContainer<MLIRFileContainer> X;
 
 class ImportLLVMToMLIRPipe {
 public:
-  static constexpr auto Name = "ImportLLVMToMLIRPipe";
+  static constexpr auto Name = "import-llvm-to-mlir";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

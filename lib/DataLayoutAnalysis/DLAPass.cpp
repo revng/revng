@@ -130,7 +130,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
 
 class DLAAnalysis {
 public:
-  static constexpr auto Name = "dla";
+  static constexpr auto Name = "analyze-data-layout";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
     { &revng::kinds::StackAccessesSegregated }

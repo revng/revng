@@ -16,28 +16,28 @@
 #include "revng/Pipes/StringBufferContainer.h"
 #include "revng/Pipes/StringMap.h"
 
-#include "revng-c/Backend/CDecompilationPipe.h"
+#include "revng-c/Backend/DecompilePipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
 inline constexpr char DecompiledMIMEType[] = "text/x.c+ptml";
 inline constexpr char DecompiledSuffix[] = ".c";
-inline constexpr char DecompiledName[] = "DecompiledCCode";
+inline constexpr char DecompiledName[] = "decompiled-c-code";
 using DecompiledFileContainer = StringBufferContainer<&kinds::DecompiledToC,
                                                       DecompiledName,
                                                       DecompiledMIMEType,
                                                       DecompiledSuffix>;
 
-class DecompiledYAMLToC {
+class DecompileToSingleFile {
 public:
-  static constexpr auto Name = "DecompiledYAMLToC";
+  static constexpr auto Name = "decompile-to-single-file";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(DecompiledToYAML,
+    return { ContractGroup({ Contract(Decompiled,
                                       0,
                                       DecompiledToC,
                                       1,
@@ -45,7 +45,7 @@ public:
   }
 
   void run(const pipeline::ExecutionContext &Ctx,
-           const DecompiledCCodeInYAMLStringMap &DecompiledFunctionsContainer,
+           const DecompileStringMap &DecompiledFunctionsContainer,
            DecompiledFileContainer &OutCFile);
 
   void print(const pipeline::Context &Ctx,

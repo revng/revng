@@ -61,7 +61,7 @@ public:
                 std::optional<model::Type *> &Type,
                 std::optional<model::Function> &Function,
                 std::optional<ParseCCodeError> &Error,
-                enum ImportModelFromCOption AnalysisOption) :
+                enum ImportFromCOption AnalysisOption) :
     Model(Model),
     Type(Type),
     Function(Function),
@@ -79,7 +79,7 @@ private:
   std::optional<model::Type *> &Type;
   std::optional<model::Function> &Function;
   std::optional<ParseCCodeError> &Error;
-  enum ImportModelFromCOption AnalysisOption;
+  enum ImportFromCOption AnalysisOption;
 };
 
 class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
@@ -89,7 +89,7 @@ private:
   std::optional<model::Type *> &Type;
   std::optional<model::Function> &Function;
   std::optional<revng::ParseCCodeError> &Error;
-  enum ImportModelFromCOption AnalysisOption;
+  enum ImportFromCOption AnalysisOption;
 
   // These are used for reporting source location of an error, if any.
   unsigned CurrentLineNumber = 0;
@@ -107,7 +107,7 @@ public:
                        std::optional<model::Type *> &Type,
                        std::optional<model::Function> &Function,
                        std::optional<ParseCCodeError> &Error,
-                       enum ImportModelFromCOption AnalysisOption);
+                       enum ImportFromCOption AnalysisOption);
 
   void run(clang::TranslationUnitDecl *TUD);
   bool TraverseDecl(clang::Decl *D);
@@ -163,7 +163,7 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
                          std::optional<model::Type *> &Type,
                          std::optional<model::Function> &Function,
                          std::optional<ParseCCodeError> &Error,
-                         enum ImportModelFromCOption AnalysisOption) :
+                         enum ImportFromCOption AnalysisOption) :
   Model(Model),
   Context(Context),
   Type(Type),
@@ -407,7 +407,7 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
 std::optional<model::TypePath>
 DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
   revng_assert(EnumType);
-  revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
+  revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
 
   auto EnumName = EnumType->getDecl()->getName();
   if (EnumName.empty()) {
@@ -585,7 +585,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     return true;
 
   revng_assert(FD);
-  revng_assert(AnalysisOption == ImportModelFromCOption::EditFunctionPrototype);
+  revng_assert(AnalysisOption == ImportFromCOption::EditFunctionPrototype);
   std::optional<std::string> MaybeABI;
   std::vector<AnnotateAttr *> AnnotateAttrs;
 
@@ -780,7 +780,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   if (not comesFromInternalFile(D))
     return true;
 
-  revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
+  revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
 
   QualType TheType = D->getUnderlyingType();
   if (auto Fn = llvm::dyn_cast<FunctionProtoType>(TheType)) {
@@ -817,14 +817,14 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     return false;
   }
   auto TypeTypedef = model::makeType<model::TypedefType>();
-  if (AnalysisOption == ImportModelFromCOption::EditType)
+  if (AnalysisOption == ImportFromCOption::EditType)
     TypeTypedef->ID() = (*Type)->ID();
 
   auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
   TheTypeTypeDef->UnderlyingType() = *ModelTypedefType;
   setCustomName(*TheTypeTypeDef, D->getName());
 
-  if (AnalysisOption == ImportModelFromCOption::EditType) {
+  if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
@@ -840,7 +840,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 
 bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
                                          std::optional<llvm::StringRef> ABI) {
-  revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
+  revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
 
   if (not ABI) {
     revng_log(Log, "No annotate attribute found with `abi:` information");
@@ -851,7 +851,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
   auto NewType = IsRawFunctionType ? makeType<RawFunctionType>() :
                                      makeType<CABIFunctionType>();
 
-  if (AnalysisOption == ImportModelFromCOption::EditType)
+  if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   if (not IsRawFunctionType) {
@@ -899,7 +899,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     FunctionType->FinalStackOffset() = DefaulRawType->FinalStackOffset();
   }
 
-  if (AnalysisOption == ImportModelFromCOption::EditType) {
+  if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
@@ -917,7 +917,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   const RecordDecl *Definition = RD->getDefinition();
 
   auto NewType = makeType<model::StructType>();
-  if (AnalysisOption == ImportModelFromCOption::EditType)
+  if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   setCustomName(*NewType, RD->getName());
@@ -936,7 +936,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     }
 
     std::optional<model::Register::Values> LocationID;
-    if (AnalysisOption == ImportModelFromCOption::EditFunctionPrototype) {
+    if (AnalysisOption == ImportFromCOption::EditFunctionPrototype) {
       if (not Field->hasAttr<AnnotateAttr>()) {
         revng_log(Log,
                   "Struct field representing return value should have annotate "
@@ -980,7 +980,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       return false;
     }
 
-    if (AnalysisOption == ImportModelFromCOption::EditFunctionPrototype) {
+    if (AnalysisOption == ImportFromCOption::EditFunctionPrototype) {
       revng_assert(LocationID);
       ReturnValues.push_back({ *LocationID,
                                { TheFieldType->UnqualifiedType(),
@@ -1019,7 +1019,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   Struct->Size() = CurrentOffset;
 
   switch (AnalysisOption) {
-  case ImportModelFromCOption::EditType:
+  case ImportFromCOption::EditType:
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
@@ -1027,11 +1027,11 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     Model->Types().insert(std::move(NewType));
     break;
 
-  case ImportModelFromCOption::EditFunctionPrototype:
+  case ImportFromCOption::EditFunctionPrototype:
     MultiRegisterReturnValue = ReturnValues;
     break;
 
-  case ImportModelFromCOption::AddType:
+  case ImportFromCOption::AddType:
     Model->recordNewType(std::move(NewType));
     break;
   }
@@ -1040,11 +1040,11 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 }
 
 bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
-  revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
+  revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
 
   const RecordDecl *Definition = RD->getDefinition();
   auto NewType = makeType<model::UnionType>();
-  if (AnalysisOption == ImportModelFromCOption::EditType)
+  if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   setCustomName(*NewType, RD->getName().str());
@@ -1074,7 +1074,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     ++CurrentIndex;
   }
 
-  if (AnalysisOption == ImportModelFromCOption::EditType) {
+  if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();
@@ -1091,7 +1091,7 @@ bool DeclVisitor::VisitRecordDecl(const clang::RecordDecl *RD) {
   if (not comesFromInternalFile(RD))
     return true;
 
-  if (AnalysisOption != ImportModelFromCOption::EditFunctionPrototype
+  if (AnalysisOption != ImportFromCOption::EditFunctionPrototype
       and not RD->hasAttr<PackedAttr>()) {
     revng_log(Log, "Unions and Structs should have attribute packed");
     return false;
@@ -1114,7 +1114,7 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   if (not comesFromInternalFile(D))
     return true;
 
-  revng_assert(AnalysisOption != ImportModelFromCOption::EditFunctionPrototype);
+  revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
 
   if (not D->hasAttr<PackedAttr>()) {
     revng_log(Log, "Enums should have attribute packed");
@@ -1149,7 +1149,7 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   }
 
   auto NewType = makeType<model::EnumType>();
-  if (AnalysisOption == ImportModelFromCOption::EditType)
+  if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   auto *Definition = D->getDefinition();
@@ -1165,7 +1165,7 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
       EnumEntry.CustomName() = NewName;
   }
 
-  if (AnalysisOption == ImportModelFromCOption::EditType) {
+  if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
     llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
       return P.get()->ID() == (*Type)->ID();

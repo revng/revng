@@ -3,9 +3,9 @@
 #
 
 add_subdirectory(Backend)
-add_subdirectory(ImportModelFromC)
+add_subdirectory(ImportFromC)
 add_subdirectory(DataLayoutAnalysis)
-add_subdirectory(IRCanonicalization)
+add_subdirectory(Canonicalize)
 add_subdirectory(HeadersGeneration)
 add_subdirectory(InitModelTypes)
 add_subdirectory(mlir)

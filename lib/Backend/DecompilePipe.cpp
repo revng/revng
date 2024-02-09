@@ -8,19 +8,18 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/StringMap.h"
 
-#include "revng-c/Backend/CDecompilationPipe.h"
 #include "revng-c/Backend/DecompileFunction.h"
+#include "revng-c/Backend/DecompilePipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
 using namespace pipeline;
-static RegisterDefaultConstructibleContainer<DecompiledCCodeInYAMLStringMap>
-  Reg;
+static RegisterDefaultConstructibleContainer<DecompileStringMap> Reg;
 
-void CDecompilation::run(const pipeline::ExecutionContext &Ctx,
-                         pipeline::LLVMContainer &IRContainer,
-                         DecompiledCCodeInYAMLStringMap &DecompiledFunctions) {
+void Decompile::run(const pipeline::ExecutionContext &Ctx,
+                    pipeline::LLVMContainer &IRContainer,
+                    DecompileStringMap &DecompiledFunctions) {
 
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(Ctx);
@@ -28,13 +27,13 @@ void CDecompilation::run(const pipeline::ExecutionContext &Ctx,
   decompile(Cache, Module, Model, DecompiledFunctions);
 }
 
-void CDecompilation::print(const pipeline::Context &Ctx,
-                           llvm::raw_ostream &OS,
-                           llvm::ArrayRef<std::string> Names) const {
+void Decompile::print(const pipeline::Context &Ctx,
+                      llvm::raw_ostream &OS,
+                      llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
   OS << " decompile -m model.yml -i " << Names[0] << " -o " << Names[1];
 }
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::CDecompilation> Y;
+static pipeline::RegisterPipe<revng::pipes::Decompile> Y;

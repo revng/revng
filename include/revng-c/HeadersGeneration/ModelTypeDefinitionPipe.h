@@ -21,12 +21,12 @@
 
 namespace revng::pipes {
 
-inline constexpr char TypeContainerName[] = "TypeKindTargetContainer";
+inline constexpr char TypeContainerName[] = "type-kind-target-container";
 using TypeTargetList = TargetListContainer<&kinds::ModelTypeDefinition,
                                            TypeContainerName>;
 
-inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+yaml";
-inline constexpr char ModelTypeDefinitionName[] = "ModelTypeDefinitions";
+inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+tar+gz";
+inline constexpr char ModelTypeDefinitionName[] = "model-type-definitions";
 inline constexpr char ModelTypeDefinitionExtension[] = ".h";
 using ModelTypeDefinitionStringMap = TypeStringMap<
   &kinds::ModelTypeDefinition,
@@ -36,7 +36,7 @@ using ModelTypeDefinitionStringMap = TypeStringMap<
 
 class GenerateModelTypeDefinition {
 public:
-  static constexpr auto Name = "GenerateModelTypeDefinition";
+  static constexpr auto Name = "generate-model-type-definition";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

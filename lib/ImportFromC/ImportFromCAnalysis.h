@@ -4,7 +4,7 @@
 //
 
 namespace {
-enum class ImportModelFromCOption {
+enum class ImportFromCOption {
   EditType,
   EditFunctionPrototype,
   AddType

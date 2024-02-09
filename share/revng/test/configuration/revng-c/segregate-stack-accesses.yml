@@ -1,0 +1,27 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng-c.test-segregate-stack-accesses
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-segregate-stack-accesses
+    suffix: /
+    command: |-
+      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
+      revng analyze --resume "$OUTPUT" add-primitive-types "$INPUT" -o /dev/null;
+
+      revng model override-by-name
+        "$OUTPUT/context/model.yml"
+        ${SOURCE}.override.yml
+        > "$OUTPUT/context/model-tmp.yml";
+      mv "$OUTPUT/context/model-tmp.yml" "$OUTPUT/context/model.yml";
+
+      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" -o /dev/null;
+
+      revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" -o /dev/null;
+
+      revng artifact --resume "$OUTPUT" make-segment-ref "$INPUT" | FileCheck ${SOURCE}.filecheck.ll;
+
+      revng artifact --resume "$OUTPUT" decompile "$INPUT" -o /dev/null;

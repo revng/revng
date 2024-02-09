@@ -1,0 +1,16 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+commands:
+  #
+  # Run detect-stack-size and test against ground truth
+  #
+  - type: revng-c.test-detect-stack-size
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-detect-stack-size
+    suffix: /
+    command: |-
+      revng analyze --resume "$OUTPUT" revng-initial-auto-analysis "$INPUT" -o /dev/null;
+      revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -;

@@ -19,30 +19,30 @@ static constexpr const char *const ModelGEPName = "ModelGEP";
 static constexpr const char *const ModelGEPRefName = "ModelGEPRef";
 
 namespace FunctionTags {
-Tag AllocatesLocalVariable("AllocatesLocalVariable");
-Tag MallocLike("MallocLike");
-Tag IsRef("IsRef");
-Tag AddressOf("AddressOf");
-Tag StringLiteral("StringLiteral");
-Tag ModelCast("ModelCast");
-Tag ModelGEP(ModelGEPName);
-Tag ModelGEPRef(ModelGEPRefName);
-Tag OpaqueExtractValue("OpaqueExtractvalue");
-Tag Parentheses("Parentheses");
-Tag LiteralPrintDecorator("LiteralPrintDecorator");
-Tag HexInteger("HexInteger");
-Tag CharInteger("CharInteger");
-Tag BoolInteger("BoolInteger");
-Tag NullPtr("NullPtr");
-Tag LocalVariable("LocalVariable");
-Tag Assign("Assign");
-Tag Copy("Copy");
-Tag WritesMemory("WritesMemory");
-Tag ReadsMemory("ReadsMemory");
-Tag SegmentRef("SegmentRef");
-Tag UnaryMinus("UnaryMinus");
-Tag BinaryNot("BinaryNot");
-Tag BooleanNot("BooleanNot");
+Tag AllocatesLocalVariable("allocates-local-variable");
+Tag MallocLike("malloc-like");
+Tag IsRef("is-ref");
+Tag AddressOf("address-of");
+Tag StringLiteral("string-literal");
+Tag ModelCast("model-cast");
+Tag ModelGEP("model-gep");
+Tag ModelGEPRef("model-gep-ref");
+Tag OpaqueExtractValue("opaque-extract-value");
+Tag Parentheses("parentheses");
+Tag LiteralPrintDecorator("literal-print-decorator");
+Tag HexInteger("hex-integer");
+Tag CharInteger("char-integer");
+Tag BoolInteger("bool-integer");
+Tag NullPtr("nullptr");
+Tag LocalVariable("local-variable");
+Tag Assign("assign");
+Tag Copy("copy");
+Tag WritesMemory("writes-memory");
+Tag ReadsMemory("reads-memory");
+Tag SegmentRef("segment-ref");
+Tag UnaryMinus("unary-minus");
+Tag BinaryNot("binary-not");
+Tag BooleanNot("boolean-not");
 } // namespace FunctionTags
 
 static std::string makeTypeName(const llvm::Type *Ty) {

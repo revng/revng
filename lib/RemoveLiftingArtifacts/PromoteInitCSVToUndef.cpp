@@ -7,8 +7,9 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
-#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/NamedTypedRegister.h"
+#include "revng/Model/Register.h"
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Support/FunctionTags.h"
@@ -23,9 +24,6 @@ undefPreservedRegistersInitialization(Function &F,
   bool Changed = false;
   QuickMetadata QMD(F.getParent()->getContext());
 
-  using abi::FunctionType::Layout;
-  auto Layout = Layout::make(*ModelFunction.prototype(Binary).get());
-
   for (auto &BB : F) {
     auto It = BB.begin();
     auto End = BB.end();
@@ -39,11 +37,16 @@ undefPreservedRegistersInitialization(Function &F,
 
         if (Callee and FunctionTags::OpaqueCSVValue.isTagOf(Callee)
             and Callee->hasMetadata(MDName)) {
+          using namespace model;
           auto *Tuple = cast<MDTuple>(Callee->getMetadata(MDName));
           auto RegisterName = QMD.extract<StringRef>(Tuple, 0);
-          auto Register = model::Register::fromName(RegisterName);
-          revng_check(Register != model::Register::Invalid);
-          if (llvm::count(Layout.CalleeSavedRegisters, Register) != 0) {
+          auto Register = Register::fromName(RegisterName);
+          revng_check(Register != Register::Invalid);
+
+          auto Architecture = Register::getReferenceArchitecture(Register);
+
+          using namespace Architecture;
+          if (Register != getReturnAddressRegister(Architecture)) {
             Call->replaceAllUsesWith(llvm::UndefValue::get(Call->getType()));
             Call->eraseFromParent();
             Changed = true;

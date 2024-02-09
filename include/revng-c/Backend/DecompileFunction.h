@@ -10,10 +10,10 @@
 #include "revng/Model/Binary.h"
 #include "revng/Pipes/StringMap.h"
 
-#include "revng-c/Backend/CDecompilationPipe.h"
+#include "revng-c/Backend/DecompilePipe.h"
 
 namespace detail {
-using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
+using Container = revng::pipes::DecompileStringMap;
 }
 
 void decompile(FunctionMetadataCache &Cache,

@@ -44,8 +44,21 @@ static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header,
                                const ptml::PTMLCBuilder &B) {
   auto S = B.getLocationDefinition(Segment);
-  Header << getNamedCInstance(model::QualifiedType{ Segment.Type(), {} }, S, B)
-         << ";\n";
+
+  model::QualifiedType SegmentType;
+  if (Segment.Type().empty()) {
+    // If the segment has not type, we emit it as an array of bytes.
+    const model::Binary *Model = Segment.Type().getRoot();
+    model::TypePath
+      Byte = Model->getPrimitiveType(model::PrimitiveTypeKind::Generic, 1);
+    model::Qualifier Array = model::Qualifier::createArray(Segment
+                                                             .VirtualSize());
+    SegmentType = model::QualifiedType{ Byte, { Array } };
+  } else {
+    SegmentType = model::QualifiedType{ Segment.Type(), {} };
+  }
+
+  Header << getNamedCInstance(SegmentType, S, B) << ";\n";
 }
 
 /// Print all type definitions for the types in the model

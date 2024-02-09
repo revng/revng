@@ -246,7 +246,7 @@ static void tagFunction(Function &F) {
     &FunctionTags::LiftingArtifactsRemoved,
     &FunctionTags::StackPointerPromoted,
     &FunctionTags::StackAccessesSegregated,
-    &FunctionTags::DecompiledToYAML,
+    &FunctionTags::Decompiled,
     &FunctionTags::Isolated,
     &FunctionTags::ABIEnforced,
     &FunctionTags::CSVsPromoted,
@@ -255,10 +255,7 @@ static void tagFunction(Function &F) {
 
   for (const auto &Tag : FunctionTags) {
 
-    if (UnexpectedTags.contains(*Tag)) {
-      llvm::dbgs() << Tag->name() << "\n";
-      revng_assert(not UnexpectedTags.contains(*Tag));
-    }
+    revng_assert(not UnexpectedTags.contains(*Tag));
 
     if (IgnoredTags.contains(*Tag)) {
       revng_log(Log,

@@ -90,13 +90,16 @@ find_package(Clang REQUIRED CONFIG)
 # Component hash
 #
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/share/revng/component-hashes")
-add_custom_target(
-  generate_component_hash ALL
+set(COMPONENT_HASH_PATH
+    "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng-c")
+add_custom_command(
+  OUTPUT "${COMPONENT_HASH_PATH}"
   COMMAND
     sh -c
     ' (git -C "${CMAKE_SOURCE_DIR}" rev-parse HEAD || echo "\"${CMAKE_PROJECT_VERSION}\"") '
-    > "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng-c")
-install(FILES "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng-c"
+    > "${COMPONENT_HASH_PATH}")
+add_custom_target(generate-component-hash ALL DEPENDS "${COMPONENT_HASH_PATH}")
+install(FILES "${COMPONENT_HASH_PATH}"
         DESTINATION "${CMAKE_INSTALL_DIR}/share/revng/component-hashes/")
 
 #

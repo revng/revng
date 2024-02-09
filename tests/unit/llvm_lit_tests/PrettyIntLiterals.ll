@@ -61,7 +61,7 @@ define i1 @check_bool(i1 %print) !revng.tags !0 {
 }
 
 !revng.model = !{!1}
-!0 = !{!"Isolated"}
+!0 = !{!"isolated"}
 !1 = !{!"---
 ...
 "}

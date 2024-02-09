@@ -5,40 +5,40 @@
 Component: revng-c
 Containers:
   - Name: types-and-globals.h
-    Type: ModelHeader
+    Type: model-header
   - Name: helpers.h
-    Type: HelpersHeader
+    Type: helpers-header
   - Name: decompiled.c
-    Type: DecompiledCCode
+    Type: decompiled-c-code
   - Name: decompiled.tar.gz
-    Type: DecompiledCCodeInYAML
+    Type: decompile
   - Name: module.mlir
-    Type: MLIRModule
+    Type: mlir-module
   - Name: type-targets.yml
-    Type: TypeKindTargetContainer
+    Type: type-kind-target-container
   - Name: model-type-definitions.tar.gz
-    Type: ModelTypeDefinitions
+    Type: model-type-definitions
 Branches:
-  - From: EnforceABI
+  - From: enforce-abi
     Steps:
-      - Name: RemoveLiftingArtifacts
+      - Name: remove-lifting-artifacts
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - dce
               - remove-lifting-artifacts
               - promote-init-csv-to-undef
-      - Name: PromoteStackPointer
+      - Name: promote-stack-pointer
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - measure-stack-size-at-call-sites
               - promote-stack-pointer
-      - Name: EarlyOptimizeForDecompilation
+      - Name: early-optimize
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - dce
@@ -63,9 +63,9 @@ Branches:
               - instsimplify
               - dse
               - dce
-      - Name: DetectStackSize
+      - Name: detect-stack-size
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - remove-stack-alignment
@@ -77,16 +77,16 @@ Branches:
           - Name: detect-stack-size
             Type: detect-stack-size
             UsedContainers: [module.ll]
-      - Name: SegregateStackAccesses
+      - Name: segregate-stack-accesses
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - hoist-struct-phis
               - segregate-stack-accesses
-      - Name: LateOptimizeForDecompilation
+      - Name: late-optimize
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - cleanup-stack-size-markers
@@ -109,24 +109,24 @@ Branches:
               - strip-dead-prototypes
               - split-overflow-intrinsics
               - dce
-      - Name: MakeSegmentRefs
+      - Name: make-segment-ref
         Pipes:
-          - Type: MakeSegmentRefs
+          - Type: make-segment-ref
             UsedContainers: [input, module.ll]
         Artifacts:
           Container: module.ll
-          Kind: StackAccessesSegregated
+          Kind: stack-accesses-segregated
           SingleTargetFilename: stack_access_segregate.ll
         Analyses:
-          - Name: dla
-            Type: dla
+          - Name: analyze-data-layout
+            Type: analyze-data-layout
             UsedContainers: [module.ll]
-          - Name: ConvertToCABIFunctionType
-            Type: ConvertToCABIFunctionType
+          - Name: convert-functions-to-cabi
+            Type: convert-functions-to-cabi
             UsedContainers: []
-      - Name: IRCanonicalization
+      - Name: canonicalize
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - hoist-struct-phis
@@ -146,79 +146,79 @@ Branches:
               - make-model-cast
               - operatorprecedence-resolution
               - pretty-int-formatting
-      - Name: DecompileToCInYAML
+      - Name: decompile
         Pipes:
-          - Type: HelpersToHeader
+          - Type: helpers-to-header
             UsedContainers: [module.ll, helpers.h]
-          - Type: ModelToHeader
+          - Type: model-to-header
             UsedContainers: [input, types-and-globals.h]
-          - Type: CDecompilation
+          - Type: decompile
             UsedContainers: [module.ll, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
-          Kind: DecompiledToYAML
+          Kind: decompiled
           SingleTargetFilename: decompiled.c
         Analyses:
-          - Name: ImportModelFromC
-            Type: ImportModelFromC
+          - Name: import-from-c
+            Type: import-from-c
             UsedContainers: []
-      - Name: DecompiledYAMLToC
+      - Name: decompile-to-single-file
         Pipes:
-          - Type: DecompiledYAMLToC
+          - Type: decompile-to-single-file
             UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c
-          Kind: DecompiledToC
+          Kind: decompiled-to-c
           SingleTargetFilename: binary_decompiled.c
-  - From: IRCanonicalization
+  - From: canonicalize
     Steps:
-      - Name: PrintHelpersHeader
+      - Name: emit-helpers-header
         Pipes:
-          - Type: HelpersToHeader
+          - Type: helpers-to-header
             UsedContainers: [module.ll, helpers.h]
         Artifacts:
           Container: helpers.h
-          Kind: HelpersHeader
+          Kind: helpers-header
           SingleTargetFilename: helpers.h
-  - From: IRCanonicalization
+  - From: initial
     Steps:
-      - Name: PrintModelHeader
+      - Name: emit-model-header
         Pipes:
-          - Type: ModelToHeader
+          - Type: model-to-header
             UsedContainers: [input, types-and-globals.h]
         Artifacts:
           Container: types-and-globals.h
-          Kind: ModelHeader
+          Kind: model-header
           SingleTargetFilename: types-and-globals.h
-  - From: IRCanonicalization
+  - From: canonicalize
     Steps:
-      - Name: GenerateModelTypeDefinitions
+      - Name: emit-type-definitions
         Pipes:
-          - Type: PopulateTypeKindTargetContainer
+          - Type: populate-type-kind-target-container
             UsedContainers: [input, type-targets.yml]
-          - Type: GenerateModelTypeDefinition
+          - Type: generate-model-type-definition
             UsedContainers: [type-targets.yml, model-type-definitions.tar.gz]
         Artifacts:
           Container: model-type-definitions.tar.gz
-          Kind: ModelTypeDefinition
+          Kind: model-type-definition
           SingleTargetFilename: type.h
-  - From: MakeSegmentRefs
+  - From: make-segment-ref
     Steps:
-      - Name: LLVMIRToMLIR
+      - Name: convert-to-mlir
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - prepare-llvmir-for-mlir
-          - Type: ImportLLVMToMLIRPipe
+          - Type: import-llvm-to-mlir
             UsedContainers: [module.ll, module.mlir]
         Artifacts:
           Container: module.mlir
-          Kind: MLIRLLVMModule
+          Kind: mlir-llvm-module
           SingleTargetFilename: mlir-llvm-dialect.mlir
 AnalysesLists:
   - Name: revng-c-initial-auto-analysis
     Analyses:
       - detect-stack-size
-      - dla
-      - ConvertToCABIFunctionType
+      - analyze-data-layout
+      - convert-functions-to-cabi

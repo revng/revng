@@ -21,7 +21,7 @@ namespace revng::pipes {
 
 inline constexpr char ModelHeaderFileContainerMIMEType[] = "text/x.c+ptml";
 inline constexpr char ModelHeaderFileContainerSuffix[] = ".h";
-inline constexpr char ModelHeaderFileContainerName[] = "ModelHeader";
+inline constexpr char ModelHeaderFileContainerName[] = "model-header";
 using ModelHeaderFileContainer = FileContainer<&kinds::ModelHeader,
                                                ModelHeaderFileContainerName,
                                                ModelHeaderFileContainerMIMEType,
@@ -29,7 +29,7 @@ using ModelHeaderFileContainer = FileContainer<&kinds::ModelHeader,
 
 class ModelToHeader {
 public:
-  static constexpr auto Name = "ModelToHeader";
+  static constexpr auto Name = "model-to-header";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

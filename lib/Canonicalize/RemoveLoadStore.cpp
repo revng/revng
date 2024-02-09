@@ -37,9 +37,7 @@ public:
   }
 };
 
-using llvm::CallInst;
 using llvm::dyn_cast;
-using llvm::Type;
 using model::QualifiedType;
 
 static llvm::CallInst *buildDerefCall(llvm::Module &M,

@@ -1,0 +1,33 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+tags:
+  - name: import-from-c
+sources:
+  - tags: [import-from-c]
+    prefix: share/revng/test/tests/analysis/ImportFromCAnalysis/
+    members:
+      - struct.model.yml
+      - union.model.yml
+      - cabifunctiontype.model.yml
+      - cabifunctiontype-with-complex-args.model.yml
+      - enumtype.model.yml
+      - typedef.model.yml
+      - primitive-types.model.yml
+      - rft-multiple-regs-for-return-val.model.yml
+      - rft-single-reg-for-return-val.model.yml
+commands:
+  - type: revng-c.import-from-c
+    from:
+      - type: source
+        filter: import-from-c
+    suffix: /
+    command: |-
+      revng analyze
+        --model "$INPUT"
+        import-from-c
+        --import-from-c-location-to-edit="$$(grep -vE '^(#|$$)' ${SOURCE}.location)"
+        --import-from-c-ccode="$$(cat ${SOURCE}.ccode)"
+        /dev/null
+        | revng model compare "${SOURCE}.reference.yml"

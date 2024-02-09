@@ -20,7 +20,7 @@ using namespace pipeline;
 static RegisterDefaultConstructibleContainer<TypeTargetList> F1;
 static RegisterDefaultConstructibleContainer<ModelTypeDefinitionStringMap> F2;
 
-inline constexpr char PipeName[] = "PopulateTypeKindTargetContainer";
+inline constexpr char PipeName[] = "populate-type-kind-target-container";
 using PopulateTypeKind = PopulateTargetListContainer<TypeTargetList, PipeName>;
 
 using Container = ModelTypeDefinitionStringMap;

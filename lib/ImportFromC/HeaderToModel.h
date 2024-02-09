@@ -14,7 +14,7 @@
 #include "revng/Model/ForwardDecls.h"
 #include "revng/TupleTree/TupleTree.h"
 
-#include "ImportModelFromCAnalysis.h"
+#include "ImportFromCAnalysis.h"
 
 namespace revng {
 struct ParseCCodeError {
@@ -51,7 +51,7 @@ private:
 class HeaderToModelAction : public ASTFrontendAction {
 protected:
   HeaderToModelAction(TupleTree<model::Binary> &Model,
-                      enum ImportModelFromCOption AnalysisOption,
+                      enum ImportFromCOption AnalysisOption,
                       std::optional<revng::ParseCCodeError> &Error) :
     Model(Model), AnalysisOption(AnalysisOption), Error(Error) {}
 
@@ -70,7 +70,7 @@ protected:
 
   // This indiacates which feature is used (edit/add type, edit function
   // prototype).
-  enum ImportModelFromCOption AnalysisOption;
+  enum ImportFromCOption AnalysisOption;
 
   // This holds the error message reported by clang or revng, if any.
   std::optional<revng::ParseCCodeError> &Error;
@@ -85,7 +85,7 @@ public:
   HeaderToModelEditTypeAction(TupleTree<model::Binary> &Model,
                               std::optional<revng::ParseCCodeError> &Error,
                               std::optional<model::Type *> &Type) :
-    HeaderToModelAction(Model, ImportModelFromCOption::EditType, Error),
+    HeaderToModelAction(Model, ImportFromCOption::EditType, Error),
     Type(Type) {}
 
 private:
@@ -102,9 +102,7 @@ public:
   HeaderToModelEditFunctionAction(TupleTree<model::Binary> &Model,
                                   std::optional<revng::ParseCCodeError> &Error,
                                   std::optional<model::Function> &Function) :
-    HeaderToModelAction(Model,
-                        ImportModelFromCOption::EditFunctionPrototype,
-                        Error),
+    HeaderToModelAction(Model, ImportFromCOption::EditFunctionPrototype, Error),
     Function(Function) {}
 
 private:
@@ -120,7 +118,7 @@ class HeaderToModelAddTypeAction : public HeaderToModelAction {
 public:
   HeaderToModelAddTypeAction(TupleTree<model::Binary> &Model,
                              std::optional<revng::ParseCCodeError> &Error) :
-    HeaderToModelAction(Model, ImportModelFromCOption::AddType, Error) {}
+    HeaderToModelAction(Model, ImportFromCOption::AddType, Error) {}
 
 public:
   virtual std::unique_ptr<ASTConsumer> newASTConsumer() override;

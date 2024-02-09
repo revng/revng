@@ -1,4 +1,4 @@
-/// \file ImportModelFromCAnalysis.cpp
+/// \file ImportFromCAnalysis.cpp
 /// \brief Use to edit Types by omitting rewriting of Model directly
 
 //
@@ -36,8 +36,8 @@
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 
 #include "HeaderToModel.h"
-#include "ImportModelFromCAnalysis.h"
-#include "ImportModelFromCHelpers.h"
+#include "ImportFromCAnalysis.h"
+#include "ImportFromCHelpers.h"
 
 using namespace llvm;
 using namespace clang;
@@ -73,8 +73,8 @@ static std::optional<std::string> findHeaderFile(const std::string &File) {
   return (*MaybeHeaderPath).substr(0, Index);
 }
 
-struct ImportModelFromCAnalysis {
-  static constexpr auto Name = "ImportModelFromC";
+struct ImportFromCAnalysis {
+  static constexpr auto Name = "import-from-c";
 
   constexpr static std::tuple Options = { pipeline::Option("location-to-edit",
                                                            ""),
@@ -85,7 +85,7 @@ struct ImportModelFromCAnalysis {
   llvm::Error run(pipeline::ExecutionContext &Ctx,
                   std::string LocationToEdit,
                   std::string CCode) {
-    enum ImportModelFromCOption TheOption;
+    enum ImportFromCOption TheOption;
     auto &Model = revng::getWritableModelFromContext(Ctx);
 
     // This will be used iff {Edit|Add}TypeFeature is used.
@@ -96,7 +96,7 @@ struct ImportModelFromCAnalysis {
 
     if (LocationToEdit.empty()) {
       // This is the default option of the analysis.
-      TheOption = ImportModelFromCOption::AddType;
+      TheOption = ImportFromCOption::AddType;
     } else {
       if (auto L = pipeline::locationFromString(revng::ranks::Function,
                                                 LocationToEdit)) {
@@ -109,7 +109,7 @@ struct ImportModelFromCAnalysis {
         }
 
         FunctionToBeEdited = *Iterator;
-        TheOption = ImportModelFromCOption::EditFunctionPrototype;
+        TheOption = ImportFromCOption::EditFunctionPrototype;
       } else if (auto L = pipeline::locationFromString(revng::ranks::Type,
                                                        LocationToEdit)) {
         auto Key = std::get<0>(L->at(revng::ranks::Type));
@@ -123,7 +123,7 @@ struct ImportModelFromCAnalysis {
         }
 
         TypeToEdit = Iterator->get();
-        TheOption = ImportModelFromCOption::EditType;
+        TheOption = ImportFromCOption::EditType;
       } else {
         return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                        "Invalid location");
@@ -155,7 +155,7 @@ struct ImportModelFromCAnalysis {
       .DisableTypeInlining = true,
     };
 
-    if (TheOption == ImportModelFromCOption::EditType) {
+    if (TheOption == ImportFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward
       // declarations.
       if (not isa<model::RawFunctionType>(*TypeToEdit)
@@ -174,10 +174,10 @@ struct ImportModelFromCAnalysis {
 
       // Find all types whose definition depends on the type we are editing.
       Options.TypesToOmit = populateDependencies(*TypeToEdit, Model);
-    } else if (TheOption == ImportModelFromCOption::EditFunctionPrototype) {
+    } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
       Options.FunctionsToOmit.insert(FunctionToBeEdited->Entry());
     } else {
-      revng_assert(TheOption == ImportModelFromCOption::AddType);
+      revng_assert(TheOption == ImportFromCOption::AddType);
       // We have nothing to ignore
     }
 
@@ -193,11 +193,11 @@ struct ImportModelFromCAnalysis {
     std::optional<revng::ParseCCodeError> Error;
     std::unique_ptr<HeaderToModelAction> Action;
 
-    if (TheOption == ImportModelFromCOption::EditType) {
+    if (TheOption == ImportFromCOption::EditType) {
       Action = std::make_unique<HeaderToModelEditTypeAction>(OutModel,
                                                              Error,
                                                              TypeToEdit);
-    } else if (TheOption == ImportModelFromCOption::EditFunctionPrototype) {
+    } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
       using EditFunctionPrototype = HeaderToModelEditFunctionAction;
       Action = std::make_unique<EditFunctionPrototype>(OutModel,
                                                        Error,
@@ -275,4 +275,4 @@ struct ImportModelFromCAnalysis {
   }
 };
 
-pipeline::RegisterAnalysis<ImportModelFromCAnalysis> ImportModelFromCReg;
+pipeline::RegisterAnalysis<ImportFromCAnalysis> ImportFromCReg;

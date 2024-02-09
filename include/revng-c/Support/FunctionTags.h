@@ -42,19 +42,19 @@ extern Tag UnaryMinus;
 extern Tag BinaryNot;
 extern Tag BooleanNot;
 
-inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", CSVsPromoted);
+inline Tag LiftingArtifactsRemoved("lifting-artifacts-removed", CSVsPromoted);
 
-inline Tag StackPointerPromoted("StackPointerPromoted",
+inline Tag StackPointerPromoted("stack-pointer-promoted",
                                 LiftingArtifactsRemoved);
 
-inline Tag StackAccessesSegregated("StackAccessesSegregated",
+inline Tag StackAccessesSegregated("stack-accesses-segregated",
                                    StackPointerPromoted);
 
-inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
+inline Tag Decompiled("decompiled", StackPointerPromoted);
 
-inline Tag StackOffsetMarker("StackOffsetMarker");
+inline Tag StackOffsetMarker("stack-offset-marker");
 
-inline Tag BinaryOperationOverflows("BinaryOperationOverflows");
+inline Tag BinaryOperationOverflows("binary-operation-overflow");
 
 } // namespace FunctionTags
 
