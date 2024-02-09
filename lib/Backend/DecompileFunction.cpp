@@ -457,8 +457,8 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
       or DestType.UnqualifiedType().empty())
     return ExprToCast.str();
 
-  revng_assert((SrcType.isScalar() or SrcType.isPointer())
-               and (DestType.isScalar() or DestType.isPointer()));
+  revng_assert(SrcType.skipTypedefs() == DestType.skipTypedefs()
+               or (SrcType.isScalar() and DestType.isScalar()));
 
   return addAlwaysParentheses(getTypeName(DestType, B)) + " "
          + addParentheses(ExprToCast);
@@ -638,10 +638,10 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
   } else {
     // In ModelGEPs, the base value is a pointer, and the base type is the
     // type pointed by the base value
-    QualifiedType PointerQt = CurType.getPointerTo(Model.Architecture());
-    revng_assert(TypeMap.at(BaseValue) == PointerQt,
-                 "The ModelGEP base type is not coherent with the "
-                 "propagated type.");
+    QualifiedType Pointer = CurType.getPointerTo(Model.Architecture());
+    revng_assert(TypeMap.at(BaseValue).skipTypedefs() == Pointer.skipTypedefs(),
+                 "The ModelGEP base type is not coherent with the propagated "
+                 "type.");
 
     auto *ThirdArgument = Call->getArgOperand(2);
     auto *ConstantArrayIndex = dyn_cast<llvm::ConstantInt>(ThirdArgument);
@@ -684,8 +684,8 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       // elements of the array is not actually used for generating the C code,
       // so we can get away with it.
       auto LongArray = model::Qualifier::createArray(1);
-      PointerQt.Qualifiers().front() = std::move(LongArray);
-      CurType = PointerQt;
+      Pointer.Qualifiers().front() = std::move(LongArray);
+      CurType = Pointer;
     } else {
       // Otherwise, we're not accessing the base pointer as an array.
       // So we can skip an additional argument.
@@ -811,7 +811,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
 
     // Second argument is the value being addressed
     llvm::Value *Arg = Call->getArgOperand(1);
-    revng_assert(ArgType == TypeMap.at(Arg));
+    revng_assert(ArgType.skipTypedefs() == TypeMap.at(Arg).skipTypedefs());
 
     std::string ArgString = rc_recur getToken(Arg);
     rc_return buildAddressExpr(ArgString);
