@@ -20,14 +20,17 @@ def main():
     args = parser.parse_args()
 
     with open(args.input_model_path, "r") as f:
-        working_model = yaml.load(f, Loader=model.YamlLoader)
+        binary = yaml.load(f, Loader=model.YamlLoader)
 
-    for working_type in working_model.Types:
-        if working_type.Kind == model.TypeKind.CABIFunctionType:
-            working_type.ABI = args.new_abi
+    prototypes_to_fix = [str(f.Prototype) for f in binary.Functions if f.Prototype.is_valid()]
+    for current_type in binary.Types:
+        if current_type.Kind == model.TypeKind.CABIFunctionType:
+            reference = binary.get_reference_str(current_type)
+            if reference in prototypes_to_fix:
+                current_type.ABI = args.new_abi
 
     with open(args.output_model_path, "w") as f:
-        f.write(yaml.dump(working_model, Dumper=model.YamlDumper))
+        f.write(yaml.dump(binary, Dumper=model.YamlDumper))
 
 
 if __name__ == "__main__":
