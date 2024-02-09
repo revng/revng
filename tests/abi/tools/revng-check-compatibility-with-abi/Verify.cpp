@@ -466,10 +466,11 @@ getPrototypeLayout(const model::Function &Function,
   if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
     if (ABI != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
-                          "the ABI to use is '"
-                          + serializeToString(ABI)
-                          + "' while the function contains '"
-                          + serializeToString(CABI->ABI()) + "'.";
+                          "the intended ABI is '"
+                          + serializeToString(ABI.ABI())
+                          + "' but the function is\n"
+                          + serializeToString(Function) + "\nWith prototype:\n"
+                          + serializeToString(*CABI);
       revng_abort(Error.c_str());
     }
 
