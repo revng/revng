@@ -217,7 +217,7 @@ inline constexpr char BinaryFileMIMEType[] = "application/"
                                              "x-executable";
 
 inline constexpr char BinaryFileSuffix[] = "";
-inline constexpr char BinaryFileName[] = "Binary";
+inline constexpr char BinaryFileName[] = "binary";
 using BinaryFileContainer = FileContainer<&kinds::Binary,
                                           BinaryFileName,
                                           BinaryFileMIMEType,
@@ -225,7 +225,7 @@ using BinaryFileContainer = FileContainer<&kinds::Binary,
 
 inline constexpr char ObjectFileMIMEType[] = "application/x-object";
 inline constexpr char ObjectFileSuffix[] = ".o";
-inline constexpr char ObjectFileName[] = "Object";
+inline constexpr char ObjectFileName[] = "object";
 using ObjectFileContainer = FileContainer<&kinds::Object,
                                           ObjectFileName,
                                           ObjectFileMIMEType,
@@ -233,7 +233,7 @@ using ObjectFileContainer = FileContainer<&kinds::Object,
 
 inline constexpr char TranslatedFileMIMEType[] = "application/x-executable";
 inline constexpr char TranslatedFileSuffix[] = "";
-inline constexpr char TranslatedFileName[] = "Translated";
+inline constexpr char TranslatedFileName[] = "translated";
 using TranslatedFileContainer = FileContainer<&kinds::Translated,
                                               TranslatedFileName,
                                               TranslatedFileMIMEType,
@@ -241,7 +241,7 @@ using TranslatedFileContainer = FileContainer<&kinds::Translated,
 
 inline constexpr char HexDumpFileMIMEType[] = "text/x.hexdump+ptml";
 inline constexpr char HexDumpFileSuffix[] = ".hex";
-inline constexpr char HexDumpFileName[] = "HexDump";
+inline constexpr char HexDumpFileName[] = "hex-dump";
 using HexDumpFileContainer = FileContainer<&kinds::HexDump,
                                            HexDumpFileName,
                                            HexDumpFileMIMEType,

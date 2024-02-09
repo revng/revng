@@ -5,85 +5,84 @@
 Component: revng
 Containers:
   - Name: hex.dump
-    Type: HexDump
+    Type: hex-dump
   - Name: cross-relations.yml
-    Type: BinaryCrossRelations
-    Role: CrossRelations
+    Type: binary-cross-relations
+    Role: cross-relations
   - Name: module.ll
-    Type: LLVMContainer
+    Type: llvm-container
   - Name: input
-    Type: Binary
+    Type: binary
   - Name: object.o
-    Type: Object
+    Type: object
   - Name: output
-    Type: Translated
+    Type: translated
   - Name: assembly-internal.yml.tar.gz
-    Type: FunctionAssemblyInternal
+    Type: function-assembly-internal
   - Name: assembly.ptml.tar.gz
-    Type: FunctionAssemblyPTML
+    Type: function-assembly-ptml
   - Name: call-graph.svg.yml
-    Type: CallGraphSVG
+    Type: call-graph-svg
   - Name: call-graph-slice.svg.tar.gz
-    Type: CallGraphSliceSVG
+    Type: call-graph-slice-svg
   - Name: cfg.svg.tar.gz
-    Type: FunctionControlFlowGraphSVG
+    Type: function-control-flow-graph-svg
+  - Name: cfg.yml
+    Type: cfg
 Branches:
   - Steps:
-      - Name: GlobalAnalyses
+      - Name: initial
         Analyses:
-          - Name: ApplyDiff
-            Type: ApplyDiff
+          - Name: apply-diff
+            Type: apply-diff
             UsedContainers: []
-          - Name: VerifyDiff
-            Type: VerifyDiff
+          - Name: verify-diff
+            Type: verify-diff
             UsedContainers: []
-          - Name: SetGlobal
-            Type: SetGlobal
+          - Name: set-global
+            Type: set-global
             UsedContainers: []
-          - Name: VerifyGlobal
-            Type: VerifyGlobal
+          - Name: verify-global
+            Type: verify-global
             UsedContainers: []
-  - Steps:
-      - Name: Import
-        Analyses:
-          - Name: AddPrimitiveTypes
-            Type: AddPrimitiveTypes
+          - Name: add-primitive-types
+            Type: add-primitive-types
             UsedContainers: []
-          - Name: ImportBinary
-            Type: ImportBinary
+          - Name: import-binary
+            Type: import-binary
             UsedContainers: [input]
-          - Name: ImportWellKnownModels
-            Type: ImportWellKnownModels
+          - Name: import-well-known-models
+            Type: import-well-known-models
             UsedContainers: []
-      - Name: Lift
+      - Name: lift
         Pipes:
-          - Type: Lift
+          - Type: lift
             UsedContainers: [input, module.ll]
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes: [globaldce]
         Artifacts:
           Container: module.ll
-          Kind: Root
+          Kind: root
           SingleTargetFilename: module_lifted.ll
         Analyses:
-          - Name: DetectABI
-            Type: DetectABI
+          - Name: detect-abi
+            Type: detect-abi
             UsedContainers: [module.ll]
-      - Name: Isolate
+      - Name: isolate
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes: [isolate, invoke-isolated-functions, attach-debug-info]
-          - Type: ProcessCallGraph
+          - Type: process-call-graph
             UsedContainers: [module.ll, cross-relations.yml]
         Artifacts:
           Container: module.ll
-          Kind: Isolated
+          Kind: isolated
           SingleTargetFilename: module_isolated.ll
-      - Name: EnforceABI
+      - Name: enforce-abi
         Pipes:
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - drop-root
@@ -103,102 +102,112 @@ Branches:
 
         Artifacts:
           Container: module.ll
-          Kind: CSVsPromoted
+          Kind: csvs-promoted
           SingleTargetFilename: module_abienforced.ll
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: HexDump
+      - Name: hexdump
         Pipes:
-          - Type: HexDump
+          - Type: hex-dump
             UsedContainers: [input, module.ll, hex.dump]
         Artifacts:
           Container: hex.dump
-          Kind: HexDump
+          Kind: hex-dump
           SingleTargetFilename: hex_dump.hex
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: YieldCallGraph
+      - Name: render-svg-call-graph
         Pipes:
-          - Type: YieldCallGraph
+          - Type: yield-call-graph
             UsedContainers: [cross-relations.yml, call-graph.svg.yml]
         Artifacts:
           Container: call-graph.svg.yml
-          Kind: CallGraphSVG
+          Kind: call-graph-svg
           SingleTargetFilename: call-graph.svg
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: YieldCallGraphSlice
+      - Name: render-svg-call-graph-slice
         Pipes:
-          - Type: YieldCallGraphSlice
+          - Type: yield-call-graph-slice
             UsedContainers: [module.ll, cross-relations.yml, call-graph-slice.svg.tar.gz]
         Artifacts:
           Container: call-graph-slice.svg.tar.gz
-          Kind: CallGraphSliceSVG
+          Kind: call-graph-slice-svg
           SingleTargetFilename: call-graph-slice.svg
-  - From: Isolate
+  - From: isolate
     Steps:
-      - Name: ProcessAssembly
+      - Name: process-assembly
         Pipes:
-          - Type: ProcessAssembly
+          - Type: process-assembly
             UsedContainers: [input, module.ll, assembly-internal.yml.tar.gz]
-      - Name: YieldAssembly
+      - Name: disassemble
         Pipes:
-          - Type: YieldAssembly
+          - Type: yield-assembly
             UsedContainers: [assembly-internal.yml.tar.gz, assembly.ptml.tar.gz]
         Artifacts:
           Container: assembly.ptml.tar.gz
-          Kind: FunctionAssemblyPTML
+          Kind: function-assembly-ptml
           SingleTargetFilename: disassembly.S
-  - From: ProcessAssembly
+  - From: process-assembly
     Steps:
-      - Name: YieldCFG
+      - Name: render-svg-cfg
         Pipes:
-          - Type: YieldCFG
+          - Type: yield-cfg
             UsedContainers: [assembly-internal.yml.tar.gz, cfg.svg.tar.gz]
         Artifacts:
           Container: cfg.svg.tar.gz
-          Kind: FunctionControlFlowGraphSVG
+          Kind: function-control-flow-graph-svg
           SingleTargetFilename: cfg.svg
-  - From: Lift
+  - From: lift
     Steps:
-      - Name: Recompile
+      - Name: recompile
         Pipes:
-          - Type: LinkSupport
+          - Type: link-support
             UsedContainers: [module.ll]
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes: [O2]
             EnabledWhen: [O2]
-          - Type: Compile
+          - Type: compile
             UsedContainers: [module.ll, object.o]
-          - Type: LinkForTranslation
+          - Type: link-for-translation
             UsedContainers: [input, object.o, output]
         Artifacts:
           Container: output
-          Kind: Translated
-          SingleTargetFilename: translated_binary
-  - From: Isolate
+          Kind: translated
+          SingleTargetFilename: translated-binary
+  - From: isolate
     Steps:
-      - Name: RecompileIsolated
+      - Name: recompile-isolated
         Pipes:
-          - Type: LinkSupport
+          - Type: link-support
             UsedContainers: [module.ll]
-          - Type: LLVMPipe
+          - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes: [O2]
             EnabledWhen: [O2]
-          - Type: CompileIsolated
+          - Type: compile-isolated
             UsedContainers: [module.ll, object.o]
-          - Type: LinkForTranslation
+          - Type: link-for-translation
             UsedContainers: [input, object.o, output]
         Artifacts:
           Container: output
-          Kind: Translated
-          SingleTargetFilename: isolated_translated_binary
+          Kind: translated
+          SingleTargetFilename: isolated-translated-binary
+  - From: isolate
+    Steps:
+      - Name: emit-cfg
+        Pipes:
+          - Type: emit-cfg
+            UsedContainers: [module.ll, cfg.yml]
+        Artifacts:
+          Container: cfg.yml
+          Kind: cfg
+          SingleTargetFilename: cfg.yml
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
-      - AddPrimitiveTypes
-      - ImportBinary
-      - ImportWellKnownModels
-      - DetectABI
+      - add-primitive-types
+      - import-binary
+      - import-well-known-models
+      - detect-abi

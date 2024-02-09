@@ -56,7 +56,7 @@ static void verifyTrace(tracing::Trace &Trace) {
   BOOST_TEST(Trace.Commands[3].Arguments[0].getScalar() == ManagerAddress);
 
   BOOST_TEST(Trace.Commands[1].Arguments[1].getScalar() == "begin");
-  BOOST_TEST(Trace.Commands[2].Arguments[1].getScalar() == "FirstStep");
+  BOOST_TEST(Trace.Commands[2].Arguments[1].getScalar() == "first-step");
 }
 
 BOOST_AUTO_TEST_SUITE(PipelineCTracingTestSuite,
@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_CASE(PipelineCTraceTest) {
 
     rp_manager *Manager = rp_manager_create(0, {}, "");
     rp_manager_get_step_from_name(Manager, "begin");
-    rp_manager_get_step_from_name(Manager, "FirstStep");
+    rp_manager_get_step_from_name(Manager, "first-step");
     rp_manager_destroy(Manager);
 
     tracing::setTracing(nullptr);

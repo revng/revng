@@ -1,6 +1,6 @@
 # Purpose
 
-`revng` is a static binary translator. Given a input ELF binary for one of the supported architectures (currently i386, x86-64, MIPS, ARM, AArch64 and s390x) it will analyze it and emit an equivalent LLVM IR. To do so, `revng` employs the QEMU intermediate representation (a series of TCG instructions) and then translates them to LLVM IR.
+`revng` is a static binary translator. Given an input ELF binary for one of the supported architectures (currently i386, x86-64, MIPS, ARM, AArch64 and s390x) it will analyze it and emit an equivalent LLVM IR. To do so, `revng` employs the QEMU intermediate representation (a series of TCG instructions) and then translates them to LLVM IR.
 
 # How to build
 

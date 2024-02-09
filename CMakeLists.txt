@@ -123,13 +123,16 @@ file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
 # Component hash
 #
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/share/revng/component-hashes")
-add_custom_target(
-  generate_component_hash ALL
+set(COMPONENT_HASH_PATH
+    "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng")
+add_custom_command(
+  OUTPUT "${COMPONENT_HASH_PATH}"
   COMMAND
     sh -c
     ' (git -C "${CMAKE_SOURCE_DIR}" rev-parse HEAD || echo "\"${CMAKE_PROJECT_VERSION}\"") '
-    > "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng")
-install(FILES "${CMAKE_BINARY_DIR}/share/revng/component-hashes/revng"
+    > "${COMPONENT_HASH_PATH}")
+add_custom_target(generate-component-hash ALL DEPENDS "${COMPONENT_HASH_PATH}")
+install(FILES "${COMPONENT_HASH_PATH}"
         DESTINATION "${CMAKE_INSTALL_DIR}/share/revng/component-hashes/")
 
 #
@@ -216,7 +219,7 @@ foreach(WELL_KNOWN_BINARY IN LISTS WELL_KNOWN_BINARIES)
 
   add_custom_command(
     OUTPUT "${FULL_MODEL_PATH}"
-    COMMAND "./bin/revng" model import binary -o "${MODEL_PATH}"
+    COMMAND "./bin/revng" model import binary -o "${FULL_MODEL_PATH}"
             "${WELL_KNOWN_BINARY}"
     MAIN_DEPENDENCY "${WELL_KNOWN_BINARY}"
     DEPENDS revng-all-binaries
@@ -267,6 +270,28 @@ enable_testing()
 find_package(Python REQUIRED)
 file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}"
      "${Python_SITELIB}")
+
+#
+# Build docs
+#
+find_program(MKDOCS NAMES mkdocs)
+add_custom_command(
+  OUTPUT share/doc/revng/html/404.html
+  DEPENDS share/doc/revng/references/mime-types.md
+          share/doc/revng/references/ptml.md
+          share/doc/revng/user-manual/analyses.md
+          share/doc/revng/user-manual/index.md
+          share/doc/revng/user-manual/metaaddress.md
+          share/doc/revng/user-manual/model.md
+          share/doc/revng/user-manual/model-tutorial.md
+          share/doc/revng/user-manual/working-environment.md
+          share/doc/revng/what-is-revng.md
+          share/doc/revng/index.md
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+  COMMAND ${MKDOCS} build --quiet --strict --site-dir
+          "${CMAKE_CURRENT_BINARY_DIR}/share/doc/revng/html"
+  COMMENT "Generating mkdocs")
+add_custom_target(mkdocs ALL DEPENDS share/doc/revng/html/404.html)
 
 #
 # Proceed to subdirectories

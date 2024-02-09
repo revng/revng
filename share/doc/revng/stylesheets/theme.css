@@ -1,0 +1,81 @@
+/*
+ * This file is distributed under the MIT License. See LICENSE.md for details.
+ */
+
+ @media screen {
+  [data-md-color-scheme='revng'] {
+    color-scheme: dark;
+
+    --md-nav-icon--next: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4.00003 13L4.00003 11L16 11L10.5 5.50004L11.92 4.08004L19.84 12L11.92 19.92L10.5 18.5L16 13L4.00003 13Z"/></svg>');
+
+    --primary-color: #ee3220;
+
+    /* Primary color shades */
+    --md-primary-fg-color: hsla(215, 21%, 11%, 1);
+    --md-primary-fg-color--light: hsla(215, 15%, 15%, 1);
+    --md-primary-fg-color--dark: hsla(216, 28%, 7%, 1);
+    --md-primary-bg-color: hsla(203, 100%, 97%, 0.6);
+    --md-primary-bg-color--light: hsla(202, 100%, 97%, 0.85);
+
+    --md-accent-fg-color: hsla(0, 0%, 100%, 1);
+    --md-accent-fg-color--transparent: hsla(203, 100%, 97%, 0.05);
+    --md-accent-bg-color: hsla(203, 100%, 97%, 0.6);
+    --md-accent-bg-color--light: hsla(202, 100%, 97%, 0.85);
+
+    /* Default color shades */
+    --md-default-fg-color: hsla(202, 100%, 97%, 0.85);
+    --md-default-fg-color--light: hsla(0, 0%, 100%, 1);
+    --md-default-fg-color--lighter: hsla(203, 100%, 97%, 0.1);
+    --md-default-fg-color--lightest: hsla(203, 100%, 97%, 0.05);
+    --md-default-bg-color: hsla(216, 28%, 7%, 1);
+    --md-default-bg-color--light: hsla(215, 15%, 15%, 0.9);
+    --md-default-bg-color--lighter: hsla(215, 15%, 15%, 0.7);
+    --md-default-bg-color--lightest: hsla(215, 15%, 15%, 0.1);
+
+    /* Code */
+    --md-code-fg-color: var(--md-accent-fg-color);
+    --md-code-bg-color: hsla(203, 100%, 97%, 0.1);
+    --md-code-hl-color: hsla(203, 100%, 97%, 0.1);
+    --md-code-hl-operator-color: #ffffff;
+    --md-code-hl-name-color: #ffffff;
+    --md-code-hl-punctuation-color: #ffffff;
+    --md-code-hl-generic-color: #ffffff;
+    --md-code-hl-variable-color: #ffffff;
+    --md-code-hl-string-color: #ffffff;
+    --md-code-hl-keyword-color: #1a82fc;
+    --md-code-hl-constant-color: #1a82fc;
+    --md-code-hl-function-color: #a966ff;
+    --md-code-hl-number-color: #ff5833;
+    --md-code-hl-special-color: #ff5833;
+    --md-code-hl-comment-color: hsla(203, 100%, 97%, 0.4);
+
+    --md-typeset-color: var(--md-default-fg-color);
+    --md-typeset-a-color: var(--primary-color);
+
+    /* Footer color shades */
+    --md-footer-fg-color: var(--md-accent-fg-color);
+    --md-footer-fg-color--lighter: var(--md-primary-bg-color--light);
+    --md-footer-bg-color: var(--md-primary-fg-color);
+    --md-footer-bg-color--dark: var(--md-default-bg-color);
+  }
+
+  .md-nav__item .md-nav__link--active,
+  .md-typeset a {
+    color: var(--md-typeset-a-color);
+  }
+
+  .md-typeset a:hover {
+    color: var(--md-typeset-a-color);
+  }
+
+  .highlight .nd,
+  .highlight .ni,
+  .highlight .nl,
+  .highlight .nt {
+    color: var(--md-code-hl-special-color);
+  }
+
+  .md-footer-meta .md-copyright a {
+    text-decoration: underline;
+  }
+}

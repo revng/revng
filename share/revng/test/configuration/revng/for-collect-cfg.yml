@@ -8,13 +8,8 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-collect-cfg
     command: |-
-      RESUME=$$(temp -d);
-      MODEL=$$(temp);
-      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
-      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
-      revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o "$$MODEL";
-      revng artifact --resume "$$RESUME" EnforceABI "$INPUT" |
-        revng model inject "$$MODEL" |
-        revng efa-extractcfg |
+      revng artifact
+        --analyses-list=revng-initial-auto-analysis
+        emit-cfg "$INPUT" |
         revng model to-json --remap |
         revng model compare "${SOURCE}.cfg.yml"

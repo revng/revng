@@ -20,7 +20,7 @@ namespace revng::pipes {
 
 class ProcessAssembly {
 public:
-  static constexpr const auto Name = "ProcessAssembly";
+  static constexpr const auto Name = "process-assembly";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {

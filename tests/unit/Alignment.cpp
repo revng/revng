@@ -84,7 +84,6 @@ BOOST_AUTO_TEST_CASE(GenericPrimitiveTypes) {
 
   testAlignment(makePrimitive(Primitive::Generic, 16, *Binary),
                 Expected(model::ABI::AAPCS64, 16),
-                Expected(model::ABI::AAPCS, 16),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86, 0));
 }

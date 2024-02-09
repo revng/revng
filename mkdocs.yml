@@ -1,0 +1,41 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+site_name: rev.ng docs
+docs_dir: share/doc/revng
+theme:
+  name: material
+  palette:
+    scheme: revng
+  font:
+    text: DM Sans
+    code: DM Mono
+  logo: assets/logo.svg
+  features:
+    - navigation.footer
+    - content.code.copy
+nav:
+  - "What's rev.ng?": "what-is-revng.md"
+  - "User's Manual":
+      - Introduction: "user-manual/index.md"
+      - "Getting a working environment": "user-manual/working-environment.md"
+      - MetaAddress: "user-manual/metaaddress.md"
+      - Model: "user-manual/model.md"
+      - "Building a model from scratch": "user-manual/model-tutorial.md"
+      - "Analyses": "user-manual/analyses.md"
+  - "References":
+      - "MIME types": references/mime-types.md
+      - PTML: references/ptml.md
+markdown_extensions:
+  - mkdocs_graphviz
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: "#"
+extra_css:
+  - stylesheets/main.css
+  - stylesheets/theme.css
+extra_javascript:
+  - https://cdn.jsdelivr.net/gh/rod2ik/cdn@main/mkdocs/javascripts/mkdocs-graphviz.js
