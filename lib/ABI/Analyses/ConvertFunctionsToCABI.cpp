@@ -189,16 +189,34 @@ public:
       // TODO: extend this list.
       static constexpr std::array ABIsTheConversionIsEnabledFor = {
         model::ABI::SystemV_x86_64,
+        model::ABI::Microsoft_x86_64,
+        model::ABI::Microsoft_x86_64_vectorcall,
         model::ABI::SystemV_x86,
         model::ABI::SystemV_x86_regparm_3,
         model::ABI::SystemV_x86_regparm_2,
         model::ABI::SystemV_x86_regparm_1,
         model::ABI::Microsoft_x86_cdecl,
+        model::ABI::Microsoft_x86_cdecl_gcc,
         model::ABI::Microsoft_x86_fastcall,
+        model::ABI::Microsoft_x86_fastcall_gcc,
         model::ABI::Microsoft_x86_stdcall,
+        model::ABI::Microsoft_x86_stdcall_gcc,
         model::ABI::Microsoft_x86_thiscall,
         model::ABI::Microsoft_x86_vectorcall,
         model::ABI::AAPCS
+
+        // There are known issues
+        // model::ABI::AAPCS64,
+
+        // There are known issues
+        // model::ABI::SystemV_MIPS_o32,
+        // model::ABI::SystemV_MIPSEL_o32
+
+        // Unable to reliably test: no easy access to a compiler
+        // model::ABI::Pascal_x86,
+
+        // Unable to reliably test: QEMU aborts
+        // model::ABI::SystemZ_s390x,
       };
       if (!llvm::is_contained(ABIsTheConversionIsEnabledFor, ABI)) {
         revng_log(Log,
@@ -235,6 +253,20 @@ public:
       revng_log(Log,
                 "Converting a function: "
                   << serializeToString(Model->getTypePath(Old->key())));
+      if (Log.isEnabled()) {
+        model::TypePath Reference = Model->getTypePath(Old->key());
+        revng_assert(!Reference.empty());
+
+        std::string Message = "";
+        for (model::Function &Function : Model->Functions())
+          if (Function.Prototype() == Reference)
+            Message += "'" + Function.name().str().str() + "', ";
+
+        if (!Message.empty()) {
+          Message.resize(Message.size() - 2);
+          revng_log(Log, "It's a prototype of " << Message);
+        }
+      }
 
       namespace FT = abi::FunctionType;
       if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {

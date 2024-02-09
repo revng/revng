@@ -4,15 +4,16 @@
 
 ABI: SystemV_MIPS_o32
 
-ArgumentsArePositionBased: true
+ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
 ArgumentsCanBeSplitBetweenRegistersAndStack: true
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowUnnaturallyAlignedTypesInRegisters: false
-UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: false
+FloatsUseGPRs: true
 
 StackAlignment: 4
+StackBytesAllocatedForRegisterArguments: 16
 
 MaximumGPRsPerAggregateArgument: 4
 MaximumGPRsPerAggregateReturnValue: 1

@@ -105,19 +105,29 @@ ValueDistributor::distribute(uint64_t Size,
 
   bool AllowSplitting = !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
+  bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
     // This a register-only argument, add the registers.
     for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
     DA.SizeOnStack = 0;
-  } else if (AllowSplitting && ConsideredRegisterCounter == LastRegister) {
+  } else if (AllowSplitting && AllTheRegistersAreInUse && SizeCounter > 0) {
     // This argument is split among the registers and the stack.
     for (uint64_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
-    DA.SizeOnStack = DA.Size - SizeCounter;
+    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.Size - SizeCounter);
+    DA.PostPaddingSize = DA.SizeOnStack - DA.Size + SizeCounter;
+    DA.OffsetOnStack = UsedStackOffset;
   } else {
     // This is a stack-only argument.
-    DA.SizeOnStack = DA.Size;
+    uint64_t PrePaddedOffset = ABI.alignedOffset(UsedStackOffset, Alignment);
+    revng_assert(PrePaddedOffset >= UsedStackOffset);
+    DA.PrePaddingSize = PrePaddedOffset - UsedStackOffset;
+    DA.OffsetOnStack = UsedStackOffset = PrePaddedOffset;
+
+    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.Size);
+    DA.PostPaddingSize = DA.SizeOnStack - DA.Size;
+
     if (ABI.NoRegisterArgumentsCanComeAfterStackOnes()) {
       // Mark all the registers as occupied as soon as stack is used.
       ConsideredRegisterCounter = Registers.size();
@@ -127,17 +137,35 @@ ValueDistributor::distribute(uint64_t Size,
     }
   }
 
-  // Don't forget to apply the tailing padding to the stack part of the argument
-  // if it's present.
-  if (DA.SizeOnStack != 0) {
-    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.SizeOnStack);
-  }
+  UsedStackOffset += DA.SizeOnStack;
 
   revng_log(Log, "Value successfully distributed.");
   LoggerIndent FurtherIndentation(Log);
-  revng_log(Log,
-            "It requires " << DA.Registers.size() << " registers, and "
-                           << DA.SizeOnStack << " bytes on stack.");
+  if (Log.isEnabled()) {
+    std::string Message = "It requires " + std::to_string(DA.Registers.size())
+                          + " registers";
+    if (!DA.Registers.empty()) {
+      Message += " (";
+      for (auto Register : DA.Registers)
+        Message += model::Register::getRegisterName(Register).str() + ", ";
+      Message.resize(Message.size() - 2);
+      Message += ")";
+    }
+    Message += ", and " + std::to_string(DA.SizeOnStack) + " bytes at offset "
+               + std::to_string(DA.OffsetOnStack) + " of the stack.\n";
+    revng_log(Log, std::move(Message));
+
+    Message = "Total size is " + std::to_string(DA.Size) + ", which includes "
+              + std::to_string(DA.PrePaddingSize) + " bytes of pre-padding and "
+              + std::to_string(DA.PostPaddingSize) + " bytes of post-padding.";
+    revng_log(Log, std::move(Message));
+
+    Message = std::string("Pointer-to-copy mechanism ")
+              + (DA.UsesPointerToCopy ? "is" : "is not") + " used, and it "
+              + (DA.RepresentsPadding ? "represents" : "does not represent")
+              + " padding.";
+    revng_log(Log, std::move(Message));
+  }
 
   return { std::move(Result), ConsideredRegisterCounter };
 }
@@ -152,7 +180,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
   bool ForbidSplitting = false;
   uint64_t *RegisterCounter = nullptr;
   std::span<const model::Register::Values> RegisterList;
-  if (IsFloat) {
+  if (IsFloat && !ABI.FloatsUseGPRs()) {
     RegisterList = ABI.VectorArgumentRegisters();
     RegisterCounter = &UsedVectorRegisterCount;
 
@@ -226,11 +254,19 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
 
   DistributedValue Result;
   Result.Size = Size;
+  if (Result.Size > ABI.getPointerSize()) {
+    Result.Size = ABI.getPointerSize();
+    Result.UsesPointerToCopy = true;
 
-  const auto &UsedRegisters = IsFloat ? ABI.VectorArgumentRegisters() :
-                                        ABI.GeneralPurposeArgumentRegisters();
-  uint64_t &UsedRegisterCount = IsFloat ? UsedVectorRegisterCount :
-                                          UsedGeneralPurposeRegisterCount;
+    // Pointers never use vector registers.
+    IsFloat = false;
+  }
+
+  bool UseVR = ABI.FloatsUseGPRs() ? false : IsFloat;
+  const auto &UsedRegisters = UseVR ? ABI.VectorArgumentRegisters() :
+                                      ABI.GeneralPurposeArgumentRegisters();
+  uint64_t &UsedRegisterCount = UseVR ? UsedVectorRegisterCount :
+                                        UsedGeneralPurposeRegisterCount;
 
   if (Index < UsedRegisters.size()) {
     Result.Registers.emplace_back(UsedRegisters[Index]);
@@ -238,7 +274,21 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
     revng_assert(UsedRegisterCount <= Index);
     UsedRegisterCount = Index + 1;
   } else {
-    Result.SizeOnStack = Result.Size;
+    if (UsedStackOffset) {
+      if (ABI.paddedSizeOnStack(UsedStackOffset) != UsedStackOffset) {
+        std::string Error = "Position-based stack does not support unaligned "
+                            "stack offsets: "
+                            + std::to_string(UsedStackOffset);
+        revng_abort(Error.c_str());
+      }
+    }
+
+    Result.OffsetOnStack = UsedStackOffset;
+    Result.PrePaddingSize = 0;
+    Result.PostPaddingSize = 0;
+
+    Result.SizeOnStack = ABI.getPointerSize();
+    UsedStackOffset += Result.SizeOnStack;
   }
 
   ++ArgumentIndex;
@@ -252,7 +302,7 @@ ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
 
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
-  if (Type.isFloat()) {
+  if (Type.isFloat() && ABI.FloatsUseGPRs()) {
     RegisterList = ABI.VectorReturnValueRegisters();
 
     // For now replace unsupported floating point return values with `void`

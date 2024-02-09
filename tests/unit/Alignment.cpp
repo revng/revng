@@ -43,6 +43,20 @@ void testAlignment(const model::QualifiedType &Type,
   }
 }
 
+static bool ABIhasIntsOfSizes(const abi::Definition &ABI,
+                              std::initializer_list<uint64_t> Values) {
+  return std::ranges::all_of(Values, [&ABI](uint64_t Value) {
+    return ABI.ScalarTypes().contains(Value);
+  });
+}
+
+static bool ABIhasFloatsOfSizes(const abi::Definition &ABI,
+                                std::initializer_list<uint64_t> Values) {
+  return std::ranges::all_of(Values, [&ABI](uint64_t Value) {
+    return ABI.FloatingPointScalarTypes().contains(Value);
+  });
+}
+
 namespace Primitive = model::PrimitiveTypeKind;
 static model::QualifiedType
 makePrimitive(Primitive::Values Kind, uint64_t Size, model::Binary &Binary) {
@@ -85,7 +99,7 @@ BOOST_AUTO_TEST_CASE(GenericPrimitiveTypes) {
   testAlignment(makePrimitive(Primitive::Generic, 16, *Binary),
                 Expected(model::ABI::AAPCS64, 16),
                 Expected(model::ABI::SystemZ_s390x, 8),
-                Expected(model::ABI::SystemV_x86, 0));
+                Expected(model::ABI::SystemV_x86_64, 16));
 }
 
 BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
@@ -94,8 +108,7 @@ BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
   testAlignment(makePrimitive(Primitive::Float, 2, *Binary),
                 Expected(model::ABI::AAPCS64, 2),
                 Expected(model::ABI::AAPCS, 2),
-                Expected(model::ABI::SystemZ_s390x, 0),
-                Expected(model::ABI::SystemV_x86, 0));
+                Expected(model::ABI::SystemV_x86_64, 2));
 
   testAlignment(makePrimitive(Primitive::Float, 4, *Binary),
                 Expected(model::ABI::AAPCS64, 4),
@@ -111,9 +124,9 @@ BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
 
   testAlignment(makePrimitive(Primitive::Float, 16, *Binary),
                 Expected(model::ABI::AAPCS64, 16),
-                Expected(model::ABI::AAPCS, 0),
                 Expected(model::ABI::SystemZ_s390x, 8),
-                Expected(model::ABI::SystemV_x86, 16));
+                Expected(model::ABI::SystemV_x86, 16),
+                Expected(model::ABI::SystemV_x86_64, 16));
 }
 
 constexpr std::array TestedABIs{ model::ABI::AAPCS64,
@@ -154,9 +167,12 @@ BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
     for (const auto &PrimitiveKind : RemainingTypes) {
       for (uint64_t Size = 1; Size <= 16; Size *= 2) {
-        compareTypeAlignments(ABI,
-                              makePrimitive(Primitive::Generic, Size, *Binary),
-                              makePrimitive(PrimitiveKind, Size, *Binary));
+        if (ABIhasIntsOfSizes(ABI, { Size })) {
+          constexpr auto Generic = model::PrimitiveTypeKind::Generic;
+          compareTypeAlignments(ABI,
+                                makePrimitive(Generic, Size, *Binary),
+                                makePrimitive(PrimitiveKind, Size, *Binary));
+        }
       }
     }
   }
@@ -197,42 +213,51 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     QT SimpleUnion = makeUnion(*Binary,
                                makeUnionField(0, Int32),
                                makeUnionField(1, Int64));
-    compareTypeAlignments(ABI, Int64, SimpleUnion);
+    if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
+      compareTypeAlignments(ABI, Int64, SimpleUnion);
 
     QT SmallFloatUnion = makeUnion(*Binary,
                                    makeUnionField(0, Int32),
                                    makeUnionField(1, Float));
-    compareTypeAlignments(ABI, Int32, SmallFloatUnion);
-    compareTypeAlignments(ABI, Float, SmallFloatUnion);
+    if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
+      compareTypeAlignments(ABI, Int32, SmallFloatUnion);
+      compareTypeAlignments(ABI, Float, SmallFloatUnion);
+    }
 
     QT BigFloatUnion = makeUnion(*Binary,
                                  makeUnionField(0, LongDouble),
                                  makeUnionField(1, Int64));
-    compareTypeAlignments(ABI, LongDouble, BigFloatUnion);
+    if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
+      compareTypeAlignments(ABI, LongDouble, BigFloatUnion);
 
     QT WeirdFloatUnion = makeUnion(*Binary,
                                    makeUnionField(0, WeirdLD),
                                    makeUnionField(1, Int32));
-    compareTypeAlignments(ABI, WeirdLD, WeirdFloatUnion);
+    if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
+      compareTypeAlignments(ABI, WeirdLD, WeirdFloatUnion);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
     QT EclipsedFloatUnion = makeUnion(*Binary,
                                       makeUnionField(0, Float),
                                       makeUnionField(1, Int64));
-    compareTypeAlignments(ABI, Int64, EclipsedFloatUnion);
+    if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
+      compareTypeAlignments(ABI, Int64, EclipsedFloatUnion);
 
     QT NestedUnion = makeUnion(*Binary,
                                makeUnionField(0, SmallFloatUnion),
                                makeUnionField(1, Int16));
-    compareTypeAlignments(ABI, Int32, NestedUnion);
-    compareTypeAlignments(ABI, Float, NestedUnion);
-    compareTypeAlignments(ABI, SmallFloatUnion, NestedUnion);
+    if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
+      compareTypeAlignments(ABI, Int32, NestedUnion);
+      compareTypeAlignments(ABI, Float, NestedUnion);
+      compareTypeAlignments(ABI, SmallFloatUnion, NestedUnion);
+    }
 
     QT EclipsedNestedUnion = makeUnion(*Binary,
                                        makeUnionField(0, SmallFloatUnion),
                                        makeUnionField(1, Int64));
-    compareTypeAlignments(ABI, Int64, EclipsedNestedUnion);
+    if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
+      compareTypeAlignments(ABI, Int64, EclipsedNestedUnion);
   }
 }
 
@@ -271,42 +296,51 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
     QT SimpleStruct = makeStruct(*Binary,
                                  makeStructField(0, Int32),
                                  makeStructField(8, Int64));
-    compareTypeAlignments(ABI, Int64, SimpleStruct);
+    if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
+      compareTypeAlignments(ABI, Int64, SimpleStruct);
 
     QT SmallFloatStruct = makeStruct(*Binary,
                                      makeStructField(0, Int32),
                                      makeStructField(4, Float));
-    compareTypeAlignments(ABI, Int32, SmallFloatStruct);
-    compareTypeAlignments(ABI, Float, SmallFloatStruct);
+    if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
+      compareTypeAlignments(ABI, Int32, SmallFloatStruct);
+      compareTypeAlignments(ABI, Float, SmallFloatStruct);
+    }
 
     QT BigFloatStruct = makeStruct(*Binary,
                                    makeStructField(0, LongDouble),
                                    makeStructField(16, Int64));
-    compareTypeAlignments(ABI, LongDouble, BigFloatStruct);
+    if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
+      compareTypeAlignments(ABI, LongDouble, BigFloatStruct);
 
     QT WeirdFloatStruct = makeStruct(*Binary,
                                      makeStructField(0, WeirdLD),
                                      makeStructField(12, Int32));
-    compareTypeAlignments(ABI, WeirdLD, WeirdFloatStruct);
+    if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
+      compareTypeAlignments(ABI, WeirdLD, WeirdFloatStruct);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
     QT EclipsedFloatStruct = makeStruct(*Binary,
                                         makeStructField(0, Float),
                                         makeStructField(8, Int64));
-    compareTypeAlignments(ABI, Int64, EclipsedFloatStruct);
+    if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
+      compareTypeAlignments(ABI, Int64, EclipsedFloatStruct);
 
     QT NestedStruct = makeStruct(*Binary,
                                  makeStructField(0, SmallFloatStruct),
                                  makeStructField(8, Int16));
-    compareTypeAlignments(ABI, Int32, NestedStruct);
-    compareTypeAlignments(ABI, Float, NestedStruct);
-    compareTypeAlignments(ABI, SmallFloatStruct, NestedStruct);
+    if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
+      compareTypeAlignments(ABI, Int32, NestedStruct);
+      compareTypeAlignments(ABI, Float, NestedStruct);
+      compareTypeAlignments(ABI, SmallFloatStruct, NestedStruct);
+    }
 
     QT EclipsedNestedStruct = makeStruct(*Binary,
                                          makeStructField(0, SmallFloatStruct),
                                          makeStructField(8, Int64));
-    compareTypeAlignments(ABI, Int64, EclipsedNestedStruct);
+    if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
+      compareTypeAlignments(ABI, Int64, EclipsedNestedStruct);
   }
 }
 

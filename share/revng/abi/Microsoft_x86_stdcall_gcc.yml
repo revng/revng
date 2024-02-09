@@ -2,22 +2,26 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: Microsoft_x86_clrcall
+ABI: Microsoft_x86_stdcall_gcc
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
-NoRegisterArgumentsCanComeAfterStackOnes: false
+NoRegisterArgumentsCanComeAfterStackOnes: true
 AllowUnnaturallyAlignedTypesInRegisters: false
-UsePointerToCopyForStackArguments: false
-CalleeIsResponsibleForStackCleanup: false
+CalleeIsResponsibleForStackCleanup: true
+FloatsUseGPRs: false
 
 StackAlignment: 4
 
 MaximumGPRsPerAggregateArgument: 0
 MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 0
-MaximumGPRsPerScalarReturnValue: 0
+MaximumGPRsPerScalarReturnValue: 2
+
+GeneralPurposeReturnValueRegisters:
+  - eax_x86
+  - edx_x86
 CalleeSavedRegisters:
   - ebx_x86
   - ebp_x86
@@ -37,7 +41,3 @@ FloatingPointScalarTypes:
   - Size: 4
   - Size: 8
     AlignedAt: 4
-#
-# \todo: double-check the validity of this ABI.
-#
-

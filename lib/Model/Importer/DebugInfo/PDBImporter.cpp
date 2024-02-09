@@ -12,6 +12,7 @@
 #include "llvm/DebugInfo/CodeView/SymbolVisitorCallbackPipeline.h"
 #include "llvm/DebugInfo/CodeView/SymbolVisitorCallbacks.h"
 #include "llvm/DebugInfo/CodeView/TypeDumpVisitor.h"
+#include "llvm/DebugInfo/CodeView/TypeRecordHelpers.h"
 #include "llvm/DebugInfo/PDB/Native/DbiStream.h"
 #include "llvm/DebugInfo/PDB/Native/GlobalsStream.h"
 #include "llvm/DebugInfo/PDB/Native/InfoStream.h"
@@ -20,6 +21,7 @@
 #include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 #include "llvm/DebugInfo/PDB/Native/PDBFile.h"
 #include "llvm/DebugInfo/PDB/Native/SymbolStream.h"
+#include "llvm/DebugInfo/PDB/Native/TpiStream.h"
 #include "llvm/DebugInfo/PDB/PDB.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
@@ -80,6 +82,8 @@ private:
   TupleTree<model::Binary> &Model;
   LazyRandomTypeCollection &Types;
   DenseMap<TypeIndex, model::TypePath> &ProcessedTypes;
+  DenseMap<TypeIndex, TypeIndex> &ForwardReferencedTypes;
+  TpiStream &Tpi;
 
   TypeIndex CurrentTypeIndex = TypeIndex::None();
   std::map<TypeIndex, SmallVector<DataMemberRecord, 8>> InProgressMemberTypes;
@@ -96,11 +100,15 @@ private:
 public:
   PDBImporterTypeVisitor(TupleTree<model::Binary> &M,
                          LazyRandomTypeCollection &Types,
-                         DenseMap<TypeIndex, model::TypePath> &ProcessedTypes) :
+                         DenseMap<TypeIndex, model::TypePath> &ProcessedTypes,
+                         DenseMap<TypeIndex, TypeIndex> &ForwardReferencedTypes,
+                         TpiStream &Tpi) :
     TypeVisitorCallbacks(),
     Model(M),
     Types(Types),
-    ProcessedTypes(ProcessedTypes) {}
+    ProcessedTypes(ProcessedTypes),
+    ForwardReferencedTypes(ForwardReferencedTypes),
+    Tpi(Tpi) {}
 
   Error visitTypeBegin(CVType &Record) override;
   Error visitTypeBegin(CVType &Record, TypeIndex TI) override;
@@ -172,9 +180,13 @@ void PDBImporterImpl::populateTypes() {
     return;
   }
 
+  // Those will be processed after all the types are visited.
+  DenseMap<TypeIndex, TypeIndex> ForwardReferencedTypes;
   PDBImporterTypeVisitor TypeVisitor(Importer.getModel(),
                                      InputFile->types(),
-                                     ProcessedTypes);
+                                     ProcessedTypes,
+                                     ForwardReferencedTypes,
+                                     *StreamTpiOrErr);
   if (auto Err = visitTypeStream(InputFile->types(), TypeVisitor)) {
     revng_log(DILogger, "Error during visiting types: " << Err);
     consumeError(std::move(Err));
@@ -251,10 +263,11 @@ void PDBImporterImpl::run(NativeSession &Session) {
   populateTypes();
   populateSymbolsWithTypes(Session);
 
-  deduplicateEquivalentTypes(Importer.getModel());
-  promoteOriginalName(Importer.getModel());
-  purgeUnnamedAndUnreachableTypes(Importer.getModel());
-  revng_assert(Importer.getModel()->verify(true));
+  TupleTree<model::Binary> &Model = Importer.getModel();
+  deduplicateEquivalentTypes(Model);
+  promoteOriginalName(Model);
+  purgeUnreachableTypes(Model);
+  revng_assert(Model->verify(true));
 }
 
 void PDBImporter::loadDataFromPDB(std::string PDBFileName) {
@@ -633,30 +646,64 @@ Error PDBImporterTypeVisitor::visitKnownMember(CVMemberRecord &Record,
 Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                ClassRecord &Class) {
   using namespace model;
-  // 0-sized structs are typedefed to void.
-  if (not Class.getSize()) {
-    auto TypeTypedef = makeType<TypedefType>();
-    TypeTypedef->OriginalName() = Class.getName();
 
-    using Values = model::PrimitiveTypeKind::Values;
-    QualifiedType TheUnderlyingType(Model->getPrimitiveType(Values::Void, 0),
-                                    {});
-    auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
+  if (isUdtForwardRef(Record)) {
+    Expected<TypeIndex> EFD = Tpi.findFullDeclForForwardRef(CurrentTypeIndex);
+    if (!EFD) {
+      consumeError(EFD.takeError());
+      revng_log(DILogger,
+                "LF_STRUCTURE: Cannot resolve fwd ref for the: "
+                  << CurrentTypeIndex.getIndex());
+      return Error::success();
+    }
 
-    auto TypePath = Model->recordNewType(std::move(TypeTypedef));
-    ProcessedTypes[CurrentTypeIndex] = TypePath;
+    // Remember forward reference, so we can process it later.
+    ForwardReferencedTypes[*EFD] = CurrentTypeIndex;
+    uint64_t ForwardTypeSize = getSizeInBytesForTypeRecord(Tpi.getType(*EFD));
+
+    // 0-sized structs are typedefed to void. It can happen that there is
+    // an incoplete struct type.
+    if (ForwardTypeSize == 0) {
+      auto TypeTypedef = makeType<TypedefType>();
+      TypeTypedef->OriginalName() = Class.getName();
+
+      using Values = model::PrimitiveTypeKind::Values;
+      QualifiedType TheUnderlyingType(Model->getPrimitiveType(Values::Void, 0),
+                                      {});
+      auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
+      TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
+
+      auto TypePath = Model->recordNewType(std::move(TypeTypedef));
+      ProcessedTypes[CurrentTypeIndex] = TypePath;
+    } else {
+      // Pre-create the type that is being referenced by this type.
+      auto NewType = makeType<model::StructType>();
+      NewType->OriginalName() = Class.getName();
+      auto Struct = cast<model::StructType>(NewType.get());
+      Struct->Size() = ForwardTypeSize;
+
+      auto TypePath = Model->recordNewType(std::move(NewType));
+      ProcessedTypes[CurrentTypeIndex] = TypePath;
+    }
 
     return Error::success();
   }
 
   TypeIndex FieldsTypeIndex = Class.getFieldList();
+  bool WasReferenced = ForwardReferencedTypes.count(CurrentTypeIndex) != 0;
   if (InProgressMemberTypes.count(FieldsTypeIndex) != 0) {
+    model::StructType *Struct = nullptr;
     auto NewType = makeType<model::StructType>();
-    NewType->OriginalName() = Class.getName();
-    auto Struct = cast<model::StructType>(NewType.get());
+    if (not WasReferenced) {
+      NewType->OriginalName() = Class.getName();
+      auto NewStruct = cast<model::StructType>(NewType.get());
+      NewStruct->Size() = Class.getSize();
+      Struct = NewStruct;
+    } else {
+      TypeIndex ForwardRef = ForwardReferencedTypes[CurrentTypeIndex];
+      Struct = cast<model::StructType>(ProcessedTypes[ForwardRef].get());
+    }
 
-    Struct->Size() = Class.getSize();
     auto &TheFields = InProgressMemberTypes[FieldsTypeIndex];
     uint64_t MaxOffset = 0;
 
@@ -668,6 +715,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         revng_log(DILogger,
                   "LF_STRUCTURE: Unknown field type "
                     << Field.getType().getIndex());
+        // Avoid incomplete struct types.
+        return Error::success();
       } else {
         auto MaybeSize = FiledTypeFromModel->get()->size();
         uint64_t Size = MaybeSize.value_or(0);
@@ -706,8 +755,15 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         FieldType.Type() = TheUnderlyingType;
       }
     }
-    auto TypePath = Model->recordNewType(std::move(NewType));
-    ProcessedTypes[CurrentTypeIndex] = TypePath;
+
+    if (not WasReferenced) {
+      auto TypePath = Model->recordNewType(std::move(NewType));
+      ProcessedTypes[CurrentTypeIndex] = TypePath;
+    } else {
+      TypeIndex ForwardRef = ForwardReferencedTypes[CurrentTypeIndex];
+      auto ForwardRefType = ProcessedTypes[ForwardRef];
+      ProcessedTypes[CurrentTypeIndex] = ForwardRefType;
+    }
   }
 
   // Process methods. Create C-like function prototype for it.
@@ -726,7 +782,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         revng_log(DILogger,
                   "LF_MFUNCTION: Unknown return type "
                     << ReturnTypeIndex.getIndex());
-        continue;
+        // Avoid function types that have incomplete type.
+        return Error::success();
       }
 
       auto NewType = makeType<CABIFunctionType>();
@@ -749,6 +806,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       if (Function.getMethodKind() != MethodKind::Static
           and Function.getMethodKind() != MethodKind::Friend
           and ProcessedTypes.count(CurrentTypeIndex) != 0) {
+        revng_assert(ProcessedTypes[CurrentTypeIndex].get());
         auto MaybeSize = ProcessedTypes[CurrentTypeIndex].get()->size();
         if (MaybeSize and *MaybeSize != 0) {
           Argument &NewArgument = TypeFunction->Arguments()[Index];
@@ -769,6 +827,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
           revng_log(DILogger,
                     "LF_MFUNCTION: Unknown arg type "
                       << ArgumentTypeIndex.getIndex());
+          // Avoid function types that have incomplete type.
+          return Error::success();
         } else {
           auto MaybeSize = ArgumentTypeFromModel->get()->size();
           uint64_t Size = MaybeSize.value_or(0);
@@ -843,7 +903,7 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
     case CallingConvention::NearVector:
       return model::ABI::Microsoft_x86_64_vectorcall;
     case CallingConvention::ClrCall:
-      return model::ABI::Microsoft_x86_64_clrcall;
+      revng_abort("ClrCall is not currently supported");
     default:
       revng_abort();
     }
@@ -860,7 +920,7 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
     case CallingConvention::ThisCall:
       return model::ABI::Microsoft_x86_thiscall;
     case CallingConvention::ClrCall:
-      return model::ABI::Microsoft_x86_clrcall;
+      revng_abort("ClrCall is not currently supported");
     case CallingConvention::NearPascal:
       return model::ABI::Pascal_x86;
     case CallingConvention::NearVector:
@@ -911,15 +971,25 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     uint32_t Index = 0;
     for (uint32_t I = 0; I < Size; ++I) {
       TypeIndex ArgumentTypeIndex = Indices[I];
+      if (ArgumentTypeIndex.isNoneType()) {
+        revng_log(DILogger,
+                  "LF_PROCEDURE: A NoneType argument type "
+                    << ArgumentTypeIndex.getIndex());
+        continue;
+      }
+
       auto ArgumentTypeFromModel = getModelTypeForIndex(ArgumentTypeIndex);
       if (not ArgumentTypeFromModel) {
         revng_log(DILogger,
                   "LF_PROCEDURE: Unknown argument type "
                     << ArgumentTypeIndex.getIndex());
+        // Avoid incomplete function types.
+        return Error::success();
       } else {
         auto MaybeSize = ArgumentTypeFromModel->get()->size();
         uint64_t Size = MaybeSize.value_or(0);
-        if (Size == 0) {
+        // Forward references are processed later.
+        if (Size == 0 and !isUdtForwardRef(Tpi.getType(ArgumentTypeIndex))) {
           // Skip 0-sized type.
           revng_log(DILogger, "Skipping 0-sized argument.");
           continue;
@@ -975,6 +1045,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     if (!FiledTypeFromModel) {
       revng_log(DILogger,
                 "LF_UNION: Unknown field type " << Field.getType().getIndex());
+      // Avoid incomplete unions.
+      return Error::success();
     } else {
       auto MaybeSize = FiledTypeFromModel->get()->size();
       uint64_t Size = MaybeSize.value_or(0);
@@ -1105,6 +1177,8 @@ codeviewSimpleTypeEncodingToModel(TypeIndex TI) {
   case SimpleTypeKind::NarrowCharacter:
   case SimpleTypeKind::Character16:
   case SimpleTypeKind::Character32:
+  case SimpleTypeKind::Int16:
+  case SimpleTypeKind::Int16Short:
   case SimpleTypeKind::SByte:
   case SimpleTypeKind::Int32Long:
   case SimpleTypeKind::Int32:

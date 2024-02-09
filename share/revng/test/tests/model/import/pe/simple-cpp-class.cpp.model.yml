@@ -2,6 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+#
+# NOTE: this file is stripped of any architecture-specific information (things
+#       like ABI, pointer sizes, and so on): it reflects all the _common_
+#       expectations for a specific source file (see revng-qa-side importPE
+#       sources) after being compiled and lifted by a variety of different
+#       msvc compiler versions.
+#
+
 ---
 Functions:
   - CustomName: "Foo__Foo"
@@ -41,7 +49,6 @@ Types:
           UnqualifiedType: "/Types/1540-PrimitiveType"
   - Kind: CABIFunctionType
     ID: 16558654860526908435
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
@@ -50,7 +57,6 @@ Types:
           UnqualifiedType: "/Types/12480030069089186527-StructType"
           Qualifiers:
             - Kind: Pointer
-              Size: 4
       - Index: 1
         Type:
           UnqualifiedType: "/Types/1540-PrimitiveType"
@@ -59,7 +65,6 @@ Types:
           UnqualifiedType: "/Types/1540-PrimitiveType"
   - Kind: CABIFunctionType
     ID: 17990064059287856019
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
@@ -68,10 +73,8 @@ Types:
           UnqualifiedType: "/Types/12480030069089186527-StructType"
           Qualifiers:
             - Kind: Pointer
-              Size: 4
   - Kind: CABIFunctionType
     ID: 8800211852340388695
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/1540-PrimitiveType"
     Arguments:
@@ -80,10 +83,8 @@ Types:
           UnqualifiedType: "/Types/12480030069089186527-StructType"
           Qualifiers:
             - Kind: Pointer
-              Size: 4
   - Kind: CABIFunctionType
     ID: 11972987020417764497
-    ABI: Microsoft_x86_cdecl
     ReturnType:
       UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:

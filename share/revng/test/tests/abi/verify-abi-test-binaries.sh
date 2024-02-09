@@ -28,6 +28,7 @@ revng \
     analyze \
     import-binary \
     "$BINARY" \
+    --use-pdb="${BINARY}.pdb" \
     -o="${TEMPORARY_DIRECTORY}/imported_binary.yml"
 
 # Force-override the ABI because DWARF information is not always reliable
@@ -73,12 +74,6 @@ revng \
     -m="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
 
-# Check there are no differences
-revng \
-    ensure-rft-equivalence \
-    "${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml" \
-    "${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
-
 # Verify that no step contradicts the actual state.
 revng \
     check-compatibility-with-abi \
@@ -103,3 +98,9 @@ revng \
     -abi="${ABI_NAME}" \
     "${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
+
+# Check there are no differences
+revng \
+    ensure-rft-equivalence \
+    "${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml" \
+    "${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"

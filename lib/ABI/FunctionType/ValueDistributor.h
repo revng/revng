@@ -20,15 +20,37 @@ struct DistributedValue {
   /// A list of registers the argument uses.
   RegisterVector Registers = {};
 
-  /// The total size of the argument (including padding if necessary) in bytes.
+  /// The total size of the argument in bytes WITHOUT any padding.
   uint64_t Size = 0;
 
+  /// The total size of padding that has to be added to the previous argument
+  /// because of alignment specifics.
+  ///
+  /// \note current this value is only used for debugging purposes.
+  uint64_t PrePaddingSize = 0;
+
+  /// The total size of padding that has to be added to the current argument.
+  ///
+  /// \note current this value is only used for debugging purposes.
+  uint64_t PostPaddingSize = 0;
+
   /// The size of the piece of the argument placed on the stack.
-  /// \note: has to be equal to `0` or `this->Size` for any ABI for which
-  ///        `abi::Definition::ArgumentsCanBeSplitBetweenRegistersAndStack()`
-  ///        returns `false`. Otherwise, it has to be an integer value, such
-  ///        that `(0 <= SizeOnStack <= this->Size)` is true.
+  /// It has to be equal to `0` or `this->SizeWithPadding` for any ABI for which
+  /// `abi::Definition::ArgumentsCanBeSplitBetweenRegistersAndStack()` returns
+  /// `false`.
+  /// For all the other ABIs, it has to be an integer value, such that
+  /// `(0 <= SizeOnStack <= this->Size + this->PostPaddingSize)` is true.
   uint64_t SizeOnStack = 0;
+
+  /// For any argument for which `SizeOnStack` is not `0`, this represents
+  /// the stack offset of the argument.
+  /// \note arguments with both stack AND register counterparts MUST have
+  ///       this offset set to `0`.
+  uint64_t OffsetOnStack = 0;
+
+  /// Marks the fact that the type of this argument needs to have a pointer
+  /// qualifier attached to it to be compatible.
+  bool UsesPointerToCopy = false;
 
   /// Mark this argument as a padding argument, which means an unused location
   /// (either a register or a piece of the stack) which needs to be seen as
@@ -40,9 +62,14 @@ struct DistributedValue {
   bool RepresentsPadding = false;
 
   static DistributedValue voidReturnValue() {
-    return DistributedValue{
-      .Registers = {}, .Size = 0, .SizeOnStack = 0, .RepresentsPadding = false
-    };
+    return DistributedValue{ .Registers = {},
+                             .Size = 0,
+                             .PrePaddingSize = 0,
+                             .PostPaddingSize = 0,
+                             .SizeOnStack = 0,
+                             .OffsetOnStack = 0,
+                             .UsesPointerToCopy = false,
+                             .RepresentsPadding = false };
   }
 };
 using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
@@ -62,7 +89,9 @@ public:
   uint64_t ArgumentIndex = 0;
 
 protected:
-  explicit ValueDistributor(const abi::Definition &ABI) : ABI(ABI) {
+  explicit ValueDistributor(const abi::Definition &ABI) :
+    ABI(ABI), UsedStackOffset(ABI.StackBytesAllocatedForRegisterArguments()) {
+
     revng_assert(ABI.verify());
   }
 
@@ -116,6 +145,23 @@ class ArgumentDistributor : public ValueDistributor {
 public:
   explicit ArgumentDistributor(const abi::Definition &ABI) :
     ValueDistributor(ABI){};
+
+  void addShadowPointerReturnValueLocationArgument() {
+    revng_assert(ArgumentIndex == 0);
+    ArgumentIndex = 1;
+
+    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
+      if (const auto &Rs = ABI.GeneralPurposeArgumentRegisters(); !Rs.empty()) {
+        if (ABI.ReturnValueLocationRegister() == Rs[0]) {
+          revng_assert(UsedGeneralPurposeRegisterCount == 0);
+          UsedGeneralPurposeRegisterCount = 1;
+        }
+      }
+    } else if (ABI.ReturnValueLocationOnStack()) {
+      revng_assert(UsedStackOffset % ABI.getPointerSize() == 0);
+      UsedStackOffset += ABI.getPointerSize();
+    }
+  }
 
   DistributedValues nextArgument(const model::QualifiedType &ArgumentType) {
     if (ABI.ArgumentsArePositionBased()) {

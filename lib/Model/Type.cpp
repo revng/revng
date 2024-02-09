@@ -1438,9 +1438,12 @@ verifyTypedRegisterCommon(const T &TypedRegister, VerifyHelper &VH) {
   if (not MaybeTypeSize)
     rc_return VH.fail();
 
-  size_t RegisterSize = model::Register::getSize(TypedRegister->Location());
-  if (*MaybeTypeSize > RegisterSize)
-    rc_return VH.fail();
+  // TODO: handle floating point register sizes properly.
+  if (not TypedRegister->Type().isFloat()) {
+    size_t RegisterSize = model::Register::getSize(TypedRegister->Location());
+    if (*MaybeTypeSize > RegisterSize)
+      rc_return VH.fail();
+  }
 
   rc_return VH.maybeFail(rc_recur TypedRegister->Type().verify(VH));
 }

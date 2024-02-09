@@ -34,8 +34,8 @@ public:
   }
   void access() { Counter |= (0x1 & IsTracking); }
   void push() {
-    revng_assert(llvm::countLeadingZeros(Counter) != 0,
-                 "More than 8 pushes have been performed");
+    bool HasLeadingZeroes = llvm::countLeadingZeros(Counter) != 0;
+    revng_assert(HasLeadingZeroes, "More than 8 pushes have been performed");
     Counter = Counter << 1;
   }
   void pop() { Counter = Counter >> 1; }

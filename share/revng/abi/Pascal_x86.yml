@@ -9,8 +9,8 @@ OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowUnnaturallyAlignedTypesInRegisters: false
-UsePointerToCopyForStackArguments: false
 CalleeIsResponsibleForStackCleanup: true
+FloatsUseGPRs: false
 
 # This might need to be set to 16 depending on the OS.
 # TODO: investigate.

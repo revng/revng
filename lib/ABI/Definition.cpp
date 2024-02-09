@@ -119,11 +119,11 @@ bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
 
   SortedVector<model::Register::Values> AllowedArguments;
   {
-    auto I = AllowedArguments.batch_insert();
+    auto I = AllowedArguments.batch_insert_or_assign();
     for (model::Register::Values R : GeneralPurposeArgumentRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
     for (model::Register::Values R : VectorArgumentRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
   }
 
   if (!std::includes(AllowedArguments.begin(),
@@ -143,11 +143,11 @@ bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
 
   SortedVector<model::Register::Values> AllowedReturnValues;
   {
-    auto I = AllowedReturnValues.batch_insert();
+    auto I = AllowedReturnValues.batch_insert_or_assign();
     for (model::Register::Values R : GeneralPurposeReturnValueRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
     for (model::Register::Values R : VectorReturnValueRegisters())
-      I.emplace(R);
+      I.emplace_or_assign(R);
   }
 
   if (!std::includes(AllowedReturnValues.begin(),
@@ -366,40 +366,53 @@ naturalAlignment(const abi::Definition &ABI,
   rc_return rc_recur naturalAlignment(ABI, *QT.UnqualifiedType().get(), Cache);
 }
 
-std::optional<uint64_t> Definition::alignment(const model::QualifiedType &QT,
+template<typename T>
+std::optional<AlignmentInfo>
+assertOnFailure(std::optional<AlignmentInfo> &&ComputationResult,
+                const T &ThingToDumpOnFailure) {
+  if (!ComputationResult) {
+    std::string Error = "Unable to compute the alignment of "
+                        + serializeToString(ThingToDumpOnFailure);
+    revng_abort(Error.c_str());
+  }
+
+  return std::move(ComputationResult);
+}
+
+std::optional<uint64_t> Definition::alignment(const model::QualifiedType &QType,
                                               AlignmentCache &Cache) const {
-  std::optional<AlignmentInfo> Result = naturalAlignment(*this, QT, Cache);
-  if (Result.has_value() && Result->Value != 0)
-    return Result->IsNatural ? Result->Value : 1;
-  else
+  auto Result = assertOnFailure(naturalAlignment(*this, QType, Cache), QType);
+  if (Result->Value == 0)
     return std::nullopt;
+
+  return Result->IsNatural ? Result->Value : 1;
 }
 std::optional<uint64_t> Definition::alignment(const model::Type &Type,
                                               AlignmentCache &Cache) const {
-  std::optional<AlignmentInfo> Result = naturalAlignment(*this, Type, Cache);
-  if (Result.has_value() && Result->Value != 0)
-    return Result->IsNatural ? Result->Value : 1;
-  else
+  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
+  if (Result->Value == 0)
     return std::nullopt;
+
+  return Result->IsNatural ? Result->Value : 1;
 }
 
 std::optional<bool>
-Definition::hasNaturalAlignment(const model::QualifiedType &QT,
+Definition::hasNaturalAlignment(const model::QualifiedType &QType,
                                 AlignmentCache &Cache) const {
-  std::optional<AlignmentInfo> Result = naturalAlignment(*this, QT, Cache);
-  if (Result.has_value() && Result->Value != 0)
-    return Result->IsNatural;
-  else
+  auto Result = assertOnFailure(naturalAlignment(*this, QType, Cache), QType);
+  if (Result->Value == 0)
     return std::nullopt;
+
+  return Result->IsNatural;
 }
 std::optional<bool>
 Definition::hasNaturalAlignment(const model::Type &Type,
                                 AlignmentCache &Cache) const {
-  std::optional<AlignmentInfo> Result = naturalAlignment(*this, Type, Cache);
-  if (Result.has_value() && Result->Value != 0)
-    return Result->IsNatural;
-  else
+  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
+  if (Result->Value == 0)
     return std::nullopt;
+
+  return Result->IsNatural;
 }
 
 } // namespace abi

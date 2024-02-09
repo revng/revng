@@ -20,12 +20,10 @@ template<typename T>
 void purgeFunctions(T &Functions,
                     const std::set<const model::Type *> &ToDelete) {
   auto Begin = Functions.begin();
-  for (auto It = Begin; It != Functions.end(); /**/) {
+  for (auto It = Begin; It != Functions.end(); ++It) {
     if (not It->Prototype().isValid()
-        or not ToDelete.contains(It->Prototype().get())) {
-      ++It;
-    } else {
-      It = Functions.erase(It);
+        or ToDelete.contains(It->Prototype().get())) {
+      It->Prototype() = TupleTreeReference<model::Type, model::Binary>();
     }
   }
 }

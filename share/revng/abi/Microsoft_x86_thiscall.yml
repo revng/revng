@@ -8,9 +8,9 @@ ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
-AllowUnnaturallyAlignedTypesInRegisters: false
-UsePointerToCopyForStackArguments: false
+AllowUnnaturallyAlignedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: true
+FloatsUseGPRs: false
 
 StackAlignment: 4
 

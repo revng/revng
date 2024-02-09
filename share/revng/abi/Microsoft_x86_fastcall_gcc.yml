@@ -2,35 +2,36 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: SystemV_x86
+ABI: Microsoft_x86_fastcall_gcc
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
-NoRegisterArgumentsCanComeAfterStackOnes: false
+NoRegisterArgumentsCanComeAfterStackOnes: true
 AllowUnnaturallyAlignedTypesInRegisters: false
-CalleeIsResponsibleForStackCleanup: false
+CalleeIsResponsibleForStackCleanup: true
 FloatsUseGPRs: false
 
-StackAlignment: 16
+StackAlignment: 4
 
 MaximumGPRsPerAggregateArgument: 0
 MaximumGPRsPerAggregateReturnValue: 0
-MaximumGPRsPerScalarArgument: 0
+MaximumGPRsPerScalarArgument: 1
 MaximumGPRsPerScalarReturnValue: 2
 
+GeneralPurposeArgumentRegisters:
+  - ecx_x86
+  - edx_x86
 GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
-VectorReturnValueRegisters:
-  - st0_x86
 CalleeSavedRegisters:
   - ebx_x86
   - ebp_x86
   - edi_x86
   - esi_x86
 
-ReturnValueLocationOnStack: true
+ReturnValueLocationRegister: ecx_x86
 
 ScalarTypes:
   - Size: 1
@@ -43,6 +44,3 @@ FloatingPointScalarTypes:
   - Size: 4
   - Size: 8
     AlignedAt: 4
-  - Size: 12
-    AlignedAt: 4
-  - Size: 16

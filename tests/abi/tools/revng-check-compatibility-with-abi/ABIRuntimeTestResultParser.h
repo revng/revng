@@ -17,8 +17,10 @@ namespace abi::runtime_test {
 
 struct Argument {
   llvm::StringRef Type;
-  std::vector<std::byte> Bytes;
-  uint64_t MaybePointer;
+  uint64_t Address;
+  std::vector<std::byte> AddressBytes;
+  std::vector<std::byte> ExpectedBytes;
+  std::vector<std::byte> FoundBytes;
 };
 
 struct RawWord {
@@ -52,9 +54,7 @@ struct ReturnValueTest {
   State StateAfterTheCall;
   State StateAfterTheReturn;
 
-  RawWord ReturnValueAddress;
   Argument ReturnValue;
-  Argument ExpectedReturnValue;
 };
 
 struct TestedFunctions {

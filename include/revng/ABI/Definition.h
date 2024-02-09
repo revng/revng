@@ -124,21 +124,15 @@ fields:
       on stack.
     type: bool
 
-  - name: UsePointerToCopyForStackArguments
-    doc:
-      States how the stack arguments are passed.
-      If `UsePointerToCopyForStackArguments` is true, pointers-to-copy are used,
-      otherwise - the whole argument is copied onto the stack.
-
-      \note this only affects the arguments with size exceeding the size of
-      a single stack "slot" (which is equal to the GPR size for the architecture
-      in question).
-    type: bool
-
   - name: CalleeIsResponsibleForStackCleanup
     doc: |
       Specifies who is responsible for cleaning the stack after the function
       call. If equal to `true`, it's the callee, otherwise it the caller.
+    type: bool
+
+  - name: FloatsUseGPRs
+    doc: |
+      Setting this to true disables usage of vector registers entirely.
     type: bool
 
   - name: StackAlignment
@@ -151,6 +145,18 @@ fields:
       on 4 bytes for internal calls but on 8 bytes for interfaces (like 32-bit
       ARM ABI), the value of `StackAlignment` should be equal to 4.
     type: uint64_t
+
+  - name: StackBytesAllocatedForRegisterArguments
+    doc: |
+      States the number of bytes reserved for the callee to be able to "mirror"
+      register arguments on the stack. This value should be set to `0` for any
+      ABI that does not require such space.
+
+      In our context, this serves as the starting offset for the first stack
+      argument. As in, it specifies the number of byte on the top of the stack
+      struct that should be ignored.
+    type: uint64_t
+    optional: true
 
   - name: MaximumGPRsPerAggregateArgument
     doc: |
@@ -314,6 +320,9 @@ public:
 public:
   std::string_view getName() const { return model::ABI::getName(ABI()); }
   uint64_t getPointerSize() const { return model::ABI::getPointerSize(ABI()); }
+  model::Architecture::Values getArchitecture() const {
+    return model::ABI::getArchitecture(ABI());
+  }
 
   /// Make sure current definition is valid.
   bool verify() const debug_function;
@@ -388,6 +397,10 @@ public:
                                           AlignmentCache &Cache) const;
 
   uint64_t alignedOffset(uint64_t Offset, uint64_t Alignment) const {
+    if (Offset == 0)
+      return 0;
+
+    revng_assert(llvm::isPowerOf2_64(Alignment));
     if (Offset % Alignment != 0)
       return Offset + Alignment - Offset % Alignment;
 
@@ -430,6 +443,69 @@ public:
   abi::RegisterState::Map
   enforceRegisterState(const abi::RegisterState::Map &State) const;
 
+private:
+  llvm::SmallVector<model::Register::Values, 8> argumentOrder() const {
+    llvm::SmallVector<model::Register::Values, 8> Result;
+
+    const auto &GPRs = GeneralPurposeArgumentRegisters();
+    const model::Register::Values &RVL = ReturnValueLocationRegister();
+    constexpr model::Register::Values Invalid = model::Register::Invalid;
+    if (RVL != Invalid && !llvm::is_contained(GPRs, RVL))
+      Result.emplace_back(RVL);
+
+    for (auto Register : GPRs)
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+    for (auto Register : VectorArgumentRegisters())
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+
+    return Result;
+  }
+
+  llvm::SmallVector<model::Register::Values, 8> returnValueOrder() const {
+    llvm::SmallVector<model::Register::Values, 8> Result;
+
+    for (auto Register : GeneralPurposeReturnValueRegisters())
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+    for (auto Register : VectorReturnValueRegisters())
+      if (!llvm::is_contained(Result, Register))
+        Result.emplace_back(Register);
+
+    return Result;
+  }
+
+  template<ranges::sized_range InputContainer,
+           ranges::sized_range OutputContainer>
+  void assertSortingWasSuccessful(std::string_view RegisterType,
+                                  const InputContainer &Input,
+                                  const OutputContainer &Output) const {
+    if (Input.size() != Output.size()) {
+      std::string Error = "Unable to sort " + std::string(RegisterType)
+                          + " registers.\nMost likely some of the present "
+                            "registers are not allowed to be used under "
+                            "the current ABI ("
+                          + std::string(getName())
+                          + ").\nList of registers to be sorted: [ ";
+      if (Input.size() != 0) {
+        for (auto Register : Input)
+          Error += model::Register::getName(Register).str() + ", ";
+        Error.resize(Error.size() - 2);
+      }
+
+      Error += " ]\nSorted list: [ ";
+      if (Output.size() != 0) {
+        for (auto Register : Output)
+          Error += model::Register::getName(Register).str() + ", ";
+        Error.resize(Error.size() - 2);
+      }
+      Error += " ]\n";
+      revng_abort(Error.c_str());
+    }
+  }
+
+public:
   template<ranges::sized_range Container>
   llvm::SmallVector<model::Register::Values, 8>
   sortArguments(const Container &Registers) const {
@@ -441,44 +517,15 @@ public:
     }
 
     llvm::SmallVector<model::Register::Values, 8> Result;
-
-    const auto &GPRs = GeneralPurposeArgumentRegisters();
-    const model::Register::Values &RVL = ReturnValueLocationRegister();
-    constexpr model::Register::Values Invalid = model::Register::Invalid;
-    bool NoRVLInGPRs = RVL != Invalid && !llvm::is_contained(GPRs, RVL);
-    if (NoRVLInGPRs && Lookup.contains(RVL))
-      Result.emplace_back(RVL);
-
-    for (auto Register : GPRs)
-      if (Lookup.contains(Register))
-        Result.emplace_back(Register);
-    for (auto Register : VectorArgumentRegisters())
+    for (auto Register : argumentOrder())
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
-    if (Result.size() != std::size(Registers)) {
-      std::string Error = "Unable to sort argument registers.\nMost likely "
-                          "some of the present registers are not allowed to be "
-                          "used for arguments under the current ABI ("
-                          + std::string(getName())
-                          + ").\nList of registers to be sorted: ";
-      for (auto Register : Registers) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += "\nSorted list: ";
-      for (auto Register : Result) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += '\n';
-      revng_abort(Error.c_str());
-    }
-
+    assertSortingWasSuccessful("argument", Registers, Result);
     return Result;
   }
 
-  template<typename Container>
+  template<ranges::sized_range Container>
   llvm::SmallVector<model::Register::Values, 8>
   sortReturnValues(const Container &Registers) const {
     SortedVector<model::Register::Values> Lookup;
@@ -489,32 +536,11 @@ public:
     }
 
     llvm::SmallVector<model::Register::Values, 8> Result;
-    for (auto Register : GeneralPurposeReturnValueRegisters())
-      if (Lookup.contains(Register))
-        Result.emplace_back(Register);
-    for (auto Register : VectorReturnValueRegisters())
+    for (auto Register : returnValueOrder())
       if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
-    if (Result.size() != std::size(Registers)) {
-      std::string Error = "Unable to sort return value registers.\nMost likely "
-                          "some of the present registers are not allowed to be "
-                          "used for returning values under the current ABI ("
-                          + std::string(getName())
-                          + ").\nList of registers to be sorted: ";
-      for (auto Register : Registers) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += "\nSorted list: ";
-      for (auto Register : Result) {
-        Error += model::Register::getName(Register);
-        Error += ' ';
-      }
-      Error += '\n';
-      revng_abort(Error.c_str());
-    }
-
+    assertSortingWasSuccessful("return value", Registers, Result);
     return Result;
   }
 
