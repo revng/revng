@@ -588,9 +588,40 @@ private:
         unsigned NewArgumentSize = NewArgumentType->getIntegerBitWidth() / 8;
 
         llvm::Value *ToRecordSpan = nullptr;
+        bool UsesStack = ModelArgument.Stack.has_value();
 
         using namespace abi::FunctionType::ArgumentKind;
-        if (ModelArgument.Kind == Scalar) {
+        if (ModelArgument.Kind == PointerToCopy) {
+          auto Architecture = Binary.Architecture();
+          auto PointerSize = model::Architecture::getPointerSize(Architecture);
+          revng_assert(ModelArgument.Type.size() > PointerSize);
+
+          llvm::Constant
+            *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
+          auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
+                                                         NewArgumentType);
+          auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
+                                                        NewArgumentType },
+                                                      AddressOfFunctionType,
+                                                      "AddressOf");
+          auto *AddressOfNewArgument = B.CreateCall(AddressOfFunction,
+                                                    { ModelTypeString,
+                                                      &NewArgument });
+
+          if (UsesStack) {
+            // When loading from this stack slot, return the address of the
+            // address of the new argument
+            revng_assert(ModelArgument.Registers.size() == 0);
+            ToRecordSpan = AddressOfNewArgument;
+          } else {
+            // Replace the old argument with an address of the new argument
+            revng_assert(ModelArgument.Registers.size() == 1);
+            auto Register = ModelArgument.Registers[0];
+            Argument *OldArgument = ArgumentToRegister.at(Register);
+            OldArgument->replaceAllUsesWith(AddressOfNewArgument);
+          }
+
+        } else if (ModelArgument.Kind == Scalar) {
           revng_assert(ModelArgument.Type.isScalar());
           // Handle scalar argument
           for (model::Register::Values Register : ModelArgument.Registers) {
@@ -940,6 +971,47 @@ private:
       uint64_t NewSize = *ArgumentType.size();
 
       switch (ModelArgument.Kind) {
+
+      case ArgumentKind::PointerToCopy: {
+        Value *Pointer = nullptr;
+
+        if (ModelArgument.Stack) {
+          model::Architecture::Values Architecture = Binary.Architecture();
+          auto PointerSize = model::Architecture::getPointerSize(Architecture);
+          revng_assert(ModelArgument.Type.size() > PointerSize);
+          revng_assert(ModelArgument.Registers.size() == 0);
+          revng_assert(ModelArgument.Stack->Size == PointerSize);
+          revng_assert(MaybeStackSize);
+
+          // Create an alloca
+          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
+                                                    * 8),
+                                        0,
+                                        "",
+                                        &*Caller->getEntryBlock().begin());
+
+          // Record its portion of the stack for redirection
+          Redirector.recordSpan(*ModelArgument.Stack,
+                                SABuilder.CreatePtrToInt(Alloca,
+                                                         StackPointerType));
+
+          // Load the alloca and record it as a pointer
+          Pointer = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
+        } else {
+          revng_assert(ModelArgument.Registers.size() == 1);
+          auto Register = ModelArgument.Registers[0];
+          Pointer = ArgumentToRegister.at(Register);
+        }
+
+        // Pass as argument the pointer compute above, dereferenced
+        Type *T = Pointer->getType();
+        Function *GetModelGEPFunction = getModelGEP(M, T, T);
+        auto *TypeString = serializeToLLVMString(ModelArgument.Type, M);
+        auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
+        auto *Zero = ConstantInt::get(Int64Type, 0);
+        Arguments.push_back(B.CreateCall(GetModelGEPFunction,
+                                         { TypeString, Pointer, Zero }));
+      } break;
 
       case ArgumentKind::Scalar:
       case ArgumentKind::ShadowPointerToAggregateReturnValue: {
@@ -1393,6 +1465,7 @@ private:
       case ShadowPointerToAggregateReturnValue:
         continue;
         break;
+      case PointerToCopy:
       case ReferenceToAggregate:
         ArgumentType = getPointerTo(ArgumentType);
         break;

@@ -121,9 +121,6 @@ Branches:
           - Name: analyze-data-layout
             Type: analyze-data-layout
             UsedContainers: [module.ll]
-          - Name: convert-functions-to-cabi
-            Type: convert-functions-to-cabi
-            UsedContainers: []
       - Name: canonicalize
         Pipes:
           - Type: llvm-pipe
