@@ -22,8 +22,10 @@ commands:
     from:
       - type: revng.runtime-abi-tests
       - type: revng-qa.runtime-abi-tests
+    suffix: /
     command: |-
       "${SOURCES_ROOT}/share/revng/test/tests/abi/verify-abi-test-binaries.sh"
         "${ABI_NAME}"
         "${INPUT1}"
         "${INPUT2}/functions"
+        "${OUTPUT}"
