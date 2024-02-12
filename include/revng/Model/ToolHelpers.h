@@ -22,7 +22,6 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/Assert.h"
 
 namespace ModelOutputType {
@@ -105,35 +104,23 @@ public:
                    llvm::cl::cat(Category)) {}
 
 public:
-  ModelOutputType::Values getDesiredOutput(bool HasModule) const {
+  ModelOutputType::Values getDesiredOutput() const {
     if constexpr (YAML) {
       if (this->OutputYAML && OutputAssembly)
-        return ModelOutputType::Invalid;
-
-      if (OutputAssembly and not HasModule)
         return ModelOutputType::Invalid;
 
       if (this->OutputYAML)
         return ModelOutputType::YAML;
 
-      if (OutputAssembly and not HasModule)
+      if (OutputAssembly)
         return ModelOutputType::LLVMIR;
 
-      if (HasModule)
-        return ModelOutputType::BitCode;
-      else
-        return ModelOutputType::YAML;
+      return ModelOutputType::YAML;
     } else {
-      if (OutputAssembly and not HasModule)
-        return ModelOutputType::Invalid;
-
-      if (OutputAssembly and not HasModule)
+      if (OutputAssembly)
         return ModelOutputType::LLVMIR;
 
-      if (HasModule)
-        return ModelOutputType::BitCode;
-      else
-        return ModelOutputType::YAML;
+      return ModelOutputType::YAML;
     }
 
     revng_abort();
@@ -142,171 +129,22 @@ public:
   std::string getPath() const { return OutputFilename; }
 };
 
-class ModelInModule {
-private:
-  std::unique_ptr<llvm::LLVMContext> Context;
-  std::unique_ptr<llvm::Module> Module;
+inline void writeModel(const model::Binary &Model, llvm::Module &M) {
+  Model.verify(true);
 
-public:
-  TupleTree<model::Binary> Model;
+  llvm::NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
+  revng_check(not NamedMD, "The model has already been serialized");
 
-public:
-  static llvm::Expected<ModelInModule> load(const llvm::MemoryBuffer &MB) {
-    if (MB.getBuffer().startswith("---")) {
-      return loadYAML(MB);
-    } else {
-      return loadModule(MB);
-    }
+  std::string Buffer;
+  {
+    llvm::raw_string_ostream Stream(Buffer);
+    serialize(Stream, Model);
   }
 
-  static llvm::Expected<ModelInModule>
-  loadModule(const llvm::MemoryBuffer &MB) {
-    using namespace llvm;
-    ModelInModule Result;
+  llvm::LLVMContext &Context = M.getContext();
+  auto Tuple = llvm::MDTuple::get(Context,
+                                  { llvm::MDString::get(Context, Buffer) });
 
-    Result.Context = std::make_unique<llvm::LLVMContext>();
-
-    auto MaybeModule = parseIR(*Result.Context, MB);
-    if (not MaybeModule)
-      return MaybeModule.takeError();
-
-    Result.Module = std::move(*MaybeModule);
-    if (hasModel(*Result.Module))
-      Result.Model = loadModel(*Result.Module);
-
-    return Result;
-  }
-
-  static llvm::Expected<ModelInModule> loadYAML(const llvm::MemoryBuffer &MB) {
-    using namespace llvm;
-    ModelInModule Result;
-    auto MaybeModel = TupleTree<model::Binary>::deserialize(MB.getBuffer());
-
-    if (not MaybeModel)
-      return errorOrToExpected(ErrorOr<ModelInModule>(MaybeModel.getError()));
-
-    Result.Model = std::move(*MaybeModel);
-
-    return Result;
-  }
-
-  static llvm::Expected<ModelInModule> load(const llvm::Twine &Path) {
-    auto MaybeBuffer = read(Path);
-    if (not MaybeBuffer)
-      return MaybeBuffer.takeError();
-    return load(*MaybeBuffer->get());
-  }
-
-  static llvm::Expected<ModelInModule> loadModule(const llvm::Twine &Path) {
-    auto MaybeBuffer = read(Path);
-    if (not MaybeBuffer)
-      return MaybeBuffer.takeError();
-    return loadModule(*MaybeBuffer->get());
-  }
-
-  static llvm::Expected<ModelInModule> loadYAML(const llvm::Twine &Path) {
-    auto MaybeBuffer = read(Path);
-    if (not MaybeBuffer)
-      return MaybeBuffer.takeError();
-    return loadYAML(*MaybeBuffer->get());
-  }
-
-public:
-  bool hasModule() const { return static_cast<bool>(Module); }
-  const llvm::Module &getModule() const {
-    revng_assert(hasModule());
-    return *Module;
-  }
-
-  TupleTree<model::Binary> &getWriteableModel() {
-    Model.evictCachedReferences();
-    return Model;
-  }
-
-  const model::Binary &getReadOnlyModel() {
-    Model.cacheReferences();
-    return *std::as_const(Model);
-  }
-
-public:
-  llvm::Error save(const llvm::Twine &Path, ModelOutputType::Values Type) {
-    using namespace llvm;
-
-    Model->verify(true);
-
-    if (ModelOutputType::requiresModule(Type)) {
-      if (not hasModule()) {
-        return llvm::createStringError(inconvertibleErrorCode(),
-                                       "Cannot produce module: input was YAML");
-      }
-
-      updateModule();
-    }
-
-    std::error_code EC;
-    llvm::ToolOutputFile OutputFile(Path.str(),
-                                    EC,
-                                    ModelOutputType::getFlags(Type));
-
-    if (EC)
-      return createStringError(EC, EC.message());
-
-    auto &Stream = OutputFile.os();
-
-    switch (Type) {
-    case ModelOutputType::YAML:
-      Model.serialize(Stream);
-      break;
-
-    case ModelOutputType::LLVMIR:
-      Module->print(Stream, nullptr);
-      break;
-
-    case ModelOutputType::BitCode:
-      WriteBitcodeToFile(*Module, Stream);
-      break;
-
-    default:
-      revng_abort();
-    }
-
-    OutputFile.keep();
-
-    return Error::success();
-  }
-
-private:
-  static llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
-  read(const llvm::Twine &Path) {
-    return llvm::errorOrToExpected(llvm::MemoryBuffer::getFileOrSTDIN(Path));
-  }
-
-  static llvm::Expected<std::unique_ptr<llvm::Module>>
-  parseIR(llvm::LLVMContext &Context, const llvm::MemoryBuffer &MB) {
-    using namespace llvm;
-    SMDiagnostic Diagnostic;
-    std::unique_ptr<llvm::Module> MaybeModule = llvm::parseIR(MB,
-                                                              Diagnostic,
-                                                              Context);
-    if (not MaybeModule) {
-      std::string ErrMsg;
-      {
-        raw_string_ostream ErrStream(ErrMsg);
-        Diagnostic.print("", ErrStream);
-      }
-      return make_error<StringError>(std::move(ErrMsg),
-                                     inconvertibleErrorCode());
-    }
-
-    return MaybeModule;
-  }
-
-private:
-  void updateModule() {
-    auto *NamedMD = Module->getNamedMetadata(ModelMetadataName);
-    if (NamedMD != nullptr)
-      NamedMD->eraseFromParent();
-
-    writeModel(*Model, *Module);
-  }
-};
+  NamedMD = M.getOrInsertNamedMetadata(ModelMetadataName);
+  NamedMD->addOperand(Tuple);
+}

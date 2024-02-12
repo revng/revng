@@ -30,7 +30,8 @@ int main(int Argc, char *Argv[]) {
 
   ExitOnError ExitOnError;
 
-  auto MaybeModel = ModelInModule::load(InputModulePath);
+  using Model = TupleTree<model::Binary>;
+  auto MaybeModel = errorOrToExpected(Model::fromFileOrSTDIN(InputModulePath));
   if (not MaybeModel)
     ExitOnError(MaybeModel.takeError());
 
@@ -40,7 +41,7 @@ int main(int Argc, char *Argv[]) {
     revng_abort(EC.message().c_str());
 
   TypeSystemPrinter TSPrinter(Out);
-  TSPrinter.print(MaybeModel->getReadOnlyModel());
+  TSPrinter.print(**MaybeModel);
 
   return EXIT_SUCCESS;
 }

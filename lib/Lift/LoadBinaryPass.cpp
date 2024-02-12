@@ -17,22 +17,10 @@
 
 using namespace llvm;
 
-namespace {
-using namespace llvm::cl;
-opt<std::string> RawBinaryPath("binary-path", desc("<raw binary path>"));
-} // namespace
-
 char LoadBinaryWrapperPass::ID;
 
 using Register = llvm::RegisterPass<LoadBinaryWrapperPass>;
 static Register X("load-binary", "Load Binary Pass", true, true);
-
-LoadBinaryWrapperPass::LoadBinaryWrapperPass() : llvm::ModulePass(ID) {
-  revng_check(RawBinaryPath.getNumOccurrences() == 1);
-  auto Result = MemoryBuffer::getFileOrSTDIN(RawBinaryPath);
-  MaybeBuffer = cantFail(errorOrToExpected(std::move(Result)));
-  Data = toArrayRef(MaybeBuffer->getBuffer());
-}
 
 bool LoadBinaryWrapperPass::runOnModule(llvm::Module &M) {
   auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();

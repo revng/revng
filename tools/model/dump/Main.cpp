@@ -32,11 +32,12 @@ int main(int Argc, char *Argv[]) {
 
   ExitOnError ExitOnError;
 
-  auto MaybeModel = ModelInModule::load(InputModulePath);
+  using Model = TupleTree<model::Binary>;
+  auto MaybeModel = errorOrToExpected(Model::fromFileOrSTDIN(InputModulePath));
   if (not MaybeModel)
     ExitOnError(MaybeModel.takeError());
 
-  ExitOnError(MaybeModel->save(OutputFilename, ModelOutputType::YAML));
+  ExitOnError(MaybeModel->toFile(OutputFilename));
 
   return EXIT_SUCCESS;
 }

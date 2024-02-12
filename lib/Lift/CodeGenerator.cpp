@@ -44,7 +44,6 @@
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/RawBinaryView.h"
-#include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
