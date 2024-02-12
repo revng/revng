@@ -664,6 +664,10 @@ struct FunctionInserterPass : public llvm::ModulePass {
   static char ID;
   FunctionInserterPass() : llvm::ModulePass(ID) {}
 
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<LoadExecutionContextPass>();
+  }
+
   bool runOnModule(llvm::Module &M) override {
     M.getFunction("root")->eraseFromParent();
     makeF(M, "f1");
