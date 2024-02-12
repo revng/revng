@@ -6,9 +6,9 @@ commands:
   - type: revng.test-import-pe
     from:
       - type: revng-qa.compiled
-        filter: windows
+        filter: for-import-pe
       - type: revng-qa.generated-pdb
-    filter: windows
+        filter: for-import-pe
     command: |-
       revng model import binary --use-pdb="$INPUT2" "$INPUT1"
         | revng model hard-purge "${SOURCE}.model.yml"
