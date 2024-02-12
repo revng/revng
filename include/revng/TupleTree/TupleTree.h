@@ -167,6 +167,14 @@ public:
     return Result;
   }
 
+  static llvm::ErrorOr<TupleTree> fromFileOrSTDIN(const llvm::StringRef &Path) {
+    auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
+    if (not MaybeBuffer)
+      return MaybeBuffer.getError();
+
+    return deserialize((*MaybeBuffer)->getBuffer());
+  }
+
   static llvm::ErrorOr<TupleTree> fromFile(const llvm::StringRef &Path) {
     auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
     if (not MaybeBuffer)
