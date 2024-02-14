@@ -15,6 +15,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 
+#include "revng/Model/DisassemblyConfiguration.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Yield/Instruction.h"
 
@@ -31,7 +32,8 @@ private:
   std::unique_ptr<llvm::MCInstPrinter> Printer;
 
 public:
-  explicit LLVMDisassemblerInterface(MetaAddressType::Values AddressType);
+  explicit LLVMDisassemblerInterface(MetaAddressType::Values AddressType,
+                                     const model::DisassemblyConfiguration &);
 
   struct Disassembled {
     yield::Instruction Instruction;

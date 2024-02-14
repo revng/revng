@@ -43,7 +43,8 @@ static void ensureDisassemblersWereInitializedOnce() {
 }
 
 using DI = LLVMDisassemblerInterface;
-DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
+DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType,
+                              const model::DisassemblyConfiguration &Config) {
   ensureDisassemblersWereInitializedOnce();
 
   auto LLVMArchitecture = MetaAddressType::arch(AddrType);

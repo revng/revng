@@ -112,7 +112,8 @@ yield::Function DH::disassemble(const model::Function &Function,
   for (auto BasicBlockInserter =
          ResultFunction.ControlFlowGraph().batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
-    auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type());
+    auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type(),
+                                      Binary.Configuration().Disassembly());
 
     yield::BasicBlock ResultBasicBlock;
     ResultBasicBlock.ID() = BasicBlock.ID();
@@ -183,14 +184,16 @@ yield::Function DH::disassemble(const model::Function &Function,
 }
 
 LLVMDisassemblerInterface &
-DH::getDisassemblerFor(MetaAddressType::Values AddressType) {
+DH::getDisassemblerFor(MetaAddressType::Values AddressType,
+                       const model::DisassemblyConfiguration &Configuration) {
   revng_assert(Internal != nullptr);
 
   if (auto It = Internal->find(AddressType); It != Internal->end())
     return It->second;
 
   using DI = LLVMDisassemblerInterface;
-  auto [Result, Success] = Internal->try_emplace(AddressType, DI(AddressType));
+  auto [R, Success] = Internal->try_emplace(AddressType,
+                                            DI(AddressType, Configuration));
   revng_assert(Success);
-  return Result->second;
+  return R->second;
 }
