@@ -46,6 +46,9 @@ enum class AddressStyles {
 };
 static AddressStyles AddressStyle = AddressStyles::Smart;
 
+static bool DisableEmissionOfInstructionAddress = false;
+static bool DisableEmissionOfRawBytes = false;
+
 } // namespace options
 
 using pipeline::serializedLocation;
@@ -67,6 +70,8 @@ static constexpr auto MnemonicSuffix = "asm.mnemonic-suffix";
 static constexpr auto ImmediateValue = "asm.immediate-value";
 static constexpr auto MemoryOperand = "asm.memory-operand";
 static constexpr auto Register = "asm.register";
+static constexpr auto RawBytes = "asm.raw-bytes";
+static constexpr auto InstructionAddress = "asm.instruction-address";
 
 } // namespace tokenTypes
 
@@ -148,12 +153,6 @@ static std::string labelReference(const PTMLBuilder &ThePTMLBuilder,
     .addAttribute(attributes::LocationReferences, Location);
 
   return LabelTag.serialize();
-}
-
-static std::string indent(const PTMLBuilder &ThePTMLBuilder) {
-  return ThePTMLBuilder.getTag(tags::Span, "  ")
-    .addAttribute(attributes::Token, ptml::tokens::Indentation)
-    .serialize();
 }
 
 static std::string targetPath(const BasicBlockID &Target,
@@ -535,19 +534,125 @@ static std::string taggedText(const PTMLBuilder &ThePTMLBuilder,
   return Result;
 }
 
+/// An internal helper for managing instruction prefixes.
+///
+/// It builds a map of instructions to prefixes for a passed function, and
+/// then allows extracting them one by one using `emit` method, while making
+/// sure all the calls to `emit` across the function returns strings of the same
+/// length.
+class InstructionPrefixManager {
+private:
+  struct InstructionPrefix {
+    std::string Address;
+    std::string Bytes;
+  };
+
+  std::map<BasicBlockID, std::unordered_map<MetaAddress, InstructionPrefix>>
+    Prefixes;
+  uint64_t LongestAddressString = 0;
+  uint64_t LongestByteString = 0;
+
+public:
+  InstructionPrefixManager() {}
+  InstructionPrefixManager(const yield::Function &Function) {
+    for (const yield::BasicBlock &BasicBlock : Function.ControlFlowGraph()) {
+      auto [Iterator, Success] = Prefixes.try_emplace(BasicBlock.ID());
+      revng_assert(Success, "Duplicate basic blocks?");
+      auto &BBPrefixes = Iterator->second;
+
+      for (const yield::Instruction &Instruction : BasicBlock.Instructions()) {
+        std::string Address;
+        if (!options::DisableEmissionOfInstructionAddress) {
+          Address = Instruction.Address().toString();
+          LongestAddressString = std::max(LongestAddressString, Address.size());
+        }
+
+        std::string Bytes;
+        if (!options::DisableEmissionOfRawBytes) {
+          for (uint8_t Byte : Instruction.RawBytes()) {
+            std::string HexByte = Byte ? llvm::utohexstr(Byte, true, 2) : "00";
+            revng_assert(HexByte.size() == 2);
+            Bytes += HexByte + ' ';
+          }
+          LongestByteString = std::max(LongestByteString, Bytes.size());
+        }
+
+        InstructionPrefix Result = { .Address = std::move(Address),
+                                     .Bytes = std::move(Bytes) };
+
+        auto [_, Success] = BBPrefixes.try_emplace(Instruction.Address(),
+                                                   std::move(Result));
+        revng_assert(Success, "Duplicate instructions?");
+      }
+    }
+  }
+
+public:
+  /// \note This consumes the internal strings.
+  ///       Make sure to only call once per instruction.
+  std::string emit(const PTMLBuilder &B,
+                   const MetaAddress &Instruction,
+                   const BasicBlockID &BasicBlock) {
+    if (!LongestAddressString && !LongestByteString)
+      return B.getTag(tags::Span, "  ")
+        .addAttribute(attributes::Token, ptml::tokens::Indentation)
+        .serialize();
+
+    InstructionPrefix &Data = Prefixes.at(BasicBlock).at(Instruction);
+
+    std::string Result;
+    if (LongestAddressString != 0) {
+      Result = B.getTag(tags::Span, std::move(Data.Address))
+                 .addAttribute(attributes::Token,
+                               tokenTypes::InstructionAddress)
+                 .serialize();
+
+      revng_assert(Data.Address.size() != 0);
+      revng_assert(Data.Address.size() <= LongestAddressString);
+      std::string Indentation(LongestAddressString + 4 - Data.Address.size(),
+                              ' ');
+      Result = B.getTag(tags::Span, std::move(Indentation))
+                 .addAttribute(attributes::Token, ptml::tokens::Indentation)
+                 .serialize()
+               + std::move(Result);
+    }
+
+    if (LongestByteString != 0) {
+      Result += B.getTag(tags::Span, std::move(Data.Bytes))
+                  .addAttribute(attributes::Token, tokenTypes::RawBytes)
+                  .serialize();
+
+      revng_assert(Data.Bytes.size() != 0);
+      revng_assert(Data.Bytes.size() <= LongestByteString);
+      std::string Indentation(LongestByteString + 3 - Data.Bytes.size(), ' ');
+      Result += B.getTag(tags::Span, std::move(Indentation))
+                  .addAttribute(attributes::Token, ptml::tokens::Indentation)
+                  .serialize();
+    }
+
+    return B.getTag(tags::Span, "  ")
+             .addAttribute(attributes::Token, ptml::tokens::Indentation)
+             .serialize()
+           + Result;
+  }
+};
+
 static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
                                const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
                                const model::Binary &Binary,
+                               InstructionPrefixManager &&Prefixes,
                                bool AddTargets = false) {
   // Tagged instruction body.
-  std::string Result = taggedText(ThePTMLBuilder,
-                                  Instruction,
-                                  BasicBlock,
-                                  Function,
-                                  Binary);
-  uint64_t Tail = Instruction.Disassembled().size() + 1;
+  std::string Result = Prefixes.emit(ThePTMLBuilder,
+                                     Instruction.Address(),
+                                     BasicBlock.ID())
+                       + taggedText(ThePTMLBuilder,
+                                    Instruction,
+                                    BasicBlock,
+                                    Function,
+                                    Binary);
 
   std::string InstructionLocation = serializedLocation(ranks::Instruction,
                                                        Function.Entry(),
@@ -573,7 +678,8 @@ static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
                               const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
                               const model::Binary &Binary,
-                              std::string Label) {
+                              std::string Label,
+                              InstructionPrefixManager &&Prefixes) {
   revng_assert(!BasicBlock.Instructions().empty());
   auto FromIterator = BasicBlock.Instructions().begin();
   auto ToIterator = std::prev(BasicBlock.Instructions().end());
@@ -583,22 +689,21 @@ static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
   }
 
   std::string Result;
-  for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator) {
-    Result += indent(ThePTMLBuilder)
-              + instruction(ThePTMLBuilder,
-                            *Iterator,
-                            BasicBlock,
-                            Function,
-                            Binary)
-              + "\n";
-  }
-  Result += indent(ThePTMLBuilder)
-            + instruction(ThePTMLBuilder,
-                          *(ToIterator++),
+  for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator)
+    Result += instruction(ThePTMLBuilder,
+                          *Iterator,
                           BasicBlock,
                           Function,
                           Binary,
-                          true)
+                          std::move(Prefixes))
+              + "\n";
+  Result += instruction(ThePTMLBuilder,
+                        *(ToIterator++),
+                        BasicBlock,
+                        Function,
+                        Binary,
+                        std::move(Prefixes),
+                        true)
             + "\n";
 
   std::string LabelString;
@@ -623,7 +728,8 @@ template<bool ShouldMergeFallthroughTargets>
 static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
                                 const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
-                                const model::Binary &Binary) {
+                                const model::Binary &Binary,
+                                InstructionPrefixManager &&Prefixes = {}) {
   std::string Result;
   std::string Label = labelDefinition(ThePTMLBuilder,
                                       FirstBlock.ID(),
@@ -635,7 +741,8 @@ static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
                         FirstBlock,
                         Function,
                         Binary,
-                        std::move(Label))
+                        std::move(Label),
+                        std::move(Prefixes))
              + "\n";
   } else {
     auto BasicBlocks = yield::cfg::labeledBlock(FirstBlock, Function, Binary);
@@ -648,7 +755,8 @@ static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
                            *BasicBlock,
                            Function,
                            Binary,
-                           IsFirst ? Label : "");
+                           IsFirst ? Label : "",
+                           std::move(Prefixes));
       IsFirst = false;
     }
     Result += "\n";
@@ -657,31 +765,28 @@ static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
   return Result;
 }
 
-std::string yield::ptml::functionAssembly(const PTMLBuilder &ThePTMLBuilder,
+std::string yield::ptml::functionAssembly(const PTMLBuilder &B,
                                           const yield::Function &Function,
                                           const model::Binary &Binary) {
   std::string Result;
 
-  for (const auto &BasicBlock : Function.ControlFlowGraph()) {
-    Result += labeledBlock<true>(ThePTMLBuilder, BasicBlock, Function, Binary);
-  }
+  InstructionPrefixManager P(Function);
+  for (const auto &BasicBlock : Function.ControlFlowGraph())
+    Result += labeledBlock<true>(B, BasicBlock, Function, Binary, std::move(P));
 
-  return ThePTMLBuilder.getTag(tags::Div, Result)
+  return B.getTag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
     .serialize();
 }
 
-std::string yield::ptml::controlFlowNode(const PTMLBuilder &ThePTMLBuilder,
+std::string yield::ptml::controlFlowNode(const PTMLBuilder &B,
                                          const BasicBlockID &BasicBlock,
                                          const yield::Function &Function,
                                          const model::Binary &Binary) {
   auto Iterator = Function.ControlFlowGraph().find(BasicBlock);
   revng_assert(Iterator != Function.ControlFlowGraph().end());
 
-  auto Result = labeledBlock<false>(ThePTMLBuilder,
-                                    *Iterator,
-                                    Function,
-                                    Binary);
+  auto Result = labeledBlock<false>(B, *Iterator, Function, Binary);
   revng_assert(!Result.empty());
 
   return Result;
