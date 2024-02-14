@@ -114,11 +114,14 @@ The assembly language defines the following `data-token`s:
 * `asm.memory-operand`: used to indicate memory operands.
 * `asm.register`: the name of a register.
 * `asm.helper`: a macro-like function for specifying some information in a more human-readable fashion (e.g., `offset_to` to get the offset of a global).
+* `asm.raw-bytes`: an optional raw byte representation of an instruction.
+* `asm.instruction-address`: an optional address an instruction (see MetaAddress docs for specifics).
 
 ```asm title="Example"
 # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv--------- asm.label
 #                                    v-------- asm.label-indicator
   basic_block_at_0x402ac5_Code_x86_64:
+
 #   vvv--------------------------------------- asm.mnemonic
 #                  vvv---------vvv------------ asm.register
 #                 v---------v----------------- asm.memory-operand
@@ -129,8 +132,14 @@ The assembly language defines the following `data-token`s:
 #    vv--------------------------------------- asm.mnemonic-suffix
 #       vvvvvvvv------------------------------ asm.immediate-value
     jge 0x402af2
+
 #            vvvvvvvvv------------------------ asm.helper
     mov rax, offset_to(some_global)
+
+# (can be enabled conditionally)
+# vvvvvvvvvvvvvvvvvvvv------------------------ asm.instruction-address
+#                        vvvvv---------------- asm.raw-bytes
+  0x402183:Code_x86_64   31 c7   xor edi, eax
 ```
 
 #### C
