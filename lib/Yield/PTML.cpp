@@ -46,9 +46,6 @@ enum class AddressStyles {
 };
 static AddressStyles AddressStyle = AddressStyles::Smart;
 
-static bool DisableEmissionOfInstructionAddress = false;
-static bool DisableEmissionOfRawBytes = false;
-
 } // namespace options
 
 using pipeline::serializedLocation;
@@ -554,7 +551,8 @@ private:
 
 public:
   InstructionPrefixManager() {}
-  InstructionPrefixManager(const yield::Function &Function) {
+  InstructionPrefixManager(const yield::Function &Function,
+                           const model::DisasseblyConfiguration &Config) {
     for (const yield::BasicBlock &BasicBlock : Function.ControlFlowGraph()) {
       auto [Iterator, Success] = Prefixes.try_emplace(BasicBlock.ID());
       revng_assert(Success, "Duplicate basic blocks?");
@@ -562,13 +560,13 @@ public:
 
       for (const yield::Instruction &Instruction : BasicBlock.Instructions()) {
         std::string Address;
-        if (!options::DisableEmissionOfInstructionAddress) {
+        if (!Config.DisableEmissionOfInstructionAddress()) {
           Address = Instruction.Address().toString();
           LongestAddressString = std::max(LongestAddressString, Address.size());
         }
 
         std::string Bytes;
-        if (!options::DisableEmissionOfRawBytes) {
+        if (!Config.DisableEmissionOfRawBytes()) {
           for (uint8_t Byte : Instruction.RawBytes()) {
             std::string HexByte = Byte ? llvm::utohexstr(Byte, true, 2) : "00";
             revng_assert(HexByte.size() == 2);
@@ -770,7 +768,7 @@ std::string yield::ptml::functionAssembly(const PTMLBuilder &B,
                                           const model::Binary &Binary) {
   std::string Result;
 
-  InstructionPrefixManager P(Function);
+  InstructionPrefixManager P(Function, Binary.Configuration().Disassembly());
   for (const auto &BasicBlock : Function.ControlFlowGraph())
     Result += labeledBlock<true>(B, BasicBlock, Function, Binary, std::move(P));
 
