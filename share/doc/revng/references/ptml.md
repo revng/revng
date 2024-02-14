@@ -17,7 +17,7 @@ You can add `--color` to render the syntax highlighting using terminal coloring.
 * Whitespaces are very relevant. PTML is designed to gracefully degrade into plain text by simply stripping all the XML elements.
 * It can be easily embedded into HTML. All the elements are either `<div>` or `<span>`.
 * It is used to represent in a uniform way source code in different languages (the *underlying language*).
-  For instance, we use it to represtent C and various flavor of assembly code.
+  For instance, we use it to represent C and various flavor of assembly code.
   If a text editor or a viewer supports PTML, it does not need any further understanding of the underlying language.
 * Contains metadata for navigation/highlighting in XML elements/attributes.
 * It's easy to emit: just power up your string concatenation with tags.
@@ -296,4 +296,4 @@ Each location supports a subset of the above actions:
 An action is defined by the following attributes:
 
 * `data-action-context-location`: indicates that the contained snippet has the specified context and allows the PTML viewer to activate the supported actions. Nested element can specify different context locations; in this case the viewer should pick the innermost one.
-* `data-allowed-actions`: in some cases, the set of posisble actions needs to be restricted to a subset of all possible actions, in this case this attribute is used.
+* `data-allowed-actions`: in some cases, the set of possible actions needs to be restricted to a subset of all possible actions, in this case this attribute is used.
