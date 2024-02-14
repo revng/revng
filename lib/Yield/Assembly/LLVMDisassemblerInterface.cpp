@@ -19,8 +19,6 @@
 
 namespace options {
 
-static bool UseIntelSyntax = true;
-
 enum class ImmediateStyles {
   Decimal,
   CHexadecimal,
@@ -99,7 +97,7 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType,
   unsigned AssemblyDialect = 0;
   if (*LLVMArchitecture == llvm::Triple::ArchType::x86
       || *LLVMArchitecture == llvm::Triple::ArchType::x86_64) {
-    if (options::UseIntelSyntax == true)
+    if (not Config.UseATTSyntax())
       AssemblyDialect = 1;
   }
 

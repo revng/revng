@@ -15,6 +15,11 @@ fields:
   - name: DisableEmissionOfRawBytes
     type: bool
     optional: true
+
+  - name: UseATTSyntax
+    doc: x86-only.
+    type: bool
+    optional: true
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/DisassemblyConfiguration.h"
