@@ -21,6 +21,7 @@ COLOR_CONVERSION = {
     "asm.immediate-value": "dark_slate_gray2",
     "asm.memory-operand": "dodger_blue1",
     "asm.register": "orange1",
+    "asm.helper": "dodger_blue1",
     "c.function": "bright_red",
     "c.type": "sea_green1",
     "c.operator": "dodger_blue1",
