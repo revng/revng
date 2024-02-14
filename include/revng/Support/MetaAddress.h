@@ -928,24 +928,6 @@ private:
     validate();
   }
 
-private:
-  template<typename T>
-  void dumpInternal(T &Output, uint64_t EffectiveAddress) const {
-    Output << std::hex << "0x" << EffectiveAddress;
-
-    if (not isDefaultAddressSpace()) {
-      Output << "_as" << AddressSpace;
-    }
-
-    if (not isDefaultEpoch()) {
-      Output << "_epoch" << Epoch;
-    }
-
-    if (not isDefaultCode()) {
-      Output << "_" << MetaAddressType::toString(type());
-    }
-  }
-
 public:
   std::string toString() const;
   static MetaAddress fromString(llvm::StringRef Text);
