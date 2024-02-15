@@ -20,31 +20,88 @@
 /// Returns true if I should be considered with side effects for decompilation
 /// purposes.
 inline bool hasSideEffects(const llvm::Instruction &I) {
-  if (isa<llvm::StoreInst>(&I))
+
+  // StoreInst has side effects
+  if (llvm::isa<llvm::StoreInst>(I))
     return true;
 
-  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
-    auto *CalledFunc = Call->getCalledFunction();
-    if (not CalledFunc)
-      return true;
+  auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
 
-    if (isCallToIsolatedFunction(Call))
-      return true;
+  // Besides StoreInst, only calls may have side effects.
+  if (not Call)
+    return false;
 
-    if (CalledFunc->isIntrinsic()) {
-      bool IsReadOnly = CalledFunc->onlyReadsMemory();
-      bool IsReadNone = CalledFunc->doesNotAccessMemory();
-      return not IsReadOnly and not IsReadNone;
-    }
+  // All call to isolated functions have side effects.
+  if (isCallToIsolatedFunction(Call))
+    return true;
 
-    if (FunctionTags::WritesMemory.isTagOf(CalledFunc)
-        or FunctionTags::Helper.isTagOf(CalledFunc)
-        or FunctionTags::QEMU.isTagOf(CalledFunc)
-        or FunctionTags::Exceptional.isTagOf(CalledFunc))
-      return true;
+  // All calls for which we cannot establish the callee have side effects.
+  auto *Callee = Call->getCalledFunction();
+  if (not Callee)
+    return true;
+
+  // If the callee is an intrinsic use MemoryEffects to decide if it has side
+  // effects.
+  if (Callee->isIntrinsic()) {
+    bool IsReadOnly = Callee->onlyReadsMemory();
+    bool IsReadNone = Callee->doesNotAccessMemory();
+    return not IsReadOnly and not IsReadNone;
   }
 
-  return false;
+  // QEMU stuff and exceptional functions have side effects.
+  if (FunctionTags::Helper.isTagOf(Callee) or FunctionTags::QEMU.isTagOf(Callee)
+      or FunctionTags::Exceptional.isTagOf(Callee))
+    return true;
+
+  // Stuff that writes to memory has side effects
+  if (FunctionTags::Assign.isTagOf(Callee)
+      or FunctionTags::WritesMemory.isTagOf(Callee))
+    return true;
+
+  // Functions representing custom opcodes with reference semantics never have
+  // side effects, since under the syntactic sugar or reference they only encode
+  // pointer arithmetic.
+  if (FunctionTags::IsRef.isTagOf(Callee)
+      or FunctionTags::AllocatesLocalVariable.isTagOf(Callee))
+    return false;
+
+  // AddressOf never has side effects, since it's just taking the address.
+  if (FunctionTags::AddressOf.isTagOf(Callee))
+    return false;
+
+  // Literal print decorators never have side effects, since they are
+  // just metadata on how to print constants.
+  if (FunctionTags::LiteralPrintDecorator.isTagOf(Callee)
+      or FunctionTags::StringLiteral.isTagOf(Callee))
+    return false;
+
+  // Functions that represent custom opcodes with arithmetic or bitwise
+  // semantics never have side effects.
+  if (FunctionTags::UnaryMinus.isTagOf(Callee)
+      or FunctionTags::BinaryNot.isTagOf(Callee)
+      or FunctionTags::BooleanNot.isTagOf(Callee))
+    return false;
+
+  // Casts and parentheses never have side effects
+  if (FunctionTags::ModelCast.isTagOf(Callee)
+      or FunctionTags::Parentheses.isTagOf(Callee))
+    return false;
+
+  // Opaque extract values and struct initializers never have side effects
+  if (FunctionTags::OpaqueExtractValue.isTagOf(Callee)
+      or FunctionTags::StructInitializer.isTagOf(Callee))
+    return false;
+
+  // Opaque register values never have side effects
+  if (FunctionTags::OpaqueCSVValue.isTagOf(Callee))
+    return false;
+
+  // Stuff that reads from memory never has side effects
+  if (FunctionTags::Copy.isTagOf(Callee)
+      or FunctionTags::ReadsMemory.isTagOf(Callee))
+    return false;
+
+  return true;
 }
 
 /// Check if \a ModelType can be assigned to an llvm::Value of type \a LLVMType

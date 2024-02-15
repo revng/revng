@@ -45,11 +45,6 @@ static bool haveInterferingSideEffects(const llvm::Instruction *SideEffectful,
     return false;
 
   const auto MightInterfere = [SideEffectful](const llvm::Instruction *I) {
-    // AddressOf never has side effects.
-    if (auto *CallToAddressOf = getCallToTagged(I, FunctionTags::AddressOf)) {
-      return false;
-    }
-
     // Copies from local variables never alias anyone else, except other
     // instructions that copy or assign the same local variable
     llvm::CallInst *LocalVar = nullptr;
