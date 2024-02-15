@@ -20,34 +20,6 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
 
-namespace options {
-
-enum class AddressStyles {
-  /// Look for the addresses among basic blocks and functions.
-  /// When a match is found, replace the addresses with relevant labels.
-  /// Otherwise, prints an absolute address instead.
-  Smart,
-  // TODO: extend to support segment lookup as well.
-
-  /// Same as \ref Smart, except when unable to single out the target,
-  /// print a PC-relative address instead.
-  SmartWithPCRelativeFallback,
-
-  /// Same as \ref Smart, except when unable to single out the target,
-  /// print an error token.
-  Strict,
-
-  /// Convert PC relative addresses into global representation.
-  Global,
-
-  /// Print all the addresses exactly how disassembler emitted them
-  /// in PC-relative mode.
-  PCRelative
-};
-static AddressStyles AddressStyle = AddressStyles::Smart;
-
-} // namespace options
-
 using pipeline::serializedLocation;
 using ptml::PTMLBuilder;
 using ptml::Tag;
@@ -423,10 +395,16 @@ static TaggedString emitAddress(const PTMLBuilder &ThePTMLBuilder,
                                 const yield::BasicBlock &BasicBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary) {
-  using Styles = options::AddressStyles;
-  if (options::AddressStyle == Styles::SmartWithPCRelativeFallback
-      || options::AddressStyle == Styles::Smart
-      || options::AddressStyle == Styles::Strict) {
+  namespace Style = model::DisassemblyConfigurationAddressStyle;
+  const auto &Configuration = Binary.Configuration().Disassembly();
+  Style::Values AddressStyle = Configuration.AddressStyle();
+  if (AddressStyle == Style::Invalid) {
+    // TODO: introduce a better way to handle default configuration values.
+    AddressStyle = Style::Smart;
+  }
+
+  if (AddressStyle == Style::SmartWithPCRelativeFallback
+      || AddressStyle == Style::Smart || AddressStyle == Style::Strict) {
     // "Smart" style selected, try to emit the label.
     if (std::optional MaybeLabel = tryEmitLabel(ThePTMLBuilder,
                                                 Address,
@@ -438,18 +416,20 @@ static TaggedString emitAddress(const PTMLBuilder &ThePTMLBuilder,
   }
 
   // "Simple" style selected OR "Smart" detection failed.
-  if (options::AddressStyle == Styles::SmartWithPCRelativeFallback
-      || options::AddressStyle == Styles::PCRelative) {
+  if (AddressStyle == Style::SmartWithPCRelativeFallback
+      || AddressStyle == Style::PCRelative) {
     // Emit a relative address.
     Input.Type = yield::TagType::Immediate;
     return std::move(Input);
-  } else if (options::AddressStyle == Styles::Smart
-             || options::AddressStyle == Styles::Global) {
+
+  } else if (AddressStyle == Style::Smart || AddressStyle == Style::Global) {
     // Emit an absolute address.
     return toGlobal(Input, Address);
-  } else if (options::AddressStyle == Styles::Strict) {
+
+  } else if (AddressStyle == Style::Strict) {
     // Emit an `invalid` marker.
     return TaggedString{ yield::TagType::Immediate, std::string("invalid") };
+
   } else {
     revng_abort("Unsupported addressing style.");
   }

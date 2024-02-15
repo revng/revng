@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/DisassemblyConfigurationAddressStyle.h"
+
 /* TUPLE-TREE-YAML
 name: DisassemblyConfiguration
 type: struct
@@ -19,6 +21,13 @@ fields:
   - name: UseATTSyntax
     doc: x86-only.
     type: bool
+    optional: true
+
+  - name: AddressStyle
+    doc: |
+      The default value is `Smart`. See the related enum for further
+      explanation.
+    type: DisassemblyConfigurationAddressStyle
     optional: true
 TUPLE-TREE-YAML */
 
