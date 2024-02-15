@@ -21,13 +21,13 @@ enum Values {
 };
 } // namespace InputPreservation
 
-/// A contract enstablishes a what operations a pipe can perform on input
-/// container and output container both referred by their index.
+/// A contract establishes what operations a pipe can perform on both input
+/// and output containers referred by their index.
 ///
 /// Before explaining more formally how contracts operates it's better consider
 /// a couple of examples
 ///
-/// A contract from root to binary (both kinds with granulartiy 1), requires
+/// A contract from root to binary (both kinds with granularity 1), requires
 /// that the pipe it is attached to will convert all roots with pathComponents
 /// (i) into binaries with pathComponents (i)
 ///
