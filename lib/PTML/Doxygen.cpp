@@ -268,6 +268,35 @@ gatherArgumentComments(const model::Binary &Binary,
   const model::Type *Prototype = Function.Prototype().get();
   if (auto *FT = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
     abi::FunctionType::Layout Layout(*FT);
+    // Using layout here lets us put detailed register/stack information into
+    // the comments. Consider that the same comments are used for disassembly
+    // view, so seeing something like
+    //
+    // ```
+    //   // A pretty cool function
+    //   // \param i that takes in an int
+    //   // \param s and a struct
+    //   // \returns to return the sum of \ref i with one of \ref s fields.
+    //   function:
+    //       mov     eax, DWORD PTR [rsp+28]
+    //       add     eax, edi
+    //       ret
+    // ```
+    //
+    // instead of (current version):
+    //
+    // ```
+    //   // A pretty cool function
+    //   // \param i (in rdi) that takes in an int
+    //   // \param s (24 bytes at rsp+8) and a struct
+    //   // \returns to return the sum of \ref i with one of \ref s fields.
+    //   function:
+    //       mov     eax, DWORD PTR [rsp+28]
+    //       add     eax, edi
+    //       ret
+    // ```
+    //
+    // is pretty confusing, isn't it?
 
     std::size_t IndOffset = Layout.hasSPTAR() ? 1 : 0;
     revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
