@@ -17,17 +17,6 @@
 #include "revng/Yield/Assembly/LLVMDisassemblerInterface.h"
 #include "revng/Yield/Function.h"
 
-namespace options {
-
-enum class ImmediateStyles {
-  Decimal,
-  CHexadecimal,
-  AsmHexadecimal
-};
-static ImmediateStyles ImmediateStyle = ImmediateStyles::CHexadecimal;
-
-} // namespace options
-
 /// \note: this might cause multithreading problems.
 static void ensureDisassemblersWereInitializedOnce() {
   static bool WereTheyInitialized = false;
@@ -108,15 +97,21 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType,
                                                 *RegisterInformation));
   revng_assert(Printer != nullptr, "Printer object creation failed.");
 
-  using namespace options;
-  if (ImmediateStyle == ImmediateStyles::Decimal)
+  namespace Style = model::DisassemblyConfigurationImmediateStyle;
+  Style::Values ImmediateStyle = Config.ImmediateStyle();
+  if (ImmediateStyle == Style::Invalid) {
+    // TODO: introduce a better way to handle default configuration values.
+    ImmediateStyle = Style::CHexadecimal;
+  }
+
+  if (ImmediateStyle == Style::Decimal)
     Printer->setPrintImmHex(false);
   else
     Printer->setPrintImmHex(true);
 
-  if (ImmediateStyle == ImmediateStyles::CHexadecimal)
+  if (ImmediateStyle == Style::CHexadecimal)
     Printer->setPrintHexStyle(llvm::HexStyle::C);
-  else if (ImmediateStyle == ImmediateStyles::AsmHexadecimal)
+  else if (ImmediateStyle == Style::AsmHexadecimal)
     Printer->setPrintHexStyle(llvm::HexStyle::Asm);
 
   Printer->setPrintBranchImmAsAddress(false);

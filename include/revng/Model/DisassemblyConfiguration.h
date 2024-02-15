@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/DisassemblyConfigurationAddressStyle.h"
+#include "revng/Model/DisassemblyConfigurationImmediateStyle.h"
 
 /* TUPLE-TREE-YAML
 name: DisassemblyConfiguration
@@ -28,6 +29,13 @@ fields:
       The default value is `Smart`. See the related enum for further
       explanation.
     type: DisassemblyConfigurationAddressStyle
+    optional: true
+
+  - name: ImmediateStyle
+    doc: |
+      The default value is `CHexadecimal`. See the related enum for further
+      explanation.
+    type: DisassemblyConfigurationImmediateStyle
     optional: true
 TUPLE-TREE-YAML */
 
