@@ -13,6 +13,7 @@
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Support/AccessTracker.h"
+#include "revng/Support/Generator.h"
 
 namespace revng {
 struct Tracking;
@@ -309,6 +310,26 @@ public:
 
   /// \note This function should always return true
   bool isSorted() const { return Content.isSorted(); }
+
+  /// Allows for partial iteration of the underlying container in the cases
+  /// where it's just a vector in disguise.
+  ///
+  /// \note: this method mercilessly asserts if keys are not correctly ordered
+  ///        DO NOT use this for anything that's not verified to have ordered
+  ///        keys (like `CFT::Arguments`).
+  cppcoro::generator<const_reference> asVector() const
+    requires(std::unsigned_integral<key_type>)
+  {
+    std::remove_const_t<key_type> Index = 0;
+    while (Index < Content.size()) {
+      const_pointer MaybeElement = tryGet(Index++);
+      revng_assert(MaybeElement != nullptr);
+      co_yield *MaybeElement;
+    }
+
+    revng_assert(Index == Content.size());
+    co_return;
+  }
 
 private:
   void markExistingKey(const key_type &Key) const {
