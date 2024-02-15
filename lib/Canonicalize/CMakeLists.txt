@@ -2,8 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-add_subdirectory(MarkAssignments)
-
 revng_add_analyses_library(
   revngcCanonicalize
   revngc
@@ -19,6 +17,7 @@ revng_add_analyses_library(
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
   SplitOverflowIntrinsicsPass.cpp
+  SwitchToStatements.cpp
   TernaryReductionPass.cpp
   TwosComplementArithmeticNormalizationPass.cpp
   OperatorPrecedenceResolutionPass.cpp

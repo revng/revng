@@ -88,9 +88,9 @@ static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
     for (llvm::Instruction &I : *BB) {
 
       if (I.getType()->isVoidTy() and hasSideEffects(I)) {
-        // For Instructions with void type, the MarkAssignment pass cannot
-        // properly wrap them in calls to AssignmentMarker, so we need to
-        // explicitly ask if they have side effects.
+        // For Instructions with void type, AddLocalVariablesDueToSideEffects
+        // cannot properly assign them to LocalVariables because they have
+        // void type, so we need to explicitly ask if they have side effects.
         rc_return true;
       } else {
         revng_assert(not isCallToTagged(&I, FunctionTags::Assign),

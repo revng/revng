@@ -139,7 +139,7 @@ Branches:
               - remove-load-store
               - fold-model-gep
               - dce
-              - add-assignment-markers
+              - switch-to-statements
               - make-model-cast
               - operatorprecedence-resolution
               - pretty-int-formatting
