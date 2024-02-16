@@ -135,10 +135,15 @@ static void adjustRevngMetadata(Module &M) {
 }
 
 static void setStructNameIfNeeded(llvm::Type *Type,
-                                  const std::string &StructName) {
-  if (llvm::StructType *STy = llvm::dyn_cast<llvm::StructType>(Type)) {
-    if (not STy->isLiteral() and not STy->hasName()) {
-      STy->setName(StructName);
+                                  const model::Type &Prototype) {
+  if (llvm::StructType *ST = llvm::dyn_cast<llvm::StructType>(Type)) {
+    if (not ST->isLiteral() and not ST->hasName()) {
+      if (llvm::isa<model::CABIFunctionType>(Prototype))
+        ST->setName("struct_returned_by_cft_" + std::to_string(Prototype.ID()));
+      else if (llvm::isa<model::RawFunctionType>(Prototype))
+        ST->setName("struct_returned_by_rft_" + std::to_string(Prototype.ID()));
+      else
+        revng_abort("Non-FunctionType prototypes are no allowed.");
     }
   }
 }
@@ -178,20 +183,14 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
       revng_assert(not Argument.getType()->isStructTy());
 
     llvm::Type *ReturnType = F.getReturnType();
-    std::string
-      ReturnTypeName = getReturnTypeName(*Prototype, B, false).str().str();
-    setStructNameIfNeeded(ReturnType, ReturnTypeName);
+    setStructNameIfNeeded(ReturnType, *Prototype);
 
     // Look for all the call sites: they might return anonymous structs too
     for (Instruction &I : llvm::instructions(F)) {
       auto *T = I.getType();
-      CallInst *Call = getCallToIsolatedFunction(&I);
-      if (Call != nullptr and T->isStructTy()) {
-        const auto &Prototype = *Cache.getCallSitePrototype(Model, Call).get();
-        auto
-          ReturnTypeName = getReturnTypeName(Prototype, B, false).str().str();
-        setStructNameIfNeeded(T, ReturnTypeName);
-      }
+      CallInst *Ins = getCallToIsolatedFunction(&I);
+      if (Ins != nullptr and T->isStructTy())
+        setStructNameIfNeeded(T, *Cache.getCallSitePrototype(Model, Ins).get());
     }
   }
 
