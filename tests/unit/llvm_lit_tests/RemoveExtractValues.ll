@@ -7,11 +7,11 @@
 ; not optimized away by the O2 pipeline
 
 %0 = type { i64, i32, i16, i8}
-; CHECK: %_artificial_struct_returned_by__helper_returns_struct = type { i64, i32, i16, i8 }
+; CHECK: %0 = type { i64, i32, i16, i8 }
 
 ; Function Attrs: noinline optnone
 declare dso_local %0 @helper_returns_struct() local_unnamed_addr #0
-; CHECK: declare dso_local %_artificial_struct_returned_by__helper_returns_struct @helper_returns_struct() local_unnamed_addr #0
+; CHECK: declare dso_local %0 @helper_returns_struct() local_unnamed_addr #0
 
 ; Function Attrs: noinline optnone
 declare dso_local %0 @save_i64() local_unnamed_addr #0
@@ -29,10 +29,10 @@ declare dso_local %0 @save_i8() local_unnamed_addr #0
 define void @f() local_unnamed_addr #1 {
 newFuncRoot:
   %0 = call %0 @helper_returns_struct()
-  %1 = extractvalue %0 %0, 0     ; CHECK: tail call i64 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%_artificial_struct_returned_by__helper_returns_struct %0, i64 0)
-  %2 = extractvalue %0 %0, 1     ; CHECK-NEXT: tail call i32 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%_artificial_struct_returned_by__helper_returns_struct %0, i64 1)
-  %3 = extractvalue %0 %0, 2     ; CHECK-NEXT: tail call i16 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%_artificial_struct_returned_by__helper_returns_struct %0, i64 2)
-  %4 = extractvalue %0 %0, 3     ; CHECK-NEXT: tail call i8 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%_artificial_struct_returned_by__helper_returns_struct %0, i64 3)
+  %1 = extractvalue %0 %0, 0     ; CHECK: tail call i64 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%0 %0, i64 0)
+  %2 = extractvalue %0 %0, 1     ; CHECK-NEXT: tail call i32 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%0 %0, i64 1)
+  %3 = extractvalue %0 %0, 2     ; CHECK-NEXT: tail call i16 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%0 %0, i64 2)
+  %4 = extractvalue %0 %0, 3     ; CHECK-NEXT: tail call i8 @{{OpaqueExtractvalue.[0-9]+|OpaqueExtractvalue}}(%0 %0, i64 3)
   call void @save_i64(i64 %1)
   call void @save_i32(i32 %2)
   call void @save_i16(i16 %3)
@@ -42,12 +42,3 @@ newFuncRoot:
 
 attributes #0 = { noinline optnone }
 attributes #1 = { noreturn }
-
-; General Metadata
-!revng.model = !{!0}
-
-; Model
-!0 = !{!"---
-Architecture:    x86_64
-...
-"}
