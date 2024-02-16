@@ -1,5 +1,5 @@
 #
-# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+# This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
 revng_add_analyses_library(revngcTypeNames revngc LLVMTypeNames.cpp

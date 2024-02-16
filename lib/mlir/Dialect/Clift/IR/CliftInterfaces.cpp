@@ -2,7 +2,7 @@
 /// Tests for the Clift Dialect
 
 //
-// Copyright rev.ng Labs Srl. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.md for details.
 //
 //
 #include "revng-c/mlir/Dialect/Clift/IR/CliftInterfaces.h"

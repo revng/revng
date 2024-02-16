@@ -1,5 +1,5 @@
 ;
-; Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+; This file is distributed under the MIT License. See LICENSE.md for details.
 ;
 
 CHECK: define i64 @local_raw_primitives_on_registers(i64 %[[ARG1:.*]], i64 %[[ARG2:.*]]) [[IGN:.*]] {

@@ -1,5 +1,5 @@
 #
-# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+# This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
 # CHECK: typedef _ABI(SystemV_x86_64) void _cabifunction_3001(int32_t, generic64_t, uint16_t);

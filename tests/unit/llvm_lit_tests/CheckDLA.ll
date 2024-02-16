@@ -1,5 +1,5 @@
 ;
-; Copyright rev.ng Labs Srl. See LICENSE.md for details.
+; This file is distributed under the MIT License. See LICENSE.md for details.
 ;
 
 ; RUN: %revngopt %s -S --dla -o - | revng model dump | revng model compare %s.yml -
