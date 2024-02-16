@@ -151,14 +151,27 @@ static RecursiveCoroutine<ASTNode *> addToDispatcherSet(ASTTree &AST,
   case ASTNode::NK_Switch: {
     auto *Switch = llvm::cast<SwitchNode>(Node);
 
-    // First of all, we recursively process the `case` nodes contained in the
-    // `switch` in order to process the inner portion of the AST
-    for (auto &LabelCasePair : Switch->cases()) {
+    // Perform the inlining over all the cases
+    llvm::SmallVector<size_t> ToRemoveCaseIndex;
+    for (auto &Group : llvm::enumerate(Switch->cases())) {
+      unsigned Index = Group.index();
+      auto &LabelCasePair = Group.value();
       LabelCasePair.second = rc_recur addToDispatcherSet(AST,
                                                          LabelCasePair.second,
                                                          InlinedBody,
                                                          InlinedSet,
                                                          RemoveSetNode);
+
+      if (LabelCasePair.second == nullptr) {
+        ToRemoveCaseIndex.push_back(Index);
+      }
+    }
+
+    // The inlining step may remove the body of some case, in such situation we
+    // need to remove the case from the switch (leaving the `nullptr` breaks the
+    // semantics of the AST)
+    for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+      Switch->removeCaseN(ToRemoveCase);
     }
   } break;
   case ASTNode::NK_Set: {
@@ -180,10 +193,17 @@ static RecursiveCoroutine<ASTNode *> addToDispatcherSet(ASTTree &AST,
       if (RemoveSetNode) {
         rc_return InlinedBody;
       } else {
-        SequenceNode *Sequence = AST.addSequenceNode();
-        Sequence->addNode(InlinedBody);
-        Sequence->addNode(Set);
-        rc_return Sequence;
+        if (InlinedBody) {
+          // If we are inlining the `InlinedBody` and preserving the `SetNode`,
+          // we need to create a new `SequenceNode` to group them together
+          SequenceNode *Sequence = AST.addSequenceNode();
+          Sequence->addNode(InlinedBody);
+          Sequence->addNode(Set);
+          rc_return Sequence;
+        } else {
+          // We don't have to inline anything, and we preserve the `SetNode`
+          rc_return Set;
+        }
       }
     }
   } break;
@@ -374,7 +394,7 @@ static void processNestedWeavedSwitches(SwitchNode *Switch) {
   //    care of removing those labels from the parent case containing them.
   // 2) The weaved switch disappeared entirely, so we need to remove the
   //    parent case entirely.
-  std::set<size_t> ToRemoveCaseIndex;
+  llvm::SmallVector<size_t> ToRemoveCaseIndex;
   for (auto &Group : llvm::enumerate(Switch->cases())) {
     unsigned Index = Group.index();
     auto &[LabelSet, Case] = Group.value();
@@ -383,7 +403,7 @@ static void processNestedWeavedSwitches(SwitchNode *Switch) {
     // that one of the cases has been simplified to `nullptr`, therefore, we
     // should take care of removing it
     if (Case == nullptr) {
-      ToRemoveCaseIndex.insert(Index);
+      ToRemoveCaseIndex.push_back(Index);
       continue;
     }
 

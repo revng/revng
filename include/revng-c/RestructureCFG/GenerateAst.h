@@ -34,6 +34,8 @@
 #include "revng-c/RestructureCFG/RegionCFGTree.h"
 #include "revng-c/RestructureCFG/Utils.h"
 
+#include "BasicBlockNode.h"
+
 // Helper function that visit an AST tree and creates the sequence nodes
 inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
   SequenceNode *RootSequenceNode = Tree.addSequenceNode();
@@ -154,6 +156,48 @@ inline BasicBlockNode<NodeT> *getDirectSuccessor(BasicBlockNode<NodeT> *Node) {
 
 template<class NodeT>
 inline BasicBlockNode<NodeT> *
+getUniqueSuccessorOrNull(BasicBlockNode<NodeT> *Node) {
+  BasicBlockNode<NodeT> *Successor = nullptr;
+  revng_assert(Node->successor_size() <= 1);
+  if (Node->successor_size() == 1) {
+    Successor = Node->getSuccessorI(0);
+  }
+  return Successor;
+}
+
+template<class NodeT>
+inline std::vector<BasicBlockNode<NodeT> *>
+getNotInlinedSuccs(BasicBlockNode<NodeT> *Node) {
+  using BasicBlockNodeT = BasicBlockNode<NodeT>;
+  using ConstEdge = std::pair<const BasicBlockNodeT *, const BasicBlockNodeT *>;
+
+  std::vector<BasicBlockNodeT *> NotInlinedSuccessors;
+  for (BasicBlockNodeT *Successor : Node->successors()) {
+    if (not isEdgeInlined(ConstEdge{ Node, Successor })) {
+      NotInlinedSuccessors.push_back(Successor);
+    }
+  }
+  return NotInlinedSuccessors;
+}
+
+template<class NodeT>
+inline std::vector<BasicBlockNode<NodeT> *>
+getNotInlinedNotTerminalSuccs(BasicBlockNode<NodeT> *Node) {
+  using BasicBlockNodeT = BasicBlockNode<NodeT>;
+  using ConstEdge = std::pair<const BasicBlockNodeT *, const BasicBlockNodeT *>;
+
+  std::vector<BasicBlockNodeT *> NotInlinedNotTerminalSuccessors;
+  for (BasicBlockNodeT *Successor : Node->successors()) {
+    if (not isEdgeInlined(ConstEdge{ Node, Successor })
+        and getUniqueSuccessorOrNull(Successor)) {
+      NotInlinedNotTerminalSuccessors.push_back(Successor);
+    }
+  }
+  return NotInlinedNotTerminalSuccessors;
+}
+
+template<class NodeT>
+inline BasicBlockNode<NodeT> *
 findCommonPostDom(BasicBlockNode<NodeT> *Succ1, BasicBlockNode<NodeT> *Succ2) {
 
   // Retrieve the successor of the two successors of the `IfNode`, and check
@@ -217,59 +261,161 @@ connectTile(llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
 }
 
 template<class NodeT>
-inline void
-createTile(RegionCFG<NodeT> &Graph,
-           llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
-           typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
-           BasicBlockNode<NodeT> *Node,
-           BasicBlockNode<NodeT> *End,
-           bool EndIsPartOfTile = true) {
-
+inline BasicBlockNode<NodeT> *
+createTileImpl(RegionCFG<NodeT> &Graph,
+               llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
+               typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
+               BasicBlockNode<NodeT> *Node,
+               BasicBlockNode<NodeT> *End,
+               bool EndIsPartOfTile) {
   using BBNodeT = BasicBlockNode<NodeT>;
   using BasicBlockNodeTVect = std::vector<BBNodeT *>;
   using EdgeDescriptor = typename BBNodeT::EdgeDescriptor;
 
-  // Create the new tile node.
+  // Create the new tile node
   BBNodeT *Tile = Graph.addTile();
 
-  // Connect the incoming edge to the newly created tile.
+  // Connect the incoming edge to the newly created tile
   connectTile(ASTDT, Node, Tile);
 
-  if (End != nullptr) {
-    if (EndIsPartOfTile) {
-      // If End is part of the tile, move all the edges exiting from the
-      // postdominator node of the collapsed region to the tile node
+  // The `End` node is considered as part of the tile that is being collapsed
+  if (EndIsPartOfTile) {
+    // If `End` is marked as part of the tile, it must be present
+    revng_assert(End);
 
-      BasicBlockNodeTVect Successors;
-      for (BBNodeT *Successor : End->successors())
-        Successors.push_back(Successor);
+    // We move all the edges exiting from the `End` node of the collapsed region
+    // to the tile node
+    BasicBlockNodeTVect Successors;
+    for (BBNodeT *Successor : End->successors())
+      Successors.push_back(Successor);
 
-      for (BBNodeT *Successor : Successors) {
-        auto Edge = extractLabeledEdge(EdgeDescriptor{ End, Successor });
-        ASTDT.deleteEdge(End, Successor);
-        addEdge(EdgeDescriptor{ Tile, Successor }, Edge.second);
-        ASTDT.insertEdge(Tile, Successor);
-      }
-    } else {
-      // Otherwise, End is a non-inlined successor of the tile.
-      // Connect it accordingly.
-      moveEdgeSource(EdgeDescriptor(Node, End), Tile);
-      ASTDT.deleteEdge(Node, End);
-      ASTDT.insertEdge(Tile, End);
+    for (BBNodeT *Successor : Successors) {
+      auto Edge = extractLabeledEdge(EdgeDescriptor{ End, Successor });
+      ASTDT.deleteEdge(End, Successor);
+      addEdge(EdgeDescriptor{ Tile, Successor }, Edge.second);
+      ASTDT.insertEdge(Tile, Successor);
     }
   }
 
   // Update the map containing the mapping between tiles and the head node which
   // gave origin to a certain tile.
   TileToNodeMap[Tile] = Node;
+
+  return Tile;
 }
 
-// This was a function template, but it's never instantiated anywhere else with
-// a template parameter different from llvm::BasicBlock *, so we dropped the
-// template for now.
-// It will probably come back when we unit-test this.
-//
-// template<typename NodeT>
+template<class NodeT>
+inline BasicBlockNode<NodeT> *
+createTile(RegionCFG<NodeT> &Graph,
+           llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
+           typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
+           BasicBlockNode<NodeT> *Node,
+           BasicBlockNode<NodeT> *End,
+           bool EndIsPartOfTile) {
+
+  using BBNodeT = BasicBlockNode<NodeT>;
+  using EdgeDescriptor = typename BBNodeT::EdgeDescriptor;
+
+  // Call the `Impl` function that is responsible of creating the tile node
+  BBNodeT *Tile = createTileImpl(Graph,
+                                 ASTDT,
+                                 TileToNodeMap,
+                                 Node,
+                                 End,
+                                 EndIsPartOfTile);
+
+  // When `End` is present and not part of the collapsed tile, we need to
+  // connect the `Tile` node to it, in order to preserve the original edges in
+  // the control-flow
+  if (not EndIsPartOfTile and End != nullptr) {
+    moveEdgeSource(EdgeDescriptor(Node, End), Tile);
+    ASTDT.deleteEdge(Node, End);
+    ASTDT.insertEdge(Tile, End);
+  }
+
+  return Tile;
+}
+
+template<class NodeT>
+inline BasicBlockNode<NodeT> *
+createSwitchTile(RegionCFG<NodeT> &Graph,
+                 llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
+                 typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
+                 BasicBlockNode<NodeT> *Node,
+                 BasicBlockNode<NodeT> *End,
+                 bool EndIsPartOfTile,
+                 std::vector<BasicBlockNode<NodeT> *>
+                   &NotInlinedNotTerminalSuccessors) {
+
+  using BBNodeT = BasicBlockNode<NodeT>;
+  using BasicBlockNodeT = BasicBlockNode<NodeT>;
+  using EdgeDescriptor = typename BBNodeT::EdgeDescriptor;
+  using EdgeInfo = typename BasicBlockNodeT::EdgeInfo;
+
+  // Call the `Impl` function that is responsible of creating the tile node
+  BBNodeT *Tile = createTileImpl(Graph,
+                                 ASTDT,
+                                 TileToNodeMap,
+                                 Node,
+                                 End,
+                                 EndIsPartOfTile);
+
+  // When `End` is present and not part of the collapsed tile, we need to
+  // connect the `Tile` node to it, in order to preserve the original edges in
+  // the control-flow
+  if (not EndIsPartOfTile and End != nullptr) {
+    // Step 1:
+    // There is a common successor (which is the `End` node) for all the cases
+    // of the switch, excluding the inlined cases and the case nodes without a
+    // successor (see comments on the declaration of the
+    // `NotInlinedNotTerminalSuccessors` variable for a motivation for this). We
+    // need to remove all the edges exiting from the cases, and replace them
+    // with an edge connect the `Tile` node to `End`.
+    std::optional<EdgeInfo> EdgeInfoN;
+    for (BasicBlockNodeT *Successor : NotInlinedNotTerminalSuccessors) {
+
+      // We do not process `Successor` when it is equal to `End`, it will be
+      // treated separately
+      if (Successor == End) {
+        continue;
+      }
+
+      BasicBlockNodeT *SuccOfSuccN = getUniqueSuccessorOrNull(Successor);
+      revng_assert(SuccOfSuccN == End);
+      auto Edge = extractLabeledEdge(EdgeDescriptor{ Successor, End });
+
+      // Check that all the `EdgeInfo`s attached to the edges we are
+      // going to remove, are equal.
+      if (not EdgeInfoN.has_value()) {
+        EdgeInfoN.emplace(Edge.second);
+      } else {
+        revng_assert(EdgeInfoN.value() == Edge.second);
+      }
+
+      ASTDT.deleteEdge(Successor, End);
+    }
+
+    // Connect the tile to the elected successor, if we found candidate nodes
+    // eligible above
+    if (EdgeInfoN.has_value()) {
+      addEdge(EdgeDescriptor{ Tile, End }, EdgeInfoN.value());
+      ASTDT.insertEdge(Tile, End);
+    }
+
+    // Step 2:
+    // It may be that `End` was itself a successor of `Node`, and in Step 1 we
+    // did not connect `Tile` with `End`. In such situation, we need to do that
+    // now.
+    if (Node->hasSuccessor(End) and not(Tile->hasSuccessor(End))) {
+      moveEdgeSource(EdgeDescriptor(Node, End), Tile);
+      ASTDT.deleteEdge(Node, End);
+      ASTDT.insertEdge(Tile, End);
+    }
+  }
+
+  return Tile;
+}
+
 inline void
 generateAst(RegionCFG<llvm::BasicBlock *> &Region,
             ASTTree &AST,
@@ -379,7 +525,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
         ASTNode *ASTChild = nullptr;
         if (ASTDT.dominates(Node, Succ)) {
           ASTChild = findASTNode(AST, TileToNodeMap, Succ);
-          createTile(Region, ASTDT, TileToNodeMap, Node, Succ);
+          createTile(Region, ASTDT, TileToNodeMap, Node, Succ, true);
         }
         ASTObject.reset(new ScsNode(Node, Body, ASTChild));
       } break;
@@ -401,16 +547,147 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       }
       revng_assert(SwitchCondition or Node->isDispatcher());
 
-      auto NumSucc = Node->successor_size();
-      revng_assert(NumSucc);
-      BasicBlockNodeT *Fallthrough = nullptr;
-      for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
-        if (ASTDT.dominates(Node, SwitchSucc) or EdgeInfos.Inlined)
-          continue;
+      // Results variables
+      bool EndIsPartOfTile = false;
+      BasicBlockNodeT *PostDomBB = nullptr;
+      BasicBlockNodeT *CandidateFallthroughBB = nullptr;
 
-        revng_assert(not Fallthrough);
-        Fallthrough = SwitchSucc;
+      // TODO: this helper variable is needed to represent the node that is the
+      //       target of the inserted `SwitchBreak` nodes. This is needed until
+      //       we eliminate the special casing for the weaved switches below.
+      BasicBlockNodeT *SwitchBreakTarget = nullptr;
+
+      BasicBlockNodeTVect NotInlinedSuccessors = getNotInlinedSuccs(Node);
+
+      // In the following, we will also need to exclude successors of the switch
+      // that do not have successors, but are not inlined either. An example
+      // motivating this: Imagine node C that has two successors, that are both
+      // inlined. That node C is the successor of node B. So at some point we
+      // create tile A, which "inside" has B followed by C followed by its
+      // inlined successors. This node A is indeed an example of a case node
+      // without a successor which is not inlined, but that we still do not need
+      // to consider when performing the search for the common fallthrough node.
+      BasicBlockNodeTVect
+        NotInlinedNotTerminalSuccessors = getNotInlinedNotTerminalSuccs(Node);
+
+      // Count the non inlined successors
+      unsigned NotInlined = NotInlinedSuccessors.size();
+
+      // We special case the handling of the "all but one case inlined", due to
+      // some assumptions we make about the nesting of the weaved `switch`es.
+      // Specifically, we assume that each weaved switch Y, relative to switch
+      // X, must be nested "inside" it, also in the resulting generated AST.
+      // Therefore we cannot match this as we would do in the ordinary way, by
+      // placing the weaved switch Y as fallthrough of switch X.
+      // TODO: this special casing for the weaved switches can be dropped if we
+      //       give up the assumption that each weaved switch is nested into
+      //       its parent switch. This would lead to greatly reduce the
+      //       complexity of switch tiling logic.
+      if (NotInlined == 1) {
+
+        // Handle the special case with one a single non inlined successor
+        const auto NotInlined = [&Node](const auto *Child) {
+          using ConstEdge = std::pair<const BasicBlockNodeT *,
+                                      const BasicBlockNodeT *>;
+          return not isEdgeInlined(ConstEdge{ Node, Child });
+        };
+
+        auto It = std::find_if(Successors.begin(),
+                               Successors.end(),
+                               NotInlined);
+
+        // Assert that we found one
+        revng_assert(It != Successors.end());
+        CandidateFallthroughBB = *It;
+
+        // Assert that we don't find more that one
+        It = std::find_if(std::next(It), Successors.end(), NotInlined);
+        revng_assert(It == Successors.end());
+
+        // We now have two possibilities in front of us:
+        // 1) The `CandidateFallthrough` is dominated. We treat it as a normal
+        //    case, and when we create the tile we consider it as part of the
+        //    current tile.
+        // 2) The `CandidateFallthrough` is not dominated. It will not be part
+        //    of the current tile.
+        if (CandidateFallthroughBB
+            and ASTDT.dominates(Node, CandidateFallthroughBB)) {
+          PostDomBB = nullptr;
+          EndIsPartOfTile = true;
+          SwitchBreakTarget = nullptr;
+        } else {
+          PostDomBB = nullptr;
+          EndIsPartOfTile = false;
+          SwitchBreakTarget = CandidateFallthroughBB;
+        }
+      } else {
+
+        // We pre-compute the successor of all the cases that are not inlined
+        llvm::SmallVector<BasicBlockNodeT *> SuccOfCases;
+        for (BasicBlockNodeT *Case : NotInlinedNotTerminalSuccessors) {
+          BasicBlockNodeT *SuccOfCase = getUniqueSuccessorOrNull(Case);
+          revng_assert(SuccOfCase);
+          SuccOfCases.push_back(SuccOfCase);
+        }
+
+        // Criterion 1:
+        // For each successor, check if a certain one is successor of all the
+        // other cases
+        for (BasicBlockNodeT *Case : NotInlinedSuccessors) {
+          unsigned Count = std::count(SuccOfCases.begin(),
+                                      SuccOfCases.end(),
+                                      Case);
+          if (Count > 0) {
+            if ((getUniqueSuccessorOrNull(Case)
+                 and Count == SuccOfCases.size() - 1)
+                or (not getUniqueSuccessorOrNull(Case)
+                    and Count == SuccOfCases.size())) {
+              revng_assert(not CandidateFallthroughBB);
+              CandidateFallthroughBB = Case;
+            }
+          }
+        }
+
+        // Criterion 2:
+        // Search for node which is the successor for all the cases (excluding
+        // the inlined ones), even if not a successor of `Node` itself
+        std::map<BasicBlockNodeT *, unsigned> SuccCounterMap;
+        for (BasicBlockNodeT *Elem : SuccOfCases) {
+          SuccCounterMap[Elem]++;
+        }
+        for (const auto &[Key, Value] : SuccCounterMap) {
+          if (Value == SuccOfCases.size()) {
+
+            // Criteria 1 and 2 may overlap in some cases, but it is important
+            // that if they do they elect the same `CandidateFallthroughBB`
+            revng_assert(not CandidateFallthroughBB
+                         or Key == CandidateFallthroughBB);
+            CandidateFallthroughBB = Key;
+          }
+        }
+
+        // We now have two possibilities in front of us:
+        // 1) The `CandidateFallthrough` is dominated. We consider the node to
+        //    be the postdominator of `Node`.
+        // 2) The `CandidateFallthrough` is not dominated. It will not be part
+        //    of the current tile.
+        if (CandidateFallthroughBB
+            and ASTDT.dominates(Node, CandidateFallthroughBB)) {
+          PostDomBB = CandidateFallthroughBB;
+          EndIsPartOfTile = true;
+          SwitchBreakTarget = CandidateFallthroughBB;
+        } else {
+          PostDomBB = nullptr;
+          EndIsPartOfTile = false;
+          SwitchBreakTarget = CandidateFallthroughBB;
+        }
       }
+
+      // The only legit situation for not having elected a
+      // `CandidateFallthroughBB` node, is when all the successors are inlined
+      // or do not have a successor themselves
+      revng_assert(CandidateFallthroughBB
+                   or NotInlinedNotTerminalSuccessors.size() == 0);
 
       SwitchNode::case_container LabeledCases;
       llvm::SmallVector<ASTNode *> SwitchBreakVector;
@@ -418,7 +695,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
 
         ASTNode *ASTPointer = nullptr;
-        if (SwitchSucc == Fallthrough) {
+        if (SwitchSucc == SwitchBreakTarget) {
           ASTPointer = AST.addSwitchBreak(nullptr);
           SwitchBreakVector.push_back(ASTPointer);
         } else {
@@ -434,111 +711,27 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
         LabeledCases.push_back({ EdgeInfos.Labels, ASTPointer });
       }
       revng_assert(HasDefault or Node->isWeaved() or Node->isDispatcher());
-      revng_assert(not Fallthrough or Children.size() < Node->successor_size());
-      revng_assert(Fallthrough or Children.size() >= Node->successor_size());
 
-      ASTNode *PostDomASTNode = nullptr;
-      BasicBlockNodeT *PostDomBB = nullptr;
-      // If we have the fallthrough we should not look for the post-dominator of
-      // the switch, because the post-dominator is now the fallthrough.
-      // If we don't have the fallthrough we might have a post-dominator for the
-      // switch and need to find it to generate the correct ast.
-      if (not Fallthrough) {
+      createSwitchTile(Region,
+                       ASTDT,
+                       TileToNodeMap,
+                       Node,
+                       CandidateFallthroughBB,
+                       EndIsPartOfTile,
+                       NotInlinedNotTerminalSuccessors);
 
-        // Try to handle the situation where one successor of the switch is the
-        // moral postdominator of the switch itself, being the successor of all
-        // the other cases.
-        llvm::SmallVector<BasicBlockNodeT *> SuccOfCases;
-        for (BasicBlockNodeT *Case : Successors) {
-          BasicBlockNodeT *SuccOfCase = getDirectSuccessor(Case);
-          SuccOfCases.push_back(SuccOfCase);
-        }
-
-        // For each successor, check if a certain one is successor of all the
-        // other cases.
-        BasicBlockNodeT *CandidatePostDomBB = nullptr;
-        for (BasicBlockNodeT *Case : Successors) {
-          unsigned Count = std::count(SuccOfCases.begin(),
-                                      SuccOfCases.end(),
-                                      Case);
-          if (Count == Successors.size() - 1) {
-            revng_assert(CandidatePostDomBB == nullptr);
-            CandidatePostDomBB = Case;
-          }
-        }
-        if (CandidatePostDomBB != nullptr) {
-          PostDomBB = CandidatePostDomBB;
-        }
-
-        // Handle switch nodes with all but one cases inlined, by considering
-        // the not inlined case also as moral postdominator of the switch.
-
-        // Count the non inlined successors.
-        unsigned NotInlined = 0;
-        using ConstEdge = std::pair<const BasicBlockNodeT *,
-                                    const BasicBlockNodeT *>;
-        for (BasicBlockNodeT *Successor : Successors) {
-          if (not isEdgeInlined(ConstEdge{ Node, Successor })) {
-            NotInlined += 1;
-          }
-        }
-
-        if (NotInlined == 1 and Node->successor_size() > 1) {
-
-          const auto NotInlined = [&Node](const auto *Child) {
-            return not isEdgeInlined(ConstEdge{ Node, Child });
-          };
-
-          auto It = std::find_if(Successors.begin(),
-                                 Successors.end(),
-                                 NotInlined);
-
-          // Assert that we found one.
-          revng_assert(It != Successors.end());
-
-          PostDomBB = *It;
-
-          // Assert that we don't find more than one.
-          It = std::find_if(std::next(It), Successors.end(), NotInlined);
-          revng_assert(It == Successors.end());
-        }
-
-        if (Children.size() > Node->successor_size()) {
-          // There are some children on the dominator tree that are not
-          // successors on the graph. It should be at most one, which is the
-          // post-dominator.
-          const auto NotSuccessor = [&Node](const auto *Child) {
-            auto It = Node->successors().begin();
-            auto End = Node->successors().end();
-            return std::find(It, End, Child) == End;
-          };
-
-          auto It = std::find_if(Children.begin(),
-                                 Children.end(),
-                                 NotSuccessor);
-
-          // Assert that we found one.
-          revng_assert(It != Children.end());
-
-          PostDomASTNode = findASTNode(AST, TileToNodeMap, *It);
-          PostDomBB = *It;
-
-          // Assert that we don't find more than one.
-          It = std::find_if(std::next(It), Children.end(), NotSuccessor);
-          revng_assert(It == Children.end());
-        }
-
-        createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, true);
-
-      } else {
-        PostDomBB = Fallthrough;
-        createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, false);
+      // If we elected a postdominator for the current tile, we retrieve the
+      // corresponding AST node in order to set it as the postdominator on the
+      // AST too
+      ASTNode *PostDomAST = nullptr;
+      if (PostDomBB) {
+        PostDomAST = findASTNode(AST, TileToNodeMap, PostDomBB);
       }
 
       ASTObject.reset(new SwitchNode(Node,
                                      SwitchCondition,
                                      std::move(LabeledCases),
-                                     PostDomASTNode));
+                                     PostDomAST));
       for (ASTNode *Break : SwitchBreakVector) {
         SwitchBreakNode *SwitchBreakCast = llvm::cast<SwitchBreakNode>(Break);
         SwitchNode *Switch = llvm::cast<SwitchNode>(ASTObject.get());
@@ -703,7 +896,11 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
           ASTObject.reset(new IfNode(Node, Condition, Then, Else, PostDom));
 
-          createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB);
+          if (PostDomBB) {
+            createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, true);
+          } else {
+            createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, false);
+          }
         } break;
         case 3: {
 
@@ -745,7 +942,11 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           ExprNode *Condition = AST.addCondExpr(std::move(CondExpr));
           ASTObject.reset(new IfNode(Node, Condition, Then, Else, PostDom));
 
-          createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB);
+          if (PostDomBB) {
+            createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, true);
+          } else {
+            createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, false);
+          }
         } break;
 
         default: {
@@ -786,7 +987,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           } else {
             ASTObject.reset(new CodeNode(Node, Succ));
           }
-          createTile(Region, ASTDT, TileToNodeMap, Node, Children[0]);
+          createTile(Region, ASTDT, TileToNodeMap, Node, Children[0], true);
         } break;
 
         default: {
