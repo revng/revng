@@ -11,7 +11,7 @@
 ; int parenthesize_exp1(int a, int b, int c) {
 ;   return a / b / c;
 ; }
-define i32 @parenthesize_exp1(i32 %0, i32 %1, i32 %2) !revng.tags !0 {
+define i32 @parenthesize_exp1(i32 %0, i32 %1, i32 %2) {
   %4 = sdiv i32 %0, %1
   ; CHECK-NOT: %5 = call i32 @parentheses.1(i32 %4)
   %5 = sdiv i32 %4, %2
@@ -21,7 +21,7 @@ define i32 @parenthesize_exp1(i32 %0, i32 %1, i32 %2) !revng.tags !0 {
 ; int parenthesize_exp2(int a, int b, int c) {
 ;   return a / (b / c);
 ; }
-define i32 @parenthesize_exp2(i32 %0, i32 %1, i32 %2) !revng.tags !0 {
+define i32 @parenthesize_exp2(i32 %0, i32 %1, i32 %2) {
   %4 = sdiv i32 %1, %2
   ; CHECK: %5 = call i32 @parentheses.1(i32 %4)
   ; CHECK-NEXT: %6 = sdiv i32 %0, %5
@@ -36,7 +36,7 @@ define i32 @parenthesize_exp2(i32 %0, i32 %1, i32 %2) !revng.tags !0 {
 ; have the same precedence. This implies that the reconstructed expression for NOP is the following:
 ; (5 + a * b + c) + (d / (2 + e))
 ; Note that here the parentheses are needed to specify that the division comes before the addition.
-define i32 @parenthesize_exp3(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4) !revng.tags !0 {
+define i32 @parenthesize_exp3(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4) {
   %6 = add i32 %2, %1
   ; C-LANG: %7 = call i32 @parentheses(i32 %6)
   ; C-LANG-NEXT: %8 = mul i32 %7, %0
@@ -54,7 +54,7 @@ define i32 @parenthesize_exp3(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4) !revng.tag
   ret i32 %11
 }
 
-define i32 @parenthesize_unary_minus(i32 %0) !revng.tags !0 {
+define i32 @parenthesize_unary_minus(i32 %0) {
   %2 = call i32 @unary_minus(i32 1)
   ; CHECK: %3 = call @parentheses.1(i32 %2)
   ; CHECK-NEXT: %4 = add i32 %0, %3
@@ -62,7 +62,7 @@ define i32 @parenthesize_unary_minus(i32 %0) !revng.tags !0 {
   ret i32 %3
 }
 
-define i32 @parenthesize_binary_not(i32 %0) !revng.tags !0 {
+define i32 @parenthesize_binary_not(i32 %0) {
   %2 = call i32 @binary_not(i32 1)
   ; CHECK: %3 = call @parentheses.1(i32 %2)
   ; CHECK-NEXT: %4 = add i32 %0, %3
@@ -73,5 +73,3 @@ define i32 @parenthesize_binary_not(i32 %0) !revng.tags !0 {
 declare i32 @unary_minus(i32 %0)
 
 declare i32 @binary_not(i32 %0)
-
-!0 = !{!"isolated"}
