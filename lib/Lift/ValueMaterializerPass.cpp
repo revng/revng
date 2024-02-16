@@ -8,6 +8,7 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/KnownBits.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/Support/Debug.h"
 #include "revng/ValueMaterializer/ValueMaterializer.h"
@@ -71,6 +72,8 @@ static void demoteOrToAdd(Function &F) {
 PreservedAnalyses ValueMaterializerPass::run(Function &F,
                                              FunctionAnalysisManager &FAM) {
   using namespace llvm;
+
+  llvm::EliminateUnreachableBlocks(F, nullptr, false);
 
   demoteOrToAdd(F);
 
