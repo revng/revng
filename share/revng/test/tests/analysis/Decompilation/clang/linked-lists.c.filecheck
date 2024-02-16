@@ -1,0 +1,37 @@
+This file is distributed under the MIT License. See LICENSE.md for details.
+
+
+The init_list function should have the proper detected return type, a pointer to
+struct representing the node of the linked list.
+
+CHECK: [[NODE_STRUCT:_struct_[0-9]+]] *init_list(void)
+
+
+The release_list function should have the proper detected type for its first
+argument.
+CHECK: release_list([[NODE_STRUCT]] *{{.*}})
+
+
+The sum function should take a pointer to node, return a 64-bits integer.
+The argument should be accessed at offset 0, which is an array. And the array
+should be indexed by a index that increments by one at each iteration.
+
+CHECK: {{.*}}64_t sum([[NODE_STRUCT]] *[[ARG0:.*]])
+CHECK: do {
+CHECK: [[ACCUMULATOR:_var_[0-9]+]] = [[ACCUMULATOR]] + [[ARG0]]->_offset_0[[[INDEX:_var_[0-9]+]]];
+CHECK: [[INDEX]] = [[INDEX]] + 1;
+CHECK: } while ([[INDEX]] != 5);
+CHECK: return [[ACCUMULATOR]];
+
+
+The compute function should take a pointer to node, return a 64-bits integer.
+It should contain a local variable PTR that is a pointer to node, and a do-while
+loop, where PTR is updated with PTR->_offset_40 (representing the next pointer
+field), and PTR->_offset_40 should also be the exit condition of the do-while.
+
+CHECK: {{.*}}64_t compute([[NODE_STRUCT]] *{{.*}})
+CHECK: [[NODE_STRUCT]] *[[PTR:_var_[0-9]+]];
+CHECK: do {
+CHECK: [[ACCUMULATOR:_var_[0-9]+]] = [[ACCUMULATOR]] + [[WHATEVER:.*]]
+CHECK: [[PTR]] = [[PTR]]->_offset_40;
+CHECK: while ([[PTR]]);

@@ -1,0 +1,53 @@
+---
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+Segments:
+  - IsReadable: true
+    IsWriteable: false
+    Sections:
+      - Name: .rodata
+        ContainsCode: false
+    Type: "/Types/1812-StructType"
+  - IsReadable: true
+    IsWriteable: true
+    Sections:
+      - Name: .data
+        ContainsCode: false
+    Type: "/Types/1815-StructType"
+Types:
+  - ID: 516
+    Kind: PrimitiveType
+    PrimitiveKind: Generic
+    Size: 4
+  - ID: 1812
+    Kind: StructType
+    Fields:
+      - OriginalName: .rodata
+        Type:
+          UnqualifiedType: "/Types/1813-StructType"
+  - ID: 1813
+    Kind: StructType
+    Size: 13
+  - ID: 1815
+    Kind: StructType
+    Fields:
+      - OriginalName: .data
+        Type:
+          UnqualifiedType: "/Types/1816-StructType"
+  - ID: 1816
+    Kind: StructType
+    Fields:
+      - OriginalName: TheData
+        Type:
+          UnqualifiedType: "/Types/1817-StructType"
+  - ID: 1817
+    Kind: StructType
+    Size: 1008
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/516-PrimitiveType"
+      - Offset: 1004
+        Type:
+          UnqualifiedType: "/Types/516-PrimitiveType"

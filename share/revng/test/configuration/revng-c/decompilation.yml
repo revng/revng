@@ -1,0 +1,21 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng-c.decompilation
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-decompilation
+    suffix: /
+    command: |-
+      WORKDIR="$OUTPUT/decompiled-to-check" ;
+      RESUME="$OUTPUT/resume" ;
+      mkdir -p "$$WORKDIR" ;
+      revng analyze revng-initial-auto-analysis "$INPUT" --resume "$$RESUME" -o /dev/null ;
+      revng analyze revng-c-initial-auto-analysis "$INPUT" --resume "$$RESUME" -o - | revng model compare "${SOURCE}".model.yml ;
+      revng artifact decompile-to-single-file "$INPUT" --resume "$$RESUME" -o - | revng ptml -p > "$$WORKDIR/decompiled.c" ;
+      revng artifact emit-model-header "$INPUT" --resume "$$RESUME" -o - | revng ptml -p > "$$WORKDIR/types-and-globals.h" ;
+      revng artifact emit-helpers-header "$INPUT" --resume "$$RESUME" -o - | revng ptml -p > "$$WORKDIR/helpers.h" ;
+      revng check-decompiled-c "$$WORKDIR/decompiled.c" -I "$$WORKDIR" ;
+      cat "$$WORKDIR/decompiled.c" | FileCheck "${SOURCE}".filecheck ;
