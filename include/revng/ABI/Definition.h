@@ -326,26 +326,17 @@ public:
   /// Make sure current definition is valid.
   bool verify() const debug_function;
 
-  /// Checks whether a given function data does not contradict this ABI
+  /// Checks whether a given function type definition contradicts this ABI
   ///
   /// \note this is not an exhaustive check, so if it returns `false`,
   /// the function definitely is NOT compatible, but if it returns `true`
   /// it might either be compatible or not.
   ///
-  /// \note this also asserts \ref isValid
-  ///
-  /// \tparam Register The type representing the registers, example of valid
-  ///         values include \ref model::TypedRegister and
-  ///         \ref model::NamedTypedRegister
-  ///
-  /// \param ArgumentRegisters The list of registers used for passing arguments
-  ///        of the function in question
-  /// \param ReturnValueRegisters The list of registers used for returning
-  ///        values of the function in question
+  /// \param RFT The function to check
   ///
   /// \return `false` if the function is definitely NOT compatible with the ABI,
   ///         `true` if it might be compatible.
-  bool isPreliminarilyCompatibleWith(const model::RawFunctionType &) const;
+  bool isPreliminarilyCompatibleWith(const model::RawFunctionType &RFT) const;
 
   struct AlignmentInfo {
     uint64_t Value;
