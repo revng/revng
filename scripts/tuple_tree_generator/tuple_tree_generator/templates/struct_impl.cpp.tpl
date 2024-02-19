@@ -7,17 +7,17 @@ The notice below applies to the generated files.
 //
 
 /** if root_type **/
-#include "/*= generator.user_include_path =*//*= root_type =*/.h"
+#include "/*= user_include_path =*//*= root_type =*/.h"
 /** endif **/
 #include "revng/TupleTree/VisitsImpl.h"
 #include "revng/TupleTree/TupleTreeImpl.h"
 #include "revng/TupleTree/TrackingImpl.h"
 
 /**- for child_type in upcastable **/
-#include "/*= generator.user_include_path =*//*= child_type.name =*/.h"
+#include "/*= user_include_path =*//*= child_type.name =*/.h"
 /**- endfor **/
 
-#include "/*= generator.user_include_path =*//*= struct.name =*/.h"
+#include "/*= user_include_path =*//*= struct.name =*/.h"
 
 /** if upcastable **/
 
