@@ -1422,52 +1422,6 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(rc_recur UnqualifiedType().get()->verify(VH));
 }
 
-template<typename T>
-RecursiveCoroutine<bool>
-verifyTypedRegisterCommon(const T &TypedRegister, VerifyHelper &VH) {
-  // Ensure the type we're pointing to is scalar
-  if (not TypedRegister->Type().isScalar())
-    rc_return VH.fail();
-
-  if (TypedRegister->Location() == Register::Invalid)
-    rc_return VH.fail();
-
-  // Ensure if fits in the corresponding register
-  auto MaybeTypeSize = rc_recur TypedRegister->Type().size(VH);
-
-  // Zero-sized types are not allowed
-  if (not MaybeTypeSize)
-    rc_return VH.fail();
-
-  // TODO: handle floating point register sizes properly.
-  if (not TypedRegister->Type().isFloat()) {
-    size_t RegisterSize = model::Register::getSize(TypedRegister->Location());
-    if (*MaybeTypeSize > RegisterSize)
-      rc_return VH.fail();
-  }
-
-  rc_return VH.maybeFail(rc_recur TypedRegister->Type().verify(VH));
-}
-
-void TypedRegister::dump() const {
-  DisableTracking Guard(*this);
-  serialize(dbg, *this);
-}
-
-bool TypedRegister::verify() const {
-  return verify(false);
-}
-
-bool TypedRegister::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-RecursiveCoroutine<bool> TypedRegister::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-  rc_return verifyTypedRegisterCommon(this, VH);
-}
-
 void NamedTypedRegister::dump() const {
   DisableTracking Guard(*this);
   serialize(dbg, *this);
@@ -1489,7 +1443,28 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   if (not CustomName().verify(VH))
     rc_return VH.fail();
 
-  rc_return verifyTypedRegisterCommon(this, VH);
+  // Ensure the type we're pointing to is scalar
+  if (not Type().isScalar())
+    rc_return VH.fail();
+
+  if (Location() == Register::Invalid)
+    rc_return VH.fail();
+
+  // Ensure if fits in the corresponding register
+  auto MaybeTypeSize = rc_recur Type().size(VH);
+
+  // Zero-sized types are not allowed
+  if (not MaybeTypeSize)
+    rc_return VH.fail();
+
+  // TODO: handle floating point register sizes properly.
+  if (not Type().isFloat()) {
+    size_t RegisterSize = model::Register::getSize(Location());
+    if (*MaybeTypeSize > RegisterSize)
+      rc_return VH.fail();
+  }
+
+  rc_return VH.maybeFail(rc_recur Type().verify(VH));
 }
 
 bool StructField::verify() const {

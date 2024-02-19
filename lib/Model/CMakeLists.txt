@@ -80,7 +80,6 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/StructField.h"
   "${MODEL_HEADERS_DIR}/StructType.h"
   "${MODEL_HEADERS_DIR}/Type.h"
-  "${MODEL_HEADERS_DIR}/TypedRegister.h"
   "${MODEL_HEADERS_DIR}/TypedefType.h"
   "${MODEL_HEADERS_DIR}/UnionField.h"
   "${MODEL_HEADERS_DIR}/UnionType.h")
