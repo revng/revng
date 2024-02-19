@@ -22,12 +22,11 @@ The notice below applies to the generated files.
 
 void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName);
 
-/**- for header in includes **/
+/** for header in includes **/
 #include "/*= generator.user_include_path =*//*= header =*/"
 /**- endfor **/
 
-
-/**- if emit_tracking **/
+/** if emit_tracking **/
 namespace revng {
 struct TrackingImpl;
 }
