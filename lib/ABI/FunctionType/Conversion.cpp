@@ -405,13 +405,16 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
-  model::StructType &Stack = *llvm::cast<model::StructType>(StackArgumentTypes
-                                                              .get());
+  auto &Stack = *llvm::cast<model::StructType>(StackArgumentTypes.get());
 
-  // Compute the full alignment.
-  model::QualifiedType StackStruct = { StackArgumentTypes, {} };
-  uint64_t StackAlignment = *ABI.alignment(StackStruct);
+  // As a workaround for the cases where expected alignment is missing at
+  // the very end of the RFT-style stack argument struct, use adjusted
+  // size and alignment values instead of the real ones.
+  uint64_t StackAlignment = *ABI.alignment(Stack);
   revng_assert(llvm::isPowerOf2_64(StackAlignment));
+  uint64_t AdjustedAlignment = std::max(StackAlignment, ABI.getPointerSize());
+  uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
+                                                            AdjustedAlignment);
 
   // If the struct is empty, it indicates that there are no stack arguments.
   if (Stack.size() == 0) {
@@ -477,12 +480,6 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
       // Having only one element in the "remaining" range means that only
       // the last field is left - add it too after checking.
       const model::StructField &LastArgument = CurrentRange.front();
-
-      // This is a workaround for the cases where expected alignment is missing
-      // at the very end of the RFT-style stack argument struct:
-      uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
-                                                                StackAlignment);
-
       std::optional<uint64_t> LastSize = LastArgument.Type().size();
       revng_assert(LastSize.has_value() && LastSize.value() != 0);
       if (canBeNext(Distributor,
@@ -550,7 +547,8 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
   // it apart.
   // Let's try and see if it would make sense to add the whole "stack" struct
   // as one argument.
-  if (!canBeNext(Distributor, StackStruct, 0, Stack.Size(), StackAlignment)) {
+  model::QualifiedType StackStruct = { StackArgumentTypes, {} };
+  if (!canBeNext(Distributor, StackStruct, 0, StackSize, StackAlignment)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;
