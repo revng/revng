@@ -6,7 +6,6 @@
 
 #include "revng/ADT/MutableSet.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/Types.h"
 #include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
