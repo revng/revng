@@ -542,7 +542,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   // Test non-scalar argument
   //
   {
-    model::TypedRegister RAXArgument(model::Register::rax_x86_64);
+    model::NamedTypedRegister RAXArgument(model::Register::rax_x86_64);
     RAXArgument.Type() = { Primitive64, { { QualifierKind::Array, 10 } } };
     revng_check(not RAXArgument.verify(false));
   }

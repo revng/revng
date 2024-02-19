@@ -420,7 +420,6 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
                                    const efa::CallEdge &CallSite) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
-  using model::TypedRegister;
 
   revng_assert(Callee.getCallee() != nullptr);
 
