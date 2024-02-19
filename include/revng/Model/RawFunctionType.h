@@ -7,7 +7,6 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypedRegister.h"
 
 /* TUPLE-TREE-YAML
 name: RawFunctionType

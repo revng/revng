@@ -7,7 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
-#include "revng/Model/TypedRegister.h"
 #include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML

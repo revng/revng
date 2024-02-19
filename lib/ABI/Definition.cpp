@@ -12,7 +12,6 @@
 #include "revng/Model/ABI.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NamedTypedRegister.h"
-#include "revng/Model/TypedRegister.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/YAMLTraits.h"
 
