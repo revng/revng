@@ -167,6 +167,8 @@ class CppHeadersGenerator:
                 definition = self.struct_late_template.render(
                     struct=type_to_emit,
                     upcastable=upcastable_types,
+                    schema=self.schema,
+                    user_include_path=self.user_include_path,
                     root_type=self.root_type,
                     namespace=self.schema.generated_namespace,
                     all_types=all_known_types,

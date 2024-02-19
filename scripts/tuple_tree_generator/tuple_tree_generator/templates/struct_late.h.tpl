@@ -23,6 +23,14 @@ The notice below applies to the generated files.
 #include "revng/TupleTree/Visits.h"
 #include "revng/TupleTree/Tracking.h"
 
+/** if root_type == struct.name -**/
+/** for type in schema.struct_definitions() -**/
+/** if type.name != root_type -**/
+#include "/*= user_include_path =*//*= type.name =*/.h"
+/** endif **/
+/**- endfor **/
+/**- endif **/
+
 using namespace std::string_view_literals;
 
 /*# --- TupleLikeTraits --- -#*/
