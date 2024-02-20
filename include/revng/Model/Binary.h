@@ -14,12 +14,12 @@
 #include "revng/Model/ABI.h"
 #include "revng/Model/Configuration.h"
 #include "revng/Model/DynamicFunction.h"
-#include "revng/Model/EnumType.h"
+#include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Segment.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
@@ -42,13 +42,13 @@ fields:
     type: MetaAddress
     optional: true
   - name: DefaultABI
-    doc: The default ABI of `RawFunctionType`s within the binary
+    doc: The default ABI of `RawFunctionDefinition`s within the binary
     type: ABI
     optional: true
   - name: DefaultPrototype
     doc: The default function prototype
     reference:
-      pointeeType: Type
+      pointeeType: TypeDefinition
       rootType: Binary
     optional: true
   - name: Configuration
@@ -84,12 +84,12 @@ fields:
       type: SortedVector
       elementType: Function
     optional: true
-  - name: Types
+  - name: TypeDefinitions
     doc: The type system
     sequence:
       type: SortedVector
       upcastable: true
-      elementType: Type
+      elementType: TypeDefinition
     optional: true
 TUPLE-TREE-YAML */
 
@@ -103,80 +103,90 @@ public:
   using generated::Binary::Binary;
 
 public:
-  model::TypePath getTypePath(const model::Type::Key &Key) {
-    return TypePath::fromString(this, "/Types/" + getNameFromYAMLScalar(Key));
+  model::TypeDefinitionPath
+  getTypeDefinitionPath(const model::TypeDefinition::Key &Key) {
+    return TypeDefinitionPath::fromString(this,
+                                          "/TypeDefinitions/"
+                                            + getNameFromYAMLScalar(Key));
   }
 
-  model::TypePath getTypePath(const model::Type::Key &Key) const {
-    return TypePath::fromString(this, "/Types/" + getNameFromYAMLScalar(Key));
+  model::TypeDefinitionPath
+  getTypeDefinitionPath(const model::TypeDefinition::Key &Key) const {
+    return TypeDefinitionPath::fromString(this,
+                                          "/TypeDefinitions/"
+                                            + getNameFromYAMLScalar(Key));
   }
 
-  model::TypePath getTypePath(const model::Type *T) {
-    return getTypePath(T->key());
+  model::TypeDefinitionPath
+  getTypeDefinitionPath(const model::TypeDefinition *T) {
+    return getTypeDefinitionPath(T->key());
   }
 
-  model::TypePath getTypePath(const model::Type *T) const {
-    return getTypePath(T->key());
+  model::TypeDefinitionPath
+  getTypeDefinitionPath(const model::TypeDefinition *T) const {
+    return getTypeDefinitionPath(T->key());
   }
 
   /// Return the first available (non-primitive) type ID available
   uint64_t getAvailableTypeID() const;
 
   /// Record the new type into the model and assign an ID (unless it's a
-  /// PrimitiveType)
-  model::TypePath recordNewType(UpcastablePointer<Type> &&T);
+  /// PrimitiveDefinition)
+  model::TypeDefinitionPath recordNewType(model::UpcastableTypeDefinition &&T);
 
   /// Uses `SortedVector::batch_insert()` to emplace all the elements from
-  /// \ref NewTypes range into the `Types()` set.
+  /// \ref NewTypes range into the `TypeDefinitions()` set.
   ///
   /// This inserts all the elements at the end of the underlying vector, and
   /// then triggers sorting, instead of conventional searching for the position
   /// of each element on its insertion.
   ///
-  /// \note Unlike recordNewTypes, this method does not assign type IDs.
+  /// \note Unlike recordNewTypeDefinitions, this method does not assign type
+  /// IDs.
   ///
   /// \note It takes advantage of `std::move_iterator` to ensure all
   ///       the elements are accessed strictly as r-values, so the original
   ///       container, \ref NewTypes range points to, is left in an unspecified
   ///       state after the invocation, as all of its elements are moved out of.
   ///
-  /// \note Since it uses strict version of `batch-insert`'er, it will assert
-  ///       if this causes multiple elements with the same key (\ref Type::Key)
-  ///       to be present in the vector after the new elements are moved in.
+  /// \note Since a strict version of `batch-insert`'er is used, if this causes
+  ///       multiple elements to have the same \ref TypeDefinition::Key,
+  ///       an assert will be fired.
   ///
   /// \tparam Range constrained input range type.
   /// \param  NewTypes the input range.
-  template<range_with_value_type<UpcastablePointer<Type>> Range>
-  void recordNewTypes(Range &&NewTypes) {
-    auto Inserter = Types().batch_insert();
+  template<range_with_value_type<UpcastablePointer<TypeDefinition>> Range>
+  void recordNewTypeDefinitions(Range &&NewTypes) {
+    auto Inserter = TypeDefinitions().batch_insert();
 
     static_assert(std::is_rvalue_reference_v<decltype(NewTypes)>);
     auto Movable = as_rvalue(std::move(NewTypes));
-    for (UpcastablePointer<Type> &&NewType : Movable) {
+    for (UpcastablePointer<TypeDefinition> &&NewType : Movable) {
       static_assert(std::is_rvalue_reference_v<decltype(NewType)>);
       revng_assert(NewType->ID() != 0);
       Inserter.emplace(std::move(NewType));
     }
   }
 
-  template<derived_from<model::Type> NewType, typename... ArgumentTypes>
-  [[nodiscard]] std::pair<NewType &, model::TypePath>
-  makeType(ArgumentTypes &&...Arguments) {
-    using UT = model::UpcastableType;
+  template<derived_from<model::TypeDefinition> NewType,
+           typename... ArgumentTypes>
+  [[nodiscard]] std::pair<NewType &, model::TypeDefinitionPath>
+  makeTypeDefinition(ArgumentTypes &&...Arguments) {
+    using UT = model::UpcastableTypeDefinition;
     UT Result = UT::make<NewType>(std::forward<ArgumentTypes>(Arguments)...);
-    model::TypePath ResultPath = recordNewType(std::move(Result));
+    model::TypeDefinitionPath ResultPath = recordNewType(std::move(Result));
     return { *llvm::cast<NewType>(ResultPath.get()), ResultPath };
   }
 
-  model::TypePath getPrimitiveType(PrimitiveTypeKind::Values V,
-                                   uint8_t ByteSize);
+  model::TypeDefinitionPath getPrimitiveType(PrimitiveKind::Values V,
+                                             uint8_t ByteSize);
 
-  model::TypePath getPrimitiveType(PrimitiveTypeKind::Values V,
-                                   uint8_t ByteSize) const;
+  model::TypeDefinitionPath getPrimitiveType(PrimitiveKind::Values V,
+                                             uint8_t ByteSize) const;
 
-  bool verifyTypes() const debug_function;
-  bool verifyTypes(bool Assert) const debug_function;
-  bool verifyTypes(VerifyHelper &VH) const;
+  bool verifyTypeDefinitions() const debug_function;
+  bool verifyTypeDefinitions(bool Assert) const debug_function;
+  bool verifyTypeDefinitions(VerifyHelper &VH) const;
 
 public:
   std::string path(const model::Function &F) const {
@@ -187,11 +197,14 @@ public:
     return "/ImportedDynamicFunctions/" + key(F);
   }
 
-  std::string path(const model::Type &T) const { return "/Types/" + key(T); }
+  std::string path(const model::TypeDefinition &T) const {
+    return "/TypeDefinitions/" + key(T);
+  }
 
-  std::string path(const model::EnumType &T,
+  std::string path(const model::EnumDefinition &D,
                    const model::EnumEntry &Entry) const {
-    return path(static_cast<const model::Type &>(T)) + "/Entries/" + key(Entry);
+    return path(static_cast<const model::TypeDefinition &>(D)) + "/Entries/"
+           + key(Entry);
   }
 
   std::string path(const model::Segment &Segment) const {

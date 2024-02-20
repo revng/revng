@@ -29,16 +29,16 @@ fragile_keys = {"ID"}
 
 
 def is_reference(string):
-    return string.startswith("/Types/")
+    return string.startswith("/TypeDefinitions/")
 
 
 def dereference(root, string):
     assert is_reference(string)
-    match = re.match(r"/Types/([^-]*)-", string)
+    match = re.match(r"/TypeDefinitions/([^-]*)-", string)
 
     if match:
         type_id = int(match.groups()[0])
-        for item in root["Types"]:
+        for item in root["TypeDefinitions"]:
             if item["ID"] == type_id:
                 return item
 
@@ -320,12 +320,23 @@ def selftest():
     assert test_subgraph([1, 3, 2], [1, 2, 3])
 
     # Test references
-    reference = {"a": "/Types/1-Type", "Types": [{"ID": 1, "b": 3}]}
+    reference = {
+        "a": "/TypeDefinitions/1-DoesNotMatter",
+        "TypeDefinitions": [{"ID": 1, "b": 3}],
+    }
     assert test_subgraph(
-        {"a": "/Types/2-Type", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference
+        {
+            "a": "/TypeDefinitions/2-DoesNotMatter",
+            "TypeDefinitions": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}],
+        },
+        reference,
     )
     assert not test_subgraph(
-        {"a": "/Types/2-Type", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]}, reference
+        {
+            "a": "/TypeDefinitions/2-DoesNotMatter",
+            "TypeDefinitions": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}],
+        },
+        reference,
     )
 
     return 0

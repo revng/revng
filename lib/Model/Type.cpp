@@ -268,13 +268,16 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "asm",
 };
 
-model::Type::Type() : model::Type(0, model::TypeKind::Invalid){};
+model::TypeDefinition::TypeDefinition() :
+  model::TypeDefinition(0, model::TypeDefinitionKind::Invalid){};
 
-model::Type::Type(uint64_t ID, TypeKind::Values Kind) :
-  model::generated::Type(ID, Kind) {
+model::TypeDefinition::TypeDefinition(uint64_t ID,
+                                      TypeDefinitionKind::Values Kind) :
+  model::generated::TypeDefinition(ID, Kind) {
 }
 
-const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
+const llvm::SmallVector<model::QualifiedType, 4>
+model::TypeDefinition::edges() const {
   const auto *This = this;
   auto GetEdges = [](const auto &Upcasted) { return Upcasted.edges(); };
   return upcast(This, GetEdges, llvm::SmallVector<model::QualifiedType, 4>());
@@ -316,7 +319,7 @@ Identifier model::Argument::name() const {
   return Result;
 }
 
-Identifier model::Type::name() const {
+Identifier model::TypeDefinition::name() const {
   auto *This = this;
   auto GetName = [](auto &Upcasted) -> Identifier { return Upcasted.name(); };
   return upcast(This, GetName, Identifier(""));
@@ -357,25 +360,25 @@ bool Qualifier::verify(VerifyHelper &VH) const {
   return VH.fail();
 }
 
-static constexpr bool isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind,
+static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values PrimKind,
                                            uint8_t BS) {
   switch (PrimKind) {
-  case PrimitiveTypeKind::Invalid:
+  case PrimitiveKind::Invalid:
     return false;
 
-  case PrimitiveTypeKind::Void:
+  case PrimitiveKind::Void:
     return BS == 0;
 
   // The ByteSizes allowed for Generic must be a superset of all the other
   // ByteSizes allowed for all other primitive types (except void)
-  case PrimitiveTypeKind::Generic:
+  case PrimitiveKind::Generic:
     return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 10 or BS == 12
            or BS == 16;
 
-  case PrimitiveTypeKind::PointerOrNumber:
-  case PrimitiveTypeKind::Number:
-  case PrimitiveTypeKind::Unsigned:
-  case PrimitiveTypeKind::Signed:
+  case PrimitiveKind::PointerOrNumber:
+  case PrimitiveKind::Number:
+  case PrimitiveKind::Unsigned:
+  case PrimitiveKind::Signed:
     return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 16;
 
   // NOTE: We are supporting floats that are 10 bytes long, since we found such
@@ -383,7 +386,7 @@ static constexpr bool isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind,
   // of those cases could be written in some language other than C/C++ (probably
   // Swift). We faced some struct fields by using this (10b long float) type, so
   // by ignoring it we would not have accurate layout for the structs.
-  case PrimitiveTypeKind::Float:
+  case PrimitiveKind::Float:
     return BS == 2 or BS == 4 or BS == 8 or BS == 10 or BS == 12 or BS == 16;
 
   default:
@@ -393,15 +396,15 @@ static constexpr bool isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind,
   revng_abort();
 }
 
-std::optional<model::PrimitiveType>
-model::PrimitiveType::fromName(llvm::StringRef Name) {
-  PrimitiveTypeKind::Values Kind = PrimitiveTypeKind::Invalid;
+std::optional<model::PrimitiveDefinition>
+model::PrimitiveDefinition::fromName(llvm::StringRef Name) {
+  PrimitiveKind::Values Kind = PrimitiveKind::Invalid;
   uint8_t Size = 0;
 
   // Handle void
   if (Name == "void") {
-    Kind = PrimitiveTypeKind::Void;
-    return model::PrimitiveType(Kind, Size);
+    Kind = PrimitiveKind::Void;
+    return model::PrimitiveDefinition(Kind, Size);
   }
 
   // Ensure the name ends with _t
@@ -410,17 +413,17 @@ model::PrimitiveType::fromName(llvm::StringRef Name) {
 
   // Parse the prefix for the kind
   if (Name.consume_front("generic")) {
-    Kind = PrimitiveTypeKind::Generic;
+    Kind = PrimitiveKind::Generic;
   } else if (Name.consume_front("uint")) {
-    Kind = PrimitiveTypeKind::Unsigned;
+    Kind = PrimitiveKind::Unsigned;
   } else if (Name.consume_front("number")) {
-    Kind = PrimitiveTypeKind::Number;
+    Kind = PrimitiveKind::Number;
   } else if (Name.consume_front("pointer_or_number")) {
-    Kind = PrimitiveTypeKind::PointerOrNumber;
+    Kind = PrimitiveKind::PointerOrNumber;
   } else if (Name.consume_front("int")) {
-    Kind = PrimitiveTypeKind::Signed;
+    Kind = PrimitiveKind::Signed;
   } else if (Name.consume_front("float")) {
-    Kind = PrimitiveTypeKind::Float;
+    Kind = PrimitiveKind::Float;
   } else {
     return std::nullopt;
   }
@@ -441,7 +444,7 @@ model::PrimitiveType::fromName(llvm::StringRef Name) {
   Size = Bits / 8;
 
   // Create the type
-  model::PrimitiveType NewType(Kind, Size);
+  model::PrimitiveDefinition NewType(Kind, Size);
 
   if (not NewType.verify())
     return std::nullopt;
@@ -449,35 +452,35 @@ model::PrimitiveType::fromName(llvm::StringRef Name) {
   return NewType;
 }
 
-Identifier model::PrimitiveType::name() const {
+Identifier model::PrimitiveDefinition::name() const {
   Identifier Result;
 
   switch (PrimitiveKind()) {
-  case PrimitiveTypeKind::Void:
+  case PrimitiveKind::Void:
     Result = "void";
     break;
 
-  case PrimitiveTypeKind::Unsigned:
+  case PrimitiveKind::Unsigned:
     (Twine("uint") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
     break;
 
-  case PrimitiveTypeKind::Number:
+  case PrimitiveKind::Number:
     (Twine("number") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
     break;
 
-  case PrimitiveTypeKind::PointerOrNumber:
+  case PrimitiveKind::PointerOrNumber:
     ("pointer_or_number" + Twine(Size() * 8) + "_t").toVector(Result);
     break;
 
-  case PrimitiveTypeKind::Generic:
+  case PrimitiveKind::Generic:
     (Twine("generic") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
     break;
 
-  case PrimitiveTypeKind::Signed:
+  case PrimitiveKind::Signed:
     (Twine("int") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
     break;
 
-  case PrimitiveTypeKind::Float:
+  case PrimitiveKind::Float:
     (Twine("float") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
     break;
 
@@ -500,19 +503,20 @@ Identifier customNameOrAutomatic(T *This) {
   }
 }
 
-Identifier model::StructType::name() const {
+Identifier model::StructDefinition::name() const {
   return customNameOrAutomatic(this);
 }
 
-Identifier model::TypedefType::name() const {
+Identifier model::TypedefDefinition::name() const {
   return customNameOrAutomatic(this);
 }
 
-Identifier model::EnumType::name() const {
+Identifier model::EnumDefinition::name() const {
   return customNameOrAutomatic(this);
 }
 
-Identifier model::EnumType::entryName(const model::EnumEntry &Entry) const {
+Identifier
+model::EnumDefinition::entryName(const model::EnumEntry &Entry) const {
   revng_assert(Entries().count(Entry.Value()) != 0);
 
   if (Entry.CustomName().size() > 0) {
@@ -524,7 +528,7 @@ Identifier model::EnumType::entryName(const model::EnumEntry &Entry) const {
   }
 }
 
-Identifier model::UnionType::name() const {
+Identifier model::UnionDefinition::name() const {
   return customNameOrAutomatic(this);
 }
 
@@ -537,46 +541,46 @@ Identifier model::NamedTypedRegister::name() const {
   }
 }
 
-Identifier model::RawFunctionType::name() const {
+Identifier model::RawFunctionDefinition::name() const {
   return customNameOrAutomatic(this);
 }
 
-Identifier model::CABIFunctionType::name() const {
+Identifier model::CABIFunctionDefinition::name() const {
   return customNameOrAutomatic(this);
 }
 
-static uint64_t makePrimitiveID(PrimitiveTypeKind::Values PrimitiveKind,
+static uint64_t makePrimitiveID(PrimitiveKind::Values PrimitiveKind,
                                 uint8_t Size) {
   return (static_cast<uint8_t>(PrimitiveKind) << 8) | Size;
 }
 
-PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
-                             uint8_t Size) :
-  PrimitiveType(makePrimitiveID(PrimitiveKind, Size),
-                AssociatedKind,
-                {},
-                {},
-                {},
-                PrimitiveKind,
-                Size) {
+PrimitiveDefinition::PrimitiveDefinition(PrimitiveKind::Values PrimitiveKind,
+                                         uint8_t Size) :
+  PrimitiveDefinition(makePrimitiveID(PrimitiveKind, Size),
+                      AssociatedKind,
+                      {},
+                      {},
+                      {},
+                      PrimitiveKind,
+                      Size) {
 }
 
-static PrimitiveTypeKind::Values getPrimitiveKind(uint64_t ID) {
-  return static_cast<PrimitiveTypeKind::Values>(ID >> 8);
+static PrimitiveKind::Values getPrimitiveKind(uint64_t ID) {
+  return static_cast<PrimitiveKind::Values>(ID >> 8);
 }
 
 static uint8_t getPrimitiveSize(uint64_t ID) {
   return ID & ((1 << 8) - 1);
 }
 
-PrimitiveType::PrimitiveType(uint64_t ID) :
-  PrimitiveType(ID,
-                AssociatedKind,
-                {},
-                {},
-                {},
-                getPrimitiveKind(ID),
-                getPrimitiveSize(ID)) {
+PrimitiveDefinition::PrimitiveDefinition(uint64_t ID) :
+  PrimitiveDefinition(ID,
+                      AssociatedKind,
+                      {},
+                      {},
+                      {},
+                      getPrimitiveKind(ID),
+                      getPrimitiveSize(ID)) {
 }
 
 void EnumEntry::dump() const {
@@ -675,7 +679,7 @@ static RecursiveCoroutine<bool> isArrayImpl(const model::QualifiedType &QT) {
     rc_return false;
   }
 
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
+  if (auto *TD = dyn_cast<model::TypedefDefinition>(QT.UnqualifiedType().get()))
     rc_return rc_recur isArrayImpl(TD->UnderlyingType());
 
   // If there are no non-const qualifiers, it's not an array
@@ -698,7 +702,7 @@ static RecursiveCoroutine<bool> isPointerImpl(const model::QualifiedType &QT) {
     rc_return false;
   }
 
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
+  if (auto *TD = dyn_cast<model::TypedefDefinition>(QT.UnqualifiedType().get()))
     rc_return rc_recur isPointerImpl(TD->UnderlyingType());
 
   // If there are no non-const qualifiers, it's not a pointer
@@ -710,7 +714,7 @@ bool QualifiedType::isPointer() const {
 }
 
 static RecursiveCoroutine<bool> isConstImpl(const model::QualifiedType &QT) {
-  auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get());
+  auto *TD = dyn_cast<model::TypedefDefinition>(QT.UnqualifiedType().get());
   if (not QT.Qualifiers().empty()) {
     // If there are qualifiers, just look at the first
     rc_return Qualifier::isConst(QT.Qualifiers().front());
@@ -729,16 +733,16 @@ bool QualifiedType::isConst() const {
 
 static RecursiveCoroutine<bool>
 isPrimitiveImpl(const model::QualifiedType &QT,
-                std::optional<model::PrimitiveTypeKind::Values> V) {
+                std::optional<model::PrimitiveKind::Values> V) {
   if (QT.Qualifiers().size() != 0
       and not llvm::all_of(QT.Qualifiers(), Qualifier::isConst))
     rc_return false;
 
-  const model::Type *UnqualifiedType = QT.UnqualifiedType().get();
-  if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
+  const model::TypeDefinition *UnqualifiedType = QT.UnqualifiedType().get();
+  if (auto *Primitive = llvm::dyn_cast<PrimitiveDefinition>(UnqualifiedType))
     rc_return !V.has_value() || Primitive->PrimitiveKind() == *V;
 
-  if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
+  if (auto *Typedef = llvm::dyn_cast<TypedefDefinition>(UnqualifiedType))
     rc_return rc_recur isPrimitiveImpl(Typedef->UnderlyingType(), V);
 
   rc_return false;
@@ -748,28 +752,28 @@ bool QualifiedType::isPrimitive() const {
   return isPrimitiveImpl(*this, std::nullopt);
 }
 
-bool QualifiedType::isPrimitive(PrimitiveTypeKind::Values V) const {
+bool QualifiedType::isPrimitive(PrimitiveKind::Values V) const {
   return isPrimitiveImpl(*this, V);
 }
 
 static RecursiveCoroutine<bool> isImpl(const model::QualifiedType &QT,
-                                       model::TypeKind::Values K) {
+                                       model::TypeDefinitionKind::Values K) {
   if (QT.Qualifiers().size() != 0
       and not llvm::all_of(QT.Qualifiers(), Qualifier::isConst))
     rc_return false;
 
-  const model::Type *UnqualifiedType = QT.UnqualifiedType().get();
+  const model::TypeDefinition *UnqualifiedType = QT.UnqualifiedType().get();
 
   if (UnqualifiedType->Kind() == K)
     rc_return true;
 
-  if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
+  if (auto *Typedef = llvm::dyn_cast<TypedefDefinition>(UnqualifiedType))
     rc_return rc_recur isImpl(Typedef->UnderlyingType(), K);
 
   rc_return false;
 }
 
-bool QualifiedType::is(model::TypeKind::Values K) const {
+bool QualifiedType::is(model::TypeDefinitionKind::Values K) const {
   return isImpl(*this, K);
 }
 
@@ -778,7 +782,8 @@ unwrapTypedef(const model::QualifiedType &QT) {
   if (QT.UnqualifiedType().empty() or QT.Qualifiers().size() != 0)
     return std::nullopt;
 
-  if (auto Typedef = llvm::dyn_cast<TypedefType>(QT.UnqualifiedType().get())) {
+  if (auto Typedef = llvm::dyn_cast<TypedefDefinition>(QT.UnqualifiedType()
+                                                         .get())) {
     return Typedef->UnderlyingType();
   } else {
     return std::nullopt;
@@ -794,29 +799,31 @@ model::QualifiedType QualifiedType::skipTypedefs() const {
   return Result;
 }
 
-std::optional<model::TypePath> model::QualifiedType::getFunctionType() const {
+std::optional<model::TypeDefinitionPath>
+model::QualifiedType::getFunctionType() const {
   model::QualifiedType Unwrapped = skipTypedefs();
   if (Unwrapped.Qualifiers().size() != 0 or Unwrapped.UnqualifiedType().empty())
     return nullopt;
 
-  const model::Type *Result = Unwrapped.UnqualifiedType().get();
-  if (llvm::isa<RawFunctionType>(Result) or llvm::isa<CABIFunctionType>(Result))
+  const model::TypeDefinition *Result = Unwrapped.UnqualifiedType().get();
+  if (llvm::isa<RawFunctionDefinition>(Result)
+      or llvm::isa<CABIFunctionDefinition>(Result))
     return Unwrapped.UnqualifiedType();
   else
     return nullopt;
 }
 
-std::optional<uint64_t> Type::size() const {
+std::optional<uint64_t> TypeDefinition::size() const {
   VerifyHelper VH;
   return size(VH);
 }
 
-std::optional<uint64_t> Type::trySize() const {
+std::optional<uint64_t> TypeDefinition::trySize() const {
   VerifyHelper VH;
   return trySize(VH);
 }
 
-std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
+std::optional<uint64_t> TypeDefinition::size(VerifyHelper &VH) const {
   std::optional<uint64_t> MaybeSize = trySize(VH);
   revng_check(MaybeSize);
   if (*MaybeSize == 0)
@@ -830,7 +837,7 @@ std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
 //       when modifying this function, please apply corresponding modifications
 //       to its little brother as well.
 RecursiveCoroutine<std::optional<uint64_t>>
-Type::trySize(VerifyHelper &VH) const {
+TypeDefinition::trySize(VerifyHelper &VH) const {
   // TODO: handle recursive types
 
   auto MaybeSize = VH.size(this);
@@ -841,15 +848,15 @@ Type::trySize(VerifyHelper &VH) const {
   uint64_t Size = 0;
 
   switch (Kind()) {
-  case TypeKind::RawFunctionType:
-  case TypeKind::CABIFunctionType:
+  case TypeDefinitionKind::RawFunctionDefinition:
+  case TypeDefinitionKind::CABIFunctionDefinition:
     // Function prototypes have no size
     rc_return 0;
 
-  case TypeKind::PrimitiveType: {
-    auto *P = cast<PrimitiveType>(this);
+  case TypeDefinitionKind::PrimitiveDefinition: {
+    auto *P = cast<PrimitiveDefinition>(this);
 
-    if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
+    if (P->PrimitiveKind() == model::PrimitiveKind::Void) {
       // Void types have no size
       revng_assert(P->Size() == 0);
 
@@ -859,8 +866,8 @@ Type::trySize(VerifyHelper &VH) const {
     }
   } break;
 
-  case TypeKind::EnumType: {
-    auto *U = llvm::cast<EnumType>(this);
+  case TypeDefinitionKind::EnumDefinition: {
+    auto *U = llvm::cast<EnumDefinition>(this);
     auto MaybeSize = rc_recur U->UnderlyingType().trySize(VH);
     if (not MaybeSize)
       rc_return std::nullopt;
@@ -868,8 +875,8 @@ Type::trySize(VerifyHelper &VH) const {
     Size = *MaybeSize;
   } break;
 
-  case TypeKind::TypedefType: {
-    auto *Typedef = llvm::cast<TypedefType>(this);
+  case TypeDefinitionKind::TypedefDefinition: {
+    auto *Typedef = llvm::cast<TypedefDefinition>(this);
 
     auto MaybeSize = rc_recur Typedef->UnderlyingType().trySize(VH);
     if (not MaybeSize)
@@ -878,12 +885,12 @@ Type::trySize(VerifyHelper &VH) const {
     Size = *MaybeSize;
   } break;
 
-  case TypeKind::StructType: {
-    Size = llvm::cast<StructType>(this)->Size();
+  case TypeDefinitionKind::StructDefinition: {
+    Size = llvm::cast<StructDefinition>(this)->Size();
   } break;
 
-  case TypeKind::UnionType: {
-    auto *U = llvm::cast<UnionType>(this);
+  case TypeDefinitionKind::UnionDefinition: {
+    auto *U = llvm::cast<UnionDefinition>(this);
     uint64_t Max = 0ULL;
 
     for (const auto &Field : U->Fields()) {
@@ -897,8 +904,8 @@ Type::trySize(VerifyHelper &VH) const {
     Size = Max;
   } break;
 
-  case TypeKind::Invalid:
-  case TypeKind::Count:
+  case TypeDefinitionKind::Invalid:
+  case TypeDefinitionKind::Count:
   default:
     revng_abort();
   }
@@ -909,8 +916,8 @@ Type::trySize(VerifyHelper &VH) const {
 };
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const PrimitiveType *T) {
-  revng_assert(T->Kind() == TypeKind::PrimitiveType);
+                                           const PrimitiveDefinition *T) {
+  revng_assert(T->Kind() == TypeDefinitionKind::PrimitiveDefinition);
 
   if (not T->CustomName().empty() or not T->OriginalName().empty())
     rc_return VH.fail("PrimitiveTypes cannot have OriginalName or CustomName",
@@ -918,13 +925,14 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
   auto ExpectedID = makePrimitiveID(T->PrimitiveKind(), T->Size());
   if (T->ID() != ExpectedID)
-    rc_return VH.fail(Twine("Wrong ID for PrimitiveType. Got: ")
+    rc_return VH.fail(Twine("Wrong ID for PrimitiveDefinition. Got: ")
                         + Twine(T->ID()) + ". Expected: " + Twine(ExpectedID)
                         + ".",
                       *T);
 
   if (not isValidPrimitiveSize(T->PrimitiveKind(), T->Size()))
-    rc_return VH.fail("Invalid PrimitiveType size: " + Twine(T->Size()), *T);
+    rc_return VH.fail("Invalid PrimitiveDefinition size: " + Twine(T->Size()),
+                      *T);
 
   rc_return true;
 }
@@ -959,9 +967,8 @@ bool Identifier::verify(VerifyHelper &VH) const {
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const EnumType *T) {
-
-  if (T->Kind() != TypeKind::EnumType or T->Entries().empty()
+                                           const EnumDefinition *T) {
+  if (T->Kind() != TypeDefinitionKind::EnumDefinition or T->Entries().empty()
       or not T->CustomName().verify(VH))
     rc_return VH.fail();
 
@@ -971,10 +978,10 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     rc_return VH.fail();
 
   // We only allow signed/unsigned as underlying type
-  if (not T->UnderlyingType().isPrimitive(PrimitiveTypeKind::Signed)
-      and not T->UnderlyingType().isPrimitive(PrimitiveTypeKind::Unsigned))
-    rc_return VH.fail("UnderlyingType of a EnumType can only be Signed or "
-                      "Unsigned",
+  if (not T->UnderlyingType().isPrimitive(PrimitiveKind::Signed)
+      and not T->UnderlyingType().isPrimitive(PrimitiveKind::Unsigned))
+    rc_return VH.fail("UnderlyingType of a EnumDefinition can only be Signed "
+                      "or Unsigned",
                       *T);
 
   for (auto &Entry : T->Entries()) {
@@ -989,9 +996,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const TypedefType *T) {
+                                           const TypedefDefinition *T) {
   rc_return VH.maybeFail(T->CustomName().verify(VH)
-                         and T->Kind() == TypeKind::TypedefType
+                         and T->Kind() == TypeDefinitionKind::TypedefDefinition
                          and rc_recur T->UnderlyingType().verify(VH));
 }
 
@@ -1011,14 +1018,14 @@ inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
     }
   }
 
-  const Type *Unqualified = QT.UnqualifiedType().get();
+  const TypeDefinition *Unqualified = QT.UnqualifiedType().get();
   revng_assert(Unqualified != nullptr);
-  if (llvm::isa<model::PrimitiveType>(Unqualified)
-      or llvm::isa<model::EnumType>(Unqualified)) {
+  if (llvm::isa<model::PrimitiveDefinition>(Unqualified)
+      or llvm::isa<model::EnumDefinition>(Unqualified)) {
     rc_return true;
   }
 
-  if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(Unqualified))
+  if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(Unqualified))
     rc_return rc_recur isScalarImpl(Typedef->UnderlyingType());
 
   rc_return false;
@@ -1029,11 +1036,11 @@ bool model::QualifiedType::isScalar() const {
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const StructType *T) {
+                                           const StructDefinition *T) {
 
   using namespace llvm;
 
-  revng_assert(T->Kind() == TypeKind::StructType);
+  revng_assert(T->Kind() == TypeDefinitionKind::StructDefinition);
 
   if (not T->CustomName().verify(VH))
     rc_return VH.fail("Invalid name", *T);
@@ -1109,8 +1116,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const UnionType *T) {
-  revng_assert(T->Kind() == TypeKind::UnionType);
+                                           const UnionDefinition *T) {
+  revng_assert(T->Kind() == TypeDefinitionKind::UnionDefinition);
 
   if (not T->CustomName().verify(VH))
     rc_return VH.fail("Invalid name", *T);
@@ -1157,9 +1164,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const CABIFunctionType *T) {
-
-  if (not T->CustomName().verify(VH) or T->Kind() != TypeKind::CABIFunctionType
+                                           const CABIFunctionDefinition *T) {
+  if (not T->CustomName().verify(VH)
+      or T->Kind() != TypeDefinitionKind::CABIFunctionDefinition
       or not rc_recur T->ReturnType().verify(VH))
     rc_return VH.fail();
 
@@ -1197,7 +1204,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const RawFunctionType *T) {
+                                           const RawFunctionDefinition *T) {
   const model::Architecture::Values Architecture = T->Architecture();
 
   if (Architecture == model::Architecture::Invalid)
@@ -1242,13 +1249,13 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   rc_return VH.maybeFail(T->CustomName().verify(VH));
 }
 
-void Type::dump() const {
+void TypeDefinition::dump() const {
   auto *This = this;
   auto Dump = [](auto &Upcasted) { serialize(dbg, Upcasted); };
   upcast(This, Dump);
 }
 
-void Type::dumpTypeGraph(const char *Path) const {
+void TypeDefinition::dumpTypeGraph(const char *Path) const {
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
   if (EC)
@@ -1258,16 +1265,16 @@ void Type::dumpTypeGraph(const char *Path) const {
   TSPrinter.print(*this);
 }
 
-bool Type::verify() const {
+bool TypeDefinition::verify() const {
   return verify(false);
 }
 
-bool Type::verify(bool Assert) const {
+bool TypeDefinition::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
 
-RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
+RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   if (VH.isVerified(this))
@@ -1286,32 +1293,32 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
 
   // We could use upcast() but we'd need to workaround coroutines.
   switch (Kind()) {
-  case TypeKind::PrimitiveType:
-    Result = rc_recur verifyImpl(VH, cast<PrimitiveType>(this));
+  case TypeDefinitionKind::PrimitiveDefinition:
+    Result = rc_recur verifyImpl(VH, cast<PrimitiveDefinition>(this));
     break;
 
-  case TypeKind::EnumType:
-    Result = rc_recur verifyImpl(VH, cast<EnumType>(this));
+  case TypeDefinitionKind::EnumDefinition:
+    Result = rc_recur verifyImpl(VH, cast<EnumDefinition>(this));
     break;
 
-  case TypeKind::TypedefType:
-    Result = rc_recur verifyImpl(VH, cast<TypedefType>(this));
+  case TypeDefinitionKind::TypedefDefinition:
+    Result = rc_recur verifyImpl(VH, cast<TypedefDefinition>(this));
     break;
 
-  case TypeKind::StructType:
-    Result = rc_recur verifyImpl(VH, cast<StructType>(this));
+  case TypeDefinitionKind::StructDefinition:
+    Result = rc_recur verifyImpl(VH, cast<StructDefinition>(this));
     break;
 
-  case TypeKind::UnionType:
-    Result = rc_recur verifyImpl(VH, cast<UnionType>(this));
+  case TypeDefinitionKind::UnionDefinition:
+    Result = rc_recur verifyImpl(VH, cast<UnionDefinition>(this));
     break;
 
-  case TypeKind::CABIFunctionType:
-    Result = rc_recur verifyImpl(VH, cast<CABIFunctionType>(this));
+  case TypeDefinitionKind::CABIFunctionDefinition:
+    Result = rc_recur verifyImpl(VH, cast<CABIFunctionDefinition>(this));
     break;
 
-  case TypeKind::RawFunctionType:
-    Result = rc_recur verifyImpl(VH, cast<RawFunctionType>(this));
+  case TypeDefinitionKind::RawFunctionDefinition:
+    Result = rc_recur verifyImpl(VH, cast<RawFunctionDefinition>(this));
     break;
 
   default: // Do nothing;
@@ -1515,10 +1522,11 @@ RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
 
 } // namespace model
 
-template model::TypePath
-model::TypePath::fromString<model::Binary>(model::Binary *Root,
-                                           llvm::StringRef Path);
+using MB = model::Binary;
 
-template model::TypePath
-model::TypePath::fromString<const model::Binary>(const model::Binary *Root,
-                                                 llvm::StringRef Path);
+template model::TypeDefinitionPath
+model::TypeDefinitionPath::fromString<MB>(MB *Root, llvm::StringRef Path);
+
+template model::TypeDefinitionPath
+model::TypeDefinitionPath::fromString<const MB>(const MB *Root,
+                                                llvm::StringRef Path);

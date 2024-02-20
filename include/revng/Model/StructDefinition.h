@@ -6,15 +6,15 @@
 
 #include "revng/Model/Identifier.h"
 #include "revng/Model/StructField.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
-name: StructType
+name: StructDefinition
 doc: |
   A struct type in model.
   Structs are actually typedefs of unnamed structs in C.
 type: struct
-inherits: Type
+inherits: TypeDefinition
 fields:
   - name: Size
     doc: Size in bytes
@@ -29,15 +29,14 @@ fields:
       elementType: StructField
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/StructType.h"
+#include "revng/Model/Generated/Early/StructDefinition.h"
 
-class model::StructType : public model::generated::StructType {
+class model::StructDefinition : public model::generated::StructDefinition {
 public:
   static constexpr const char *AutomaticNamePrefix = "struct_";
 
 public:
-  using generated::StructType::StructType;
-  StructType() : generated::StructType() {}
+  using generated::StructDefinition::StructDefinition;
 
 public:
   Identifier name() const;
@@ -53,8 +52,8 @@ public:
   }
 
 public:
-  static bool classof(const Type *T) { return classof(T->key()); }
+  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
   static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
-#include "revng/Model/Generated/Late/StructType.h"
+#include "revng/Model/Generated/Late/StructDefinition.h"

@@ -248,7 +248,7 @@ When interacting with revng, there is a description file, which, among other inf
 
 Some locations directly map to parts of the model, e.g.:
 
-* `/types/$TYPE_ID` -> `/Types/$TYPE_ID`
+* `/types/$TYPE_ID` -> `/TypeDefinitions/$TYPE_ID`
 * `/function/$FUNCTION_ADDRESS` -> `/Functions/$FUNCTION_ADDRESS`
 * `/basic-block/...` -> `null`
 * `/instruction/...` -> `null`

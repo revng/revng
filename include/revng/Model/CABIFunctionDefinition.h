@@ -8,10 +8,10 @@
 #include "revng/Model/Argument.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
-name: CABIFunctionType
+name: CABIFunctionDefinition
 doc: |
   The function type described through a C-like prototype plus an ABI.
 
@@ -20,7 +20,7 @@ doc: |
   information about the register is embedded. That information is implicit in
   the ABI this type is associated to.
 type: struct
-inherits: Type
+inherits: TypeDefinition
 fields:
   - name: ABI
     type: ABI
@@ -35,15 +35,15 @@ fields:
       elementType: Argument
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/CABIFunctionType.h"
+#include "revng/Model/Generated/Early/CABIFunctionDefinition.h"
 
-class model::CABIFunctionType : public model::generated::CABIFunctionType {
+class model::CABIFunctionDefinition
+  : public model::generated::CABIFunctionDefinition {
 public:
   static constexpr const char *AutomaticNamePrefix = "cabifunction_";
 
 public:
-  using generated::CABIFunctionType::CABIFunctionType;
-  CABIFunctionType() : generated::CABIFunctionType() {}
+  using generated::CABIFunctionDefinition::CABIFunctionDefinition;
 
 public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const {
@@ -58,8 +58,8 @@ public:
 
 public:
   Identifier name() const;
-  static bool classof(const Type *T) { return classof(T->key()); }
+  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
   static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
-#include "revng/Model/Generated/Late/CABIFunctionType.h"
+#include "revng/Model/Generated/Late/CABIFunctionDefinition.h"

@@ -12,14 +12,15 @@
 
 namespace model {
 
-/// Given \p Types, drop all the types and DynamicFunctions depending on it
+/// Given \p Defs, drop all the types and dynamic functions that depend on them
 ///
 /// Sometimes you create a set of placeholder types in the model, but they end
 /// up being invalid. In that case, they, and all the types depending on them,
 /// need to be dropped.
 ///
 /// \return the number of dropped types
-unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Binary,
-                                   const std::set<const model::Type *> &Types);
+unsigned
+dropTypesDependingOnDefinitions(TupleTree<model::Binary> &Binary,
+                                const std::set<const TypeDefinition *> &Defs);
 
 } // namespace model

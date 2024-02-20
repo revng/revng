@@ -14,8 +14,9 @@ static Logger<> Log("efa-import-model");
 
 namespace efa {
 
-FunctionSummary PrototypeImporter::prototype(const AttributesSet &Attributes,
-                                             const model::TypePath &Prototype) {
+FunctionSummary
+PrototypeImporter::prototype(const AttributesSet &Attributes,
+                             const model::TypeDefinitionPath &Prototype) {
   FunctionSummary Summary(Attributes, ABICSVs, {}, {}, {});
   if (Prototype.empty())
     return Summary;

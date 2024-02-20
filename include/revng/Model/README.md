@@ -141,11 +141,11 @@ type: struct
 fields:
   - name: MyRef
     reference:
-      pointeeType: model::Type
+      pointeeType: model::TypeDefinition
       rootType: model::Binary
 ```
 
-This gets translated in C++ as a `TupleTreeReference<model::Type, model::Binary>`.
+This gets translated in C++ as a `TupleTreeReference<model::TypeDefinition, model::Binary>`.
 
 #### Upcastable structs
 
@@ -159,16 +159,16 @@ name: Type
 type: struct
 fields:
   - name: Kind
-    type: model::TypeKind::Values
+    type: model::TypeDefinitionKind::Values
   ...
 key: [...]
 abstract: true
 ```
 
-Then, define the derived classes adding the `inherits: <ParentClass>` property (example from `StructType.h`):
+Then, define the derived classes adding the `inherits: <ParentClass>` property (example from `StructDefinition.h`):
 
 ```YAML
-name: StructType
+name: StructDefinition
 type: struct
 inherits: Type
 fields: [...]
@@ -179,10 +179,10 @@ Derived classes inherit the fields of their parent, so they must not be duplicat
 All classes that are part of a polymorphic hierarchy are expected to supply two `classof` methods:
 
 ```cpp
-// Don't inherit from model::Type or model::generated::Type!
-class model::StructType : public model::generated::StructType {
+// Don't inherit from model::TypeDefinition or model::generated::Type!
+class model::StructDefinition : public model::generated::StructDefinition {
 public:
-  using model::generated::StructType::StructType;
+  using model::generated::StructDefinition::StructDefinition;
 
   // ...
 

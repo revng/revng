@@ -10,7 +10,7 @@
 
 /* TUPLE-TREE-YAML
 name: Qualifier
-doc: A qualifier for a model::Type
+doc: A qualifier for a model::TypeDefinition
 type: struct
 fields:
   - name: Kind

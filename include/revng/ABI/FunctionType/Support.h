@@ -22,9 +22,10 @@ namespace abi::FunctionType {
 /// \param Model The tuple tree where replacement should take place in.
 ///
 /// \return The new path to the added type.
-const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
-                                          const model::TypePath &NewTypePath,
-                                          TupleTree<model::Binary> &Model);
+const model::TypeDefinitionPath &
+replaceAllUsesWith(const model::TypeDefinition::Key &OldKey,
+                   const model::TypeDefinitionPath &NewTypePath,
+                   TupleTree<model::Binary> &Model);
 
 /// Takes care of extending (padding) the size of a stack argument.
 ///
@@ -54,11 +55,12 @@ inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
 /// \tparam DerivedType The desired type to filter based on
 /// \param Types The list of types to filter
 /// \return filtered list
-template<derived_from<model::Type> DerivedType>
+template<derived_from<model::TypeDefinition> DerivedType>
 std::vector<DerivedType *>
-filterTypes(TrackingSortedVector<UpcastablePointer<model::Type>> &Types) {
+filterTypes(TrackingSortedVector<model::UpcastableTypeDefinition>
+              &Definitions) {
   std::vector<DerivedType *> Result;
-  for (model::UpcastableType &Type : Types)
+  for (model::UpcastableTypeDefinition &Type : Definitions)
     if (auto *Upscaled = llvm::dyn_cast<DerivedType>(Type.get()))
       Result.emplace_back(Upscaled);
   return Result;

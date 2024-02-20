@@ -20,13 +20,14 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   return getMetaAddressMetadata(&F, FunctionEntryMDName);
 }
 
-inline model::TypePath
+inline model::TypeDefinitionPath
 getCallSitePrototype(ConstOrNot<model::Binary> auto &Root,
                      const llvm::Instruction *Call) {
   using namespace llvm;
   revng_assert(isa<CallInst>(Call));
-  return model::TypePath::fromString(&Root,
-                                     fromStringMetadata(Call, PrototypeMDName));
+
+  using TDP = model::TypeDefinitionPath;
+  return TDP::fromString(&Root, fromStringMetadata(Call, PrototypeMDName));
 }
 
 inline model::Function *llvmToModelFunction(model::Binary &Binary,
@@ -65,14 +66,13 @@ inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
   return getLLVMIntegerTypeFor(Context, QT);
 }
 
-/// Create an empty model::StructType of size Size in Binary
-inline model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
-  using namespace model;
-
+/// Create an empty model::StructDefinition of size Size in Binary
+inline model::TypeDefinitionPath createEmptyStruct(model::Binary &Binary,
+                                                   uint64_t Size) {
   revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
-  TypePath Path = Binary.makeType<model::StructType>().second;
-  model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
-  NewStruct->Size() = Size;
+
+  auto [Struct, Path] = Binary.makeTypeDefinition<model::StructDefinition>();
+  Struct.Size() = Size;
   return Path;
 }
 

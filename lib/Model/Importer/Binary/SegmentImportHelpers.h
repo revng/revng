@@ -22,7 +22,7 @@ struct DataSymbol {
   bool operator==(const DataSymbol &) const = default;
 };
 
-inline bool checkForOverlap(const model::StructType &Struct,
+inline bool checkForOverlap(const model::StructDefinition &Struct,
                             uint64_t Offset,
                             uint64_t Size) {
   for (auto &Current : Struct.Fields()) {
@@ -37,7 +37,7 @@ inline bool checkForOverlap(const model::StructType &Struct,
 
 inline void importSymbolsInto(model::Binary &Binary,
                               llvm::SmallVector<DataSymbol, 32> &DataSymbols,
-                              model::StructType *Struct,
+                              model::StructDefinition *Struct,
                               MetaAddress StructStartAddress) {
   MetaAddress StructEndAddress = StructStartAddress + Struct->Size();
   if (not StructEndAddress.isValid())
@@ -59,11 +59,10 @@ inline void importSymbolsInto(model::Binary &Binary,
         continue;
       }
 
-      model::TypePath T;
+      model::TypeDefinitionPath T;
       if (SymbolSize == 1 || SymbolSize == 2 || SymbolSize == 4
           || SymbolSize == 8) {
-        T = Binary.getPrimitiveType(model::PrimitiveTypeKind::Generic,
-                                    SymbolSize);
+        T = Binary.getPrimitiveType(model::PrimitiveKind::Generic, SymbolSize);
       } else {
         // If the symbol has a non-standard size, make it an empty struct with
         // the same size instead.
@@ -85,7 +84,7 @@ struct Section {
   std::string Name;
 };
 
-inline model::TypePath
+inline model::TypeDefinitionPath
 populateSegmentTypeStruct(model::Binary &Binary,
                           model::Segment &Segment,
                           llvm::SmallVector<DataSymbol, 32> DataSymbols,
@@ -95,8 +94,8 @@ populateSegmentTypeStruct(model::Binary &Binary,
   using namespace model;
 
   // Create a struct for the segment
-  TypePath SegmentStructPath = createEmptyStruct(Binary, Segment.VirtualSize());
-  auto *SegmentStruct = cast<model::StructType>(SegmentStructPath.get());
+  auto SegmentStructPath = createEmptyStruct(Binary, Segment.VirtualSize());
+  auto *SegmentStruct = cast<model::StructDefinition>(SegmentStructPath.get());
   SegmentStruct->CanContainCode() = SegmentIsExecutable;
 
   for (const auto &Section : Sections) {
@@ -110,8 +109,8 @@ populateSegmentTypeStruct(model::Binary &Binary,
       continue;
 
     // Create a struct for each section
-    TypePath SectionStructPath = createEmptyStruct(Binary, Section.Size);
-    auto *SectionStruct = cast<model::StructType>(SectionStructPath.get());
+    auto SectionStructRef = createEmptyStruct(Binary, Section.Size);
+    auto *SectionStruct = cast<model::StructDefinition>(SectionStructRef.get());
     SectionStruct->CanContainCode() = (SegmentIsExecutable
                                        and Section.CanContainCode);
 
@@ -120,7 +119,7 @@ populateSegmentTypeStruct(model::Binary &Binary,
 
     // Insert the field the segment struct
     StructField SectionField{
-      *Offset, {}, Section.Name, {}, { SectionStructPath, {} }
+      *Offset, {}, Section.Name, {}, { SectionStructRef, {} }
     };
     SegmentStruct->Fields().insert(SectionField);
   }

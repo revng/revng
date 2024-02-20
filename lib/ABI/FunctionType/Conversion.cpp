@@ -24,7 +24,7 @@ namespace abi::FunctionType {
 
 class ToCABIConverter {
 private:
-  using RFT = const model::RawFunctionType &;
+  using RFT = const model::RawFunctionDefinition &;
   using RFTArguments = decltype(std::declval<RFT>().Arguments());
   using RFTReturnValues = decltype(std::declval<RFT>().ReturnValues());
 
@@ -49,7 +49,7 @@ public:
     UseSoftRegisterStateDeductions(UseSoftRegisterStateDeductions) {}
 
   [[nodiscard]] std::optional<Converted>
-  tryConvert(const model::RawFunctionType &FunctionType) {
+  tryConvert(const model::RawFunctionDefinition &FunctionType) {
     // Register arguments first.
     auto Arguments = tryConvertingRegisterArguments(FunctionType.Arguments());
     if (!Arguments.has_value()) {
@@ -63,9 +63,9 @@ public:
     Distributor.ArgumentIndex = Arguments->size();
     for (const auto &NTRegister : FunctionType.Arguments()) {
       auto Kind = model::Register::primitiveKind(NTRegister.Location());
-      if (Kind == model::PrimitiveTypeKind::Values::PointerOrNumber)
+      if (Kind == model::PrimitiveKind::Values::PointerOrNumber)
         ++Distributor.UsedGeneralPurposeRegisterCount;
-      else if (Kind == model::PrimitiveTypeKind::Float)
+      else if (Kind == model::PrimitiveKind::Float)
         ++Distributor.UsedVectorRegisterCount;
       else
         revng_abort(("Register ("
@@ -120,7 +120,7 @@ private:
   ///
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
-  tryConvertingStackArguments(model::TypePath StackArgumentTypes,
+  tryConvertingStackArguments(model::TypeDefinitionPath StackArgumentTypes,
                               ArgumentDistributor Distributor);
 
   /// Helper used for converting return values to the c-style representation
@@ -137,19 +137,21 @@ private:
   tryConvertingReturnValue(RFTReturnValues Registers);
 };
 
-std::optional<model::TypePath>
-tryConvertToCABI(const model::RawFunctionType &FunctionType,
+std::optional<model::TypeDefinitionPath>
+tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
                  TupleTree<model::Binary> &Binary,
                  std::optional<model::ABI::Values> MaybeABI,
                  bool UseSoftRegisterStateDeductions) {
   if (!MaybeABI.has_value())
     MaybeABI = Binary->DefaultABI();
 
-  revng_log(Log, "Converting a `RawFunctionType` to `CABIFunctionType`.");
+  revng_log(Log,
+            "Converting a `RawFunctionDefinition` to "
+            "`CABIFunctionDefinition`.");
   revng_log(Log, "ABI: " << model::ABI::getName(MaybeABI.value()).str());
   revng_log(Log, "Original Type:\n" << serializeToString(FunctionType));
   if (auto StackRef = FunctionType.StackArgumentsType(); !StackRef.empty())
-    if (auto *Type = llvm::dyn_cast<model::StructType>(StackRef.get()); Type)
+    if (auto *Type = llvm::dyn_cast<model::StructDefinition>(StackRef.get()))
       revng_log(Log, "Stack is:\n" << serializeToString(*Type));
   LoggerIndent Indentation(Log);
 
@@ -166,8 +168,10 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
   if (!Converted.has_value())
     return std::nullopt;
 
-  // The conversion was successful, a new `CABIFunctionType` can now be created,
-  auto [NewType, NewTypePath] = Binary->makeType<model::CABIFunctionType>();
+  // The conversion was successful, a new `CABIFunctionDefinition` can now be
+  // created,
+  auto [NewType,
+        NewPath] = Binary->makeTypeDefinition<model::CABIFunctionDefinition>();
   revng_assert(NewType.ID() != 0);
   model::copyMetadata(NewType, FunctionType);
   NewType.ABI() = ABI.ABI();
@@ -197,12 +201,12 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
 
   // To finish up the conversion, remove all the references to the old type by
   // carefully replacing them with references to the new one.
-  replaceAllUsesWith(FunctionType.key(), NewTypePath, Binary);
+  replaceAllUsesWith(FunctionType.key(), NewPath, Binary);
 
   // And don't forget to remove the old type.
-  Binary->Types().erase(FunctionType.key());
+  Binary->TypeDefinitions().erase(FunctionType.key());
 
-  return NewTypePath;
+  return NewPath;
 }
 
 using TCC = ToCABIConverter;
@@ -389,7 +393,7 @@ bool canBeNext(ArgumentDistributor &Distributor,
 }
 
 std::optional<llvm::SmallVector<model::Argument, 8>>
-TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
+TCC::tryConvertingStackArguments(model::TypeDefinitionPath StackArgumentTypes,
                                  ArgumentDistributor Distributor) {
   if (StackArgumentTypes.empty()) {
     // If there is no type, it means that the importer responsible for this
@@ -398,7 +402,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
-  auto &Stack = *llvm::cast<model::StructType>(StackArgumentTypes.get());
+  auto &Stack = *llvm::cast<model::StructDefinition>(StackArgumentTypes.get());
 
   // As a workaround for the cases where expected alignment is missing at
   // the very end of the RFT-style stack argument struct, use adjusted
@@ -512,7 +516,7 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
       std::uint64_t Offset = LastSuccess.Offset();
       Offset += ABI.paddedSizeOnStack(*LastSuccess.Type().size());
 
-      model::StructType RemainingArguments;
+      model::StructDefinition RemainingArguments;
       RemainingArguments.Size() = Stack.Size() - Offset;
       for (const auto &Field : CurrentRange) {
         model::StructField Copy = Field;
@@ -527,7 +531,8 @@ TCC::tryConvertingStackArguments(model::TypePath StackArgumentTypes,
         New.Index() = Stack.Fields().size() - CurrentRange.size();
         New.Index() += InitialIndexOffset;
 
-        auto [_, Path] = Bucket.makeType<model::StructType>(std::move(RA));
+        using StructD = model::StructDefinition;
+        auto [_, Path] = Bucket.makeTypeDefinition<StructD>(std::move(RA));
         New.Type() = model::QualifiedType{ Path, {} };
         return Result;
       }
@@ -562,7 +567,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   if (Registers.size() == 0) {
     // The function doesn't return anything.
     return model::QualifiedType{
-      Bucket.getPrimitiveType(model::PrimitiveTypeKind::Void, 0), {}
+      Bucket.getPrimitiveType(model::PrimitiveKind::Void, 0), {}
     };
   }
 
@@ -623,7 +628,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
       uint64_t PrimitiveSize = Ordered.size() * PointerSize;
       if (llvm::is_contained(ABI.ScalarTypes(), PrimitiveSize)) {
         return model::QualifiedType{
-          Bucket.getPrimitiveType(model::PrimitiveTypeKind::Values::Generic,
+          Bucket.getPrimitiveType(model::PrimitiveKind::Values::Generic,
                                   PrimitiveSize),
           {}
         };
@@ -637,7 +642,8 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     } else {
       // It could be either a struct or a scalar, go the conservative route
       // and make a struct for it.
-      auto [ReturnType, ReturnTypePath] = Bucket.makeType<model::StructType>();
+      auto [ReturnType,
+            ReturnPath] = Bucket.makeTypeDefinition<model::StructDefinition>();
       for (model::Register::Values Register : Ordered) {
         // Make a separate field for each register.
         model::StructField Field;
@@ -664,7 +670,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
       }
 
       revng_assert(ReturnType.Size() != 0 && !ReturnType.Fields().empty());
-      return model::QualifiedType(ReturnTypePath, {});
+      return model::QualifiedType(ReturnPath, {});
     }
   }
 }

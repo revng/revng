@@ -16,7 +16,7 @@ extern "C" {
 }
 
 namespace llvm {
-class Type;
+class TypeDefinition;
 class Constant;
 class ConstantInt;
 class Value;

@@ -7,7 +7,7 @@
 #include "revng/Model/Pass/FixModel.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Processing.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 using namespace llvm;
 
@@ -32,16 +32,17 @@ bool filterZeroSizedElements(T *AggregateType) {
   return false;
 }
 
-static bool shouldDrop(UpcastablePointer<model::Type> &T) {
+static bool shouldDrop(model::UpcastableTypeDefinition &T) {
   // Filter out empty structs and unions.
-  if (isa<model::StructType>(T.get()) or isa<model::UnionType>(T.get())) {
+  if (isa<model::StructDefinition>(T.get())
+      or isa<model::UnionDefinition>(T.get())) {
     if (!T->size())
       return true;
 
-    if (auto *Struct = dyn_cast<model::StructType>(T.get()))
+    if (auto *Struct = dyn_cast<model::StructDefinition>(T.get()))
       if (filterZeroSizedElements(Struct))
         return true;
-    if (auto *Union = dyn_cast<UnionType>(T.get()))
+    if (auto *Union = dyn_cast<UnionDefinition>(T.get()))
       if (filterZeroSizedElements(Union))
         return true;
   }
@@ -57,14 +58,14 @@ static bool shouldDrop(UpcastablePointer<model::Type> &T) {
   }
 
   // Filter out invalid PrimitiveTypes.
-  auto *ThePrimitiveType = dyn_cast<PrimitiveType>(T.get());
+  auto *ThePrimitiveType = dyn_cast<PrimitiveDefinition>(T.get());
   if (ThePrimitiveType) {
-    if (ThePrimitiveType->PrimitiveKind() == PrimitiveTypeKind::Invalid)
+    if (ThePrimitiveType->PrimitiveKind() == PrimitiveKind::Invalid)
       return true;
   }
 
   // Filter out invalid functions.
-  auto *FunctionType = dyn_cast<CABIFunctionType>(T.get());
+  auto *FunctionType = dyn_cast<CABIFunctionDefinition>(T.get());
   if (FunctionType) {
     // Remove functions with 0-sized arguments
     for (auto &Group : llvm::enumerate(FunctionType->Arguments())) {
@@ -78,13 +79,13 @@ static bool shouldDrop(UpcastablePointer<model::Type> &T) {
 }
 
 void model::fixModel(TupleTree<model::Binary> &Model) {
-  std::set<const model::Type *> ToDrop;
+  std::set<const model::TypeDefinition *> ToDrop;
 
-  for (UpcastablePointer<model::Type> &T : Model->Types()) {
+  for (model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
     if (shouldDrop(T))
       ToDrop.insert(T.get());
   }
 
-  unsigned DroppedTypes = dropTypesDependingOnTypes(Model, ToDrop);
+  unsigned DroppedTypes = dropTypesDependingOnDefinitions(Model, ToDrop);
   revng_log(ModelFixLogger, "Purging " << DroppedTypes << " types.");
 }

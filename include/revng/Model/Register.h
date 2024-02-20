@@ -9,7 +9,7 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Architecture.h"
-#include "revng/Model/PrimitiveTypeKind.h"
+#include "revng/Model/PrimitiveKind.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/EnumSwitch.h"
 #include "revng/Support/Generator.h"
@@ -716,7 +716,7 @@ inline Values fromCSVName(llvm::StringRef Name,
   return model::Register::fromRegisterName(Name, Architecture);
 }
 
-constexpr inline model::PrimitiveTypeKind::Values primitiveKind(Values V) {
+constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
   switch (V) {
   case eax_x86:
   case ebx_x86:
@@ -834,7 +834,7 @@ constexpr inline model::PrimitiveTypeKind::Values primitiveKind(Values V) {
   case r13_systemz:
   case r14_systemz:
   case r15_systemz:
-    return model::PrimitiveTypeKind::PointerOrNumber;
+    return model::PrimitiveKind::PointerOrNumber;
 
   case st0_x86:
   case xmm0_x86:
@@ -941,10 +941,10 @@ constexpr inline model::PrimitiveTypeKind::Values primitiveKind(Values V) {
   case f13_systemz:
   case f14_systemz:
   case f15_systemz:
-    return model::PrimitiveTypeKind::Float;
+    return model::PrimitiveKind::Float;
 
   case fs_x86_64:
-    return model::PrimitiveTypeKind::Generic;
+    return model::PrimitiveKind::Generic;
 
   case Count:
   case Invalid:

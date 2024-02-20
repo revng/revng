@@ -5,13 +5,13 @@
 ---
 Functions:
   - OriginalName: func
-    Prototype: "/Types/1-RawFunctionType"
+    Prototype: "/TypeDefinitions/1-RawFunctionDefinition"
   - OriginalName: callee
-    Prototype: "/Types/2-RawFunctionType"
-Types:
-  - Kind: RawFunctionType
+    Prototype: "/TypeDefinitions/2-RawFunctionDefinition"
+TypeDefinitions:
+  - Kind: RawFunctionDefinition
     ID: 1
     Arguments: []
-  - Kind: RawFunctionType
+  - Kind: RawFunctionDefinition
     ID: 2
     Arguments: []

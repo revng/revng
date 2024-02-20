@@ -6,12 +6,12 @@
 
 #include "revng/Model/Identifier.h"
 #include "revng/Model/NamedTypedRegister.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
-name: RawFunctionType
+name: RawFunctionDefinition
 type: struct
-inherits: Type
+inherits: TypeDefinition
 fields:
   - name: Architecture
     type: Architecture
@@ -43,20 +43,20 @@ fields:
   - name: StackArgumentsType
     doc: The type of the struct representing stack arguments
     reference:
-      pointeeType: Type
+      pointeeType: TypeDefinition
       rootType: Binary
     optional: true
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/RawFunctionType.h"
+#include "revng/Model/Generated/Early/RawFunctionDefinition.h"
 
-class model::RawFunctionType : public model::generated::RawFunctionType {
+class model::RawFunctionDefinition
+  : public model::generated::RawFunctionDefinition {
 public:
   static constexpr const char *AutomaticNamePrefix = "rawfunction_";
 
 public:
-  using generated::RawFunctionType::RawFunctionType;
-  RawFunctionType() : generated::RawFunctionType(){};
+  using generated::RawFunctionDefinition::RawFunctionDefinition;
 
 public:
   Identifier name() const;
@@ -76,8 +76,8 @@ public:
   }
 
 public:
-  static bool classof(const Type *T) { return classof(T->key()); }
+  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
   static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
-#include "revng/Model/Generated/Late/RawFunctionType.h"
+#include "revng/Model/Generated/Late/RawFunctionDefinition.h"

@@ -427,7 +427,7 @@ constexpr auto takeAsTuple(RangeType &&R) {
 // TODO: remove these after updating the libc++ version.
 //
 template<typename EnumType>
-[[nodiscard]] constexpr std::underlying_type<EnumType>::type // NOLINTNEXTLINE
+[[nodiscard]] constexpr std::underlying_type<EnumType>::type
 to_underlying(EnumType Value) {
   return static_cast<std::underlying_type<EnumType>::type>(Value);
 }

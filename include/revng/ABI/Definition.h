@@ -10,7 +10,7 @@
 #include "revng/ABI/ScalarType.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/ABI.h"
-#include "revng/Model/RawFunctionType.h"
+#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -336,18 +336,21 @@ public:
   ///
   /// \return `false` if the function is definitely NOT compatible with the ABI,
   ///         `true` if it might be compatible.
-  bool isPreliminarilyCompatibleWith(const model::RawFunctionType &RFT) const;
+  bool
+  isPreliminarilyCompatibleWith(const model::RawFunctionDefinition &RFT) const;
 
   struct AlignmentInfo {
     uint64_t Value;
     bool IsNatural;
   };
-  using AlignmentCache = std::unordered_map<const model::Type *, AlignmentInfo>;
+  using AlignmentCache = std::unordered_map<const model::TypeDefinition *,
+                                            AlignmentInfo>;
 
   /// Compute the natural alignment of the type in accordance with
   /// the current ABI
   ///
-  /// \note  It mirrors, `model::Type::size()` pretty closely, see documentation
+  /// \note  It mirrors, `model::TypeDefinition::size()` pretty closely, see
+  /// documentation
   ///        related to it (and usage of the coroutines inside this codebase
   ///        in general) for more details on how it works.
   ///
@@ -361,9 +364,10 @@ public:
     AlignmentCache Cache;
     return alignment(Type, Cache);
   }
-  inline std::optional<uint64_t> alignment(const model::Type &Type) const {
+  inline std::optional<uint64_t>
+  alignment(const model::TypeDefinition &Definition) const {
     AlignmentCache Cache;
-    return alignment(Type, Cache);
+    return alignment(Definition, Cache);
   }
 
   inline std::optional<bool>
@@ -372,19 +376,20 @@ public:
     return hasNaturalAlignment(Type, Cache);
   }
   inline std::optional<bool>
-  hasNaturalAlignment(const model::Type &Type) const {
+  hasNaturalAlignment(const model::TypeDefinition &Definition) const {
     AlignmentCache Cache;
-    return hasNaturalAlignment(Type, Cache);
+    return hasNaturalAlignment(Definition, Cache);
   }
 
   std::optional<uint64_t> alignment(const model::QualifiedType &Type,
                                     AlignmentCache &Cache) const;
-  std::optional<uint64_t> alignment(const model::Type &Type,
+  std::optional<uint64_t> alignment(const model::TypeDefinition &Type,
                                     AlignmentCache &Cache) const;
   std::optional<bool> hasNaturalAlignment(const model::QualifiedType &Type,
                                           AlignmentCache &Cache) const;
-  std::optional<bool> hasNaturalAlignment(const model::Type &Type,
-                                          AlignmentCache &Cache) const;
+  std::optional<bool>
+  hasNaturalAlignment(const model::TypeDefinition &Definition,
+                      AlignmentCache &Cache) const;
 
   uint64_t alignedOffset(uint64_t Offset, uint64_t Alignment) const {
     if (Offset == 0)
@@ -400,8 +405,9 @@ public:
                          const model::QualifiedType &Type) const {
     return alignedOffset(Offset, *alignment(Type));
   }
-  uint64_t alignedOffset(uint64_t Offset, const model::Type &Type) const {
-    return alignedOffset(Offset, *alignment(Type));
+  uint64_t alignedOffset(uint64_t Offset,
+                         const model::TypeDefinition &Definition) const {
+    return alignedOffset(Offset, *alignment(Definition));
   }
 
 public:
