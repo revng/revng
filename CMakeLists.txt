@@ -214,8 +214,7 @@ foreach(WELL_KNOWN_BINARY IN LISTS WELL_KNOWN_BINARIES)
 
   get_filename_component(BASENAME "${WELL_KNOWN_BINARY}" NAME)
   set(MODEL_PATH "share/revng/well-known-models/${BASENAME}.yml")
-  set(FULL_MODEL_PATH
-      "${CMAKE_BINARY_DIR}/share/revng/well-known-models/${BASENAME}")
+  set(FULL_MODEL_PATH "${CMAKE_BINARY_DIR}/${MODEL_PATH}")
 
   add_custom_command(
     OUTPUT "${FULL_MODEL_PATH}"
