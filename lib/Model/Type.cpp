@@ -1119,8 +1119,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Field.CustomName()))
-        rc_return VH.fail("Field name collides with global symbol", *T);
+      if (VH.isGlobalSymbol(Field.CustomName())) {
+        rc_return VH.fail("Field \"" + Field.CustomName()
+                            + "\" collides with global symbol",
+                          *T);
+      }
 
       if (not Names.insert(Field.CustomName()).second)
         rc_return VH.fail("Collision in struct fields names", *T);
@@ -1167,8 +1170,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Field.CustomName()))
-        rc_return VH.fail("Field name collides with global symbol", *T);
+      if (VH.isGlobalSymbol(Field.CustomName())) {
+        rc_return VH.fail("Field \"" + Field.CustomName()
+                            + "\" collides with global symbol",
+                          *T);
+      }
 
       if (not Names.insert(Field.CustomName()).second)
         rc_return VH.fail("Collision in union fields names", *T);
