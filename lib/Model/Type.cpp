@@ -280,26 +280,6 @@ const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
   return upcast(This, GetEdges, llvm::SmallVector<model::QualifiedType, 4>());
 }
 
-template<size_t I = 0>
-model::UpcastableType
-makeTypeWithIDImpl(uint64_t ID, model::TypeKind::Values Kind) {
-  using concrete_types = concrete_types_traits_t<model::Type>;
-  if constexpr (I < std::tuple_size_v<concrete_types>) {
-    using type = std::tuple_element_t<I, concrete_types>;
-    if (type::classof(typename type::Key(ID, Kind)))
-      return UpcastableType(new type(ID, type::AssociatedKind));
-    else
-      return model::makeTypeWithIDImpl<I + 1>(ID, Kind);
-  } else {
-    return UpcastableType(nullptr);
-  }
-}
-
-model::UpcastableType makeTypeWithID(uint64_t ID,
-                                     model::TypeKind::Values Kind) {
-  return makeTypeWithIDImpl(ID, Kind);
-}
-
 Identifier model::UnionField::name() const {
   Identifier Result;
 
