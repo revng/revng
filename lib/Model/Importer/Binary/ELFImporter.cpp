@@ -445,9 +445,6 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
       continue;
     }
-
-    revng_log(ELFImporterLog,
-              "Searching for prototype for " << Fn.OriginalName());
     auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
     if (TypeLocation) {
       model::TypePath MatchingType = (*TypeLocation).Type;
@@ -464,6 +461,9 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         if (Attribute != model::FunctionAttribute::Inline)
           Fn.Attributes().insert(Attribute);
       }
+    } else {
+      revng_log(ELFImporterLog,
+                "Prototype for " << Fn.OriginalName() << " not found");
     }
   }
 

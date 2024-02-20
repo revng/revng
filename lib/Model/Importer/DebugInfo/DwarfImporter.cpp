@@ -1118,6 +1118,18 @@ static void error(StringRef Prefix, std::error_code EC) {
   revng_abort(Str.c_str());
 }
 
+static bool fileExists(const Twine &Path) {
+  bool Result = sys::fs::exists(Path);
+
+  if (Result) {
+    revng_log(DILogger, "The following path does not exist: " << Path.str());
+  } else {
+    revng_log(DILogger, "Found: " << Path.str());
+  }
+
+  return Result;
+}
+
 static std::optional<std::string>
 findDebugInfoFileByName(StringRef FileName,
                         StringRef DebugFileName,
@@ -1138,7 +1150,7 @@ findDebugInfoFileByName(StringRef FileName,
     llvm::sys::path::append(ResultPath, DebugFileName);
   }
 
-  if (sys::fs::exists(ResultPath.str())) {
+  if (fileExists(ResultPath.str())) {
     return std::string(ResultPath.str());
   } else {
     // Try in .debug/ directory.
@@ -1148,7 +1160,7 @@ findDebugInfoFileByName(StringRef FileName,
                             ".debug/",
                             DebugFileName);
 
-    if (sys::fs::exists(ResultPath.str())) {
+    if (fileExists(ResultPath.str())) {
       return std::string(ResultPath.str());
     } else {
       // Try `/usr/lib/debug/usr/bin/ls.debug`-like path.
@@ -1173,7 +1185,7 @@ findDebugInfoFileByName(StringRef FileName,
         }
       }
 
-      if (sys::fs::exists(ResultPath.str())) {
+      if (fileExists(ResultPath.str())) {
         return std::string(ResultPath.str());
       } else {
         // Try If build-id is `abcdef1234`, we look for:
@@ -1192,7 +1204,7 @@ findDebugInfoFileByName(StringRef FileName,
                                   DebugDir,
                                   DebugFileWithExtension);
 
-          if (sys::fs::exists(ResultPath.str())) {
+          if (fileExists(ResultPath.str())) {
             return std::string(ResultPath.str());
           } else {
             // Try in XDG_CACHE_HOME at the end.
@@ -1215,7 +1227,7 @@ findDebugInfoFileByName(StringRef FileName,
                                       "debug");
             }
 
-            if (sys::fs::exists(ResultPath.str())) {
+            if (fileExists(ResultPath.str())) {
               return std::string(ResultPath.str());
             } else {
               revng_log(DILogger, "Can't find " << DebugFileName);
