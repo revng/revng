@@ -419,10 +419,15 @@ private:
 
   static std::string getName(const DWARFDie &Die) {
     auto MaybeName = Die.find(DW_AT_name);
+
     if (MaybeName) {
       auto MaybeString = MaybeName->getAsCString();
-      if (MaybeString)
+      if (auto E = MaybeString.takeError()) {
+        auto Message = toString(std::move(E));
+        revng_log(DILogger, "Can't get DIE name: " << Message);
+      } else {
         return *MaybeString;
+      }
     }
 
     return {};
