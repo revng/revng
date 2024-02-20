@@ -317,7 +317,7 @@ void RootAnalyzer::updateCSAA() {
 }
 
 static llvm::SmallSet<model::Register::Values, 16>
-getPreservedRegisters(const model::TypePath &Prototype) {
+getPreservedRegisters(const model::TypeDefinitionPath &Prototype) {
   llvm::SmallSet<model::Register::Values, 16> Result;
   namespace FT = abi::FunctionType;
   for (model::Register::Values Register : FT::calleeSavedRegisters(Prototype))
@@ -407,7 +407,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     using RegisterSet = llvm::SmallSet<model::Register::Values, 16>;
     RegisterSet DefaultPreservedRegisters;
     model::ABI::Values ABI = Model->DefaultABI();
-    const model::TypePath &DefaultPrototype = Model->DefaultPrototype();
+    const auto &DefaultPrototype = Model->DefaultPrototype();
     if (not DefaultPrototype.empty()) {
       DefaultPreservedRegisters = getPreservedRegisters(DefaultPrototype);
     } else if (ABI != model::ABI::Invalid) {

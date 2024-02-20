@@ -12,8 +12,8 @@ static RegisterModelPass R(model::AddPrimitiveTypesFlag,
 
 void model::addPrimitiveTypes(TupleTree<model::Binary> &Model) {
   // For each of these types, we want to have in the model a corresponding
-  // PrimitiveType for each possible dimension.
-  using namespace model::PrimitiveTypeKind;
+  // PrimitiveDefinition for each possible dimension.
+  using namespace model::PrimitiveKind;
   static constexpr const Values PointerOrNumberPrimitiveTypes[] = {
     PointerOrNumber, Number, Unsigned, Signed
   };

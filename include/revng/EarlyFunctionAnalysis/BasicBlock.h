@@ -69,11 +69,12 @@ public:
   void dump() const debug_function;
 };
 
-inline model::TypePath getPrototype(const model::Binary &Binary,
-                                    MetaAddress CallerFunctionAddress,
-                                    const efa::BasicBlock &CallerBlock,
-                                    const efa::CallEdge &Edge) {
-  model::TypePath Result;
+inline model::TypeDefinitionPath
+getPrototype(const model::Binary &Binary,
+             MetaAddress CallerFunctionAddress,
+             const efa::BasicBlock &CallerBlock,
+             const efa::CallEdge &Edge) {
+  model::TypeDefinitionPath Result;
 
   MetaAddress Caller = CallerFunctionAddress;
   Caller = CallerBlock.InlinedFrom();

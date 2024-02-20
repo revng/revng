@@ -5,9 +5,9 @@
 ---
 Functions:
   - OriginalName: function
-    Prototype: "/Types/1814-RawFunctionType"
-Types:
+    Prototype: "/TypeDefinitions/1814-RawFunctionDefinition"
+TypeDefinitions:
   - ID: 1814
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     ReturnValues:
       - Location: rax_x86_64

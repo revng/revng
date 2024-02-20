@@ -571,13 +571,13 @@ interface NativeType extends CommonTypeInfo {
     ctor: "native";
 }
 
-interface EnumType extends CommonTypeInfo {
+interface EnumDefinition extends CommonTypeInfo {
     type: NativeParsable;
     ctor: "enum";
     possibleValues: readonly string[];
 }
 
-export type TypeInfo = ConstructorType | ParsableType | NativeType | EnumType;
+export type TypeInfo = ConstructorType | ParsableType | NativeType | EnumDefinition;
 export type TypeInfoObject = { [key: string]: TypeInfo };
 export type TypeHints = Map<TupleTreeType, TypeInfoObject>;
 

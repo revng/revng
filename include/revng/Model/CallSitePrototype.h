@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -20,7 +20,7 @@ fields:
   - name: Prototype
     doc: Prototype
     reference:
-      pointeeType: Type
+      pointeeType: TypeDefinition
       rootType: Binary
   - name: IsTailCall
     doc: Whether this call site is a tail call or not
@@ -43,7 +43,7 @@ public:
   using generated::CallSitePrototype::CallSitePrototype;
 
   /// Get the actual prototype, skipping any typedefs
-  model::TypePath prototype() const {
+  model::TypeDefinitionPath prototype() const {
     return model::QualifiedType::getFunctionType(Prototype()).value();
   }
 

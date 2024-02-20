@@ -9,7 +9,7 @@
 #include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -40,13 +40,13 @@ fields:
   - name: StackFrameType
     doc: The type of the stack frame
     reference:
-      pointeeType: Type
+      pointeeType: TypeDefinition
       rootType: Binary
     optional: true
   - name: Prototype
     doc: The prototype of the function
     reference:
-      pointeeType: Type
+      pointeeType: TypeDefinition
       rootType: Binary
     optional: true
   - name: Attributes
@@ -78,7 +78,7 @@ public:
 public:
   Identifier name() const;
 
-  model::TypePath prototype(const model::Binary &Root) const;
+  model::TypeDefinitionPath prototype(const model::Binary &Root) const;
 
 public:
   bool verify() const debug_function;

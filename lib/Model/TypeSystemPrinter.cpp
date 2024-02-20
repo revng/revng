@@ -6,25 +6,25 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Model/Binary.h"
-#include "revng/Model/CABIFunctionType.h"
+#include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/QualifiedType.h"
-#include "revng/Model/RawFunctionType.h"
-#include "revng/Model/StructType.h"
-#include "revng/Model/TypeKind.h"
+#include "revng/Model/RawFunctionDefinition.h"
+#include "revng/Model/StructDefinition.h"
+#include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Model/TypeSystemPrinter.h"
-#include "revng/Model/TypedefType.h"
-#include "revng/Model/UnionType.h"
+#include "revng/Model/TypedefDefinition.h"
+#include "revng/Model/UnionDefinition.h"
 #include "revng/Support/Assert.h"
 
 using llvm::cast;
 using llvm::dyn_cast;
 using llvm::isa;
-using model::CABIFunctionType;
+using model::CABIFunctionDefinition;
 using model::QualifiedType;
-using model::RawFunctionType;
-using model::StructType;
-using model::TypedefType;
-using model::UnionType;
+using model::RawFunctionDefinition;
+using model::StructDefinition;
+using model::TypedefDefinition;
+using model::UnionDefinition;
 using std::to_string;
 
 using FieldList = llvm::SmallVector<QualifiedType, 16>;
@@ -43,14 +43,14 @@ static constexpr const char *Pink = "\"#FF99CC\"";
 static constexpr const char *Grey = "\"#7C3E66\"";
 static constexpr const char *White = "\"white\"";
 
-/// Background and border color for records of a given TypeKind
-static llvm::StringRef getColor(model::TypeKind::Values K) {
-  if (K == model::TypeKind::UnionType)
+/// Background and border color for records of a given TypeDefinitionKind
+static llvm::StringRef getColor(model::TypeDefinitionKind::Values K) {
+  if (K == model::TypeDefinitionKind::UnionDefinition)
     return Red;
-  else if (K == model::TypeKind::CABIFunctionType
-           or K == model::TypeKind::RawFunctionType)
+  else if (K == model::TypeDefinitionKind::CABIFunctionDefinition
+           or K == model::TypeDefinitionKind::RawFunctionDefinition)
     return Green;
-  else if (K == model::TypeKind::StructType)
+  else if (K == model::TypeDefinitionKind::StructDefinition)
     return Blue;
 
   return White;
@@ -76,23 +76,23 @@ static void paddedCell(llvm::raw_ostream &Out,
 
 /// Collect an ordered list of the subtypes in a type (e.g. field, return
 /// values, arguments ...)
-static FieldList collectFields(const model::Type *T) {
+static FieldList collectFields(const model::TypeDefinition *T) {
   FieldList Fields;
 
-  if (auto *Struct = llvm::dyn_cast<model::StructType>(T)) {
+  if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(T)) {
     for (auto &Field : Struct->Fields())
       Fields.push_back(Field.Type());
 
-  } else if (auto *Union = llvm::dyn_cast<model::UnionType>(T)) {
+  } else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(T)) {
     for (auto &Field : Union->Fields())
       Fields.push_back(Field.Type());
 
-  } else if (auto *CABIFunc = llvm::dyn_cast<model::CABIFunctionType>(T)) {
-    Fields.push_back(CABIFunc->ReturnType());
-    for (auto &Field : CABIFunc->Arguments())
+  } else if (auto *CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(T)) {
+    Fields.push_back(CABI->ReturnType());
+    for (auto &Field : CABI->Arguments())
       Fields.push_back(Field.Type());
 
-  } else if (auto *RawFunc = llvm::dyn_cast<model::RawFunctionType>(T)) {
+  } else if (auto *RawFunc = llvm::dyn_cast<model::RawFunctionDefinition>(T)) {
     for (auto &Field : RawFunc->ReturnValues())
       Fields.push_back(Field.Type());
 
@@ -104,7 +104,7 @@ static FieldList collectFields(const model::Type *T) {
 
     if (not RawFunc->StackArgumentsType().empty())
       Fields.push_back({ RawFunc->StackArgumentsType(), {} });
-  } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(T)) {
+  } else if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(T)) {
     Fields.push_back(Typedef->UnderlyingType());
   }
 
@@ -170,14 +170,14 @@ static void addStructField(llvm::raw_ostream &Out,
 
 /// Generate the inner table of a struct type
 static void dumpStructFields(llvm::raw_ostream &Out,
-                             const model::StructType *T) {
+                             const model::StructDefinition *T) {
   if (T->Fields().size() == 0) {
     Out << "<TR><TD></TD></TR>";
     return;
   }
 
   // Header
-  llvm::StringRef Color = getColor(model::TypeKind::StructType);
+  llvm::StringRef Color = getColor(model::TypeDefinitionKind::StructDefinition);
   Out << "<TR>";
   headerCell(Out, Color, "Offset");
   headerCell(Out, Color, "Size");
@@ -211,7 +211,8 @@ static void dumpStructFields(llvm::raw_ostream &Out,
 }
 
 /// Generate the inner table of a union type
-static void dumpUnionFields(llvm::raw_ostream &Out, const model::UnionType *T) {
+static void dumpUnionFields(llvm::raw_ostream &Out,
+                            const model::UnionDefinition *T) {
   if (T->Fields().size() == 0) {
     Out << "<TR><TD></TD></TR>";
     return;
@@ -235,12 +236,13 @@ static void dumpUnionFields(llvm::raw_ostream &Out, const model::UnionType *T) {
 }
 
 /// Generate the inner table of a function type
-static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
+static void dumpFunctionType(llvm::raw_ostream &Out,
+                             const model::TypeDefinition *T) {
   llvm::SmallVector<model::QualifiedType, 8> ReturnTypes;
   llvm::SmallVector<model::QualifiedType, 8> Arguments;
 
   // Collect arguments and return types
-  if (auto *RawFunc = dyn_cast<RawFunctionType>(T)) {
+  if (auto *RawFunc = dyn_cast<RawFunctionDefinition>(T)) {
     for (auto &RetTy : RawFunc->ReturnValues())
       ReturnTypes.push_back(RetTy.Type());
 
@@ -250,7 +252,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
     if (not RawFunc->StackArgumentsType().empty())
       Arguments.push_back({ RawFunc->StackArgumentsType(), {} });
 
-  } else if (auto *CABIFunc = dyn_cast<CABIFunctionType>(T)) {
+  } else if (auto *CABIFunc = dyn_cast<CABIFunctionDefinition>(T)) {
     ReturnTypes.push_back(CABIFunc->ReturnType());
 
     for (auto &ArgTy : CABIFunc->Arguments())
@@ -302,13 +304,14 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
 
 /// Generate the inner content of a Typedef node
 static void dumpTypedefUnderlying(llvm::raw_ostream &Out,
-                                  const model::TypedefType *T) {
+                                  const model::TypedefDefinition *T) {
   Out << "<TR>";
   paddedCell(Out, buildFieldName(T->UnderlyingType()), 0);
   Out << "</TR>";
 }
 
-void TypeSystemPrinter::dumpTypeNode(const model::Type *T, int NodeID) {
+void TypeSystemPrinter::dumpTypeNode(const model::TypeDefinition *T,
+                                     int NodeID) {
   // Print the name of the node
   Out << "node_" << to_string(NodeID) << "[";
 
@@ -326,13 +329,13 @@ void TypeSystemPrinter::dumpTypeNode(const model::Type *T, int NodeID) {
 
   // Print fields in a table
   Out << "<TR><TD><TABLE " << TableOpts << "> ";
-  if (auto *StructT = dyn_cast<StructType>(T))
+  if (auto *StructT = dyn_cast<StructDefinition>(T))
     dumpStructFields(Out, StructT);
-  else if (auto *UnionT = dyn_cast<UnionType>(T))
+  else if (auto *UnionT = dyn_cast<UnionDefinition>(T))
     dumpUnionFields(Out, UnionT);
-  else if (isa<RawFunctionType>(T) or isa<CABIFunctionType>(T))
+  else if (isa<RawFunctionDefinition>(T) or isa<CABIFunctionDefinition>(T))
     dumpFunctionType(Out, T);
-  else if (auto *Typedef = dyn_cast<TypedefType>(T))
+  else if (auto *Typedef = dyn_cast<TypedefDefinition>(T))
     dumpTypedefUnderlying(Out, Typedef);
   else
     Out << "<TR><TD>Unhandled Type</TD></TR>";
@@ -386,14 +389,14 @@ void TypeSystemPrinter::addFieldEdge(const model::QualifiedType &QT,
   Out << "];\n";
 }
 
-void TypeSystemPrinter::print(const model::Type &T) {
+void TypeSystemPrinter::print(const model::TypeDefinition &T) {
   // Don't repeat nodes
   if (Visited.contains(&T))
     return;
 
-  llvm::SmallVector<const model::Type *, 16> ToVisit = { &T };
+  llvm::SmallVector<const model::TypeDefinition *, 16> ToVisit = { &T };
 
-  auto EmitNode = [this](const model::Type *TypeToEmit) {
+  auto EmitNode = [this](const model::TypeDefinition *TypeToEmit) {
     dumpTypeNode(TypeToEmit, NextID);
     NodesMap.insert({ TypeToEmit, NextID });
     NextID++;
@@ -403,7 +406,7 @@ void TypeSystemPrinter::print(const model::Type &T) {
   EmitNode(&T);
 
   while (not ToVisit.empty()) {
-    const model::Type *CurType = ToVisit.pop_back_val();
+    const model::TypeDefinition *CurType = ToVisit.pop_back_val();
     if (Visited.contains(CurType))
       continue;
 
@@ -414,26 +417,26 @@ void TypeSystemPrinter::print(const model::Type &T) {
     for (auto Field : llvm::enumerate(Fields)) {
       auto &FieldQT = Field.value();
 
-      const model::Type *FieldUnqualType = nullptr;
+      const model::TypeDefinition *Unqualified = nullptr;
 
       if (not FieldQT.UnqualifiedType().empty())
-        FieldUnqualType = FieldQT.UnqualifiedType().getConst();
+        Unqualified = FieldQT.UnqualifiedType().getConst();
 
       // Don't add edges for primitive types, as they would pollute the graph
       // and add no information regarding the type system structure
-      if (not FieldUnqualType
-          or FieldUnqualType->Kind() == model::TypeKind::PrimitiveType)
+      namespace TDKind = model::TypeDefinitionKind;
+      if (not Unqualified or Unqualified->Kind() == TDKind::PrimitiveDefinition)
         continue;
 
       uint64_t SuccID;
-      auto It = NodesMap.find(FieldUnqualType);
+      auto It = NodesMap.find(Unqualified);
       if (It != NodesMap.end()) {
         // If a node already exists for the target type, use that
         SuccID = It->second;
       } else {
         // If the node does not already exist, create a new one
         SuccID = NextID;
-        EmitNode(FieldUnqualType);
+        EmitNode(Unqualified);
       }
 
       // Add an edge to the type referenced by the current field.
@@ -444,7 +447,7 @@ void TypeSystemPrinter::print(const model::Type &T) {
       addFieldEdge(FieldQT, CurID, Field.index(), SuccID);
 
       // Push the field's type to the visit stack
-      ToVisit.push_back(FieldUnqualType);
+      ToVisit.push_back(Unqualified);
     }
 
     // Mark this Type as visited: the node has been emitted, as well as
@@ -454,10 +457,6 @@ void TypeSystemPrinter::print(const model::Type &T) {
 }
 
 void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
-  bool HasPrototype = not F.Prototype().empty();
-  const model::Type *Prototype = HasPrototype ? F.Prototype().getConst() :
-                                                nullptr;
-
   // Print the name of the node
   Out << "node_" << to_string(NodeID) << "[";
 
@@ -483,13 +482,13 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   // Second row of the inner table (actual types)
   Out << "<TR>";
 
-  if (HasPrototype)
-    paddedCell(Out, Prototype->name(), /*port=*/0);
+  if (!F.Prototype().empty())
+    paddedCell(Out, F.Prototype().getConst()->name(), /*port=*/0);
   else
     Out << "<TD></TD>";
 
   if (not F.StackFrameType().empty()) {
-    const model::Type *StackT = F.StackFrameType().getConst();
+    const model::TypeDefinition *StackT = F.StackFrameType().getConst();
     paddedCell(Out, StackT->name(), /*port=*/1);
   } else {
     Out << "<TD></TD>";
@@ -512,7 +511,7 @@ void TypeSystemPrinter::print(const model::Function &F) {
 
   // Node of prototype type, if present
   if (not F.Prototype().empty()) {
-    const model::Type *PrototypeT = F.Prototype().getConst();
+    const model::TypeDefinition *PrototypeT = F.Prototype().getConst();
     print(*PrototypeT);
 
     // Edges
@@ -522,7 +521,7 @@ void TypeSystemPrinter::print(const model::Function &F) {
 
   // Node of the stack type, if present
   if (not F.StackFrameType().empty()) {
-    const model::Type *StackT = F.StackFrameType().getConst();
+    const model::TypeDefinition *StackT = F.StackFrameType().getConst();
     print(*StackT);
 
     // Edges
@@ -533,10 +532,6 @@ void TypeSystemPrinter::print(const model::Function &F) {
 
 void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
                                          int NodeID) {
-  bool HasPrototype = not F.Prototype().empty();
-  const model::Type *Prototype = HasPrototype ? F.Prototype().getConst() :
-                                                nullptr;
-
   // Print the name of the node
   Out << "node_" << to_string(NodeID) << "[";
 
@@ -561,8 +556,8 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
   // Second row of the inner table (actual types)
   Out << "<TR>";
 
-  if (HasPrototype)
-    paddedCell(Out, Prototype->name(), /*port=*/0);
+  if (!F.Prototype().empty())
+    paddedCell(Out, F.Prototype().getConst()->name(), /*port=*/0);
   else
     Out << "<TD></TD>";
 
@@ -583,7 +578,7 @@ void TypeSystemPrinter::print(const model::DynamicFunction &F) {
 
   // Node of the prototype type, if present
   if (not F.Prototype().empty()) {
-    const model::Type *PrototypeT = F.Prototype().getConst();
+    const model::TypeDefinition *PrototypeT = F.Prototype().getConst();
     print(*PrototypeT);
 
     // Edges
@@ -593,8 +588,6 @@ void TypeSystemPrinter::print(const model::DynamicFunction &F) {
 }
 
 void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
-  const model::Type *T = S.Type().empty() ? nullptr : S.Type().getConst();
-
   // Print the name of the node
   Out << "node_" << to_string(NodeID) << "[";
 
@@ -619,8 +612,8 @@ void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
   // Second row of the inner table (actual types)
   Out << "<TR>";
 
-  if (T)
-    paddedCell(Out, T->name(), /*port=*/0);
+  if (!S.Type().empty())
+    paddedCell(Out, S.Type().getConst()->name(), /*port=*/0);
   else
     Out << "<TD></TD>";
 
@@ -641,7 +634,7 @@ void TypeSystemPrinter::print(const model::Segment &S) {
 
   // Node of the prototype type, if present
   if (not S.Type().empty()) {
-    const model::Type *T = S.Type().getConst();
+    const model::TypeDefinition *T = S.Type().getConst();
     print(*T);
 
     // Edges
@@ -664,12 +657,13 @@ void TypeSystemPrinter::print(const model::Binary &Model) {
     print(S);
 
   // Print remaining types, if any
-  for (auto &T : Model.Types()) {
+  for (auto &T : Model.TypeDefinitions()) {
     if (NodesMap.contains(T.get()))
       continue;
 
     // Avoid polluting the graph with uninformative nodes
-    if (T->Kind() != model::TypeKind::PrimitiveType and not T->edges().empty())
+    if (T->Kind() != model::TypeDefinitionKind::PrimitiveDefinition
+        and not T->edges().empty())
       print(*T);
   }
 }

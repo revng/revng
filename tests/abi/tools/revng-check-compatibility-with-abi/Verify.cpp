@@ -461,9 +461,9 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 static abi::FunctionType::Layout
 getPrototypeLayout(const model::Function &Function,
                    const abi::Definition &ABI) {
-  const model::Type *Prototype = Function.Prototype().getConst();
-  revng_assert(Prototype != nullptr);
-  if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
+  const model::TypeDefinition *ProtoT = Function.Prototype().getConst();
+  revng_assert(ProtoT != nullptr);
+  if (auto *CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(ProtoT)) {
     if (ABI != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
                           "the intended ABI is '"
@@ -475,7 +475,7 @@ getPrototypeLayout(const model::Function &Function,
     }
 
     return abi::FunctionType::Layout(*CABI);
-  } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
+  } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(ProtoT)) {
     auto Result = abi::FunctionType::Layout(*Raw);
 
     // Because RFT layouts are not ABI aware, there's no way for it to detect
@@ -484,8 +484,8 @@ getPrototypeLayout(const model::Function &Function,
     if (ABI.StackBytesAllocatedForRegisterArguments() != 0
         && !Raw->StackArgumentsType().empty()) {
       uint64_t FirstArgOffset = ABI.StackBytesAllocatedForRegisterArguments();
-      const model::TypePath &StackArgTypeRef = Raw->StackArgumentsType();
-      auto &StackStruct = *llvm::cast<model::StructType>(StackArgTypeRef.get());
+      const model::TypeDefinitionPath &StackPath = Raw->StackArgumentsType();
+      auto &StackStruct = *llvm::cast<model::StructDefinition>(StackPath.get());
       if (!StackStruct.Fields().empty())
         if (StackStruct.Fields().begin()->Offset() < FirstArgOffset)
           revng_abort("Stack arguments in the shadow space?");

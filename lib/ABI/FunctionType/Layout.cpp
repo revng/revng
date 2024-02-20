@@ -26,7 +26,7 @@ namespace abi::FunctionType {
 
 class ToRawConverter {
 private:
-  using CFT = const model::CABIFunctionType &;
+  using CFT = const model::CABIFunctionDefinition &;
   using CFTArguments = decltype(std::declval<CFT>().Arguments());
 
 private:
@@ -39,8 +39,9 @@ public:
 
 public:
   /// Entry point for the `toRaw` conversion.
-  model::TypePath convert(const model::CABIFunctionType &FunctionType,
-                          TupleTree<model::Binary> &Binary) const;
+  model::TypeDefinitionPath
+  convert(const model::CABIFunctionDefinition &FunctionType,
+          TupleTree<model::Binary> &Binary) const;
 
   /// Helper used for deciding how an arbitrary return type should be
   /// distributed across registers and the stack accordingly to the \ref ABI.
@@ -68,7 +69,8 @@ public:
 public:
   uint64_t finalStackOffset(uint64_t SizeOfArgumentsOnStack) const;
 
-  uint64_t combinedStackArgumentSize(const model::CABIFunctionType &) const;
+  uint64_t
+  combinedStackArgumentSize(const model::CABIFunctionDefinition &) const;
 };
 
 /// Helper for choosing a "generic" register type, mainly used for filling
@@ -79,7 +81,7 @@ public:
 static model::QualifiedType
 genericRegisterType(model::Register::Values Register, model::Binary &Binary) {
   return model::QualifiedType{
-    Binary.getPrimitiveType(model::PrimitiveTypeKind::Generic,
+    Binary.getPrimitiveType(model::PrimitiveKind::Generic,
                             model::Register::getSize(Register)),
     {}
   };
@@ -99,22 +101,25 @@ static model::QualifiedType registerType(model::Register::Values Register,
   };
 }
 
-model::TypePath
-ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
+model::TypeDefinitionPath
+ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
                         TupleTree<model::Binary> &Binary) const {
-  revng_log(Log, "Converting a `CABIFunctionType` to `RawFunctionType`.");
+  revng_log(Log,
+            "Converting a `CABIFunctionDefinition` to "
+            "`RawFunctionDefinition`.");
   revng_log(Log, "Original type:\n" << serializeToString(FunctionType));
   LoggerIndent Indentation(Log);
 
   // Since this conversion cannot fail, nothing prevents us from creating
   // the result type right away.
-  auto [NewType, NewTypePath] = Binary->makeType<model::RawFunctionType>();
+  auto [NewType,
+        NewPath] = Binary->makeTypeDefinition<model::RawFunctionDefinition>();
 
   revng_assert(FunctionType.ABI() != model::ABI::Invalid);
   NewType.Architecture() = model::ABI::getArchitecture(FunctionType.ABI());
   model::copyMetadata(NewType, FunctionType);
 
-  model::StructType StackArguments;
+  model::StructDefinition StackArguments;
   uint64_t StackStructSize = 0;
 
   // Since shadow arguments are a concern, we need to deal with the return
@@ -252,7 +257,7 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
                     "Adding " << (Distributed.SizeOnStack / PointerSize)
                               << " stack argument pieces.\n");
 
-          auto T = Binary->getPrimitiveType(model::PrimitiveTypeKind::Generic,
+          auto T = Binary->getPrimitiveType(model::PrimitiveKind::Generic,
                                             PointerSize);
           for (uint64_t CurrentWordOffset = 0;
                CurrentWordOffset < Distributed.SizeOnStack;
@@ -295,14 +300,16 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
       auto FirstFieldType = StackArguments.Fields().begin()->Type();
       if (FirstFieldType.Qualifiers().empty()) {
         auto *Unqualified = FirstFieldType.UnqualifiedType().getConst();
-        if (auto *Struct = llvm::dyn_cast<model::StructType>(Unqualified))
-          if (Struct->Size() == StackArguments.Size())
-            NewType.StackArgumentsType() = Binary->getTypePath(Struct->key());
+        if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(Unqualified))
+          if (auto Path = Binary->getTypeDefinitionPath(Struct->key());
+              Struct->Size() == StackArguments.Size())
+            NewType.StackArgumentsType() = Path;
       }
     }
 
     if (NewType.StackArgumentsType().empty()) {
-      auto [_, Path] = Binary->makeType<model::StructType>(StackArguments);
+      using StructD = model::StructDefinition;
+      auto [_, Path] = Binary->makeTypeDefinition<StructD>(StackArguments);
       NewType.StackArgumentsType() = Path;
     }
   }
@@ -321,12 +328,12 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
 
   // To finish up the conversion, remove all the references to the old type by
   // carefully replacing them with references to the new one.
-  replaceAllUsesWith(FunctionType.key(), NewTypePath, Binary);
+  replaceAllUsesWith(FunctionType.key(), NewPath, Binary);
 
   // And don't forget to remove the old type.
-  Binary->Types().erase(FunctionType.key());
+  Binary->TypeDefinitions().erase(FunctionType.key());
 
-  return NewTypePath;
+  return NewPath;
 }
 
 uint64_t
@@ -351,14 +358,14 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
 
 using TRC = ToRawConverter;
 uint64_t
-TRC::combinedStackArgumentSize(const model::CABIFunctionType &Function) const {
-  auto ReturnValue = distributeReturnValue(Function.ReturnType());
+TRC::combinedStackArgumentSize(const model::CABIFunctionDefinition &Def) const {
+  auto ReturnValue = distributeReturnValue(Def.ReturnType());
 
   ArgumentDistributor Distributor(ABI);
   if (ReturnValue.SizeOnStack != 0)
     Distributor.addShadowPointerReturnValueLocationArgument();
 
-  for (const model::Argument &Argument : Function.Arguments())
+  for (const model::Argument &Argument : Def.Arguments())
     Distributor.nextArgument(Argument.Type());
 
   return Distributor.UsedStackOffset;
@@ -378,13 +385,14 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
   return Result;
 }
 
-model::TypePath convertToRaw(const model::CABIFunctionType &FunctionType,
-                             TupleTree<model::Binary> &Binary) {
+model::TypeDefinitionPath
+convertToRaw(const model::CABIFunctionDefinition &FunctionType,
+             TupleTree<model::Binary> &Binary) {
   ToRawConverter ToRaw(abi::Definition::get(FunctionType.ABI()));
   return ToRaw.convert(FunctionType, Binary);
 }
 
-Layout::Layout(const model::CABIFunctionType &Function) {
+Layout::Layout(const model::CABIFunctionDefinition &Function) {
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   ToRawConverter Converter(ABI);
 
@@ -491,7 +499,7 @@ Layout::Layout(const model::CABIFunctionType &Function) {
   FinalStackOffset = Converter.finalStackOffset(StackStructSize);
 }
 
-Layout::Layout(const model::RawFunctionType &Function) {
+Layout::Layout(const model::RawFunctionDefinition &Function) {
   // Lay register arguments out.
   for (const model::NamedTypedRegister &Register : Function.Arguments()) {
     revng_assert(Register.Type().isScalar());
@@ -511,14 +519,13 @@ Layout::Layout(const model::RawFunctionType &Function) {
 
   // Lay stack arguments out.
   if (not Function.StackArgumentsType().empty()) {
-    const model::TypePath &StackArgTypeRef = Function.StackArgumentsType();
-    auto *StackStruct = llvm::cast<model::StructType>(StackArgTypeRef
-                                                        .getConst());
+    const model::TypeDefinitionPath &SPath = Function.StackArgumentsType();
+    auto *StackStruct = llvm::cast<model::StructDefinition>(SPath.getConst());
 
     auto &Argument = Arguments.emplace_back();
 
-    // Stack argument is always passed by pointer for RawFunctionType
-    Argument.Type = model::QualifiedType{ StackArgTypeRef, {} };
+    // Stack argument is always passed by pointer for RawFunctionDefinition
+    Argument.Type = model::QualifiedType{ SPath, {} };
     Argument.Kind = ArgumentKind::ReferenceToAggregate;
 
     // Record the size
@@ -654,7 +661,7 @@ Layout::returnValueRegisters() const {
   return Result;
 }
 
-uint64_t finalStackOffset(const model::CABIFunctionType &Function) {
+uint64_t finalStackOffset(const model::CABIFunctionDefinition &Function) {
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   ToRawConverter Helper(ABI);
 
@@ -663,7 +670,7 @@ uint64_t finalStackOffset(const model::CABIFunctionType &Function) {
                                    0);
 }
 
-UsedRegisters usedRegisters(const model::CABIFunctionType &Function) {
+UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   UsedRegisters Result;
 
   // Ready the return value register data.

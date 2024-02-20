@@ -6,7 +6,7 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -51,7 +51,7 @@ fields:
   - name: Type
     doc: The type of the segment
     reference:
-      pointeeType: Type
+      pointeeType: TypeDefinition
       rootType: Binary
     optional: true
 

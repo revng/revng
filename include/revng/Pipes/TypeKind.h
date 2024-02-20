@@ -19,7 +19,7 @@ public:
                         pipeline::TargetsList &Out) const override {
     using namespace pipeline;
     const auto &Model = getModelFromContext(Ctx);
-    for (const auto &Type : Model->Types()) {
+    for (const auto &Type : Model->TypeDefinitions()) {
       Out.push_back(Target(serializeToString(Type->key()), *this));
     }
   }

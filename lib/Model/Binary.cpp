@@ -100,10 +100,10 @@ MetaAddressRangeSet Binary::executableRanges() const {
   MetaAddressRangeSet ExecutableRanges;
 
   struct Entry {
-    Entry(MetaAddress Start, const model::Type *Type) :
+    Entry(MetaAddress Start, const model::TypeDefinition *Type) :
       Start(Start), Type(Type) {}
     MetaAddress Start;
-    const model::Type *Type = nullptr;
+    const model::TypeDefinition *Type = nullptr;
   };
   std::queue<Entry> Queue;
 
@@ -121,7 +121,7 @@ MetaAddressRangeSet Binary::executableRanges() const {
     auto QueueEntry = Queue.front();
     Queue.pop();
 
-    auto *Struct = dyn_cast<model::StructType>(QueueEntry.Type);
+    auto *Struct = dyn_cast<model::StructDefinition>(QueueEntry.Type);
 
     if (not Struct or not Struct->CanContainCode())
       continue;
@@ -159,80 +159,81 @@ MetaAddressRangeSet Binary::executableRanges() const {
   return ExecutableRanges;
 }
 
-model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
-                                         uint8_t ByteSize) {
-  PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ Temporary.ID(), TypeKind::PrimitiveType };
-  auto It = Types().find(PrimitiveKey);
+model::TypeDefinitionPath Binary::getPrimitiveType(PrimitiveKind::Values V,
+                                                   uint8_t ByteSize) {
+  PrimitiveDefinition Temporary(V, ByteSize);
+  TypeDefinition::Key PrimitiveKey{ Temporary.ID(),
+                                    TypeDefinitionKind::PrimitiveDefinition };
+  auto It = TypeDefinitions().find(PrimitiveKey);
 
   // If we couldn't find it, create it
-  if (It == Types().end()) {
-    auto *NewPrimitiveType = new PrimitiveType(V, ByteSize);
-    It = Types().insert(UpcastablePointer<model::Type>(NewPrimitiveType)).first;
-  }
+  if (It == TypeDefinitions().end())
+    It = TypeDefinitions().emplace(new PrimitiveDefinition(V, ByteSize)).first;
 
-  return getTypePath(It->get());
+  return getTypeDefinitionPath(It->get());
 }
 
-model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
-                                         uint8_t ByteSize) const {
-  PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ Temporary.ID(), TypeKind::PrimitiveType };
-  return getTypePath(Types().at(PrimitiveKey).get());
+model::TypeDefinitionPath Binary::getPrimitiveType(PrimitiveKind::Values V,
+                                                   uint8_t ByteSize) const {
+  PrimitiveDefinition Temporary(V, ByteSize);
+  TypeDefinition::Key PrimitiveKey{ Temporary.ID(),
+                                    TypeDefinitionKind::PrimitiveDefinition };
+  return getTypeDefinitionPath(TypeDefinitions().at(PrimitiveKey).get());
 }
 
 uint64_t Binary::getAvailableTypeID() const {
   uint64_t Result = 0;
 
-  if (not Types().empty())
-    Result = Types().rbegin()->get()->ID() + 1;
+  if (not TypeDefinitions().empty())
+    Result = TypeDefinitions().rbegin()->get()->ID() + 1;
 
-  Result = std::max(model::PrimitiveType::FirstNonPrimitiveID, Result);
+  Result = std::max(model::PrimitiveDefinition::FirstNonPrimitiveID, Result);
   return Result;
 }
 
-TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
-  if (not isa<PrimitiveType>(T.get())) {
+TypeDefinitionPath Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
+  if (not isa<PrimitiveDefinition>(T.get())) {
     // Assign progressive ID
     revng_assert(T->ID() == 0);
     T->ID() = getAvailableTypeID();
   }
 
-  auto [It, Success] = Types().insert(T);
+  auto [It, Success] = TypeDefinitions().insert(T);
   revng_assert(Success);
-  return getTypePath(It->get());
+  return getTypeDefinitionPath(It->get());
 }
 
-bool Binary::verifyTypes() const {
-  return verifyTypes(false);
+bool Binary::verifyTypeDefinitions() const {
+  return verifyTypeDefinitions(false);
 }
 
-bool Binary::verifyTypes(bool Assert) const {
+bool Binary::verifyTypeDefinitions(bool Assert) const {
   VerifyHelper VH(Assert);
-  return verifyTypes(VH);
+  return verifyTypeDefinitions(VH);
 }
 
-bool Binary::verifyTypes(VerifyHelper &VH) const {
+bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   // All types on their own should verify
   std::set<Identifier> Names;
-  for (auto &Type : Types()) {
+  for (const model::UpcastableTypeDefinition &Definition : TypeDefinitions()) {
     // Verify the type
-    if (not Type.get()->verify(VH))
+    if (not Definition.get()->verify(VH))
       return VH.fail();
 
     // Ensure the names are unique
-    auto Name = Type->name();
+    auto Name = Definition->name();
     if (not Names.insert(Name).second)
       return VH.fail(Twine("Multiple types with the following name: ") + Name);
 
-    if (const auto *T = llvm::dyn_cast<model::CABIFunctionType>(Type.get())) {
+    using CFT = model::CABIFunctionDefinition;
+    using RFT = model::RawFunctionDefinition;
+    if (const auto *T = llvm::dyn_cast<CFT>(Definition.get())) {
       if (getArchitecture(T->ABI()) != Architecture())
         return VH.fail("Function type architecture differs from the binary "
                        "architecture");
-    } else if (const auto
-                 *T = llvm::dyn_cast<model::RawFunctionType>(Type.get())) {
+    } else if (const auto *T = llvm::dyn_cast<RFT>(Definition.get())) {
       if (T->Architecture() != Architecture())
         return VH.fail("Function type architecture differs from the binary "
                        "architecture");
@@ -327,11 +328,11 @@ static bool verifyGlobalNamespace(VerifyHelper &VH,
   }
 
   // Verify types and enum entries
-  for (auto &Type : Model.Types()) {
-    if (not VH.registerGlobalSymbol(Type->CustomName(), Model.path(*Type)))
+  for (const model::UpcastableTypeDefinition &Def : Model.TypeDefinitions()) {
+    if (not VH.registerGlobalSymbol(Def->CustomName(), Model.path(*Def)))
       return VH.fail();
 
-    if (auto *Enum = dyn_cast<EnumType>(Type.get()))
+    if (auto *Enum = dyn_cast<model::EnumDefinition>(Def.get()))
       for (auto &Entry : Enum->Entries())
         if (not VH.registerGlobalSymbol(Entry.CustomName(),
                                         Model.path(*Enum, Entry)))
@@ -383,7 +384,7 @@ bool Binary::verify(VerifyHelper &VH) const {
   //
   // Verify the type system
   //
-  return verifyTypes(VH);
+  return verifyTypeDefinitions(VH);
 }
 
 Identifier Function::name() const {
@@ -396,8 +397,9 @@ Identifier Function::name() const {
   }
 }
 
-static const model::TypePath &prototypeOr(const model::TypePath &Prototype,
-                                          const model::TypePath &Default) {
+static const model::TypeDefinitionPath &
+prototypeOr(const model::TypeDefinitionPath &Prototype,
+            const model::TypeDefinitionPath &Default) {
   if (not Prototype.empty()) {
     revng_assert(Prototype.isValid());
     return Prototype;
@@ -416,8 +418,8 @@ model::QualifiedType::getPointerTo(model::Architecture::Values Arch) const {
   return Result;
 }
 
-model::TypePath Function::prototype(const model::Binary &Root) const {
-  model::TypePath Result;
+model::TypeDefinitionPath Function::prototype(const model::Binary &Root) const {
+  model::TypeDefinitionPath Result;
   auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());
   if (not ThePrototype.empty())
     return model::QualifiedType::getFunctionType(ThePrototype).value();
@@ -435,7 +437,8 @@ Identifier DynamicFunction::name() const {
   }
 }
 
-model::TypePath DynamicFunction::prototype(const model::Binary &Root) const {
+model::TypeDefinitionPath
+DynamicFunction::prototype(const model::Binary &Root) const {
   auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());
   return model::QualifiedType::getFunctionType(ThePrototype).value();
 }
@@ -512,9 +515,9 @@ bool Segment::verify(VerifyHelper &VH) const {
 
     // The segment has a type
 
-    auto *Struct = dyn_cast<model::StructType>(Type().get());
+    auto *Struct = dyn_cast<model::StructDefinition>(Type().get());
     if (not Struct)
-      return VH.fail("The segment type is not a StructType", *this);
+      return VH.fail("The segment type is not a StructDefinition", *this);
 
     if (VirtualSize() != Struct->Size()) {
       return VH.fail(Twine("The segment's size (VirtualSize) is not equal to "
@@ -583,8 +586,8 @@ bool Function::verify(VerifyHelper &VH) const {
     // The function has a prototype
 
     if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-      return VH.fail("The prototype is neither a RawFunctionType nor a "
-                     "CABIFunctionType",
+      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
+                     "CABIFunctionDefinition",
                      *this);
     }
 
@@ -599,8 +602,8 @@ bool Function::verify(VerifyHelper &VH) const {
 
     // The stack frame has a type
 
-    if (not isa<model::StructType>(StackFrameType().get()))
-      return VH.fail("The stack frame type is not a StructType", *this);
+    if (not isa<model::StructDefinition>(StackFrameType().get()))
+      return VH.fail("The stack frame type is not a StructDefinition", *this);
 
     if (not StackFrameType().get()->verify(VH))
       return VH.fail("Stack frame type does not verify", *this);
@@ -643,8 +646,8 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
       return VH.fail();
 
     if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-      return VH.fail("The prototype is neither a RawFunctionType nor a "
-                     "CABIFunctionType",
+      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
+                     "CABIFunctionDefinition",
                      *this);
     }
   }
@@ -683,8 +686,8 @@ bool CallSitePrototype::verify(VerifyHelper &VH) const {
     return VH.fail();
 
   if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-    return VH.fail("The prototype is neither a RawFunctionType nor a "
-                   "CABIFunctionType",
+    return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
+                   "CABIFunctionDefinition",
                    *this);
   }
 

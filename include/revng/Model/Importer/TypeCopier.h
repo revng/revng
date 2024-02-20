@@ -15,7 +15,7 @@ concept HasCustomAndOriginalName = requires(const T &Element) {
   { Element.CustomName() } -> std::same_as<const model::Identifier &>;
   { Element.OriginalName() } -> std::same_as<const std::string &>;
 };
-static_assert(HasCustomAndOriginalName<model::Type>);
+static_assert(HasCustomAndOriginalName<model::TypeDefinition>);
 static_assert(HasCustomAndOriginalName<model::EnumEntry>);
 
 class TypeCopier {
@@ -25,15 +25,15 @@ private:
 
   // Track the copied types so we can fixup references later on
   llvm::DenseMap<uint64_t, uint64_t> AlreadyCopied;
-  llvm::DenseSet<model::Type *> NewTypes;
+  llvm::DenseSet<model::TypeDefinition *> NewTypes;
 
   struct NodeData {
-    const UpcastablePointer<model::Type> *T;
+    const model::UpcastableTypeDefinition *T;
   };
   using Node = ForwardNode<NodeData>;
   using Graph = GenericGraph<Node>;
   std::optional<Graph> TypeGraph;
-  std::map<const model::Type *, Node *> TypeToNode;
+  std::map<const model::TypeDefinition *, Node *> TypeToNode;
   bool Finalized = false;
 
 public:
@@ -42,26 +42,25 @@ public:
     FromModel(FromModel), DestinationModel(DestinationModel) {}
   ~TypeCopier() { revng_assert(Finalized); }
 
-  model::TypePath copyTypeInto(model::TypePath &Type) {
+  model::TypeDefinitionPath copyTypeInto(model::TypeDefinitionPath &Type) {
     ensureGraph();
 
     revng_assert(Type.isValid());
 
-    model::TypePath Result;
+    model::TypeDefinitionPath Result;
     llvm::df_iterator_default_set<Node *> VisitedFromTheType;
     for (Node *N :
          depth_first_ext(TypeToNode.at(Type.get()), VisitedFromTheType))
       ;
 
-    for (const auto &P : FromModel->Types()) {
-      if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(P.get())) {
+    for (const auto &P : FromModel->TypeDefinitions()) {
+      if (auto *PrD = llvm::dyn_cast<model::PrimitiveDefinition>(P.get())) {
         // Ensure we have all the necessary primitive types
-        DestinationModel->getPrimitiveType(Primitive->PrimitiveKind(),
-                                           Primitive->Size());
+        DestinationModel->getPrimitiveType(PrD->PrimitiveKind(), PrD->Size());
       } else if (AlreadyCopied.count(P.get()->ID()) == 0
                  and VisitedFromTheType.contains(TypeToNode.at(P.get()))) {
         // Clone the type
-        UpcastablePointer<model::Type> NewType = P;
+        UpcastablePointer<model::TypeDefinition> NewType = P;
 
         // Reset type ID: recordNewType will set it for us
         NewType->ID() = 0;
@@ -81,7 +80,7 @@ public:
         // Record the type
         auto TheType = DestinationModel->recordNewType(std::move(NewType));
         {
-          model::Type *NewType = TheType.get();
+          model::TypeDefinition *NewType = TheType.get();
           NewTypes.insert(NewType);
           AlreadyCopied.insert({ P.get()->ID(), NewType->ID() });
         }
@@ -106,22 +105,23 @@ public:
     // according to the map
     auto Visitor = [this](auto &Element) {
       using T = std::decay_t<decltype(Element)>;
-      if constexpr (std::is_same_v<T, model::TypePath>) {
-        model::TypePath &Path = Element;
+      if constexpr (std::is_same_v<T, model::TypeDefinitionPath>) {
+        model::TypeDefinitionPath &Path = Element;
         if (Path.empty())
           return;
 
         // Extract ID from the key
         const TupleTreeKeyWrapper &TypeKey = Path.path().toArrayRef()[1];
-        auto [ID, Kind] = *TypeKey.tryGet<model::Type::Key>();
-        if (Kind != model::TypeKind::PrimitiveType) {
+        auto [ID, Kind] = *TypeKey.tryGet<model::TypeDefinition::Key>();
+        if (Kind != model::TypeDefinitionKind::PrimitiveDefinition) {
           revng_assert(AlreadyCopied.count(ID) == 1);
-          Path = DestinationModel->getTypePath({ AlreadyCopied[ID], Kind });
+          Path = DestinationModel->getTypeDefinitionPath({ AlreadyCopied[ID],
+                                                           Kind });
         }
       }
     };
 
-    for (model::Type *NewType : NewTypes)
+    for (model::TypeDefinition *NewType : NewTypes)
       visitTupleTree(NewType, Visitor, [](const auto &) {});
   }
 
@@ -130,12 +130,13 @@ private:
     if (!TypeGraph) {
       TypeGraph = Graph();
 
-      for (const UpcastablePointer<model::Type> &T : FromModel->Types()) {
+      using UpcastableTD = model::UpcastableTypeDefinition;
+      for (const UpcastableTD &T : FromModel->TypeDefinitions()) {
         TypeToNode[T.get()] = TypeGraph->addNode(NodeData{ &T });
       }
 
       // Create type system edges
-      for (const UpcastablePointer<model::Type> &T : FromModel->Types()) {
+      for (const UpcastableTD &T : FromModel->TypeDefinitions()) {
         for (const model::QualifiedType &QT : T->edges()) {
           auto *DependantType = QT.UnqualifiedType().get();
           TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));

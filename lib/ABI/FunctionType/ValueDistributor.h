@@ -57,8 +57,8 @@ struct DistributedValue {
   /// a separate argument to be able to place all the following arguments
   /// in the correct positions.
   ///
-  /// The "padding" arguments are emitted as normal arguments in RawFunctionType
-  /// but are omitted in `Layout`.
+  /// The "padding" arguments are emitted as normal arguments in
+  /// `RawFunctionDefinition` but are omitted in `Layout`.
   bool RepresentsPadding = false;
 
   static DistributedValue voidReturnValue() {
@@ -77,7 +77,7 @@ using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 using RegisterSpan = std::span<const model::Register::Values>;
 
 template<typename T>
-concept ModelTypeLike = std::derived_from<T, model::Type>
+concept ModelTypeLike = std::derived_from<T, model::TypeDefinition>
                         || std::same_as<T, model::QualifiedType>;
 
 class ValueDistributor {
@@ -177,17 +177,17 @@ public:
                               IsNatural);
     }
   }
-  DistributedValues nextArgument(const model::Type &ArgumentType) {
-    auto *AsPrimitive = llvm::dyn_cast<model::PrimitiveType>(&ArgumentType);
-    constexpr auto FloatKind = model::PrimitiveTypeKind::Float;
-    bool IsFloat = AsPrimitive && AsPrimitive->PrimitiveKind() == FloatKind;
+  DistributedValues nextArgument(const model::TypeDefinition &ArgumentType) {
+    auto *Primitive = llvm::dyn_cast<model::PrimitiveDefinition>(&ArgumentType);
+    constexpr auto FloatKind = model::PrimitiveKind::Float;
+    bool IsFloat = Primitive && Primitive->PrimitiveKind() == FloatKind;
 
     uint64_t Size = *ArgumentType.size();
     if (ABI.ArgumentsArePositionBased()) {
       return positionBased(IsFloat, Size);
     } else {
-      bool IsScalar = llvm::isa<model::PrimitiveType>(ArgumentType)
-                      || llvm::isa<model::EnumType>(ArgumentType);
+      bool IsScalar = llvm::isa<model::PrimitiveDefinition>(ArgumentType)
+                      || llvm::isa<model::EnumDefinition>(ArgumentType);
 
       abi::Definition::AlignmentCache Cache;
       uint64_t Alignment = *ABI.alignment(ArgumentType, Cache);

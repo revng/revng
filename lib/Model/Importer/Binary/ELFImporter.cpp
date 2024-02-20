@@ -483,7 +483,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     }
     auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
     if (TypeLocation) {
-      model::TypePath MatchingType = (*TypeLocation).Type;
+      model::TypeDefinitionPath MatchingType = (*TypeLocation).Type;
       revng_log(ELFImporterLog,
                 "Found type for " << Fn.OriginalName() << " in "
                                   << (*TypeLocation).ModuleName << ": "

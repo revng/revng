@@ -6,13 +6,15 @@
 
 #include "revng/Model/EnumEntry.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
-name: EnumType
-doc: An enum type in model. Enums are actually typedefs of unnamed enums.
+name: EnumDefinition
+doc: |
+  An enum type definition in the model.
+  Enums are actually typedefs of unnamed enums.
 type: struct
-inherits: Type
+inherits: TypeDefinition
 fields:
   - name: UnderlyingType
     type: QualifiedType
@@ -22,15 +24,14 @@ fields:
       elementType: EnumEntry
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/EnumType.h"
+#include "revng/Model/Generated/Early/EnumDefinition.h"
 
-class model::EnumType : public model::generated::EnumType {
+class model::EnumDefinition : public model::generated::EnumDefinition {
 public:
   static constexpr const char *AutomaticNamePrefix = "enum_";
 
 public:
-  using generated::EnumType::EnumType;
-  EnumType() : generated::EnumType() {}
+  using generated::EnumDefinition::EnumDefinition;
 
 public:
   Identifier name() const;
@@ -42,8 +43,8 @@ public:
   }
 
 public:
-  static bool classof(const Type *T) { return classof(T->key()); }
+  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
   static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
-#include "revng/Model/Generated/Late/EnumType.h"
+#include "revng/Model/Generated/Late/EnumDefinition.h"

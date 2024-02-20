@@ -6,27 +6,26 @@
 
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
-name: TypedefType
-doc: A typedef type in model
+name: TypedefDefinition
+doc: A typedef type definition in model
 type: struct
-inherits: Type
+inherits: TypeDefinition
 fields:
   - name: UnderlyingType
     type: QualifiedType
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/TypedefType.h"
+#include "revng/Model/Generated/Early/TypedefDefinition.h"
 
-class model::TypedefType : public model::generated::TypedefType {
+class model::TypedefDefinition : public model::generated::TypedefDefinition {
 public:
   static constexpr const char *AutomaticNamePrefix = "typedef_";
 
 public:
-  using generated::TypedefType::TypedefType;
-  TypedefType() : generated::TypedefType() {}
+  using generated::TypedefDefinition::TypedefDefinition;
 
 public:
   Identifier name() const;
@@ -37,8 +36,8 @@ public:
   }
 
 public:
-  static bool classof(const Type *T) { return classof(T->key()); }
+  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
   static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
-#include "revng/Model/Generated/Late/TypedefType.h"
+#include "revng/Model/Generated/Late/TypedefDefinition.h"

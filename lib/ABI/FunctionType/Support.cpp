@@ -9,14 +9,15 @@
 
 namespace abi::FunctionType {
 
-const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
-                                          const model::TypePath &NewTypePath,
-                                          TupleTree<model::Binary> &Model) {
-  auto CheckTheKey = [&OldKey](const model::TypePath &Reference) -> bool {
-    if (Reference.empty())
+const model::TypeDefinitionPath &
+replaceAllUsesWith(const model::TypeDefinition::Key &OldKey,
+                   const model::TypeDefinitionPath &NewTypePath,
+                   TupleTree<model::Binary> &Model) {
+  auto CheckTheKey = [&OldKey](const model::TypeDefinitionPath &Path) -> bool {
+    if (Path.empty())
       return false;
 
-    return OldKey == Reference.getConst()->key();
+    return OldKey == Path.getConst()->key();
   };
   Model.replaceReferencesIf(NewTypePath, CheckTheKey);
 

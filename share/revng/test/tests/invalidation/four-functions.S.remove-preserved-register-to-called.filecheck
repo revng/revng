@@ -4,7 +4,7 @@
 
 ---
 Changes:
-  - Path:            "/Types/2001-RawFunctionType/PreservedRegisters"
+  - Path:            "/TypeDefinitions/2001-RawFunctionDefinition/PreservedRegisters"
     Remove:          rax_x86_64
 ...
 

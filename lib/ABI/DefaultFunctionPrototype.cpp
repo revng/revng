@@ -10,22 +10,23 @@
 
 using namespace model;
 
-constexpr static PrimitiveTypeKind::Values selectTypeKind(Register::Values) {
+constexpr static PrimitiveKind::Values selectTypeKind(Register::Values) {
   // TODO: implement a way to determine the register type. At the very least
   // we should be able to differentiate GPRs from the vector registers.
 
-  return PrimitiveTypeKind::PointerOrNumber;
+  return PrimitiveKind::PointerOrNumber;
 }
 
 static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
-  PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
+  PrimitiveKind::Values Kind = selectTypeKind(Register);
   uint64_t Size = Register::getSize(Register);
   return QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
 }
 
-static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
-  TypePath TypePath = TheBinary.makeType<RawFunctionType>().second;
-  auto &Prototype = *llvm::cast<RawFunctionType>(TypePath.get());
+static TypeDefinitionPath defaultPrototype(Binary &TheBinary,
+                                           model::ABI::Values ABI) {
+  auto [Prototype,
+        Path] = TheBinary.makeTypeDefinition<RawFunctionDefinition>();
 
   revng_assert(ABI != model::ABI::Invalid);
   Prototype.Architecture() = model::ABI::getArchitecture(ABI);
@@ -49,10 +50,10 @@ static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
   using namespace Architecture;
   Prototype.FinalStackOffset() = getCallPushSize(TheBinary.Architecture());
 
-  return TypePath;
+  return Path;
 }
 
-model::TypePath
+model::TypeDefinitionPath
 abi::registerDefaultFunctionPrototype(Binary &Binary,
                                       std::optional<ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())

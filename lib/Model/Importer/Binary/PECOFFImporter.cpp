@@ -132,7 +132,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     // TODO: replace the following with `populateSegmentTypeStruct`, when
     // symbol table and dynamic symbol table parsing is finalized
     Segment.Type() = createEmptyStruct(*Model, Segment.VirtualSize());
-    auto *SegmentStruct = cast<model::StructType>(Segment.Type().get());
+    auto *SegmentStruct = cast<model::StructDefinition>(Segment.Type().get());
     SegmentStruct->CanContainCode() = Segment.IsExecutable();
 
     Segment.verify(true);

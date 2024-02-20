@@ -304,7 +304,7 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
   // TODO: replace the following with `populateSegmentTypeStruct`, when
   // LC_SYMTAB and LC_DYSYMTAB parsing is available
   Segment.Type() = createEmptyStruct(*Model, Segment.VirtualSize());
-  auto *SegmentStruct = cast<model::StructType>(Segment.Type().get());
+  auto *SegmentStruct = cast<model::StructDefinition>(Segment.Type().get());
   SegmentStruct->CanContainCode() = Segment.IsExecutable();
 
   Segment.verify(true);
