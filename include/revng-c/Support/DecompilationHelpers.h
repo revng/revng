@@ -7,6 +7,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Type.h"
 
 #include "revng/Model/Architecture.h"
@@ -76,4 +77,42 @@ inline bool areMemOpCompatible(const model::QualifiedType &ModelType,
     return ModelSize == 1;
 
   return ModelSize * 8 == LLVMSize;
+}
+
+inline bool isAssignment(const llvm::Value *I) {
+  return isCallToTagged(I, FunctionTags::Assign);
+}
+
+inline bool isLocalVarDecl(const llvm::Value *I) {
+  return isCallToTagged(I, FunctionTags::LocalVariable);
+}
+
+inline bool isCallStackArgumentDecl(const llvm::Value *I) {
+  auto *Call = dyn_cast_or_null<llvm::CallInst>(I);
+  if (not Call)
+    return false;
+
+  auto *Callee = Call->getCalledFunction();
+  if (not Callee)
+    return false;
+
+  return Callee->getName().startswith("revng_call_stack_arguments");
+}
+
+inline bool isArtificialAggregateLocalVarDecl(const llvm::Value *I) {
+  return isCallToIsolatedFunction(I) and I->getType()->isAggregateType();
+}
+
+inline const llvm::CallInst *isCallToNonIsolated(const llvm::Value *I) {
+  if (isCallToTagged(I, FunctionTags::QEMU)
+      or isCallToTagged(I, FunctionTags::Helper)
+      or isCallToTagged(I, FunctionTags::Exceptional)
+      or llvm::isa<llvm::IntrinsicInst>(I))
+    return llvm::cast<llvm::CallInst>(I);
+
+  return nullptr;
+}
+
+inline bool isHelperAggregateLocalVarDecl(const llvm::Value *I) {
+  return isCallToNonIsolated(I) and I->getType()->isAggregateType();
 }
