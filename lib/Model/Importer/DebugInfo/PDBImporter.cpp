@@ -289,7 +289,7 @@ void PDBImporter::loadDataFromPDB(std::string PDBFileName) {
 
 // At first, check if we can find the file path on this device as is.
 // If the XDG_CACHE_HOME was set, we will find there, if not, try finding it in
-// the `~/.local/share/revng/debug-symbols/pe/`.
+// the `~/.cache/revng/debug-symbols/pe/`.
 std::optional<std::string>
 PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
                                   StringRef PDBFilePath,
@@ -329,13 +329,13 @@ PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
     // Default debug directory.
     llvm::sys::path::append(ResultPath,
                             PathHome.str(),
-                            ".local/share/revng/debug-symbols/pe/",
+                            ".cache/revng/debug-symbols/pe/",
                             PDBFileID,
                             PDBFilePath);
   } else {
     llvm::sys::path::append(ResultPath,
                             *XDGCacheHome,
-                            ".local/share/revng/debug-symbols/pe/",
+                            ".cache/revng/debug-symbols/pe/",
                             PDBFileID,
                             PDBFilePath);
   }
