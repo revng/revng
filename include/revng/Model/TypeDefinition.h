@@ -14,22 +14,22 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/TypeKind.h"
+#include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
 /* TUPLE-TREE-YAML
-name: Type
-doc: Base class of model types used for LLVM-style RTTI
+name: TypeDefinition
+doc: Base class of model type definitions used for LLVM-style RTTI
 type: struct
 fields:
   - name: ID
     type: uint64_t
     is_guid: true
   - name: Kind
-    type: TypeKind
+    type: TypeDefinitionKind
   - name: CustomName
     type: Identifier
     optional: true
@@ -45,24 +45,20 @@ key:
 abstract: true
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/Type.h"
+#include "revng/Model/Generated/Early/TypeDefinition.h"
 
-/// Concept to identify all types that are derived from model::Type
-template<typename T>
-concept IsModelType = std::is_base_of_v<model::Type, T>;
-
-class model::Type : public model::generated::Type {
+class model::TypeDefinition : public model::generated::TypeDefinition {
 public:
-  static constexpr const auto AssociatedKind = TypeKind::Invalid;
+  static constexpr const auto AssociatedKind = TypeDefinitionKind::Invalid;
 
 public:
-  using generated::Type::Type;
+  using generated::TypeDefinition::TypeDefinition;
 
-  Type();
-  Type(uint64_t ID, TypeKind::Values Kind);
+  TypeDefinition();
+  TypeDefinition(uint64_t ID, TypeDefinitionKind::Values Kind);
 
 public:
-  static bool classof(const Type *T) { return classof(T->key()); }
+  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
   static bool classof(const Key &K) { return true; }
 
   Identifier name() const;
@@ -87,7 +83,7 @@ public:
   /// \returns * `std::nullopt` if the size cannot be computed, for example,
   ///            when the type system loops and the type's size depends on
   ///            the type itself,
-  ///          * 0 for types without the size (e.g. `void`),
+  ///          * 0 for types without the size (`void` and function types),
   ///          * size in bytes in all other cases.
   std::optional<uint64_t> trySize() const debug_function;
   RecursiveCoroutine<std::optional<uint64_t>> trySize(VerifyHelper &VH) const;
@@ -105,21 +101,22 @@ public:
 
 namespace model {
 
-using UpcastableType = UpcastablePointer<model::Type>;
+using UpcastableTypeDefinition = UpcastablePointer<model::TypeDefinition>;
 
-template<IsModelType T, typename... Args>
-inline UpcastableType makeType(Args &&...A) {
-  return UpcastableType::make<T>(std::forward<Args>(A)...);
+template<std::derived_from<model::TypeDefinition> T, typename... Args>
+inline model::UpcastableTypeDefinition makeTypeDefinition(Args &&...A) {
+  return model::UpcastableTypeDefinition::make<T>(std::forward<Args>(A)...);
 }
 
 } // end namespace model
 
-extern template model::TypePath
-model::TypePath::fromString<model::Binary>(model::Binary *Root,
-                                           llvm::StringRef Path);
+extern template model::TypeDefinitionPath
+model::TypeDefinitionPath::fromString<model::Binary>(model::Binary *Root,
+                                                     llvm::StringRef Path);
 
-extern template model::TypePath
-model::TypePath::fromString<const model::Binary>(const model::Binary *Root,
-                                                 llvm::StringRef Path);
+extern template model::TypeDefinitionPath
+model::TypeDefinitionPath::fromString<const model::Binary>(const model::Binary
+                                                             *,
+                                                           llvm::StringRef);
 
-#include "revng/Model/Generated/Late/Type.h"
+#include "revng/Model/Generated/Late/TypeDefinition.h"

@@ -47,14 +47,14 @@ BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
   revng_check(Location.toString() == serializeToString(Location));
 }
 
-static model::TypePath makeFunction(model::Binary &Model) {
-  model::CABIFunctionType Function;
+static model::TypeDefinitionPath makeFunction(model::Binary &Model) {
+  model::CABIFunctionDefinition Function;
   Function.CustomName() = "my_cool_func";
   Function.OriginalName() = "Function_at_0x40012f:Code_x86_64";
   Function.ABI() = model::ABI::SystemV_x86_64;
 
-  using UT = model::UpcastableType;
-  auto Ptr = UT::make<model::CABIFunctionType>(std::move(Function));
+  using UTD = model::UpcastableTypeDefinition;
+  auto Ptr = UTD::make<model::CABIFunctionDefinition>(std::move(Function));
 
   return Model.recordNewType(std::move(Ptr));
 }
@@ -68,8 +68,8 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
                                           Function.get()->key(),
                                           2);
 
-  auto FetchedPath = NewModel->getTypePath(FieldLocation.at(ranks::Type));
-  revng_check(FetchedPath.getConst()->name() == "my_cool_func");
+  auto Path = NewModel->getTypeDefinitionPath(FieldLocation.at(ranks::Type));
+  revng_check(Path.getConst()->name() == "my_cool_func");
 
   std::string ID = Function.toString();
   ID = ID.substr(ID.find_last_of('/') + 1);
@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
     // a list of unrelated serialized locations to use as sources of truth
     "/binary",
     "/instruction/0x12:Generic64/0x34:Generic64/0x56:Generic64",
-    "/type/1026-PrimitiveType",
+    "/type/1026-PrimitiveDefinition",
     "/raw-byte-range/0x78:Generic64/0x90:Generic64"
   };
 

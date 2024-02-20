@@ -27,7 +27,7 @@
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/Kinds.h"
@@ -86,7 +86,7 @@ private:
                            const model::Function &FunctionModel);
 
   Function *recreateFunction(Function &OldFunction,
-                             const model::TypePath &Prototype);
+                             const model::TypeDefinitionPath &Prototype);
 
   void createPrologue(Function *NewFunction,
                       const model::Function &FunctionModel);
@@ -238,8 +238,9 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
   return NewFunction;
 }
 
-Function *EnforceABIImpl::recreateFunction(Function &OldFunction,
-                                           const model::TypePath &Prototype) {
+Function *
+EnforceABIImpl::recreateFunction(Function &OldFunction,
+                                 const model::TypeDefinitionPath &Prototype) {
   // Create new function
   auto Registers = abi::FunctionType::usedRegisters(Prototype);
   auto [NewReturnType, NewArguments] = getLLVMReturnTypeAndArguments(&M,
@@ -289,7 +290,7 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
   SmallVector<std::pair<Type *, Constant *>, 8> ReturnCSVs;
 
   // We sort arguments by their CSV name
-  const model::TypePath &Prototype = FunctionModel.prototype(Binary);
+  const model::TypeDefinitionPath &Prototype = FunctionModel.prototype(Binary);
   auto [ArgumentRegisters,
         ReturnValueRegisters] = abi::FunctionType::usedRegisters(Prototype);
   for (model::Register::Values Register : ArgumentRegisters)
@@ -403,17 +404,17 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                        const efa::BasicBlock &CallSiteBlock,
                                        const efa::CallEdge &CallSite) {
   using model::NamedTypedRegister;
-  using model::RawFunctionType;
+  using model::RawFunctionDefinition;
 
   revng_assert(Callee.getCallee() != nullptr);
 
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<Constant *, 8> ReturnCSVs;
 
-  model::TypePath Prototype = getPrototype(Binary,
-                                           Entry,
-                                           CallSiteBlock.ID(),
-                                           CallSite);
+  model::TypeDefinitionPath Prototype = getPrototype(Binary,
+                                                     Entry,
+                                                     CallSiteBlock.ID(),
+                                                     CallSite);
   auto Registers = abi::FunctionType::usedRegisters(Prototype);
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);

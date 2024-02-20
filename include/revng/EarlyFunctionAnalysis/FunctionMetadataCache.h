@@ -112,7 +112,7 @@ public:
   /// \note If the callsite has no associated prototype, e.g. the called
   /// functions
   ///       is not an isolated function, a null pointer is returned.
-  inline model::TypePath
+  inline model::TypeDefinitionPath
   getCallSitePrototype(const model::Binary &Binary,
                        const llvm::CallInst *Call,
                        const model::Function *ParentFunction = nullptr) {

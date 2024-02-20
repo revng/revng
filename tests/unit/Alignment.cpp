@@ -57,7 +57,7 @@ static bool ABIhasFloatsOfSizes(const abi::Definition &ABI,
   });
 }
 
-namespace Primitive = model::PrimitiveTypeKind;
+namespace Primitive = model::PrimitiveKind;
 static model::QualifiedType
 makePrimitive(Primitive::Values Kind, uint64_t Size, model::Binary &Binary) {
   return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
@@ -156,11 +156,11 @@ static void compareTypeAlignments(const abi::Definition &ABI,
 BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
   TupleTree<model::Binary> Binary;
 
-  constexpr std::array<model::PrimitiveTypeKind::Values, 5> RemainingTypes{
-    model::PrimitiveTypeKind::Unsigned,
-    model::PrimitiveTypeKind::Signed,
-    model::PrimitiveTypeKind::Number,
-    model::PrimitiveTypeKind::PointerOrNumber
+  constexpr std::array<model::PrimitiveKind::Values, 5> RemainingTypes{
+    model::PrimitiveKind::Unsigned,
+    model::PrimitiveKind::Signed,
+    model::PrimitiveKind::Number,
+    model::PrimitiveKind::PointerOrNumber
   };
 
   for (model::ABI::Values ABIName : TestedABIs) {
@@ -168,7 +168,7 @@ BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
     for (const auto &PrimitiveKind : RemainingTypes) {
       for (uint64_t Size = 1; Size <= 16; Size *= 2) {
         if (ABIhasIntsOfSizes(ABI, { Size })) {
-          constexpr auto Generic = model::PrimitiveTypeKind::Generic;
+          constexpr auto Generic = model::PrimitiveKind::Generic;
           compareTypeAlignments(ABI,
                                 makePrimitive(Generic, Size, *Binary),
                                 makePrimitive(PrimitiveKind, Size, *Binary));
@@ -190,7 +190,7 @@ template<typename... FieldTypes>
   requires(std::is_convertible_v<FieldTypes, model::UnionField> && ...)
 static model::QualifiedType
 makeUnion(model::Binary &Binary, FieldTypes &&...Fields) {
-  auto [Union, Path] = Binary.makeType<model::UnionType>();
+  auto [Union, Path] = Binary.makeTypeDefinition<model::UnionDefinition>();
   (Union.Fields().emplace(std::forward<FieldTypes>(Fields)), ...);
   return model::QualifiedType(Path, {});
 }
@@ -199,13 +199,13 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   TupleTree<model::Binary> Binary;
 
   using QT = model::QualifiedType;
-  QT Int16 = makePrimitive(model::PrimitiveTypeKind::Signed, 2, *Binary);
-  QT Int32 = makePrimitive(model::PrimitiveTypeKind::Signed, 4, *Binary);
-  QT Int64 = makePrimitive(model::PrimitiveTypeKind::Signed, 8, *Binary);
-  QT Float = makePrimitive(model::PrimitiveTypeKind::Float, 4, *Binary);
-  QT Double = makePrimitive(model::PrimitiveTypeKind::Float, 8, *Binary);
-  QT LongDouble = makePrimitive(model::PrimitiveTypeKind::Float, 16, *Binary);
-  QT WeirdLD = makePrimitive(model::PrimitiveTypeKind::Float, 12, *Binary);
+  QT Int16 = makePrimitive(model::PrimitiveKind::Signed, 2, *Binary);
+  QT Int32 = makePrimitive(model::PrimitiveKind::Signed, 4, *Binary);
+  QT Int64 = makePrimitive(model::PrimitiveKind::Signed, 8, *Binary);
+  QT Float = makePrimitive(model::PrimitiveKind::Float, 4, *Binary);
+  QT Double = makePrimitive(model::PrimitiveKind::Float, 8, *Binary);
+  QT LongDouble = makePrimitive(model::PrimitiveKind::Float, 16, *Binary);
+  QT WeirdLD = makePrimitive(model::PrimitiveKind::Float, 12, *Binary);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
@@ -273,7 +273,7 @@ template<typename... FieldTypes>
   requires(std::is_convertible_v<FieldTypes, model::StructField> && ...)
 static model::QualifiedType
 makeStruct(model::Binary &Binary, FieldTypes &&...Fields) {
-  auto [Struct, Path] = Binary.makeType<model::StructType>();
+  auto [Struct, Path] = Binary.makeTypeDefinition<model::StructDefinition>();
   (Struct.Fields().emplace(std::forward<FieldTypes>(Fields)), ...);
   return model::QualifiedType(Path, {});
 }
@@ -282,13 +282,13 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   TupleTree<model::Binary> Binary;
 
   using QT = model::QualifiedType;
-  QT Int16 = makePrimitive(model::PrimitiveTypeKind::Signed, 2, *Binary);
-  QT Int32 = makePrimitive(model::PrimitiveTypeKind::Signed, 4, *Binary);
-  QT Int64 = makePrimitive(model::PrimitiveTypeKind::Signed, 8, *Binary);
-  QT Float = makePrimitive(model::PrimitiveTypeKind::Float, 4, *Binary);
-  QT Double = makePrimitive(model::PrimitiveTypeKind::Float, 8, *Binary);
-  QT LongDouble = makePrimitive(model::PrimitiveTypeKind::Float, 16, *Binary);
-  QT WeirdLD = makePrimitive(model::PrimitiveTypeKind::Float, 12, *Binary);
+  QT Int16 = makePrimitive(model::PrimitiveKind::Signed, 2, *Binary);
+  QT Int32 = makePrimitive(model::PrimitiveKind::Signed, 4, *Binary);
+  QT Int64 = makePrimitive(model::PrimitiveKind::Signed, 8, *Binary);
+  QT Float = makePrimitive(model::PrimitiveKind::Float, 4, *Binary);
+  QT Double = makePrimitive(model::PrimitiveKind::Float, 8, *Binary);
+  QT LongDouble = makePrimitive(model::PrimitiveKind::Float, 16, *Binary);
+  QT WeirdLD = makePrimitive(model::PrimitiveKind::Float, 12, *Binary);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
@@ -348,9 +348,9 @@ BOOST_AUTO_TEST_CASE(QualifiedTypes) {
   TupleTree<model::Binary> Binary;
 
   using QT = model::QualifiedType;
-  QT Int32 = makePrimitive(model::PrimitiveTypeKind::Signed, 4, *Binary);
-  QT Int64 = makePrimitive(model::PrimitiveTypeKind::Signed, 8, *Binary);
-  QT Double = makePrimitive(model::PrimitiveTypeKind::Float, 8, *Binary);
+  QT Int32 = makePrimitive(model::PrimitiveKind::Signed, 4, *Binary);
+  QT Int64 = makePrimitive(model::PrimitiveKind::Signed, 8, *Binary);
+  QT Double = makePrimitive(model::PrimitiveKind::Float, 8, *Binary);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);

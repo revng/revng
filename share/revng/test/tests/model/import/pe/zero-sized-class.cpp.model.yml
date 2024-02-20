@@ -13,38 +13,38 @@
 ---
 Functions:
   - OriginalName: main
-    Prototype: "/Types/1815-CABIFunctionType"
+    Prototype: "/TypeDefinitions/1815-CABIFunctionDefinition"
   - OriginalName: doSomething
-    Prototype: "/Types/1818-CABIFunctionType"
-Types:
-  - Kind: PrimitiveType
+    Prototype: "/TypeDefinitions/1818-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: PrimitiveDefinition
     ID: 256
     PrimitiveKind: Void
     Size: 0
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 1540
     PrimitiveKind: Signed
     Size: 4
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 1815
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
     Arguments: []
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 1818
     ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1817-TypedefType"
-  - Kind: TypedefType
+          UnqualifiedType: "/TypeDefinitions/1817-TypedefDefinition"
+  - Kind: TypedefDefinition
     ID: 1817
     UnderlyingType:
-      UnqualifiedType: "/Types/1822-StructType"
+      UnqualifiedType: "/TypeDefinitions/1822-StructDefinition"
       Qualifiers:
         - Kind: Pointer
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 1822
     CustomName: "Foo"
     OriginalName: Foo
@@ -54,9 +54,9 @@ Types:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
       - Offset: 4
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"

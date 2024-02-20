@@ -5,7 +5,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Pass/AddPrimitiveTypes.h"
 #include "revng/Model/Pass/AddPrimitiveTypesAnalysis.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipeline/RegisterPipe.h"

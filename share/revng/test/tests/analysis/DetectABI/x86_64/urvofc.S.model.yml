@@ -5,10 +5,10 @@
 ---
 Functions:
   - OriginalName: urvofc
-    Prototype: "/Types/1-RawFunctionType"
+    Prototype: "/TypeDefinitions/1-RawFunctionDefinition"
   - OriginalName: callee
-    Prototype: "/Types/2-RawFunctionType"
-Types:
+    Prototype: "/TypeDefinitions/2-RawFunctionDefinition"
+TypeDefinitions:
   - ID: 2
     ReturnValues:
       - Location: rbx_x86_64

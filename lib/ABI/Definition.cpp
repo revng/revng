@@ -33,7 +33,7 @@ bool verifyRegisters(const RegisterContainer &Registers,
 
 static bool isVectorRegister(model::Register::Values Register) {
   using model::Register::primitiveKind;
-  return primitiveKind(Register) == model::PrimitiveTypeKind::Float;
+  return primitiveKind(Register) == model::PrimitiveKind::Float;
 }
 
 /// Helps detecting unsupported ABI trait definition with respect to
@@ -103,7 +103,7 @@ bool Definition::verify() const {
   return true;
 }
 
-using RFT = model::RawFunctionType;
+using RFT = model::RawFunctionDefinition;
 bool Definition::isPreliminarilyCompatibleWith(const RFT &Function) const {
   revng_assert(verify());
   const auto Architecture = model::ABI::getRegisterArchitecture(ABI());
@@ -205,7 +205,7 @@ const Definition &Definition::get(model::ABI::Values ABI) {
 using AlignmentInfo = abi::Definition::AlignmentInfo;
 static RecursiveCoroutine<std::optional<AlignmentInfo>>
 naturalAlignment(const abi::Definition &ABI,
-                 const model::Type &Type,
+                 const model::TypeDefinition &Type,
                  abi::Definition::AlignmentCache &Cache);
 static RecursiveCoroutine<std::optional<AlignmentInfo>>
 naturalAlignment(const abi::Definition &ABI,
@@ -215,7 +215,7 @@ naturalAlignment(const abi::Definition &ABI,
 template<typename RealType>
 RecursiveCoroutine<std::optional<AlignmentInfo>>
 underlyingAlignment(const abi::Definition &ABI,
-                    const model::Type &Type,
+                    const model::TypeDefinition &Type,
                     abi::Definition::AlignmentCache &Cache) {
   const auto &Underlying = llvm::cast<RealType>(&Type)->UnderlyingType();
   rc_return rc_recur naturalAlignment(ABI, Underlying, Cache);
@@ -224,7 +224,7 @@ underlyingAlignment(const abi::Definition &ABI,
 template<typename RealType>
 RecursiveCoroutine<std::optional<AlignmentInfo>>
 fieldAlignment(const abi::Definition &ABI,
-               const model::Type &Type,
+               const model::TypeDefinition &Type,
                abi::Definition::AlignmentCache &Cache) {
   AlignmentInfo Result = { 1, true };
   for (const auto &Field : llvm::cast<RealType>(&Type)->Fields()) {
@@ -232,7 +232,7 @@ fieldAlignment(const abi::Definition &ABI,
       Result.Value = std::max(Result.Value, A->Value);
       Result.IsNatural = Result.IsNatural && A->IsNatural;
       if (Result.IsNatural)
-        if constexpr (std::is_same_v<RealType, model::StructType>)
+        if constexpr (std::is_same_v<RealType, model::StructDefinition>)
           if (Field.Offset() % A->Value != 0)
             Result.IsNatural = false;
     } else {
@@ -245,7 +245,7 @@ fieldAlignment(const abi::Definition &ABI,
 
 static RecursiveCoroutine<std::optional<AlignmentInfo>>
 naturalAlignment(const abi::Definition &ABI,
-                 const model::Type &Type,
+                 const model::TypeDefinition &Type,
                  abi::Definition::AlignmentCache &Cache) {
   if (auto Iterator = Cache.find(&Type); Iterator != Cache.end())
     rc_return Iterator->second;
@@ -254,20 +254,20 @@ naturalAlignment(const abi::Definition &ABI,
 
   // This code assumes that the type `Type` is well formed.
   switch (Type.Kind()) {
-  case model::TypeKind::RawFunctionType:
-  case model::TypeKind::CABIFunctionType:
+  case model::TypeDefinitionKind::RawFunctionDefinition:
+  case model::TypeDefinitionKind::CABIFunctionDefinition:
     // Function prototypes have no size - hence no alignment.
     rc_return std::nullopt;
 
-  case model::TypeKind::PrimitiveType: {
+  case model::TypeDefinitionKind::PrimitiveDefinition: {
     // The alignment of primitives is simple to figure out based on the abi
-    const auto *P = llvm::cast<model::PrimitiveType>(&Type);
-    if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
+    const auto *P = llvm::cast<model::PrimitiveDefinition>(&Type);
+    if (P->PrimitiveKind() == model::PrimitiveKind::Void) {
       // `void` has no size - hence no alignment.
       revng_assert(P->Size() == 0);
 
       Result.Value = 0;
-    } else if (P->PrimitiveKind() == model::PrimitiveTypeKind::Float) {
+    } else if (P->PrimitiveKind() == model::PrimitiveKind::Float) {
       auto Iterator = ABI.FloatingPointScalarTypes().find(P->Size());
       if (Iterator == ABI.FloatingPointScalarTypes().end())
         rc_return std::nullopt;
@@ -280,46 +280,48 @@ naturalAlignment(const abi::Definition &ABI,
     }
   } break;
 
-  case model::TypeKind::EnumType:
+  case model::TypeDefinitionKind::EnumDefinition:
     // The alignment of an enum is the same as the alignment of its underlying
     // type
-    using modelEnumType = model::EnumType;
+    using modelEnumType = model::EnumDefinition;
     if (auto A = rc_recur underlyingAlignment<modelEnumType>(ABI, Type, Cache))
       Result = *A;
     else
       rc_return std::nullopt;
     break;
 
-  case model::TypeKind::TypedefType:
+  case model::TypeDefinitionKind::TypedefDefinition:
     // The alignment of an enum is the same as the alignment of its underlying
     // type
-    using model::TypedefType;
-    if (auto A = rc_recur underlyingAlignment<TypedefType>(ABI, Type, Cache))
+    using TypedefD = model::TypedefDefinition;
+    if (auto A = rc_recur underlyingAlignment<TypedefD>(ABI, Type, Cache))
       Result = *A;
     else
       rc_return std::nullopt;
     break;
 
-  case model::TypeKind::StructType:
+  case model::TypeDefinitionKind::StructDefinition:
     // The alignment of a struct is the same as the alignment of its most
     // strictly aligned member.
-    if (auto A = rc_recur fieldAlignment<model::StructType>(ABI, Type, Cache))
+    using StructD = model::StructDefinition;
+    if (auto A = rc_recur fieldAlignment<StructD>(ABI, Type, Cache))
       Result = *A;
     else
       rc_return std::nullopt;
     break;
 
-  case model::TypeKind::UnionType:
+  case model::TypeDefinitionKind::UnionDefinition:
     // The alignment of a union is the same as the alignment of its most
     // strictly aligned member.
-    if (auto A = rc_recur fieldAlignment<model::UnionType>(ABI, Type, Cache))
+    using UnionD = model::UnionDefinition;
+    if (auto A = rc_recur fieldAlignment<UnionD>(ABI, Type, Cache))
       Result = *A;
     else
       rc_return std::nullopt;
     break;
 
-  case model::TypeKind::Invalid:
-  case model::TypeKind::Count:
+  case model::TypeDefinitionKind::Invalid:
+  case model::TypeDefinitionKind::Count:
   default:
     revng_abort();
   }
@@ -386,7 +388,7 @@ std::optional<uint64_t> Definition::alignment(const model::QualifiedType &QType,
 
   return Result->IsNatural ? Result->Value : 1;
 }
-std::optional<uint64_t> Definition::alignment(const model::Type &Type,
+std::optional<uint64_t> Definition::alignment(const model::TypeDefinition &Type,
                                               AlignmentCache &Cache) const {
   auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
   if (Result->Value == 0)
@@ -405,7 +407,7 @@ Definition::hasNaturalAlignment(const model::QualifiedType &QType,
   return Result->IsNatural;
 }
 std::optional<bool>
-Definition::hasNaturalAlignment(const model::Type &Type,
+Definition::hasNaturalAlignment(const model::TypeDefinition &Type,
                                 AlignmentCache &Cache) const {
   auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
   if (Result->Value == 0)

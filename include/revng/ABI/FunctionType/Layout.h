@@ -12,12 +12,13 @@
 
 namespace abi::FunctionType {
 
-/// Best effort `CABIFunctionType` to `RawFunctionType` conversion.
+/// Best effort `CABIFunctionDefinition` to `RawFunctionDefinition` conversion.
 ///
 /// \note: this conversion is lossy since there's no way to represent some types
-///        in `RawFunctionType` in a reversible manner.
-model::TypePath convertToRaw(const model::CABIFunctionType &Function,
-                             TupleTree<model::Binary> &TheBinary);
+///        in `RawFunctionDefinition` in a reversible manner.
+model::TypeDefinitionPath
+convertToRaw(const model::CABIFunctionDefinition &Function,
+             TupleTree<model::Binary> &TheBinary);
 
 namespace ArgumentKind {
 
@@ -103,21 +104,21 @@ public:
   Layout() = default;
 
 public:
-  explicit Layout(const model::CABIFunctionType &Function);
-  explicit Layout(const model::RawFunctionType &Function);
+  explicit Layout(const model::CABIFunctionDefinition &Function);
+  explicit Layout(const model::RawFunctionDefinition &Function);
 
   /// Extracts the information about argument and return value location layout
   /// from the \param Function.
-  static Layout make(const model::TypePath &Function) {
+  static Layout make(const model::TypeDefinitionPath &Function) {
     revng_assert(Function.isValid());
     return make(*Function.get());
   }
 
-  static Layout make(const model::Type &Function) {
-    if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+  static Layout make(const model::TypeDefinition &Function) {
+    if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
       return Layout(*CABI);
-    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
-      return Layout(*Raw);
+    else if (auto *R = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
+      return Layout(*R);
     else
       revng_abort("Layouts of non-function types are not supported.");
   }
@@ -183,46 +184,46 @@ public:
 };
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::CABIFunctionType &Function) {
+calleeSavedRegisters(const model::CABIFunctionDefinition &Function) {
   return abi::Definition::get(Function.ABI()).CalleeSavedRegisters();
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::RawFunctionType &Function) {
+calleeSavedRegisters(const model::RawFunctionDefinition &Function) {
   return Function.PreservedRegisters();
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+calleeSavedRegisters(const model::TypeDefinition &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
     return calleeSavedRegisters(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
     return calleeSavedRegisters(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::TypePath &Function) {
+calleeSavedRegisters(const model::TypeDefinitionPath &Function) {
   revng_assert(Function.isValid());
   return calleeSavedRegisters(*Function.get());
 }
 
-uint64_t finalStackOffset(const model::CABIFunctionType &Function);
-inline uint64_t finalStackOffset(const model::RawFunctionType &Function) {
+uint64_t finalStackOffset(const model::CABIFunctionDefinition &Function);
+inline uint64_t finalStackOffset(const model::RawFunctionDefinition &Function) {
   return Function.FinalStackOffset();
 }
 
-inline uint64_t finalStackOffset(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+inline uint64_t finalStackOffset(const model::TypeDefinition &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
     return finalStackOffset(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
     return finalStackOffset(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline uint64_t finalStackOffset(const model::TypePath &Function) {
+inline uint64_t finalStackOffset(const model::TypeDefinitionPath &Function) {
   revng_assert(Function.isValid());
   return finalStackOffset(*Function.get());
 }
@@ -231,9 +232,10 @@ struct UsedRegisters {
   llvm::SmallVector<model::Register::Values, 8> Arguments;
   llvm::SmallVector<model::Register::Values, 8> ReturnValues;
 };
-UsedRegisters usedRegisters(const model::CABIFunctionType &Function);
+UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function);
 
-inline UsedRegisters usedRegisters(const model::RawFunctionType &Function) {
+inline UsedRegisters
+usedRegisters(const model::RawFunctionDefinition &Function) {
   UsedRegisters Result;
   for (const model::NamedTypedRegister &Register : Function.Arguments())
     Result.Arguments.emplace_back(Register.Location());
@@ -242,16 +244,16 @@ inline UsedRegisters usedRegisters(const model::RawFunctionType &Function) {
   return Result;
 }
 
-inline UsedRegisters usedRegisters(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+inline UsedRegisters usedRegisters(const model::TypeDefinition &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
     return usedRegisters(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
     return usedRegisters(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline UsedRegisters usedRegisters(const model::TypePath &Function) {
+inline UsedRegisters usedRegisters(const model::TypeDefinitionPath &Function) {
   revng_assert(Function.isValid());
   return usedRegisters(*Function.get());
 }

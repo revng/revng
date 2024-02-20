@@ -3,7 +3,7 @@
 ///
 /// It's purpose is to make sure that the function still corresponds to the
 /// intended ABI no matter what kind of work was done on top of it. It works
-/// with both `RawFunctionType` and `CABIFunctionType`.
+/// with both `RawFunctionDefinition` and `CABIFunctionDefinition`.
 ///
 /// \note: This tool requires a runtime abi artifact. It can be obtained using
 /// revng-qa. For more information see the corresponding repository.

@@ -17,13 +17,13 @@ from revng.internal.cli.support import log_error
 from revng.model.metaaddress import MetaAddressType
 
 RevngTypes = Union[
-    m.UnionType,
-    m.StructType,
-    m.PrimitiveType,
-    m.EnumType,
-    m.TypedefType,
-    m.RawFunctionType,
-    m.CABIFunctionType,
+    m.UnionDefinition,
+    m.StructDefinition,
+    m.PrimitiveDefinition,
+    m.EnumDefinition,
+    m.TypedefDefinition,
+    m.RawFunctionDefinition,
+    m.CABIFunctionDefinition,
 ]
 
 idb_procname_to_revng_arch = {
@@ -96,9 +96,9 @@ class IDBConverter:
         self.base_addr = base_addr
         self.verbose = verbose
 
-        self._structs_to_fixup: Set[Tuple[m.StructType, idb.typeinf.TInfo]] = set()
+        self._structs_to_fixup: Set[Tuple[m.StructDefinition, idb.typeinf.TInfo]] = set()
         self._ordinal_types_to_fixup: Set[Tuple[m.QualifiedType, int]] = set()
-        self._unions_to_fixup: Set[Tuple[m.UnionType, idb.typeinf.TInfo]] = set()
+        self._unions_to_fixup: Set[Tuple[m.UnionDefinition, idb.typeinf.TInfo]] = set()
 
         self._import_types()
         self._fixup_structs()
@@ -197,8 +197,8 @@ class IDBConverter:
             revng_function_type = self.unwrap_qualified(qualified_revng_function_type)
         else:
             abi = revng_arch_to_abiname[self.arch]
-            qualified_return_type = self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
-            revng_function_type = m.CABIFunctionType(
+            qualified_return_type = self._get_primitive_type(m.PrimitiveKind.Void, 0)
+            revng_function_type = m.CABIFunctionDefinition(
                 OriginalName=function_name,
                 ABI=abi,
                 ReturnType=qualified_return_type,
@@ -251,8 +251,8 @@ class IDBConverter:
             the_revng_type = self.unwrap_qualified(real_quialified_type)
             revng_type_to_fix = self.unwrap_qualified(quialified_type)
             # TODO: For now, we found out that structs can be affected by this only.
-            assert isinstance(the_revng_type, m.StructType) and isinstance(
-                revng_type_to_fix, m.StructType
+            assert isinstance(the_revng_type, m.StructDefinition) and isinstance(
+                revng_type_to_fix, m.StructDefinition
             )
 
             revng_type_to_fix.Fields = the_revng_type.Fields
@@ -263,7 +263,7 @@ class IDBConverter:
         while self._structs_to_fixup:
             revng_type, idb_type = self._structs_to_fixup.pop()
 
-            assert isinstance(revng_type, m.StructType)
+            assert isinstance(revng_type, m.StructDefinition)
             assert idb_type.is_decl_struct()
 
             fields = []
@@ -304,7 +304,7 @@ class IDBConverter:
         while self._unions_to_fixup:
             revng_type, idb_type = self._unions_to_fixup.pop()
 
-            assert isinstance(revng_type, m.UnionType)
+            assert isinstance(revng_type, m.UnionDefinition)
             assert idb_type.is_decl_union()
 
             fields = []
@@ -357,11 +357,11 @@ class IDBConverter:
                 aliased_type, ordinal=aliased_type_ordinal
             )
 
-            revng_type = m.TypedefType(OriginalName=type_name, UnderlyingType=qualified_type)
+            revng_type = m.TypedefDefinition(OriginalName=type_name, UnderlyingType=qualified_type)
 
         elif type.is_decl_enum():
             revng_underlying_type = self._get_primitive_type(
-                m.PrimitiveTypeKind.Unsigned, type.type_details.storage_size
+                m.PrimitiveKind.Unsigned, type.type_details.storage_size
             )
             entries = []
             for member in type.type_details.members:
@@ -382,11 +382,11 @@ class IDBConverter:
 
             if len(entries) == 0:
                 self.log(f"warning: An empty enum type: {type_name}.")
-                revng_type = m.TypedefType(
+                revng_type = m.TypedefDefinition(
                     OriginalName=type_name, UnderlyingType=revng_underlying_type
                 )
             else:
-                revng_type = m.EnumType(
+                revng_type = m.EnumDefinition(
                     OriginalName=type_name,
                     Entries=entries,
                     UnderlyingType=revng_underlying_type,
@@ -396,7 +396,7 @@ class IDBConverter:
             if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # Make a placeholder for this, since we did not observe the type yet.
-                    revng_type = m.StructType(OriginalName="", Size=0, Fields=[])
+                    revng_type = m.StructDefinition(OriginalName="", Size=0, Fields=[])
                     qualified_type = m.QualifiedType(
                         UnqualifiedType=m.Reference.create(m.Binary, revng_type),
                         Qualifiers=revng_type_qualifiers,
@@ -413,7 +413,7 @@ class IDBConverter:
                 if len(type.type_details.members) == 0:
                     self.log(f"warning: Ignoring empty struct {type_name}, typedef it to void*")
                     revng_void_type = self.unwrap_qualified(
-                        self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
+                        self._get_primitive_type(m.PrimitiveKind.Void, 0)
                     )
                     qualified_type = m.QualifiedType(
                         UnqualifiedType=m.Reference.create(m.Binary, revng_void_type),
@@ -423,21 +423,21 @@ class IDBConverter:
                             )
                         },
                     )
-                    revng_type = m.TypedefType(
+                    revng_type = m.TypedefDefinition(
                         OriginalName=type_name, UnderlyingType=qualified_type
                     )
                     self.revng_types_by_id[revng_type.ID] = revng_type
                     return qualified_type
                 else:
                     # Struct members and size will be computed later.
-                    revng_type = m.StructType(OriginalName=type_name, Size=0, Fields=[])
+                    revng_type = m.StructDefinition(OriginalName=type_name, Size=0, Fields=[])
                     self._structs_to_fixup.add((revng_type, type))
 
         elif type.is_decl_union():
             if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # Make a placeholder for this, since we did not observe the type yet.
-                    revng_type = m.UnionType(OriginalName="", Size=0, Fields=[])
+                    revng_type = m.UnionDefinition(OriginalName="", Size=0, Fields=[])
                     qualified_type = m.QualifiedType(
                         UnqualifiedType=m.Reference.create(m.Binary, revng_type),
                         Qualifiers=revng_type_qualifiers,
@@ -450,11 +450,11 @@ class IDBConverter:
                 else:
                     return self.idb_types_to_revng_types[type.type_details.ref.type_details.ordinal]
             else:
-                revng_type = m.UnionType(OriginalName=type_name, Fields=[])
+                revng_type = m.UnionDefinition(OriginalName=type_name, Fields=[])
                 if len(type.type_details.members) == 0:
                     self.log(f"warning: Ignoring empty union {type_name}, typedef it to void*")
                     revng_void_type = self.unwrap_qualified(
-                        self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
+                        self._get_primitive_type(m.PrimitiveKind.Void, 0)
                     )
                     qualified_type = m.QualifiedType(
                         UnqualifiedType=m.Reference.create(m.Binary, revng_void_type),
@@ -464,7 +464,7 @@ class IDBConverter:
                             )
                         },
                     )
-                    revng_type = m.TypedefType(
+                    revng_type = m.TypedefDefinition(
                         OriginalName=type_name, UnderlyingType=qualified_type
                     )
                     self.revng_types_by_id[revng_type.ID] = revng_type
@@ -485,7 +485,7 @@ class IDBConverter:
         elif type.is_decl_bool():
             size = type.get_size()
             revng_type = self.unwrap_qualified(
-                self._get_primitive_type(m.PrimitiveTypeKind.Unsigned, size)
+                self._get_primitive_type(m.PrimitiveKind.Unsigned, size)
             )
 
         elif type.is_decl_int() or type.is_decl_floating():
@@ -494,12 +494,12 @@ class IDBConverter:
             revng_type = self.unwrap_qualified(self._get_primitive_type(primitive_kind, size))
 
         elif type.is_decl_void():
-            primitive_kind = m.PrimitiveTypeKind.Void
+            primitive_kind = m.PrimitiveKind.Void
             size = 0
             if type.get_name() != "":
                 # Treat this case as `typedef void someothername`.
-                revng_void_type = self._get_primitive_type(primitive_kind, size)
-                revng_type = m.TypedefType(OriginalName=type_name, UnderlyingType=revng_void_type)
+                void_type = self._get_primitive_type(primitive_kind, size)
+                revng_type = m.TypedefDefinition(OriginalName=type_name, UnderlyingType=void_type)
             else:
                 revng_type = self.unwrap_qualified(self._get_primitive_type(primitive_kind, size))
 
@@ -521,7 +521,7 @@ class IDBConverter:
                 )
                 arguments.append(revng_argument)
 
-            revng_type = m.CABIFunctionType(
+            revng_type = m.CABIFunctionDefinition(
                 ABI=revng_arch_to_abi[self.arch],
                 ReturnType=revng_return_type,
                 Arguments=arguments,
@@ -543,7 +543,7 @@ class IDBConverter:
             )
             revng_type = self.unwrap_qualified(
                 self._get_primitive_type(
-                    m.PrimitiveTypeKind.Generic,
+                    m.PrimitiveKind.Generic,
                     type.get_size(),
                 )
             )
@@ -555,10 +555,10 @@ class IDBConverter:
             size = type.get_size()
             if size == 0:
                 revng_type = self.unwrap_qualified(
-                    self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
+                    self._get_primitive_type(m.PrimitiveKind.Void, 0)
                 )
             else:
-                kind = m.PrimitiveTypeKind.PointerOrNumber
+                kind = m.PrimitiveKind.PointerOrNumber
                 revng_type = self.unwrap_qualified(self._get_primitive_type(kind, size))
 
         existing_revng_type = self.revng_types_by_id.get(revng_type.ID)
@@ -593,9 +593,9 @@ class IDBConverter:
 
         return qualified_type
 
-    def _get_primitive_type(self, kind: m.PrimitiveTypeKind, size: int) -> m.QualifiedType:
+    def _get_primitive_type(self, kind: m.PrimitiveKind, size: int) -> m.QualifiedType:
         """Gets a primitive type, taking care to register it"""
-        revng_type = m.PrimitiveType(PrimitiveKind=kind, Size=size)
+        revng_type = m.PrimitiveDefinition(PrimitiveKind=kind, Size=size)
         if revng_type.ID not in self.revng_types_by_id:
             self.revng_types_by_id[revng_type.ID] = revng_type
 
@@ -608,7 +608,7 @@ class IDBConverter:
             EntryPoint=m.MetaAddress(Address=0x0, Type=MetaAddressType.Invalid),
             Functions=list(self.functions),
             ImportedDynamicFunctions=list(self.dynamic_functions),
-            Types=list(self.revng_types_by_id.values()),
+            TypeDefinitions=list(self.revng_types_by_id.values()),
             Architecture=self.arch,
             Segments=self.segments,
             ImportedLibraries=self.imported_libraries,
@@ -630,19 +630,19 @@ class IDBConverter:
         return self.resolve_typeref(qt.UnqualifiedType)
 
 
-def get_primitive_kind(idb_type: idb.typeinf.TInfo) -> m.PrimitiveTypeKind:
+def get_primitive_kind(idb_type: idb.typeinf.TInfo) -> m.PrimitiveKind:
     if idb_type.is_decl_void():
-        return m.PrimitiveTypeKind.Void
+        return m.PrimitiveKind.Void
     elif idb_type.is_decl_floating():
-        return m.PrimitiveTypeKind.Float
+        return m.PrimitiveKind.Float
     elif idb.typeinf_flags.is_type_integral(idb_type.get_decltype()):
         if idb_type.is_signed():
-            return m.PrimitiveTypeKind.Signed
+            return m.PrimitiveKind.Signed
         elif idb_type.is_unsigned():
-            return m.PrimitiveTypeKind.Unsigned
+            return m.PrimitiveKind.Unsigned
         else:
-            return m.PrimitiveTypeKind.Number
+            return m.PrimitiveKind.Number
     elif idb_type.is_decl_ptr():
-        return m.PrimitiveTypeKind.PointerOrNumber
+        return m.PrimitiveKind.PointerOrNumber
 
-    return m.PrimitiveTypeKind.Generic
+    return m.PrimitiveKind.Generic

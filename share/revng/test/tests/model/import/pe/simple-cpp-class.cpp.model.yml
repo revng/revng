@@ -14,26 +14,26 @@
 Functions:
   - CustomName: "Foo__Foo"
     OriginalName: "Foo::Foo"
-    Prototype: "/Types/16558654860526908435-CABIFunctionType"
+    Prototype: "/TypeDefinitions/16558654860526908435-CABIFunctionDefinition"
   - CustomName: "Foo__retX"
     OriginalName: "Foo::retX"
-    Prototype: "/Types/17990064059287856019-CABIFunctionType"
+    Prototype: "/TypeDefinitions/17990064059287856019-CABIFunctionDefinition"
   - CustomName: "Foo__retY"
     OriginalName: "Foo::retY"
-    Prototype: "/Types/8800211852340388695-CABIFunctionType"
+    Prototype: "/TypeDefinitions/8800211852340388695-CABIFunctionDefinition"
   - CustomName: "Foo__dummy"
     OriginalName: "Foo::dummy"
-    Prototype: "/Types/11972987020417764497-CABIFunctionType"
-Types:
-  - Kind: PrimitiveType
+    Prototype: "/TypeDefinitions/11972987020417764497-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: PrimitiveDefinition
     ID: 256
     PrimitiveKind: Void
     Size: 0
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 1540
     PrimitiveKind: Signed
     Size: 4
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 987067897056915724
     OriginalName: Foo
     Fields:
@@ -41,53 +41,53 @@ Types:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
       - Offset: 4
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
-  - Kind: CABIFunctionType
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 16558654860526908435
     ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/12480030069089186527-StructType"
+          UnqualifiedType: "/TypeDefinitions/12480030069089186527-StructDefinition"
           Qualifiers:
             - Kind: Pointer
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
-  - Kind: CABIFunctionType
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 17990064059287856019
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/12480030069089186527-StructType"
+          UnqualifiedType: "/TypeDefinitions/12480030069089186527-StructDefinition"
           Qualifiers:
             - Kind: Pointer
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 8800211852340388695
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/12480030069089186527-StructType"
+          UnqualifiedType: "/TypeDefinitions/12480030069089186527-StructDefinition"
           Qualifiers:
             - Kind: Pointer
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 11972987020417764497
     ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"

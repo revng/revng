@@ -4,63 +4,63 @@
 
 ImportedDynamicFunctions:
   - OriginalName: qsort
-    Prototype: "/Types/3821538295510931842-CABIFunctionType"
-Types:
-  - Kind: CABIFunctionType
+    Prototype: "/TypeDefinitions/3821538295510931842-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
     ID: 3821538295510931842
     OriginalName: qsort
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/256-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8
         OriginalName: base
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/855760813070670525-TypedefType"
+          UnqualifiedType: "/TypeDefinitions/855760813070670525-TypedefDefinition"
         OriginalName: nmemb
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/855760813070670525-TypedefType"
+          UnqualifiedType: "/TypeDefinitions/855760813070670525-TypedefDefinition"
         OriginalName: size
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/7339777181910699325-TypedefType"
+          UnqualifiedType: "/TypeDefinitions/7339777181910699325-TypedefDefinition"
         OriginalName: compar
-  - Kind: TypedefType
+  - Kind: TypedefDefinition
     ID: 855760813070670525
     OriginalName: size_t
     UnderlyingType:
-      UnqualifiedType: "/Types/1288-PrimitiveType"
-  - Kind: TypedefType
+      UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+  - Kind: TypedefDefinition
     ID: 7339777181910699325
     OriginalName: __compar_fn_t
     UnderlyingType:
-      UnqualifiedType: "/Types/5090678720539169893-CABIFunctionType"
+      UnqualifiedType: "/TypeDefinitions/5090678720539169893-CABIFunctionDefinition"
       Qualifiers:
         - Kind: Pointer
           Size: 8
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 5090678720539169893
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1028-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/256-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8
             - Kind: Const
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/256-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8

@@ -4,17 +4,17 @@
 
 ---
 Segments:
-  - Type: "/Types/1815-StructType"
-Types:
-  - Kind: PrimitiveType
+  - Type: "/TypeDefinitions/1815-StructDefinition"
+TypeDefinitions:
+  - Kind: PrimitiveDefinition
     ID: 516
     PrimitiveKind: Generic
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 520
     PrimitiveKind: Generic
     Size: 8
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 1815
     Size: 92
     Fields:
@@ -22,24 +22,24 @@ Types:
         CustomName: "unreserved__custom_data"
         OriginalName: .custom_data
         Type:
-          UnqualifiedType: "/Types/1816-StructType"
-  - Kind: StructType
+          UnqualifiedType: "/TypeDefinitions/1816-StructDefinition"
+  - Kind: StructDefinition
     ID: 1816
     Size: 92
     Fields:
       - Offset: 0
         OriginalName: char_80_global
         Type:
-          UnqualifiedType: "/Types/1817-StructType"
+          UnqualifiedType: "/TypeDefinitions/1817-StructDefinition"
       - Offset: 80
         OriginalName: uint64_global
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
       - Offset: 88
         OriginalName: uint32_global
         Type:
-          UnqualifiedType: "/Types/516-PrimitiveType"
-  - Kind: StructType
+          UnqualifiedType: "/TypeDefinitions/516-PrimitiveDefinition"
+  - Kind: StructDefinition
     ID: 1817
     Size: 80
     Fields: []

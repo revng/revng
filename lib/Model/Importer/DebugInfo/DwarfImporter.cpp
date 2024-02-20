@@ -24,14 +24,14 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Argument.h"
-#include "revng/Model/CABIFunctionType.h"
+#include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
 #include "revng/Model/QualifiedType.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/ProgramRunner.h"
@@ -67,20 +67,19 @@ public:
   }
 };
 
-static model::PrimitiveTypeKind::Values
-dwarfEncodingToModel(uint32_t Encoding) {
+static model::PrimitiveKind::Values dwarfEncodingToModel(uint32_t Encoding) {
   switch (Encoding) {
   case dwarf::DW_ATE_unsigned_char:
   case dwarf::DW_ATE_unsigned:
   case dwarf::DW_ATE_boolean:
-    return model::PrimitiveTypeKind::Unsigned;
+    return model::PrimitiveKind::Unsigned;
   case dwarf::DW_ATE_signed_char:
   case dwarf::DW_ATE_signed:
-    return model::PrimitiveTypeKind::Signed;
+    return model::PrimitiveKind::Signed;
   case dwarf::DW_ATE_float:
-    return model::PrimitiveTypeKind::Float;
+    return model::PrimitiveKind::Float;
   default:
-    return model::PrimitiveTypeKind::Invalid;
+    return model::PrimitiveKind::Invalid;
   }
 }
 
@@ -169,8 +168,8 @@ private:
   size_t AltIndex;
   size_t TypesWithIdentityCount;
   DWARFContext &DICtx;
-  std::map<size_t, const model::Type *> Placeholders;
-  std::set<const model::Type *> InvalidPrimitives;
+  std::map<size_t, const model::TypeDefinition *> Placeholders;
+  std::set<const model::TypeDefinition *> InvalidPrimitives;
   std::set<const DWARFDie *> InProgressDies;
 
 public:
@@ -215,7 +214,7 @@ private:
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
-                                     const model::TypePath &Path,
+                                     const model::TypeDefinitionPath &Path,
                                      bool IsNotPlaceholder) {
     return record(Die, model::QualifiedType(Path, {}), IsNotPlaceholder);
   }
@@ -308,13 +307,14 @@ private:
 
   template<typename T>
   [[maybe_unused]] T *createPlaceholderType(const DWARFDie &Die) {
-    auto [Result, NewTypePath] = Model->makeType<T>();
+    auto [Result, NewTypePath] = Model->makeTypeDefinition<T>();
     record(Die, NewTypePath, false);
     return &Result;
   }
 
   void createInvalidPrimitivePlaceholder(const DWARFDie &Die) {
-    InvalidPrimitives.insert(createPlaceholderType<model::TypedefType>(Die));
+    using TypedefD = model::TypedefDefinition;
+    InvalidPrimitives.insert(createPlaceholderType<TypedefD>(Die));
   }
 
   void createType(const DWARFDie &Die) {
@@ -324,7 +324,7 @@ private:
     switch (Tag) {
     case llvm::dwarf::DW_TAG_base_type: {
       uint8_t Size = 0;
-      model::PrimitiveTypeKind::Values Kind = model::PrimitiveTypeKind::Invalid;
+      model::PrimitiveKind::Values Kind = model::PrimitiveKind::Invalid;
 
       auto MaybeByteSize = Die.find(DW_AT_byte_size);
       if (MaybeByteSize)
@@ -334,7 +334,7 @@ private:
       if (MaybeEncoding)
         Kind = dwarfEncodingToModel(*MaybeEncoding->getAsUnsignedConstant());
 
-      if (Kind == model::PrimitiveTypeKind::Invalid) {
+      if (Kind == model::PrimitiveKind::Invalid) {
         reportIgnoredDie(Die, "Unknown primitive type");
         createInvalidPrimitivePlaceholder(Die);
         return;
@@ -350,21 +350,23 @@ private:
     } break;
 
     case llvm::dwarf::DW_TAG_subroutine_type:
-      record(Die, Model->makeType<model::CABIFunctionType>().second, false);
+      record(Die,
+             Model->makeTypeDefinition<model::CABIFunctionDefinition>().second,
+             false);
       break;
     case llvm::dwarf::DW_TAG_typedef:
     case llvm::dwarf::DW_TAG_restrict_type:
     case llvm::dwarf::DW_TAG_volatile_type:
-      createPlaceholderType<model::TypedefType>(Die);
+      createPlaceholderType<model::TypedefDefinition>(Die);
       break;
     case llvm::dwarf::DW_TAG_structure_type:
-      createPlaceholderType<model::StructType>(Die);
+      createPlaceholderType<model::StructDefinition>(Die);
       break;
     case llvm::dwarf::DW_TAG_union_type:
-      createPlaceholderType<model::UnionType>(Die);
+      createPlaceholderType<model::UnionDefinition>(Die);
       break;
     case llvm::dwarf::DW_TAG_enumeration_type:
-      createPlaceholderType<model::EnumType>(Die);
+      createPlaceholderType<model::EnumDefinition>(Die);
       break;
 
     default:
@@ -377,9 +379,7 @@ private:
     if ((Tag == llvm::dwarf::DW_TAG_structure_type
          or Tag == llvm::dwarf::DW_TAG_union_type
          or Tag == llvm::dwarf::DW_TAG_enumeration_type)) {
-      record(Die,
-             Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0),
-             true);
+      record(Die, Model->getPrimitiveType(model::PrimitiveKind::Void, 0), true);
     } else {
       reportIgnoredDie(Die,
                        "Unexpected declaration for tag "
@@ -473,7 +473,7 @@ private:
 
   RecursiveCoroutine<model::QualifiedType> getTypeOrVoid(const DWARFDie &Die) {
     using namespace model;
-    using PTK = model::PrimitiveTypeKind::Values;
+    using PTK = model::PrimitiveKind::Values;
     const model::QualifiedType *Result = rc_recur getType(Die);
     if (Result != nullptr) {
       rc_return *Result;
@@ -483,15 +483,16 @@ private:
   }
 
   RecursiveCoroutine<const model::QualifiedType *>
-  resolveTypeWithIdentity(const DWARFDie &Die, model::QualifiedType *TypePath) {
+  resolveTypeWithIdentity(const DWARFDie &Die,
+                          model::QualifiedType *TypeDefinitionPath) {
     using namespace model;
 
     auto Offset = Die.getOffset();
     auto Tag = Die.getTag();
 
     revng_assert(Placeholders.contains(Offset));
-    revng_assert(TypePath->Qualifiers().empty());
-    model::Type *T = TypePath->UnqualifiedType().get();
+    revng_assert(TypeDefinitionPath->Qualifiers().empty());
+    model::TypeDefinition *T = TypeDefinitionPath->UnqualifiedType().get();
 
     std::string Name = getName(Die);
 
@@ -500,7 +501,7 @@ private:
 
     switch (Tag) {
     case llvm::dwarf::DW_TAG_subroutine_type: {
-      auto *FunctionType = cast<model::CABIFunctionType>(T);
+      auto *FunctionType = cast<model::CABIFunctionDefinition>(T);
       FunctionType->OriginalName() = Name;
       FunctionType->ABI() = getABI();
 
@@ -540,7 +541,7 @@ private:
     case llvm::dwarf::DW_TAG_restrict_type:
     case llvm::dwarf::DW_TAG_volatile_type: {
       model::QualifiedType TargetType = rc_recur getTypeOrVoid(Die);
-      auto *Typedef = cast<model::TypedefType>(T);
+      auto *Typedef = cast<model::TypedefDefinition>(T);
       Typedef->OriginalName() = Name;
       Typedef->UnderlyingType() = TargetType;
       revng_assert(Typedef->UnderlyingType().UnqualifiedType().isValid());
@@ -555,7 +556,7 @@ private:
         rc_return nullptr;
       }
 
-      auto *Struct = cast<model::StructType>(T);
+      auto *Struct = cast<model::StructDefinition>(T);
       Struct->OriginalName() = Name;
       Struct->Size() = *MaybeSize->getAsUnsignedConstant();
 
@@ -604,7 +605,7 @@ private:
     } break;
 
     case llvm::dwarf::DW_TAG_union_type: {
-      auto *Union = cast<model::UnionType>(T);
+      auto *Union = cast<model::UnionDefinition>(T);
       Union->OriginalName() = Name;
 
       uint64_t Index = 0;
@@ -636,7 +637,7 @@ private:
     } break;
 
     case llvm::dwarf::DW_TAG_enumeration_type: {
-      auto *Enum = cast<model::EnumType>(T);
+      auto *Enum = cast<model::EnumDefinition>(T);
       Enum->OriginalName() = Name;
 
       const QualifiedType *QualifiedUnderlyingType = rc_recur getType(Die);
@@ -687,7 +688,7 @@ private:
 
     Placeholders.erase(Offset);
 
-    rc_return TypePath;
+    rc_return TypeDefinitionPath;
   }
 
   RecursiveCoroutine<const model::QualifiedType *>
@@ -703,7 +704,7 @@ private:
     }
 
     auto Tag = Die.getTag();
-    auto [MatchType, TypePath] = findType(Die);
+    auto [MatchType, TypeDefinitionPath] = findType(Die);
 
     switch (MatchType) {
     case Absent: {
@@ -791,7 +792,7 @@ private:
       rc_return &record(Die, Type, true);
     }
     case PlaceholderType: {
-      if (TypePath == nullptr) {
+      if (TypeDefinitionPath == nullptr) {
         reportIgnoredDie(Die, "Couldn't materialize type");
         rc_return nullptr;
       }
@@ -802,12 +803,12 @@ private:
       // fully imported, or it's a type with an identity on the model.
       // In the latter case, proceed only if explicitly told to do so.
       if (ResolveIfHasIdentity)
-        rc_recur resolveTypeWithIdentity(Die, TypePath);
+        rc_recur resolveTypeWithIdentity(Die, TypeDefinitionPath);
 
     } break;
 
     case RegularType:
-      if (TypePath == nullptr) {
+      if (TypeDefinitionPath == nullptr) {
         reportIgnoredDie(Die, "Couldn't materialize type");
         rc_return nullptr;
       }
@@ -818,7 +819,7 @@ private:
       revng_abort();
     }
 
-    rc_return TypePath;
+    rc_return TypeDefinitionPath;
   }
 
   void resolveAllTypes() {
@@ -832,12 +833,13 @@ private:
     }
   }
 
-  std::optional<model::TypePath> getSubprogramPrototype(const DWARFDie &Die) {
+  std::optional<model::TypeDefinitionPath>
+  getSubprogramPrototype(const DWARFDie &Die) {
     using namespace model;
 
     // Create function type
-    UpcastableType NewType = makeType<CABIFunctionType>();
-    auto *FunctionType = cast<model::CABIFunctionType>(NewType.get());
+    auto NewType = makeTypeDefinition<CABIFunctionDefinition>();
+    auto *FunctionType = cast<model::CABIFunctionDefinition>(NewType.get());
 
     // Detect ABI
     CallingConvention CC = DW_CC_normal;
@@ -927,9 +929,9 @@ private:
           // If a function already has a valid prototype, don't override it
           if (DynamicFunction.Prototype().isValid())
             continue;
+
+          revng_assert(isa<model::CABIFunctionDefinition>(MaybePath->get()));
           DynamicFunction.Prototype() = *MaybePath;
-          revng_assert(isa<model::CABIFunctionType>(DynamicFunction.Prototype()
-                                                      .get()));
 
           if (isNoReturn(*CU.get(), Die)) {
             using namespace model;
@@ -943,19 +945,19 @@ private:
   }
 
   void cleanupTypeSystem() {
-    std::set<const model::Type *> ToDrop;
+    std::set<const model::TypeDefinition *> ToDrop;
 
     model::VerifyHelper VH;
-    for (auto &Type : Model->Types()) {
+    for (auto &Type : Model->TypeDefinitions()) {
       //
       // Drop zero-sized struct/union fields
       //
-      if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
+      if (auto *Struct = dyn_cast<model::StructDefinition>(Type.get())) {
         llvm::erase_if(Struct->Fields(), [&VH](model::StructField &Field) {
           std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
           return MaybeSize.value_or(0) == 0;
         });
-      } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
+      } else if (auto *Union = dyn_cast<model::UnionDefinition>(Type.get())) {
         llvm::erase_if(Union->Fields(), [&VH](model::UnionField &Field) {
           std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
           return MaybeSize.value_or(0) == 0;
@@ -965,7 +967,7 @@ private:
       //
       // Drop an empty enum.
       //
-      if (auto *Enum = dyn_cast<model::EnumType>(Type.get())) {
+      if (auto *Enum = dyn_cast<model::EnumDefinition>(Type.get())) {
         if (!Enum->Entries().size())
           ToDrop.insert(Type.get());
       }
@@ -973,11 +975,11 @@ private:
       //
       // Drop functions with 0-sized arguments.
       //
-      if (auto *FunctionType = dyn_cast<model::CABIFunctionType>(Type.get())) {
-        for (model::Argument &Argument : FunctionType->Arguments()) {
+      if (auto *ProtoT = dyn_cast<model::CABIFunctionDefinition>(Type.get())) {
+        for (model::Argument &Argument : ProtoT->Arguments()) {
           std::optional<uint64_t> Size = Argument.Type().trySize(VH);
           if (Size.value_or(0) == 0)
-            ToDrop.insert(FunctionType);
+            ToDrop.insert(ProtoT);
         }
       }
 
@@ -985,7 +987,7 @@ private:
       // Collect array whose elements are zero-sized
       //
       for (const model::QualifiedType &QT : Type->edges()) {
-        model::TypePath Unqualified = QT.UnqualifiedType();
+        model::TypeDefinitionPath Unqualified = QT.UnqualifiedType();
         if (Unqualified.isValid()) {
           std::optional<uint64_t> Size = Unqualified.get()->trySize(VH);
           if (Size.value_or(0) != 0)
@@ -1007,7 +1009,7 @@ private:
     for (const auto [_, Type] : Placeholders)
       ToDrop.insert(Type);
 
-    unsigned DroppedTypes = dropTypesDependingOnTypes(Model, ToDrop);
+    unsigned DroppedTypes = dropTypesDependingOnDefinitions(Model, ToDrop);
 
     revng_log(DILogger,
               "Purging " << DroppedTypes << " types (out of "
@@ -1459,7 +1461,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
     llvm::SmallVector<std::string, 4> CurrentAliases;
     if (AliasesIt->isLeader()) {
       SmallVector<std::string, 4> UnprototypedFunctionsNames;
-      model::TypePath Prototype;
+      model::TypeDefinitionPath Prototype;
       for (auto AliasSetIt = Aliases.member_begin(AliasesIt);
            AliasSetIt != Aliases.member_end();
            ++AliasSetIt) {

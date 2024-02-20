@@ -449,10 +449,11 @@ static_assert(takeAsTupleExample() == 5);
 // Some views from the STL.
 // TODO: remove these after updating the libc++ version.
 //
-template<typename EnumType>
-[[nodiscard]] constexpr std::underlying_type<EnumType>::type // NOLINTNEXTLINE
-to_underlying(EnumType Value) {
-  return static_cast<std::underlying_type<EnumType>::type>(Value);
+template<typename EnumDefinition>
+[[nodiscard]] constexpr std::underlying_type<EnumDefinition>::type
+// NOLINTNEXTLINE
+to_underlying(EnumDefinition Value) {
+  return static_cast<std::underlying_type<EnumDefinition>::type>(Value);
 }
 
 template<typename RangeType> // NOLINTNEXTLINE

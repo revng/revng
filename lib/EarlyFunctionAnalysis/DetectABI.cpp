@@ -205,7 +205,7 @@ private:
 
   CSVSet findWrittenRegisters(llvm::Function *F);
 
-  UpcastablePointer<model::Type>
+  model::UpcastableTypeDefinition
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                 const efa::BasicBlock &CallerBlock);
 
@@ -577,8 +577,8 @@ void DetectABI::finalizeModel() {
     // Replace function attributes
     Function.Attributes() = Summary.Attributes;
 
-    auto NewType = makeType<RawFunctionType>();
-    auto &FunctionType = *llvm::cast<RawFunctionType>(NewType.get());
+    auto NewType = makeTypeDefinition<RawFunctionDefinition>();
+    auto &FunctionType = *llvm::cast<RawFunctionDefinition>(NewType.get());
     {
       auto ArgumentsInserter = FunctionType.Arguments().batch_insert();
       auto ReturnValuesInserter = FunctionType.ReturnValues().batch_insert();
@@ -603,7 +603,7 @@ void DetectABI::finalizeModel() {
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
           TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+            Binary->getPrimitiveType(PrimitiveKind::Generic, CSVSize), {}
           };
           ArgumentsInserter.insert(TR);
         }
@@ -611,7 +611,7 @@ void DetectABI::finalizeModel() {
         if (abi::RegisterState::shouldEmit(RSRV)) {
           NamedTypedRegister TR(RegisterID);
           TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+            Binary->getPrimitiveType(PrimitiveKind::Generic, CSVSize), {}
           };
           ReturnValuesInserter.insert(TR);
         }
@@ -714,7 +714,7 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
 
   // Select new prototype for wrapper function
   if (SuccessorIsCall) {
-    model::TypePath Prototype = getPrototype(*Binary, Entry, Block, *Call);
+    auto Prototype = getPrototype(*Binary, Entry, Block, *Call);
 
     using abi::FunctionType::Layout;
     // Get layout of wrapped function
@@ -749,7 +749,8 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     revng_log(Log, "WritesOnlyRegisters: " << WritesOnlyRegisters);
 
     // When above conditions are met, overwrite wrappers prototype with
-    // wrapped function prototype (CABIFunctionType or RawFunctionType)
+    // wrapped function prototype (`CABIFunctionDefinition` or
+    // `RawFunctionDefinition`)
     if (not WritesSP and not WritesCalleeArgs and not WritesCalleeReturnValues
         and WritesOnlyRegisters) {
 
@@ -780,14 +781,14 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   model::promoteOriginalName(Binary);
 }
 
-UpcastablePointer<model::Type>
+model::UpcastableTypeDefinition
 DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                          const efa::BasicBlock &CallerBlock) {
   using namespace model;
   using RegisterState = abi::RegisterState::Values;
 
-  auto NewType = makeType<RawFunctionType>();
-  auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
+  auto NewType = makeTypeDefinition<RawFunctionDefinition>();
+  auto &CallType = *llvm::cast<RawFunctionDefinition>(NewType.get());
   {
     auto ArgumentsInserter = CallType.Arguments().batch_insert();
     auto ReturnValuesInserter = CallType.ReturnValues().batch_insert();
@@ -816,18 +817,20 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
         auto *CSVType = CSV->getValueType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
 
-        using namespace PrimitiveTypeKind;
-        TypePath GenericType = Binary->getPrimitiveType(Generic, CSVSize);
+        using namespace PrimitiveKind;
+        model::QualifiedType GenericType = {
+          Binary->getPrimitiveType(Generic, CSVSize), {}
+        };
 
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
+          TR.Type() = GenericType;
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
+          TR.Type() = GenericType;
           ReturnValuesInserter.insert(TR);
         }
       }

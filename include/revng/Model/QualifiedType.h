@@ -8,19 +8,21 @@
 #include <optional>
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/PrimitiveTypeKind.h"
+#include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/Qualifier.h"
-#include "revng/Model/TypeKind.h"
+#include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: QualifiedType
-doc: A qualified version of a model::Type. Can have many nested qualifiers
+doc: |
+  A qualified version of a model::TypeDefinition. Can have many nested
+  qualifiers
 type: struct
 fields:
   - name: UnqualifiedType
     reference:
-      pointeeType: Type
+      pointeeType: TypeDefinition
       rootType: Binary
   - name: Qualifiers
     sequence:
@@ -30,7 +32,8 @@ fields:
 TUPLE-TREE-YAML */
 
 namespace model {
-using TypePath = TupleTreeReference<model::Type, model::Binary>;
+using TypeDefinitionPath = TupleTreeReference<model::TypeDefinition,
+                                              model::Binary>;
 }
 
 #include "revng/Model/Generated/Early/QualifiedType.h"
@@ -52,30 +55,30 @@ public:
   /// Checks if is a primitive type, unwrapping typedefs
   bool isPrimitive() const;
   /// Checks if is a primitive type of a specific kind, unwrapping typedefs
-  bool isPrimitive(model::PrimitiveTypeKind::Values V) const;
+  bool isPrimitive(model::PrimitiveKind::Values V) const;
   /// Checks if is float, unwrapping typedefs
-  bool isFloat() const { return isPrimitive(model::PrimitiveTypeKind::Float); }
+  bool isFloat() const { return isPrimitive(model::PrimitiveKind::Float); }
   /// Checks if is void, unwrapping typedefs
-  bool isVoid() const { return isPrimitive(model::PrimitiveTypeKind::Void); }
+  bool isVoid() const { return isPrimitive(model::PrimitiveKind::Void); }
   /// Checks if is an array type, unwrapping typedefs
   bool isArray() const;
   /// Checks if is a pointer type, unwrapping typedefs
   bool isPointer() const;
   /// Checks if is a const type, unwrapping typedefs
   bool isConst() const;
-  /// Checks if is of a given TypeKind, unwrapping typedefs
-  bool is(model::TypeKind::Values K) const;
+  /// Checks if is of a given TypeDefinitionKind, unwrapping typedefs
+  bool is(model::TypeDefinitionKind::Values K) const;
 
   /// If this QualifiedType is a Typedef with no qualifiers, unwrap the typedef
   /// and repeat
   model::QualifiedType skipTypedefs() const;
 
   /// If this QualifiedType is a function type, return it skipping over typedefs
-  std::optional<model::TypePath> getFunctionType() const;
+  std::optional<model::TypeDefinitionPath> getFunctionType() const;
 
-  static std::optional<model::TypePath>
-  getFunctionType(const model::TypePath &TypePath) {
-    return model::QualifiedType{ TypePath, {} }.getFunctionType();
+  static std::optional<model::TypeDefinitionPath>
+  getFunctionType(const model::TypeDefinitionPath &Path) {
+    return model::QualifiedType{ Path, {} }.getFunctionType();
   }
 
 public:

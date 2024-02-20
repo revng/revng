@@ -5,16 +5,16 @@
 //
 
 #include "revng/Model/Identifier.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/UnionField.h"
 
 /* TUPLE-TREE-YAML
-name: UnionType
+name: UnionDefinition
 doc: |
-  A union type in model.
+  A union type definition in the model.
   Unions are actually typedefs of unnamed unions in C.
 type: struct
-inherits: Type
+inherits: TypeDefinition
 fields:
   - name: Fields
     sequence:
@@ -22,15 +22,14 @@ fields:
       elementType: UnionField
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/UnionType.h"
+#include "revng/Model/Generated/Early/UnionDefinition.h"
 
-class model::UnionType : public model::generated::UnionType {
+class model::UnionDefinition : public model::generated::UnionDefinition {
 public:
   static constexpr const char *AutomaticNamePrefix = "union_";
 
 public:
-  using generated::UnionType::UnionType;
-  UnionType() : generated::UnionType() {}
+  using generated::UnionDefinition::UnionDefinition;
 
 public:
   Identifier name() const;
@@ -46,8 +45,8 @@ public:
   }
 
 public:
-  static bool classof(const Type *T) { return classof(T->key()); }
+  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
   static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
-#include "revng/Model/Generated/Late/UnionType.h"
+#include "revng/Model/Generated/Late/UnionDefinition.h"

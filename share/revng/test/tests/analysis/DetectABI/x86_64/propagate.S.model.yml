@@ -4,27 +4,27 @@
 
 ---
 Functions:
-  - Prototype: "/Types/44520348750923847-CABIFunctionType"
+  - Prototype: "/TypeDefinitions/44520348750923847-CABIFunctionDefinition"
 ImportedDynamicFunctions:
-  - Prototype: "/Types/44520348750923847-CABIFunctionType"
-Types:
-  - Kind: PrimitiveType
+  - Prototype: "/TypeDefinitions/44520348750923847-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: PrimitiveDefinition
     ID: 1540
     PrimitiveKind: Signed
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 1537
     PrimitiveKind: Signed
     Size: 1
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 44520348750923847
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1537-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1537-PrimitiveDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8

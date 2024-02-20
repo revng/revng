@@ -19,7 +19,7 @@ using ModelFunctionAttributes = TrackingMutableSet<
   model::FunctionAttribute::Values>;
 
 template<typename T>
-std::optional<std::pair<model::TypePath, ModelFunctionAttributes>>
+std::optional<std::pair<model::TypeDefinitionPath, ModelFunctionAttributes>>
 findPrototypeInLocalFunctions(T &Functions, llvm::StringRef FunctionName) {
   for (auto &Function : Functions) {
     if (Function.ExportedNames().size()) {
@@ -50,7 +50,7 @@ findPrototypeInLocalFunctions(T &Functions, llvm::StringRef FunctionName) {
 }
 
 template<typename T>
-std::optional<std::pair<model::TypePath, ModelFunctionAttributes>>
+std::optional<std::pair<model::TypeDefinitionPath, ModelFunctionAttributes>>
 findPrototypeInDynamicFunctions(T &Functions, llvm::StringRef FunctionName) {
   for (auto &DynamicFunction : Functions) {
     // Rely on OriginalName only.
@@ -70,7 +70,7 @@ findPrototypeInDynamicFunctions(T &Functions, llvm::StringRef FunctionName) {
 // This represents information about dynamic function we are about to copy into
 // the Model.
 struct FunctionInfo {
-  model::TypePath Type;
+  model::TypeDefinitionPath Type;
   ModelFunctionAttributes Attributes;
   std::string ModuleName;
 };

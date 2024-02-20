@@ -265,8 +265,8 @@ gatherArgumentComments(const model::Binary &Binary,
   static constexpr std::string_view Keyword = "\\param ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
-  const model::Type *Prototype = Function.Prototype().get();
-  if (auto *FT = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
+  const model::TypeDefinition *ProtoT = Function.Prototype().get();
+  if (auto *FT = llvm::dyn_cast<model::CABIFunctionDefinition>(ProtoT)) {
     abi::FunctionType::Layout Layout(*FT);
     // Using layout here lets us put detailed register/stack information into
     // the comments. Consider that the same comments are used for disassembly
@@ -360,7 +360,7 @@ gatherArgumentComments(const model::Binary &Binary,
                                          ptml::actions::Comment);
       }
     }
-  } else if (auto *FT = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
+  } else if (auto *FT = llvm::dyn_cast<model::RawFunctionDefinition>(ProtoT)) {
     for (const model::NamedTypedRegister &Argument : FT->Arguments()) {
       if (!Argument.Comment().empty()) {
         model::Register::Values Register = Argument.Location();
@@ -398,7 +398,7 @@ gatherArgumentComments(const model::Binary &Binary,
 
     if (not FT->StackArgumentsType().empty()) {
       auto *Unqualified = FT->StackArgumentsType().get();
-      const auto &Stack = *llvm::cast<model::StructType>(Unqualified);
+      const auto &Stack = *llvm::cast<model::StructDefinition>(Unqualified);
 
       struct FieldMapEntry {
         std::string Name;
@@ -470,10 +470,10 @@ gatherReturnValueComments(const model::Binary &Binary,
   static constexpr std::string_view Keyword = "\\returns ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
-  const model::Type *Prototype = Function.Prototype().get();
+  const model::TypeDefinition *ProtoT = Function.Prototype().get();
   std::string ContextLocation = serializedLocation(ranks::ReturnValue,
-                                                   Prototype->key());
-  if (auto *F = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
+                                                   ProtoT->key());
+  if (auto *F = llvm::dyn_cast<model::CABIFunctionDefinition>(ProtoT)) {
     if (!F->ReturnValueComment().empty()) {
       DoxygenLine &Line = Result.emplace_back();
       Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));
@@ -486,7 +486,7 @@ gatherReturnValueComments(const model::Binary &Binary,
       Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                        ptml::actions::Comment);
     }
-  } else if (auto *FT = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
+  } else if (auto *FT = llvm::dyn_cast<model::RawFunctionDefinition>(ProtoT)) {
     if (!FT->ReturnValueComment().empty()) {
       DoxygenLine &Line = Result.emplace_back();
       Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));

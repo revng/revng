@@ -5,7 +5,7 @@
 //
 
 /* TUPLE-TREE-YAML
-name: PrimitiveTypeKind
+name: PrimitiveKind
 type: enum
 members:
   - name: Void
@@ -17,5 +17,5 @@ members:
   - name: Float
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/PrimitiveTypeKind.h"
-#include "revng/Model/Generated/Late/PrimitiveTypeKind.h"
+#include "revng/Model/Generated/Early/PrimitiveKind.h"
+#include "revng/Model/Generated/Late/PrimitiveKind.h"

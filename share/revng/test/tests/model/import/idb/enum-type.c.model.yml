@@ -2,38 +2,38 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
+TypeDefinitions:
   - ID: 1284
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 4
-  - Kind: EnumType
+  - Kind: EnumDefinition
     ID: 8119090305649570066
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/Types/1284-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
     Entries:
       - Value: 0
         OriginalName: x
       - Value: 1
         OriginalName: "y"
   - ID: 256
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Void
     Size: 0
-  - Kind: TypedefType
+  - Kind: TypedefDefinition
     ID: 1687222338895130802
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/Types/8119090305649570066-EnumType"
-  - Kind: CABIFunctionType
+      UnqualifiedType: "/TypeDefinitions/8119090305649570066-EnumDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 5232257417303549612
     OriginalName: fn
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1687222338895130802-TypedefType"
+          UnqualifiedType: "/TypeDefinitions/1687222338895130802-TypedefDefinition"
         OriginalName: x

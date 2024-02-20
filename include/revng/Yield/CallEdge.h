@@ -124,11 +124,11 @@ private:
   }
 };
 
-inline model::TypePath getPrototype(const model::Binary &Binary,
-                                    MetaAddress CallerFunctionAddress,
-                                    MetaAddress CallerBlockAddress,
-                                    const yield::CallEdge &Edge) {
-  model::TypePath Result;
+inline model::TypeDefinitionPath getPrototype(const model::Binary &Binary,
+                                              MetaAddress CallerFunctionAddress,
+                                              MetaAddress CallerBlockAddress,
+                                              const yield::CallEdge &Edge) {
+  model::TypeDefinitionPath Result;
 
   const auto &CallSitePrototypes = Binary.Functions()
                                      .at(CallerFunctionAddress)

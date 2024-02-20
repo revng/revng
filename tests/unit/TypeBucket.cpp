@@ -16,11 +16,11 @@ BOOST_AUTO_TEST_CASE(Commit) {
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeType<model::StructType>();
+    auto [Type, Path] = Bucket.makeTypeDefinition<model::StructDefinition>();
     Bucket.commit();
   }
 
-  revng_check(Binary->Types().size() == 1);
+  revng_check(Binary->TypeDefinitions().size() == 1);
 }
 
 BOOST_AUTO_TEST_CASE(Drop) {
@@ -28,11 +28,11 @@ BOOST_AUTO_TEST_CASE(Drop) {
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeType<model::StructType>();
+    auto [Type, Path] = Bucket.makeTypeDefinition<model::StructDefinition>();
     Bucket.drop();
   }
 
-  revng_check(Binary->Types().size() == 0);
+  revng_check(Binary->TypeDefinitions().size() == 0);
 }
 
 BOOST_AUTO_TEST_CASE(Multiple) {
@@ -40,20 +40,20 @@ BOOST_AUTO_TEST_CASE(Multiple) {
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeType<model::StructType>();
+    auto [Type, Path] = Bucket.makeTypeDefinition<model::StructDefinition>();
     Type.OriginalName() = "First";
     Bucket.commit();
   }
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeType<model::StructType>();
+    auto [Type, Path] = Bucket.makeTypeDefinition<model::StructDefinition>();
     Type.OriginalName() = "Second";
     Bucket.commit();
   }
 
-  revng_check(Binary->Types().size() == 2);
-  auto FirstIterator = Binary->Types().begin();
+  revng_check(Binary->TypeDefinitions().size() == 2);
+  auto FirstIterator = Binary->TypeDefinitions().begin();
   revng_check((*FirstIterator)->OriginalName() == "First");
   revng_check((*std::next(FirstIterator))->OriginalName() == "Second");
 }
@@ -62,26 +62,26 @@ BOOST_AUTO_TEST_CASE(Reused) {
   TupleTree<model::Binary> Binary;
 
   model::TypeBucket Bucket = *Binary;
-  auto [Type, Path] = Bucket.makeType<model::StructType>();
+  auto [Type, Path] = Bucket.makeTypeDefinition<model::StructDefinition>();
   Type.OriginalName() = "First";
   Bucket.commit();
 
-  revng_check(Binary->Types().size() == 1);
-  revng_check((*Binary->Types().begin())->OriginalName() == "First");
+  revng_check(Binary->TypeDefinitions().size() == 1);
+  revng_check((*Binary->TypeDefinitions().begin())->OriginalName() == "First");
 
-  auto [AnotherType, AnotherPath] = Bucket.makeType<model::StructType>();
+  auto [AnotherType, AP] = Bucket.makeTypeDefinition<model::StructDefinition>();
   AnotherType.OriginalName() = "Second";
   Bucket.drop();
 
-  revng_check(Binary->Types().size() == 1);
-  revng_check((*Binary->Types().begin())->OriginalName() == "First");
+  revng_check(Binary->TypeDefinitions().size() == 1);
+  revng_check((*Binary->TypeDefinitions().begin())->OriginalName() == "First");
 
-  auto [OneMoreType, OneMorePath] = Bucket.makeType<model::StructType>();
+  auto [OneMoreType, _] = Bucket.makeTypeDefinition<model::StructDefinition>();
   OneMoreType.OriginalName() = "Third";
   Bucket.commit();
 
-  revng_check(Binary->Types().size() == 2);
-  auto FirstIterator = Binary->Types().begin();
+  revng_check(Binary->TypeDefinitions().size() == 2);
+  auto FirstIterator = Binary->TypeDefinitions().begin();
   revng_check((*FirstIterator)->OriginalName() == "First");
   revng_check((*std::next(FirstIterator))->OriginalName() == "Third");
 }
@@ -89,17 +89,17 @@ BOOST_AUTO_TEST_CASE(Reused) {
 BOOST_AUTO_TEST_CASE(Paths) {
   TupleTree<model::Binary> Binary;
 
-  model::TypePath Saved;
+  model::TypeDefinitionPath Saved;
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeType<model::StructType>();
+    auto [Type, Path] = Bucket.makeTypeDefinition<model::StructDefinition>();
     Type.OriginalName() = "Valid";
 
-    revng_check(Binary->Types().size() == 0);
+    revng_check(Binary->TypeDefinitions().size() == 0);
     // Not valid yet.
     // revng_check(Path.get()->OriginalName() == "Valid");
     Bucket.commit();
-    revng_check(Binary->Types().size() == 1);
+    revng_check(Binary->TypeDefinitions().size() == 1);
     // Becomes valid after the commit.
     revng_check(Path.get()->OriginalName() == "Valid");
 
@@ -108,8 +108,8 @@ BOOST_AUTO_TEST_CASE(Paths) {
   }
 
   // Still valid.
-  revng_check(Binary->Types().size() == 1);
+  revng_check(Binary->TypeDefinitions().size() == 1);
   revng_check(Saved.get()->OriginalName() == "Valid");
-  auto FirstIterator = Binary->Types().begin();
+  auto FirstIterator = Binary->TypeDefinitions().begin();
   revng_check(Saved.get()->OriginalName() == (*FirstIterator)->OriginalName());
 }

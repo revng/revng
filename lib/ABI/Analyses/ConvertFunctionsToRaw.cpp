@@ -26,9 +26,11 @@ public:
     model::VerifyHelper VH;
 
     using abi::FunctionType::filterTypes;
-    auto ToConvert = filterTypes<model::CABIFunctionType>(Model->Types());
-    for (model::CABIFunctionType *Old : ToConvert) {
-      model::TypePath New = abi::FunctionType::convertToRaw(*Old, Model);
+    using CABIFD = model::CABIFunctionDefinition;
+    auto ToConvert = filterTypes<CABIFD>(Model->TypeDefinitions());
+    for (model::CABIFunctionDefinition *Old : ToConvert) {
+      model::TypeDefinitionPath New = abi::FunctionType::convertToRaw(*Old,
+                                                                      Model);
 
       // Make sure the returned type is valid,
       revng_assert(New.isValid());
