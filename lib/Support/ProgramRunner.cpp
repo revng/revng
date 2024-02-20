@@ -14,10 +14,13 @@
 #include "llvm/Support/Program.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
 #include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
 
 using namespace llvm;
+
+static Logger<> DILogger("program-runner");
 
 ProgramRunner Runner;
 
@@ -63,8 +66,13 @@ int ProgramRunner::run(llvm::StringRef ProgramName,
 
   // Prepare actual arguments
   std::vector<StringRef> StringRefs{ *MaybeProgramPath };
-  for (const std::string &Arg : Args)
+  DILogger << "Running " << StringRefs[0].str()
+           << " with the following arguments:\n";
+  for (const std::string &Arg : Args) {
     StringRefs.push_back(Arg);
+    DILogger << "  " << Arg << "\n";
+  }
+  DILogger << DoLog;
 
   int ExitCode = llvm::sys::ExecuteAndWait(StringRefs[0], StringRefs);
 
