@@ -1204,7 +1204,7 @@ findDebugInfoFileByName(StringRef FileName,
             if (!XDGCacheHome) {
               llvm::sys::path::append(ResultPath,
                                       PathHome,
-                                      ".local/share/revng/debug-symbols/elf/",
+                                      ".cache/revng/debug-symbols/elf/",
                                       BuildID,
                                       "debug");
             } else {
