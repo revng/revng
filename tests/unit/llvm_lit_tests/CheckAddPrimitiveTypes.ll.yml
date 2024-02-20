@@ -3,64 +3,64 @@
 #
 
 ---
-Types:
-  - Kind: PrimitiveType
+TypeDefinitions:
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Generic
     Size: 1
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Generic
     Size: 2
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Generic
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Generic
     Size: 8
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: PointerOrNumber
     Size: 1
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: PointerOrNumber
     Size: 2
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: PointerOrNumber
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: PointerOrNumber
     Size: 8
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Number
     Size: 1
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Number
     Size: 2
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Number
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Number
     Size: 8
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 1
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 2
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 8
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Signed
     Size: 1
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Signed
     Size: 2
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Signed
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     PrimitiveKind: Signed
     Size: 8

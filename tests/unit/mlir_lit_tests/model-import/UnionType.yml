@@ -5,15 +5,15 @@
 
 Types:
   - ID: 1281
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 1
   - ID: 1282
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 2
   - ID: 1284
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 4
 
@@ -37,15 +37,15 @@ Types:
     # CHECK: >
     # CHECK: !my_union = !clift.defined<#my_union$def>
   - ID: 1001
-    Kind: UnionType
+    Kind: UnionDefinition
     CustomName: "my_union"
     Fields:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1281-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1281-PrimitiveDefinition"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1282-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1282-PrimitiveDefinition"
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"

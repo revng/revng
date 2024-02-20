@@ -2,12 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: EnumType
+TypeDefinitions:
+  - Kind: EnumDefinition
     ID: 3000
     CustomName: "my_enum"
     UnderlyingType:
-      UnqualifiedType: "/Types/1284-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
     Entries:
       - Value: 0
         CustomName: "none"

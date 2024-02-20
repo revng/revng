@@ -9,7 +9,7 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Location.h"
@@ -26,23 +26,24 @@
 namespace {
 
 struct NodeData {
-  model::Type *T;
+  model::TypeDefinition *T;
 };
 using Node = BidirectionalNode<NodeData>;
 using Graph = GenericGraph<Node>;
+using TypeToNodeMap = std::map<const model::TypeDefinition *, Node *>;
 
-inline llvm::SmallPtrSet<const model::Type *, 2>
-getIncomingTypesFor(const model::Type *T,
+inline llvm::SmallPtrSet<const model::TypeDefinition *, 2>
+getIncomingTypesFor(const model::TypeDefinition *T,
                     const TupleTree<model::Binary> &Model,
-                    const std::map<const model::Type *, Node *> &TypeToNode) {
-  llvm::SmallPtrSet<const model::Type *, 2> Result;
+                    const TypeToNodeMap &TypeToNode) {
+  llvm::SmallPtrSet<const model::TypeDefinition *, 2> Result;
 
   // Visit all the nodes reachable from RootType.
   llvm::df_iterator_default_set<Node *> Visited;
   for ([[maybe_unused]] Node *N : depth_first_ext(TypeToNode.at(T), Visited))
     ;
 
-  for (auto &Type : Model->Types()) {
+  for (auto &Type : Model->TypeDefinitions()) {
     if (Visited.contains(TypeToNode.at(Type.get())))
       Result.insert(Type.get());
   }
@@ -51,20 +52,20 @@ getIncomingTypesFor(const model::Type *T,
 }
 
 // Remember dependencies between types.
-inline llvm::SmallPtrSet<const model::Type *, 2>
-populateDependencies(const model::Type *TheType,
+inline llvm::SmallPtrSet<const model::TypeDefinition *, 2>
+populateDependencies(const model::TypeDefinition *TheType,
                      const TupleTree<model::Binary> &Model) {
-  llvm::SmallPtrSet<const model::Type *, 2> Result;
+  llvm::SmallPtrSet<const model::TypeDefinition *, 2> Result;
 
   Graph InverseTypeGraph;
-  std::map<const model::Type *, Node *> TypeToNode;
+  std::map<const model::TypeDefinition *, Node *> TypeToNode;
 
-  for (const UpcastablePointer<model::Type> &T : Model->Types()) {
+  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
     TypeToNode[T.get()] = InverseTypeGraph.addNode(NodeData{ T.get() });
   }
 
   // Create type system edges
-  for (const UpcastablePointer<model::Type> &T : Model->Types()) {
+  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
     for (const model::QualifiedType &QT : T->edges()) {
       auto *DependantType = QT.UnqualifiedType().get();
       TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
@@ -72,15 +73,15 @@ populateDependencies(const model::Type *TheType,
   }
 
   // Process types.
-  for (const UpcastablePointer<model::Type> &T : Model->Types()) {
+  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
     for (const model::QualifiedType &QT : T->edges()) {
       auto *DependantType = QT.UnqualifiedType().get();
 
       // For types other than TypeDefs, we can keep the types that use the type
       // we are about to edit iff the type is being used via pointer.
-      if ((not llvm::isa<model::TypedefType>(TheType)
-           and not llvm::isa<model::RawFunctionType>(TheType)
-           and not llvm::isa<model::CABIFunctionType>(TheType))
+      if ((not llvm::isa<model::TypedefDefinition>(TheType)
+           and not llvm::isa<model::RawFunctionDefinition>(TheType)
+           and not llvm::isa<model::CABIFunctionDefinition>(TheType))
           and QT.isPointer())
         continue;
 

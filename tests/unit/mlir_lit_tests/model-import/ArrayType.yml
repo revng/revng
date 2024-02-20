@@ -5,7 +5,7 @@
 
 Types:
   - ID: 513
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Generic
     Size: 1
 
@@ -25,13 +25,13 @@ Types:
     # CHECK: >
     # CHECK: !my_struct = !clift.defined<#my_struct$def>
   - ID: 1001
-    Kind: StructType
+    Kind: StructDefinition
     CustomName: "my_struct"
     Size: 1024
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/513-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/513-PrimitiveDefinition"
           Qualifiers:
             - Kind: Array
               Size: 1024

@@ -21,12 +21,12 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/CABIFunctionType.h"
+#include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
-#include "revng/Model/RawFunctionType.h"
-#include "revng/Model/TypedefType.h"
+#include "revng/Model/RawFunctionDefinition.h"
+#include "revng/Model/TypedefDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/YAMLTraits.h"
@@ -57,7 +57,7 @@ using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
 /// Map each llvm::Argument of the given llvm::Function to its
 /// QualifiedType in the model.
 static void addArgumentsTypes(const llvm::Function &LLVMFunc,
-                              const model::Type *Prototype,
+                              const model::TypeDefinition *Prototype,
                               const Binary &Model,
                               ModelTypesMap &TypeMap,
                               bool PointersOnly) {
@@ -152,7 +152,7 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
     if (not PointersOnly) {
       auto PtrSize = model::Architecture::getPointerSize(Model.Architecture());
       auto NullPointerType = model::QualifiedType{
-        Model.getPrimitiveType(model::PrimitiveTypeKind::Generic, PtrSize),
+        Model.getPrimitiveType(model::PrimitiveKind::Generic, PtrSize),
         /*Qualifiers*/ {}
       };
       TypeMap.insert({ Operand, NullPointerType });
@@ -194,7 +194,7 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
         ConstInt and FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
       unsigned BitWidth = ConstInt->getType()->getIntegerBitWidth();
       unsigned ByteSize = std::max(1U, BitWidth / 8U);
-      using model::PrimitiveTypeKind::Signed;
+      using model::PrimitiveKind::Signed;
       auto SignedInt = model::QualifiedType(Model.getPrimitiveType(Signed,
                                                                    ByteSize),
                                             {});
@@ -232,7 +232,7 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       revng_abort("Unknown value returned by non-isolated function");
     }
   } else if (FunctionTags::StringLiteral.isTagOf(CalledFunc)) {
-    using model::PrimitiveTypeKind::Values::Unsigned;
+    using model::PrimitiveKind::Values::Unsigned;
     QualifiedType CharTy(Model.getPrimitiveType(Unsigned, 1), {});
     ReturnTypes.push_back(CharTy.getPointerTo(Model.Architecture()));
   } else if (FunctionTags::LiteralPrintDecorator.isTagOf(CalledFunc)) {
@@ -283,9 +283,9 @@ static void handleCallInstruction(const llvm::CallInst *Call,
     // Call on LLVM IR returns an integer.
     revng_assert(CallType->isIntegerTy());
     // In this case we cannot attach a rich type to the integer on LLVM IR, we
-    // just have to fall back to a Generic PrimitiveType
+    // just have to fall back to a Generic PrimitiveDefinition
     if (not PointersOnly) {
-      const auto GenericKind = model::PrimitiveTypeKind::Generic;
+      const auto GenericKind = model::PrimitiveKind::Generic;
       auto BitWidth = CallType->getIntegerBitWidth();
       revng_assert(BitWidth > 0 and not(BitWidth % 8));
       auto Generic = QualifiedType(Model.getPrimitiveType(GenericKind,
@@ -319,54 +319,52 @@ static void handleCallInstruction(const llvm::CallInst *Call,
   }
 }
 
-static model::PrimitiveTypeKind::Values
+static model::PrimitiveKind::Values
 getPrimitiveKind(const model::QualifiedType &QT) {
   revng_assert(QT.isPrimitive());
   model::QualifiedType Unwrapped = peelConstAndTypedefs(QT);
   revng_assert(Unwrapped.Qualifiers().empty());
-  auto *Primitive = llvm::cast<model::PrimitiveType>(Unwrapped.UnqualifiedType()
-                                                       .getConst());
-  return Primitive->PrimitiveKind();
+
+  using P = model::PrimitiveDefinition;
+  return llvm::cast<P>(Unwrapped.UnqualifiedType().getConst())->PrimitiveKind();
 }
 
-static model::PrimitiveTypeKind::Values
-getCommonPrimitiveKind(model::PrimitiveTypeKind::Values A,
-                       model::PrimitiveTypeKind::Values B) {
+static model::PrimitiveKind::Values
+getCommonPrimitiveKind(model::PrimitiveKind::Values A,
+                       model::PrimitiveKind::Values B) {
   if (A == B)
     return A;
 
-  if (A == model::PrimitiveTypeKind::Generic
-      or B == model::PrimitiveTypeKind::Generic)
-    return model::PrimitiveTypeKind::Generic;
+  if (A == model::PrimitiveKind::Generic or B == model::PrimitiveKind::Generic)
+    return model::PrimitiveKind::Generic;
 
   // Here, neither A nor B are Generic
 
   // Given that A != B, and they're not generic, if either of them is Float, we
   // directly go to Generic.
-  if (A == model::PrimitiveTypeKind::Float
-      or B == model::PrimitiveTypeKind::Float)
-    return model::PrimitiveTypeKind::Generic;
+  if (A == model::PrimitiveKind::Float or B == model::PrimitiveKind::Float)
+    return model::PrimitiveKind::Generic;
 
   // Here neither A nor B is Generic nor Float
 
   // If either is PointerOrNumber, we go to PointerOrNumber.
-  if (A == model::PrimitiveTypeKind::PointerOrNumber
-      or B == model::PrimitiveTypeKind::PointerOrNumber)
-    return model::PrimitiveTypeKind::PointerOrNumber;
+  if (A == model::PrimitiveKind::PointerOrNumber
+      or B == model::PrimitiveKind::PointerOrNumber)
+    return model::PrimitiveKind::PointerOrNumber;
 
   // Here neither A nor B is Generic, Float, nor PointerOrNumber
   // Here A and B can only be Number, Signed or Unsigned.
   // Given that they are different, we always go to Number.
-  return model::PrimitiveTypeKind::Number;
+  return model::PrimitiveKind::Number;
 }
 
 static model::QualifiedType
 getEnumUnderlyingType(const model::QualifiedType &QT) {
-  revng_assert(QT.is(model::TypeKind::EnumType));
+  revng_assert(QT.is(model::TypeDefinitionKind::EnumDefinition));
   model::QualifiedType Unwrapped = peelConstAndTypedefs(QT);
   revng_assert(Unwrapped.Qualifiers().empty());
-  auto *Enum = llvm::cast<model::EnumType>(Unwrapped.UnqualifiedType()
-                                             .getConst());
+  auto *Unqualified = Unwrapped.UnqualifiedType().getConst();
+  auto *Enum = llvm::cast<model::EnumDefinition>(Unqualified);
   return Enum->UnderlyingType();
 }
 
@@ -375,9 +373,9 @@ getCommonScalarType(const model::QualifiedType &A,
                     const model::QualifiedType &B,
                     const model::Binary &Model) {
 
-  using model::PrimitiveTypeKind::Values::Float;
-  using model::PrimitiveTypeKind::Values::Generic;
-  using model::PrimitiveTypeKind::Values::PointerOrNumber;
+  using model::PrimitiveKind::Values::Float;
+  using model::PrimitiveKind::Values::Generic;
+  using model::PrimitiveKind::Values::PointerOrNumber;
 
   revng_assert(A.isScalar());
   revng_assert(B.isScalar());
@@ -386,26 +384,25 @@ getCommonScalarType(const model::QualifiedType &A,
     return A;
 
   revng_assert(A.isPrimitive() or A.isPointer()
-               or A.is(model::TypeKind::EnumType));
+               or A.is(model::TypeDefinitionKind::EnumDefinition));
   revng_assert(B.isPrimitive() or B.isPointer()
-               or B.is(model::TypeKind::EnumType));
+               or B.is(model::TypeDefinitionKind::EnumDefinition));
 
   revng_assert(A.size() == B.size());
   uint64_t Size = A.size().value();
 
   if (A.isPrimitive() and B.isPrimitive()) {
-    model::PrimitiveTypeKind::Values AKind = getPrimitiveKind(A);
-    model::PrimitiveTypeKind::Values BKind = getPrimitiveKind(B);
-    model::PrimitiveTypeKind::Values CommonKind = getCommonPrimitiveKind(AKind,
-                                                                         BKind);
+    model::PrimitiveKind::Values AKind = getPrimitiveKind(A);
+    model::PrimitiveKind::Values BKind = getPrimitiveKind(B);
+    model::PrimitiveKind::Values CommonKind = getCommonPrimitiveKind(AKind,
+                                                                     BKind);
     return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
   }
 
   if (A.isPrimitive() or B.isPrimitive()) {
 
     const model::QualifiedType &Primitive = A.isPrimitive() ? A : B;
-    model::PrimitiveTypeKind::Values
-      PrimitiveKind = getPrimitiveKind(Primitive);
+    model::PrimitiveKind::Values PrimitiveKind = getPrimitiveKind(Primitive);
 
     const model::QualifiedType &Other = A.isPrimitive() ? B : A;
 
@@ -420,12 +417,12 @@ getCommonScalarType(const model::QualifiedType &A,
       return model::QualifiedType(Model.getPrimitiveType(PointerOrNumber, Size),
                                   {});
 
-    } else if (Other.is(model::TypeKind::EnumType)) {
+    } else if (Other.is(model::TypeDefinitionKind::EnumDefinition)) {
 
-      model::PrimitiveTypeKind::Values
+      model::PrimitiveKind::Values
         OtherKind = getPrimitiveKind(getEnumUnderlyingType(Other));
 
-      model::PrimitiveTypeKind::Values
+      model::PrimitiveKind::Values
         CommonKind = getCommonPrimitiveKind(PrimitiveKind, OtherKind);
 
       return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
@@ -437,19 +434,20 @@ getCommonScalarType(const model::QualifiedType &A,
 
   // Here neither A nor B are primitive. They are either enums or pointers.
   // If one is a pointer and the other is an enum, we can't find a common type.
-  if (A.isPointer() and B.is(model::TypeKind::EnumType))
+  if (A.isPointer() and B.is(model::TypeDefinitionKind::EnumDefinition))
     return std::nullopt;
-  if (B.isPointer() and A.is(model::TypeKind::EnumType))
+  if (B.isPointer() and A.is(model::TypeDefinitionKind::EnumDefinition))
     return std::nullopt;
 
-  if (A.is(model::TypeKind::EnumType) and B.is(model::TypeKind::EnumType)) {
+  if (A.is(model::TypeDefinitionKind::EnumDefinition)
+      and B.is(model::TypeDefinitionKind::EnumDefinition)) {
     // Make the common integer among the underlying types
-    model::PrimitiveTypeKind::Values
+    model::PrimitiveKind::Values
       AKind = getPrimitiveKind(getEnumUnderlyingType(A));
-    model::PrimitiveTypeKind::Values
+    model::PrimitiveKind::Values
       BKind = getPrimitiveKind(getEnumUnderlyingType(B));
-    model::PrimitiveTypeKind::Values CommonKind = getCommonPrimitiveKind(AKind,
-                                                                         BKind);
+    model::PrimitiveKind::Values CommonKind = getCommonPrimitiveKind(AKind,
+                                                                     BKind);
     return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
   }
 
@@ -523,7 +521,7 @@ initModelTypesImpl(const llvm::Instruction &I,
 
   // Insert void types for consistency
   if (InstType->isVoidTy()) {
-    using model::PrimitiveTypeKind::Values::Void;
+    using model::PrimitiveKind::Values::Void;
     QualifiedType VoidTy(Model.getPrimitiveType(Void, 0), {});
     TypeMap.insert({ &I, VoidTy });
     rc_return VoidTy;
@@ -717,7 +715,7 @@ initModelTypesImpl(const llvm::Function &F,
 
   ModelTypesMap TypeMap;
 
-  const model::Type *Prototype = ModelF->prototype(Model).getConst();
+  const model::TypeDefinition *Prototype = ModelF->prototype(Model).getConst();
   revng_assert(Prototype);
 
   addArgumentsTypes(F, Prototype, Model, TypeMap, PointersOnly);

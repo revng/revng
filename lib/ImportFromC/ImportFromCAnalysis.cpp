@@ -21,7 +21,7 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Option.h"
@@ -89,7 +89,7 @@ struct ImportFromCAnalysis {
     auto &Model = revng::getWritableModelFromContext(Ctx);
 
     // This will be used iff {Edit|Add}TypeFeature is used.
-    std::optional<model::Type *> TypeToEdit;
+    std::optional<model::TypeDefinition *> TypeToEdit;
 
     // This will be used iff EditFunctionPrototypeFeature is used.
     std::optional<model::Function> FunctionToBeEdited;
@@ -100,7 +100,7 @@ struct ImportFromCAnalysis {
     } else {
       if (auto L = pipeline::locationFromString(revng::ranks::Function,
                                                 LocationToEdit)) {
-        auto Key = std::get<0>(L->at(revng::ranks::Function));
+        auto [Key] = L->at(revng::ranks::Function);
         auto Iterator = Model->Functions().find(Key);
         if (Iterator == Model->Functions().end()) {
           return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -112,11 +112,9 @@ struct ImportFromCAnalysis {
         TheOption = ImportFromCOption::EditFunctionPrototype;
       } else if (auto L = pipeline::locationFromString(revng::ranks::Type,
                                                        LocationToEdit)) {
-        auto Key = std::get<0>(L->at(revng::ranks::Type));
-        auto TypeKind = std::get<1>(L->at(revng::ranks::Type));
-
-        auto Iterator = Model->Types().find({ Key, TypeKind });
-        if (Iterator == Model->Types().end()) {
+        auto [Key, Kind] = L->at(revng::ranks::Type);
+        auto Iterator = Model->TypeDefinitions().find({ Key, Kind });
+        if (Iterator == Model->TypeDefinitions().end()) {
           return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                          "Couldn't find the type "
                                            + LocationToEdit);
@@ -158,9 +156,9 @@ struct ImportFromCAnalysis {
     if (TheOption == ImportFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward
       // declarations.
-      if (not isa<model::RawFunctionType>(*TypeToEdit)
-          and not isa<model::CABIFunctionType>(*TypeToEdit)
-          and not isa<model::TypedefType>(*TypeToEdit)) {
+      if (not isa<model::RawFunctionDefinition>(*TypeToEdit)
+          and not isa<model::CABIFunctionDefinition>(*TypeToEdit)
+          and not isa<model::TypedefDefinition>(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(Options.PostIncludes);
         ptml::PTMLCBuilder B(true);
         ptml::PTMLIndentedOstream ThePTMLStream(Stream,

@@ -55,13 +55,13 @@ getArrayWrapper(const model::QualifiedType &QT, const ptml::PTMLCBuilder &B);
 /// \note If F returns more than one value, the name of the wrapping struct
 /// will be returned.
 extern tokenDefinition::types::TypeString
-getNamedInstanceOfReturnType(const model::Type &FunctionType,
+getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
                              llvm::StringRef InstanceName,
                              const ptml::PTMLCBuilder &B,
                              bool IsDefinition);
 
 inline tokenDefinition::types::TypeString
-getReturnTypeName(const model::Type &FunctionType,
+getReturnTypeName(const model::TypeDefinition &FunctionType,
                   const ptml::PTMLCBuilder &B,
                   bool IsDefinition) {
   return getNamedInstanceOfReturnType(FunctionType, "", B, IsDefinition);
@@ -72,19 +72,19 @@ getReturnTypeName(const model::Type &FunctionType,
 ///        or any of the arguments needs a wrapper, print it with the
 ///        corresponding wrapper type. The definition of such wrappers
 ///        should have already been printed before this function is called.
-extern void printFunctionPrototype(const model::Type &FT,
+extern void printFunctionPrototype(const model::TypeDefinition &FT,
                                    const model::Function &Function,
                                    llvm::raw_ostream &Header,
                                    ptml::PTMLCBuilder &B,
                                    const model::Binary &Model,
                                    bool SingleLine);
-extern void printFunctionPrototype(const model::Type &FT,
+extern void printFunctionPrototype(const model::TypeDefinition &FT,
                                    const model::DynamicFunction &Function,
                                    llvm::raw_ostream &Header,
                                    ptml::PTMLCBuilder &B,
                                    const model::Binary &Model,
                                    bool SingleLine);
-extern void printFunctionTypeDeclaration(const model::Type &FT,
+extern void printFunctionTypeDeclaration(const model::TypeDefinition &FT,
                                          llvm::raw_ostream &Header,
                                          ptml::PTMLCBuilder &B,
                                          const model::Binary &Model);

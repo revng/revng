@@ -25,7 +25,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -48,8 +48,8 @@ using llvm::isa;
 static Logger<> Log("dla-update-model-funcs");
 static Logger<> ModelLog("dla-dump-model-with-funcs");
 
-using model::PrimitiveTypeKind::Generic;
-using model::PrimitiveTypeKind::PointerOrNumber;
+using model::PrimitiveKind::Generic;
+using model::PrimitiveKind::PointerOrNumber;
 
 /// Returns true if \a T can be upgraded by DLA
 // TODO: implement a better way to merge qualified types, based on the lattice
@@ -67,12 +67,13 @@ static const llvm::Value *toLLVMValue(const llvm::Use &A) {
 }
 
 /// If the DLA recovered a more precise type than the already existing one
-/// for any of the arguments of a RawFunctionType, update the model accordingly.
+/// for any of the arguments of a RawFunctionDefinition, update the model
+/// accordingly.
 template<typename T>
   requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
            or std::same_as<std::remove_const_t<T>, llvm::Function>
 static bool updateArgumentTypes(model::Binary &Model,
-                                RawFunctionType *ModelPrototype,
+                                RawFunctionDefinition *ModelPrototype,
                                 const T *CallOrFunction,
                                 const TypeMapT &DLATypes) {
   bool Updated = false;
@@ -89,7 +90,7 @@ static bool updateArgumentTypes(model::Binary &Model,
 
     // If the ModelStackArgs is an empty struct we have to fill it up, otherwise
     // it's already known and we don't have to mess it up.
-    auto *ModelStackStruct = cast<model::StructType>(ModelStackArg);
+    auto *ModelStackStruct = cast<model::StructDefinition>(ModelStackArg);
     if (ModelStackStruct->Fields().empty()) {
       revng_assert(ModelStackStruct->size());
       auto ModelStackSize = *ModelStackStruct->size();
@@ -107,8 +108,8 @@ static bool updateArgumentTypes(model::Binary &Model,
         revng_assert(DLAStackType.size());
         auto DLAStackSize = *DLAStackType.size();
 
-        Type *UnqualifiedType = DLAStackType.UnqualifiedType().get();
-        auto *DLAStackStruct = dyn_cast<StructType>(UnqualifiedType);
+        TypeDefinition *UnqualifiedType = DLAStackType.UnqualifiedType().get();
+        auto *DLAStackStruct = dyn_cast<StructDefinition>(UnqualifiedType);
         if (DLAStackType.Qualifiers().empty() and DLAStackStruct != nullptr) {
           // Import all the fields of the DLA struct that fit in
           for (auto &Field : DLAStackStruct->Fields()) {
@@ -175,9 +176,10 @@ static bool updateArgumentTypes(model::Binary &Model,
 }
 
 /// If the DLA recovered a more precise type than the already existing one
-/// for the return type of a RawFunctionType, update the model accordingly.
+/// for the return type of a RawFunctionDefinition, update the model
+/// accordingly.
 static bool updateReturnType(model::Binary &Model,
-                             RawFunctionType *ModelPrototype,
+                             RawFunctionDefinition *ModelPrototype,
                              const llvm::Value *LLVMRetVal,
                              const llvm::Type *LLVMRetType,
                              const TypeMapT &TypeMap) {
@@ -234,13 +236,13 @@ static bool updateReturnType(model::Binary &Model,
 }
 
 /// If the DLA recovered a more precise type than the already existing one
-/// for any of the arguments of a CABIFunctionType, update the model
+/// for any of the arguments of a CABIFunctionDefinition, update the model
 /// accordingly.
 template<typename T>
   requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
            or std::same_as<std::remove_const_t<T>, llvm::Function>
 static bool updateArgumentTypes(model::Binary &Model,
-                                CABIFunctionType *ModelPrototype,
+                                CABIFunctionDefinition *ModelPrototype,
                                 const T *CallOrFunction,
                                 const TypeMapT &DLATypes) {
   bool Updated = false;
@@ -284,9 +286,10 @@ static bool updateArgumentTypes(model::Binary &Model,
 }
 
 /// If the DLA recovered a more precise type than the already existing one
-/// for the return type of a CABIFunctionType, update the model accordingly.
+/// for the return type of a CABIFunctionDefinition, update the model
+/// accordingly.
 static bool updateReturnType(model::Binary &Model,
-                             CABIFunctionType *ModelPrototype,
+                             CABIFunctionDefinition *ModelPrototype,
                              const llvm::Value *LLVMRetVal,
                              const llvm::Type *LLVMRetType,
                              const TypeMapT &TypeMap) {
@@ -304,8 +307,8 @@ static bool updateReturnType(model::Binary &Model,
   if (ModelReturnType.isScalar()) {
     if (!LLVMRetType->isIntOrPtrTy()) {
       revng_log(Log,
-                "WARNING: model::CABIFunctionType returns a scalar type, the "
-                "associated llvm::Function should return an integer or a "
+                "WARNING: model::CABIFunctionDefinition returns a scalar type, "
+                "the associated llvm::Function should return an integer or a "
                 "pointer: "
                   << LLVMRetVal->getNameOrAsOperand());
       // If this happens we have an aggregate on LLVMIR and a scalar on
@@ -341,7 +344,7 @@ static bool updateReturnType(model::Binary &Model,
     return false;
   }
 
-  // The case where CABIFunctionType's return type is scalar (meaning that
+  // The case where CABIFunctionDefinition's return type is scalar (meaning that
   // the corresponding IR also mentions a scalar) is handled above, as for
   // the aggregate case, we decided to just not do anything.
   //
@@ -361,7 +364,7 @@ template<typename T>
   requires std::same_as<std::remove_const_t<T>, llvm::CallInst>
            or std::same_as<std::remove_const_t<T>, llvm::Function>
 static bool updatePrototype(model::Binary &Model,
-                            model::Type *Prototype,
+                            model::TypeDefinition *Prototype,
                             const T *CallOrFunction,
                             const TypeMapT &TypeMap) {
 
@@ -370,7 +373,7 @@ static bool updatePrototype(model::Binary &Model,
 
   revng_log(Log, "Updating func prototype");
 
-  if (auto *RawPrototype = dyn_cast<RawFunctionType>(Prototype)) {
+  if (auto *RawPrototype = dyn_cast<RawFunctionDefinition>(Prototype)) {
     Updated |= updateArgumentTypes(Model,
                                    RawPrototype,
                                    CallOrFunction,
@@ -380,13 +383,10 @@ static bool updatePrototype(model::Binary &Model,
                                 CallOrFunction,
                                 getRetType(CallOrFunction),
                                 TypeMap);
-  } else if (auto *CABIPrototype = dyn_cast<CABIFunctionType>(Prototype)) {
-    Updated |= updateArgumentTypes(Model,
-                                   CABIPrototype,
-                                   CallOrFunction,
-                                   TypeMap);
+  } else if (auto *CABI = dyn_cast<CABIFunctionDefinition>(Prototype)) {
+    Updated |= updateArgumentTypes(Model, CABI, CallOrFunction, TypeMap);
     Updated |= updateReturnType(Model,
-                                CABIPrototype,
+                                CABI,
                                 CallOrFunction,
                                 getRetType(CallOrFunction),
                                 TypeMap);
@@ -399,7 +399,7 @@ static bool updatePrototype(model::Binary &Model,
 
 static RecursiveCoroutine<void>
 fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
-                                       model::StructType *OriginalStruct,
+                                       model::StructDefinition *OriginalStruct,
                                        model::QualifiedType RecoveredType,
                                        uint64_t Offset = 0ULL) {
   uint64_t RecoveredSize = RecoveredType.size().value_or(0ULL);
@@ -409,10 +409,10 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
   revng_assert(OriginalStructSize > 0);
 
   bool IsPointerOrArray = RecoveredType.isArray() or RecoveredType.isPointer();
-  auto *RecoveredUnqualType = RecoveredType.UnqualifiedType().get();
+  auto *UnqualRecovered = RecoveredType.UnqualifiedType().get();
 
-  if (IsPointerOrArray or isa<model::PrimitiveType>(RecoveredUnqualType)
-      or isa<model::EnumType>(RecoveredUnqualType)) {
+  if (IsPointerOrArray or isa<model::PrimitiveDefinition>(UnqualRecovered)
+      or isa<model::EnumDefinition>(UnqualRecovered)) {
 
     revng_assert(RecoveredSize + Offset <= OriginalStructSize);
 
@@ -461,8 +461,10 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
 
         // Otherwise we have found a candidate target field. If the candidate
         // target field is a struct, we can compute the NewOffset, otherwise we
-        // bail out, because if it's not a StructType we cannot inject anything.
-        if (not TypeAtLowerOffset.is(model::TypeKind::StructType))
+        // bail out, because if it's not a StructDefinition we cannot inject
+        // anything.
+        namespace TypeDefinitionKind = model::TypeDefinitionKind;
+        if (not TypeAtLowerOffset.is(TypeDefinitionKind::StructDefinition))
           rc_return;
 
         TargetOriginalFieldIt = FieldAtGTEOffsetIt;
@@ -484,11 +486,11 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
 
     // Otherwise we have to insert RecoveredType in *TargetOriginalFieldIt at
     // NewOffset.
-    model::QualifiedType OriginalFieldType = TargetOriginalFieldIt->Type();
-    model::Type *TargetFieldType = peelConstAndTypedefs(OriginalFieldType)
-                                     .UnqualifiedType()
-                                     .get();
-    auto *TargetFieldStruct = cast<model::StructType>(TargetFieldType);
+    model::QualifiedType OriginalType = TargetOriginalFieldIt->Type();
+    model::TypeDefinition *TargetFieldType = peelConstAndTypedefs(OriginalType)
+                                               .UnqualifiedType()
+                                               .get();
+    auto *TargetFieldStruct = cast<model::StructDefinition>(TargetFieldType);
 
     uint64_t OldFieldSize = *TargetFieldStruct->size();
     rc_recur fillStructWithRecoveredDLATypeAtOffset(Model,
@@ -496,14 +498,15 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
                                                     RecoveredType,
                                                     NewOffset);
 
-    revng_log(Log, "Updated field StructType: " << TargetFieldStruct->ID());
+    revng_log(Log,
+              "Updated field StructDefinition: " << TargetFieldStruct->ID());
     revng_assert(*TargetFieldStruct->size() == OldFieldSize);
     revng_assert(TargetFieldStruct->verify());
 
     rc_return;
   }
 
-  if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
+  if (auto *NewS = dyn_cast<model::StructDefinition>(UnqualRecovered)) {
 
     auto OriginalFieldsIt = OriginalStruct->Fields().begin();
     auto OriginalFieldsEnd = OriginalStruct->Fields().end();
@@ -566,14 +569,15 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
       // field might fall entirely inside one of the existing original fields.
       // If that's the case, and the original field has a struct type, we recur.
       if (OriginalStart <= NewStart and NewEnd <= OriginalEnd) {
-        model::QualifiedType &OriginalFieldType = OriginalFieldsIt->Type();
+        model::QualifiedType &OriginalType = OriginalFieldsIt->Type();
 
-        if (OriginalFieldType.is(model::TypeKind::StructType)) {
+        if (OriginalType.is(model::TypeDefinitionKind::StructDefinition)) {
 
-          model::Type *TargetFieldType = peelConstAndTypedefs(OriginalFieldType)
-                                           .UnqualifiedType()
-                                           .get();
-          auto *OldFieldStruct = cast<model::StructType>(TargetFieldType);
+          model::TypeDefinition
+            *TargetFieldType = peelConstAndTypedefs(OriginalType)
+                                 .UnqualifiedType()
+                                 .get();
+          auto *OldFieldStruct = cast<model::StructDefinition>(TargetFieldType);
 
           uint64_t OldFieldSize = *OldFieldStruct->size();
           rc_recur fillStructWithRecoveredDLATypeAtOffset(Model,
@@ -582,7 +586,8 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
                                                           NewStart
                                                             - OriginalStart);
 
-          revng_log(Log, "Updated field StructType: " << OldFieldStruct->ID());
+          revng_log(Log,
+                    "Updated field StructDefinition: " << OldFieldStruct->ID());
           revng_assert(*OldFieldStruct->size() == OldFieldSize);
           revng_assert(OldFieldStruct->verify());
         }
@@ -593,7 +598,7 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
     for (model::StructField *NewField : CompatibleFields)
       OriginalStruct->Fields().insert(*NewField);
 
-  } else if (auto *NewU = dyn_cast<model::UnionType>(RecoveredUnqualType)) {
+  } else if (auto *NewU = dyn_cast<model::UnionDefinition>(UnqualRecovered)) {
     // If OriginalStruct is an not an empty struct, just leave it alone.
     if (not OriginalStruct->Fields().empty())
       rc_return;
@@ -647,7 +652,7 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
     // struct as field at Offset.
     if (FieldsRemaining) {
       OriginalStruct->Fields()[Offset]
-        .Type() = model::QualifiedType(Model.getTypePath(NewU), {});
+        .Type() = model::QualifiedType(Model.getTypeDefinitionPath(NewU), {});
     }
   } else {
     revng_abort();
@@ -663,8 +668,8 @@ static bool updateStackFrameType(model::Function &ModelFunc,
   if (ModelFunc.StackFrameType().empty())
     return Updated;
 
-  auto *OldModelStackFrameType = ModelFunc.StackFrameType().get();
-  auto *OldStackFrameStruct = cast<model::StructType>(OldModelStackFrameType);
+  auto *OldStackFrameType = ModelFunc.StackFrameType().get();
+  auto *OldStackFrameStruct = cast<model::StructDefinition>(OldStackFrameType);
   if (not OldStackFrameStruct->Fields().empty())
     return Updated;
 
@@ -697,9 +702,10 @@ static bool updateStackFrameType(model::Function &ModelFunc,
                                              NewStack);
 
       revng_log(Log,
-                "Updated stack frame StructType: "
+                "Updated stack frame StructDefinition: "
                   << ModelFunc.StackFrameType().get()->ID());
-      revng_assert(isa<model::StructType>(ModelFunc.StackFrameType().get()));
+      using StructDefinition = model::StructDefinition;
+      revng_assert(isa<StructDefinition>(ModelFunc.StackFrameType().get()));
       revng_assert(*ModelFunc.StackFrameType().get()->size() == OldStackSize);
       revng_assert(ModelFunc.StackFrameType().get()->verify());
 
@@ -726,10 +732,10 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     if (not ModelFunc)
       continue;
 
-    TypePath WrappedPrototypePath = ModelFunc->prototype(*Model);
+    TypeDefinitionPath WrappedPrototypePath = ModelFunc->prototype(*Model);
     using model::QualifiedType;
     auto PrototypePath = QualifiedType::getFunctionType(WrappedPrototypePath);
-    Type *ModelPrototype = PrototypePath->get();
+    TypeDefinition *ModelPrototype = PrototypePath->get();
     revng_log(Log,
               "Updating prototype of function "
                 << LLVMFunc.getNameOrAsOperand());
@@ -770,9 +776,9 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
     if (Segment.Type().empty())
       continue;
 
-    // We know that the Segment's type is of StructType.
+    // We know that the Segment's type is of StructDefinition.
     // It's empty, we'll fill it up.
-    auto *SegmentStruct = cast<model::StructType>(Segment.Type().get());
+    auto *SegmentStruct = cast<model::StructDefinition>(Segment.Type().get());
     auto SegmentStructSize = *SegmentStruct->size();
 
     LayoutTypePtr Key{ &F, LayoutTypePtr::fieldNumNone };
@@ -785,8 +791,9 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
                                              RecoveredSegmentType);
 
       auto *NewSegmentType = Segment.Type().get();
-      revng_log(Log, "Updated segment StructType: " << NewSegmentType->ID());
-      revng_assert(isa<model::StructType>(NewSegmentType));
+      revng_log(Log,
+                "Updated segment StructDefinition: " << NewSegmentType->ID());
+      revng_assert(isa<model::StructDefinition>(NewSegmentType));
       revng_assert(*NewSegmentType->size() == SegmentStructSize);
       revng_assert(NewSegmentType->verify());
 

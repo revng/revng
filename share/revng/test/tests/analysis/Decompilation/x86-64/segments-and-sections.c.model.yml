@@ -5,43 +5,43 @@
 Segments:
   - IsReadable: true
     IsWriteable: false
-    Type: "/Types/1812-StructType"
+    Type: "/TypeDefinitions/1812-StructDefinition"
   - IsReadable: true
     IsWriteable: true
-    Type: "/Types/1815-StructType"
-Types:
+    Type: "/TypeDefinitions/1815-StructDefinition"
+TypeDefinitions:
   - ID: 516
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Generic
     Size: 4
   - ID: 1812
-    Kind: StructType
+    Kind: StructDefinition
     Fields:
       - OriginalName: .rodata
         Type:
-          UnqualifiedType: "/Types/1813-StructType"
+          UnqualifiedType: "/TypeDefinitions/1813-StructDefinition"
   - ID: 1813
-    Kind: StructType
+    Kind: StructDefinition
     Size: 13
   - ID: 1815
-    Kind: StructType
+    Kind: StructDefinition
     Fields:
       - OriginalName: .data
         Type:
-          UnqualifiedType: "/Types/1816-StructType"
+          UnqualifiedType: "/TypeDefinitions/1816-StructDefinition"
   - ID: 1816
-    Kind: StructType
+    Kind: StructDefinition
     Fields:
       - OriginalName: TheData
         Type:
-          UnqualifiedType: "/Types/1817-StructType"
+          UnqualifiedType: "/TypeDefinitions/1817-StructDefinition"
   - ID: 1817
-    Kind: StructType
+    Kind: StructDefinition
     Size: 1008
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/516-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/516-PrimitiveDefinition"
       - Offset: 1004
         Type:
-          UnqualifiedType: "/Types/516-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/516-PrimitiveDefinition"

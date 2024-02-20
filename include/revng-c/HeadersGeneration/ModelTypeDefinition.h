@@ -7,4 +7,4 @@
 #include "revng/Model/Binary.h"
 
 std::string dumpModelTypeDefinition(const model::Binary &Model,
-                                    model::Type::Key Key);
+                                    model::TypeDefinition::Key Key);

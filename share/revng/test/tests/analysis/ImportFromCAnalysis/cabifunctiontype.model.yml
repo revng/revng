@@ -5,29 +5,29 @@
 ---
 Architecture: x86_64
 DefaultABI: SystemV_x86_64
-Types:
-  - Kind: PrimitiveType
+TypeDefinitions:
+  - Kind: PrimitiveDefinition
     ID: 1540
     PrimitiveKind: Signed
     Size: 4
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 1537
     PrimitiveKind: Signed
     Size: 1
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
         CustomName: "argc"
         OriginalName: argc
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1537-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1537-PrimitiveDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8

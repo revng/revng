@@ -35,12 +35,11 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Generated/Early/TypeKind.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/Qualifier.h"
-#include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
+#include "revng/Model/TypeDefinition.h"
+#include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
@@ -72,8 +71,8 @@ using llvm::SmallVector;
 using llvm::Use;
 using llvm::User;
 using llvm::Value;
-using model::CABIFunctionType;
-using model::RawFunctionType;
+using model::CABIFunctionDefinition;
+using model::RawFunctionDefinition;
 
 static Logger<> ModelGEPLog{ "make-model-gep" };
 
@@ -1270,10 +1269,10 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
   revng_log(ModelGEPLog, "computeBestInStruct for IRSum: " << IRSum);
   auto StructIndent = LoggerIndent{ ModelGEPLog };
 
-  revng_assert(BaseStruct.is(model::TypeKind::StructType)
+  revng_assert(BaseStruct.is(model::TypeDefinitionKind::StructDefinition)
                and BaseStruct.Qualifiers().empty());
   const auto *Unqualified = BaseStruct.UnqualifiedType().getConst();
-  const auto *TheStructType = cast<model::StructType>(Unqualified);
+  const auto *TheStructType = cast<model::StructDefinition>(Unqualified);
 
   // Setup a return value for all the cases where we cannot traverse the union
   // successfully. We basically emit no index and keep the whol IRSum as
@@ -1388,10 +1387,10 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
   revng_log(ModelGEPLog, "computeBestInUnion for IRSum: " << IRSum);
   auto UnionIndent = LoggerIndent{ ModelGEPLog };
 
-  revng_assert(BaseUnion.is(model::TypeKind::UnionType)
+  revng_assert(BaseUnion.is(model::TypeDefinitionKind::UnionDefinition)
                and BaseUnion.Qualifiers().empty());
   const auto *Unqualified = BaseUnion.UnqualifiedType().getConst();
-  const auto *TheUnionType = cast<model::UnionType>(Unqualified);
+  const auto *TheUnionType = cast<model::UnionDefinition>(Unqualified);
 
   // Setup a return value for all the cases where we cannot traverse the union
   // successfully. We basically emit no index and keep the whol IRSum as
@@ -1483,9 +1482,10 @@ computeBest(const model::QualifiedType &BaseType,
             const std::optional<model::QualifiedType> &AccessedTypeOnIR,
             model::VerifyHelper &VH) {
   revng_log(ModelGEPLog, "Computing Best ModelGEP for IRSum: " << IRSum);
+  namespace TDKind = model::TypeDefinitionKind;
   revng_assert(not BaseType.isVoid()
-               and not BaseType.is(model::TypeKind::RawFunctionType)
-               and not BaseType.is(model::TypeKind::CABIFunctionType));
+               and not BaseType.is(TDKind::RawFunctionDefinition)
+               and not BaseType.is(TDKind::CABIFunctionDefinition));
 
   // This Result models no access, and leaves all the IRSum as a mismatch.
   // It's handful for easy bail out for obvious failures to traverse this
@@ -1497,7 +1497,7 @@ computeBest(const model::QualifiedType &BaseType,
   // need to support "accessing" pointer with the square brackets as if they
   // were arrays.
   if (BaseType.isPrimitive() or BaseType.isPointer()
-      or BaseType.is(model::TypeKind::EnumType)) {
+      or BaseType.is(model::TypeDefinitionKind::EnumDefinition)) {
     revng_log(ModelGEPLog,
               "Never replace pointer arithmetic from a type that is not a "
               "struct, a union, or an array, with a ModelGEP");
@@ -1540,18 +1540,18 @@ computeBest(const model::QualifiedType &BaseType,
   // TODO: we're gonna need to handle pointers in the future.
   revng_assert(UnwrappedBaseType.Qualifiers().empty());
 
-  const model::Type *BaseT = UnwrappedBaseType.UnqualifiedType().getConst();
+  const auto *BaseT = UnwrappedBaseType.UnqualifiedType().getConst();
 
   switch (BaseT->Kind()) {
 
-  case model::TypeKind::StructType: {
+  case model::TypeDefinitionKind::StructDefinition: {
     Result = rc_recur computeBestInStruct(UnwrappedBaseType,
                                           IRSum,
                                           AccessedTypeOnIR,
                                           VH);
   } break;
 
-  case model::TypeKind::UnionType: {
+  case model::TypeDefinitionKind::UnionDefinition: {
     Result = rc_recur computeBestInUnion(UnwrappedBaseType,
                                          IRSum,
                                          AccessedTypeOnIR,
@@ -1579,7 +1579,8 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
 
       revng_assert(Index.isConstant());
       CurrType = peelConstAndTypedefs(CurrType);
-      auto *S = cast<model::StructType>(CurrType.UnqualifiedType().getConst());
+      using StructDefinition = model::StructDefinition;
+      auto *S = cast<StructDefinition>(CurrType.UnqualifiedType().getConst());
       CurrType = S->Fields().at(Index.getConstant().getZExtValue()).Type();
 
     } break;
@@ -1588,7 +1589,8 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
 
       revng_assert(Index.isConstant());
       CurrType = peelConstAndTypedefs(CurrType);
-      auto *U = cast<model::UnionType>(CurrType.UnqualifiedType().getConst());
+      using UnionDefinition = model::UnionDefinition;
+      auto *U = cast<UnionDefinition>(CurrType.UnqualifiedType().getConst());
       CurrType = U->Fields().at(Index.getConstant().getZExtValue()).Type();
 
     } break;
@@ -1657,8 +1659,8 @@ getAccessedTypeOnIR(const Use &U,
         It != GEPifiedUseTypes.end()) {
       QPointee = dropPointer(It->second);
     } else {
-      model::TypePath
-        Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,
+      model::TypeDefinitionPath
+        Pointee = Model.getPrimitiveType(model::PrimitiveKind::Generic,
                                          PointeeSize);
       QPointee = model::QualifiedType(Pointee, {});
     }
@@ -1680,8 +1682,8 @@ getAccessedTypeOnIR(const Use &U,
       const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
       unsigned long PointeeSize = DL.getTypeStoreSize(Stored->getType());
 
-      model::TypePath
-        Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,
+      model::TypeDefinitionPath
+        Pointee = Model.getPrimitiveType(model::PrimitiveKind::Generic,
                                          PointeeSize);
       model::QualifiedType Generic = model::QualifiedType(Pointee, {});
       model::QualifiedType QPointee = Generic;
@@ -1691,16 +1693,16 @@ getAccessedTypeOnIR(const Use &U,
 
       if (auto It = PointerTypes.find(PtrOp); It != PointerTypes.end()) {
         QPointee = dropPointer(It->second);
-        if (QPointee.is(model::TypeKind::StructType)
-            or QPointee.is(model::TypeKind::UnionType)) {
+        if (QPointee.is(model::TypeDefinitionKind::StructDefinition)
+            or QPointee.is(model::TypeDefinitionKind::UnionDefinition)) {
           QPointee = Generic;
         }
       }
       if (auto It = GEPifiedUseTypes.find(PtrOpUse);
           It != GEPifiedUseTypes.end()) {
         QPointee = dropPointer(It->second);
-        if (QPointee.is(model::TypeKind::StructType)
-            or QPointee.is(model::TypeKind::UnionType)) {
+        if (QPointee.is(model::TypeDefinitionKind::StructDefinition)
+            or QPointee.is(model::TypeDefinitionKind::UnionDefinition)) {
           QPointee = Generic;
         }
       }
@@ -1799,11 +1801,10 @@ getAccessedTypeOnIR(const Use &U,
       unsigned ArgNum = Call->getArgOperandNo(&U);
 
       const model::Function *CalledFType = llvmToModelFunction(Model, *CalledF);
-      const model::Type *CalledPrototype = CalledFType->prototype(Model)
-                                             .getConst();
+      const auto *CalledProtoT = CalledFType->prototype(Model).getConst();
 
-      if (auto *RFT = dyn_cast<RawFunctionType>(CalledPrototype)) {
-        revng_log(ModelGEPLog, "Has RawFunctionType prototype.");
+      if (auto *RFT = dyn_cast<RawFunctionDefinition>(CalledProtoT)) {
+        revng_log(ModelGEPLog, "Has RawFunctionDefinition prototype.");
         revng_assert(RFT->ReturnValues().size() > 1);
 
         auto *StructTy = cast<llvm::StructType>(CalledF->getReturnType());
@@ -1818,27 +1819,27 @@ getAccessedTypeOnIR(const Use &U,
           revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
           return Pointee;
         }
-      } else if (auto *CFT = dyn_cast<CABIFunctionType>(CalledPrototype)) {
-        revng_log(ModelGEPLog, "Has CABIFunctionType prototype.");
+      } else if (auto *CFT = dyn_cast<CABIFunctionDefinition>(CalledProtoT)) {
+        revng_log(ModelGEPLog, "Has CABIFunctionDefinition prototype.");
         // TODO: we haven't handled return values of CABIFunctions yet
         revng_abort();
       } else {
-        revng_abort("Function should have RawFunctionType or "
-                    "CABIFunctionType");
+        revng_abort("Function should have RawFunctionDefinition or "
+                    "CABIFunctionDefinition");
       }
 
     } else if (isCallToIsolatedFunction(Call)) {
-      auto Proto = getCallSitePrototype(Model, Call);
-      revng_assert(Proto.isValid());
+      auto *ProtoT = Cache.getCallSitePrototype(Model, Call).getConst();
+      revng_assert(ProtoT != nullptr);
 
-      if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.getConst())) {
+      if (const auto *RFT = dyn_cast<RawFunctionDefinition>(ProtoT)) {
 
         auto MoreIndent = LoggerIndent(ModelGEPLog);
         auto ModelArgSize = RFT->Arguments().size();
         auto &Type = RFT->StackArgumentsType();
         revng_assert((ModelArgSize == Call->arg_size() - 1 and Type.isValid())
                      or ModelArgSize == Call->arg_size());
-        revng_log(ModelGEPLog, "model::RawFunctionType");
+        revng_log(ModelGEPLog, "model::RawFunctionDefinition");
 
         auto _ = LoggerIndent(ModelGEPLog);
         if (not Call->isCallee(&U)) {
@@ -1849,7 +1850,7 @@ getAccessedTypeOnIR(const Use &U,
           model::QualifiedType ArgTy;
           if (ArgOpNum >= ModelArgSize) {
             // The only case in which the argument's index can be greater than
-            // the number of arguments in the model is for RawFunctionType
+            // the number of arguments in the model is for RawFunctionDefinition
             // functions that have stack arguments.
             // Stack arguments are passed as the last argument of the llvm
             // function, but they do not have a corresponding argument in the
@@ -1873,12 +1874,11 @@ getAccessedTypeOnIR(const Use &U,
           revng_log(ModelGEPLog, "IsCallee");
         }
 
-      } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto
-                                                                .getConst())) {
+      } else if (const auto *CFT = dyn_cast<CABIFunctionDefinition>(ProtoT)) {
 
         auto MoreIndent = LoggerIndent(ModelGEPLog);
         revng_assert(CFT->Arguments().size() == Call->arg_size());
-        revng_log(ModelGEPLog, "model::CABIFunctionType");
+        revng_log(ModelGEPLog, "model::CABIFunctionDefinition");
 
         auto _ = LoggerIndent(ModelGEPLog);
         if (not Call->isCallee(&U)) {
@@ -1898,8 +1898,8 @@ getAccessedTypeOnIR(const Use &U,
         }
 
       } else {
-        revng_abort("Function should have RawFunctionType or "
-                    "CABIFunctionType");
+        revng_abort("Functions are only allowed to have `RawFunctionDefinition`"
+                    " or `CABIFunctionDefinition` prototypes");
       }
     }
 
@@ -2011,9 +2011,10 @@ makeGEPReplacements(llvm::Function &F,
         const auto &[BaseAddress, IRSum] = IRPointerArithmetic;
         const model::QualifiedType &PointeeType = BaseAddress.getPointeeType();
 
+        namespace TypeDefinitionKind = model::TypeDefinitionKind;
         if (PointeeType.isVoid()
-            or PointeeType.is(model::TypeKind::RawFunctionType)
-            or PointeeType.is(model::TypeKind::CABIFunctionType))
+            or PointeeType.is(TypeDefinitionKind::RawFunctionDefinition)
+            or PointeeType.is(TypeDefinitionKind::CABIFunctionDefinition))
           continue;
 
         // Compute the type accessed by this use if any.

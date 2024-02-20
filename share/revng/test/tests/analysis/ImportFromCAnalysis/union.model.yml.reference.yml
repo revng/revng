@@ -2,24 +2,24 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: PrimitiveType
+TypeDefinitions:
+  - Kind: PrimitiveDefinition
     ID: 1288
     PrimitiveKind: Unsigned
     Size: 8
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 1284
     PrimitiveKind: Unsigned
     Size: 4
-  - Kind: UnionType
+  - Kind: UnionDefinition
     ID: 3000
     CustomName: new_union_name
     Fields:
       - Index: 0
         CustomName: "first_field"
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
       - Index: 1
         CustomName: "second_field"
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"

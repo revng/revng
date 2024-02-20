@@ -24,7 +24,7 @@ class CliftConverter {
   llvm::function_ref<mlir::InFlightDiagnostic()> EmitError;
 
   llvm::DenseMap<uint64_t, clift::TypeDefinitionAttr> Cache;
-  llvm::DenseMap<uint64_t, const model::Type *> IncompleteTypes;
+  llvm::DenseMap<uint64_t, const model::TypeDefinition *> IncompleteTypes;
 
   llvm::SmallSet<uint64_t, 16> DefinitionGuardSet;
 
@@ -65,7 +65,8 @@ public:
 
   ~CliftConverter() { revng_assert(DefinitionGuardSet.empty()); }
 
-  clift::ValueType convertUnqualifiedType(const model::Type &ModelType) {
+  clift::ValueType
+  convertUnqualifiedType(const model::TypeDefinition &ModelType) {
     const clift::ValueType T = getUnwrappedValueType(ModelType,
                                                      /*RequireComplete=*/true);
     if (T and not processIncompleteTypes())
@@ -96,30 +97,30 @@ private:
   }
 
   static clift::PrimitiveKind
-  getPrimitiveKind(const model::PrimitiveType &ModelType) {
+  getPrimitiveKind(const model::PrimitiveDefinition &ModelType) {
     switch (ModelType.PrimitiveKind()) {
-    case model::PrimitiveTypeKind::Void:
+    case model::PrimitiveKind::Void:
       return clift::PrimitiveKind::VoidKind;
-    case model::PrimitiveTypeKind::Generic:
+    case model::PrimitiveKind::Generic:
       return clift::PrimitiveKind::GenericKind;
-    case model::PrimitiveTypeKind::PointerOrNumber:
+    case model::PrimitiveKind::PointerOrNumber:
       return clift::PrimitiveKind::PointerOrNumberKind;
-    case model::PrimitiveTypeKind::Number:
+    case model::PrimitiveKind::Number:
       return clift::PrimitiveKind::NumberKind;
-    case model::PrimitiveTypeKind::Unsigned:
+    case model::PrimitiveKind::Unsigned:
       return clift::PrimitiveKind::UnsignedKind;
-    case model::PrimitiveTypeKind::Signed:
+    case model::PrimitiveKind::Signed:
       return clift::PrimitiveKind::SignedKind;
-    case model::PrimitiveTypeKind::Float:
+    case model::PrimitiveKind::Float:
       return clift::PrimitiveKind::FloatKind;
 
-    case model::PrimitiveTypeKind::Invalid:
-    case model::PrimitiveTypeKind::Count:
+    case model::PrimitiveKind::Invalid:
+    case model::PrimitiveKind::Count:
       revng_abort("These are invalid values. Something has gone wrong.");
     }
   }
 
-  clift::ValueType getPrimitiveType(const model::PrimitiveType &ModelType,
+  clift::ValueType getPrimitiveType(const model::PrimitiveDefinition &ModelType,
                                     const bool Const) {
     return make<clift::PrimitiveType>(getPrimitiveKind(ModelType),
                                       ModelType.Size(),
@@ -127,11 +128,11 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::CABIFunctionType &ModelType) {
+  getTypeAttribute(const model::CABIFunctionDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
-        EmitError() << "Recursive definition of CABIFunctionType "
+        EmitError() << "Recursive definition of CABIFunctionDefinition "
                     << ModelType.ID();
       rc_return nullptr;
     }
@@ -162,11 +163,12 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::EnumType &ModelType) {
+  getTypeAttribute(const model::EnumDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
-        EmitError() << "Recursive definition of EnumType " << ModelType.ID();
+        EmitError() << "Recursive definition of EnumDefinition "
+                    << ModelType.ID();
       rc_return nullptr;
     }
 
@@ -194,7 +196,7 @@ private:
   }
 
   RecursiveCoroutine<clift::ValueType>
-  getScalarTupleType(const model::RawFunctionType &ModelType) {
+  getScalarTupleType(const model::RawFunctionDefinition &ModelType) {
     using ElementAttr = clift::ScalarTupleElementAttr;
 
     AttributeVector<ElementAttr> Elements;
@@ -216,11 +218,11 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::RawFunctionType &ModelType) {
+  getTypeAttribute(const model::RawFunctionDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
-        EmitError() << "Recursive definition of RawFunctionType "
+        EmitError() << "Recursive definition of RawFunctionDefinition "
                     << ModelType.ID();
       rc_return nullptr;
     }
@@ -297,7 +299,7 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::StructType &ModelType,
+  getTypeAttribute(const model::StructDefinition &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
       const auto T = clift::StructTypeAttr::get(Context, ModelType.ID());
@@ -337,7 +339,7 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::TypedefType &ModelType,
+  getTypeAttribute(const model::TypedefDefinition &ModelType,
                    const bool RequireComplete) {
     std::optional<RecursiveDefinitionGuard> Guard;
 
@@ -345,7 +347,7 @@ private:
       Guard.emplace(*this, ModelType.ID());
       if (not *Guard) {
         if (EmitError)
-          EmitError() << "Recursive definition of TypedefType "
+          EmitError() << "Recursive definition of TypedefDefinition "
                       << ModelType.ID();
         rc_return nullptr;
       }
@@ -361,7 +363,7 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::UnionType &ModelType,
+  getTypeAttribute(const model::UnionDefinition &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
       const auto T = clift::UnionTypeAttr::get(Context, ModelType.ID());
@@ -398,50 +400,52 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::Type &ModelType, bool &RequireComplete) {
+  getTypeAttribute(const model::TypeDefinition &ModelType,
+                   bool &RequireComplete) {
     switch (ModelType.Kind()) {
-    case model::TypeKind::CABIFunctionType: {
+    case model::TypeDefinitionKind::CABIFunctionDefinition: {
       RequireComplete = true;
-      const auto &T = llvm::cast<model::CABIFunctionType>(ModelType);
+      const auto &T = llvm::cast<model::CABIFunctionDefinition>(ModelType);
       return getTypeAttribute(T);
     }
-    case model::TypeKind::EnumType: {
+    case model::TypeDefinitionKind::EnumDefinition: {
       RequireComplete = true;
-      const auto &T = llvm::cast<model::EnumType>(ModelType);
+      const auto &T = llvm::cast<model::EnumDefinition>(ModelType);
       return getTypeAttribute(T);
     }
-    case model::TypeKind::RawFunctionType: {
+    case model::TypeDefinitionKind::RawFunctionDefinition: {
       RequireComplete = true;
-      const auto &T = llvm::cast<model::RawFunctionType>(ModelType);
+      const auto &T = llvm::cast<model::RawFunctionDefinition>(ModelType);
       return getTypeAttribute(T);
     }
-    case model::TypeKind::StructType: {
-      const auto &T = llvm::cast<model::StructType>(ModelType);
+    case model::TypeDefinitionKind::StructDefinition: {
+      const auto &T = llvm::cast<model::StructDefinition>(ModelType);
       return getTypeAttribute(T, RequireComplete);
     }
-    case model::TypeKind::TypedefType: {
-      const auto &T = llvm::cast<model::TypedefType>(ModelType);
+    case model::TypeDefinitionKind::TypedefDefinition: {
+      const auto &T = llvm::cast<model::TypedefDefinition>(ModelType);
       return getTypeAttribute(T, RequireComplete);
     }
-    case model::TypeKind::UnionType: {
-      const auto &T = llvm::cast<model::UnionType>(ModelType);
+    case model::TypeDefinitionKind::UnionDefinition: {
+      const auto &T = llvm::cast<model::UnionDefinition>(ModelType);
       return getTypeAttribute(T, RequireComplete);
     }
 
-    case model::TypeKind::PrimitiveType:
+    case model::TypeDefinitionKind::PrimitiveDefinition:
       revng_abort("Primitive types have no corresponding attribute.");
 
-    case model::TypeKind::Invalid:
-    case model::TypeKind::Count:
+    case model::TypeDefinitionKind::Invalid:
+    case model::TypeDefinitionKind::Count:
       revng_abort("These are invalid values. Something has gone wrong.");
     }
   }
 
   RecursiveCoroutine<clift::ValueType>
-  getUnwrappedValueType(const model::Type &ModelType,
+  getUnwrappedValueType(const model::TypeDefinition &ModelType,
                         bool RequireComplete = false,
                         const bool Const = false) {
-    if (const auto *const T = llvm::dyn_cast<model::PrimitiveType>(&ModelType))
+    if (const auto
+          *const T = llvm::dyn_cast<model::PrimitiveDefinition>(&ModelType))
       rc_return getPrimitiveType(*T, Const);
 
     const auto getDefinedType = [&](const auto Attr) -> clift::ValueType {
@@ -546,11 +550,12 @@ private:
   bool processIncompleteTypes() {
     while (not IncompleteTypes.empty()) {
       const auto Iterator = IncompleteTypes.begin();
-      const model::Type &ModelType = *Iterator->second;
+      const model::TypeDefinition &ModelType = *Iterator->second;
       IncompleteTypes.erase(Iterator);
 
       clift::ValueType CompleteType;
-      if (const auto RFT = llvm::dyn_cast<model::RawFunctionType>(&ModelType)) {
+      if (const auto
+            RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType)) {
         CompleteType = getScalarTupleType(*RFT);
       } else {
         CompleteType = getUnwrappedValueType(ModelType,
@@ -570,7 +575,7 @@ private:
 clift::ValueType
 clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                        mlir::MLIRContext &Context,
-                       const model::Type &ModelType) {
+                       const model::TypeDefinition &ModelType) {
   return CliftConverter(Context, EmitError).convertUnqualifiedType(ModelType);
 }
 

@@ -4,25 +4,25 @@
 
 Architecture: x86_64
 
-Types:
-  - Kind: CABIFunctionType
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/3005-StructType"
+      UnqualifiedType: "/TypeDefinitions/3005-StructDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/3005-StructType"
+          UnqualifiedType: "/TypeDefinitions/3005-StructDefinition"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/3006-StructType"
+          UnqualifiedType: "/TypeDefinitions/3006-StructDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/3006-StructType"
+          UnqualifiedType: "/TypeDefinitions/3006-StructDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8
@@ -30,33 +30,33 @@ Types:
               Size: 8
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 1537
     PrimitiveKind: Signed
     Size: 1
-  - Kind: PrimitiveType
+  - Kind: PrimitiveDefinition
     ID: 1540
     PrimitiveKind: Signed
     Size: 4
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 5
     Fields:
       - Offset: 0
         CustomName: "can_do_threads"
         OriginalName: can_do_threads
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
     Size: 4
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3006
     Fields:
       - Offset: 0
         CustomName: "do_threads"
         OriginalName: do_threads
         Type:
-          UnqualifiedType: "/Types/1537-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1537-PrimitiveDefinition"
     Size: 1

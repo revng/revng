@@ -2,10 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 3003
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3001
     CustomName: "my_struct"
     Size: 40
@@ -14,7 +14,7 @@ Types:
       - Offset: 0
         CustomName: "first_field"
         Type:
-          UnqualifiedType: "/Types/3003-StructType"
+          UnqualifiedType: "/TypeDefinitions/3003-StructDefinition"
           Qualifiers:
             - Kind: Pointer
               Size: 8

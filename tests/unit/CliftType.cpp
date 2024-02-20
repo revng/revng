@@ -20,7 +20,7 @@ static auto withContext(CallableType Callable) {
   return Callable(EmitError, Context);
 }
 
-static bool verify(const model::Type &ModelType, const bool Assert) {
+static bool verify(const model::TypeDefinition &ModelType, const bool Assert) {
   return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
     return static_cast<bool>(mlir::clift::importModelType(EmitError,
                                                           Context,

@@ -78,7 +78,7 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
 
     // Aggregates that do not correspond to model structs (e.g. return types
     // of RawFunctionTypes that return more than one value) cannot be handled
-    // with casts, since we don't have a model::Type to cast them to.
+    // with casts, since we don't have a model::TypeDefinition to cast them to.
     if (ModelTypes.size() == 1) {
       QualifiedType ExpectedType = ModelTypes.back();
       revng_assert(ExpectedType.UnqualifiedType().isValid());
@@ -138,9 +138,9 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
 
       if (PtrOperandPtrType.isPointer()) {
         PtrOperandType = dropPointer(PtrOperandPtrType);
-        const auto *Unqualified = PtrOperandType.UnqualifiedType().getConst();
-        IsPtrOperandOfAggregateType = isa<model::StructType>(Unqualified)
-                                      || isa<model::UnionType>(Unqualified);
+        const auto *Unqual = PtrOperandType.UnqualifiedType().getConst();
+        IsPtrOperandOfAggregateType = isa<model::StructDefinition>(Unqual)
+                                      || isa<model::UnionDefinition>(Unqual);
       }
 
       if (isa<ConstantPointerNull>(SI->getPointerOperand())
@@ -264,12 +264,11 @@ bool MMCP::runOnFunction(Function &F) {
         revng_assert(ResultBitWidth == 1 or ResultBitWidth >= 8);
         unsigned ByteSize = (ResultBitWidth == 1) ? 1 : ResultBitWidth / 8;
 
-        using model::PrimitiveTypeKind::Values::Number;
-        using model::PrimitiveTypeKind::Values::Signed;
-        using model::PrimitiveTypeKind::Values::Unsigned;
-        model::PrimitiveTypeKind::Values Kind = SExt ?
-                                                  Signed :
-                                                  (ZExt ? Unsigned : Number);
+        using model::PrimitiveKind::Values::Number;
+        using model::PrimitiveKind::Values::Signed;
+        using model::PrimitiveKind::Values::Unsigned;
+        model::PrimitiveKind::Values Kind = SExt ? Signed :
+                                                   (ZExt ? Unsigned : Number);
         auto ResultModelType = model::QualifiedType{
           Model->getPrimitiveType(Kind, ByteSize), {}
         };

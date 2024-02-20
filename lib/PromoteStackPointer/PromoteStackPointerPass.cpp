@@ -51,8 +51,8 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
     for (Instruction &I : BB) {
       if (isCallToIsolatedFunction(&I)) {
         // TODO: handle CABIFunctionType
-        model::TypePath P = getCallSitePrototype(Binary, cast<CallInst>(&I));
-        uint64_t FinalStackOffset = abi::FunctionType::finalStackOffset(P);
+        auto Ref = getCallSitePrototype(Binary, cast<CallInst>(&I));
+        uint64_t FinalStackOffset = abi::FunctionType::finalStackOffset(Ref);
         auto *FSO = ConstantInt::get(SPType, FinalStackOffset);
 
         // We found a function call

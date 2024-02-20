@@ -8,7 +8,7 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/PTMLC.h"
@@ -17,7 +17,7 @@
 struct TypeInlineHelper {
 public:
   struct NodeData {
-    model::Type *T;
+    model::TypeDefinition *T;
   };
 
   using Node = BidirectionalNode<NodeData>;
@@ -32,44 +32,45 @@ public:
     // directions.
     Graph TypeGraph;
     // This is being used for speeding up the counting of the type references.
-    std::map<const model::Type *, Node *> TypeToNode;
+    std::map<const model::TypeDefinition *, Node *> TypeToNode;
   };
 
 private:
   const model::Binary &Model;
   GraphInfo TypeGraph;
-  std::set<const model::Type *> TypesToInline;
+  std::set<const model::TypeDefinition *> TypesToInline;
 
 public:
   TypeInlineHelper(const model::Binary &Model);
 
 public:
-  const std::set<const model::Type *> &getTypesToInline() const;
+  const std::set<const model::TypeDefinition *> &getTypesToInline() const;
 
 public:
   // Collect stack frame types per model::Function.
-  std::unordered_map<const model::Function *, std::set<const model::Type *>>
+  std::unordered_map<const model::Function *,
+                     std::set<const model::TypeDefinition *>>
   findTypesToInlineInStacks() const;
 
   // Collect all the types that can be emitted inline in the stack frame types
   // of model functions.
-  std::set<const model::Type *> collectTypesInlinableInStacks() const;
+  std::set<const model::TypeDefinition *> collectTypesInlinableInStacks() const;
 
   // Find all nested types of the `RootType` that should be inlined into it.
-  std::set<const model::Type *>
-  getTypesToInlineInTypeTy(const model::Type *RootType) const;
+  std::set<const model::TypeDefinition *>
+  getTypesToInlineInTypeTy(const model::TypeDefinition *RootType) const;
 
 private:
   // Helper function used for finding all nested (into `RootType`) inlinable
   // types.
-  std::set<const model::Type *>
-  getNestedTypesToInline(const model::Type *RootType,
-                         const UpcastablePointer<model::Type> &NestedTy) const;
+  std::set<const model::TypeDefinition *>
+  getNestedTypesToInline(const model::TypeDefinition *RootType,
+                         const model::UpcastableTypeDefinition &NestedTy) const;
 };
 
-extern bool declarationIsDefinition(const model::Type *T);
+extern bool declarationIsDefinition(const model::TypeDefinition *T);
 
-extern void printForwardDeclaration(const model::Type &T,
+extern void printForwardDeclaration(const model::TypeDefinition &T,
                                     ptml::PTMLIndentedOstream &Header,
                                     ptml::PTMLCBuilder &B);
 
@@ -80,12 +81,12 @@ extern void printForwardDeclaration(const model::Type &T,
 // and enums.
 extern void
 printDeclaration(Logger<> &Log,
-                 const model::Type &T,
+                 const model::TypeDefinition &T,
                  ptml::PTMLIndentedOstream &Header,
                  ptml::PTMLCBuilder &B,
                  const model::Binary &Model,
                  std::map<model::QualifiedType, std::string> &AdditionalNames,
-                 const std::set<const model::Type *> &TypesToInline,
+                 const std::set<const model::TypeDefinition *> &TypesToInline,
                  llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
                  const std::vector<model::Qualifier> &Qualifiers = {},
                  bool ForEditing = false);
@@ -97,12 +98,12 @@ printDeclaration(Logger<> &Log,
 // and enums.
 extern void
 printDefinition(Logger<> &Log,
-                const model::Type &T,
+                const model::TypeDefinition &T,
                 ptml::PTMLIndentedOstream &Header,
                 ptml::PTMLCBuilder &B,
                 const model::Binary &Model,
                 std::map<model::QualifiedType, std::string> &AdditionalNames,
-                const std::set<const model::Type *> &TypesToInline,
+                const std::set<const model::TypeDefinition *> &TypesToInline,
                 llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
                 const std::vector<model::Qualifier> &Qualifiers = {},
                 bool ForEditing = false);
@@ -113,20 +114,20 @@ printDefinition(Logger<> &Log,
 // we should print the type inline.
 extern void
 printDefinition(Logger<> &Log,
-                const model::StructType &S,
+                const model::StructDefinition &S,
                 ptml::PTMLIndentedOstream &Header,
                 ptml::PTMLCBuilder &B,
                 const model::Binary &Model,
                 std::map<model::QualifiedType, std::string> &AdditionalNames,
-                const std::set<const model::Type *> &TypesToInline,
+                const std::set<const model::TypeDefinition *> &TypesToInline,
                 llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
                 const std::vector<model::Qualifier> &Qualifiers = {});
 
 // Checks if a Type is valid candidate to inline. Types that can be inline are
 // structs, unions and enums.
-extern bool isCandidateForInline(const model::Type *T);
+extern bool isCandidateForInline(const model::TypeDefinition *T);
 
 // Print a typedef declaration.
-extern void printDeclaration(const model::TypedefType &TD,
+extern void printDeclaration(const model::TypedefDefinition &TD,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &B);

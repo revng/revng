@@ -19,10 +19,10 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/PrimitiveTypeKind.h"
+#include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
-#include "revng/Model/RawFunctionType.h"
+#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -35,12 +35,12 @@ using llvm::cast;
 using llvm::dyn_cast;
 
 using QualKind = model::QualifierKind::Values;
-using CABIFT = model::CABIFunctionType;
-using RawFT = model::RawFunctionType;
+using CABIFT = model::CABIFunctionDefinition;
+using RawFT = model::RawFunctionDefinition;
 
 using model::QualifiedType;
 using model::Qualifier;
-using model::TypedefType;
+using model::TypedefDefinition;
 
 constexpr const size_t ModelGEPBaseArgIndex = 1;
 
@@ -57,7 +57,7 @@ peelConstAndTypedefsImpl(const model::QualifiedType &QT) {
 
   // Here we have only const qualifiers
 
-  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst());
+  auto *TD = dyn_cast<TypedefDefinition>(QT.UnqualifiedType().getConst());
 
   // If it's not a typedef, we're done. Just throw away the remaining const
   // qualifiers.
@@ -86,7 +86,7 @@ getNonConstImpl(const model::QualifiedType &QT) {
 
   // Here we have only const qualifiers
 
-  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst());
+  auto *TD = dyn_cast<TypedefDefinition>(QT.UnqualifiedType().getConst());
 
   // If it's not a typedef, we're done. Just throw away the remaining const
   // qualifiers. If it's a typedef but it also doesn't wrap a const type, we are
@@ -141,7 +141,7 @@ const model::QualifiedType modelType(const llvm::Value *V,
 
 const model::QualifiedType llvmIntToModelType(const llvm::Type *LLVMType,
                                               const model::Binary &Model) {
-  using namespace model::PrimitiveTypeKind;
+  using namespace model::PrimitiveKind;
 
   const llvm::Type *TypeToConvert = LLVMType;
 
@@ -154,7 +154,7 @@ const model::QualifiedType llvmIntToModelType(const llvm::Type *LLVMType,
   // the type
   if (isa<llvm::PointerType>(TypeToConvert)) {
     using namespace model;
-    auto Generic = PrimitiveTypeKind::Generic;
+    auto Generic = PrimitiveKind::Generic;
     auto PointerSize = Architecture::getPointerSize(Model.Architecture());
     ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, PointerSize);
     return ModelType;
@@ -259,7 +259,7 @@ dropPointer(const model::QualifiedType &QT) {
   }
 
   // Recur if it has no pointer qualifier but it is a Typedef
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
+  if (auto *TD = dyn_cast<model::TypedefDefinition>(QT.UnqualifiedType().get()))
     rc_return rc_recur dropPointer(TD->UnderlyingType());
 
   revng_abort("Cannot dropPointer, QT does not have pointer qualifiers");
@@ -293,11 +293,11 @@ getFieldType(const QualifiedType &Parent, uint64_t Idx) {
   auto *UnqualType = Parent.UnqualifiedType().getConst();
 
   // Traverse the UnqualifiedType
-  if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
+  if (auto *Struct = dyn_cast<model::StructDefinition>(UnqualType)) {
     rc_return Struct->Fields().at(Idx).Type();
-  } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
+  } else if (auto *Union = dyn_cast<model::UnionDefinition>(UnqualType)) {
     rc_return Union->Fields().at(Idx).Type();
-  } else if (auto *Typedef = dyn_cast<model::TypedefType>(UnqualType)) {
+  } else if (auto *Typedef = dyn_cast<model::TypedefDefinition>(UnqualType)) {
     rc_return rc_recur getFieldType(Typedef->UnderlyingType(), Idx);
   }
 
@@ -358,8 +358,7 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
     if (ReturnValue.Type.isScalar()) {
       if (ReturnValue.Registers.size() > 1) {
         model::QualifiedType PointerSizedInt{
-          Model.getPrimitiveType(model::PrimitiveTypeKind::Generic, PointerS),
-          {}
+          Model.getPrimitiveType(model::PrimitiveKind::Generic, PointerS), {}
         };
 
         for (const model::Register::Values &Register : ReturnValue.Registers) {
@@ -371,11 +370,11 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
       }
     } else {
       model::QualifiedType Underlying = peelConstAndTypedefs(ReturnValue.Type);
-      revng_assert(Underlying.is(model::TypeKind::StructType));
+      revng_assert(Underlying.is(model::TypeDefinitionKind::StructDefinition));
       revng_assert(Underlying.Qualifiers().empty());
 
       auto *ModelReturnType = Underlying.UnqualifiedType().get();
-      auto *StructReturnType = cast<model::StructType>(ModelReturnType);
+      auto *StructReturnType = cast<model::StructDefinition>(ModelReturnType);
       for (model::QualifiedType FieldType :
            llvm::map_range(StructReturnType->Fields(),
                            [](const model::StructField &F) {
@@ -391,7 +390,7 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
 }
 
 static llvm::SmallVector<QualifiedType>
-handleReturnValue(const model::TypePath &Prototype,
+handleReturnValue(const model::TypeDefinitionPath &Prototype,
                   const model::Binary &Model) {
   const auto Layout = abi::FunctionType::Layout::make(Prototype);
 
@@ -545,8 +544,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         revng_abort();
       }
     } else if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
-      auto Primitive = Model.getPrimitiveType(model::PrimitiveTypeKind::Signed,
-                                              8u);
+      auto Primitive = Model.getPrimitiveType(model::PrimitiveKind::Signed, 8u);
       auto Type = QualifiedType(Primitive,
                                 { model::Qualifier::createPointer(8u),
                                   model::Qualifier::createConst() });
@@ -596,7 +594,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
     return handleReturnValue(ParentFunc()->prototype(Model), Model);
   } else if (auto *BinaryOp = dyn_cast<llvm::BinaryOperator>(User)) {
-    using namespace model::PrimitiveTypeKind;
+    using namespace model::PrimitiveKind;
     auto Opcode = BinaryOp->getOpcode();
     switch (Opcode) {
 
@@ -698,7 +696,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
     // pointers.
     if (Op0->getType()->isPointerTy() or Op1->getType()->isPointerTy()) {
       model::QualifiedType Result;
-      using model::PrimitiveTypeKind::PointerOrNumber;
+      using model::PrimitiveKind::PointerOrNumber;
       auto PointerSize = model::Architecture::getPointerSize(Model
                                                                .Architecture());
       Result.UnqualifiedType() = Model.getPrimitiveType(PointerOrNumber,
@@ -708,9 +706,9 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
 
     // If we're not doing eq or neq, we have to make sure that the
     // signedness is compatible, otherwise it would break semantics.
-    using model::PrimitiveTypeKind::PointerOrNumber;
-    using model::PrimitiveTypeKind::Signed;
-    using model::PrimitiveTypeKind::Unsigned;
+    using model::PrimitiveKind::PointerOrNumber;
+    using model::PrimitiveKind::Signed;
+    using model::PrimitiveKind::Unsigned;
     auto ICmpKind = ICmp->isEquality() ? PointerOrNumber :
                                          (ICmp->isSigned() ? Signed : Unsigned);
 
@@ -727,7 +725,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
     auto DL = Select->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(Select->getOperand(1)->getType());
     model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Generic;
+    using model::PrimitiveKind::Generic;
     Result.UnqualifiedType() = Model.getPrimitiveType(Generic, ByteSize);
     return { Result };
 
@@ -736,7 +734,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
     auto DL = Switch->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(Switch->getCondition()->getType());
     model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Number;
+    using model::PrimitiveKind::Number;
     Result.UnqualifiedType() = Model.getPrimitiveType(Number, ByteSize);
     return { Result };
 
@@ -746,7 +744,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
     auto DL = Trunc->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
     model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Number;
+    using model::PrimitiveKind::Number;
     Result.UnqualifiedType() = Model.getPrimitiveType(Number, ByteSize);
     return { Result };
 
@@ -756,7 +754,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
     auto DL = SExt->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
     model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Signed;
+    using model::PrimitiveKind::Signed;
     Result.UnqualifiedType() = Model.getPrimitiveType(Signed, ByteSize);
     return { Result };
 
@@ -766,7 +764,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
     auto DL = ZExt->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
     model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Unsigned;
+    using model::PrimitiveKind::Unsigned;
     Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, ByteSize);
     return { Result };
   }

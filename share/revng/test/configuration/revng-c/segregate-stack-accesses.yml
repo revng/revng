@@ -9,7 +9,7 @@ commands:
         filter: for-segregate-stack-accesses
     suffix: /
     command: |-
-      export REVNG_OPTIONS="$$REVNG_OPTIONS --debug-names";
+      export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
 
       revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
       revng analyze --resume "$OUTPUT" add-primitive-types "$INPUT" -o /dev/null;

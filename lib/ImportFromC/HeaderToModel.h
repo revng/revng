@@ -84,13 +84,13 @@ class HeaderToModelEditTypeAction : public HeaderToModelAction {
 public:
   HeaderToModelEditTypeAction(TupleTree<model::Binary> &Model,
                               std::optional<revng::ParseCCodeError> &Error,
-                              std::optional<model::Type *> &Type) :
+                              std::optional<model::TypeDefinition *> &Type) :
     HeaderToModelAction(Model, ImportFromCOption::EditType, Error),
     Type(Type) {}
 
 private:
   // Type to be edited.
-  std::optional<model::Type *> &Type;
+  std::optional<model::TypeDefinition *> &Type;
 
 public:
   virtual std::unique_ptr<ASTConsumer> newASTConsumer() override;

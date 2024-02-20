@@ -7,19 +7,19 @@ Architecture: x86_64
 Functions:
   - Entry: "0x400000:Code_x86_64"
     CustomName: new_function_name
-    Prototype: "/Types/3000-RawFunctionType"
-Types:
-  - Kind: RawFunctionType
+    Prototype: "/TypeDefinitions/3000-RawFunctionDefinition"
+TypeDefinitions:
+  - Kind: RawFunctionDefinition
     ID: 3000
     Architecture: x86_64
     Arguments:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/Types/1544-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1544-PrimitiveDefinition"
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
       - Location: rbx_x86_64
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"

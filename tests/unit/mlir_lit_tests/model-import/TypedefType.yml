@@ -5,7 +5,7 @@
 
 Types:
   - ID: 1284
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 4
 
@@ -16,7 +16,7 @@ Types:
     # CHECK:  >
     # CHECK:  !my_typedef = !clift.defined<#my_typedef$def>
   - ID: 1001
-    Kind: TypedefType
+    Kind: TypedefDefinition
     CustomName: "my_typedef"
     UnderlyingType:
-      UnqualifiedType: "/Types/1284-PrimitiveType"
+      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"

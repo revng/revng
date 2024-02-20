@@ -466,7 +466,7 @@ public:
           if (PrototypeRef.empty())
             continue;
 
-          const model::Type *Prototype = PrototypeRef.getConst();
+          const model::TypeDefinition *Prototype = PrototypeRef.getConst();
           revng_assert(Prototype);
 
           const Function *Callee = getCallee(C);

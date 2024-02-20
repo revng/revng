@@ -9,7 +9,7 @@
 #include "revng/Model/Processing.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Support/Debug.h"
 
 #include "revng-c/Pipes/Ranks.h"
@@ -58,7 +58,7 @@ namespace tooling {
 class HeaderToModel : public ASTConsumer {
 public:
   HeaderToModel(TupleTree<model::Binary> &Model,
-                std::optional<model::Type *> &Type,
+                std::optional<model::TypeDefinition *> &Type,
                 std::optional<model::Function> &Function,
                 std::optional<ParseCCodeError> &Error,
                 enum ImportFromCOption AnalysisOption) :
@@ -76,7 +76,7 @@ public:
 
 private:
   TupleTree<model::Binary> &Model;
-  std::optional<model::Type *> &Type;
+  std::optional<model::TypeDefinition *> &Type;
   std::optional<model::Function> &Function;
   std::optional<ParseCCodeError> &Error;
   enum ImportFromCOption AnalysisOption;
@@ -86,7 +86,7 @@ class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
 private:
   TupleTree<model::Binary> &Model;
   ASTContext &Context;
-  std::optional<model::Type *> &Type;
+  std::optional<model::TypeDefinition *> &Type;
   std::optional<model::Function> &Function;
   std::optional<revng::ParseCCodeError> &Error;
   enum ImportFromCOption AnalysisOption;
@@ -97,14 +97,15 @@ private:
 
   // Used to remember return values locations when parsing struct representing
   // the multi-reg return value. Represents register ID and mode::Type.
-  using ModelType = std::pair<model::TypePath, std::vector<Qualifier>>;
+  using ModelType = std::pair<model::TypeDefinitionPath,
+                              std::vector<Qualifier>>;
   using RawLocation = std::pair<model::Register::Values, ModelType>;
   std::optional<llvm::SmallVector<RawLocation, 4>> MultiRegisterReturnValue;
 
 public:
   explicit DeclVisitor(TupleTree<model::Binary> &Model,
                        ASTContext &Context,
-                       std::optional<model::Type *> &Type,
+                       std::optional<model::TypeDefinition *> &Type,
                        std::optional<model::Function> &Function,
                        std::optional<ParseCCodeError> &Error,
                        enum ImportFromCOption AnalysisOption);
@@ -136,31 +137,31 @@ private:
   bool handleUnionType(const clang::RecordDecl *RD);
 
   // Convert clang::type to model::type.
-  std::optional<model::TypePath>
+  std::optional<model::TypeDefinitionPath>
   getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin, QualType Type);
 
   // Get model type for clang::RecordType (Struct/Unoion).
-  std::optional<model::TypePath>
+  std::optional<model::TypeDefinitionPath>
   getTypeForRecordType(const clang::RecordType *RecordType,
                        const QualType &ClangType);
 
   // Get model type for clang::EnumType.
-  std::optional<model::TypePath>
+  std::optional<model::TypeDefinitionPath>
   getTypeForEnumType(const clang::EnumType *EnumType);
 
-  std::optional<model::TypePath> getTypeByNameOrID(llvm::StringRef Name,
-                                                   TypeKind::Values Kind);
+  std::optional<model::TypeDefinitionPath>
+  getTypeByNameOrID(llvm::StringRef Name, TypeDefinitionKind::Values Kind);
 
   std::optional<model::QualifiedType>
   getModelTypeForClangType(const QualType &QT);
 
-  std::optional<model::TypePath>
+  std::optional<model::TypeDefinitionPath>
   getEnumUnderlyingType(const std::string &TypeName);
 };
 
 DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
                          ASTContext &Context,
-                         std::optional<model::Type *> &Type,
+                         std::optional<model::TypeDefinition *> &Type,
                          std::optional<model::Function> &Function,
                          std::optional<ParseCCodeError> &Error,
                          enum ImportFromCOption AnalysisOption) :
@@ -202,9 +203,9 @@ parseEnumUnderlyingType(llvm::StringRef Annotate) {
   return std::string(Annotate.substr(EnumAnnotatePrefixLength));
 }
 
-std::optional<model::TypePath>
+std::optional<model::TypeDefinitionPath>
 DeclVisitor::getEnumUnderlyingType(const std::string &TypeName) {
-  auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+  auto MaybePrimitive = model::PrimitiveDefinition::fromName(TypeName);
   if (not MaybePrimitive) {
     revng_log(Log, "Not a primitive type");
     return std::nullopt;
@@ -214,7 +215,7 @@ DeclVisitor::getEnumUnderlyingType(const std::string &TypeName) {
                                  MaybePrimitive->Size());
 }
 
-std::optional<model::TypePath>
+std::optional<model::TypeDefinitionPath>
 DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
                                   QualType Type) {
   revng_assert(UnderlyingBuiltin);
@@ -225,7 +226,7 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
     std::string ErrorMessage = "revng: Builtin type `"
                                + UnderlyingBuiltin->getName(Policy).str()
                                + "` not allowed, please use a revng "
-                                 "model::PrimitiveType instead";
+                                 "model::PrimitiveDefinition instead";
     Error = { ErrorMessage, CurrentLineNumber, CurrentColumnNumber };
 
     return std::nullopt;
@@ -239,75 +240,75 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
   }
 
   std::string TypeName = AsElaboratedType->getNamedType().getAsString();
-  auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+  auto MaybePrimitive = model::PrimitiveDefinition::fromName(TypeName);
   if (not MaybePrimitive.has_value()) {
     std::string ErrorMessage = "revng: `"
                                + AsElaboratedType->getNamedType().getAsString()
-                               + "`, please use a revng model::PrimitiveType "
-                                 "instead";
+                               + "`, please use a revng "
+                                 "model::PrimitiveDefinition instead";
     Error = { ErrorMessage, CurrentLineNumber, CurrentColumnNumber };
 
     return std::nullopt;
   }
 
-  model::TypePath Result;
+  model::TypeDefinitionPath Result;
   switch (UnderlyingBuiltin->getKind()) {
   case BuiltinType::UInt128: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Unsigned, 16);
+    return Model->getPrimitiveType(model::PrimitiveKind::Unsigned, 16);
   }
   case BuiltinType::Int128: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Signed, 16);
+    return Model->getPrimitiveType(model::PrimitiveKind::Signed, 16);
   }
   case BuiltinType::ULongLong:
   case BuiltinType::ULong: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Unsigned, 8);
+    return Model->getPrimitiveType(model::PrimitiveKind::Unsigned, 8);
   }
   case BuiltinType::LongLong:
   case BuiltinType::Long: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Signed, 8);
+    return Model->getPrimitiveType(model::PrimitiveKind::Signed, 8);
   }
   case BuiltinType::WChar_U:
   case BuiltinType::UInt: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Unsigned, 4);
+    return Model->getPrimitiveType(model::PrimitiveKind::Unsigned, 4);
   }
   case BuiltinType::WChar_S:
   case BuiltinType::Char32:
   case BuiltinType::Int: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Signed, 4);
+    return Model->getPrimitiveType(model::PrimitiveKind::Signed, 4);
   }
   case BuiltinType::Char16:
   case BuiltinType::Short: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Signed, 2);
+    return Model->getPrimitiveType(model::PrimitiveKind::Signed, 2);
   }
   case BuiltinType::UShort: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Unsigned, 2);
+    return Model->getPrimitiveType(model::PrimitiveKind::Unsigned, 2);
   }
   case BuiltinType::Char_S:
   case BuiltinType::SChar:
   case BuiltinType::Char8:
   case BuiltinType::Bool: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Signed, 1);
+    return Model->getPrimitiveType(model::PrimitiveKind::Signed, 1);
   }
   case BuiltinType::Char_U:
   case BuiltinType::UChar: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Unsigned, 1);
+    return Model->getPrimitiveType(model::PrimitiveKind::Unsigned, 1);
   }
   case BuiltinType::Void: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
+    return Model->getPrimitiveType(model::PrimitiveKind::Void, 0);
   }
   case BuiltinType::Float16: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Float, 2);
+    return Model->getPrimitiveType(model::PrimitiveKind::Float, 2);
   }
 
   case BuiltinType::Float: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Float, 4);
+    return Model->getPrimitiveType(model::PrimitiveKind::Float, 4);
   }
   case BuiltinType::Double: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Float, 8);
+    return Model->getPrimitiveType(model::PrimitiveKind::Float, 8);
   }
   case BuiltinType::Float128:
   case BuiltinType::LongDouble: {
-    return Model->getPrimitiveType(model::PrimitiveTypeKind::Float, 16);
+    return Model->getPrimitiveType(model::PrimitiveKind::Float, 16);
   }
 
   default: {
@@ -319,33 +320,35 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
   return std::nullopt;
 }
 
-std::optional<model::TypePath>
-DeclVisitor::getTypeByNameOrID(llvm::StringRef Name, TypeKind::Values Kind) {
-  const bool IsStruct = Kind == model::TypeKind::StructType;
-  const bool IsUnion = Kind == model::TypeKind::UnionType;
-  const bool IsEnum = Kind == model::TypeKind::EnumType;
-  const bool IsCABIFunction = Kind == model::TypeKind::CABIFunctionType;
-  const bool IsRawFunctionType = Kind == model::TypeKind::RawFunctionType;
+namespace TDKind = model::TypeDefinitionKind;
+std::optional<model::TypeDefinitionPath>
+DeclVisitor::getTypeByNameOrID(llvm::StringRef Name,
+                               TypeDefinitionKind::Values Kind) {
+  const bool IsStruct = Kind == TDKind::StructDefinition;
+  const bool IsUnion = Kind == TDKind::UnionDefinition;
+  const bool IsEnum = Kind == TDKind::EnumDefinition;
+  const bool IsCABI = Kind == TDKind::CABIFunctionDefinition;
+  const bool IsRaw = Kind == TDKind::RawFunctionDefinition;
 
   // Find by name first.
-  for (auto &Type : Model->Types()) {
-    if (IsStruct and not llvm::isa<model::StructType>(Type.get()))
+  for (auto &Type : Model->TypeDefinitions()) {
+    if (IsStruct and not llvm::isa<model::StructDefinition>(Type.get()))
       continue;
 
-    if (IsUnion and not llvm::isa<model::UnionType>(Type.get()))
+    if (IsUnion and not llvm::isa<model::UnionDefinition>(Type.get()))
       continue;
 
-    if (IsEnum and not llvm::isa<model::EnumType>(Type.get()))
+    if (IsEnum and not llvm::isa<model::EnumDefinition>(Type.get()))
       continue;
 
-    if (IsCABIFunction and not llvm::isa<model::CABIFunctionType>(Type.get()))
+    if (IsCABI and not llvm::isa<model::CABIFunctionDefinition>(Type.get()))
       continue;
 
-    if (IsRawFunctionType and not llvm::isa<model::RawFunctionType>(Type.get()))
+    if (IsRaw and not llvm::isa<model::RawFunctionDefinition>(Type.get()))
       continue;
 
     if (Type->CustomName() == Name)
-      return Model->getTypePath(Type.get());
+      return Model->getTypeDefinitionPath(Type.get());
   }
 
   size_t LocationOfID = Name.rfind("_");
@@ -357,9 +360,9 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name, TypeKind::Values Kind) {
     std::istringstream TheStream(ID);
     TheStream >> TypeID;
 
-    auto KeyType = model::Type::Key{ TypeID, Kind };
+    auto KeyType = model::TypeDefinition::Key{ TypeID, Kind };
 
-    auto TheType = Model->getTypePath(KeyType);
+    auto TheType = Model->getTypeDefinitionPath(KeyType);
     if (TheType.get())
       return TheType;
   }
@@ -367,7 +370,7 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name, TypeKind::Values Kind) {
   return std::nullopt;
 }
 
-std::optional<model::TypePath>
+std::optional<model::TypeDefinitionPath>
 DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
                                   const QualType &ClangType) {
   revng_assert(RecordType);
@@ -382,7 +385,7 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
       return std::nullopt;
     }
     auto TypeName = AsTypedef->getDecl()->getName();
-    auto MaybePrimitive = model::PrimitiveType::fromName(TypeName);
+    auto MaybePrimitive = model::PrimitiveDefinition::fromName(TypeName);
     revng_assert(MaybePrimitive);
 
     return Model->getPrimitiveType(MaybePrimitive->PrimitiveKind(),
@@ -396,11 +399,11 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
   }
 
   if (RecordType->isStructureType()) {
-    auto TheStructType = getTypeByNameOrID(Name, model::TypeKind::StructType);
+    auto TheStructType = getTypeByNameOrID(Name, TDKind::StructDefinition);
     if (TheStructType)
       return *TheStructType;
   } else if (RecordType->isUnionType()) {
-    auto TheUnionType = getTypeByNameOrID(Name, model::TypeKind::UnionType);
+    auto TheUnionType = getTypeByNameOrID(Name, TDKind::UnionDefinition);
     if (TheUnionType)
       return *TheUnionType;
   }
@@ -409,7 +412,7 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
   return std::nullopt;
 }
 
-std::optional<model::TypePath>
+std::optional<model::TypeDefinitionPath>
 DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
   revng_assert(EnumType);
   revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
@@ -420,7 +423,7 @@ DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
     return std::nullopt;
   }
 
-  auto TheEnumType = getTypeByNameOrID(EnumName, model::TypeKind::EnumType);
+  auto TheEnumType = getTypeByNameOrID(EnumName, TDKind::EnumDefinition);
   if (TheEnumType)
     return *TheEnumType;
 
@@ -473,7 +476,7 @@ void DeclVisitor::setupLineAndColumn(const clang::Decl *D) {
 
 std::optional<model::QualifiedType>
 DeclVisitor::getModelTypeForClangType(const QualType &QT) {
-  std::optional<model::TypePath> TheTypePath;
+  std::optional<model::TypeDefinitionPath> TheTypePath;
   std::vector<Qualifier> Qualifiers;
 
   if (QT.isConstQualified())
@@ -517,11 +520,11 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
       }
 
       auto FunctionName = AsTypedef->getDecl()->getName();
-      auto CABIFunctionTypeKind = model::TypeKind::CABIFunctionType;
+      auto CABIFunctionTypeKind = TDKind::CABIFunctionDefinition;
       auto TheCABIFunctionType = getTypeByNameOrID(FunctionName,
                                                    CABIFunctionTypeKind);
 
-      auto RawFunctionTypeKind = model::TypeKind::RawFunctionType;
+      auto RawFunctionTypeKind = TDKind::RawFunctionDefinition;
       auto TheRawFunctionType = getTypeByNameOrID(FunctionName,
                                                   RawFunctionTypeKind);
 
@@ -619,8 +622,9 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   revng_assert(MaybeABI.has_value());
   bool IsRawFunctionType = MaybeABI->starts_with(RawABIPrefix);
-  auto NewType = IsRawFunctionType ? makeType<RawFunctionType>() :
-                                     makeType<CABIFunctionType>();
+  auto NewType = IsRawFunctionType ?
+                   makeTypeDefinition<RawFunctionDefinition>() :
+                   makeTypeDefinition<CABIFunctionDefinition>();
 
   if (not IsRawFunctionType) {
     auto TheModelABI = model::ABI::fromName(*MaybeABI);
@@ -629,7 +633,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       return false;
     }
 
-    auto FunctionType = cast<CABIFunctionType>(NewType.get());
+    auto FunctionType = cast<CABIFunctionDefinition>(NewType.get());
     FunctionType->ABI() = TheModelABI;
     auto TheRetClangType = FD->getReturnType();
     auto TheRetType = getModelTypeForClangType(TheRetClangType);
@@ -657,7 +661,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     }
   } else {
     auto TheRetClangType = FD->getReturnType();
-    auto TheRawFunctionType = cast<RawFunctionType>(NewType.get());
+    auto TheRawFunctionType = cast<RawFunctionDefinition>(NewType.get());
 
     auto Architecture = getRawABIArchitecture(*MaybeABI);
     if (Architecture == model::Architecture::Invalid) {
@@ -799,8 +803,8 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   if (auto Fn = llvm::dyn_cast<FunctionProtoType>(TheType)) {
     // Parse the ABI from annotate attribute attached to the typedef
     // declaration. Please do note that annotations on the parameters are not
-    // attached, so we will use default RawFunctionType from the Model if the
-    // abi is raw.
+    // attached, so we will use default RawFunctionDefinition from the Model if
+    // the abi is raw.
     // TODO: Should we change the annotate attached to function types to have
     // info about parameters in the toplevel annotate attribute attached to
     // the typedef itself?
@@ -829,21 +833,22 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     revng_log(Log, "Unsupported underlying type for typedef");
     return false;
   }
-  auto TypeTypedef = model::makeType<model::TypedefType>();
+  auto TypeTypedef = model::makeTypeDefinition<model::TypedefDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
     TypeTypedef->ID() = (*Type)->ID();
 
-  auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
+  auto TheTypeTypeDef = cast<model::TypedefDefinition>(TypeTypedef.get());
   TheTypeTypeDef->UnderlyingType() = *ModelTypedefType;
   setCustomName(*TheTypeTypeDef, D->getName());
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
-      return P.get()->ID() == (*Type)->ID();
-    });
+    llvm::erase_if(Model->TypeDefinitions(),
+                   [&](model::UpcastableTypeDefinition &P) {
+                     return P.get()->ID() == (*Type)->ID();
+                   });
 
-    Model->Types().insert(std::move(TypeTypedef));
+    Model->TypeDefinitions().insert(std::move(TypeTypedef));
   } else {
     Model->recordNewType(std::move(TypeTypedef));
   }
@@ -861,14 +866,15 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
   }
 
   bool IsRawFunctionType = ABI->starts_with(RawABIPrefix);
-  auto NewType = IsRawFunctionType ? makeType<RawFunctionType>() :
-                                     makeType<CABIFunctionType>();
+  auto NewType = IsRawFunctionType ?
+                   makeTypeDefinition<RawFunctionDefinition>() :
+                   makeTypeDefinition<CABIFunctionDefinition>();
 
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   if (not IsRawFunctionType) {
-    auto FunctionType = cast<CABIFunctionType>(NewType.get());
+    auto FunctionType = cast<CABIFunctionDefinition>(NewType.get());
     auto TheModelABI = model::ABI::fromName(*ABI);
     if (TheModelABI == model::ABI::Invalid) {
       revng_log(Log, "An invalid ABI found as an input");
@@ -908,24 +914,25 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
 
     // TODO: Since we do not have info about parameters annotation, we use
     // default raw function.
-    auto TheDefaultPrototype = Model->DefaultPrototype();
-    auto DefaultRawType = cast<RawFunctionType>(TheDefaultPrototype.get());
+    const auto *TheDefaultPrototype = Model->DefaultPrototype().get();
+    const auto *DefaultRFT = cast<RawFunctionDefinition>(TheDefaultPrototype);
 
-    auto FunctionType = cast<RawFunctionType>(NewType.get());
+    auto FunctionType = cast<RawFunctionDefinition>(NewType.get());
     FunctionType->Architecture() = Architecture;
-    FunctionType->Arguments() = DefaultRawType->Arguments();
-    FunctionType->ReturnValues() = DefaultRawType->ReturnValues();
-    FunctionType->PreservedRegisters() = DefaultRawType->PreservedRegisters();
-    FunctionType->FinalStackOffset() = DefaultRawType->FinalStackOffset();
+    FunctionType->Arguments() = DefaultRFT->Arguments();
+    FunctionType->ReturnValues() = DefaultRFT->ReturnValues();
+    FunctionType->PreservedRegisters() = DefaultRFT->PreservedRegisters();
+    FunctionType->FinalStackOffset() = DefaultRFT->FinalStackOffset();
   }
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
-      return P.get()->ID() == (*Type)->ID();
-    });
+    llvm::erase_if(Model->TypeDefinitions(),
+                   [&](model::UpcastableTypeDefinition &P) {
+                     return P.get()->ID() == (*Type)->ID();
+                   });
 
-    Model->Types().insert(std::move(NewType));
+    Model->TypeDefinitions().insert(std::move(NewType));
   } else {
     Model->recordNewType(std::move(NewType));
   }
@@ -936,12 +943,12 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
 bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   const RecordDecl *Definition = RD->getDefinition();
 
-  auto NewType = makeType<model::StructType>();
+  auto NewType = makeTypeDefinition<model::StructDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   setCustomName(*NewType, RD->getName());
-  auto Struct = cast<model::StructType>(NewType.get());
+  auto Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
 
   //
@@ -1041,10 +1048,11 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   switch (AnalysisOption) {
   case ImportFromCOption::EditType:
     // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
-      return P.get()->ID() == (*Type)->ID();
-    });
-    Model->Types().insert(std::move(NewType));
+    llvm::erase_if(Model->TypeDefinitions(),
+                   [&](model::UpcastableTypeDefinition &P) {
+                     return P.get()->ID() == (*Type)->ID();
+                   });
+    Model->TypeDefinitions().insert(std::move(NewType));
     break;
 
   case ImportFromCOption::EditFunctionPrototype:
@@ -1063,12 +1071,12 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
 
   const RecordDecl *Definition = RD->getDefinition();
-  auto NewType = makeType<model::UnionType>();
+  auto NewType = makeTypeDefinition<model::UnionDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   setCustomName(*NewType, RD->getName().str());
-  auto Union = cast<model::UnionType>(NewType.get());
+  auto Union = cast<model::UnionDefinition>(NewType.get());
 
   uint64_t CurrentIndex = 0;
   for (const FieldDecl *Field : Definition->fields()) {
@@ -1096,10 +1104,11 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
-      return P.get()->ID() == (*Type)->ID();
-    });
-    Model->Types().insert(std::move(NewType));
+    llvm::erase_if(Model->TypeDefinitions(),
+                   [&](model::UpcastableTypeDefinition &P) {
+                     return P.get()->ID() == (*Type)->ID();
+                   });
+    Model->TypeDefinitions().insert(std::move(NewType));
   } else {
     Model->recordNewType(std::move(NewType));
   }
@@ -1164,16 +1173,17 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   auto TheUnderlyingModelType = getEnumUnderlyingType(*UnderlyingType);
   if (not TheUnderlyingModelType) {
     revng_log(Log,
-              "UnderlyingType of a EnumType can only be Signed or Unsigned");
+              "UnderlyingType of a EnumDefinition can only be Signed or "
+              "Unsigned");
     return false;
   }
 
-  auto NewType = makeType<model::EnumType>();
+  auto NewType = makeTypeDefinition<model::EnumDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = (*Type)->ID();
 
   auto *Definition = D->getDefinition();
-  auto TypeEnum = cast<model::EnumType>(NewType.get());
+  auto TypeEnum = cast<model::EnumDefinition>(NewType.get());
   model::QualifiedType TheUnderlyingType(*TheUnderlyingModelType, {});
   TypeEnum->UnderlyingType() = TheUnderlyingType;
   setCustomName(*TypeEnum, Definition->getName());
@@ -1187,11 +1197,12 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
-      return P.get()->ID() == (*Type)->ID();
-    });
+    llvm::erase_if(Model->TypeDefinitions(),
+                   [&](model::UpcastableTypeDefinition &P) {
+                     return P.get()->ID() == (*Type)->ID();
+                   });
 
-    Model->Types().insert(std::move(NewType));
+    Model->TypeDefinitions().insert(std::move(NewType));
   } else {
     Model->recordNewType(std::move(NewType));
   }
@@ -1235,7 +1246,7 @@ std::unique_ptr<ASTConsumer> HeaderToModelEditTypeAction::newASTConsumer() {
 }
 
 std::unique_ptr<ASTConsumer> HeaderToModelEditFunctionAction::newASTConsumer() {
-  std::optional<model::Type *> TypeToBeEdited{ std::nullopt };
+  std::optional<model::TypeDefinition *> TypeToBeEdited{ std::nullopt };
   return std::make_unique<HeaderToModel>(Model,
                                          TypeToBeEdited,
                                          Function,
@@ -1244,7 +1255,7 @@ std::unique_ptr<ASTConsumer> HeaderToModelEditFunctionAction::newASTConsumer() {
 }
 
 std::unique_ptr<ASTConsumer> HeaderToModelAddTypeAction::newASTConsumer() {
-  std::optional<model::Type *> TypeToBeEdited{ std::nullopt };
+  std::optional<model::TypeDefinition *> TypeToBeEdited{ std::nullopt };
   std::optional<model::Function> FunctionToBeEdited{ std::nullopt };
   return std::make_unique<HeaderToModel>(Model,
                                          TypeToBeEdited,

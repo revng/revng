@@ -46,7 +46,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     revng_assert(not F.isVarArg());
 
     // Check if a function with the same prototype has already been visited
-    const model::Type *Prototype = nullptr;
+    const model::TypeDefinition *Prototype = nullptr;
     if (FunctionTags::Isolated.isTagOf(&F)) {
       const model::Function *ModelFunc = llvmToModelFunction(Model, F);
       Prototype = ModelFunc->Prototype().getConst();
@@ -84,8 +84,8 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     revng_assert(FuncWithSameProto.isNull()
                  or F.arg_size() == FuncWithSameProto.arg_size());
 
-    const auto *RFT = dyn_cast<model::RawFunctionType>(Prototype);
-    const auto *CABIFT = dyn_cast<model::CABIFunctionType>(Prototype);
+    const auto *RFT = dyn_cast<model::RawFunctionDefinition>(Prototype);
+    const auto *CABIFT = dyn_cast<model::CABIFunctionDefinition>(Prototype);
     if (RFT) {
       revng_assert(F.arg_size() == RFT->Arguments().size()
                    or (not RFT->StackArgumentsType().empty()
@@ -131,8 +131,9 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
         auto MaybeSize = Pointee.size();
         bool IsSized = MaybeSize.has_value();
 
-        bool IsFunction = Pointee.is(model::TypeKind::RawFunctionType)
-                          or Pointee.is(model::TypeKind::CABIFunctionType);
+        namespace TDKind = model::TypeDefinitionKind;
+        bool IsFunction = Pointee.is(TDKind::RawFunctionDefinition)
+                          or Pointee.is(TDKind::CABIFunctionDefinition);
 
         // If it is not scalar then it must be sized or a function type
         revng_assert(IsScalar or IsSized or IsFunction);

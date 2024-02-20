@@ -17,7 +17,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -32,7 +32,7 @@
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
-using TypeSet = std::set<const model::Type *>;
+using TypeSet = std::set<const model::TypeDefinition *>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 using Node = TypeInlineHelper::Node;
 using StackTypesMap = std::unordered_map<const model::Function *, TypeSet>;
@@ -40,17 +40,19 @@ using StackTypesMap = std::unordered_map<const model::Function *, TypeSet>;
 /// Collect candidates for emitting inline types.
 static TypeSet findTypesToInline(const model::Binary &Model) {
 
-  using NumTypeRefMap = std::unordered_map<const model::Type *, uint64_t>;
+  using NumTypeRefMap = std::unordered_map<const model::TypeDefinition *,
+                                           uint64_t>;
   NumTypeRefMap NumberOfRefsPerType;
   TypeSet TypesWithBannedReferences;
 
-  for (const UpcastablePointer<model::Type> &T : Model.Types()) {
-    const model::Type *TheType = T.get();
+  for (const UpcastablePointer<model::TypeDefinition> &T :
+       Model.TypeDefinitions()) {
+    const model::TypeDefinition *TheType = T.get();
     NumberOfRefsPerType.insert({ TheType, 0 });
 
     bool ParentDeclIsDefinition = declarationIsDefinition(TheType);
     for (const model::QualifiedType &QT : T->edges()) {
-      const model::Type *Dependency = QT.UnqualifiedType().get();
+      const model::TypeDefinition *Dependency = QT.UnqualifiedType().get();
       NumberOfRefsPerType[Dependency]++;
 
       // If the parent type has a declaration that is also a definition, we
@@ -83,7 +85,8 @@ static TypeSet findTypesToInline(const model::Binary &Model) {
   //    NumberOfRefsPerType[Segment.Type().getConst()]++;
 
   const auto BanFromInlining =
-    [&NumberOfRefsPerType, &TypesWithBannedReferences](const model::Type *T) {
+    [&NumberOfRefsPerType,
+     &TypesWithBannedReferences](const model::TypeDefinition *T) {
       // If T's forward declaration cannot be separated by its full definition,
       // ban it from inlining.
       if (declarationIsDefinition(T))
@@ -98,9 +101,9 @@ static TypeSet findTypesToInline(const model::Binary &Model) {
     };
 
   TypeSet Result;
-  llvm::for_each(Model.Types(),
+  llvm::for_each(Model.TypeDefinitions(),
                  [&BanFromInlining,
-                  &Result](const UpcastablePointer<model::Type> &T) {
+                  &Result](const model::UpcastableTypeDefinition &T) {
                    auto *TheType = T.get();
                    if (not BanFromInlining(TheType))
                      Result.insert(TheType);
@@ -114,12 +117,13 @@ static GraphInfo buildTypeGraph(const model::Binary &Model) {
   GraphInfo Result;
 
   using NodeData = TypeInlineHelper::NodeData;
-  for (const UpcastablePointer<model::Type> &T : Model.Types()) {
+  for (const UpcastablePointer<model::TypeDefinition> &T :
+       Model.TypeDefinitions()) {
     Result.TypeToNode[T.get()] = Result.TypeGraph.addNode(NodeData{ T.get() });
   }
 
   // Create type system edges.
-  for (const UpcastablePointer<model::Type> &T : Model.Types()) {
+  for (const model::UpcastableTypeDefinition &T : Model.TypeDefinitions()) {
     for (const model::QualifiedType &QT : T->edges()) {
       auto *UType = QT.UnqualifiedType().get();
       Result.TypeToNode.at(T.get())->addSuccessor(Result.TypeToNode.at(UType));
@@ -146,7 +150,7 @@ const TypeSet &TypeInlineHelper::getTypesToInline() const {
 static TypeSet getCrossReferencedTypes(const model::Binary &Model) {
   TypeSet Result;
 
-  for (const UpcastablePointer<model::Type> &T : Model.Types())
+  for (const model::UpcastableTypeDefinition &T : Model.TypeDefinitions())
     for (const model::QualifiedType &QT : T->edges())
       Result.insert(QT.UnqualifiedType().get());
 
@@ -160,8 +164,10 @@ StackTypesMap TypeInlineHelper::findTypesToInlineInStacks() const {
   StackTypesMap Result;
   for (auto &Function : Model.Functions()) {
     if (not Function.StackFrameType().empty()) {
-      const model::Type *StackT = Function.StackFrameType().getConst();
-      revng_assert(StackT and StackT->Kind() == model::TypeKind::StructType);
+      const auto *StackT = Function.StackFrameType().getConst();
+
+      using TDK = model::TypeDefinitionKind::Values;
+      revng_assert(StackT and StackT->Kind() == TDK::StructDefinition);
 
       // Do not inline stack types that are used by at least one other type.
       if (CrossReferencedTypes.contains(StackT))
@@ -186,10 +192,11 @@ TypeSet TypeInlineHelper::collectTypesInlinableInStacks() const {
   return Result;
 }
 
-using UPtrTy = UpcastablePointer<model::Type>;
-TypeSet TypeInlineHelper::getNestedTypesToInline(const model::Type *RootType,
-                                                 const UPtrTy &NestedTy) const {
-  model::Type *CurrentTy = NestedTy.get();
+using UPtrTy = UpcastablePointer<model::TypeDefinition>;
+TypeSet
+TypeInlineHelper::getNestedTypesToInline(const model::TypeDefinition *RootType,
+                                         const UPtrTy &NestedTy) const {
+  model::TypeDefinition *CurrentTy = NestedTy.get();
   TypeSet Result;
   do {
     Result.insert(CurrentTy);
@@ -207,8 +214,8 @@ TypeSet TypeInlineHelper::getNestedTypesToInline(const model::Type *RootType,
   return {};
 }
 
-TypeSet
-TypeInlineHelper::getTypesToInlineInTypeTy(const model::Type *RootType) const {
+TypeSet TypeInlineHelper::getTypesToInlineInTypeTy(const model::TypeDefinition
+                                                     *RootType) const {
   TypeSet Result;
   auto TheTypeToNode = TypeGraph.TypeToNode;
 
@@ -218,7 +225,7 @@ TypeInlineHelper::getTypesToInlineInTypeTy(const model::Type *RootType) const {
        depth_first_ext(TheTypeToNode.at(RootType), Visited))
     ;
 
-  for (auto &Type : Model.Types()) {
+  for (auto &Type : Model.TypeDefinitions()) {
     if (Visited.contains(TheTypeToNode.at(Type.get()))
         and TypesToInline.contains(Type.get())
         and TheTypeToNode.at(Type.get())->predecessorCount() == 1) {
@@ -240,26 +247,26 @@ TypeInlineHelper::getTypesToInlineInTypeTy(const model::Type *RootType) const {
   return Result;
 }
 
-bool declarationIsDefinition(const model::Type *T) {
-  return not llvm::isa<model::StructType>(T)
-         and not llvm::isa<model::UnionType>(T)
-         and not llvm::isa<model::EnumType>(T);
+bool declarationIsDefinition(const model::TypeDefinition *T) {
+  return not llvm::isa<model::StructDefinition>(T)
+         and not llvm::isa<model::UnionDefinition>(T)
+         and not llvm::isa<model::EnumDefinition>(T);
 }
 
-static ptml::Tag getTypeKeyword(const model::Type &T,
+static ptml::Tag getTypeKeyword(const model::TypeDefinition &T,
                                 const ptml::PTMLCBuilder &B) {
 
   switch (T.Kind()) {
 
-  case model::TypeKind::EnumType: {
+  case model::TypeDefinitionKind::EnumDefinition: {
     return B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum);
   }
 
-  case model::TypeKind::StructType: {
+  case model::TypeDefinitionKind::StructDefinition: {
     return B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct);
   }
 
-  case model::TypeKind::UnionType: {
+  case model::TypeDefinitionKind::UnionDefinition: {
     return B.getKeyword(ptml::PTMLCBuilder::Keyword::Union);
   }
 
@@ -268,7 +275,7 @@ static ptml::Tag getTypeKeyword(const model::Type &T,
   }
 }
 
-void printForwardDeclaration(const model::Type &T,
+void printForwardDeclaration(const model::TypeDefinition &T,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &B) {
   if (declarationIsDefinition(&T))
@@ -280,7 +287,7 @@ void printForwardDeclaration(const model::Type &T,
          << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
-static void printDefinition(const model::EnumType &E,
+static void printDefinition(const model::EnumDefinition &E,
                             ptml::PTMLIndentedOstream &Header,
                             ptml::PTMLCBuilder &B,
                             const TypeSet &TypesToInline,
@@ -328,7 +335,7 @@ static void printDefinition(const model::EnumType &E,
 }
 
 void printDefinition(Logger<> &Log,
-                     const model::StructType &S,
+                     const model::StructDefinition &S,
                      ptml::PTMLIndentedOstream &Header,
                      ptml::PTMLCBuilder &B,
                      const model::Binary &Model,
@@ -390,7 +397,7 @@ void printDefinition(Logger<> &Log,
 }
 
 static void printDefinition(Logger<> &Log,
-                            const model::UnionType &U,
+                            const model::UnionDefinition &U,
                             ptml::PTMLIndentedOstream &Header,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
@@ -437,7 +444,7 @@ static void printDefinition(Logger<> &Log,
   Header << ";\n";
 }
 
-void printDeclaration(const model::TypedefType &TD,
+void printDeclaration(const model::TypedefDefinition &TD,
                       ptml::PTMLIndentedOstream &Header,
                       ptml::PTMLCBuilder &B) {
   if (declarationIsDefinition(&TD))
@@ -451,7 +458,7 @@ void printDeclaration(const model::TypedefType &TD,
 /// Generate the definition of a new struct type that wraps all the return
 /// values of \a F. The name of the struct type is provided by the caller.
 static void generateReturnValueWrapper(Logger<> &Log,
-                                       const model::RawFunctionType &F,
+                                       const model::RawFunctionDefinition &F,
                                        ptml::PTMLIndentedOstream &Header,
                                        ptml::PTMLCBuilder &B,
                                        const model::Binary &Model) {
@@ -491,7 +498,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
 /// If the function has more than one return value, generate a wrapper struct
 /// that contains them.
 static void printRawFunctionWrappers(Logger<> &Log,
-                                     const model::RawFunctionType *F,
+                                     const model::RawFunctionDefinition *F,
                                      ptml::PTMLIndentedOstream &Header,
                                      ptml::PTMLCBuilder &B,
                                      const model::Binary &Model) {
@@ -502,10 +509,10 @@ static void printRawFunctionWrappers(Logger<> &Log,
     revng_assert(Arg.Type().isScalar());
 }
 
-/// Print a typedef for a RawFunctionType, that can be used when you have a
-/// variable that is a pointer to a function.
+/// Print a typedef for a RawFunctionDefinition, that can be used when you have
+/// a variable that is a pointer to a function.
 static void printDeclaration(Logger<> &Log,
-                             const model::RawFunctionType &F,
+                             const model::RawFunctionDefinition &F,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &B,
                              const model::Binary &Model) {
@@ -548,7 +555,7 @@ static void generateArrayWrapper(const model::QualifiedType &ArrayType,
 
 /// If the return value or any of the arguments is an array, generate a wrapper
 /// struct for each of them, if it's not already in the cache.
-static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
+static void printCABIFunctionWrappers(const model::CABIFunctionDefinition *F,
                                       ptml::PTMLIndentedOstream &Header,
                                       ptml::PTMLCBuilder &B,
                                       QualifiedTypeNameMap &NamesCache) {
@@ -560,9 +567,9 @@ static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
       generateArrayWrapper(Arg.Type(), Header, B, NamesCache);
 }
 
-/// Print a typedef for a CABIFunctionType, that can be used when you have a
-/// variable that is a pointer to a function.
-static void printDeclaration(const model::CABIFunctionType &F,
+/// Print a typedef for a CABIFunctionType, that can be used when you have
+/// a variable that is a pointer to a function.
+static void printDeclaration(const model::CABIFunctionDefinition &F,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &B,
                              QualifiedTypeNameMap &NamesCache,
@@ -578,7 +585,7 @@ static void printDeclaration(const model::CABIFunctionType &F,
 }
 
 void printDeclaration(Logger<> &Log,
-                      const model::Type &T,
+                      const model::TypeDefinition &T,
                       ptml::PTMLIndentedOstream &Header,
                       ptml::PTMLCBuilder &B,
                       const model::Binary &Model,
@@ -596,42 +603,42 @@ void printDeclaration(Logger<> &Log,
 
   switch (T.Kind()) {
 
-  case model::TypeKind::Invalid: {
+  case model::TypeDefinitionKind::Invalid: {
     if (Log.isEnabled())
       Header << B.getLineComment("invalid");
   } break;
 
-  case model::TypeKind::PrimitiveType: {
+  case model::TypeDefinitionKind::PrimitiveDefinition: {
     // Do nothing. Primitive type declarations are all present in
     // revng-primitive-types.h
   } break;
 
-  case model::TypeKind::EnumType: {
-    printForwardDeclaration(llvm::cast<model::EnumType>(T), Header, B);
+  case model::TypeDefinitionKind::EnumDefinition: {
+    printForwardDeclaration(llvm::cast<model::EnumDefinition>(T), Header, B);
   } break;
 
-  case model::TypeKind::StructType: {
-    printForwardDeclaration(llvm::cast<model::StructType>(T), Header, B);
+  case model::TypeDefinitionKind::StructDefinition: {
+    printForwardDeclaration(llvm::cast<model::StructDefinition>(T), Header, B);
   } break;
 
-  case model::TypeKind::UnionType: {
-    printForwardDeclaration(llvm::cast<model::UnionType>(T), Header, B);
+  case model::TypeDefinitionKind::UnionDefinition: {
+    printForwardDeclaration(llvm::cast<model::UnionDefinition>(T), Header, B);
   } break;
 
-  case model::TypeKind::TypedefType: {
-    printDeclaration(llvm::cast<model::TypedefType>(T), Header, B);
+  case model::TypeDefinitionKind::TypedefDefinition: {
+    printDeclaration(llvm::cast<model::TypedefDefinition>(T), Header, B);
   } break;
 
-  case model::TypeKind::RawFunctionType: {
+  case model::TypeDefinitionKind::RawFunctionDefinition: {
     printDeclaration(Log,
-                     llvm::cast<model::RawFunctionType>(T),
+                     llvm::cast<model::RawFunctionDefinition>(T),
                      Header,
                      B,
                      Model);
   } break;
 
-  case model::TypeKind::CABIFunctionType: {
-    printDeclaration(llvm::cast<model::CABIFunctionType>(T),
+  case model::TypeDefinitionKind::CABIFunctionDefinition: {
+    printDeclaration(llvm::cast<model::CABIFunctionDefinition>(T),
                      Header,
                      B,
                      AdditionalNames,
@@ -643,7 +650,7 @@ void printDeclaration(Logger<> &Log,
 }
 
 void printDefinition(Logger<> &Log,
-                     const model::Type &T,
+                     const model::TypeDefinition &T,
                      ptml::PTMLIndentedOstream &Header,
                      ptml::PTMLCBuilder &B,
                      const model::Binary &Model,
@@ -671,14 +678,14 @@ void printDefinition(Logger<> &Log,
   } else {
     switch (T.Kind()) {
 
-    case model::TypeKind::Invalid: {
+    case model::TypeDefinitionKind::Invalid: {
       if (Log.isEnabled())
         Header << B.getLineComment("invalid");
     } break;
 
-    case model::TypeKind::StructType: {
+    case model::TypeDefinitionKind::StructDefinition: {
       printDefinition(Log,
-                      llvm::cast<model::StructType>(T),
+                      llvm::cast<model::StructDefinition>(T),
                       Header,
                       B,
                       Model,
@@ -688,9 +695,9 @@ void printDefinition(Logger<> &Log,
                       Qualifiers);
     } break;
 
-    case model::TypeKind::UnionType: {
+    case model::TypeDefinitionKind::UnionDefinition: {
       printDefinition(Log,
-                      llvm::cast<model::UnionType>(T),
+                      llvm::cast<model::UnionDefinition>(T),
                       Header,
                       B,
                       Model,
@@ -700,8 +707,8 @@ void printDefinition(Logger<> &Log,
                       Qualifiers);
     } break;
 
-    case model::TypeKind::EnumType: {
-      printDefinition(llvm::cast<model::EnumType>(T),
+    case model::TypeDefinitionKind::EnumDefinition: {
+      printDefinition(llvm::cast<model::EnumDefinition>(T),
                       Header,
                       B,
                       TypesToInline,

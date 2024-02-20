@@ -16,7 +16,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -35,7 +35,8 @@
 using llvm::isa;
 
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
-using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
+using TypeToNumOfRefsMap = std::unordered_map<const model::TypeDefinition *,
+                                              unsigned>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 
 static Logger<> Log{ "model-to-header" };
@@ -49,8 +50,8 @@ static void printSegmentsTypes(const model::Segment &Segment,
   if (Segment.Type().empty()) {
     // If the segment has not type, we emit it as an array of bytes.
     const model::Binary *Model = Segment.Type().getRoot();
-    model::TypePath
-      Byte = Model->getPrimitiveType(model::PrimitiveTypeKind::Generic, 1);
+    model::TypeDefinitionPath
+      Byte = Model->getPrimitiveType(model::PrimitiveKind::Generic, 1);
     model::Qualifier Array = model::Qualifier::createArray(Segment
                                                              .VirtualSize());
     SegmentType = model::QualifiedType{ Byte, { Array } };
@@ -68,8 +69,8 @@ static void printTypeDefinitions(const model::Binary &Model,
                                  QualifiedTypeNameMap &AdditionalTypeNames,
                                  const ModelToHeaderOptions &Options) {
 
-  std::set<const model::Type *> TypesToInlineInStacks;
-  std::set<const model::Type *> ToInline;
+  std::set<const model::TypeDefinition *> TypesToInlineInStacks;
+  std::set<const model::TypeDefinition *> ToInline;
   if (not Options.DisableTypeInlining) {
     TypeInlineHelper TheTypeInlineHelper(Model);
     TypesToInlineInStacks = TheTypeInlineHelper.collectTypesInlinableInStacks();
@@ -80,21 +81,21 @@ static void printTypeDefinitions(const model::Binary &Model,
     revng_log(Log, "TypesToInlineInStacks: {");
     {
       LoggerIndent Indent{ Log };
-      for (const model::Type *T : TypesToInlineInStacks)
+      for (const model::TypeDefinition *T : TypesToInlineInStacks)
         revng_log(Log, T->ID());
     }
     revng_log(Log, "}");
     revng_log(Log, "ToInline: {");
     {
       LoggerIndent Indent{ Log };
-      for (const model::Type *T : ToInline)
+      for (const model::TypeDefinition *T : ToInline)
         revng_log(Log, T->ID());
     }
     revng_log(Log, "}");
     revng_log(Log, "TypesToInlineInStacks should be a subset of ToInline");
   }
 
-  DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
+  DependencyGraph Dependencies = buildDependencyGraph(Model.TypeDefinitions());
   const auto &TypeNodes = Dependencies.TypeNodes();
 
   std::set<const TypeDependencyNode *> Defined;
@@ -106,7 +107,7 @@ static void printTypeDefinitions(const model::Binary &Model,
       LoggerIndent PostOrderIndent{ Log };
       revng_log(Log, "post_order visiting: " << getNodeLabel(Node));
 
-      const model::Type *NodeT = Node->T;
+      const model::TypeDefinition *NodeT = Node->T;
       const auto DeclKind = Node->K;
 
       if (TypesToInlineInStacks.contains(NodeT)) {
@@ -189,7 +190,7 @@ bool dumpModelToHeader(const model::Binary &Model,
            << B.getNullTag() << " (" << B.getZeroTag() << ")\n"
            << B.getDirective(PTMLCBuilder::Directive::EndIf) << "\n";
 
-    if (not Model.Types().empty()) {
+    if (not Model.TypeDefinitions().empty()) {
       auto Foldable = B.getScope(Scopes::TypeDeclarations)
                         .scope(Out,
                                /* Newline */ true);
@@ -215,7 +216,7 @@ bool dumpModelToHeader(const model::Binary &Model,
         if (Options.FunctionsToOmit.contains(MF.Entry()))
           continue;
 
-        const model::Type *FT = MF.prototype(Model).get();
+        const model::TypeDefinition *FT = MF.prototype(Model).get();
         if (Options.TypesToOmit.contains(FT))
           continue;
 
@@ -246,7 +247,7 @@ bool dumpModelToHeader(const model::Binary &Model,
       Header << '\n';
       for (const model::DynamicFunction &MF :
            Model.ImportedDynamicFunctions()) {
-        const model::Type *FT = MF.prototype(Model).get();
+        const model::TypeDefinition *FT = MF.prototype(Model).get();
         revng_assert(FT != nullptr);
         if (Options.TypesToOmit.contains(FT))
           continue;

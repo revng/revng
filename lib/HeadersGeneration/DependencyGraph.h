@@ -8,16 +8,16 @@
 #include "llvm/Support/GraphWriter.h"
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
-/// Represents a model::Type in the DependencyGraph
+/// Represents a model::TypeDefinition in the DependencyGraph
 struct TypeNode {
 
-  /// A pointer to the associated model::Type
-  const model::Type *T;
+  /// A pointer to the associated model::TypeDefinition
+  const model::TypeDefinition *T;
 
-  /// For each model::Type we'll have nodes representing the type name or
-  /// the full type, depending on this enum.
+  /// For each model::TypeDefinition we'll have nodes representing the type name
+  /// or the full type, depending on this enum.
   enum Kind {
     Declaration,
     Definition
@@ -25,14 +25,14 @@ struct TypeNode {
 };
 
 using TypeDependencyNode = BidirectionalNode<TypeNode>;
-using TypeKindPair = std::pair<const model::Type *, TypeNode::Kind>;
+using TypeKindPair = std::pair<const model::TypeDefinition *, TypeNode::Kind>;
 using TypeToDependencyNodeMap = std::map<TypeKindPair, TypeDependencyNode *>;
-using TypeVector = TrackingSortedVector<UpcastablePointer<model::Type>>;
+using TypeVector = TrackingSortedVector<model::UpcastableTypeDefinition>;
 
 /// Represents the graph of dependencies among types
 struct DependencyGraph : public GenericGraph<TypeDependencyNode> {
 
-  void addNode(const model::Type *T);
+  void addNode(const model::TypeDefinition *T);
 
   const TypeToDependencyNodeMap &TypeNodes() const { return TypeToNode; }
 

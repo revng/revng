@@ -3,45 +3,45 @@
 #
 # RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
-Types:
+TypeDefinitions:
   # CHECK: !float96_t = !clift.primitive<FloatKind 12>
   - ID: 1804
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Float
     Size: 12
 
   # CHECK: !generic8_t = !clift.primitive<GenericKind 1>
   - ID: 513
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Generic
     Size: 1
 
   # CHECK: !int64_t = !clift.primitive<SignedKind 8>
   - ID: 1544
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Signed
     Size: 8
 
   # CHECK: !number32_t = !clift.primitive<NumberKind 4>
   - ID: 1028
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Number
     Size: 4
 
   # CHECK: !pointer_or_number16_t = !clift.primitive<PointerOrNumberKind 2>
   - ID: 770
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: PointerOrNumber
     Size: 2
 
   # CHECK: !uint64_t = !clift.primitive<UnsignedKind 8>
   - ID: 1288
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Unsigned
     Size: 8
 
   # CHECK: !void = !clift.primitive<VoidKind 0>
   - ID: 256
-    Kind: PrimitiveType
+    Kind: PrimitiveDefinition
     PrimitiveKind: Void
     Size: 0

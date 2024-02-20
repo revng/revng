@@ -94,7 +94,8 @@ getOriginalOrPromotedType(const model::QualifiedType &OperandType,
   // Enum's underlying types will be processed later, when checking if a type
   // can be implicitly casted into another. Just make sure that enum's
   // underlying type is at least 4 bytes wide.
-  if (llvm::isa<model::EnumType>(UnwrappedType.UnqualifiedType().getConst())) {
+  const auto *Unqualified = UnwrappedType.UnqualifiedType().getConst();
+  if (llvm::isa<model::EnumDefinition>(Unqualified)) {
     auto SizeOfTheType = OperandType.size();
     if (SizeOfTheType and *SizeOfTheType >= 4u)
       return OperandType;
@@ -102,11 +103,10 @@ getOriginalOrPromotedType(const model::QualifiedType &OperandType,
       return std::nullopt;
   }
 
-  auto AsPrimitive = cast<model::PrimitiveType>(UnwrappedType.UnqualifiedType()
-                                                  .getConst());
+  auto AsPrimitive = cast<model::PrimitiveDefinition>(Unqualified);
   auto TypeKind = AsPrimitive->PrimitiveKind();
-  if (TypeKind == model::PrimitiveTypeKind::Void
-      or TypeKind == model::PrimitiveTypeKind::Float)
+  if (TypeKind == model::PrimitiveKind::Void
+      or TypeKind == model::PrimitiveKind::Float)
     return std::nullopt;
 
   unsigned ByteSize = AsPrimitive->Size();
@@ -169,12 +169,12 @@ static bool shouldApplyIntegerPromotion(const Instruction *I) {
 static bool isImplicitCast(const model::QualifiedType &QT,
                            const model::QualifiedType &Target,
                            const llvm::Value *V) {
-  using model::PrimitiveTypeKind::Generic;
-  using model::PrimitiveTypeKind::Number;
-  using model::PrimitiveTypeKind::PointerOrNumber;
-  using model::PrimitiveTypeKind::Signed;
-  using model::PrimitiveTypeKind::Unsigned;
-  using model::PrimitiveTypeKind::Void;
+  using model::PrimitiveKind::Generic;
+  using model::PrimitiveKind::Number;
+  using model::PrimitiveKind::PointerOrNumber;
+  using model::PrimitiveKind::Signed;
+  using model::PrimitiveKind::Unsigned;
+  using model::PrimitiveKind::Void;
 
   if (QT == Target)
     return true;
@@ -205,27 +205,23 @@ static bool isImplicitCast(const model::QualifiedType &QT,
   if (UnwrappedQTType.isPointer() or UnwrappedTargetType.isPointer())
     return UnwrappedQTType == UnwrappedTargetType;
 
-  if (const auto *QTAsEnum = dyn_cast<model::EnumType>(UnwrappedQTType
-                                                         .UnqualifiedType()
-                                                         .getConst())) {
+  const auto *Unqualified = UnwrappedQTType.UnqualifiedType().getConst();
+  if (const auto *QTAsEnum = dyn_cast<model::EnumDefinition>(Unqualified))
     UnwrappedQTType = QTAsEnum->UnderlyingType();
-  }
 
-  if (const auto *TargetAsEnum = dyn_cast<model::EnumType>(UnwrappedTargetType
-                                                             .UnqualifiedType()
-                                                             .getConst())) {
+  const auto *UnqualTarget = UnwrappedTargetType.UnqualifiedType().getConst();
+  if (const auto *TargetAsEnum = dyn_cast<model::EnumDefinition>(UnqualTarget))
     UnwrappedTargetType = TargetAsEnum->UnderlyingType();
-  }
 
   revng_assert(UnwrappedQTType.Qualifiers().empty());
   revng_assert(UnwrappedTargetType.Qualifiers().empty());
 
-  auto TargetAsPrimitive = cast<model::PrimitiveType>(UnwrappedTargetType
-                                                        .UnqualifiedType()
-                                                        .getConst());
-  auto QTAsPrimitive = cast<model::PrimitiveType>(UnwrappedQTType
-                                                    .UnqualifiedType()
-                                                    .getConst());
+  auto TargetAsPrimitive = cast<model::PrimitiveDefinition>(UnwrappedTargetType
+                                                              .UnqualifiedType()
+                                                              .getConst());
+  auto QTAsPrimitive = cast<model::PrimitiveDefinition>(UnwrappedQTType
+                                                          .UnqualifiedType()
+                                                          .getConst());
   switch (QTAsPrimitive->PrimitiveKind()) {
   // This will be identical in C, see `revng-primitive-types.h`.
   case Generic:

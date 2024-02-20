@@ -15,7 +15,7 @@
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
@@ -37,7 +37,7 @@ using ConstNonPointerFilterT = EdgeFilteredGraph<const LTSN *,
 using TypeVect = std::vector<std::optional<model::QualifiedType>>;
 
 using model::Qualifier;
-using model::PrimitiveTypeKind::Generic;
+using model::PrimitiveKind::Generic;
 using model::QualifierKind::Array;
 using model::QualifierKind::Pointer;
 
@@ -54,12 +54,11 @@ static QualifiedType createStructWrapper(const LTSN *N,
                                          uint64_t Offset = 0ULL,
                                          uint64_t WrapperSize = 0ULL) {
   // Create struct
-  TypePath StructPath = Model->recordNewType(makeType<model::StructType>());
-  auto *Struct = llvm::cast<model::StructType>(StructPath.get());
+  auto [Struct, Path] = Model->makeTypeDefinition<model::StructDefinition>();
 
   // Create and insert field in struct
   StructField Field{ Offset, {}, {}, {}, T };
-  const auto &[FieldIt, Inserted] = Struct->Fields().insert(Field);
+  const auto &[FieldIt, Inserted] = Struct.Fields().insert(Field);
   revng_assert(Inserted);
 
   // If the field has pointer type, save the corresponding qualified type for
@@ -70,7 +69,7 @@ static QualifiedType createStructWrapper(const LTSN *N,
     revng_log(Log,
               "Wrapped pointer node "
                 << N->ID << " inside wrapper struct with Model ID: "
-                << Struct->ID() << " at address " << &FieldIt->Type());
+                << Struct.ID() << " at address " << &FieldIt->Type());
     if (Log.isEnabled()) {
       std::string S;
       llvm::raw_string_ostream OS{ S };
@@ -83,11 +82,11 @@ static QualifiedType createStructWrapper(const LTSN *N,
   // If WrapperSize == 0ULL we use the size of T to set the size of the
   // generated wrapper struct, otherwise we take WrapperSize, but in that case
   // it must be larger or equal than T.size() + Offset;
-  Struct->Size() = WrapperSize ? WrapperSize : (Offset + *T.size());
+  Struct.Size() = WrapperSize ? WrapperSize : (Offset + *T.size());
 
-  revng_assert(Struct->Size() and T.size().has_value()
-               and Struct->Size() >= (T.size().value() + Offset));
-  return QualifiedType{ StructPath, {} };
+  revng_assert(Struct.Size() and T.size().has_value()
+               and Struct.Size() >= (T.size().value() + Offset));
+  return QualifiedType{ Path, {} };
 }
 
 /// Retrieve the model type associated to TypeSystem \a Node, if any
@@ -166,12 +165,12 @@ makeInstanceQualifiedType(const LTSN *N,
       // Insert the last element
       revng_assert(ArrayWrapper.Qualifiers().empty());
       auto *UnqualifiedWrapper = ArrayWrapper.UnqualifiedType().get();
-      auto *WrapperStruct = llvm::cast<model::StructType>(UnqualifiedWrapper);
+      auto *Struct = llvm::cast<model::StructDefinition>(UnqualifiedWrapper);
 
       // Insert the rest of the array
       StructField TrailingElem{ LastElemOffset, {}, {}, {}, Result };
-      WrapperStruct->Fields().insert(TrailingElem);
-      WrapperStruct->Size() = ArrayWrapperSize;
+      Struct->Fields().insert(TrailingElem);
+      Struct->Size() = ArrayWrapperSize;
 
       Result = ArrayWrapper;
     } else {
@@ -194,9 +193,8 @@ static QualifiedType makeStructFromNode(const LTSN *N,
   // Create struct
   revng_log(Log, "Creating struct type for node " << N->ID);
   LoggerIndent StructIndent{ Log };
-  TypePath StructPath = Model->recordNewType(makeType<model::StructType>());
-  auto *Struct = llvm::cast<model::StructType>(StructPath.get());
-  Struct->Size() = N->Size;
+  auto [Struct, Path] = Model->makeTypeDefinition<model::StructDefinition>();
+  Struct.Size() = N->Size;
 
   // This holds the struct fields in the same order as in the model, so we can
   // later insert them in the model already in order, without invalidating
@@ -227,10 +225,10 @@ static QualifiedType makeStructFromNode(const LTSN *N,
 
   // Reserve the fields, since we're passing around pointers to them, we don't
   // want them to be reallocated on insert.
-  Struct->Fields().reserve(N->Successors.size());
+  Struct.Fields().reserve(N->Successors.size());
 
   for (auto &[Field, SuccNode] : Fields) {
-    const auto &[FieldIt, Inserted] = Struct->Fields().insert(std::move(Field));
+    const auto &[FieldIt, Inserted] = Struct.Fields().insert(std::move(Field));
     revng_assert(Inserted);
 
     // If the field is a pointer, save the corresponding qualified type
@@ -241,7 +239,7 @@ static QualifiedType makeStructFromNode(const LTSN *N,
       revng_log(Log,
                 "Pointer node "
                   << SuccNode->ID << " inside struct with Model ID: "
-                  << Struct->ID() << " at address " << &FieldIt->Type());
+                  << Struct.ID() << " at address " << &FieldIt->Type());
       if (Log.isEnabled()) {
         std::string S;
         llvm::raw_string_ostream OS{ S };
@@ -252,7 +250,7 @@ static QualifiedType makeStructFromNode(const LTSN *N,
     }
   }
 
-  return QualifiedType{ StructPath, {} };
+  return QualifiedType{ Path, {} };
 }
 
 /// Create a union type from a TypeSystem node. For pointer members,
@@ -264,8 +262,8 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
                                        const VectEqClasses &EqClasses) {
   // Create union
   revng_log(Log, "Creating union type for node " << N->ID);
-  TypePath UnionPath = Model->recordNewType(makeType<model::UnionType>());
-  auto *Union = llvm::cast<model::UnionType>(UnionPath.get());
+  auto [Union, Path] = Model->makeTypeDefinition<model::UnionDefinition>();
+
   LoggerIndent StructIndent{ Log };
 
   // This holds the union fields in the same order as in the model, so we can
@@ -305,11 +303,11 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
 
   // Reserve the fields, since we're passing around pointers to them, we don't
   // want them to be reallocated on insert.
-  Union->Fields().reserve(N->Successors.size());
+  Union.Fields().reserve(N->Successors.size());
 
   for (auto &[Field, SuccNode] : Fields) {
     // Insert field in union
-    const auto &[FieldIt, Inserted] = Union->Fields().insert(std::move(Field));
+    const auto &[FieldIt, Inserted] = Union.Fields().insert(std::move(Field));
     revng_assert(Inserted);
 
     // If the field is a pointer, save the corresponding qualified type
@@ -318,9 +316,9 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
         New = PointerFieldsToUpdate[SuccNode].insert(&FieldIt->Type()).second;
       revng_assert(New);
       revng_log(Log,
-                "Pointer node "
-                  << SuccNode->ID << " inside union with Model ID: "
-                  << Union->ID() << " at address " << &FieldIt->Type());
+                "Pointer node " << SuccNode->ID
+                                << " inside union with Model ID: " << Union.ID()
+                                << " at address " << &FieldIt->Type());
       if (Log.isEnabled()) {
         std::string S;
         llvm::raw_string_ostream OS{ S };
@@ -331,7 +329,7 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
     }
   }
 
-  return QualifiedType{ UnionPath, {} };
+  return QualifiedType{ Path, {} };
 }
 
 static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
@@ -352,7 +350,7 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
     // This dance is necessary since there's no way to guarantee that the
     // pointee have been visited when we're looking at the pointer.
     MaybeResult = QualifiedType{
-      Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0),
+      Model->getPrimitiveType(model::PrimitiveKind::Void, 0),
       { Qualifier::createPointer(Model->Architecture()) }
     };
 
@@ -375,7 +373,7 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
       const auto &IsValidPrimitiveSize = [](uint64_t Size) {
         if (Size > std::numeric_limits<uint8_t>::max())
           return false;
-        return model::PrimitiveType{ Generic, static_cast<uint8_t>(Size) }
+        return model::PrimitiveDefinition{ Generic, static_cast<uint8_t>(Size) }
           .verify();
       };
 

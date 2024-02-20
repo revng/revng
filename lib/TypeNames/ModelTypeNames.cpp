@@ -14,12 +14,12 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/CABIFunctionType.h"
+#include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
-#include "revng/Model/RawFunctionType.h"
+#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
@@ -121,10 +121,10 @@ TypeString getNamedCInstance(const model::QualifiedType &QT,
                              StringRef InstanceName,
                              const ptml::PTMLCBuilder &B,
                              llvm::ArrayRef<std::string> AllowedActions) {
-  const model::Type &Unqualified = *QT.UnqualifiedType().getConst();
+  const model::TypeDefinition &Unqualified = *QT.UnqualifiedType().getConst();
   std::string TypeName = B.getLocationReference(Unqualified, AllowedActions);
 
-  if (auto *Enum = dyn_cast<model::EnumType>(&Unqualified)) {
+  if (auto *Enum = dyn_cast<model::EnumDefinition>(&Unqualified)) {
     const model::QualifiedType &Underlying = Enum->UnderlyingType();
     revng_assert(Underlying.Qualifiers().empty());
     std::string UnderlyingName = B.getLocationReference(*Underlying
@@ -315,7 +315,7 @@ TypeString getArrayWrapper(const model::QualifiedType &QT,
   return TypeString(ResultTag.serialize());
 }
 
-TypeString getNamedInstanceOfReturnType(const model::Type &Function,
+TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
                                         llvm::StringRef InstanceName,
                                         const ptml::PTMLCBuilder &B,
                                         bool IsDefinition) {
@@ -362,7 +362,7 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
   case ReturnMethod::RegisterSet: {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
-    revng_assert(llvm::isa<model::RawFunctionType>(Function));
+    revng_assert(llvm::isa<model::RawFunctionDefinition>(Function));
     std::string Name = (Twine(RetStructPrefix) + Function.name()).str();
     std::string Location = pipeline::serializedLocation(ranks::ArtificialStruct,
                                                         Function.key());
@@ -417,7 +417,7 @@ getFunctionAttributesString(const AttributesSet &Attributes) {
 
 template<ModelFunction FunctionType>
 static void printFunctionPrototypeImpl(const FunctionType *Function,
-                                       const model::RawFunctionType &RF,
+                                       const model::RawFunctionDefinition &RF,
                                        const llvm::StringRef &FunctionName,
                                        llvm::raw_ostream &Header,
                                        ptml::PTMLCBuilder &B,
@@ -481,7 +481,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
 template<ModelFunction FunctionType>
 static void printFunctionPrototypeImpl(const FunctionType *Function,
-                                       const model::CABIFunctionType &CF,
+                                       const model::CABIFunctionDefinition &CF,
                                        const llvm::StringRef &FunctionName,
                                        llvm::raw_ostream &Header,
                                        ptml::PTMLCBuilder &B,
@@ -529,7 +529,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   }
 }
 
-void printFunctionPrototype(const model::Type &FT,
+void printFunctionPrototype(const model::TypeDefinition &FT,
                             const model::Function &Function,
                             llvm::raw_ostream &Header,
                             ptml::PTMLCBuilder &B,
@@ -539,7 +539,7 @@ void printFunctionPrototype(const model::Type &FT,
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationDefinition, Location);
-  if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
+  if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *RF,
                                FunctionTag.serialize(),
@@ -547,7 +547,7 @@ void printFunctionPrototype(const model::Type &FT,
                                B,
                                Model,
                                SingleLine);
-  } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
+  } else if (auto *CF = dyn_cast<model::CABIFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *CF,
                                FunctionTag.serialize(),
@@ -560,7 +560,7 @@ void printFunctionPrototype(const model::Type &FT,
   }
 }
 
-void printFunctionPrototype(const model::Type &FT,
+void printFunctionPrototype(const model::TypeDefinition &FT,
                             const model::DynamicFunction &Function,
                             llvm::raw_ostream &Header,
                             ptml::PTMLCBuilder &B,
@@ -571,7 +571,7 @@ void printFunctionPrototype(const model::Type &FT,
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationDefinition, Location);
-  if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
+  if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *RF,
                                FunctionTag.serialize(),
@@ -579,7 +579,7 @@ void printFunctionPrototype(const model::Type &FT,
                                B,
                                Model,
                                SingleLine);
-  } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
+  } else if (auto *CF = dyn_cast<model::CABIFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *CF,
                                FunctionTag.serialize(),
@@ -592,13 +592,13 @@ void printFunctionPrototype(const model::Type &FT,
   }
 }
 
-void printFunctionTypeDeclaration(const model::Type &FT,
+void printFunctionTypeDeclaration(const model::TypeDefinition &FT,
                                   llvm::raw_ostream &Header,
                                   ptml::PTMLCBuilder &B,
                                   const model::Binary &Model) {
 
   auto TypeName = B.getLocationDefinition(FT);
-  if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
+  if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl<model::Function>(nullptr,
                                                 *RF,
                                                 TypeName,
@@ -606,7 +606,7 @@ void printFunctionTypeDeclaration(const model::Type &FT,
                                                 B,
                                                 Model,
                                                 true);
-  } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
+  } else if (auto *CF = dyn_cast<model::CABIFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl<model::Function>(nullptr,
                                                 *CF,
                                                 TypeName,
