@@ -68,7 +68,7 @@ public:
       auto &Model = WellKnownModel->FromModel;
       // Collect exported functions
       for (model::Function &F : Model->Functions()) {
-        for (std::string ExportedName : F.ExportedNames()) {
+        for (const std::string &ExportedName : F.ExportedNames()) {
           WellKnownFunctions[{
             Model->Architecture(), Model->DefaultABI(), ExportedName }] = {
             WellKnownModel.get(), &F
