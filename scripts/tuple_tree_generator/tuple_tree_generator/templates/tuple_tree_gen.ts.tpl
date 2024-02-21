@@ -114,7 +114,7 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
         {%- endif %}
         {%- if completely_optional(class_) %}
         if (rawObject === undefined) {
-            rawObject = {};
+            rawObject = {} as I{{class_.name}};
         }
         {%- endif %}
         {%- if class_.inherits %}

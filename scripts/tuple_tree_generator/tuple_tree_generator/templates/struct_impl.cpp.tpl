@@ -81,7 +81,14 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
   /**- if field.__class__.__name__ == "SimpleStructField" **/
 
   /**- if schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
+  /**- if field.upcastable -**/
+  if (this->/*= field.name =*/().empty() || Other./*= field.name =*/().empty()) {
+    if (this->/*= field.name =*/() != Other./*= field.name =*/())
+      return false;
+  } else if (not this->/*= field.name =*/()->localCompare(*Other./*= field.name =*/()))
+  /**- else -**/
   if (not this->/*= field.name =*/().localCompare(Other./*= field.name =*/()))
+  /**- endif -**/
     return false;
   /**- else -**/
   if (this->/*= field.name =*/() != Other./*= field.name =*/())
