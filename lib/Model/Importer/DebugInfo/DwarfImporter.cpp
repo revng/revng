@@ -906,10 +906,11 @@ private:
           if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
-          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
-            Function.OriginalName() = SymbolName;
-
-          Function.ExportedNames().insert(SymbolName);
+          if (SymbolName.size() != 0) {
+            Function.ExportedNames().insert(SymbolName);
+            if (Function.OriginalName().size() == 0)
+              Function.OriginalName() = SymbolName;
+          }
 
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
@@ -1456,7 +1457,11 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
       for (auto AliasSetIt = Aliases.member_begin(AliasesIt);
            AliasSetIt != Aliases.member_end();
            ++AliasSetIt) {
+
         std::string Name = AliasSetIt->str();
+        if (Name.size() == 0)
+          continue;
+
         CurrentAliases.push_back(Name);
 
         // Create DynamicFunction, if it doesn't exist already
