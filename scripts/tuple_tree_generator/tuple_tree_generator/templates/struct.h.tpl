@@ -52,20 +52,34 @@ struct /*= struct | fullname =*/
   using BaseClass = void;
   /**- endif **//** endif **/
 
-  /*#- --- Member list --- #*/
-  /**- for field in struct.fields **/
 private:
+  //
+  // Member list
+  //
+  /**- for field in struct.fields **/
   /*= field | field_type =*/ The/*= field.name =*/ = /*= field | field_type =*/{};
-  static_assert(Yamlizable</*= field | field_type =*/>);
+  /**- endfor **/
 
+  /** for field in struct.fields **/
+  static_assert(Yamlizable</*= field | field_type =*/>);
+  /**- endfor **/
+
+  //
+  // Tracking helpers
+  //
   /**- if emit_tracking **/
+  /**- for field in struct.fields **/
   mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
-  /** endif -**/
+  /**- endfor **/
+  /**- endif **/
 
 public:
-  using /*= field.name =*/Type = /*= field | field_type =*/;
+  //
+  // Member accessors
+  //
+  /**- for field in struct.fields **/
 
-  /*= field.doc | docstring =*/
+  /*= field.doc | docstring -=*/
   const /*= field | field_type =*/ & /*= field.name =*/() const {
     /**- if emit_tracking **/
     /**- if not field in struct.key_fields **/
@@ -81,8 +95,11 @@ public:
 
     return The/*= field.name =*/;
   }
+  /**- endfor **/
 
-  /*= field.doc | docstring =*/
+  /**- for field in struct.fields **/
+
+  /*= field.doc | docstring -=*/
   /*= field | field_type =*/ & /*= field.name =*/() {
   /**- if emit_tracking **/
     /*= field.name =*/Tracker.access();
@@ -91,7 +108,10 @@ public:
   }
   /**- endfor **/
 
-  /*# --- Default constructor --- #*/
+  /** for field in struct.fields **/
+  using TypeOf/*= field.name =*/ = /*= field | field_type =*/;
+  /**- endfor **/
+
   /// Default constructor
   /*= struct.name =*/() :
     /**- if struct.inherits **//*= struct.inherits.name =*/()/** endif **/
@@ -103,7 +123,6 @@ public:
       /**- endif -**/
     }
 
-  /*# --- Key constructor --- #*/
   /**- if struct.key_fields **/
   /// Key constructor
   /*= struct.name =*/(
@@ -128,7 +147,6 @@ public:
     }
   /** endif **/
 
-  /*# --- Full constructor --- #*/
   /** if struct.emit_full_constructor **/
   /// Full constructor
   /*= struct.name =*/(
@@ -159,8 +177,8 @@ public:
     /**- endfor **/ {}
   /** endif **/
 
-  /*# --- Key definition for KeyedObjectTraits --- #*/
   /** if struct._key **/
+  // Key definition for KeyedObjectTraits
   using KeyTuple = std::tuple<
     /**- for key_field in struct.key_fields -**/
     /*= key_field | field_type =*//** if not loop.last **/, /** endif **/
@@ -171,8 +189,8 @@ public:
   };
   /** endif **/
 
-  /*# --- Comparison operator --- #*/
-  /** if struct.key_fields **/
+  // Comparison operators
+  /** if struct.key_fields -**/
   Key key() const {
     return Key {
       /**- for key_field in struct.key_fields -**/
@@ -184,7 +202,7 @@ public:
   bool operator<(const /*= struct.name =*/ &Other) const { return key() < Other.key(); }
   bool operator>(const /*= struct.name =*/ &Other) const { return key() > Other.key(); }
 
-  /** else **/
+  /** else -**/
   bool operator==(const /*= struct.name =*/ &Other) const {
     /**- for field in struct.fields **/
     if (/*= field.name =*/() != Other./*= field.name =*/())
@@ -196,6 +214,7 @@ public:
 
   /**- if emit_tracking **/
 private:
+  // Tracking helpers
   template<size_t I>
   revng::AccessTracker& getTracker() const {
     /**- for field in struct.all_fields **/
