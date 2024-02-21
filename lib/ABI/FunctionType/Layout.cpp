@@ -39,7 +39,7 @@ public:
 
 public:
   /// Entry point for the `toRaw` conversion.
-  model::TypeDefinitionPath
+  model::DefinitionReference
   convert(const model::CABIFunctionDefinition &FunctionType,
           TupleTree<model::Binary> &Binary) const;
 
@@ -101,7 +101,7 @@ static model::QualifiedType registerType(model::Register::Values Register,
   };
 }
 
-model::TypeDefinitionPath
+model::DefinitionReference
 ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
                         TupleTree<model::Binary> &Binary) const {
   revng_log(Log,
@@ -301,7 +301,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
       if (FirstFieldType.Qualifiers().empty()) {
         auto *Unqualified = FirstFieldType.UnqualifiedType().getConst();
         if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(Unqualified))
-          if (auto Path = Binary->getTypeDefinitionPath(Struct->key());
+          if (auto Path = Binary->getDefinitionReference(Struct->key());
               Struct->Size() == StackArguments.Size())
             NewType.StackArgumentsType() = Path;
       }
@@ -385,7 +385,7 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
   return Result;
 }
 
-model::TypeDefinitionPath
+model::DefinitionReference
 convertToRaw(const model::CABIFunctionDefinition &FunctionType,
              TupleTree<model::Binary> &Binary) {
   ToRawConverter ToRaw(abi::Definition::get(FunctionType.ABI()));
@@ -519,7 +519,7 @@ Layout::Layout(const model::RawFunctionDefinition &Function) {
 
   // Lay stack arguments out.
   if (not Function.StackArgumentsType().empty()) {
-    const model::TypeDefinitionPath &SPath = Function.StackArgumentsType();
+    const model::DefinitionReference &SPath = Function.StackArgumentsType();
     auto *StackStruct = llvm::cast<model::StructDefinition>(SPath.getConst());
 
     auto &Argument = Arguments.emplace_back();

@@ -229,9 +229,9 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     auto *Left1 = createType<StructDefinition>(*Model);
     auto *Left2 = createType<StructDefinition>(*Model);
 
-    Left1->Fields()[0].Type() = { Model->getTypeDefinitionPath(Left2),
+    Left1->Fields()[0].Type() = { Model->getDefinitionReference(Left2),
                                   { PointerQualifier } };
-    Left2->Fields()[0].Type() = { Model->getTypeDefinitionPath(Left1),
+    Left2->Fields()[0].Type() = { Model->getDefinitionReference(Left1),
                                   { PointerQualifier } };
 
     Left1->OriginalName() = "LoopingStructs1";
@@ -240,9 +240,9 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     auto *Right1 = createType<StructDefinition>(*Model);
     auto *Right2 = createType<StructDefinition>(*Model);
 
-    Right1->Fields()[0].Type() = { Model->getTypeDefinitionPath(Right2),
+    Right1->Fields()[0].Type() = { Model->getDefinitionReference(Right2),
                                    { PointerQualifier } };
-    Right2->Fields()[0].Type() = { Model->getTypeDefinitionPath(Right1),
+    Right2->Fields()[0].Type() = { Model->getDefinitionReference(Right1),
                                    { PointerQualifier, PointerQualifier } };
 
     Right1->OriginalName() = "LoopingStructs1";
@@ -250,7 +250,7 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
 
     revng_check(Dedup() == 0);
 
-    Right2->Fields()[0].Type() = { Model->getTypeDefinitionPath(Right1),
+    Right2->Fields()[0].Type() = { Model->getDefinitionReference(Right1),
                                    { PointerQualifier } };
 
     revng_check(Dedup() == 2);

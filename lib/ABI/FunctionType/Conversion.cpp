@@ -120,7 +120,7 @@ private:
   ///
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
-  tryConvertingStackArguments(model::TypeDefinitionPath StackArgumentTypes,
+  tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
                               ArgumentDistributor Distributor);
 
   /// Helper used for converting return values to the c-style representation
@@ -137,7 +137,7 @@ private:
   tryConvertingReturnValue(RFTReturnValues Registers);
 };
 
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
                  TupleTree<model::Binary> &Binary,
                  std::optional<model::ABI::Values> MaybeABI,
@@ -393,7 +393,7 @@ bool canBeNext(ArgumentDistributor &Distributor,
 }
 
 std::optional<llvm::SmallVector<model::Argument, 8>>
-TCC::tryConvertingStackArguments(model::TypeDefinitionPath StackArgumentTypes,
+TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
                                  ArgumentDistributor Distributor) {
   if (StackArgumentTypes.empty()) {
     // If there is no type, it means that the importer responsible for this

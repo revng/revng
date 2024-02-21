@@ -159,8 +159,8 @@ MetaAddressRangeSet Binary::executableRanges() const {
   return ExecutableRanges;
 }
 
-model::TypeDefinitionPath Binary::getPrimitiveType(PrimitiveKind::Values V,
-                                                   uint8_t ByteSize) {
+model::DefinitionReference Binary::getPrimitiveType(PrimitiveKind::Values V,
+                                                    uint8_t ByteSize) {
   PrimitiveDefinition Temporary(V, ByteSize);
   TypeDefinition::Key PrimitiveKey{ Temporary.ID(),
                                     TypeDefinitionKind::PrimitiveDefinition };
@@ -170,15 +170,15 @@ model::TypeDefinitionPath Binary::getPrimitiveType(PrimitiveKind::Values V,
   if (It == TypeDefinitions().end())
     It = TypeDefinitions().emplace(new PrimitiveDefinition(V, ByteSize)).first;
 
-  return getTypeDefinitionPath(It->get());
+  return getDefinitionReference(It->get());
 }
 
-model::TypeDefinitionPath Binary::getPrimitiveType(PrimitiveKind::Values V,
-                                                   uint8_t ByteSize) const {
+model::DefinitionReference Binary::getPrimitiveType(PrimitiveKind::Values V,
+                                                    uint8_t ByteSize) const {
   PrimitiveDefinition Temporary(V, ByteSize);
   TypeDefinition::Key PrimitiveKey{ Temporary.ID(),
                                     TypeDefinitionKind::PrimitiveDefinition };
-  return getTypeDefinitionPath(TypeDefinitions().at(PrimitiveKey).get());
+  return getDefinitionReference(TypeDefinitions().at(PrimitiveKey).get());
 }
 
 uint64_t Binary::getAvailableTypeID() const {
@@ -191,7 +191,7 @@ uint64_t Binary::getAvailableTypeID() const {
   return Result;
 }
 
-TypeDefinitionPath Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
+DefinitionReference Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
   if (not isa<PrimitiveDefinition>(T.get())) {
     // Assign progressive ID
     revng_assert(T->ID() == 0);
@@ -200,7 +200,7 @@ TypeDefinitionPath Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
 
   auto [It, Success] = TypeDefinitions().insert(T);
   revng_assert(Success);
-  return getTypeDefinitionPath(It->get());
+  return getDefinitionReference(It->get());
 }
 
 bool Binary::verifyTypeDefinitions() const {
@@ -397,9 +397,9 @@ Identifier Function::name() const {
   }
 }
 
-static const model::TypeDefinitionPath &
-prototypeOr(const model::TypeDefinitionPath &Prototype,
-            const model::TypeDefinitionPath &Default) {
+static const model::DefinitionReference &
+prototypeOr(const model::DefinitionReference &Prototype,
+            const model::DefinitionReference &Default) {
   if (not Prototype.empty()) {
     revng_assert(Prototype.isValid());
     return Prototype;
@@ -418,9 +418,9 @@ model::QualifiedType::getPointerTo(model::Architecture::Values Arch) const {
   return Result;
 }
 
-model::TypeDefinitionPath Function::prototype(const model::Binary &Root) const {
-  model::TypeDefinitionPath Result;
-  auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());
+model::DefinitionReference Function::prototype(const model::Binary &B) const {
+  model::DefinitionReference Result;
+  auto ThePrototype = prototypeOr(Prototype(), B.DefaultPrototype());
   if (not ThePrototype.empty())
     return model::QualifiedType::getFunctionType(ThePrototype).value();
   else
@@ -437,7 +437,7 @@ Identifier DynamicFunction::name() const {
   }
 }
 
-model::TypeDefinitionPath
+model::DefinitionReference
 DynamicFunction::prototype(const model::Binary &Root) const {
   auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());
   return model::QualifiedType::getFunctionType(ThePrototype).value();

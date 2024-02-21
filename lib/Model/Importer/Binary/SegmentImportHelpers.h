@@ -59,7 +59,7 @@ inline void importSymbolsInto(model::Binary &Binary,
         continue;
       }
 
-      model::TypeDefinitionPath T;
+      model::DefinitionReference T;
       if (SymbolSize == 1 || SymbolSize == 2 || SymbolSize == 4
           || SymbolSize == 8) {
         T = Binary.getPrimitiveType(model::PrimitiveKind::Generic, SymbolSize);
@@ -84,7 +84,7 @@ struct Section {
   std::string Name;
 };
 
-inline model::TypeDefinitionPath
+inline model::DefinitionReference
 populateSegmentTypeStruct(model::Binary &Binary,
                           model::Segment &Segment,
                           llvm::SmallVector<DataSymbol, 32> DataSymbols,

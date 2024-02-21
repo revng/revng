@@ -22,9 +22,9 @@ namespace abi::FunctionType {
 /// \param Model The tuple tree where replacement should take place in.
 ///
 /// \return The new path to the added type.
-const model::TypeDefinitionPath &
+const model::DefinitionReference &
 replaceAllUsesWith(const model::TypeDefinition::Key &OldKey,
-                   const model::TypeDefinitionPath &NewTypePath,
+                   const model::DefinitionReference &NewTypePath,
                    TupleTree<model::Binary> &Model);
 
 /// Takes care of extending (padding) the size of a stack argument.

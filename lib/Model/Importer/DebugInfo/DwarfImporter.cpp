@@ -211,7 +211,7 @@ private:
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
-                                     const model::TypeDefinitionPath &Path,
+                                     const model::DefinitionReference &Path,
                                      bool IsNotPlaceholder) {
     return record(Die, model::QualifiedType(Path, {}), IsNotPlaceholder);
   }
@@ -494,15 +494,15 @@ private:
 
   RecursiveCoroutine<const model::QualifiedType *>
   resolveTypeWithIdentity(const DWARFDie &Die,
-                          model::QualifiedType *TypeDefinitionPath) {
+                          model::QualifiedType *DefinitionReference) {
     using namespace model;
 
     auto Offset = Die.getOffset();
     auto Tag = Die.getTag();
 
     revng_assert(Placeholders.contains(Offset));
-    revng_assert(TypeDefinitionPath->Qualifiers().empty());
-    model::TypeDefinition *T = TypeDefinitionPath->UnqualifiedType().get();
+    revng_assert(DefinitionReference->Qualifiers().empty());
+    model::TypeDefinition *T = DefinitionReference->UnqualifiedType().get();
 
     std::string Name = getName(Die);
 
@@ -698,7 +698,7 @@ private:
 
     Placeholders.erase(Offset);
 
-    rc_return TypeDefinitionPath;
+    rc_return DefinitionReference;
   }
 
   RecursiveCoroutine<const model::QualifiedType *>
@@ -714,7 +714,7 @@ private:
     }
 
     auto Tag = Die.getTag();
-    auto [MatchType, TypeDefinitionPath] = findType(Die);
+    auto [MatchType, DefinitionReference] = findType(Die);
 
     switch (MatchType) {
     case Absent: {
@@ -802,7 +802,7 @@ private:
       rc_return &record(Die, Type, true);
     }
     case PlaceholderType: {
-      if (TypeDefinitionPath == nullptr) {
+      if (DefinitionReference == nullptr) {
         reportIgnoredDie(Die, "Couldn't materialize type");
         rc_return nullptr;
       }
@@ -813,12 +813,12 @@ private:
       // fully imported, or it's a type with an identity on the model.
       // In the latter case, proceed only if explicitly told to do so.
       if (ResolveIfHasIdentity)
-        rc_recur resolveTypeWithIdentity(Die, TypeDefinitionPath);
+        rc_recur resolveTypeWithIdentity(Die, DefinitionReference);
 
     } break;
 
     case RegularType:
-      if (TypeDefinitionPath == nullptr) {
+      if (DefinitionReference == nullptr) {
         reportIgnoredDie(Die, "Couldn't materialize type");
         rc_return nullptr;
       }
@@ -829,7 +829,7 @@ private:
       revng_abort();
     }
 
-    rc_return TypeDefinitionPath;
+    rc_return DefinitionReference;
   }
 
   void resolveAllTypes() {
@@ -843,7 +843,7 @@ private:
     }
   }
 
-  std::optional<model::TypeDefinitionPath>
+  std::optional<model::DefinitionReference>
   getSubprogramPrototype(const DWARFDie &Die) {
     using namespace model;
 
@@ -1015,7 +1015,7 @@ private:
       // Collect array whose elements are zero-sized
       //
       for (const model::QualifiedType &QT : Type->edges()) {
-        model::TypeDefinitionPath Unqualified = QT.UnqualifiedType();
+        model::DefinitionReference Unqualified = QT.UnqualifiedType();
         if (Unqualified.isValid()) {
           std::optional<uint64_t> Size = Unqualified.get()->trySize(VH);
           if (Size.value_or(0) != 0)
@@ -1490,7 +1490,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
     llvm::SmallVector<std::string, 4> CurrentAliases;
     if (AliasesIt->isLeader()) {
       SmallVector<std::string, 4> UnprototypedFunctionsNames;
-      model::TypeDefinitionPath Prototype;
+      model::DefinitionReference Prototype;
       for (auto AliasSetIt = Aliases.member_begin(AliasesIt);
            AliasSetIt != Aliases.member_end();
            ++AliasSetIt) {

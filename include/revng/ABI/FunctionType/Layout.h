@@ -16,7 +16,7 @@ namespace abi::FunctionType {
 ///
 /// \note: this conversion is lossy since there's no way to represent some types
 ///        in `RawFunctionDefinition` in a reversible manner.
-model::TypeDefinitionPath
+model::DefinitionReference
 convertToRaw(const model::CABIFunctionDefinition &Prototype,
              TupleTree<model::Binary> &TheBinary);
 
@@ -109,7 +109,7 @@ public:
 
   /// Extracts the information about argument and return value location layout
   /// from the \param Prototype.
-  static Layout make(const model::TypeDefinitionPath &Prototype) {
+  static Layout make(const model::DefinitionReference &Prototype) {
     revng_assert(Prototype.isValid());
     return make(*Prototype.getConst());
   }
@@ -196,7 +196,7 @@ calleeSavedRegisters(const model::TypeDefinition &Prototype) {
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::TypeDefinitionPath &Prototype) {
+calleeSavedRegisters(const model::DefinitionReference &Prototype) {
   revng_assert(Prototype.isValid());
   return calleeSavedRegisters(*Prototype.getConst());
 }
@@ -216,7 +216,7 @@ inline uint64_t finalStackOffset(const model::TypeDefinition &Prototype) {
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline uint64_t finalStackOffset(const model::TypeDefinitionPath &Prototype) {
+inline uint64_t finalStackOffset(const model::DefinitionReference &Prototype) {
   revng_assert(Prototype.isValid());
   return finalStackOffset(*Prototype.getConst());
 }
@@ -246,7 +246,8 @@ inline UsedRegisters usedRegisters(const model::TypeDefinition &Prototype) {
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline UsedRegisters usedRegisters(const model::TypeDefinitionPath &Prototype) {
+inline UsedRegisters
+usedRegisters(const model::DefinitionReference &Prototype) {
   revng_assert(Prototype.isValid());
   return usedRegisters(*Prototype.getConst());
 }

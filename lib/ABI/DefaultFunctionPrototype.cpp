@@ -23,8 +23,8 @@ static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
   return QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
 }
 
-static TypeDefinitionPath defaultPrototype(Binary &TheBinary,
-                                           model::ABI::Values ABI) {
+static DefinitionReference defaultPrototype(Binary &TheBinary,
+                                            model::ABI::Values ABI) {
   auto [Prototype,
         Path] = TheBinary.makeTypeDefinition<RawFunctionDefinition>();
 
@@ -53,7 +53,7 @@ static TypeDefinitionPath defaultPrototype(Binary &TheBinary,
   return Path;
 }
 
-model::TypeDefinitionPath
+model::DefinitionReference
 abi::registerDefaultFunctionPrototype(Binary &Binary,
                                       std::optional<ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())

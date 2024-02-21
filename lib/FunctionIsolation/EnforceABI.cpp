@@ -132,7 +132,7 @@ bool EnforceABI::prologue() {
       continue;
     OldFunctions.push_back(OldFunction);
 
-    model::TypeDefinitionPath Prototype = FunctionModel.prototype(Binary);
+    model::DefinitionReference Prototype = FunctionModel.prototype(Binary);
     auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
     Function *NewFunction = recreateFunction(*OldFunction, UsedRegisters);
 
@@ -155,7 +155,7 @@ bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
   OldFunctions.push_back(&OldFunction);
 
   // Recreate the function with the right prototype and the function prologue
-  const model::TypeDefinitionPath &Prototype = FunctionModel.prototype(Binary);
+  const model::DefinitionReference &Prototype = FunctionModel.prototype(Binary);
   auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
   Function *NewFunction = getOrCreateNewFunction(OldFunction, UsedRegisters);
 
@@ -362,7 +362,7 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
   } else if (IsDirect) {
     MetaAddress CalleeAddress = CallSite->Destination().notInlinedAddress();
     const model::Function &ModelFunc = Binary.Functions().at(CalleeAddress);
-    const model::TypeDefinitionPath &Prototype = ModelFunc.prototype(Binary);
+    const model::DefinitionReference &Prototype = ModelFunc.prototype(Binary);
     auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
     Callee = getOrCreateNewFunction(*Callee, UsedRegisters);
   }
@@ -426,10 +426,10 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<Constant *, 8> ReturnCSVs;
 
-  model::TypeDefinitionPath Prototype = getPrototype(Binary,
-                                                     Entry,
-                                                     CallSiteBlock.ID(),
-                                                     CallSite);
+  model::DefinitionReference Prototype = getPrototype(Binary,
+                                                      Entry,
+                                                      CallSiteBlock.ID(),
+                                                      CallSite);
   auto Registers = abi::FunctionType::usedRegisters(Prototype);
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);

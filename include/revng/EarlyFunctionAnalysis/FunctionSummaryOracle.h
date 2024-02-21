@@ -124,7 +124,7 @@ public:
 
 public:
   FunctionSummary prototype(const AttributesSet &Attributes,
-                            const model::TypeDefinitionPath &Prototype);
+                            const model::DefinitionReference &Prototype);
 };
 
 /// An oracle providing information about functions.

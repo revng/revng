@@ -797,7 +797,7 @@ model::QualifiedType QualifiedType::skipTypedefs() const {
   return Result;
 }
 
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 model::QualifiedType::getFunctionType() const {
   model::QualifiedType Unwrapped = skipTypedefs();
   if (Unwrapped.Qualifiers().size() != 0 or Unwrapped.UnqualifiedType().empty())
@@ -1522,9 +1522,9 @@ RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
 
 using MB = model::Binary;
 
-template model::TypeDefinitionPath
-model::TypeDefinitionPath::fromString<MB>(MB *Root, llvm::StringRef Path);
+template model::DefinitionReference
+model::DefinitionReference::fromString<MB>(MB *Root, llvm::StringRef Path);
 
-template model::TypeDefinitionPath
-model::TypeDefinitionPath::fromString<const MB>(const MB *Root,
-                                                llvm::StringRef Path);
+template model::DefinitionReference
+model::DefinitionReference::fromString<const MB>(const MB *Root,
+                                                 llvm::StringRef Path);
