@@ -605,7 +605,7 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
 
       // Get the kind type for the abstract type
       // TODO: add using for model::TypeDefinition's Kind
-      using Kind = typename Value::element_type::KindType;
+      using Kind = typename Value::element_type::TypeOfKind;
 
       // Extract Kind from "Kind-*" and deserialize it
       Kind MatcherKind = getValueFromYAMLScalar<Kind>(PostDash);

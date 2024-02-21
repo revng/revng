@@ -39,7 +39,8 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
   static constexpr const llvm::StringRef FullName = "/*=- struct | user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
-    /*=- struct | user_fullname =*/::/*=- field.name =*/Type/** if not loop.last **/, /** endif -**/
+    /*=- struct | user_fullname =*/::TypeOf/*=- field.name =*/
+    /**- if not loop.last **/, /** endif -**/
     /**- endfor **/>;
 
   static constexpr std::array<llvm::StringRef, std::tuple_size_v<tuple>> FieldNames = {
