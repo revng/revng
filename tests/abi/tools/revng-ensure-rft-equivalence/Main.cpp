@@ -52,8 +52,8 @@ static cl::opt<std::string> OutputFilename("o",
                                                           "filename"),
                                            llvm::cl::value_desc("filename"));
 
-using DefinitionPair = std::pair<model::TypeDefinitionPath,
-                                 model::TypeDefinitionPath>;
+using DefinitionPair = std::pair<model::DefinitionReference,
+                                 model::DefinitionReference>;
 static std::optional<DefinitionPair>
 ensureIDMatch(const model::TypeDefinition::Key &Left,
               const model::TypeDefinition::Key &Right,
@@ -65,7 +65,7 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 
   if (LeftID != RightID) {
     // Find the type
-    model::TypeDefinitionPath OldPath = Model.getTypeDefinitionPath(Right);
+    model::DefinitionReference OldPath = Model.getDefinitionReference(Right);
     auto LeftIterator = Model.TypeDefinitions().find(Left);
     auto RightIterator = Model.TypeDefinitions().find(Right);
 
@@ -92,7 +92,7 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 
     // Replace the ID of the moved out type.
     MovedOut->ID() = LeftID;
-    auto NewPath = Model.getTypeDefinitionPath(MovedOut->key());
+    auto NewPath = Model.getDefinitionReference(MovedOut->key());
 
     // Reinsert the type.
     auto [_, Success] = Model.TypeDefinitions().insert(std::move(MovedOut));
@@ -227,7 +227,7 @@ int main(int Argc, char *Argv[]) {
   // the same IDs. This makes it possible to use simple diff for comparing two
   // models instead of doing that manually, since the ID is the only piece
   // of the types that is allowed to change.
-  std::map<model::TypeDefinitionPath, model::TypeDefinitionPath> Replacements;
+  std::map<model::DefinitionReference, model::DefinitionReference> Replacements;
   for (auto [Name, Pair] : Functions) {
     auto [LKey, RKey] = Pair;
 
@@ -288,8 +288,8 @@ int main(int Argc, char *Argv[]) {
   const auto *RightDefaultPrototype = RightModel->DefaultPrototype().get();
   LeftModel->TypeDefinitions().erase(LeftDefaultPrototype->key());
   RightModel->TypeDefinitions().erase(RightDefaultPrototype->key());
-  LeftModel->DefaultPrototype() = model::TypeDefinitionPath{};
-  RightModel->DefaultPrototype() = model::TypeDefinitionPath{};
+  LeftModel->DefaultPrototype() = model::DefinitionReference{};
+  RightModel->DefaultPrototype() = model::DefinitionReference{};
 
   // Streamline both models and diff them
   model::purgeUnreachableTypes(LeftModel);

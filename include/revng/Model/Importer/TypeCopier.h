@@ -42,12 +42,12 @@ public:
     FromModel(FromModel), DestinationModel(DestinationModel) {}
   ~TypeCopier() { revng_assert(Finalized); }
 
-  model::TypeDefinitionPath copyTypeInto(model::TypeDefinitionPath &Type) {
+  model::DefinitionReference copyTypeInto(model::DefinitionReference &Type) {
     ensureGraph();
 
     revng_assert(Type.isValid());
 
-    model::TypeDefinitionPath Result;
+    model::DefinitionReference Result;
     llvm::df_iterator_default_set<Node *> VisitedFromTheType;
     for (Node *N :
          depth_first_ext(TypeToNode.at(Type.get()), VisitedFromTheType))
@@ -105,8 +105,8 @@ public:
     // according to the map
     auto Visitor = [this](auto &Element) {
       using T = std::decay_t<decltype(Element)>;
-      if constexpr (std::is_same_v<T, model::TypeDefinitionPath>) {
-        model::TypeDefinitionPath &Path = Element;
+      if constexpr (std::is_same_v<T, model::DefinitionReference>) {
+        model::DefinitionReference &Path = Element;
         if (Path.empty())
           return;
 
@@ -115,8 +115,8 @@ public:
         auto [ID, Kind] = *TypeKey.tryGet<model::TypeDefinition::Key>();
         if (Kind != model::TypeDefinitionKind::PrimitiveDefinition) {
           revng_assert(AlreadyCopied.count(ID) == 1);
-          Path = DestinationModel->getTypeDefinitionPath({ AlreadyCopied[ID],
-                                                           Kind });
+          Path = DestinationModel->getDefinitionReference({ AlreadyCopied[ID],
+                                                            Kind });
         }
       }
     };

@@ -20,13 +20,13 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   return getMetaAddressMetadata(&F, FunctionEntryMDName);
 }
 
-inline model::TypeDefinitionPath
+inline model::DefinitionReference
 getCallSitePrototype(ConstOrNot<model::Binary> auto &Root,
                      const llvm::Instruction *Call) {
   using namespace llvm;
   revng_assert(isa<CallInst>(Call));
 
-  using TDP = model::TypeDefinitionPath;
+  using TDP = model::DefinitionReference;
   return TDP::fromString(&Root, fromStringMetadata(Call, PrototypeMDName));
 }
 
@@ -67,8 +67,8 @@ inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
 }
 
 /// Create an empty model::StructDefinition of size Size in Binary
-inline model::TypeDefinitionPath createEmptyStruct(model::Binary &Binary,
-                                                   uint64_t Size) {
+inline model::DefinitionReference createEmptyStruct(model::Binary &Binary,
+                                                    uint64_t Size) {
   revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
 
   auto [Struct, Path] = Binary.makeTypeDefinition<model::StructDefinition>();

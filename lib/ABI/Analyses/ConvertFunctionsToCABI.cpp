@@ -51,7 +51,7 @@ underlyingHelper(model::VerifyHelper &VH, const model::TypeDefinition &Value) {
 
 static RecursiveCoroutine<bool>
 checkVectorRegisterSupport(model::VerifyHelper &VH,
-                           const model::TypeDefinitionPath &Reference) {
+                           const model::DefinitionReference &Reference) {
   const model::TypeDefinition *Pointer = Reference.getConst();
   revng_assert(Pointer != nullptr);
   rc_return rc_recur checkVectorRegisterSupport(VH, *Pointer);
@@ -245,7 +245,7 @@ public:
     using RawFD = model::RawFunctionDefinition;
     auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions());
     for (model::RawFunctionDefinition *Old : ToConvert) {
-      auto DefinitionPath = Model->getTypeDefinitionPath(Old->key());
+      auto DefinitionPath = Model->getDefinitionReference(Old->key());
       if (!checkVectorRegisterSupport(VectorVH, DefinitionPath)) {
         // TODO: remove this check after `abi::FunctionType` supports vectors.
         revng_log(Log,

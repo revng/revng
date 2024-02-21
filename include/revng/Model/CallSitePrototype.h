@@ -43,7 +43,7 @@ public:
   using generated::CallSitePrototype::CallSitePrototype;
 
   /// Get the actual prototype, skipping any typedefs
-  model::TypeDefinitionPath prototype() const {
+  model::DefinitionReference prototype() const {
     return model::QualifiedType::getFunctionType(Prototype()).value();
   }
 

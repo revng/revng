@@ -192,7 +192,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // But if we break the underlying, making it point to a type that does not
   // exist, we're not good anymore
-  auto BrokenPath = TypeDefinitionPath::fromString(T.get(),
+  auto BrokenPath = DefinitionReference::fromString(T.get(),
                                                    "/TypeDefinitions/"
                                                    "42-TypedefDefinition");
   Enum.UnderlyingType() = { BrokenPath, {} };
@@ -201,7 +201,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // Also we set the underlying type to a valid type, but that is not a
   // primitive integer type, we are not good
-  Enum.UnderlyingType() = { T->getTypeDefinitionPath(Enum.key()), {} };
+  Enum.UnderlyingType() = { T->getDefinitionReference(Enum.key()), {} };
   revng_check(not verify(Enum, false));
   revng_check(not verify(*T, false));
 
@@ -369,7 +369,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   // Struct x cannot have a field with type x
   Struct.Fields().clear();
   StructField Same = StructField{ 0 };
-  Same.Type() = { T->getTypeDefinitionPath(Struct.key()), {} };
+  Same.Type() = { T->getDefinitionReference(Struct.key()), {} };
   revng_check(Struct.Fields().insert(Same).second);
   revng_check(not verify(Struct, false));
   revng_check(not verify(*T, false));
@@ -443,7 +443,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   // Union x cannot have a field with type x
   Union.Fields().clear();
   UnionField Same;
-  Same.Type() = { T->getTypeDefinitionPath(Union.key()), {} };
+  Same.Type() = { T->getDefinitionReference(Union.key()), {} };
   revng_check(Union.Fields().insert(Same).second);
   revng_check(not verify(Union, false));
   revng_check(not verify(*T, false));

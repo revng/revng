@@ -103,28 +103,28 @@ public:
   using generated::Binary::Binary;
 
 public:
-  model::TypeDefinitionPath
-  getTypeDefinitionPath(const model::TypeDefinition::Key &Key) {
-    return TypeDefinitionPath::fromString(this,
-                                          "/TypeDefinitions/"
-                                            + getNameFromYAMLScalar(Key));
+  model::DefinitionReference
+  getDefinitionReference(const model::TypeDefinition::Key &Key) {
+    return DefinitionReference::fromString(this,
+                                           "/TypeDefinitions/"
+                                             + getNameFromYAMLScalar(Key));
   }
 
-  model::TypeDefinitionPath
-  getTypeDefinitionPath(const model::TypeDefinition::Key &Key) const {
-    return TypeDefinitionPath::fromString(this,
-                                          "/TypeDefinitions/"
-                                            + getNameFromYAMLScalar(Key));
+  model::DefinitionReference
+  getDefinitionReference(const model::TypeDefinition::Key &Key) const {
+    return DefinitionReference::fromString(this,
+                                           "/TypeDefinitions/"
+                                             + getNameFromYAMLScalar(Key));
   }
 
-  model::TypeDefinitionPath
-  getTypeDefinitionPath(const model::TypeDefinition *T) {
-    return getTypeDefinitionPath(T->key());
+  model::DefinitionReference
+  getDefinitionReference(const model::TypeDefinition *T) {
+    return getDefinitionReference(T->key());
   }
 
-  model::TypeDefinitionPath
-  getTypeDefinitionPath(const model::TypeDefinition *T) const {
-    return getTypeDefinitionPath(T->key());
+  model::DefinitionReference
+  getDefinitionReference(const model::TypeDefinition *T) const {
+    return getDefinitionReference(T->key());
   }
 
   /// Return the first available (non-primitive) type ID available
@@ -132,7 +132,7 @@ public:
 
   /// Record the new type into the model and assign an ID (unless it's a
   /// PrimitiveDefinition)
-  model::TypeDefinitionPath recordNewType(model::UpcastableTypeDefinition &&T);
+  model::DefinitionReference recordNewType(model::UpcastableTypeDefinition &&T);
 
   /// Uses `SortedVector::batch_insert()` to emplace all the elements from
   /// \ref NewTypes range into the `TypeDefinitions()` set.
@@ -170,19 +170,19 @@ public:
 
   template<derived_from<model::TypeDefinition> NewType,
            typename... ArgumentTypes>
-  [[nodiscard]] std::pair<NewType &, model::TypeDefinitionPath>
+  [[nodiscard]] std::pair<NewType &, model::DefinitionReference>
   makeTypeDefinition(ArgumentTypes &&...Arguments) {
     using UT = model::UpcastableTypeDefinition;
     UT Result = UT::make<NewType>(std::forward<ArgumentTypes>(Arguments)...);
-    model::TypeDefinitionPath ResultPath = recordNewType(std::move(Result));
+    model::DefinitionReference ResultPath = recordNewType(std::move(Result));
     return { *llvm::cast<NewType>(ResultPath.get()), ResultPath };
   }
 
-  model::TypeDefinitionPath getPrimitiveType(PrimitiveKind::Values V,
-                                             uint8_t ByteSize);
+  model::DefinitionReference getPrimitiveType(PrimitiveKind::Values V,
+                                              uint8_t ByteSize);
 
-  model::TypeDefinitionPath getPrimitiveType(PrimitiveKind::Values V,
-                                             uint8_t ByteSize) const;
+  model::DefinitionReference getPrimitiveType(PrimitiveKind::Values V,
+                                              uint8_t ByteSize) const;
 
   bool verifyTypeDefinitions() const debug_function;
   bool verifyTypeDefinitions(bool Assert) const debug_function;

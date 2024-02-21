@@ -98,7 +98,7 @@ static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
   auto VisitBinary = [&](auto &Field) {
     auto Visitor = [&](auto &Element) {
       using type = std::decay_t<decltype(Element)>;
-      if constexpr (std::is_same_v<type, TypeDefinitionPath>)
+      if constexpr (std::is_same_v<type, DefinitionReference>)
         if (Element.isValid())
           ToKeep.insert(Element.get());
     };

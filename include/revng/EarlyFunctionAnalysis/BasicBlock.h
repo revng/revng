@@ -70,12 +70,12 @@ public:
   void dump() const debug_function;
 };
 
-inline model::TypeDefinitionPath
+inline model::DefinitionReference
 getPrototype(const model::Binary &Binary,
              MetaAddress CallerFunctionAddress,
              const efa::BasicBlock &CallerBlock,
              const efa::CallEdge &Edge) {
-  model::TypeDefinitionPath Result;
+  model::DefinitionReference Result;
 
   auto &CallSitePrototypes = Binary.Functions()
                                .at(CallerFunctionAddress)

@@ -58,7 +58,7 @@ namespace {
 class PDBImporterImpl {
 private:
   PDBImporter &Importer;
-  DenseMap<TypeIndex, model::TypeDefinitionPath> ProcessedTypes;
+  DenseMap<TypeIndex, model::DefinitionReference> ProcessedTypes;
 
 public:
   PDBImporterImpl(PDBImporter &Importer) : Importer(Importer) {}
@@ -69,7 +69,7 @@ private:
   void populateSymbolsWithTypes(NativeSession &Session);
 };
 
-using ProcessedTypeMap = DenseMap<TypeIndex, model::TypeDefinitionPath>;
+using ProcessedTypeMap = DenseMap<TypeIndex, model::DefinitionReference>;
 
 /// Visitor for CodeView type streams found in PDB files. It overrides callbacks
 /// (from `TypeVisitorCallbacks`) to types of interest for the revng `Model`.
@@ -145,7 +145,7 @@ public:
 class PDBImporterSymbolVisitor : public SymbolVisitorCallbacks {
 private:
   TupleTree<model::Binary> &Model;
-  DenseMap<TypeIndex, model::TypeDefinitionPath> &ProcessedTypes;
+  DenseMap<TypeIndex, model::DefinitionReference> &ProcessedTypes;
 
   NativeSession &Session;
   MetaAddress &ImageBase;
@@ -198,7 +198,7 @@ void PDBImporterImpl::populateTypes() {
 class PDBSymbolHandler {
 private:
   PDBImporter &Importer;
-  DenseMap<TypeIndex, model::TypeDefinitionPath> &ProcessedTypes;
+  DenseMap<TypeIndex, model::DefinitionReference> &ProcessedTypes;
   NativeSession &Session;
   InputFile &Input;
 
@@ -554,8 +554,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     auto TheTypeTypeDef = cast<TypedefDefinition>(TypeTypedef.get());
     TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
-    auto TypeDefinitionPath = Model->recordNewType(std::move(TypeTypedef));
-    ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+    auto DefinitionReference = Model->recordNewType(std::move(TypeTypedef));
+    ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
   }
 
   return Error::success();
@@ -587,8 +587,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     auto TheTypeTypeDef = cast<TypedefDefinition>(TypeTypedef.get());
     TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
-    auto TypeDefinitionPath = Model->recordNewType(std::move(TypeTypedef));
-    ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+    auto DefinitionReference = Model->recordNewType(std::move(TypeTypedef));
+    ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
   }
 
   return Error::success();
@@ -618,8 +618,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       auto TheTypeTypeDef = cast<model::TypedefDefinition>(TypeTypedef.get());
       TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
-      auto TypeDefinitionPath = Model->recordNewType(std::move(TypeTypedef));
-      ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+      auto DefinitionReference = Model->recordNewType(std::move(TypeTypedef));
+      ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
     }
   }
 
@@ -687,8 +687,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       auto TheTypeTypeDef = cast<TypedefDefinition>(TypeTypedef.get());
       TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
-      auto TypeDefinitionPath = Model->recordNewType(std::move(TypeTypedef));
-      ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+      auto DefinitionReference = Model->recordNewType(std::move(TypeTypedef));
+      ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
     } else {
       // Pre-create the type that is being referenced by this type.
       auto NewType = makeTypeDefinition<model::StructDefinition>();
@@ -696,8 +696,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       auto Struct = cast<model::StructDefinition>(NewType.get());
       Struct->Size() = ForwardTypeSize;
 
-      auto TypeDefinitionPath = Model->recordNewType(std::move(NewType));
-      ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+      auto DefinitionReference = Model->recordNewType(std::move(NewType));
+      ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
     }
 
     return Error::success();
@@ -771,8 +771,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     }
 
     if (not WasReferenced) {
-      auto TypeDefinitionPath = Model->recordNewType(std::move(NewType));
-      ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+      auto DefinitionReference = Model->recordNewType(std::move(NewType));
+      ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
     } else {
       TypeIndex ForwardRef = ForwardReferencedTypes[CurrentTypeIndex];
       auto ForwardRefType = ProcessedTypes[ForwardRef];
@@ -860,8 +860,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         }
       }
 
-      auto TypeDefinitionPath = Model->recordNewType(std::move(NewType));
-      ProcessedTypes[FnTypeIndex] = TypeDefinitionPath;
+      auto DefinitionReference = Model->recordNewType(std::move(NewType));
+      ProcessedTypes[FnTypeIndex] = DefinitionReference;
     }
   }
 
@@ -897,8 +897,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     EnumEntry.OriginalName() = Entry.getName().str();
   }
 
-  auto TypeDefinitionPath = Model->recordNewType(std::move(NewType));
-  ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+  auto DefinitionReference = Model->recordNewType(std::move(NewType));
+  ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
 
   return Error::success();
 }
@@ -1017,8 +1017,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       }
     }
 
-    auto TypeDefinitionPath = Model->recordNewType(std::move(NewType));
-    ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+    auto DefinitionReference = Model->recordNewType(std::move(NewType));
+    ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
   }
 
   return Error::success();
@@ -1046,8 +1046,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     model::QualifiedType TheUnderlyingType(ThePrimitiveType, {});
     TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
-    auto TypeDefinitionPath = Model->recordNewType(std::move(TypeTypedef));
-    ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+    auto DefinitionReference = Model->recordNewType(std::move(TypeTypedef));
+    ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
 
     return Error::success();
   }
@@ -1082,8 +1082,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   }
 
   if (GeneratedOneFieldAtleast) {
-    auto TypeDefinitionPath = Model->recordNewType(std::move(NewType));
-    ProcessedTypes[CurrentTypeIndex] = TypeDefinitionPath;
+    auto DefinitionReference = Model->recordNewType(std::move(NewType));
+    ProcessedTypes[CurrentTypeIndex] = DefinitionReference;
   }
 
   return Error::success();
@@ -1328,8 +1328,8 @@ void PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
       QualifiedType TheUnderlyingType(PrimitiveModelType, Qualifiers);
       TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
-      auto TypeDefinitionPath = Model->recordNewType(std::move(TypeTypedef));
-      ProcessedTypes[SimpleType] = TypeDefinitionPath;
+      auto DefinitionReference = Model->recordNewType(std::move(TypeTypedef));
+      ProcessedTypes[SimpleType] = DefinitionReference;
     } else {
       revng_log(DILogger, "Invalid simple type " << SimpleType.getIndex());
     }
