@@ -141,7 +141,7 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
         }
     }
 
-    static parseClass(obj: Type) {
+    static parseClass(obj: {{class_.name}}) {
         switch(obj.Kind) {
         {%- for child in class_.children %}
         case "{{child.name}}":
