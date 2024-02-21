@@ -7,6 +7,7 @@ Functions:
   - OriginalName: indirect_caller
     Prototype: "/Types/1-RawFunctionType"
 Types:
-  - ID: 1
+  - Kind: RawFunctionType
+    ID: 1
     PreservedRegisters:
       - r12_x86_64

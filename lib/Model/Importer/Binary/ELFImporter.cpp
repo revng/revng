@@ -377,8 +377,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   }
 
   // Dynamic symbols harvested too, segment type creation can be finalized.
-  // Do not replace it, if `Type` is valid (may be added by the user); note that
-  // `isValid` checks also for being empty.
+  // Do not replace it, if `Type` is present (may have been added by the user).
   Task.advance("Parse segment struct from data symbols", true);
   for (auto &Segment : Model->Segments()) {
     if (Segment.Type().empty()) {

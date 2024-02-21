@@ -9,7 +9,9 @@ Functions:
   - OriginalName: callee
     Prototype: "/Types/2-RawFunctionType"
 Types:
-  - Arguments: []
-    ID: 2
-  - Arguments: []
+  - Kind: RawFunctionType
     ID: 1
+    Arguments: []
+  - Kind: RawFunctionType
+    ID: 2
+    Arguments: []

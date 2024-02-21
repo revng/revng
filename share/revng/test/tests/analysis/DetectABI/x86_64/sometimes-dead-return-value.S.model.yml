@@ -11,12 +11,15 @@ Functions:
   - OriginalName: callee
     Prototype: "/Types/3-RawFunctionType"
 Types:
-  - ID: 2
-    ReturnValues:
-      - Location: rbx_x86_64
-  - ID: 3
+  - Kind: RawFunctionType
+    ID: 1
     ReturnValues:
       - Location: rax_x86_64
-  - ID: 1
+  - Kind: RawFunctionType
+    ID: 2
+    ReturnValues:
+      - Location: rbx_x86_64
+  - Kind: RawFunctionType
+    ID: 3
     ReturnValues:
       - Location: rax_x86_64
