@@ -92,13 +92,13 @@ public:
   void dumpTypeGraph(const char *Path) const debug_function;
 };
 
-extern template model::TypeDefinitionPath
-model::TypeDefinitionPath::fromString<model::Binary>(model::Binary *Root,
-                                                     llvm::StringRef Path);
+extern template model::DefinitionReference
+model::DefinitionReference::fromString<model::Binary>(model::Binary *Root,
+                                                      llvm::StringRef Path);
 
-extern template model::TypeDefinitionPath
-model::TypeDefinitionPath::fromString<const model::Binary>(const model::Binary
-                                                             *,
-                                                           llvm::StringRef);
+extern template model::DefinitionReference
+model::DefinitionReference::fromString<const model::Binary>(const model::Binary
+                                                              *,
+                                                            llvm::StringRef);
 
 #include "revng/Model/Generated/Late/TypeDefinition.h"

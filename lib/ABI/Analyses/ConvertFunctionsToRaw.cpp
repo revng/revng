@@ -29,8 +29,8 @@ public:
     using CABIFD = model::CABIFunctionDefinition;
     auto ToConvert = filterTypes<CABIFD>(Model->TypeDefinitions());
     for (model::CABIFunctionDefinition *Old : ToConvert) {
-      model::TypeDefinitionPath New = abi::FunctionType::convertToRaw(*Old,
-                                                                      Model);
+      model::DefinitionReference New = abi::FunctionType::convertToRaw(*Old,
+                                                                       Model);
 
       // Make sure the returned type is valid,
       revng_assert(New.isValid());

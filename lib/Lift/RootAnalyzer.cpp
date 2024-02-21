@@ -316,7 +316,7 @@ void RootAnalyzer::updateCSAA() {
 }
 
 static llvm::SmallSet<model::Register::Values, 16>
-getPreservedRegisters(const model::TypeDefinitionPath &Prototype) {
+getPreservedRegisters(const model::DefinitionReference &Prototype) {
   llvm::SmallSet<model::Register::Values, 16> Result;
   namespace FT = abi::FunctionType;
   for (model::Register::Values Register : FT::calleeSavedRegisters(Prototype))

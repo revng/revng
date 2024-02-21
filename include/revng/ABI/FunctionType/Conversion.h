@@ -15,7 +15,7 @@ namespace abi::FunctionType {
 /// \param UseSoftRegisterStateDeductions For specifics see the difference
 ///        between `abi::Definition::tryDeducingRegisterState` (`true`) and
 ///        `abi::Definition::enforceRegisterState` (`false`).
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 tryConvertToCABI(const model::RawFunctionDefinition &Function,
                  TupleTree<model::Binary> &Binary,
                  std::optional<model::ABI::Values> ABI = std::nullopt,

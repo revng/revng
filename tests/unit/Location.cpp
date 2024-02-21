@@ -47,7 +47,7 @@ BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
   revng_check(Location.toString() == serializeToString(Location));
 }
 
-static model::TypeDefinitionPath makeFunction(model::Binary &Model) {
+static model::DefinitionReference makeFunction(model::Binary &Model) {
   model::CABIFunctionDefinition Function;
   Function.CustomName() = "my_cool_func";
   Function.OriginalName() = "Function_at_0x40012f:Code_x86_64";
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
                                           Function.get()->key(),
                                           2);
 
-  auto Path = NewModel->getTypeDefinitionPath(FieldLocation.at(ranks::Type));
+  auto Path = NewModel->getDefinitionReference(FieldLocation.at(ranks::Type));
   revng_check(Path.getConst()->name() == "my_cool_func");
 
   std::string ID = Function.toString();

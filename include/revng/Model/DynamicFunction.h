@@ -54,7 +54,7 @@ public:
 public:
   Identifier name() const;
 
-  model::TypeDefinitionPath prototype(const model::Binary &Root) const;
+  model::DefinitionReference prototype(const model::Binary &Root) const;
 
 public:
   bool verify() const debug_function;

@@ -32,8 +32,8 @@ fields:
 TUPLE-TREE-YAML */
 
 namespace model {
-using TypeDefinitionPath = TupleTreeReference<model::TypeDefinition,
-                                              model::Binary>;
+using DefinitionReference = TupleTreeReference<model::TypeDefinition,
+                                               model::Binary>;
 }
 
 #include "revng/Model/Generated/Early/QualifiedType.h"
@@ -74,10 +74,10 @@ public:
   model::QualifiedType skipTypedefs() const;
 
   /// If this QualifiedType is a function type, return it skipping over typedefs
-  std::optional<model::TypeDefinitionPath> getFunctionType() const;
+  std::optional<model::DefinitionReference> getFunctionType() const;
 
-  static std::optional<model::TypeDefinitionPath>
-  getFunctionType(const model::TypeDefinitionPath &Path) {
+  static std::optional<model::DefinitionReference>
+  getFunctionType(const model::DefinitionReference &Path) {
     return model::QualifiedType{ Path, {} }.getFunctionType();
   }
 

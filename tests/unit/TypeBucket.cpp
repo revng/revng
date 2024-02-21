@@ -89,7 +89,7 @@ BOOST_AUTO_TEST_CASE(Reused) {
 BOOST_AUTO_TEST_CASE(Paths) {
   TupleTree<model::Binary> Binary;
 
-  model::TypeDefinitionPath Saved;
+  model::DefinitionReference Saved;
   {
     model::TypeBucket Bucket = *Binary;
     auto [Type, Path] = Bucket.makeTypeDefinition<model::StructDefinition>();

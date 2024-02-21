@@ -60,7 +60,7 @@ public:
   ///
   /// \note This function forcefully assign a new type ID.
   template<typename NewD, typename... Ts>
-  [[nodiscard]] std::pair<NewD &, model::TypeDefinitionPath>
+  [[nodiscard]] std::pair<NewD &, model::DefinitionReference>
   makeTypeDefinition(Ts &&...As) {
     using UT = model::UpcastableTypeDefinition;
     auto &D = Definitions.emplace_back(UT::make<NewD>(std::forward<Ts>(As)...));
@@ -70,7 +70,7 @@ public:
     revng_assert(Upcasted->ID() == 0);
     Upcasted->ID() = NextAvailableID++;
 
-    auto ResultPath = Binary.getTypeDefinitionPath(Upcasted->key());
+    auto ResultPath = Binary.getDefinitionReference(Upcasted->key());
     return { *Upcasted, ResultPath };
   }
 
@@ -78,7 +78,7 @@ public:
   /// A helper for primitive type selection when binary access is limited.
   ///
   /// It mirrors `model::Binary::getPrimitiveType`.
-  inline model::TypeDefinitionPath
+  inline model::DefinitionReference
   getPrimitiveType(model::PrimitiveKind::Values Kind, uint8_t Size) {
     return Binary.getPrimitiveType(Kind, Size);
   }
@@ -88,7 +88,7 @@ public:
   /// \param Register Any CPU register the model is aware of.
   ///
   /// \return A primitive type in \ref Binary.
-  inline model::TypeDefinitionPath
+  inline model::DefinitionReference
   defaultRegisterType(model::Register::Values Register) {
     return getPrimitiveType(model::Register::primitiveKind(Register),
                             model::Register::getSize(Register));
@@ -99,7 +99,7 @@ public:
   /// \param Register Any CPU register the model is aware of.
   ///
   /// \return A primitive type in \ref Binary.
-  inline model::TypeDefinitionPath
+  inline model::DefinitionReference
   genericRegisterType(model::Register::Values Register) {
     return getPrimitiveType(model::PrimitiveKind::Generic,
                             model::Register::getSize(Register));

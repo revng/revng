@@ -484,7 +484,7 @@ getPrototypeLayout(const model::Function &Function,
     if (ABI.StackBytesAllocatedForRegisterArguments() != 0
         && !Raw->StackArgumentsType().empty()) {
       uint64_t FirstArgOffset = ABI.StackBytesAllocatedForRegisterArguments();
-      const model::TypeDefinitionPath &StackPath = Raw->StackArgumentsType();
+      const model::DefinitionReference &StackPath = Raw->StackArgumentsType();
       auto &StackStruct = *llvm::cast<model::StructDefinition>(StackPath.get());
       if (!StackStruct.Fields().empty())
         if (StackStruct.Fields().begin()->Offset() < FirstArgOffset)

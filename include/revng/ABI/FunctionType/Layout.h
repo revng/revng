@@ -16,7 +16,7 @@ namespace abi::FunctionType {
 ///
 /// \note: this conversion is lossy since there's no way to represent some types
 ///        in `RawFunctionDefinition` in a reversible manner.
-model::TypeDefinitionPath
+model::DefinitionReference
 convertToRaw(const model::CABIFunctionDefinition &Function,
              TupleTree<model::Binary> &TheBinary);
 
@@ -109,7 +109,7 @@ public:
 
   /// Extracts the information about argument and return value location layout
   /// from the \param Function.
-  static Layout make(const model::TypeDefinitionPath &Function) {
+  static Layout make(const model::DefinitionReference &Function) {
     revng_assert(Function.isValid());
     return make(*Function.get());
   }
@@ -196,7 +196,7 @@ calleeSavedRegisters(const model::TypeDefinition &Function) {
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::TypeDefinitionPath &Function) {
+calleeSavedRegisters(const model::DefinitionReference &Function) {
   revng_assert(Function.isValid());
   return calleeSavedRegisters(*Function.get());
 }
@@ -215,7 +215,7 @@ inline uint64_t finalStackOffset(const model::TypeDefinition &Function) {
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline uint64_t finalStackOffset(const model::TypeDefinitionPath &Function) {
+inline uint64_t finalStackOffset(const model::DefinitionReference &Function) {
   revng_assert(Function.isValid());
   return finalStackOffset(*Function.get());
 }
@@ -245,7 +245,7 @@ inline UsedRegisters usedRegisters(const model::TypeDefinition &Function) {
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline UsedRegisters usedRegisters(const model::TypeDefinitionPath &Function) {
+inline UsedRegisters usedRegisters(const model::DefinitionReference &Function) {
   revng_assert(Function.isValid());
   return usedRegisters(*Function.get());
 }

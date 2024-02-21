@@ -9,11 +9,11 @@
 
 namespace abi::FunctionType {
 
-const model::TypeDefinitionPath &
+const model::DefinitionReference &
 replaceAllUsesWith(const model::TypeDefinition::Key &OldKey,
-                   const model::TypeDefinitionPath &NewTypePath,
+                   const model::DefinitionReference &NewTypePath,
                    TupleTree<model::Binary> &Model) {
-  auto CheckTheKey = [&OldKey](const model::TypeDefinitionPath &Path) -> bool {
+  auto CheckTheKey = [&OldKey](const model::DefinitionReference &Path) -> bool {
     if (Path.empty())
       return false;
 

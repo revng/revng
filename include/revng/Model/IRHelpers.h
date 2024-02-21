@@ -55,8 +55,8 @@ inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
 }
 
 /// Create an empty model::StructDefinition of size Size in Binary
-inline model::TypeDefinitionPath createEmptyStruct(model::Binary &Binary,
-                                                   uint64_t Size) {
+inline model::DefinitionReference createEmptyStruct(model::Binary &Binary,
+                                                    uint64_t Size) {
   revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
 
   auto [Struct, Path] = Binary.makeTypeDefinition<model::StructDefinition>();
