@@ -789,18 +789,20 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
   bool Result = false;
 
   // We could use upcast() but we'd need to workaround coroutines.
-  if (auto *F = llvm::dyn_cast<model::CABIFunctionDefinition>(&get()))
-    Result = rc_recur verifyImpl(V, *F);
-  else if (auto *F = llvm::dyn_cast<model::RawFunctionDefinition>(&get()))
-    Result = rc_recur verifyImpl(V, *F);
-  else if (auto *E = llvm::dyn_cast<model::EnumDefinition>(&get()))
-    Result = rc_recur verifyImpl(V, *E);
-  else if (auto *T = llvm::dyn_cast<model::TypedefDefinition>(&get()))
-    Result = rc_recur verifyImpl(V, *T);
-  else if (auto *S = llvm::dyn_cast<model::StructDefinition>(&get()))
-    Result = rc_recur verifyImpl(V, *S);
-  else if (auto *U = llvm::dyn_cast<model::UnionDefinition>(&get()))
-    Result = rc_recur verifyImpl(V, *U);
+  if (auto *F = llvm::dyn_cast<model::CABIFunctionDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *F);
+  else if (auto *F = llvm::dyn_cast<model::RawFunctionDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *F);
+  else if (auto *P = llvm::dyn_cast<model::PrimitiveDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *P);
+  else if (auto *E = llvm::dyn_cast<model::EnumDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *E);
+  else if (auto *T = llvm::dyn_cast<model::TypedefDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *T);
+  else if (auto *S = llvm::dyn_cast<model::StructDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *S);
+  else if (auto *U = llvm::dyn_cast<model::UnionDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *U);
   else
     revng_abort("Unsupported type definition kind.");
 
