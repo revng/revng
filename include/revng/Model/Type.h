@@ -81,6 +81,9 @@ public:
 
   /// Tries to recursively compute the size of the type.
   ///
+  /// Use this method only on (temporarily) invalid models. You most likely want
+  /// to use size().
+  ///
   /// \returns * `std::nullopt` if the size cannot be computed, for example,
   ///            when the type system loops and the type's size depends on
   ///            the type itself,

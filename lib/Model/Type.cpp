@@ -19,7 +19,6 @@
 #include "revng/Model/Register.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Model/VerifyTypeHelper.h"
 
 using llvm::cast;
 using llvm::dyn_cast;
@@ -854,7 +853,9 @@ std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
 //       to its little brother as well.
 RecursiveCoroutine<std::optional<uint64_t>>
 Type::trySize(VerifyHelper &VH) const {
+  // TODO: handle recursive types
   auto Guard = VH.suspendTracking(*this);
+
   auto MaybeSize = VH.size(this);
   if (MaybeSize)
     rc_return MaybeSize;
@@ -866,7 +867,7 @@ Type::trySize(VerifyHelper &VH) const {
   case TypeKind::RawFunctionType:
   case TypeKind::CABIFunctionType:
     // Function prototypes have no size
-    rc_return std::nullopt;
+    rc_return 0;
 
   case TypeKind::PrimitiveType: {
     auto *P = cast<PrimitiveType>(this);
@@ -1113,8 +1114,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail("Last field ends outside the struct", *T);
     }
 
-    if (isVoidConst(&Field.Type()).IsVoid)
-      rc_return VH.fail("Field " + Twine(Index + 1) + " is void", *T);
+    if (not rc_recur Field.Type().size(VH))
+      rc_return VH.fail("Field " + Twine(Index + 1) + " has no size", *T);
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
@@ -1160,8 +1161,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     // This is verified AggregateField::verify
     revng_assert(MaybeSize);
 
-    if (isVoidConst(&Field.Type()).IsVoid) {
-      rc_return VH.fail("Field " + Twine(Field.Index()) + " is void", *T);
+    if (not rc_recur Field.Type().size(VH)) {
+      rc_return VH.fail("Field " + Twine(Field.Index()) + " has no size", *T);
     }
 
     // Verify CustomName for collisions
@@ -1211,17 +1212,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (not rc_recur Argument.Type().verify(VH))
       rc_return VH.fail("An argument has invalid type", *T);
 
-    VoidConstResult VoidConst = isVoidConst(&Argument.Type());
-    if (VoidConst.IsVoid) {
-      // If we have a void argument it must be the only one, and the function
-      // cannot be vararg.
-      if (T->Arguments().size() > 1)
-        rc_return VH.fail("More than 1 void argument", *T);
-
-      // Cannot have const-qualified void as argument.
-      if (VoidConst.IsConst)
-        rc_return VH.fail("Cannot have const void argument", *T);
-    }
+    if (not rc_recur Argument.Type().size(VH))
+      rc_return VH.fail("An argument has no size", *T);
   }
 
   rc_return true;
