@@ -557,7 +557,6 @@ static uint64_t makePrimitiveID(PrimitiveKind::Values PrimitiveKind,
 PrimitiveDefinition::PrimitiveDefinition(PrimitiveKind::Values PrimitiveKind,
                                          uint8_t Size) :
   PrimitiveDefinition(makePrimitiveID(PrimitiveKind, Size),
-                      AssociatedKind,
                       {},
                       {},
                       {},
@@ -575,7 +574,6 @@ static uint8_t getPrimitiveSize(uint64_t ID) {
 
 PrimitiveDefinition::PrimitiveDefinition(uint64_t ID) :
   PrimitiveDefinition(ID,
-                      AssociatedKind,
                       {},
                       {},
                       {},
