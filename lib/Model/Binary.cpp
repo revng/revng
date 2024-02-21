@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <system_error>
+
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -12,12 +14,14 @@
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/OverflowSafeInt.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Tracking.h"
 
 using namespace llvm;
@@ -814,3 +818,19 @@ Values formCOFFRelocation(model::Architecture::Values Architecture) {
 } // namespace RelocationType
 
 } // namespace model
+
+void dumpModel(const model::Binary &Model, const char *Path) debug_function;
+
+void dumpModel(const model::Binary &Model, const char *Path) {
+  std::error_code EC;
+  raw_fd_stream Stream(Path, EC);
+  revng_assert(not EC);
+  serialize(Stream, Model);
+}
+
+void dumpModel(const TupleTree<model::Binary> &Model,
+               const char *Path) debug_function;
+
+void dumpModel(const TupleTree<model::Binary> &Model, const char *Path) {
+  dumpModel(*Model, Path);
+}
