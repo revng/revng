@@ -45,10 +45,6 @@ public:
 
 public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const { return {}; }
-
-public:
-  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
-  static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
 namespace detail {

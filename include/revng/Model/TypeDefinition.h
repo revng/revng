@@ -49,17 +49,10 @@ TUPLE-TREE-YAML */
 
 class model::TypeDefinition : public model::generated::TypeDefinition {
 public:
-  static constexpr const auto AssociatedKind = TypeDefinitionKind::Invalid;
-
-public:
   using generated::TypeDefinition::TypeDefinition;
 
   TypeDefinition();
   TypeDefinition(uint64_t ID, TypeDefinitionKind::Values Kind);
-
-public:
-  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
-  static bool classof(const Key &K) { return true; }
 
   Identifier name() const;
 

@@ -44,10 +44,6 @@ public:
   using generated::FunctionEdgeBase::FunctionEdgeBase;
 
 public:
-  static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
-  static bool classof(const Key &K) { return true; }
-
-public:
   bool isDirect() const { return Destination().isValid(); }
   bool isIndirect() const { return not isDirect(); }
 

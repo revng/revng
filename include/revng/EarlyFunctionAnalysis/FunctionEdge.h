@@ -32,12 +32,6 @@ public:
     this->Type() = Type;
   }
 
-public:
-  static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
-  static bool classof(const Key &K) {
-    return std::get<1>(K) == FunctionEdgeBaseKind::FunctionEdge;
-  }
-
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
