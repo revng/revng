@@ -170,11 +170,10 @@ class TypeScriptGenerator:
                 return "false"
             elif int_re.match(field.type):
                 return "0n"
+            elif isinstance(field.resolved_type, EnumDefinition):
+                return '"Invalid"'
             else:
-                if isinstance(field.resolved_type, EnumDefinition):
-                    return '"Invalid"'
-                else:
-                    return f"new {field.type}()"
+                return f"new {field.type}()"
         else:
             raise ValueError()
 

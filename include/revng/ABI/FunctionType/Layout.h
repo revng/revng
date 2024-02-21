@@ -103,20 +103,20 @@ public:
   Layout() = default;
 
 public:
-  explicit Layout(const model::CABIFunctionType &Function);
-  explicit Layout(const model::RawFunctionType &Function);
+  explicit Layout(const model::CABIFunctionType &Prototype);
+  explicit Layout(const model::RawFunctionType &Prototype);
 
   /// Extracts the information about argument and return value location layout
-  /// from the \param Function.
-  static Layout make(const model::TypePath &Function) {
-    revng_assert(Function.isValid());
-    return make(*Function.getConst());
+  /// from the \param Prototype.
+  static Layout make(const model::TypePath &Prototype) {
+    revng_assert(Prototype.isValid());
+    return make(*Prototype.getConst());
   }
 
-  static Layout make(const model::Type &Function) {
-    if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+  static Layout make(const model::Type &Prototype) {
+    if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Prototype))
       return Layout(*CABI);
-    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Prototype))
       return Layout(*Raw);
     else
       revng_abort("Layouts of non-function types are not supported.");
@@ -183,77 +183,77 @@ public:
 };
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::CABIFunctionType &Function) {
-  return abi::Definition::get(Function.ABI()).CalleeSavedRegisters();
+calleeSavedRegisters(const model::CABIFunctionType &Prototype) {
+  return abi::Definition::get(Prototype.ABI()).CalleeSavedRegisters();
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::RawFunctionType &Function) {
-  return Function.PreservedRegisters();
+calleeSavedRegisters(const model::RawFunctionType &Prototype) {
+  return Prototype.PreservedRegisters();
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+calleeSavedRegisters(const model::Type &Prototype) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Prototype))
     return calleeSavedRegisters(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Prototype))
     return calleeSavedRegisters(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::TypePath &Function) {
-  revng_assert(Function.isValid());
-  return calleeSavedRegisters(*Function.getConst());
+calleeSavedRegisters(const model::TypePath &Prototype) {
+  revng_assert(Prototype.isValid());
+  return calleeSavedRegisters(*Prototype.getConst());
 }
 
-uint64_t finalStackOffset(const model::CABIFunctionType &Function);
-inline uint64_t finalStackOffset(const model::RawFunctionType &Function) {
-  return Function.FinalStackOffset();
+uint64_t finalStackOffset(const model::CABIFunctionType &Prototype);
+inline uint64_t finalStackOffset(const model::RawFunctionType &Prototype) {
+  return Prototype.FinalStackOffset();
 }
 
-inline uint64_t finalStackOffset(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+inline uint64_t finalStackOffset(const model::Type &Prototype) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Prototype))
     return finalStackOffset(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Prototype))
     return finalStackOffset(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline uint64_t finalStackOffset(const model::TypePath &Function) {
-  revng_assert(Function.isValid());
-  return finalStackOffset(*Function.getConst());
+inline uint64_t finalStackOffset(const model::TypePath &Prototype) {
+  revng_assert(Prototype.isValid());
+  return finalStackOffset(*Prototype.getConst());
 }
 
 struct UsedRegisters {
   llvm::SmallVector<model::Register::Values, 8> Arguments;
   llvm::SmallVector<model::Register::Values, 8> ReturnValues;
 };
-UsedRegisters usedRegisters(const model::CABIFunctionType &Function);
+UsedRegisters usedRegisters(const model::CABIFunctionType &Prototype);
 
-inline UsedRegisters usedRegisters(const model::RawFunctionType &Function) {
+inline UsedRegisters usedRegisters(const model::RawFunctionType &Prototype) {
   UsedRegisters Result;
-  for (const model::NamedTypedRegister &Register : Function.Arguments())
+  for (const model::NamedTypedRegister &Register : Prototype.Arguments())
     Result.Arguments.emplace_back(Register.Location());
-  for (const model::NamedTypedRegister &Register : Function.ReturnValues())
+  for (const model::NamedTypedRegister &Register : Prototype.ReturnValues())
     Result.ReturnValues.emplace_back(Register.Location());
   return Result;
 }
 
-inline UsedRegisters usedRegisters(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+inline UsedRegisters usedRegisters(const model::Type &Prototype) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Prototype))
     return usedRegisters(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Prototype))
     return usedRegisters(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline UsedRegisters usedRegisters(const model::TypePath &Function) {
-  revng_assert(Function.isValid());
-  return usedRegisters(*Function.getConst());
+inline UsedRegisters usedRegisters(const model::TypePath &Prototype) {
+  revng_assert(Prototype.isValid());
+  return usedRegisters(*Prototype.getConst());
 }
 
 } // namespace abi::FunctionType

@@ -20,8 +20,7 @@ static RegisterModelPass R("purge-unnamed-and-unreachable-types",
 
 static RegisterModelPass R2("purge-unreachable-types",
                             "Remove all the types that cannot be reached from "
-                            "a type \"outside\" the type "
-                            "system itself",
+                            "a type \"outside\" the type system itself",
                             model::purgeUnreachableTypes);
 
 namespace model {

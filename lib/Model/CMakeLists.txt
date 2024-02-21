@@ -28,7 +28,7 @@ target_tuple_tree_generator(
   NAMESPACE
   model
   SCHEMA_PATH
-  ${SCHEMA_PATH}
+  "${SCHEMA_PATH}"
   JSONSCHEMA_PATH
   "${JSONSCHEMA_PATH}"
   PYTHON_PATH

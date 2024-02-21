@@ -276,19 +276,10 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   New.ExtraCodeAddresses().insert(Address);
 
   auto Diff = diff(Empty, New);
-
-  std::string S;
-  llvm::raw_string_ostream Stream(S);
-  serialize(Stream, Diff);
-  Stream.flush();
-  llvm::outs() << S << "\n";
+  std::string S = serializeToString(Diff);
 
   auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
-
-  std::string S2;
-  llvm::raw_string_ostream Stream2(S2);
-  serialize(Stream2, Diff2);
-  Stream2.flush();
+  std::string S2 = serializeToString(Diff2);
 
   BOOST_TEST(S == S2);
 }
