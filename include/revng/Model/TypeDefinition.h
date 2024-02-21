@@ -99,17 +99,6 @@ public:
   void dumpTypeGraph(const char *Path) const debug_function;
 };
 
-namespace model {
-
-using UpcastableTypeDefinition = UpcastablePointer<model::TypeDefinition>;
-
-template<std::derived_from<model::TypeDefinition> T, typename... Args>
-inline model::UpcastableTypeDefinition makeTypeDefinition(Args &&...A) {
-  return model::UpcastableTypeDefinition::make<T>(std::forward<Args>(A)...);
-}
-
-} // end namespace model
-
 extern template model::TypeDefinitionPath
 model::TypeDefinitionPath::fromString<model::Binary>(model::Binary *Root,
                                                      llvm::StringRef Path);

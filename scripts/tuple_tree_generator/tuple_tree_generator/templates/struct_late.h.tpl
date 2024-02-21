@@ -151,6 +151,25 @@ struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
   static UpcastablePointer</*= struct | user_fullname =*/> fromKey(const Key &K);
 };
 
+namespace /*= struct.namespace =*/ {
+
+/// Is roughly equivalent to
+/// ```
+///   std::variant<std::monostate,
+/**- for child_type in upcastable | sort(attribute = "user_fullname") **/
+///                /*= child_type | user_fullname -=*//**- if not loop.last **/, /** endif -**/
+/** endfor -**/>
+/// ```
+/// with our custom spin on top.
+using Upcastable/*= struct.name =*/ = UpcastablePointer</*= struct | user_fullname =*/>;
+
+template<std::derived_from</*= struct | user_fullname =*/> T, typename... Args>
+inline Upcastable/*= struct.name =*/ make/*= struct.name =*/(Args &&...A) {
+  return Upcastable/*= struct.name =*/::make<T>(std::forward<Args>(A)...);
+}
+
+} // namespace /*= struct.namespace =*/
+
 extern template
 bool UpcastablePointer</*= struct | user_fullname =*/>::operator==(const UpcastablePointer &Other) const;
 
