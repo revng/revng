@@ -23,6 +23,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/STLExtras.h"
+#include "revng/Model/Argument.h"
+#include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
@@ -518,6 +520,9 @@ private:
             rc_return nullptr;
           }
 
+          // Note: at this stage we don't check the size. If an argument is
+          // unsized, the function will be purged later on.
+
           model::Argument &NewArgument = FunctionType->Arguments()[Index];
           NewArgument.Type() = *ArgumentType;
           Index += 1;
@@ -845,17 +850,20 @@ private:
     uint64_t Index = 0;
     for (const DWARFDie &ChildDie : Die.children()) {
       if (ChildDie.getTag() == DW_TAG_formal_parameter) {
-        const model::QualifiedType *ArgumenType = getType(ChildDie);
-        if (ArgumenType == nullptr) {
+        const model::QualifiedType *ArgumentType = getType(ChildDie);
+        if (ArgumentType == nullptr) {
           reportIgnoredDie(Die,
                            "The type of argument " + Twine(Index + 1)
                              + " cannot be resolved");
           return std::nullopt;
         }
 
+        // Note: at this stage we don't check the size. If an argument is
+        // unsized, the function will be purged later on.
+
         model::Argument &NewArgument = FunctionType->Arguments()[Index];
         NewArgument.OriginalName() = getName(ChildDie);
-        NewArgument.Type() = *ArgumenType;
+        NewArgument.Type() = *ArgumentType;
         Index += 1;
       }
     }
@@ -939,12 +947,12 @@ private:
       if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
         llvm::erase_if(Struct->Fields(), [&VH](model::StructField &Field) {
           std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
-          return !MaybeSize || not *MaybeSize;
+          return MaybeSize.value_or(0) == 0;
         });
       } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
         llvm::erase_if(Union->Fields(), [&VH](model::UnionField &Field) {
           std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
-          return !MaybeSize || not *MaybeSize;
+          return MaybeSize.value_or(0) == 0;
         });
       }
 
@@ -957,13 +965,24 @@ private:
       }
 
       //
+      // Drop functions with 0-sized arguments.
+      //
+      if (auto *FunctionType = dyn_cast<model::CABIFunctionType>(Type.get())) {
+        for (model::Argument &Argument : FunctionType->Arguments()) {
+          std::optional<uint64_t> Size = Argument.Type().trySize(VH);
+          if (Size.value_or(0) == 0)
+            ToDrop.insert(FunctionType);
+        }
+      }
+
+      //
       // Collect array whose elements are zero-sized
       //
       for (const model::QualifiedType &QT : Type->edges()) {
         model::TypePath Unqualified = QT.UnqualifiedType();
         if (Unqualified.isValid()) {
           std::optional<uint64_t> Size = Unqualified.get()->trySize(VH);
-          if (Size.has_value())
+          if (Size.value_or(0) != 0)
             continue;
         }
 

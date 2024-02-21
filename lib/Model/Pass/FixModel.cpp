@@ -8,7 +8,6 @@
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Processing.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/VerifyTypeHelper.h"
 
 using namespace llvm;
 
@@ -67,21 +66,11 @@ static bool shouldDrop(UpcastablePointer<model::Type> &T) {
   // Filter out invalid functions.
   auto *FunctionType = dyn_cast<CABIFunctionType>(T.get());
   if (FunctionType) {
-    // Remove functions with more than one `void` argument.
+    // Remove functions with 0-sized arguments
     for (auto &Group : llvm::enumerate(FunctionType->Arguments())) {
       auto &Argument = Group.value();
-      VoidConstResult VoidConst = isVoidConst(&Argument.Type());
-      if (VoidConst.IsVoid) {
-        if (FunctionType->Arguments().size() > 1) {
-          // More than 1 void argument.
-          return true;
-        }
-
-        if (VoidConst.IsConst) {
-          // Cannot have const void argument.
-          return true;
-        }
-      }
+      if (not Argument.Type().size())
+        return true;
     }
   }
 
