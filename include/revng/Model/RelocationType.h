@@ -23,8 +23,7 @@ TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/RelocationType.h"
 
-// NOLINTNEXTLINE
-const unsigned char R_MIPS_IMPLICIT_RELATIVE = 255;
+constexpr unsigned char R_MIPS_IMPLICIT_RELATIVE = 255;
 
 namespace model::RelocationType {
 

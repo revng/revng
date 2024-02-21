@@ -222,7 +222,7 @@ public:
     return emplace_or_assign(Value);
   }
 
-  template<typename... Types> // NOLINTNEXTLINE
+  template<typename... Types>
   std::pair<iterator, bool> emplace_or_assign(Types &&...Values) {
     revng_assert(not BatchInsertInProgress);
 
@@ -375,7 +375,7 @@ public:
     BatchInsertOrAssigner(SortedVector &SV) : BatchInserterBase<false>(SV) {}
 
   public:
-    template<typename... Types> // NOLINTNEXTLINE
+    template<typename... Types>
     T &emplace_or_assign(Types &&...Values) {
       return this->emplaceImpl(std::forward<Types>(Values)...);
     }

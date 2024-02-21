@@ -199,7 +199,6 @@ struct llvm::yaml::MappingTraits<T> {
 
 template<StrictSpecializationOf<Change> T, typename X>
 struct llvm::yaml::SequenceElementTraits<T, X> {
-  // NOLINTNEXTLINE
   static const bool flow = false;
 };
 

@@ -359,7 +359,6 @@ class BidirectionalNode
                                       SmallSize,
                                       BidirectionalNode>::Result {
 public:
-  // NOLINTNEXTLINE
   static const bool is_bidirectional_node = true;
 
 public:
@@ -1282,7 +1281,6 @@ template<typename NodeT, size_t SmallSize, bool HasEntryNode>
 class GenericGraph
   : public std::conditional_t<HasEntryNode, EntryNode<NodeT>, Empty> {
 public:
-  // NOLINTNEXTLINE
   static const bool is_generic_graph = true;
   using NodesContainer = llvm::SmallVector<std::unique_ptr<NodeT>, SmallSize>;
   using Node = NodeT;
