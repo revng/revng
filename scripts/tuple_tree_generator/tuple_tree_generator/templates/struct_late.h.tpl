@@ -152,12 +152,14 @@ template<>
 struct llvm::yaml::MappingTraits<UpcastablePointer</*= struct | user_fullname =*/>>
   : public PolymorphicMappingTraits<UpcastablePointer</*= struct | user_fullname =*/>> {};
 
+/** if struct._key **/
 template<>
 struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
   using Key = /*= struct | user_fullname =*/::Key;
   static Key key(const UpcastablePointer</*= struct | user_fullname =*/> &Obj);
   static UpcastablePointer</*= struct | user_fullname =*/> fromKey(const Key &K);
 };
+/** endif **/
 
 namespace /*= struct.namespace =*/ {
 

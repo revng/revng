@@ -64,6 +64,23 @@ class StructField(ABC):
         raise NotImplementedError()
 
 
+class UpcastableStructField(StructField):
+    def __init__(self, underlying):
+        super().__init__(
+            name=underlying.name,
+            doc=underlying.doc,
+            optional=underlying.optional,
+            const=underlying.const,
+            is_guid=underlying.is_guid,
+        )
+        self.underlying = underlying
+
+    def resolve_references(self, schema):
+        self.underlying.resolve_references(schema)
+        self.resolved_type = UpcastableDefinition(self.underlying.resolved_type)
+        assert self.resolved_type
+
+
 class SimpleStructField(StructField):
     def __init__(
         self,
@@ -73,13 +90,17 @@ class SimpleStructField(StructField):
         doc=None,
         optional=False,
         const=False,
+        upcastable=False,
         is_guid=False,
     ):
         super().__init__(name=name, doc=doc, optional=optional, const=const, is_guid=is_guid)
         self.type = type
+        self.upcastable = upcastable
 
     def resolve_references(self, schema):
         self.resolved_type = schema.get_definition_for(self.type)
+        if self.upcastable:
+            self.resolved_type = UpcastableDefinition(self.resolved_type)
         assert self.resolved_type
 
 
@@ -182,7 +203,7 @@ class StructDefinition(Definition):
         if self._key:
             self.key_definition = self
 
-        elif self.inherits:
+        elif self.inherits and self.inherits._key:
             # TODO: support indirect inheritance
             self.key_definition = self.inherits
 
@@ -210,7 +231,7 @@ class StructDefinition(Definition):
         all_field_names = {f.name for f in self.all_fields}
         self.emit_full_constructor = key_fields_names != all_field_names
 
-        if self.inherits or self.abstract:
+        if (self.inherits or self.abstract) and self.keytype:
             assert self._key_kind_index is not None, "A polymorphic type without kind in the key"
 
     @staticmethod
