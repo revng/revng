@@ -50,7 +50,7 @@ static void printSegmentsTypes(const model::Segment &Segment,
   if (Segment.Type().empty()) {
     // If the segment has not type, we emit it as an array of bytes.
     const model::Binary *Model = Segment.Type().getRoot();
-    model::TypeDefinitionPath
+    model::DefinitionReference
       Byte = Model->getPrimitiveType(model::PrimitiveKind::Generic, 1);
     model::Qualifier Array = model::Qualifier::createArray(Segment
                                                              .VirtualSize());

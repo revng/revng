@@ -1659,7 +1659,7 @@ getAccessedTypeOnIR(const Use &U,
         It != GEPifiedUseTypes.end()) {
       QPointee = dropPointer(It->second);
     } else {
-      model::TypeDefinitionPath
+      model::DefinitionReference
         Pointee = Model.getPrimitiveType(model::PrimitiveKind::Generic,
                                          PointeeSize);
       QPointee = model::QualifiedType(Pointee, {});
@@ -1682,7 +1682,7 @@ getAccessedTypeOnIR(const Use &U,
       const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
       unsigned long PointeeSize = DL.getTypeStoreSize(Stored->getType());
 
-      model::TypeDefinitionPath
+      model::DefinitionReference
         Pointee = Model.getPrimitiveType(model::PrimitiveKind::Generic,
                                          PointeeSize);
       model::QualifiedType Generic = model::QualifiedType(Pointee, {});

@@ -97,7 +97,7 @@ private:
 
   // Used to remember return values locations when parsing struct representing
   // the multi-reg return value. Represents register ID and mode::Type.
-  using ModelType = std::pair<model::TypeDefinitionPath,
+  using ModelType = std::pair<model::DefinitionReference,
                               std::vector<Qualifier>>;
   using RawLocation = std::pair<model::Register::Values, ModelType>;
   std::optional<llvm::SmallVector<RawLocation, 4>> MultiRegisterReturnValue;
@@ -137,25 +137,25 @@ private:
   bool handleUnionType(const clang::RecordDecl *RD);
 
   // Convert clang::type to model::type.
-  std::optional<model::TypeDefinitionPath>
+  std::optional<model::DefinitionReference>
   getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin, QualType Type);
 
   // Get model type for clang::RecordType (Struct/Unoion).
-  std::optional<model::TypeDefinitionPath>
+  std::optional<model::DefinitionReference>
   getTypeForRecordType(const clang::RecordType *RecordType,
                        const QualType &ClangType);
 
   // Get model type for clang::EnumType.
-  std::optional<model::TypeDefinitionPath>
+  std::optional<model::DefinitionReference>
   getTypeForEnumType(const clang::EnumType *EnumType);
 
-  std::optional<model::TypeDefinitionPath>
+  std::optional<model::DefinitionReference>
   getTypeByNameOrID(llvm::StringRef Name, TypeDefinitionKind::Values Kind);
 
   std::optional<model::QualifiedType>
   getModelTypeForClangType(const QualType &QT);
 
-  std::optional<model::TypeDefinitionPath>
+  std::optional<model::DefinitionReference>
   getEnumUnderlyingType(const std::string &TypeName);
 };
 
@@ -203,7 +203,7 @@ parseEnumUnderlyingType(llvm::StringRef Annotate) {
   return std::string(Annotate.substr(EnumAnnotatePrefixLength));
 }
 
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 DeclVisitor::getEnumUnderlyingType(const std::string &TypeName) {
   auto MaybePrimitive = model::PrimitiveDefinition::fromName(TypeName);
   if (not MaybePrimitive) {
@@ -215,7 +215,7 @@ DeclVisitor::getEnumUnderlyingType(const std::string &TypeName) {
                                  MaybePrimitive->Size());
 }
 
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
                                   QualType Type) {
   revng_assert(UnderlyingBuiltin);
@@ -251,7 +251,7 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
     return std::nullopt;
   }
 
-  model::TypeDefinitionPath Result;
+  model::DefinitionReference Result;
   switch (UnderlyingBuiltin->getKind()) {
   case BuiltinType::UInt128: {
     return Model->getPrimitiveType(model::PrimitiveKind::Unsigned, 16);
@@ -321,7 +321,7 @@ DeclVisitor::getOrCreatePrimitive(const BuiltinType *UnderlyingBuiltin,
 }
 
 namespace TDKind = model::TypeDefinitionKind;
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 DeclVisitor::getTypeByNameOrID(llvm::StringRef Name,
                                TypeDefinitionKind::Values Kind) {
   const bool IsStruct = Kind == TDKind::StructDefinition;
@@ -348,7 +348,7 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name,
       continue;
 
     if (Type->CustomName() == Name)
-      return Model->getTypeDefinitionPath(Type.get());
+      return Model->getDefinitionReference(Type.get());
   }
 
   size_t LocationOfID = Name.rfind("_");
@@ -362,7 +362,7 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name,
 
     auto KeyType = model::TypeDefinition::Key{ TypeID, Kind };
 
-    auto TheType = Model->getTypeDefinitionPath(KeyType);
+    auto TheType = Model->getDefinitionReference(KeyType);
     if (TheType.get())
       return TheType;
   }
@@ -370,7 +370,7 @@ DeclVisitor::getTypeByNameOrID(llvm::StringRef Name,
   return std::nullopt;
 }
 
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
                                   const QualType &ClangType) {
   revng_assert(RecordType);
@@ -412,7 +412,7 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
   return std::nullopt;
 }
 
-std::optional<model::TypeDefinitionPath>
+std::optional<model::DefinitionReference>
 DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
   revng_assert(EnumType);
   revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
@@ -476,7 +476,7 @@ void DeclVisitor::setupLineAndColumn(const clang::Decl *D) {
 
 std::optional<model::QualifiedType>
 DeclVisitor::getModelTypeForClangType(const QualType &QT) {
-  std::optional<model::TypeDefinitionPath> TheTypePath;
+  std::optional<model::DefinitionReference> TheTypePath;
   std::vector<Qualifier> Qualifiers;
 
   if (QT.isConstQualified())

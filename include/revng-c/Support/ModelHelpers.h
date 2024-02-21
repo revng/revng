@@ -60,7 +60,7 @@ inline llvm::IntegerType *getPointerSizedInteger(llvm::LLVMContext &C,
 
 /// Create a pointer to the given base Type
 inline model::QualifiedType
-createPointerTo(const model::TypeDefinitionPath &BaseT,
+createPointerTo(const model::DefinitionReference &BaseT,
                 const model::Binary &Binary) {
   using Qualifier = model::Qualifier;
 
