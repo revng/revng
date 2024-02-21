@@ -152,24 +152,33 @@ public:
   /*= struct.name =*/(
     /*#- Inherited fields #*/
     /**- for field in struct.inherits.fields **/
+    /**- if field.name != 'Kind' **/
     /*=- field | field_type =*/ /*= field.name =*/
     /** if (struct.fields | length > 0) or (not loop.last) **/, /** endif **/
+    /**- endif **/
     /**- endfor **/
 
     /*#- Own fields #*/
     /**- for field in struct.fields **/
-    /*=- field | field_type =*/ /*= field.name =*//** if not loop.last **/, /** endif **/
+    /*=- field | field_type =*/ /*= field.name =*/
+    /**- if not loop.last **/, /** endif -**/
     /**- endfor **/
   ) :
     /*#- Invoke base class constructor #*/
     /**- if struct.inherits **/
     /*= struct.inherits.name =*/(
       /**- for field in struct.inherits.fields **/
-      /*= field.name =*//** if not loop.last **/, /** endif **/
+      /**- if field.name != 'Kind' **/
+      /*=- field.name =*/
+      /**- if not loop.last **/, /** endif -**/
+      /**- else **/
+      AssociatedKind
+      /**- if not loop.last **/, /** endif -**/
+      /**- endif **/
       /**- endfor **/
     )
     /** if struct.fields | length > 0 **/, /** endif **/
-    /** endif **/
+    /**- endif **/
 
     /*#- Initialize own fields #*/
     /**- for field in struct.fields **/
