@@ -957,7 +957,7 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
   bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
   if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
@@ -1038,7 +1038,7 @@ difference(const ModelGEPReplacementInfo &GEPInfo,
   if (AccessedOnIR == AccessedFromModelGEP)
     return DifferenceScore::perfectMatch(Depth);
 
-  std::optional<uint64_t> SizeOnIROrNOne = AccessedOnIR.trySize(VH);
+  std::optional<uint64_t> SizeOnIROrNOne = AccessedOnIR.size(VH);
   auto IRSize = SizeOnIROrNOne.value_or(0ULL);
   auto GEPSize = *AccessedFromModelGEP.size(VH);
   revng_assert(GEPSize);
@@ -1104,7 +1104,7 @@ computeBestInArray(const model::QualifiedType &BaseType,
   bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
   if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
@@ -1284,7 +1284,7 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
   bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
   if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
@@ -1402,7 +1402,7 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
   bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
   if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().trySize(VH);
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
