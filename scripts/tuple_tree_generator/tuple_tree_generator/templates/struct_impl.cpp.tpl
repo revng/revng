@@ -21,12 +21,11 @@ The notice below applies to the generated files.
 
 /** if upcastable **/
 
-using Key = /*= struct | user_fullname =*/::Key;
+using /*= struct.name =*/Key = /*= struct | user_fullname =*/::Key;
+using U/*= struct.name =*/ = /*= struct.namespace =*/::Upcastable/*= struct.name =*/;
+using /*= struct.name =*/KOT = KeyedObjectTraits<U/*= struct.name =*/>;
 
-Key KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::key(
-  const UpcastablePointer</*= struct | user_fullname =*/> &Obj)
-{
-
+/*= struct.name =*/Key /*= struct.name =*/KOT::key(const U/*= struct.name =*/ &Obj) {
   return {
     /**- for key_field in struct.key_fields **/
     Obj->/*= key_field.name =*/()/** if not loop.last **/, /** endif **/
@@ -34,21 +33,17 @@ Key KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::key(
   };
 }
 
-UpcastablePointer</*= struct | user_fullname =*/>
-KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::fromKey(
-  const Key &K)
-{
+U/*= struct.name =*/ /*= struct.name =*/KOT::fromKey(const /*= struct.name =*/Key &K) {
   using namespace model;
-  using ResultType = UpcastablePointer</*= struct | user_fullname =*/>;
   /**- for child_type in upcastable|sort(attribute="user_fullname") **/
   if (/*= child_type | user_fullname =*/::classof(K)) {
     auto *Tmp = new /*= child_type | user_fullname =*/(
       /**- for key_field in child_type.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
       /**- endfor **/);
-    return ResultType(Tmp);
+    return U/*= struct.name =*/(Tmp);
   }
-  /** if not loop.last **/else /** endif **/
+  /**- if not loop.last **/else /** endif **/
   /**- endfor **/
   /** if not struct.abstract **/
   else if (/*= struct | user_fullname =*/::classof(K)) {
@@ -56,11 +51,11 @@ KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::fromKey(
       /**- for key_field in struct.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
       /**- endfor **/);
-    return ResultType(Tmp);
+    return U/*= struct.name =*/(Tmp);
   }
-  /** endif **/
+  /**- endif -**/
   else {
-    return ResultType(nullptr);
+    return U/*= struct.name =*/(nullptr);
   }
 }
 
