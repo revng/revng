@@ -104,6 +104,8 @@ class PythonGenerator:
                 return "False"
             elif int_re.match(field.type):
                 return "0"
+            elif field.upcastable:
+                return "None"
             else:
                 return f"{field.type}()"
         else:

@@ -301,11 +301,15 @@ export function makeDiffSubtree(
     let infoObject: TypeInfoObject;
     if (typeInfo.isAbstract) {
         const derivedClass = (
-            typeInfo.type as unknown as { parseClass: (obj) => Constructor }
+            typeInfo.type as unknown as { parseClass: (obj) => Constructor | undefined }
         ).parseClass(obj_old);
         const baseInfoObject = typeHints.get(typeInfo.type as Constructor | Parsable);
-        const derivedClassObject = typeHints.get(derivedClass);
-        infoObject = { ...baseInfoObject, ...derivedClassObject };
+        if (derivedClass !== undefined) {
+            const derivedClassObject = typeHints.get(derivedClass);
+            infoObject = { ...baseInfoObject, ...derivedClassObject };
+        } else {
+            infoObject = { ...baseInfoObject };
+        }
     } else {
         infoObject = typeHints.get(typeInfo.type as Constructor | Parsable);
     }
@@ -357,7 +361,13 @@ export function makeDiffSubtree(
         }
     } else {
         for (const key in infoObject) {
-            if (infoObject[key].ctor == "native" && !infoObject[key].isArray) {
+            if (obj_old[key] === undefined && obj_new[key] !== undefined) {
+                result.push(new Diff(`${prefix}/${key}`, obj_new[key].toJSON(), undefined));
+            } else if (obj_old[key] !== undefined && obj_new[key] === undefined) {
+                result.push(new Diff(`${prefix}/${key}`, undefined, obj_old[key].toJSON()));
+            } else if (obj_old[key] === undefined && obj_new[key] === undefined) {
+                // No changes, do nothing
+            } else if (infoObject[key].ctor == "native" && !infoObject[key].isArray) {
                 if (obj_old[key] !== obj_new[key]) {
                     result.push(
                         new Diff(

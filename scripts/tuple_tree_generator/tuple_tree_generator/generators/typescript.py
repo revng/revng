@@ -36,6 +36,7 @@ class TypeScriptGenerator:
         self.jinja_environment = Environment(loader=loader)
         self.jinja_environment.globals["load_file"] = self.load_file
         self.jinja_environment.globals["is_optional"] = self.is_optional
+        self.jinja_environment.globals["is_upcastable"] = self.is_upcastable
         self.jinja_environment.globals["completely_optional"] = self.completely_optional
         self.jinja_environment.globals["default_value"] = self.get_default_value
         self.jinja_environment.filters["read_file"] = self.read_file
@@ -71,23 +72,27 @@ class TypeScriptGenerator:
     def get_attr(obj, attr_name):
         return getattr(obj, attr_name, None)
 
-    def ts_type(self, field: StructField) -> str:
+    def ts_type(self, field: StructField, interface=False) -> str:
         if isinstance(field.resolved_type, ReferenceDefinition):
             pointee_type = field.resolved_type.pointee.name
             root_type = field.resolved_type.root.name
             return f"Reference<{pointee_type},{root_type}>"
-        elif isinstance(field.resolved_type, SequenceDefinition):
-            real_type = self._real_type(field)
-            return f"{real_type}[]"
+
+        type_ = self._real_type(field)
+        if isinstance(field.resolved_type, SequenceDefinition):
+            return f"{type_}[]"
         else:
-            return self._real_type(field)
+            if not interface and isinstance(field, SimpleStructField) and field.upcastable:
+                return f"{type_} | undefined"
+            else:
+                return type_
 
     def ts_itype(self, field: StructField) -> str:
         if self._is_simple_type(field):
-            return self.ts_type(field)
+            return self.ts_type(field, True)
         if isinstance(field.resolved_type, ReferenceDefinition):
             return "IReference"
-        return f"I{self.ts_type(field)}"
+        return f"I{self.ts_type(field, True)}"
 
     def _real_type(self, field: StructField) -> str:
         resolved_type = field.resolved_type
@@ -151,7 +156,10 @@ class TypeScriptGenerator:
                     return f"this.{name} = new {ftype}(rawObject.{name});"
             else:
                 if is_sequence:
-                    return f"this.{name} = (rawObject.{name} || []).map(e => {ftype}.parse(e));"
+                    return (
+                        f"this.{name} = (rawObject.{name} || []).map(e => {ftype}.parse(e))"
+                        + f".filter(e => e !== undefined) as {ftype}[];"
+                    )
                 else:
                     return f"this.{name} = {ftype}.parse(rawObject.{name});"
         raise ValueError(field.name)
@@ -276,6 +284,10 @@ class TypeScriptGenerator:
             field.optional or field.is_guid or isinstance(field.resolved_type, ReferenceDefinition)
         )
 
+    @staticmethod
+    def is_upcastable(field: StructField):
+        return isinstance(field, SimpleStructField) and field.upcastable
+
     @classmethod
     def completely_optional(cls, class_: StructDefinition):
-        return all(cls.is_optional(f) for f in class_.fields)
+        return all(cls.is_optional(f) for f in class_.all_fields)

@@ -231,7 +231,11 @@ struct MapDiffVisitor {
   template<typename T>
   void dump() {
     if (Io->outputting()) {
-      Io->mapRequired(MappingName, std::get<T>(*Change));
+      T &Unwrapped = std::get<T>(*Change);
+      if constexpr (SpecializationOf<T, UpcastablePointer>)
+        if (Unwrapped.empty())
+          return;
+      Io->mapRequired(MappingName, Unwrapped);
     } else {
       T Content;
       Io->mapRequired(MappingName, Content);

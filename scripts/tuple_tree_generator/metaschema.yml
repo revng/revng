@@ -108,6 +108,9 @@ definitions:
       const:
         type: boolean
         default: false
+      upcastable:
+        type: boolean
+        default: false
     required:
       - name
       - type
