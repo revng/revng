@@ -147,6 +147,7 @@ class StructDefinition(Definition):
 
         # These fields will be populated by resolve_references()
         self.inherits = None
+        self._key_kind_index = None
         # Type containing the key fields (might be self or a base class)
         self.key_definition = None
         # None, "simple" or "composite"
@@ -187,10 +188,14 @@ class StructDefinition(Definition):
 
         # TODO: mark key fields as const
         if self.key_definition:
-            for key_field_name in self.key_definition._key:
+            for key_field_index, key_field_name in enumerate(self.key_definition._key):
                 key_field = next(f for f in self.key_definition.fields if f.name == key_field_name)
                 assert isinstance(key_field, SimpleStructField)
                 self.key_fields.append(key_field)
+
+                if key_field.name == "Kind":
+                    assert self._key_kind_index is None, "Multiple kind fields in the key"
+                    self._key_kind_index = key_field_index
 
             if len(self.key_definition.key_fields) == 0:
                 self.keytype = None
@@ -204,6 +209,9 @@ class StructDefinition(Definition):
         key_fields_names = {f.name for f in self.key_fields}
         all_field_names = {f.name for f in self.all_fields}
         self.emit_full_constructor = key_fields_names != all_field_names
+
+        if self.inherits or self.abstract:
+            assert self._key_kind_index is not None, "A polymorphic type without kind in the key"
 
     @staticmethod
     def from_dict(source_dict: Dict, default_namespace: str):

@@ -175,22 +175,3 @@ fields: [...]
 ```
 
 Derived classes inherit the fields of their parent, so they must not be duplicated.
-
-All classes that are part of a polymorphic hierarchy are expected to supply two `classof` methods:
-
-```cpp
-// Don't inherit from model::TypeDefinition or model::generated::Type!
-class model::StructDefinition : public model::generated::StructDefinition {
-public:
-  using model::generated::StructDefinition::StructDefinition;
-
-  // ...
-
-public:
-  static bool classof(const Type *T) { return classof(T->key()); }
-  static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
-};
-```
-
-The `classof` methods should return true if the object they receive (an instance of the polymorphic object or of the
-object key) can be identified as an object of the current class.

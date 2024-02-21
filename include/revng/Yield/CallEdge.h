@@ -69,12 +69,6 @@ public:
   explicit CallEdge(const efa::CallEdge &Source);
 
 public:
-  static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
-  static bool classof(const Key &K) {
-    return std::get<1>(K) == FunctionEdgeBaseKind::CallEdge;
-  }
-
-public:
   bool hasAttribute(const model::Binary &Binary,
                     model::FunctionAttribute::Values Attribute) const {
     using namespace model;

@@ -43,10 +43,6 @@ public:
 
     return Result;
   }
-
-public:
-  static bool classof(const TypeDefinition *D) { return classof(D->key()); }
-  static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
 #include "revng/Model/Generated/Late/UnionDefinition.h"
