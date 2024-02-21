@@ -49,6 +49,7 @@ struct /*= struct | fullname =*/
   static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
   using BaseClass = /*= struct.inherits | user_fullname =*/;
   /**- else **//** if struct.abstract **/
+  static constexpr const /*= struct.name =*/Kind::Values AssociatedKind = /*= struct.name =*/Kind::Invalid;
   using BaseClass = /*= struct | user_fullname =*/;
   /**- else **/
   using BaseClass = void;
@@ -252,6 +253,17 @@ private:
   /** endif -**/
 public:
   bool localCompare(const /*= struct | user_fullname =*/ &Other) const;
+
+  /**- if struct.abstract **/
+public:
+  static bool classof(const /*= struct | user_fullname =*/ *P) { return true; }
+  /** endif **/
+
+  /**- if struct.inherits **/
+public:
+  static bool classof(const /*= struct.inherits | user_fullname =*/ *P);
+  static bool classof(const /*= struct.inherits.name =*/Kind::Values &Kind) { return Kind == AssociatedKind; }
+  /** endif -**/
 };
 
 /** if struct._key **/

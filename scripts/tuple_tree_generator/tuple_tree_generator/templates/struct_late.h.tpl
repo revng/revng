@@ -31,6 +31,13 @@ The notice below applies to the generated files.
 /**- endfor **/
 /**- endif **/
 
+/**- if struct.inherits **/
+inline bool
+/*= struct | fullname =*/::classof(const /*= struct.inherits | user_fullname =*/ *P) {
+  return classof(P->Kind());
+}
+/**- endif **/
+
 using namespace std::string_view_literals;
 
 /*# --- TupleLikeTraits --- -#*/

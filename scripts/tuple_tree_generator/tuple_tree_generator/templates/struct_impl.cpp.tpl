@@ -36,7 +36,7 @@ using /*= struct.name =*/KOT = KeyedObjectTraits<U/*= struct.name =*/>;
 U/*= struct.name =*/ /*= struct.name =*/KOT::fromKey(const /*= struct.name =*/Key &K) {
   using namespace model;
   /**- for child_type in upcastable|sort(attribute="user_fullname") **/
-  if (/*= child_type | user_fullname =*/::classof(K)) {
+  if (/*= child_type | user_fullname =*/::classof(std::get</*= struct._key_kind_index =*/>(K))) {
     auto *Tmp = new /*= child_type | user_fullname =*/(
       /**- for key_field in child_type.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
@@ -46,7 +46,7 @@ U/*= struct.name =*/ /*= struct.name =*/KOT::fromKey(const /*= struct.name =*/Ke
   /**- if not loop.last **/else /** endif **/
   /**- endfor **/
   /** if not struct.abstract **/
-  else if (/*= struct | user_fullname =*/::classof(K)) {
+  else if (/*= struct | user_fullname =*/::classof(std::get</*= struct._key_kind_index =*/>(K))) {
     auto *Tmp = new /*= struct | user_fullname =*/(
       /**- for key_field in struct.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
