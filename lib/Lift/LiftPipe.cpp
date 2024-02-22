@@ -40,6 +40,7 @@ void Lift::run(ExecutionContext &Ctx,
   // Perform lifting
   llvm::legacy::PassManager PM;
   PM.add(new LoadModelWrapperPass(Model));
+  PM.add(new LoadExecutionContextPass(&Ctx, Output.name()));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new LiftPass);
   PM.run(Output.getModule());

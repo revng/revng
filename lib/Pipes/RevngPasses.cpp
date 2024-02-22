@@ -50,3 +50,8 @@ bool pipeline::detail::runOnModule(llvm::Module &Module,
 
   return Result;
 }
+
+void pipeline::detail::getAnalysisUsageImpl(llvm::AnalysisUsage &AU) {
+  AU.addRequired<LoadModelWrapperPass>();
+  AU.addRequired<pipeline::LoadExecutionContextPass>();
+}

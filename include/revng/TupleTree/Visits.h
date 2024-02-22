@@ -8,6 +8,7 @@
 #include <tuple>
 
 #include "revng/ADT/KeyedObjectContainer.h"
+#include "revng/ADT/TrackingContainer.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleLikeTraits.h"

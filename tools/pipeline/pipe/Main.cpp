@@ -112,8 +112,10 @@ int main(int argc, char *argv[]) {
     AbortOnError(Set.at(DefaultNames[I])
                    .load(FilePath::fromLocalStorage(Arguments[I + 2])));
   }
-
-  ExecutionContext ExecutionContext(Manager.context(), &ClonedPipe);
+  auto Enumeration = Set.enumerate();
+  ExecutionContext ExecutionContext(Manager.context(),
+                                    &ClonedPipe,
+                                    Enumeration);
 
   AbortOnError(ClonedPipe.Pipe->run(ExecutionContext, Set));
 
