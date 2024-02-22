@@ -174,6 +174,10 @@ public:
     return UpcastablePointer<T>(new Q(std::forward<Args>(TheArgs)...));
   }
 
+  UpcastablePointer copy() const {
+    return UpcastablePointer(clone(Pointer.get()));
+  }
+
 public:
   UpcastablePointer &operator=(const UpcastablePointer &Other) {
     if (&Other != this) {
