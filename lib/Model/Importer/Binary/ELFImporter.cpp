@@ -602,8 +602,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
 
     if (IsCode) {
       revng_assert(Address.isValid());
-      auto It = Model->Functions().find(Address);
-      if (It == Model->Functions().end()) {
+      if (Model->Functions().tryGet(Address) == nullptr) {
         model::Function &Function = Model->Functions()[Address];
         if (MaybeName and MaybeName->size() > 0) {
           Function.OriginalName() = *MaybeName;
