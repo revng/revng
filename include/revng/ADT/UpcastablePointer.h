@@ -219,6 +219,8 @@ public:
 
   void reset(pointer Other = pointer()) noexcept { Pointer.reset(Other); }
 
+  bool empty() const noexcept { return Pointer == nullptr; }
+
 private:
   inner_pointer Pointer;
 };
