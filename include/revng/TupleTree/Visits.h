@@ -271,6 +271,11 @@ bool callOnPathSteps(Visitor &V,
   return tupletree::detail::callOnPathStepsTuple(V, Path, M, FullPath);
 }
 
+template<typename T>
+concept HasTryGet = requires(T a) {
+  { &a.tryGet };
+};
+
 template<KeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
@@ -281,16 +286,24 @@ bool callOnPathSteps(Visitor &V,
   using key_type = decltype(KOT::key(std::declval<value_type>()));
   auto TargetKey = Path[0].get<key_type>();
 
-  auto It = M.find(TargetKey);
-  if (It == M.end()) {
+  decltype(&*M.find(TargetKey)) Entry;
+  if constexpr (HasTryGet<RootT>) {
+    Entry = M.tryGet(TargetKey);
+  } else {
+    auto Iter = M.find(TargetKey);
+    if (Iter == M.end())
+      Entry = nullptr;
+    else
+      Entry = &*Iter;
+  }
+
+  if (Entry == nullptr) {
     return false;
   }
 
-  auto *Matching = &*It;
-
-  V.template visitContainerElement<RootT>(TargetKey, *Matching);
+  V.template visitContainerElement<RootT>(TargetKey, *Entry);
   if (Path.size() > 1) {
-    return callOnPathSteps(V, Path.slice(1), *Matching, FullPath);
+    return callOnPathSteps(V, Path.slice(1), *Entry, FullPath);
   }
 
   return true;
