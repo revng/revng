@@ -510,11 +510,22 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
 
     // First of all, we recursively process the `case` nodes contained in the
     // `switch` in order to process the inner portion of the AST
-    for (auto &LabelCasePair : Switch->cases()) {
+    llvm::SmallVector<size_t> ToRemoveCaseIndex;
+    for (auto &Group : llvm::enumerate(Switch->cases())) {
+      unsigned Index = Group.index();
+      auto &LabelCasePair = Group.value();
       LabelCasePair
         .second = rc_recur inlineDispatcherSwitchImpl(AST,
                                                       LabelCasePair.second,
                                                       LoopDispatcherMap);
+
+      if (LabelCasePair.second == nullptr) {
+        ToRemoveCaseIndex.push_back(Index);
+      }
+    }
+
+    for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+      Switch->removeCaseN(ToRemoveCase);
     }
 
     // Execute the promotion routine only for dispatcher switches
