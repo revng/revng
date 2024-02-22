@@ -10,14 +10,14 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 
-class EnforceABI : public llvm::ModulePass {
+class EnforceABI : public pipeline::FunctionPassImpl {
 public:
-  static char ID;
+  using pipeline::FunctionPassImpl::FunctionPassImpl;
+  bool prologue(llvm::Module &M, const model::Binary &Model) override;
+  bool runOnFunction(llvm::Function &Function,
+                     const model::Function &ModelFunction) override {
+    return false;
+  }
 
-public:
-  EnforceABI() : ModulePass(ID) {}
-
-  bool runOnModule(llvm::Module &M) override;
-
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU);
 };

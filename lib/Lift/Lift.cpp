@@ -112,7 +112,7 @@ static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
   return EXIT_SUCCESS;
 }
 
-bool LiftPass::runOnModule(llvm::Module &M) {
+bool LiftPass::run(llvm::Module &M, const pipeline::TargetsList &Targets) {
   llvm::Task T(4, "Lift pass");
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();

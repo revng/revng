@@ -23,28 +23,6 @@
 using namespace llvm;
 using namespace MFP;
 
-char PromoteCSVsPass::ID = 0;
-using Register = RegisterPass<PromoteCSVsPass>;
-static Register X("promote-csvs", "Promote CSVs Pass", true, true);
-
-struct PromoteCSVsPipe {
-  static constexpr auto Name = "promote-csvs";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace pipeline;
-    using namespace ::revng::kinds;
-    return { ContractGroup::transformOnlyArgument(ABIEnforced,
-                                                  CSVsPromoted,
-                                                  InputPreservation::Erase) };
-  }
-
-  void registerPasses(llvm::legacy::PassManager &Manager) {
-    Manager.add(new PromoteCSVsPass());
-  }
-};
-
-static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;
-
 // TODO: switch from CallInst to CallBase
 
 struct CSVsUsageMap {
@@ -88,7 +66,7 @@ private:
   OpaqueFunctionsPool<StringRef> CSVInitializers;
   std::map<WrapperKey, Function *> Wrappers;
   SetVector<GlobalVariable *> CSVs;
-  const model::Binary &Binary;
+  model::Architecture::Values Architecture;
 
 public:
   PromoteCSVs(Module *M,
@@ -96,7 +74,7 @@ public:
               const model::Binary &Binary);
 
 public:
-  void run();
+  void runOnFunction(llvm::Function &Function);
 
 private:
   void wrap(CallInst *Call,
@@ -108,10 +86,29 @@ private:
   void wrapCallsToHelpers(Function *F);
 };
 
+class PromoteCSVsPass : public pipeline::FunctionPassImpl {
+public:
+  std::unique_ptr<PromoteCSVs> HW;
+
+  using pipeline::FunctionPassImpl::FunctionPassImpl;
+
+  bool prologue(llvm::Module &Module, const model::Binary &Binary) override;
+
+  bool runOnFunction(llvm::Function &Function,
+                     const model::Function &ModelFunction) override;
+
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  }
+};
+
 PromoteCSVs::PromoteCSVs(Module *M,
                          GeneratedCodeBasicInfo &GCBI,
                          const model::Binary &Binary) :
-  M(M), Initializers(M), CSVInitializers(M, false), Binary(Binary) {
+  M(M),
+  Initializers(M),
+  CSVInitializers(M, false),
+  Architecture(Binary.Architecture()) {
 
   CSVInitializers.setMemoryEffects(MemoryEffects::readOnly());
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
@@ -304,7 +301,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     Type *CSVType = CSV->getValueType();
     llvm::StringRef CSVName = CSV->getName();
     using namespace model::Register;
-    Values Register = fromCSVName(CSVName, Binary.Architecture());
+    Values Register = fromCSVName(CSVName, Architecture);
     if (Register != Invalid) {
       auto *Initializer = CSVInitializers.get(CSVName,
                                               CSVType,
@@ -573,26 +570,53 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
   }
 }
 
-void PromoteCSVs::run() {
-  for (Function &F : FunctionTags::ABIEnforced.functions(M)) {
-    // Add tag
-    FunctionTags::CSVsPromoted.addTo(&F);
+void PromoteCSVs::runOnFunction(llvm::Function &F) {
+  // Add tag
+  FunctionTags::CSVsPromoted.addTo(&F);
 
-    if (not F.isDeclaration()) {
-      // Wrap calls to wrappers
-      wrapCallsToHelpers(&F);
+  if (not F.isDeclaration()) {
+    // Wrap calls to wrappers
+    wrapCallsToHelpers(&F);
 
-      // (Re-)promote CSVs
-      promoteCSVs(&F);
-    }
+    // (Re-)promote CSVs
+    promoteCSVs(&F);
   }
 }
 
-bool PromoteCSVsPass::runOnModule(Module &M) {
+bool PromoteCSVsPass::prologue(llvm::Module &Module,
+                               const model::Binary &Binary) {
+
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
-  PromoteCSVs HW(&M, GCBI, Binary);
-  HW.run();
+  HW = std::make_unique<PromoteCSVs>(&Module, GCBI, Binary);
   return true;
 }
+
+bool PromoteCSVsPass::runOnFunction(llvm::Function &Function,
+                                    const model::Function &ModelFunction) {
+  HW->runOnFunction(Function);
+  return true;
+}
+
+template<>
+char pipeline::FunctionPass<PromoteCSVsPass>::ID = 0;
+using Register = RegisterPass<pipeline::FunctionPass<PromoteCSVsPass>>;
+static Register X("promote-csvs", "Promote CSVs Pass", true, true);
+
+struct PromoteCSVsPipe {
+  static constexpr auto Name = "promote-csvs";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace ::revng::kinds;
+    return { ContractGroup::transformOnlyArgument(ABIEnforced,
+                                                  CSVsPromoted,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new pipeline::FunctionPass<PromoteCSVsPass>());
+  }
+};
+
+static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;

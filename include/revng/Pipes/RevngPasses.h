@@ -53,17 +53,25 @@ concept IsFunctionPipeImpl = std::derived_from<std::decay_t<T>,
 
 namespace detail {
 bool runOnModule(llvm::Module &Module, FunctionPassImpl &Pipe);
-}
+
+void getAnalysisUsageImpl(llvm::AnalysisUsage &AU);
+} // namespace detail
 
 /// Wrap your clas deriving from a FunctionPassImpl with this class to turn it
 /// compatible with a llvm passmanager
 template<IsFunctionPipeImpl T>
 class FunctionPass : public llvm::ModulePass {
 public:
-  FunctionPass(char &ID) : llvm::ModulePass::ModulePass(ID) {}
+  static char ID;
+  FunctionPass() : llvm::ModulePass::ModulePass(ID) {}
   bool runOnModule(llvm::Module &Module) override {
     T Payload(*this);
     return detail::runOnModule(Module, Payload);
+  }
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const final {
+    detail::getAnalysisUsageImpl(AU);
+    T::getAnalysisUsage(AU);
   }
 };
 } // namespace pipeline
