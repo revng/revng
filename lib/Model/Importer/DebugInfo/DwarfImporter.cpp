@@ -679,8 +679,8 @@ private:
           std::string EntryName = getName(ChildDie);
 
           // If it's the first time, set OriginalName
-          auto It = Enum->Entries().find(Value);
-          if (It == Enum->Entries().end()) {
+          auto *It = Enum->Entries().tryGet(Value);
+          if (It == nullptr) {
             auto &Entry = Enum->Entries()[Value];
             Entry.OriginalName() = EntryName;
           } else {
@@ -1503,8 +1503,8 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
         CurrentAliases.push_back(Name);
 
         // Create DynamicFunction, if it doesn't exist already
-        auto It = ImportedDynamicFunctions.find(Name);
-        bool Found = It != ImportedDynamicFunctions.end();
+        auto It = ImportedDynamicFunctions.tryGet(Name);
+        bool Found = It != nullptr;
 
         // If DynamicFunction doesn't have a prototype, register it for copying
         // it from the leader.
