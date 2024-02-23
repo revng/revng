@@ -9,8 +9,8 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Support/MetaAddress.h"
-#include "revng/Support/MetaAddress/YAMLTraits.h"
+#include "revng/Support/BasicBlockID.h"
+#include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/FunctionEdge.h"
 #include "revng/Yield/FunctionEdgeBase.h"

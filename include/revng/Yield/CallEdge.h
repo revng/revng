@@ -109,46 +109,11 @@ private:
       const auto &F = Binary.ImportedDynamicFunctions().at(DynamicFunction());
       return &F.Attributes();
     } else if (Destination().isValid()) {
-      return &Binary.Functions()
-                .at(Destination().notInlinedAddress())
-                .Attributes();
+      return &Binary.Functions().at(Destination().start()).Attributes();
     } else {
       return nullptr;
     }
   }
 };
-
-inline model::TypeDefinitionPath getPrototype(const model::Binary &Binary,
-                                              MetaAddress CallerFunctionAddress,
-                                              MetaAddress CallerBlockAddress,
-                                              const yield::CallEdge &Edge) {
-  model::TypeDefinitionPath Result;
-
-  const auto &CallSitePrototypes = Binary.Functions()
-                                     .at(CallerFunctionAddress)
-                                     .CallSitePrototypes();
-  auto It = CallSitePrototypes.find(CallerBlockAddress);
-  if (It != CallSitePrototypes.end())
-    Result = It->Prototype();
-
-  if (Edge.Type() == yield::FunctionEdgeType::FunctionCall) {
-    if (not Edge.DynamicFunction().empty()) {
-      // Get the dynamic function prototype
-      Result = Binary.ImportedDynamicFunctions()
-                 .at(Edge.DynamicFunction())
-                 .Prototype();
-    } else if (Edge.Destination().isValid()) {
-      // Get the function prototype
-      Result = Binary.Functions()
-                 .at(Edge.Destination().notInlinedAddress())
-                 .Prototype();
-    }
-  }
-
-  if (Result.empty())
-    Result = Binary.DefaultPrototype();
-
-  return model::QualifiedType::getFunctionType(Result).value();
-}
 
 #include "revng/Yield/Generated/Late/CallEdge.h"
