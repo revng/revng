@@ -28,12 +28,6 @@ public:
   ~TypeSystemPrinter();
 
 private:
-  /// Print the part of a node's label that represents a single field.
-  void dumpField(const model::QualifiedType &FieldQT,
-                 const model::TypeDefinition *Parent,
-                 uint64_t Offset,
-                 uint64_t FieldIdx);
-
   /// Print the given type as a node in a `.dot` graph. This includes the
   /// name, size and all of the fields.
   void dumpTypeNode(const model::TypeDefinition *T, int NodeID);
