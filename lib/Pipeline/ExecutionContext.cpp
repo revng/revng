@@ -12,13 +12,8 @@
 
 using namespace pipeline;
 
-ExecutionContext::ExecutionContext(Context &Ctx,
-                                   Step &Step,
-                                   PipeWrapper *Pipe) :
-  TheContext(&Ctx),
-  CurrentStep(&Step),
-  Pipe(Pipe),
-  RunningOnPipe(Pipe != nullptr) {
+ExecutionContext::ExecutionContext(Context &Ctx, PipeWrapper *Pipe) :
+  TheContext(&Ctx), Pipe(Pipe), RunningOnPipe(Pipe != nullptr) {
   // pipe is null when execution a analysis. We could just provide a context to
   // analyses, for the sake of uniformity we pass a execution context to them
   // too.

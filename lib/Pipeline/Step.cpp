@@ -278,7 +278,7 @@ ContainerSet Step::run(ContainerSet &&Input) {
   for (PipeWrapper &Pipe : Pipes) {
     T.advance(Pipe.Pipe->getName(), false);
     explainExecutedPipe(*Pipe.Pipe);
-    ExecutionContext Context(*Ctx, *this, &Pipe);
+    ExecutionContext Context(*Ctx, &Pipe);
     cantFail(Pipe.Pipe->run(Context, Input));
     llvm::cantFail(Input.verify());
   }
@@ -307,7 +307,7 @@ llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
   explainExecutedPipe(*TheAnalysis);
 
   ContainerSet Cloned = Containers.cloneFiltered(Targets);
-  ExecutionContext ExecutionCtx(*Ctx, *this, nullptr);
+  ExecutionContext ExecutionCtx(*Ctx, nullptr);
   return TheAnalysis->run(ExecutionCtx, Cloned, ExtraArgs);
 }
 

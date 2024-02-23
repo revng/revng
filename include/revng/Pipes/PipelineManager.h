@@ -183,6 +183,8 @@ public:
               const llvm::StringMap<std::string> &Options = {},
               llvm::raw_ostream *DiagnosticLog = nullptr);
 
+  const pipeline::Loader &getLoader() const { return *Loader; }
+
   /// recalculates all possible targets and keeps overship of the computed info
   void recalculateAllPossibleTargets(bool ExpandTargets = true);
 

@@ -61,7 +61,6 @@ struct PipeWrapper;
 class ExecutionContext {
 private:
   Context *TheContext = nullptr;
-  Step *CurrentStep = nullptr;
   PipeWrapper *Pipe = nullptr;
   // false when running on a analysis
   bool RunningOnPipe = true;
@@ -72,7 +71,7 @@ public:
   ~ExecutionContext();
 
 public:
-  ExecutionContext(Context &TheContext, Step &Step, PipeWrapper *Pipe);
+  ExecutionContext(Context &TheContext, PipeWrapper *Pipe);
 
 public:
   void commit(const ContainerBase &Container, const Target &Target);
@@ -83,10 +82,6 @@ public:
 public:
   const Context &getContext() const { return *TheContext; }
   Context &getContext() { return *TheContext; }
-
-public:
-  const Step &getStep() const { return *CurrentStep; }
-  Step &getStep() { return *CurrentStep; }
 };
 
 } // namespace pipeline
