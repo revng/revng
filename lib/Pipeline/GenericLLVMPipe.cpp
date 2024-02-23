@@ -29,10 +29,50 @@ std::unique_ptr<LLVMPassWrapperBase> PureLLVMPassWrapper::clone() const {
   return std::make_unique<PureLLVMPassWrapper>(*this);
 }
 
-void GenericLLVMPipe::run(const ExecutionContext &, LLVMContainer &Container) {
+class UpdateContract : public llvm::ModulePass {
+public:
+  static char ID;
+
+  llvm::ArrayRef<ContractGroup> Contract;
+  ContainerToTargetsMap *Requested;
+  Context *Ctx;
+  llvm::ArrayRef<std::string> ContainersName;
+
+public:
+  UpdateContract(llvm::ArrayRef<ContractGroup> Contract,
+                 ContainerToTargetsMap &Requested,
+                 llvm::ArrayRef<std::string> ContainersName) :
+    llvm::ModulePass(ID),
+    Contract(Contract),
+    Requested(&Requested),
+    ContainersName(ContainersName) {}
+
+public:
+  bool runOnModule(llvm::Module &Module) override {
+    for (auto &Entry : Contract)
+      Entry.deduceResults(*Ctx, *Requested, ContainersName);
+    return false;
+  }
+};
+
+template<typename T>
+using RP = RegisterPass<T>;
+
+char UpdateContract::ID = '_';
+
+static RP<UpdateContract>
+  X("advance-contract", "Advances pipeline contracts", true, false);
+
+void GenericLLVMPipe::run(ExecutionContext &Ctx, LLVMContainer &Container) {
   llvm::legacy::PassManager Manager;
-  for (const auto &Element : Passes)
+  Manager.add(new LoadExecutionContextPass(&Ctx, Container.name()));
+  using ElementType = std::unique_ptr<LLVMPassWrapperBase>;
+  for (const ElementType &Element : Passes) {
     Element->registerPasses(Manager);
+    Manager.add(new UpdateContract(Element->getContract(),
+                                   Ctx.getCurrentRequestedTargets(),
+                                   { Container.name() }));
+  }
   Manager.run(Container.getModule());
 }
 
