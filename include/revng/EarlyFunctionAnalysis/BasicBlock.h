@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
@@ -75,9 +76,6 @@ getPrototype(const model::Binary &Binary,
              const efa::BasicBlock &CallerBlock,
              const efa::CallEdge &Edge) {
   model::TypeDefinitionPath Result;
-
-  MetaAddress Caller = CallerFunctionAddress;
-  Caller = CallerBlock.InlinedFrom();
 
   auto &CallSitePrototypes = Binary.Functions()
                                .at(CallerFunctionAddress)
