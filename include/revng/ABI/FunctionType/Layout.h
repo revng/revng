@@ -164,18 +164,10 @@ public:
       revng_assert(ReturnValues.size() <= 1);
       revng_assert(Arguments.size() >= 1);
       return Arguments[0].Type.stripPointer();
-    }
-
-    bool Result = llvm::any_of(ReturnValues,
-                               [](const ReturnValue &Return) -> bool {
-                                 return not Return.Type.isScalar();
-                               });
-
-    if (Result) {
-      revng_assert(ReturnValues.size() == 1);
-      return ReturnValues[0].Type;
     } else {
-      revng_abort();
+      revng_assert(ReturnValues.size() == 1);
+      revng_assert(!ReturnValues[0].Type.isScalar());
+      return ReturnValues[0].Type;
     }
   }
 
