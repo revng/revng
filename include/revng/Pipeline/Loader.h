@@ -135,8 +135,17 @@ public:
     KnownContainerTypes.try_emplace(Name, std::move(Factory));
   }
 
+  const ContainerFactory &
+  getContainerFactory(llvm::StringRef ContainerName) const {
+    return KnownContainerTypes.find(ContainerName)->second;
+  }
+
   void addContainerRole(llvm::StringRef Name, llvm::StringRef Role) {
     KnownContainerRoles.try_emplace(Role, Name.str());
+  }
+
+  const llvm::StringMap<PipeWrapper> &getPipes() const {
+    return KnownPipesTypes;
   }
 
   template<typename LLVMPass>

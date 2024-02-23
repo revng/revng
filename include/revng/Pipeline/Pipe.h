@@ -51,6 +51,27 @@ constexpr bool checkPipe(auto (C::*)(First, Rest...))
   return true;
 }
 
+template<typename C, typename First, typename... Rest>
+constexpr size_t countArgs(auto (C::*)(First, Rest...)) {
+  return sizeof...(Rest);
+}
+
+template<typename First, typename... Types>
+const char *getNameOfContainerImpl(size_t Index) {
+  if (Index == 0)
+    return std::decay_t<First>::Name;
+
+  if constexpr (sizeof...(Types) == 0)
+    return "";
+  else
+    return getNameOfContainerImpl<Types...>(Index - 1);
+}
+
+template<typename C, typename Context, typename... Rest>
+const char *getNameOfContainer(auto (C::*)(Context, Rest...), size_t Index) {
+  return getNameOfContainerImpl<Rest...>(Index);
+}
+
 template<typename PipeType>
 class PipeWrapperImpl;
 
@@ -72,6 +93,9 @@ public:
   virtual std::unique_ptr<PipeWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
   virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
+
+  virtual size_t getContainerArgumentsCount() const = 0;
+  virtual llvm::StringRef getContainerName(size_t Index) const = 0;
 
   virtual ~PipeWrapperBase() = default;
 };
@@ -161,6 +185,14 @@ public:
       return llvm::Error::success();
     else
       return Invokable.getPipe().checkPrecondition(Ctx);
+  }
+
+  size_t getContainerArgumentsCount() const override {
+    return countArgs(&PipeType::run);
+  }
+
+  llvm::StringRef getContainerName(size_t Index) const override {
+    return getNameOfContainer(&PipeType::run, Index);
   }
 
 public:

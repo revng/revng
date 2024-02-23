@@ -104,6 +104,7 @@ static std::string CName = "container-name";
 class MapContainer : public Container<MapContainer> {
 public:
   static inline const llvm::StringRef MIMEType = "application/x.test.map";
+  static inline const char *Name = "Name";
   MapContainer(std::map<Target, int> Map, llvm::StringRef Name) :
     Container<MapContainer>(Name), Map(std::move(Map)) {}
   MapContainer(llvm::StringRef Name) : Container<MapContainer>(Name), Map() {}
@@ -261,8 +262,7 @@ public:
 
 BOOST_AUTO_TEST_CASE(PipeCanBeWrapper) {
   Context Ctx;
-  Step FakeStep(Ctx, "dc", "", {});
-  ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
+  ExecutionContext ExecutionCtx(Ctx, nullptr);
   MapContainer Map("random-name");
   Map.get({ {}, RootKind }) = 1;
   TestPipe Enf;
@@ -1340,8 +1340,7 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
   RegisterAnalysis<ArgumentTestAnalysis> Dummy;
   pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container-name" });
   Context Ctx;
-  Step FakeStep(Ctx, "dc", "", {});
-  ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
+  ExecutionContext ExecutionCtx(Ctx, nullptr);
   ContainerSet Set;
   auto Factory = ContainerFactory::create<MapContainer>();
   Set.add("container-name", Factory);

@@ -67,7 +67,7 @@ public:
     auto Factory = ContainerFactory::fromGlobal<LLVMContainer>(&PipeContext,
                                                                &LLVMContext);
 
-    Loader.addContainerFactory("llvm-container", std::move(Factory));
+    Loader.addContainerFactory(LLVMContainer::Name, std::move(Factory));
   }
 
   void registerKinds(KindsRegistry &KindDictionary) override {}
