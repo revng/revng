@@ -14,6 +14,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -71,7 +72,7 @@ static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
   return true;
 }
 
-static std::vector<std::set<PHINode *>> getPHIEquivalenceClasses(Function &F) {
+static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
 
   // PHINodes in the same class are mapped onto the same local variable.
   llvm::EquivalenceClasses<PHINode *> PHISameVariableClasses;
@@ -157,26 +158,36 @@ static std::vector<std::set<PHINode *>> getPHIEquivalenceClasses(Function &F) {
     }
   }
 
-  std::vector<std::set<PHINode *>> Result;
+  std::vector<SetVector<PHINode *>> Result;
 
-  auto I = PHISameVariableClasses.begin();
-  auto E = PHISameVariableClasses.end();
-  // Iterate over all of the members.
-  for (; I != E; ++I) {
+  // We want to return the equivalence classes in deterministic order.
+  // Sort them according to the RPOT order of their leader.
+  auto ClassEnd = PHISameVariableClasses.end();
+  for (BasicBlock *BB : llvm::post_order(&F)) {
+    for (PHINode &PHI : BB->phis()) {
+      auto ClassIterator = PHISameVariableClasses.findValue(&PHI);
+      revng_assert(ClassIterator != ClassEnd);
+      if (not ClassIterator->isLeader())
+        continue;
 
-    // Ignore all the members that are not leaders of a class.
-    if (not I->isLeader())
-      continue;
+      // If we found a leader, iterate all over the elements of a class, and
+      // build the set of PHINodes that represent that class.
+      auto PHIRange = llvm::make_range(PHISameVariableClasses
+                                         .member_begin(ClassIterator),
+                                       PHISameVariableClasses.member_end());
 
-    // Then iterate all over the elements of a class, and build the set of
-    // PHINodes that represent that class.
-    std::set<PHINode *> PHISet;
-    auto PHIRange = llvm::make_range(PHISameVariableClasses.member_begin(I),
-                                     PHISameVariableClasses.member_end());
-    for (PHINode *PHI : PHIRange)
-      PHISet.insert(PHI);
+      // Things are pushed into Result in deterministic order because we're
+      // iterating in post_order over the Function and considering only leader
+      // PHINodes, in program order.
+      Result.push_back({});
 
-    Result.push_back(std::move(PHISet));
+      // The iteration on the PHIRange is deterministic, because it depends only
+      // on the order how elements were inserted in the class, and that in turns
+      // is deterministic because we do it in a deterministic order in RPO above
+      SetVector<PHINode *> &PHIs = Result.back();
+      for (PHINode *PHI : PHIRange)
+        PHIs.insert(PHI);
+    }
   }
 
   return Result;
@@ -199,7 +210,8 @@ static bool isIncomingValueUseInPHI(const Use &U) {
 
 using UseSet = llvm::SmallSet<Use *, 2>;
 
-static auto getIncomingUsesOfValuesFromBlocks(const std::set<PHINode *> &PHIs) {
+static auto
+getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
   llvm::MapVector<std::pair<BasicBlock *, Value *>, UseSet>
     IncomingUsesOfValueFromBlock;
 
@@ -246,8 +258,24 @@ static auto getIncomingUsesOfValuesFromBlocks(const std::set<PHINode *> &PHIs) {
   return Result;
 }
 
-static void replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs,
-                                       Function &F) {
+using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
+                                   BasicBlock *>;
+
+static void
+buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
+  IRBuilder<> Builder(StoreBlock->getContext());
+  Builder.SetInsertPoint(StoreBlock->getTerminator());
+  auto *S = Builder.CreateStore(Incoming, Alloca);
+  if (auto *IncomingInst = dyn_cast<Instruction>(Incoming))
+    S->setDebugLoc(IncomingInst->getDebugLoc());
+  revng_log(Log,
+            "Created StoreInst " << dumpToString(S)
+                                 << " in Block: " << StoreBlock->getName());
+}
+
+static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
+                                       Function &F,
+                                       EdgeToNewBlockMap &NewBlocks) {
 
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };
@@ -255,6 +283,7 @@ static void replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs,
   IRBuilder<> Builder(F.getContext());
   Builder.SetInsertPointPastAllocas(&F);
   AllocaInst *Alloca = Builder.CreateAlloca((*PHIs.begin())->getType());
+  Alloca->setDebugLoc((*PHIs.begin())->getDebugLoc());
   revng_log(Log, "Created Alloca: " << dumpToString(Alloca));
 
   {
@@ -289,70 +318,92 @@ static void replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs,
     };
 
     while (AdvanceBlockRange() != BlockEnd) {
-      auto *CurrentBlock = BlockIt->first.first;
       auto SameBlockValueUses = llvm::make_range(BlockIt, BlockNext);
       revng_assert(not SameBlockValueUses.empty());
       // We handle the first element in the range separately, since it's the one
       // with the highest number of uses.
+      const BasicBlock *CurrentBlock = nullptr;
       {
         auto &[BlockAndValue, IncomingUses] = *SameBlockValueUses.begin();
-        auto &[Block, Incoming] = BlockAndValue;
+        auto &[IncomingBlock, Incoming] = BlockAndValue;
+        revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
-        Builder.SetInsertPoint(Block->getTerminator());
-        auto *S = Builder.CreateStore(Incoming, Alloca);
-        revng_log(Log, dumpToString(S));
+        buildStore(IncomingBlock, Incoming, Alloca);
+        CurrentBlock = IncomingBlock;
       }
 
       SmallMap<std::pair<BasicBlock *, BasicBlock *>, Value *, 4> HandledCases;
 
       for (auto &[BlockAndValue, IncomingUses] :
            llvm::drop_begin(SameBlockValueUses)) {
-        auto &[Block, Incoming] = BlockAndValue;
+        auto &[IncomingBlock, Incoming] = BlockAndValue;
+        revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
-        revng_assert(Block == CurrentBlock);
+        revng_assert(IncomingBlock == CurrentBlock);
         // For all the entries after the first, we cannot inject the Store in
         // the same Block as CurrentBlock, because they would confilct with the
         // other we've just inserted.
         // Hence we have to create a new BasicBlock from Block to the proper
         // PHI, where we will inject the Store.
 
+        LoggerIndent UsesIndent{ Log };
         for (Use *U : IncomingUses) {
           // This is the block where a PHI uses the Incoming.
           PHINode *PHIUser = cast<PHINode>(U->getUser());
+          revng_log(Log, "PHIUser: " << dumpToString(PHIUser));
           BasicBlock *PHIBlock = PHIUser->getParent();
+          revng_log(Log, "PHIBlock: " << PHIBlock->getName());
 
           // If we have 2 PHINodes in the same PHIBlock that belong to the same
           // class, we don't want to process them twice, since they must have
           // the same Incoming (because of how classes are constructed), so the
           // Store is already in place, and we don't want two of them.
 
-          auto BlockToPHIBlock = std::make_pair(Block, PHIBlock);
+          auto BlockToPHIBlock = std::make_pair(IncomingBlock, PHIBlock);
           auto BlocksToIncoming = std::make_pair(std::move(BlockToPHIBlock),
                                                  Incoming);
           const auto &[It,
                        New] = HandledCases.insert(std::move(BlocksToIncoming));
           if (not New) {
+            revng_log(Log, "Already handled for this equivalence class");
             revng_assert(It->second == Incoming);
             continue;
           }
 
-          // Create a new block with a store of the Incoming in the Alloca, that
-          // jumps to the PHIBlock
-          revng_log(Log, "NewBlock");
-          BasicBlock *NewBlock = BasicBlock::Create(PHIBlock->getContext(),
-                                                    "",
-                                                    PHIBlock->getParent());
-          Builder.SetInsertPoint(NewBlock);
-          auto *S = Builder.CreateStore(Incoming, Alloca);
-          revng_log(Log, dumpToString(S));
-          Builder.CreateBr(PHIBlock);
+          // The incoming block cannot have only a single successor, because
+          // that would mean that the whole PHIs equivalence class may only have
+          // a single incoming from that block, which means we should have
+          // already handled it.
+          revng_assert(nullptr == IncomingBlock->getSingleSuccessor());
+          BasicBlock *StoreBlock = nullptr;
+          if (auto It = NewBlocks.find(BlockToPHIBlock);
+              It != NewBlocks.end()) {
+            revng_log(Log,
+                      "New Block for store was already created for a previous "
+                      "equivalence class");
+            StoreBlock = It->second;
+          } else {
+            // Create a new block that jumps to the PHIBlock
+            revng_log(Log, "New block");
+            StoreBlock = BasicBlock::Create(PHIBlock->getContext(),
+                                            Twine(IncomingBlock->getName())
+                                              + "-to-" + PHIBlock->getName(),
+                                            PHIBlock->getParent());
+            NewBlocks[BlockToPHIBlock] = StoreBlock;
+            Builder.SetInsertPoint(StoreBlock);
+            auto *Br = Builder.CreateBr(PHIBlock);
+            Br->setDebugLoc(IncomingBlock->getTerminator()->getDebugLoc());
 
-          // Now, all the branches going from the Block to the old PHIBlock
-          // should be redirected to the NewBlock, so they see the Store.
-          Block->getTerminator()->replaceUsesOfWith(PHIBlock, NewBlock);
-          // Also, all the incoming blocks that came from Block so they come
-          // from NewBlock.
-          PHIUser->replaceIncomingBlockWith(Block, NewBlock);
+            // Now, all the branches going from the IncomingBlock to the old
+            // PHIBlock should be redirected to the StoreBlock, so they see the
+            // Store.
+            IncomingBlock->getTerminator()->replaceUsesOfWith(PHIBlock,
+                                                              StoreBlock);
+            // Also, all the incoming blocks that came from IncomingBlock so
+            // they come from StoreBlock.
+            PHIUser->replaceIncomingBlockWith(IncomingBlock, StoreBlock);
+          }
+          buildStore(StoreBlock, Incoming, Alloca);
         }
       }
     }
@@ -373,6 +424,7 @@ static void replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs,
 
       Builder.SetInsertPoint(PHI);
       auto *NewLoad = createLoad(Builder, Alloca);
+      NewLoad->setDebugLoc(PHI->getDebugLoc());
       revng_log(Log, "Create new load: " << dumpToString(NewLoad));
 
       for (Use &U : llvm::make_early_inc_range(PHI->uses())) {
@@ -411,7 +463,8 @@ bool ExitSSAPass::runOnFunction(Function &F) {
   if (not FunctionTags::Isolated.isTagOf(&F))
     return false;
 
-  bool Changed = false;
+  revng_log(Log, "ExitSSA on: " << F.getName());
+  LoggerIndent Indent{ Log };
 
   // A vector containing sets of equivalence classes of PHINodes.
   // Each equivalence class is composed of connected PHINodes that can form
@@ -419,11 +472,11 @@ bool ExitSSAPass::runOnFunction(Function &F) {
   // Informally, all the PHINodes in a group hold the same value, and we want to
   // create a single local variable for each DAG.
   const auto PHIClasses = getPHIEquivalenceClasses(F);
+  EdgeToNewBlockMap NewBlocks;
   for (const auto &PHIGroup : PHIClasses)
-    replacePHIEquivalenceClass(PHIGroup, F);
-  Changed |= not PHIClasses.empty();
+    replacePHIEquivalenceClass(PHIGroup, F, NewBlocks);
 
-  return Changed;
+  return not PHIClasses.empty();
 }
 
 char ExitSSAPass::ID = 0;
