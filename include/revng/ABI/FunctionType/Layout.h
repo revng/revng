@@ -104,20 +104,20 @@ public:
   Layout() = default;
 
 public:
-  explicit Layout(const model::CABIFunctionDefinition &Function);
-  explicit Layout(const model::RawFunctionDefinition &Function);
+  explicit Layout(const model::CABIFunctionDefinition &Prototype);
+  explicit Layout(const model::RawFunctionDefinition &Prototype);
 
   /// Extracts the information about argument and return value location layout
-  /// from the \param Function.
-  static Layout make(const model::DefinitionReference &Function) {
-    revng_assert(Function.isValid());
-    return make(*Function.get());
+  /// from the \param Prototype.
+  static Layout make(const model::DefinitionReference &Prototype) {
+    revng_assert(Prototype.isValid());
+    return make(*Prototype.get());
   }
 
-  static Layout make(const model::TypeDefinition &Function) {
-    if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
+  static Layout make(const model::TypeDefinition &Prototype) {
+    if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Prototype))
       return Layout(*CABI);
-    else if (auto *R = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
+    else if (auto *R = llvm::dyn_cast<model::RawFunctionDefinition>(&Prototype))
       return Layout(*R);
     else
       revng_abort("Layouts of non-function types are not supported.");
