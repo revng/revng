@@ -236,26 +236,56 @@ static LoopDispatcherMap computeLoopDispatcher(ASTTree &AST) {
   for (ASTNode *Node : AST.nodes()) {
     if (auto *Sequence = llvm::dyn_cast<SequenceNode>(Node)) {
       ASTNode *PrevNode = nullptr;
+
+      // We use the `LastSeenLoop` variable to propagate the last encountered
+      // loop in a sequence, so that we can process also weaved `switch`es that
+      // are not directly nested in their main correspondent `switch`
+      ScsNode *LastSeenLoop = nullptr;
       for (ASTNode *N : Sequence->nodes()) {
-
-        // If we encounter a dispatcher switch, we should assert that the
-        // previous node is a `ScsNode` (whose exit dispatcher the current
-        // switch is of), and save it in the map
         if (auto *Switch = llvm::dyn_cast<SwitchNode>(N)) {
-
-          // We handle weaved switches only as children of the original `switch`
-          // (couple of lines after), where we can actually retrieve the related
-          // loop
-          if (Switch->isWeaved()) {
-            continue;
-          }
 
           // A `SwitchNode` is a dispatcher switch if it has no associated
           // condition
           using DispatcherKind = typename SwitchNode::DispatcherKind;
           if (not Switch->getCondition()
               and Switch->getDispatcherKind() == DispatcherKind::DK_Exit) {
-            ScsNode *RelatedLoop = llvm::cast<ScsNode>(PrevNode);
+            ScsNode *RelatedLoop = nullptr;
+
+            // When we encounter a weaved `switch` in a sequence, since in
+            // this exploration we are just looking at all the nodes in the
+            // AST without doing a recursive visit, 2 situations are possible:
+            // 1) The weaved `switch` is nested inside the main `switch` it
+            // refers to, and we will eventually assign its related loop when
+            // we visit such main `switch`.
+            // 2) We encounter a weaved `switch` which is not nested
+            // inside its main `switch`, in this case in the current sequence
+            // we are exploring we should have visited the its related loop.
+            if (Switch->isWeaved()) {
+              if (LastSeenLoop) {
+                // We are in situation 2)
+                RelatedLoop = LastSeenLoop;
+
+                // We also propagate the `LastSeenLoop` to the next weaved in
+                // the sequence (if present), not overwriting `LastSeenLoop`
+              } else {
+                // We are in situation 1)
+
+                // We blank `LastSeenLoop` (this is superfluous)
+                LastSeenLoop = nullptr;
+
+                continue;
+              }
+            } else {
+              // In occurrence of a non-weaved `switch`, we know that the
+              // related loop is the previous node in the sequence
+              RelatedLoop = llvm::cast<ScsNode>(PrevNode);
+
+              // From this point on, we also set the `LastSeenLoop` to the
+              // `RelatedLoop`, for eventual weaved `switch`es which may follow
+              // the current main `switch`
+              LastSeenLoop = RelatedLoop;
+            }
+            revng_assert(RelatedLoop);
             ResultMap[Switch] = std::make_pair(RelatedLoop, true);
 
             // We also need to annotate the mapping for weaved switches, that
@@ -274,42 +304,69 @@ static LoopDispatcherMap computeLoopDispatcher(ASTTree &AST) {
                 // A weaved `SwitchNode` can be present only inside `case`s with
                 // multiple labels
                 if (LabelSet.size() > 1) {
-                  SwitchNode *WeavedSwitch = nullptr;
+                  llvm::SmallVector<SwitchNode *> WeavedSwitches;
                   bool RemoveSetNode;
 
-                  // We have two possible situations:
+                  // We have three possible situations:
                   // 1) The weaved `SwitchNode` is a direct child of the parent
                   //    `SwitchNode`. In this case, when we perform the inline
                   //    of the `case`s, we should remove the `SetNode`.
-                  // 2) The weaved `SwitchNode` is the first node of a
-                  //    `SequenceNode`. In this case, when we perform the inline
-                  //    of the `case`s, we should leave the `SetNode`, because
-                  //    the remaining nodes of the `SequenceNode` will not be
-                  //    simplified by the inlining.
+                  // 2) We have (multiple) weaved `SwitchNode`s inside a
+                  //    `SequenceNode`. The nodes we are interested in, are the
+                  //    first n consecutive nodes.
+                  // 3) The weaved `SwitchNode` is not nested inside its parent
+                  //    `SwitchNode`, but it follows it in a lexicographic
+                  //    sense.
                   if (llvm::isa<SwitchNode>(Case)) {
-                    WeavedSwitch = llvm::cast<SwitchNode>(Case);
+                    SwitchNode *WeavedSwitch = llvm::cast<SwitchNode>(Case);
+                    revng_assert(WeavedSwitch->isWeaved());
+                    WeavedSwitches.push_back(WeavedSwitch);
                     RemoveSetNode = true;
                   } else if (auto *Seq = llvm::dyn_cast<SequenceNode>(Case)) {
-                    WeavedSwitch = llvm::cast<SwitchNode>(Seq->getNodeN(0));
-                    RemoveSetNode = false;
+                    RemoveSetNode = true;
+                    for (ASTNode *N : Seq->nodes()) {
+                      SwitchNode *WeavedSwitch = llvm::dyn_cast<SwitchNode>(N);
+                      if (WeavedSwitch and WeavedSwitch->isWeaved()) {
+                        WeavedSwitches.push_back(WeavedSwitch);
+                      } else {
+
+                        // As soon as we find an `ASTNode` that is not a weaved
+                        // `switch`, we exit from the routine, and set the
+                        // `RemoveSetNode` to false (indeed, if the `sequence`
+                        // containing the sub-weaved-`switch` contains also some
+                        // other nodes in the back, it means that we should not
+                        // need to remove the `SetNode` to preserve the
+                        // semantics, since we cannot inline completely the body
+                        // of the `case`)
+                        RemoveSetNode = false;
+                        break;
+                      }
+                    }
                   } else {
-                    revng_abort("Unexpected Weaved SwitchNode");
+                    continue;
                   }
 
-                  revng_assert(WeavedSwitch->isWeaved());
-                  ResultMap[WeavedSwitch] = std::make_pair(RelatedLoop,
-                                                           RemoveSetNode);
-                  SwitchQueue.push_back(WeavedSwitch);
+                  for (SwitchNode *WeavedSwitch : WeavedSwitches) {
+                    revng_assert(WeavedSwitch->isWeaved());
+                    ResultMap[WeavedSwitch] = std::make_pair(RelatedLoop,
+                                                             RemoveSetNode);
+                    SwitchQueue.push_back(WeavedSwitch);
+                  }
                 }
               }
             }
           }
-        } else if (auto *If = llvm::dyn_cast<IfNode>(N)) {
+        } else {
+
+          // We reset the `LastSeenLoop` at each node except for each main
+          // `switch` that may be followed by a corresponding weaved `switch`
+          LastSeenLoop = nullptr;
 
           // The current assumption is that the current `InlineDispatcherSwitch`
           // pass runs before `switch`es with one or two cases are promoted to
-          // `if`s. If this is not true, we need to adapt this pass.
-          revng_assert(not isDispatcherIf(If));
+          // `if`s. Therefore no dispatcher `if` should be present at this
+          // stage. If this is not true, we need to adapt this pass.
+          revng_assert(not(llvm::isa<IfNode>(N) and isDispatcherIf(N)));
         }
 
         // At each iteration, assign the `PrevNode` variable
@@ -602,12 +659,12 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
       for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
         Switch->removeCaseN(ToRemoveCase);
       }
+    }
 
-      // Finally, if we end up with a `SwitchNode` with no remaining cases, we
-      // should completely remove it. We do that by returning a `nullptr`.
-      if (Switch->cases_size() == 0) {
-        rc_return nullptr;
-      }
+    // Finally, if we end up with a `SwitchNode` with no remaining cases, we
+    // should completely remove it. We do that by returning a `nullptr`.
+    if (Switch->cases_size() == 0) {
+      rc_return nullptr;
     }
   } break;
   case ASTNode::NK_Code:
