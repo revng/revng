@@ -488,10 +488,6 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
 
 bool ExitSSAPass::runOnFunction(Function &F) {
 
-  // Skip non-isolated functions
-  if (not FunctionTags::Isolated.isTagOf(&F))
-    return false;
-
   revng_log(Log, "ExitSSA on: " << F.getName());
   LoggerIndent Indent{ Log };
 

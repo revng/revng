@@ -49,11 +49,6 @@ static Instruction *getExtOrTrunc(Value *V) {
 
 bool RemovePointerCasts::runOnFunction(llvm::Function &F) {
 
-  // Skip non-isolated functions
-  auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Isolated))
-    return false;
-
   // Initialize the IR builder to inject instructions
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::IRBuilder<> Builder(LLVMCtx);

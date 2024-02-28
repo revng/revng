@@ -69,11 +69,6 @@ static llvm::CallInst *buildDerefCall(llvm::Module &M,
 
 bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
 
-  // Skip non-isolated functions
-  auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Isolated))
-    return false;
-
   // Get the model
   const auto
     &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();

@@ -466,11 +466,6 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   UntangleTentativeCounter = 0;
   UntanglePerformedCounter = 0;
 
-  // Skip non-isolated functions
-  auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Isolated))
-    return false;
-
   // Clear graph object from the previous pass.
   RegionCFG<BasicBlock *> RootCFG;
 

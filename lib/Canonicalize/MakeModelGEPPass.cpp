@@ -2167,10 +2167,6 @@ public:
 bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   bool Changed = false;
 
-  // Skip non-isolated functions
-  if (not FunctionTags::Isolated.isTagOf(&F))
-    return Changed;
-
   revng_log(ModelGEPLog, "Make ModelGEP for " << F.getName());
   auto Indent = LoggerIndent(ModelGEPLog);
 
