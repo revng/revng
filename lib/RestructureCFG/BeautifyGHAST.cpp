@@ -1025,6 +1025,11 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   matchWhile(RootNode, CombedAST);
   Dumper.log("after-match-while");
 
+  // Perform the `SwitchBreak` simplification
+  revng_log(BeautifyLogger, "Performing SwitchBreak simplification");
+  RootNode = simplifySwitchBreak(CombedAST, RootNode);
+  Dumper.log("After-switchbreak-simplify");
+
   // Perform the dispatcher `switch` inlining
   revng_log(BeautifyLogger, "Performing dispatcher switch inlining\n");
   RootNode = inlineDispatcherSwitch(CombedAST, RootNode);

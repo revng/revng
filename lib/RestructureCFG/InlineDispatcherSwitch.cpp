@@ -693,3 +693,135 @@ ASTNode *inlineDispatcherSwitch(ASTTree &AST, ASTNode *RootNode) {
 
   return RootNode;
 }
+
+static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+
+    // In place of a sequence node, we just need to inspect all the nodes in the
+    // sequence
+    for (ASTNode *&N : Seq->nodes()) {
+      N = rc_recur simplifySwitchBreakImpl(N);
+    }
+
+    // In this beautify, it may be that a dispatcher switch is completely
+    // removed, therefore leaving a `nullptr` in a `SequenceNode`. We remove all
+    // these `nullptr` from the `SequenceNode` after the processing has taken
+    // place
+    Seq->removeNode(nullptr);
+
+  } break;
+  case ASTNode::NK_Scs: {
+    ScsNode *Scs = llvm::cast<ScsNode>(Node);
+
+    // Inspect loop nodes
+    if (Scs->hasBody()) {
+      ASTNode *Body = Scs->getBody();
+      ASTNode *NewBody = rc_recur simplifySwitchBreakImpl(Body);
+      Scs->setBody(NewBody);
+    }
+
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    // Inspect the `then` and `else` branches
+    if (If->hasThen()) {
+      ASTNode *Then = If->getThen();
+      ASTNode *NewThen = rc_recur simplifySwitchBreakImpl(Then);
+      If->setThen(NewThen);
+    }
+    if (If->hasElse()) {
+      ASTNode *Else = If->getElse();
+      ASTNode *NewElse = rc_recur simplifySwitchBreakImpl(Else);
+      If->setElse(NewElse);
+    }
+  } break;
+  case ASTNode::NK_Switch: {
+    auto *Switch = llvm::cast<SwitchNode>(Node);
+
+    // First of all, we recursively process the `case` nodes contained in the
+    // `switch` in order to process the inner portion of the AST
+    llvm::SmallVector<size_t> ToRemoveCaseIndex;
+    for (auto &Group : llvm::enumerate(Switch->cases())) {
+      unsigned Index = Group.index();
+      auto &LabelCasePair = Group.value();
+      LabelCasePair
+        .second = rc_recur simplifySwitchBreakImpl(LabelCasePair.second);
+
+      if (LabelCasePair.second == nullptr) {
+        ToRemoveCaseIndex.push_back(Index);
+      }
+    }
+
+    for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+      Switch->removeCaseN(ToRemoveCase);
+    }
+
+    // 1: if the `default` `case` is a `SwitchBreak`, we can simplify it away
+    ASTNode *SwitchDefault = Switch->getDefault();
+    if (SwitchDefault) {
+      if (llvm::isa<SwitchBreakNode>(SwitchDefault)) {
+        Switch->removeDefault();
+      }
+    }
+
+    // 2: We can perform the `SwitchBreak` simplification only for `switch`es
+    // that do not have a `default` `case`, because in such situation, removing
+    // a `case` containing a single `Switchbreak` would not invalidate the
+    // semantics. This is done after the previous simplification, because some
+    // new opportunities may be unlocked by it.
+    if (not Switch->hasDefault()) {
+
+      // Search for cases that are composed by a single `SwitchBreak` node
+      llvm::SmallVector<size_t> ToRemoveCaseIndex;
+
+      // We do not need to skip the `default` case here, because there is no
+      // `default` in first place
+      for (auto &Group : llvm::enumerate(Switch->cases())) {
+        unsigned Index = Group.index();
+        auto &[LabelSet, Case] = Group.value();
+
+        if (llvm::isa<SwitchBreakNode>(Case)) {
+          ToRemoveCaseIndex.push_back(Index);
+        }
+      }
+
+      for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+        Switch->removeCaseN(ToRemoveCase);
+      }
+    }
+
+    // If our beautify pass has removed all the cases, we should return
+    // `nulltpr` to signal this fact
+    if (Switch->cases_size() == 0) {
+      rc_return nullptr;
+    }
+  } break;
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Set:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break:
+    // Do nothing
+    break;
+  default:
+    revng_unreachable();
+  }
+
+  rc_return Node;
+}
+
+/// This simplification routine is aimed at removing `SwitchBreak` nodes that
+/// are superfluous. We consider such nodes as `SwitchBreakNode`s that compose
+/// the entirety of a `case` of a `switch`, which must not have a `default`
+/// `case`.
+ASTNode *simplifySwitchBreak(ASTTree &AST, ASTNode *RootNode) {
+
+  // Simplify away `SwitchBreakNode`s from `switch`es
+  RootNode = simplifySwitchBreakImpl(RootNode);
+  AST.setRoot(RootNode);
+
+  return RootNode;
+}

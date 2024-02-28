@@ -11,3 +11,5 @@ class ASTNode;
 class ASTTree;
 
 extern ASTNode *inlineDispatcherSwitch(ASTTree &AST, ASTNode *RootNode);
+
+extern ASTNode *simplifySwitchBreak(ASTTree &AST, ASTNode *RootNode);
