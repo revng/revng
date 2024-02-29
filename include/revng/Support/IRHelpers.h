@@ -943,11 +943,26 @@ inline std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Instruction *Call,
   return Result;
 }
 
+inline bool CompareByName(const llvm::GlobalVariable *LHS,
+                          const llvm::GlobalVariable *RHS) {
+  revng_assert(LHS->hasName() and RHS->hasName());
+  return LHS->getName() < RHS->getName();
+};
+
+template<range_with_value_type<llvm::GlobalVariable *> RangeOfPointersToGlobal>
+inline llvm::SmallVector<llvm::GlobalVariable *>
+toSortedByName(const RangeOfPointersToGlobal &Range) {
+  llvm::SmallVector<llvm::GlobalVariable *> Result{ Range.begin(),
+                                                    Range.end() };
+  llvm::sort(Result, CompareByName);
+  return Result;
+}
+
 class CSVsUsage {
 public:
-  void sort() {
-    std::sort(Read.begin(), Read.end());
-    std::sort(Written.begin(), Written.end());
+  void sortByName() {
+    std::sort(Read.begin(), Read.end(), CompareByName);
+    std::sort(Written.begin(), Written.end(), CompareByName);
   }
 
 public:

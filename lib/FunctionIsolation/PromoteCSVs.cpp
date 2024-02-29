@@ -5,6 +5,8 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
@@ -64,8 +66,12 @@ private:
   struct WrapperKey {
   public:
     Function *Helper;
-    std::set<GlobalVariable *> Read;
-    std::set<GlobalVariable *> Written;
+
+    /// GlobalVariables representing read CPU State Variables sorted by name.
+    std::vector<GlobalVariable *> Read;
+
+    /// GlobalVariables representing written CPU State Variables sorted by name.
+    std::vector<GlobalVariable *> Written;
 
   private:
     auto tie() const { return std::tie(Helper, Read, Written); }
@@ -81,7 +87,7 @@ private:
   StructInitializers Initializers;
   OpaqueFunctionsPool<StringRef> CSVInitializers;
   std::map<WrapperKey, Function *> Wrappers;
-  std::set<GlobalVariable *> CSVs;
+  SetVector<GlobalVariable *> CSVs;
   const model::Binary &Binary;
 
 public:
@@ -94,8 +100,8 @@ public:
 
 private:
   void wrap(CallInst *Call,
-            ArrayRef<GlobalVariable *> Read,
-            ArrayRef<GlobalVariable *> Written);
+            const std::vector<GlobalVariable *> &Read,
+            const std::vector<GlobalVariable *> &Written);
   void promoteCSVs(Function *F);
   Function *createWrapper(const WrapperKey &Key);
   CSVsUsageMap getUsedCSVs(ArrayRef<CallInst *> CallsRange);
@@ -114,8 +120,10 @@ PromoteCSVs::PromoteCSVs(Module *M,
 
   // Record existing initializers
   const auto &PCCSVs = GCBI.programCounterHandler()->pcCSVs();
-  for (GlobalVariable *CSV :
-       llvm::concat<GlobalVariable *const>(GCBI.csvs(), PCCSVs)) {
+  const auto &R = llvm::concat<GlobalVariable *const>(GCBI.csvs(), PCCSVs);
+  SmallVector<GlobalVariable *> CSVsToSort{ R.begin(), R.end() };
+  llvm::sort(CSVsToSort, CompareByName);
+  for (GlobalVariable *CSV : CSVsToSort) {
     if (GCBI.isSPReg(CSV))
       continue;
 
@@ -218,16 +226,9 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   return HelperWrapper;
 }
 
-template<typename T>
-std::set<T> toSet(ArrayRef<T> AR) {
-  std::set<T> Result;
-  copy(AR, std::inserter(Result, Result.begin()));
-  return Result;
-}
-
 void PromoteCSVs::wrap(CallInst *Call,
-                       ArrayRef<GlobalVariable *> Read,
-                       ArrayRef<GlobalVariable *> Written) {
+                       const std::vector<GlobalVariable *> &Read,
+                       const std::vector<GlobalVariable *> &Written) {
 
   if (Read.size() == 0 and Written.size() == 0)
     return;
@@ -235,7 +236,7 @@ void PromoteCSVs::wrap(CallInst *Call,
   Function *Helper = getCallee(Call);
   revng_assert(Helper != nullptr);
 
-  WrapperKey Key{ Helper, toSet(Read), toSet(Written) };
+  WrapperKey Key{ Helper, Read, Written };
 
   // Fetch or create the wrapper
   Function *&HelperWrapper = Wrappers[Key];
@@ -566,7 +567,7 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
     CSVsUsage &CSVsUsage = UsedCSVs.get(Call);
 
     // Sort to ensure compatibility between caller and callee
-    CSVsUsage.sort();
+    CSVsUsage.sortByName();
 
     wrap(Call, CSVsUsage.Read, CSVsUsage.Written);
   }
