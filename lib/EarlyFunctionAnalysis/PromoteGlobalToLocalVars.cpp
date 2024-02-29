@@ -5,6 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
 
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
@@ -36,7 +37,7 @@ PromoteGlobalToLocalPass::run(llvm::Function &F,
 
   // Create an equivalent local variable, replace all the uses of the CSV.
   IRBuilder<> Builder(&F.getEntryBlock().front());
-  for (const auto &[CSV, _] : CSVMap) {
+  for (GlobalVariable *CSV : toSortedByName(llvm::make_first_range(CSVMap))) {
     auto *CSVTy = CSV->getValueType();
     auto *Alloca = Builder.CreateAlloca(CSVTy, nullptr, CSV->getName());
     replaceAllUsesInFunctionWith(&F, CSV, Alloca);
