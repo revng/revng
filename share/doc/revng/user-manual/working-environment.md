@@ -1,4 +1,33 @@
-In order to get a working environment, you need to install our package manager, orchestra.
+We'll now introduce how to set up a working rev.ng environment, both as a user, just downloading a binary distribution, or as a developer, installing `orchestra`, our package manager.
+
+## Installing rev.ng as a user
+
+It should be as simple as:
+
+```{bash notest}
+$ curl -L -s https://rev.ng/downloads/revng-distributable/master/install.sh | bash
+```
+
+You can now use `revng` as follows:
+
+```{bash notest}
+$ cd revng
+$ ./revng artifact
+```
+
+Alternatively, you can set the environment so you don't need to do `./revng` bug just `revng`:
+
+```{bash notest}
+$ cd revng
+$ source ./environment
+$ revng artifact
+```
+
+The rest of the documentation assumes you performed the last set of commands.
+
+## Installing rev.ng as a developer
+
+In order to get a working development environment, you need to install our package manager, orchestra.
 
 First of all, let's clone the orchestra configuration:
 
@@ -42,8 +71,10 @@ Now you can enter the environment where you can use `revng`:
 
 ```{bash notest}
 $ orc shell
-$ revng artifact --help
+$ revng artifact
 ```
+
+The rest of the documentation assumes you're in an `orc shell`.
 
 ### Building from source
 
