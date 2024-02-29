@@ -220,6 +220,7 @@ public:
   auto get() const noexcept { return Pointer.get(); }
   auto &operator*() const { return *Pointer; }
   auto *operator->() const noexcept { return Pointer.operator->(); }
+  explicit operator bool() const noexcept { return static_cast<bool>(Pointer); }
 
   void reset(pointer Other = pointer()) noexcept { Pointer.reset(Other); }
 
