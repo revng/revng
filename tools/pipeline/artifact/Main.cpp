@@ -16,6 +16,7 @@
 
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
+#include "revng/Pipeline/AnalysesList.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/CopyPipe.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
@@ -59,6 +60,10 @@ static cl::list<string> AnalysesLists("analyses-list",
                                       desc("Analyses list to run"),
                                       cat(MainCategory));
 
+static opt<bool> Analyze("analyze",
+                         desc("Run all available *-initial-auto-analysis"),
+                         cat(MainCategory));
+
 static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
@@ -100,9 +105,15 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
+  if (Analyze && AnalysesLists.getNumOccurrences() > 0) {
+    AbortOnError(createStringError(inconvertibleErrorCode(),
+                                   "Cannot use --analyze and --analyses-lists "
+                                   "together."));
+  }
+
   if (Arguments.size() == 1) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "expected any number of positional "
+                                   "Expected any number of positional "
                                    "arguments different from 1"));
   }
 
@@ -122,6 +133,27 @@ int main(int argc, char *argv[]) {
   T.advance("Run analyses", true);
 
   Task T2(AnalysesLists.size(), "Analyses");
+
+  if (Analyze) {
+    // TODO: drop this once we merge revng-c in here
+    SmallVector<StringRef> Lists = { "revng-initial-auto-analysis",
+                                     "revng-c-initial-auto-analysis" };
+    for (StringRef AnalysisListName : Lists) {
+
+      if (not Manager.getRunner().hasAnalysesList(AnalysisListName)) {
+        AbortOnError(createStringError(inconvertibleErrorCode(),
+                                       "The \"" + AnalysisListName.str()
+                                         + "\" analysis list is not "
+                                           "available.\n"));
+      }
+
+      const AnalysesList &List = Manager.getRunner()
+                                   .getAnalysesList(AnalysisListName);
+
+      AbortOnError(Manager.runAnalyses(List, InvMap));
+    }
+  }
+
   for (const std::string &AnalysesListName : AnalysesLists) {
     T2.advance(AnalysesListName, true);
     AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
