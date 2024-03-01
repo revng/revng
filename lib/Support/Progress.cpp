@@ -212,12 +212,17 @@ public:
         auto StepsCount = *MaybeStepsCount;
         revng_assert(Task->stepIndex() < StepsCount);
 
-        float Addendum = 0.0;
+        if (StepsCount != 0) {
 
-        if (Task->currentStepHasSingleSubtask())
-          Addendum = Advancements[I + 1];
+          float Addendum = 0.0;
 
-        Advancements[I] = (StepIndex(Task) + Addendum) / StepsCount;
+          if (Task->currentStepHasSingleSubtask())
+            Addendum = Advancements[I + 1];
+
+          Advancements[I] = (StepIndex(Task) + Addendum) / StepsCount;
+        } else {
+          Advancements[I] = 0.0;
+        }
       }
 
       revng_assert(Advancements[I] <= 1.0);
