@@ -132,8 +132,9 @@ Branches:
               - remove-pointer-casts
               - make-model-gep
               - dce
-              - exit-ssa
               - twoscomplement-normalization
+              - peephole-opt-for-decompilation
+              - exit-ssa
               - ternary-reduction
               - make-local-variables
               - remove-load-store
