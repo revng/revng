@@ -1233,7 +1233,11 @@ findDebugInfoFileByName(StringRef FileName,
 }
 
 void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
-  Task T(2, "Import DWARF files");
+  Task T(3,
+         "Importing DWARF information for "
+           + llvm::sys::path::filename(FileName));
+
+  T.advance("Fetching debug info", true);
 
   using namespace llvm::object;
   ErrorOr<std::unique_ptr<MemoryBuffer>>
@@ -1273,7 +1277,9 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
-      T.advance("Parsing " + llvm::sys::path::filename(TheDebugFile), true);
+      T.advance("Parsing detached debug info file "
+                  + llvm::sys::path::filename(TheDebugFile),
+                true);
       import(*ExpectedBinary->getBinary(), TheDebugFile, Options.BaseAddress);
     }
   };
@@ -1312,7 +1318,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
     }
   }
 
-  T.advance("Parsing " + llvm::sys::path::filename(FileName), true);
+  T.advance("Parsing debug info in the binary itself", true);
   import(*BinOrErr->get(), FileName, Options.BaseAddress);
 }
 
