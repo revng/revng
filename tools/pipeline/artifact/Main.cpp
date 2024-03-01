@@ -132,8 +132,8 @@ int main(int argc, char *argv[]) {
   Task T(2, "revng-artifact");
   T.advance("Run analyses", true);
 
-  Task T2(AnalysesLists.size(), "Analyses");
-
+  // Collect analyses lists to run
+  SmallVector<StringRef> ListsToRun;
   if (Analyze) {
     // TODO: drop this once we merge revng-c in here
     SmallVector<StringRef> Lists = { "revng-initial-auto-analysis",
@@ -147,19 +147,20 @@ int main(int argc, char *argv[]) {
                                            "available.\n"));
       }
 
-      const AnalysesList &List = Manager.getRunner()
-                                   .getAnalysesList(AnalysisListName);
-
-      AbortOnError(Manager.runAnalyses(List, InvMap));
+      ListsToRun.push_back(AnalysisListName);
     }
+  } else if (AnalysesLists.size() != 0) {
+    for (const std::string &AnalysisList : AnalysesLists)
+      ListsToRun.push_back(AnalysisList);
   }
 
-  for (const std::string &AnalysesListName : AnalysesLists) {
+  // Run the analyses lists
+  Task T2(ListsToRun.size(), "Run analyses lists");
+  for (StringRef AnalysesListName : ListsToRun) {
     T2.advance(AnalysesListName, true);
     AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
     AbortOnError(Manager.runAnalyses(AL, InvMap));
   }
-  T2.complete();
 
   T.advance("Produce artifact", true);
   if (not Manager.getRunner().containsStep(Arguments[0])) {
