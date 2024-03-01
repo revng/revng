@@ -189,8 +189,6 @@ $ revng artifact decompile sum --model model.yml | revng ptml
   }
 ```
 
-> **Note**: the open source release of rev.ng does not currently provide the `decompile` artifact. You need access to the binary distribution to run the command above. However, we plan to move the emission of this (and any other) artifact into the open source revng project.
-
 ### Step 6: Renaming
 
 One of the main activities of a reverse engineer is giving things a name, just like Adam in the Genesis.

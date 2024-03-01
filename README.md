@@ -1,68 +1,31 @@
-# Purpose
+# The rev.ng binary analysis framework and decompiler
 
-`revng` is a static binary translator. Given an input ELF binary for one of the supported architectures (currently i386, x86-64, MIPS, ARM, AArch64 and s390x) it will analyze it and emit an equivalent LLVM IR. To do so, `revng` employs the QEMU intermediate representation (a series of TCG instructions) and then translates them to LLVM IR.
+Welcome to the [rev.ng](https://rev.ng) project!
 
-# How to build
+rev.ng is an open source binary analysis framework based on LLVM and QEMU.
+It features a full-fledged decompiler.
+It's developed by [rev.ng Labs](https://rev.ng/about) in the open.
 
-`revng` employs CMake as a build system.
-In order to build `revng`, use [orchestra](https://github.com/revng/orchestra) and make sure you're [building revng from source](https://github.com/revng/orchestra#building-from-source).
+This repository contains the source code of the rev.ng infrastructure and of the lifter. You can find the source of the decompiler in the [`revng-c` repository](https://github.com/revng/revng-c).
+Eventually, these two repositories will be merged.
 
-You can install as follows:
+## Getting started
 
-```sh
-orc install revng
-```
+Head to the [online documentation](https://docs.rev.ng) to get started ([source](share/doc/revng/index.md)).
 
-Remember to enter an `orc shell` to run `revng`:
+## Getting in touch
 
-```sh
-orc shell
-revng --help
-```
+You can get in touch with us through the following means:
 
-You can run the test suite as follows:
+* [X/Twitter](https://twitter.com/_revng), for the latest news about the project;
+* [Discord](https://discord.gg/wEQtgKJxcX), a place for chatting for users and developers;
+* [Discourse](https://discuss.rev.ng/), for user discussions;
+* [GitHub](https://github.com/revng), for development issues and PRs;
+* [E-mail](mailto:info@rev.ng), for anything else;
 
-```sh
-orc install --test revng
-```
+## License
 
-# Example run
+The rev.ng binary analysis framework and decompiler is Free Software.
 
-The simplest possible example consists in the following:
-
-```sh
-# Install revng
-orc install revng
-
-# Install the ARM toolchain
-orc install toolchain/arm/gcc
-
-# Enter in the build directory
-orc shell -c revng
-
-# Build
-ninja
-
-# Create hello world program
-cat > hello.c <<EOF
-#include <stdio.h>
-
-int main(int argc, char *argv[]) {
-  printf("Hello, world!\n");
-}
-EOF
-
-# Compile
-armv7a-hardfloat-linux-uclibceabi-gcc \
-  -Wl,-Ttext-segment=0x20000 \
-  -static hello.c \
-  -o hello.arm
-
-# Translate
-./bin/revng translate hello.arm
-chmod +x hello.arm.translated
-
-# Run translated version
-./hello.arm.translated
-# Hello, world!
-```
+rev.ng depends on certain on GPLv2 components (in particular, QEMU), so the project is [GPLv2-licensed as a whole](LICENSE).
+However, the individual files are licensed under the [MIT license](LICENSE.mit).
