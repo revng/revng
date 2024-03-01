@@ -128,7 +128,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
 
         bool IsScalar = Pointee.isScalar();
 
-        auto MaybeSize = Pointee.trySize();
+        auto MaybeSize = Pointee.size();
         bool IsSized = MaybeSize.has_value();
 
         bool IsFunction = Pointee.is(model::TypeKind::RawFunctionType)

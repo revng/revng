@@ -14,6 +14,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
@@ -124,7 +125,9 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
               continue;
 
         ConstantInt *ConstOp = dyn_cast<ConstantInt>(skipCasts(Op));
-        if (ConstOp != nullptr and ConstOp->getBitWidth() <= 64) {
+        using namespace model::Architecture;
+        auto PointerSize = getPointerSize(Model->Architecture());
+        if (ConstOp != nullptr and ConstOp->getBitWidth() == PointerSize) {
           uint64_t ConstantAddress = ConstOp->getZExtValue();
 
           if (auto Segment = findLiteralInSegments(*Model, ConstantAddress);
