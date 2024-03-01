@@ -19,7 +19,6 @@
 #include "revng/Model/Register.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Model/VerifyTypeHelper.h"
 
 using llvm::cast;
 using llvm::dyn_cast;
@@ -615,6 +614,7 @@ bool EnumEntry::verify(bool Assert) const {
 }
 
 bool EnumEntry::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
   return VH.maybeFail(CustomName().verify(VH));
 }
 
@@ -630,7 +630,6 @@ std::optional<uint64_t> QualifiedType::trySize() const {
 
 RecursiveCoroutine<std::optional<uint64_t>>
 QualifiedType::size(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
   std::optional<uint64_t> MaybeSize = rc_recur trySize(VH);
   revng_check(MaybeSize);
   if (*MaybeSize == 0)
@@ -641,7 +640,6 @@ QualifiedType::size(VerifyHelper &VH) const {
 
 RecursiveCoroutine<std::optional<uint64_t>>
 QualifiedType::trySize(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
   // This code assumes that the QualifiedType QT is well formed.
   auto QIt = Qualifiers().begin();
   auto QEnd = Qualifiers().end();
@@ -839,7 +837,6 @@ std::optional<uint64_t> Type::trySize() const {
 }
 
 std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
   std::optional<uint64_t> MaybeSize = trySize(VH);
   revng_check(MaybeSize);
   if (*MaybeSize == 0)
@@ -854,7 +851,8 @@ std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
 //       to its little brother as well.
 RecursiveCoroutine<std::optional<uint64_t>>
 Type::trySize(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
+  // TODO: handle recursive types
+
   auto MaybeSize = VH.size(this);
   if (MaybeSize)
     rc_return MaybeSize;
@@ -866,7 +864,7 @@ Type::trySize(VerifyHelper &VH) const {
   case TypeKind::RawFunctionType:
   case TypeKind::CABIFunctionType:
     // Function prototypes have no size
-    rc_return std::nullopt;
+    rc_return 0;
 
   case TypeKind::PrimitiveType: {
     auto *P = cast<PrimitiveType>(this);
@@ -932,7 +930,6 @@ Type::trySize(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const PrimitiveType *T) {
-  auto Guard = VH.suspendTracking(*T);
   revng_assert(T->Kind() == TypeKind::PrimitiveType);
 
   if (not T->CustomName().empty() or not T->OriginalName().empty())
@@ -984,7 +981,6 @@ bool Identifier::verify(VerifyHelper &VH) const {
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const EnumType *T) {
 
-  auto Guard = VH.suspendTracking(*T);
   if (T->Kind() != TypeKind::EnumType or T->Entries().empty()
       or not T->CustomName().verify(VH))
     rc_return VH.fail();
@@ -1014,7 +1010,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const TypedefType *T) {
-  auto Guard = VH.suspendTracking(*T);
   rc_return VH.maybeFail(T->CustomName().verify(VH)
                          and T->Kind() == TypeKind::TypedefType
                          and rc_recur T->UnderlyingType().verify(VH));
@@ -1056,7 +1051,6 @@ bool model::QualifiedType::isScalar() const {
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const StructType *T) {
 
-  auto Guard = VH.suspendTracking(*T);
   using namespace llvm;
 
   revng_assert(T->Kind() == TypeKind::StructType);
@@ -1113,13 +1107,16 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail("Last field ends outside the struct", *T);
     }
 
-    if (isVoidConst(&Field.Type()).IsVoid)
-      rc_return VH.fail("Field " + Twine(Index + 1) + " is void", *T);
+    if (not rc_recur Field.Type().size(VH))
+      rc_return VH.fail("Field " + Twine(Index + 1) + " has no size", *T);
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Field.CustomName()))
-        rc_return VH.fail("Field name collides with global symbol", *T);
+      if (VH.isGlobalSymbol(Field.CustomName())) {
+        rc_return VH.fail("Field \"" + Field.CustomName()
+                            + "\" collides with global symbol",
+                          *T);
+      }
 
       if (not Names.insert(Field.CustomName()).second)
         rc_return VH.fail("Collision in struct fields names", *T);
@@ -1133,7 +1130,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const UnionType *T) {
-  auto Guard = VH.suspendTracking(*T);
   revng_assert(T->Kind() == TypeKind::UnionType);
 
   if (not T->CustomName().verify(VH))
@@ -1160,14 +1156,17 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     // This is verified AggregateField::verify
     revng_assert(MaybeSize);
 
-    if (isVoidConst(&Field.Type()).IsVoid) {
-      rc_return VH.fail("Field " + Twine(Field.Index()) + " is void", *T);
+    if (not rc_recur Field.Type().size(VH)) {
+      rc_return VH.fail("Field " + Twine(Field.Index()) + " has no size", *T);
     }
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Field.CustomName()))
-        rc_return VH.fail("Field name collides with global symbol", *T);
+      if (VH.isGlobalSymbol(Field.CustomName())) {
+        rc_return VH.fail("Field \"" + Field.CustomName()
+                            + "\" collides with global symbol",
+                          *T);
+      }
 
       if (not Names.insert(Field.CustomName()).second)
         rc_return VH.fail("Collision in union fields names", *T);
@@ -1180,7 +1179,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const CABIFunctionType *T) {
 
-  auto Guard = VH.suspendTracking(*T);
   if (not T->CustomName().verify(VH) or T->Kind() != TypeKind::CABIFunctionType
       or not rc_recur T->ReturnType().verify(VH))
     rc_return VH.fail();
@@ -1211,17 +1209,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (not rc_recur Argument.Type().verify(VH))
       rc_return VH.fail("An argument has invalid type", *T);
 
-    VoidConstResult VoidConst = isVoidConst(&Argument.Type());
-    if (VoidConst.IsVoid) {
-      // If we have a void argument it must be the only one, and the function
-      // cannot be vararg.
-      if (T->Arguments().size() > 1)
-        rc_return VH.fail("More than 1 void argument", *T);
-
-      // Cannot have const-qualified void as argument.
-      if (VoidConst.IsConst)
-        rc_return VH.fail("Cannot have const void argument", *T);
-    }
+    if (not rc_recur Argument.Type().size(VH))
+      rc_return VH.fail("An argument has no size", *T);
   }
 
   rc_return true;
@@ -1287,8 +1276,8 @@ bool Type::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
-
   auto Guard = VH.suspendTracking(*this);
+
   if (VH.isVerified(this))
     rc_return true;
 
@@ -1360,8 +1349,8 @@ bool QualifiedType::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
-
   auto Guard = VH.suspendTracking(*this);
+
   if (not UnqualifiedType().isValid())
     rc_return VH.fail("Underlying type is invalid", *this);
 
@@ -1483,6 +1472,7 @@ bool NamedTypedRegister::verify(bool Assert) const {
 
 RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   // Ensure the name is valid
   if (not CustomName().verify(VH))
     rc_return VH.fail();
@@ -1501,6 +1491,7 @@ bool StructField::verify(bool Assert) const {
 
 RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   if (not rc_recur Type().verify(VH))
     rc_return VH.fail("Aggregate field type is not valid");
 
@@ -1522,8 +1513,8 @@ bool UnionField::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
-
   auto Guard = VH.suspendTracking(*this);
+
   if (not rc_recur Type().verify(VH))
     rc_return VH.fail("Aggregate field type is not valid");
 

@@ -23,6 +23,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/STLExtras.h"
+#include "revng/Model/Argument.h"
+#include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
@@ -417,10 +419,15 @@ private:
 
   static std::string getName(const DWARFDie &Die) {
     auto MaybeName = Die.find(DW_AT_name);
+
     if (MaybeName) {
       auto MaybeString = MaybeName->getAsCString();
-      if (MaybeString)
+      if (auto E = MaybeString.takeError()) {
+        auto Message = toString(std::move(E));
+        revng_log(DILogger, "Can't get DIE name: " << Message);
+      } else {
         return *MaybeString;
+      }
     }
 
     return {};
@@ -517,6 +524,9 @@ private:
                                + " cannot be resolved");
             rc_return nullptr;
           }
+
+          // Note: at this stage we don't check the size. If an argument is
+          // unsized, the function will be purged later on.
 
           model::Argument &NewArgument = FunctionType->Arguments()[Index];
           NewArgument.Type() = *ArgumentType;
@@ -845,17 +855,20 @@ private:
     uint64_t Index = 0;
     for (const DWARFDie &ChildDie : Die.children()) {
       if (ChildDie.getTag() == DW_TAG_formal_parameter) {
-        const model::QualifiedType *ArgumenType = getType(ChildDie);
-        if (ArgumenType == nullptr) {
+        const model::QualifiedType *ArgumentType = getType(ChildDie);
+        if (ArgumentType == nullptr) {
           reportIgnoredDie(Die,
                            "The type of argument " + Twine(Index + 1)
                              + " cannot be resolved");
           return std::nullopt;
         }
 
+        // Note: at this stage we don't check the size. If an argument is
+        // unsized, the function will be purged later on.
+
         model::Argument &NewArgument = FunctionType->Arguments()[Index];
         NewArgument.OriginalName() = getName(ChildDie);
-        NewArgument.Type() = *ArgumenType;
+        NewArgument.Type() = *ArgumentType;
         Index += 1;
       }
     }
@@ -893,10 +906,11 @@ private:
           if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
-          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
-            Function.OriginalName() = SymbolName;
-
-          Function.ExportedNames().insert(SymbolName);
+          if (SymbolName.size() != 0) {
+            Function.ExportedNames().insert(SymbolName);
+            if (Function.OriginalName().size() == 0)
+              Function.OriginalName() = SymbolName;
+          }
 
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
@@ -939,12 +953,12 @@ private:
       if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
         llvm::erase_if(Struct->Fields(), [&VH](model::StructField &Field) {
           std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
-          return !MaybeSize || not *MaybeSize;
+          return MaybeSize.value_or(0) == 0;
         });
       } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
         llvm::erase_if(Union->Fields(), [&VH](model::UnionField &Field) {
           std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
-          return !MaybeSize || not *MaybeSize;
+          return MaybeSize.value_or(0) == 0;
         });
       }
 
@@ -957,13 +971,24 @@ private:
       }
 
       //
+      // Drop functions with 0-sized arguments.
+      //
+      if (auto *FunctionType = dyn_cast<model::CABIFunctionType>(Type.get())) {
+        for (model::Argument &Argument : FunctionType->Arguments()) {
+          std::optional<uint64_t> Size = Argument.Type().trySize(VH);
+          if (Size.value_or(0) == 0)
+            ToDrop.insert(FunctionType);
+        }
+      }
+
+      //
       // Collect array whose elements are zero-sized
       //
       for (const model::QualifiedType &QT : Type->edges()) {
         model::TypePath Unqualified = QT.UnqualifiedType();
         if (Unqualified.isValid()) {
           std::optional<uint64_t> Size = Unqualified.get()->trySize(VH);
-          if (Size.has_value())
+          if (Size.value_or(0) != 0)
             continue;
         }
 
@@ -1118,6 +1143,18 @@ static void error(StringRef Prefix, std::error_code EC) {
   revng_abort(Str.c_str());
 }
 
+static bool fileExists(const Twine &Path) {
+  bool Result = sys::fs::exists(Path);
+
+  if (Result) {
+    revng_log(DILogger, "The following path does not exist: " << Path.str());
+  } else {
+    revng_log(DILogger, "Found: " << Path.str());
+  }
+
+  return Result;
+}
+
 static std::optional<std::string>
 findDebugInfoFileByName(StringRef FileName,
                         StringRef DebugFileName,
@@ -1138,7 +1175,7 @@ findDebugInfoFileByName(StringRef FileName,
     llvm::sys::path::append(ResultPath, DebugFileName);
   }
 
-  if (sys::fs::exists(ResultPath.str())) {
+  if (fileExists(ResultPath.str())) {
     return std::string(ResultPath.str());
   } else {
     // Try in .debug/ directory.
@@ -1148,7 +1185,7 @@ findDebugInfoFileByName(StringRef FileName,
                             ".debug/",
                             DebugFileName);
 
-    if (sys::fs::exists(ResultPath.str())) {
+    if (fileExists(ResultPath.str())) {
       return std::string(ResultPath.str());
     } else {
       // Try `/usr/lib/debug/usr/bin/ls.debug`-like path.
@@ -1173,7 +1210,7 @@ findDebugInfoFileByName(StringRef FileName,
         }
       }
 
-      if (sys::fs::exists(ResultPath.str())) {
+      if (fileExists(ResultPath.str())) {
         return std::string(ResultPath.str());
       } else {
         // Try If build-id is `abcdef1234`, we look for:
@@ -1192,7 +1229,7 @@ findDebugInfoFileByName(StringRef FileName,
                                   DebugDir,
                                   DebugFileWithExtension);
 
-          if (sys::fs::exists(ResultPath.str())) {
+          if (fileExists(ResultPath.str())) {
             return std::string(ResultPath.str());
           } else {
             // Try in XDG_CACHE_HOME at the end.
@@ -1204,7 +1241,7 @@ findDebugInfoFileByName(StringRef FileName,
             if (!XDGCacheHome) {
               llvm::sys::path::append(ResultPath,
                                       PathHome,
-                                      ".local/share/revng/debug-symbols/elf/",
+                                      ".cache/revng/debug-symbols/elf/",
                                       BuildID,
                                       "debug");
             } else {
@@ -1215,7 +1252,7 @@ findDebugInfoFileByName(StringRef FileName,
                                       "debug");
             }
 
-            if (sys::fs::exists(ResultPath.str())) {
+            if (fileExists(ResultPath.str())) {
               return std::string(ResultPath.str());
             } else {
               revng_log(DILogger, "Can't find " << DebugFileName);
@@ -1426,7 +1463,11 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
       for (auto AliasSetIt = Aliases.member_begin(AliasesIt);
            AliasSetIt != Aliases.member_end();
            ++AliasSetIt) {
+
         std::string Name = AliasSetIt->str();
+        if (Name.size() == 0)
+          continue;
+
         CurrentAliases.push_back(Name);
 
         // Create DynamicFunction, if it doesn't exist already

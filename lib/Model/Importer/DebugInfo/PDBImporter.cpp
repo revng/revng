@@ -287,15 +287,27 @@ void PDBImporter::loadDataFromPDB(std::string PDBFileName) {
   }
 }
 
+static bool fileExists(const Twine &Path) {
+  bool Result = sys::fs::exists(Path);
+
+  if (Result) {
+    revng_log(DILogger, "The following path does not exist: " << Path.str());
+  } else {
+    revng_log(DILogger, "Found: " << Path.str());
+  }
+
+  return Result;
+}
+
 // At first, check if we can find the file path on this device as is.
 // If the XDG_CACHE_HOME was set, we will find there, if not, try finding it in
-// the `~/.local/share/revng/debug-symbols/pe/`.
+// the `~/.cache/revng/debug-symbols/pe/`.
 std::optional<std::string>
 PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
                                   StringRef PDBFilePath,
                                   StringRef InputFileName) {
   llvm::SmallString<128> ResultPath;
-  if (llvm::sys::fs::exists(ResultPath.str()))
+  if (fileExists(ResultPath.str()))
     return std::string(ResultPath.str());
 
   ResultPath.clear();
@@ -318,7 +330,7 @@ PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
     }
   }
 
-  if (llvm::sys::fs::exists(ResultPath.str()))
+  if (fileExists(ResultPath.str()))
     return std::string(ResultPath.str());
 
   ResultPath.clear();
@@ -329,18 +341,18 @@ PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
     // Default debug directory.
     llvm::sys::path::append(ResultPath,
                             PathHome.str(),
-                            ".local/share/revng/debug-symbols/pe/",
+                            ".cache/revng/debug-symbols/pe/",
                             PDBFileID,
                             PDBFilePath);
   } else {
     llvm::sys::path::append(ResultPath,
                             *XDGCacheHome,
-                            ".local/share/revng/debug-symbols/pe/",
+                            ".cache/revng/debug-symbols/pe/",
                             PDBFileID,
                             PDBFilePath);
   }
 
-  if (llvm::sys::fs::exists(ResultPath.str()))
+  if (fileExists(ResultPath.str()))
     return std::string(ResultPath.str());
 
   return std::nullopt;
@@ -395,7 +407,7 @@ void PDBImporter::import(const COFFObjectFile &TheBinary,
     if (not UsePDB.empty()) {
       // Sometimes we may rename a PDB file, so we can force using that one.
       loadDataFromPDB(UsePDB);
-    } else if (llvm::sys::fs::exists(PDBFilePath)) {
+    } else if (fileExists(PDBFilePath)) {
       // Use the path of the PDB file if it exists on the device.
       loadDataFromPDB(PDBFilePath.str());
     } else {

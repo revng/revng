@@ -445,9 +445,6 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
       continue;
     }
-
-    revng_log(ELFImporterLog,
-              "Searching for prototype for " << Fn.OriginalName());
     auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
     if (TypeLocation) {
       model::TypePath MatchingType = (*TypeLocation).Type;
@@ -464,6 +461,9 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         if (Attribute != model::FunctionAttribute::Inline)
           Fn.Attributes().insert(Attribute);
       }
+    } else {
+      revng_log(ELFImporterLog,
+                "Prototype for " << Fn.OriginalName() << " not found");
     }
   }
 
@@ -605,7 +605,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
       auto It = Model->Functions().find(Address);
       if (It == Model->Functions().end()) {
         model::Function &Function = Model->Functions()[Address];
-        if (MaybeName) {
+        if (MaybeName and MaybeName->size() > 0) {
           Function.OriginalName() = *MaybeName;
           // Insert Original name into exported ones, since it is by default
           // true.
@@ -807,7 +807,8 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
         Function->OriginalName() = Name;
       }
 
-      Function->ExportedNames().insert(Name.str());
+      if (Name.size() > 0)
+        Function->ExportedNames().insert(Name.str());
     } else {
       Address = relocate(fromGeneric(Symbol.st_value));
       if (not llvm::is_contained(DataSymbols,

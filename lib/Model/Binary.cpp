@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <system_error>
+
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -12,12 +14,14 @@
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/OverflowSafeInt.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Tracking.h"
 
 using namespace llvm;
@@ -139,6 +143,7 @@ bool Binary::verifyTypes(bool Assert) const {
 
 bool Binary::verifyTypes(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   // All types on their own should verify
   std::set<Identifier> Names;
   for (auto &Type : Types()) {
@@ -218,7 +223,6 @@ bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
 static bool verifyGlobalNamespace(VerifyHelper &VH,
                                   const model::Binary &Model) {
 
-  auto Guard = VH.suspendTracking(Model);
   // Namespacing rules:
   //
   // 1. each struct/union induces a namespace for its field names;
@@ -262,10 +266,10 @@ static bool verifyGlobalNamespace(VerifyHelper &VH,
 }
 
 bool Binary::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
   // First of all, verify the global namespace: we need to fully populate it
   // before we can verify namespaces with smaller scopes
-
-  auto Guard = VH.suspendTracking(*this);
   if (not verifyGlobalNamespace(VH, *this))
     return VH.fail();
 
@@ -354,8 +358,8 @@ bool Relocation::verify(bool Assert) const {
 }
 
 bool Relocation::verify(VerifyHelper &VH) const {
-
   auto Guard = VH.suspendTracking(*this);
+
   if (Type() == model::RelocationType::Invalid)
     return VH.fail("Invalid relocation", *this);
 
@@ -373,6 +377,7 @@ bool Section::verify(bool Assert) const {
 
 bool Section::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   auto EndAddress = StartAddress() + Size();
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow");
@@ -408,6 +413,7 @@ bool Segment::verify(bool Assert) const {
 
 bool Segment::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   using OverflowSafeInt = OverflowSafeInt<uint64_t>;
 
   if (FileSize() > VirtualSize())
@@ -497,6 +503,7 @@ bool Function::verify(bool Assert) const {
 
 bool Function::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   if (not Entry().isValid())
     return VH.fail("Invalid Entry", *this);
 
@@ -554,6 +561,7 @@ bool DynamicFunction::verify(bool Assert) const {
 
 bool DynamicFunction::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   // Ensure we have a name
   if (OriginalName().size() == 0)
     return VH.fail("Dynamic functions must have a OriginalName", *this);
@@ -598,6 +606,7 @@ bool CallSitePrototype::verify(bool Assert) const {
 
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
   if (Prototype().empty() or not Prototype().isValid())
     return VH.fail("Invalid prototype");
 
@@ -814,3 +823,19 @@ Values formCOFFRelocation(model::Architecture::Values Architecture) {
 } // namespace RelocationType
 
 } // namespace model
+
+void dumpModel(const model::Binary &Model, const char *Path) debug_function;
+
+void dumpModel(const model::Binary &Model, const char *Path) {
+  std::error_code EC;
+  raw_fd_stream Stream(Path, EC);
+  revng_assert(not EC);
+  serialize(Stream, Model);
+}
+
+void dumpModel(const TupleTree<model::Binary> &Model,
+               const char *Path) debug_function;
+
+void dumpModel(const TupleTree<model::Binary> &Model, const char *Path) {
+  dumpModel(*Model, Path);
+}

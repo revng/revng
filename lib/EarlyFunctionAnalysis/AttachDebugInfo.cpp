@@ -1,5 +1,20 @@
 /// \file AttachDebugInfo.cpp
+///
 /// A simple pass to attach debug metadata.
+///
+/// This pass visits each function into reverse post order and, each time it
+/// finds a call to newpc, updates the "current location". While doing the visit
+/// we attach the "current location" to each instruction we meet.
+///
+/// The debug location we attach refers to a program specific to that program
+/// counter which has been virtually inlined into another subprogram that
+/// represents the current function.
+///
+/// Note however, that subprogram representing the current function is not
+/// attached the function itself, since otherwise that would trigger a rather
+/// strict debug info verification logic, which we currently do not handle.
+/// Specifically, if a function as debug information, then all the inlinable
+/// call sites targeting it need to have debug information too.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -63,6 +78,7 @@ static void handleFunction(DIBuilder &DIB,
                                                true, /* isDefinition*/
                                                false /* isOptimized */);
         auto Type = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
+
         // Let's make the debug location that points back to the binary.
         std::string NewDebugLocation = serializedLocation(ranks::Instruction,
                                                           FM.Entry(),
@@ -78,11 +94,13 @@ static void handleFunction(DIBuilder &DIB,
                                              DINode::FlagPrototyped, // Flags
                                              SPFlags);
         DIB.finalizeSubprogram(Subprogram);
+
         auto InlineLocationForMetaAddress = DILocation::get(Context,
                                                             0,
                                                             0,
                                                             TheSubprogram,
                                                             nullptr);
+
         // Represent debug info for all the isolated functions as if they were
         // inlined in the root.
         auto InlineLoc = DILocation::get(Context,
@@ -90,6 +108,7 @@ static void handleFunction(DIBuilder &DIB,
                                          0,
                                          Subprogram,
                                          InlineLocationForMetaAddress);
+
         CurrentDebugLocation = InlineLoc;
       }
 
@@ -140,6 +159,7 @@ bool AttachDebugInfo::runOnModule(llvm::Module &M) {
                                            false // isOptimized
     );
     auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
+
     DISubprogram
       *TheSubprogram = DIB.createFunction(CU->getFile(), // Scope
                                           F.getName(), // Name
