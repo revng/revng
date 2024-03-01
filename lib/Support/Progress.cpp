@@ -5,6 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#if defined(__linux__)
+extern "C" {
+#include "sys/ioctl.h"
+}
+#endif
+
 #include <chrono>
 
 #include "llvm/Support/Mutex.h"
@@ -186,6 +192,15 @@ public:
   }
 
   void forceDraw(const llvm::TaskStack &Stack, const TimePoint &Now) {
+    std::optional<unsigned> TerminalSize;
+
+#if defined(__linux__)
+    struct winsize Winsize;
+    // TODO: it might not be stderr
+    ioctl(fileno(stderr), TIOCGWINSZ, &Winsize);
+    TerminalSize = Winsize.ws_col;
+#endif
+
     revng_assert(Stack.Tasks.size() == StartTimes.size());
     std::vector<float> Advancements;
     Advancements.resize(Stack.Tasks.size());
@@ -228,11 +243,11 @@ public:
       revng_assert(Advancements[I] <= 1.0);
     }
 
-    std::string Buffer;
-    llvm::raw_string_ostream Line(Buffer);
+    std::string Lines;
 
     // Go back MaxProgressBars lines
-    Line << "\r\033[" << (MaxProgressBars) << "A";
+    using llvm::Twine;
+    Lines = (Twine("\r\033[") + Twine(MaxProgressBars) + Twine("A")).str();
 
     llvm::SmallVector<llvm::SmallString<6>> TaskLengths;
     unsigned Longest = 0;
@@ -246,8 +261,10 @@ public:
     }
 
     for (size_t II = 0; II < MaxProgressBars; ++II) {
+      std::string Buffer;
+      llvm::raw_string_ostream Line(Buffer);
+
       size_t I = MaxProgressBars - II - 1;
-      Line << "\r\033[2K";
 
       if (I < Stack.Tasks.size()) {
         auto *T = Stack.Tasks[I];
@@ -286,11 +303,18 @@ public:
           Line << ": " << T->stepName().str();
       }
 
-      Line << "\n";
       Line.flush();
+
+      if (TerminalSize and Buffer.size() > *TerminalSize) {
+        static llvm::StringLiteral Suffix = "...";
+        auto CutTo = *TerminalSize - Suffix.size();
+        Buffer = llvm::StringRef(Buffer).substr(0, CutTo).str() + Suffix.str();
+      }
+
+      Lines += std::string("\r\033[2K") + Buffer + std::string("\n");
     }
 
-    Output << Buffer;
+    Output << Lines;
   }
 };
 
