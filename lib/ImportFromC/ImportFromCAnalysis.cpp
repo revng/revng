@@ -46,17 +46,17 @@ using namespace clang::tooling;
 static constexpr std::string_view InputCFile = "revng-input.c";
 
 static std::vector<std::string>
-getOptionsfromCFGFile(llvm::StringRef FilePath) {
+getOptionsFromCFGFile(llvm::StringRef FilePath) {
   std::vector<std::string> Result;
 
-  std::fstream TheFile;
-  TheFile.open(FilePath.str());
-  if (TheFile.is_open()) {
-    std::string TheOption;
-    while (getline(TheFile, TheOption)) {
-      if (TheOption[0] == '-')
-        Result.push_back(TheOption);
-    }
+  auto MaybeBuffer = llvm::MemoryBuffer::getFile(FilePath);
+  revng_assert(MaybeBuffer);
+
+  llvm::SmallVector<llvm::StringRef, 0> Lines;
+  MaybeBuffer->get()->getBuffer().split(Lines, '\n');
+  for (llvm::StringRef &Line : Lines) {
+    if (Line.size() > 0 and Line[0] == '-')
+      Result.push_back(Line.str());
   }
 
   return Result;
@@ -216,7 +216,7 @@ struct ImportFromCAnalysis {
 
     // Since the `--config` is just a clang Driver option, we need to parse it
     // manually.
-    auto FromCFGFile = getOptionsfromCFGFile(*MaybeCompileCFGPath);
+    auto FromCFGFile = getOptionsFromCFGFile(*MaybeCompileCFGPath);
     std::vector<std::string> Compilation(FromCFGFile);
     Compilation.push_back("-xc");
 

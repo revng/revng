@@ -1263,6 +1263,7 @@ void HeaderToModelDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
   llvm::raw_svector_ostream DiagMessageStream(OutStr);
 
   std::string Text;
+  std::string ErrorLocation;
   llvm::raw_string_ostream OS(Text);
   auto *DiagOpts = &Info.getDiags()->getDiagnosticOptions();
 
@@ -1279,11 +1280,20 @@ void HeaderToModelDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
 
   unsigned Line = 0;
   unsigned Column = 0;
+  std::string FileName;
   if (Info.getLocation().isValid()) {
     FullSourceLoc Location(Info.getLocation(), Info.getSourceManager());
     Line = Location.getLineNumber();
     Column = Location.getColumnNumber();
+    FileName = Location.getPresumedLoc().getFilename();
   }
+
+  ErrorLocation = FileName + ":" + std::to_string(Line) + ":"
+                  + std::to_string(Column) + ": ";
+  Text = ErrorLocation + Text;
+  // Report all the messages coming from clang.
+  if (Error)
+    Text = Error->ErrorMessage + Text;
 
   Error = { Text, Line, Column };
 
