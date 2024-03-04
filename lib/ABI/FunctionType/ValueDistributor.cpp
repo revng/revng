@@ -291,14 +291,12 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
   return { Result };
 }
 
-DistributedValue
-ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
-  if (Type.isVoid())
-    return DistributedValue::voidReturnValue();
+DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
+  revng_assert(!Type.isVoidPrimitive());
 
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
-  if (Type.isFloat() && ABI.FloatsUseGPRs()) {
+  if (Type.isFloatPrimitive() && ABI.FloatsUseGPRs()) {
     RegisterList = ABI.VectorReturnValueRegisters();
 
     // For now replace unsupported floating point return values with `void`

@@ -5,7 +5,9 @@
 ---
 Functions:
   - OriginalName: function
-    Prototype: "/TypeDefinitions/1814-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1814-RawFunctionDefinition"
 TypeDefinitions:
   - ID: 1814
     Kind: RawFunctionDefinition

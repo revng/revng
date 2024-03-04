@@ -344,7 +344,7 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       const auto &ArgumentType = FunctionLayout.Arguments[0].Type;
       const auto &ReturnValueType = FunctionLayout.ReturnValues[0].Type;
       bool TypesMatch = ArgumentType == ReturnValueType;
-      bool ReturnValueIsAPointer = ReturnValueType.isPointer();
+      bool ReturnValueIsAPointer = ReturnValueType->isPointer();
 
       // Case for a register SPTAR - types must match.
       if (TypesMatch && ReturnValueIsAPointer)
@@ -352,7 +352,7 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 
       // Case for a stack SPTAR - allow any type as the argument as long as
       // it's pointer-sized.
-      if (*ArgumentType.size() == PointerSize && ReturnValueIsAPointer)
+      if (*ArgumentType->size() == PointerSize && ReturnValueIsAPointer)
         UsesSPTAR = true;
     }
   }
@@ -461,9 +461,7 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 static abi::FunctionType::Layout
 getPrototypeLayout(const model::Function &Function,
                    const abi::Definition &ABI) {
-  const model::TypeDefinition *ProtoT = Function.Prototype().getConst();
-  revng_assert(ProtoT != nullptr);
-  if (auto *CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(ProtoT)) {
+  if (const auto *CABI = Function.cabiPrototype()) {
     if (ABI != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
                           "the intended ABI is '"
@@ -475,27 +473,28 @@ getPrototypeLayout(const model::Function &Function,
     }
 
     return abi::FunctionType::Layout(*CABI);
-  } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(ProtoT)) {
+  } else if (const auto *Raw = Function.rawPrototype()) {
     auto Result = abi::FunctionType::Layout(*Raw);
+
+    const model::StructDefinition *Stack = Raw->stackArgumentsType();
+    if (!Stack || Stack->Fields().empty())
+      return Result;
+
+    uint64_t FirstOffset = ABI.StackBytesAllocatedForRegisterArguments();
+    if (not FirstOffset)
+      return Result;
+
+    revng_assert(FirstOffset <= Stack->Fields().begin()->Offset(),
+                 "Stack arguments in the shadow space?");
 
     // Because RFT layouts are not ABI aware, there's no way for it to detect
     // the shadow argument space. To work around that, just subtract
     // the difference here.
-    if (ABI.StackBytesAllocatedForRegisterArguments() != 0
-        && !Raw->StackArgumentsType().empty()) {
-      uint64_t FirstArgOffset = ABI.StackBytesAllocatedForRegisterArguments();
-      const model::DefinitionReference &StackPath = Raw->StackArgumentsType();
-      auto &StackStruct = *llvm::cast<model::StructDefinition>(StackPath.get());
-      if (!StackStruct.Fields().empty())
-        if (StackStruct.Fields().begin()->Offset() < FirstArgOffset)
-          revng_abort("Stack arguments in the shadow space?");
-
-      auto &LastArgument = *std::prev(Result.Arguments.end());
-      revng_assert(LastArgument.Stack && LastArgument.Stack->Offset == 0);
-      revng_assert(LastArgument.Stack->Size > FirstArgOffset);
-      LastArgument.Stack->Offset = FirstArgOffset;
-      LastArgument.Stack->Size -= FirstArgOffset;
-    }
+    auto &LastArgument = *std::prev(Result.Arguments.end());
+    revng_assert(LastArgument.Stack && LastArgument.Stack->Offset == 0);
+    revng_assert(LastArgument.Stack->Size > FirstOffset);
+    LastArgument.Stack->Offset = FirstOffset;
+    LastArgument.Stack->Size -= FirstOffset;
 
     return Result;
   } else {

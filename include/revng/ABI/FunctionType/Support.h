@@ -11,21 +11,36 @@
 #include "revng/ADT/Concepts.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/DefinedType.h"
 
 namespace abi::FunctionType {
 
-/// Replace all the references to `OldKey` with the references to
-/// the newly added `NewType`. It also erases the old type.
+/// Replace all the references to a type definition with \p OldKey key with
+/// the \p NewType. It also erases the old type definition.
 ///
-/// \param OldKey The type references of which should be replaced.
-/// \param NewTypePath The reference to a type references should be replaced to.
-/// \param Model The tuple tree where replacement should take place in.
-///
-/// \return The new path to the added type.
-const model::DefinitionReference &
-replaceAllUsesWith(const model::TypeDefinition::Key &OldKey,
-                   const model::DefinitionReference &NewTypePath,
-                   TupleTree<model::Binary> &Model);
+/// \param Old The type references of which should be replaced.
+/// \param New The new type to replace references to.
+inline void replaceTypeDefinition(const model::TypeDefinition::Key &Old,
+                                  const model::DefinitionReference &New,
+                                  TupleTree<model::Binary> &Binary) {
+  using Reference = model::DefinitionReference;
+  Binary.replaceReferencesIf(New, [&Old](const Reference &Path) -> bool {
+    if (Path.empty())
+      return false;
+
+    return Old == Path.getConst()->key();
+  });
+}
+inline void replaceTypeDefinition(const model::TypeDefinition::Key &Old,
+                                  const model::DefinedType &New,
+                                  TupleTree<model::Binary> &Binary) {
+  return replaceTypeDefinition(Old, New.Definition(), Binary);
+}
+inline void replaceTypeDefinition(const model::TypeDefinition::Key &O,
+                                  const model::Type &N,
+                                  TupleTree<model::Binary> &B) {
+  return replaceTypeDefinition(O, llvm::cast<model::DefinedType>(N), B);
+}
 
 /// Takes care of extending (padding) the size of a stack argument.
 ///

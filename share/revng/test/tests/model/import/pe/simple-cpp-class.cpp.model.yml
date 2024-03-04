@@ -14,25 +14,25 @@
 Functions:
   - CustomName: "Foo__Foo"
     OriginalName: "Foo::Foo"
-    Prototype: "/TypeDefinitions/16558654860526908435-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/16558654860526908435-CABIFunctionDefinition"
   - CustomName: "Foo__retX"
     OriginalName: "Foo::retX"
-    Prototype: "/TypeDefinitions/17990064059287856019-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/17990064059287856019-CABIFunctionDefinition"
   - CustomName: "Foo__retY"
     OriginalName: "Foo::retY"
-    Prototype: "/TypeDefinitions/8800211852340388695-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/8800211852340388695-CABIFunctionDefinition"
   - CustomName: "Foo__dummy"
     OriginalName: "Foo::dummy"
-    Prototype: "/TypeDefinitions/11972987020417764497-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/11972987020417764497-CABIFunctionDefinition"
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 256
-    PrimitiveKind: Void
-    Size: 0
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
   - Kind: StructDefinition
     ID: 987067897056915724
     OriginalName: Foo
@@ -41,53 +41,66 @@ TypeDefinitions:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
       - Offset: 4
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
   - Kind: CABIFunctionDefinition
     ID: 16558654860526908435
-    ReturnType:
-      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/12480030069089186527-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/12480030069089186527-StructDefinition"
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
       - Index: 2
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
   - Kind: CABIFunctionDefinition
     ID: 17990064059287856019
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/12480030069089186527-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/12480030069089186527-StructDefinition"
   - Kind: CABIFunctionDefinition
     ID: 8800211852340388695
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/12480030069089186527-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/12480030069089186527-StructDefinition"
   - Kind: CABIFunctionDefinition
     ID: 11972987020417764497
-    ReturnType:
-      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4

@@ -6,6 +6,7 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/Relocation.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
@@ -50,9 +51,8 @@ fields:
       elementType: Relocation
   - name: Type
     doc: The type of the segment
-    reference:
-      pointeeType: TypeDefinition
-      rootType: Binary
+    type: Type
+    upcastable: true
     optional: true
 
 key:
@@ -68,6 +68,27 @@ public:
 
 public:
   Identifier name() const;
+
+public:
+  /// The helper for segment type unwrapping.
+  /// Use this when you need to access/modify the existing struct,
+  /// and \ref Type() when you need to assign a new one.
+  model::StructDefinition *type() {
+    if (Type().empty())
+      return nullptr;
+    else
+      return &Type()->toStruct();
+  }
+
+  /// The helper for segment type unwrapping.
+  /// Use this when you need to access/modify the existing struct,
+  /// and \ref Type() when you need to assign a new one.
+  const model::StructDefinition *type() const {
+    if (Type().empty())
+      return nullptr;
+    else
+      return &Type()->toStruct();
+  }
 
 public:
   bool contains(MetaAddress Address) const {

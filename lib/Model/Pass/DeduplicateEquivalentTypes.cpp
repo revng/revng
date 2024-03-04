@@ -157,9 +157,9 @@ private:
       TypeToNode[T] = TypeGraph.addNode(TypeNode{ T });
 
     // Create edges
-    for (const model::TypeDefinition *T : Types)
-      for (const model::QualifiedType &QT : T->edges())
-        addEdge(T, QT);
+    for (const model::TypeDefinition *Type : Types)
+      for (const model::Type *EdgeType : Type->edges())
+        addEdge(*Type, *EdgeType);
   }
 
   /// Compute a visit order: post order in the leaders of WeakEquivalence
@@ -221,9 +221,9 @@ private:
   }
 
 private:
-  void addEdge(const model::TypeDefinition *T, const model::QualifiedType &QT) {
-    auto *DependantType = QT.UnqualifiedType().get();
-    TypeToNode.at(T)->addSuccessor(TypeToNode.at(DependantType));
+  void addEdge(const model::TypeDefinition &T, const model::Type &Type) {
+    if (const model::TypeDefinition *Definition = Type.skipToDefinition())
+      TypeToNode.at(&T)->addSuccessor(TypeToNode.at(Definition));
   }
 
   bool deepCompare(model::TypeDefinition *LeftType,
@@ -352,13 +352,12 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
     if (!LeaderIt->isLeader())
       continue;
 
-    model::TypeDefinition *Leader = LeaderIt->getData();
-    auto LeaderPath = Model->getDefinitionReference(Leader);
+    auto LeaderR = Model->getDefinitionReference(LeaderIt->getData()->key());
 
     for (model::TypeDefinition *ToCollapse :
          make_range(++EquivalentTypes.member_begin(LeaderIt),
                     EquivalentTypes.member_end())) {
-      Replacements[Model->getDefinitionReference(ToCollapse)] = LeaderPath;
+      Replacements[Model->getDefinitionReference(ToCollapse->key())] = LeaderR;
       ToErase.insert(ToCollapse);
     }
   }

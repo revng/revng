@@ -80,8 +80,14 @@ struct TrackingImpl {
 
   template<typename M, StrictSpecializationOf<UpcastablePointer> T>
   static void collectImpl(const T &UP, TupleTreePath &Stack, ReadFields &Info) {
-    if (!UP.empty())
-      UP.upcast([&](auto &Upcasted) { collectImpl<M>(Upcasted, Stack, Info); });
+    if (!UP.empty()) {
+      UP.upcast([&](auto &Upcasted) {
+        // Don't forget to add the kind of the polymorphic object to the stack.
+        Stack.push_back(Upcasted.Kind());
+        collectImpl<M>(Upcasted, Stack, Info);
+        Stack.pop_back();
+      });
+    }
   }
 
   template<typename M, TupleSizeCompatible T>

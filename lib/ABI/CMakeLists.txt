@@ -10,7 +10,6 @@ revng_add_analyses_library_internal(
   Definition.cpp
   FunctionType/Conversion.cpp
   FunctionType/Layout.cpp
-  FunctionType/Support.cpp
   FunctionType/ValueDistributor.cpp
   RegisterStateDeductions.cpp)
 

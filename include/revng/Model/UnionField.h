@@ -6,7 +6,7 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/QualifiedType.h"
+#include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
@@ -26,7 +26,8 @@ fields:
     type: string
     optional: true
   - name: Type
-    type: QualifiedType
+    type: Type
+    upcastable: true
 key:
   - Index
 TUPLE-TREE-YAML */

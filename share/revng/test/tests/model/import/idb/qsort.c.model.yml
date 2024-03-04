@@ -4,64 +4,82 @@
 
 ImportedDynamicFunctions:
   - OriginalName: qsort
-    Prototype: "/TypeDefinitions/3821538295510931842-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3821538295510931842-CABIFunctionDefinition"
+Functions:
+  - OriginalName: cmpfunc
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/5944255354151483434-CABIFunctionDefinition"
 TypeDefinitions:
   - Kind: CABIFunctionDefinition
     ID: 3821538295510931842
-    OriginalName: qsort
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Void
+            Size: 0
         OriginalName: base
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/855760813070670525-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/855760813070670525-TypedefDefinition"
         OriginalName: nmemb
       - Index: 2
         Type:
-          UnqualifiedType: "/TypeDefinitions/855760813070670525-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/855760813070670525-TypedefDefinition"
         OriginalName: size
       - Index: 3
         Type:
-          UnqualifiedType: "/TypeDefinitions/7339777181910699325-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/7339777181910699325-TypedefDefinition"
         OriginalName: compar
   - Kind: TypedefDefinition
     ID: 855760813070670525
     OriginalName: size_t
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
   - Kind: TypedefDefinition
     ID: 7339777181910699325
     OriginalName: __compar_fn_t
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/5090678720539169893-CABIFunctionDefinition"
-      Qualifiers:
-        - Kind: Pointer
-          Size: 8
+      Kind: PointerType
+      PointerSize: 8
+      PointeeType:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/5090678720539169893-CABIFunctionDefinition"
   - Kind: CABIFunctionDefinition
     ID: 5090678720539169893
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Number
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Const
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            IsConst: true
+            PrimitiveKind: Void
+            Size: 0
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Const
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            IsConst: true
+            PrimitiveKind: Void
+            Size: 0

@@ -381,8 +381,19 @@ bool callByPath(Visitor &V, const TupleTreePath &Path, RootT &M) {
 // getByPath
 //
 
+namespace tupletree::detail {
+
+template<typename RootT>
+constexpr bool IsConst = std::is_const_v<std::remove_reference_t<RootT>>;
+
 template<typename ResultT, typename RootT>
-ResultT *getByPath(const TupleTreePath &Path, RootT &M);
+using getByPathRV = std::conditional_t<IsConst<RootT>, const ResultT, ResultT>;
+
+} // namespace tupletree::detail
+
+template<typename ResultT, typename RootT>
+tupletree::detail::getByPathRV<ResultT, RootT> *
+getByPath(const TupleTreePath &Path, RootT &M);
 
 //
 // pathAsString
@@ -694,8 +705,8 @@ constexpr bool validateTupleTree(L);
 
 template<UpcastablePointerLike T, typename L>
 constexpr bool validateTupleTree(L Check) {
-  return Check((T *) nullptr)
-         and validateTupleTree<typename T::element_type>(Check);
+  // TODO: is there a better way to limit it?
+  return Check((T *) nullptr);
 }
 
 template<KeyedObjectContainer T, typename L>

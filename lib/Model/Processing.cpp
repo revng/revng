@@ -19,14 +19,9 @@ namespace model {
 template<typename T>
 void purgeFunctions(T &Functions,
                     const std::set<const model::TypeDefinition *> &ToDelete) {
-  auto Begin = Functions.begin();
-  for (auto It = Begin; It != Functions.end(); ++It) {
-    if (not It->Prototype().isValid()
-        or ToDelete.contains(It->Prototype().get())) {
-      It->Prototype() = TupleTreeReference<model::TypeDefinition,
-                                           model::Binary>();
-    }
-  }
+  for (auto &F : Functions)
+    if (F.prototype() == nullptr or ToDelete.contains(F.prototype()))
+      F.Prototype().reset();
 }
 
 using DefinitionPointerSet = std::set<const model::TypeDefinition *>;
@@ -53,10 +48,9 @@ unsigned dropTypesDependingOnDefinitions(TupleTree<model::Binary> &Model,
     if (Types.contains(T.get()))
       continue;
 
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
-    }
+    for (const model::Type *E : T->edges())
+      if (const model::TypeDefinition *Definition = E->skipToDefinition())
+        TypeToNode.at(Definition)->addSuccessor(TypeToNode.at(T.get()));
   }
 
   // Prepare for deletion all the nodes reachable from Types

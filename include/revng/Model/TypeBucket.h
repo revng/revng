@@ -58,9 +58,9 @@ public:
   ///
   /// Its usage mirrors that of `model::Binary::makeTypeDefinition<NewType>()`.
   ///
-  /// \note This function forcefully assign a new type ID.
+  /// \note This function forcefully assigns a new type ID.
   template<typename NewD, typename... Ts>
-  [[nodiscard]] std::pair<NewD &, model::DefinitionReference>
+  [[nodiscard]] std::pair<NewD &, model::UpcastableType>
   makeTypeDefinition(Ts &&...As) {
     using UT = model::UpcastableTypeDefinition;
     auto &D = Definitions.emplace_back(UT::make<NewD>(std::forward<Ts>(As)...));
@@ -70,39 +70,32 @@ public:
     revng_assert(Upcasted->ID() == 0);
     Upcasted->ID() = NextAvailableID++;
 
-    auto ResultPath = Binary.getDefinitionReference(Upcasted->key());
-    return { *Upcasted, ResultPath };
+    return { *Upcasted, Binary.makeType(Upcasted->key()) };
   }
 
-public:
-  /// A helper for primitive type selection when binary access is limited.
-  ///
-  /// It mirrors `model::Binary::getPrimitiveType`.
-  inline model::DefinitionReference
-  getPrimitiveType(model::PrimitiveKind::Values Kind, uint8_t Size) {
-    return Binary.getPrimitiveType(Kind, Size);
+  template<typename... Ts>
+  [[nodiscard]] auto makeStructDefinition(Ts &&...As) {
+    return makeTypeDefinition<StructDefinition>(std::forward<Ts>(As)...);
   }
-
-  /// A helper streamlining selection of types for registers.
-  ///
-  /// \param Register Any CPU register the model is aware of.
-  ///
-  /// \return A primitive type in \ref Binary.
-  inline model::DefinitionReference
-  defaultRegisterType(model::Register::Values Register) {
-    return getPrimitiveType(model::Register::primitiveKind(Register),
-                            model::Register::getSize(Register));
+  template<typename... Ts>
+  [[nodiscard]] auto makeUnionDefinition(Ts &&...As) {
+    return makeTypeDefinition<UnionDefinition>(std::forward<Ts>(As)...);
   }
-
-  /// A helper streamlining selection of types for registers.
-  ///
-  /// \param Register Any CPU register the model is aware of.
-  ///
-  /// \return A primitive type in \ref Binary.
-  inline model::DefinitionReference
-  genericRegisterType(model::Register::Values Register) {
-    return getPrimitiveType(model::PrimitiveKind::Generic,
-                            model::Register::getSize(Register));
+  template<typename... Ts>
+  [[nodiscard]] auto makeEnumDefinition(Ts &&...As) {
+    return makeTypeDefinition<EnumDefinition>(std::forward<Ts>(As)...);
+  }
+  template<typename... Ts>
+  [[nodiscard]] auto makeTypedefDefinition(Ts &&...As) {
+    return makeTypeDefinition<TypedefDefinition>(std::forward<Ts>(As)...);
+  }
+  template<typename... Ts>
+  [[nodiscard]] auto makeCABIFunctionDefinition(Ts &&...As) {
+    return makeTypeDefinition<CABIFunctionDefinition>(std::forward<Ts>(As)...);
+  }
+  template<typename... Ts>
+  [[nodiscard]] auto makeRawFunctionDefinition(Ts &&...As) {
+    return makeTypeDefinition<RawFunctionDefinition>(std::forward<Ts>(As)...);
   }
 };
 

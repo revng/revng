@@ -17,7 +17,8 @@ type: struct
 inherits: TypeDefinition
 fields:
   - name: UnderlyingType
-    type: QualifiedType
+    type: Type
+    upcastable: true
   - name: Entries
     sequence:
       type: SortedVector
@@ -28,18 +29,38 @@ TUPLE-TREE-YAML */
 
 class model::EnumDefinition : public model::generated::EnumDefinition {
 public:
-  static constexpr const char *AutomaticNamePrefix = "enum_";
-
-public:
   using generated::EnumDefinition::EnumDefinition;
 
 public:
-  Identifier name() const;
   Identifier entryName(const model::EnumEntry &Entry) const;
 
 public:
-  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
-    return { UnderlyingType() };
+  /// The helper for underlying type unwrapping.
+  /// Use this when you need to access/modify the existing type,
+  /// and \ref Type() when you need to assign a new one.
+  model::PrimitiveType &underlyingType() {
+    return UnderlyingType()->toPrimitive();
+  }
+
+  /// The helper for segment type unwrapping.
+  /// Use this when you need to access/modify the existing struct,
+  /// and \ref Type() when you need to assign a new one.
+  const model::PrimitiveType &underlyingType() const {
+    return UnderlyingType()->toPrimitive();
+  }
+
+public:
+  llvm::SmallVector<const model::Type *, 4> edges() const {
+    if (!UnderlyingType().empty())
+      return { UnderlyingType().get() };
+    else
+      return {};
+  }
+  llvm::SmallVector<model::Type *, 4> edges() {
+    if (!UnderlyingType().empty())
+      return { UnderlyingType().get() };
+    else
+      return {};
   }
 };
 

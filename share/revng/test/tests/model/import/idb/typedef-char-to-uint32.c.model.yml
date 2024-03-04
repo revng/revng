@@ -2,24 +2,30 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Functions:
+  - OriginalName: fn
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/13950133128659256343-CABIFunctionDefinition"
+
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 1025
-    PrimitiveKind: Number
-    Size: 1
   - Kind: CABIFunctionDefinition
     ID: 13950133128659256343
-    OriginalName: fn
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/11568236181854152965-TypedefDefinition"
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/10614298789832763328-TypedefDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/11568236181854152965-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/10614298789832763328-TypedefDefinition"
         OriginalName: x
+
   - Kind: TypedefDefinition
-    ID: 11568236181854152965
+    ID: 10614298789832763328
     OriginalName: uint32_t
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1025-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Number
+      Size: 1 # This is intentional, see the corresponding source file.

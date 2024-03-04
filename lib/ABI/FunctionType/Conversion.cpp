@@ -12,7 +12,6 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/TypeBucket.h"
 #include "revng/Support/OverflowSafeInt.h"
 
@@ -32,7 +31,7 @@ public:
   struct Converted {
     llvm::SmallVector<model::Argument, 8> RegisterArguments;
     llvm::SmallVector<model::Argument, 8> StackArguments;
-    model::QualifiedType ReturnValueType;
+    model::UpcastableType ReturnValueType;
   };
 
 private:
@@ -120,7 +119,7 @@ private:
   ///
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
-  tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
+  tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                               ArgumentDistributor Distributor);
 
   /// Helper used for converting return values to the c-style representation
@@ -133,11 +132,11 @@ private:
   ///
   /// \return a qualified type if conversion is possible, `std::nullopt`
   ///         otherwise.
-  std::optional<model::QualifiedType>
+  std::optional<model::UpcastableType>
   tryConvertingReturnValue(RFTReturnValues Registers);
 };
 
-std::optional<model::DefinitionReference>
+std::optional<model::UpcastableType>
 tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
                  TupleTree<model::Binary> &Binary,
                  std::optional<model::ABI::Values> MaybeABI,
@@ -150,9 +149,8 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
             "`CABIFunctionDefinition`.");
   revng_log(Log, "ABI: " << model::ABI::getName(MaybeABI.value()).str());
   revng_log(Log, "Original Type:\n" << serializeToString(FunctionType));
-  if (auto StackRef = FunctionType.StackArgumentsType(); !StackRef.empty())
-    if (auto *Type = llvm::dyn_cast<model::StructDefinition>(StackRef.get()))
-      revng_log(Log, "Stack is:\n" << serializeToString(*Type));
+  if (auto *StackType = FunctionType.stackArgumentsType())
+    revng_log(Log, "Stack is:\n" << serializeToString(*StackType));
   LoggerIndent Indentation(Log);
 
   const abi::Definition &ABI = abi::Definition::get(*MaybeABI);
@@ -170,43 +168,42 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
 
   // The conversion was successful, a new `CABIFunctionDefinition` can now be
   // created,
-  auto [NewType,
-        NewPath] = Binary->makeTypeDefinition<model::CABIFunctionDefinition>();
-  revng_assert(NewType.ID() != 0);
-  model::copyMetadata(NewType, FunctionType);
-  NewType.ABI() = ABI.ABI();
+  auto [Definition, Type] = Binary->makeCABIFunctionDefinition();
+  revng_assert(Definition.ID() != 0);
+  model::copyMetadata(Definition, FunctionType);
+  Definition.ABI() = ABI.ABI();
 
   // And filled in with the argument information.
   auto Arguments = llvm::concat<model::Argument>(Converted->RegisterArguments,
                                                  Converted->StackArguments);
   for (auto &Argument : Arguments)
-    NewType.Arguments().insert(std::move(Argument));
-  NewType.ReturnType() = Converted->ReturnValueType;
+    Definition.Arguments().insert(std::move(Argument));
+  Definition.ReturnType() = Converted->ReturnValueType;
 
-  revng_log(Log, "Conversion successful:\n" << serializeToString(NewType));
+  revng_log(Log, "Conversion successful:\n" << serializeToString(Definition));
 
   // Since CABI-FT only have one field for return value comments - we have no
   // choice but to resort to concatenation in order to preserve as much
   // information as possible.
   for (model::NamedTypedRegister ReturnValue : FunctionType.ReturnValues()) {
     if (!ReturnValue.Comment().empty()) {
-      if (!NewType.ReturnValueComment().empty())
-        NewType.ReturnValueComment() += '\n';
-      model::Register::Values RVLoc = ReturnValue.Location();
-      NewType.ReturnValueComment() += model::Register::getRegisterName(RVLoc);
-      NewType.ReturnValueComment() += ": ";
-      NewType.ReturnValueComment() += ReturnValue.Comment();
+      if (!Definition.ReturnValueComment().empty())
+        Definition.ReturnValueComment() += '\n';
+      model::Register::Values RVL = ReturnValue.Location();
+      Definition.ReturnValueComment() += model::Register::getRegisterName(RVL);
+      Definition.ReturnValueComment() += ": ";
+      Definition.ReturnValueComment() += ReturnValue.Comment();
     }
   }
 
   // To finish up the conversion, remove all the references to the old type by
   // carefully replacing them with references to the new one.
-  replaceAllUsesWith(FunctionType.key(), NewPath, Binary);
+  replaceTypeDefinition(FunctionType.key(), *Type, Binary);
 
   // And don't forget to remove the old type.
   Binary->TypeDefinitions().erase(FunctionType.key());
 
-  return NewPath;
+  return std::move(Type);
 }
 
 using TCC = ToCABIConverter;
@@ -239,10 +236,8 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       model::Argument &Current = Result.emplace_back();
       Current.CustomName() = CurrentRegisterIterator->CustomName();
 
-      if (CurrentRegisterIterator->Type().UnqualifiedType().get() != nullptr)
-        Current.Type() = CurrentRegisterIterator->Type();
-      else
-        Current.Type() = { Bucket.defaultRegisterType(Register), {} };
+      revng_assert(!CurrentRegisterIterator->Type().empty());
+      Current.Type() = CurrentRegisterIterator->Type().copy();
     } else {
       // This register is unused but we still have to create an argument
       // for it. Otherwise the resulting function will be semantically different
@@ -252,8 +247,8 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       // no way to recreate it at any point in the future, when it's being
       // converted back to the representation similar to original (e.g. when
       // producing the `Layout` for this function).
-      Result.emplace_back().Type() = { Bucket.genericRegisterType(Register),
-                                       {} };
+      using Primitive = model::PrimitiveType;
+      Result.emplace_back().Type() = Primitive::makeGeneric(Register);
     }
   }
 
@@ -334,7 +329,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
   }
 }
 
-template<ModelTypeLike ModelType>
+template<model::AnyType ModelType>
 bool canBeNext(ArgumentDistributor &Distributor,
                const ModelType &CurrentType,
                uint64_t CurrentOffset,
@@ -393,20 +388,19 @@ bool canBeNext(ArgumentDistributor &Distributor,
 }
 
 std::optional<llvm::SmallVector<model::Argument, 8>>
-TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
+TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                                  ArgumentDistributor Distributor) {
-  if (StackArgumentTypes.empty()) {
+  if (StackStruct.empty()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating
     // a new empty type.
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
-  auto &Stack = *llvm::cast<model::StructDefinition>(StackArgumentTypes.get());
-
   // As a workaround for the cases where expected alignment is missing at
   // the very end of the RFT-style stack argument struct, use adjusted
   // size and alignment values instead of the real ones.
+  auto &Stack = StackStruct->toStruct();
   uint64_t StackAlignment = *ABI.alignment(Stack);
   revng_assert(llvm::isPowerOf2_64(StackAlignment));
   uint64_t AdjustedAlignment = std::max(StackAlignment, ABI.getPointerSize());
@@ -414,14 +408,14 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
                                                             AdjustedAlignment);
 
   // If the struct is empty, it indicates that there are no stack arguments.
-  if (Stack.size() == 0) {
+  if (Stack.Size() == 0) {
     revng_assert(Stack.Fields().empty());
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
   llvm::SmallVector<model::Argument, 8> Result;
   uint64_t InitialIndexOffset = Distributor.ArgumentIndex;
-  if (!model::hasMetadata(Stack)) {
+  if (!StackStruct->isTypedef() && !model::hasMetadata(Stack)) {
     // NOTE: Only proceed with trying to "split" the stack struct up if it has
     //       no metadata attached: as in, it doesn't have a user-defined
     //       `CustomName` or a `Comment` or any other fields we'll mark as
@@ -431,7 +425,7 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
     if (Stack.Fields().empty()) {
       revng_log(Log, "Stack struct has no fields.");
     } else {
-      uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
+      uint64_t FirstAlignment = *ABI.alignment(*Stack.Fields().begin()->Type());
       revng_assert(llvm::isPowerOf2_64(FirstAlignment));
     }
 
@@ -445,11 +439,11 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
     while (CurrentRange.size() > 1) {
       auto [CurrentArgument, TheNextOne] = takeAsTuple<2>(CurrentRange);
 
-      uint64_t NextAlignment = *ABI.alignment(TheNextOne.Type());
+      uint64_t NextAlignment = *ABI.alignment(*TheNextOne.Type());
       revng_assert(llvm::isPowerOf2_64(NextAlignment));
 
       if (!canBeNext(Distributor,
-                     CurrentArgument.Type(),
+                     *CurrentArgument.Type(),
                      CurrentArgument.Offset(),
                      TheNextOne.Offset(),
                      NextAlignment)) {
@@ -477,10 +471,10 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
       // Having only one element in the "remaining" range means that only
       // the last field is left - add it too after checking.
       const model::StructField &LastArgument = CurrentRange.front();
-      std::optional<uint64_t> LastSize = LastArgument.Type().size();
+      std::optional<uint64_t> LastSize = LastArgument.Type()->size();
       revng_assert(LastSize.has_value() && LastSize.value() != 0);
       if (canBeNext(Distributor,
-                    LastArgument.Type(),
+                    *LastArgument.Type(),
                     LastArgument.Offset(),
                     StackSize,
                     StackAlignment)) {
@@ -514,7 +508,7 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
                 "rest as a struct.");
       const model::StructField &LastSuccess = *std::prev(CurrentRange.begin());
       std::uint64_t Offset = LastSuccess.Offset();
-      Offset += ABI.paddedSizeOnStack(*LastSuccess.Type().size());
+      Offset += ABI.paddedSizeOnStack(*LastSuccess.Type()->size());
 
       model::StructDefinition RemainingArguments;
       RemainingArguments.Size() = Stack.Size() - Offset;
@@ -531,9 +525,7 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
         New.Index() = Stack.Fields().size() - CurrentRange.size();
         New.Index() += InitialIndexOffset;
 
-        using StructD = model::StructDefinition;
-        auto [_, Path] = Bucket.makeTypeDefinition<StructD>(std::move(RA));
-        New.Type() = model::QualifiedType{ Path, {} };
+        New.Type() = Bucket.makeStructDefinition(std::move(RA)).second;
         return Result;
       }
     }
@@ -545,8 +537,7 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
   // it apart.
   // Let's try and see if it would make sense to add the whole "stack" struct
   // as one argument.
-  model::QualifiedType StackStruct = { StackArgumentTypes, {} };
-  if (!canBeNext(Distributor, StackStruct, 0, StackSize, StackAlignment)) {
+  if (!canBeNext(Distributor, *StackStruct, 0, StackSize, StackAlignment)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;
@@ -556,19 +547,17 @@ TCC::tryConvertingStackArguments(model::DefinitionReference StackArgumentTypes,
             "Adding the whole stack as a single argument is the best we can "
             "do.");
   model::Argument &New = Result.emplace_back();
-  New.Type() = StackStruct;
+  New.Type() = StackStruct.copy();
   New.Index() = InitialIndexOffset;
 
   return Result;
 }
 
-std::optional<model::QualifiedType>
+std::optional<model::UpcastableType>
 TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   if (Registers.size() == 0) {
     // The function doesn't return anything.
-    return model::QualifiedType{
-      Bucket.getPrimitiveType(model::PrimitiveKind::Void, 0), {}
-    };
+    return model::UpcastableType{};
   }
 
   // We only convert register-based return values: those that are returned using
@@ -601,8 +590,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     } else {
       // One register is used but its type cannot be obtained.
       // Create a register sized return type instead.
-      return model::QualifiedType(Bucket.defaultRegisterType(*Ordered.begin()),
-                                  {});
+      return model::PrimitiveType::make(*Ordered.begin());
     }
   } else {
     // Multiple registers, it's either a struct or a big scalar.
@@ -627,11 +615,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
       uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
       uint64_t PrimitiveSize = Ordered.size() * PointerSize;
       if (llvm::is_contained(ABI.ScalarTypes(), PrimitiveSize)) {
-        return model::QualifiedType{
-          Bucket.getPrimitiveType(model::PrimitiveKind::Values::Generic,
-                                  PrimitiveSize),
-          {}
-        };
+        return model::PrimitiveType::makeGeneric(PrimitiveSize);
       } else {
         revng_log(Log,
                   "The primitive return value ("
@@ -642,35 +626,34 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     } else {
       // It could be either a struct or a scalar, go the conservative route
       // and make a struct for it.
-      auto [ReturnType,
-            ReturnPath] = Bucket.makeTypeDefinition<model::StructDefinition>();
+      auto [Definition, ReturnType] = Bucket.makeStructDefinition();
       for (model::Register::Values Register : Ordered) {
         // Make a separate field for each register.
         model::StructField Field;
-        Field.Offset() = ReturnType.Size();
+        Field.Offset() = Definition.Size();
 
         // TODO: ensure that the type is in fact naturally aligned
         if (auto It = Registers.find(*Ordered.begin()); It != Registers.end())
           Field.Type() = It->Type();
         else
-          Field.Type() = { Bucket.genericRegisterType(*Ordered.begin()), {} };
+          Field.Type() = model::PrimitiveType::makeGeneric(*Ordered.begin());
 
-        std::optional<uint64_t> FieldSize = Field.Type().size();
+        std::optional<uint64_t> FieldSize = Field.Type()->size();
         revng_assert(FieldSize.has_value() && FieldSize.value() != 0);
 
         // Round the next offset based on the natural alignment.
-        ReturnType.Size() = ABI.alignedOffset(ReturnType.Size(), Field.Type());
+        Definition.Size() = ABI.alignedOffset(Definition.Size(), *Field.Type());
 
         // Insert the field
-        ReturnType.Fields().insert(std::move(Field));
+        Definition.Fields().insert(std::move(Field));
 
         // Update the total struct size: insert some padding if necessary.
         uint64_t RegisterSize = model::ABI::getPointerSize(ABI.ABI());
-        ReturnType.Size() += paddedSizeOnStack(FieldSize.value(), RegisterSize);
+        Definition.Size() += paddedSizeOnStack(FieldSize.value(), RegisterSize);
       }
 
-      revng_assert(ReturnType.Size() != 0 && !ReturnType.Fields().empty());
-      return model::QualifiedType(ReturnPath, {});
+      revng_assert(Definition.Size() != 0 && !Definition.Fields().empty());
+      return std::move(ReturnType);
     }
   }
 }

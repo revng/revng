@@ -6,7 +6,6 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Segment.h"
 
 /// Use this class to print a graph representing one or more model types
@@ -33,8 +32,9 @@ private:
   void dumpTypeNode(const model::TypeDefinition *T, int NodeID);
 
   /// Add an edge between a field (identified by NodeID+PortID)
-  /// and its UnqualifiedType.
-  void addFieldEdge(const model::QualifiedType &QT,
+  /// and the type definition it uses.
+  void addFieldEdge(std::string &&Label,
+                    bool IsPointer,
                     int SrcID,
                     int SrcPort,
                     int DstID);
@@ -54,7 +54,7 @@ private:
 
 public:
   /// Generate a graph representation of a given type. Nodes in this graph are
-  /// model types, and edges connect fields to their respective UnqualifiedType.
+  /// model types, and edges connect fields to their respective TypeDefinitions.
   void print(const model::TypeDefinition &T);
 
   /// Generate a graph of the types for the given function (Prototype,

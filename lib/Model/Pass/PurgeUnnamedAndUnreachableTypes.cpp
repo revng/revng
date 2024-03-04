@@ -13,6 +13,8 @@
 
 using namespace llvm;
 
+static Logger<> Log("purge-model-types");
+
 static RegisterModelPass R0("purge-invalid-types",
                             "Remove all the types that do not verify",
                             model::purgeInvalidTypes);
@@ -28,7 +30,6 @@ static RegisterModelPass R2("purge-unreachable-types",
                             "a type \"outside\" the type system itself",
                             model::purgeUnreachableTypes);
 
-static Logger<> PurgeInvalidLogger("purge-invalid-types");
 void model::purgeInvalidTypes(TupleTree<model::Binary> &Model) {
   model::VerifyHelper VH;
   auto IsInvalid = [&VH](const model::UpcastableTypeDefinition &T) {
@@ -39,7 +40,7 @@ void model::purgeInvalidTypes(TupleTree<model::Binary> &Model) {
                 | std::views::transform([](const auto &T) { return T.get(); })
                 | revng::to<std::set<const model::TypeDefinition *>>();
   unsigned DroppedCount = dropTypesDependingOnDefinitions(Model, ToDrop);
-  revng_log(PurgeInvalidLogger, "Purging " << DroppedCount << " types.");
+  revng_log(Log, "Purging " << DroppedCount << " types.");
 }
 
 namespace model {
@@ -86,7 +87,7 @@ void model::purgeUnreachableTypes(TupleTree<model::Binary> &Model) {
 static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
                                   bool KeepTypesWithName) {
   struct NodeData {
-    model::TypeDefinition *T;
+    const model::TypeDefinition *T;
   };
   using Node = ForwardNode<NodeData>;
   using Graph = GenericGraph<Node>;
@@ -94,7 +95,7 @@ static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
   Graph TypeGraph;
   std::map<const model::TypeDefinition *, Node *> TypeToNode;
 
-  llvm::SmallPtrSet<model::TypeDefinition *, 16> ToKeep;
+  llvm::SmallPtrSet<const model::TypeDefinition *, 16> ToKeep;
 
   // Remember those types we want to preserve.
   for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
@@ -106,12 +107,10 @@ static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
   }
 
   // Create type system edges
-  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));
-    }
-  }
+  for (const model::UpcastableTypeDefinition &D : Model->TypeDefinitions())
+    for (const model::Type *Edge : D->edges())
+      if (const model::TypeDefinition *Definition = Edge->skipToDefinition())
+        TypeToNode.at(D.get())->addSuccessor(TypeToNode.at(Definition));
 
   // Record references to types *outside* of Model->Types
   auto VisitBinary = [&](auto &Field) {
@@ -127,17 +126,13 @@ static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
 
   // Visit all the nodes reachable from ToKeep
   df_iterator_default_set<Node *> Visited;
-  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions())
-    if (isa<model::PrimitiveDefinition>(T.get()))
-      Visited.insert(TypeToNode.at(T.get()));
-
-  for (model::TypeDefinition *T : ToKeep)
+  for (const model::TypeDefinition *T : ToKeep)
     for (Node *N : depth_first_ext(TypeToNode.at(T), Visited))
       ;
 
   // Purge the non-visited
   llvm::erase_if(Model->TypeDefinitions(),
-                 [&](model::UpcastableTypeDefinition &P) {
+                 [&](const model::UpcastableTypeDefinition &P) {
                    return not Visited.contains(TypeToNode.at(P.get()));
                  });
 }

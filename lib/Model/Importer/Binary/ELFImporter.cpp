@@ -450,9 +450,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         continue;
       }
 
-      using model::Binary;
-      using std::make_unique;
-      ModelsOfLibraries[DependencyLibrary] = TupleTree<Binary>();
+      revng_assert(!ModelsOfLibraries.contains(DependencyLibrary));
       TupleTree<model::Binary> &DepModel = ModelsOfLibraries[DependencyLibrary];
       DepModel->Architecture() = Model->Architecture();
       ImporterOptions AdjustedOptions{
@@ -472,31 +470,40 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     }
   }
 
-  for (auto &ModelOfDep : ModelsOfLibraries) {
-    auto &TheModel = ModelOfDep.second;
-    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel,
-                                                                 Model);
-  }
+  auto GetOrMakeACopier = [&](llvm::StringRef Name) -> TypeCopier & {
+    if (auto It = TypeCopiers.find(Name.str()); It != TypeCopiers.end())
+      return *It->second;
+
+    auto Iterator = ModelsOfLibraries.find(Name.str());
+    revng_assert(Iterator != ModelsOfLibraries.end());
+
+    auto NewCopier = std::make_unique<TypeCopier>(Iterator->second, Model);
+    auto [Result, Success] = TypeCopiers.emplace(Name.str(),
+                                                 std::move(NewCopier));
+    revng_assert(Success);
+    return *Result->second;
+  };
+
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
+    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0)
       continue;
-    }
-    auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
-    if (TypeLocation) {
-      model::DefinitionReference MatchingType = (*TypeLocation).Type;
+
+    if (auto Found = findPrototype(Fn.OriginalName(), ModelsOfLibraries)) {
+      revng_assert(!Found->ModuleName.empty());
+      revng_assert(Found->Prototype.verify(true));
+
+      model::UpcastableTypeDefinition SerializablePrototype = Found->Prototype;
       revng_log(ELFImporterLog,
                 "Found type for " << Fn.OriginalName() << " in "
-                                  << (*TypeLocation).ModuleName << ": "
-                                  << MatchingType.toString());
-      TypeCopier *TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName].get();
-      Fn.Prototype() = TheTypeCopier->copyTypeInto(MatchingType);
+                                  << Found->ModuleName << ": "
+                                  << serializeToString(SerializablePrototype));
+      TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
+      Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
 
-      // Copy the Attributes (all but the `Inline`).
-      auto &Attributes = (*TypeLocation).Attributes;
-      for (auto &Attribute : Attributes) {
+      // Copy all the Attributes except for `Inline`.
+      for (auto &Attribute : Found->Attributes)
         if (Attribute != model::FunctionAttribute::Inline)
           Fn.Attributes().insert(Attribute);
-      }
     } else {
       revng_log(ELFImporterLog,
                 "Prototype for " << Fn.OriginalName() << " not found");

@@ -5,8 +5,6 @@
 revng_add_library_internal(
   revngModelPasses
   SHARED
-  AddPrimitiveTypes.cpp
-  AddPrimitiveTypesAnalysis.cpp
   DeduplicateEquivalentTypes.cpp
   OptionCategory.cpp
   PromoteOriginalName.cpp

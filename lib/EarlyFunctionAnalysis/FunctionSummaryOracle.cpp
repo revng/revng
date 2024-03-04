@@ -16,9 +16,9 @@ namespace efa {
 
 FunctionSummary
 PrototypeImporter::prototype(const AttributesSet &Attributes,
-                             const model::DefinitionReference &Prototype) {
+                             const model::TypeDefinition *Prototype) {
   FunctionSummary Summary(Attributes, ABICSVs, {}, {}, {});
-  if (Prototype.empty())
+  if (Prototype == nullptr)
     return Summary;
 
   // Drop known to be preserved registers from `Summary.ClobberedRegisters`.
@@ -28,7 +28,7 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
   auto IgnoreNullptr = std::views::filter([](const auto *Pointer) -> bool {
     return Pointer != nullptr;
   });
-  for (auto *CSV : abi::FunctionType::calleeSavedRegisters(Prototype)
+  for (auto *CSV : abi::FunctionType::calleeSavedRegisters(*Prototype)
                      | TransformToCSV | IgnoreNullptr) {
     Summary.ClobberedRegisters.erase(CSV);
   }
@@ -38,7 +38,7 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
   if (Level == PrototypeImportLevel::None)
     return Summary;
 
-  Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
+  Summary.ElectedFSO = abi::FunctionType::finalStackOffset(*Prototype);
 
   // Stop importing prototype here, if callee also needs final stack offset.
   if (Level == PrototypeImportLevel::Partial)
@@ -50,7 +50,7 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
   }
 
   auto [ArgumentRegisters,
-        ReturnValueRegisters] = abi::FunctionType::usedRegisters(Prototype);
+        ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
   for (Register ArgumentRegister : ArgumentRegisters) {
     llvm::StringRef Name = model::Register::getCSVName(ArgumentRegister);
     if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
@@ -148,7 +148,7 @@ bool FunctionSummaryOracle::registerDynamicFunction(llvm::StringRef Name,
 
 const FunctionSummary &FunctionSummaryOracle::getDefault() {
   if (not Default.has_value())
-    setDefault(Importer.prototype({}, Binary.DefaultPrototype()));
+    setDefault(Importer.prototype({}, Binary.defaultPrototype()));
   return Default.value();
 }
 
@@ -158,7 +158,9 @@ FunctionSummary &FunctionSummaryOracle::getLocalFunction(MetaAddress PC) {
     AttributesSet Attributes;
     for (auto &ToCopy : Function.Attributes())
       Attributes.insert(ToCopy);
-    auto Summary = Importer.prototype(Attributes, Function.prototype(Binary));
+
+    const auto *Prototype = Binary.prototypeOrDefault(Function.prototype());
+    auto Summary = Importer.prototype(Attributes, Prototype);
     registerLocalFunction(Function.Entry(), std::move(Summary));
   }
 
@@ -170,7 +172,8 @@ FunctionSummaryOracle::getDynamicFunction(llvm::StringRef Name) {
   if (not DynamicFunctions.contains(Name.str())) {
     const auto &DynamicFunction = Binary.ImportedDynamicFunctions()
                                     .at(Name.str());
-    const auto &Prototype = DynamicFunction.prototype(Binary);
+    auto *Prototype = Binary.prototypeOrDefault(DynamicFunction.prototype());
+
     AttributesSet Attributes;
     for (auto &ToCopy : DynamicFunction.Attributes())
       Attributes.insert(ToCopy);

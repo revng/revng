@@ -163,14 +163,14 @@ At this point, we can associate the function prototype with the previously defin
 ```diff
 --- a/model.yml
 +++ b/model.yml
-@@ -10,6 +10,7 @@
+@@ -10,4 +10,7 @@
      IsExecutable: true
  Functions:
    - Entry: "0x400000:Code_x86_64"
-+    Prototype: "/TypeDefinitions/1809-CABIFunctionDefinition"
++    Prototype:
++      Kind: DefinedType
++      Definition: "/TypeDefinitions/1809-CABIFunctionDefinition"
  TypeDefinitions:
-   - Kind: PrimitiveDefinition
-     ID: 1288
 ```
 
 Basically, we added to our function definition a reference to the prototype we created above.
@@ -195,14 +195,14 @@ One of the main activities of a reverse engineer is giving things a name, just l
 ```diff
 --- a/model.yml
 +++ b/model.yml
-@@ -11,6 +11,7 @@ Segments:
+@@ -11,4 +11,7 @@ Segments:
  Functions:
    - Entry: "0x400000:Code_x86_64"
-     Prototype: "/TypeDefinitions/1809-CABIFunctionDefinition"
+     Prototype:
++      Kind: DefinedType
++      Definition: "/TypeDefinitions/1809-CABIFunctionDefinition"
 +    CustomName: Sum
  TypeDefinitions:
-   - Kind: PrimitiveDefinition
-     ID: 256
 ```
 
 Almost everything in the model can have a name. Let's add a name to the function arguments:
@@ -210,21 +210,27 @@ Almost everything in the model can have a name. Let's add a name to the function
 ```diff
 --- a/model.yml
 +++ b/model.yml
-@@ -119,12 +120,14 @@ TypeDefinitions:
+@@ -119,21 +120,23 @@ TypeDefinitions:
    - Kind: CABIFunctionDefinition
      ABI: SystemV_x86_64
      ID: 1809
      Arguments:
        - Index: 0
          Type:
-           UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+           Kind: PrimitiveType
+           PrimitiveKind: Unsigned
+           Size: 8
 +        CustomName: FirstAddend
        - Index: 1
          Type:
-           UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+           Kind: PrimitiveType
+           PrimitiveKind: Unsigned
+           Size: 8
 +        CustomName: SecondAddend
      ReturnType:
-       UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+       Kind: PrimitiveType
+       PrimitiveKind: Unsigned
+       Size: 8
 ```
 
 Here's what we get now if we try to decompile again:

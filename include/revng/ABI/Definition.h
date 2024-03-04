@@ -359,33 +359,23 @@ public:
   ///        of the type
   ///
   /// \return either an alignment or a `std::nullopt` when it's not applicable.
-  inline std::optional<uint64_t>
-  alignment(const model::QualifiedType &Type) const {
+  template<model::AnyType AnyType>
+  std::optional<uint64_t> alignment(const AnyType &Type) const {
     AlignmentCache Cache;
     return alignment(Type, Cache);
   }
-  inline std::optional<uint64_t>
-  alignment(const model::TypeDefinition &Definition) const {
-    AlignmentCache Cache;
-    return alignment(Definition, Cache);
-  }
 
-  inline std::optional<bool>
-  hasNaturalAlignment(const model::QualifiedType &Type) const {
+  template<model::AnyType AnyType>
+  std::optional<bool> hasNaturalAlignment(const AnyType &Type) const {
     AlignmentCache Cache;
     return hasNaturalAlignment(Type, Cache);
   }
-  inline std::optional<bool>
-  hasNaturalAlignment(const model::TypeDefinition &Definition) const {
-    AlignmentCache Cache;
-    return hasNaturalAlignment(Definition, Cache);
-  }
 
-  std::optional<uint64_t> alignment(const model::QualifiedType &Type,
+  std::optional<uint64_t> alignment(const model::Type &Type,
                                     AlignmentCache &Cache) const;
   std::optional<uint64_t> alignment(const model::TypeDefinition &Type,
                                     AlignmentCache &Cache) const;
-  std::optional<bool> hasNaturalAlignment(const model::QualifiedType &Type,
+  std::optional<bool> hasNaturalAlignment(const model::Type &Type,
                                           AlignmentCache &Cache) const;
   std::optional<bool>
   hasNaturalAlignment(const model::TypeDefinition &Definition,
@@ -401,13 +391,10 @@ public:
 
     return Offset;
   }
-  uint64_t alignedOffset(uint64_t Offset,
-                         const model::QualifiedType &Type) const {
+
+  template<model::AnyType AnyType>
+  uint64_t alignedOffset(uint64_t Offset, const AnyType &Type) const {
     return alignedOffset(Offset, *alignment(Type));
-  }
-  uint64_t alignedOffset(uint64_t Offset,
-                         const model::TypeDefinition &Definition) const {
-    return alignedOffset(Offset, *alignment(Definition));
   }
 
 public:

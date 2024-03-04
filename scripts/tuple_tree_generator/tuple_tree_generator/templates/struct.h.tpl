@@ -199,6 +199,7 @@ public:
   /** endif **/
 
   // Comparison operators
+  /** if not struct.inherits **/
   /** if struct.key_fields -**/
   Key key() const {
     return Key {
@@ -211,7 +212,7 @@ public:
   bool operator<(const /*= struct.name =*/ &Other) const { return key() < Other.key(); }
   bool operator>(const /*= struct.name =*/ &Other) const { return key() > Other.key(); }
 
-  /** else -**/
+  /** elif not struct.abstract -**/
   bool operator==(const /*= struct.name =*/ &Other) const {
     /**- for field in struct.fields **/
     if (/*= field.name =*/() != Other./*= field.name =*/())
@@ -219,6 +220,7 @@ public:
     /**- endfor **/
     return true;
   }
+  /** endif **/
   /** endif **/
 
   /**- if emit_tracking **/

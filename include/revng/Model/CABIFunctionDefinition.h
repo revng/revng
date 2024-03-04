@@ -7,7 +7,7 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Argument.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/QualifiedType.h"
+#include "revng/Model/Type.h"
 #include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
@@ -25,7 +25,9 @@ fields:
   - name: ABI
     type: ABI
   - name: ReturnType
-    type: QualifiedType
+    type: Type
+    optional: true
+    upcastable: true
   - name: ReturnValueComment
     type: string
     optional: true
@@ -40,24 +42,40 @@ TUPLE-TREE-YAML */
 class model::CABIFunctionDefinition
   : public model::generated::CABIFunctionDefinition {
 public:
-  static constexpr const char *AutomaticNamePrefix = "cabifunction_";
-
-public:
   using generated::CABIFunctionDefinition::CABIFunctionDefinition;
 
-public:
-  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
-    llvm::SmallVector<model::QualifiedType, 4> Result;
-
-    for (const model::Argument &Argument : Arguments())
-      Result.push_back(Argument.Type());
-    Result.push_back(ReturnType());
-
-    return Result;
+  Argument &addArgument(UpcastableType &&Type) {
+    auto [Iterator, Success] = Arguments().emplace(Arguments().size());
+    revng_assert(Success);
+    Iterator->Type() = std::move(Type);
+    return *Iterator;
   }
 
 public:
-  Identifier name() const;
+  llvm::SmallVector<const model::Type *, 4> edges() const {
+    llvm::SmallVector<const model::Type *, 4> Result;
+
+    for (const model::Argument &Argument : Arguments())
+      if (!Argument.Type().empty())
+        Result.push_back(Argument.Type().get());
+
+    if (!ReturnType().empty())
+      Result.push_back(ReturnType().get());
+
+    return Result;
+  }
+  llvm::SmallVector<model::Type *, 4> edges() {
+    llvm::SmallVector<model::Type *, 4> Result;
+
+    for (model::Argument &Argument : Arguments())
+      if (!Argument.Type().empty())
+        Result.push_back(Argument.Type().get());
+
+    if (!ReturnType().empty())
+      Result.push_back(ReturnType().get());
+
+    return Result;
+  }
 };
 
 #include "revng/Model/Generated/Late/CABIFunctionDefinition.h"

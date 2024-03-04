@@ -8,7 +8,7 @@ static bool verify(const model::TypeDefinition &ModelType, const bool Assert) {
   return ModelType.verify(Assert);
 }
 
-static bool verify(const model::QualifiedType &ModelType, const bool Assert) {
+static bool verify(const model::Type &ModelType, const bool Assert) {
   return ModelType.verify(Assert);
 }
 

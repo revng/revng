@@ -5,7 +5,7 @@
 //
 
 #include "revng/Model/Identifier.h"
-#include "revng/Model/QualifiedType.h"
+#include "revng/Model/Type.h"
 #include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
@@ -15,24 +15,33 @@ type: struct
 inherits: TypeDefinition
 fields:
   - name: UnderlyingType
-    type: QualifiedType
+    type: Type
+    upcastable: true
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/TypedefDefinition.h"
 
 class model::TypedefDefinition : public model::generated::TypedefDefinition {
 public:
-  static constexpr const char *AutomaticNamePrefix = "typedef_";
-
-public:
   using generated::TypedefDefinition::TypedefDefinition;
+  explicit TypedefDefinition(UpcastableType &&Underlying) :
+    generated::TypedefDefinition() {
+
+    UnderlyingType() = std::move(Underlying);
+  }
 
 public:
-  Identifier name() const;
-
-public:
-  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
-    return { UnderlyingType() };
+  llvm::SmallVector<const model::Type *, 4> edges() const {
+    if (!UnderlyingType().empty())
+      return { UnderlyingType().get() };
+    else
+      return {};
+  }
+  llvm::SmallVector<model::Type *, 4> edges() {
+    if (!UnderlyingType().empty())
+      return { UnderlyingType().get() };
+    else
+      return {};
   }
 };
 
