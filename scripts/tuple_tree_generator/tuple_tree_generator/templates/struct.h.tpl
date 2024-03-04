@@ -262,6 +262,14 @@ private:
   /** endif -**/
 public:
   bool localCompare(const /*= struct | user_fullname =*/ &Other) const;
+  void dump(llvm::raw_ostream &Stream) const;
+  void dump(std::ostream &Stream) const {
+    llvm::raw_os_ostream LLVMStreamAdapter(Stream);
+    dump(LLVMStreamAdapter);
+  }
+  void dump() const debug_function { dump(dbg); }
+  void dump(const char *Path) const debug_function;
+  std::string toString() const debug_function;
 
   /**- if struct.abstract **/
 public:
