@@ -12,7 +12,7 @@ getByPath<const model::TypeDefinition,
           const model::Binary>(const TupleTreePath &Path,
                                const model::Binary &M);
 
-template model::TypeDefinition *
+template const model::TypeDefinition *
 getByPath<model::TypeDefinition, const model::Binary>(const TupleTreePath &Path,
                                                       const model::Binary &M);
 

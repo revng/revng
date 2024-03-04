@@ -5,11 +5,17 @@
 ---
 Functions:
   - OriginalName: func1
-    Prototype: "/TypeDefinitions/1-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-RawFunctionDefinition"
   - OriginalName: func2
-    Prototype: "/TypeDefinitions/2-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2-RawFunctionDefinition"
   - OriginalName: callee
-    Prototype: "/TypeDefinitions/3-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3-RawFunctionDefinition"
 TypeDefinitions:
   - Kind: RawFunctionDefinition
     ID: 1

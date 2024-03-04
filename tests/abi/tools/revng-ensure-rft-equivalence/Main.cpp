@@ -148,10 +148,6 @@ int main(int Argc, char *Argv[]) {
   std::map<model::Identifier, KeyPair, TransparentComparator> Functions;
   std::unordered_set<uint64_t> FunctionIDLookup;
 
-  // Make sure the default prototype is valid.
-  revng_assert(LeftModel->DefaultPrototype().isValid());
-  const auto &DefaultPrototype = *LeftModel->DefaultPrototype().get();
-
   // Gather all the `RawFunctionDefinition` prototypes present in the first
   // model.
   for (model::Function &F : LeftModel->Functions()) {
@@ -163,13 +159,14 @@ int main(int Argc, char *Argv[]) {
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
 
-    auto *Left = llvm::cast<model::RawFunctionDefinition>(F.Prototype().get());
-    if (Left->ID() == DefaultPrototype.ID())
-      continue; // Skip the default prototype.
+    if (const model::RawFunctionDefinition *Left = F.rawPrototype()) {
+      if (Left->ID() == LeftModel->defaultPrototype()->ID())
+        continue; // Skip the default prototype.
 
-    auto [Iterator, Success] = Functions.try_emplace(F.name());
-    revng_assert(Success);
-    Iterator->second.Left = Left->key();
+      auto [Iterator, Success] = Functions.try_emplace(F.name());
+      revng_assert(Success);
+      Iterator->second.Left = Left->key();
+    }
   }
 
   // Gather all the `RawFunctionDefinition` prototypes present in the second
@@ -183,19 +180,21 @@ int main(int Argc, char *Argv[]) {
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
 
-    auto *Right = llvm::cast<model::RawFunctionDefinition>(F.Prototype().get());
-    if (Right->ID() == DefaultPrototype.ID())
-      continue; // Skip the default prototype.
+    if (const model::RawFunctionDefinition *Right = F.rawPrototype()) {
+      if (Right->ID() == LeftModel->defaultPrototype()->ID())
+        continue; // Skip the default prototype.
 
-    auto Iterator = Functions.find(F.name());
-    if (Iterator == Functions.end()) {
-      std::string Error = "A function present in the right model is missing in "
-                          "the left one: "
-                          + F.name().str().str();
-      revng_abort(Error.c_str());
+      auto Iterator = Functions.find(F.name());
+      if (Iterator == Functions.end()) {
+        std::string Error = "A function present in the right model is missing "
+                            "in "
+                            "the left one: "
+                            + F.name().str().str();
+        revng_abort(Error.c_str());
+      }
+      revng_assert(Iterator->second.Right == std::nullopt);
+      Iterator->second.Right = Right->key();
     }
-    revng_assert(Iterator->second.Right == std::nullopt);
-    Iterator->second.Right = Right->key();
   }
 
   // Deduplicate the list of IDs to replace.
@@ -242,15 +241,15 @@ int main(int Argc, char *Argv[]) {
     revng_check(Left.Kind() == Right.Kind());
 
     // Try and access the argument struct.
-    auto *LeftStack = Left.StackArgumentsType().get();
-    auto *RightStack = Right.StackArgumentsType().get();
+    auto *LeftStack = Left.stackArgumentsType();
+    auto *RightStack = Right.stackArgumentsType();
 
     // XOR the `bool`eans - make sure that either both functions have stack
     // argument or neither one does.
     revng_check(!LeftStack == !RightStack);
     if (LeftStack != nullptr) {
-      model::TypeDefinition::Key LSK = LeftStack->key();
-      model::TypeDefinition::Key RSK = RightStack->key();
+      const model::TypeDefinition::Key &LSK = LeftStack->key();
+      const model::TypeDefinition::Key &RSK = RightStack->key();
       llvm::StringRef N = LeftModel->TypeDefinitions().at(LSK)->OriginalName();
       if (auto Replacement = ensureIDMatch(LSK, RSK, N, *RightModel))
         Replacements.emplace(std::move(Replacement.value()));
@@ -284,12 +283,10 @@ int main(int Argc, char *Argv[]) {
   llvm::erase_if(RightModel->Functions(), IsUnrelatedToTheTest);
 
   // Erase the default prototypes because they interfere with the test.
-  const auto *LeftDefaultPrototype = LeftModel->DefaultPrototype().get();
-  const auto *RightDefaultPrototype = RightModel->DefaultPrototype().get();
-  LeftModel->TypeDefinitions().erase(LeftDefaultPrototype->key());
-  RightModel->TypeDefinitions().erase(RightDefaultPrototype->key());
-  LeftModel->DefaultPrototype() = model::DefinitionReference{};
-  RightModel->DefaultPrototype() = model::DefinitionReference{};
+  LeftModel->TypeDefinitions().erase(LeftModel->defaultPrototype()->key());
+  RightModel->TypeDefinitions().erase(RightModel->defaultPrototype()->key());
+  LeftModel->DefaultPrototype() = {};
+  RightModel->DefaultPrototype() = {};
 
   // Streamline both models and diff them
   model::purgeUnreachableTypes(LeftModel);

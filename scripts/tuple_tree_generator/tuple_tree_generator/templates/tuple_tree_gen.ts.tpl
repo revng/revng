@@ -119,7 +119,7 @@ export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/
         /**- endif **/
         /**- if class_.inherits **/
         /**- if class_.inherits | get_guid **/
-        super(rawObject, gen/*= class_.name =*/Guid);
+        super(rawObject, genGuid);
         /**- else **/
         super(rawObject)
         /**- endif **/

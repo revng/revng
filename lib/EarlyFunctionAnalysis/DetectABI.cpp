@@ -234,7 +234,7 @@ private:
 
   CSVSet findWrittenRegisters(llvm::Function *F);
 
-  model::UpcastableTypeDefinition
+  model::UpcastableType
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                 const efa::BasicBlock &CallerBlock);
 
@@ -656,16 +656,10 @@ void DetectABI::applyABIDeductions() {
 }
 
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
-  using namespace model;
   for (auto *CSV : CSVs) {
-    auto Register = Register::fromCSVName(CSV->getName(),
-                                          Binary->Architecture());
-    auto RegisterSize = model::Register::getSize(Register);
-    NamedTypedRegister TR(Register);
-    TR.Type() = {
-      Binary->getPrimitiveType(model::PrimitiveKind::Generic, RegisterSize), {}
-    };
-    Inserter.insert(TR);
+    auto Reg = model::Register::fromCSVName(CSV->getName(),
+                                            Binary->Architecture());
+    Inserter.emplace(Reg).Type() = model::PrimitiveType::makeGeneric(Reg);
   }
 }
 
@@ -686,26 +680,24 @@ void DetectABI::finalizeModel() {
     // Replace function attributes
     Function.Attributes() = Summary.Attributes;
 
-    auto NewType = makeTypeDefinition<RawFunctionDefinition>();
-    auto &FunctionType = *llvm::cast<RawFunctionDefinition>(NewType.get());
-
-    FunctionType.Architecture() = getCodeArchitecture(EntryPC);
+    auto [Prototype, NewType] = Binary->makeRawFunctionDefinition();
+    Prototype.Architecture() = getCodeArchitecture(EntryPC);
 
     // Record arguments and return values
     recordRegisters(Summary.ABIResults.ArgumentsRegisters,
-                    FunctionType.Arguments().batch_insert());
+                    Prototype.Arguments().batch_insert());
     recordRegisters(Summary.ABIResults.ReturnValuesRegisters,
-                    FunctionType.ReturnValues().batch_insert());
+                    Prototype.ReturnValues().batch_insert());
 
     // Preserved registers
     const auto &ClobberedRegisters = Summary.ClobberedRegisters;
     auto PreservedRegisters = computePreservedRegisters(ClobberedRegisters);
-    FunctionType.PreservedRegisters() = std::move(PreservedRegisters);
+    Prototype.PreservedRegisters() = std::move(PreservedRegisters);
 
     // Final stack offset
-    FunctionType.FinalStackOffset() = Summary.ElectedFSO.value_or(0);
+    Prototype.FinalStackOffset() = Summary.ElectedFSO.value_or(0);
 
-    Function.Prototype() = Binary->recordNewType(std::move(NewType));
+    Function.Prototype() = std::move(NewType);
     Functions.insert(&Function);
   }
 
@@ -728,18 +720,15 @@ void DetectABI::finalizeModel() {
           if (not IsDynamic and not IsDirect and not HasInfoOnEdge) {
             // It's an indirect call for which we have now call site information
             auto Prototype = buildPrototypeForIndirectCall(Summary, Block);
-            auto Path = Binary->recordNewType(std::move(Prototype));
 
             // This analysis does not have the power to detect whether an
             // indirect call site is a tail call, noreturn or inline
             bool IsTailCall = false;
 
             // Register new prototype
-            model::CallSitePrototype ThePrototype(BlockAddress,
-                                                  Path,
-                                                  IsTailCall,
-                                                  {});
-            Function->CallSitePrototypes().insert(std::move(ThePrototype));
+            Function->CallSitePrototypes().emplace(BlockAddress,
+                                                   std::move(Prototype),
+                                                   IsTailCall);
           }
         }
       }
@@ -798,7 +787,7 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
 
     using abi::FunctionType::Layout;
     // Get layout of wrapped function
-    Layout CalleeLayout = Layout::make(Prototype);
+    Layout CalleeLayout = Layout::make(*Prototype);
 
     // Verify that wrapper function:
     //  - don't write stack pointer
@@ -834,12 +823,15 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     if (not WritesSP and not WritesCalleeArgs and not WritesCalleeReturnValues
         and WritesOnlyRegisters) {
 
-      revng_log(Log,
-                "Overwriting " << Entry.toString() << " prototype ("
-                               << Function.Prototype().toString()
-                               << ") with wrapped function's prototype: "
-                               << Prototype.toString());
-      Function.Prototype() = Prototype;
+      if (Log.isEnabled()) {
+        Log << "Overwriting " << Entry.toString() << " prototype ";
+        if (!Function.Prototype().empty())
+          Log << "(" << serializeToString(Function.Prototype()) << ") ";
+        Log << "with wrapped function's prototype: "
+            << serializeToString(*Prototype) << DoLog;
+      }
+
+      Function.Prototype() = Binary->makeType(Prototype->key());
 
       if (Function.CustomName().empty() and Function.OriginalName().empty()) {
         if (not Call->DynamicFunction().empty()) {
@@ -861,41 +853,38 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   model::promoteOriginalName(Binary);
 }
 
-model::UpcastableTypeDefinition
+model::UpcastableType
 DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                          const efa::BasicBlock &CallerBlock) {
   using namespace model;
 
-  auto NewType = makeTypeDefinition<RawFunctionDefinition>();
-  auto &CallType = *llvm::cast<RawFunctionDefinition>(NewType.get());
-  {
-    CallType.Architecture() = getCodeArchitecture(CallerBlock.ID().start());
+  auto [Prototype, NewType] = Binary->makeRawFunctionDefinition();
+  Prototype.Architecture() = getCodeArchitecture(CallerBlock.ID().start());
 
-    bool Found = false;
-    for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
-      if (PC != CallerBlock.ID())
-        continue;
+  bool Found = false;
+  for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
+    if (PC != CallerBlock.ID())
+      continue;
 
-      revng_assert(!Found);
-      Found = true;
+    revng_assert(!Found);
+    Found = true;
 
-      recordRegisters(CallSites.ArgumentsRegisters,
-                      CallType.Arguments().batch_insert());
-      recordRegisters(CallSites.ReturnValuesRegisters,
-                      CallType.ReturnValues().batch_insert());
-    }
-    revng_assert(Found);
-
-    // Import FinalStackOffset and CalleeSavedRegisters from the default
-    // prototype
-    const FunctionSummary &DefaultSummary = Oracle.getDefault();
-    const auto &Clobbered = DefaultSummary.ClobberedRegisters;
-    CallType.PreservedRegisters() = computePreservedRegisters(Clobbered);
-
-    CallType.FinalStackOffset() = DefaultSummary.ElectedFSO.value_or(0);
+    recordRegisters(CallSites.ArgumentsRegisters,
+                    Prototype.Arguments().batch_insert());
+    recordRegisters(CallSites.ReturnValuesRegisters,
+                    Prototype.ReturnValues().batch_insert());
   }
+  revng_assert(Found);
 
-  return NewType;
+  // Import FinalStackOffset and CalleeSavedRegisters from the default
+  // prototype
+  const FunctionSummary &DefaultSummary = Oracle.getDefault();
+  const auto &Clobbered = DefaultSummary.ClobberedRegisters;
+  Prototype.PreservedRegisters() = computePreservedRegisters(Clobbered);
+
+  Prototype.FinalStackOffset() = DefaultSummary.ElectedFSO.value_or(0);
+
+  return std::move(NewType);
 }
 
 static void combineCrossCallSites(auto &CallSite, auto &Callee) {

@@ -144,7 +144,7 @@ public:
       return nullptr;
 
     const auto GetByPathVisitor = [&Path = Path](const auto &RootPointer) {
-      return getByPath<T>(Path, *RootPointer);
+      return static_cast<const T *>(getByPath<T>(Path, *RootPointer));
     };
 
     return std::visit(GetByPathVisitor, Root);

@@ -251,15 +251,6 @@ async def run_preliminary_analyses(client):
         {"ctt": json.dumps({"input": [":binary"]}), "index": index},
     )
 
-    index = await get_index(client)
-    await client.execute(
-        gql(
-            "mutation {"
-            + f'runAnalysis(step: "initial", analysis: "add-primitive-types", index: "{index}")'
-            + "{ __typename } }"
-        )
-    )
-
 
 async def test_lift(client):
     await run_preliminary_analyses(client)

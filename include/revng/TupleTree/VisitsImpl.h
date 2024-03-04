@@ -46,9 +46,10 @@ struct GetByPathVisitor {
 } // namespace tupletree::detail
 
 template<typename ResultT, typename RootT>
-ResultT *getByPath(const TupleTreePath &Path, RootT &M) {
+tupletree::detail::getByPathRV<ResultT, RootT> *
+getByPath(const TupleTreePath &Path, RootT &M) {
   using namespace tupletree::detail;
-  GetByPathVisitor<ResultT> GBPV;
+  GetByPathVisitor<getByPathRV<ResultT, RootT>> GBPV;
   if (not callByPath(GBPV, Path, M)) {
     return nullptr;
   }

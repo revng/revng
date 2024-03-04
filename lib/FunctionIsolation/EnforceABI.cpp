@@ -132,8 +132,9 @@ bool EnforceABI::prologue() {
       continue;
     OldFunctions.push_back(OldFunction);
 
-    model::DefinitionReference Prototype = FunctionModel.prototype(Binary);
-    auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+    const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
+    revng_assert(ProtoT != nullptr);
+    auto UsedRegisters = abi::FunctionType::usedRegisters(*ProtoT);
     Function *NewFunction = recreateFunction(*OldFunction, UsedRegisters);
 
     // EnforceABI currently does not support execution
@@ -155,8 +156,9 @@ bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
   OldFunctions.push_back(&OldFunction);
 
   // Recreate the function with the right prototype and the function prologue
-  const model::DefinitionReference &Prototype = FunctionModel.prototype(Binary);
-  auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+  const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
+  revng_assert(ProtoT != nullptr);
+  auto UsedRegisters = abi::FunctionType::usedRegisters(*ProtoT);
   Function *NewFunction = getOrCreateNewFunction(OldFunction, UsedRegisters);
 
   // Collect function calls
@@ -362,8 +364,9 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
   } else if (IsDirect) {
     MetaAddress CalleeAddress = CallSite->Destination().notInlinedAddress();
     const model::Function &ModelFunc = Binary.Functions().at(CalleeAddress);
-    const model::DefinitionReference &Prototype = ModelFunc.prototype(Binary);
-    auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+    const auto *Prototype = Binary.prototypeOrDefault(ModelFunc.prototype());
+    revng_assert(Prototype != nullptr);
+    auto UsedRegisters = abi::FunctionType::usedRegisters(*Prototype);
     Callee = getOrCreateNewFunction(*Callee, UsedRegisters);
   }
 
@@ -426,11 +429,9 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<Constant *, 8> ReturnCSVs;
 
-  model::DefinitionReference Prototype = getPrototype(Binary,
-                                                      Entry,
-                                                      CallSiteBlock.ID(),
-                                                      CallSite);
-  auto Registers = abi::FunctionType::usedRegisters(Prototype);
+  auto *Prototype = getPrototype(Binary, Entry, CallSiteBlock.ID(), CallSite);
+  revng_assert(Prototype != nullptr);
+  auto Registers = abi::FunctionType::usedRegisters(*Prototype);
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);
   if (IsIndirect) {
@@ -461,7 +462,9 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
   revng_assert(Result->getDebugLoc());
-  setStringMetadata(Result, PrototypeMDName, Prototype.toString());
+  setStringMetadata(Result,
+                    PrototypeMDName,
+                    Binary.getDefinitionReference(Prototype->key()).toString());
 
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;

@@ -3,37 +3,30 @@
 #
 
 TypeDefinitions:
-  - ID: 1284
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 4
   - Kind: EnumDefinition
     ID: 8119090305649570066
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 0
         OriginalName: x
       - Value: 1
         OriginalName: "y"
-  - ID: 256
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Void
-    Size: 0
   - Kind: TypedefDefinition
     ID: 1687222338895130802
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/8119090305649570066-EnumDefinition"
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/8119090305649570066-EnumDefinition"
   - Kind: CABIFunctionDefinition
     ID: 5232257417303549612
-    OriginalName: fn
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1687222338895130802-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1687222338895130802-TypedefDefinition"
         OriginalName: x

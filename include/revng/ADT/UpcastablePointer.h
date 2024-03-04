@@ -14,9 +14,6 @@
 #include "revng/Support/Assert.h"
 
 template<typename T>
-struct KeyedObjectTraits;
-
-template<typename T>
 struct concrete_types_traits;
 
 template<typename T>
@@ -45,6 +42,9 @@ concept Dereferenceable = requires(T A) {
 
 static_assert(Dereferenceable<int *>);
 static_assert(not Dereferenceable<int>);
+
+template<Dereferenceable T>
+using Dereferenced = std::decay_t<decltype(*std::declval<T>())>;
 
 template<typename T>
 concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
@@ -103,25 +103,6 @@ void upcast(P &&Upcastable, L &&Callable) {
     return true;
   };
   upcast(Upcastable, Wrapper, false);
-}
-
-template<UpcastablePointerLike P, typename KeyT, typename L>
-void invokeByKey(const KeyT &Key, L &&Callable) {
-  auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
-
-  upcast(Upcastable, [&Callable]<typename UpcastedT>(const UpcastedT &C) {
-    Callable(static_cast<UpcastedT *>(nullptr));
-  });
-}
-
-template<UpcastablePointerLike P, typename KeyT, typename L, typename ReturnT>
-ReturnT invokeByKey(const KeyT &Key, L &&Callable, const ReturnT &IfNull) {
-  auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
-
-  auto ToCall = [&Callable]<typename UpcastedT>(const UpcastedT &C) {
-    return Callable(static_cast<UpcastedT *>(nullptr));
-  };
-  return upcast(Upcastable, ToCall, IfNull);
 }
 
 /// A unique_ptr copiable thanks to LLVM RTTI
@@ -227,7 +208,9 @@ public:
   }
 
 public:
-  bool operator==(const UpcastablePointer &Other) const {
+  template<UpcastablePointerLike PointerLike>
+    requires(std::equality_comparable_with<T, Dereferenced<PointerLike>>)
+  bool operator==(const PointerLike &Other) const {
     if (empty() || Other.empty())
       return Pointer == Other.Pointer;
 
@@ -236,17 +219,28 @@ public:
       Other.upcast([&](auto &OtherUpcasted) {
         using ThisType = std::remove_cvref_t<decltype(Upcasted)>;
         using OtherType = std::remove_cvref_t<decltype(OtherUpcasted)>;
-        if constexpr (std::is_same_v<ThisType, OtherType>) {
+        if constexpr (std::is_same_v<ThisType, OtherType>)
           Result = Upcasted == OtherUpcasted;
-        }
       });
     });
     return Result;
   }
 
-  auto get() const noexcept { return Pointer.get(); }
-  auto &operator*() const { return *Pointer; }
-  auto *operator->() const noexcept { return Pointer.operator->(); }
+  template<UpcastablePointerLike PointerLike>
+    requires(std::three_way_comparable_with<T, Dereferenced<PointerLike>>)
+  auto operator<=>(const PointerLike &Other) const {
+    return *Pointer <=> *Other;
+  }
+
+  auto *get() noexcept { return Pointer.get(); }
+  const auto *get() const noexcept { return Pointer.get(); }
+
+  auto &operator*() { return *Pointer; }
+  const auto &operator*() const { return *Pointer; }
+
+  auto *operator->() noexcept { return Pointer.operator->(); }
+  const auto *operator->() const noexcept { return Pointer.operator->(); }
+
   explicit operator bool() const noexcept { return static_cast<bool>(Pointer); }
 
   void reset(pointer Other = pointer()) noexcept { Pointer.reset(Other); }

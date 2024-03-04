@@ -6,7 +6,9 @@
 Functions:
   - OriginalName: function
     CallSitePrototypes:
-      - Prototype: "/TypeDefinitions/1815-RawFunctionDefinition"
+      - Prototype:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1815-RawFunctionDefinition"
 TypeDefinitions:
   - ID: 1815
     Kind: RawFunctionDefinition

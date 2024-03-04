@@ -20,6 +20,10 @@ struct TupleLikeTraits {
   };
 };
 
+template<typename T>
+  requires(std::is_const_v<T>)
+struct TupleLikeTraits<T> : TupleLikeTraits<std::remove_const_t<T>> {};
+
 namespace detail {
 
 template<typename T>

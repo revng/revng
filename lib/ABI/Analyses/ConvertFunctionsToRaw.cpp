@@ -29,14 +29,9 @@ public:
     using CABIFD = model::CABIFunctionDefinition;
     auto ToConvert = filterTypes<CABIFD>(Model->TypeDefinitions());
     for (model::CABIFunctionDefinition *Old : ToConvert) {
-      model::DefinitionReference New = abi::FunctionType::convertToRaw(*Old,
-                                                                       Model);
-
-      // Make sure the returned type is valid,
-      revng_assert(New.isValid());
-
-      // and verifies.
-      revng_assert(New.get()->verify(VH));
+      model::UpcastableType New = abi::FunctionType::convertToRaw(*Old, Model);
+      revng_assert(!New.empty());
+      revng_assert(New->verify(VH));
     }
 
     // Don't forget to clean up any possible remainders of removed types.

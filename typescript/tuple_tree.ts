@@ -20,6 +20,7 @@ export const yamlToStringOptions = {
     defaultKeyType: yaml.Scalar.PLAIN,
     defaultStringType: yaml.Scalar.QUOTE_DOUBLE,
     directives: true,
+    lineWidth: 0,
 } as const;
 
 export type IReference = string;
@@ -100,7 +101,11 @@ export function genGuid(): bigint {
 // Tree traversal
 
 function getElementByPathArray<T>(path: string[], obj: any): T | undefined {
-    const component = path[0];
+    if (obj === undefined) {
+        return undefined;
+    }
+
+    let component = path[0];
     if (obj instanceof Array) {
         for (const elem of obj) {
             if (keyableObject(elem) && elem.key() == component) {
@@ -113,6 +118,13 @@ function getElementByPathArray<T>(path: string[], obj: any): T | undefined {
         }
         return undefined;
     } else {
+        if (component.includes("::")) {
+            const parts = component.split("::", 2);
+            component = parts[1];
+            if (obj.Kind !== parts[0]) {
+                return undefined;
+            }
+        }
         if (component in obj) {
             if (path.length == 1) {
                 return obj[component];
@@ -126,7 +138,11 @@ function getElementByPathArray<T>(path: string[], obj: any): T | undefined {
 }
 
 function setElementByPathArray<T>(path: string[], obj: any, value: T): boolean {
-    const component = path[0];
+    if (obj === undefined) {
+        return false;
+    }
+
+    let component = path[0];
     if (obj instanceof Array) {
         const index = obj.findIndex((elem) => keyableObject(elem) && elem.key() === component);
 
@@ -150,6 +166,13 @@ function setElementByPathArray<T>(path: string[], obj: any, value: T): boolean {
             return false;
         }
     } else {
+        if (component.includes("::")) {
+            const parts = component.split("::", 2);
+            component = parts[1];
+            if (obj.Kind !== parts[0]) {
+                return false;
+            }
+        }
         if (component in obj) {
             if (path.length == 1) {
                 obj[component] = value;
@@ -299,6 +322,7 @@ export function makeDiffSubtree(
     }
 
     let infoObject: TypeInfoObject;
+    let upcast = false;
     if (typeInfo.isAbstract) {
         const derivedClass = (
             typeInfo.type as unknown as { parseClass: (obj) => Constructor | undefined }
@@ -307,6 +331,7 @@ export function makeDiffSubtree(
         if (derivedClass !== undefined) {
             const derivedClassObject = typeHints.get(derivedClass);
             infoObject = { ...baseInfoObject, ...derivedClassObject };
+            upcast = true;
         } else {
             infoObject = { ...baseInfoObject };
         }
@@ -334,13 +359,13 @@ export function makeDiffSubtree(
                         )
                     );
                 } else {
-                    result.push(new Diff(`${prefix}`, undefined, value));
+                    result.push(new Diff(prefix, undefined, value));
                 }
             }
 
             for (const [key, value] of map_new) {
                 if (!common_keys.has(key)) {
-                    result.push(new Diff(`${prefix}`, value, undefined));
+                    result.push(new Diff(prefix, value, undefined));
                 }
             }
         } else {
@@ -361,6 +386,7 @@ export function makeDiffSubtree(
         }
     } else {
         for (const key in infoObject) {
+            const key_prefix = `${prefix}/` + (upcast ? `${obj_old.Kind}::${key}` : key);
             if (obj_old[key] === undefined && obj_new[key] !== undefined) {
                 result.push(new Diff(`${prefix}/${key}`, obj_new[key].toJSON(), undefined));
             } else if (obj_old[key] !== undefined && obj_new[key] === undefined) {
@@ -370,21 +396,13 @@ export function makeDiffSubtree(
             } else if (infoObject[key].ctor == "native" && !infoObject[key].isArray) {
                 if (obj_old[key] !== obj_new[key]) {
                     result.push(
-                        new Diff(
-                            `${prefix}/${key}`,
-                            obj_new[key].toString(),
-                            obj_old[key].toString()
-                        )
+                        new Diff(key_prefix, obj_new[key].toString(), obj_old[key].toString())
                     );
                 }
             } else if (hasEquals(obj_old[key]) && hasEquals(obj_new[key])) {
                 if (!obj_old[key].equals(obj_new[key])) {
                     result.push(
-                        new Diff(
-                            `${prefix}/${key}`,
-                            obj_new[key].toString(),
-                            obj_old[key].toString()
-                        )
+                        new Diff(key_prefix, obj_new[key].toString(), obj_old[key].toString())
                     );
                 }
             } else {
@@ -392,7 +410,7 @@ export function makeDiffSubtree(
                     ...makeDiffSubtree(
                         obj_old[key],
                         obj_new[key],
-                        `${prefix}/${key}`,
+                        key_prefix,
                         typeHints,
                         infoObject[key],
                         false
@@ -425,7 +443,13 @@ export function _getTypeInfo(
     if (typeof path === "string") {
         path = path.split("/").slice(1);
     }
-    const component = path[0];
+
+    let component = path[0];
+    if (component.includes("::")) {
+        const parts = component.split("::", 2);
+        component = parts[1];
+    }
+
     const root_hint = TYPE_HINTS.get(root);
     if (root_hint !== undefined && component in root_hint) {
         const type_info = root_hint[component];

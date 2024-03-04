@@ -5,9 +5,13 @@
 ---
 Functions:
   - OriginalName: callee
-    Prototype: "/TypeDefinitions/1814-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1814-RawFunctionDefinition"
   - OriginalName: caller
-    Prototype: "/TypeDefinitions/1815-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1815-RawFunctionDefinition"
 TypeDefinitions:
   - ID: 1814
     Kind: RawFunctionDefinition

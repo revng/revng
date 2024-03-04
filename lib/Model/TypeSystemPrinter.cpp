@@ -7,7 +7,6 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionDefinition.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/StructDefinition.h"
 #include "revng/Model/TypeDefinitionKind.h"
@@ -20,14 +19,13 @@ using llvm::cast;
 using llvm::dyn_cast;
 using llvm::isa;
 using model::CABIFunctionDefinition;
-using model::QualifiedType;
 using model::RawFunctionDefinition;
 using model::StructDefinition;
 using model::TypedefDefinition;
 using model::UnionDefinition;
 using std::to_string;
 
-using FieldList = llvm::SmallVector<QualifiedType, 16>;
+using FieldList = llvm::SmallVector<const model::Type *, 16>;
 
 static constexpr const char *TableOpts = "border='0' cellborder='1' "
                                          "cellspacing='0' cellpadding='0'";
@@ -81,31 +79,28 @@ static FieldList collectFields(const model::TypeDefinition *T) {
 
   if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(T)) {
     for (auto &Field : Struct->Fields())
-      Fields.push_back(Field.Type());
+      Fields.push_back(Field.Type().get());
 
   } else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(T)) {
     for (auto &Field : Union->Fields())
-      Fields.push_back(Field.Type());
+      Fields.push_back(Field.Type().get());
 
   } else if (auto *CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(T)) {
-    Fields.push_back(CABI->ReturnType());
+    Fields.push_back(CABI->ReturnType().get());
     for (auto &Field : CABI->Arguments())
-      Fields.push_back(Field.Type());
+      Fields.push_back(Field.Type().get());
 
   } else if (auto *RawFunc = llvm::dyn_cast<model::RawFunctionDefinition>(T)) {
     for (auto &Field : RawFunc->ReturnValues())
-      Fields.push_back(Field.Type());
-
-    if (Fields.empty())
-      Fields.push_back({});
+      Fields.push_back(Field.Type().get());
 
     for (auto &Field : RawFunc->Arguments())
-      Fields.push_back(Field.Type());
+      Fields.push_back(Field.Type().get());
 
     if (not RawFunc->StackArgumentsType().empty())
-      Fields.push_back({ RawFunc->StackArgumentsType(), {} });
+      Fields.push_back(RawFunc->StackArgumentsType().get());
   } else if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(T)) {
-    Fields.push_back(Typedef->UnderlyingType());
+    Fields.push_back(Typedef->UnderlyingType().get());
   }
 
   return Fields;
@@ -127,32 +122,42 @@ TypeSystemPrinter::~TypeSystemPrinter() {
   Out.flush();
 }
 
-/// Build a C-like string for a given QualifiedType
-static llvm::SmallString<32>
-buildFieldName(const model::QualifiedType &FieldQT) {
-  llvm::SmallString<32> FieldName;
+/// Build a C-like string for a given Type
+static std::string buildFieldName(const model::Type &Type,
+                                  std::string &&Prefix = {},
+                                  std::string &&Suffix = {}) {
+  if (const auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+    revng_assert(!Array->IsConst(),
+                 "Const arrays are not supported by this serializer.");
 
-  if (not FieldQT.UnqualifiedType().empty()) {
-    FieldName += FieldQT.UnqualifiedType().get()->name();
-    FieldName += " ";
+    Suffix = "[" + std::to_string(Array->ElementCount()) + "]"
+             + std::move(Suffix);
+    return buildFieldName(*Array->ElementType(),
+                          std::move(Prefix),
+                          std::move(Suffix));
+
+  } else if (const auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
+    std::string Result = std::move(Prefix);
+    if (!Result.empty() && Result.back() != '*')
+      Result += ' ';
+
+    return Result += (D->unwrap().name() + Suffix).str();
+
+  } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
+    return buildFieldName(*P->PointeeType(),
+                          std::move(Prefix += P->IsConst() ? "* const" : "*"),
+                          std::move(Suffix));
+
+  } else if (const auto *P = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
+    std::string Result = std::move(Prefix);
+    if (!Result.empty() && Result.at(Result.size() - 1) != '*')
+      Result += ' ';
+
+    return Result += P->getCName() + Suffix;
+
   } else {
-    FieldName += "void ";
+    revng_abort("Unsupported type.");
   }
-
-  for (auto &Q : FieldQT.Qualifiers()) {
-    switch (Q.Kind()) {
-    case model::QualifierKind::Pointer:
-      FieldName += "*";
-      break;
-    case model::QualifierKind::Array:
-      FieldName += "[" + to_string(Q.Size()) + "]";
-      break;
-    default:
-      break;
-    }
-  }
-
-  return FieldName;
 }
 
 /// Add a row in a struct table
@@ -186,22 +191,16 @@ static void dumpStructFields(llvm::raw_ostream &Out,
 
   // Struct fields are stacked vertically
   uint64_t LastOffset = 0;
-  for (auto FieldEnum : llvm::enumerate(T->Fields())) {
-    const auto &Field = FieldEnum.value();
-    const auto &FieldQT = Field.Type();
-    const auto FieldOffset = Field.Offset();
-
+  for (auto [Index, Field] : llvm::enumerate(T->Fields())) {
     // Check if there's padding to be added before this field
-    if (FieldOffset > LastOffset)
-      addStructField(Out, LastOffset, FieldOffset - LastOffset, "padding");
+    if (Field.Offset() > LastOffset)
+      addStructField(Out, LastOffset, Field.Offset() - LastOffset, "padding");
 
-    addStructField(Out,
-                   Field.Offset(),
-                   FieldQT.size().value_or(0),
-                   buildFieldName(FieldQT),
-                   FieldEnum.index());
+    auto Name = buildFieldName(*Field.Type());
+    uint64_t Size = Field.Type()->size().value_or(0);
+    addStructField(Out, Field.Offset(), Size, Name, Index);
 
-    LastOffset += FieldOffset + FieldQT.size().value_or(0);
+    LastOffset += Field.Offset() + Size;
   }
 
   // Check if there's trailing padding
@@ -221,16 +220,10 @@ static void dumpUnionFields(llvm::raw_ostream &Out,
   Out << "<TR>";
 
   // Union fields are disposed horizontally
-  for (auto FieldEnum : llvm::enumerate(T->Fields())) {
-    const auto &Field = FieldEnum.value();
-    const auto &FieldQT = Field.Type();
-    const auto FieldSize = FieldQT.size().value_or(0);
-
-    paddedCell(Out,
-               (buildFieldName(FieldQT) + "  (size: " + to_string(FieldSize)
-                + ")")
-                 .str(),
-               FieldEnum.index());
+  for (auto [Index, Field] : llvm::enumerate(T->Fields())) {
+    auto Name = buildFieldName(*Field.Type());
+    const auto Size = Field.Type()->size().value_or(0);
+    paddedCell(Out, Name + "  (size: " + to_string(Size) + ")", Index);
   }
   Out << "</TR>";
 }
@@ -238,25 +231,25 @@ static void dumpUnionFields(llvm::raw_ostream &Out,
 /// Generate the inner table of a function type
 static void dumpFunctionType(llvm::raw_ostream &Out,
                              const model::TypeDefinition *T) {
-  llvm::SmallVector<model::QualifiedType, 8> ReturnTypes;
-  llvm::SmallVector<model::QualifiedType, 8> Arguments;
+  llvm::SmallVector<const model::Type *, 8> ReturnTypes;
+  llvm::SmallVector<const model::Type *, 8> Arguments;
 
   // Collect arguments and return types
   if (auto *RawFunc = dyn_cast<RawFunctionDefinition>(T)) {
     for (auto &RetTy : RawFunc->ReturnValues())
-      ReturnTypes.push_back(RetTy.Type());
+      ReturnTypes.push_back(RetTy.Type().get());
 
     for (auto &ArgTy : RawFunc->Arguments())
-      Arguments.push_back(ArgTy.Type());
+      Arguments.push_back(ArgTy.Type().get());
 
     if (not RawFunc->StackArgumentsType().empty())
-      Arguments.push_back({ RawFunc->StackArgumentsType(), {} });
+      Arguments.push_back(RawFunc->StackArgumentsType().get());
 
   } else if (auto *CABIFunc = dyn_cast<CABIFunctionDefinition>(T)) {
-    ReturnTypes.push_back(CABIFunc->ReturnType());
+    ReturnTypes.push_back(CABIFunc->ReturnType().get());
 
     for (auto &ArgTy : CABIFunc->Arguments())
-      Arguments.push_back(ArgTy.Type());
+      Arguments.push_back(ArgTy.Type().get());
   }
 
   // Inner table that divides return types and arguments
@@ -281,7 +274,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out,
     CurPort++;
   } else {
     for (auto Field : ReturnTypes)
-      paddedCell(Out, buildFieldName(Field), CurPort++);
+      paddedCell(Out, buildFieldName(*Field), CurPort++);
   }
   Out << "</TR></TABLE></TD>";
 
@@ -291,7 +284,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out,
     Out << "<TD></TD>";
   } else {
     for (auto Field : Arguments)
-      paddedCell(Out, buildFieldName(Field), CurPort++);
+      paddedCell(Out, buildFieldName(*Field), CurPort++);
   }
   Out << "</TR></TABLE></TD>";
 
@@ -306,7 +299,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out,
 static void dumpTypedefUnderlying(llvm::raw_ostream &Out,
                                   const model::TypedefDefinition *T) {
   Out << "<TR>";
-  paddedCell(Out, buildFieldName(T->UnderlyingType()), 0);
+  paddedCell(Out, buildFieldName(*T->UnderlyingType()), 0);
   Out << "</TR>";
 }
 
@@ -352,7 +345,46 @@ void TypeSystemPrinter::addEdge(int SrcID, int SrcPort, int DstID) {
   Out << ":<TOP>;\n";
 }
 
-void TypeSystemPrinter::addFieldEdge(const model::QualifiedType &QT,
+struct FieldEdge {
+  std::string Label;
+  const model::TypeDefinition *Destination;
+  bool IsPointer;
+};
+static RecursiveCoroutine<FieldEdge>
+buildFieldEdgeLabel(const model::Type &Type,
+                    std::string &&Current = {},
+                    bool IsPointer = false) {
+  if (const auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+    if (!Current.empty())
+      Current += ",\\n";
+    Current += "Array[" + std::to_string(Array->ElementCount()) + "]";
+    rc_return buildFieldEdgeLabel(*Array->ElementType(),
+                                  std::move(Current),
+                                  false);
+
+  } else if (const auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
+    rc_return{ .Label = std::move(Current),
+               .Destination = &D->unwrap(),
+               .IsPointer = IsPointer };
+
+  } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
+    if (!Current.empty())
+      Current += ",\\n";
+    Current += "Pointer (" + std::to_string(P->PointerSize()) + " bytes)";
+    rc_return buildFieldEdgeLabel(*P->PointeeType(), std::move(Current), true);
+
+  } else if (const auto *P = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
+    rc_return{ .Label = std::move(Current),
+               .Destination = nullptr,
+               .IsPointer = IsPointer };
+
+  } else {
+    revng_abort("Unsupported type.");
+  }
+}
+
+void TypeSystemPrinter::addFieldEdge(std::string &&Label,
+                                     bool IsPointer,
                                      int SrcID,
                                      int SrcPort,
                                      int DstID) {
@@ -362,28 +394,10 @@ void TypeSystemPrinter::addFieldEdge(const model::QualifiedType &QT,
   Out << "node_" << to_string(DstID) << ":<TOP>";
 
   // Label
-  Out << "[label=\"";
-
-  const char *Prefix = "";
-  for (auto &Qual : QT.Qualifiers()) {
-    Out << Prefix;
-    Prefix = ",\\n";
-    switch (Qual.Kind()) {
-    case model::QualifierKind::Array:
-      Out << "Array[" << Qual.Size() << "]";
-      break;
-    case model::QualifierKind::Pointer:
-      Out << "Pointer (size " << Qual.Size() << ")";
-      break;
-    default:
-      break;
-    }
-  }
-
-  Out << "\"";
+  Out << "[label=\"" << std::move(Label) << "\"";
 
   // Style
-  if (QT.isPointer())
+  if (IsPointer)
     Out << ", style=dotted";
 
   Out << "];\n";
@@ -414,29 +428,24 @@ void TypeSystemPrinter::print(const model::TypeDefinition &T) {
 
     // Collect all the successors
     FieldList Fields = collectFields(CurType);
-    for (auto Field : llvm::enumerate(Fields)) {
-      auto &FieldQT = Field.value();
-
-      const model::TypeDefinition *Unqualified = nullptr;
-
-      if (not FieldQT.UnqualifiedType().empty())
-        Unqualified = FieldQT.UnqualifiedType().getConst();
+    for (auto [Index, Field] : llvm::enumerate(Fields)) {
+      FieldEdge Edge = buildFieldEdgeLabel(*Field);
+      auto [Label, DefinitionPointer, IsPointer] = Edge;
 
       // Don't add edges for primitive types, as they would pollute the graph
       // and add no information regarding the type system structure
-      namespace TDKind = model::TypeDefinitionKind;
-      if (not Unqualified or Unqualified->Kind() == TDKind::PrimitiveDefinition)
+      if (DefinitionPointer == nullptr)
         continue;
 
       uint64_t SuccID;
-      auto It = NodesMap.find(Unqualified);
+      auto It = NodesMap.find(DefinitionPointer);
       if (It != NodesMap.end()) {
         // If a node already exists for the target type, use that
         SuccID = It->second;
       } else {
         // If the node does not already exist, create a new one
         SuccID = NextID;
-        EmitNode(Unqualified);
+        EmitNode(DefinitionPointer);
       }
 
       // Add an edge to the type referenced by the current field.
@@ -444,10 +453,10 @@ void TypeSystemPrinter::print(const model::TypeDefinition &T) {
       // the source node was either the root node or a successor of a
       // previously visited node, we are sure that both the source and the
       // destination of this edge have already been created.
-      addFieldEdge(FieldQT, CurID, Field.index(), SuccID);
+      addFieldEdge(std::move(Label), IsPointer, CurID, Index, SuccID);
 
       // Push the field's type to the visit stack
-      ToVisit.push_back(Unqualified);
+      ToVisit.push_back(DefinitionPointer);
     }
 
     // Mark this Type as visited: the node has been emitted, as well as
@@ -482,17 +491,15 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   // Second row of the inner table (actual types)
   Out << "<TR>";
 
-  if (!F.Prototype().empty())
-    paddedCell(Out, F.Prototype().getConst()->name(), /*port=*/0);
+  if (const model::TypeDefinition *Prototype = F.prototype())
+    paddedCell(Out, Prototype->name(), /*port=*/0);
   else
     Out << "<TD></TD>";
 
-  if (not F.StackFrameType().empty()) {
-    const model::TypeDefinition *StackT = F.StackFrameType().getConst();
-    paddedCell(Out, StackT->name(), /*port=*/1);
-  } else {
+  if (const model::StructDefinition *StackFrame = F.stackFrameType())
+    paddedCell(Out, StackFrame->name(), /*port=*/1);
+  else
     Out << "<TD></TD>";
-  }
 
   Out << "</TR>";
 
@@ -510,22 +517,20 @@ void TypeSystemPrinter::print(const model::Function &F) {
   NextID++;
 
   // Node of prototype type, if present
-  if (not F.Prototype().empty()) {
-    const model::TypeDefinition *PrototypeT = F.Prototype().getConst();
-    print(*PrototypeT);
+  if (const model::TypeDefinition *Prototype = F.prototype()) {
+    print(*Prototype);
 
     // Edges
-    uint64_t PrototypeNodeID = NodesMap.at(PrototypeT);
+    uint64_t PrototypeNodeID = NodesMap.at(Prototype);
     addEdge(FunctionNodeID, 0, PrototypeNodeID);
   }
 
   // Node of the stack type, if present
-  if (not F.StackFrameType().empty()) {
-    const model::TypeDefinition *StackT = F.StackFrameType().getConst();
-    print(*StackT);
+  if (const model::StructDefinition *StackFrame = F.stackFrameType()) {
+    print(*StackFrame);
 
     // Edges
-    uint64_t StackNodeID = NodesMap.at(StackT);
+    uint64_t StackNodeID = NodesMap.at(StackFrame);
     addEdge(FunctionNodeID, 1, StackNodeID);
   }
 }
@@ -556,8 +561,8 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
   // Second row of the inner table (actual types)
   Out << "<TR>";
 
-  if (!F.Prototype().empty())
-    paddedCell(Out, F.Prototype().getConst()->name(), /*port=*/0);
+  if (const model::TypeDefinition *Prototype = F.prototype())
+    paddedCell(Out, Prototype->name(), /*port=*/0);
   else
     Out << "<TD></TD>";
 
@@ -577,12 +582,11 @@ void TypeSystemPrinter::print(const model::DynamicFunction &F) {
   NextID++;
 
   // Node of the prototype type, if present
-  if (not F.Prototype().empty()) {
-    const model::TypeDefinition *PrototypeT = F.Prototype().getConst();
-    print(*PrototypeT);
+  if (const model::TypeDefinition *Prototype = F.prototype()) {
+    print(*Prototype);
 
     // Edges
-    uint64_t PrototypeNodeID = NodesMap.at(PrototypeT);
+    uint64_t PrototypeNodeID = NodesMap.at(Prototype);
     addEdge(FunctionNodeID, 0, PrototypeNodeID);
   }
 }
@@ -612,8 +616,8 @@ void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
   // Second row of the inner table (actual types)
   Out << "<TR>";
 
-  if (!S.Type().empty())
-    paddedCell(Out, S.Type().getConst()->name(), /*port=*/0);
+  if (const model::StructDefinition *Type = S.type())
+    paddedCell(Out, Type->name(), /*port=*/0);
   else
     Out << "<TD></TD>";
 
@@ -633,12 +637,11 @@ void TypeSystemPrinter::print(const model::Segment &S) {
   NextID++;
 
   // Node of the prototype type, if present
-  if (not S.Type().empty()) {
-    const model::TypeDefinition *T = S.Type().getConst();
-    print(*T);
+  if (const model::StructDefinition *Type = S.type()) {
+    print(*Type);
 
     // Edges
-    uint64_t PrototypeNodeID = NodesMap.at(T);
+    uint64_t PrototypeNodeID = NodesMap.at(Type);
     addEdge(SegmentNodeID, 0, PrototypeNodeID);
   }
 }
@@ -657,13 +660,7 @@ void TypeSystemPrinter::print(const model::Binary &Model) {
     print(S);
 
   // Print remaining types, if any
-  for (auto &T : Model.TypeDefinitions()) {
-    if (NodesMap.contains(T.get()))
-      continue;
-
-    // Avoid polluting the graph with uninformative nodes
-    if (T->Kind() != model::TypeDefinitionKind::PrimitiveDefinition
-        and not T->edges().empty())
+  for (auto &T : Model.TypeDefinitions())
+    if (!NodesMap.contains(T.get()))
       print(*T);
-  }
 }

@@ -101,9 +101,7 @@ The abi testing reference binary is imported into a model using the normal means
 
 Because sometimes it's impossible to detect ABI correctly based on dwarf data alone, and because having the right ABI is _really_ important for the integrity of this test, if for any CABI-FT inside the binary the recorded ABI doesn't exactly match the expected ABI, this script overrides it.
 
-### `revng analyze add-primitive-types`
-
-Eventually this will have to go away, but for now manually make sure each primitive type is present in the model, to avoid any surprises. Let's call the model after this step a `reference_binary.yml`.
+Let's call the model after this step a `reference_binary.yml`.
 
 ### `revng analyze convert-functions-to-raw`
 

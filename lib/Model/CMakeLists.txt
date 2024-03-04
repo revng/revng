@@ -6,11 +6,13 @@
 revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
+  CommonTypeMethods.cpp
   Identifier.cpp
   LoadModelPass.cpp
   TypeSystemPrinter.cpp
   Processing.cpp
   Type.cpp
+  TypeDefinition.cpp
   Verification.cpp
   Visits.cpp)
 
@@ -71,12 +73,8 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/FunctionAttribute.h"
   "${MODEL_HEADERS_DIR}/NamedTypedRegister.h"
   "${MODEL_HEADERS_DIR}/PointerType.h"
-  "${MODEL_HEADERS_DIR}/PrimitiveDefinition.h"
   "${MODEL_HEADERS_DIR}/PrimitiveKind.h"
   "${MODEL_HEADERS_DIR}/PrimitiveType.h"
-  "${MODEL_HEADERS_DIR}/QualifiedType.h"
-  "${MODEL_HEADERS_DIR}/Qualifier.h"
-  "${MODEL_HEADERS_DIR}/QualifierKind.h"
   "${MODEL_HEADERS_DIR}/RawFunctionDefinition.h"
   "${MODEL_HEADERS_DIR}/Relocation.h"
   "${MODEL_HEADERS_DIR}/RelocationType.h"

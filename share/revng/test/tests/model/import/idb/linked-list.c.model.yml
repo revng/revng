@@ -10,19 +10,22 @@ TypeDefinitions:
       - Offset: 0
         OriginalName: content_uint32
         Type:
-          UnqualifiedType: "/TypeDefinitions/16313795245817021241-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/16313795245817021241-TypedefDefinition"
       - Offset: 4
         OriginalName: prev
         Type:
-          UnqualifiedType: "/TypeDefinitions/14968854803921815239-TypedefDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/14968854803921815239-TypedefDefinition"
       - Offset: 12
         OriginalName: next
         Type:
-          UnqualifiedType: "/TypeDefinitions/14968854803921815239-TypedefDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/14968854803921815239-TypedefDefinition"
     Size: 20

@@ -422,8 +422,8 @@ private:
       return isa<efa::CallEdge>(E.get());
     };
     auto ZeroOrOneCallEdge = [](const auto &Range,
-                                const auto &Predicate) -> efa::CallEdge * {
-      auto *Result = zeroOrOne(Range, Predicate);
+                                const auto &Callable) -> const efa::CallEdge * {
+      auto *Result = zeroOrOne(Range, Callable);
       if (Result == nullptr)
         return nullptr;
       else

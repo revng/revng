@@ -317,7 +317,7 @@ void RootAnalyzer::updateCSAA() {
 }
 
 static llvm::SmallSet<model::Register::Values, 16>
-getPreservedRegisters(const model::DefinitionReference &Prototype) {
+getPreservedRegisters(const model::TypeDefinition &Prototype) {
   llvm::SmallSet<model::Register::Values, 16> Result;
   namespace FT = abi::FunctionType;
   for (model::Register::Values Register : FT::calleeSavedRegisters(Prototype))
@@ -405,14 +405,16 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   {
     // Compute preserved registers using the default prototype
     using RegisterSet = llvm::SmallSet<model::Register::Values, 16>;
-    RegisterSet DefaultPreservedRegisters;
+    RegisterSet PreservedRegisters;
     model::ABI::Values ABI = Model->DefaultABI();
-    const auto &DefaultPrototype = Model->DefaultPrototype();
-    if (not DefaultPrototype.empty()) {
-      DefaultPreservedRegisters = getPreservedRegisters(DefaultPrototype);
+    if (const auto *DefaultPrototype = Model->defaultPrototype()) {
+      // TODO: don't forget to simplify the logic here if we decide to make
+      //       default prototypes always available (after merging
+      //       `abi::Definition` back into the model).
+      PreservedRegisters = getPreservedRegisters(*DefaultPrototype);
     } else if (ABI != model::ABI::Invalid) {
-      for (auto &Register : abi::Definition::get(ABI).CalleeSavedRegisters())
-        DefaultPreservedRegisters.insert(Register);
+      auto &CSRs = abi::Definition::get(ABI).CalleeSavedRegisters();
+      PreservedRegisters.insert(CSRs.begin(), CSRs.end());
     } else {
       // TODO: this must be a preliminary check
       revng_abort("Either DefaultABI or DefaultPrototype needs to be "
@@ -426,11 +428,10 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     for (CallBase *Call : FunctionCallCalls) {
       Builder.SetInsertPoint(Call);
 
-      RegisterSet CalleePreservedRegisters;
       // Clobber registers that are not preserved
       for (model::Register::Values Register :
            model::Architecture::registers(Model->Architecture())) {
-        if (not DefaultPreservedRegisters.contains(Register))
+        if (not PreservedRegisters.contains(Register))
           Clobberer.clobber(Builder, Register);
       }
     }

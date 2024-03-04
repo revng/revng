@@ -51,7 +51,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   TupleTree<model::Binary> NewModel;
 
   // Define a new union
-  auto [Definition, _] = NewModel->makeTypeDefinition<model::UnionDefinition>();
+  auto [Definition, _] = NewModel->makeUnionDefinition();
   Definition.CustomName() = "my_cool_union";
   auto &ThirdField = Definition.Fields()[2];
   ThirdField.CustomName() = "third_field";
@@ -65,10 +65,10 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
 
   // Extract a type back from the location by finding the relevant key
   // in the binary.
-  auto Ref = NewModel->getDefinitionReference(FieldLocation.at(ranks::Type));
+  auto Type = NewModel->makeType(FieldLocation.at(ranks::Type));
 
   // Ensure the type we got is the same type we started with.
-  revng_check(Ref.get()->name() == "my_cool_union");
+  revng_check(Type->tryGetAsDefinition()->name() == "my_cool_union");
 
   // Ensure the key is encoded in the serialized form of the location.
   std::string Key = serializeToString(Definition.key());
@@ -81,7 +81,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
     // a list of unrelated serialized locations to use as sources of truth
     "/binary",
     "/instruction/0x12:Generic64/0x34:Generic64/0x56:Generic64",
-    "/type/1026-PrimitiveDefinition",
+    "/type/1026-TypedefDefinition",
     "/raw-byte-range/0x78:Generic64/0x90:Generic64"
   };
 

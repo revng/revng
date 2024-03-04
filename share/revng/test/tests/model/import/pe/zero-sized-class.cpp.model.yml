@@ -13,37 +13,35 @@
 ---
 Functions:
   - OriginalName: main
-    Prototype: "/TypeDefinitions/1815-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1815-CABIFunctionDefinition"
   - OriginalName: doSomething
-    Prototype: "/TypeDefinitions/1818-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1818-CABIFunctionDefinition"
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 256
-    PrimitiveKind: Void
-    Size: 0
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
   - Kind: CABIFunctionDefinition
     ID: 1815
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Arguments: []
   - Kind: CABIFunctionDefinition
     ID: 1818
-    ReturnType:
-      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1817-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1817-TypedefDefinition"
   - Kind: TypedefDefinition
     ID: 1817
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1822-StructDefinition"
-      Qualifiers:
-        - Kind: Pointer
+      Kind: PointerType
+      PointeeType:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/1822-StructDefinition"
   - Kind: StructDefinition
     ID: 1822
     CustomName: "Foo"
@@ -54,9 +52,13 @@ TypeDefinitions:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
       - Offset: 4
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4

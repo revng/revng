@@ -10,24 +10,30 @@ TypeDefinitions:
       - Offset: 0
         OriginalName: x
         Type:
-          UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 4
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 8
         OriginalName: z
         Type:
-          UnqualifiedType: "/TypeDefinitions/626103279023675435-TypedefDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/626103279023675435-TypedefDefinition"
     Size: 16
   - Kind: TypedefDefinition
     ID: 626103279023675435
     OriginalName: second_struct
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/2113910595525978593-StructDefinition"
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2113910595525978593-StructDefinition"
   - Kind: StructDefinition
     ID: 2113910595525978593
     OriginalName: second_struct
@@ -35,9 +41,13 @@ TypeDefinitions:
       - Offset: 0
         OriginalName: a
         Type:
-          UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 4
         OriginalName: b
         Type:
-          UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
     Size: 8

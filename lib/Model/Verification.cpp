@@ -41,8 +41,7 @@ bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
   }
 }
 
-static bool verifyGlobalNamespace(VerifyHelper &VH,
-                                  const model::Binary &Model) {
+bool model::Binary::verifyGlobalNamespace(VerifyHelper &VH) const {
 
   // Namespacing rules:
   //
@@ -54,32 +53,31 @@ static bool verifyGlobalNamespace(VerifyHelper &VH,
   //
   // Verify needs to verify that each namespace has no internal clashes.
   // Also, the global namespace clashes with everything.
-  for (const Function &F : Model.Functions()) {
-    if (not VH.registerGlobalSymbol(F.CustomName(), Model.path(F)))
+  for (const Function &F : Functions()) {
+    if (not VH.registerGlobalSymbol(F.CustomName(), path(F)))
       return VH.fail("Duplicate name", F);
   }
 
   // Verify DynamicFunctions
-  for (const DynamicFunction &DF : Model.ImportedDynamicFunctions()) {
-    if (not VH.registerGlobalSymbol(DF.CustomName(), Model.path(DF)))
+  for (const DynamicFunction &DF : ImportedDynamicFunctions()) {
+    if (not VH.registerGlobalSymbol(DF.CustomName(), path(DF)))
       return VH.fail();
   }
 
   // Verify types and enum entries
-  for (const model::UpcastableTypeDefinition &Def : Model.TypeDefinitions()) {
-    if (not VH.registerGlobalSymbol(Def->CustomName(), Model.path(*Def)))
+  for (const model::UpcastableTypeDefinition &Def : TypeDefinitions()) {
+    if (not VH.registerGlobalSymbol(Def->CustomName(), path(*Def)))
       return VH.fail();
 
     if (auto *Enum = dyn_cast<model::EnumDefinition>(Def.get()))
       for (auto &Entry : Enum->Entries())
-        if (not VH.registerGlobalSymbol(Entry.CustomName(),
-                                        Model.path(*Enum, Entry)))
+        if (not VH.registerGlobalSymbol(Entry.CustomName(), path(*Enum, Entry)))
           return VH.fail();
   }
 
   // Verify Segments
-  for (const Segment &S : Model.Segments()) {
-    if (not VH.registerGlobalSymbol(S.CustomName(), Model.path(S)))
+  for (const Segment &S : Segments()) {
+    if (not VH.registerGlobalSymbol(S.CustomName(), path(S)))
       return VH.fail();
   }
 
@@ -115,32 +113,29 @@ bool Segment::verify(VerifyHelper &VH) const {
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow", *this);
 
-  for (const model::Relocation &Relocation : Relocations()) {
+  for (const model::Relocation &Relocation : Relocations())
     if (not Relocation.verify(VH))
       return VH.fail("Invalid relocation", Relocation);
-  }
 
   if (not Type().empty()) {
 
-    if (not Type().isValid())
-      return VH.fail("Invalid segment type", *this);
+    if (not Type()->isStruct())
+      return VH.fail("Segment's `Type()` must be a struct.", *this);
 
-    // The segment has a type
+    if (not Type()->verify(VH))
+      return VH.fail("Segment's `Type()` does not verify.", *this);
 
-    auto *Struct = dyn_cast<model::StructDefinition>(Type().get());
-    if (not Struct)
-      return VH.fail("The segment type is not a StructDefinition", *this);
-
-    if (VirtualSize() != Struct->Size()) {
-      return VH.fail(Twine("The segment's size (VirtualSize) is not equal to "
-                           "the size of the segment's type. VirtualSize: ")
+    const model::StructDefinition &Struct = *type();
+    if (VirtualSize() != Struct.Size()) {
+      return VH.fail(Twine("Segment's virtual size is not equal to the size of "
+                           "its type.\n`VirtualSize`: ")
                        + Twine(VirtualSize())
-                       + Twine(" != Segment->Type()->Size(): ")
-                       + Twine(Struct->Size()),
+                       + Twine(" != `Segment.type()->Size()`: ")
+                       + Twine(Struct.Size()),
                      *this);
     }
 
-    if (Struct->CanContainCode() != IsExecutable()) {
+    if (Struct.CanContainCode() != IsExecutable()) {
       if (IsExecutable()) {
         return VH.fail("The StructType representing the type of a executable "
                        "segment has CanContainedCode disabled",
@@ -151,9 +146,6 @@ bool Segment::verify(VerifyHelper &VH) const {
                        *this);
       }
     }
-
-    if (not Type().get()->verify(VH))
-      return VH.fail("Segment type does not verify", *this);
   }
 
   return true;
@@ -166,18 +158,14 @@ bool Segment::verify(VerifyHelper &VH) const {
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (Prototype().empty() or not Prototype().isValid())
-    return VH.fail("Invalid prototype");
+  if (Prototype().empty())
+    return VH.fail("Call sites must have a prototype.", *this);
 
-  // Prototype is valid
-  if (not Prototype().get()->verify(VH))
+  if (not Prototype()->isPrototype())
+    return VH.fail("`Prototype()` must be a prototype.", *this);
+
+  if (not Prototype()->verify(VH))
     return VH.fail();
-
-  if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-    return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
-                   "CABIFunctionDefinition",
-                   *this);
-  }
 
   return true;
 }
@@ -190,33 +178,20 @@ bool Function::verify(VerifyHelper &VH) const {
 
   if (not Prototype().empty()) {
 
-    if (not Prototype().isValid())
-      return VH.fail("Invalid prototype", *this);
+    if (not Prototype()->isPrototype())
+      return VH.fail("`Prototype()` must be a prototype.", *this);
 
-    // The function has a prototype
-
-    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
-                     "CABIFunctionDefinition",
-                     *this);
-    }
-
-    if (not Prototype().get()->verify(VH))
-      return VH.fail("Function prototype does not verify", *this);
+    if (not Prototype()->verify(VH))
+      return VH.fail("Function prototype does not verify.", *this);
   }
 
   if (not StackFrameType().empty()) {
 
-    if (not StackFrameType().isValid())
-      return VH.fail("Invalid stack frame type", *this);
+    if (not StackFrameType()->isStruct())
+      return VH.fail("`StackFrameType()` must be a struct.", *this);
 
-    // The stack frame has a type
-
-    if (not isa<model::StructDefinition>(StackFrameType().get()))
-      return VH.fail("The stack frame type is not a StructDefinition", *this);
-
-    if (not StackFrameType().get()->verify(VH))
-      return VH.fail("Stack frame type does not verify", *this);
+    if (not StackFrameType()->verify(VH))
+      return VH.fail("Stack frame type does not verify.", *this);
   }
 
   for (auto &CallSitePrototype : CallSitePrototypes())
@@ -231,28 +206,19 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 
   // Ensure we have a name
   if (OriginalName().size() == 0)
-    return VH.fail("Dynamic functions must have a OriginalName", *this);
+    return VH.fail("Dynamic functions must have an OriginalName.", *this);
 
-  if (not Prototype().empty() and not Prototype().isValid())
-    return VH.fail("Invalid prototype", *this);
-
-  // Prototype is valid
   if (not Prototype().empty()) {
-    if (not Prototype().get()->verify(VH))
+    if (not Prototype()->isPrototype())
+      return VH.fail("`Prototype()` type must be a prototype.", *this);
+
+    if (not Prototype()->verify(VH))
       return VH.fail();
-
-    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
-                     "CABIFunctionDefinition",
-                     *this);
-    }
   }
 
-  for (auto &Attribute : Attributes()) {
-    if (Attribute == model::FunctionAttribute::Inline) {
+  for (auto &Attribute : Attributes())
+    if (Attribute == model::FunctionAttribute::Inline)
       return VH.fail("Dynamic function cannot have Inline attribute", *this);
-    }
-  }
 
   return true;
 }
@@ -261,206 +227,119 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 // Types
 //
 
-bool Qualifier::verify() const {
-  return verify(false);
-}
+static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values Kind,
+                                           uint8_t Size) {
+  constexpr std::array ValidGenericPrimitives{ 1, 2, 4, 8, 16 };
+  constexpr std::array ValidFloatPrimitives{ 2, 4, 8, 10, 12, 16 };
+  // NOTE: We are supporting floats that are 10 bytes long, since we found such
+  //       cases in some PDB files by using VS on Windows platforms. The source
+  //       code of those cases could be written in some language other than
+  //       C/C++ (probably Swift). We faced some struct fields by using this
+  //       (10b long float) type, so by ignoring it we would not have accurate
+  //       layout for the structs.
 
-bool Qualifier::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool Qualifier::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  switch (Kind()) {
-  case QualifierKind::Invalid:
-    return VH.fail("Invalid qualifier found", *this);
-  case QualifierKind::Pointer:
-    return VH.maybeFail(Size() > 0 and llvm::isPowerOf2_64(Size()),
-                        "Pointer qualifier size is not a power of 2",
-                        *this);
-  case QualifierKind::Const:
-    return VH.maybeFail(Size() == 0, "const qualifier has non-0 size", *this);
-  case QualifierKind::Array:
-    return VH.maybeFail(Size() > 0, "Array qualifier size is 0");
-  default:
-    revng_abort();
-  }
-
-  return VH.fail();
-}
-
-inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
-  for (const Qualifier &Q : QT.Qualifiers()) {
-    switch (Q.Kind()) {
-    case QualifierKind::Invalid:
-      revng_abort();
-    case QualifierKind::Pointer:
-      rc_return true;
-    case QualifierKind::Array:
-      rc_return false;
-    case QualifierKind::Const:
-      break;
-    default:
-      revng_abort();
-    }
-  }
-
-  const TypeDefinition *Unqualified = QT.UnqualifiedType().get();
-  revng_assert(Unqualified != nullptr);
-  if (llvm::isa<model::PrimitiveDefinition>(Unqualified)
-      or llvm::isa<model::EnumDefinition>(Unqualified)) {
-    rc_return true;
-  }
-
-  if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(Unqualified))
-    rc_return rc_recur isScalarImpl(Typedef->UnderlyingType());
-
-  rc_return false;
-}
-
-bool model::QualifiedType::isScalar() const {
-  return isScalarImpl(*this);
-}
-
-bool QualifiedType::verify() const {
-  return verify(false);
-}
-
-bool QualifiedType::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (not UnqualifiedType().isValid())
-    rc_return VH.fail("Underlying type is invalid", *this);
-
-  // Verify the qualifiers are valid
-  for (const auto &Q : Qualifiers())
-    if (not Q.verify(VH))
-      rc_return VH.fail("Invalid qualifier", Q);
-
-  auto QIt = Qualifiers().begin();
-  auto QEnd = Qualifiers().end();
-  for (; QIt != QEnd; ++QIt) {
-    const auto &Q = *QIt;
-    auto NextQIt = std::next(QIt);
-    bool HasNext = NextQIt != QEnd;
-
-    // Check that we have not two consecutive const qualifiers
-    if (HasNext and Qualifier::isConst(Q) and Qualifier::isConst(*NextQIt))
-      rc_return VH.fail("QualifiedType has two consecutive const qualifiers",
-                        *this);
-
-    if (Qualifier::isPointer(Q)) {
-      // Don't proceed the verification, just make sure the pointer is either
-      // 32- or 64-bit
-      rc_return VH.maybeFail(Q.Size() == 4 or Q.Size() == 8,
-                             "Only 32-bit and 64-bit pointers "
-                             "are currently "
-                             "supported",
-                             *this);
-
-    } else if (Qualifier::isArray(Q)) {
-      // Ensure there's at least one element
-      if (Q.Size() < 1)
-        rc_return VH.fail("Arrays need to have at least an element", *this);
-
-      // Verify element type
-      QualifiedType ElementType{ UnqualifiedType(), { NextQIt, QEnd } };
-      if (not rc_recur ElementType.verify(VH))
-        rc_return VH.fail("Array element invalid", ElementType);
-
-      // Ensure the element type has a size and stop
-      auto MaybeSize = rc_recur ElementType.size(VH);
-      rc_return VH.maybeFail(MaybeSize.has_value(),
-                             "Cannot compute array size",
-                             ElementType);
-    } else if (Qualifier::isConst(Q)) {
-      // const qualifiers must have zero size
-      if (Q.Size() != 0)
-        rc_return VH.fail("const qualifier has non-0 size");
-
-    } else {
-      revng_abort();
-    }
-  }
-
-  // If we get here, we either have no qualifiers or just const qualifiers:
-  // recur on the underlying type
-  rc_return VH.maybeFail(rc_recur UnqualifiedType().get()->verify(VH));
-}
-
-//
-// Type definitions
-//
-
-static uint64_t makePrimitiveID(PrimitiveKind::Values PrimitiveKind,
-                                uint8_t Size) {
-  return (static_cast<uint8_t>(PrimitiveKind) << 8) | Size;
-}
-
-static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values PrimKind,
-                                           uint8_t BS) {
-  switch (PrimKind) {
+  switch (Kind) {
   case PrimitiveKind::Invalid:
     return false;
 
   case PrimitiveKind::Void:
-    return BS == 0;
-
-  // The ByteSizes allowed for Generic must be a superset of all the other
-  // ByteSizes allowed for all other primitive types (except void)
-  case PrimitiveKind::Generic:
-    return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 10 or BS == 12
-           or BS == 16;
+    return Size == 0;
 
   case PrimitiveKind::PointerOrNumber:
   case PrimitiveKind::Number:
   case PrimitiveKind::Unsigned:
   case PrimitiveKind::Signed:
-    return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 16;
+    return std::ranges::binary_search(ValidGenericPrimitives, Size);
 
-  // NOTE: We are supporting floats that are 10 bytes long, since we found such
-  // cases in some PDB files by using VS on Windows platforms. The source code
-  // of those cases could be written in some language other than C/C++ (probably
-  // Swift). We faced some struct fields by using this (10b long float) type, so
-  // by ignoring it we would not have accurate layout for the structs.
   case PrimitiveKind::Float:
-    return BS == 2 or BS == 4 or BS == 8 or BS == 10 or BS == 12 or BS == 16;
+    return std::ranges::binary_search(ValidFloatPrimitives, Size);
+
+  case PrimitiveKind::Generic:
+    return std::ranges::binary_search(ValidGenericPrimitives, Size)
+           || std::ranges::binary_search(ValidFloatPrimitives, Size);
 
   default:
-    revng_abort();
+    revng_abort("Unsupported primitive kind");
+  }
+}
+
+RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  bool PointerBeforeDefinition = false;
+  const model::Type *Active = this;
+  while (Active != nullptr) {
+    if (auto *Array = llvm::dyn_cast<model::ArrayType>(Active)) {
+      if (Array->ElementCount() == 0)
+        rc_return VH.fail("0 element arrays are not supported", *Array);
+
+      if (Array->ElementType().empty()) {
+        rc_return VH.fail("Arrays without an element type are not supported",
+                          *Array);
+      }
+
+      if (!Array->ElementType()->size(VH))
+        rc_return VH.fail("Array element type must have a size.", *Array);
+
+      // Because we cannot emit const array in C anyway, we might as well forbid
+      // them as early as possible.
+      if (Array->IsConst())
+        rc_return VH.fail("Arrays must not be const.", *Array);
+
+      Active = Array->ElementType().get();
+
+    } else if (auto *Defined = llvm::dyn_cast<model::DefinedType>(Active)) {
+      if (not Defined->Definition().isValid()) {
+        rc_return VH.fail("Defined types must contain a valid (non-empty) "
+                          "reference",
+                          *Defined);
+      }
+
+      // Do not recur if this type is a pointer, otherwise we get undesired
+      // failures if a type (for example a struct) has a pointer to itself.
+      if (PointerBeforeDefinition)
+        rc_return true;
+      else
+        rc_return rc_recur Defined->Definition().get()->verify(VH);
+
+    } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(Active)) {
+      if (!llvm::isPowerOf2_64(Pointer->PointerSize()))
+        rc_return VH.fail("Pointer size is not a power of 2", *Pointer);
+
+      if (Pointer->PointerSize() != 4 && Pointer->PointerSize() != 8) {
+        rc_return VH.fail("Only 32-bit and 64-bit pointers are currently "
+                          "supported",
+                          *Pointer);
+      }
+
+      if (Pointer->PointeeType().empty()) {
+        rc_return VH.fail("Pointers without an pointee type are not supported. "
+                          "Use a `PrimitiveType::makeVoid`, if you want to "
+                          "represent `void *`.",
+                          *Pointer);
+      }
+
+      PointerBeforeDefinition = true;
+      Active = Pointer->PointeeType().get();
+
+    } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(Active)) {
+      if (not isValidPrimitiveSize(Primitive->PrimitiveKind(),
+                                   Primitive->Size()))
+        rc_return VH.fail("Primitive size is not allowed.", *Primitive);
+
+      rc_return true;
+
+    } else {
+      rc_return VH.fail("Unsupported type kind.");
+    }
   }
 
-  revng_abort();
+  rc_return VH.fail("A required sub-type is missing.");
 }
 
-static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const PrimitiveDefinition &T) {
-  revng_assert(T.Kind() == TypeDefinitionKind::PrimitiveDefinition);
-
-  if (not T.CustomName().empty() or not T.OriginalName().empty())
-    rc_return VH.fail("PrimitiveTypes cannot have OriginalName or CustomName",
-                      T);
-
-  auto ExpectedID = makePrimitiveID(T.PrimitiveKind(), T.Size());
-  if (T.ID() != ExpectedID)
-    rc_return VH.fail(Twine("Wrong ID for PrimitiveDefinition. Got: ")
-                        + Twine(T.ID()) + ". Expected: " + Twine(ExpectedID)
-                        + ".",
-                      T);
-
-  if (not isValidPrimitiveSize(T.PrimitiveKind(), T.Size()))
-    rc_return VH.fail("Invalid PrimitiveDefinition size: " + Twine(T.Size()),
-                      T);
-
-  rc_return true;
-}
+//
+// Type definitions
+//
 
 bool EnumEntry::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
@@ -469,21 +348,21 @@ bool EnumEntry::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const EnumDefinition &T) {
-  if (T.Kind() != TypeDefinitionKind::EnumDefinition or T.Entries().empty()
-      or not T.CustomName().verify(VH))
+  if (T.Entries().empty() or not T.CustomName().verify(VH))
     rc_return VH.fail();
 
-  // The underlying type has to be an unqualified primitive type
-  if (not rc_recur T.UnderlyingType().verify(VH)
-      or not T.UnderlyingType().Qualifiers().empty())
+  if (T.UnderlyingType().empty())
+    rc_return VH.fail("Enum must have an underlying type.", T);
+
+  if (not rc_recur T.UnderlyingType()->verify(VH))
     rc_return VH.fail();
 
-  // We only allow signed/unsigned as underlying type
-  if (not T.UnderlyingType().isPrimitive(PrimitiveKind::Signed)
-      and not T.UnderlyingType().isPrimitive(PrimitiveKind::Unsigned))
-    rc_return VH.fail("UnderlyingType of a EnumDefinition can only be Signed "
-                      "or Unsigned",
+  if (not T.UnderlyingType()->isPrimitive(PrimitiveKind::Signed)
+      && not T.UnderlyingType()->isPrimitive(PrimitiveKind::Unsigned)) {
+    rc_return VH.fail("UnderlyingType of an enum can only be a Signed or "
+                      "Unsigned primitive",
                       T);
+  }
 
   for (auto &Entry : T.Entries()) {
 
@@ -500,19 +379,23 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const TypedefDefinition &T) {
   rc_return VH.maybeFail(T.CustomName().verify(VH)
                          and T.Kind() == TypeDefinitionKind::TypedefDefinition
-                         and rc_recur T.UnderlyingType().verify(VH));
+                         and not T.UnderlyingType().empty()
+                         and rc_recur T.UnderlyingType()->verify(VH));
 }
 
 RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (not rc_recur Type().verify(VH))
-    rc_return VH.fail("Aggregate field type is not valid");
+  if (Type().empty())
+    rc_return VH.fail("Struct field must have a type.", *this);
 
-  // Aggregated fields cannot be zero-sized fields
-  auto MaybeSize = rc_recur Type().size(VH);
+  if (not rc_recur Type()->verify(VH))
+    rc_return VH.fail();
+
+  // Struct fields cannot be zero-sized
+  auto MaybeSize = rc_recur Type()->size(VH);
   if (not MaybeSize)
-    rc_return VH.fail("Aggregate field is zero-sized");
+    rc_return VH.fail("Struct field is zero-sized", Type());
 
   rc_return VH.maybeFail(CustomName().verify(VH));
 }
@@ -528,9 +411,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     rc_return VH.fail("Invalid name", T);
 
   if (T.Size() == 0)
-    rc_return VH.fail("Struct type has zero size", T);
+    rc_return VH.fail("Struct size must be greater than zero.", T);
 
-  size_t Index = 0;
   llvm::SmallSet<llvm::StringRef, 8> Names;
   auto FieldIt = T.Fields().begin();
   auto FieldEnd = T.Fields().end();
@@ -543,8 +425,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                         T);
     }
 
+    uint64_t Size = *rc_recur Field.Type()->size(VH);
     if (Field.Offset() >= T.Size()) {
-      uint64_t Size = *Field.Type().size();
       rc_return VH.fail("Field at offset " + Twine(Field.Offset())
                           + " is out of struct boundaries (field size: "
                           + Twine(Size) + ", field offset + size: "
@@ -553,31 +435,24 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                         T);
     }
 
-    auto MaybeSize = rc_recur Field.Type().size(VH);
-    // This is verified AggregateField::verify
-    revng_assert(MaybeSize);
-
-    auto FieldEndOffset = Field.Offset() + *MaybeSize;
     auto NextFieldIt = std::next(FieldIt);
     if (NextFieldIt != FieldEnd) {
       // If this field is not the last, check that it does not overlap with the
       // following field.
-      if (FieldEndOffset > NextFieldIt->Offset()) {
+      if (Field.Offset() + Size > NextFieldIt->Offset()) {
         rc_return VH.fail("Field at offset " + Twine(Field.Offset())
-                            + " (with size: " + Twine(*Field.Type().size())
+                            + " (with size: " + Twine(Size)
                             + ") overlaps with the field at offset "
                             + Twine(NextFieldIt->Offset()) + " (with size: "
-                            + Twine(*NextFieldIt->Type().size()) + ")",
+                            + Twine(*rc_recur NextFieldIt->Type()->size(VH))
+                            + ")",
                           T);
       }
-    } else if (FieldEndOffset > T.Size()) {
+    } else if (Field.Offset() + Size > T.Size()) {
       // Otherwise, if this field is the last, check that it's not larger than
       // size.
       rc_return VH.fail("Last field ends outside the struct", T);
     }
-
-    if (not rc_recur Field.Type().size(VH))
-      rc_return VH.fail("Field " + Twine(Index + 1) + " has no size", T);
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
@@ -590,8 +465,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       if (not Names.insert(Field.CustomName()).second)
         rc_return VH.fail("Collision in struct fields names", T);
     }
-
-    ++Index;
   }
 
   rc_return true;
@@ -600,13 +473,16 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (not rc_recur Type().verify(VH))
-    rc_return VH.fail("Aggregate field type is not valid");
+  if (Type().empty())
+    rc_return VH.fail("Union field must have a type.", *this);
 
-  // Aggregated fields cannot be zero-sized fields
-  auto MaybeSize = rc_recur Type().size(VH);
+  if (not rc_recur Type()->verify(VH))
+    rc_return VH.fail();
+
+  // Union fields cannot be zero-sized
+  auto MaybeSize = rc_recur Type()->size(VH);
   if (not MaybeSize)
-    rc_return VH.fail("Aggregate field is zero-sized", Type());
+    rc_return VH.fail("Union field is zero-sized", Type());
 
   rc_return VH.maybeFail(CustomName().verify(VH));
 }
@@ -619,7 +495,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     rc_return VH.fail("Invalid name", T);
 
   if (T.Fields().empty())
-    rc_return VH.fail("Union type has zero fields", T);
+    rc_return VH.fail("Union must have at least one field.", T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Group : llvm::enumerate(T.Fields())) {
@@ -634,14 +510,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
-
-    auto MaybeSize = rc_recur Field.Type().size(VH);
-    // This is verified AggregateField::verify
-    revng_assert(MaybeSize);
-
-    if (not rc_recur Field.Type().size(VH)) {
-      rc_return VH.fail("Field " + Twine(Field.Index()) + " has no size", T);
-    }
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
@@ -660,17 +528,38 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 }
 
 RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-  rc_return VH.maybeFail(CustomName().verify(VH)
-                         and rc_recur Type().verify(VH));
+  if (not CustomName().verify(VH))
+    rc_return VH.fail("A function argument has invalid CustomName", *this);
+
+  if (Type().empty())
+    rc_return VH.fail("A function argument must have a type", *this);
+
+  if (not rc_recur Type()->verify(VH))
+    rc_return VH.fail("A function argument has an invalid type", *this);
+
+  if (not rc_recur Type()->size(VH))
+    rc_return VH.fail("A function argument has no size", *this);
+
+  rc_return true;
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const CABIFunctionDefinition T) {
-  if (not T.CustomName().verify(VH)
-      or T.Kind() != TypeDefinitionKind::CABIFunctionDefinition
-      or not rc_recur T.ReturnType().verify(VH))
+                                           const CABIFunctionDefinition &T) {
+  if (not T.CustomName().verify(VH))
     rc_return VH.fail();
+
+  if (not T.ReturnType().empty()) {
+    if (not rc_recur T.ReturnType()->verify(VH))
+      rc_return VH.fail();
+
+    if (T.ReturnType()->isVoidPrimitive())
+      rc_return VH.fail("`void` return value is not allowed in CABI functions, "
+                        "use empty type instead.",
+                        T);
+
+    if (not rc_recur T.ReturnType()->size(VH))
+      rc_return VH.fail("Return value has no size", T);
+  }
 
   if (T.ABI() == model::ABI::Invalid)
     rc_return VH.fail("An invalid ABI", T);
@@ -680,8 +569,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     auto &Argument = Group.value();
     uint64_t ArgPos = Group.index();
 
-    if (not Argument.CustomName().verify(VH))
-      rc_return VH.fail("An argument has invalid CustomName", T);
+    if (Argument.Index() != ArgPos)
+      rc_return VH.fail("A function argument has an invalid index", T);
+
+    if (not rc_recur Argument.verify(VH))
+      rc_return VH.fail();
 
     // Verify CustomName for collisions
     if (not Argument.CustomName().empty()) {
@@ -691,15 +583,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       if (not Names.insert(Argument.CustomName()).second)
         rc_return VH.fail("Collision in argument names", T);
     }
-
-    if (Argument.Index() != ArgPos)
-      rc_return VH.fail("An argument has invalid index", T);
-
-    if (not rc_recur Argument.Type().verify(VH))
-      rc_return VH.fail("An argument has invalid type", T);
-
-    if (not rc_recur Argument.Type().size(VH))
-      rc_return VH.fail("An argument has no size", T);
   }
 
   rc_return true;
@@ -712,28 +595,34 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   if (not CustomName().verify(VH))
     rc_return VH.fail();
 
-  // Ensure the type we're pointing to is scalar
-  if (not Type().isScalar())
+  if (Type().empty())
+    rc_return VH.fail("NamedTypedRegister must have a type", *this);
+
+  if (not rc_recur Type()->verify(VH))
+    rc_return VH.fail();
+
+  // Ensure the type we're pointing to is a scalar
+  if (not Type()->isScalar())
     rc_return VH.fail();
 
   if (Location() == Register::Invalid)
-    rc_return VH.fail();
-
-  // Ensure if fits in the corresponding register
-  auto MaybeTypeSize = rc_recur Type().size(VH);
+    rc_return VH.fail("NamedTypedRegister must have a location", *this);
 
   // Zero-sized types are not allowed
+  auto MaybeTypeSize = rc_recur Type()->size(VH);
   if (not MaybeTypeSize)
     rc_return VH.fail();
 
-  // TODO: handle floating point register sizes properly.
-  if (not Type().isFloat()) {
+  // Ensure if fits in the corresponding register
+  if (not Type()->isFloatPrimitive()) {
     size_t RegisterSize = model::Register::getSize(Location());
     if (*MaybeTypeSize > RegisterSize)
       rc_return VH.fail();
+  } else {
+    // TODO: handle floating point register sizes properly.
   }
 
-  rc_return VH.maybeFail(rc_recur Type().verify(VH));
+  rc_return true;
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
@@ -774,9 +663,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail();
   }
 
+  // TODO: neither arguments nor return values should be preserved.
+
   auto &StackArgumentsType = T.StackArgumentsType();
   if (not StackArgumentsType.empty()
-      and not rc_recur StackArgumentsType.get()->verify(VH))
+      and not rc_recur StackArgumentsType->verify(VH))
     rc_return VH.fail();
 
   rc_return VH.maybeFail(T.CustomName().verify(VH));
@@ -794,8 +685,10 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
 
   VH.verificationInProgress(*this);
 
-  if (ID() == 0)
-    rc_return VH.fail("A type cannot have ID 0", *this);
+  // TODO: make the id of a default constructed type `-1` once we have default
+  //       value support in the model.
+  if (ID() == size_t(-1))
+    rc_return VH.fail("A type cannot have ID -1");
 
   bool Result = false;
 
@@ -812,8 +705,6 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
     Result = rc_recur verifyImpl(VH, *S);
   else if (auto *U = llvm::dyn_cast<model::UnionDefinition>(this))
     Result = rc_recur verifyImpl(VH, *U);
-  else if (auto *P = llvm::dyn_cast<model::PrimitiveDefinition>(this))
-    Result = rc_recur verifyImpl(VH, *P);
   else
     revng_abort("Unsupported type definition kind.");
 
@@ -828,10 +719,9 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
 bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  // All types on their own should verify
   std::set<Identifier> Names;
   for (const model::UpcastableTypeDefinition &Definition : TypeDefinitions()) {
-    // Verify the type
+    // All types on their own should verify
     if (not Definition.get()->verify(VH))
       return VH.fail();
 
@@ -865,7 +755,7 @@ bool Binary::verify(VerifyHelper &VH) const {
 
   // First of all, verify the global namespace: we need to fully populate it
   // before we can verify namespaces with smaller scopes
-  if (not verifyGlobalNamespace(VH, *this))
+  if (not verifyGlobalNamespace(VH))
     return VH.fail();
 
   // Verify individual functions
@@ -989,6 +879,22 @@ bool TypeDefinition::verify(bool Assert) const {
 }
 bool TypeDefinition::verify() const {
   return verify(false);
+}
+
+bool Type::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool Type::verify() const {
+  return verify(false);
+}
+
+bool Binary::verifyGlobalNamespace(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verifyGlobalNamespace(VH);
+}
+bool Binary::verifyGlobalNamespace() const {
+  return verifyGlobalNamespace(false);
 }
 
 bool Binary::verifyTypeDefinitions(bool Assert) const {
