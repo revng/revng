@@ -14,7 +14,6 @@ revng_add_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   CrossRelations.cpp
-  Dump.cpp
   HexDump.cpp
   PTML.cpp
   SVG.cpp

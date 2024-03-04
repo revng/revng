@@ -96,7 +96,6 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
-  void dump() const debug_function;
 
   bool operator==(const QualifiedType &) const = default;
   std::strong_ordering operator<=>(const QualifiedType &Other) const {

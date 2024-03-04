@@ -325,11 +325,6 @@ Identifier model::TypeDefinition::name() const {
   return upcast(This, GetName, Identifier(""));
 }
 
-void Qualifier::dump() const {
-  DisableTracking Guard(*this);
-  serialize(dbg, *this);
-}
-
 bool Qualifier::verify() const {
   return verify(false);
 }
@@ -579,11 +574,6 @@ PrimitiveDefinition::PrimitiveDefinition(uint64_t ID) :
                       {},
                       getPrimitiveKind(ID),
                       getPrimitiveSize(ID)) {
-}
-
-void EnumEntry::dump() const {
-  DisableTracking Guard(*this);
-  serialize(dbg, *this);
 }
 
 bool EnumEntry::verify() const {
@@ -1247,12 +1237,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   rc_return VH.maybeFail(T->CustomName().verify(VH));
 }
 
-void TypeDefinition::dump() const {
-  auto *This = this;
-  auto Dump = [](auto &Upcasted) { serialize(dbg, Upcasted); };
-  upcast(This, Dump);
-}
-
 void TypeDefinition::dumpTypeGraph(const char *Path) const {
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
@@ -1331,11 +1315,6 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(Result);
 }
 
-void QualifiedType::dump() const {
-  DisableTracking Guard(*this);
-  serialize(dbg, *this);
-}
-
 bool QualifiedType::verify() const {
   return verify(false);
 }
@@ -1405,11 +1384,6 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
   // If we get here, we either have no qualifiers or just const qualifiers:
   // recur on the underlying type
   rc_return VH.maybeFail(rc_recur UnqualifiedType().get()->verify(VH));
-}
-
-void NamedTypedRegister::dump() const {
-  DisableTracking Guard(*this);
-  serialize(dbg, *this);
 }
 
 bool NamedTypedRegister::verify() const {
@@ -1496,11 +1470,6 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
     rc_return VH.fail("Aggregate field is zero-sized", Type());
 
   rc_return VH.maybeFail(CustomName().verify(VH));
-}
-
-void Argument::dump() const {
-  DisableTracking Guard(*this);
-  serialize(dbg, *this);
 }
 
 bool Argument::verify() const {

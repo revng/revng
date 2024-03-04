@@ -54,7 +54,6 @@ public:
   bool verify(const model::Binary &Binary) const debug_function;
   bool verify(const model::Binary &Binary, bool Assert) const debug_function;
   bool verify(const model::Binary &Binary, model::VerifyHelper &VH) const;
-  void dump() const debug_function;
   void dumpCFG(const model::Binary &Binary) const debug_function;
 
 public:
