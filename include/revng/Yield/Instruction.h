@@ -89,7 +89,6 @@ public:
 
 public:
   bool verify(model::VerifyHelper &VH) const;
-  void dump() const debug_function;
 
 public:
   inline bool verify() const debug_function { return verify(false); }

@@ -160,11 +160,6 @@ bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
   return true;
 }
 
-void Binary::dump() const {
-  TrackGuard Guard(*this);
-  serialize(dbg, *this);
-}
-
 void Binary::dumpTypeGraph(const char *Path) const {
   TrackGuard Guard(*this);
 
@@ -400,11 +395,6 @@ Identifier Segment::name() const {
   }
 }
 
-void Segment::dump() const {
-  TrackGuard Guard(*this);
-  serialize(dbg, *this);
-}
-
 bool Segment::verify() const {
   return verify(false);
 }
@@ -479,11 +469,6 @@ bool Segment::verify(VerifyHelper &VH) const {
   return true;
 }
 
-void Function::dump() const {
-  TrackGuard Guard(*this);
-  serialize(dbg, *this);
-}
-
 void Function::dumpTypeGraph(const char *Path) const {
   TrackGuard Guard(*this);
   std::error_code EC;
@@ -548,11 +533,6 @@ bool Function::verify(VerifyHelper &VH) const {
   return true;
 }
 
-void DynamicFunction::dump() const {
-  TrackGuard Guard(*this);
-  serialize(dbg, *this);
-}
-
 bool DynamicFunction::verify() const {
   return verify(false);
 }
@@ -591,11 +571,6 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   }
 
   return true;
-}
-
-void CallSitePrototype::dump() const {
-  TrackGuard Guard(*this);
-  serialize(dbg, *this);
 }
 
 bool CallSitePrototype::verify() const {

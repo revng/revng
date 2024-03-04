@@ -123,6 +123,27 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
   /**- endif -**/
 }
 
+void /*= struct | fullname =*/::dump(llvm::raw_ostream &Stream) const {
+  auto *This = static_cast<const /*= struct | user_fullname =*/ *>(this);
+
+  /**- if emit_tracking **/
+  TrackGuard Guard(*This);
+  /**- endif **/
+
+  /**- if upcastable **/
+  upcast(This, [&Stream](auto &Upcasted) { serialize(Stream, Upcasted); });
+  /**- else **/
+  serialize(Stream, *This);
+  /** endif -**/
+}
+
+void /*= struct | fullname =*/::dump(const char *Path) const {
+  std::error_code EC;
+  llvm::raw_fd_stream Stream(Path, EC);
+  revng_assert(not EC);
+  dump(Stream);
+}
+
 /** if struct.name == root_type **/
 
 template void

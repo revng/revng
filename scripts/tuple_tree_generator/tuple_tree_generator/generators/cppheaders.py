@@ -202,6 +202,7 @@ class CppHeadersGenerator:
                         schema=self.schema,
                         root_type=self.root_type,
                         base_namespace=self.schema.base_namespace,
+                        emit_tracking=self.emit_tracking,
                     )
                     + "\n"
                 )
