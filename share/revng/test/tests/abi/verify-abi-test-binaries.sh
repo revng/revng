@@ -37,16 +37,8 @@ revng \
 python3 \
     "${SCRIPT_DIRECTORY}/prepare-tested-model.py" \
     "$ABI_NAME" \
-    "${OUTPUT_DIRECTORY}/imported_binary.yml" \
-    "${OUTPUT_DIRECTORY}/prepared_binary.yml"
-
-# Make sure all the primitive types are available
-revng \
-    analyze \
-    add-primitive-types \
-    "$BINARY" \
-    -m="${OUTPUT_DIRECTORY}/prepared_binary.yml" \
-    -o="${OUTPUT_DIRECTORY}/reference_binary.yml"
+    "${TEMPORARY_DIRECTORY}/imported_binary.yml" \
+    "${TEMPORARY_DIRECTORY}/reference_binary.yml"
 
 # Convert CABIFunctionDefinition to RawFunctionDefinition
 revng \

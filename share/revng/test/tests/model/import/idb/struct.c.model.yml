@@ -10,9 +10,13 @@ TypeDefinitions:
       - Offset: 0
         OriginalName: x
         Type:
-          UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 4
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1028-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
     Size: 8

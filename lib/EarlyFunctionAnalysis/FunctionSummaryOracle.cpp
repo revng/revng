@@ -188,7 +188,7 @@ FunctionSummaryOracle importImpl(llvm::Module &M,
   };
 
   // Import the default prototype
-  Oracle.setDefault(Importer.prototype({}, Binary.DefaultPrototype()));
+  Oracle.setDefault(Importer.prototype({}, Binary.defaultPrototype()));
 
   std::map<llvm::BasicBlock *, MetaAddress> InlineFunctions;
 
@@ -211,7 +211,8 @@ FunctionSummaryOracle importImpl(llvm::Module &M,
     AttributesSet Attributes;
     for (auto &ToCopy : Function.Attributes())
       Attributes.insert(ToCopy);
-    auto Summary = Importer.prototype(Attributes, Function.prototype(Binary));
+    const auto &Prototype = Binary.prototypeOrDefault(Function.prototype());
+    auto Summary = Importer.prototype(Attributes, Prototype);
 
     // Create function to inline, if necessary
     if (Summary.Attributes.contains(model::FunctionAttribute::Inline))
@@ -222,13 +223,13 @@ FunctionSummaryOracle importImpl(llvm::Module &M,
 
   // Register all dynamic symbols
   for (const auto &DynamicFunction : Binary.ImportedDynamicFunctions()) {
-    const auto &Prototype = DynamicFunction.prototype(Binary);
     AttributesSet Attributes;
     for (auto &ToCopy : DynamicFunction.Attributes())
       Attributes.insert(ToCopy);
 
+    const auto &Pr = Binary.prototypeOrDefault(DynamicFunction.prototype());
     Oracle.registerDynamicFunction(DynamicFunction.OriginalName(),
-                                   Importer.prototype(Attributes, Prototype));
+                                   Importer.prototype(Attributes, Pr));
   }
 
   return Oracle;

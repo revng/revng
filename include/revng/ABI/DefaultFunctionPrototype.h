@@ -22,7 +22,7 @@ using MaybeABI = std::optional<model::ABI::Values>;
 ///
 /// If `ABI` parameter was not provided, `BinaryToRecordTheTypeAt.DefaultABI`
 /// is used instead.
-model::DefinitionReference
+model::UpcastableType
 registerDefaultFunctionPrototype(model::Binary &Binary,
                                  detail::MaybeABI ABI = std::nullopt);
 

@@ -34,6 +34,8 @@ class model::EnumEntry : public model::generated::EnumEntry {
 public:
   using generated::EnumEntry::EnumEntry;
 
+  Identifier name();
+
 public:
   bool verify(bool Assert = false) const debug_function;
   bool verify(VerifyHelper &VH) const;

@@ -26,20 +26,25 @@ TUPLE-TREE-YAML */
 
 class model::UnionDefinition : public model::generated::UnionDefinition {
 public:
-  static constexpr const char *AutomaticNamePrefix = "union_";
-
-public:
   using generated::UnionDefinition::UnionDefinition;
 
-public:
-  Identifier name() const;
+  model::UnionField &addField(uint64_t Index, UpcastableType &&Type) {
+    revng_assert(!Fields().contains(Index));
+    model::UnionField &NewField = Fields()[Index];
+    NewField.Type() = std::move(Type);
+    return NewField;
+  }
+  model::UnionField &addField(UpcastableType &&Type) {
+    return addField(Fields().size(), std::move(Type));
+  }
 
 public:
-  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
-    llvm::SmallVector<model::QualifiedType, 4> Result;
+  const llvm::SmallVector<const model::Type *, 4> edges() const {
+    llvm::SmallVector<const model::Type *> Result;
 
     for (auto &Field : Fields())
-      Result.push_back(Field.Type());
+      if (!Field.Type().empty())
+        Result.push_back(Field.Type().get());
 
     return Result;
   }

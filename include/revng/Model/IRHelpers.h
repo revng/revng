@@ -41,25 +41,14 @@ inline const model::Function *llvmToModelFunction(const model::Binary &Binary,
   return nullptr;
 }
 
-inline llvm::IntegerType *
-getLLVMIntegerTypeFor(llvm::LLVMContext &Context,
-                      const model::QualifiedType &QT) {
-  revng_assert(QT.size());
-  return llvm::IntegerType::getIntNTy(Context, *QT.size() * 8);
+inline llvm::IntegerType *getLLVMIntegerTypeFor(llvm::LLVMContext &Context,
+                                                const model::Type &Type) {
+  revng_assert(Type.size());
+  return llvm::IntegerType::getIntNTy(Context, *Type.size() * 8);
 }
 
 inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
-                                               const model::QualifiedType &QT) {
-  revng_assert(QT.isScalar());
-  return getLLVMIntegerTypeFor(Context, QT);
-}
-
-/// Create an empty model::StructDefinition of size Size in Binary
-inline model::DefinitionReference createEmptyStruct(model::Binary &Binary,
-                                                    uint64_t Size) {
-  revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
-
-  auto [Struct, Path] = Binary.makeTypeDefinition<model::StructDefinition>();
-  Struct.Size() = Size;
-  return Path;
+                                               const model::Type &Type) {
+  revng_assert(Type.isScalar());
+  return getLLVMIntegerTypeFor(Context, Type);
 }

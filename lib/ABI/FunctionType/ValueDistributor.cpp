@@ -291,8 +291,7 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
   return { Result };
 }
 
-DistributedValue
-ReturnValueDistributor::returnValue(const model::QualifiedType &Type) {
+DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
   if (Type.isVoid())
     return DistributedValue::voidReturnValue();
 

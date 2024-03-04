@@ -45,9 +45,6 @@ Branches:
           - Name: verify-global
             Type: verify-global
             UsedContainers: []
-          - Name: add-primitive-types
-            Type: add-primitive-types
-            UsedContainers: []
           - Name: import-binary
             Type: import-binary
             UsedContainers: [input]
@@ -210,7 +207,6 @@ Branches:
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
-      - add-primitive-types
       - import-binary
       - import-well-known-models
       - detect-abi

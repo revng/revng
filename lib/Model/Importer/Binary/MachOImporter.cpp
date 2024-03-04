@@ -303,7 +303,7 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
 
   // TODO: replace the following with `populateSegmentTypeStruct`, when
   // LC_SYMTAB and LC_DYSYMTAB parsing is available
-  Segment.Type() = createEmptyStruct(*Model, Segment.VirtualSize());
+  Segment.Type() = Model->makeStructDefinition(Segment.VirtualSize()).second;
 
   Segment.verify(true);
 

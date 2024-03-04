@@ -23,8 +23,10 @@ The notice below applies to the generated files.
 
 /** if root_type == struct.name -**/
 /** for type in schema.struct_definitions() -**/
+/** if type.name != root_type -**/
 #include "/*= user_include_path =*//*= type.name =*/.h"
-/** endfor **/
+/** endif **/
+/**- endfor **/
 /**- endif **/
 
 /**- if struct.inherits **/

@@ -29,20 +29,27 @@ TUPLE-TREE-YAML */
 
 class model::StructDefinition : public model::generated::StructDefinition {
 public:
-  static constexpr const char *AutomaticNamePrefix = "struct_";
-
-public:
   using generated::StructDefinition::StructDefinition;
+  explicit StructDefinition(uint64_t StructSize) :
+    generated::StructDefinition() {
+
+    Size() = StructSize;
+  }
+
+  StructField &addField(uint64_t Offset, UpcastableType &&Type) {
+    auto [Iterator, Success] = Fields().emplace(Offset);
+    revng_assert(Success);
+    Iterator->Type() = std::move(Type);
+    return *Iterator;
+  }
 
 public:
-  Identifier name() const;
-
-public:
-  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
-    llvm::SmallVector<model::QualifiedType, 4> Result;
+  const llvm::SmallVector<const model::Type *, 4> edges() const {
+    llvm::SmallVector<const model::Type *, 4> Result;
 
     for (auto &Field : Fields())
-      Result.push_back(Field.Type());
+      if (!Field.Type().empty())
+        Result.push_back(Field.Type().get());
 
     return Result;
   }

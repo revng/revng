@@ -316,11 +316,13 @@ void RootAnalyzer::updateCSAA() {
 }
 
 static llvm::SmallSet<model::Register::Values, 16>
-getPreservedRegisters(const model::DefinitionReference &Prototype) {
-  llvm::SmallSet<model::Register::Values, 16> Result;
+getPreservedRegisters(const model::TypeDefinition &Prototype) {
   namespace FT = abi::FunctionType;
+
+  llvm::SmallSet<model::Register::Values, 16> Result;
   for (model::Register::Values Register : FT::calleeSavedRegisters(Prototype))
     Result.insert(Register);
+
   return Result;
 }
 
@@ -404,14 +406,14 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   {
     // Compute preserved registers using the default prototype
     using RegisterSet = llvm::SmallSet<model::Register::Values, 16>;
-    RegisterSet DefaultPreservedRegisters;
+    RegisterSet PreservedRegisters;
     model::ABI::Values ABI = Model->DefaultABI();
-    const auto &DefaultPrototype = Model->DefaultPrototype();
-    if (not DefaultPrototype.empty()) {
-      DefaultPreservedRegisters = getPreservedRegisters(DefaultPrototype);
+    if (not Model->DefaultPrototype().empty()) {
+      // TODO: flatten this check once `defaultPrototype` is always available.
+      PreservedRegisters = getPreservedRegisters(Model->defaultPrototype());
     } else if (ABI != model::ABI::Invalid) {
-      for (auto &Register : abi::Definition::get(ABI).CalleeSavedRegisters())
-        DefaultPreservedRegisters.insert(Register);
+      auto &CSRs = abi::Definition::get(ABI).CalleeSavedRegisters();
+      PreservedRegisters.insert(CSRs.begin(), CSRs.end());
     } else {
       // TODO: this must be a preliminary check
       revng_abort("Either DefaultABI or DefaultPrototype needs to be "
@@ -425,7 +427,6 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     for (CallBase *Call : FunctionCallCalls) {
       Builder.SetInsertPoint(Call);
 
-      RegisterSet *PreservedRegisters = &DefaultPreservedRegisters;
       RegisterSet CalleePreservedRegisters;
 
       // If the callee is available in the model, compute the set of preserved
@@ -434,15 +435,18 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
       if (BasicBlock *Callee = getFunctionCallCallee(Terminator)) {
         MetaAddress CalleeAddress = getBasicBlockJumpTarget(Callee);
         auto It = Model->Functions().find(CalleeAddress);
-        if (It != Model->Functions().end() and not It->Prototype().empty()) {
-          CalleePreservedRegisters = getPreservedRegisters(It->Prototype());
-        }
+        if (It != Model->Functions().end())
+          if (const model::TypeDefinition *Prototype = It->prototype())
+            CalleePreservedRegisters = getPreservedRegisters(*Prototype);
       }
 
       // Clobber registers that are not preserved
+      const auto *PRs = CalleePreservedRegisters.empty() ?
+                          &PreservedRegisters :
+                          &CalleePreservedRegisters;
       for (model::Register::Values Register :
            model::Architecture::registers(Model->Architecture())) {
-        if (not PreservedRegisters->contains(Register))
+        if (not PRs->contains(Register))
           Clobberer.clobber(Builder, Register);
       }
     }

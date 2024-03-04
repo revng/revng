@@ -6,6 +6,7 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/ADT/UpcastablePointer.h"
+#include "revng/Model/CommonTypeMethods.h"
 #include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
@@ -33,7 +34,8 @@ TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Type.h"
 
-class model::Type : public model::generated::Type {
+class model::Type : public model::generated::Type,
+                    public model::CommonTypeMethods<Type> {
 public:
   static constexpr const auto AssociatedKind = TypeKind::Invalid;
 

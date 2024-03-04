@@ -139,12 +139,7 @@ export class MetaAddress {
     }
 }
 
-export function genPrimitiveDefinitionGuid(rawObject: ITypeDefinition): bigint {
-    const realObject = rawObject as IPrimitiveDefinition;
-    const index = PrimitiveKindValues.findIndex((e) => e === realObject.PrimitiveKind);
-    return BigInt(BigInt(index << 8) | realObject.Size);
-}
-
+const genPrimitiveDefinitionGuid = genGuid;
 const genEnumDefinitionGuid = genGuid;
 const genTypedefDefinitionGuid = genGuid;
 const genStructDefinitionGuid = genGuid;

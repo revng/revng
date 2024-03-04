@@ -4,15 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/Argument.h"
-#include "revng/Model/DynamicFunction.h"
-#include "revng/Model/EnumEntry.h"
-#include "revng/Model/Function.h"
-#include "revng/Model/NamedTypedRegister.h"
-#include "revng/Model/Segment.h"
-#include "revng/Model/StructDefinition.h"
-#include "revng/Model/TypeDefinition.h"
-#include "revng/Model/UnionDefinition.h"
+#include "revng/Model/Binary.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"

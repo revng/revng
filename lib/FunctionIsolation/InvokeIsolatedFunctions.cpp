@@ -168,7 +168,7 @@ public:
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;
       if (F->getFunctionType()->getNumParams() > 0) {
-        auto ThePrototype = ModelF->prototype(Binary);
+        auto ThePrototype = Binary.prototypeOrDefault(ModelF->prototype());
         auto Layout = abi::FunctionType::Layout::make(ThePrototype);
         for (const auto &ArgumentLayout : Layout.Arguments) {
           for (model::Register::Values Register : ArgumentLayout.Registers) {

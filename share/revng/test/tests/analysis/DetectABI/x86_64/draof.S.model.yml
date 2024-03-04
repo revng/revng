@@ -5,7 +5,9 @@
 ---
 Functions:
   - OriginalName: draof
-    Prototype: "/TypeDefinitions/1-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-RawFunctionDefinition"
 TypeDefinitions:
   - Arguments: []
     ID: 1

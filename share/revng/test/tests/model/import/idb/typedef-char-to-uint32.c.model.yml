@@ -3,23 +3,23 @@
 #
 
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 1025
-    PrimitiveKind: Number
-    Size: 1
   - Kind: CABIFunctionDefinition
     ID: 13950133128659256343
     OriginalName: fn
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/11568236181854152965-TypedefDefinition"
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/11568236181854152965-TypedefDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/11568236181854152965-TypedefDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/11568236181854152965-TypedefDefinition"
         OriginalName: x
   - Kind: TypedefDefinition
     ID: 11568236181854152965
     OriginalName: uint32_t
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1025-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Number
+      Size: 4

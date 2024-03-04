@@ -101,41 +101,42 @@ public:
   }
 
 public:
-  void setVerified(const model::TypeDefinition *T) {
+  void setVerified(const model::TypeDefinition &T) {
     revng_assert(not isVerified(T));
-    VerifiedCache.insert(T);
+    VerifiedCache.insert(&T);
   }
 
-  bool isVerified(const model::TypeDefinition *T) const {
-    return VerifiedCache.contains(T);
+  bool isVerified(const model::TypeDefinition &T) const {
+    return VerifiedCache.contains(&T);
   }
 
   const std::string &getReason() const { return ReasonBuffer; }
 
 public:
-  bool isVerificationInProgress(const model::TypeDefinition *T) const {
-    return InProgress.contains(T);
+  bool isVerificationInProgress(const model::TypeDefinition &T) const {
+    return InProgress.contains(&T);
   }
 
-  void verificationInProgress(const model::TypeDefinition *T) {
+  void verificationInProgress(const model::TypeDefinition &T) {
     revng_assert(not isVerificationInProgress(T));
     revng_assert(not isVerified(T));
-    InProgress.insert(T);
+    InProgress.insert(&T);
   }
 
-  void verificationCompleted(const model::TypeDefinition *T) {
+  void verificationCompleted(const model::TypeDefinition &T) {
     revng_assert(isVerificationInProgress(T));
-    InProgress.erase(T);
+    InProgress.erase(&T);
   }
 
 public:
-  void setSize(const model::TypeDefinition *T, uint64_t Size) {
+  uint64_t setSize(const model::TypeDefinition &T, uint64_t Size) {
     revng_assert(not size(T));
-    SizeCache[T] = Size;
+    SizeCache[&T] = Size;
+    return Size;
   }
 
-  std::optional<uint64_t> size(const model::TypeDefinition *T) {
-    auto It = SizeCache.find(T);
+  std::optional<uint64_t> size(const model::TypeDefinition &T) {
+    auto It = SizeCache.find(&T);
     if (It != SizeCache.end())
       return It->second;
     else

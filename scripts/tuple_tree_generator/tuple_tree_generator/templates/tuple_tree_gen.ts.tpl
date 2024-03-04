@@ -169,7 +169,11 @@ export {% if class_.abstract %}abstract{% endif %} class {{class_.name}} {% if c
         const result = {{ "super.toJSON()" if class_.inherits else "{}" }};
         {%- for field in class_.fields %}
         {%- if is_optional(field) %}
+        {%- if is_upcastable(field) %}
+        if (!deepEqual(this.{{ field.name }}, {} as I{{ field.type }})) {
+        {%- else %}
         if (!deepEqual(this.{{ field.name }}, {{ default_value(field) }})) {
+        {%- endif %}
             result["{{ field.name }}"] = this.{{ field.name }};
         }
         {%- else %}

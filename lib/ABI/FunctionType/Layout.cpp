@@ -13,7 +13,6 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/NamedEnumScalarTraits.h"
@@ -39,7 +38,7 @@ public:
 
 public:
   /// Entry point for the `toRaw` conversion.
-  model::DefinitionReference
+  model::UpcastableType
   convert(const model::CABIFunctionDefinition &FunctionType,
           TupleTree<model::Binary> &Binary) const;
 
@@ -50,7 +49,7 @@ public:
   /// \return Information about registers and stack that are to be used to
   ///         return the said type.
   DistributedValue
-  distributeReturnValue(const model::QualifiedType &ReturnValueType) const {
+  distributeReturnValue(const model::Type &ReturnValueType) const {
     return ReturnValueDistributor(ABI).returnValue(ReturnValueType);
   }
 
@@ -73,35 +72,7 @@ public:
   combinedStackArgumentSize(const model::CABIFunctionDefinition &) const;
 };
 
-/// Helper for choosing a "generic" register type, mainly used for filling
-/// typeless argument registers in.
-///
-/// @param Register The register for which the type is created.
-/// @param Binary The binary containing the type.
-static model::QualifiedType
-genericRegisterType(model::Register::Values Register, model::Binary &Binary) {
-  return model::QualifiedType{
-    Binary.getPrimitiveType(model::PrimitiveKind::Generic,
-                            model::Register::getSize(Register)),
-    {}
-  };
-}
-
-/// Helper for choosing a register type, mainly used for filling typeless
-/// argument registers in.
-///
-/// @param Register The register for which the type is created.
-/// @param Binary The binary containing the type.
-static model::QualifiedType registerType(model::Register::Values Register,
-                                         model::Binary &Binary) {
-  return model::QualifiedType{
-    Binary.getPrimitiveType(model::Register::primitiveKind(Register),
-                            model::Register::getSize(Register)),
-    {}
-  };
-}
-
-model::DefinitionReference
+model::UpcastableType
 ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
                         TupleTree<model::Binary> &Binary) const {
   revng_log(Log,
@@ -112,93 +83,96 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
   // Since this conversion cannot fail, nothing prevents us from creating
   // the result type right away.
-  auto [NewType,
-        NewPath] = Binary->makeTypeDefinition<model::RawFunctionDefinition>();
-  model::copyMetadata(NewType, FunctionType);
+  auto [NewPrototype, NewType] = Binary->makeRawFunctionDefinition();
+  model::copyMetadata(NewPrototype, FunctionType);
 
   model::StructDefinition StackArguments;
   uint64_t StackStructSize = 0;
 
   // Since shadow arguments are a concern, we need to deal with the return
   // value first.
-  auto ReturnValue = distributeReturnValue(FunctionType.ReturnType());
-  if (!ReturnValue.Registers.empty()) {
-    revng_assert(ReturnValue.SizeOnStack == 0);
+  bool UsesSPTAR = false;
+  if (!FunctionType.ReturnType().empty()) {
+    auto ReturnValue = distributeReturnValue(*FunctionType.ReturnType());
+    if (!ReturnValue.Registers.empty()) {
+      revng_assert(ReturnValue.SizeOnStack == 0);
 
-    // The return value uses registers: pass them through to the new type.
-    for (model::Register::Values Register : ReturnValue.Registers) {
-      model::NamedTypedRegister Converted;
-      Converted.Location() = Register;
+      // The return value uses registers: pass them through to the new type.
+      for (model::Register::Values Register : ReturnValue.Registers) {
+        model::NamedTypedRegister Converted;
+        Converted.Location() = Register;
 
-      const model::QualifiedType &ReturnType = FunctionType.ReturnType();
-      uint64_t ReturnTypeSize = *ReturnType.size();
-      if (ReturnValue.Registers.size() > 1) {
-        Converted.Type() = genericRegisterType(Register, *Binary);
-      } else if (ReturnValue.UsesPointerToCopy == true) {
-        revng_assert(ReturnTypeSize > ABI.getPointerSize());
-        Converted.Type() = ReturnType.getPointerTo(ABI.getArchitecture());
-      } else if (ReturnType.isScalar()) {
-        Converted.Type() = ReturnType;
+        const model::UpcastableType &ReturnType = FunctionType.ReturnType();
+        if (ReturnValue.Registers.size() > 1) {
+          Converted.Type() = model::PrimitiveType::makeGeneric(Register);
+        } else if (ReturnValue.UsesPointerToCopy == true) {
+          revng_assert(*ReturnType->size() > ABI.getPointerSize());
+          Converted.Type() = model::PointerType::make(ReturnType.copy(),
+                                                      ABI.getArchitecture());
+        } else if (ReturnType->isScalar()) {
+          Converted.Type() = ReturnType.copy();
+        } else {
+          Converted.Type() = model::PrimitiveType::make(Register);
+        }
+
+        revng_log(Log,
+                  "Adding a return value register:\n"
+                    << serializeToString(Register));
+
+        NewPrototype.ReturnValues().emplace(Converted);
+      }
+    } else if (ReturnValue.Size != 0) {
+      // The return value uses a pointer-to-a-location: add it as an argument.
+      UsesSPTAR = true;
+
+      auto MaybeReturnValueSize = FunctionType.ReturnType()->size();
+      revng_assert(MaybeReturnValueSize != std::nullopt);
+      revng_assert(ReturnValue.Size == *MaybeReturnValueSize);
+
+      auto ReturnType = model::PointerType::make(FunctionType.ReturnType()
+                                                   .copy(),
+                                                 Binary->Architecture());
+      if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
+        model::NamedTypedRegister
+          InputPointer(ABI.ReturnValueLocationRegister());
+        InputPointer.Type() = ReturnType;
+
+        revng_log(Log,
+                  "Adding a register argument to represent the return value "
+                  "location:\n"
+                    << serializeToString(InputPointer));
+        NewPrototype.Arguments().emplace(std::move(InputPointer));
+      } else if (ABI.ReturnValueLocationOnStack()) {
+        model::StructField InputPointer(0);
+        InputPointer.Type() = ReturnType;
+
+        revng_log(Log,
+                  "Adding a stack argument to represent the return value "
+                  "location:\n"
+                    << serializeToString(InputPointer));
+        StackArguments.Fields().emplace(std::move(InputPointer));
+        StackStructSize = ABI.getPointerSize();
       } else {
-        Converted.Type() = registerType(Register, *Binary);
+        revng_abort("Current ABI doesn't support big return values.");
       }
 
       revng_log(Log,
-                "Adding a return value register:\n"
-                  << serializeToString(Register));
+                "Return value is returned through a shadow-argument-pointer:\n"
+                  << serializeToString(ReturnType));
 
-      NewType.ReturnValues().emplace(Converted);
-    }
-  } else if (ReturnValue.Size != 0) {
-    // The return value uses a pointer-to-a-location: add it as an argument.
-
-    auto MaybeReturnValueSize = FunctionType.ReturnType().size();
-    revng_assert(MaybeReturnValueSize != std::nullopt);
-    revng_assert(ReturnValue.Size == *MaybeReturnValueSize);
-
-    const model::Architecture::Values Architecture = Binary->Architecture();
-    auto ReturnType = FunctionType.ReturnType().getPointerTo(Architecture);
-
-    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
-      model::NamedTypedRegister InputPointer(ABI.ReturnValueLocationRegister());
-      InputPointer.Type() = ReturnType;
-
-      revng_log(Log,
-                "Adding a register argument to represent the return value "
-                "location:\n"
-                  << serializeToString(InputPointer));
-      NewType.Arguments().emplace(std::move(InputPointer));
-    } else if (ABI.ReturnValueLocationOnStack()) {
-      model::StructField InputPointer(0);
-      InputPointer.Type() = ReturnType;
-
-      revng_log(Log,
-                "Adding a stack argument to represent the return value "
-                "location:\n"
-                  << serializeToString(InputPointer));
-      StackArguments.Fields().emplace(std::move(InputPointer));
-      StackStructSize = ABI.getPointerSize();
+      revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
+      auto FirstRegister = ABI.GeneralPurposeReturnValueRegisters()[0];
+      model::NamedTypedRegister OutputPointer(FirstRegister);
+      OutputPointer.Type() = std::move(ReturnType);
+      NewPrototype.ReturnValues().emplace(std::move(OutputPointer));
     } else {
-      revng_abort("Current ABI doesn't support big return values.");
+      // The function returns `void`: no need to do anything special.
+      revng_log(Log, "Return value is `void`\n");
     }
-
-    revng_log(Log,
-              "Return value is returned through a shadow-argument-pointer:\n"
-                << serializeToString(ReturnType));
-
-    revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
-    auto FirstRegister = ABI.GeneralPurposeReturnValueRegisters()[0];
-    model::NamedTypedRegister OutputPointer(FirstRegister);
-    OutputPointer.Type() = std::move(ReturnType);
-    NewType.ReturnValues().emplace(std::move(OutputPointer));
-  } else {
-    // The function returns `void`: no need to do anything special.
-    revng_log(Log, "Return value is `void`\n");
   }
 
   // Now that return value is figured out, the arguments are next.
-  auto Arguments = distributeArguments(FunctionType.Arguments(),
-                                       ReturnValue.SizeOnStack != 0);
+  auto Arguments = distributeArguments(FunctionType.Arguments(), UsesSPTAR);
   uint64_t Index = 0;
   for (const DistributedValue &Distributed : Arguments) {
     if (!Distributed.RepresentsPadding) {
@@ -207,22 +181,23 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
         model::NamedTypedRegister Argument(Register);
 
         const auto &ArgumentType = FunctionType.Arguments().at(Index).Type();
-        uint64_t ArgumentSize = *ArgumentType.size();
+        uint64_t ArgumentSize = *ArgumentType->size();
         if (Distributed.Registers.size() > 1 || Distributed.SizeOnStack != 0) {
-          Argument.Type() = genericRegisterType(Register, *Binary);
+          Argument.Type() = model::PrimitiveType::makeGeneric(Register);
         } else if (Distributed.UsesPointerToCopy == true) {
           revng_assert(ArgumentSize > ABI.getPointerSize());
-          Argument.Type() = ArgumentType.getPointerTo(ABI.getArchitecture());
-        } else if (ArgumentType.isScalar()) {
+          Argument.Type() = model::PointerType::make(ArgumentType.copy(),
+                                                     ABI.getArchitecture());
+        } else if (ArgumentType->isScalar()) {
           Argument.Type() = ArgumentType;
         } else {
-          Argument.Type() = registerType(Register, *Binary);
+          Argument.Type() = model::PrimitiveType::make(Register);
         }
 
         revng_log(Log,
                   "Adding an argument register:\n"
                     << serializeToString(Register));
-        NewType.Arguments().emplace(Argument);
+        NewPrototype.Arguments().emplace(Argument);
       }
 
       // Then stack arguments.
@@ -236,9 +211,10 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
           model::StructField Field;
           model::copyMetadata(Field, Argument);
           Field.Offset() = Distributed.OffsetOnStack;
-          Field.Type() = Distributed.UsesPointerToCopy ?
-                           Argument.Type().getPointerTo(ABI.getArchitecture()) :
-                           Argument.Type();
+          Field.Type() = Argument.Type().copy();
+          if (Distributed.UsesPointerToCopy)
+            Field.Type() = model::PointerType::make(std::move(Field.Type()),
+                                                    ABI.getArchitecture());
 
           revng_log(Log,
                     "Adding a stack argument:\n"
@@ -254,14 +230,14 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
                     "Adding " << (Distributed.SizeOnStack / PointerSize)
                               << " stack argument pieces.\n");
 
-          auto T = Binary->getPrimitiveType(model::PrimitiveKind::Generic,
-                                            PointerSize);
+          auto Type = model::PrimitiveType::make(model::PrimitiveKind::Generic,
+                                                 PointerSize);
           for (uint64_t CurrentWordOffset = 0;
                CurrentWordOffset < Distributed.SizeOnStack;
                CurrentWordOffset += PointerSize) {
             model::StructField Field;
             Field.Offset() = Distributed.OffsetOnStack + CurrentWordOffset;
-            Field.Type() = model::QualifiedType(T, {});
+            Field.Type() = Type.copy();
             StackArguments.Fields().emplace(std::move(Field));
           }
         }
@@ -277,12 +253,12 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
                    "Stack padding is represented as normal struct padding.");
       for (model::Register::Values Register : Distributed.Registers) {
         model::NamedTypedRegister Argument(Register);
-        Argument.Type() = genericRegisterType(Register, *Binary);
+        Argument.Type() = model::PrimitiveType::makeGeneric(Register);
 
         revng_log(Log,
                   "Adding a padding argument:\n"
                     << serializeToString(Argument));
-        NewType.Arguments().emplace(std::move(Argument));
+        NewPrototype.Arguments().emplace(std::move(Argument));
       }
     }
   }
@@ -295,42 +271,33 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
     // If the resulting type is a single stack-like struct, reuse it.
     if (StackArguments.Fields().size() == 1) {
       auto FirstFieldType = StackArguments.Fields().begin()->Type();
-      if (FirstFieldType.Qualifiers().empty()) {
-        auto *Unqualified = FirstFieldType.UnqualifiedType().get();
-        if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(Unqualified))
-          if (auto Path = Binary->getDefinitionReference(Struct->key());
-              Struct->Size() == StackArguments.Size())
-            NewType.StackArgumentsType() = Path;
+      if (model::StructDefinition *Struct = FirstFieldType->tryGetAsStruct();
+          Struct && Struct->Size() == StackArguments.Size()) {
+        NewPrototype.StackArgumentsType() = std::move(FirstFieldType);
       }
-    }
-
-    if (NewType.StackArgumentsType().empty()) {
-      using StructD = model::StructDefinition;
-      auto [_, Path] = Binary->makeTypeDefinition<StructD>(StackArguments);
-      NewType.StackArgumentsType() = Path;
     }
   }
 
   // Set the final stack offset
-  NewType.FinalStackOffset() = finalStackOffset(StackStructSize);
+  NewPrototype.FinalStackOffset() = finalStackOffset(StackStructSize);
 
   // Populate the list of preserved registers
-  for (auto Inserter = NewType.PreservedRegisters().batch_insert();
+  for (auto Inserter = NewPrototype.PreservedRegisters().batch_insert();
        model::Register::Values Register : ABI.CalleeSavedRegisters())
     Inserter.insert(Register);
 
-  revng_assert(NewType.verify(true));
+  revng_assert(NewPrototype.verify(true));
 
-  revng_log(Log, "Conversion successful:\n" << serializeToString(NewType));
+  revng_log(Log, "Conversion successful:\n" << serializeToString(NewPrototype));
 
-  // To finish up the conversion, remove all the references to the old type by
-  // carefully replacing them with references to the new one.
-  replaceAllUsesWith(FunctionType.key(), NewPath, Binary);
+  // To finish up the conversion, remove all the references to the old type
+  // by carefully replacing them with references to the new one.
+  replaceTypeDefinition(FunctionType.key(), *NewType, Binary);
 
   // And don't forget to remove the old type.
   Binary->TypeDefinitions().erase(FunctionType.key());
 
-  return NewPath;
+  return std::move(NewType);
 }
 
 uint64_t
@@ -377,12 +344,12 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
 
   DistributedValues Result;
   for (const model::Argument &Argument : Arguments)
-    std::ranges::move(Distributor.nextArgument(Argument.Type()),
+    std::ranges::move(Distributor.nextArgument(*Argument.Type()),
                       std::back_inserter(Result));
   return Result;
 }
 
-model::DefinitionReference
+model::UpcastableType
 convertToRaw(const model::CABIFunctionDefinition &FunctionType,
              TupleTree<model::Binary> &Binary) {
   ToRawConverter ToRaw(abi::Definition::get(FunctionType.ABI()));
@@ -397,54 +364,56 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
   // Handle return values first (since it might mean adding an extra argument).
   //
 
-  bool HasShadowPointerToAggregateReturnValue = false;
-  const auto Architecture = model::ABI::getArchitecture(Function.ABI());
-  auto RV = Converter.distributeReturnValue(Function.ReturnType());
-  if (RV.SizeOnStack == 0) {
-    if (not Function.ReturnType().isVoid()) {
-      // Nothing on the stack, the return value fits into the registers.
-      auto &ReturnValue = ReturnValues.emplace_back();
-      ReturnValue.Type = Function.ReturnType();
-      ReturnValue.Registers = std::move(RV.Registers);
-    }
-  } else {
-    revng_assert(RV.Registers.empty(),
-                 "Register and stack return values should never be present "
-                 "at the same time.");
-
-    // Add an argument to represent the pointer to the return value location.
-    Argument &RVLocationIn = Arguments.emplace_back();
-    RVLocationIn.Type = Function.ReturnType().getPointerTo(Architecture);
-    RVLocationIn.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
-    HasShadowPointerToAggregateReturnValue = true;
-
-    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
-      // Return value is passed using the stack (with a pointer to the location
-      // in the dedicated register).
-      RVLocationIn.Registers.emplace_back(ABI.ReturnValueLocationRegister());
-    } else if (ABI.ReturnValueLocationOnStack()) {
-      // The location, where return value should be put in, is also communicated
-      // using the stack.
-      RVLocationIn.Stack = { 0, model::ABI::getPointerSize(ABI.ABI()) };
+  bool UsesSPTAR = false;
+  if (!Function.ReturnType().empty()) {
+    const auto Architecture = model::ABI::getArchitecture(Function.ABI());
+    auto RV = Converter.distributeReturnValue(*Function.ReturnType());
+    if (RV.SizeOnStack == 0) {
+      if (Function.ReturnType().empty()) {
+        // This function returns `void`: no need to do anything special.
+      } else {
+        // Nothing on the stack, the return value fits into the registers.
+        auto &NewRV = ReturnValues.emplace_back(Function.ReturnType().copy());
+        NewRV.Registers = std::move(RV.Registers);
+      }
     } else {
-      revng_abort("Big return values are not supported by the current ABI");
+      revng_assert(RV.Registers.empty(),
+                   "Register and stack return values should never be present "
+                   "at the same time.");
+
+      // Add an argument to represent the pointer to the return value location.
+      auto Pointer = model::PointerType::make(Function.ReturnType().copy(),
+                                              Architecture);
+      Argument &RVLocationIn = Arguments.emplace_back(std::move(Pointer));
+      RVLocationIn.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
+      UsesSPTAR = true;
+
+      if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
+        // Return value is passed using the stack (with a pointer to the
+        // location in the dedicated register).
+        RVLocationIn.Registers.emplace_back(ABI.ReturnValueLocationRegister());
+      } else if (ABI.ReturnValueLocationOnStack()) {
+        // The location, where return value should be put in, is also
+        // communicated using the stack.
+        RVLocationIn.Stack = { 0, model::ABI::getPointerSize(ABI.ABI()) };
+      } else {
+        revng_abort("Big return values are not supported by the current ABI");
+      }
+
+      // Also return the same pointer using normal means.
+      //
+      // NOTE: maybe some architectures do not require this.
+      // TODO: investigate.
+      auto &RVLocationOut = ReturnValues.emplace_back(RVLocationIn.Type.copy());
+
+      // To simplify selecting the register for it, use the full distribution
+      // routine again, but with the pointer instead of the original type.
+      auto RVOut = Converter.distributeReturnValue(*RVLocationOut.Type);
+      revng_assert(RVOut.Size == model::ABI::getPointerSize(ABI.ABI()));
+      revng_assert(RVOut.Registers.size() == 1);
+      revng_assert(RVOut.SizeOnStack == 0);
+      RVLocationOut.Registers = std::move(RVOut.Registers);
     }
-
-    // Also return the same pointer using normal means.
-    //
-    // NOTE: maybe some architectures do not require this.
-    // TODO: investigate.
-    ReturnValue &RVLocationOut = ReturnValues.emplace_back();
-    RVLocationOut.Type = RVLocationIn.Type;
-    revng_assert(RVLocationOut.Type.UnqualifiedType().isValid());
-
-    // To simplify selecting the register for it, use the full distribution
-    // routine again, but with the pointer instead of the original type.
-    auto RVOut = Converter.distributeReturnValue(RVLocationOut.Type);
-    revng_assert(RVOut.Size == model::ABI::getPointerSize(ABI.ABI()));
-    revng_assert(RVOut.Registers.size() == 1);
-    revng_assert(RVOut.SizeOnStack == 0);
-    RVLocationOut.Registers = std::move(RVOut.Registers);
   }
 
   //
@@ -452,21 +421,21 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
   //
 
   auto Converted = Converter.distributeArguments(Function.Arguments(),
-                                                 RV.SizeOnStack != 0);
+                                                 UsesSPTAR);
   revng_assert(Converted.size() >= Function.Arguments().size());
   uint64_t Index = 0;
   uint64_t StackStructSize = 0;
   for (const DistributedValue &Distributed : Converted) {
     if (!Distributed.RepresentsPadding) {
-      Argument &Current = Arguments.emplace_back();
-      Current.Type = Function.Arguments().at(Index).Type();
+      auto &CurrentType = Function.Arguments().at(Index).Type();
+      Argument &Current = Arguments.emplace_back(CurrentType.copy());
 
       // Disambiguate scalar and aggregate arguments.
       // Scalars are passed by value,
       // aggregates and pointer-to-copy values - as a pointer.
       if (Distributed.UsesPointerToCopy)
         Current.Kind = ArgumentKind::PointerToCopy;
-      else if (Current.Type.isScalar())
+      else if (Current.Type->isScalar())
         Current.Kind = ArgumentKind::Scalar;
       else
         Current.Kind = ArgumentKind::ReferenceToAggregate;
@@ -485,7 +454,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
     }
   }
 
-  if (HasShadowPointerToAggregateReturnValue)
+  if (UsesSPTAR)
     revng_assert(Arguments.size() == Function.Arguments().size() + 1);
   else
     revng_assert(Arguments.size() == Function.Arguments().size());
@@ -499,35 +468,30 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
 Layout::Layout(const model::RawFunctionDefinition &Function) {
   // Lay register arguments out.
   for (const model::NamedTypedRegister &Register : Function.Arguments()) {
-    revng_assert(Register.Type().isScalar());
+    revng_assert(Register.Type()->isScalar());
 
-    auto &Argument = Arguments.emplace_back();
+    auto &Argument = Arguments.emplace_back(Register.Type().copy());
     Argument.Registers = { Register.Location() };
-    Argument.Type = Register.Type();
     Argument.Kind = ArgumentKind::Scalar;
   }
 
   // Lay the return value out.
   for (const model::NamedTypedRegister &Register : Function.ReturnValues()) {
-    auto &ReturnValue = ReturnValues.emplace_back();
+    auto &ReturnValue = ReturnValues.emplace_back(Register.Type().copy());
     ReturnValue.Registers = { Register.Location() };
-    ReturnValue.Type = Register.Type();
   }
 
   // Lay stack arguments out.
   if (not Function.StackArgumentsType().empty()) {
-    const model::DefinitionReference &StackPath = Function.StackArgumentsType();
-    auto *StackStruct = llvm::cast<model::StructDefinition>(StackPath.get());
-
-    auto &Argument = Arguments.emplace_back();
+    auto &NewArg = Arguments.emplace_back(Function.StackArgumentsType().copy());
 
     // Stack argument is always passed by pointer for RawFunctionDefinition
-    Argument.Type = model::QualifiedType{ StackPath, {} };
-    Argument.Kind = ArgumentKind::ReferenceToAggregate;
+    NewArg.Kind = ArgumentKind::ReferenceToAggregate;
 
     // Record the size
-    if (StackStruct->Size() != 0)
-      Argument.Stack = { 0, StackStruct->Size() };
+    const auto &StackStruct = Function.StackArgumentsType()->asStruct();
+    if (StackStruct.Size() != 0)
+      NewArg.Stack = { 0, StackStruct.Size() };
   }
 
   // Fill callee saved registers.

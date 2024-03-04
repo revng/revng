@@ -41,23 +41,16 @@ public:
     FromModel(FromModel), DestinationModel(DestinationModel) {}
   ~TypeCopier() { revng_assert(Finalized); }
 
-  model::DefinitionReference copyTypeInto(model::DefinitionReference &Type) {
+  model::UpcastableType copyTypeInto(const model::TypeDefinition &Definition) {
     ensureGraph();
 
-    revng_assert(Type.isValid());
-
-    model::DefinitionReference Result;
-    llvm::df_iterator_default_set<Node *> VisitedFromTheType;
-    for (Node *N :
-         depth_first_ext(TypeToNode.at(Type.get()), VisitedFromTheType))
+    model::UpcastableType Result;
+    llvm::df_iterator_default_set<Node *> Visited;
+    for (Node *N : depth_first_ext(TypeToNode.at(&Definition), Visited))
       ;
 
     for (const auto &P : FromModel->TypeDefinitions()) {
-      if (auto *PrD = llvm::dyn_cast<model::PrimitiveDefinition>(P.get())) {
-        // Ensure we have all the necessary primitive types
-        DestinationModel->getPrimitiveType(PrD->PrimitiveKind(), PrD->Size());
-      } else if (AlreadyCopied.count(P.get()->ID()) == 0
-                 and VisitedFromTheType.contains(TypeToNode.at(P.get()))) {
+      if (Visited.contains(TypeToNode.at(P.get()))) {
         // Clone the type
         UpcastablePointer<model::TypeDefinition> NewType = P;
 
@@ -80,16 +73,14 @@ public:
         revng_assert(!KnownDefinitions.contains(NewType->key()));
 
         // Record the type
-        auto TheType = DestinationModel->recordNewType(std::move(NewType));
-        {
-          model::TypeDefinition *NewType = TheType.get();
-          NewTypes.insert(NewType);
-          AlreadyCopied.insert({ P.get()->ID(), NewType->ID() });
-        }
+        auto [Def, Type] = DestinationModel->recordNewType(std::move(NewType));
+        NewTypes.insert(&Def);
+        auto [_, Success] = AlreadyCopied.insert({ P->ID(), Def.ID() });
+        revng_assert(Success);
 
         // Record the type we were looking for originally
-        if (P->ID() == Type.get()->ID())
-          Result = TheType;
+        if (P->key() == Def.key())
+          Result = std::move(Type);
       }
     }
 
@@ -115,11 +106,9 @@ public:
         // Extract ID from the key
         const TupleTreeKeyWrapper &TypeKey = Path.path().toArrayRef()[1];
         auto [ID, Kind] = *TypeKey.tryGet<model::TypeDefinition::Key>();
-        if (Kind != model::TypeDefinitionKind::PrimitiveDefinition) {
-          revng_assert(AlreadyCopied.count(ID) == 1);
-          Path = DestinationModel->getDefinitionReference({ AlreadyCopied[ID],
-                                                            Kind });
-        }
+        revng_assert(AlreadyCopied.count(ID) == 1);
+        model::TypeDefinition::Key Key = { AlreadyCopied[ID], Kind };
+        Path = DestinationModel->getDefinitionReference(Key);
       }
     };
 
@@ -132,18 +121,15 @@ private:
     if (!TypeGraph) {
       TypeGraph = Graph();
 
-      using UpcastableTD = model::UpcastableTypeDefinition;
-      for (const UpcastableTD &T : FromModel->TypeDefinitions()) {
+      using UpcastableTypeDefinition = model::UpcastableTypeDefinition;
+      for (const UpcastableTypeDefinition &T : FromModel->TypeDefinitions())
         TypeToNode[T.get()] = TypeGraph->addNode(NodeData{ &T });
-      }
 
       // Create type system edges
-      for (const UpcastableTD &T : FromModel->TypeDefinitions()) {
-        for (const model::QualifiedType &QT : T->edges()) {
-          auto *DependantType = QT.UnqualifiedType().get();
-          TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));
-        }
-      }
+      for (const UpcastableTypeDefinition &T : FromModel->TypeDefinitions())
+        for (const model::Type *EdgeType : T->edges())
+          if (const auto *Definition = EdgeType->skipToDefinition())
+            TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(Definition));
     }
   }
 };
