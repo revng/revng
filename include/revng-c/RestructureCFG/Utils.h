@@ -135,3 +135,33 @@ inline bool alreadyOnStackQuick(BasicBlockNodeTSet<NodeT> &StackSet,
                                 BasicBlockNode<NodeT> *Node) {
   return StackSet.contains(Node);
 }
+
+template<class NodeT>
+class CFGDumper {
+  size_t GraphLogCounter;
+  const RegionCFG<NodeT> &Graph;
+  const std::string FunctionName;
+  const std::string RegionName;
+  const std::string FolderName;
+
+public:
+  CFGDumper(const RegionCFG<NodeT> &Graph,
+            const std::string &FunctionName,
+            const std::string &RegionName,
+            const std::string &FolderName) :
+    GraphLogCounter(0),
+    Graph(Graph),
+    FunctionName(FunctionName),
+    RegionName(RegionName),
+    FolderName(FolderName) {}
+
+  void log(const std::string &FilenameSuffix) {
+    if (CombLogger.isEnabled()) {
+      Graph.dumpCFGOnFile(FunctionName,
+                          FolderName,
+                          "region-" + RegionName + "-step-"
+                            + std::to_string(GraphLogCounter++)
+                            + FilenameSuffix);
+    }
+  }
+};

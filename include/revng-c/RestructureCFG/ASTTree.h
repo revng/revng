@@ -122,8 +122,8 @@ public:
   }
 
   /// Dump a GraphViz file on a file representing this function
-  debug_function void dumpASTOnFile(const std::string &FolderName,
-                                    const std::string &FunctionName,
+  debug_function void dumpASTOnFile(const std::string &FunctionName,
+                                    const std::string &FolderName,
                                     const std::string &FileName) const;
 
   ExprNode *addCondExpr(expr_unique_ptr &&Expr);

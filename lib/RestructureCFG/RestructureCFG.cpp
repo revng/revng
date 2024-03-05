@@ -483,7 +483,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
   if (CombLogger.isEnabled()) {
     CombLogger << "Analyzing function: " << F.getName() << "\n";
-    RootCFG.dumpCFGOnFile(F.getName().str(), "dots", "begin");
+    RootCFG.dumpCFGOnFile(F.getName().str(), "restructure", "initial-state");
   }
 
   // Identify SCS regions.
@@ -606,8 +606,9 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
       CombLogger << "Dumping main graph snapshot before restructuring\n";
       RootCFG.dumpCFGOnFile(F.getName().str(),
-                            "dots",
-                            "Out-pre-" + std::to_string(Meta->getIndex()));
+                            "restructure",
+                            "region-" + std::to_string(Meta->getIndex())
+                              + "-outside-before");
     }
 
     // Identify all the abnormal retreating edges in a SCS.
@@ -1309,12 +1310,14 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     if (CombLogger.isEnabled()) {
       CombLogger << "Dumping CFG of metaregion " << Meta->getIndex() << "\n";
       CollapsedGraph.dumpCFGOnFile(F.getName().str(),
-                                   "dots",
-                                   "In-" + std::to_string(Meta->getIndex()));
+                                   "restructure",
+                                   "region-" + std::to_string(Meta->getIndex())
+                                     + "-inside");
       CombLogger << "Dumping main graph snapshot post restructuring\n";
       RootCFG.dumpCFGOnFile(F.getName().str(),
-                            "dots",
-                            "Out-post-" + std::to_string(Meta->getIndex()));
+                            "restructure",
+                            "region-" + std::to_string(Meta->getIndex())
+                              + "-outside-after");
     }
 
     // Remove not reachables nodes from the graph at each iteration.
@@ -1332,7 +1335,9 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph before final purge\n";
-    RootCFG.dumpCFGOnFile(F.getName().str(), "dots", "Final-before-purge");
+    RootCFG.dumpCFGOnFile(F.getName().str(),
+                          "restructure",
+                          "final-state-before-purge");
   }
 
   // Remove not reachables nodes from the main final graph.
@@ -1341,7 +1346,9 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph after final purge\n";
-    RootCFG.dumpCFGOnFile(F.getName().str(), "dots", "Final-after-purge");
+    RootCFG.dumpCFGOnFile(F.getName().str(),
+                          "restructure",
+                          "final-state-after-purge");
   }
 
   // Print metaregions after ordering.
@@ -1368,11 +1375,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   // avoid having it run twice or more (it was run inside the recursive step
   // of the `generateAst`, and then another time for the final root AST, which
   // now is directly the entire AST, since there's no flattening anymore).
-  normalize(AST, F.getName().str());
-
-  // Serialize final AST on file
-  if (CombLogger.isEnabled())
-    AST.dumpASTOnFile(F.getName().str(), "ast", "Final");
+  normalize(AST, F);
 
   // Serialize the collected metrics in the outputfile.
   if (MetricsOutputPath.getNumOccurrences()) {

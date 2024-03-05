@@ -2221,9 +2221,9 @@ void decompile(FunctionMetadataCache &Cache,
 
     T2.advance("decompileFunction");
     if (Log.isEnabled()) {
-      std::string ASTFileName = F.getName().str()
-                                + "GHAST-during-c-codegen.dot";
-      GHAST.dumpASTOnFile(ASTFileName.c_str());
+      GHAST.dumpASTOnFile(F.getName().str(),
+                          "ast-backend",
+                          "AST-during-c-codegen.dot");
     }
 
     // Generated C code for F

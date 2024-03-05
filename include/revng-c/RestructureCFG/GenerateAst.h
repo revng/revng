@@ -25,6 +25,7 @@
 
 #include "revng/ADT/ReversePostOrderTraversal.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/RestructureCFG/ASTNodeUtils.h"
@@ -35,6 +36,33 @@
 #include "revng-c/RestructureCFG/Utils.h"
 
 #include "BasicBlockNode.h"
+
+class GHASTDumper {
+  size_t GraphLogCounter;
+  Logger<> &Logger;
+  std::string FunctionName;
+  const ASTTree &AST;
+  std::string FolderName;
+
+public:
+  GHASTDumper(::Logger<> &Logger,
+              const llvm::Function &F,
+              const ASTTree &TheAST,
+              const std::string &FolderName) :
+    GraphLogCounter(0),
+    Logger(Logger),
+    FunctionName(F.getName().str()),
+    AST(TheAST),
+    FolderName(FolderName) {}
+
+  void log(const std::string &Filename) {
+    if (Logger.isEnabled()) {
+      AST.dumpASTOnFile(FunctionName,
+                        "ast-" + FolderName,
+                        std::to_string(GraphLogCounter++) + "-" + Filename);
+    }
+  }
+};
 
 // Helper function that visit an AST tree and creates the sequence nodes
 inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {
@@ -430,26 +458,11 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
   Region.markUnreachableAsInlined();
 
-  if (CombLogger.isEnabled()) {
-    CombLogger << "Weaveing region " + RegionName + "\n";
-    Region.dumpCFGOnFile(FunctionName, "weaves", "Preweave-" + RegionName);
-  }
-
   // Invoke the weave function.
   Region.weave();
 
-  if (CombLogger.isEnabled()) {
-    Region.dumpCFGOnFile(FunctionName, "weaves", "Postweave-" + RegionName);
-
-    CombLogger << "Inflating region " + RegionName + "\n";
-    Region.dumpCFGOnFile(FunctionName, "dots", "Precomb-" + RegionName);
-  }
-
+  // Invoke the inflate function.
   Region.inflate();
-
-  if (CombLogger.isEnabled()) {
-    Region.dumpCFGOnFile(FunctionName, "dots", "Postcomb-" + RegionName);
-  }
 
   // After we are done with the combing, we need to pre-compute the weight of
   // the current RegionCFG, so that during the untangle phase of other
@@ -472,16 +485,10 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
   for (auto *N : post_order(&Region))
     PONodes.push_back(N);
 
-  unsigned Counter = 0;
-  for (BasicBlockNode<NodeT> *Node : PONodes) {
+  CFGDumper Dumper(Region, FunctionName, RegionName, "tile");
 
-    if (CombLogger.isEnabled()) {
-      Counter++;
-      Region.dumpCFGOnFile(FunctionName,
-                           "ast",
-                           "Tiling-" + RegionName + "-step-"
-                             + std::to_string(Counter));
-    }
+  for (BasicBlockNode<NodeT> *Node : PONodes) {
+    Dumper.log("-node-" + Node->getNameStr());
 
     // Collect the children nodes in the dominator tree.
     llvm::SmallVector<decltype(Node), 8> Children;
@@ -1031,34 +1038,32 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
   AST.setRoot(RootNode);
 }
 
-inline void normalize(ASTTree &AST, std::string FunctionName) {
+inline void normalize(ASTTree &AST, const llvm::Function &F) {
+
+  // AST dumper helper
+  GHASTDumper Dumper(CombLogger, F, AST, "normalize");
+
   // Serialize the graph starting from the root node.
   CombLogger << "Serializing first AST draft:\n";
-  if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile(FunctionName, "ast", "First-draft");
-  }
+  Dumper.log("first-draft");
 
   // Create sequence nodes.
   CombLogger << "Performing sequence insertion:\n";
   ASTNode *RootNode = AST.getRoot();
   RootNode = createSequence(AST, RootNode);
   AST.setRoot(RootNode);
-  if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile(FunctionName, "ast", "After-sequence");
-  }
+  Dumper.log("after-sequence");
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless dummies simplification:\n";
   simplifyDummies(AST, RootNode);
-  if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile(FunctionName, "ast", "After-dummies-removal");
-  }
+  Dumper.log("after-dummies-removal");
 
   // Simplify useless sequence nodes.
   CombLogger << "Performing useless sequence simplification:\n";
   RootNode = simplifyAtomicSequence(AST, RootNode);
   AST.setRoot(RootNode);
-  if (CombLogger.isEnabled()) {
-    AST.dumpASTOnFile(FunctionName, "ast", "After-sequence-simplification");
-  }
+  Dumper.log("after-sequence-simplification");
+
+  Dumper.log("final");
 }

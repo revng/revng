@@ -448,7 +448,7 @@ inline void RegionCFG<NodeT>::untangle() {
   if (CombLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
                         "untangle",
-                        "Region-" + RegionName + "-initial-state");
+                        "region-" + RegionName + "-before-untangle");
   }
 
   // Map which contains the precomputed weight for each node in the graph. In
@@ -479,12 +479,6 @@ inline void RegionCFG<NodeT>::untangle() {
   }
 
   while (not ConditionalNodes.empty()) {
-
-    if (CombLogger.isEnabled()) {
-      Graph.dumpCFGOnFile(FunctionName,
-                          "untangle",
-                          "Region-" + RegionName + "-debug");
-    }
 
     BasicBlockNode<NodeT> *Conditional = ConditionalNodes.back();
     ConditionalNodes.pop_back();
@@ -671,7 +665,7 @@ inline void RegionCFG<NodeT>::untangle() {
   if (CombLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
                         "untangle",
-                        "Region-" + RegionName + "-after-processing");
+                        "region-" + RegionName + "-after-untangle");
   }
 
   // Remove the sink node.
@@ -680,7 +674,8 @@ inline void RegionCFG<NodeT>::untangle() {
   if (CombLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
                         "untangle",
-                        "Region-" + RegionName + "-after-sink-removal");
+                        "region-" + RegionName
+                          + "-after-untangle-after-sink-removal");
   }
 }
 
@@ -724,8 +719,8 @@ inline void RegionCFG<NodeT>::inflate() {
   if (CombLogger.isEnabled()) {
     revng_log(CombLogger, "Entry node is: " << Entry->getNameStr());
     Graph.dumpCFGOnFile(FunctionName,
-                        "inflates",
-                        "Region-" + RegionName + "-before-combing");
+                        "inflate",
+                        "region-" + RegionName + "-before-inflate");
   }
 
   // Collect the sets of reachable exits from each node that is a successor of a
@@ -894,6 +889,9 @@ inline void RegionCFG<NodeT>::inflate() {
   }
   NodesEquivalenceClass[nullptr] = {};
 
+  // CFGDumper used to incrementally print the combing evolution
+  CFGDumper Dumper(Graph, FunctionName, RegionName, "inflate");
+
   // Iterate on ConditionalNodes from the back. Given that they are inserted
   // into ConditionalNodes in RPOT, this iteration is in post-order.
   while (not ConditionalNodes.empty()) {
@@ -911,10 +909,8 @@ inline void RegionCFG<NodeT>::inflate() {
     if (CombLogger.isEnabled()) {
       revng_log(CombLogger,
                 "Analyzing conditional node " << Conditional->getNameStr());
-      Graph.dumpCFGOnFile(FunctionName,
-                          "inflates",
-                          "Region-" + RegionName + "-conditional-"
-                            + Conditional->getNameStr() + "-begin");
+      Dumper.log("-conditional-" + Conditional->getNameStr()
+                 + "-initial-state");
     }
 
     // List to keep track of the nodes that we still need to analyze.
@@ -1070,11 +1066,9 @@ inline void RegionCFG<NodeT>::inflate() {
         }
 
         if (CombLogger.isEnabled()) {
-          Graph.dumpCFGOnFile(FunctionName,
-                              "inflates",
-                              "Region-" + RegionName + "-before-purge-dummies-"
-                                + Conditional->getNameStr() + "-"
-                                + std::to_string(Iteration));
+          Dumper.log("-conditional-" + Conditional->getNameStr()
+                     + "-before-purge-dummies-iteration-"
+                     + std::to_string(Iteration));
         }
 
         BasicBlockNode<NodeT> *OriginalNode = CloneToOriginalMap.at(Candidate);
@@ -1155,24 +1149,23 @@ inline void RegionCFG<NodeT>::inflate() {
       }
 
       if (CombLogger.isEnabled()) {
-        Graph.dumpCFGOnFile(FunctionName,
-                            "inflates",
-                            "Region-" + RegionName + "-conditional-"
-                              + Conditional->getNameStr() + "-"
-                              + std::to_string(Iteration));
+        Dumper.log("-conditional-" + Conditional->getNameStr()
+                   + "-after-processing-iteration-"
+                   + std::to_string(Iteration));
       }
       Iteration++;
     }
 
     revng_log(CombLogger,
               "Finished looking at conditional: " << Conditional->getNameStr());
+    Dumper.log("-conditional-" + Conditional->getNameStr() + "-final-state");
   }
 
   if (CombLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
-                        "inflates",
-                        "Region-" + RegionName
-                          + "-before-final-inflate-cleanup");
+                        "inflate",
+                        "region-" + RegionName
+                          + "-after-inflate-before-cleanup");
   }
 
   // Purge extra dummy nodes introduced.
@@ -1180,8 +1173,8 @@ inline void RegionCFG<NodeT>::inflate() {
 
   if (CombLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
-                        "inflates",
-                        "Region-" + RegionName + "-after-combing");
+                        "inflate",
+                        "region-" + RegionName + "-after-inflate");
   }
 
   revng_log(CombLogger, "Region Final Size: " << Graph.size());
@@ -1288,6 +1281,12 @@ inline void RegionCFG<NodeT>::weave() {
 
   IFPDT.recalculate(Graph);
 
+  if (CombLogger.isEnabled()) {
+    Graph.dumpCFGOnFile(FunctionName,
+                        "weave",
+                        "region-" + RegionName + "-before-weave");
+  }
+
   // Iterate over all the nodes in post order.
   BBNodeT *Entry = &getEntryNode();
   for (BBNodeT *Switch : post_order(Entry)) {
@@ -1297,13 +1296,8 @@ inline void RegionCFG<NodeT>::weave() {
 
     // If we find a switch node we can start the weaving analysis.
     if (Switch->successor_size() > 2) {
-
-      if (CombLogger.isEnabled()) {
-        CombLogger << "Looking at switch node: " << Switch->getName() << "\n";
-        dumpCFGOnFile(FunctionName,
-                      "weaves",
-                      "Weaving-region-" + RegionName + "-debug");
-      }
+      revng_log(CombLogger,
+                "Looking at switch node: " << Switch->getName() << "\n");
 
       // Collect the case nodes of the switch.
       BasicBlockNodeTSet CaseSet;
@@ -1411,6 +1405,12 @@ inline void RegionCFG<NodeT>::weave() {
   }
 
   DT.recalculate(Graph);
+
+  if (CombLogger.isEnabled()) {
+    Graph.dumpCFGOnFile(FunctionName,
+                        "weave",
+                        "region-" + RegionName + "-after-weave");
+  }
 }
 
 template<class NodeT>
