@@ -12,6 +12,7 @@ revng_add_analyses_library_internal(
   Processing.cpp
   SerializeModelPass.cpp
   Type.cpp
+  Verification.cpp
   Visits.cpp)
 
 target_link_libraries(revngModel revngSupport)
