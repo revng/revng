@@ -11,6 +11,7 @@ revng_add_analyses_library_internal(
   TypeSystemPrinter.cpp
   Processing.cpp
   Type.cpp
+  Verification.cpp
   Visits.cpp)
 
 target_link_libraries(revngModel revngSupport)
