@@ -441,23 +441,23 @@ static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values PrimKind,
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const PrimitiveDefinition *T) {
-  revng_assert(T->Kind() == TypeDefinitionKind::PrimitiveDefinition);
+                                           const PrimitiveDefinition &T) {
+  revng_assert(T.Kind() == TypeDefinitionKind::PrimitiveDefinition);
 
-  if (not T->CustomName().empty() or not T->OriginalName().empty())
+  if (not T.CustomName().empty() or not T.OriginalName().empty())
     rc_return VH.fail("PrimitiveTypes cannot have OriginalName or CustomName",
-                      *T);
+                      T);
 
-  auto ExpectedID = makePrimitiveID(T->PrimitiveKind(), T->Size());
-  if (T->ID() != ExpectedID)
+  auto ExpectedID = makePrimitiveID(T.PrimitiveKind(), T.Size());
+  if (T.ID() != ExpectedID)
     rc_return VH.fail(Twine("Wrong ID for PrimitiveDefinition. Got: ")
-                        + Twine(T->ID()) + ". Expected: " + Twine(ExpectedID)
+                        + Twine(T.ID()) + ". Expected: " + Twine(ExpectedID)
                         + ".",
-                      *T);
+                      T);
 
-  if (not isValidPrimitiveSize(T->PrimitiveKind(), T->Size()))
-    rc_return VH.fail("Invalid PrimitiveDefinition size: " + Twine(T->Size()),
-                      *T);
+  if (not isValidPrimitiveSize(T.PrimitiveKind(), T.Size()))
+    rc_return VH.fail("Invalid PrimitiveDefinition size: " + Twine(T.Size()),
+                      T);
 
   rc_return true;
 }
@@ -468,24 +468,24 @@ bool EnumEntry::verify(VerifyHelper &VH) const {
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const EnumDefinition *T) {
-  if (T->Kind() != TypeDefinitionKind::EnumDefinition or T->Entries().empty()
-      or not T->CustomName().verify(VH))
+                                           const EnumDefinition &T) {
+  if (T.Kind() != TypeDefinitionKind::EnumDefinition or T.Entries().empty()
+      or not T.CustomName().verify(VH))
     rc_return VH.fail();
 
   // The underlying type has to be an unqualified primitive type
-  if (not rc_recur T->UnderlyingType().verify(VH)
-      or not T->UnderlyingType().Qualifiers().empty())
+  if (not rc_recur T.UnderlyingType().verify(VH)
+      or not T.UnderlyingType().Qualifiers().empty())
     rc_return VH.fail();
 
   // We only allow signed/unsigned as underlying type
-  if (not T->UnderlyingType().isPrimitive(PrimitiveKind::Signed)
-      and not T->UnderlyingType().isPrimitive(PrimitiveKind::Unsigned))
+  if (not T.UnderlyingType().isPrimitive(PrimitiveKind::Signed)
+      and not T.UnderlyingType().isPrimitive(PrimitiveKind::Unsigned))
     rc_return VH.fail("UnderlyingType of a EnumDefinition can only be Signed "
                       "or Unsigned",
-                      *T);
+                      T);
 
-  for (auto &Entry : T->Entries()) {
+  for (auto &Entry : T.Entries()) {
 
     if (not Entry.verify(VH))
       rc_return VH.fail();
@@ -497,10 +497,10 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const TypedefDefinition *T) {
-  rc_return VH.maybeFail(T->CustomName().verify(VH)
-                         and T->Kind() == TypeDefinitionKind::TypedefDefinition
-                         and rc_recur T->UnderlyingType().verify(VH));
+                                           const TypedefDefinition &T) {
+  rc_return VH.maybeFail(T.CustomName().verify(VH)
+                         and T.Kind() == TypeDefinitionKind::TypedefDefinition
+                         and rc_recur T.UnderlyingType().verify(VH));
 }
 
 RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
@@ -518,39 +518,39 @@ RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const StructDefinition *T) {
+                                           const StructDefinition &T) {
 
   using namespace llvm;
 
-  revng_assert(T->Kind() == TypeDefinitionKind::StructDefinition);
+  revng_assert(T.Kind() == TypeDefinitionKind::StructDefinition);
 
-  if (not T->CustomName().verify(VH))
-    rc_return VH.fail("Invalid name", *T);
+  if (not T.CustomName().verify(VH))
+    rc_return VH.fail("Invalid name", T);
 
-  if (T->Size() == 0)
-    rc_return VH.fail("Struct type has zero size", *T);
+  if (T.Size() == 0)
+    rc_return VH.fail("Struct type has zero size", T);
 
   size_t Index = 0;
   llvm::SmallSet<llvm::StringRef, 8> Names;
-  auto FieldIt = T->Fields().begin();
-  auto FieldEnd = T->Fields().end();
+  auto FieldIt = T.Fields().begin();
+  auto FieldEnd = T.Fields().end();
   for (; FieldIt != FieldEnd; ++FieldIt) {
     auto &Field = *FieldIt;
 
     if (not rc_recur Field.verify(VH)) {
       rc_return VH.fail("Can't verify type of field at offset "
                           + Twine(Field.Offset()),
-                        *T);
+                        T);
     }
 
-    if (Field.Offset() >= T->Size()) {
+    if (Field.Offset() >= T.Size()) {
       uint64_t Size = *Field.Type().size();
       rc_return VH.fail("Field at offset " + Twine(Field.Offset())
                           + " is out of struct boundaries (field size: "
                           + Twine(Size) + ", field offset + size: "
                           + Twine(Field.Offset() + Size)
-                          + ", struct size: " + Twine(T->Size()) + ")",
-                        *T);
+                          + ", struct size: " + Twine(T.Size()) + ")",
+                        T);
     }
 
     auto MaybeSize = rc_recur Field.Type().size(VH);
@@ -568,27 +568,27 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                             + ") overlaps with the field at offset "
                             + Twine(NextFieldIt->Offset()) + " (with size: "
                             + Twine(*NextFieldIt->Type().size()) + ")",
-                          *T);
+                          T);
       }
-    } else if (FieldEndOffset > T->Size()) {
+    } else if (FieldEndOffset > T.Size()) {
       // Otherwise, if this field is the last, check that it's not larger than
       // size.
-      rc_return VH.fail("Last field ends outside the struct", *T);
+      rc_return VH.fail("Last field ends outside the struct", T);
     }
 
     if (not rc_recur Field.Type().size(VH))
-      rc_return VH.fail("Field " + Twine(Index + 1) + " has no size", *T);
+      rc_return VH.fail("Field " + Twine(Index + 1) + " has no size", T);
 
     // Verify CustomName for collisions
     if (not Field.CustomName().empty()) {
       if (VH.isGlobalSymbol(Field.CustomName())) {
         rc_return VH.fail("Field \"" + Field.CustomName()
                             + "\" collides with global symbol",
-                          *T);
+                          T);
       }
 
       if (not Names.insert(Field.CustomName()).second)
-        rc_return VH.fail("Collision in struct fields names", *T);
+        rc_return VH.fail("Collision in struct fields names", T);
     }
 
     ++Index;
@@ -612,24 +612,24 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const UnionDefinition *T) {
-  revng_assert(T->Kind() == TypeDefinitionKind::UnionDefinition);
+                                           const UnionDefinition &T) {
+  revng_assert(T.Kind() == TypeDefinitionKind::UnionDefinition);
 
-  if (not T->CustomName().verify(VH))
-    rc_return VH.fail("Invalid name", *T);
+  if (not T.CustomName().verify(VH))
+    rc_return VH.fail("Invalid name", T);
 
-  if (T->Fields().empty())
-    rc_return VH.fail("Union type has zero fields", *T);
+  if (T.Fields().empty())
+    rc_return VH.fail("Union type has zero fields", T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
-  for (auto &Group : llvm::enumerate(T->Fields())) {
+  for (auto &Group : llvm::enumerate(T.Fields())) {
     auto &Field = Group.value();
     uint64_t ExpectedIndex = Group.index();
 
     if (Field.Index() != ExpectedIndex) {
       rc_return VH.fail(Twine("Union type is missing field ")
                           + Twine(ExpectedIndex),
-                        *T);
+                        T);
     }
 
     if (not rc_recur Field.verify(VH))
@@ -640,7 +640,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     revng_assert(MaybeSize);
 
     if (not rc_recur Field.Type().size(VH)) {
-      rc_return VH.fail("Field " + Twine(Field.Index()) + " has no size", *T);
+      rc_return VH.fail("Field " + Twine(Field.Index()) + " has no size", T);
     }
 
     // Verify CustomName for collisions
@@ -648,11 +648,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       if (VH.isGlobalSymbol(Field.CustomName())) {
         rc_return VH.fail("Field \"" + Field.CustomName()
                             + "\" collides with global symbol",
-                          *T);
+                          T);
       }
 
       if (not Names.insert(Field.CustomName()).second)
-        rc_return VH.fail("Collision in union fields names", *T);
+        rc_return VH.fail("Collision in union fields names", T);
     }
   }
 
@@ -666,40 +666,40 @@ RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const CABIFunctionDefinition *T) {
-  if (not T->CustomName().verify(VH)
-      or T->Kind() != TypeDefinitionKind::CABIFunctionDefinition
-      or not rc_recur T->ReturnType().verify(VH))
+                                           const CABIFunctionDefinition T) {
+  if (not T.CustomName().verify(VH)
+      or T.Kind() != TypeDefinitionKind::CABIFunctionDefinition
+      or not rc_recur T.ReturnType().verify(VH))
     rc_return VH.fail();
 
-  if (T->ABI() == model::ABI::Invalid)
-    rc_return VH.fail("An invalid ABI", *T);
+  if (T.ABI() == model::ABI::Invalid)
+    rc_return VH.fail("An invalid ABI", T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
-  for (auto &Group : llvm::enumerate(T->Arguments())) {
+  for (auto &Group : llvm::enumerate(T.Arguments())) {
     auto &Argument = Group.value();
     uint64_t ArgPos = Group.index();
 
     if (not Argument.CustomName().verify(VH))
-      rc_return VH.fail("An argument has invalid CustomName", *T);
+      rc_return VH.fail("An argument has invalid CustomName", T);
 
     // Verify CustomName for collisions
     if (not Argument.CustomName().empty()) {
       if (VH.isGlobalSymbol(Argument.CustomName()))
-        rc_return VH.fail("Argument name collides with global symbol", *T);
+        rc_return VH.fail("Argument name collides with global symbol", T);
 
       if (not Names.insert(Argument.CustomName()).second)
-        rc_return VH.fail("Collision in argument names", *T);
+        rc_return VH.fail("Collision in argument names", T);
     }
 
     if (Argument.Index() != ArgPos)
-      rc_return VH.fail("An argument has invalid index", *T);
+      rc_return VH.fail("An argument has invalid index", T);
 
     if (not rc_recur Argument.Type().verify(VH))
-      rc_return VH.fail("An argument has invalid type", *T);
+      rc_return VH.fail("An argument has invalid type", T);
 
     if (not rc_recur Argument.Type().size(VH))
-      rc_return VH.fail("An argument has no size", *T);
+      rc_return VH.fail("An argument has no size", T);
   }
 
   rc_return true;
@@ -737,14 +737,14 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
-                                           const RawFunctionDefinition *T) {
-  const model::Architecture::Values Architecture = T->Architecture();
+                                           const RawFunctionDefinition &T) {
+  const model::Architecture::Values Architecture = T.Architecture();
 
   if (Architecture == model::Architecture::Invalid)
     rc_return VH.fail();
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
-  for (const NamedTypedRegister &Argument : T->Arguments()) {
+  for (const NamedTypedRegister &Argument : T.Arguments()) {
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
     if (not isUsedInArchitecture(Argument.Location(), Architecture))
@@ -753,33 +753,33 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     // Verify CustomName for collisions
     if (not Argument.CustomName().empty()) {
       if (VH.isGlobalSymbol(Argument.CustomName()))
-        rc_return VH.fail("Argument name collides with global symbol", *T);
+        rc_return VH.fail("Argument name collides with global symbol", T);
 
       if (not Names.insert(Argument.CustomName()).second)
-        rc_return VH.fail("Collision in argument names", *T);
+        rc_return VH.fail("Collision in argument names", T);
     }
   }
 
-  for (const NamedTypedRegister &Return : T->ReturnValues()) {
+  for (const NamedTypedRegister &Return : T.ReturnValues()) {
     if (not rc_recur Return.verify(VH))
       rc_return VH.fail();
     if (not isUsedInArchitecture(Return.Location(), Architecture))
       rc_return VH.fail();
   }
 
-  for (const Register::Values &Preserved : T->PreservedRegisters()) {
+  for (const Register::Values &Preserved : T.PreservedRegisters()) {
     if (Preserved == Register::Invalid)
       rc_return VH.fail();
     if (not isUsedInArchitecture(Preserved, Architecture))
       rc_return VH.fail();
   }
 
-  auto &StackArgumentsType = T->StackArgumentsType();
+  auto &StackArgumentsType = T.StackArgumentsType();
   if (not StackArgumentsType.empty()
       and not rc_recur StackArgumentsType.get()->verify(VH))
     rc_return VH.fail();
 
-  rc_return VH.maybeFail(T->CustomName().verify(VH));
+  rc_return VH.maybeFail(T.CustomName().verify(VH));
 }
 
 RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
@@ -800,38 +800,22 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
   bool Result = false;
 
   // We could use upcast() but we'd need to workaround coroutines.
-  switch (Kind()) {
-  case TypeDefinitionKind::PrimitiveDefinition:
-    Result = rc_recur verifyImpl(VH, cast<PrimitiveDefinition>(this));
-    break;
-
-  case TypeDefinitionKind::EnumDefinition:
-    Result = rc_recur verifyImpl(VH, cast<EnumDefinition>(this));
-    break;
-
-  case TypeDefinitionKind::TypedefDefinition:
-    Result = rc_recur verifyImpl(VH, cast<TypedefDefinition>(this));
-    break;
-
-  case TypeDefinitionKind::StructDefinition:
-    Result = rc_recur verifyImpl(VH, cast<StructDefinition>(this));
-    break;
-
-  case TypeDefinitionKind::UnionDefinition:
-    Result = rc_recur verifyImpl(VH, cast<UnionDefinition>(this));
-    break;
-
-  case TypeDefinitionKind::CABIFunctionDefinition:
-    Result = rc_recur verifyImpl(VH, cast<CABIFunctionDefinition>(this));
-    break;
-
-  case TypeDefinitionKind::RawFunctionDefinition:
-    Result = rc_recur verifyImpl(VH, cast<RawFunctionDefinition>(this));
-    break;
-
-  default: // Do nothing;
-    ;
-  }
+  if (auto *F = llvm::dyn_cast<model::CABIFunctionDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *F);
+  else if (auto *F = llvm::dyn_cast<model::RawFunctionDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *F);
+  else if (auto *E = llvm::dyn_cast<model::EnumDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *E);
+  else if (auto *T = llvm::dyn_cast<model::TypedefDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *T);
+  else if (auto *S = llvm::dyn_cast<model::StructDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *S);
+  else if (auto *U = llvm::dyn_cast<model::UnionDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *U);
+  else if (auto *P = llvm::dyn_cast<model::PrimitiveDefinition>(this))
+    Result = rc_recur verifyImpl(VH, *P);
+  else
+    revng_abort("Unsupported type definition kind.");
 
   if (Result) {
     VH.setVerified(this);
