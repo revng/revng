@@ -183,8 +183,7 @@ public:
   model::DefinitionReference getPrimitiveType(PrimitiveKind::Values V,
                                               uint8_t ByteSize) const;
 
-  bool verifyTypeDefinitions() const debug_function;
-  bool verifyTypeDefinitions(bool Assert) const debug_function;
+  bool verifyTypeDefinitions(bool Assert = false) const debug_function;
   bool verifyTypeDefinitions(VerifyHelper &VH) const;
 
 public:
@@ -211,9 +210,8 @@ public:
   }
 
 public:
-  bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
-  bool verify() const;
+  bool verify(bool Assert = false) const debug_function;
   void dumpTypeGraph(const char *Path) const debug_function;
   std::string toString() const debug_function;
 

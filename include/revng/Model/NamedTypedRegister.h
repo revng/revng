@@ -40,8 +40,7 @@ public:
   Identifier name() const;
 
 public:
-  bool verify() const debug_function;
-  bool verify(bool Assert) const debug_function;
+  bool verify(bool Assert = false) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
 };
 

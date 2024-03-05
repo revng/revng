@@ -274,9 +274,6 @@ bool Identifier::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool Identifier::verify() const {
-  return verify(false);
-}
 
 constexpr static llvm::StringRef PrefixForReservedNames = "unreserved_";
 

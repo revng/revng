@@ -85,8 +85,7 @@ public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const;
 
 public:
-  bool verify() const debug_function;
-  bool verify(bool Assert) const debug_function;
+  bool verify(bool Assert = false) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
   void dumpTypeGraph(const char *Path) const debug_function;
 };

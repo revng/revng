@@ -88,10 +88,6 @@ static bool verifyGlobalNamespace(VerifyHelper &VH,
 // Types
 //
 
-bool Qualifier::verify() const {
-  return verify(false);
-}
-
 bool Qualifier::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
@@ -149,11 +145,6 @@ inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
 
 bool model::QualifiedType::isScalar() const {
   return isScalarImpl(*this);
-}
-
-
-bool QualifiedType::verify() const {
-  return verify(false);
 }
 
 bool QualifiedType::verify(bool Assert) const {
@@ -909,124 +900,74 @@ bool Binary::verify(VerifyHelper &VH) const {
 // And the wrappers
 //
 
-bool Identifier::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-bool Identifier::verify() const {
-  return verify(false);
-}
-
 bool CallSitePrototype::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
-}
-bool CallSitePrototype::verify() const {
-  return verify(false);
 }
 
 bool Function::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool Function::verify() const {
-  return verify(false);
-}
 
 bool DynamicFunction::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
-}
-bool DynamicFunction::verify() const {
-  return verify(false);
 }
 
 bool Section::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool Section::verify() const {
-  return verify(false);
-}
 
 bool Relocation::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
-}
-bool Relocation::verify() const {
-  return verify(false);
 }
 
 bool Segment::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool Segment::verify() const {
-  return verify(false);
-}
 
 bool EnumEntry::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
-}
-bool EnumEntry::verify() const {
-  return verify(false);
 }
 
 bool StructField::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool StructField::verify() const {
-  return verify(false);
-}
 
 bool UnionField::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
-}
-bool UnionField::verify() const {
-  return verify(false);
 }
 
 bool NamedTypedRegister::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool NamedTypedRegister::verify() const {
-  return verify(false);
-}
 
 bool Argument::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
-}
-bool Argument::verify() const {
-  return verify(false);
 }
 
 bool TypeDefinition::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-bool TypeDefinition::verify() const {
-  return verify(false);
-}
 
 bool Binary::verifyTypeDefinitions(bool Assert) const {
   VerifyHelper VH(Assert);
   return verifyTypeDefinitions(VH);
 }
-bool Binary::verifyTypeDefinitions() const {
-  return verifyTypeDefinitions(false);
-}
 
 bool Binary::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
-}
-bool Binary::verify() const {
-  return verify(false);
 }
 
 } // namespace model

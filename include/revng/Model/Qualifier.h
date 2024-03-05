@@ -31,9 +31,7 @@ public:
   using generated::Qualifier::Qualifier;
 
 public:
-  // Kind is not Invalid, Pointer and Const have no Size, Array has Size.
-  bool verify() const debug_function;
-  bool verify(bool Assert) const debug_function;
+  bool verify(bool Assert = false) const debug_function;
   bool verify(VerifyHelper &VH) const;
 
 public:
