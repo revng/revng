@@ -12,6 +12,255 @@ using namespace llvm;
 
 namespace model {
 
+//
+// Namespacing
+//
+
+bool VerifyHelper::isGlobalSymbol(const model::Identifier &Name) const {
+  return GlobalSymbols.count(Name) > 0;
+}
+
+bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
+                                        const std::string &Path) {
+  if (Name.empty())
+    return true;
+
+  auto It = GlobalSymbols.find(Name);
+  if (It == GlobalSymbols.end()) {
+    GlobalSymbols.insert({ Name, Path });
+    return true;
+  } else {
+    std::string Message;
+    Message += "Duplicate global symbol \"";
+    Message += Name.str().str();
+    Message += "\":\n\n";
+
+    Message += "  " + It->second + "\n";
+    Message += "  " + Path + "\n";
+    return fail(Message);
+  }
+}
+
+static bool verifyGlobalNamespace(VerifyHelper &VH,
+                                  const model::Binary &Model) {
+
+  // Namespacing rules:
+  //
+  // 1. each struct/union induces a namespace for its field names;
+  // 2. each prototype induces a namespace for its arguments (and local
+  //    variables, but those are not part of the model yet);
+  // 3. the global namespace includes segment names, function names, dynamic
+  //    function names, type names and entries of `enum`s;
+  //
+  // Verify needs to verify that each namespace has no internal clashes.
+  // Also, the global namespace clashes with everything.
+  for (const Function &F : Model.Functions()) {
+    if (not VH.registerGlobalSymbol(F.CustomName(), Model.path(F)))
+      return VH.fail("Duplicate name", F);
+  }
+
+  // Verify DynamicFunctions
+  for (const DynamicFunction &DF : Model.ImportedDynamicFunctions()) {
+    if (not VH.registerGlobalSymbol(DF.CustomName(), Model.path(DF)))
+      return VH.fail();
+  }
+
+  // Verify types and enum entries
+  for (const model::UpcastableTypeDefinition &Def : Model.TypeDefinitions()) {
+    if (not VH.registerGlobalSymbol(Def->CustomName(), Model.path(*Def)))
+      return VH.fail();
+
+    if (auto *Enum = dyn_cast<model::EnumDefinition>(Def.get()))
+      for (auto &Entry : Enum->Entries())
+        if (not VH.registerGlobalSymbol(Entry.CustomName(),
+                                        Model.path(*Enum, Entry)))
+          return VH.fail();
+  }
+
+  // Verify Segments
+  for (const Segment &S : Model.Segments()) {
+    if (not VH.registerGlobalSymbol(S.CustomName(), Model.path(S)))
+      return VH.fail();
+  }
+
+  return true;
+}
+
+//
+// Segments
+//
+
+bool Relocation::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (Type() == model::RelocationType::Invalid)
+    return VH.fail("Invalid relocation", *this);
+
+  return true;
+}
+
+bool Segment::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  using OverflowSafeInt = OverflowSafeInt<uint64_t>;
+
+  if (FileSize() > VirtualSize())
+    return VH.fail("FileSize cannot be larger than VirtualSize", *this);
+
+  auto EndOffset = OverflowSafeInt(StartOffset()) + FileSize();
+  if (not EndOffset)
+    return VH.fail("Computing the segment end offset leads to overflow", *this);
+
+  auto EndAddress = StartAddress() + VirtualSize();
+  if (not EndAddress.isValid())
+    return VH.fail("Computing the end address leads to overflow", *this);
+
+  for (const model::Relocation &Relocation : Relocations()) {
+    if (not Relocation.verify(VH))
+      return VH.fail("Invalid relocation", Relocation);
+  }
+
+  if (not Type().empty()) {
+
+    if (not Type().isValid())
+      return VH.fail("Invalid segment type", *this);
+
+    // The segment has a type
+
+    auto *Struct = dyn_cast<model::StructDefinition>(Type().get());
+    if (not Struct)
+      return VH.fail("The segment type is not a StructDefinition", *this);
+
+    if (VirtualSize() != Struct->Size()) {
+      return VH.fail(Twine("The segment's size (VirtualSize) is not equal to "
+                           "the size of the segment's type. VirtualSize: ")
+                       + Twine(VirtualSize())
+                       + Twine(" != Segment->Type()->Size(): ")
+                       + Twine(Struct->Size()),
+                     *this);
+    }
+
+    if (Struct->CanContainCode() != IsExecutable()) {
+      if (IsExecutable()) {
+        return VH.fail("The StructType representing the type of a executable "
+                       "segment has CanContainedCode disabled",
+                       *this);
+      } else {
+        return VH.fail("The StructType representing the type of a "
+                       "non-executable segment has CanContainedCode enabled",
+                       *this);
+      }
+    }
+
+    if (not Type().get()->verify(VH))
+      return VH.fail("Segment type does not verify", *this);
+  }
+
+  return true;
+}
+
+//
+// Functions
+//
+
+bool CallSitePrototype::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (Prototype().empty() or not Prototype().isValid())
+    return VH.fail("Invalid prototype");
+
+  // Prototype is valid
+  if (not Prototype().get()->verify(VH))
+    return VH.fail();
+
+  if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
+    return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
+                   "CABIFunctionDefinition",
+                   *this);
+  }
+
+  return true;
+}
+
+bool Function::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (not Entry().isValid())
+    return VH.fail("Invalid Entry", *this);
+
+  if (not Prototype().empty()) {
+
+    if (not Prototype().isValid())
+      return VH.fail("Invalid prototype", *this);
+
+    // The function has a prototype
+
+    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
+      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
+                     "CABIFunctionDefinition",
+                     *this);
+    }
+
+    if (not Prototype().get()->verify(VH))
+      return VH.fail("Function prototype does not verify", *this);
+  }
+
+  if (not StackFrameType().empty()) {
+
+    if (not StackFrameType().isValid())
+      return VH.fail("Invalid stack frame type", *this);
+
+    // The stack frame has a type
+
+    if (not isa<model::StructDefinition>(StackFrameType().get()))
+      return VH.fail("The stack frame type is not a StructDefinition", *this);
+
+    if (not StackFrameType().get()->verify(VH))
+      return VH.fail("Stack frame type does not verify", *this);
+  }
+
+  for (auto &CallSitePrototype : CallSitePrototypes())
+    if (not CallSitePrototype.verify(VH))
+      return VH.fail();
+
+  return true;
+}
+
+bool DynamicFunction::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  // Ensure we have a name
+  if (OriginalName().size() == 0)
+    return VH.fail("Dynamic functions must have a OriginalName", *this);
+
+  if (not Prototype().empty() and not Prototype().isValid())
+    return VH.fail("Invalid prototype", *this);
+
+  // Prototype is valid
+  if (not Prototype().empty()) {
+    if (not Prototype().get()->verify(VH))
+      return VH.fail();
+
+    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
+      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
+                     "CABIFunctionDefinition",
+                     *this);
+    }
+  }
+
+  for (auto &Attribute : Attributes()) {
+    if (Attribute == model::FunctionAttribute::Inline) {
+      return VH.fail("Dynamic function cannot have Inline attribute", *this);
+    }
+  }
+
+  return true;
+}
+
+//
+// Types
+//
+
 bool Qualifier::verify() const {
   return verify(false);
 }
@@ -40,6 +289,119 @@ bool Qualifier::verify(VerifyHelper &VH) const {
   }
 
   return VH.fail();
+}
+
+inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
+  for (const Qualifier &Q : QT.Qualifiers()) {
+    switch (Q.Kind()) {
+    case QualifierKind::Invalid:
+      revng_abort();
+    case QualifierKind::Pointer:
+      rc_return true;
+    case QualifierKind::Array:
+      rc_return false;
+    case QualifierKind::Const:
+      break;
+    default:
+      revng_abort();
+    }
+  }
+
+  const TypeDefinition *Unqualified = QT.UnqualifiedType().get();
+  revng_assert(Unqualified != nullptr);
+  if (llvm::isa<model::PrimitiveDefinition>(Unqualified)
+      or llvm::isa<model::EnumDefinition>(Unqualified)) {
+    rc_return true;
+  }
+
+  if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(Unqualified))
+    rc_return rc_recur isScalarImpl(Typedef->UnderlyingType());
+
+  rc_return false;
+}
+
+bool model::QualifiedType::isScalar() const {
+  return isScalarImpl(*this);
+}
+
+bool QualifiedType::verify() const {
+  return verify(false);
+}
+
+bool QualifiedType::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (not UnqualifiedType().isValid())
+    rc_return VH.fail("Underlying type is invalid", *this);
+
+  // Verify the qualifiers are valid
+  for (const auto &Q : Qualifiers())
+    if (not Q.verify(VH))
+      rc_return VH.fail("Invalid qualifier", Q);
+
+  auto QIt = Qualifiers().begin();
+  auto QEnd = Qualifiers().end();
+  for (; QIt != QEnd; ++QIt) {
+    const auto &Q = *QIt;
+    auto NextQIt = std::next(QIt);
+    bool HasNext = NextQIt != QEnd;
+
+    // Check that we have not two consecutive const qualifiers
+    if (HasNext and Qualifier::isConst(Q) and Qualifier::isConst(*NextQIt))
+      rc_return VH.fail("QualifiedType has two consecutive const qualifiers",
+                        *this);
+
+    if (Qualifier::isPointer(Q)) {
+      // Don't proceed the verification, just make sure the pointer is either
+      // 32- or 64-bit
+      rc_return VH.maybeFail(Q.Size() == 4 or Q.Size() == 8,
+                             "Only 32-bit and 64-bit pointers "
+                             "are currently "
+                             "supported",
+                             *this);
+
+    } else if (Qualifier::isArray(Q)) {
+      // Ensure there's at least one element
+      if (Q.Size() < 1)
+        rc_return VH.fail("Arrays need to have at least an element", *this);
+
+      // Verify element type
+      QualifiedType ElementType{ UnqualifiedType(), { NextQIt, QEnd } };
+      if (not rc_recur ElementType.verify(VH))
+        rc_return VH.fail("Array element invalid", ElementType);
+
+      // Ensure the element type has a size and stop
+      auto MaybeSize = rc_recur ElementType.size(VH);
+      rc_return VH.maybeFail(MaybeSize.has_value(),
+                             "Cannot compute array size",
+                             ElementType);
+    } else if (Qualifier::isConst(Q)) {
+      // const qualifiers must have zero size
+      if (Q.Size() != 0)
+        rc_return VH.fail("const qualifier has non-0 size");
+
+    } else {
+      revng_abort();
+    }
+  }
+
+  // If we get here, we either have no qualifiers or just const qualifiers:
+  // recur on the underlying type
+  rc_return VH.maybeFail(rc_recur UnqualifiedType().get()->verify(VH));
+}
+
+//
+// Type definitions
+//
+
+static uint64_t makePrimitiveID(PrimitiveKind::Values PrimitiveKind,
+                                uint8_t Size) {
+  return (static_cast<uint8_t>(PrimitiveKind) << 8) | Size;
 }
 
 static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values PrimKind,
@@ -78,25 +440,6 @@ static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values PrimKind,
   revng_abort();
 }
 
-bool EnumEntry::verify() const {
-  return verify(false);
-}
-
-bool EnumEntry::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool EnumEntry::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-  return VH.maybeFail(CustomName().verify(VH));
-}
-
-static uint64_t makePrimitiveID(PrimitiveKind::Values PrimitiveKind,
-                                uint8_t Size) {
-  return (static_cast<uint8_t>(PrimitiveKind) << 8) | Size;
-}
-
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const PrimitiveDefinition *T) {
   revng_assert(T->Kind() == TypeDefinitionKind::PrimitiveDefinition);
@@ -117,6 +460,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                       *T);
 
   rc_return true;
+}
+
+bool EnumEntry::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+  return VH.maybeFail(CustomName().verify(VH));
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
@@ -155,37 +503,18 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                          and rc_recur T->UnderlyingType().verify(VH));
 }
 
-inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
-  for (const Qualifier &Q : QT.Qualifiers()) {
-    switch (Q.Kind()) {
-    case QualifierKind::Invalid:
-      revng_abort();
-    case QualifierKind::Pointer:
-      rc_return true;
-    case QualifierKind::Array:
-      rc_return false;
-    case QualifierKind::Const:
-      break;
-    default:
-      revng_abort();
-    }
-  }
+RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
 
-  const TypeDefinition *Unqualified = QT.UnqualifiedType().get();
-  revng_assert(Unqualified != nullptr);
-  if (llvm::isa<model::PrimitiveDefinition>(Unqualified)
-      or llvm::isa<model::EnumDefinition>(Unqualified)) {
-    rc_return true;
-  }
+  if (not rc_recur Type().verify(VH))
+    rc_return VH.fail("Aggregate field type is not valid");
 
-  if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(Unqualified))
-    rc_return rc_recur isScalarImpl(Typedef->UnderlyingType());
+  // Aggregated fields cannot be zero-sized fields
+  auto MaybeSize = rc_recur Type().size(VH);
+  if (not MaybeSize)
+    rc_return VH.fail("Aggregate field is zero-sized");
 
-  rc_return false;
-}
-
-bool model::QualifiedType::isScalar() const {
-  return isScalarImpl(*this);
+  rc_return VH.maybeFail(CustomName().verify(VH));
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
@@ -268,6 +597,20 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   rc_return true;
 }
 
+RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (not rc_recur Type().verify(VH))
+    rc_return VH.fail("Aggregate field type is not valid");
+
+  // Aggregated fields cannot be zero-sized fields
+  auto MaybeSize = rc_recur Type().size(VH);
+  if (not MaybeSize)
+    rc_return VH.fail("Aggregate field is zero-sized", Type());
+
+  rc_return VH.maybeFail(CustomName().verify(VH));
+}
+
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const UnionDefinition *T) {
   revng_assert(T->Kind() == TypeDefinitionKind::UnionDefinition);
@@ -316,6 +659,12 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   rc_return true;
 }
 
+RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+  rc_return VH.maybeFail(CustomName().verify(VH)
+                         and rc_recur Type().verify(VH));
+}
+
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const CABIFunctionDefinition *T) {
   if (not T->CustomName().verify(VH)
@@ -354,6 +703,37 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   }
 
   rc_return true;
+}
+
+RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  // Ensure the name is valid
+  if (not CustomName().verify(VH))
+    rc_return VH.fail();
+
+  // Ensure the type we're pointing to is scalar
+  if (not Type().isScalar())
+    rc_return VH.fail();
+
+  if (Location() == Register::Invalid)
+    rc_return VH.fail();
+
+  // Ensure if fits in the corresponding register
+  auto MaybeTypeSize = rc_recur Type().size(VH);
+
+  // Zero-sized types are not allowed
+  if (not MaybeTypeSize)
+    rc_return VH.fail();
+
+  // TODO: handle floating point register sizes properly.
+  if (not Type().isFloat()) {
+    size_t RegisterSize = model::Register::getSize(Location());
+    if (*MaybeTypeSize > RegisterSize)
+      rc_return VH.fail();
+  }
+
+  rc_return VH.maybeFail(rc_recur Type().verify(VH));
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
@@ -400,15 +780,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     rc_return VH.fail();
 
   rc_return VH.maybeFail(T->CustomName().verify(VH));
-}
-
-bool TypeDefinition::verify() const {
-  return verify(false);
-}
-
-bool TypeDefinition::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
 }
 
 RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
@@ -470,187 +841,6 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(Result);
 }
 
-bool QualifiedType::verify() const {
-  return verify(false);
-}
-
-bool QualifiedType::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (not UnqualifiedType().isValid())
-    rc_return VH.fail("Underlying type is invalid", *this);
-
-  // Verify the qualifiers are valid
-  for (const auto &Q : Qualifiers())
-    if (not Q.verify(VH))
-      rc_return VH.fail("Invalid qualifier", Q);
-
-  auto QIt = Qualifiers().begin();
-  auto QEnd = Qualifiers().end();
-  for (; QIt != QEnd; ++QIt) {
-    const auto &Q = *QIt;
-    auto NextQIt = std::next(QIt);
-    bool HasNext = NextQIt != QEnd;
-
-    // Check that we have not two consecutive const qualifiers
-    if (HasNext and Qualifier::isConst(Q) and Qualifier::isConst(*NextQIt))
-      rc_return VH.fail("QualifiedType has two consecutive const qualifiers",
-                        *this);
-
-    if (Qualifier::isPointer(Q)) {
-      // Don't proceed the verification, just make sure the pointer is either
-      // 32- or 64-bit
-      rc_return VH.maybeFail(Q.Size() == 4 or Q.Size() == 8,
-                             "Only 32-bit and 64-bit pointers "
-                             "are currently "
-                             "supported",
-                             *this);
-
-    } else if (Qualifier::isArray(Q)) {
-      // Ensure there's at least one element
-      if (Q.Size() < 1)
-        rc_return VH.fail("Arrays need to have at least an element", *this);
-
-      // Verify element type
-      QualifiedType ElementType{ UnqualifiedType(), { NextQIt, QEnd } };
-      if (not rc_recur ElementType.verify(VH))
-        rc_return VH.fail("Array element invalid", ElementType);
-
-      // Ensure the element type has a size and stop
-      auto MaybeSize = rc_recur ElementType.size(VH);
-      rc_return VH.maybeFail(MaybeSize.has_value(),
-                             "Cannot compute array size",
-                             ElementType);
-    } else if (Qualifier::isConst(Q)) {
-      // const qualifiers must have zero size
-      if (Q.Size() != 0)
-        rc_return VH.fail("const qualifier has non-0 size");
-
-    } else {
-      revng_abort();
-    }
-  }
-
-  // If we get here, we either have no qualifiers or just const qualifiers:
-  // recur on the underlying type
-  rc_return VH.maybeFail(rc_recur UnqualifiedType().get()->verify(VH));
-}
-
-bool NamedTypedRegister::verify() const {
-  return verify(false);
-}
-
-bool NamedTypedRegister::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  // Ensure the name is valid
-  if (not CustomName().verify(VH))
-    rc_return VH.fail();
-
-  // Ensure the type we're pointing to is scalar
-  if (not Type().isScalar())
-    rc_return VH.fail();
-
-  if (Location() == Register::Invalid)
-    rc_return VH.fail();
-
-  // Ensure if fits in the corresponding register
-  auto MaybeTypeSize = rc_recur Type().size(VH);
-
-  // Zero-sized types are not allowed
-  if (not MaybeTypeSize)
-    rc_return VH.fail();
-
-  // TODO: handle floating point register sizes properly.
-  if (not Type().isFloat()) {
-    size_t RegisterSize = model::Register::getSize(Location());
-    if (*MaybeTypeSize > RegisterSize)
-      rc_return VH.fail();
-  }
-
-  rc_return VH.maybeFail(rc_recur Type().verify(VH));
-}
-
-bool StructField::verify() const {
-  return verify(false);
-}
-
-bool StructField::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (not rc_recur Type().verify(VH))
-    rc_return VH.fail("Aggregate field type is not valid");
-
-  // Aggregated fields cannot be zero-sized fields
-  auto MaybeSize = rc_recur Type().size(VH);
-  if (not MaybeSize)
-    rc_return VH.fail("Aggregate field is zero-sized");
-
-  rc_return VH.maybeFail(CustomName().verify(VH));
-}
-
-bool UnionField::verify() const {
-  return verify(false);
-}
-
-bool UnionField::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (not rc_recur Type().verify(VH))
-    rc_return VH.fail("Aggregate field type is not valid");
-
-  // Aggregated fields cannot be zero-sized fields
-  auto MaybeSize = rc_recur Type().size(VH);
-  if (not MaybeSize)
-    rc_return VH.fail("Aggregate field is zero-sized", Type());
-
-  rc_return VH.maybeFail(CustomName().verify(VH));
-}
-
-bool Argument::verify() const {
-  return verify(false);
-}
-
-bool Argument::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-  rc_return VH.maybeFail(CustomName().verify(VH)
-                         and rc_recur Type().verify(VH));
-}
-
-bool Binary::verifyTypeDefinitions() const {
-  return verifyTypeDefinitions(false);
-}
-
-bool Binary::verifyTypeDefinitions(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verifyTypeDefinitions(VH);
-}
-
 bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
@@ -682,60 +872,9 @@ bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
   return true;
 }
 
-bool Binary::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool Binary::verify() const {
-  VerifyHelper VH(false);
-  return verify(VH);
-}
-
-static bool verifyGlobalNamespace(VerifyHelper &VH,
-                                  const model::Binary &Model) {
-
-  // Namespacing rules:
-  //
-  // 1. each struct/union induces a namespace for its field names;
-  // 2. each prototype induces a namespace for its arguments (and local
-  //    variables, but those are not part of the model yet);
-  // 3. the global namespace includes segment names, function names, dynamic
-  //    function names, type names and entries of `enum`s;
-  //
-  // Verify needs to verify that each namespace has no internal clashes.
-  // Also, the global namespace clashes with everything.
-  for (const Function &F : Model.Functions()) {
-    if (not VH.registerGlobalSymbol(F.CustomName(), Model.path(F)))
-      return VH.fail("Duplicate name", F);
-  }
-
-  // Verify DynamicFunctions
-  for (const DynamicFunction &DF : Model.ImportedDynamicFunctions()) {
-    if (not VH.registerGlobalSymbol(DF.CustomName(), Model.path(DF)))
-      return VH.fail();
-  }
-
-  // Verify types and enum entries
-  for (const model::UpcastableTypeDefinition &Def : Model.TypeDefinitions()) {
-    if (not VH.registerGlobalSymbol(Def->CustomName(), Model.path(*Def)))
-      return VH.fail();
-
-    if (auto *Enum = dyn_cast<model::EnumDefinition>(Def.get()))
-      for (auto &Entry : Enum->Entries())
-        if (not VH.registerGlobalSymbol(Entry.CustomName(),
-                                        Model.path(*Enum, Entry)))
-          return VH.fail();
-  }
-
-  // Verify Segments
-  for (const Segment &S : Model.Segments()) {
-    if (not VH.registerGlobalSymbol(S.CustomName(), Model.path(S)))
-      return VH.fail();
-  }
-
-  return true;
-}
+//
+// Binary
+//
 
 bool Binary::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
@@ -776,25 +915,15 @@ bool Binary::verify(VerifyHelper &VH) const {
   return verifyTypeDefinitions(VH);
 }
 
-bool Relocation::verify() const {
-  return verify(false);
-}
+//
+// And the wrappers
+//
 
 bool Relocation::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-
-bool Relocation::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (Type() == model::RelocationType::Invalid)
-    return VH.fail("Invalid relocation", *this);
-
-  return true;
-}
-
-bool Segment::verify() const {
+bool Relocation::verify() const {
   return verify(false);
 }
 
@@ -802,161 +931,7 @@ bool Segment::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-
-bool Segment::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  using OverflowSafeInt = OverflowSafeInt<uint64_t>;
-
-  if (FileSize() > VirtualSize())
-    return VH.fail("FileSize cannot be larger than VirtualSize", *this);
-
-  auto EndOffset = OverflowSafeInt(StartOffset()) + FileSize();
-  if (not EndOffset)
-    return VH.fail("Computing the segment end offset leads to overflow", *this);
-
-  auto EndAddress = StartAddress() + VirtualSize();
-  if (not EndAddress.isValid())
-    return VH.fail("Computing the end address leads to overflow", *this);
-
-  for (const model::Relocation &Relocation : Relocations()) {
-    if (not Relocation.verify(VH))
-      return VH.fail("Invalid relocation", Relocation);
-  }
-
-  if (not Type().empty()) {
-
-    if (not Type().isValid())
-      return VH.fail("Invalid segment type", *this);
-
-    // The segment has a type
-
-    auto *Struct = dyn_cast<model::StructDefinition>(Type().get());
-    if (not Struct)
-      return VH.fail("The segment type is not a StructDefinition", *this);
-
-    if (VirtualSize() != Struct->Size()) {
-      return VH.fail(Twine("The segment's size (VirtualSize) is not equal to "
-                           "the size of the segment's type. VirtualSize: ")
-                       + Twine(VirtualSize())
-                       + Twine(" != Segment->Type()->Size(): ")
-                       + Twine(Struct->Size()),
-                     *this);
-    }
-
-    if (Struct->CanContainCode() != IsExecutable()) {
-      if (IsExecutable()) {
-        return VH.fail("The StructType representing the type of a executable "
-                       "segment has CanContainedCode disabled",
-                       *this);
-      } else {
-        return VH.fail("The StructType representing the type of a "
-                       "non-executable segment has CanContainedCode enabled",
-                       *this);
-      }
-    }
-
-    if (not Type().get()->verify(VH))
-      return VH.fail("Segment type does not verify", *this);
-  }
-
-  return true;
-}
-
-bool Function::verify() const {
-  return verify(false);
-}
-
-bool Function::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool Function::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (not Entry().isValid())
-    return VH.fail("Invalid Entry", *this);
-
-  if (not Prototype().empty()) {
-
-    if (not Prototype().isValid())
-      return VH.fail("Invalid prototype", *this);
-
-    // The function has a prototype
-
-    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
-                     "CABIFunctionDefinition",
-                     *this);
-    }
-
-    if (not Prototype().get()->verify(VH))
-      return VH.fail("Function prototype does not verify", *this);
-  }
-
-  if (not StackFrameType().empty()) {
-
-    if (not StackFrameType().isValid())
-      return VH.fail("Invalid stack frame type", *this);
-
-    // The stack frame has a type
-
-    if (not isa<model::StructDefinition>(StackFrameType().get()))
-      return VH.fail("The stack frame type is not a StructDefinition", *this);
-
-    if (not StackFrameType().get()->verify(VH))
-      return VH.fail("Stack frame type does not verify", *this);
-  }
-
-  for (auto &CallSitePrototype : CallSitePrototypes())
-    if (not CallSitePrototype.verify(VH))
-      return VH.fail();
-
-  return true;
-}
-
-bool DynamicFunction::verify() const {
-  return verify(false);
-}
-
-bool DynamicFunction::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool DynamicFunction::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  // Ensure we have a name
-  if (OriginalName().size() == 0)
-    return VH.fail("Dynamic functions must have a OriginalName", *this);
-
-  if (not Prototype().empty() and not Prototype().isValid())
-    return VH.fail("Invalid prototype", *this);
-
-  // Prototype is valid
-  if (not Prototype().empty()) {
-    if (not Prototype().get()->verify(VH))
-      return VH.fail();
-
-    if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-      return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
-                     "CABIFunctionDefinition",
-                     *this);
-    }
-  }
-
-  for (auto &Attribute : Attributes()) {
-    if (Attribute == model::FunctionAttribute::Inline) {
-      return VH.fail("Dynamic function cannot have Inline attribute", *this);
-    }
-  }
-
-  return true;
-}
-
-bool CallSitePrototype::verify() const {
+bool Segment::verify() const {
   return verify(false);
 }
 
@@ -964,49 +939,88 @@ bool CallSitePrototype::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
-
-bool CallSitePrototype::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  if (Prototype().empty() or not Prototype().isValid())
-    return VH.fail("Invalid prototype");
-
-  // Prototype is valid
-  if (not Prototype().get()->verify(VH))
-    return VH.fail();
-
-  if (not model::QualifiedType::getFunctionType(Prototype()).has_value()) {
-    return VH.fail("The prototype is neither a RawFunctionDefinition nor a "
-                   "CABIFunctionDefinition",
-                   *this);
-  }
-
-  return true;
+bool CallSitePrototype::verify() const {
+  return verify(false);
 }
 
-bool VerifyHelper::isGlobalSymbol(const model::Identifier &Name) const {
-  return GlobalSymbols.count(Name) > 0;
+bool Function::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool Function::verify() const {
+  return verify(false);
 }
 
-bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
-                                        const std::string &Path) {
-  if (Name.empty())
-    return true;
+bool DynamicFunction::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool DynamicFunction::verify() const {
+  return verify(false);
+}
 
-  auto It = GlobalSymbols.find(Name);
-  if (It == GlobalSymbols.end()) {
-    GlobalSymbols.insert({ Name, Path });
-    return true;
-  } else {
-    std::string Message;
-    Message += "Duplicate global symbol \"";
-    Message += Name.str().str();
-    Message += "\":\n\n";
+bool EnumEntry::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool EnumEntry::verify() const {
+  return verify(false);
+}
 
-    Message += "  " + It->second + "\n";
-    Message += "  " + Path + "\n";
-    return fail(Message);
-  }
+bool StructField::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool StructField::verify() const {
+  return verify(false);
+}
+
+bool UnionField::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool UnionField::verify() const {
+  return verify(false);
+}
+
+bool NamedTypedRegister::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool NamedTypedRegister::verify() const {
+  return verify(false);
+}
+
+bool Argument::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool Argument::verify() const {
+  return verify(false);
+}
+
+bool TypeDefinition::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool TypeDefinition::verify() const {
+  return verify(false);
+}
+
+bool Binary::verifyTypeDefinitions(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verifyTypeDefinitions(VH);
+}
+bool Binary::verifyTypeDefinitions() const {
+  return verifyTypeDefinitions(false);
+}
+
+bool Binary::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool Binary::verify() const {
+  return verify(false);
 }
 
 } // namespace model
