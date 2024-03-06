@@ -44,6 +44,24 @@ constexpr static yield::layout::Size textSize(std::string_view Text) {
   return yield::layout::Size(MaximumLineLength, LineCount);
 }
 
+static yield::layout::Size textSize(const yield::TaggedString &Tagged) {
+  revng_assert(!Tagged.Content().empty());
+  revng_assert(Tagged.Content().find('\n') == std::string::npos);
+
+  return yield::layout::Size(Tagged.Content().size(), 1);
+}
+
+static yield::layout::Size
+textSize(const SortedVector<yield::TaggedString> &Tagged) {
+  revng_assert(!Tagged.empty());
+
+  size_t LineLength = 0;
+  for (yield::TaggedString String : Tagged)
+    LineLength += textSize(String).W;
+
+  return yield::layout::Size(LineLength, 1);
+}
+
 constexpr static size_t firstLineSize(std::string_view Text) {
   size_t FirstLineEnd = Text.find('\n');
   if (FirstLineEnd == std::string_view::npos)
@@ -81,27 +99,6 @@ singleLineSize(std::string_view Text,
   Result.H += Configuration.VerticalInstructionMarginSize * 2;
 
   return Result;
-}
-
-static yield::layout::Size
-linkSize(const BasicBlockID &Address,
-         const yield::Function &Function,
-         const model::Binary &Binary,
-         size_t IndicatorSize = 0,
-         const BasicBlockID &NextAddress = BasicBlockID::invalid()) {
-  yield::layout::Size Indicator(IndicatorSize, 0);
-
-  if (not Address.isValid())
-    return Indicator + textSize("an unknown location");
-
-  if (const auto *F = yield::tryGetFunction(Binary, Address))
-    return Indicator + textSize(F->name().str().str());
-  else if (NextAddress == Address)
-    return Indicator + textSize("the next instruction");
-  else if (Function.ControlFlowGraph().contains(Address))
-    return Indicator + textSize("basic_block_at_" + Address.toString());
-  else
-    return Indicator + textSize("instruction_at_" + Address.toString());
 }
 
 static yield::layout::Size &appendSize(yield::layout::Size &Original,
@@ -186,12 +183,12 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
   // Account for the size of the label
   namespace A = model::Architecture;
   auto LabelIndicator = A::getAssemblyLabelIndicator(Binary.Architecture());
-  yield::layout::Size Result = fontSize(linkSize(BasicBlock.ID(),
-                                                 Function,
-                                                 Binary,
-                                                 LabelIndicator.size()),
+  yield::layout::Size Indicator(LabelIndicator.size(), 0);
+  yield::layout::Size Result = fontSize(textSize(BasicBlock.Label())
+                                          + Indicator,
                                         Configuration.LabelFontSize,
                                         Configuration);
+  Result.H += Configuration.VerticalInstructionMarginSize * 2;
 
   namespace A = model::Architecture;
   auto CommentIndicator = A::getAssemblyCommentIndicator(Binary.Architecture());

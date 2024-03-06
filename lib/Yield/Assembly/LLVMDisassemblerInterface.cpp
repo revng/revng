@@ -189,15 +189,16 @@ size_t getBackwardsConsecutiveCount(llvm::StringRef String,
   return StartFrom;
 }
 
-static yield::Instruction
+static DI::Disassembled
 makeInvalidInstruction(MetaAddress Where, size_t Size, std::string Reason) {
-  yield::Instruction Result;
+  DI::Disassembled Result;
 
-  Result.Address() = Where;
-  Result.Disassembled() = "(invalid)";
-  Result.Tags().insert({ yield::TagType::Mnemonic, 0, 9 });
-  Result.Comment() = std::to_string(Size) + " bytes";
-  Result.Error() = std::move(Reason);
+  Result.Address = Where;
+  Result.Size = Size;
+  Result.Text = "(invalid)";
+  Result.Tags.emplace_back(yield::TagType::Mnemonic, 0, 9);
+  Result.Comment = std::to_string(Size) + " bytes";
+  Result.Error = std::move(Reason);
 
   return Result;
 }
@@ -280,17 +281,17 @@ tryDetectMnemonic(llvm::StringRef Text, llvm::StringRef Mnemonic) {
   return Result;
 }
 
-yield::Instruction DI::parse(const llvm::MCInst &Instruction,
-                             const MetaAddress &Address,
-                             llvm::MCInstPrinter &Printer,
-                             const llvm::MCSubtargetInfo &SI) {
-  yield::Instruction Result;
-  Result.Address() = Address;
+DI::Disassembled DI::parse(const llvm::MCInst &Instruction,
+                           const MetaAddress &Address,
+                           llvm::MCInstPrinter &Printer,
+                           const llvm::MCSubtargetInfo &SI) {
+  DI::Disassembled Result;
+  Result.Address = Address;
 
   // Save the opcode for future use.
   if (auto Opcode = Printer.getOpcodeName(Instruction.getOpcode());
       !Opcode.empty())
-    Result.OpcodeIdentifier() = Opcode.str();
+    Result.OpcodeIdentifier = Opcode.str();
 
   std::string MarkupStorage;
   llvm::raw_string_ostream MarkupStream(MarkupStorage);
@@ -306,7 +307,7 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
   auto Mnemonic = tryDetectMnemonic(Markup,
                                     Printer.getMnemonic(&Instruction).first);
   if (!Mnemonic.has_value())
-    Result.Error() = "Impossible to detect mnemonic.";
+    Result.Error = "Impossible to detect mnemonic.";
 
   auto WhitespaceCheck = [](char C) {
     constexpr llvm::StringRef Whitespaces = " \t\n\v\f\r";
@@ -315,17 +316,17 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
 
   // Investigate the llvm-provided tags.
   constexpr llvm::StringRef TagBoundaries = "<>";
-  llvm::SmallVector<yield::Tag, 8> OpenTagStack;
+  llvm::SmallVector<yield::Instruction::RawTag, 8> OpenTagStack;
   for (size_t Position = 0; Position < Markup.size(); ++Position) {
     // Mark the whitespaces so that the client can easily remove them if needed.
     size_t WhitespaceCount = getConsecutiveCount(Markup,
                                                  WhitespaceCheck,
                                                  Position);
     if (WhitespaceCount != 0) {
-      Result.Tags().insert({ yield::TagType::Whitespace,
-                             Result.Disassembled().size(),
-                             Result.Disassembled().size() + WhitespaceCount });
-      Result.Disassembled() += Markup.substr(Position, WhitespaceCount);
+      Result.Tags.emplace_back(yield::TagType::Whitespace,
+                               Result.Text.size(),
+                               Result.Text.size() + WhitespaceCount);
+      Result.Text += Markup.substr(Position, WhitespaceCount);
       Position += WhitespaceCount - 1;
       continue;
     }
@@ -335,52 +336,51 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
       auto TagEndPosition = Markup.find(':', Position + 1);
       llvm::StringRef Tag = Markup.slice(Position + 1, TagEndPosition);
       yield::TagType::Values TagType = parseMarkupTag(Tag);
-      OpenTagStack.emplace_back(TagType, Result.Disassembled().size(), 0);
+      OpenTagStack.emplace_back(TagType, Result.Text.size(), 0);
       Position = TagEndPosition;
     } else if (Markup[Position] == '>') {
       // Closes the current markup tag
       revng_assert(not OpenTagStack.empty());
 
-      yield::Tag CurrentTag = OpenTagStack.back();
-      CurrentTag.To() = Result.Disassembled().size();
+      yield::Instruction::RawTag CurrentTag = OpenTagStack.back();
+      CurrentTag.To = Result.Text.size();
       OpenTagStack.pop_back();
-      Result.Tags().insert(CurrentTag);
+      Result.Tags.emplace_back(CurrentTag);
     } else if (Mnemonic.has_value() && Position == Mnemonic->FullPosition) {
       // Mnemonic
       if (!OpenTagStack.empty()) {
-        Result.Error() = "Mnemonic could not be detected correctly";
-        Result.Disassembled() += Markup[Position];
+        Result.Error = "Mnemonic could not be detected correctly";
+        Result.Text += Markup[Position];
         continue;
       }
 
-      size_t MnemonicFullStart = Result.Disassembled().size();
+      size_t MnemonicFullStart = Result.Text.size();
       size_t MnemonicPrefixEnd = MnemonicFullStart + Mnemonic->PrefixSize;
       size_t MnemonicSuffixStart = MnemonicPrefixEnd + Mnemonic->Size;
       size_t MnemonicFullEnd = MnemonicSuffixStart + Mnemonic->SuffixSize;
 
-      Result.Tags().insert({ yield::TagType::Mnemonic,
-                             Result.Disassembled().size(),
-                             MnemonicFullEnd });
+      Result.Tags.emplace_back(yield::TagType::Mnemonic,
+                               Result.Text.size(),
+                               MnemonicFullEnd);
       if (Mnemonic->PrefixSize != 0)
-        Result.Tags().insert({ yield::TagType::MnemonicPrefix,
-                               Result.Disassembled().size(),
-                               MnemonicPrefixEnd });
+        Result.Tags.emplace_back(yield::TagType::MnemonicPrefix,
+                                 Result.Text.size(),
+                                 MnemonicPrefixEnd);
       if (Mnemonic->SuffixSize != 0)
-        Result.Tags().insert({ yield::TagType::MnemonicSuffix,
-                               MnemonicSuffixStart,
-                               MnemonicFullEnd });
+        Result.Tags.emplace_back(yield::TagType::MnemonicSuffix,
+                                 MnemonicSuffixStart,
+                                 MnemonicFullEnd);
 
-      Result.Disassembled() += Markup.substr(Mnemonic->FullPosition,
-                                             Mnemonic->FullSize);
+      Result.Text += Markup.substr(Mnemonic->FullPosition, Mnemonic->FullSize);
       Position += Mnemonic->FullSize - 1;
     } else {
       // Nothing special, just a character.
-      Result.Disassembled() += Markup[Position];
+      Result.Text += Markup[Position];
     }
   }
 
   if (!OpenTagStack.empty())
-    Result.Error() = "A tag doesn't have a closing bracket.";
+    Result.Error = "A tag doesn't have a closing bracket.";
 
   return Result;
 }
@@ -392,15 +392,16 @@ DI::Disassembled DI::instruction(const MetaAddress &Where,
   auto [Instruction, Size] = disassemble(Where, RawBytes, *Disassembler);
   if (Instruction.has_value()) {
     revng_assert(Size != 0);
-    auto P = parse(*Instruction, Where, *Printer, *SubtargetInformation);
+    auto Result = parse(*Instruction, Where, *Printer, *SubtargetInformation);
+    Result.Size = Size;
 
     const auto &Info = InstructionInformation->get(Instruction->getOpcode());
-    return { std::move(P), Info.hasDelaySlot(), Size };
+    Result.HasDelaySlot = Info.hasDelaySlot();
+
+    return Result;
   } else {
     if (Size == 0)
       Size = RawBytes.size();
-    return { makeInvalidInstruction(Where, Size, "MCDisassembler failed"),
-             false,
-             Size };
+    return makeInvalidInstruction(Where, Size, "MCDisassembler failed");
   }
 }

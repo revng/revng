@@ -13,29 +13,37 @@
 
 /* TUPLE-TREE-YAML
 
-name: Tag
+name: TaggedString
 type: struct
 fields:
+  - name: Index
+    type: uint64_t
+
   - name: Type
     type: TagType
-  - name: From
-    type: uint64_t
-  - name: To
-    type: uint64_t
+
+  - name: Content
+    type: string
+
+  - name: Attributes
+    sequence:
+      type: SortedVector
+      elementType: TagAttribute
+    optional: true
 key:
-  - Type
-  - From
-  - To
+  - Index
 
 TUPLE-TREE-YAML */
 
-#include "revng/Yield/Generated/Early/Tag.h"
+#include "revng/Yield/Generated/Early/TaggedString.h"
 
 namespace yield {
 
-class Tag : public generated::Tag {
+class TaggedString : public generated::TaggedString {
 public:
-  using generated::Tag::Tag;
+  using generated::TaggedString::TaggedString;
+  TaggedString(uint64_t Index, TagType::Values Type, llvm::StringRef Content) :
+    generated::TaggedString(Index, Type, Content.str(), {}) {}
 
 public:
   bool verify(model::VerifyHelper &VH) const;
@@ -51,4 +59,4 @@ public:
 
 } // namespace yield
 
-#include "revng/Yield/Generated/Late/Tag.h"
+#include "revng/Yield/Generated/Late/TaggedString.h"

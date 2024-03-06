@@ -36,7 +36,15 @@ public:
                                      const model::DisassemblyConfiguration &);
 
   struct Disassembled {
-    yield::Instruction Instruction;
+    MetaAddress Address;
+    std::string Text;
+    std::string OpcodeIdentifier;
+
+    std::vector<yield::Instruction::RawTag> Tags;
+
+    std::string Comment;
+    std::string Error;
+
     bool HasDelaySlot;
     uint64_t Size;
   };
@@ -56,8 +64,8 @@ private:
   disassemble(const MetaAddress &Address,
               llvm::ArrayRef<uint8_t> RawBytes,
               const llvm::MCDisassembler &Disassembler);
-  yield::Instruction parse(const llvm::MCInst &Instruction,
-                           const MetaAddress &Address,
-                           llvm::MCInstPrinter &Printer,
-                           const llvm::MCSubtargetInfo &SI);
+  Disassembled parse(const llvm::MCInst &Instruction,
+                     const MetaAddress &Address,
+                     llvm::MCInstPrinter &Printer,
+                     const llvm::MCSubtargetInfo &SI);
 };

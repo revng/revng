@@ -30,15 +30,7 @@ namespace ranks = revng::ranks;
 
 namespace tokenTypes {
 
-static constexpr auto Helper = "asm.helper";
-static constexpr auto Label = "asm.label";
 static constexpr auto LabelIndicator = "asm.label-indicator";
-static constexpr auto Mnemonic = "asm.mnemonic";
-static constexpr auto MnemonicPrefix = "asm.mnemonic-prefix";
-static constexpr auto MnemonicSuffix = "asm.mnemonic-suffix";
-static constexpr auto ImmediateValue = "asm.immediate-value";
-static constexpr auto MemoryOperand = "asm.memory-operand";
-static constexpr auto Register = "asm.register";
 static constexpr auto RawBytes = "asm.raw-bytes";
 static constexpr auto InstructionAddress = "asm.instruction-address";
 
@@ -51,90 +43,6 @@ static constexpr auto BasicBlock = "asm.basic-block";
 static constexpr auto Instruction = "asm.instruction";
 
 } // namespace scopes
-
-template<typename T>
-concept MetaAddressOrBasicBlockID = std::is_same_v<T, MetaAddress>
-                                    || std::is_same_v<T, BasicBlockId>;
-
-template<MetaAddressOrBasicBlockID TargetT>
-std::string labelAddress(const TargetT &Target, const model::Binary &Binary) {
-  const auto &Configuration = Binary.Configuration().Disassembly();
-  std::optional<llvm::Triple::ArchType> SerializationStyle = std::nullopt;
-  if (!Configuration.PrintFullMetaAddress()) {
-    namespace Arch = model::Architecture;
-    SerializationStyle = Arch::toLLVMArchitecture(Binary.Architecture());
-  }
-
-  std::string Result = Target.toString(std::move(SerializationStyle));
-
-  constexpr std::array ForbiddenCharacters = { ' ', ':', '!', '#',  '?',
-                                               '<', '>', '/', '\\', '{',
-                                               '}', '[', ']' };
-
-  for (char &Character : Result)
-    if (llvm::is_contained(ForbiddenCharacters, Character))
-      Character = '_';
-
-  return Result;
-}
-
-struct LabelDescription {
-  std::string Name;
-  std::string Location;
-};
-
-static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
-                                  const yield::Function &Function,
-                                  const model::Binary &Binary) {
-  const auto &CFG = Function.ControlFlowGraph();
-  if (auto *ModelFunction = yield::tryGetFunction(Binary, BasicBlock)) {
-    return LabelDescription{
-      .Name = ModelFunction->name().str().str(),
-      .Location = serializedLocation(ranks::Function, ModelFunction->key()),
-    };
-  } else if (CFG.contains(BasicBlock)) {
-    return LabelDescription{
-      .Name = "basic_block_at_" + labelAddress(BasicBlock, Binary),
-      .Location = serializedLocation(ranks::BasicBlock,
-                                     model::Function(Function.Entry()).key(),
-                                     BasicBlock)
-    };
-  } else {
-    revng_abort("Unable to emit a label for an object that does not exist.");
-  }
-}
-
-static std::string labelDefinition(const PTMLBuilder &ThePTMLBuilder,
-                                   const BasicBlockID &BasicBlock,
-                                   const yield::Function &Function,
-                                   const model::Binary &Binary) {
-  auto [Name, Location] = labelImpl(BasicBlock, Function, Binary);
-
-  Tag LabelTag = ThePTMLBuilder.getTag(tags::Span, Name);
-  LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
-    .addAttribute(attributes::LocationDefinition, Location)
-    .addAttribute(attributes::ActionContextLocation, Location);
-
-  using model::Architecture::getAssemblyLabelIndicator;
-  std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
-  return LabelTag.serialize()
-         + ThePTMLBuilder.getTag(tags::Span, Indicator)
-             .addAttribute(attributes::Token, tokenTypes::LabelIndicator)
-             .serialize();
-}
-
-static std::string labelReference(const PTMLBuilder &ThePTMLBuilder,
-                                  const BasicBlockID &BasicBlock,
-                                  const yield::Function &Function,
-                                  const model::Binary &Binary) {
-  auto [Name, Location] = labelImpl(BasicBlock, Function, Binary);
-
-  Tag LabelTag = ThePTMLBuilder.getTag(tags::Span, std::move(Name));
-  LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
-    .addAttribute(attributes::LocationReferences, Location);
-
-  return LabelTag.serialize();
-}
 
 static std::string targetPath(const BasicBlockID &Target,
                               const yield::Function &Function,
@@ -189,336 +97,29 @@ static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
   return Result;
 }
 
-static std::string tagTypeAsString(const yield::TagType::Values &Type) {
-  switch (Type) {
-  case yield::TagType::Address:
-  case yield::TagType::PCRelativeAddress:
-  case yield::TagType::AbsoluteAddress:
-  case yield::TagType::Immediate:
-    return tokenTypes::ImmediateValue;
-  case yield::TagType::Memory:
-    return tokenTypes::MemoryOperand;
-  case yield::TagType::Mnemonic:
-    return tokenTypes::Mnemonic;
-  case yield::TagType::MnemonicPrefix:
-    return tokenTypes::MnemonicPrefix;
-  case yield::TagType::MnemonicSuffix:
-    return tokenTypes::MnemonicSuffix;
-  case yield::TagType::Register:
-    return tokenTypes::Register;
-  case yield::TagType::Helper:
-    return tokenTypes::Helper;
-  case yield::TagType::Whitespace:
-  case yield::TagType::Untagged:
-    return "";
-  default:
-    revng_abort("Unknown tag type");
-  }
-}
-
-struct TaggedString {
-  yield::TagType::Values Type;
-  std::variant<std::string, std::string_view> Content;
-
-public:
-  TaggedString(yield::TagType::Values Type, std::string &&Content) :
-    Type(Type), Content(std::move(Content)) {}
-  TaggedString(yield::TagType::Values Type, std::string_view Content) :
-    Type(Type), Content(Content) {}
-
-  /// Exports the tag as PTML.
-  ///
-  /// \note this consumes \ref Content, so the tag is not usable after this
-  ///       has been called.
-  std::string emit(const PTMLBuilder &ThePTMLBuilder) {
-    std::string TagStr = tagTypeAsString(Type);
-    if (TagStr.empty())
-      return moveContent();
-
-    return ThePTMLBuilder.getTag(tags::Span, moveContent())
-      .addAttribute(attributes::Token, TagStr)
-      .serialize();
+static std::string emitTagged(const PTMLBuilder &B,
+                              const yield::TaggedString &String) {
+  llvm::StringRef Type = yield::TagType::toPTML(String.Type());
+  if (Type.empty()) {
+    revng_assert(String.Attributes().empty());
+    return std::move(String.Content());
   }
 
-  std::string_view content() const {
-    return std::visit([](auto &S) -> std::string_view { return S; }, Content);
-  }
+  auto Result = B.getTag(tags::Span, std::move(String.Content()))
+                  .addAttribute(attributes::Token, std::move(Type));
+  for (const yield::TagAttribute &Attribute : String.Attributes())
+    Result.addAttribute(Attribute.Name(), Attribute.Value());
 
-private:
-  /// Consume the tag to export its contents.
-  std::string moveContent() {
-    if (std::holds_alternative<std::string>(Content))
-      return std::move(std::get<std::string>(Content));
-    else if (std::holds_alternative<std::string_view>(Content))
-      return std::string(std::get<std::string_view>(Content));
-    else
-      revng_abort("Unknown content type");
-  }
-};
-using TaggedStrings = llvm::SmallVector<TaggedString, 16u>;
-
-static std::vector<yield::Tag> sortTags(const SortedVector<yield::Tag> &Tags) {
-  std::vector<yield::Tag> Result(Tags.begin(), Tags.end());
-  std::sort(Result.begin(),
-            Result.end(),
-            [](const yield::Tag &LHS, const yield::Tag &RHS) {
-              if (LHS.From() != RHS.From())
-                return LHS.From() < RHS.From();
-              else if (LHS.To() != RHS.To())
-                return LHS.To() > RHS.To(); // reverse order
-              else
-                return LHS.Type() < RHS.Type();
-            });
-  return Result;
-}
-
-static TaggedStrings embedContentIntoTags(const std::vector<yield::Tag> &Tags,
-                                          llvm::StringRef RawText) {
-  TaggedStrings Result;
-
-  for (const yield::Tag &Tag : Tags)
-    Result.emplace_back(Tag.Type(), RawText.slice(Tag.From(), Tag.To()));
-
-  return Result;
-}
-
-static TaggedStrings flattenTags(const SortedVector<yield::Tag> &Tags,
-                                 llvm::StringRef RawText) {
-  std::vector<yield::Tag> Result = sortTags(Tags);
-  Result.emplace(Result.begin(), yield::TagType::Untagged, 0, RawText.size());
-  for (std::ptrdiff_t Index = Result.size() - 1; Index >= 0; --Index) {
-    yield::Tag &Current = Result[Index];
-    auto IsParentOf = [&Current](const yield::Tag &Next) {
-      if (Current.From() >= Next.From() && Current.To() <= Next.To())
-        return true;
-      else
-        return false;
-    };
-
-    auto It = std::find_if(std::next(Result.rbegin(), Result.size() - Index),
-                           Result.rend(),
-                           IsParentOf);
-    while (It != Result.rend()) {
-      auto [ParentType, ParentFrom, ParentTo] = *It;
-      auto [CurrentType, CurrentFrom, CurrentTo] = Result[Index];
-
-      std::ptrdiff_t ParentIndex = std::distance(It, Result.rend()) - 1;
-      if (ParentFrom == CurrentFrom) {
-        Result.erase(std::next(It).base());
-        It = Result.rend();
-        --Index;
-      } else {
-        Result[ParentIndex].To() = CurrentFrom;
-        It = std::find_if(std::next(Result.rbegin(), Result.size() - Index),
-                          Result.rend(),
-                          IsParentOf);
-      }
-
-      if (ParentTo != CurrentTo) {
-        yield::Tag New(ParentType, CurrentTo, ParentTo);
-        Result.insert(std::next(Result.begin(), Index + 1), std::move(New));
-        Index += 2;
-        break;
-      }
-    }
-  }
-
-  return embedContentIntoTags(Result, RawText);
-}
-
-static int64_t parseImmediate(llvm::StringRef String) {
-  revng_assert(String.size() > 0);
-  if (String[0] == '#')
-    String = String.drop_front();
-
-  revng_assert(String.size() > 0);
-  bool IsNegative = String[0] == '-';
-  if (IsNegative)
-    String = String.drop_front();
-
-  uint64_t Value;
-  bool Failure = String.getAsInteger(0, Value);
-  if (Failure || static_cast<int64_t>(Value) < 0) {
-    std::string Error = "Unsupported immediate: " + String.str();
-    revng_abort(Error.c_str());
-  }
-
-  if (IsNegative)
-    return -static_cast<int64_t>(Value);
-  else
-    return +static_cast<int64_t>(Value);
-}
-
-static MetaAddress
-absoluteAddressFromAbsoluteImmediate(const TaggedString &Input,
-                                     const yield::Instruction &Instruction) {
-  MetaAddress Result = Instruction.getRelativeAddressBase().toGeneric();
-  return Result.replaceAddress(parseImmediate(Input.content()));
-}
-
-static MetaAddress
-absoluteAddressFromPCRelativeImmediate(const TaggedString &Input,
-                                       const yield::Instruction &Instruction) {
-  MetaAddress Result = Instruction.getRelativeAddressBase().toGeneric();
-  return Result += parseImmediate(Input.content());
-}
-
-static TaggedString toGlobal(const TaggedString &Input,
-                             const MetaAddress &Address) {
-  if (Address.isInvalid())
-    return TaggedString{ yield::TagType::Immediate, std::string("invalid") };
-
-  std::string_view Content = Input.content();
-  std::string Prefix = (!Content.empty() && Content[0] == '#' ? "#0x" : "0x");
-  std::string Body = llvm::utohexstr(Address.address(), true);
-  return TaggedString{ yield::TagType::Immediate, std::move(Prefix += Body) };
-}
-
-static std::optional<TaggedString>
-tryEmitLabel(const PTMLBuilder &ThePTMLBuilder,
-             const MetaAddress &Address,
-             const yield::BasicBlock &BasicBlock,
-             const yield::Function &Function,
-             const model::Binary &Binary) {
-  if (Address.isInvalid())
-    return std::nullopt;
-
-  for (const auto &Successor : BasicBlock.Successors()) {
-    // Ignore address spaces and epochs for now.
-    // TODO: see what can be done about it.
-    if (Successor->Destination().start().isValid()
-        && Successor->Destination().start().address() == Address.address()) {
-      // Since we have no easy way to decide which one of the successors
-      // is better, stop looking after the first match.
-      return TaggedString{ yield::TagType::Untagged,
-                           labelReference(ThePTMLBuilder,
-                                          Successor->Destination(),
-                                          Function,
-                                          Binary) };
-    }
-  }
-
-  return std::nullopt;
-}
-
-static TaggedString emitAddress(const PTMLBuilder &ThePTMLBuilder,
-                                TaggedString &&Input,
-                                const MetaAddress &Address,
-                                const yield::BasicBlock &BasicBlock,
-                                const yield::Function &Function,
-                                const model::Binary &Binary) {
-  namespace Style = model::DisassemblyConfigurationAddressStyle;
-  const auto &Configuration = Binary.Configuration().Disassembly();
-  Style::Values AddressStyle = Configuration.AddressStyle();
-  if (AddressStyle == Style::Invalid) {
-    // TODO: introduce a better way to handle default configuration values.
-    AddressStyle = Style::Smart;
-  }
-
-  if (AddressStyle == Style::SmartWithPCRelativeFallback
-      || AddressStyle == Style::Smart || AddressStyle == Style::Strict) {
-    // "Smart" style selected, try to emit the label.
-    if (std::optional MaybeLabel = tryEmitLabel(ThePTMLBuilder,
-                                                Address,
-                                                BasicBlock,
-                                                Function,
-                                                Binary)) {
-      return std::move(*MaybeLabel);
-    }
-  }
-
-  // "Simple" style selected OR "Smart" detection failed.
-  if (AddressStyle == Style::SmartWithPCRelativeFallback
-      || AddressStyle == Style::PCRelative) {
-    // Emit a relative address.
-    Input.Type = yield::TagType::Immediate;
-    return std::move(Input);
-
-  } else if (AddressStyle == Style::Smart || AddressStyle == Style::Global) {
-    // Emit an absolute address.
-    return toGlobal(Input, Address);
-
-  } else if (AddressStyle == Style::Strict) {
-    // Emit an `invalid` marker.
-    return TaggedString{ yield::TagType::Immediate, std::string("invalid") };
-
-  } else {
-    revng_abort("Unsupported addressing style.");
-  }
-}
-
-static TaggedStrings handleSpecialCases(const PTMLBuilder &ThePTMLBuilder,
-                                        TaggedStrings &&Input,
-                                        const yield::Instruction &Instruction,
-                                        const yield::BasicBlock &BasicBlock,
-                                        const yield::Function &Function,
-                                        const model::Binary &Binary) {
-  TaggedStrings Result(std::move(Input));
-
-  for (auto Iterator = Result.begin(); Iterator != Result.end(); ++Iterator) {
-    if (Iterator->Type == yield::TagType::Address) {
-      auto Address = absoluteAddressFromPCRelativeImmediate(*Iterator,
-                                                            Instruction);
-      *Iterator = emitAddress(ThePTMLBuilder,
-                              std::move(*Iterator),
-                              Address,
-                              BasicBlock,
-                              Function,
-                              Binary);
-    } else if (Iterator->Type == yield::TagType::AbsoluteAddress) {
-      auto Address = absoluteAddressFromAbsoluteImmediate(*Iterator,
-                                                          Instruction);
-      *Iterator = emitAddress(ThePTMLBuilder,
-                              std::move(*Iterator),
-                              Address,
-                              BasicBlock,
-                              Function,
-                              Binary);
-    } else if (Iterator->Type == yield::TagType::PCRelativeAddress) {
-      auto Address = absoluteAddressFromPCRelativeImmediate(*Iterator,
-                                                            Instruction);
-      TaggedStrings NewTags{ TaggedString{ yield::TagType::Helper,
-                                           "offset_to("s },
-                             emitAddress(ThePTMLBuilder,
-                                         std::move(*Iterator),
-                                         Address,
-                                         BasicBlock,
-                                         Function,
-                                         Binary),
-                             TaggedString{ yield::TagType::Helper, ")"s } };
-      Iterator = Result.erase(Iterator);
-      Iterator = Result.insert(Iterator, NewTags.begin(), NewTags.end());
-      std::advance(Iterator, NewTags.size() - 1);
-    } else {
-      // TODO: handle other interesting tag types.
-    }
-  }
-
-  return Result;
+  return Result.serialize();
 }
 
 static std::string taggedText(const PTMLBuilder &ThePTMLBuilder,
-                              const yield::Instruction &Instruction,
-                              const yield::BasicBlock &BasicBlock,
-                              const yield::Function &Function,
-                              const model::Binary &Binary) {
-  revng_assert(!Instruction.Tags().empty(),
-               "Tag-less instructions are not supported");
-  revng_assert(!Instruction.Disassembled().empty(),
-               "Empty disassembled instructions are not supported");
-
-  TaggedStrings Flattened = flattenTags(Instruction.Tags(),
-                                        Instruction.Disassembled());
-  TaggedStrings Processed = handleSpecialCases(ThePTMLBuilder,
-                                               std::move(Flattened),
-                                               Instruction,
-                                               BasicBlock,
-                                               Function,
-                                               Binary);
+                              const yield::Instruction &Instruction) {
+  revng_assert(Instruction.verify(true));
 
   std::string Result;
-  for (auto &TaggedString : Processed)
-    Result += TaggedString.emit(ThePTMLBuilder);
+  for (const yield::TaggedString &TaggedString : Instruction.Disassembled())
+    Result += emitTagged(ThePTMLBuilder, TaggedString);
 
   return Result;
 }
@@ -554,7 +155,7 @@ public:
       for (const yield::Instruction &Instruction : BasicBlock.Instructions()) {
         std::string Address;
         if (!Config.DisableEmissionOfInstructionAddress()) {
-          Address = labelAddress(Instruction.Address(), Binary);
+          Address = yield::sanitizedAddress(Instruction.Address(), Binary);
           LongestAddressString = std::max(LongestAddressString, Address.size());
         }
 
@@ -600,12 +201,18 @@ public:
 
       revng_assert(Data.Address.size() != 0);
       revng_assert(Data.Address.size() <= LongestAddressString);
-      std::string Indentation(LongestAddressString + 4 - Data.Address.size(),
-                              ' ');
-      Result = B.getTag(tags::Span, std::move(Indentation))
-                 .addAttribute(attributes::Token, ptml::tokens::Indentation)
-                 .serialize()
-               + std::move(Result);
+      if (Data.Address.size() < LongestAddressString) {
+        std::string Indentation(LongestAddressString - Data.Address.size(),
+                                ' ');
+        Result = B.getTag(tags::Span, std::move(Indentation))
+                   .addAttribute(attributes::Token, ptml::tokens::Indentation)
+                   .serialize()
+                 + std::move(Result);
+      }
+
+      Result += B.getTag(tags::Span, std::string(4, ' '))
+                  .addAttribute(attributes::Token, ptml::tokens::Indentation)
+                  .serialize();
     }
 
     if (LongestByteString != 0) {
@@ -639,11 +246,7 @@ static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
   std::string Result = Prefixes.emit(ThePTMLBuilder,
                                      Instruction.Address(),
                                      BasicBlock.ID())
-                       + taggedText(ThePTMLBuilder,
-                                    Instruction,
-                                    BasicBlock,
-                                    Function,
-                                    Binary);
+                       + taggedText(ThePTMLBuilder, Instruction);
 
   std::string InstructionLocation = serializedLocation(ranks::Instruction,
                                                        Function.Entry(),
@@ -722,10 +325,13 @@ static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
                                 const model::Binary &Binary,
                                 InstructionPrefixManager &&Prefixes = {}) {
   std::string Result;
-  std::string Label = labelDefinition(ThePTMLBuilder,
-                                      FirstBlock.ID(),
-                                      Function,
-                                      Binary);
+  std::string Label = emitTagged(ThePTMLBuilder, std::move(FirstBlock.Label()));
+
+  using model::Architecture::getAssemblyLabelIndicator;
+  std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
+  Label += ThePTMLBuilder.getTag(tags::Span, std::move(Indicator))
+             .addAttribute(attributes::Token, tokenTypes::LabelIndicator)
+             .serialize();
 
   if constexpr (ShouldMergeFallthroughTargets == false) {
     Result = basicBlock(ThePTMLBuilder,
@@ -746,7 +352,7 @@ static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
                            *BasicBlock,
                            Function,
                            Binary,
-                           IsFirst ? Label : "",
+                           IsFirst ? std::move(Label) : std::string(),
                            std::move(Prefixes));
       IsFirst = false;
     }

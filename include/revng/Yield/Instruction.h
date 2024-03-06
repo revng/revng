@@ -26,26 +26,26 @@ fields:
     doc: >
       Indicates the address of the first byte of the instruction.
     type: MetaAddress
+
   - name: RawBytes
     type: yield::ByteContainer
-  - name: Disassembled
-    type: string
 
-  - name: Tags
+  - name: Disassembled
     sequence:
       type: SortedVector
-      elementType: Tag
-    optional: true
+      elementType: TaggedString
 
   - name: OpcodeIdentifier
     type: string
     optional: true
+
   - name: Comment
     doc: >
       Contains any extra information deduced based on the disassembly of this
       instruction that could be relevant for the user.
     type: string
     optional: true
+
   - name: Error
     doc: >
       Contains any extra extra warning/error style information deduced based on
@@ -65,6 +65,17 @@ namespace yield {
 class Instruction : public generated::Instruction {
 public:
   using generated::Instruction::Instruction;
+
+public:
+  struct RawTag {
+    yield::TagType::Values Type;
+    uint64_t From;
+    uint64_t To;
+  };
+  void importTags(std::vector<RawTag> &&Tags, std::string &&Contents);
+  void handleSpecialTags(const yield::BasicBlock &BasicBlock,
+                         const yield::Function &Function,
+                         const model::Binary &Binary);
 
 public:
   bool verify(model::VerifyHelper &VH) const;

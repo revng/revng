@@ -8,36 +8,36 @@
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Instruction.h"
-#include "revng/Yield/Tag.h"
 
-bool yield::Tag::verify(model::VerifyHelper &VH) const {
+bool yield::TaggedString::verify(model::VerifyHelper &VH) const {
   if (Type() == TagType::Invalid)
     return VH.fail("The type of this tag is not valid.");
-  if (From() == std::string::npos)
-    return VH.fail("This tag doesn't have a starting point.");
-  if (To() == std::string::npos)
-    return VH.fail("This tag doesn't have an ending point.");
-  if (From() >= To())
-    return VH.fail("This tag doesn't have a positive length.");
+  if (Content().empty())
+    return VH.fail("This tag doesn't have any data.");
+  for (const yield::TagAttribute &Attribute : Attributes()) {
+    if (Attribute.Name().empty())
+      return VH.fail("Attributes without names are not allowed.");
+    if (Attribute.Name().empty())
+      return VH.fail("Attributes without values are not allowed.");
+  }
 
   return true;
 }
 
 bool yield::Instruction::verify(model::VerifyHelper &VH) const {
   if (Address().isInvalid())
-    return VH.fail("An instruction has to have a valid address.");
-  if (Disassembled().empty())
-    return VH.fail("The disassembled view of an instruction cannot be empty.");
+    return VH.fail("An instruction must have a valid address.");
   if (RawBytes().empty())
     return VH.fail("An instruction has to be at least one byte big.");
 
-  for (const auto &Tag : Tags()) {
+  if (Disassembled().empty())
+    return VH.fail("An instruction must have at least one tag.");
+  for (auto [Index, Tag] : llvm::enumerate(Disassembled())) {
+    if (Index != Tag.Index())
+      return VH.fail("Tag indexing is broken.");
+
     if (!Tag.verify(VH))
       return VH.fail("Tag verification failed");
-
-    if (Tag.From() >= Disassembled().size()
-        || Tag.To() >= Disassembled().size())
-      return VH.fail("Tag boundaries must not exceed the size of the text.");
   }
 
   return true;
@@ -51,12 +51,16 @@ bool yield::BasicBlock::verify(model::VerifyHelper &VH) const {
   if (Instructions().empty())
     return VH.fail("A basic block has to store at least a single instruction.");
 
+  if (IsLabelAlwaysRequired())
+    if (!Label().verify())
+      return false;
+
   MetaAddress PreviousAddress = MetaAddress::invalid();
   for (const auto &Instruction : Instructions()) {
     if (!Instruction.verify(VH))
       return VH.fail("Instruction verification failed.");
 
-    if (PreviousAddress.isValid() && Instruction.Address() >= PreviousAddress) {
+    if (PreviousAddress.isValid() && Instruction.Address() < PreviousAddress) {
       return VH.fail("Instructions must be strongly ordered and their size "
                      "must be bigger than zero.");
     }

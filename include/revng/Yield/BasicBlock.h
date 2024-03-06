@@ -34,6 +34,9 @@ fields:
     type: MetaAddress
     doc: Address of the function this basic block has been inlined from
 
+  - name: Label
+    type: TaggedString
+
   - name: Successors
     doc: List of successor edges
     sequence:
@@ -78,6 +81,9 @@ public:
   using generated::BasicBlock::BasicBlock;
 
 public:
+  void setLabel(const yield::Function &Function, const model::Binary &Binary);
+
+public:
   BasicBlockID nextBlock() const {
     return BasicBlockID(End(), ID().inliningIndex());
   }
@@ -93,6 +99,13 @@ public:
     return verify(VH);
   }
 };
+
+template<typename T>
+concept MetaAddressOrBasicBlockID = std::is_same_v<T, MetaAddress>
+                                    || std::is_same_v<T, BasicBlockID>;
+
+template<MetaAddressOrBasicBlockID T>
+std::string sanitizedAddress(const T &Target, const model::Binary &Binary);
 
 } // namespace yield
 
