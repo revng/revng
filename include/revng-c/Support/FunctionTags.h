@@ -35,8 +35,6 @@ extern Tag NullPtr;
 extern Tag LocalVariable;
 extern Tag Assign;
 extern Tag Copy;
-extern Tag ReadsMemory;
-extern Tag WritesMemory;
 extern Tag SegmentRef;
 extern Tag UnaryMinus;
 extern Tag BinaryNot;

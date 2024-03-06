@@ -218,7 +218,6 @@ static void tagFunction(Function &F) {
     &FunctionTags::CharInteger,
     &FunctionTags::BoolInteger,
     &FunctionTags::NullPtr,
-    &FunctionTags::ReadsMemory,
     &FunctionTags::UnaryMinus,
     &FunctionTags::BinaryNot,
     &FunctionTags::Copy,
@@ -230,15 +229,10 @@ static void tagFunction(Function &F) {
   };
 
   static const FunctionTags::TagsSet IgnoredTags = {
-    &FunctionTags::Assign,
-    &FunctionTags::AllocatesLocalVariable,
-    &FunctionTags::MallocLike,
-    &FunctionTags::IsRef,
-    &FunctionTags::ModelGEP,
-    &FunctionTags::ModelGEPRef,
-    &FunctionTags::WritesMemory,
-    &FunctionTags::Exceptional,
-    &FunctionTags::CSVsAsArgumentsWrapper
+    &FunctionTags::Assign,      &FunctionTags::AllocatesLocalVariable,
+    &FunctionTags::MallocLike,  &FunctionTags::IsRef,
+    &FunctionTags::ModelGEP,    &FunctionTags::ModelGEPRef,
+    &FunctionTags::Exceptional, &FunctionTags::CSVsAsArgumentsWrapper
   };
 
   static const FunctionTags::TagsSet SuppressedByDebugInfo = {

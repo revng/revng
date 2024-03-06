@@ -54,8 +54,7 @@ inline bool hasSideEffects(const llvm::Instruction &I) {
     return true;
 
   // Stuff that writes to memory has side effects
-  if (FunctionTags::Assign.isTagOf(Callee)
-      or FunctionTags::WritesMemory.isTagOf(Callee))
+  if (FunctionTags::Assign.isTagOf(Callee))
     return true;
 
   // Functions representing custom opcodes with reference semantics never have
@@ -97,8 +96,7 @@ inline bool hasSideEffects(const llvm::Instruction &I) {
     return false;
 
   // Stuff that reads from memory never has side effects
-  if (FunctionTags::Copy.isTagOf(Callee)
-      or FunctionTags::ReadsMemory.isTagOf(Callee))
+  if (FunctionTags::Copy.isTagOf(Callee))
     return false;
 
   return true;

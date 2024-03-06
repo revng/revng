@@ -37,8 +37,6 @@ Tag NullPtr("nullptr");
 Tag LocalVariable("local-variable");
 Tag Assign("assign");
 Tag Copy("copy");
-Tag WritesMemory("writes-memory");
-Tag ReadsMemory("reads-memory");
 Tag SegmentRef("segment-ref");
 Tag UnaryMinus("unary-minus");
 Tag BinaryNot("binary-not");
@@ -447,9 +445,6 @@ void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::writeOnly());
 
-  // Set revng tags
-  Pool.setTags({ &FunctionTags::Assign, &FunctionTags::WritesMemory });
-
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
   Pool.initializeFromNthArgType(FunctionTags::Assign, 0);
@@ -468,9 +463,6 @@ void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::readOnly());
-
-  // Set revng tags
-  Pool.setTags({ &FunctionTags::Copy, &FunctionTags::ReadsMemory });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
