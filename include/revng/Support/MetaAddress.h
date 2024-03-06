@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
@@ -428,6 +429,9 @@ inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
 class MetaAddress : private PlainMetaAddress {
 private:
   friend class ProgramCounterHandler;
+
+public:
+  constexpr static llvm::StringRef Separator = ":";
 
 public:
   class Features {
