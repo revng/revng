@@ -599,9 +599,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           return not isEdgeInlined(ConstEdge{ Node, Child });
         };
 
-        auto It = std::find_if(Successors.begin(),
-                               Successors.end(),
-                               NotInlined);
+        auto It = llvm::find_if(Successors, NotInlined);
 
         // Assert that we found one
         revng_assert(It != Successors.end());
@@ -641,9 +639,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
         // For each successor, check if a certain one is successor of all the
         // other cases
         for (BasicBlockNodeT *Case : NotInlinedSuccessors) {
-          unsigned Count = std::count(SuccOfCases.begin(),
-                                      SuccOfCases.end(),
-                                      Case);
+          unsigned Count = llvm::count(SuccOfCases, Case);
           if (Count > 0) {
             if ((getUniqueSuccessorOrNull(Case)
                  and Count == SuccOfCases.size() - 1)
