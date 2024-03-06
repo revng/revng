@@ -239,6 +239,7 @@ LayerContainer minimizeCrossingCount(const RankContainer &Ranks,
 
   CrossingCalculator Calculator{ Layers, Ranks, Permutation };
   for (size_t Iteration = 0; Iteration < IterationCount; ++Iteration) {
+    bool DidAnySwaps = false;
     for (size_t Index = 0; Index < Layers.size(); ++Index) {
       if (size_t CurrentLayerSize = Layers[Index].size(); CurrentLayerSize) {
         std::sort(Layers[Index].begin(), Layers[Index].end(), Comparator);
@@ -269,6 +270,7 @@ LayerContainer minimizeCrossingCount(const RankContainer &Ranks,
           auto KNode = Layers[Index][ChoosenNodes.first];
           auto LNode = Layers[Index][ChoosenNodes.second];
           std::swap(Permutation.at(KNode), Permutation.at(LNode));
+          DidAnySwaps = true;
         }
 
         std::sort(Layers[Index].begin(), Layers[Index].end(), Comparator);
@@ -276,6 +278,9 @@ LayerContainer minimizeCrossingCount(const RankContainer &Ranks,
           Permutation[Layers[Index][NodeIndex]] = NodeIndex;
       }
     }
+
+    if (!DidAnySwaps)
+      break;
   }
 
   LayerContainer Result;
