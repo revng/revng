@@ -139,8 +139,14 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
                                      ModelFunction->key()),
     };
   } else if (Function.ControlFlowGraph().contains(BasicBlock)) {
+    std::string BBPr = Binary.Configuration().Disassembly().BasicBlockPrefix();
+    if (BBPr.empty()) {
+      // TODO: introduce a better way to handle default configuration values.
+      BBPr = "bb_";
+    }
+
     return LabelDescription{
-      .Name = "basic_block_at_" + yield::sanitizedAddress(BasicBlock, Binary),
+      .Name = BBPr + yield::sanitizedAddress(BasicBlock, Binary),
       .Location = serializedLocation(revng::ranks::BasicBlock,
                                      model::Function(Function.Entry()).key(),
                                      BasicBlock)

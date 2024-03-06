@@ -46,6 +46,13 @@ fields:
     type: bool
     optional: true
 
+  - name: BasicBlockPrefix
+    doc: |
+      The prefix attached to the basic block address in the disassembly views.
+      The default value is `bb_`.
+    type: string
+    optional: true
+
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/DisassemblyConfiguration.h"
