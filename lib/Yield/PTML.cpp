@@ -52,15 +52,27 @@ static constexpr auto Instruction = "asm.instruction";
 
 } // namespace scopes
 
-static std::string labelAddress(const BasicBlockID &Address) {
-  std::string Result = Address.toString();
+template<typename T>
+concept MetaAddressOrBasicBlockID = std::is_same_v<T, MetaAddress>
+                                    || std::is_same_v<T, BasicBlockId>;
+
+template<MetaAddressOrBasicBlockID TargetT>
+std::string labelAddress(const TargetT &Target, const model::Binary &Binary) {
+  const auto &Configuration = Binary.Configuration().Disassembly();
+  std::optional<llvm::Triple::ArchType> SerializationStyle = std::nullopt;
+  if (!Configuration.PrintFullMetaAddress()) {
+    namespace Arch = model::Architecture;
+    SerializationStyle = Arch::toLLVMArchitecture(Binary.Architecture());
+  }
+
+  std::string Result = Target.toString(std::move(SerializationStyle));
 
   constexpr std::array ForbiddenCharacters = { ' ', ':', '!', '#',  '?',
                                                '<', '>', '/', '\\', '{',
                                                '}', '[', ']' };
 
   for (char &Character : Result)
-    if (llvm::find(ForbiddenCharacters, Character) != ForbiddenCharacters.end())
+    if (llvm::is_contained(ForbiddenCharacters, Character))
       Character = '_';
 
   return Result;
@@ -82,7 +94,7 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
     };
   } else if (CFG.contains(BasicBlock)) {
     return LabelDescription{
-      .Name = "basic_block_at_" + labelAddress(BasicBlock),
+      .Name = "basic_block_at_" + labelAddress(BasicBlock, Binary),
       .Location = serializedLocation(ranks::BasicBlock,
                                      model::Function(Function.Entry()).key(),
                                      BasicBlock)
@@ -532,7 +544,8 @@ private:
 public:
   InstructionPrefixManager() {}
   InstructionPrefixManager(const yield::Function &Function,
-                           const model::DisasseblyConfiguration &Config) {
+                           const model::Binary &Binary) {
+    const auto Config = Binary.Configuration().Disassembly();
     for (const yield::BasicBlock &BasicBlock : Function.ControlFlowGraph()) {
       auto [Iterator, Success] = Prefixes.try_emplace(BasicBlock.ID());
       revng_assert(Success, "Duplicate basic blocks?");
@@ -541,7 +554,7 @@ public:
       for (const yield::Instruction &Instruction : BasicBlock.Instructions()) {
         std::string Address;
         if (!Config.DisableEmissionOfInstructionAddress()) {
-          Address = Instruction.Address().toString();
+          Address = labelAddress(Instruction.Address(), Binary);
           LongestAddressString = std::max(LongestAddressString, Address.size());
         }
 
@@ -748,7 +761,7 @@ std::string yield::ptml::functionAssembly(const PTMLBuilder &B,
                                           const model::Binary &Binary) {
   std::string Result;
 
-  InstructionPrefixManager P(Function, Binary.Configuration().Disassembly());
+  InstructionPrefixManager P(Function, Binary);
   for (const auto &BasicBlock : Function.ControlFlowGraph())
     Result += labeledBlock<true>(B, BasicBlock, Function, Binary, std::move(P));
 

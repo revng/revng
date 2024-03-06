@@ -37,6 +37,15 @@ fields:
       explanation.
     type: DisassemblyConfigurationImmediateStyle
     optional: true
+
+  - name: PrintFullMetaAddress
+    doc: |
+      Set this to true to include the full meta-address whenever one is printed.
+      The default value of `false` omits the address type as long as it matches
+      that of the binary.
+    type: bool
+    optional: true
+
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/DisassemblyConfiguration.h"
