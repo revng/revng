@@ -199,7 +199,7 @@ LayerContainer minimizeCrossingCount(const RankContainer &Ranks,
   // translate to minimization time, hence we run some experiments and select
   // a `ReferenceComplexity`. This number is an `IterationComplexity` of
   // a hand-picked graph that's moderately fast to lay out.
-  constexpr size_t ReferenceComplexity = 70000;
+  constexpr size_t ReferenceComplexity = 200000;
 
   // To compare the current graph to the reference, we need to calculate
   // the `IterationComplexity` for the current graph:
@@ -215,10 +215,10 @@ LayerContainer minimizeCrossingCount(const RankContainer &Ranks,
     IterationComplexity += LayerSize * LayerSize;
   }
 
-  // The idea is that we cannot afford to do more than a single iteration
-  // on any graph that's more complex than the reference one. On the other hand,
-  // it's practical to allow graphs with complexity beneath that of the
-  // reference to do multiple crossing minimization iterations.
+  // The idea is that iterations get progressively more expensive as graph gets
+  // wider. So it's hard for us to justify running any on a graph that's bigger
+  // than the reference one. On the other hand, graphs with little complexity
+  // (mainly small ones) can do multiple crossing minimization iterations.
   // The exact number depends on the ratio between the graph iteration
   // complexity to the reference iteration complexity.
   //
@@ -228,7 +228,7 @@ LayerContainer minimizeCrossingCount(const RankContainer &Ranks,
   // and the iteration count drop to just a single one.
   //
   // TODO: we likely want to put a hardcoded cap on the max number of iterations
-  size_t IterationCount = 1 + ReferenceComplexity / IterationComplexity;
+  size_t IterationCount = ReferenceComplexity / IterationComplexity;
 
   auto Comparator = [&Cluster, &Permutation](NodeView A, NodeView B) {
     if (Cluster(A) == Cluster(B))
