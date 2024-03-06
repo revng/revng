@@ -1142,17 +1142,6 @@ inline void RegionCFG<NodeT>::inflate() {
           CloneToOriginalMap[Duplicated] = OriginalNode;
           NodesEquivalenceClass.at(OriginalNode).insert(Duplicated);
 
-          // If the node we are duplicating is a conditional node, add it to the
-          // vector of ConditionalNodes. Remember, that the ConditionalNodes
-          // vector is ordered in reverse-post-order.
-          // Pushing back into ConditionalNodes always preserves the property
-          // that ConditionalNodes is sorted in reverse post-order.
-          if (auto It = ConditionalToCombEnd.find(Candidate);
-              It != ConditionalToCombEnd.end()) {
-            ConditionalToCombEnd[Duplicated] = It->second;
-            ConditionalNodes.push_back(Duplicated);
-          }
-
           // Insert the cloned node in the reverse post order list, right before
           // the Candidate. This is not important right now, because we don't
           // add it to the WorkList. It will become important if whenever
