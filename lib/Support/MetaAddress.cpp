@@ -60,15 +60,26 @@ MetaAddress MetaAddress::decomposeIntegerPC(const APInt &Value) {
   return Result;
 }
 
-std::string MetaAddress::toString() const {
+std::string
+MetaAddress::toString(std::optional<llvm::Triple::ArchType> Arch) const {
   if (isInvalid())
     return Separator.str() += "Invalid";
+
+  bool ShouldPrintTheType = true;
+  if (Arch.has_value()) {
+    // Assert if `Arch` is not supported.
+    static_cast<void>(MetaAddressType::genericFromArch(Arch.value()));
+
+    if (arch().has_value() && arch().value() == Arch.value())
+      ShouldPrintTheType = false;
+  }
 
   std::string Result;
   {
     raw_string_ostream Stream(Result);
-    Stream << "0x" << Twine::utohexstr(Address) << Separator
-           << MetaAddressType::toString(type());
+    Stream << "0x" << Twine::utohexstr(Address);
+    if (ShouldPrintTheType)
+      Stream << Separator << MetaAddressType::toString(type());
     if (not isDefaultEpoch())
       Stream << Separator << Epoch;
     if (not isDefaultAddressSpace())
@@ -80,8 +91,8 @@ std::string MetaAddress::toString() const {
 
 MetaAddress MetaAddress::fromString(StringRef Text) {
   revng_assert(Text.size() > Separator.size());
-  if (Text.take_front(Separator) == Separator)
-    if (Text.drop_front(Separator) == "Invalid")
+  if (Text.take_front(Separator.size()) == Separator)
+    if (Text.drop_front(Separator.size()) == "Invalid")
       return MetaAddress::invalid();
 
   MetaAddress Result;
