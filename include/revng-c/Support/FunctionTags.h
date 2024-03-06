@@ -18,7 +18,7 @@ class ExtractValueInst;
 
 namespace FunctionTags {
 extern Tag AllocatesLocalVariable;
-extern Tag MallocLike;
+extern Tag ReturnsPolymorphic;
 extern Tag IsRef;
 extern Tag AddressOf;
 extern Tag StringLiteral;
