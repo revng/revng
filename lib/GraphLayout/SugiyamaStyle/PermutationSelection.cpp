@@ -241,13 +241,12 @@ LayerContainer minimizeCrossingCount(const RankContainer &Ranks,
   for (size_t Iteration = 0; Iteration < IterationCount; ++Iteration) {
     for (size_t Index = 0; Index < Layers.size(); ++Index) {
       if (size_t CurrentLayerSize = Layers[Index].size(); CurrentLayerSize) {
-
-        // Minimize WRT of the previous layer
-        // This can be expensive so we limit the number of times we repeat it.
         std::sort(Layers[Index].begin(), Layers[Index].end(), Comparator);
         for (size_t NodeIndex = 0; NodeIndex < CurrentLayerSize; ++NodeIndex)
           Permutation[Layers[Index][NodeIndex]] = NodeIndex;
 
+        // Minimize WRT of the previous layer
+        // This can be expensive so we limit the number of times we repeat it.
         for (size_t NodeIndex = 0; NodeIndex < CurrentLayerSize; ++NodeIndex) {
           RankDelta ChoosenDelta = 0;
           std::pair<Rank, Rank> ChoosenNodes;

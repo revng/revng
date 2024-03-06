@@ -297,8 +297,10 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
 
   Printer.printInst(&Instruction, 0, "", SI, MarkupStream);
 
-  if (MarkupStorage.empty())
+  if (MarkupStorage.empty()) {
+    Result.Error = "Printer failed.";
     return Result;
+  }
 
   llvm::StringRef Markup = cleanStringUp(MarkupStorage);
   auto Mnemonic = tryDetectMnemonic(Markup,
