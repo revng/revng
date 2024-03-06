@@ -444,6 +444,7 @@ void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::writeOnly());
+  Pool.setTags({ &FunctionTags::Assign });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
@@ -463,6 +464,7 @@ void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::readOnly());
+  Pool.setTags({ &FunctionTags::Copy });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
