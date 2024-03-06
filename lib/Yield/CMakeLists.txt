@@ -15,7 +15,6 @@ revng_add_library_internal(
   CrossRelations.cpp
   Dump.cpp
   HexDump.cpp
-  Plain.cpp
   PTML.cpp
   SVG.cpp
   Verify.cpp)
