@@ -156,6 +156,8 @@ public:
         std::string Address;
         if (!Config.DisableEmissionOfInstructionAddress()) {
           Address = yield::sanitizedAddress(Instruction.Address(), Binary);
+          if (llvm::StringRef(Address).take_front(2) == "0x")
+            Address = Address.substr(2);
           LongestAddressString = std::max(LongestAddressString, Address.size());
         }
 
@@ -184,7 +186,8 @@ public:
   ///       Make sure to only call once per instruction.
   std::string emit(const PTMLBuilder &B,
                    const MetaAddress &Instruction,
-                   const BasicBlockID &BasicBlock) {
+                   const BasicBlockID &BasicBlock,
+                   const model::Binary &Binary) {
     if (!LongestAddressString && !LongestByteString)
       return B.getTag(tags::Span, "  ")
         .addAttribute(attributes::Token, ptml::tokens::Indentation)
@@ -210,6 +213,12 @@ public:
                  + std::move(Result);
       }
 
+      using model::Architecture::getAssemblyLabelIndicator;
+      std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
+      Result += B.getTag(tags::Span, std::move(Indicator))
+                  .addAttribute(attributes::Token,
+                                tokenTypes::InstructionAddress)
+                  .serialize();
       Result += B.getTag(tags::Span, std::string(4, ' '))
                   .addAttribute(attributes::Token, ptml::tokens::Indentation)
                   .serialize();
@@ -245,7 +254,8 @@ static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
   // Tagged instruction body.
   std::string Result = Prefixes.emit(ThePTMLBuilder,
                                      Instruction.Address(),
-                                     BasicBlock.ID())
+                                     BasicBlock.ID(),
+                                     Binary)
                        + taggedText(ThePTMLBuilder, Instruction);
 
   std::string InstructionLocation = serializedLocation(ranks::Instruction,
