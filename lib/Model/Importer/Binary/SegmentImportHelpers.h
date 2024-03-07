@@ -112,6 +112,6 @@ populateSegmentTypeStruct(model::Binary &Binary,
   // Pour the remaining symbols into the segment struct
   importSymbolsInto(Binary, DataSymbols, SegmentStruct, Segment.StartAddress());
 
-  revng_assert(SegmentStruct->verify());
+  revng_assert(SegmentStruct->verify(true));
   return SegmentStructRef;
 }
