@@ -264,13 +264,42 @@ using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
 static void
 buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
   IRBuilder<> Builder(StoreBlock->getContext());
-  Builder.SetInsertPoint(StoreBlock->getTerminator());
+
+  auto *IncomingInst = dyn_cast<Instruction>(Incoming);
+  if (IncomingInst and IncomingInst->getParent() == StoreBlock) {
+    BasicBlock *IncomingParentBlock = IncomingInst->getParent();
+    if (isa<AllocaInst>(IncomingInst)) {
+      Function *ParentFunction = StoreBlock->getParent();
+      revng_assert(IncomingParentBlock == &ParentFunction->getEntryBlock());
+      Builder.SetInsertPointPastAllocas(ParentFunction);
+    } else {
+      Builder.SetInsertPoint(StoreBlock,
+                             std::next(IncomingInst->getIterator()));
+    }
+  } else {
+    Builder.SetInsertPoint(StoreBlock->getTerminator());
+  }
+
   auto *S = Builder.CreateStore(Incoming, Alloca);
   if (auto *IncomingInst = dyn_cast<Instruction>(Incoming))
     S->setDebugLoc(IncomingInst->getDebugLoc());
   revng_log(Log,
             "Created StoreInst " << dumpToString(S)
                                  << " in Block: " << StoreBlock->getName());
+
+  if (IncomingInst and IncomingInst->getParent() == StoreBlock) {
+    Instruction *LoadFromStore = nullptr;
+    for (Instruction &NextInBlock :
+         llvm::make_range(std::next(S->getIterator()), StoreBlock->end())) {
+      for (Use &Operand : NextInBlock.operands()) {
+        if (Operand.get() == IncomingInst) {
+          if (not LoadFromStore)
+            LoadFromStore = Builder.CreateLoad(IncomingInst->getType(), Alloca);
+          Operand.set(LoadFromStore);
+        }
+      }
+    }
+  }
 }
 
 static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
