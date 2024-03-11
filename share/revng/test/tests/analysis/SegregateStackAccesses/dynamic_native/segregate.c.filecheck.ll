@@ -24,8 +24,8 @@ CHECK-DAG:   load i64, ptr %[[STACK_ARG_PTR]]
 CHECK: }
 
 CHECK: define i64 @local_cabi_primitives_on_registers(i64 %[[ARG1:.*]], i64 %[[ARG2:.*]]) [[IGN:.*]] {
-CHECK-DAG: add i64 [[IGN:.*]][[ARG1]]
-CHECK-DAG: add i64 [[IGN:.*]][[ARG2]]
+CHECK-DAG: add i64 [[IGN:.*]]%[[ARG1]]
+CHECK-DAG: add i64 [[IGN:.*]]%[[ARG2]]
 CHECK: }
 
 CHECK: define i64 @local_cabi_primitives_on_stack(i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[STACK_ARG1:.*]], i64 %[[STACK_ARG2:.*]]) [[IGN:.*]] {
