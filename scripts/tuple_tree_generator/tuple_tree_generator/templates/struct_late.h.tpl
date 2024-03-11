@@ -64,31 +64,22 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
 };
 
 namespace /*= struct.namespace =*/ {
-template <int I> auto &get(/*= struct.name =*/ &&x) {
-  if constexpr (false)
-    return __null;
-  /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
-    return x./*= field.name =*/();
-  /**- endfor **/
-}
-
 template <int I> const auto &get(const /*= struct.name =*/ &x) {
-  if constexpr (false)
-    return __null;
   /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
+  if constexpr (I == /*= loop.index0 =*/)
     return x./*= field.name =*/();
+  else
   /**- endfor **/
+    static_assert(value_always_false_v<I>);
 }
 
 template <int I> auto &get(/*= struct.name =*/ &x) {
-  if constexpr (false)
-    return __null;
   /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
+  if constexpr (I == /*= loop.index0 =*/)
     return x./*= field.name =*/();
+  else
   /**- endfor **/
+    static_assert(value_always_false_v<I>);
 }
 }
 /*# --- End TupleLikeTraits --- -#*/
