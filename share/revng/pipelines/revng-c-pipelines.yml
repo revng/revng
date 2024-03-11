@@ -134,8 +134,8 @@ Branches:
               - dce
               - twoscomplement-normalization
               - peephole-opt-for-decompilation
-              - exit-ssa
               - ternary-reduction
+              - exit-ssa
               - make-local-variables
               - remove-load-store
               - fold-model-gep
