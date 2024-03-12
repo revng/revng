@@ -104,6 +104,8 @@ Specifically, we want to define the prototype for something that in C would look
 uint64_t sum(uint64_t rdi, uint64_t rsi);
 ```
 
+FIX ME FIX ME FIX ME
+
 First of all, let's populate the model type system with a bunch of *primitive types* such as `void`, `uint64_t`, `uint32_t` and so on.
 We could write them by hand, but the `add-primitive-types` analysis can help us with that:
 
