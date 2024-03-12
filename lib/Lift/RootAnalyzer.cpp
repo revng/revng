@@ -410,7 +410,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     model::ABI::Values ABI = Model->DefaultABI();
     if (not Model->DefaultPrototype().empty()) {
       // TODO: flatten this check once `defaultPrototype` is always available.
-      PreservedRegisters = getPreservedRegisters(Model->defaultPrototype());
+      PreservedRegisters = getPreservedRegisters(*Model->defaultPrototype());
     } else if (ABI != model::ABI::Invalid) {
       auto &CSRs = abi::Definition::get(ABI).CalleeSavedRegisters();
       PreservedRegisters.insert(CSRs.begin(), CSRs.end());

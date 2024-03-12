@@ -226,36 +226,44 @@ public:
   /// The helper for the prototype unwrapping.
   /// Use this when you need to access/modify the existing prototype,
   /// and \ref DefaultPrototype() when you need to assign a new one.
-  model::RawFunctionDefinition &defaultPrototype() {
-    // TODO: assert the default prototype is there for now because once we merge
-    //       `abi::Definition` into the model, it will always be present,
-    //       as we'll be able to generate it on demand.
-    revng_assert(!DefaultPrototype().empty());
+  model::RawFunctionDefinition *defaultPrototype() {
+    // TODO: after `abi::Definition` is merged back into the model,
+    //       the prototype will always be present, so this should return
+    //       a reference instead.
+    if (DefaultPrototype().empty())
+      return nullptr;
 
     model::TypeDefinition &Default = DefaultPrototype()->asPrototype();
-    return llvm::cast<model::RawFunctionDefinition>(Default);
+    return &llvm::cast<model::RawFunctionDefinition>(Default);
   }
 
   /// The helper for the prototype unwrapping.
   /// Use this when you need to access/modify the existing prototype,
   /// and \ref DefaultPrototype() when you need to assign a new one.
-  const model::RawFunctionDefinition &defaultPrototype() const {
-    // TODO: assert the default prototype is there for now because once we merge
-    //       `abi::Definition` into the model, it will always be present,
-    //       as we'll be able to generate it on demand.
-    revng_assert(!DefaultPrototype().empty());
+  const model::RawFunctionDefinition *defaultPrototype() const {
+    // TODO: after `abi::Definition` is merged back into the model,
+    //       the prototype will always be present, so this should return
+    //       a reference instead.
+    if (DefaultPrototype().empty())
+      return nullptr;
 
     const model::TypeDefinition &Default = DefaultPrototype()->asPrototype();
-    return llvm::cast<model::RawFunctionDefinition>(Default);
+    return &llvm::cast<model::RawFunctionDefinition>(Default);
   }
 
-  model::TypeDefinition &prototypeOrDefault(model::TypeDefinition *Prototype) {
-    return Prototype ? *Prototype : defaultPrototype();
+  model::TypeDefinition *prototypeOrDefault(model::TypeDefinition *Prototype) {
+    if (Prototype)
+      return Prototype;
+
+    return defaultPrototype();
   }
 
-  const model::TypeDefinition &
+  const model::TypeDefinition *
   prototypeOrDefault(const model::TypeDefinition *Prototype) const {
-    return Prototype ? *Prototype : defaultPrototype();
+    if (Prototype)
+      return Prototype;
+
+    return defaultPrototype();
   }
 
 public:

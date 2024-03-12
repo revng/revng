@@ -169,7 +169,7 @@ public:
       SmallVector<Value *, 4> Arguments;
       if (F->getFunctionType()->getNumParams() > 0) {
         auto ThePrototype = Binary.prototypeOrDefault(ModelF->prototype());
-        auto Layout = abi::FunctionType::Layout::make(ThePrototype);
+        auto Layout = abi::FunctionType::Layout::make(*ThePrototype);
         for (const auto &ArgumentLayout : Layout.Arguments) {
           for (model::Register::Values Register : ArgumentLayout.Registers) {
             auto Name = model::Register::getCSVName(Register);

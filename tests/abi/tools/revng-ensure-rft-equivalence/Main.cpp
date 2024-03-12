@@ -159,7 +159,7 @@ int main(int Argc, char *Argv[]) {
                  "hence it's not allowed.");
 
     if (const model::RawFunctionDefinition *Left = F.rawPrototype()) {
-      if (Left->ID() == LeftModel->defaultPrototype().ID())
+      if (Left->ID() == LeftModel->defaultPrototype()->ID())
         continue; // Skip the default prototype.
 
       auto [Iterator, Success] = Functions.try_emplace(F.name());
@@ -180,7 +180,7 @@ int main(int Argc, char *Argv[]) {
                  "hence it's not allowed.");
 
     if (const model::RawFunctionDefinition *Right = F.rawPrototype()) {
-      if (Right->ID() == LeftModel->defaultPrototype().ID())
+      if (Right->ID() == LeftModel->defaultPrototype()->ID())
         continue; // Skip the default prototype.
 
       auto Iterator = Functions.find(F.name());
@@ -267,8 +267,8 @@ int main(int Argc, char *Argv[]) {
   RightModel->ImportedDynamicFunctions().clear();
 
   // Erase the default prototypes because they interfere with the test.
-  LeftModel->TypeDefinitions().erase(LeftModel->defaultPrototype().key());
-  RightModel->TypeDefinitions().erase(RightModel->defaultPrototype().key());
+  LeftModel->TypeDefinitions().erase(LeftModel->defaultPrototype()->key());
+  RightModel->TypeDefinitions().erase(RightModel->defaultPrototype()->key());
   LeftModel->DefaultPrototype() = {};
   RightModel->DefaultPrototype() = {};
 

@@ -93,7 +93,7 @@ getPrototype(const model::Binary &Binary,
     }
   }
 
-  return &Binary.defaultPrototype();
+  return Binary.defaultPrototype();
 }
 
 #include "revng/EarlyFunctionAnalysis/Generated/Late/BasicBlock.h"

@@ -35,9 +35,9 @@ public:
 
 public:
   FunctionSummary prototype(const AttributesSet &Attributes,
-                            const model::DefinitionReference &Prototype) {
+                            const model::TypeDefinition *Prototype) {
     FunctionSummary Summary(Attributes, ABICSVs, {}, {}, {});
-    if (Prototype.empty())
+    if (Prototype == nullptr)
       return Summary;
 
     // Drop known to be preserved registers from `Summary.ClobberedRegisters`.
@@ -48,7 +48,7 @@ public:
       return Pointer != nullptr;
     });
 
-    auto Preserved = abi::FunctionType::calleeSavedRegisters(Prototype)
+    auto Preserved = abi::FunctionType::calleeSavedRegisters(*Prototype)
                      | TransformToCSV | IgnoreNullptr
                      | revng::to<std::set<llvm::GlobalVariable *>>();
     std::erase_if(Summary.ClobberedRegisters, [&Preserved](const auto &E) {
@@ -60,7 +60,7 @@ public:
     if constexpr (Level == PrototypeImportLevel::None)
       return Summary;
 
-    Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
+    Summary.ElectedFSO = abi::FunctionType::finalStackOffset(*Prototype);
 
     // Stop importing prototype here, if callee also needs final stack offset.
     if constexpr (Level == PrototypeImportLevel::None)
@@ -72,7 +72,7 @@ public:
     }
 
     auto [ArgumentRegisters,
-          ReturnValueRegisters] = abi::FunctionType::usedRegisters(Prototype);
+          ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
     for (Register ArgumentRegister : ArgumentRegisters) {
       llvm::StringRef Name = model::Register::getCSVName(ArgumentRegister);
       if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
@@ -211,7 +211,7 @@ FunctionSummaryOracle importImpl(llvm::Module &M,
     AttributesSet Attributes;
     for (auto &ToCopy : Function.Attributes())
       Attributes.insert(ToCopy);
-    const auto &Prototype = Binary.prototypeOrDefault(Function.prototype());
+    const auto *Prototype = Binary.prototypeOrDefault(Function.prototype());
     auto Summary = Importer.prototype(Attributes, Prototype);
 
     // Create function to inline, if necessary
@@ -227,7 +227,7 @@ FunctionSummaryOracle importImpl(llvm::Module &M,
     for (auto &ToCopy : DynamicFunction.Attributes())
       Attributes.insert(ToCopy);
 
-    const auto &Pr = Binary.prototypeOrDefault(DynamicFunction.prototype());
+    const auto *Pr = Binary.prototypeOrDefault(DynamicFunction.prototype());
     Oracle.registerDynamicFunction(DynamicFunction.OriginalName(),
                                    Importer.prototype(Attributes, Pr));
   }

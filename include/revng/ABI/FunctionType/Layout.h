@@ -76,6 +76,7 @@ public:
     model::UpcastableType Type;
     llvm::SmallVector<model::Register::Values, 2> Registers = {};
 
+    ReturnValue() = default;
     ReturnValue(model::UpcastableType &&Type) : Type(std::move(Type)) {}
   };
 
@@ -116,6 +117,10 @@ public:
       return Layout(*R);
     else
       revng_abort("Layouts of non-function types are not supported.");
+  }
+  static Layout make(const model::UpcastableType &FunctionType) {
+    revng_assert(!FunctionType.empty());
+    return make(FunctionType->asPrototype());
   }
 
 public:
@@ -191,9 +196,9 @@ calleeSavedRegisters(const model::TypeDefinition &Function) {
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::DefinitionReference &Function) {
-  revng_assert(Function.isValid());
-  return calleeSavedRegisters(*Function.get());
+calleeSavedRegisters(const model::UpcastableType &FunctionType) {
+  revng_assert(!FunctionType.empty());
+  return calleeSavedRegisters(FunctionType->asPrototype());
 }
 
 uint64_t finalStackOffset(const model::CABIFunctionDefinition &Function);
@@ -210,9 +215,9 @@ inline uint64_t finalStackOffset(const model::TypeDefinition &Function) {
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline uint64_t finalStackOffset(const model::DefinitionReference &Function) {
-  revng_assert(Function.isValid());
-  return finalStackOffset(*Function.get());
+inline uint64_t finalStackOffset(const model::UpcastableType &FunctionType) {
+  revng_assert(!FunctionType.empty());
+  return finalStackOffset(FunctionType->asPrototype());
 }
 
 struct UsedRegisters {
@@ -240,9 +245,9 @@ inline UsedRegisters usedRegisters(const model::TypeDefinition &Function) {
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline UsedRegisters usedRegisters(const model::DefinitionReference &Function) {
-  revng_assert(Function.isValid());
-  return usedRegisters(*Function.get());
+inline UsedRegisters usedRegisters(const model::UpcastableType &FunctionType) {
+  revng_assert(!FunctionType.empty());
+  return usedRegisters(FunctionType->asPrototype());
 }
 
 } // namespace abi::FunctionType

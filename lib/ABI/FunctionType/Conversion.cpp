@@ -407,15 +407,15 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
   // As a workaround for the cases where expected alignment is missing at
   // the very end of the RFT-style stack argument struct, use adjusted
   // size and alignment values instead of the real ones.
-  uint64_t StackAlignment = *ABI.alignment(*StackStruct);
+  auto &Stack = StackStruct->asStruct();
+  uint64_t StackAlignment = *ABI.alignment(Stack);
   revng_assert(llvm::isPowerOf2_64(StackAlignment));
   uint64_t AdjustedAlignment = std::max(StackAlignment, ABI.getPointerSize());
   uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
                                                             AdjustedAlignment);
 
   // If the struct is empty, it indicates that there are no stack arguments.
-  auto &Stack = StackStruct->asStruct();
-  if (Stack.size() == 0) {
+  if (Stack.Size() == 0) {
     revng_assert(Stack.Fields().empty());
     return llvm::SmallVector<model::Argument, 8>{};
   }
@@ -478,7 +478,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       // Having only one element in the "remaining" range means that only
       // the last field is left - add it too after checking.
       const model::StructField &LastArgument = CurrentRange.front();
-      std::optional<uint64_t> LastSize = LastArgument.Type().size();
+      std::optional<uint64_t> LastSize = LastArgument.Type()->size();
       revng_assert(LastSize.has_value() && LastSize.value() != 0);
       if (canBeNext(Distributor,
                     *LastArgument.Type(),
@@ -544,7 +544,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
   // it apart.
   // Let's try and see if it would make sense to add the whole "stack" struct
   // as one argument.
-  if (!canBeNext(Distributor, StackStruct, 0, StackSize, StackAlignment)) {
+  if (!canBeNext(Distributor, *StackStruct, 0, StackSize, StackAlignment)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;

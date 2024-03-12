@@ -323,14 +323,16 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
 using TRC = ToRawConverter;
 uint64_t
 TRC::combinedStackArgumentSize(const model::CABIFunctionDefinition &Def) const {
-  auto ReturnValue = distributeReturnValue(Def.ReturnType());
+  DistributedValue ReturnValue;
+  if (!Def.ReturnType().empty())
+    ReturnValue = distributeReturnValue(*Def.ReturnType());
 
   ArgumentDistributor Distributor(ABI);
   if (ReturnValue.SizeOnStack != 0)
     Distributor.addShadowPointerReturnValueLocationArgument();
 
   for (const model::Argument &Argument : Def.Arguments())
-    Distributor.nextArgument(Argument.Type());
+    Distributor.nextArgument(*Argument.Type());
 
   return Distributor.UsedStackOffset;
 }
@@ -636,7 +638,9 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
 
   // Ready the return value register data.
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
-  auto RV = ToRawConverter(ABI).distributeReturnValue(Function.ReturnType());
+  DistributedValue RV;
+  if (!Function.ReturnType().empty())
+    RV = ToRawConverter(ABI).distributeReturnValue(*Function.ReturnType());
   std::ranges::move(RV.Registers, std::back_inserter(Result.ReturnValues));
 
   // Handle shadow pointer return value gracefully.
@@ -663,7 +667,7 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   // Iterate over arguments until we are sure no further argument can use
   // any registers.
   for (const model::Argument &Argument : Function.Arguments().asVector()) {
-    auto Distributed = Distributor.nextArgument(Argument.Type());
+    auto Distributed = Distributor.nextArgument(*Argument.Type());
     for (DistributedValue SingleEntry : Distributed)
       if (!SingleEntry.RepresentsPadding)
         std::ranges::move(SingleEntry.Registers,
