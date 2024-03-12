@@ -203,7 +203,19 @@ public:
     *this = std::move(Other);
   }
 
+  UpcastablePointer &operator=(std::nullptr_t) noexcept {
+    Pointer.reset(nullptr);
+    return *this;
+  }
+
+  constexpr bool operator==(std::nullptr_t P) const noexcept {
+    return Pointer == P;
+  }
+
   bool operator==(const UpcastablePointer &Other) const {
+    if (empty() || Other.empty())
+      return Pointer == Other.Pointer;
+
     bool Result = false;
     upcast([&](auto &Upcasted) {
       Other.upcast([&](auto &OtherUpcasted) {
