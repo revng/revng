@@ -26,7 +26,7 @@ If the command succeeds, the tool will print the model again.
 The model has a couple of different users:
 
 * **The end user**: the user, as part of his analysis activities, makes changes to the model, e.g., renaming a function, adding arguments, introducing new functions, creating new data structures.
-  <br />The user interacts with the model either through the UI or manually or through scripting wrappers that enable easy maninpulation of the model.<br />
+  <br />The user interacts with the model either through the UI or manually or through scripting wrappers that enable easy manipulation of the model.<br />
   We currently provide wrappers for Python and TypeScript.
 * **Importers/exporters**: the model is designed to be a sort of interchange format and, as such, it's not strictly rev.ng-specific.
   This means that's possible to implement importers from other formats.
