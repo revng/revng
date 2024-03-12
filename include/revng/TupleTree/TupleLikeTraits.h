@@ -69,13 +69,11 @@ struct TupleLikeMappingTraits {
       auto Name = TupleLikeTraits<T>::FieldNames[I];
       constexpr Fields Field = static_cast<Fields>(I);
 
-      using tuple_element = std::tuple_element_t<I, T>;
       auto &Element = get<I>(Obj);
-      if constexpr (isOptional<Field>()) {
-        IO.mapOptional(Name.data(), Element, tuple_element{});
-      } else {
+      if constexpr (isOptional<Field>())
+        IO.mapOptional(Name.data(), Element, std::tuple_element_t<I, T>{});
+      else
         IO.mapRequired(Name.data(), Element);
-      }
 
       // Recur
       mapping<I + 1>(IO, Obj);

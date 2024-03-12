@@ -179,6 +179,11 @@ public:
   }
 
 public:
+  UpcastablePointer &operator=(std::nullptr_t) noexcept {
+    Pointer.reset(nullptr);
+    return *this;
+  }
+
   UpcastablePointer &operator=(const UpcastablePointer &Other) {
     if (&Other != this) {
       Pointer.reset(clone(Other.Pointer.get()));

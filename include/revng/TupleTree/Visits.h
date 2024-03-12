@@ -39,7 +39,8 @@ void visitTuple(Visitor &V, T &Obj) {
 // UpcastablePointerLike-like
 template<typename Visitor, UpcastablePointerLike T>
 void visitTupleTree(Visitor &V, T &Obj) {
-  upcast(Obj, [&V](auto &Upcasted) { visitTupleTree(V, Upcasted); });
+  if (Obj != nullptr)
+    upcast(Obj, [&V](auto &Upcasted) { visitTupleTree(V, Upcasted); });
 }
 
 // Tuple-like
