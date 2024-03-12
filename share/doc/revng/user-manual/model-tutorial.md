@@ -103,77 +103,61 @@ Specifically, we want to define the prototype for something that in C would look
 ```c
 uint64_t sum(uint64_t rdi, uint64_t rsi);
 ```
-
-First of all, let's populate the model type system with a bunch of *primitive types* such as `void`, `uint64_t`, `uint32_t` and so on.
-We could write them by hand, but the `add-primitive-types` analysis can help us with that:
-
-```bash
-$ revng analyze add-primitive-types /dev/null \
-        | grep -vE '^(---|\.\.\.)$' >> model.yml
-```
-
-> **Note**: `revng analyze` is used to run *analyses* and automatically populate parts of the model. More on this in the [analyses page](analyses.md).
-
-This will add to the model something similar to the following:
-
-```yaml
-TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 1288
-    PrimitiveKind: Unsigned
-    Size: 8
-```
-
-Here we are defining a *primitive* type (such as `void`, an integral type or a floating-point type) with size 8 bytes (64 bits) and *kind* `Unsigned`. Basically, an `uint64_t`.
-
-> **Note**: the first 1808 type IDs are currently reserved for `PrimitiveDefinition`s, which have a deterministic ID.
-> All other types, can have an arbitrary type ID, but tools usually adopt progressive type IDs.
-> <br />In the future, there will be no reserved type IDs since we plan to restructure how `PrimitiveDefinition`s are handled.
-
-Now that we have our `uint64_t`, we can define the function prototype.
 In the model type system, it looks like this:
 
 ```yaml title="model.yml"
+TypeDefinitions:
   - Kind: CABIFunctionDefinition
     ABI: SystemV_x86_64
-    ID: 1809
+    ID: 0
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
 ```
 
-OK, there's a lot here. Let's go through it:
+OK, there's a lot here. Let's go through it line by line:
 
+* `TypeDefinitions:`: begin the part of the model containing type information;
 * `Kind: CABIFunctionDefinition`: we're defining a type, specifically a C prototype associated to an ABI;
 * `ABI: SystemV_x86_64`: the chosen ABI is the x86-64 SystemV one;
-* `ID: ...`: a unique identifier;
-* `Arguments`: we have two arguments (index `0` and index `1`);
-  * `Type`: a qualified type, i.e., a type plus (optionally) one or more qualifiers such as `const`, pointer (`*`) and so on;
-    * `UnqualifiedType: "/TypeDefinitions/PrimitiveDefinition-1288"`: a reference to the actual, unqualified, type; in this case, it's a reference to the *primitive type* with ID 1288, i.e., the `uint64_t` defined above;
-* `ReturnType`: again, a reference to `uint64_t`;
+* `ID: ...`: a unique identifier. Every type definition must have one. Our tools usually use progressive ones, but that's not necessary: as long as there are no collisions, any integer works.
+* `Arguments`: we have two arguments (index `0` and index `1`):
+  * `Type`: the type of an argument:
+    * `Kind: PrimitiveType`: the "kind" of a type. Supported values include primitives, pointers, arrays and defined types;
+    * `PrimitiveKind: Unsigned`: the "kind" of a primitive type (like signed, unsigned, float, and so on);
+    * `Size: 8`: the size of a primitive type;
+* `ReturnType`: similar to an argument's size;
 
 At this point, we can associate the function prototype with the previously defined function:
 
 ```diff
 --- a/model.yml
 +++ b/model.yml
-@@ -10,4 +10,7 @@
+@@ -10,6 +10,9 @@
      IsExecutable: true
  Functions:
    - Entry: "0x400000:Code_x86_64"
 +    Prototype:
 +      Kind: DefinedType
-+      Definition: "/TypeDefinitions/1809-CABIFunctionDefinition"
++      Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
  TypeDefinitions:
+   - Kind: CABIFunctionDefinition
+     ABI: SystemV_x86_64
 ```
 
-Basically, we added to our function definition a reference to the prototype we created above.
+Basically, this specifies that the function type we created above is the prototype of this function.
 
 ### Step 5: Decompiling
 
@@ -195,14 +179,16 @@ One of the main activities of a reverse engineer is giving things a name, just l
 ```diff
 --- a/model.yml
 +++ b/model.yml
-@@ -11,4 +11,7 @@ Segments:
+@@ -11,8 +11,9 @@ Segments:
  Functions:
    - Entry: "0x400000:Code_x86_64"
      Prototype:
-+      Kind: DefinedType
-+      Definition: "/TypeDefinitions/1809-CABIFunctionDefinition"
+       Kind: DefinedType
+       Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
 +    CustomName: Sum
  TypeDefinitions:
+   - Kind: CABIFunctionDefinition
+     ABI: SystemV_x86_64
 ```
 
 Almost everything in the model can have a name. Let's add a name to the function arguments:
@@ -210,10 +196,10 @@ Almost everything in the model can have a name. Let's add a name to the function
 ```diff
 --- a/model.yml
 +++ b/model.yml
-@@ -119,21 +120,23 @@ TypeDefinitions:
+@@ -119,18 +120,20 @@ TypeDefinitions:
    - Kind: CABIFunctionDefinition
      ABI: SystemV_x86_64
-     ID: 1809
+     ID: 0
      Arguments:
        - Index: 0
          Type:

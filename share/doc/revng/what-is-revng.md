@@ -15,8 +15,7 @@ Its key features are:
 
 In terms of design choices, its distinctive characteristics are:
 
-* **Openness**: all the decompilation pipeline is (going to be) open source.
-  Certain analyses, such as Data Layout Analysis will be commercially available.
+* **Openness**: the entire decompilation pipeline is open source.
 * **Based on QEMU**: it employs QEMU to lift assembly code to an architecture-independent representation.
   Note that we never emulate any code, we simply use QEMU as a lifter.
 * **Based on LLVM**: all of our analyses are LLVM passes.
