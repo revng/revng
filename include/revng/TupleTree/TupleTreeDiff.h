@@ -332,17 +332,22 @@ private:
 
   template<StrictSpecializationOf<UpcastablePointer> T>
   void diffImpl(const T &LHS, const T &RHS) {
-    LHS.upcast([&](auto &LHSUpcasted) {
-      RHS.upcast([&](auto &RHSUpcasted) {
-        using LHSType = std::remove_cvref_t<decltype(LHSUpcasted)>;
-        using RHSType = std::remove_cvref_t<decltype(RHSUpcasted)>;
-        if constexpr (std::is_same_v<LHSType, RHSType>) {
-          diffImpl(LHSUpcasted, RHSUpcasted);
-        } else {
-          Result.change(Stack, LHS, RHS);
-        }
+    if (LHS.empty() || RHS.empty()) {
+      if (LHS != RHS)
+        Result.change(Stack, LHS, RHS);
+    } else {
+      LHS.upcast([&](auto &LHSUpcasted) {
+        RHS.upcast([&](auto &RHSUpcasted) {
+          using LHSType = std::remove_cvref_t<decltype(LHSUpcasted)>;
+          using RHSType = std::remove_cvref_t<decltype(RHSUpcasted)>;
+          if constexpr (std::is_same_v<LHSType, RHSType>) {
+            diffImpl(LHSUpcasted, RHSUpcasted);
+          } else {
+            Result.change(Stack, LHS, RHS);
+          }
+        });
       });
-    });
+    }
   }
 
   template<TupleSizeCompatible T>
