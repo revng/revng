@@ -48,8 +48,8 @@ write_passes:
   - type: SingleCommandPass
     name: prettier
     tag: prettier
-    command: ["prettier", "--write", "--config", "$prettier_config", "--loglevel", "silent"]
-    dry_command: ["prettier", "--check", "--config", "$prettier_config", "--loglevel", "silent"]
+    command: ["prettier", "--write", "--config", "$prettier_config", "--loglevel", "error"]
+    dry_command: ["prettier", "--check", "--config", "$prettier_config", "--loglevel", "error"]
 
 read_passes:
   - type: SingleCommandPass
