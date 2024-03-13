@@ -62,7 +62,7 @@ def prettify_typescript(source: str, prettier: str) -> str:
     with NamedTemporaryFile(suffix=".ts") as temp_file:
         source_file = Path(temp_file.name)
         source_file.write_text(source)
-        run([prettier, "--write", temp_file.name], check=True, stdout=DEVNULL, stderr=DEVNULL)
+        run([prettier, "--write", temp_file.name], check=True, stdout=DEVNULL)
         new_source = source_file.read_text()
     return new_source
 
