@@ -236,26 +236,56 @@ static LoopDispatcherMap computeLoopDispatcher(ASTTree &AST) {
   for (ASTNode *Node : AST.nodes()) {
     if (auto *Sequence = llvm::dyn_cast<SequenceNode>(Node)) {
       ASTNode *PrevNode = nullptr;
+
+      // We use the `LastSeenLoop` variable to propagate the last encountered
+      // loop in a sequence, so that we can process also weaved `switch`es that
+      // are not directly nested in their main correspondent `switch`
+      ScsNode *LastSeenLoop = nullptr;
       for (ASTNode *N : Sequence->nodes()) {
-
-        // If we encounter a dispatcher switch, we should assert that the
-        // previous node is a `ScsNode` (whose exit dispatcher the current
-        // switch is of), and save it in the map
         if (auto *Switch = llvm::dyn_cast<SwitchNode>(N)) {
-
-          // We handle weaved switches only as children of the original `switch`
-          // (couple of lines after), where we can actually retrieve the related
-          // loop
-          if (Switch->isWeaved()) {
-            continue;
-          }
 
           // A `SwitchNode` is a dispatcher switch if it has no associated
           // condition
           using DispatcherKind = typename SwitchNode::DispatcherKind;
           if (not Switch->getCondition()
               and Switch->getDispatcherKind() == DispatcherKind::DK_Exit) {
-            ScsNode *RelatedLoop = llvm::cast<ScsNode>(PrevNode);
+            ScsNode *RelatedLoop = nullptr;
+
+            // When we encounter a weaved `switch` in a sequence, since in
+            // this exploration we are just looking at all the nodes in the
+            // AST without doing a recursive visit, 2 situations are possible:
+            // 1) The weaved `switch` is nested inside the main `switch` it
+            // refers to, and we will eventually assign its related loop when
+            // we visit such main `switch`.
+            // 2) We encounter a weaved `switch` which is not nested
+            // inside its main `switch`, in this case in the current sequence
+            // we are exploring we should have visited the its related loop.
+            if (Switch->isWeaved()) {
+              if (LastSeenLoop) {
+                // We are in situation 2)
+                RelatedLoop = LastSeenLoop;
+
+                // We also propagate the `LastSeenLoop` to the next weaved in
+                // the sequence (if present), not overwriting `LastSeenLoop`
+              } else {
+                // We are in situation 1)
+
+                // We blank `LastSeenLoop` (this is superfluous)
+                LastSeenLoop = nullptr;
+
+                continue;
+              }
+            } else {
+              // In occurrence of a non-weaved `switch`, we know that the
+              // related loop is the previous node in the sequence
+              RelatedLoop = llvm::cast<ScsNode>(PrevNode);
+
+              // From this point on, we also set the `LastSeenLoop` to the
+              // `RelatedLoop`, for eventual weaved `switch`es which may follow
+              // the current main `switch`
+              LastSeenLoop = RelatedLoop;
+            }
+            revng_assert(RelatedLoop);
             ResultMap[Switch] = std::make_pair(RelatedLoop, true);
 
             // We also need to annotate the mapping for weaved switches, that
@@ -274,42 +304,69 @@ static LoopDispatcherMap computeLoopDispatcher(ASTTree &AST) {
                 // A weaved `SwitchNode` can be present only inside `case`s with
                 // multiple labels
                 if (LabelSet.size() > 1) {
-                  SwitchNode *WeavedSwitch = nullptr;
+                  llvm::SmallVector<SwitchNode *> WeavedSwitches;
                   bool RemoveSetNode;
 
-                  // We have two possible situations:
+                  // We have three possible situations:
                   // 1) The weaved `SwitchNode` is a direct child of the parent
                   //    `SwitchNode`. In this case, when we perform the inline
                   //    of the `case`s, we should remove the `SetNode`.
-                  // 2) The weaved `SwitchNode` is the first node of a
-                  //    `SequenceNode`. In this case, when we perform the inline
-                  //    of the `case`s, we should leave the `SetNode`, because
-                  //    the remaining nodes of the `SequenceNode` will not be
-                  //    simplified by the inlining.
+                  // 2) We have (multiple) weaved `SwitchNode`s inside a
+                  //    `SequenceNode`. The nodes we are interested in, are the
+                  //    first n consecutive nodes.
+                  // 3) The weaved `SwitchNode` is not nested inside its parent
+                  //    `SwitchNode`, but it follows it in a lexicographic
+                  //    sense.
                   if (llvm::isa<SwitchNode>(Case)) {
-                    WeavedSwitch = llvm::cast<SwitchNode>(Case);
+                    SwitchNode *WeavedSwitch = llvm::cast<SwitchNode>(Case);
+                    revng_assert(WeavedSwitch->isWeaved());
+                    WeavedSwitches.push_back(WeavedSwitch);
                     RemoveSetNode = true;
                   } else if (auto *Seq = llvm::dyn_cast<SequenceNode>(Case)) {
-                    WeavedSwitch = llvm::cast<SwitchNode>(Seq->getNodeN(0));
-                    RemoveSetNode = false;
+                    RemoveSetNode = true;
+                    for (ASTNode *N : Seq->nodes()) {
+                      SwitchNode *WeavedSwitch = llvm::dyn_cast<SwitchNode>(N);
+                      if (WeavedSwitch and WeavedSwitch->isWeaved()) {
+                        WeavedSwitches.push_back(WeavedSwitch);
+                      } else {
+
+                        // As soon as we find an `ASTNode` that is not a weaved
+                        // `switch`, we exit from the routine, and set the
+                        // `RemoveSetNode` to false (indeed, if the `sequence`
+                        // containing the sub-weaved-`switch` contains also some
+                        // other nodes in the back, it means that we should not
+                        // need to remove the `SetNode` to preserve the
+                        // semantics, since we cannot inline completely the body
+                        // of the `case`)
+                        RemoveSetNode = false;
+                        break;
+                      }
+                    }
                   } else {
-                    revng_abort("Unexpected Weaved SwitchNode");
+                    continue;
                   }
 
-                  revng_assert(WeavedSwitch->isWeaved());
-                  ResultMap[WeavedSwitch] = std::make_pair(RelatedLoop,
-                                                           RemoveSetNode);
-                  SwitchQueue.push_back(WeavedSwitch);
+                  for (SwitchNode *WeavedSwitch : WeavedSwitches) {
+                    revng_assert(WeavedSwitch->isWeaved());
+                    ResultMap[WeavedSwitch] = std::make_pair(RelatedLoop,
+                                                             RemoveSetNode);
+                    SwitchQueue.push_back(WeavedSwitch);
+                  }
                 }
               }
             }
           }
-        } else if (auto *If = llvm::dyn_cast<IfNode>(N)) {
+        } else {
+
+          // We reset the `LastSeenLoop` at each node except for each main
+          // `switch` that may be followed by a corresponding weaved `switch`
+          LastSeenLoop = nullptr;
 
           // The current assumption is that the current `InlineDispatcherSwitch`
           // pass runs before `switch`es with one or two cases are promoted to
-          // `if`s. If this is not true, we need to adapt this pass.
-          revng_assert(not isDispatcherIf(If));
+          // `if`s. Therefore no dispatcher `if` should be present at this
+          // stage. If this is not true, we need to adapt this pass.
+          revng_assert(not(llvm::isa<IfNode>(N) and isDispatcherIf(N)));
         }
 
         // At each iteration, assign the `PrevNode` variable
@@ -510,11 +567,22 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
 
     // First of all, we recursively process the `case` nodes contained in the
     // `switch` in order to process the inner portion of the AST
-    for (auto &LabelCasePair : Switch->cases()) {
+    llvm::SmallVector<size_t> ToRemoveCaseIndex;
+    for (auto &Group : llvm::enumerate(Switch->cases())) {
+      unsigned Index = Group.index();
+      auto &LabelCasePair = Group.value();
       LabelCasePair
         .second = rc_recur inlineDispatcherSwitchImpl(AST,
                                                       LabelCasePair.second,
                                                       LoopDispatcherMap);
+
+      if (LabelCasePair.second == nullptr) {
+        ToRemoveCaseIndex.push_back(Index);
+      }
+    }
+
+    for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+      Switch->removeCaseN(ToRemoveCase);
     }
 
     // Execute the promotion routine only for dispatcher switches
@@ -591,12 +659,12 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
       for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
         Switch->removeCaseN(ToRemoveCase);
       }
+    }
 
-      // Finally, if we end up with a `SwitchNode` with no remaining cases, we
-      // should completely remove it. We do that by returning a `nullptr`.
-      if (Switch->cases_size() == 0) {
-        rc_return nullptr;
-      }
+    // Finally, if we end up with a `SwitchNode` with no remaining cases, we
+    // should completely remove it. We do that by returning a `nullptr`.
+    if (Switch->cases_size() == 0) {
+      rc_return nullptr;
     }
   } break;
   case ASTNode::NK_Code:
@@ -621,6 +689,138 @@ ASTNode *inlineDispatcherSwitch(ASTTree &AST, ASTNode *RootNode) {
   RootNode = inlineDispatcherSwitchImpl(AST, RootNode, LoopDispatcherMap);
 
   // Update the root field of the AST
+  AST.setRoot(RootNode);
+
+  return RootNode;
+}
+
+static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+
+    // In place of a sequence node, we just need to inspect all the nodes in the
+    // sequence
+    for (ASTNode *&N : Seq->nodes()) {
+      N = rc_recur simplifySwitchBreakImpl(N);
+    }
+
+    // In this beautify, it may be that a dispatcher switch is completely
+    // removed, therefore leaving a `nullptr` in a `SequenceNode`. We remove all
+    // these `nullptr` from the `SequenceNode` after the processing has taken
+    // place
+    Seq->removeNode(nullptr);
+
+  } break;
+  case ASTNode::NK_Scs: {
+    ScsNode *Scs = llvm::cast<ScsNode>(Node);
+
+    // Inspect loop nodes
+    if (Scs->hasBody()) {
+      ASTNode *Body = Scs->getBody();
+      ASTNode *NewBody = rc_recur simplifySwitchBreakImpl(Body);
+      Scs->setBody(NewBody);
+    }
+
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    // Inspect the `then` and `else` branches
+    if (If->hasThen()) {
+      ASTNode *Then = If->getThen();
+      ASTNode *NewThen = rc_recur simplifySwitchBreakImpl(Then);
+      If->setThen(NewThen);
+    }
+    if (If->hasElse()) {
+      ASTNode *Else = If->getElse();
+      ASTNode *NewElse = rc_recur simplifySwitchBreakImpl(Else);
+      If->setElse(NewElse);
+    }
+  } break;
+  case ASTNode::NK_Switch: {
+    auto *Switch = llvm::cast<SwitchNode>(Node);
+
+    // First of all, we recursively process the `case` nodes contained in the
+    // `switch` in order to process the inner portion of the AST
+    llvm::SmallVector<size_t> ToRemoveCaseIndex;
+    for (auto &Group : llvm::enumerate(Switch->cases())) {
+      unsigned Index = Group.index();
+      auto &LabelCasePair = Group.value();
+      LabelCasePair
+        .second = rc_recur simplifySwitchBreakImpl(LabelCasePair.second);
+
+      if (LabelCasePair.second == nullptr) {
+        ToRemoveCaseIndex.push_back(Index);
+      }
+    }
+
+    for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+      Switch->removeCaseN(ToRemoveCase);
+    }
+
+    // 1: if the `default` `case` is a `SwitchBreak`, we can simplify it away
+    ASTNode *SwitchDefault = Switch->getDefault();
+    if (SwitchDefault) {
+      if (llvm::isa<SwitchBreakNode>(SwitchDefault)) {
+        Switch->removeDefault();
+      }
+    }
+
+    // 2: We can perform the `SwitchBreak` simplification only for `switch`es
+    // that do not have a `default` `case`, because in such situation, removing
+    // a `case` containing a single `Switchbreak` would not invalidate the
+    // semantics. This is done after the previous simplification, because some
+    // new opportunities may be unlocked by it.
+    if (not Switch->hasDefault()) {
+
+      // Search for cases that are composed by a single `SwitchBreak` node
+      llvm::SmallVector<size_t> ToRemoveCaseIndex;
+
+      // We do not need to skip the `default` case here, because there is no
+      // `default` in first place
+      for (auto &Group : llvm::enumerate(Switch->cases())) {
+        unsigned Index = Group.index();
+        auto &[LabelSet, Case] = Group.value();
+
+        if (llvm::isa<SwitchBreakNode>(Case)) {
+          ToRemoveCaseIndex.push_back(Index);
+        }
+      }
+
+      for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
+        Switch->removeCaseN(ToRemoveCase);
+      }
+    }
+
+    // If our beautify pass has removed all the cases, we should return
+    // `nulltpr` to signal this fact
+    if (Switch->cases_size() == 0) {
+      rc_return nullptr;
+    }
+  } break;
+  case ASTNode::NK_Code:
+  case ASTNode::NK_Set:
+  case ASTNode::NK_SwitchBreak:
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break:
+    // Do nothing
+    break;
+  default:
+    revng_unreachable();
+  }
+
+  rc_return Node;
+}
+
+/// This simplification routine is aimed at removing `SwitchBreak` nodes that
+/// are superfluous. We consider such nodes as `SwitchBreakNode`s that compose
+/// the entirety of a `case` of a `switch`, which must not have a `default`
+/// `case`.
+ASTNode *simplifySwitchBreak(ASTTree &AST, ASTNode *RootNode) {
+
+  // Simplify away `SwitchBreakNode`s from `switch`es
+  RootNode = simplifySwitchBreakImpl(RootNode);
   AST.setRoot(RootNode);
 
   return RootNode;

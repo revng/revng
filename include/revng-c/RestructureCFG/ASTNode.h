@@ -643,6 +643,19 @@ public:
     return Default;
   }
 
+  void removeDefault() {
+    for (auto &Group : llvm::enumerate(LabelCaseVec)) {
+      unsigned Index = Group.index();
+      const auto &[LabelSet, Successor] = Group.value();
+
+      // The `default` case is signaled by having an empty associated label set
+      if (LabelSet.empty() == true) {
+        removeCaseN(Index);
+        return;
+      }
+    }
+  }
+
   bool hasDefault() const { return nullptr != getDefault(); }
 
   llvm::Value *getCondition() const { return Condition; }

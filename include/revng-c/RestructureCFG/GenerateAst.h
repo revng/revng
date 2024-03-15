@@ -559,11 +559,6 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       BasicBlockNodeT *PostDomBB = nullptr;
       BasicBlockNodeT *CandidateFallthroughBB = nullptr;
 
-      // TODO: this helper variable is needed to represent the node that is the
-      //       target of the inserted `SwitchBreak` nodes. This is needed until
-      //       we eliminate the special casing for the weaved switches below.
-      BasicBlockNodeT *SwitchBreakTarget = nullptr;
-
       BasicBlockNodeTVect NotInlinedSuccessors = getNotInlinedSuccs(Node);
 
       // In the following, we will also need to exclude successors of the switch
@@ -580,18 +575,10 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       // Count the non inlined successors
       unsigned NotInlined = NotInlinedSuccessors.size();
 
-      // We special case the handling of the "all but one case inlined", due to
-      // some assumptions we make about the nesting of the weaved `switch`es.
-      // Specifically, we assume that each weaved switch Y, relative to switch
-      // X, must be nested "inside" it, also in the resulting generated AST.
-      // Therefore we cannot match this as we would do in the ordinary way, by
-      // placing the weaved switch Y as fallthrough of switch X.
-      // TODO: this special casing for the weaved switches can be dropped if we
-      //       give up the assumption that each weaved switch is nested into
-      //       its parent switch. This would lead to greatly reduce the
-      //       complexity of switch tiling logic.
+      // Criterion 1:
+      // We have a single `non inlined` successor, such successor will become
+      // the `CandidateFallthroughBB`
       if (NotInlined == 1) {
-
         // Handle the special case with one a single non inlined successor
         const auto NotInlined = [&Node](const auto *Child) {
           using ConstEdge = std::pair<const BasicBlockNodeT *,
@@ -599,9 +586,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           return not isEdgeInlined(ConstEdge{ Node, Child });
         };
 
-        auto It = std::find_if(Successors.begin(),
-                               Successors.end(),
-                               NotInlined);
+        auto It = llvm::find_if(Successors, NotInlined);
 
         // Assert that we found one
         revng_assert(It != Successors.end());
@@ -610,40 +595,21 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
         // Assert that we don't find more that one
         It = std::find_if(std::next(It), Successors.end(), NotInlined);
         revng_assert(It == Successors.end());
-
-        // We now have two possibilities in front of us:
-        // 1) The `CandidateFallthrough` is dominated. We treat it as a normal
-        //    case, and when we create the tile we consider it as part of the
-        //    current tile.
-        // 2) The `CandidateFallthrough` is not dominated. It will not be part
-        //    of the current tile.
-        if (CandidateFallthroughBB
-            and ASTDT.dominates(Node, CandidateFallthroughBB)) {
-          PostDomBB = nullptr;
-          EndIsPartOfTile = true;
-          SwitchBreakTarget = nullptr;
-        } else {
-          PostDomBB = nullptr;
-          EndIsPartOfTile = false;
-          SwitchBreakTarget = CandidateFallthroughBB;
-        }
       } else {
 
         // We pre-compute the successor of all the cases that are not inlined
+        // and not terminal
         llvm::SmallVector<BasicBlockNodeT *> SuccOfCases;
         for (BasicBlockNodeT *Case : NotInlinedNotTerminalSuccessors) {
           BasicBlockNodeT *SuccOfCase = getUniqueSuccessorOrNull(Case);
           revng_assert(SuccOfCase);
           SuccOfCases.push_back(SuccOfCase);
         }
-
-        // Criterion 1:
+        // Criterion 2:
         // For each successor, check if a certain one is successor of all the
         // other cases
         for (BasicBlockNodeT *Case : NotInlinedSuccessors) {
-          unsigned Count = std::count(SuccOfCases.begin(),
-                                      SuccOfCases.end(),
-                                      Case);
+          unsigned Count = llvm::count(SuccOfCases, Case);
           if (Count > 0) {
             if ((getUniqueSuccessorOrNull(Case)
                  and Count == SuccOfCases.size() - 1)
@@ -655,7 +621,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           }
         }
 
-        // Criterion 2:
+        // Criterion 3:
         // Search for node which is the successor for all the cases (excluding
         // the inlined ones), even if not a successor of `Node` itself
         std::map<BasicBlockNodeT *, unsigned> SuccCounterMap;
@@ -672,22 +638,20 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
             CandidateFallthroughBB = Key;
           }
         }
+      }
 
-        // We now have two possibilities in front of us:
-        // 1) The `CandidateFallthrough` is dominated. We consider the node to
-        //    be the postdominator of `Node`.
-        // 2) The `CandidateFallthrough` is not dominated. It will not be part
-        //    of the current tile.
-        if (CandidateFallthroughBB
-            and ASTDT.dominates(Node, CandidateFallthroughBB)) {
-          PostDomBB = CandidateFallthroughBB;
-          EndIsPartOfTile = true;
-          SwitchBreakTarget = CandidateFallthroughBB;
-        } else {
-          PostDomBB = nullptr;
-          EndIsPartOfTile = false;
-          SwitchBreakTarget = CandidateFallthroughBB;
-        }
+      // We now have two possibilities in front of us:
+      // 1) The `CandidateFallthrough` is dominated. We consider the node to
+      //    be the postdominator of `Node`.
+      // 2) The `CandidateFallthrough` is not dominated. It will not be part
+      //    of the current tile.
+      if (CandidateFallthroughBB
+          and ASTDT.dominates(Node, CandidateFallthroughBB)) {
+        PostDomBB = CandidateFallthroughBB;
+        EndIsPartOfTile = true;
+      } else {
+        PostDomBB = nullptr;
+        EndIsPartOfTile = false;
       }
 
       // The only legit situation for not having elected a
@@ -702,7 +666,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
 
         ASTNode *ASTPointer = nullptr;
-        if (SwitchSucc == SwitchBreakTarget) {
+        if (SwitchSucc == CandidateFallthroughBB) {
           ASTPointer = AST.addSwitchBreak(nullptr);
           SwitchBreakVector.push_back(ASTPointer);
         } else {
