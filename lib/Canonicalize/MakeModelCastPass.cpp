@@ -89,7 +89,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
         revng_assert(ExpectedType.UnqualifiedType().isValid());
 
         const QualifiedType &OperandType = TypeMap.at(Op.get());
-        if (ExpectedType != OperandType) {
+        if (ExpectedType.skipTypedefs() != OperandType.skipTypedefs()) {
           revng_assert(ExpectedType.isScalar() and OperandType.isScalar());
           // Create a cast only if the expected type is different from the
           // actual type propagated until here

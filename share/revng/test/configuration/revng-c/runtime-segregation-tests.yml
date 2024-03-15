@@ -1,0 +1,25 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng-c.runtime-segregation-tests
+    from:
+      - type: revng-qa.runtime-abi-tests
+    suffix: /
+    command: |-
+      revng analyze import-binary "${INPUT}/functions"
+        --use-pdb="${INPUT}/functions.pdb"
+        -o="${OUTPUT}/imported_binary.yml";
+      python3 "${SOURCES_ROOT}/share/revng/test/tests/abi/prepare-tested-model.py"
+        "${ABI_NAME}"
+        "${OUTPUT}/imported_binary.yml"
+        "${OUTPUT}/prepared_binary.yml";
+      revng analyze add-primitive-types "${INPUT}/functions"
+        -m="${OUTPUT}/prepared_binary.yml"
+        -o="${OUTPUT}/reference_binary.yml";
+      revng artifact decompile-to-single-file "${INPUT}/functions"
+        -m="${OUTPUT}/reference_binary.yml"
+        --resume="${OUTPUT}/resume"
+        -o="${OUTPUT}/decompiled.c.ptml";
+      revng ptml "${OUTPUT}/decompiled.c.ptml" -o="${OUTPUT}/decompiled.c"
