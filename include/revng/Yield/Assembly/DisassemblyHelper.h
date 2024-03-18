@@ -36,5 +36,6 @@ public:
 
 private:
   LLVMDisassemblerInterface &
-  getDisassemblerFor(MetaAddressType::Values AddressType);
+  getDisassemblerFor(MetaAddressType::Values AddressType,
+                     const model::DisassemblyConfiguration &);
 };

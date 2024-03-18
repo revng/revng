@@ -4,38 +4,37 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <compare>
-#include <limits>
-#include <string>
-
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Yield/TagType.h"
+#include "revng/Yield/TaggedString.h"
 
 /* TUPLE-TREE-YAML
 
-name: Tag
+name: TaggedLine
 type: struct
 fields:
-  - name: Type
-    type: TagType
-  - name: From
+  - name: Index
     type: uint64_t
-  - name: To
-    type: uint64_t
+
+  - name: Tags
+    sequence:
+      type: SortedVector
+      elementType: TaggedString
+
 key:
-  - Type
-  - From
-  - To
+  - Index
 
 TUPLE-TREE-YAML */
 
-#include "revng/Yield/Generated/Early/Tag.h"
+#include "revng/Yield/Generated/Early/TaggedLine.h"
 
 namespace yield {
 
-class Tag : public generated::Tag {
+class TaggedLine : public generated::TaggedLine {
 public:
-  using generated::Tag::Tag;
+  using generated::TaggedLine::TaggedLine;
+  template<typename IteratorType>
+  TaggedLine(uint64_t Index, IteratorType From, IteratorType To) :
+    generated::TaggedLine(Index, SortedVector<TaggedString>(From, To)) {}
 
 public:
   bool verify(model::VerifyHelper &VH) const;
@@ -51,4 +50,4 @@ public:
 
 } // namespace yield
 
-#include "revng/Yield/Generated/Late/Tag.h"
+#include "revng/Yield/Generated/Late/TaggedLine.h"

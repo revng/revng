@@ -111,7 +111,7 @@ public:
 
                           .InstructionFontSize = 18.f,
                           .AnnotationFontSize = 0.f,
-                          .CommentFontSize = 15.f,
+                          .CommentFontSize = 0.f,
                           .LabelFontSize = 18.f,
 
                           .NodeCornerRoundingFactor = 5,

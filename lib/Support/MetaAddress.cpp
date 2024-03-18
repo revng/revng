@@ -60,34 +60,45 @@ MetaAddress MetaAddress::decomposeIntegerPC(const APInt &Value) {
   return Result;
 }
 
-#define SEP ":"
-
-std::string MetaAddress::toString() const {
+std::string
+MetaAddress::toString(std::optional<llvm::Triple::ArchType> Arch) const {
   if (isInvalid())
-    return SEP "Invalid";
+    return Separator.str() += "Invalid";
+
+  bool ShouldPrintTheType = true;
+  if (Arch.has_value()) {
+    // Assert if `Arch` is not supported.
+    static_cast<void>(MetaAddressType::genericFromArch(Arch.value()));
+
+    if (arch().has_value() && arch().value() == Arch.value())
+      ShouldPrintTheType = false;
+  }
 
   std::string Result;
   {
     raw_string_ostream Stream(Result);
-    Stream << "0x" << Twine::utohexstr(Address) << SEP
-           << MetaAddressType::toString(type());
+    Stream << "0x" << Twine::utohexstr(Address);
+    if (ShouldPrintTheType)
+      Stream << Separator << MetaAddressType::toString(type());
     if (not isDefaultEpoch())
-      Stream << SEP << Epoch;
+      Stream << Separator << Epoch;
     if (not isDefaultAddressSpace())
-      Stream << SEP << AddressSpace;
+      Stream << Separator << AddressSpace;
   }
 
   return Result;
 }
 
 MetaAddress MetaAddress::fromString(StringRef Text) {
-  if (Text == SEP "Invalid")
-    return MetaAddress::invalid();
+  revng_assert(Text.size() > Separator.size());
+  if (Text.take_front(Separator.size()) == Separator)
+    if (Text.drop_front(Separator.size()) == "Invalid")
+      return MetaAddress::invalid();
 
   MetaAddress Result;
 
   SmallVector<StringRef, 4> Parts;
-  Text.split(Parts, SEP);
+  Text.split(Parts, Separator);
 
   if (Parts.size() < 2 or Parts.size() > 4)
     return MetaAddress::invalid();

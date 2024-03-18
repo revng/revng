@@ -8,36 +8,66 @@
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Instruction.h"
-#include "revng/Yield/Tag.h"
 
-bool yield::Tag::verify(model::VerifyHelper &VH) const {
+bool yield::TaggedString::verify(model::VerifyHelper &VH) const {
   if (Type() == TagType::Invalid)
     return VH.fail("The type of this tag is not valid.");
-  if (From() == std::string::npos)
-    return VH.fail("This tag doesn't have a starting point.");
-  if (To() == std::string::npos)
-    return VH.fail("This tag doesn't have an ending point.");
-  if (From() >= To())
-    return VH.fail("This tag doesn't have a positive length.");
+  if (Content().empty())
+    return VH.fail("This tag doesn't have any data.");
+  if (Content().find('\n') != std::string::npos)
+    return VH.fail("String is not allowed to break the line, "
+                   "use multiple strings instead.");
+  for (const yield::TagAttribute &Attribute : Attributes()) {
+    if (Attribute.Name().empty())
+      return VH.fail("Attributes without names are not allowed.");
+    if (Attribute.Name().empty())
+      return VH.fail("Attributes without values are not allowed.");
+  }
+
+  return true;
+}
+
+bool yield::TaggedLine::verify(model::VerifyHelper &VH) const {
+  for (auto [Index, String] : llvm::enumerate(Tags())) {
+    if (Index != String.Index())
+      return VH.fail("Tagged string indexing is broken.");
+
+    if (!String.verify(VH))
+      return VH.fail();
+  }
 
   return true;
 }
 
 bool yield::Instruction::verify(model::VerifyHelper &VH) const {
   if (Address().isInvalid())
-    return VH.fail("An instruction has to have a valid address.");
-  if (Disassembled().empty())
-    return VH.fail("The disassembled view of an instruction cannot be empty.");
+    return VH.fail("An instruction must have a valid address.");
   if (RawBytes().empty())
     return VH.fail("An instruction has to be at least one byte big.");
 
-  for (const auto &Tag : Tags()) {
-    if (!Tag.verify(VH))
-      return VH.fail("Tag verification failed");
+  if (Disassembled().empty())
+    return VH.fail("An instruction must have at least one tag.");
+  for (auto [Index, Tagged] : llvm::enumerate(Disassembled())) {
+    if (Index != Tagged.Index())
+      return VH.fail("Tagged string indexing is broken.");
 
-    if (Tag.From() >= Disassembled().size()
-        || Tag.To() >= Disassembled().size())
-      return VH.fail("Tag boundaries must not exceed the size of the text.");
+    if (!Tagged.verify(VH))
+      return VH.fail();
+  }
+
+  for (auto [Index, Directive] : llvm::enumerate(PrecedingDirectives())) {
+    if (Index != Directive.Index())
+      return VH.fail("Preceding directive indexing is broken.");
+
+    if (!Directive.verify(VH))
+      return VH.fail();
+  }
+  for (auto [Index, Directive] : llvm::enumerate(FollowingDirectives())) {
+    if (Index != Directive.Index())
+      return VH.fail("Following directive indexing is broken.");
+
+    if (!Directive.verify(VH))
+      return VH.fail();
   }
 
   return true;
@@ -51,12 +81,16 @@ bool yield::BasicBlock::verify(model::VerifyHelper &VH) const {
   if (Instructions().empty())
     return VH.fail("A basic block has to store at least a single instruction.");
 
+  if (IsLabelAlwaysRequired())
+    if (!Label().verify())
+      return false;
+
   MetaAddress PreviousAddress = MetaAddress::invalid();
   for (const auto &Instruction : Instructions()) {
     if (!Instruction.verify(VH))
       return VH.fail("Instruction verification failed.");
 
-    if (PreviousAddress.isValid() && Instruction.Address() >= PreviousAddress) {
+    if (PreviousAddress.isValid() && Instruction.Address() < PreviousAddress) {
       return VH.fail("Instructions must be strongly ordered and their size "
                      "must be bigger than zero.");
     }

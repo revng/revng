@@ -112,7 +112,8 @@ yield::Function DH::disassemble(const model::Function &Function,
   for (auto BasicBlockInserter =
          ResultFunction.ControlFlowGraph().batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
-    auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type());
+    auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type(),
+                                      Binary.Configuration().Disassembly());
 
     yield::BasicBlock ResultBasicBlock;
     ResultBasicBlock.ID() = BasicBlock.ID();
@@ -143,28 +144,35 @@ yield::Function DH::disassemble(const model::Function &Function,
       revng_assert(MaybeInstructionOffset.has_value());
       auto InstructionBytes = RawBytes->drop_front(*MaybeInstructionOffset);
 
-      auto [Instruction,
-            HasDelaySlot,
-            Size] = Helper.instruction(CurrentAddress, InstructionBytes);
-      revng_assert(Instruction.Address().isValid());
+      auto Disassembled = Helper.instruction(CurrentAddress, InstructionBytes);
+      revng_assert(Disassembled.Address.isValid());
 
-      if (HasDelaySlot) {
+      yield::Instruction Result;
+      Result.Address() = std::move(Disassembled.Address);
+      Result.OpcodeIdentifier() = std::move(Disassembled.OpcodeIdentifier);
+      Result.Comment() = std::move(Disassembled.Comment);
+      Result.Error() = std::move(Disassembled.Error);
+
+      if (Disassembled.HasDelaySlot) {
         revng_assert(InstructionWithTheDelaySlot.isInvalid(),
                      "Multiple instructions with delay slots are not allowed "
                      "in the same basic block.");
-        InstructionWithTheDelaySlot = Instruction.Address();
+        InstructionWithTheDelaySlot = Disassembled.Address;
       }
 
-      auto MaybeBytes = BinaryView.getByAddress(CurrentAddress, Size);
-      revng_assert(MaybeBytes.has_value());
-      Instruction.RawBytes() = yield::ByteContainer(MaybeBytes->begin(),
-                                                    MaybeBytes->end());
+      auto Bytes = BinaryView.getByAddress(CurrentAddress, Disassembled.Size);
+      revng_assert(Bytes.has_value());
+      Result.RawBytes() = yield::ByteContainer(Bytes->begin(), Bytes->end());
 
-      CurrentAddress += Size;
+      CurrentAddress += Disassembled.Size;
       revng_assert(CurrentAddress.isValid());
       revng_assert(CurrentAddress <= BasicBlock.End());
 
-      InstrInserter.insert(std::move(Instruction));
+      Result.importTags(std::move(Disassembled.Tags),
+                        std::move(Disassembled.Text));
+
+      Result.verify(true);
+      InstrInserter.insert(std::move(Result));
     }
 
     if (InstructionWithTheDelaySlot.isValid()) {
@@ -179,18 +187,29 @@ yield::Function DH::disassemble(const model::Function &Function,
   }
 
   analyzeBasicBlocks(ResultFunction, Metadata, Binary);
+
+  for (yield::BasicBlock &BasicBlock : ResultFunction.ControlFlowGraph()) {
+    BasicBlock.setLabel(ResultFunction, Binary);
+    for (yield::Instruction &Instruction : BasicBlock.Instructions())
+      Instruction.handleSpecialTags(BasicBlock, ResultFunction, Binary);
+  }
+
+  ResultFunction.verify(true);
+
   return ResultFunction;
 }
 
 LLVMDisassemblerInterface &
-DH::getDisassemblerFor(MetaAddressType::Values AddressType) {
+DH::getDisassemblerFor(MetaAddressType::Values AddressType,
+                       const model::DisassemblyConfiguration &Configuration) {
   revng_assert(Internal != nullptr);
 
   if (auto It = Internal->find(AddressType); It != Internal->end())
     return It->second;
 
   using DI = LLVMDisassemblerInterface;
-  auto [Result, Success] = Internal->try_emplace(AddressType, DI(AddressType));
+  auto [R, Success] = Internal->try_emplace(AddressType,
+                                            DI(AddressType, Configuration));
   revng_assert(Success);
-  return Result->second;
+  return R->second;
 }

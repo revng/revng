@@ -37,8 +37,9 @@ BasicBlockID BasicBlockID::fromString(llvm::StringRef Text) {
   return BasicBlockID(Start, InliningIndex);
 }
 
-std::string BasicBlockID::toString() const {
-  std::string Result = Start.toString();
+std::string
+BasicBlockID::toString(std::optional<llvm::Triple::ArchType> Arch) const {
+  std::string Result = Start.toString(Arch);
 
   if (isInlined()) {
     Result += "-" + llvm::Twine(InliningIndex).str();

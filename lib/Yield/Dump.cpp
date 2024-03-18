@@ -8,9 +8,13 @@
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Instruction.h"
-#include "revng/Yield/Tag.h"
+#include "revng/Yield/TaggedString.h"
 
-void yield::Tag::dump() const {
+void yield::TaggedString::dump() const {
+  serialize(dbg, *this);
+}
+
+void yield::TaggedLine::dump() const {
   serialize(dbg, *this);
 }
 

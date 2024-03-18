@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
@@ -428,6 +429,9 @@ inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
 class MetaAddress : private PlainMetaAddress {
 private:
   friend class ProgramCounterHandler;
+
+public:
+  constexpr static llvm::StringRef Separator = ":";
 
 public:
   class Features {
@@ -928,26 +932,11 @@ private:
     validate();
   }
 
-private:
-  template<typename T>
-  void dumpInternal(T &Output, uint64_t EffectiveAddress) const {
-    Output << std::hex << "0x" << EffectiveAddress;
-
-    if (not isDefaultAddressSpace()) {
-      Output << "_as" << AddressSpace;
-    }
-
-    if (not isDefaultEpoch()) {
-      Output << "_epoch" << Epoch;
-    }
-
-    if (not isDefaultCode()) {
-      Output << "_" << MetaAddressType::toString(type());
-    }
-  }
-
 public:
-  std::string toString() const;
+  /// \param Arch specifying the "expected" architecture omits it from
+  ///        the serialized string. But it also leads to inability
+  ///        to deserialize it! So only use if you know what you're doing.
+  std::string toString(std::optional<llvm::Triple::ArchType> Arch = {}) const;
   static MetaAddress fromString(llvm::StringRef Text);
 
 private:

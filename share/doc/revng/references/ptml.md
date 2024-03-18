@@ -17,7 +17,7 @@ You can add `--color` to render the syntax highlighting using terminal coloring.
 * Whitespaces are very relevant. PTML is designed to gracefully degrade into plain text by simply stripping all the XML elements.
 * It can be easily embedded into HTML. All the elements are either `<div>` or `<span>`.
 * It is used to represent in a uniform way source code in different languages (the *underlying language*).
-  For instance, we use it to represtent C and various flavor of assembly code.
+  For instance, we use it to represent C and various flavor of assembly code.
   If a text editor or a viewer supports PTML, it does not need any further understanding of the underlying language.
 * Contains metadata for navigation/highlighting in XML elements/attributes.
 * It's easy to emit: just power up your string concatenation with tags.
@@ -114,11 +114,15 @@ The assembly language defines the following `data-token`s:
 * `asm.memory-operand`: used to indicate memory operands.
 * `asm.register`: the name of a register.
 * `asm.helper`: a macro-like function for specifying some information in a more human-readable fashion (e.g., `offset_to` to get the offset of a global).
+* `asm.directive`: a GAS-style directive attached to some of the instructions, for example `.set`.
+* `asm.raw-bytes`: an optional raw byte representation of an instruction.
+* `asm.instruction-address`: an optional address an instruction (see MetaAddress docs for specifics).
 
 ```asm title="Example"
 # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv--------- asm.label
 #                                    v-------- asm.label-indicator
   basic_block_at_0x402ac5_Code_x86_64:
+
 #   vvv--------------------------------------- asm.mnemonic
 #                  vvv---------vvv------------ asm.register
 #                 v---------v----------------- asm.memory-operand
@@ -129,8 +133,14 @@ The assembly language defines the following `data-token`s:
 #    vv--------------------------------------- asm.mnemonic-suffix
 #       vvvvvvvv------------------------------ asm.immediate-value
     jge 0x402af2
+
 #            vvvvvvvvv------------------------ asm.helper
     mov rax, offset_to(some_global)
+
+# (can be enabled conditionally)
+# vvvvvvvvvvvvvvvvvvvv------------------------ asm.instruction-address
+#                        vvvvv---------------- asm.raw-bytes
+  0x402183:Code_x86_64   31 c7   xor edi, eax
 ```
 
 #### C
@@ -296,4 +306,4 @@ Each location supports a subset of the above actions:
 An action is defined by the following attributes:
 
 * `data-action-context-location`: indicates that the contained snippet has the specified context and allows the PTML viewer to activate the supported actions. Nested element can specify different context locations; in this case the viewer should pick the innermost one.
-* `data-allowed-actions`: in some cases, the set of posisble actions needs to be restricted to a subset of all possible actions, in this case this attribute is used.
+* `data-allowed-actions`: in some cases, the set of possible actions needs to be restricted to a subset of all possible actions, in this case this attribute is used.

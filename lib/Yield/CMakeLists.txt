@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   Assembly/DisassemblyHelper.cpp
   Assembly/LLVMDisassemblerInterface.cpp
+  Assembly/LLVMTagsToPTML.cpp
   CallGraphs/CallGraphSlices.cpp
   ControlFlow/ConvertFromEFA.cpp
   ControlFlow/Extraction.cpp
@@ -15,7 +16,6 @@ revng_add_library_internal(
   CrossRelations.cpp
   Dump.cpp
   HexDump.cpp
-  Plain.cpp
   PTML.cpp
   SVG.cpp
   Verify.cpp)
@@ -74,7 +74,9 @@ target_tuple_tree_generator(
   "${INTERNAL_ASSEMBLY_HEADERS}/BasicBlock.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/Tag.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/TagAttribute.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/TaggedLine.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/TaggedString.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h")
 
 set(INTERNAL_ASSEMBLY_HEADERS

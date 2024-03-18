@@ -12,6 +12,7 @@
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/ABI.h"
+#include "revng/Model/Configuration.h"
 #include "revng/Model/DynamicFunction.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/FunctionAttribute.h"
@@ -85,6 +86,9 @@ fields:
     sequence:
       type: SortedVector
       elementType: MetaAddress
+  - name: Configuration
+    type: Configuration
+    optional: true
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Binary.h"
