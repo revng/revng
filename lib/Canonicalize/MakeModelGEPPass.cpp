@@ -2231,19 +2231,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     llvm::Type *UseType = TheUseToGEPify->get()->getType();
     llvm::Type *BaseAddrType = BaseAddress->getType();
 
-    llvm::IntegerType *ModelGEPReturnedType;
-
-    if (Mismatched.isZero()) {
-      uint64_t PointeeSize = *AccessedType.size(VH);
-      ModelGEPReturnedType = llvm::IntegerType::get(Ctxt, PointeeSize * 8);
-    } else {
-      // Calculate the size of the GEPPed field
-      // If there is a remaining offset, we are returning something more
-      // similar to a pointer than the actual value
-      ModelGEPReturnedType = PtrSizedInteger;
-    }
-
-    auto *ModelGEPFunction = getModelGEP(M, ModelGEPReturnedType, BaseAddrType);
+    auto *ModelGEPFunction = getModelGEP(M, PtrSizedInteger, BaseAddrType);
 
     // Build the arguments for the call to modelGEP
     SmallVector<Value *, 4> Args;
@@ -2331,9 +2319,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
     // Inject a call to AddressOf
     auto *AddressOfFunctionType = getAddressOfType(AddrOfReturnedType,
-                                                   ModelGEPReturnedType);
+                                                   PtrSizedInteger);
     auto *AddressOfFunction = AddressOfPool.get({ AddrOfReturnedType,
-                                                  ModelGEPReturnedType },
+                                                  PtrSizedInteger },
                                                 AddressOfFunctionType,
                                                 "AddressOf");
     auto *PointeeConstantStrPtr = TypeArgCache.getQualifiedTypeArg(AccessedType,
