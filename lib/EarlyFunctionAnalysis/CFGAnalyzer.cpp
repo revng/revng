@@ -776,7 +776,12 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
                                                     Block.ID(),
                                                     MetaAddress::invalid(),
                                                     CalledSymbol);
-    revng_assert(Summary->ElectedFSO.has_value());
+
+    // TODO: in case of absence of prototype, consider initializing ElectedFSO
+    //       with getMinimalFinalStackOffset in importPrototype directly.
+    uint64_t MinimalFSO = getMinimalFinalStackOffset(Binary->Architecture());
+    uint64_t CallSiteFSO = Summary->ElectedFSO.value_or(MinimalFSO);
+    revng_assert(CallSiteFSO >= MinimalFSO);
 
     Argument = CI->getArgOperand(StackPointerOffsetIndex);
     auto *StackPointerOffset = dyn_cast<ConstantInt>(Argument);
@@ -797,7 +802,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
       } else if (IsTailCall) {
         // We have a tail call for which the FSO is known! We can exploit this
         // to know this function's FSO!
-        TailCalls.emplace_back(CI, FSO + *Summary->ElectedFSO, Summary);
+        TailCalls.emplace_back(CI, FSO + CallSiteFSO, Summary);
       } else {
         Argument = CI->getArgOperand(ReturnValuePreservedIndex);
         auto *ReturnValuePreserved = dyn_cast<ConstantInt>(Argument);
@@ -808,9 +813,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
           // preserved.
           // This is definitely not a return but it might be an indirect
           // tail call.
-          MaybeIndirectTailCalls.emplace_back(CI,
-                                              FSO + *Summary->ElectedFSO,
-                                              Summary);
+          MaybeIndirectTailCalls.emplace_back(CI, FSO + CallSiteFSO, Summary);
         } else {
           // The return address is not preserved, something fishy is going on
           IBIResult.emplace_back(CI, makeIndirectEdge(LongJmp));
