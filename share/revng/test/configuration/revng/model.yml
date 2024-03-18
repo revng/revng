@@ -61,6 +61,9 @@ commands:
       - type: revng-qa.compiled
         filter: example-executable-2 and with-debug-info
     command: |-
-      revng model import binary "$INPUT1" > input1.yml;
-      revng model import binary "$INPUT2" > input2.yml;
-      ( revng model diff input1.yml input2.yml || true ) | revng model apply input1.yml | diff -u - input2.yml
+      TEMPORARY=$$(temp -d);
+      revng model import binary "$INPUT1" > $$TEMPORARY/input1.yml;
+      revng model import binary "$INPUT2" > $$TEMPORARY/input2.yml;
+      ( revng model diff $$TEMPORARY/input1.yml $$TEMPORARY/input2.yml || true )
+        | revng model apply $$TEMPORARY/input1.yml
+        | diff -u - $$TEMPORARY/input2.yml

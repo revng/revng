@@ -15,6 +15,8 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/NamedEnumScalarTraits.h"
 
 #include "ValueDistributor.h"
 
@@ -65,6 +67,8 @@ public:
 
 public:
   uint64_t finalStackOffset(uint64_t SizeOfArgumentsOnStack) const;
+
+  uint64_t combinedStackArgumentSize(const model::CABIFunctionType &) const;
 };
 
 /// Helper for choosing a "generic" register type, mainly used for filling
@@ -340,6 +344,21 @@ ToRawConverter::finalStackOffset(uint64_t SizeOfArgumentsOnStack) const {
   }
 
   return Result;
+}
+
+using TRC = ToRawConverter;
+uint64_t
+TRC::combinedStackArgumentSize(const model::CABIFunctionType &Function) const {
+  auto ReturnValue = distributeReturnValue(Function.ReturnType());
+
+  ArgumentDistributor Distributor(ABI);
+  if (ReturnValue.SizeOnStack != 0)
+    Distributor.addShadowPointerReturnValueLocationArgument();
+
+  for (const model::Argument &Argument : Function.Arguments())
+    Distributor.nextArgument(Argument.Type());
+
+  return Distributor.UsedStackOffset;
 }
 
 DistributedValues
@@ -631,4 +650,109 @@ Layout::returnValueRegisters() const {
   return Result;
 }
 
+uint64_t finalStackOffset(const model::CABIFunctionType &Function) {
+  const abi::Definition &ABI = abi::Definition::get(Function.ABI());
+  ToRawConverter Helper(ABI);
+
+  return Helper.finalStackOffset(ABI.CalleeIsResponsibleForStackCleanup() ?
+                                   Helper.combinedStackArgumentSize(Function) :
+                                   0);
+}
+
+UsedRegisters usedRegisters(const model::CABIFunctionType &Function) {
+  UsedRegisters Result;
+
+  // Ready the return value register data.
+  const abi::Definition &ABI = abi::Definition::get(Function.ABI());
+  auto RV = ToRawConverter(ABI).distributeReturnValue(Function.ReturnType());
+  std::ranges::move(RV.Registers, std::back_inserter(Result.ReturnValues));
+
+  // Handle shadow pointer return value gracefully.
+  ArgumentDistributor Distributor(ABI);
+  if (RV.SizeOnStack != 0) {
+    Distributor.addShadowPointerReturnValueLocationArgument();
+
+    revng_assert(Result.ReturnValues.empty());
+    const auto &GPRs = ABI.GeneralPurposeReturnValueRegisters();
+    revng_assert(!GPRs.empty());
+    Result.ReturnValues.emplace_back(GPRs[0]);
+
+    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid)
+      Result.Arguments.emplace_back(ABI.ReturnValueLocationRegister());
+  }
+
+  if (ABI.GeneralPurposeArgumentRegisters().empty()
+      && ABI.VectorArgumentRegisters().empty()) {
+    // Do not even look at the arguments if an ABI explicitly states that it
+    // never uses any registers in the first place.
+    return Result;
+  }
+
+  // Iterate over arguments until we are sure no further argument can use
+  // any registers.
+  for (const model::Argument &Argument : Function.Arguments().asVector()) {
+    auto Distributed = Distributor.nextArgument(Argument.Type());
+    for (DistributedValue SingleEntry : Distributed)
+      if (!SingleEntry.RepresentsPadding)
+        std::ranges::move(SingleEntry.Registers,
+                          std::back_inserter(Result.Arguments));
+
+    if (!Distributor.canNextArgumentUseRegisters())
+      break;
+  }
+
+  return Result;
+}
+
 } // namespace abi::FunctionType
+
+using FTL = abi::FunctionType::Layout;
+namespace FTAK = abi::FunctionType::ArgumentKind;
+
+template<>
+struct llvm::yaml::ScalarEnumerationTraits<FTAK::Values>
+  : public NamedEnumScalarTraits<FTAK::Values> {};
+
+template<>
+struct llvm::yaml::MappingTraits<FTL::Argument::StackSpan> {
+  static void mapping(IO &IO, FTL::Argument::StackSpan &SS) {
+    IO.mapRequired("Offset", SS.Offset);
+    IO.mapRequired("Size", SS.Size);
+  }
+};
+LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument::StackSpan)
+
+template<>
+struct llvm::yaml::MappingTraits<FTL::ReturnValue> {
+  static void mapping(IO &IO, FTL::ReturnValue &RV) {
+    IO.mapRequired("Type", RV.Type);
+    IO.mapRequired("Registers", RV.Registers);
+  }
+};
+LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::ReturnValue)
+
+template<>
+struct llvm::yaml::MappingTraits<FTL::Argument> {
+  static void mapping(IO &IO, FTL::Argument &A) {
+    IO.mapRequired("Type", A.Type);
+    IO.mapRequired("Kind", A.Kind);
+    IO.mapRequired("Registers", A.Registers);
+    IO.mapOptional("Stack", A.Stack);
+  }
+};
+LLVM_YAML_IS_SEQUENCE_VECTOR(FTL::Argument)
+
+template<>
+struct llvm::yaml::MappingTraits<FTL> {
+  static void mapping(IO &IO, FTL &L) {
+    IO.mapRequired("Arguments", L.Arguments);
+    IO.mapRequired("ReturnValues", L.ReturnValues);
+    IO.mapRequired("CalleeSavedRegisters", L.CalleeSavedRegisters);
+    IO.mapRequired("FinalStackOffset", L.FinalStackOffset);
+  }
+};
+
+void FTL::dump() const {
+  // TODO: accept an arbitrary stream
+  serialize(dbg, *this);
+}

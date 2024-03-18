@@ -460,3 +460,76 @@ auto as_rvalue(RangeType &&Range) {
   return llvm::make_range(std::make_move_iterator(Range.begin()),
                           std::make_move_iterator(Range.end()));
 }
+
+namespace revng {
+namespace detail {
+
+template<typename ToConstruct, typename Begin, typename End>
+concept Impl = std::input_or_output_iterator<Begin>
+               && std::sentinel_for<End, Begin>
+               && std::is_constructible_v<ToConstruct, Begin, End>;
+template<typename ToConstruct, typename Range>
+concept IteratorConstructible = std::ranges::range<Range>
+                                && Impl<ToConstruct,
+                                        decltype(std::declval<Range>().begin()),
+                                        decltype(std::declval<Range>().end())>;
+
+template<typename Container>
+struct ToImpl {
+  template<std::ranges::range Range>
+  constexpr Container asContainer(Range &&Input) {
+    // TODO: extend to support for more than just containers that
+    //       provide a double-iterator constructor.
+    return Container(Input.begin(), Input.end());
+  }
+};
+
+} // namespace detail
+
+// NOTE: the implementation here is very crude, but should be good enough until
+//       we update to a version of `libc++` with `c++23` support.
+template<typename Container>
+constexpr detail::ToImpl<Container> to() {
+  return detail::ToImpl<Container>();
+};
+
+} // namespace revng
+
+template<std::ranges::range Range,
+         revng::detail::IteratorConstructible<Range> Container>
+constexpr Container operator|(Range &&R, revng::detail::ToImpl<Container> T) {
+  return T.asContainer(std::forward<Range>(R));
+}
+
+namespace examples {
+
+constexpr bool test() {
+  constexpr std::array Input{ 1, 2, 3, 5, 7, 8, 10, 1 };
+
+  auto IsOdd = [](int i) { return i % 2 == 1; };
+
+  // The "copy" approach works fine for vectors
+  std::vector<int> InserterVectorOutput;
+  std::ranges::copy(Input | std::views::filter(IsOdd),
+                    std::back_inserter(InserterVectorOutput));
+
+  // But it starts looking a lot uglier when applied to other containers.
+  // (using vector in this test because `std::set` only became `constexpr` in
+  // c++23, but the idea is the same: you cannot use `std::back_inserter` with
+  // sets).
+  using FakeSet = std::/* set */ vector<int>;
+  FakeSet InserterSetOutput;
+  std::ranges::copy(Input | std::views::filter(IsOdd),
+                    std::inserter(InserterSetOutput,
+                                  InserterSetOutput.begin()));
+
+  // On the other hand, `revng::to` just works (tm) for everything that can be
+  // constructed from two iterators. And even looks nicer to boot.
+  FakeSet ToOutput = Input | std::views::filter(IsOdd) | revng::to<FakeSet>();
+
+  return ToOutput.size() == InserterVectorOutput.size()
+         && InserterVectorOutput.size() == InserterSetOutput.size();
+}
+static_assert(test());
+
+} // namespace examples

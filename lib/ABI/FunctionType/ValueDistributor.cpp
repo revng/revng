@@ -247,11 +247,6 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
 
 DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
                                                      uint64_t Size) {
-  std::array Helper{ UsedGeneralPurposeRegisterCount,
-                     UsedVectorRegisterCount,
-                     ArgumentIndex };
-  uint64_t Index = *std::ranges::max_element(Helper);
-
   DistributedValue Result;
   Result.Size = Size;
   if (Result.Size > ABI.getPointerSize()) {
@@ -268,11 +263,12 @@ DistributedValues ArgumentDistributor::positionBased(bool IsFloat,
   uint64_t &UsedRegisterCount = UseVR ? UsedVectorRegisterCount :
                                         UsedGeneralPurposeRegisterCount;
 
-  if (Index < UsedRegisters.size()) {
-    Result.Registers.emplace_back(UsedRegisters[Index]);
+  uint64_t CurrentArgumentIndex = nextPositionBasedIndex();
+  if (CurrentArgumentIndex < UsedRegisters.size()) {
+    Result.Registers.emplace_back(UsedRegisters[CurrentArgumentIndex]);
 
-    revng_assert(UsedRegisterCount <= Index);
-    UsedRegisterCount = Index + 1;
+    revng_assert(UsedRegisterCount <= CurrentArgumentIndex);
+    UsedRegisterCount = CurrentArgumentIndex + 1;
   } else {
     if (UsedStackOffset) {
       if (ABI.paddedSizeOnStack(UsedStackOffset) != UsedStackOffset) {

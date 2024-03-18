@@ -317,9 +317,8 @@ void RootAnalyzer::updateCSAA() {
 static llvm::SmallSet<model::Register::Values, 16>
 getPreservedRegisters(const model::TypePath &Prototype) {
   llvm::SmallSet<model::Register::Values, 16> Result;
-  using namespace abi::FunctionType;
-  auto CalleeSavedRegisters = Layout::make(Prototype).CalleeSavedRegisters;
-  for (model::Register::Values Register : CalleeSavedRegisters)
+  namespace FT = abi::FunctionType;
+  for (model::Register::Values Register : FT::calleeSavedRegisters(Prototype))
     Result.insert(Register);
   return Result;
 }

@@ -197,6 +197,24 @@ public:
     }
   }
 
+  bool canNextArgumentUseRegisters() const {
+    size_t GPRCount = ABI.GeneralPurposeArgumentRegisters().size();
+    size_t VectorCount = ABI.VectorArgumentRegisters().size();
+
+    if (ABI.ArgumentsArePositionBased()) {
+      return nextPositionBasedIndex() < std::max(GPRCount, VectorCount);
+    } else {
+      if (UsedGeneralPurposeRegisterCount == GPRCount
+          && UsedVectorRegisterCount == VectorCount)
+        return false;
+
+      if (ABI.NoRegisterArgumentsCanComeAfterStackOnes() && UsedStackOffset)
+        return false;
+    }
+
+    return true;
+  }
+
 private:
   DistributedValues positionBased(bool IsFloat, uint64_t Size);
   DistributedValues nonPositionBased(bool IsScalar,
@@ -204,6 +222,13 @@ private:
                                      uint64_t Size,
                                      uint64_t Alignment,
                                      bool HasNaturalAlignment);
+
+private:
+  size_t nextPositionBasedIndex() const {
+    size_t MaxRegister = std::max(UsedGeneralPurposeRegisterCount,
+                                  UsedVectorRegisterCount);
+    return std::max(MaxRegister, ArgumentIndex);
+  }
 };
 
 class ReturnValueDistributor : public ValueDistributor {

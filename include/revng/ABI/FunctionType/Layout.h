@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 
+#include "revng/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/QualifiedType.h"
 
@@ -21,14 +22,15 @@ model::TypePath convertToRaw(const model::CABIFunctionType &Function,
 namespace ArgumentKind {
 
 enum Values {
-  Scalar = 0,
+  Scalar,
   PointerToCopy,
   ReferenceToAggregate,
   ShadowPointerToAggregateReturnValue,
-  Invalid,
+
+  Count
 };
 
-inline const char *getName(Values Kind) {
+inline llvm::StringRef getName(Values Kind) {
   switch (Kind) {
   case Scalar:
     return "Scalar";
@@ -38,12 +40,25 @@ inline const char *getName(Values Kind) {
     return "ReferenceToAggregate";
   case ShadowPointerToAggregateReturnValue:
     return "ShadowPointerToAggregateReturnValue";
-  default:;
+  default:
+    revng_abort("Unknown enum entry");
   }
-  return "Invalid";
 }
 
-} // end namespace ArgumentKind
+inline Values fromName(llvm::StringRef Kind) {
+  if (Kind == "Scalar")
+    return Scalar;
+  else if (Kind == "PointerToCopy")
+    return PointerToCopy;
+  else if (Kind == "ReferenceToAggregate")
+    return ReferenceToAggregate;
+  else if (Kind == "ShadowPointerToAggregateReturnValue")
+    return ShadowPointerToAggregateReturnValue;
+  else
+    revng_abort("Unknown enum entry");
+}
+
+} // namespace ArgumentKind
 
 namespace ReturnMethod {
 enum Values {
@@ -164,59 +179,81 @@ public:
   }
 
 public:
-  void dump() const debug_function {
-    // TODO: accept an arbitrary stream
-
-    //
-    // Arguments
-    //
-    dbg << "Arguments:\n";
-    for (const Argument &A : Arguments) {
-      dbg << "  - Type: ";
-      A.Type.dump();
-      dbg << "\n";
-      dbg << "    Registers: [";
-      for (model::Register::Values Register : A.Registers)
-        dbg << " " << model::Register::getName(Register).str();
-      dbg << " ]\n";
-      dbg << "    StackSpan: ";
-      if (A.Stack) {
-        dbg << "{ Offset: " << A.Stack->Offset << ", Size: " << A.Stack->Size
-            << " }\n";
-      } else {
-        dbg << "no\n";
-      }
-      dbg << "    Kind: " << getName(A.Kind);
-      dbg << "\n";
-    }
-
-    //
-    // ReturnValues
-    //
-    dbg << "ReturnValues: \n";
-    for (const ReturnValue &RV : ReturnValues) {
-      dbg << "  - Type: ";
-      RV.Type.dump();
-      dbg << "\n";
-      dbg << "    Registers: [";
-      for (model::Register::Values Register : RV.Registers)
-        dbg << " " << model::Register::getName(Register).str();
-      dbg << " ]\n";
-    }
-
-    //
-    // CalleeSavedRegisters
-    //
-    dbg << "CalleeSavedRegisters: [";
-    for (model::Register::Values Register : CalleeSavedRegisters)
-      dbg << " " << model::Register::getName(Register).str();
-    dbg << " ]\n";
-
-    //
-    // FinalStackOffset
-    //
-    dbg << "FinalStackOffset: " << FinalStackOffset << "\n";
-  }
+  void dump() const debug_function;
 };
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::CABIFunctionType &Function) {
+  return abi::Definition::get(Function.ABI()).CalleeSavedRegisters();
+}
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::RawFunctionType &Function) {
+  return Function.PreservedRegisters();
+}
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::Type &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+    return calleeSavedRegisters(*CABI);
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+    return calleeSavedRegisters(*Raw);
+  else
+    revng_abort("Layouts of non-function types are not supported.");
+}
+
+inline std::span<const model::Register::Values>
+calleeSavedRegisters(const model::TypePath &Function) {
+  revng_assert(Function.isValid());
+  return calleeSavedRegisters(*Function.get());
+}
+
+uint64_t finalStackOffset(const model::CABIFunctionType &Function);
+inline uint64_t finalStackOffset(const model::RawFunctionType &Function) {
+  return Function.FinalStackOffset();
+}
+
+inline uint64_t finalStackOffset(const model::Type &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+    return finalStackOffset(*CABI);
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+    return finalStackOffset(*Raw);
+  else
+    revng_abort("Layouts of non-function types are not supported.");
+}
+
+inline uint64_t finalStackOffset(const model::TypePath &Function) {
+  revng_assert(Function.isValid());
+  return finalStackOffset(*Function.get());
+}
+
+struct UsedRegisters {
+  llvm::SmallVector<model::Register::Values, 8> Arguments;
+  llvm::SmallVector<model::Register::Values, 8> ReturnValues;
+};
+UsedRegisters usedRegisters(const model::CABIFunctionType &Function);
+
+inline UsedRegisters usedRegisters(const model::RawFunctionType &Function) {
+  UsedRegisters Result;
+  for (const model::NamedTypedRegister &Register : Function.Arguments())
+    Result.Arguments.emplace_back(Register.Location());
+  for (const model::NamedTypedRegister &Register : Function.ReturnValues())
+    Result.ReturnValues.emplace_back(Register.Location());
+  return Result;
+}
+
+inline UsedRegisters usedRegisters(const model::Type &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+    return usedRegisters(*CABI);
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+    return usedRegisters(*Raw);
+  else
+    revng_abort("Layouts of non-function types are not supported.");
+}
+
+inline UsedRegisters usedRegisters(const model::TypePath &Function) {
+  revng_assert(Function.isValid());
+  return usedRegisters(*Function.get());
+}
 
 } // namespace abi::FunctionType

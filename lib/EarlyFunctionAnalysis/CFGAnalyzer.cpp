@@ -776,7 +776,6 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
                                                     Block.ID(),
                                                     MetaAddress::invalid(),
                                                     CalledSymbol);
-    revng_assert(Summary->ElectedFSO.has_value());
 
     Argument = CI->getArgOperand(StackPointerOffsetIndex);
     auto *StackPointerOffset = dyn_cast<ConstantInt>(Argument);
@@ -795,14 +794,17 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
           IBIResult.emplace_back(CI, makeIndirectEdge(BrokenReturn));
         }
       } else if (IsTailCall) {
-        // We have a tail call for which the FSO is known! We can exploit this
-        // to know this function's FSO!
-        TailCalls.emplace_back(CI, FSO + *Summary->ElectedFSO, Summary);
+        if (Summary->ElectedFSO.has_value()) {
+          // We have a tail call for which the FSO is known! We can exploit this
+          // to know this function's FSO!
+          TailCalls.emplace_back(CI, FSO + *Summary->ElectedFSO, Summary);
+        }
       } else {
         Argument = CI->getArgOperand(ReturnValuePreservedIndex);
         auto *ReturnValuePreserved = dyn_cast<ConstantInt>(Argument);
         if (ReturnValuePreserved != nullptr
-            and getLimitedValue(ReturnValuePreserved) == 0) {
+            and getLimitedValue(ReturnValuePreserved) == 0
+            and Summary->ElectedFSO.has_value()) {
           // Here the stack pointer offset is known and the value of the
           // return address (in the link register/top of the stack) has been
           // preserved.
