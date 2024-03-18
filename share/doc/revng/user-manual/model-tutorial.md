@@ -80,11 +80,9 @@ At this point, we provided rev.ng enough information to be able to show us the d
 $ revng artifact disassemble sum --model model.yml | revng ptml
 0x400000:Code_x86_64.asm.tar.gz: |-
   _function_0x400000_Code_x86_64:
-    add rdi, rsi
-    mov rax, rdi
-    ret
-
-
+    400000:    48 01 f7    add rdi, rsi
+    400003:    48 89 f8    mov rax, rdi
+    400006:    c3          ret
 ```
 
 The output of the `revng artifact disassemble` command is a `tar.gz` composed by one file for each input function. Each file is an assembly listing decorated using [PTML](../references/ptml.md).
