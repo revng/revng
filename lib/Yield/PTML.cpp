@@ -329,10 +329,6 @@ static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
   revng_assert(!BasicBlock.Instructions().empty());
   auto FromIterator = BasicBlock.Instructions().begin();
   auto ToIterator = std::prev(BasicBlock.Instructions().end());
-  if (BasicBlock.HasDelaySlot()) {
-    revng_assert(BasicBlock.Instructions().size() > 1);
-    --ToIterator;
-  }
 
   std::string Result;
   for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator)
