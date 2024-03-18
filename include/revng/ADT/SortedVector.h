@@ -71,6 +71,11 @@ public:
     }
   }
 
+  template<std::input_iterator FromIt, std::sentinel_for<FromIt> ToIt>
+  SortedVector(FromIt From, ToIt To) : TheVector(From, To) {
+    sort<true>();
+  }
+
 public:
   void swap(SortedVector &Other) {
     revng_assert(not BatchInsertInProgress);
