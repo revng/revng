@@ -35,6 +35,16 @@ fields:
       type: SortedVector
       elementType: TaggedString
 
+  - name: PrecedingDirectives
+    sequence:
+      type: SortedVector
+      elementType: TaggedLine
+
+  - name: FollowingDirectives
+    sequence:
+      type: SortedVector
+      elementType: TaggedLine
+
   - name: OpcodeIdentifier
     type: string
     optional: true

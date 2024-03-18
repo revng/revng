@@ -14,11 +14,26 @@ bool yield::TaggedString::verify(model::VerifyHelper &VH) const {
     return VH.fail("The type of this tag is not valid.");
   if (Content().empty())
     return VH.fail("This tag doesn't have any data.");
+  if (Content().find('\n') != std::string::npos)
+    return VH.fail("String is not allowed to break the line, "
+                   "use multiple strings instead.");
   for (const yield::TagAttribute &Attribute : Attributes()) {
     if (Attribute.Name().empty())
       return VH.fail("Attributes without names are not allowed.");
     if (Attribute.Name().empty())
       return VH.fail("Attributes without values are not allowed.");
+  }
+
+  return true;
+}
+
+bool yield::TaggedLine::verify(model::VerifyHelper &VH) const {
+  for (auto [Index, String] : llvm::enumerate(Tags())) {
+    if (Index != String.Index())
+      return VH.fail("Tagged string indexing is broken.");
+
+    if (!String.verify(VH))
+      return VH.fail();
   }
 
   return true;
@@ -32,12 +47,27 @@ bool yield::Instruction::verify(model::VerifyHelper &VH) const {
 
   if (Disassembled().empty())
     return VH.fail("An instruction must have at least one tag.");
-  for (auto [Index, Tag] : llvm::enumerate(Disassembled())) {
-    if (Index != Tag.Index())
-      return VH.fail("Tag indexing is broken.");
+  for (auto [Index, Tagged] : llvm::enumerate(Disassembled())) {
+    if (Index != Tagged.Index())
+      return VH.fail("Tagged string indexing is broken.");
 
-    if (!Tag.verify(VH))
-      return VH.fail("Tag verification failed");
+    if (!Tagged.verify(VH))
+      return VH.fail();
+  }
+
+  for (auto [Index, Directive] : llvm::enumerate(PrecedingDirectives())) {
+    if (Index != Directive.Index())
+      return VH.fail("Preceding directive indexing is broken.");
+
+    if (!Directive.verify(VH))
+      return VH.fail();
+  }
+  for (auto [Index, Directive] : llvm::enumerate(FollowingDirectives())) {
+    if (Index != Directive.Index())
+      return VH.fail("Following directive indexing is broken.");
+
+    if (!Directive.verify(VH))
+      return VH.fail();
   }
 
   return true;

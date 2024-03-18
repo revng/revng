@@ -116,7 +116,13 @@ instructionSize(const yield::Instruction &Instruction,
                 size_t CommentIndicatorSize,
                 bool IsInDelayedSlot = false) {
   // Instruction body.
-  yield::layout::Size Result = fontSize(textSize(Instruction.Disassembled()),
+  yield::layout::Size DisassembledSize = textSize(Instruction.Disassembled());
+  for (const auto &Directive : Instruction.PrecedingDirectives())
+    appendSize(DisassembledSize, textSize(Directive.Tags()));
+  for (const auto &Directive : Instruction.FollowingDirectives())
+    appendSize(DisassembledSize, textSize(Directive.Tags()));
+
+  yield::layout::Size Result = fontSize(std::move(DisassembledSize),
                                         Configuration.InstructionFontSize,
                                         Configuration);
 

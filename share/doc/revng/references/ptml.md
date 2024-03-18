@@ -114,6 +114,7 @@ The assembly language defines the following `data-token`s:
 * `asm.memory-operand`: used to indicate memory operands.
 * `asm.register`: the name of a register.
 * `asm.helper`: a macro-like function for specifying some information in a more human-readable fashion (e.g., `offset_to` to get the offset of a global).
+* `asm.directive`: a GAS-style directive attached to some of the instructions, for example `.set`.
 * `asm.raw-bytes`: an optional raw byte representation of an instruction.
 * `asm.instruction-address`: an optional address an instruction (see MetaAddress docs for specifics).
 

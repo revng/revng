@@ -70,8 +70,14 @@ embedContentIntoTags(const std::vector<yield::Instruction::RawTag> &Tags,
   SortedVector<yield::TaggedString> Result;
 
   uint64_t Index = 0;
-  for (const yield::Instruction::RawTag &Tag : Tags)
-    Result.emplace(Index++, Tag.Type, Text.slice(Tag.From, Tag.To));
+  for (const yield::Instruction::RawTag &T : Tags) {
+    auto [New, S] = Result.emplace(Index++, T.Type, Text.slice(T.From, T.To));
+    revng_assert(S);
+
+    if (New->Type() == yield::TagType::Whitespace)
+      if (New->Content().find("\n") != std::string::npos)
+        New->Content() = "\n";
+  }
 
   return Result;
 }
@@ -118,6 +124,91 @@ static auto flattenTags(std::vector<yield::Instruction::RawTag> &&Tags,
   }
 
   return embedContentIntoTags(Result, RawText);
+}
+
+using Directives = std::tuple<SortedVector<yield::TaggedString>,
+                              SortedVector<yield::TaggedLine>,
+                              SortedVector<yield::TaggedLine>>;
+static Directives detectDirectives(SortedVector<yield::TaggedString> &&Tagged) {
+  // Split the input into separate lines.
+  uint64_t Index = 0;
+  auto ParsedUntil = Tagged.begin();
+  std::vector<yield::TaggedLine> Lines;
+  for (auto Iterator = Tagged.begin(); Iterator != Tagged.end(); ++Iterator) {
+    if (Iterator->Type() == yield::TagType::Whitespace) {
+      if (Iterator->Content() == "\n") {
+        revng_assert(ParsedUntil != Iterator);
+        Lines.emplace_back(Index++,
+                           std::make_move_iterator(ParsedUntil),
+                           std::make_move_iterator(Iterator));
+        ParsedUntil = Iterator;
+        ++ParsedUntil; // Skip the whitespace tag that triggered the split.
+      }
+    }
+  }
+
+  if (Lines.empty()) {
+    // This is a single-line instruction, so no directives.
+    return Directives{ std::move(Tagged), {}, {} };
+  } else {
+    Lines.emplace_back(Index++,
+                       std::make_move_iterator(ParsedUntil),
+                       std::make_move_iterator(Tagged.end()));
+  }
+
+  // Look at each line and determine whether it's a directive or not.
+  Directives Result;
+  auto &[Instruction, Preceding, Following] = Result;
+  for (auto &Line : Lines) {
+    revng_assert(!Line.Tags().empty());
+    revng_assert(!Line.Tags().begin()->Content().empty());
+    if (Line.Tags().begin()->Content()[0] == '.') {
+      if (Instruction.empty()) {
+        // No instruction yet, this is a preceding directive.
+        auto [_, Success] = Preceding.emplace(std::move(Line));
+        revng_assert(Success);
+      } else {
+        // Instruction is set already, this is a following directive.
+        auto [_, Success] = Following.emplace(std::move(Line));
+        revng_assert(Success);
+      }
+    } else {
+      // This is not a directive, set it as the main instruction.
+      revng_assert(Instruction.empty(),
+                   "Multi-line instructions are not supported.");
+      Instruction = std::move(Line.Tags());
+    }
+  }
+
+  // Fix indexing and mark appropriate tags as `Directive`s.
+  for (auto [Index, Tag] : llvm::enumerate(Instruction))
+    Tag.Index() = Index;
+  for (auto [Index, String] : llvm::enumerate(Preceding)) {
+    String.Index() = Index;
+    for (auto [Index, Tag] : llvm::enumerate(String.Tags())) {
+      Tag.Index() = Index;
+      if (Tag.Type() == yield::TagType::Untagged && Tag.Content()[0] == '.')
+        Tag.Type() = yield::TagType::Directive;
+    }
+  }
+  for (auto [Index, String] : llvm::enumerate(Following)) {
+    String.Index() = Index;
+    for (auto [Index, Tag] : llvm::enumerate(String.Tags())) {
+      Tag.Index() = Index;
+      if (Tag.Type() == yield::TagType::Untagged && Tag.Content()[0] == '.')
+        Tag.Type() = yield::TagType::Directive;
+    }
+  }
+
+  return Result;
+}
+
+void yield::Instruction::importTags(std::vector<RawTag> &&Tags,
+                                    std::string &&Content) {
+  Disassembled() = flattenTags(std::move(Tags), std::move(Content));
+  std::tie(Disassembled(),
+           PrecedingDirectives(),
+           FollowingDirectives()) = detectDirectives(std::move(Disassembled()));
 }
 
 //
@@ -324,11 +415,6 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
   }
 
   return Result;
-}
-
-void yield::Instruction::importTags(std::vector<RawTag> &&Tags,
-                                    std::string &&Content) {
-  Disassembled() = flattenTags(std::move(Tags), std::move(Content));
 }
 
 void yield::Instruction::handleSpecialTags(const yield::BasicBlock &BasicBlock,

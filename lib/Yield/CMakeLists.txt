@@ -75,6 +75,7 @@ target_tuple_tree_generator(
   "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/TagAttribute.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/TaggedLine.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/TaggedString.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h")
 

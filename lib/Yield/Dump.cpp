@@ -14,6 +14,10 @@ void yield::TaggedString::dump() const {
   serialize(dbg, *this);
 }
 
+void yield::TaggedLine::dump() const {
+  serialize(dbg, *this);
+}
+
 void yield::Instruction::dump() const {
   serialize(dbg, *this);
 }

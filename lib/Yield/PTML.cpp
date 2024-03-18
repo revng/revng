@@ -113,15 +113,14 @@ static std::string emitTagged(const PTMLBuilder &B,
   return Result.serialize();
 }
 
-static std::string taggedText(const PTMLBuilder &ThePTMLBuilder,
-                              const yield::Instruction &Instruction) {
-  revng_assert(Instruction.verify(true));
-
+static std::string taggedLine(const PTMLBuilder &ThePTMLBuilder,
+                              const SortedVector<yield::TaggedString> &Tagged) {
   std::string Result;
-  for (const yield::TaggedString &TaggedString : Instruction.Disassembled())
-    Result += emitTagged(ThePTMLBuilder, TaggedString);
 
-  return Result;
+  for (const yield::TaggedString &String : Tagged)
+    Result += emitTagged(ThePTMLBuilder, String);
+
+  return Result += '\n';
 }
 
 /// An internal helper for managing instruction prefixes.
@@ -240,36 +239,79 @@ public:
     return B.getTag(tags::Span, "  ")
              .addAttribute(attributes::Token, ptml::tokens::Indentation)
              .serialize()
-           + Result;
+           + std::move(Result);
+  }
+
+  /// \note This does _not_ consume anything, feel free to call as many times
+  ///       as you need.
+  std::string emitEmpty(const PTMLBuilder &B, const model::Binary &Binary) {
+    uint64_t TotalPrefixSize = 2;
+
+    if (LongestAddressString != 0) {
+      using model::Architecture::getAssemblyLabelIndicator;
+      auto Indicator = getAssemblyLabelIndicator(Binary.Architecture());
+      TotalPrefixSize += LongestAddressString + Indicator.size() + 4;
+    }
+
+    if (LongestByteString != 0)
+      TotalPrefixSize += LongestByteString + 3;
+
+    return B.getTag(tags::Span, std::string(TotalPrefixSize, ' '))
+      .addAttribute(attributes::Token, ptml::tokens::Indentation)
+      .serialize();
   }
 };
 
-static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
+static std::string instruction(const PTMLBuilder &B,
                                const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
                                const model::Binary &Binary,
                                InstructionPrefixManager &&Prefixes,
                                bool AddTargets = false) {
-  // Tagged instruction body.
-  std::string Result = Prefixes.emit(ThePTMLBuilder,
+  revng_assert(Instruction.verify(true));
+
+  std::string Prefix = Prefixes.emit(B,
                                      Instruction.Address(),
                                      BasicBlock.ID(),
-                                     Binary)
-                       + taggedText(ThePTMLBuilder, Instruction);
+                                     Binary);
 
+  // Tagged instruction body.
+  std::string Result;
+  for (const auto &Directive : Instruction.PrecedingDirectives()) {
+    Result += B.getTag(tags::Div,
+                       std::move(Prefix) + taggedLine(B, Directive.Tags()))
+                .serialize();
+    Prefix = Prefixes.emitEmpty(B, Binary);
+  }
+
+  Result += B.getTag(tags::Div,
+                     std::move(Prefix)
+                       + taggedLine(B, Instruction.Disassembled()))
+              .serialize();
+  Prefix = Prefixes.emitEmpty(B, Binary);
+
+  for (const auto &Directive : Instruction.FollowingDirectives()) {
+    Result += B.getTag(tags::Div,
+                       std::move(Prefix) + taggedLine(B, Directive.Tags()))
+                .serialize();
+    Prefix = Prefixes.emitEmpty(B, Binary);
+  }
+
+  // Tag it with appropriate location data.
   std::string InstructionLocation = serializedLocation(ranks::Instruction,
                                                        Function.Entry(),
                                                        BasicBlock.ID(),
                                                        Instruction.Address());
-  Tag Location = ThePTMLBuilder.getTag(tags::Span)
+  Tag Location = B.getTag(tags::Span)
                    .addAttribute(attributes::LocationDefinition,
                                  InstructionLocation);
-  Tag Out = ThePTMLBuilder.getTag(tags::Div, std::move(Result))
+  Tag Out = B.getTag(tags::Div, std::move(Result))
               .addAttribute(attributes::Scope, scopes::Instruction)
               .addAttribute(attributes::ActionContextLocation,
                             InstructionLocation);
 
+  // And conditionally add target data.
   if (AddTargets) {
     auto Targets = targets(BasicBlock, Function, Binary);
     Out.addListAttribute(attributes::LocationReferences, Targets);
@@ -299,16 +341,14 @@ static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
                           BasicBlock,
                           Function,
                           Binary,
-                          std::move(Prefixes))
-              + "\n";
+                          std::move(Prefixes));
   Result += instruction(ThePTMLBuilder,
                         *(ToIterator++),
                         BasicBlock,
                         Function,
                         Binary,
                         std::move(Prefixes),
-                        true)
-            + "\n";
+                        true);
 
   std::string LabelString;
   if (!Label.empty()) {

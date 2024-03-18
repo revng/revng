@@ -21,6 +21,7 @@ members:
   - name: Mnemonic
   - name: MnemonicPrefix
   - name: MnemonicSuffix
+  - name: Directive
   - name: Whitespace
   - name: Label
 
@@ -51,6 +52,8 @@ constexpr inline llvm::StringRef toPTML(const Values &V) {
     return "asm.helper";
   case yield::TagType::Label:
     return "asm.label";
+  case yield::TagType::Directive:
+    return "asm.directive";
   case yield::TagType::Whitespace:
   case yield::TagType::Untagged:
     return "";

@@ -22,6 +22,7 @@ COLOR_CONVERSION = {
     "asm.memory-operand": "dodger_blue1",
     "asm.register": "orange1",
     "asm.helper": "dodger_blue1",
+    "asm.directive": "sea_green1",
     "asm.instruction-address": "medium_purple1",
     "asm.raw-bytes": "white",
     "c.function": "bright_red",
