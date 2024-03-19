@@ -1102,8 +1102,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         // departing from the set node).
         auto BackEdgeIt = Backedges.find(PredToHead);
         if (BackEdgeIt != Backedges.end()) {
-          Backedges.insert(SetToHead);
           Backedges.erase(BackEdgeIt);
+          Backedges.insert(SetToHead);
         }
       }
     }
