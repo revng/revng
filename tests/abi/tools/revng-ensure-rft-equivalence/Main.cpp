@@ -109,15 +109,16 @@ int main(int Argc, char *Argv[]) {
 
   ExitOnError ExitOnError;
 
-  auto LeftModule = ModelInModule::load(LeftModelPath);
+  using Model = TupleTree<model::Binary>;
+  auto LeftModule = llvm::errorOrToExpected(Model::fromFile(LeftModelPath));
   if (not LeftModule)
     ExitOnError(LeftModule.takeError());
-  TupleTree<model::Binary> &LeftModel = LeftModule->Model;
+  TupleTree<model::Binary> &LeftModel = *LeftModule;
 
-  auto RightModule = ModelInModule::load(RightModelPath);
+  auto RightModule = llvm::errorOrToExpected(Model::fromFile(RightModelPath));
   if (not RightModule)
     ExitOnError(RightModule.takeError());
-  TupleTree<model::Binary> &RightModel = RightModule->Model;
+  TupleTree<model::Binary> &RightModel = *RightModule;
 
   std::error_code EC;
   llvm::ToolOutputFile OutputFile(OutputFilename,

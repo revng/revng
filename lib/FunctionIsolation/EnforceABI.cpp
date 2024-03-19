@@ -41,8 +41,9 @@
 
 using namespace llvm;
 
-char EnforceABI::ID = 0;
-using Register = RegisterPass<EnforceABI>;
+template<>
+char pipeline::FunctionPass<EnforceABI>::ID = 0;
+using Register = RegisterPass<pipeline::FunctionPass<EnforceABI>>;
 static Register X("enforce-abi", "Enforce ABI Pass", true, true);
 
 static Logger<> EnforceABILog("enforce-abi");
@@ -59,7 +60,7 @@ struct EnforceABIPipe {
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {
-    Manager.add(new EnforceABI());
+    Manager.add(new pipeline::FunctionPass<EnforceABI>());
   }
 };
 
@@ -110,12 +111,11 @@ private:
   FunctionMetadataCache *Cache;
 };
 
-bool EnforceABI::runOnModule(Module &M) {
+bool EnforceABI::prologue(llvm::Module &M, const model::Binary &Binary) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   // TODO: prepopulate type system with basic types of the ABI, so this can be
   //       const
-  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel().get();
 
   EnforceABIImpl Impl(M,
                       GCBI,
@@ -460,9 +460,8 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   return Result;
 }
 
-void EnforceABI::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void EnforceABI::getAnalysisUsage(llvm::AnalysisUsage &AU) {
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<FunctionMetadataCachePass>();
   AU.setPreservesAll();
 }

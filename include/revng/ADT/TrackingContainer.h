@@ -267,6 +267,18 @@ public:
 
   bool contains(const key_type &Key) const { return count(Key) != 0; }
 
+  value_type *tryGet(const key_type &Key) {
+    auto Iter = Content.find(Key);
+    if (Iter == Content.end()) {
+      if (TrackingIsActive)
+        NonExisting.back().insert(Key);
+      return nullptr;
+    }
+
+    markExistingKey(Key);
+    return &*Iter;
+  }
+
   const value_type *tryGet(const key_type &Key) const {
     auto Iter = Content.find(Key);
     if (Iter == Content.end()) {

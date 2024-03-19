@@ -680,7 +680,7 @@ void IsolateFunctionsImpl::run() {
   FunctionTags::IsolatedRoot.addTo(RootFunction);
 }
 
-bool IF::runOnModule(Module &TheModule) {
+bool IF::run(Module &TheModule, const pipeline::TargetsList &Targets) {
   if (not TheModule.getFunction("root")
       or TheModule.getFunction("root")->isDeclaration())
     return false;
@@ -704,4 +704,5 @@ void IsolateFunctions::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<FunctionMetadataCachePass>();
+  AU.addRequired<pipeline::LoadExecutionContextPass>();
 }

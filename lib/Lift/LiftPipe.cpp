@@ -13,7 +13,6 @@ extern "C" {
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LiftPipe.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/SerializeModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
@@ -41,6 +40,7 @@ void Lift::run(ExecutionContext &Ctx,
   // Perform lifting
   llvm::legacy::PassManager PM;
   PM.add(new LoadModelWrapperPass(Model));
+  PM.add(new LoadExecutionContextPass(&Ctx, Output.name()));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new LiftPass);
   PM.run(Output.getModule());

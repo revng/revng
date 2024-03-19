@@ -16,7 +16,7 @@ class IROptCommand(Command):
     def run(self, options: Options):
         args = options.remaining_args
         if not any(arg.startswith("-enable-new-pm") for arg in args):
-            args = ["-enable-new-pm=0"] + args + ["-serialize-model"]
+            args = ["-enable-new-pm=0"] + args
         opt_command = build_command_with_loads("opt", args, options)
         return run(opt_command, options)
 

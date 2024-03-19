@@ -39,17 +39,18 @@ int main(int Argc, char *Argv[]) {
 
   ExitOnError ExitOnError;
 
-  auto Model = ModelInModule::load(PathModel);
+  using Type = TupleTree<model::Binary>;
+  auto Model = llvm::errorOrToExpected(Type::fromFileOrSTDIN(PathModel));
   if (not Model)
     ExitOnError(Model.takeError());
 
-  using Type = TupleTreeDiff<model::Binary>;
-  auto Diff = ExitOnError(deserializeFileOrSTDIN<Type>(DiffPath));
+  using TypeDiff = TupleTreeDiff<model::Binary>;
+  auto Diff = ExitOnError(deserializeFileOrSTDIN<TypeDiff>(DiffPath));
 
-  ExitOnError(Diff.apply(Model->getWriteableModel()));
+  ExitOnError(Diff.apply(*Model));
 
-  auto DesiredOutput = Options.getDesiredOutput(Model->hasModule());
-  ExitOnError(Model->save(Options.getPath(), DesiredOutput));
+  auto DesiredOutput = Options.getDesiredOutput();
+  ExitOnError(Model->toFile(Options.getPath()));
 
   return EXIT_SUCCESS;
 }

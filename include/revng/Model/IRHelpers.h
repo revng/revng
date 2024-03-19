@@ -22,9 +22,8 @@ inline model::Function *llvmToModelFunction(model::Binary &Binary,
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;
-  if (auto It = Binary.Functions().find(MaybeMetaAddress);
-      It != Binary.Functions().end())
-    return &*It;
+  if (auto It = Binary.Functions().tryGet(MaybeMetaAddress); It != nullptr)
+    return It;
 
   return nullptr;
 }

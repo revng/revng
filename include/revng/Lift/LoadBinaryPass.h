@@ -1,5 +1,4 @@
 #pragma once
-
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
@@ -26,8 +25,6 @@ private:
   std::optional<RawBinaryView> BinaryView;
 
 public:
-  LoadBinaryWrapperPass();
-
   LoadBinaryWrapperPass(llvm::ArrayRef<uint8_t> Data) :
     llvm::ModulePass(ID), Data(Data) {
     revng_check(Data.data() != nullptr);

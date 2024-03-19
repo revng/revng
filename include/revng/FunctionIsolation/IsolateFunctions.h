@@ -11,14 +11,14 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/LoadModelPass.h"
 
-class IsolateFunctions : public llvm::ModulePass {
+class IsolateFunctions : public pipeline::ModulePass {
 public:
   static char ID;
 
 public:
-  IsolateFunctions() : ModulePass(ID) {}
+  IsolateFunctions() : pipeline::ModulePass(ID) {}
 
-  bool runOnModule(llvm::Module &M) override;
+  bool run(llvm::Module &M, const pipeline::TargetsList &Targets) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };

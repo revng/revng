@@ -11,7 +11,6 @@ bool init_unit_test();
 #include "llvm/IR/PassManager.h"
 
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/SerializeModelPass.h"
 
 template<typename T>
 void instantiateModuleAnalysis(llvm::Module *M) {
@@ -29,17 +28,6 @@ void instantiateModulePass(llvm::Module *M) {
   MPM.run(*M, MAM);
 }
 
-BOOST_AUTO_TEST_CASE(TestLoadModelAnalysis) {
-  if (false) {
-    llvm::FunctionPassManager FPM;
-    llvm::FunctionAnalysisManager FAM;
-    FAM.registerPass([]() { return LoadModelAnalysis::fromModule(); });
-    FPM.run(*static_cast<llvm::Function *>(nullptr), FAM);
-  }
-}
-
-BOOST_AUTO_TEST_CASE(TestSerializeModelPass) {
-  if (false) {
-    instantiateModulePass<SerializeModelPass>(nullptr);
-  }
+BOOST_AUTO_TEST_CASE(MaybeDrop) {
+  BOOST_TEST(true);
 }

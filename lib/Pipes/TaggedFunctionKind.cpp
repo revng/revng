@@ -46,3 +46,51 @@ void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Ctx,
     Out.push_back(Target(Function.Entry().toString(), *this));
   }
 }
+
+cppcoro::generator<std::pair<const model::Function *, llvm::Function *>>
+TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
+                                          llvm::Module &Module,
+                                          llvm::StringRef ContainerName) {
+  std::map<MetaAddress, llvm::Function *> AddressToFunction;
+
+  for (llvm::Function &Function : Module.functions()) {
+    if (not FunctionTags::Isolated.isTagOf(&Function)) {
+      continue;
+    }
+
+    AddressToFunction.emplace(getMetaAddressOfIsolatedFunction(Function),
+                              &Function);
+  }
+  auto &Binary = getModelFromContext(Context);
+
+  for (const Target &Target :
+       Context.getCurrentRequestedTargets()[ContainerName]) {
+    auto MetaAddress = MetaAddress::fromString(Target.getPathComponents()[0]);
+    Context.clearAndResumeTracking();
+    auto &ModelFunction = Binary->Functions().at(MetaAddress);
+    auto Iter = AddressToFunction.find(MetaAddress);
+    if (Iter == AddressToFunction.end())
+      co_yield std::pair<const model::Function *,
+                         llvm::Function *>(&ModelFunction, nullptr);
+    else
+      co_yield std::pair<const model::Function *,
+                         llvm::Function *>(&ModelFunction, Iter->second);
+    Context.commit(Target, ContainerName);
+  }
+}
+
+cppcoro::generator<const model::Function *>
+TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
+                                          const pipeline::ContainerBase
+                                            &Container) {
+  auto &Binary = getModelFromContext(Context);
+  for (const Target &Target :
+       Context.getCurrentRequestedTargets()[Container.name()]) {
+    Context.clearAndResumeTracking();
+
+    auto MetaAddress = MetaAddress::fromString(Target.getPathComponents()[0]);
+    co_yield &Binary->Functions().at(MetaAddress);
+
+    Context.commit(Target, Container);
+  }
+}

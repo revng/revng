@@ -29,7 +29,6 @@ static RP<LoadModelWrapperPass>
   X("load-model", "Deserialize the model", true, true);
 
 using namespace llvm::cl;
-opt<std::string> ModelPath("model-path", desc("<model path>"), init(""));
 
 bool hasModel(const llvm::Module &M) {
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
@@ -49,54 +48,19 @@ TupleTree<model::Binary> loadModel(const llvm::Module &M) {
   return std::move(TupleTree<model::Binary>::deserialize(YAMLString).get());
 }
 
-static TupleTree<model::Binary> extractModel(Module &M) {
-  auto Result = loadModel(M);
-  // Erase the named metadata in order to make sure no one is tempted to
-  // deserialize it on its own
-  NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
-  NamedMD->eraseFromParent();
-
-  return Result;
-}
-
 bool LoadModelWrapperPass::doInitialization(Module &M) {
-  if (isModelExternal())
-    return false;
-
-  if (not ModelPath.empty()) {
-    auto MaybeBinary = TupleTree<model::Binary>::fromFile(ModelPath);
-    auto ExpectedBinary = llvm::errorOrToExpected(std::move(MaybeBinary));
-    InternalModel = llvm::cantFail(std::move(ExpectedBinary));
-  } else {
-
-    InternalModel = extractModel(M);
-  }
-
   return false;
 }
 
 bool LoadModelWrapperPass::doFinalization(Module &M) {
-  if (isModelExternal() or not Wrapper.hasChanged())
-    return false;
-
-  // Check if the named metadata has reappeared. If not, the changes we made in
-  // this pipeline would go lost
-  NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
-  revng_check(NamedMD != nullptr,
-              "The model has changed, but -serialize-model has not been run");
-
   return false;
 }
 
 ModelWrapper LoadModelAnalysis::run(Module &M, ModuleAnalysisManager &) {
-  if (not isModelExternal())
-    InternalModel = loadModel(M);
   return Wrapper;
 }
 
 ModelWrapper LoadModelAnalysis::run(Function &F, FunctionAnalysisManager &) {
-  if (not isModelExternal())
-    InternalModel = loadModel(*F.getParent());
   return Wrapper;
 }
 

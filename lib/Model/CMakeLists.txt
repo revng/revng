@@ -10,7 +10,6 @@ revng_add_analyses_library_internal(
   LoadModelPass.cpp
   TypeSystemPrinter.cpp
   Processing.cpp
-  SerializeModelPass.cpp
   Type.cpp
   Visits.cpp)
 
