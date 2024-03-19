@@ -99,11 +99,9 @@ getMaximalFixedPoint(const MFI &Instance,
 
   for (Label Start : InitialNodes) {
     if (!Visited.contains(Start)) {
-      // Fill the worklist with nodes in reverse post order
-      // launching a visit from each remaining node
-      ReversePostOrderTraversalExt<LGT,
-                                   llvm::GraphTraits<LGT>,
-                                   llvm::SmallSet<Label, 8>>
+      // Fill the worklist with nodes in reverse post order launching a visit
+      // from each remaining node
+      ReversePostOrderTraversalExt<LGT, GT, llvm::SmallSet<Label, 8>>
         RPOTE(Start, Visited);
       for (Label Node : RPOTE) {
         LabelPriority[Node] = LabelPriority.size();
