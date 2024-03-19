@@ -11,7 +11,7 @@ Eventually, these two repositories will be merged.
 
 ## Further information
 
-See the [`revng` repository]https://github.com/revng/revng).
+See the [`revng` repository](https://github.com/revng/revng).
 
 ## License
 
