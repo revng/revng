@@ -8,7 +8,9 @@
 
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Debug.h"
@@ -1312,11 +1314,42 @@ public:
   GenericGraph &operator=(const GenericGraph &) = delete;
   GenericGraph &operator=(GenericGraph &&) = default;
 
-  bool verify() const debug_function {
-    for (const std::unique_ptr<NodeT> &Node : Nodes)
-      if (Node.get() == nullptr)
-        return false;
-    return true;
+  llvm::Error verify() const debug_function {
+    llvm::SmallPtrSet<NodeT *, 32> ValidNodes;
+
+    // Collect all valid nodes and ensure there are no nullptr
+    for (const std::unique_ptr<NodeT> &Node : Nodes) {
+
+      if (Node.get() == nullptr) {
+        return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                       "Graph contains a nullptr node");
+      }
+
+      ValidNodes.insert(Node.get());
+    }
+
+    // Ensure we only point to valid nodes
+    for (const std::unique_ptr<NodeT> &Node : Nodes) {
+      for (NodeT *Successor : Node->successors()) {
+        if (not ValidNodes.contains(Successor)) {
+          return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                         "A node contains an unknown "
+                                         "successor");
+        }
+      }
+
+      if constexpr (StrictSpecializationOfBidirectionalNode<NodeT>) {
+        for (NodeT *Predecessor : Node->predecessors()) {
+          if (not ValidNodes.contains(Predecessor)) {
+            return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                           "A node contains an unknown "
+                                           "predecessor");
+          }
+        }
+      }
+    }
+
+    return llvm::Error::success();
   }
 
 public:
