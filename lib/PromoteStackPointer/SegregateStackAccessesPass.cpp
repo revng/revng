@@ -278,7 +278,6 @@ private:
   llvm::Type *PtrSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
   OpaqueFunctionsPool<TypePair> AddressOfPool;
-  OpaqueFunctionsPool<llvm::Type *> AssignPool;
   OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
   FunctionMetadataCache *Cache;
 
@@ -297,14 +296,12 @@ public:
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(&M, false),
-    AssignPool(&M, false),
     LocalVarPool(&M, false),
     Cache(&Cache) {
 
     revng_assert(SSACS != nullptr);
 
     initAddressOfPool(AddressOfPool, &M);
-    initAssignPool(AssignPool);
     initLocalVarPool(LocalVarPool);
 
     // After segregate, we should not introduce new calls to
