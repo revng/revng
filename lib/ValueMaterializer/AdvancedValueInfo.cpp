@@ -59,7 +59,7 @@ AdvancedValueInfoMFI::LatticeElement
 AdvancedValueInfoMFI::applyTransferFunction(Label L,
                                             const LatticeElement &E) const {
 
-  revng_log(AVILogger, "Processing node " << L->toString());
+  revng_log(AVILogger, "   " << L->toString());
   LoggerIndent<> Indent(AVILogger);
 
   LatticeElement Result = E;

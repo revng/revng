@@ -113,11 +113,12 @@ public:
   /// \return true if all targets to remove have been removed
   bool remove(const TargetsList &Targets) override {
     bool RemovedAll = true;
-    for (const auto *Inspector : getRegisteredInspectors())
+    for (const auto *Inspector : getRegisteredInspectors()) {
       RemovedAll = Inspector->remove(*Ctx,
                                      Targets.filter(Inspector->getKind()),
                                      *this->self())
                    and RemovedAll;
+    }
 
     return RemovedAll;
   }

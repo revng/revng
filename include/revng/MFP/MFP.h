@@ -90,7 +90,9 @@ getMaximalFixedPoint(const MFI &Instance,
   llvm::SmallSet<Label, 8> Visited{};
   std::map<Label, size_t> LabelPriority;
 
-  // Step 1 initialize the worklist and extremal labels
+  //
+  // Initialize the worklist and extremal labels
+  //
   for (Label ExtremalLabel : ExtremalLabels) {
     AnalysisResult[ExtremalLabel].InValue = ExtremalValue;
   }

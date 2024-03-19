@@ -13,14 +13,14 @@ bool init_unit_test();
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Support/GraphAlgorithms.h"
 
-struct MyForwardNode {
-  MyForwardNode(int Index) : Index(Index) {}
+struct Block {
+  Block(int Index) : Index(Index) {}
   int Index;
   int getIndex() { return Index; }
 };
 
-struct MyBidirectionalNode : MyForwardNode {
-  MyBidirectionalNode(int Index) : MyForwardNode(Index) {}
+struct MyBidirectionalNode : Block {
+  MyBidirectionalNode(int Index) : Block(Index) {}
 };
 
 template<typename NodeType>

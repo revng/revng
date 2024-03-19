@@ -435,14 +435,19 @@ public:
   }
 
   void removePredecessorEdge(edge_iterator It) {
-    auto Edge = *It;
+    Edge Edge = *It;
     bool Found = false;
+
+    // Extract predecessor
     auto Predecessor = Edge.Neighbor;
+
+    // Invert the edge direction
+    Edge.Neighbor = this;
+
     auto PredecessorSuccessors = Predecessor->successor_edges();
     for (auto PredecessorIt = PredecessorSuccessors.begin(),
               Last = PredecessorSuccessors.end();
          PredecessorIt != Last;) {
-      Edge.Neighbor = this;
       if (Edge == *PredecessorIt) {
         Predecessor->Successors.erase(PredecessorIt);
         Found = true;
@@ -487,12 +492,17 @@ public:
   void removeSuccessorEdge(edge_iterator It) {
     auto Edge = *It;
     bool Found = false;
+
+    // Extract successor
     auto Successor = Edge.Neighbor;
+
+    // Invert edge direction
+    Edge.Neighbor = this;
+
     auto SuccessorPredecessors = Successor->predecessor_edges();
     for (auto SuccessorIt = SuccessorPredecessors.begin(),
               Last = SuccessorPredecessors.end();
          SuccessorIt != Last;) {
-      Edge.Neighbor = this;
       if (Edge == *SuccessorIt) {
         Successor->Predecessors.erase(SuccessorIt);
         Found = true;
