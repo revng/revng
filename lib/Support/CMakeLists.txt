@@ -11,7 +11,6 @@ revng_add_library_internal(
   CommandLine.cpp
   Debug.cpp
   IRAnnotators.cpp
-  ExampleAnalysis.cpp
   FunctionTags.cpp
   IRHelpers.cpp
   LDDTree.cpp

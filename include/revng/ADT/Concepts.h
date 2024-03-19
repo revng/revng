@@ -141,8 +141,9 @@ concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 
 template<class R, typename ValueType>
 concept range_with_value_type = std::ranges::range<R>
-                                && std::is_convertible_v<typename R::value_type,
-                                                         ValueType>;
+                                and std::is_convertible_v<
+                                  decltype(*std::declval<R>().begin()),
+                                  ValueType>;
 
 template<typename T, typename... Types>
   requires(sizeof...(Types) > 0)
