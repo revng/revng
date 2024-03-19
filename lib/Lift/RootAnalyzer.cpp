@@ -22,6 +22,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/Statistics.h"
 #include "revng/TypeShrinking/BitLiveness.h"
@@ -522,7 +523,7 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   IRBuilder<> AllocaBuilder(&*EntryBB->begin());
   IRBuilder<> InitializeBuilder(EntryBB->getTerminator());
 
-  for (GlobalVariable *CSV : NonPCCSVs) {
+  for (GlobalVariable *CSV : toSortedByName(NonPCCSVs)) {
     Type *CSVType = CSV->getValueType();
     auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
     CSVMap[CSV] = Alloca;
