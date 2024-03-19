@@ -11,6 +11,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/GraphWriter.h"
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Debug.h"
@@ -1351,6 +1352,8 @@ public:
 
     return llvm::Error::success();
   }
+
+  void dumpGraph() const debug_function { llvm::WriteGraph(this, ""); }
 
 public:
   static NodeT *getNode(std::unique_ptr<NodeT> &E) { return E.get(); }
