@@ -403,7 +403,7 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
   // Initialize ret-hook marker (needed for the ABI analyses on return values)
   // and fix pre-hook marker upon encountering a jump to `anypc`. Since we don't
   // know in advance whether it will be classified as a return or indirect tail
-  // call, ABIAnalyses (e.g., RAOFC) need to run on this potential call-site as
+  // call, RegisterUsageAnalyses need to run on this potential call-site as
   // well. The results will not be merged eventually, if the indirect jump turns
   // out to be a proper return.
   for (auto *Term : IndirectBranchPredecessors) {

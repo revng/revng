@@ -7,7 +7,7 @@
 #include <set>
 
 #include "revng/ADT/MutableSet.h"
-#include "revng/EarlyFunctionAnalysis/ABIAnalysis.h"
+#include "revng/EarlyFunctionAnalysis/AnalyzeRegisterUsage.h"
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/Model/FunctionAttribute.h"
 
@@ -24,18 +24,18 @@ using AttributesSet = MutableSet<model::FunctionAttribute::Values>;
 struct FunctionSummary {
 public:
   AttributesSet Attributes;
-  std::set<llvm::GlobalVariable *> ClobberedRegisters;
-  // TODO: this field is populated in a different maneer from all the others,
+  efa::CSVSet ClobberedRegisters;
+  // TODO: this field is populated in a different manner from all the others,
   //       consider changing how this works
-  ABIAnalyses::ABIAnalysesResults ABIResults;
+  RUAResults ABIResults;
   SortedVector<efa::BasicBlock> CFG;
   std::optional<int64_t> ElectedFSO;
-  std::set<llvm::GlobalVariable *> WrittenRegisters;
+  CSVSet WrittenRegisters;
 
 public:
   FunctionSummary(MutableSet<model::FunctionAttribute::Values> Attributes,
-                  std::set<llvm::GlobalVariable *> ClobberedRegisters,
-                  ABIAnalyses::ABIAnalysesResults ABIResults,
+                  CSVSet ClobberedRegisters,
+                  RUAResults ABIResults,
                   SortedVector<efa::BasicBlock> CFG,
                   std::optional<int64_t> ElectedFSO) :
     Attributes(Attributes),
@@ -105,7 +105,7 @@ public:
 /// An oracle providing information about functions.
 ///
 /// This oracle can be populated with analysis results. But even if it has not
-/// been popoulated with any result, it will still provide conservative results
+/// been populated with any result, it will still provide conservative results
 /// about the function.
 class FunctionSummaryOracle {
 private:
@@ -182,9 +182,17 @@ public:
     return DynamicFunctions.at(Name.str());
   }
 
-private:
   std::pair<const FunctionSummary *, bool>
-  getCallSiteImpl(MetaAddress Function, BasicBlockID CallSite) const {
+  getExactCallSite(MetaAddress Function, BasicBlockID CallSite) const {
+    auto It = CallSites.find({ Function, CallSite });
+    if (It == CallSites.end())
+      return { nullptr, false };
+    else
+      return { &It->second.first, It->second.second };
+  }
+
+  std::pair<FunctionSummary *, bool> getExactCallSite(MetaAddress Function,
+                                                      BasicBlockID CallSite) {
     auto It = CallSites.find({ Function, CallSite });
     if (It == CallSites.end())
       return { nullptr, false };

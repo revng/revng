@@ -47,7 +47,7 @@ public:
   void handleCall(MetaAddress CallerBlock,
                   llvm::IRBuilder<> &Builder,
                   MetaAddress Callee,
-                  const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
+                  const CSVSet &ClobberedRegisters,
                   const std::optional<int64_t> &MaybeFSO,
                   bool IsNoReturn,
                   bool IsTailCall,
@@ -55,11 +55,10 @@ public:
 
   void handlePostNoReturn(llvm::IRBuilder<> &Builder) final;
 
-  void
-  handleIndirectJump(llvm::IRBuilder<> &Builder,
-                     MetaAddress Block,
-                     const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
-                     llvm::Value *SymbolNamePointer) final;
+  void handleIndirectJump(llvm::IRBuilder<> &Builder,
+                          MetaAddress Block,
+                          const CSVSet &ClobberedRegisters,
+                          llvm::Value *SymbolNamePointer) final;
 };
 
 /// This class, given an Oracle, analyzes a function returning its CFG, the set

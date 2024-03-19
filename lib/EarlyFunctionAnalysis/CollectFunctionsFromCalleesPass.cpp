@@ -26,7 +26,6 @@ using CFFCWP = CollectFunctionsFromCalleesWrapperPass;
 void CFFCWP::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<FunctionMetadataCachePass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
 }
 

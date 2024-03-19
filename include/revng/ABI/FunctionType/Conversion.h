@@ -13,8 +13,8 @@ namespace abi::FunctionType {
 /// If `ABI` is not specified, `Binary.DefaultABI` is used instead.
 ///
 /// \param UseSoftRegisterStateDeductions For specifics see the difference
-///        between `abi::Definition::tryDeducingRegisterState` (`true`) and
-///        `abi::Definition::enforceRegisterState` (`false`).
+///        between `abi::Definition::tryDeducingArgumentRegisterState` (`true`)
+///        and `abi::Definition::enforceArgumentRegisterState` (`false`).
 std::optional<model::TypePath>
 tryConvertToCABI(const model::RawFunctionType &Function,
                  TupleTree<model::Binary> &Binary,
