@@ -101,6 +101,9 @@ struct Edge : public EdgeLabel {
   Edge(Node *Neighbor) : Neighbor(Neighbor) {}
   Edge(Node *Neighbor, EdgeLabel EL) : EdgeLabel(EL), Neighbor(Neighbor) {}
   Node *Neighbor = nullptr;
+  bool operator==(const Edge &Other) const {
+    return Other.Neighbor == Neighbor and EdgeLabel::operator==(Other);
+  }
 };
 
 //

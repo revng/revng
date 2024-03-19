@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE(TestBidirectionalNode) {
     compare(SuccessorToRemove->predecessor_edges(), { { Node, { 10 } } });
     compare(SuccessorToKeep->predecessor_edges(), { { Node, { 0 } } });
     compare(Node->successor_edges(),
-            { { SuccessorToRemove, { 10 } }, { Node, { 0 } } });
+            { { SuccessorToRemove, { 10 } }, { SuccessorToKeep, { 0 } } });
   }
 
   // Test removeSuccessorEdge
@@ -273,7 +273,7 @@ BOOST_AUTO_TEST_CASE(TestBidirectionalNode) {
     compare(SuccessorToRemove->predecessor_edges(), { { Node, { 10 } } });
     compare(SuccessorToKeep->predecessor_edges(), { { Node, { 0 } } });
     compare(Node->successor_edges(),
-            { { SuccessorToRemove, { 10 } }, { Node, { 0 } } });
+            { { SuccessorToRemove, { 10 } }, { SuccessorToKeep, { 0 } } });
   }
 }
 
