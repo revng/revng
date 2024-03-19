@@ -1,0 +1,34 @@
+This file is distributed under the MIT License. See LICENSE.md for details.
+
+The following things should be printed in hexadecimal
+
+CHECK: {{.*}}64_t shift_left({{.*}}64_t [[ARG:.*]]) {
+CHECK: 0xABCDEF1234567890
+CHECK: }
+
+CHECK: {{.*}}64_t logical_shift_right({{.*}}64_t [[ARG:.*]]) {
+CHECK: 0xABCDEF1234567890
+CHECK: }
+
+CHECK: {{.*}}64_t arithmetic_shift_right({{.*}}64_t [[ARG:.*]]) {
+CHECK: 0xABCDEF1234567890
+CHECK: }
+
+CHECK: {{.*}}64_t bitwise_and({{.*}}64_t [[ARG:.*]]) {
+CHECK: 0xABCDEF1234567890
+CHECK: }
+
+CHECK: {{.*}}64_t bitwise_or({{.*}}64_t [[ARG:.*]]) {
+CHECK: 0xABCDEF1234567890
+CHECK: }
+
+Character literal
+
+CHECK: write_and_get_char(void) {
+CHECK: 'X'
+CHECK: }
+
+NULL literal
+
+CHECK: do_stuff(void) {
+CHECK: puts({{.*[ ]?}}NULL);

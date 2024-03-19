@@ -17,34 +17,26 @@
 
 #include "revng-c/Support/FunctionTags.h"
 
-/// Returns true if I should be considered with side effects for decompilation
-/// purposes.
 inline bool hasSideEffects(const llvm::Instruction &I) {
-  if (isa<llvm::StoreInst>(&I))
-    return true;
+  auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
+  if (not Call)
+    return false;
 
-  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
-    auto *CalledFunc = Call->getCalledFunction();
-    if (not CalledFunc)
-      return true;
+  auto CallMemoryEffects = Call->getMemoryEffects();
+  bool MayAccessMemory = not CallMemoryEffects.doesNotAccessMemory();
+  bool OnlyReadsMemory = CallMemoryEffects.onlyReadsMemory();
+  return MayAccessMemory and not OnlyReadsMemory;
+}
 
-    if (isCallToIsolatedFunction(Call))
-      return true;
+inline bool mayReadMemory(const llvm::Instruction &I) {
+  auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
+  if (not Call)
+    return false;
 
-    if (CalledFunc->isIntrinsic()) {
-      bool IsReadOnly = CalledFunc->onlyReadsMemory();
-      bool IsReadNone = CalledFunc->doesNotAccessMemory();
-      return not IsReadOnly and not IsReadNone;
-    }
-
-    if (FunctionTags::WritesMemory.isTagOf(CalledFunc)
-        or FunctionTags::Helper.isTagOf(CalledFunc)
-        or FunctionTags::QEMU.isTagOf(CalledFunc)
-        or FunctionTags::Exceptional.isTagOf(CalledFunc))
-      return true;
-  }
-
-  return false;
+  auto CallMemoryEffects = Call->getMemoryEffects();
+  bool MayAccessMemory = not CallMemoryEffects.doesNotAccessMemory();
+  bool OnlyReadsMemory = CallMemoryEffects.onlyReadsMemory();
+  return MayAccessMemory and OnlyReadsMemory;
 }
 
 /// Check if \a ModelType can be assigned to an llvm::Value of type \a LLVMType

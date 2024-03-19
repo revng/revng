@@ -36,11 +36,6 @@ void RemoveAssumePass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 bool RemoveAssumePass::runOnFunction(Function &F) {
 
-  // Skip non-isolated functions
-  auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Isolated))
-    return false;
-
   // Remove calls to `llvm.assume` in isolated functions.
   SmallVector<Instruction *, 8> ToErase;
   for (BasicBlock &BB : F) {

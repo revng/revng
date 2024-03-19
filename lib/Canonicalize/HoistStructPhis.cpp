@@ -22,8 +22,6 @@ public:
   HoistStructPhis() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override {
-    if (not FunctionTags::Isolated.isTagOf(&F))
-      return false;
 
     llvm::SmallVector<PHINode *, 16> ToFix;
 

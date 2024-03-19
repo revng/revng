@@ -395,7 +395,7 @@ public:
 
         } else if (auto *C = dyn_cast<CallInst>(&I)) {
 
-          if (isCallToTagged(C, FunctionTags::MallocLike)) {
+          if (isCallToTagged(C, FunctionTags::ReturnsPolymorphic)) {
 
             const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
             Changed |= New;

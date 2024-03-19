@@ -108,9 +108,15 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
           TypeMap.insert({ Operand, OperandType });
 
         } else if (not PointersOnly) {
-          // Fallback to the LLVM type
-          auto ConstType = llvmIntToModelType(Operand->getType(), Model);
-          TypeMap.insert({ Operand, ConstType });
+          auto
+            ByteSize = model::Architecture::getPointerSize(Model
+                                                             .Architecture());
+          auto BitWidth = 8 * ByteSize;
+          auto *LLVMIntPtrType = llvm::IntegerType::getIntNTy(Operand
+                                                                ->getContext(),
+                                                              BitWidth);
+          QualifiedType IntPtrType = llvmIntToModelType(LLVMIntPtrType, Model);
+          TypeMap.insert({ Operand, IntPtrType });
         }
         rc_return true;
       }
@@ -642,8 +648,20 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
   case Instruction::PtrToInt: {
     // Forward the type if there is one
     auto It = TypeMap.find(I.getOperand(0));
-    if (It != TypeMap.end())
-      Type = It->second;
+    if (It != TypeMap.end()) {
+      const QualifiedType &OperandType = It->second;
+      if (OperandType.isPointer()) {
+        Type = OperandType;
+      } else if (not PointersOnly) {
+        auto ByteSize = model::Architecture::getPointerSize(Model
+                                                              .Architecture());
+        auto BitWidth = 8 * ByteSize;
+        auto *LLVMIntPtrType = llvm::IntegerType::getIntNTy(I.getContext(),
+                                                            BitWidth);
+        Type = llvmIntToModelType(LLVMIntPtrType, Model);
+        revng_assert(ByteSize == Type->size());
+      }
+    }
   } break;
 
   case Instruction::PHI: {

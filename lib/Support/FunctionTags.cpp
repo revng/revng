@@ -20,7 +20,7 @@ static constexpr const char *const ModelGEPRefName = "ModelGEPRef";
 
 namespace FunctionTags {
 Tag AllocatesLocalVariable("allocates-local-variable");
-Tag MallocLike("malloc-like");
+Tag ReturnsPolymorphic("returns-polymorphic");
 Tag IsRef("is-ref");
 Tag AddressOf("address-of");
 Tag StringLiteral("string-literal");
@@ -37,8 +37,6 @@ Tag NullPtr("nullptr");
 Tag LocalVariable("local-variable");
 Tag Assign("assign");
 Tag Copy("copy");
-Tag WritesMemory("writes-memory");
-Tag ReadsMemory("reads-memory");
 Tag SegmentRef("segment-ref");
 Tag UnaryMinus("unary-minus");
 Tag BinaryNot("binary-not");
@@ -383,7 +381,8 @@ void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set revng tags
   Pool.setTags({ &FunctionTags::LocalVariable,
                  &FunctionTags::IsRef,
-                 &FunctionTags::AllocatesLocalVariable });
+                 &FunctionTags::AllocatesLocalVariable,
+                 &FunctionTags::ReturnsPolymorphic });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
@@ -446,9 +445,7 @@ void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::writeOnly());
-
-  // Set revng tags
-  Pool.setTags({ &FunctionTags::Assign, &FunctionTags::WritesMemory });
+  Pool.setTags({ &FunctionTags::Assign });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
@@ -468,9 +465,7 @@ void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::readOnly());
-
-  // Set revng tags
-  Pool.setTags({ &FunctionTags::Copy, &FunctionTags::ReadsMemory });
+  Pool.setTags({ &FunctionTags::Copy });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.

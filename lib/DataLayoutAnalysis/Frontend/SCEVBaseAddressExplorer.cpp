@@ -28,7 +28,7 @@ static bool isConstantAddress(const llvm::ConstantInt *C) {
 static bool isAlwaysAddress(const llvm::Value *V) {
   if (auto *Call = dyn_cast_or_null<llvm::CallInst>(V))
     if (auto *Callee = Call->getCalledFunction())
-      if (FunctionTags::MallocLike.isTagOf(Callee)
+      if (FunctionTags::ReturnsPolymorphic.isTagOf(Callee)
           or FunctionTags::AddressOf.isTagOf(Callee))
         return true;
   return false;

@@ -127,7 +127,8 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
         ConstantInt *ConstOp = dyn_cast<ConstantInt>(skipCasts(Op));
         using namespace model::Architecture;
         auto PointerSize = getPointerSize(Model->Architecture());
-        if (ConstOp != nullptr and ConstOp->getBitWidth() == PointerSize) {
+        if (ConstOp != nullptr
+            and (ConstOp->getBitWidth() == (8 * PointerSize))) {
           uint64_t ConstantAddress = ConstOp->getZExtValue();
 
           if (auto Segment = findLiteralInSegments(*Model, ConstantAddress);

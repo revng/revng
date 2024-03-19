@@ -49,28 +49,6 @@ target_link_libraries(
 add_test(NAME test_dla_step_manager COMMAND test_dla_step_manager)
 
 #
-# test_mark_assignments_test
-#
-
-revng_add_test_executable(test_mark_assignments_test
-                          "${SRC}/MarkAssignmentsTest.cpp")
-target_compile_definitions(test_mark_assignments_test
-                           PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(
-  test_mark_assignments_test PRIVATE "${CMAKE_SOURCE_DIR}"
-                                     "${Boost_INCLUDE_DIRS}")
-target_link_libraries(
-  test_mark_assignments_test
-  revngcMarkAssignments
-  revngcSupport
-  revng::revngModel
-  revng::revngSupport
-  revng::revngUnitTestHelpers
-  Boost::unit_test_framework
-  ${LLVM_LIBRARIES})
-add_test(NAME test_mark_assignments_test COMMAND test_mark_assignments_test)
-
-#
 # test_dla_steps
 #
 

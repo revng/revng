@@ -324,7 +324,7 @@ public:
       Result->setMemoryEffects(MemoryEffects::readOnly());
       Result->setOnlyAccessesInaccessibleMemory();
       FunctionTags::AllocatesLocalVariable.addTo(Result);
-      FunctionTags::MallocLike.addTo(Result);
+      FunctionTags::ReturnsPolymorphic.addTo(Result);
       FunctionTags::IsRef.addTo(Result);
 
       return Result;

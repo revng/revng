@@ -1,0 +1,74 @@
+---
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+Functions:
+  - OriginalName: init_list
+    Prototype: "/Types/1867-CABIFunctionType"
+  - OriginalName: release_list
+    Prototype: "/Types/1868-CABIFunctionType"
+  - OriginalName: sum
+    Prototype: "/Types/1869-CABIFunctionType"
+  - OriginalName: compute
+    Prototype: "/Types/1870-CABIFunctionType"
+Types:
+  - ID: 520
+    Kind: PrimitiveType
+    PrimitiveKind: Generic
+    Size: 8
+  - ID: 1848
+    Kind: StructType
+    Size: 48
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/520-PrimitiveType"
+          Qualifiers:
+            - Kind: Array
+              Size: 5
+      - Offset: 40
+        Type:
+          UnqualifiedType: "/Types/1848-StructType"
+          Qualifiers:
+            - Kind: Pointer
+  - ID: 1867
+    Kind: CABIFunctionType
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/1848-StructType"
+      Qualifiers:
+        - Kind: Pointer
+    Arguments: []
+  - ID: 1868
+    Kind: CABIFunctionType
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/520-PrimitiveType"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/1848-StructType"
+          Qualifiers:
+            - Kind: Pointer
+  - ID: 1869
+    Kind: CABIFunctionType
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/520-PrimitiveType"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/1848-StructType"
+          Qualifiers:
+            - Kind: Pointer
+  - ID: 1870
+    Kind: CABIFunctionType
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/520-PrimitiveType"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/1848-StructType"
+          Qualifiers:
+            - Kind: Pointer

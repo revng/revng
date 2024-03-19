@@ -44,11 +44,6 @@ using llvm::dyn_cast;
 
 bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
 
-  // Skip non-isolated functions
-  auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Isolated))
-    return false;
-
   llvm::SmallVector<llvm::AllocaInst *, 8> ToReplace;
 
   // Collect instructions that allocate local variables
