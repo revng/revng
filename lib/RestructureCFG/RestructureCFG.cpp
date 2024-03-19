@@ -604,6 +604,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
                             "restructure",
                             "region-" + std::to_string(Meta->getIndex())
                               + "-outside-before");
+      CombLogger.flush();
     }
 
     // Identify all the abnormal retreating edges in a SCS.
