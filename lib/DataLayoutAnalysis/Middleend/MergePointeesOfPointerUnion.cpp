@@ -62,10 +62,9 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
   std::vector<LTSN *> Nodes{ llvm::nodes(&TS).begin(), llvm::nodes(&TS).end() };
   std::unordered_set<LTSN *> Erased;
 
-  // Index based iteration, since we can add more nodes and they are enqueued
-  // for analysis at the end of Nodes.
-  for (size_t Index = 0; Index < Nodes.size(); ++Index) {
-    LTSN *Node = Nodes.at(Index);
+  while (not Nodes.empty()) {
+    LTSN *Node = Nodes.back();
+    Nodes.pop_back();
 
     revng_log(Log, "Analyzing Node: " << Node->ID);
     LoggerIndent Indent{ Log };
@@ -135,8 +134,17 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         // Loop over members in this set to select the node that we want to
         // merge the others into.
-        auto Pointers = llvm::make_range(ToMerge.member_begin(I),
-                                         ToMerge.member_end());
+        const auto NotErased =
+          [&Erased = std::as_const(Erased)](LayoutTypeSystemNode *N) {
+            return not Erased.contains(N)
+                   and not Erased.contains(getPointee(N));
+          };
+        using llvm::make_filter_range;
+        auto
+          Pointers = make_filter_range(llvm::make_range(ToMerge.member_begin(I),
+                                                        ToMerge.member_end()),
+                                       NotErased);
+
         if (Log.isEnabled()) {
           revng_log(Log, "Preparing to merge pointees:");
           LoggerIndent EvenMoreIndent{ Log };
@@ -150,13 +158,19 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
         llvm::SmallPtrSet<LTSN *, 8> PointersToScalars;
         llvm::SmallSetVector<LTSN *, 8> UniquedAggregates;
         llvm::SmallPtrSet<LTSN *, 8> PointersToAggregates;
+        llvm::SmallSetVector<LTSN *, 8> UniquedFromModel;
+        llvm::SmallPtrSet<LTSN *, 8> PointersToFromModel;
 
         for (LayoutTypeSystemNode *Pointer : Pointers) {
-          if (getPointee(Pointer)->NonScalar)
-            continue;
-
+          revng_assert(not Erased.contains(Pointer));
           LTSN *Pointee = getPointee(Pointer);
-          if (Pointee->Successors.empty() or hasOutgoingPointerEdge(Pointee)) {
+          revng_assert(not Erased.contains(Pointee));
+
+          if (Pointee->NonScalar) {
+            PointersToFromModel.insert(Pointer);
+            UniquedFromModel.insert(Pointee);
+          } else if (Pointee->Successors.empty()
+                     or hasOutgoingPointerEdge(Pointee)) {
             revng_assert(not hasOutgoingPointerEdge(Pointee)
                          or isWellFormedPointer(Pointee));
             PointersToScalars.insert(Pointer);
@@ -172,6 +186,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         llvm::SmallVector<LTSN *> Scalars = UniquedScalars.takeVector();
         llvm::SmallVector<LTSN *> Aggregates = UniquedAggregates.takeVector();
+        llvm::SmallVector<LTSN *> FromModel = UniquedAggregates.takeVector();
 
         const auto Ordering = [](const LTSN *LHS, const LTSN *RHS) {
           auto LSize = LHS->Size;
@@ -187,6 +202,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         llvm::sort(Scalars, Ordering);
         llvm::sort(Aggregates, Ordering);
+        llvm::sort(FromModel, Ordering);
 
         // Merge all the scalars together.
         LTSN *MergedScalar = nullptr;
@@ -232,18 +248,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
           }
         }
 
-        const auto GetNonScalarPointee = [](LTSN *Pointer, bool AllowRepeats) {
-          revng_assert(not AllowRepeats);
-          LTSN *Pointee = getPointee(Pointer);
-          return Pointee->NonScalar ? Pointee : nullptr;
-        };
-        LTSN *MergedAggregate = llvm::find_singleton<LTSN>(Pointers,
-                                                           GetNonScalarPointee);
-        revng_log(Log,
-                  "Unique aggregate to preserve: "
-                    << (MergedAggregate ? std::to_string(MergedAggregate->ID) :
-                                          "none"));
-
+        LTSN *MergedAggregate = nullptr;
         if (not Aggregates.empty()) {
           if (Log.isEnabled()) {
             revng_log(Log, "merging Aggregates:");
@@ -251,39 +256,52 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
             for (const LTSN *N : Aggregates)
               revng_log(Log, N->ID);
           }
+          MergedAggregate = Aggregates.front();
           TS.mergeNodes(Aggregates);
           Erased.insert(std::next(Aggregates.begin()), Aggregates.end());
+        }
 
-          if (MergedAggregate) {
-            LTSN *TheAggregate = Aggregates.front();
-            if (MergedAggregate->Size < TheAggregate->Size) {
-              // If MergedAggregate's Size is smaller than the others, merging
-              // them would enlarge the NonScalar, which is forbidden.
+        if (MergedAggregate and not FromModel.empty()) {
+          size_t AggregateSize = MergedAggregate->Size;
+          auto It = llvm::find_if(FromModel, [AggregateSize](LTSN *N) {
+            return N->Size < AggregateSize;
+          });
+          auto SmallFromModel = llvm::make_range(It, FromModel.end());
 
-              // First, we want all pointers that point to MergedAggregates to
-              // actually start pointing to MergedAggregate.
-              for (LTSN *Pointer : PointersToAggregates) {
-                const auto &[Pointee,
-                             PointerTag] = *Pointer->Successors.begin();
-                revng_assert(Pointee == TheAggregate);
-                auto InverseEdgeIt = Pointee->Predecessors.find({ Pointer,
-                                                                  PointerTag });
-                TS.moveEdgeTarget(Pointee, MergedAggregate, InverseEdgeIt, 0);
-              }
+          for (LTSN *AggregateFromModel : SmallFromModel) {
+            revng_assert(AggregateFromModel->Size < AggregateSize);
+            // We want to move the pointers that point to AggregateFromModel,
+            // and make it point to MergedAggregate.
+            const auto PredecessorPointsToAggregate =
+              [&PointersToFromModel](const auto &Pair) {
+                return isPointerEdge(Pair)
+                       and PointersToFromModel.contains(Pair.first);
+              };
+            auto InverseEdgeIt = llvm::find_if(AggregateFromModel->Predecessors,
+                                               PredecessorPointsToAggregate);
+            TS.moveEdgeTarget(AggregateFromModel,
+                              MergedAggregate,
+                              InverseEdgeIt,
+                              0);
 
-              // Then we add an instance of the NonScalar MergedAggregate at
-              // offset 0 of TheAggregate
-              TS.addInstanceLink(TheAggregate,
-                                 MergedAggregate,
-                                 OffsetExpression{ 0 });
-            } else {
-              // Otherwise, the size allows to merge TheAggregate directly in
-              // the NonScalar MergedAggregate.
-              TS.mergeNodes({ MergedAggregate, TheAggregate });
-              Erased.insert(TheAggregate);
-            }
-          } else {
-            MergedAggregate = Aggregates.front();
+            // We want to put an instance link at offset 0 from MergedAggregate
+            // to each small AggregateFromModel.
+            TS.addInstanceLink(MergedAggregate,
+                               AggregateFromModel,
+                               OffsetExpression{ 0 });
+          }
+
+          if (1 == std::distance(FromModel.begin(), It)) {
+            LTSN *UniqueFromModelToPreserve = *FromModel.begin();
+
+            revng_log(Log,
+                      "UniqueFromModelToPreserve: "
+                        << (UniqueFromModelToPreserve ?
+                              std::to_string(UniqueFromModelToPreserve->ID) :
+                              "none"));
+            TS.mergeNodes({ UniqueFromModelToPreserve, MergedAggregate });
+            Erased.insert(MergedAggregate);
+            MergedAggregate = UniqueFromModelToPreserve;
           }
         }
 
