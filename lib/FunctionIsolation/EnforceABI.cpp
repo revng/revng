@@ -58,6 +58,29 @@ struct EnforceABIPipe {
                                                   InputPreservation::Erase) };
   }
 
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    const auto &Model = *revng::getModelFromContext(Ctx);
+
+    if (!Model.DefaultPrototype().empty())
+      return llvm::Error::success();
+
+    for (const auto &Function : Model.Functions())
+      if (Function.Prototype().empty())
+        return llvm::createStringError(inconvertibleErrorCode(),
+                                       "Binary needs to either have a default "
+                                       "prototype, or a prototype for each "
+                                       "function.");
+
+    for (const auto &Function : Model.ImportedDynamicFunctions())
+      if (Function.Prototype().empty())
+        return llvm::createStringError(inconvertibleErrorCode(),
+                                       "Binary needs to either have a default "
+                                       "prototype, or a prototype for each "
+                                       "function.");
+
+    return llvm::Error::success();
+  }
+
   void registerPasses(llvm::legacy::PassManager &Manager) {
     Manager.add(new EnforceABI());
   }
