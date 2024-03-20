@@ -34,12 +34,12 @@ def is_reference(string):
 
 def dereference(root, string):
     assert is_reference(string)
-    match = re.match(r"/TypeDefinitions/([^-]*)-", string)
+    match = re.match(r"/TypeDefinitions/([0-9]*)-(\w+)", string)
 
     if match:
         type_id = int(match.groups()[0])
         for item in root["TypeDefinitions"]:
-            if item["ID"] == type_id:
+            if item["ID"] == type_id and item["Kind"] == match.groups()[1]:
                 return item
 
     return None
