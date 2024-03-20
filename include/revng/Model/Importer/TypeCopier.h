@@ -78,8 +78,6 @@ public:
         };
         visitTupleTree(NewType, Visitor, [](const auto &) {});
 
-        revng_assert(!DestinationModel->Types().contains(NewType->key()));
-
         // Record the type
         auto TheType = DestinationModel->recordNewType(std::move(NewType));
         {
