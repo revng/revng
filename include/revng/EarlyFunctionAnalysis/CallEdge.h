@@ -57,12 +57,6 @@ public:
   }
 
 public:
-  static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
-  static bool classof(const Key &K) {
-    return std::get<1>(K) == FunctionEdgeBaseKind::CallEdge;
-  }
-
-public:
   bool hasAttribute(const model::Binary &Binary,
                     model::FunctionAttribute::Values Attribute) const {
     using namespace model;
@@ -94,7 +88,6 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
-  void dump() const debug_function;
 
 private:
   const TrackingMutableSet<model::FunctionAttribute::Values> *

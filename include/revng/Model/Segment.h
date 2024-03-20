@@ -7,7 +7,7 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Section.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -58,9 +58,8 @@ fields:
          ContainsCode == true will be searched for code.
   - name: Type
     doc: The type of the segment
-    reference:
-      pointeeType: Type
-      rootType: Binary
+    type: Type
+    upcastable: true
     optional: true
 
 key:
@@ -76,6 +75,27 @@ public:
 
 public:
   Identifier name() const;
+
+public:
+  /// The helper for segment type unwrapping.
+  /// Use this when you need to access/modify the existing struct,
+  /// and \ref Type() when you need to assign a new one.
+  model::StructDefinition *type() {
+    if (Type().empty())
+      return nullptr;
+    else
+      return &Type()->asStruct();
+  }
+
+  /// The helper for segment type unwrapping.
+  /// Use this when you need to access/modify the existing struct,
+  /// and \ref Type() when you need to assign a new one.
+  const model::StructDefinition *type() const {
+    if (Type().empty())
+      return nullptr;
+    else
+      return &Type()->asStruct();
+  }
 
 public:
   bool contains(MetaAddress Address) const {
@@ -106,10 +126,8 @@ public:
   }
 
 public:
-  bool verify() const debug_function;
-  bool verify(bool Assert) const debug_function;
+  bool verify(bool Assert = false) const debug_function;
   bool verify(VerifyHelper &VH) const;
-  void dump() const debug_function;
 };
 
 #include "revng/Model/Generated/Late/Segment.h"

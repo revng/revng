@@ -8,27 +8,24 @@
 
 namespace model {
 
-/// This is simple type container that allows keeping types connected to
-/// a specific binary without inserting them in.
+/// This is simple type definition container that allows keeping definitions
+/// connected to a specific binary without inserting them in.
 class TypeBucket {
 private:
-  using TypeVector = llvm::SmallVector<UpcastablePointer<model::Type>, 16>;
-
-private:
-  TypeVector Types;
+  llvm::SmallVector<model::UpcastableTypeDefinition, 16> Definitions;
   model::Binary &Binary;
-  uint64_t FirstAvailableTypeID;
-  uint64_t NextAvailableTypeID;
+  uint64_t FirstAvailableID;
+  uint64_t NextAvailableID;
 
 public:
   TypeBucket(model::Binary &Binary) :
     Binary(Binary),
-    FirstAvailableTypeID(Binary.getAvailableTypeID()),
-    NextAvailableTypeID(FirstAvailableTypeID) {}
+    FirstAvailableID(Binary.getAvailableTypeID()),
+    NextAvailableID(FirstAvailableID) {}
   TypeBucket(const TypeBucket &Another) = delete;
   TypeBucket(TypeBucket &&Another) = default;
   ~TypeBucket() {
-    revng_assert(Types.empty(),
+    revng_assert(Definitions.empty(),
                  "The bucket has to be explicitly committed or dropped.");
   }
 
@@ -37,12 +34,12 @@ public:
   ///
   /// The managed model is the one \ref Binary points to.
   void commit() {
-    revng_assert(Binary.getAvailableTypeID() == FirstAvailableTypeID,
+    revng_assert(Binary.getAvailableTypeID() == FirstAvailableID,
                  "Unable to commit: owner's id requirements have changed");
 
-    Binary.recordNewTypes(std::move(Types));
-    NextAvailableTypeID = FirstAvailableTypeID = Binary.getAvailableTypeID();
-    Types.clear();
+    Binary.recordNewTypeDefinitions(std::move(Definitions));
+    NextAvailableID = FirstAvailableID = Binary.getAvailableTypeID();
+    Definitions.clear();
   }
 
   /// Aborts dependency management and discards any modification to
@@ -50,60 +47,55 @@ public:
   ///
   /// The managed model is the one \ref Binary points to.
   void drop() {
-    NextAvailableTypeID = FirstAvailableTypeID;
-    Types.clear();
+    NextAvailableID = FirstAvailableID;
+    Definitions.clear();
   }
 
-  [[nodiscard]] bool empty() const { return Types.empty(); }
+  [[nodiscard]] bool empty() const { return Definitions.empty(); }
 
 public:
   /// A helper for new type creation.
   ///
-  /// Its usage mirrors that of `model::Binary::makeType<NewType>()`.
+  /// Its usage mirrors that of `model::Binary::makeTypeDefinition<NewType>()`.
   ///
-  /// \note This function forcefully assign a new type ID.
-  template<typename NewType, typename... Ts>
-  [[nodiscard]] std::pair<NewType &, model::TypePath> makeType(Ts &&...As) {
-    using UT = model::UpcastableType;
-    auto &Ptr = Types.emplace_back(UT::make<NewType>(std::forward<Ts>(As)...));
-    NewType *Upcasted = llvm::cast<NewType>(Ptr.get());
+  /// \note This function forcefully assigns a new type ID.
+  template<typename NewD, typename... Ts>
+  [[nodiscard]] std::pair<NewD &, model::UpcastableType>
+  makeTypeDefinition(Ts &&...As) {
+    using UT = model::UpcastableTypeDefinition;
+    auto &D = Definitions.emplace_back(UT::make<NewD>(std::forward<Ts>(As)...));
+    NewD *Upcasted = llvm::cast<NewD>(D.get());
 
-    // Assign the type ID
+    // Assign the ID
     revng_assert(Upcasted->ID() == 0);
-    Upcasted->ID() = NextAvailableTypeID;
-    NextAvailableTypeID++;
+    Upcasted->ID() = NextAvailableID++;
 
-    model::TypePath ResultPath = Binary.getTypePath(Upcasted->key());
-    return { *Upcasted, ResultPath };
+    return { *Upcasted, Binary.makeType(Upcasted->key()) };
   }
 
-public:
-  /// A helper for primitive type selection when binary access is limited.
-  ///
-  /// It mirrors `model::Binary::makeType`.
-  inline model::TypePath getPrimitiveType(model::PrimitiveTypeKind::Values Kind,
-                                          uint8_t Size) {
-    return Binary.getPrimitiveType(Kind, Size);
+  template<typename... Ts>
+  [[nodiscard]] auto makeStructDefinition(Ts &&...As) {
+    return makeTypeDefinition<StructDefinition>(std::forward<Ts>(As)...);
   }
-
-  /// A helper streamlining selection of types for registers.
-  ///
-  /// \param Register Any CPU register the model is aware of.
-  ///
-  /// \return A primitive type in \ref Binary.
-  inline model::TypePath defaultRegisterType(model::Register::Values Register) {
-    return getPrimitiveType(model::Register::primitiveKind(Register),
-                            model::Register::getSize(Register));
+  template<typename... Ts>
+  [[nodiscard]] auto makeUnionDefinition(Ts &&...As) {
+    return makeTypeDefinition<UnionDefinition>(std::forward<Ts>(As)...);
   }
-
-  /// A helper streamlining selection of types for registers.
-  ///
-  /// \param Register Any CPU register the model is aware of.
-  ///
-  /// \return A primitive type in \ref Binary.
-  inline model::TypePath genericRegisterType(model::Register::Values Register) {
-    return getPrimitiveType(model::PrimitiveTypeKind::Generic,
-                            model::Register::getSize(Register));
+  template<typename... Ts>
+  [[nodiscard]] auto makeEnumDefinition(Ts &&...As) {
+    return makeTypeDefinition<EnumDefinition>(std::forward<Ts>(As)...);
+  }
+  template<typename... Ts>
+  [[nodiscard]] auto makeTypedefDefinition(Ts &&...As) {
+    return makeTypeDefinition<TypedefDefinition>(std::forward<Ts>(As)...);
+  }
+  template<typename... Ts>
+  [[nodiscard]] auto makeCABIFunctionDefinition(Ts &&...As) {
+    return makeTypeDefinition<CABIFunctionDefinition>(std::forward<Ts>(As)...);
+  }
+  template<typename... Ts>
+  [[nodiscard]] auto makeRawFunctionDefinition(Ts &&...As) {
+    return makeTypeDefinition<RawFunctionDefinition>(std::forward<Ts>(As)...);
   }
 };
 

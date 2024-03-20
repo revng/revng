@@ -7,11 +7,11 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Argument.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML
-name: CABIFunctionType
+name: CABIFunctionDefinition
 doc: |
   The function type described through a C-like prototype plus an ABI.
 
@@ -20,12 +20,14 @@ doc: |
   information about the register is embedded. That information is implicit in
   the ABI this type is associated to.
 type: struct
-inherits: Type
+inherits: TypeDefinition
 fields:
   - name: ABI
     type: ABI
   - name: ReturnType
-    type: QualifiedType
+    type: Type
+    optional: true
+    upcastable: true
   - name: ReturnValueComment
     type: string
     optional: true
@@ -35,31 +37,26 @@ fields:
       elementType: Argument
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/CABIFunctionType.h"
+#include "revng/Model/Generated/Early/CABIFunctionDefinition.h"
 
-class model::CABIFunctionType : public model::generated::CABIFunctionType {
+class model::CABIFunctionDefinition
+  : public model::generated::CABIFunctionDefinition {
 public:
-  static constexpr const char *AutomaticNamePrefix = "cabifunction_";
-
-public:
-  using generated::CABIFunctionType::CABIFunctionType;
-  CABIFunctionType() : generated::CABIFunctionType() {}
+  using generated::CABIFunctionDefinition::CABIFunctionDefinition;
 
 public:
-  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
-    llvm::SmallVector<model::QualifiedType, 4> Result;
+  const llvm::SmallVector<const model::Type *, 4> edges() const {
+    llvm::SmallVector<const model::Type *, 4> Result;
 
     for (const model::Argument &Argument : Arguments())
-      Result.push_back(Argument.Type());
-    Result.push_back(ReturnType());
+      if (!Argument.Type().empty())
+        Result.push_back(Argument.Type().get());
+
+    if (!ReturnType().empty())
+      Result.push_back(ReturnType().get());
 
     return Result;
   }
-
-public:
-  Identifier name() const;
-  static bool classof(const Type *T) { return classof(T->key()); }
-  static bool classof(const Key &K) { return std::get<1>(K) == AssociatedKind; }
 };
 
-#include "revng/Model/Generated/Late/CABIFunctionType.h"
+#include "revng/Model/Generated/Late/CABIFunctionDefinition.h"

@@ -163,7 +163,7 @@
   SpacesInParentheses: false,
   SpacesInSquareBrackets: false,
   Standard: Latest,
-  StatementAttributeLikeMacros: ["Q_EMIT"],
+  StatementAttributeLikeMacros: ["Q_EMIT", "rc_return"],
   StatementMacros: ["Q_UNUSED", "QT_REQUIRE_VERSION", "_Pragma"],
   TabWidth: 2,
   UseTab: Never,

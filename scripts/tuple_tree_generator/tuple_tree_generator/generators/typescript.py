@@ -36,6 +36,7 @@ class TypeScriptGenerator:
         self.jinja_environment = Environment(loader=loader)
         self.jinja_environment.globals["load_file"] = self.load_file
         self.jinja_environment.globals["is_optional"] = self.is_optional
+        self.jinja_environment.globals["is_upcastable"] = self.is_upcastable
         self.jinja_environment.globals["completely_optional"] = self.completely_optional
         self.jinja_environment.globals["default_value"] = self.get_default_value
         self.jinja_environment.filters["read_file"] = self.read_file
@@ -276,6 +277,10 @@ class TypeScriptGenerator:
         return (
             field.optional or field.is_guid or isinstance(field.resolved_type, ReferenceDefinition)
         )
+
+    @staticmethod
+    def is_upcastable(field: StructField):
+        return isinstance(field, SimpleStructField) and field.upcastable
 
     @classmethod
     def completely_optional(cls, class_: StructDefinition):

@@ -205,7 +205,7 @@ private:
 
   CSVSet findWrittenRegisters(llvm::Function *F);
 
-  UpcastablePointer<model::Type>
+  model::UpcastableType
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                 const efa::BasicBlock &CallerBlock);
 
@@ -577,11 +577,10 @@ void DetectABI::finalizeModel() {
     // Replace function attributes
     Function.Attributes() = Summary.Attributes;
 
-    auto NewType = makeType<RawFunctionType>();
-    auto &FunctionType = *llvm::cast<RawFunctionType>(NewType.get());
+    auto [Prototype, FunctionType] = Binary->makeRawFunctionDefinition();
     {
-      auto ArgumentsInserter = FunctionType.Arguments().batch_insert();
-      auto ReturnValuesInserter = FunctionType.ReturnValues().batch_insert();
+      auto ArgumentsInserter = Prototype.Arguments().batch_insert();
+      auto ReturnValuesInserter = Prototype.ReturnValues().batch_insert();
 
       // Argument and return values
       for (const auto &[Arg, RV] :
@@ -602,17 +601,13 @@ void DetectABI::finalizeModel() {
 
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type() = model::PrimitiveType::makeGeneric(CSVSize);
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type() = model::PrimitiveType::makeGeneric(CSVSize);
           ReturnValuesInserter.insert(TR);
         }
       }
@@ -620,13 +615,13 @@ void DetectABI::finalizeModel() {
       // Preserved registers
       const auto &ClobberedRegisters = Summary.ClobberedRegisters;
       auto PreservedRegisters = computePreservedRegisters(ClobberedRegisters);
-      FunctionType.PreservedRegisters() = std::move(PreservedRegisters);
+      Prototype.PreservedRegisters() = std::move(PreservedRegisters);
 
       // Final stack offset
-      FunctionType.FinalStackOffset() = Summary.ElectedFSO.value_or(0);
+      Prototype.FinalStackOffset() = Summary.ElectedFSO.value_or(0);
     }
 
-    Function.Prototype() = Binary->recordNewType(std::move(NewType));
+    Function.Prototype() = std::move(FunctionType);
     Functions.insert(&Function);
   }
 
@@ -649,18 +644,15 @@ void DetectABI::finalizeModel() {
           if (not IsDynamic and not IsDirect and not HasInfoOnEdge) {
             // It's an indirect call for which we have now call site information
             auto Prototype = buildPrototypeForIndirectCall(Summary, Block);
-            auto Path = Binary->recordNewType(std::move(Prototype));
 
             // This analysis does not have the power to detect whether an
             // indirect call site is a tail call, noreturn or inline
             bool IsTailCall = false;
 
             // Register new prototype
-            model::CallSitePrototype ThePrototype(BlockAddress,
-                                                  Path,
-                                                  IsTailCall,
-                                                  {});
-            Function->CallSitePrototypes().insert(std::move(ThePrototype));
+            Function->CallSitePrototypes().emplace(BlockAddress,
+                                                   std::move(Prototype),
+                                                   IsTailCall);
           }
         }
       }
@@ -714,11 +706,11 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
 
   // Select new prototype for wrapper function
   if (SuccessorIsCall) {
-    model::TypePath Prototype = getPrototype(*Binary, Entry, Block, *Call);
+    auto Prototype = getPrototype(*Binary, Entry, Block, *Call);
 
     using abi::FunctionType::Layout;
     // Get layout of wrapped function
-    Layout CalleeLayout = Layout::make(Prototype);
+    Layout CalleeLayout = Layout::make(*Prototype);
 
     // Verify that wrapper function:
     //  - don't write stack pointer
@@ -749,16 +741,20 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
     revng_log(Log, "WritesOnlyRegisters: " << WritesOnlyRegisters);
 
     // When above conditions are met, overwrite wrappers prototype with
-    // wrapped function prototype (CABIFunctionType or RawFunctionType)
+    // wrapped function prototype (`CABIFunctionDefinition` or
+    // `RawFunctionDefinition`)
     if (not WritesSP and not WritesCalleeArgs and not WritesCalleeReturnValues
         and WritesOnlyRegisters) {
 
-      revng_log(Log,
-                "Overwriting " << Entry.toString() << " prototype ("
-                               << Function.Prototype().toString()
-                               << ") with wrapped function's prototype: "
-                               << Prototype.toString());
-      Function.Prototype() = Prototype;
+      std::string LogMessage = "Overwriting " + Entry.toString()
+                               + " prototype ";
+      if (!Function.Prototype().empty())
+        LogMessage += "(" + serializeToString(Function.Prototype()) + ") ";
+      LogMessage += "with wrapped function's prototype: "
+                    + serializeToString(*Prototype);
+      revng_log(Log, LogMessage);
+
+      Function.Prototype() = Binary->makeType(Prototype->key());
 
       if (Function.CustomName().empty() and Function.OriginalName().empty()) {
         if (not Call->DynamicFunction().empty()) {
@@ -780,17 +776,16 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   model::promoteOriginalName(Binary);
 }
 
-UpcastablePointer<model::Type>
+model::UpcastableType
 DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                          const efa::BasicBlock &CallerBlock) {
   using namespace model;
   using RegisterState = abi::RegisterState::Values;
 
-  auto NewType = makeType<RawFunctionType>();
-  auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
+  auto [CallPrototype, NewType] = Binary->makeRawFunctionDefinition();
   {
-    auto ArgumentsInserter = CallType.Arguments().batch_insert();
-    auto ReturnValuesInserter = CallType.ReturnValues().batch_insert();
+    auto ArgumentsInserter = CallPrototype.Arguments().batch_insert();
+    auto ReturnValuesInserter = CallPrototype.ReturnValues().batch_insert();
 
     bool Found = false;
     for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
@@ -816,18 +811,15 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
         auto *CSVType = CSV->getValueType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
 
-        using namespace PrimitiveTypeKind;
-        TypePath GenericType = Binary->getPrimitiveType(Generic, CSVSize);
-
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
+          TR.Type() = model::PrimitiveType::makeGeneric(CSVSize);
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
+          TR.Type() = model::PrimitiveType::makeGeneric(CSVSize);
           ReturnValuesInserter.insert(TR);
         }
       }
@@ -838,12 +830,12 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
     // prototype
     const FunctionSummary &DefaultSummary = Oracle.getDefault();
     const auto &Clobbered = DefaultSummary.ClobberedRegisters;
-    CallType.PreservedRegisters() = computePreservedRegisters(Clobbered);
+    CallPrototype.PreservedRegisters() = computePreservedRegisters(Clobbered);
 
-    CallType.FinalStackOffset() = DefaultSummary.ElectedFSO.value_or(0);
+    CallPrototype.FinalStackOffset() = DefaultSummary.ElectedFSO.value_or(0);
   }
 
-  return NewType;
+  return std::move(NewType);
 }
 
 static void combineCrossCallSites(auto &CallSite, auto &Callee) {

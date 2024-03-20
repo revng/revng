@@ -5,12 +5,18 @@
 ---
 Functions:
   - OriginalName: func1
-    Prototype: "/Types/1-RawFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-RawFunctionDefinition"
   - OriginalName: func2
-    Prototype: "/Types/2-RawFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2-RawFunctionDefinition"
   - OriginalName: callee
-    Prototype: "/Types/3-RawFunctionType"
-Types:
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3-RawFunctionDefinition"
+TypeDefinitions:
   - ID: 2
     ReturnValues:
       - Location: rbx_x86_64

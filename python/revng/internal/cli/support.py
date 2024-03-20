@@ -154,7 +154,7 @@ def handle_asan(dependencies: Iterable[str], search_prefixes: Iterable[str]) -> 
     return [
         get_command("sh", search_prefixes),
         "-c",
-        f'ASAN_OPTIONS={new_asan_options} ld.so --preload {libasan_path} "$0" "$@"',
+        f'LD_PRELOAD={libasan_path} ASAN_OPTIONS={new_asan_options} exec "$0" "$@"',
     ]
 
 

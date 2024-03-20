@@ -21,7 +21,7 @@ class Function;
 class GlobalVariable;
 class Module;
 class Value;
-class StructType;
+class StructDefinition;
 class DataLayout;
 
 }; // namespace llvm

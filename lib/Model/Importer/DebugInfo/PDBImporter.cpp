@@ -32,8 +32,7 @@
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
-#include "revng/Model/QualifiedType.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
@@ -57,7 +56,7 @@ namespace {
 class PDBImporterImpl {
 private:
   PDBImporter &Importer;
-  DenseMap<TypeIndex, model::TypePath> ProcessedTypes;
+  DenseMap<TypeIndex, model::UpcastableType> ProcessedTypes;
 
 public:
   PDBImporterImpl(PDBImporter &Importer) : Importer(Importer) {}
@@ -67,6 +66,8 @@ private:
   void populateTypes();
   void populateSymbolsWithTypes(NativeSession &Session);
 };
+
+using ProcessedTypeMap = DenseMap<TypeIndex, model::UpcastableType>;
 
 /// Visitor for CodeView type streams found in PDB files. It overrides callbacks
 /// (from `TypeVisitorCallbacks`) to types of interest for the revng `Model`.
@@ -78,10 +79,9 @@ private:
 /// by using `ProcessedTypes`), so it can be used when connecting functions from
 /// `Model` with corresponding prototypes.
 class PDBImporterTypeVisitor : public TypeVisitorCallbacks {
-private:
   TupleTree<model::Binary> &Model;
   LazyRandomTypeCollection &Types;
-  DenseMap<TypeIndex, model::TypePath> &ProcessedTypes;
+  ProcessedTypeMap &ProcessedTypes;
   DenseMap<TypeIndex, TypeIndex> &ForwardReferencedTypes;
   TpiStream &Tpi;
 
@@ -100,7 +100,7 @@ private:
 public:
   PDBImporterTypeVisitor(TupleTree<model::Binary> &M,
                          LazyRandomTypeCollection &Types,
-                         DenseMap<TypeIndex, model::TypePath> &ProcessedTypes,
+                         ProcessedTypeMap &ProcessedTypes,
                          DenseMap<TypeIndex, TypeIndex> &ForwardReferencedTypes,
                          TpiStream &Tpi) :
     TypeVisitorCallbacks(),
@@ -132,9 +132,8 @@ public:
   Error visitKnownRecord(CVType &CVR,
                          MemberFunctionRecord &MemberFnRecord) override;
 
-  std::optional<TupleTreeReference<model::Type, model::Binary>>
-  getModelTypeForIndex(TypeIndex Index);
-  void createPrimitiveType(TypeIndex SimpleType);
+  model::UpcastableType makeModelTypeForIndex(TypeIndex Index);
+  model::UpcastableType createPrimitiveType(TypeIndex SimpleType);
 };
 
 /// Visitor for CodeView symbol streams found in PDB files. It is being used for
@@ -143,14 +142,14 @@ public:
 class PDBImporterSymbolVisitor : public SymbolVisitorCallbacks {
 private:
   TupleTree<model::Binary> &Model;
-  DenseMap<TypeIndex, model::TypePath> &ProcessedTypes;
+  ProcessedTypeMap &ProcessedTypes;
 
   NativeSession &Session;
   MetaAddress &ImageBase;
 
 public:
   PDBImporterSymbolVisitor(TupleTree<model::Binary> &M,
-                           DenseMap<TypeIndex, model::TypePath> &ProcessedTypes,
+                           ProcessedTypeMap &ProcessedTypes,
                            NativeSession &Session,
                            MetaAddress &ImageBase) :
     Model(M),
@@ -196,13 +195,13 @@ void PDBImporterImpl::populateTypes() {
 class PDBSymbolHandler {
 private:
   PDBImporter &Importer;
-  DenseMap<TypeIndex, model::TypePath> &ProcessedTypes;
+  ProcessedTypeMap &ProcessedTypes;
   NativeSession &Session;
   InputFile &Input;
 
 public:
   PDBSymbolHandler(PDBImporter &Importer,
-                   DenseMap<TypeIndex, model::TypePath> &ProcessedTypes,
+                   ProcessedTypeMap &ProcessedTypes,
                    NativeSession &Session,
                    InputFile &Input) :
     Importer(Importer),
@@ -520,7 +519,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 }
 
 // Determine the pointer size based on CodeView/PDB data.
-static uint32_t getPointerSizeInBytes(codeview::PointerKind K) {
+static uint32_t getPointerSize(codeview::PointerKind K) {
   switch (K) {
   case codeview::PointerKind::Near64:
     return 8;
@@ -535,26 +534,21 @@ static uint32_t getPointerSizeInBytes(codeview::PointerKind K) {
 // Parse LF_POINTER.
 Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                PointerRecord &Ptr) {
-  using namespace model;
-  auto TypeTypedef = makeType<TypedefType>();
-
   TypeIndex ReferencedType = Ptr.getReferentType();
-  auto ReferencedTypeFromModel = getModelTypeForIndex(ReferencedType);
-  if (!ReferencedTypeFromModel) {
+  auto ReferencedTypeFromModel = makeModelTypeForIndex(ReferencedType);
+  if (ReferencedTypeFromModel.empty()) {
     revng_log(DILogger,
               "LF_POINTER: Unknown referenced type "
                 << ReferencedType.getIndex());
-  } else {
-    auto PointerSize = getPointerSizeInBytes(Ptr.getPointerKind());
-    std::vector<Qualifier> Qualifiers{ Qualifier::createPointer(PointerSize) };
-    QualifiedType TheUnderlyingType(*ReferencedTypeFromModel, Qualifiers);
-
-    auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
-
-    auto TypePath = Model->recordNewType(std::move(TypeTypedef));
-    ProcessedTypes[CurrentTypeIndex] = TypePath;
+    return Error::success();
   }
+
+  auto Pointer = model::PointerType::make(std::move(ReferencedTypeFromModel),
+                                          getPointerSize(Ptr.getPointerKind()));
+
+  auto [Typedef, NewType] = Model->makeTypedefDefinition();
+  Typedef.UnderlyingType() = std::move(Pointer);
+  ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
 
   return Error::success();
 }
@@ -562,31 +556,23 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 // Parse LF_ARRAY.
 Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                ArrayRecord &Array) {
-  using namespace model;
-  auto TypeTypedef = makeType<TypedefType>();
-
   TypeIndex ElementType = Array.getElementType();
-
-  auto ElementTypeFromModel = getModelTypeForIndex(ElementType);
-  if (!ElementTypeFromModel) {
+  auto ElementTypeFromModel = makeModelTypeForIndex(ElementType);
+  if (ElementTypeFromModel.empty()) {
     revng_log(DILogger,
               "LF_ARRAY: Unknown element type " << ElementType.getIndex());
   } else {
-    auto MaybeSize = ElementTypeFromModel->get()->size();
+    auto MaybeSize = ElementTypeFromModel->size();
     if (not MaybeSize or *MaybeSize == 0 or Array.getSize() == 0) {
       revng_log(DILogger, "Skipping 0-sized array.");
       return Error::success();
     }
 
     const uint64_t ArraySize = Array.getSize() / *MaybeSize;
-    std::vector<Qualifier> Qualifiers{ Qualifier::createArray(ArraySize) };
-    QualifiedType TheUnderlyingType(*ElementTypeFromModel, Qualifiers);
-
-    auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
-
-    auto TypePath = Model->recordNewType(std::move(TypeTypedef));
-    ProcessedTypes[CurrentTypeIndex] = TypePath;
+    auto NewA = model::ArrayType::make(std::move(ElementTypeFromModel),
+                                       ArraySize);
+    auto [_, NewType] = Model->makeTypedefDefinition(std::move(NewA));
+    ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
   }
 
   return Error::success();
@@ -595,29 +581,19 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 // Parse LF_MODIFIER.
 Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                ModifierRecord &Modifier) {
-  auto TypeTypedef = model::makeType<model::TypedefType>();
   TypeIndex ReferencedType = Modifier.getModifiedType();
 
-  auto ReferencedTypeFromModel = getModelTypeForIndex(ReferencedType);
-  if (!ReferencedTypeFromModel) {
+  auto ModelType = makeModelTypeForIndex(ReferencedType);
+  if (ModelType.empty()) {
     revng_log(DILogger,
               "LF_MODIFIER: Unknown referenced type "
                 << ReferencedType.getIndex());
   } else {
-    std::vector<model::Qualifier> Qualifiers;
-    auto HasConst = Modifier.getModifiers() & ModifierOptions::Const;
-    if (HasConst != ModifierOptions::None)
-      Qualifiers.push_back(model::Qualifier::Qualifier::createConst());
-
-    if (Qualifiers.size() != 0) {
-      model::QualifiedType TheUnderlyingType(*ReferencedTypeFromModel,
-                                             Qualifiers);
-
-      auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
-      TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
-
-      auto TypePath = Model->recordNewType(std::move(TypeTypedef));
-      ProcessedTypes[CurrentTypeIndex] = TypePath;
+    using ModifierOs = ModifierOptions;
+    if ((Modifier.getModifiers() & ModifierOs::Const) != ModifierOs::None) {
+      auto [_, NewType] = Model->makeTypedefDefinition(std::move(ModelType));
+      NewType->IsConst() = true;
+      ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     }
   }
 
@@ -673,29 +649,19 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     ForwardReferencedTypes[*EFD] = CurrentTypeIndex;
     uint64_t ForwardTypeSize = getSizeInBytesForTypeRecord(Tpi.getType(*EFD));
 
-    // 0-sized structs are typedefed to void. It can happen that there is
-    // an incoplete struct type.
     if (ForwardTypeSize == 0) {
-      auto TypeTypedef = makeType<TypedefType>();
-      TypeTypedef->OriginalName() = Class.getName();
-
-      using Values = model::PrimitiveTypeKind::Values;
-      QualifiedType TheUnderlyingType(Model->getPrimitiveType(Values::Void, 0),
-                                      {});
-      auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-      TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
-
-      auto TypePath = Model->recordNewType(std::move(TypeTypedef));
-      ProcessedTypes[CurrentTypeIndex] = TypePath;
+      // 0-sized structs are typedef'ed to void. It can happen that there is
+      // an incomplete struct type.
+      model::UpcastableType Void = model::PrimitiveType::makeVoid();
+      auto [Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
+      Typedef.OriginalName() = Class.getName();
+      ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     } else {
       // Pre-create the type that is being referenced by this type.
-      auto NewType = makeType<model::StructType>();
-      NewType->OriginalName() = Class.getName();
-      auto Struct = cast<model::StructType>(NewType.get());
-      Struct->Size() = ForwardTypeSize;
-
-      auto TypePath = Model->recordNewType(std::move(NewType));
-      ProcessedTypes[CurrentTypeIndex] = TypePath;
+      auto [Struct, NewType] = Model->makeStructDefinition();
+      Struct.OriginalName() = Class.getName();
+      Struct.Size() = ForwardTypeSize;
+      ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     }
 
     return Error::success();
@@ -704,16 +670,18 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex FieldsTypeIndex = Class.getFieldList();
   bool WasReferenced = ForwardReferencedTypes.count(CurrentTypeIndex) != 0;
   if (InProgressMemberTypes.count(FieldsTypeIndex) != 0) {
-    model::StructType *Struct = nullptr;
-    auto NewType = makeType<model::StructType>();
+    model::StructDefinition *Struct = nullptr;
+    auto NewDefinition = makeTypeDefinition<model::StructDefinition>();
     if (not WasReferenced) {
-      NewType->OriginalName() = Class.getName();
-      auto NewStruct = cast<model::StructType>(NewType.get());
-      NewStruct->Size() = Class.getSize();
-      Struct = NewStruct;
+      NewDefinition->OriginalName() = Class.getName();
+      auto &NewStruct = llvm::cast<model::StructDefinition>(*NewDefinition);
+      NewStruct.Size() = Class.getSize();
+      Struct = &NewStruct;
     } else {
       TypeIndex ForwardRef = ForwardReferencedTypes[CurrentTypeIndex];
-      Struct = cast<model::StructType>(ProcessedTypes[ForwardRef].get());
+
+      using StructDefinition = model::StructDefinition;
+      Struct = cast<StructDefinition>(&ProcessedTypes[ForwardRef]->asStruct());
     }
 
     auto &TheFields = InProgressMemberTypes[FieldsTypeIndex];
@@ -722,15 +690,15 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     for (const auto &Field : TheFields) {
       // Create new field.
       uint64_t Offset = Field.getFieldOffset();
-      auto FiledTypeFromModel = getModelTypeForIndex(Field.getType());
-      if (!FiledTypeFromModel) {
+      auto FieldModelType = makeModelTypeForIndex(Field.getType());
+      if (FieldModelType.empty()) {
         revng_log(DILogger,
                   "LF_STRUCTURE: Unknown field type "
                     << Field.getType().getIndex());
         // Avoid incomplete struct types.
         return Error::success();
       } else {
-        auto MaybeSize = FiledTypeFromModel->get()->size();
+        auto MaybeSize = FieldModelType->size();
         uint64_t Size = MaybeSize.value_or(0);
         if (Size == 0) {
           // Skip 0-sized field.
@@ -763,18 +731,16 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
         auto &FieldType = Struct->Fields()[Offset];
         FieldType.OriginalName() = Field.getName().str();
-        QualifiedType TheUnderlyingType(*FiledTypeFromModel, {});
-        FieldType.Type() = TheUnderlyingType;
+        FieldType.Type() = std::move(FieldModelType);
       }
     }
 
     if (not WasReferenced) {
-      auto TypePath = Model->recordNewType(std::move(NewType));
-      ProcessedTypes[CurrentTypeIndex] = TypePath;
+      auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+      ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     } else {
       TypeIndex ForwardRef = ForwardReferencedTypes[CurrentTypeIndex];
-      auto ForwardRefType = ProcessedTypes[ForwardRef];
-      ProcessedTypes[CurrentTypeIndex] = ForwardRefType;
+      ProcessedTypes[CurrentTypeIndex] = ProcessedTypes[ForwardRef].copy();
     }
   }
 
@@ -789,8 +755,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       // Get the proper LF_MFUNCTION.
       auto &MemberFunction = InProgressConcreteFunctionMemberTypes[FnTypeIndex];
       TypeIndex ReturnTypeIndex = MemberFunction.ReturnType;
-      auto ReferencedTypeFromModel = getModelTypeForIndex(ReturnTypeIndex);
-      if (not ReferencedTypeFromModel) {
+      auto ReferencedTypeFromModel = makeModelTypeForIndex(ReturnTypeIndex);
+      if (ReferencedTypeFromModel.empty()) {
         revng_log(DILogger,
                   "LF_MFUNCTION: Unknown return type "
                     << ReturnTypeIndex.getIndex());
@@ -798,12 +764,11 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         return Error::success();
       }
 
-      auto NewType = makeType<CABIFunctionType>();
-      auto TypeFunction = cast<CABIFunctionType>(NewType.get());
-      TypeFunction->ABI() = Model->DefaultABI();
+      auto NewDefinition = makeTypeDefinition<CABIFunctionDefinition>();
+      auto &Prototype = *cast<CABIFunctionDefinition>(NewDefinition.get());
+      Prototype.ABI() = Model->DefaultABI();
 
-      QualifiedType TheReturnType(*ReferencedTypeFromModel, {});
-      TypeFunction->ReturnType() = TheReturnType;
+      Prototype.ReturnType() = std::move(ReferencedTypeFromModel);
 
       TypeIndex ArgListTyIndex = MemberFunction.getArgumentList();
       revng_assert(InProgressArgumentsTypes.contains(ArgListTyIndex));
@@ -821,11 +786,10 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         revng_assert(ProcessedTypes[CurrentTypeIndex].get());
         auto MaybeSize = ProcessedTypes[CurrentTypeIndex].get()->size();
         if (MaybeSize and *MaybeSize != 0) {
-          Argument &NewArgument = TypeFunction->Arguments()[Index];
-          uint64_t PointerSize = getPointerSize(Model->Architecture());
-          QualifiedType TheType(ProcessedTypes[CurrentTypeIndex],
-                                { Qualifier::createPointer(PointerSize) });
-          NewArgument.Type() = TheType;
+          Argument &NewArgument = Prototype.Arguments()[Index];
+          model::UpcastableType T = ProcessedTypes[CurrentTypeIndex].copy();
+          NewArgument.Type() = model::PointerType::make(std::move(T),
+                                                        Model->Architecture());
           ++Index;
         } else {
           revng_log(DILogger, "Skipping 0-sized argument.");
@@ -834,7 +798,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
       for (uint32_t I = 0; I < Size; ++I) {
         TypeIndex ArgumentTypeIndex = Indices[I];
-        auto ArgumentTypeFromModel = getModelTypeForIndex(ArgumentTypeIndex);
+        auto ArgumentTypeFromModel = makeModelTypeForIndex(ArgumentTypeIndex);
         if (not ArgumentTypeFromModel) {
           revng_log(DILogger,
                     "LF_MFUNCTION: Unknown arg type "
@@ -842,7 +806,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
           // Avoid function types that have incomplete type.
           return Error::success();
         } else {
-          auto MaybeSize = ArgumentTypeFromModel->get()->size();
+          auto MaybeSize = ArgumentTypeFromModel->size();
           uint64_t Size = MaybeSize.value_or(0);
           if (Size == 0) {
             // Skip 0-sized type.
@@ -850,16 +814,14 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
             continue;
           }
 
-          Argument &NewArgument = TypeFunction->Arguments()[Index];
-
-          QualifiedType TheUnderlyingType(*ArgumentTypeFromModel, {});
-          NewArgument.Type() = TheUnderlyingType;
+          Argument &NewArgument = Prototype.Arguments()[Index];
+          NewArgument.Type() = std::move(ArgumentTypeFromModel);
           ++Index;
         }
       }
 
-      auto TypePath = Model->recordNewType(std::move(NewType));
-      ProcessedTypes[FnTypeIndex] = TypePath;
+      auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+      ProcessedTypes[FnTypeIndex] = std::move(NewType);
     }
   }
 
@@ -870,33 +832,32 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                EnumRecord &Enum) {
   TypeIndex FieldsTypeIndex = Enum.getFieldList();
-  auto NewType = model::makeType<model::EnumType>();
-  NewType->OriginalName() = Enum.getName();
+  auto NewDefinition = model::makeTypeDefinition<model::EnumDefinition>();
+  auto &NewEnum = *cast<model::EnumDefinition>(NewDefinition.get());
+  NewEnum.OriginalName() = Enum.getName();
 
   TypeIndex UnderlyingTypeIndex = Enum.getUnderlyingType();
-  auto UnderlynigTypeFromModel = getModelTypeForIndex(UnderlyingTypeIndex);
-  if (not UnderlynigTypeFromModel) {
+  auto UnderlyingModelType = makeModelTypeForIndex(UnderlyingTypeIndex);
+  if (not UnderlyingModelType) {
     revng_log(DILogger,
               "LF_ENUM: Unknown underlying type "
                 << UnderlyingTypeIndex.getIndex());
     return Error::success();
   }
 
-  model::QualifiedType TheUnderlyingType(*UnderlynigTypeFromModel, {});
-  auto TypeEnum = cast<model::EnumType>(NewType.get());
-  TypeEnum->UnderlyingType() = TheUnderlyingType;
+  NewEnum.UnderlyingType() = std::move(UnderlyingModelType);
 
   auto &TheFields = InProgressEnumeratorTypes[FieldsTypeIndex];
   if (TheFields.empty())
     return Error::success();
 
   for (const auto &Entry : TheFields) {
-    auto &EnumEntry = TypeEnum->Entries()[Entry.getValue().getExtValue()];
+    auto &EnumEntry = NewEnum.Entries()[Entry.getValue().getExtValue()];
     EnumEntry.OriginalName() = Entry.getName().str();
   }
 
-  auto TypePath = Model->recordNewType(std::move(NewType));
-  ProcessedTypes[CurrentTypeIndex] = TypePath;
+  auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+  ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
 
   return Error::success();
 }
@@ -961,19 +922,17 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
 Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                ProcedureRecord &Proc) {
   TypeIndex ReturnTypeIndex = Proc.ReturnType;
-  auto ReturnTypeFromModel = getModelTypeForIndex(ReturnTypeIndex);
+  auto ReturnTypeFromModel = makeModelTypeForIndex(ReturnTypeIndex);
   if (not ReturnTypeFromModel) {
     revng_log(DILogger,
               "LF_PROCEDURE: Unknown return type "
                 << ReturnTypeIndex.getIndex());
   } else {
-    auto NewType = model::makeType<model::CABIFunctionType>();
-    auto TypeFunction = cast<model::CABIFunctionType>(NewType.get());
-    TypeFunction->ABI() = getMicrosoftABI(Proc.getCallConv(),
-                                          Model->Architecture());
-
-    model::QualifiedType TheReturnType(*ReturnTypeFromModel, {});
-    TypeFunction->ReturnType() = TheReturnType;
+    auto NewDef = model::makeTypeDefinition<model::CABIFunctionDefinition>();
+    auto Prototype = cast<model::CABIFunctionDefinition>(NewDef.get());
+    Prototype->ABI() = getMicrosoftABI(Proc.getCallConv(),
+                                       Model->Architecture());
+    Prototype->ReturnType() = std::move(ReturnTypeFromModel);
 
     TypeIndex ArgListTyIndex = Proc.getArgumentList();
     auto ArgumentList = InProgressArgumentsTypes[ArgListTyIndex];
@@ -990,7 +949,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         continue;
       }
 
-      auto ArgumentTypeFromModel = getModelTypeForIndex(ArgumentTypeIndex);
+      auto ArgumentTypeFromModel = makeModelTypeForIndex(ArgumentTypeIndex);
       if (not ArgumentTypeFromModel) {
         revng_log(DILogger,
                   "LF_PROCEDURE: Unknown argument type "
@@ -998,7 +957,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         // Avoid incomplete function types.
         return Error::success();
       } else {
-        auto MaybeSize = ArgumentTypeFromModel->get()->size();
+        auto MaybeSize = ArgumentTypeFromModel->size();
         uint64_t Size = MaybeSize.value_or(0);
         // Forward references are processed later.
         if (Size == 0 and !isUdtForwardRef(Tpi.getType(ArgumentTypeIndex))) {
@@ -1007,16 +966,14 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
           continue;
         }
 
-        model::Argument &NewArgument = TypeFunction->Arguments()[Index];
-        model::QualifiedType TheArgumentType(*ArgumentTypeFromModel, {});
-
-        NewArgument.Type() = TheArgumentType;
+        model::Argument &NewArgument = Prototype->Arguments()[Index];
+        NewArgument.Type() = std::move(ArgumentTypeFromModel);
         ++Index;
       }
     }
 
-    auto TypePath = Model->recordNewType(std::move(NewType));
-    ProcessedTypes[CurrentTypeIndex] = TypePath;
+    auto [_, NewType] = Model->recordNewType(std::move(NewDef));
+    ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
   }
 
   return Error::success();
@@ -1026,62 +983,52 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                UnionRecord &Union) {
   TypeIndex FieldsTypeIndex = Union.getFieldList();
-  auto NewType = model::makeType<model::UnionType>();
-  NewType->OriginalName() = Union.getName().str();
-
-  uint64_t Index = 0;
   auto &TheFields = InProgressMemberTypes[FieldsTypeIndex];
-
-  // Handle an empty union, similar to 0-sized structs.
-  // Typedef it to void.
   if (TheFields.size() == 0) {
-    auto TypeTypedef = model::makeType<model::TypedefType>();
-    TypeTypedef->OriginalName() = Union.getName().str();
-
-    auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
-    using Values = model::PrimitiveTypeKind::Values;
-    auto ThePrimitiveType = Model->getPrimitiveType(Values::Void, 0);
-    model::QualifiedType TheUnderlyingType(ThePrimitiveType, {});
-    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
-
-    auto TypePath = Model->recordNewType(std::move(TypeTypedef));
-    ProcessedTypes[CurrentTypeIndex] = TypePath;
+    // Handle an empty union, similar to 0-sized structs.
+    // Typedef it to void.
+    model::UpcastableType Void = model::PrimitiveType::makeVoid();
+    auto [Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
+    Typedef.OriginalName() = Union.getName().str();
+    ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
 
     return Error::success();
   }
 
-  bool GeneratedOneFieldAtleast = false;
+  auto NewDefinition = model::makeTypeDefinition<model::UnionDefinition>();
+  auto &NewUnion = llvm::cast<model::UnionDefinition>(*NewDefinition.get());
+  NewUnion.OriginalName() = Union.getName().str();
+
+  uint64_t Index = 0;
+  bool GeneratedAtLeastOneField = false;
   for (const auto &Field : TheFields) {
     // Create new field.
-    auto FiledTypeFromModel = getModelTypeForIndex(Field.getType());
-    if (!FiledTypeFromModel) {
+    auto FieldModelType = makeModelTypeForIndex(Field.getType());
+    if (FieldModelType.empty()) {
       revng_log(DILogger,
                 "LF_UNION: Unknown field type " << Field.getType().getIndex());
       // Avoid incomplete unions.
       return Error::success();
     } else {
-      auto MaybeSize = FiledTypeFromModel->get()->size();
-      uint64_t Size = MaybeSize.value_or(0);
+      uint64_t Size = FieldModelType->size().value_or(0);
       if (Size == 0) {
         // Skip 0-sized field.
         revng_log(DILogger, "Skipping 0-sized union field.");
         continue;
       }
 
-      GeneratedOneFieldAtleast = true;
-      auto TypeUnion = cast<model::UnionType>(NewType.get());
-      auto &FieldType = TypeUnion->Fields()[Index];
+      GeneratedAtLeastOneField = true;
+      auto &FieldType = NewUnion.Fields()[Index];
       FieldType.OriginalName() = Field.getName().str();
-      model::QualifiedType TheFieldType(*FiledTypeFromModel, {});
-      FieldType.Type() = TheFieldType;
+      FieldType.Type() = std::move(FieldModelType);
 
       Index++;
     }
   }
 
-  if (GeneratedOneFieldAtleast) {
-    auto TypePath = Model->recordNewType(std::move(NewType));
-    ProcessedTypes[CurrentTypeIndex] = TypePath;
+  if (GeneratedAtLeastOneField) {
+    auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+    ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
   }
 
   return Error::success();
@@ -1160,14 +1107,14 @@ static std::optional<uint64_t> getSizeinBytes(TypeIndex TI) {
   }
 }
 
-static model::PrimitiveTypeKind::Values
+static model::PrimitiveKind::Values
 codeviewSimpleTypeEncodingToModel(TypeIndex TI) {
   if (not TI.isSimple())
-    return model::PrimitiveTypeKind::Invalid;
+    return model::PrimitiveKind::Invalid;
 
   switch (TI.getSimpleKind()) {
   case SimpleTypeKind::Void:
-    return model::PrimitiveTypeKind::Void;
+    return model::PrimitiveKind::Void;
   case SimpleTypeKind::Boolean8:
   case SimpleTypeKind::Boolean16:
   case SimpleTypeKind::Boolean32:
@@ -1183,7 +1130,7 @@ codeviewSimpleTypeEncodingToModel(TypeIndex TI) {
   case SimpleTypeKind::UInt64Quad:
   case SimpleTypeKind::UInt128Oct:
   case SimpleTypeKind::UInt128:
-    return model::PrimitiveTypeKind::Unsigned;
+    return model::PrimitiveKind::Unsigned;
   case SimpleTypeKind::SignedCharacter:
   case SimpleTypeKind::WideCharacter:
   case SimpleTypeKind::NarrowCharacter:
@@ -1198,15 +1145,15 @@ codeviewSimpleTypeEncodingToModel(TypeIndex TI) {
   case SimpleTypeKind::Int64:
   case SimpleTypeKind::Int128Oct:
   case SimpleTypeKind::Int128:
-    return model::PrimitiveTypeKind::Signed;
+    return model::PrimitiveKind::Signed;
   case SimpleTypeKind::Float16:
   case SimpleTypeKind::Float32:
   case SimpleTypeKind::Float64:
   case SimpleTypeKind::Float80:
   case SimpleTypeKind::Float128:
-    return model::PrimitiveTypeKind::Float;
+    return model::PrimitiveKind::Float;
   default:
-    return model::PrimitiveTypeKind::Invalid;
+    return model::PrimitiveKind::Invalid;
   }
 }
 
@@ -1276,75 +1223,62 @@ static std::optional<uint64_t> getPointerSizeFromPDB(TypeIndex TI) {
   return std::nullopt;
 }
 
-void PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
-  using namespace model;
-  using Values = PrimitiveTypeKind::Values;
-  Values Kind = codeviewSimpleTypeEncodingToModel(SimpleType);
-
-  // If it is a pointer of size 2, lets create a PointerOrNumber for it.
+model::UpcastableType
+PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
   if (isTwoBytesLongPointer(SimpleType)) {
-    constexpr uint64_t MSDOS16PointerSize = 2;
-    auto ModelType = Model->getPrimitiveType(PrimitiveTypeKind::PointerOrNumber,
-                                             MSDOS16PointerSize);
-    ProcessedTypes[SimpleType] = ModelType;
+    // If it is a pointer of size 2, lets create a PointerOrNumber for it.
+    using PT = model::PrimitiveType;
+    constexpr uint64_t MSDOS16Pointer = 2;
+    return ProcessedTypes[SimpleType] = PT::makePointerOrNumber(MSDOS16Pointer);
+
   } else if (isSixteenBytesLongPointer(SimpleType)) {
     // If it is a 128-bit long pointer, typedef it to void for now. It can be
     // represented as a `struct { pointee; offset; }` since it is how it is
     // implemented in the msvc compiler.
-    auto VoidModelType = Model->getPrimitiveType(PrimitiveTypeKind::Void, 0);
-    auto TypeTypedef = makeType<TypedefType>();
-    auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-    QualifiedType TheUnderlyingType(VoidModelType, {});
-    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
-    ProcessedTypes[SimpleType] = VoidModelType;
+    revng_abort("128-bit pointers are not supported for now.");
+    model::UpcastableType Void = model::PrimitiveType::makeVoid();
+    auto [_, Typedef] = Model->makeTypedefDefinition(std::move(Void));
+    return ProcessedTypes[SimpleType] = std::move(Typedef);
+
   } else {
+    auto PrimitiveKind = codeviewSimpleTypeEncodingToModel(SimpleType);
+    auto PrimitiveSize = getSizeinBytes(SimpleType);
+    if (PrimitiveSize and PrimitiveKind != model::PrimitiveKind::Invalid) {
+      auto Primitive = model::PrimitiveType::make(PrimitiveKind,
+                                                  *PrimitiveSize);
 
-    auto TypeSize = getSizeinBytes(SimpleType);
-    if (TypeSize and Kind != PrimitiveTypeKind::Invalid) {
-      // Remember the type.
-      auto PrimitiveModelType = Model->getPrimitiveType(Kind, *TypeSize);
-      // If it is not a pointer `SimpleTypeIndex` will be the same as
-      // `SimpleType`. In the case of pointer we have some additional bits set
-      // in the TypeIndex representing the type.
-      TypeIndex SimpleTypeIndex(SimpleType.getSimpleKind());
-      ProcessedTypes[SimpleTypeIndex] = PrimitiveModelType;
+      if (isPointer(SimpleType)) {
+        auto PointerSize = getPointerSizeFromPDB(SimpleType);
+        if (!PointerSize) {
+          revng_log(DILogger, "Invalid pointer size " << SimpleType.getIndex());
+          return nullptr;
+        }
 
-      if (not isPointer(SimpleType))
-        return;
-      // Create a pointer to the primitive type.
-      auto PointerSize = getPointerSizeFromPDB(SimpleType);
-      if (!PointerSize) {
-        revng_log(DILogger, "Invalid pointer size " << SimpleType.getIndex());
-        return;
+        auto Pointer = model::PointerType::make(std::move(Primitive),
+                                                *PointerSize);
+        auto Typedef = Model->makeTypedefDefinition(std::move(Pointer)).second;
+        return ProcessedTypes[SimpleType] = std::move(Typedef);
+      } else {
+        // If it is not a pointer `SimpleKind` will be the same as `SimpleType`.
+        revng_assert(TypeIndex(SimpleType.getSimpleKind()) == SimpleType);
+        return ProcessedTypes[SimpleType] = std::move(Primitive);
       }
-
-      auto TypeTypedef = makeType<TypedefType>();
-      auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-      std::vector<Qualifier> Qualifiers;
-      Qualifiers.push_back({ Qualifier::createPointer(*PointerSize) });
-
-      QualifiedType TheUnderlyingType(PrimitiveModelType, Qualifiers);
-      TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
-
-      auto TypePath = Model->recordNewType(std::move(TypeTypedef));
-      ProcessedTypes[SimpleType] = TypePath;
     } else {
       revng_log(DILogger, "Invalid simple type " << SimpleType.getIndex());
+      revng_abort("Invalid primitive.");
     }
   }
 }
 
-std::optional<TupleTreeReference<model::Type, model::Binary>>
-PDBImporterTypeVisitor::getModelTypeForIndex(TypeIndex Index) {
-  if (ProcessedTypes.count(Index) != 0)
-    return ProcessedTypes[Index];
-
+model::UpcastableType
+PDBImporterTypeVisitor::makeModelTypeForIndex(TypeIndex Index) {
   if (Index.isSimple())
-    createPrimitiveType(Index);
+    return createPrimitiveType(Index);
 
-  if (ProcessedTypes.count(Index) != 0)
-    return ProcessedTypes[Index];
-  return std::nullopt;
+  if (auto Iter = ProcessedTypes.find(Index); Iter != ProcessedTypes.end())
+    return Iter->second.copy();
+  else
+    return nullptr;
 }
 
 // ==== Implementation of the Model Symbol-type connection. ==== //

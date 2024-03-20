@@ -27,7 +27,7 @@
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/Kinds.h"
@@ -58,6 +58,29 @@ struct EnforceABIPipe {
                                                   InputPreservation::Erase) };
   }
 
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    const auto &Model = *revng::getModelFromContext(Ctx);
+
+    if (!Model.DefaultPrototype().empty())
+      return llvm::Error::success();
+
+    for (const auto &Function : Model.Functions())
+      if (Function.Prototype().empty())
+        return llvm::createStringError(inconvertibleErrorCode(),
+                                       "Binary needs to either have a default "
+                                       "prototype, or a prototype for each "
+                                       "function.");
+
+    for (const auto &Function : Model.ImportedDynamicFunctions())
+      if (Function.Prototype().empty())
+        return llvm::createStringError(inconvertibleErrorCode(),
+                                       "Binary needs to either have a default "
+                                       "prototype, or a prototype for each "
+                                       "function.");
+
+    return llvm::Error::success();
+  }
+
   void registerPasses(llvm::legacy::PassManager &Manager) {
     Manager.add(new EnforceABI());
   }
@@ -86,7 +109,7 @@ private:
                            const model::Function &FunctionModel);
 
   Function *recreateFunction(Function &OldFunction,
-                             const model::TypePath &Prototype);
+                             const model::TypeDefinition &Prototype);
 
   void createPrologue(Function *NewFunction,
                       const model::Function &FunctionModel);
@@ -141,8 +164,9 @@ void EnforceABIImpl::run() {
       continue;
     OldFunctions.push_back(OldFunction);
 
-    Function *NewFunction = recreateFunction(*OldFunction,
-                                             FunctionModel.prototype(Binary));
+    const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
+    revng_assert(ProtoT != nullptr);
+    Function *NewFunction = recreateFunction(*OldFunction, *ProtoT);
 
     // EnforceABI currently does not support execution
     NewFunction->deleteBody();
@@ -228,8 +252,9 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
   bool IsDeclaration = OldFunction.isDeclaration();
 
-  Function *NewFunction = recreateFunction(OldFunction,
-                                           FunctionModel.prototype(Binary));
+  const auto *Prototype = Binary.prototypeOrDefault(FunctionModel.prototype());
+  revng_assert(Prototype != nullptr);
+  Function *NewFunction = recreateFunction(OldFunction, *Prototype);
   FunctionTags::ABIEnforced.addTo(NewFunction);
 
   if (not IsDeclaration)
@@ -238,8 +263,9 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
   return NewFunction;
 }
 
-Function *EnforceABIImpl::recreateFunction(Function &OldFunction,
-                                           const model::TypePath &Prototype) {
+Function *
+EnforceABIImpl::recreateFunction(Function &OldFunction,
+                                 const model::TypeDefinition &Prototype) {
   // Create new function
   auto Registers = abi::FunctionType::usedRegisters(Prototype);
   auto [NewReturnType, NewArguments] = getLLVMReturnTypeAndArguments(&M,
@@ -289,9 +315,10 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
   SmallVector<std::pair<Type *, Constant *>, 8> ReturnCSVs;
 
   // We sort arguments by their CSV name
-  const model::TypePath &Prototype = FunctionModel.prototype(Binary);
+  const auto *Prototype = Binary.prototypeOrDefault(FunctionModel.prototype());
+  revng_assert(Prototype != nullptr);
   auto [ArgumentRegisters,
-        ReturnValueRegisters] = abi::FunctionType::usedRegisters(Prototype);
+        ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
   for (model::Register::Values Register : ArgumentRegisters)
     ArgumentCSVs.push_back(getCSVOrUndef(&M, Register).second);
   for (model::Register::Values Register : ReturnValueRegisters)
@@ -403,18 +430,14 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                                        const efa::BasicBlock &CallSiteBlock,
                                        const efa::CallEdge &CallSite) {
   using model::NamedTypedRegister;
-  using model::RawFunctionType;
-  using model::TypedRegister;
+  using model::RawFunctionDefinition;
 
   revng_assert(Callee.getCallee() != nullptr);
 
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<Constant *, 8> ReturnCSVs;
 
-  model::TypePath Prototype = getPrototype(Binary,
-                                           Entry,
-                                           CallSiteBlock.ID(),
-                                           CallSite);
+  auto Prototype = *getPrototype(Binary, Entry, CallSiteBlock.ID(), CallSite);
   auto Registers = abi::FunctionType::usedRegisters(Prototype);
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);

@@ -39,7 +39,8 @@ void visitTuple(Visitor &V, T &Obj) {
 // UpcastablePointerLike-like
 template<typename Visitor, UpcastablePointerLike T>
 void visitTupleTree(Visitor &V, T &Obj) {
-  upcast(Obj, [&V](auto &Upcasted) { visitTupleTree(V, Upcasted); });
+  if (Obj != nullptr)
+    upcast(Obj, [&V](auto &Upcasted) { visitTupleTree(V, Upcasted); });
 }
 
 // Tuple-like
@@ -595,12 +596,13 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
       Result.Free.push_back(Result.Path.size());
 
       //
-      // Extract the Kind of the abstract type in the UpcastableType
+      // Extract the Kind of the abstract type in the
+      // `model::UpcastableTypeDefinition`
       //
 
       // Get the kind type for the abstract type
-      // TODO: add using for model::Type's Kind
-      using Kind = typename Value::element_type::KindType;
+      // TODO: add using for model::TypeDefinition's Kind
+      using Kind = typename Value::element_type::TypeOfKind;
 
       // Extract Kind from "Kind-*" and deserialize it
       Kind MatcherKind = getValueFromYAMLScalar<Kind>(PostDash);

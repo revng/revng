@@ -133,7 +133,7 @@ class CppHeadersGenerator:
                 definition = self.struct_template.render(
                     struct=type_to_emit,
                     upcastable=upcastable_types,
-                    generator=self,
+                    user_include_path=self.user_include_path,
                     includes=includes,
                     emit_tracking=self.emit_tracking,
                     emit_tracking_debug=self.emit_tracking_debug,
@@ -170,6 +170,8 @@ class CppHeadersGenerator:
                 definition = self.struct_late_template.render(
                     struct=type_to_emit,
                     upcastable=upcastable_types,
+                    schema=self.schema,
+                    user_include_path=self.user_include_path,
                     root_type=self.root_type,
                     namespace=self.schema.generated_namespace,
                     all_types=all_known_types,
@@ -196,10 +198,11 @@ class CppHeadersGenerator:
                     self.struct_impl_template.render(
                         struct=type_to_emit,
                         upcastable=upcastable_types,
-                        generator=self,
+                        user_include_path=self.user_include_path,
                         schema=self.schema,
                         root_type=self.root_type,
                         base_namespace=self.schema.base_namespace,
+                        emit_tracking=self.emit_tracking,
                     )
                     + "\n"
                 )

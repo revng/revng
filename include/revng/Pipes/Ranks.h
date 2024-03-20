@@ -4,10 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/DynamicFunction.h"
-#include "revng/Model/Function.h"
-#include "revng/Model/Segment.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/Binary.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
@@ -34,13 +31,14 @@ inline auto Function = defineRank<"function", model::Function::Key>(Binary);
 inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
 inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 
-inline auto Type = defineRank<"type", model::Type::Key>(Binary);
+inline auto Type = defineRank<"type", model::TypeDefinition::Key>(Binary);
 inline auto StructField = defineRank<"struct-field", detail::SFK>(Type);
 inline auto UnionField = defineRank<"union-field", detail::UFK>(Type);
 inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(Type);
 inline auto CABIArgument = defineRank<"cabi-argument", detail::CAK>(Type);
 inline auto RawArgument = defineRank<"raw-argument", detail::RAK>(Type);
-inline auto ReturnValue = defineRank<"return-value", model::Type::Key>(Binary);
+inline auto
+  ReturnValue = defineRank<"return-value", model::TypeDefinition::Key>(Binary);
 inline auto ReturnRegister = defineRank<"return-register",
                                         model::NamedTypedRegister::Key>(Type);
 

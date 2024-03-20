@@ -8,16 +8,16 @@
 
 #include "revng/ABI/Definition.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/QualifiedType.h"
 
 namespace abi::FunctionType {
 
-/// Best effort `CABIFunctionType` to `RawFunctionType` conversion.
+/// Best effort `CABIFunctionDefinition` to `RawFunctionDefinition` conversion.
 ///
 /// \note: this conversion is lossy since there's no way to represent some types
-///        in `RawFunctionType` in a reversible manner.
-model::TypePath convertToRaw(const model::CABIFunctionType &Function,
-                             TupleTree<model::Binary> &TheBinary);
+///        in `RawFunctionDefinition` in a reversible manner.
+model::UpcastableType
+convertToRaw(const model::CABIFunctionDefinition &Function,
+             TupleTree<model::Binary> &TheBinary);
 
 namespace ArgumentKind {
 
@@ -73,11 +73,16 @@ enum Values {
 struct Layout {
 public:
   struct ReturnValue {
-    model::QualifiedType Type;
-    llvm::SmallVector<model::Register::Values, 2> Registers;
+    model::UpcastableType Type;
+    llvm::SmallVector<model::Register::Values, 2> Registers = {};
+
+    ReturnValue() = default;
+    ReturnValue(model::UpcastableType &&Type) : Type(std::move(Type)) {}
   };
 
   struct Argument : public ReturnValue {
+    using ReturnValue::ReturnValue;
+
   public:
     struct StackSpan {
       uint64_t Offset;
@@ -89,8 +94,8 @@ public:
     };
 
   public:
-    std::optional<StackSpan> Stack;
-    ArgumentKind::Values Kind;
+    std::optional<StackSpan> Stack = std::nullopt;
+    ArgumentKind::Values Kind = ArgumentKind::Scalar;
   };
 
 public:
@@ -103,23 +108,19 @@ public:
   Layout() = default;
 
 public:
-  explicit Layout(const model::CABIFunctionType &Function);
-  explicit Layout(const model::RawFunctionType &Function);
-
-  /// Extracts the information about argument and return value location layout
-  /// from the \param Function.
-  static Layout make(const model::TypePath &Function) {
-    revng_assert(Function.isValid());
-    return make(*Function.get());
-  }
-
-  static Layout make(const model::Type &Function) {
-    if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+  explicit Layout(const model::CABIFunctionDefinition &Prototype);
+  explicit Layout(const model::RawFunctionDefinition &Prototype);
+  static Layout make(const model::TypeDefinition &Prototype) {
+    if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Prototype))
       return Layout(*CABI);
-    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
-      return Layout(*Raw);
+    else if (auto *R = llvm::dyn_cast<model::RawFunctionDefinition>(&Prototype))
+      return Layout(*R);
     else
       revng_abort("Layouts of non-function types are not supported.");
+  }
+  static Layout make(const model::UpcastableType &FunctionType) {
+    revng_assert(!FunctionType.empty());
+    return make(FunctionType->asPrototype());
   }
 
 public:
@@ -145,36 +146,28 @@ public:
       return ReturnMethod::Void;
     } else if (ReturnValues.size() > 1) {
       return ReturnMethod::RegisterSet;
-    } else if (not ReturnValues[0].Type.isScalar()) {
+    } else if (not ReturnValues[0].Type->isScalar()) {
       revng_assert(ReturnValues.size() == 1);
       return ReturnMethod::ModelAggregate;
     } else {
       revng_assert(ReturnValues.size() == 1);
-      revng_assert(ReturnValues[0].Type.isScalar());
+      revng_assert(ReturnValues[0].Type->isScalar());
       return ReturnMethod::Scalar;
     }
   }
 
   // \note Call only if returnMethod() is ModelAggregate
-  const model::QualifiedType returnValueAggregateType() const {
+  const model::Type &returnValueAggregateType() const {
     revng_assert(returnMethod() == ReturnMethod::ModelAggregate);
 
     if (hasSPTAR()) {
       revng_assert(ReturnValues.size() <= 1);
       revng_assert(Arguments.size() >= 1);
-      return Arguments[0].Type.stripPointer();
-    }
-
-    bool Result = llvm::any_of(ReturnValues,
-                               [](const ReturnValue &Return) -> bool {
-                                 return not Return.Type.isScalar();
-                               });
-
-    if (Result) {
-      revng_assert(ReturnValues.size() == 1);
-      return ReturnValues[0].Type;
+      return Arguments[0].Type->stripPointer();
     } else {
-      revng_abort();
+      revng_assert(ReturnValues.size() == 1);
+      revng_assert(!ReturnValues[0].Type->isScalar());
+      return *ReturnValues[0].Type;
     }
   }
 
@@ -183,57 +176,58 @@ public:
 };
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::CABIFunctionType &Function) {
+calleeSavedRegisters(const model::CABIFunctionDefinition &Function) {
   return abi::Definition::get(Function.ABI()).CalleeSavedRegisters();
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::RawFunctionType &Function) {
+calleeSavedRegisters(const model::RawFunctionDefinition &Function) {
   return Function.PreservedRegisters();
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+calleeSavedRegisters(const model::TypeDefinition &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
     return calleeSavedRegisters(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
     return calleeSavedRegisters(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
 inline std::span<const model::Register::Values>
-calleeSavedRegisters(const model::TypePath &Function) {
-  revng_assert(Function.isValid());
-  return calleeSavedRegisters(*Function.get());
+calleeSavedRegisters(const model::UpcastableType &FunctionType) {
+  revng_assert(!FunctionType.empty());
+  return calleeSavedRegisters(FunctionType->asPrototype());
 }
 
-uint64_t finalStackOffset(const model::CABIFunctionType &Function);
-inline uint64_t finalStackOffset(const model::RawFunctionType &Function) {
+uint64_t finalStackOffset(const model::CABIFunctionDefinition &Function);
+inline uint64_t finalStackOffset(const model::RawFunctionDefinition &Function) {
   return Function.FinalStackOffset();
 }
 
-inline uint64_t finalStackOffset(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+inline uint64_t finalStackOffset(const model::TypeDefinition &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
     return finalStackOffset(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
     return finalStackOffset(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline uint64_t finalStackOffset(const model::TypePath &Function) {
-  revng_assert(Function.isValid());
-  return finalStackOffset(*Function.get());
+inline uint64_t finalStackOffset(const model::UpcastableType &FunctionType) {
+  revng_assert(!FunctionType.empty());
+  return finalStackOffset(FunctionType->asPrototype());
 }
 
 struct UsedRegisters {
   llvm::SmallVector<model::Register::Values, 8> Arguments;
   llvm::SmallVector<model::Register::Values, 8> ReturnValues;
 };
-UsedRegisters usedRegisters(const model::CABIFunctionType &Function);
+UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function);
 
-inline UsedRegisters usedRegisters(const model::RawFunctionType &Function) {
+inline UsedRegisters
+usedRegisters(const model::RawFunctionDefinition &Function) {
   UsedRegisters Result;
   for (const model::NamedTypedRegister &Register : Function.Arguments())
     Result.Arguments.emplace_back(Register.Location());
@@ -242,18 +236,18 @@ inline UsedRegisters usedRegisters(const model::RawFunctionType &Function) {
   return Result;
 }
 
-inline UsedRegisters usedRegisters(const model::Type &Function) {
-  if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
+inline UsedRegisters usedRegisters(const model::TypeDefinition &Function) {
+  if (auto CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(&Function))
     return usedRegisters(*CABI);
-  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
+  else if (auto *Raw = llvm::dyn_cast<model::RawFunctionDefinition>(&Function))
     return usedRegisters(*Raw);
   else
     revng_abort("Layouts of non-function types are not supported.");
 }
 
-inline UsedRegisters usedRegisters(const model::TypePath &Function) {
-  revng_assert(Function.isValid());
-  return usedRegisters(*Function.get());
+inline UsedRegisters usedRegisters(const model::UpcastableType &FunctionType) {
+  revng_assert(!FunctionType.empty());
+  return usedRegisters(FunctionType->asPrototype());
 }
 
 } // namespace abi::FunctionType

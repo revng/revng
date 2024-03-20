@@ -5,7 +5,6 @@
 //
 
 #include "revng/Model/Binary.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Section.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
@@ -22,11 +21,11 @@ struct DataSymbol {
   bool operator==(const DataSymbol &) const = default;
 };
 
-inline bool checkForOverlap(const model::StructType &Struct,
+inline bool checkForOverlap(const model::StructDefinition &Struct,
                             uint64_t Offset,
                             uint64_t Size) {
   for (auto &Current : Struct.Fields()) {
-    uint64_t CurrentSize = *Current.Type().size();
+    uint64_t CurrentSize = *Current.Type()->size();
     if ((Current.Offset() < Offset + Size))
       if (Current.Offset() + CurrentSize > Offset)
         return true;
@@ -37,9 +36,9 @@ inline bool checkForOverlap(const model::StructType &Struct,
 
 inline void importSymbolsInto(model::Binary &Binary,
                               llvm::SmallVector<DataSymbol, 32> &DataSymbols,
-                              model::StructType *Struct,
+                              model::StructDefinition &Struct,
                               MetaAddress StructStartAddress) {
-  MetaAddress StructEndAddress = StructStartAddress + Struct->Size();
+  MetaAddress StructEndAddress = StructStartAddress + Struct.Size();
   if (not StructEndAddress.isValid())
     return;
 
@@ -54,48 +53,45 @@ inline void importSymbolsInto(model::Binary &Binary,
       revng_assert(Offset.has_value());
 
       // Discard any symbols that would overlap an already existing one.
-      if (checkForOverlap(*Struct, *Offset, SymbolSize)) {
+      if (checkForOverlap(Struct, *Offset, SymbolSize)) {
         It = std::prev(DataSymbols.erase(It));
         continue;
       }
 
-      model::TypePath T;
+      model::StructField Field;
+      Field.Offset() = *Offset;
+      Field.OriginalName() = SymbolName.str();
       if (SymbolSize == 1 || SymbolSize == 2 || SymbolSize == 4
           || SymbolSize == 8) {
-        T = Binary.getPrimitiveType(model::PrimitiveTypeKind::Generic,
-                                    SymbolSize);
+        Field.Type() = model::PrimitiveType::makeGeneric(SymbolSize);
       } else {
         // If the symbol has a non-standard size, make it an empty struct with
         // the same size instead.
-        T = createEmptyStruct(Binary, SymbolSize);
+        Field.Type() = Binary.makeStructDefinition(SymbolSize).second;
       }
 
-      model::QualifiedType FieldType = { T, {} };
-      model::StructField Field{ *Offset, {}, SymbolName.str(), {}, FieldType };
-      const auto &[_, Success] = Struct->Fields().insert(Field);
+      const auto &[_, Success] = Struct.Fields().insert(Field);
       revng_assert(Success);
     }
   }
 }
 
-inline model::TypePath
+inline model::UpcastableType
 populateSegmentTypeStruct(model::Binary &Binary,
                           model::Segment &Segment,
                           llvm::SmallVector<DataSymbol, 32> DataSymbols) {
-  using namespace llvm;
-  using namespace model;
+  revng_assert(Segment.VirtualSize() > 0);
 
   // Create a struct for the segment
-  TypePath SegmentStructPath = createEmptyStruct(Binary, Segment.VirtualSize());
-  auto *SegmentStruct = cast<model::StructType>(SegmentStructPath.get());
+  auto [SegmentStruct,
+        SegmentType] = Binary.makeStructDefinition(Segment.VirtualSize());
 
   for (model::Section &Section : Segment.Sections()) {
     auto Offset = Section.StartAddress() - Segment.StartAddress();
     revng_assert(Offset.has_value());
 
     // Create a struct for each section
-    TypePath SectionStructPath = createEmptyStruct(Binary, Section.Size());
-    auto *SectionStruct = cast<model::StructType>(SectionStructPath.get());
+    auto [SectionStruct, Type] = Binary.makeStructDefinition(Section.Size());
 
     // Import (and consume) symbols that fall within such section
     importSymbolsInto(Binary,
@@ -104,15 +100,18 @@ populateSegmentTypeStruct(model::Binary &Binary,
                       Section.StartAddress());
 
     // Insert the field the segment struct
-    StructField SectionField{
-      *Offset, {}, Section.Name(), {}, { SectionStructPath, {} }
-    };
-    SegmentStruct->Fields().insert(SectionField);
+    if (auto Iterator = SegmentStruct.Fields().find(*Offset);
+        Iterator != SegmentStruct.Fields().end()) {
+      // TODO: handle section overlap more gracefully.
+    } else {
+      auto &SectionField = SegmentStruct.addField(*Offset, std::move(Type));
+      SectionField.OriginalName() = Section.Name();
+    }
   }
 
   // Pour the remaining symbols into the segment struct
   importSymbolsInto(Binary, DataSymbols, SegmentStruct, Segment.StartAddress());
 
-  revng_assert(SegmentStruct->verify());
-  return SegmentStructPath;
+  revng_assert(SegmentStruct.verify(true));
+  return std::move(SegmentType);
 }

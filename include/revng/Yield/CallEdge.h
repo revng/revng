@@ -69,12 +69,6 @@ public:
   explicit CallEdge(const efa::CallEdge &Source);
 
 public:
-  static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
-  static bool classof(const Key &K) {
-    return std::get<1>(K) == FunctionEdgeBaseKind::CallEdge;
-  }
-
-public:
   bool hasAttribute(const model::Binary &Binary,
                     model::FunctionAttribute::Values Attribute) const {
     using namespace model;
@@ -106,7 +100,6 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
-  void dump() const debug_function;
 
 private:
   const TrackingMutableSet<model::FunctionAttribute::Values> *
@@ -115,46 +108,11 @@ private:
       const auto &F = Binary.ImportedDynamicFunctions().at(DynamicFunction());
       return &F.Attributes();
     } else if (Destination().isValid()) {
-      return &Binary.Functions()
-                .at(Destination().notInlinedAddress())
-                .Attributes();
+      return &Binary.Functions().at(Destination().start()).Attributes();
     } else {
       return nullptr;
     }
   }
 };
-
-inline model::TypePath getPrototype(const model::Binary &Binary,
-                                    MetaAddress CallerFunctionAddress,
-                                    MetaAddress CallerBlockAddress,
-                                    const yield::CallEdge &Edge) {
-  model::TypePath Result;
-
-  const auto &CallSitePrototypes = Binary.Functions()
-                                     .at(CallerFunctionAddress)
-                                     .CallSitePrototypes();
-  auto It = CallSitePrototypes.find(CallerBlockAddress);
-  if (It != CallSitePrototypes.end())
-    Result = It->Prototype();
-
-  if (Edge.Type() == yield::FunctionEdgeType::FunctionCall) {
-    if (not Edge.DynamicFunction().empty()) {
-      // Get the dynamic function prototype
-      Result = Binary.ImportedDynamicFunctions()
-                 .at(Edge.DynamicFunction())
-                 .Prototype();
-    } else if (Edge.Destination().isValid()) {
-      // Get the function prototype
-      Result = Binary.Functions()
-                 .at(Edge.Destination().notInlinedAddress())
-                 .Prototype();
-    }
-  }
-
-  if (Result.empty())
-    Result = Binary.DefaultPrototype();
-
-  return model::QualifiedType::getFunctionType(Result).value();
-}
 
 #include "revng/Yield/Generated/Late/CallEdge.h"

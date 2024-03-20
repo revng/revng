@@ -2,27 +2,30 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 17825711661244524544
     OriginalName: Node
     Fields:
       - Offset: 0
         OriginalName: content_uint32
         Type:
-          UnqualifiedType: "/Types/16313795245817021241-TypedefType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/16313795245817021241-TypedefDefinition"
       - Offset: 4
         OriginalName: prev
         Type:
-          UnqualifiedType: "/Types/14968854803921815239-TypedefType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/14968854803921815239-TypedefDefinition"
       - Offset: 12
         OriginalName: next
         Type:
-          UnqualifiedType: "/Types/14968854803921815239-TypedefType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/14968854803921815239-TypedefDefinition"
     Size: 20

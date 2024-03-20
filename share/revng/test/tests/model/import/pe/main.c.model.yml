@@ -14,14 +14,14 @@
 Functions:
   - CustomName: "main"
     OriginalName: main
-    Prototype: "/Types/1215409121627673421-CABIFunctionType"
-Types:
-  - Kind: PrimitiveType
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: CABIFunctionType
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1215409121627673421-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
     ID: 1215409121627673421
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Arguments: []

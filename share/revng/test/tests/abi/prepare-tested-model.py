@@ -48,8 +48,8 @@ def main():
     #
 
     prototypes_to_fix = [str(f.Prototype) for f in binary.Functions if f.Prototype.is_valid()]
-    for current_type in binary.Types:
-        if current_type.Kind == model.TypeKind.CABIFunctionType:
+    for current_type in binary.TypeDefinitions:
+        if current_type.Kind == model.TypeDefinitionKind.CABIFunctionDefinition:
             reference = binary.get_reference_str(current_type)
             if reference in prototypes_to_fix:
                 current_type.ABI = args.new_abi

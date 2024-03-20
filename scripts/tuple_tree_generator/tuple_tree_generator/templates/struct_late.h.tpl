@@ -21,6 +21,21 @@ The notice below applies to the generated files.
 #include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
+/** if root_type == struct.name -**/
+/** for type in schema.struct_definitions() -**/
+/** if type.name != root_type -**/
+#include "/*= user_include_path =*//*= type.name =*/.h"
+/** endif **/
+/**- endfor **/
+/**- endif **/
+
+/**- if struct.inherits **/
+inline bool
+/*= struct | fullname =*/::classof(const /*= struct.inherits | user_fullname =*/ *P) {
+  return classof(P->Kind());
+}
+/**- endif **/
+
 using namespace std::string_view_literals;
 
 /*# --- TupleLikeTraits --- -#*/
@@ -29,7 +44,8 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
   static constexpr const llvm::StringRef FullName = "/*=- struct | user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
-    /*=- struct | user_fullname =*/::/*=- field.name =*/Type/** if not loop.last **/, /** endif -**/
+    /*=- struct | user_fullname =*/::TypeOf/*=- field.name =*/
+    /**- if not loop.last **/, /** endif -**/
     /**- endfor **/>;
 
   static constexpr std::array<llvm::StringRef, std::tuple_size_v<tuple>> FieldNames = {
@@ -47,21 +63,21 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
 
 namespace /*= struct.namespace =*/ {
 template <int I> auto &get(/*= struct.name =*/ &&x) {
-  if constexpr (false)
-    return __null;
   /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
+  if constexpr (I == /*= loop.index0 =*/)
     return x./*= field.name =*/();
+  else
   /**- endfor **/
+    static_assert(value_always_false_v<I>);
 }
 
 template <int I> const auto &get(const /*= struct.name =*/ &x) {
-  if constexpr (false)
-    return __null;
   /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
+  if constexpr (I == /*= loop.index0 =*/)
     return x./*= field.name =*/();
+  else
   /**- endfor **/
+    static_assert(value_always_false_v<I>);
 }
 
 template <int I> auto &get(/*= struct.name =*/ &x) {
@@ -140,6 +156,18 @@ struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
   static Key key(const UpcastablePointer</*= struct | user_fullname =*/> &Obj);
   static UpcastablePointer</*= struct | user_fullname =*/> fromKey(const Key &K);
 };
+
+namespace /*= struct.namespace =*/ {
+
+using Upcastable/*= struct.name =*/ = UpcastablePointer</*= struct | user_fullname =*/>;
+
+template<std::derived_from</*= struct | user_fullname =*/> T, typename... Args>
+inline Upcastable/*= struct.name =*/ make/*= struct.name =*/(Args &&...A) {
+  return Upcastable/*= struct.name =*/::make<T>(std::forward<Args>(A)...);
+}
+
+} // namespace /*= struct.namespace =*/
+
 /** endif **//*# End UpcastablePointer stuff #*/
 
 static_assert(validateTupleTree</*= struct | user_fullname =*/>(IsYamlizable),

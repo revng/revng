@@ -34,13 +34,11 @@ class model::EnumEntry : public model::generated::EnumEntry {
 public:
   using generated::EnumEntry::EnumEntry;
 
+  Identifier name();
+
 public:
-  // The entry should have a non-empty name, the name should not be a valid
-  // alias, and there should not be empty aliases.
-  bool verify() const debug_function;
-  bool verify(bool Assert) const debug_function;
+  bool verify(bool Assert = false) const debug_function;
   bool verify(VerifyHelper &VH) const;
-  void dump() const debug_function;
 };
 
 #include "revng/Model/Generated/Late/EnumEntry.h"

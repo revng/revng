@@ -9,8 +9,13 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
+#include "revng/Model/Processing.h"
 
 using namespace llvm;
+
+static RegisterModelPass R0("purge-invalid-types",
+                            "Remove all the types that do not verify",
+                            model::purgeInvalidTypes);
 
 static RegisterModelPass R("purge-unnamed-and-unreachable-types",
                            "Remove all the types that cannot be reached from "
@@ -23,6 +28,20 @@ static RegisterModelPass R2("purge-unreachable-types",
                             "a type \"outside\" the type "
                             "system itself",
                             model::purgeUnreachableTypes);
+
+static Logger<> PurgeInvalidLogger("purge-invalid-types");
+void model::purgeInvalidTypes(TupleTree<model::Binary> &Model) {
+  model::VerifyHelper VH;
+  auto IsInvalid = [&VH](const model::UpcastableTypeDefinition &T) {
+    return !T->verify(VH);
+  };
+
+  auto ToDrop = Model->TypeDefinitions() | std::views::filter(IsInvalid)
+                | std::views::transform([](const auto &T) { return T.get(); })
+                | revng::to<std::set<const model::TypeDefinition *>>();
+  unsigned DroppedCount = dropTypesDependingOnDefinitions(Model, ToDrop);
+  revng_log(PurgeInvalidLogger, "Purging " << DroppedCount << " types.");
+}
 
 namespace model {
 static void purgeTypesImpl(TupleTree<model::Binary> &Model,
@@ -68,19 +87,18 @@ void model::purgeUnreachableTypes(TupleTree<model::Binary> &Model) {
 static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
                                   bool KeepTypesWithName) {
   struct NodeData {
-    model::Type *T;
+    model::TypeDefinition *T;
   };
   using Node = ForwardNode<NodeData>;
   using Graph = GenericGraph<Node>;
 
   Graph TypeGraph;
-  std::map<const model::Type *, Node *> TypeToNode;
+  std::map<const model::TypeDefinition *, Node *> TypeToNode;
 
-  llvm::SmallPtrSet<Type *, 16> ToKeep;
+  llvm::SmallPtrSet<model::TypeDefinition *, 16> ToKeep;
 
   // Remember those types we want to preserve.
-  for (UpcastablePointer<model::Type> &T : Model->Types()) {
-
+  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
     if (KeepTypesWithName)
       if (not T->CustomName().empty() or not T->OriginalName().empty())
         ToKeep.insert(T.get());
@@ -89,37 +107,32 @@ static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
   }
 
   // Create type system edges
-  for (UpcastablePointer<model::Type> &T : Model->Types()) {
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));
-    }
-  }
+  for (const model::UpcastableTypeDefinition &D : Model->TypeDefinitions())
+    for (const model::Type *Edge : D->edges())
+      if (const model::TypeDefinition *Definition = Edge->skipToDefinition())
+        TypeToNode.at(D.get())->addSuccessor(TypeToNode.at(Definition));
 
   // Record references to types *outside* of Model->Types
   auto VisitBinary = [&](auto &Field) {
     auto Visitor = [&](auto &Element) {
       using type = std::decay_t<decltype(Element)>;
-      if constexpr (std::is_same_v<type, TypePath>)
+      if constexpr (std::is_same_v<type, DefinitionReference>)
         if (Element.isValid())
           ToKeep.insert(Element.get());
     };
     visitTupleTree(Field, Visitor, [](auto) {});
   };
-  visitTupleExcept(VisitBinary, *Model, &Model->Types());
+  visitTupleExcept(VisitBinary, *Model, &Model->TypeDefinitions());
 
   // Visit all the nodes reachable from ToKeep
   df_iterator_default_set<Node *> Visited;
-  for (const UpcastablePointer<Type> &T : Model->Types())
-    if (isa<model::PrimitiveType>(T.get()))
-      Visited.insert(TypeToNode.at(T.get()));
-
-  for (Type *T : ToKeep)
+  for (model::TypeDefinition *T : ToKeep)
     for (Node *N : depth_first_ext(TypeToNode.at(T), Visited))
       ;
 
   // Purge the non-visited
-  llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
-    return not Visited.contains(TypeToNode.at(P.get()));
-  });
+  llvm::erase_if(Model->TypeDefinitions(),
+                 [&](model::UpcastableTypeDefinition &P) {
+                   return not Visited.contains(TypeToNode.at(P.get()));
+                 });
 }

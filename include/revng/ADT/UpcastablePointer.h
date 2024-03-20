@@ -174,7 +174,16 @@ public:
     return UpcastablePointer<T>(new Q(std::forward<Args>(TheArgs)...));
   }
 
+  UpcastablePointer copy() const {
+    return UpcastablePointer(clone(Pointer.get()));
+  }
+
 public:
+  UpcastablePointer &operator=(std::nullptr_t) noexcept {
+    Pointer.reset(nullptr);
+    return *this;
+  }
+
   UpcastablePointer &operator=(const UpcastablePointer &Other) {
     if (&Other != this) {
       Pointer.reset(clone(Other.Pointer.get()));
@@ -199,7 +208,13 @@ public:
     *this = std::move(Other);
   }
 
+  constexpr bool operator==(std::nullptr_t P) const noexcept {
+    return Pointer == P;
+  }
   bool operator==(const UpcastablePointer &Other) const {
+    if (empty() || Other.empty())
+      return Pointer == Other.Pointer;
+
     bool Result = false;
     upcast([&](auto &Upcasted) {
       Other.upcast([&](auto &OtherUpcasted) {
@@ -216,8 +231,11 @@ public:
   auto get() const noexcept { return Pointer.get(); }
   auto &operator*() const { return *Pointer; }
   auto *operator->() const noexcept { return Pointer.operator->(); }
+  operator bool() const noexcept { return static_cast<bool>(Pointer); }
 
   void reset(pointer Other = pointer()) noexcept { Pointer.reset(Other); }
+
+  bool empty() const noexcept { return Pointer == nullptr; }
 
 private:
   inner_pointer Pointer;

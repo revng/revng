@@ -92,10 +92,9 @@ public:
         F.Attributes() = WellKnownFunction->Attributes();
 
         // Copy prototype
-        auto NewPrototype = WellKnownFunction->Prototype();
-        if (not NewPrototype.empty()) {
+        if (const auto *NewPrototype = WellKnownFunction->prototype()) {
           TypeCopier &Copier = It->second.first->Copier;
-          F.Prototype() = Copier.copyTypeInto(NewPrototype);
+          F.Prototype() = Copier.copyTypeInto(*NewPrototype);
         }
       }
     }

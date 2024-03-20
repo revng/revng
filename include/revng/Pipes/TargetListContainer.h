@@ -51,7 +51,6 @@ struct SequenceTraits<::detail::TargetStorage> {
     return Seq[Index];
   }
 
-  // NOLINTNEXTLINE
   static const bool flow = true;
 };
 

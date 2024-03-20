@@ -63,7 +63,7 @@ StateAfterTheReturn:
 # other states, namely `StateBeforeTheCall` and `StateAfterTheCall` are omitted.
 ```
 since the return value is small, we can easily find it in the `rax` register - so no need to look into the stack or `ReturnValueAddress`.
-NOTE: notice how the top half of rax is empty - this is a really good indication of the fact that compiler used a 4-byte `mov` to put it there since our return value also happens to be just 4 bytes.
+NOTE: notice how the top half of `rax` is empty - this is a really good indication of the fact that compiler used a 4-byte `mov` to put it there since our return value also happens to be just 4 bytes.
 
 As for the big return value example, it's slightly more complex:
 ```yaml
@@ -107,53 +107,53 @@ First of all, to avoid relying on a specific function type (Raw or CABI), an `ab
 For our `test_args`, the prototype looks like
 ```yaml
   - ID:              1
-    Kind:            CABIFunctionType
+    Kind:            CABIFunctionDefinition
     ABI:             SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType" # void
+      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition" # void
     Arguments:
       - Index:           0
         Type:
-          UnqualifiedType: "/Types/2-StructType"
+          UnqualifiedType: "/TypeDefinitions/2-StructDefinition"
         CustomName:      "argument_0"
         OriginalName:    argument_0
       - Index:           1
         Type:
-          UnqualifiedType: "/Types/3-StructType"
+          UnqualifiedType: "/TypeDefinitions/3-StructDefinition"
         CustomName:      "argument_1"
         OriginalName:    argument_1
   - ID:              2
-    Kind:            StructType
+    Kind:            StructDefinition
     Size:            4
     Fields:
       - Offset:          0
         CustomName:      "a"
         OriginalName:    a
         Type:
-          UnqualifiedType: "/Types/1282-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1282-PrimitiveDefinition"
       - Offset:          2
         CustomName:      "b"
         OriginalName:    b
         Type:
-          UnqualifiedType: "/Types/1282-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1282-PrimitiveDefinition"
   - ID:              3
-    Kind:            StructType
+    Kind:            StructDefinition
     Size:            64
     Fields:
       - Offset:          0
         CustomName:      "a"
         OriginalName:    a
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
+          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
           Qualifiers:
             - Kind:            Array
               Size:            8
   - ID:              1282
-    Kind:            PrimitiveType
+    Kind:            PrimitiveDefinition
     PrimitiveKind:   Unsigned
     Size:            2
   - ID:              1288
-    Kind:            PrimitiveType
+    Kind:            PrimitiveDefinition
     PrimitiveKind:   Unsigned
     Size:            8
 ```
@@ -209,7 +209,7 @@ If at any point any expectation doesn't match - we assume layout is wrong and fa
 If, on the other hand, this test is passed for all 4 models, we can go to the final check - to ensure converting function back and force doesn't break it.
 
 By definition, the `raw->cabi` conversion is not always possible (can fail because any arbitrary function is not guaranteed to match any specific ABI), but if it doesn't - no information is lost - the conversion is perfect.
-On the other hand, the `cabi->raw` conversion is always successful (no matter the ABI, a function can be represented as a set of registers marked as arguments and return values, as well as some description of its stack frame) - but because of limited expressibility of `RawFunctionType`, some type information is bound to be lost. Because of that, this conversion is _lossy_.
+On the other hand, the `cabi->raw` conversion is always successful (no matter the ABI, a function can be represented as a set of registers marked as arguments and return values, as well as some description of its stack frame) - but because of limited expressiveness of `RawFunctionDefinition`, some type information is bound to be lost. Because of that, this conversion is _lossy_.
 
 So, in order to verify that conversion loop is stable despite it having a lossy conversion present, we need to first loose all the information we cannot represent as an RFT. Luckily, that's super simple - the converter does that for free :)
 
