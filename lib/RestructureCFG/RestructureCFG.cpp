@@ -696,6 +696,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     // Set to contain the retreating edges, which eventually will be connected
     // to the `continue` nodes
     llvm::SmallVector<EdgeDescriptor> ContinueBackedges;
+    unsigned DefaultIdx = std::numeric_limits<unsigned>::max();
 
     BasicBlockNodeBB *Head = Entry;
     if (NewHeadNeeded) {
@@ -704,35 +705,51 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       Meta->insertNode(Head);
 
       // For each target of the dispatcher add the edge and add it in the map.
-      std::map<BasicBlockNodeBB *, unsigned> RetreatingIdxMap;
-      for (auto &Group : llvm::enumerate(RetreatingTargets)) {
-        BasicBlockNodeBB *Target = Group.value();
-        unsigned Idx = Group.index();
-
-        RetreatingIdxMap[Target] = Idx;
-
-        using edge_label_t = typename BasicBlockNodeBB::edge_label_t;
-        edge_label_t Labels;
-        Labels.insert(Idx);
-        using EdgeInfo = BasicBlockNodeBB::EdgeInfo;
-        EdgeInfo EI = { Labels, false };
-        addEdge(EdgeDescriptor(Head, Target), EI);
-      }
+      std::map<std::pair<BasicBlockNodeBB *, std::optional<unsigned>>, unsigned>
+        RetreatingIdxMap;
+      unsigned IncrementalIdx = 0;
 
       for (EdgeDescriptor R : Retreatings) {
         BasicBlockNodeBB *OriginalSource = R.first;
-        unsigned Idx = RetreatingIdxMap.at(R.second);
-        revng_assert(not OriginalSource->isSet(),
-                     "A set node is not expected as predecessor source of a "
-                     "retreating edge");
-        auto *SetNode = RootCFG.addEntrySetStateNode(Idx, R.second->getName());
-        Meta->insertNode(SetNode);
-        moveEdgeTarget(EdgeDescriptor(R.first, R.second), SetNode);
-        addPlainEdge(EdgeDescriptor(SetNode, Head));
+        BasicBlockNodeBB *OriginalTarget = R.second;
 
-        // Save the `continue` edges, that will be later processed during the
-        // `continue` phase insertion
+        // If `OriginalSource` is a `SetNode`, we need to do specific stuff here
+        using edge_label_t = typename BasicBlockNodeBB::edge_label_t;
+        using EdgeInfo = BasicBlockNodeBB::EdgeInfo;
+
+        std::optional<unsigned> SetIdx = std::nullopt;
+        EdgeDescriptor EdgeToRedirect = EdgeDescriptor{ OriginalSource,
+                                                        OriginalTarget };
+
+        if (OriginalSource->isSet()) {
+          auto *SetUniquePredecessor = OriginalSource->getUniquePredecessor();
+          SetIdx = OriginalSource->getStateVariableValue();
+          EdgeToRedirect = EdgeDescriptor{ SetUniquePredecessor,
+                                           OriginalSource };
+        }
+
+        auto MapInsertionIt = RetreatingIdxMap.insert({ { OriginalTarget,
+                                                          SetIdx },
+                                                        IncrementalIdx });
+
+        // Do different stuff depending if the insertion took place
+        unsigned NewIndex = MapInsertionIt.first->second;
+        if (bool NewlyInserted = MapInsertionIt.second; NewlyInserted) {
+          edge_label_t Labels;
+          Labels.insert(NewIndex);
+          EdgeInfo EI = { Labels, false };
+          addEdge(EdgeDescriptor(Head, EdgeToRedirect.second), EI);
+        } else if (OriginalSource->isSet()) {
+          // We need to remove the "additional" setnode which will not be used
+          RootCFG.removeNode(OriginalSource);
+        }
+        std::string Name = EdgeToRedirect.second->getName().str();
+        auto *SetNode = RootCFG.addEntrySetStateNode(NewIndex, Name);
+        Meta->insertNode(SetNode);
+        moveEdgeTarget(EdgeToRedirect, SetNode);
+        addPlainEdge(EdgeDescriptor(SetNode, Head));
         ContinueBackedges.push_back(EdgeDescriptor(SetNode, Head));
+        ++IncrementalIdx;
       }
 
       // Move the remaining (the retreatings have been handled in the above
@@ -741,9 +758,16 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       for (BasicBlockNodeBB *Predecessor : Entry->predecessors())
         Predecessors.push_back(Predecessor);
 
-      for (BasicBlockNodeBB *Predecessor : Predecessors)
-        if (not Meta->containsNode(Predecessor))
+      for (BasicBlockNodeBB *Predecessor : Predecessors) {
+        if (not Meta->containsNode(Predecessor)) {
+          // We do not expect any SetNode on the edges that are not retreating.
+          revng_assert(not Predecessor->isSet());
           moveEdgeTarget(EdgeDescriptor(Predecessor, Entry), Head);
+        }
+      }
+
+      // We assume that no `SetNode` is present on the default edges.
+      DefaultIdx = RetreatingIdxMap.at(std::make_pair(Entry, std::nullopt));
     } else {
 
       // No head dispatcher has been inserted, so we should insert all the
@@ -1084,9 +1108,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         if (not Pred->isSet())
           SetCandidates.insert(Pred);
 
-      unsigned long Value = RetreatingTargets.size() - 1;
       for (BasicBlockNodeBB *Pred : SetCandidates) {
-        BasicBlockNodeBB *Set = RootCFG.addEntrySetStateNode(Value,
+        BasicBlockNodeBB *Set = RootCFG.addEntrySetStateNode(DefaultIdx,
                                                              Head->getName());
         DefaultEntrySet.push_back(Set);
         EdgeDescriptor PredToHead = { Pred, Head };

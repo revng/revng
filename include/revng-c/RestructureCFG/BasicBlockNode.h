@@ -308,6 +308,11 @@ public:
     return llvm::map_range(labeled_predecessors(), &getChild);
   }
 
+  BasicBlockNode *getUniquePredecessor() const {
+    revng_assert(Predecessors.size() == 1);
+    return Predecessors[0].first;
+  }
+
   unsigned getID() const { return ID; }
   bool isBasicBlock() const { return NodeType == Type::Code; }
 
