@@ -62,6 +62,9 @@ fields:
       pointeeType: Type
       rootType: Binary
     optional: true
+  - name: Lifetime
+    type: uint64_t
+    optional: true
 
 key:
   - StartAddress
