@@ -24,12 +24,14 @@ CHECK: } while ([[INDEX]] != 5);
 CHECK: return [[ACCUMULATOR]];
 
 
-The compute function should take a pointer to node, return a 64-bits integer.
+The compute function should take a pointer to node.
+TODO: it should also return a 64-bits integer. Try to re-add it later in the
+future, possibly when EFA 4 is ready.
 It should contain a local variable PTR that is a pointer to node, and a do-while
 loop, where PTR is updated with PTR->_offset_40 (representing the next pointer
 field), and PTR->_offset_40 should also be the exit condition of the do-while.
 
-CHECK: {{.*}}64_t compute([[NODE_STRUCT]] *{{.*}})
+CHECK: compute([[NODE_STRUCT]] *{{.*}})
 CHECK: [[NODE_STRUCT]] *[[PTR:_var_[0-9]+]];
 CHECK: do {
 CHECK: [[ACCUMULATOR:_var_[0-9]+]] = [[ACCUMULATOR]] + [[WHATEVER:.*]]
