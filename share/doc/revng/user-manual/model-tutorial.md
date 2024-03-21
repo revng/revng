@@ -183,7 +183,7 @@ At this point, we have all the information we need to successfully decompile our
 $ revng artifact decompile sum --model model.yml | revng ptml
 0x400000:Code_x86_64:
   uint64_t function_0x400000_Code_x86_64(uint64_t unnamed_arg_0, uint64_t unnamed_arg_1) {
-      return (uint64_t) ((generic64_t) unnamed_arg_0 + (generic64_t) unnamed_arg_1);
+      return unnamed_arg_0 + unnamed_arg_1;
   }
 ```
 
@@ -234,7 +234,7 @@ $ revng artifact decompile sum --model model.yml | revng ptml
 0x400000:Code_x86_64.c.ptml: |-
   _ABI(SystemV_x86_64)
   uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
-    return (uint64_t) ((generic64_t) FirstAddend + (generic64_t) SecondAddend);
+    return FirstAddend + SecondAddend;
   }
 
 ```
