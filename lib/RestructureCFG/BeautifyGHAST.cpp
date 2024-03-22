@@ -1015,16 +1015,6 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   RootNode = matchSwitch(CombedAST, RootNode);
   Dumper.log("after-switch-match");
 
-  // Match dowhile.
-  revng_log(BeautifyLogger, "Matching do-while\n");
-  matchDoWhile(RootNode, CombedAST);
-  Dumper.log("after-match-do-while");
-
-  // Match while.
-  revng_log(BeautifyLogger, "Matching while\n");
-  matchWhile(RootNode, CombedAST);
-  Dumper.log("after-match-while");
-
   // Perform the `SwitchBreak` simplification
   revng_log(BeautifyLogger, "Performing SwitchBreak simplification");
   RootNode = simplifySwitchBreak(CombedAST, RootNode);
@@ -1049,6 +1039,16 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
   RootNode = simplifyAtomicSequence(CombedAST, RootNode);
   Dumper.log("after-empty-sequences-removal");
+
+  // Match dowhile.
+  revng_log(BeautifyLogger, "Matching do-while\n");
+  matchDoWhile(RootNode, CombedAST);
+  Dumper.log("after-match-do-while");
+
+  // Match while.
+  revng_log(BeautifyLogger, "Matching while\n");
+  matchWhile(RootNode, CombedAST);
+  Dumper.log("after-match-while");
 
   // Remove unnecessary scopes under the fallthrough analysis.
   revng_log(BeautifyLogger, "Analyzing fallthrough scopes\n");
