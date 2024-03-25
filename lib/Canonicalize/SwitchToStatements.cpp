@@ -552,6 +552,7 @@ static ResultMap getMFP(ProgramPointsCFG *TheGraph) {
 struct PickedInstructions {
   SetVector<Instruction *> ToSerialize = {};
   MapVector<Use *, CallInst *> ToReplaceWithAvailable = {};
+  SmallPtrSet<CallInst *, 8> AssignToRemove = {};
 };
 
 class InstructionToSerializePicker {
@@ -576,6 +577,8 @@ public:
       for (Instruction &I : *BB) {
         if (isStatement(&I) and not I.getType()->isVoidTy()
             and not I.getType()->isAggregateType()) {
+          revng_log(Log, "I: " << dumpToString(I));
+          revng_log(Log, "Picked.ToSerialize.insert(I)");
           Picked.ToSerialize.insert(&I);
         }
         ProgramOrdering[&I] = NextOrder++;
@@ -642,6 +645,9 @@ private:
         [I, IType = I->getType(), &ToSerialize = Picked.ToSerialize]() {
           if (not IType->isVoidTy() and not IType->isAggregateType()
               and not isCallToTagged(I, FunctionTags::IsRef)) {
+            revng_log(Log,
+                      "Picked.ToSerialize.serialize(I), with I: "
+                        << dumpToString(I));
             ToSerialize.insert(I);
             return false;
           }
@@ -649,6 +655,7 @@ private:
         };
 
       MapVector<Use *, CallInst *> ToReplaceWithAvailable;
+      SmallPtrSet<CallInst *, 8> AssignToRemove;
 
       // For each U Use of I where MemoryRead is not available, check if the
       // whole expression represented by I is available at U. If so add it to
@@ -667,10 +674,15 @@ private:
         }
         revng_log(Log, "MemoryRead is not available in User");
 
-        // Skip over Assign, because we want to preserve them.
-        if (isCallToTagged(UserInstruction, FunctionTags::Assign)) {
-          revng_log(Log, "User is an Assign. Serialize I");
-          rc_return SerializeI();
+        auto *UserAssignCall = getCallToTagged(UserInstruction,
+                                               FunctionTags::Assign);
+        if (UserAssignCall) {
+          // Skip over the Assign operand representing variables that are being
+          // assigned, because we needwant to preserve them.
+          if (UserAssignCall->isArgOperand(&U)
+              and UserAssignCall->getArgOperandNo(&U) == 1) {
+            continue;
+          }
         }
 
         auto AvailableRange = Graph.getAvailableAt(I,
@@ -691,7 +703,7 @@ private:
           } else {
             revng_log(Log, "Select first viable address in program order");
 
-            CallInst *SelectedAssign = nullptr;
+            CallInst *Selected = nullptr;
             size_t ProgramOrder = std::numeric_limits<size_t>::max();
             for (const AvailableExpression &A : AvailableRange) {
               if (nullptr == A.Assign)
@@ -700,17 +712,53 @@ private:
               size_t NewProgramOrder = ProgramOrdering.at(A.Assign);
               if (NewProgramOrder < ProgramOrder) {
                 ProgramOrder = NewProgramOrder;
-                SelectedAssign = A.Assign;
+                Selected = A.Assign;
               }
             }
 
-            revng_log(Log, "Selected: " << dumpToString(SelectedAssign));
-            if (SelectedAssign) {
-              ToReplaceWithAvailable[&U] = SelectedAssign;
-            } else {
+            revng_log(Log, "Selected: " << dumpToString(Selected));
+            if (not Selected) {
               revng_log(Log, "Selected is not an assignment. Serialize I");
               rc_return SerializeI();
             }
+
+            revng_assert(isCallToTagged(Selected, FunctionTags::Assign));
+
+            if (not UserAssignCall) {
+              ToReplaceWithAvailable[&U] = Selected;
+              continue;
+            }
+
+            std::optional<const Value *>
+              MayBeAccessedByUser = getAccessedLocalVariable(UserAssignCall);
+            std::optional<const Value *>
+              MayBeAccessedBySelected = getAccessedLocalVariable(Selected);
+
+            // If either doesn't access a local variable, we have to read from
+            // there.
+            if (not MayBeAccessedByUser.has_value()
+                or not MayBeAccessedBySelected.has_value()) {
+              ToReplaceWithAvailable[&U] = Selected;
+              continue;
+            }
+
+            const Value *AccessedByUser = *MayBeAccessedByUser;
+            const Value *AccessedBySelected = *MayBeAccessedBySelected;
+
+            // If either is nullptr, there is at least one among I and J that
+            // access many variables, so it's definitely not a single one and
+            // cannot be optimized away.
+            if (nullptr == AccessedByUser or nullptr == AccessedBySelected) {
+              ToReplaceWithAvailable[&U] = Selected;
+              continue;
+            }
+
+            // For all the other cases they are noAlias only if the accessed
+            // local variable is different.
+            if (AccessedByUser != AccessedBySelected)
+              ToReplaceWithAvailable[&U] = Selected;
+            else
+              AssignToRemove.insert(UserAssignCall);
           }
         }
       }
@@ -720,6 +768,9 @@ private:
       // Picked.ToReplaceWithAvailable.
       for (const auto &Element : ToReplaceWithAvailable)
         Picked.ToReplaceWithAvailable.insert(Element);
+      // And we can also commit the fact that we want to remove the Assign.
+      for (const auto &Assign : AssignToRemove)
+        Picked.AssignToRemove.insert(Assign);
     }
 
     // If we reach this point I is has not been picked for serialization yet, it
@@ -839,6 +890,11 @@ public:
                                         "Copy");
       auto *Copy = Builder.CreateCall(CopyFunction, { TheAddress });
       TheUse->set(Copy);
+    }
+
+    for (Instruction *I : Picked.AssignToRemove) {
+      Changed = true;
+      I->eraseFromParent();
     }
 
     for (Instruction *I : Picked.ToSerialize)
