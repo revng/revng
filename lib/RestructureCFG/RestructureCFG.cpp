@@ -1142,13 +1142,18 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     // emit a single label in the first place.
     std::set<BasicBlockNodeBB *> DeduplicatedRegionSuccessors;
     std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> DeduplicationMap;
+
+    // Vector which contains the dummy nodes that are deduplicated during the
+    // exit dispatcher creation, and that need to be removed from containing
+    // regions.
+    std::vector<BasicBlockNodeBB *> DeduplicatedDummies;
     {
       std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> BackedgeToSucc;
       for (BasicBlockNodeBB *Succ : Successors) {
         if (Succ->isEmpty()) {
           revng_assert(Succ->successor_size() == 1);
           BasicBlockNodeBB *BackedgeTgt = *Succ->successors().begin();
-          // Lookup if wa have already found this backedge target from another
+          // Lookup if we have already found this backedge target from another
           // exit successor.
           const auto &[It, New] = BackedgeToSucc.insert({ BackedgeTgt, Succ });
           if (New) {
@@ -1166,6 +1171,13 @@ bool restructureCFG(Function &F, ASTTree &AST) {
             // global `Backedges` set as a ghost entry, and we need to take
             // care of removing it now.
             Backedges.erase({ Succ, BackedgeTgt });
+
+            // If we are "using" another `Dummy` node for representing the
+            // backedge, we need to take into consideration that the current
+            // dummy will need to be recursively removed from parent regions
+            // that contain the current region, otherwise a "ghost" node will
+            // remain in them.
+            DeduplicatedDummies.push_back(Succ);
           }
         } else {
           DeduplicatedRegionSuccessors.insert(Succ);
@@ -1315,7 +1327,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       ParentMetaRegion->updateNodes(Meta->getNodes(),
                                     Collapsed,
                                     ExitDispatcher,
-                                    DefaultEntrySet);
+                                    DefaultEntrySet,
+                                    DeduplicatedDummies);
       ParentMetaRegion = ParentMetaRegion->getParent();
     }
 

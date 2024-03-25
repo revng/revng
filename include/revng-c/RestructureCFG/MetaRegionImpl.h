@@ -25,8 +25,9 @@ template<class NodeT>
 void MetaRegion<NodeT>::updateNodes(const BasicBlockNodeTSet &ToRemove,
                                     BasicBlockNodeT *Collapsed,
                                     BasicBlockNodeT *ExitDispatcher,
+                                    const BasicBlockNodeTVect &DefaultEntrySet,
                                     const BasicBlockNodeTVect
-                                      &DefaultEntrySet) {
+                                      &DeduplicatedDummies) {
   // Remove the old SCS nodes
   for (BasicBlockNodeT *Node : ToRemove)
     Nodes.erase(Node);
@@ -44,6 +45,10 @@ void MetaRegion<NodeT>::updateNodes(const BasicBlockNodeTSet &ToRemove,
     return this->containsNode(B);
   }));
   Nodes.insert(DefaultEntrySet.begin(), DefaultEntrySet.end());
+
+  // Remove deduplicated dummy nodes created during the exit dispatcher building
+  for (BasicBlockNodeT *Node : DeduplicatedDummies)
+    Nodes.erase(Node);
 }
 
 template<class NodeT>
