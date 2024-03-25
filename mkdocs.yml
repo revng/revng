@@ -38,4 +38,5 @@ extra_css:
   - stylesheets/main.css
   - stylesheets/theme.css
 extra_javascript:
+  - javascripts/additional.js
   - https://cdn.jsdelivr.net/gh/rod2ik/cdn@main/mkdocs/javascripts/mkdocs-graphviz.js
