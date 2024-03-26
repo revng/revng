@@ -56,6 +56,15 @@ const TypeToNumOfRefsMap &TypeInlineHelper::getTypeToNumOfRefs() const {
   return TypeToNumOfRefs;
 }
 
+bool TypeInlineHelper::isReachableFromRootType(const model::Type *Type,
+                                               const model::Type *RootType,
+                                               const GraphInfo &TypeGraph) {
+  for (Node *N : llvm::depth_first(TypeGraph.TypeToNode.at(RootType)))
+    if (N->data().T == Type)
+      return true;
+  return false;
+}
+
 /// Collect candidates for emitting inline types.
 TypeSet TypeInlineHelper::findTypesToInline(const model::Binary &Model,
                                             const GraphInfo &TypeGraph) {
@@ -672,20 +681,6 @@ void printDefinition(Logger<> &Log,
 bool isCandidateForInline(const model::Type *T) {
   return llvm::isa<model::StructType>(T) or llvm::isa<model::UnionType>(T)
          or llvm::isa<model::EnumType>(T);
-}
-
-bool TypeInlineHelper::isReachableFromRootType(const model::Type *Type,
-                                               const model::Type *RootType,
-                                               const GraphInfo &TypeGraph) {
-  auto TheTypeToNode = TypeGraph.TypeToNode;
-
-  // Visit all the nodes reachable from RootType.
-  llvm::df_iterator_default_set<Node *> Visited;
-  for ([[maybe_unused]] Node *N :
-       depth_first_ext(TheTypeToNode.at(RootType), Visited))
-    ;
-
-  return Visited.contains(TheTypeToNode.at(Type));
 }
 
 using UPtrTy = UpcastablePointer<model::Type>;
