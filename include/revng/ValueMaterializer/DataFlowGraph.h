@@ -131,6 +131,35 @@ public:
     return materializeImpl(N, MO, Results);
   }
 
+  std::optional<MaterializedValue>
+  materializeOne(Node *N,
+                 MemoryOracle &MO,
+                 const llvm::APInt &InputValue) const {
+    using Map = std::map<Node *, std::optional<MaterializedValues>>;
+    Map Results;
+
+    // Remember the current oracle range for the node.
+    auto OldRange = N->OracleRange;
+    auto OldUseOracle = N->UseOracle;
+
+    // Try to get the output for the range with the input value only.
+    N->OracleRange = { InputValue };
+    N->UseOracle = true;
+
+    std::optional<MaterializedValues> Values = materializeImpl(N, MO, Results);
+    if (!Values)
+      return std::nullopt;
+
+    if (Values->size() != 1)
+      return std::nullopt;
+
+    // Restore the oracle range.
+    N->OracleRange = OldRange;
+    N->UseOracle = OldUseOracle;
+
+    return (*Values)[0];
+  }
+
 public:
   void removeCycles();
   void purgeUnreachable();

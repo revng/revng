@@ -103,7 +103,7 @@ void ValueMaterializer::applyOracleResultsToDataFlowGraph() {
                and (CE->getOpcode() == Instruction::IntToPtr
                     or CE->getOpcode() == Instruction::PtrToInt)) {
       // Ignore
-    } else if (isa<GlobalVariable>(V)) {
+    } else if (isa<GlobalVariable>(V) or isa<Argument>(V)) {
       // Ignore
     } else {
       revng_abort();
