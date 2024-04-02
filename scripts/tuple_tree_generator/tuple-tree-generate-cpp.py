@@ -58,10 +58,13 @@ def main(args):
         logging.warning("Warning: clang-format is not available, cannot format source")
 
     output_dir = Path(args.output_dir)
+    print("output_dir: %s", output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     for output_path, output_source in sources.items():
+        print("  output_path: %s", output_path)
         full_output_path = output_dir / output_path
         # Ensure the containing directory is created
-        full_output_path.parent.mkdir(exist_ok=True)
+        full_output_path.parent.mkdir(parents=False, exist_ok=True)
         full_output_path.write_text(output_source)
 
 
