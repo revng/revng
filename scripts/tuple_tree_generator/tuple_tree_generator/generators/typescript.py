@@ -288,9 +288,7 @@ class TypeScriptGenerator:
 
     @staticmethod
     def is_optional(field: StructField):
-        return (
-            field.optional or field.is_guid or isinstance(field.resolved_type, ReferenceDefinition)
-        )
+        return field.optional or isinstance(field.resolved_type, ReferenceDefinition)
 
     @staticmethod
     def is_upcastable(field: StructField):
