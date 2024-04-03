@@ -6,7 +6,6 @@
 
 #include "revng/Model/Pass/AddPrimitiveTypes.h"
 #include "revng/Model/Pass/DeduplicateEquivalentTypes.h"
-#include "revng/Model/Pass/FixModel.h"
 #include "revng/Model/Pass/PromoteOriginalName.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/Pass/Verify.h"

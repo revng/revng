@@ -63,7 +63,7 @@ class ImportIDBCommand(Command):
                 [
                     "model",
                     "opt",
-                    "-fix",
+                    "-purge-invalid-types",
                     model_file.name,
                     "-o",
                     model_file.name,
