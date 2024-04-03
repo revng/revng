@@ -41,6 +41,33 @@ bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
   }
 }
 
+template<typename T>
+static std::string key(const T &Object) {
+  return getNameFromYAMLScalar(KeyedObjectTraits<T>::key(Object));
+}
+
+static std::string path(const model::Function &F) {
+  return "/Functions/" + key(F);
+}
+
+static std::string path(const model::DynamicFunction &F) {
+  return "/ImportedDynamicFunctions/" + key(F);
+}
+
+static std::string path(const model::TypeDefinition &T) {
+  return "/TypeDefinitions/" + key(T);
+}
+
+static std::string path(const model::EnumDefinition &D,
+                        const model::EnumEntry &Entry) {
+  return path(static_cast<const model::TypeDefinition &>(D))
+         + "/EnumDefinition/Entries/" + key(Entry);
+}
+
+static std::string path(const model::Segment &Segment) {
+  return "/Segments/" + key(Segment);
+}
+
 bool model::Binary::verifyGlobalNamespace(VerifyHelper &VH) const {
 
   // Namespacing rules:
