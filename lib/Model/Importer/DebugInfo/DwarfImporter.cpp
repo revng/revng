@@ -1059,7 +1059,7 @@ public:
     T.advance("Type system cleanup", true);
     cleanupTypeSystem();
     T.advance("Apply fixes to the model", true);
-    fixModel(Model);
+    purgeInvalidTypes(Model);
     T.advance("Deduplicate equivalent types", true);
     deduplicateEquivalentTypes(Model);
     T.advance("Promote OriginalName", true);

@@ -9,8 +9,13 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
+#include "revng/Model/Processing.h"
 
 using namespace llvm;
+
+static RegisterModelPass R0("purge-invalid-types",
+                            "Remove all the types that do not verify",
+                            model::purgeInvalidTypes);
 
 static RegisterModelPass R("purge-unnamed-and-unreachable-types",
                            "Remove all the types that cannot be reached from "
@@ -22,6 +27,20 @@ static RegisterModelPass R2("purge-unreachable-types",
                             "Remove all the types that cannot be reached from "
                             "a type \"outside\" the type system itself",
                             model::purgeUnreachableTypes);
+
+static Logger<> PurgeInvalidLogger("purge-invalid-types");
+void model::purgeInvalidTypes(TupleTree<model::Binary> &Model) {
+  model::VerifyHelper VH;
+  auto IsInvalid = [&VH](const model::UpcastableTypeDefinition &T) {
+    return !T->verify(VH);
+  };
+
+  auto ToDrop = Model->TypeDefinitions() | std::views::filter(IsInvalid)
+                | std::views::transform([](const auto &T) { return T.get(); })
+                | revng::to<std::set<const model::TypeDefinition *>>();
+  unsigned DroppedCount = dropTypesDependingOnDefinitions(Model, ToDrop);
+  revng_log(PurgeInvalidLogger, "Purging " << DroppedCount << " types.");
+}
 
 namespace model {
 static void purgeTypesImpl(TupleTree<model::Binary> &Model,

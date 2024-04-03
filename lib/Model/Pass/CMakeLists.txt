@@ -8,7 +8,6 @@ revng_add_library_internal(
   AddPrimitiveTypes.cpp
   AddPrimitiveTypesAnalysis.cpp
   DeduplicateEquivalentTypes.cpp
-  FixModel.cpp
   OptionCategory.cpp
   PromoteOriginalName.cpp
   PurgeUnnamedAndUnreachableTypes.cpp
