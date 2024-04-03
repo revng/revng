@@ -33,7 +33,15 @@ class TypeScriptGenerator:
         self.external_types = external_types if external_types is not None else []
         self.external_files = external_files if external_files is not None else []
         self.global_name = global_name
-        self.jinja_environment = Environment(loader=loader)
+        self.jinja_environment = Environment(
+            block_start_string="/**",
+            block_end_string="**/",
+            variable_start_string="/*=",
+            variable_end_string="=*/",
+            comment_start_string="/*#",
+            comment_end_string="#*/",
+            loader=loader,
+        )
         self.jinja_environment.globals["load_file"] = self.load_file
         self.jinja_environment.globals["is_optional"] = self.is_optional
         self.jinja_environment.globals["is_upcastable"] = self.is_upcastable
