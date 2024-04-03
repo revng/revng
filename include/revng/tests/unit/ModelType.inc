@@ -14,6 +14,7 @@ bool init_unit_test();
 
 #include "revng/Model/ABI.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Filters.h"
 
 using namespace model;
 
@@ -666,4 +667,52 @@ BOOST_AUTO_TEST_CASE(TypeComparison) {
   revng_check(Map.size() == 2);
   revng_check(Map.begin()->second == 42);
   revng_check(std::next(Map.begin())->second == 43);
+}
+
+BOOST_AUTO_TEST_CASE(Filters) {
+  model::Binary Model;
+  {
+    auto [Enum, _] = Model.makeEnumDefinition();
+    Enum.UnderlyingType() = model::PrimitiveType::makeUnsigned(4);
+    Enum.Entries().emplace(1ull);
+
+    (void) Model.makeTypedefDefinition(model::PrimitiveType::makeSigned(4));
+    (void) Model.makeTypedefDefinition(model::PrimitiveType::makeFloat(4));
+    (void) Model.makeTypedefDefinition(Model.makeStructDefinition(12).second);
+    revng_check(Model.TypeDefinitions().size() == 5);
+  }
+
+  size_t ScalarCount = 0;
+  for (auto &Scalar : Model.TypeDefinitions() | model::filter::Scalar) {
+    revng_check(Scalar->isScalar());
+    ++ScalarCount;
+  }
+  revng_check(ScalarCount == 3);
+
+  auto [CFT, _] = Model.makeCABIFunctionDefinition();
+  for (auto &[Index, Definition] : llvm::enumerate(Model.TypeDefinitions())) {
+    if (auto &&Type = Model.makeType(Definition->key());
+        Definition->isPrototype()) {
+      auto &&Pointer = model::PointerType::make(std::move(Type), 8);
+      CFT.Arguments().emplace(Index, std::move(Pointer));
+    } else {
+      CFT.Arguments().emplace(Index, std::move(Type));
+    }
+  }
+  revng_check(CFT.Arguments().size() == 6);
+
+  ScalarCount = 0;
+  for (auto &Argument : CFT.Arguments() | model::filter::Scalar) {
+    revng_check(Argument.Type()->isScalar());
+    ++ScalarCount;
+  }
+  revng_check(ScalarCount == 4);
+
+  uint64_t NonScalarCount = 0;
+  for (auto &Argument : CFT.Arguments() | model::filter::NonScalar) {
+    revng_check(not Argument.Type()->isScalar());
+    ++NonScalarCount;
+  }
+  revng_check(NonScalarCount == 2);
+  revng_check(ScalarCount + NonScalarCount == CFT.Arguments().size());
 }

@@ -3,6 +3,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Filters.h"
 
 static bool verify(const model::TypeDefinition &ModelType, const bool Assert) {
   return ModelType.verify(Assert);
