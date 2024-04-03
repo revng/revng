@@ -506,7 +506,7 @@ RecursiveCoroutine<std::optional<uint64_t>>
 TypeDefinition::trySize(VerifyHelper &VH) const {
   // TODO: handle recursive types
 
-  auto MaybeSize = VH.size(this);
+  auto MaybeSize = VH.size(*this);
   if (MaybeSize)
     rc_return MaybeSize;
 
@@ -576,7 +576,7 @@ TypeDefinition::trySize(VerifyHelper &VH) const {
     revng_abort();
   }
 
-  VH.setSize(this, Size);
+  VH.setSize(*this, Size);
 
   rc_return Size;
 };

@@ -785,14 +785,14 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (VH.isVerified(this))
+  if (VH.isVerified(*this))
     rc_return true;
 
   // Ensure we have not infinite recursion
-  if (VH.isVerificationInProgress(this))
+  if (VH.isVerificationInProgress(*this))
     rc_return VH.fail();
 
-  VH.verificationInProgress(this);
+  VH.verificationInProgress(*this);
 
   if (ID() == 0)
     rc_return VH.fail("A type cannot have ID 0", *this);
@@ -818,8 +818,8 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
     revng_abort("Unsupported type definition kind.");
 
   if (Result) {
-    VH.setVerified(this);
-    VH.verificationCompleted(this);
+    VH.setVerified(*this);
+    VH.verificationCompleted(*this);
   }
 
   rc_return VH.maybeFail(Result);
