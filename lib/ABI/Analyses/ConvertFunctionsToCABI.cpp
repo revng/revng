@@ -60,14 +60,14 @@ checkVectorRegisterSupport(model::VerifyHelper &VH,
 static RecursiveCoroutine<bool>
 checkVectorRegisterSupport(model::VerifyHelper &VH,
                            const model::TypeDefinition &Type) {
-  if (VH.isVerified(&Type))
+  if (VH.isVerified(Type))
     rc_return true;
 
   // Ensure we never recur indefinitely
-  if (VH.isVerificationInProgress(&Type))
+  if (VH.isVerificationInProgress(Type))
     rc_return VH.fail();
 
-  VH.verificationInProgress(&Type);
+  VH.verificationInProgress(Type);
 
   bool Result = false;
 
@@ -131,8 +131,8 @@ checkVectorRegisterSupport(model::VerifyHelper &VH,
   }
 
   if (Result) {
-    VH.setVerified(&Type);
-    VH.verificationCompleted(&Type);
+    VH.setVerified(Type);
+    VH.verificationCompleted(Type);
   }
 
   rc_return VH.maybeFail(Result);
