@@ -141,8 +141,12 @@ PointerType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()>
                     mlir::clift::ValueType element_type,
                     uint64_t pointer_size,
                     BoolAttr IsConst) {
-  if (pointer_size == 0) {
-    return emitError() << "pointer type cannot have size zero";
+  switch (pointer_size) {
+  case 4:
+  case 8:
+    break;
+  default:
+    return emitError() << "invalid pointer size: " << pointer_size;
   }
   return mlir::success();
 }
