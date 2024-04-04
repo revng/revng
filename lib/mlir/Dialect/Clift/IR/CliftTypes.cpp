@@ -66,7 +66,7 @@ using LoggerType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 mlir::LogicalResult
 mlir::clift::PrimitiveType::verify(LoggerType logger,
                                    mlir::clift::PrimitiveKind kind,
-                                   unsigned long size,
+                                   uint64_t size,
                                    BoolAttr IsConst) {
 
   model::PrimitiveType Type(kindToKind(kind), size);

@@ -35,7 +35,7 @@ void mlir::clift::CliftDialect::registerAttributes() {
 mlir::LogicalResult
 mlir::clift::FieldAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()>
                                  EmitError,
-                               unsigned long Offset,
+                               uint64_t Offset,
                                mlir::Type ElementType,
                                llvm::StringRef Name) {
   if (auto Definition = mlir::dyn_cast<mlir::clift::DefinedType>(ElementType))
@@ -68,7 +68,7 @@ ArgAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
 using FunctionAttr = mlir::clift::FunctionAttr;
 mlir::LogicalResult
 FunctionAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                     unsigned long Id,
+                     uint64_t Id,
                      llvm::StringRef Name,
                      mlir::clift::ValueType ReturnType,
                      llvm::ArrayRef<mlir::clift::FunctionArgumentAttr> Args) {
