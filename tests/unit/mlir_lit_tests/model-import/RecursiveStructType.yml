@@ -1,0 +1,35 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+
+Types:
+  # CHECK: #my_struct = #clift.struct<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_struct"
+  # CHECK:   size = 4
+  # CHECK:   fields = [
+  # CHECK:     <
+  # CHECK:       offset = 0
+  # CHECK:       type = !clift.pointer<
+  # CHECK:         pointee_type = !clift.defined<
+  # CHECK:           #clift.struct<
+  # CHECK:             id = 1001
+  # CHECK:           >
+  # CHECK:         >
+  # CHECK:       >
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  # CHECK: !my_struct1 = !clift.defined<#my_struct>
+  - ID: 1001
+    Kind: StructType
+    CustomName: "my_struct"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/1001-StructType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 4

@@ -1,0 +1,37 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+
+Types:
+  - ID: 101
+    Kind: PrimitiveType
+    PrimitiveKind: Generic
+    Size: 1
+
+    # CHECK: #my_struct = #clift.struct<
+    # CHECK:   id = 1001
+    # CHECK:   name = "my_struct"
+    # CHECK:   size = 1024
+    # CHECK:   fields = [
+    # CHECK:     <
+    # CHECK:       offset = 0
+    # CHECK:       type = !clift.array<
+    # CHECK:         element_type = !clift.primitive<GenericKind 1>
+    # CHECK:         elements_count = 1024
+    # CHECK:       >
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+    # CHECK: !my_struct1 = !clift.defined<#my_struct>
+  - ID: 1001
+    Kind: StructType
+    CustomName: "my_struct"
+    Size: 1024
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/101-PrimitiveType"
+          Qualifiers:
+            - Kind: Array
+              Size: 1024
