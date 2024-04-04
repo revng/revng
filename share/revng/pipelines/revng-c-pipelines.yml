@@ -220,7 +220,7 @@ Branches:
             UsedContainers: [module.ll, module.mlir]
         Artifacts:
           Container: module.mlir
-          Kind: mlir-llvm-module
+          Kind: mlir-module
           SingleTargetFilename: mlir-llvm-dialect.mlir
 AnalysesLists:
   - Name: revng-c-initial-auto-analysis
