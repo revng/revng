@@ -92,9 +92,8 @@ public:
 
   uint64_t getByteSize() { return getImpl()->getSize(); }
 
-  static Attribute parse(AsmParser &parser);
-
-  Attribute print(AsmPrinter &p) const;
+  static Attribute parse(AsmParser &Parser);
+  void print(AsmPrinter &Printer) const;
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               uint64_t ID);
@@ -175,8 +174,8 @@ public:
     return Max;
   }
 
-  static Attribute parse(AsmParser &parser);
-  Attribute print(AsmPrinter &p) const;
+  static Attribute parse(AsmParser &Parser);
+  void print(AsmPrinter &Printer) const;
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               uint64_t ID);

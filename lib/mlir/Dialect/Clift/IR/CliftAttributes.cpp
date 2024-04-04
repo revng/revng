@@ -18,14 +18,14 @@
 #include "revng-c/mlir/Dialect/Clift/IR/CliftInterfaces.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftTypes.h"
 
+#include "CliftParser.h"
+
 // This include should stay here for correct build procedure
 //
 #define GET_ATTRDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.cpp.inc"
 
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
-
-static thread_local std::map<uint64_t, mlir::Attribute> CurrentlyPrintedTypes;
 
 void mlir::clift::CliftDialect::registerAttributes() {
   addAttributes<StructType, UnionType, /* Include the auto-generated clift types
@@ -148,193 +148,20 @@ void mlir::clift::CliftDialect::printAttribute(::mlir::Attribute Attr,
   revng_abort("cannot print attribute");
 }
 
-template<typename AttrType>
-static mlir::Attribute printImpl(mlir::AsmPrinter &P, AttrType Attr) {
-  const uint64_t ID = Attr.getImpl()->getID();
-
-  P << Attr.getMnemonic();
-  P << "<id = ";
-  P << ID;
-
-  if (auto Iter = CurrentlyPrintedTypes.find(ID);
-      Iter != CurrentlyPrintedTypes.end()) {
-    P << ">";
-    return Attr;
-  }
-
-  P << ", name = ";
-  P << "\"" << Attr.getName() << "\"";
-
-  if constexpr (std::is_same_v<AttrType, mlir::clift::StructType>) {
-    P << ", ";
-    P.printKeywordOrString("size");
-    P << " = ";
-    P << Attr.getByteSize();
-  }
-
-  CurrentlyPrintedTypes[ID] = Attr;
-  auto EraseGuard = llvm::make_scope_exit([&]() {
-    CurrentlyPrintedTypes.erase(ID);
-  });
-
-  P << ", fields = [";
-  P.printStrippedAttrOrType(Attr.getImpl()->getFields());
-  P << "]>";
-
-  return Attr;
+void mlir::clift::UnionType::print(AsmPrinter &Printer) const {
+  printCompositeType(Printer, *this);
 }
 
-mlir::Attribute mlir::clift::UnionType::print(AsmPrinter &p) const {
-  return printImpl(p, *this);
+void mlir::clift::StructType::print(AsmPrinter &Printer) const {
+  printCompositeType(Printer, *this);
 }
 
-mlir::Attribute mlir::clift::StructType::print(AsmPrinter &p) const {
-  return printImpl(p, *this);
+mlir::Attribute mlir::clift::UnionType::parse(AsmParser &Parser) {
+  return parseCompositeType<UnionType>(Parser, /*MinFields=*/1);
 }
 
-template<typename AttrType>
-static AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
-  static constexpr bool
-    IsStruct = std::is_same_v<mlir::clift::StructType, AttrType>;
-
-  const auto OnUnexpectedToken = [&parser,
-                                  TypeName](llvm::StringRef name) -> AttrType {
-    parser.emitError(parser.getCurrentLocation(),
-                     "Expected " + name + " while parsing mlir " + TypeName
-                       + "type");
-    return AttrType();
-  };
-
-  if (parser.parseLess()) {
-    return OnUnexpectedToken("<");
-  }
-
-  if (parser.parseKeyword("id").failed()) {
-    return OnUnexpectedToken("keyword 'id'");
-  }
-
-  if (parser.parseEqual().failed()) {
-    return OnUnexpectedToken("=");
-  }
-
-  uint64_t ID;
-  if (parser.parseInteger(ID).failed()) {
-    return OnUnexpectedToken("<integer>");
-  }
-
-  if (auto Iterator = CurrentlyPrintedTypes.find(ID);
-      Iterator != CurrentlyPrintedTypes.end()) {
-    if (parser.parseGreater().failed()) {
-      return OnUnexpectedToken(">");
-    }
-
-    return Iterator->second.cast<AttrType>();
-  }
-
-  AttrType ToReturn = AttrType::get(parser.getContext(), ID);
-
-  CurrentlyPrintedTypes[ID] = ToReturn;
-  auto guard = llvm::make_scope_exit([&]() {
-    CurrentlyPrintedTypes.erase(ID);
-  });
-
-  if (parser.parseComma().failed()) {
-    return OnUnexpectedToken(",");
-  }
-
-  if (parser.parseKeyword("name").failed()) {
-    return OnUnexpectedToken("keyword 'name'");
-  }
-
-  if (parser.parseEqual().failed()) {
-    return OnUnexpectedToken("=");
-  }
-
-  std::string OptionalName = "";
-  if (parser.parseOptionalString(&OptionalName).failed()) {
-    return OnUnexpectedToken("<string>");
-  }
-
-  uint64_t Size;
-  if constexpr (IsStruct) {
-    if (parser.parseComma().failed()) {
-      return OnUnexpectedToken(",");
-    }
-
-    if (parser.parseKeyword("size").failed()) {
-      return OnUnexpectedToken("keyword 'size'");
-    }
-
-    if (parser.parseEqual().failed()) {
-      return OnUnexpectedToken("=");
-    }
-
-    if (parser.parseInteger(Size).failed()) {
-      return OnUnexpectedToken("<uint64_t>");
-    }
-  }
-
-  if (parser.parseComma().failed()) {
-    return OnUnexpectedToken(",");
-  }
-
-  if (parser.parseKeyword("fields").failed()) {
-    return OnUnexpectedToken("keyword 'fields'");
-  }
-
-  if (parser.parseEqual().failed()) {
-    return OnUnexpectedToken("=");
-  }
-
-  if (parser.parseLSquare().failed()) {
-    return OnUnexpectedToken("[");
-  }
-
-  using FieldsVectorType = ::llvm::SmallVector<mlir::clift::FieldAttr>;
-  using FieldsParserType = ::mlir::FieldParser<FieldsVectorType>;
-  ::mlir::FailureOr<FieldsVectorType> Fields(FieldsVectorType{});
-
-  const auto ParseFieldsRSquare = [&]() -> bool {
-    if constexpr (IsStruct) {
-      return parser.parseOptionalRSquare().failed();
-    } else {
-      return false;
-    }
-  };
-
-  if (not ParseFieldsRSquare()) {
-    Fields = FieldsParserType::parse(parser);
-
-    if (::mlir::failed(Fields)) {
-      parser.emitError(parser.getCurrentLocation(),
-                       "failed to parse class type parameter 'fields' "
-                       "which is to be a "
-                       "`::llvm::ArrayRef<mlir::clift::FieldAttr>`");
-    }
-
-    if (parser.parseRSquare().failed()) {
-      return OnUnexpectedToken("]");
-    }
-  }
-
-  if (parser.parseGreater().failed()) {
-    return OnUnexpectedToken(">");
-  }
-
-  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>)
-    ToReturn.define(OptionalName, Size, *Fields);
-  else
-    ToReturn.define(OptionalName, *Fields);
-
-  return ToReturn;
-}
-
-mlir::Attribute mlir::clift::UnionType::parse(AsmParser &parser) {
-  return parseImpl<UnionType>(parser, "union");
-}
-
-mlir::Attribute mlir::clift::StructType::parse(AsmParser &parser) {
-  return parseImpl<StructType>(parser, "struct");
+mlir::Attribute mlir::clift::StructType::parse(AsmParser &Parser) {
+  return parseCompositeType<StructType>(Parser, /*MinFields=*/0);
 }
 
 static bool isCompleteType(const mlir::Type Type) {
