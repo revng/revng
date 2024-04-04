@@ -179,73 +179,78 @@ using namespace mlir::clift;
 ::mlir::LogicalResult
 EnumAttr::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
                  uint64_t ID,
-                 ::llvm::StringRef name,
-                 mlir::Type element_type,
+                 ::llvm::StringRef,
+                 mlir::Type UnderlyingType,
                  ::llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
-  if (not element_type.isa<mlir::clift::PrimitiveType>()) {
+  if (not UnderlyingType.isa<mlir::clift::PrimitiveType>())
     return emitError() << "type of enum must be a primitive type";
-  }
-  auto casted = element_type.cast<mlir::clift::PrimitiveType>();
-  if (casted.getKind() != PrimitiveKind::UnsignedKind
-      and casted.getKind() != PrimitiveKind::SignedKind) {
-    return emitError() << "enum underlying type must be a unsigned int";
+
+  const auto PrimitiveType = UnderlyingType.cast<mlir::clift::PrimitiveType>();
+  const uint64_t BitWidth = PrimitiveType.getSize() * 8;
+
+  if (Fields.empty())
+    return emitError() << "enum requires at least one field";
+
+  uint64_t MinValue = 0;
+  uint64_t MaxValue = 0;
+  bool IsSigned = false;
+
+  switch (PrimitiveType.getKind()) {
+  case PrimitiveKind::UnsignedKind:
+    MaxValue = llvm::APInt::getMaxValue(BitWidth).getZExtValue();
+    break;
+  case PrimitiveKind::SignedKind:
+    MinValue = llvm::APInt::getSignedMinValue(BitWidth).getSExtValue();
+    MaxValue = llvm::APInt::getSignedMaxValue(BitWidth).getSExtValue();
+    IsSigned = true;
+    break;
+  default:
+    return emitError() << "enum underlying type must be an integral type";
   }
 
-  if (casted.getKind() == PrimitiveKind::UnsignedKind) {
-    size_t lastValue = 0;
-    for (auto field : Fields) {
-      auto Max = llvm::APInt::getMaxValue(casted.getSize()).getZExtValue();
-      if (field.getRawValue() > Max) {
-        return emitError() << "enum field " << field.getRawValue()
-                           << "is greater than the max value of the "
-                              "underlying type"
-                           << Max;
-      }
-      if (field.getRawValue() < lastValue) {
-        return emitError() << "enum fields are not in ascending order";
-      }
-      lastValue = field.getRawValue();
-    }
-  }
+  uint64_t LastValue = 0;
+  bool CheckEqual = false;
 
-  if (casted.getKind() == PrimitiveKind::UnsignedKind) {
-    int64_t lastValue = std::numeric_limits<int64_t>::min();
-    for (auto field : Fields) {
-      uint64_t Raw = field.getRawValue();
-      int64_t Value;
-      std::memcpy(&Value, &Raw, sizeof(Value));
-      auto Max = llvm::APInt::getSignedMaxValue(casted.getSize())
-                   .getSExtValue();
-      auto Min = llvm::APInt::getSignedMinValue(casted.getSize())
-                   .getSExtValue();
-      if (Value > Max) {
-        return emitError() << "enum field " << Value
-                           << " is greater than the max value of the "
-                              "underlying type "
-                           << Max;
-      }
-      if (Value < Min) {
+  for (const auto &Field : Fields) {
+    const uint64_t Value = Field.getRawValue();
+
+    const auto UsingSigned = [&](auto Callable, const auto... V) {
+      return IsSigned ? Callable(static_cast<int64_t>(V)...) : Callable(V...);
+    };
+
+    const auto CheckSigned =
+      [emitError](const auto Value,
+                  const auto MinValue,
+                  const auto MaxValue) -> mlir::LogicalResult {
+      if (Value < MinValue)
         return emitError() << "enum field " << Value
                            << " is less than the min value of the "
                               "underlying type "
-                           << Min;
-      }
-      if (Value < lastValue) {
-        return emitError() << "enum fields are not in ascending order";
-      }
-      lastValue = Value;
-    }
-  }
+                           << MinValue;
 
-  std::set<llvm::StringRef> Names;
-  for (auto Field : Fields) {
-    if (Field.getName().empty())
-      continue;
-    if (Names.contains(Field.getName())) {
-      return emitError() << "multiple definitions of enum field attr named "
-                         << Field.getName();
-    }
-    Names.insert(Field.getName());
+      if (Value > MaxValue)
+        return emitError() << "enum field " << Value
+                           << " is greater than the max value of the "
+                              "underlying type "
+                           << MaxValue;
+
+      return mlir::success();
+    };
+
+    const mlir::LogicalResult R = UsingSigned(CheckSigned,
+                                              Value,
+                                              MinValue,
+                                              MaxValue);
+
+    if (failed(R))
+      return R;
+
+    if (Value < LastValue || (CheckEqual && Value == LastValue))
+      return emitError() << "enum fields must be strictly ordered by their "
+                            "unsigned values";
+
+    LastValue = Value;
+    CheckEqual = true;
   }
 
   return mlir::success();
