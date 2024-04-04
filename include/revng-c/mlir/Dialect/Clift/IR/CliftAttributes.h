@@ -42,19 +42,26 @@ class StructType
 public:
   using Base::Base;
 
-  static StructType get(MLIRContext *ctx, uint64_t ID) {
-    return Base::get(ctx, ID);
-  }
+  static StructType get(MLIRContext *ctx, uint64_t ID);
+
+  static StructType
+  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
+             MLIRContext *ctx,
+             uint64_t ID);
 
   static StructType get(MLIRContext *ctx,
                         uint64_t ID,
                         llvm::StringRef Name,
                         uint64_t Size,
-                        llvm::ArrayRef<FieldAttr> Fields) {
-    auto Result = Base::get(ctx, ID);
-    Result.setBody(Name, Size, Fields);
-    return Result;
-  }
+                        llvm::ArrayRef<FieldAttr> Fields);
+
+  static StructType
+  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
+             MLIRContext *ctx,
+             uint64_t ID,
+             llvm::StringRef Name,
+             uint64_t Size,
+             llvm::ArrayRef<FieldAttr> Fields);
 
   static llvm::StringRef getMnemonic() { return "struct"; }
 
@@ -115,22 +122,24 @@ class UnionType : public Attribute::AttrBase<UnionType,
 public:
   using Base::Base;
 
-  static UnionType get(MLIRContext *ctx, uint64_t ID) {
-    // Call into the base to get a uniqued instance of this type. The parameter
-    // (name) is passed after the context.
-    return Base::get(ctx, ID);
-  }
+  static UnionType get(MLIRContext *ctx, uint64_t ID);
+
+  static UnionType
+  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
+             MLIRContext *ctx,
+             uint64_t ID);
 
   static UnionType get(MLIRContext *ctx,
                        uint64_t ID,
                        llvm::StringRef Name,
-                       llvm::ArrayRef<FieldAttr> Fields) {
-    // Call into the base to get a uniqued instance of this type. The parameter
-    // (name) is passed after the context.
-    auto Result = Base::get(ctx, ID);
-    Result.setBody(Name, Fields);
-    return Result;
-  }
+                       llvm::ArrayRef<FieldAttr> Fields);
+
+  static UnionType
+  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
+             MLIRContext *ctx,
+             uint64_t ID,
+             llvm::StringRef Name,
+             llvm::ArrayRef<FieldAttr> Fields);
 
   static llvm::StringRef getMnemonic() { return "union"; }
 

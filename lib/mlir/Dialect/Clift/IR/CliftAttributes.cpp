@@ -390,3 +390,83 @@ mlir::clift::UnionType::verify(function_ref<InFlightDiagnostic()> EmitError,
   }
   return mlir::success();
 }
+
+mlir::clift::StructType mlir::clift::StructType::get(MLIRContext *ctx,
+                                                     uint64_t ID) {
+  return Base::get(ctx, ID);
+}
+
+mlir::clift::StructType
+mlir::clift::StructType::getChecked(llvm::function_ref<InFlightDiagnostic()>
+                                      EmitError,
+                                    MLIRContext *ctx,
+                                    uint64_t ID) {
+  if (failed(verify(EmitError, ID)))
+    return {};
+  return get(ctx, ID);
+}
+
+mlir::clift::StructType
+mlir::clift::StructType::get(MLIRContext *ctx,
+                             uint64_t ID,
+                             llvm::StringRef Name,
+                             uint64_t Size,
+                             llvm::ArrayRef<FieldAttr> Fields) {
+  auto Result = Base::get(ctx, ID);
+  Result.setBody(Name, Size, Fields);
+  return Result;
+}
+
+mlir::clift::StructType
+mlir::clift::StructType::getChecked(llvm::function_ref<InFlightDiagnostic()>
+                                      EmitError,
+                                    MLIRContext *ctx,
+                                    uint64_t ID,
+                                    llvm::StringRef Name,
+                                    uint64_t Size,
+                                    llvm::ArrayRef<FieldAttr> Fields) {
+  if (failed(verify(EmitError, ID, Name, Size, Fields)))
+    return {};
+  return get(ctx, ID, Name, Size, Fields);
+}
+
+mlir::clift::UnionType mlir::clift::UnionType::get(MLIRContext *ctx,
+                                                   uint64_t ID) {
+  // Call into the base to get a uniqued instance of this type. The parameter
+  // (name) is passed after the context.
+  return Base::get(ctx, ID);
+}
+
+mlir::clift::UnionType
+mlir::clift::UnionType::getChecked(llvm::function_ref<InFlightDiagnostic()>
+                                     EmitError,
+                                   MLIRContext *ctx,
+                                   uint64_t ID) {
+  if (failed(verify(EmitError, ID)))
+    return {};
+  return get(ctx, ID);
+}
+
+mlir::clift::UnionType
+mlir::clift::UnionType::get(MLIRContext *ctx,
+                            uint64_t ID,
+                            llvm::StringRef Name,
+                            llvm::ArrayRef<FieldAttr> Fields) {
+  // Call into the base to get a uniqued instance of this type. The parameter
+  // (name) is passed after the context.
+  auto Result = Base::get(ctx, ID);
+  Result.setBody(Name, Fields);
+  return Result;
+}
+
+mlir::clift::UnionType
+mlir::clift::UnionType::getChecked(llvm::function_ref<InFlightDiagnostic()>
+                                     EmitError,
+                                   MLIRContext *ctx,
+                                   uint64_t ID,
+                                   llvm::StringRef Name,
+                                   llvm::ArrayRef<FieldAttr> Fields) {
+  if (failed(verify(EmitError, ID, Name, Fields)))
+    return {};
+  return get(ctx, ID, Name, Fields);
+}
