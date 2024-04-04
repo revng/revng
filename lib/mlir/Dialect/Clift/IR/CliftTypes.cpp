@@ -175,6 +175,18 @@ ArrayType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
   return mlir::success();
 }
 
+static mlir::clift::TypedefAttr getTypedefAttr(mlir::Type Type) {
+  if (auto D = mlir::dyn_cast<mlir::clift::DefinedType>(Type))
+    return mlir::dyn_cast<mlir::clift::TypedefAttr>(D.getElementType());
+  return nullptr;
+}
+
+static mlir::Type dealias(mlir::Type Type) {
+  while (auto Attr = getTypedefAttr(Type))
+    Type = Attr.getUnderlyingType();
+  return Type;
+}
+
 using namespace mlir::clift;
 ::mlir::LogicalResult
 EnumAttr::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
@@ -182,6 +194,8 @@ EnumAttr::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
                  ::llvm::StringRef,
                  mlir::Type UnderlyingType,
                  ::llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
+  UnderlyingType = dealias(UnderlyingType);
+
   if (not UnderlyingType.isa<mlir::clift::PrimitiveType>())
     return emitError() << "type of enum must be a primitive type";
 
