@@ -5,6 +5,7 @@
 #include <set>
 
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 #include "mlir/IR/Builders.h"
@@ -307,6 +308,19 @@ mlir::Attribute mlir::clift::StructType::parse(AsmParser &parser) {
   return parseImpl<StructType>(parser, "union");
 }
 
+static bool isCompleteType(const mlir::Type Type) {
+  if (auto T = mlir::dyn_cast<mlir::clift::DefinedType>(Type)) {
+    auto Definition = T.getElementType();
+    if (auto D = mlir::dyn_cast<mlir::clift::StructType>(Definition))
+      return D.isDefinition();
+    if (auto D = mlir::dyn_cast<mlir::clift::UnionType>(Definition))
+      return D.isDefinition();
+    return true;
+  }
+
+  return true;
+}
+
 mlir::LogicalResult
 mlir::clift::StructType::verify(function_ref<InFlightDiagnostic()> emitError,
                                 uint64_t id) {
@@ -314,52 +328,42 @@ mlir::clift::StructType::verify(function_ref<InFlightDiagnostic()> emitError,
 }
 
 mlir::LogicalResult
-mlir::clift::StructType::verify(function_ref<InFlightDiagnostic()> emitError,
-                                uint64_t ID,
-                                llvm::StringRef Name,
-                                uint64_t Size,
-                                llvm::ArrayRef<FieldAttr> Fields) {
-
+mlir::clift::StructType::verify(const function_ref<InFlightDiagnostic()>
+                                  EmitError,
+                                const uint64_t ID,
+                                llvm::StringRef,
+                                const uint64_t Size,
+                                const llvm::ArrayRef<FieldAttr> Fields) {
   if (Size == 0)
-    return emitError() << "struct type cannot have a size of zero";
+    return EmitError() << "struct type cannot have a size of zero";
 
-  if (Fields.empty())
-    return mlir::success();
+  if (not Fields.empty()) {
+    uint64_t LastEndOffset = 0;
 
-  for (auto [first, second] :
-       llvm::zip(llvm::drop_end(Fields), llvm::drop_begin(Fields))) {
-    auto StructEnd = first.getOffset()
-                     + first.getType()
-                         .cast<mlir::clift::ValueType>()
-                         .getByteSize();
-    if (StructEnd >= second.getOffset()) {
+    llvm::SmallSet<llvm::StringRef, 16> NameSet;
+    for (const auto &Field : Fields) {
+      if (not isCompleteType(Field.getType()))
+        return EmitError() << "Fields of structs must be complete types";
 
-      return emitError() << "Fields of structs must be ordered by offset,  and "
-                            "they cannot "
-                            "overlap";
+      if (Field.getOffset() < LastEndOffset)
+        return EmitError() << "Fields of structs must be ordered by offset, "
+                              "and "
+                              "they cannot overlap";
+
+      LastEndOffset = Field.getOffset()
+                      + Field.getType()
+                          .cast<mlir::clift::ValueType>()
+                          .getByteSize();
+
+      if (not Field.getName().empty()) {
+        if (not NameSet.insert(Field.getName()).second)
+          return EmitError() << "struct field names must be empty or unique";
+      }
     }
-  }
 
-  for (mlir::clift::FieldAttr Field : Fields) {
-    mlir::Type FieldType = Field.getType();
-    mlir::clift::ValueType Casted = FieldType.cast<mlir::clift::ValueType>();
-    if (auto FieldEndPoint = Field.getOffset() + Casted.getByteSize();
-        FieldEndPoint >= Size) {
-      return emitError() << "offset + size of field of struct type is "
-                            "greater "
+    if (LastEndOffset > Size)
+      return EmitError() << "offset + size of field of struct type is greater "
                             "than the struct type size.";
-    }
-  }
-
-  std::set<llvm::StringRef> Names;
-  for (auto Field : Fields) {
-    if (Field.getName().empty())
-      continue;
-    if (Names.contains(Field.getName())) {
-      return emitError() << "multiple definitions of struct field named "
-                         << Field.getName();
-    }
-    Names.insert(Field.getName());
   }
 
   return mlir::success();
