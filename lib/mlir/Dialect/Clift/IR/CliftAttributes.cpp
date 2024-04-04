@@ -194,7 +194,7 @@ mlir::Attribute mlir::clift::StructType::print(AsmPrinter &p) const {
 
 template<typename AttrType>
 AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
-  const auto OnUnepxectedToken = [&parser,
+  const auto OnUnexpectedToken = [&parser,
                                   TypeName](llvm::StringRef name) -> AttrType {
     parser.emitError(parser.getCurrentLocation(),
                      "Expected " + name + " while parsing mlir " + TypeName
@@ -203,26 +203,26 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
   };
 
   if (parser.parseLess()) {
-    return OnUnepxectedToken("<");
+    return OnUnexpectedToken("<");
   }
 
   if (parser.parseKeyword("id").failed()) {
-    return OnUnepxectedToken("keyword 'id'");
+    return OnUnexpectedToken("keyword 'id'");
   }
 
   if (parser.parseEqual().failed()) {
-    return OnUnepxectedToken("=");
+    return OnUnexpectedToken("=");
   }
 
   uint64_t ID;
   if (parser.parseInteger(ID).failed()) {
-    return OnUnepxectedToken("<integer>");
+    return OnUnexpectedToken("<integer>");
   }
 
   if (auto Iterator = CurrentlyPrintedTypes.find(ID);
       Iterator != CurrentlyPrintedTypes.end()) {
     if (parser.parseGreater().failed()) {
-      return OnUnepxectedToken(">");
+      return OnUnexpectedToken(">");
     }
 
     return Iterator->second.cast<AttrType>();
@@ -236,55 +236,55 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
   });
 
   if (parser.parseComma().failed()) {
-    return OnUnepxectedToken(",");
+    return OnUnexpectedToken(",");
   }
 
   if (parser.parseKeyword("name").failed()) {
-    return OnUnepxectedToken("keyword 'name'");
+    return OnUnexpectedToken("keyword 'name'");
   }
 
   if (parser.parseEqual().failed()) {
-    return OnUnepxectedToken("=");
+    return OnUnexpectedToken("=");
   }
 
   std::string OptionalName = "";
   if (parser.parseOptionalString(&OptionalName).failed()) {
-    return OnUnepxectedToken("<string>");
+    return OnUnexpectedToken("<string>");
   }
 
   if (parser.parseComma().failed()) {
-    return OnUnepxectedToken(",");
+    return OnUnexpectedToken(",");
   }
 
   uint64_t Size;
   if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
     if (parser.parseKeyword("size").failed()) {
-      return OnUnepxectedToken("keyword 'size'");
+      return OnUnexpectedToken("keyword 'size'");
     }
 
     if (parser.parseEqual().failed()) {
-      return OnUnepxectedToken("=");
+      return OnUnexpectedToken("=");
     }
 
     if (parser.parseInteger(Size).failed()) {
-      return OnUnepxectedToken("<size_t>");
+      return OnUnexpectedToken("<size_t>");
     }
 
     if (parser.parseComma().failed()) {
-      return OnUnepxectedToken(",");
+      return OnUnexpectedToken(",");
     }
   }
 
   if (parser.parseKeyword("fields").failed()) {
-    return OnUnepxectedToken("keyword 'fields'");
+    return OnUnexpectedToken("keyword 'fields'");
   }
 
   if (parser.parseEqual().failed()) {
-    return OnUnepxectedToken("=");
+    return OnUnexpectedToken("=");
   }
 
   if (parser.parseLSquare().failed()) {
-    return OnUnepxectedToken("[");
+    return OnUnexpectedToken("[");
   }
 
   using SmallVectorType = ::llvm::SmallVector<mlir::clift::FieldAttr>;
@@ -300,11 +300,11 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
   }
 
   if (parser.parseRSquare().failed()) {
-    return OnUnepxectedToken("]");
+    return OnUnexpectedToken("]");
   }
 
   if (parser.parseGreater().failed()) {
-    return OnUnepxectedToken(">");
+    return OnUnexpectedToken(">");
   }
   if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
     ToReturn.setBody(OptionalName, Size, *Attrs);
