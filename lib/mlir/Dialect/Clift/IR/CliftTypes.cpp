@@ -148,6 +148,14 @@ PointerType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()>
 }
 
 ::mlir::LogicalResult
+DefinedType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()>
+                      emitError,
+                    mlir::clift::TypeDefinition element_type,
+                    BoolAttr IsConst) {
+  return mlir::success();
+}
+
+::mlir::LogicalResult
 ArrayType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
                   mlir::clift::ValueType element_type,
                   uint64_t count,

@@ -74,6 +74,7 @@ def DefinedType : Clift_Type<"Defined", "defined", [DeclareTypeInterfaceMethods<
     uint64_t id();
     llvm::StringRef name();
   }];
+  let genVerifyDecl = 1;
 
   let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? $element_type `>` ";
 }

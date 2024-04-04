@@ -68,6 +68,8 @@ def EnumFieldAttr : Clift_Attr<"EnumField", "enum_field", [DeclareAttrInterfaceM
 
   let parameters = (ins "uint64_t":$raw_value, StringRefParameter<>:$name);
 
+  let genVerifyDecl = 1;
+
   let assemblyFormat = "`<`struct($name, $raw_value)`>`";
 }
 
@@ -104,6 +106,7 @@ def Clift_TypedefAttr: Clift_Attr<"Typedef", "typedef", [DeclareAttrInterfaceMet
   let description = [{
     Typedef type.
   }];
+  let genVerifyDecl = 1;
 
   let assemblyFormat = "`<`struct($id, $name, $underlying_type) `>` ";
 }

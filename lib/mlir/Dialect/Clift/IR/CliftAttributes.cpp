@@ -55,6 +55,23 @@ mlir::clift::FieldAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()>
   return mlir::success();
 }
 
+using EnumFieldAttr = mlir::clift::EnumFieldAttr;
+mlir::LogicalResult
+EnumFieldAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                      uint64_t RawValue,
+                      llvm::StringRef Name) {
+  return mlir::success();
+}
+
+using TypedefAttr = mlir::clift::TypedefAttr;
+mlir::LogicalResult
+TypedefAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                    uint64_t Id,
+                    llvm::StringRef Name,
+                    mlir::clift::ValueType UnderlyingType) {
+  return mlir::success();
+}
+
 using ArgAttr = mlir::clift::FunctionArgumentAttr;
 mlir::LogicalResult
 ArgAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
