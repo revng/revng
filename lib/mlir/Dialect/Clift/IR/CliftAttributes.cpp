@@ -369,10 +369,7 @@ mlir::LogicalResult
 mlir::clift::UnionType::verify(function_ref<InFlightDiagnostic()> EmitError,
                                uint64_t ID,
                                llvm::StringRef Name,
-                               uint64_t Size,
                                llvm::ArrayRef<FieldAttr> Fields) {
-  if (Size == 0)
-    return EmitError() << "union type cannot have a size of zero";
   if (Fields.size() != 0) {
     return EmitError() << "union types must have at least a field";
   }

@@ -178,7 +178,6 @@ public:
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               uint64_t ID,
                               llvm::StringRef Name,
-                              uint64_t Size,
                               llvm::ArrayRef<FieldAttr> fields);
   std::string getAlias() const { return getName().str(); }
 
