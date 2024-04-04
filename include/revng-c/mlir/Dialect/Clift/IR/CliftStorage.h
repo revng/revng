@@ -21,8 +21,8 @@ public:
   // fields. That way when it is needed one can access everything.
   struct Key {
     uint64_t ID;
-    uint64_t Size;
     llvm::StringRef name;
+    uint64_t Size;
     Optional<llvm::SmallVector<FieldAttr, 2>> fields;
 
     // struct storages are never exposed to the user, they are only used
