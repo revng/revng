@@ -298,8 +298,7 @@ void FunctionMetadata::dumpCFG(const model::Binary &Binary) const {
   auto [Graph, _] = buildControlFlowGraph<FunctionCFG>(ControlFlowGraph(),
                                                        Entry(),
                                                        Binary);
-  raw_os_ostream Stream(dbg);
-  WriteGraph(Stream, &Graph);
+  WriteGraph(&Graph, "function-metadata");
 }
 
 bool FunctionEdgeBase::verify() const {
