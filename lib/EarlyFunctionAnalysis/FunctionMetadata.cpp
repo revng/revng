@@ -184,7 +184,7 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
     if (*PredecessorsAddress.begin() != Block.ID())
       continue;
 
-    ToMerge.emplace_back(Block.ID(), Block.End());
+    ToMerge.emplace_back(Block.ID(), Block.nextBlock());
   }
 
   for (auto [PredecessorAddress, BlockAddress] : llvm::reverse(ToMerge)) {
