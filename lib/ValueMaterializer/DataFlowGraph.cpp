@@ -178,7 +178,7 @@ DataFlowGraph::processValue(Value *V, Limits Limits) {
       auto *False = Select->getFalseValue();
       NewNode->addSuccessor(rc_recur processValue(False, Limits));
     }
-  } else if (isa<GlobalVariable>(V)) {
+  } else if (isa<GlobalVariable>(V) or isa<Argument>(V)) {
     // Ignore operands
   } else if (auto *Call = dyn_cast<CallBase>(V)) {
     // Stop at calls, except for bswap
