@@ -183,7 +183,8 @@ DataFlowGraph::processValue(Value *V, Limits Limits) {
   } else if (auto *Call = dyn_cast<CallBase>(V)) {
     // Stop at calls, except for bswap
     if (auto *Callee = Call->getCalledFunction()) {
-      if (Callee->getIntrinsicID() == Intrinsic::bswap) {
+      if (Callee->getIntrinsicID() == Intrinsic::bswap
+          or Callee->getIntrinsicID() == Intrinsic::fshl) {
         auto *Operand = Call->getArgOperand(0);
         NewNode->addSuccessor(rc_recur processValue(Operand, Limits));
       }
@@ -238,8 +239,8 @@ materialize(MemoryOracle &MO,
   } else if (auto *Call = dyn_cast<CallBase>(Operation)) {
     auto *Callee = Call->getCalledFunction();
     revng_assert(Callee != nullptr);
-    revng_assert(Callee->getIntrinsicID() == Intrinsic::bswap);
-    revng_assert(Operands.size() == 1);
+    revng_assert(Callee->getIntrinsicID() == Intrinsic::bswap
+                 or Callee->getIntrinsicID() == Intrinsic::fshl);
   } else {
     revng_assert(UserOperation->getNumOperands() == Operands.size());
   }
@@ -261,11 +262,11 @@ materialize(MemoryOracle &MO,
     unsigned LoadSize = Load->getType()->getIntegerBitWidth() / 8;
     return Operands[0].load(MO, LoadSize);
   } else if (auto *Call = dyn_cast<CallInst>(Operation)) {
-    // Handle bswap
+    // Handle bswap and fshl.
     Function *Callee = Call->getCalledFunction();
     revng_assert(Callee != nullptr
-                 and Callee->getIntrinsicID() == Intrinsic::bswap
-                 and Operands.size() == 1);
+                 and (Callee->getIntrinsicID() == Intrinsic::bswap
+                      or Callee->getIntrinsicID() == Intrinsic::fshl));
 
     return Operands[0].byteSwap();
   } else if (auto *Instruction = dyn_cast<llvm::Instruction>(Operation)) {
