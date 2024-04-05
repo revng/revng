@@ -39,11 +39,6 @@ template<typename T, typename FirstRunArg, typename... Args>
 concept Pipe = Invokable<T, FirstRunArg, Args...>
                and (IsContainer<Args> and ...) and HasContract<T>;
 
-template<typename T>
-concept HasPrecondition = requires(const T &P) {
-  { P.checkPrecondition };
-};
-
 template<typename C, typename First, typename... Rest>
 constexpr bool checkPipe(auto (C::*)(First, Rest...))
   requires Pipe<C, First, Rest...>
@@ -157,10 +152,7 @@ public:
   }
 
   llvm::Error checkPrecondition(const Context &Ctx) const override {
-    if constexpr (not HasPrecondition<PipeType>)
-      return llvm::Error::success();
-    else
-      return Invokable.getPipe().checkPrecondition(Ctx);
+    return Invokable.getPipe().checkPrecondition(Ctx);
   }
 
 public:

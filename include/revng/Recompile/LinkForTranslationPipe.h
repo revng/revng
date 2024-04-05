@@ -42,6 +42,10 @@ public:
            ObjectFileContainer &ObjectFile,
            TranslatedFileContainer &OutputBinary);
 
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
+
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,
              llvm::ArrayRef<std::string> ContainerNames) const;

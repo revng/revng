@@ -32,6 +32,10 @@ public:
            pipeline::LLVMContainer &TargetsList,
            ObjectFileContainer &TargetBinary);
 
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
+
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,
              llvm::ArrayRef<std::string> ContainerNames) const {
@@ -53,9 +57,14 @@ public:
     pipeline::Contract IsolatedPart(kinds::Isolated, 0, kinds::Object, 1);
     return { pipeline::ContractGroup({ RootPart, IsolatedPart }) };
   }
+
   void run(const pipeline::ExecutionContext &,
            pipeline::LLVMContainer &TargetsList,
            ObjectFileContainer &TargetBinary);
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

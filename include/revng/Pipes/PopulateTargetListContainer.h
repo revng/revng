@@ -43,6 +43,10 @@ public:
     Container.fill(Ctx.getContext());
   }
 
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
+
   void print(const pipeline::Context,
              llvm::raw_ostream OS,
              llvm::ArrayRef<std::string>) const {
