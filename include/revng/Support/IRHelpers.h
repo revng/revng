@@ -1331,6 +1331,19 @@ inline bool isFallthrough(llvm::BasicBlock *BB) {
   return isFallthrough(BB->getTerminator());
 }
 
+inline llvm::Constant *toLLVMConstant(llvm::LLVMContext &Context,
+                                      const llvm::APInt &Value) {
+  using namespace llvm;
+  llvm::Type *DestinationType = llvm::IntegerType::get(Context,
+                                                       Value.getBitWidth());
+  if (auto *IT = dyn_cast<IntegerType>(DestinationType)) {
+    revng_assert(IT->getBitWidth() == Value.getBitWidth());
+    return ConstantInt::get(DestinationType, Value);
+  } else {
+    revng_abort();
+  }
+}
+
 template<typename T>
 inline llvm::Type *cTypeToLLVMType(llvm::LLVMContext &C) {
   using namespace std;
