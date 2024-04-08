@@ -185,6 +185,11 @@ public:
 
   size_type erase(const key_type &Key) { return Content.erase(Key); }
 
+  template<typename CallableType>
+  size_type erase_if(CallableType &&Callable) {
+    return Content.erase_if(std::forward<CallableType>(Callable));
+  }
+
   iterator find(const key_type &Key) { return Content.find(Key); }
 
   iterator lower_bound(const key_type &Key) { return Content.lower_bound(Key); }
