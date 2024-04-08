@@ -522,7 +522,7 @@ inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
     }
     tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C, Index, Error.get() };
 
-    if (not callByPath(ADV, C.Path, *M, *pathAsString<T>(C.Path)))
+    if (not callByPath(ADV, C.Path, *M))
       Error
         ->addReason("Path not present",
                     revng::DiffLocation(Index,
