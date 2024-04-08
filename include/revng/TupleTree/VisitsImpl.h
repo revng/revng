@@ -11,28 +11,35 @@
 //
 namespace tupletree::detail {
 
-template<typename ResultT>
+template<typename ExpectedType>
 struct GetByPathVisitor {
-  ResultT *Result = nullptr;
+  ExpectedType *Result = nullptr;
 
-  template<typename T, typename K, typename KeyT>
-  void visitContainerElement(KeyT, K &) {
+  template<typename, size_t>
+  void visitTupleElement(ExpectedType &Element) {
+    Result = &Element;
+  }
+  template<typename, size_t, typename AnyOtherType>
+  void visitTupleElement(AnyOtherType &) {
+    Result = nullptr;
+  }
+
+  template<TraitedTupleLike T, size_t I, typename Kind>
+  void visitPolymorphicElement(Kind, ExpectedType &Element) {
+    Result = &Element;
+  }
+  template<TraitedTupleLike T, size_t I, typename Kind, typename AnyOtherType>
+  void visitPolymorphicElement(Kind, AnyOtherType &) {
     Result = nullptr;
   }
 
   template<typename T, typename KeyT>
-  void visitContainerElement(KeyT, ResultT &Element) {
+  void visitContainerElement(KeyT, ExpectedType &Element) {
     Result = &Element;
   }
-
-  template<typename, size_t, typename K>
-  void visitTupleElement(K &) {
+  template<typename T, typename KeyT, typename AnyOtherType>
+  void visitContainerElement(KeyT, AnyOtherType &) {
     Result = nullptr;
-  }
-
-  template<typename, size_t>
-  void visitTupleElement(ResultT &Element) {
-    Result = &Element;
   }
 };
 
@@ -58,10 +65,10 @@ std::optional<TupleTreePath> stringAsPath(llvm::StringRef Path) {
     return std::nullopt;
 
   auto Result = PathMatcher::create<T>(Path);
-  if (Result)
-    return Result->path();
-  else
+  if (not Result.has_value())
     return std::nullopt;
+
+  return Result->path();
 }
 
 //
@@ -69,8 +76,9 @@ std::optional<TupleTreePath> stringAsPath(llvm::StringRef Path) {
 //
 template<typename T>
 std::optional<PathMatcher> PathMatcher::create(llvm::StringRef Path) {
-  revng_assert(Path.startswith("/"));
   PathMatcher Result;
+
+  revng_assert(Path.startswith("/"));
   if (visitTupleTreeNode<T>(Path.substr(1), Result))
     return Result;
   else

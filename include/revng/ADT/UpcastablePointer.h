@@ -66,7 +66,7 @@ ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
     if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
       return Callable(*Upcasted);
     } else {
-      return upcast<ReturnT, L, P, I + 1>(Upcastable,
+      return upcast<ReturnT, L, P, I + 1>(std::forward<P>(Upcastable),
                                           Callable,
                                           std::forward<ReturnT>(IfNull));
     }

@@ -47,33 +47,32 @@ BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
   revng_check(Location.toString() == serializeToString(Location));
 }
 
-static model::DefinitionReference makeFunction(model::Binary &Model) {
-  model::CABIFunctionDefinition Function;
-  Function.CustomName() = "my_cool_func";
-  Function.OriginalName() = "Function_at_0x40012f:Code_x86_64";
-  Function.ABI() = model::ABI::SystemV_x86_64;
-
-  using UTD = model::UpcastableTypeDefinition;
-  auto Ptr = UTD::make<model::CABIFunctionDefinition>(std::move(Function));
-
-  return Model.recordNewType(std::move(Ptr));
-}
-
 BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   TupleTree<model::Binary> NewModel;
-  auto Function = makeFunction(*NewModel);
 
+  // Define a new union
+  auto [Definition, _] = NewModel->makeTypeDefinition<model::UnionDefinition>();
+  Definition.CustomName() = "my_cool_union";
+  auto &ThirdField = Definition.Fields()[2];
+  ThirdField.CustomName() = "third_field";
+
+  // Introduce a location of a field by embedding the type definition key and
+  // the field index.
   namespace ranks = revng::ranks;
   auto FieldLocation = pipeline::location(ranks::UnionField,
-                                          Function.get()->key(),
+                                          Definition.key(),
                                           2);
 
-  auto Path = NewModel->getDefinitionReference(FieldLocation.at(ranks::Type));
-  revng_check(Path.getConst()->name() == "my_cool_func");
+  // Extract a type back from the location by finding the relevant key
+  // in the binary.
+  auto Ref = NewModel->getDefinitionReference(FieldLocation.at(ranks::Type));
 
-  std::string ID = Function.toString();
-  ID = ID.substr(ID.find_last_of('/') + 1);
-  revng_check(FieldLocation.toString() == "/union-field/" + ID + "/2");
+  // Ensure the type we got is the same type we started with.
+  revng_check(Ref.get()->name() == "my_cool_union");
+
+  // Ensure the key is encoded in the serialized form of the location.
+  std::string Key = serializeToString(Definition.key());
+  revng_check(FieldLocation.toString() == "/union-field/" + Key + "/2");
   revng_check(FieldLocation.toString() == serializeToString(FieldLocation));
 }
 
