@@ -221,10 +221,7 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
 namespace tupletree::detail {
 
 template<NotTupleTreeCompatible T, typename Visitor>
-bool callOnPathSteps(Visitor &,
-                     llvm::ArrayRef<TupleTreeKeyWrapper>,
-                     T &,
-                     const llvm::StringRef) {
+bool callOnPathSteps(Visitor &, llvm::ArrayRef<TupleTreeKeyWrapper>, T &) {
   // Unandled call on step
   return false;
 }
@@ -232,18 +229,17 @@ bool callOnPathSteps(Visitor &,
 template<size_t I = 0, typename RootT, typename Visitor>
 bool callOnPathStepsTuple(Visitor &V,
                           llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                          RootT &M,
-                          const llvm::StringRef FullPath) {
+                          RootT &M) {
   if constexpr (I < std::tuple_size_v<RootT>) {
     if (Path[0].get<size_t>() == I) {
       using next_type = typename std::tuple_element<I, RootT>::type;
       next_type &Element = get<I>(M);
       V.template visitTupleElement<RootT, I>(Element);
       if (Path.size() > 1) {
-        return callOnPathSteps(V, Path.slice(1), Element, FullPath);
+        return callOnPathSteps(V, Path.slice(1), Element);
       }
     } else {
-      return callOnPathStepsTuple<I + 1>(V, Path, M, FullPath);
+      return callOnPathStepsTuple<I + 1>(V, Path, M);
     }
   }
 
@@ -255,10 +251,9 @@ bool callOnPathStepsTuple(Visitor &V,
 template<UpcastablePointerLike RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                     RootT &M,
-                     const llvm::StringRef FullPath) {
+                     RootT &M) {
   auto Dispatcher = [&](auto &Upcasted) -> bool {
-    return callOnPathStepsTuple(V, Path, Upcasted, FullPath);
+    return callOnPathStepsTuple(V, Path, Upcasted);
   };
   // TODO: in case of nullptr we should abort
   return upcast(M, Dispatcher, false);
@@ -267,9 +262,8 @@ bool callOnPathSteps(Visitor &V,
 template<TupleSizeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                     RootT &M,
-                     const llvm::StringRef FullPath) {
-  return tupletree::detail::callOnPathStepsTuple(V, Path, M, FullPath);
+                     RootT &M) {
+  return tupletree::detail::callOnPathStepsTuple(V, Path, M);
 }
 
 template<typename T>
@@ -280,8 +274,7 @@ concept HasTryGet = requires(T a) {
 template<KeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                     RootT &M,
-                     const llvm::StringRef FullPath) {
+                     RootT &M) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
   using key_type = decltype(KOT::key(std::declval<value_type>()));
@@ -304,7 +297,7 @@ bool callOnPathSteps(Visitor &V,
 
   V.template visitContainerElement<RootT>(TargetKey, *Entry);
   if (Path.size() > 1) {
-    return callOnPathSteps(V, Path.slice(1), *Entry, FullPath);
+    return callOnPathSteps(V, Path.slice(1), *Entry);
   }
 
   return true;
@@ -383,17 +376,9 @@ struct CallByPathVisitorWithInstance {
 
 template<typename RootT, typename Visitor>
 bool callByPath(Visitor &V, const TupleTreePath &Path, RootT &M) {
-  return callByPath(V, Path, M, "");
-}
-
-template<typename RootT, typename Visitor>
-bool callByPath(Visitor &V,
-                const TupleTreePath &Path,
-                RootT &M,
-                const llvm::StringRef OriginalPath) {
   using namespace tupletree::detail;
   CallByPathVisitorWithInstance<Visitor> CBPV{ Path.size(), V };
-  return callOnPathSteps(CBPV, Path.toArrayRef(), M, OriginalPath);
+  return callOnPathSteps(CBPV, Path.toArrayRef(), M);
 }
 
 //
