@@ -132,8 +132,10 @@ getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
 llvm::Function *
 getModelGEPRef(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
 
+using ModelCastPoolKey = std::pair<llvm::Type *, llvm::Type *>;
+
 /// Initializes a pool of ModelCast functions
-void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+void initModelCastPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
 
 using SegmentRefPoolKey = std::tuple<MetaAddress, uint64_t, llvm::Type *>;
 

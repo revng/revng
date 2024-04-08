@@ -61,7 +61,7 @@ private:
                              const model::Binary &);
   void createAndInjectModelCast(Instruction *,
                                 const SerializedType &,
-                                OpaqueFunctionsPool<Type *> &);
+                                OpaqueFunctionsPool<TypePair> &);
 };
 
 using MMCP = MakeModelCastPass;
@@ -180,7 +180,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
 
 void MMCP::createAndInjectModelCast(Instruction *Ins,
                                     const SerializedType &ST,
-                                    OpaqueFunctionsPool<Type *> &Pool) {
+                                    OpaqueFunctionsPool<TypePair> &Pool) {
   IRBuilder<> Builder(Ins);
 
   uint64_t OperandId = ST.OperandId;
@@ -191,7 +191,9 @@ void MMCP::createAndInjectModelCast(Instruction *Ins,
   auto *ModelCastType = FunctionType::get(BaseAddressTy,
                                           { StringPtrType, BaseAddressTy },
                                           false);
-  auto *ModelCastFunction = Pool.get(BaseAddressTy, ModelCastType, "ModelCast");
+  auto *ModelCastFunction = Pool.get({ BaseAddressTy, BaseAddressTy },
+                                     ModelCastType,
+                                     "ModelCast");
 
   Value *Call = Builder.CreateCall(ModelCastFunction,
                                    { StringType, Ins->getOperand(OperandId) });
@@ -201,8 +203,9 @@ void MMCP::createAndInjectModelCast(Instruction *Ins,
 bool MMCP::runOnFunction(Function &F) {
   bool Changed = false;
 
-  OpaqueFunctionsPool<Type *> ModelCastPool(F.getParent(), false);
-  initModelCastPool(ModelCastPool);
+  Module *M = F.getParent();
+  OpaqueFunctionsPool<TypePair> ModelCastPool(M, false);
+  initModelCastPool(ModelCastPool, M);
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();

@@ -138,7 +138,7 @@ void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
   }
 }
 
-void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+void initModelCastPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
@@ -148,7 +148,14 @@ void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setTags({ &FunctionTags::ModelCast });
 
   // Initialize the pool from its internal llvm::Module if possible.
-  Pool.initializeFromReturnType(FunctionTags::ModelCast);
+  for (llvm::Function &F : FunctionTags::ModelCast.functions(M)) {
+    auto *FunctionType = F.getFunctionType();
+    revng_assert(FunctionType->getNumParams() == 2);
+    revng_assert(not FunctionType->isVarArg());
+    auto *ReturnType = F.getFunctionType()->getReturnType();
+    auto *OperandToCastType = F.getFunctionType()->getParamType(1);
+    Pool.record({ ReturnType, OperandToCastType }, &F);
+  }
 }
 
 void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
