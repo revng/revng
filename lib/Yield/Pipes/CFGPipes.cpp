@@ -21,7 +21,7 @@ void YieldControlFlow::run(pipeline::ExecutionContext &Context,
                            FunctionControlFlowStringMap &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
-  ptml::PTMLBuilder ThePTMLBuilder;
+  ptml::PTMLBuilder B;
 
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
@@ -29,7 +29,7 @@ void YieldControlFlow::run(pipeline::ExecutionContext &Context,
     revng_assert((*MaybeFunction)->Entry() == std::get<0>(Address));
 
     Output.insert_or_assign((*MaybeFunction)->Entry(),
-                            yield::svg::controlFlowGraph(ThePTMLBuilder,
+                            yield::svg::controlFlowGraph(B,
                                                          **MaybeFunction,
                                                          *Model));
   }

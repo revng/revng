@@ -12,7 +12,7 @@ namespace ptml {
 
 class PTMLIndentedOstream : public llvm::raw_ostream {
 private:
-  PTMLBuilder ThePTMLBuilder;
+  PTMLBuilder B;
   int IndentSize;
   int IndentDepth;
   // If the buffer ends with a newline, we want to delay emitting indentation on
@@ -26,7 +26,7 @@ public:
   explicit PTMLIndentedOstream(llvm::raw_ostream &OS,
                                int IndentSize = 2,
                                bool GenerateTagLessPTML = false) :
-    ThePTMLBuilder(GenerateTagLessPTML),
+    B(GenerateTagLessPTML),
     IndentSize(IndentSize),
     IndentDepth(0),
     TrailingNewline(false),
@@ -49,7 +49,7 @@ public:
   void indent() { IndentDepth = std::min(INT_MAX, IndentDepth + 1); }
   void unindent() { IndentDepth = std::max(0, IndentDepth - 1); }
 
-  const PTMLBuilder &getPTMLBuilder() const { return ThePTMLBuilder; }
+  const PTMLBuilder &getPTMLBuilder() const { return B; }
 
 private:
   void write_impl(const char *Ptr, size_t Size) override;

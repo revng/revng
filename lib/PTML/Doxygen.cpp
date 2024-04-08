@@ -46,8 +46,8 @@ struct DoxygenToken {
 
 public:
   /// \note Consumes the value: must only be used once per object.
-  std::string emit(const ptml::PTMLBuilder &ThePTMLBuilder) {
-    auto Result = ThePTMLBuilder.getTag(ptml::tags::Span, std::move(Value));
+  std::string emit(const ptml::PTMLBuilder &B) {
+    auto Result = B.getTag(ptml::tags::Span, std::move(Value));
 
     switch (Type) {
     case DoxygenToken::Types::Untagged:

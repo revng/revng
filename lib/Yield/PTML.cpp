@@ -113,12 +113,12 @@ static std::string emitTagged(const PTMLBuilder &B,
   return Result.serialize();
 }
 
-static std::string taggedLine(const PTMLBuilder &ThePTMLBuilder,
+static std::string taggedLine(const PTMLBuilder &B,
                               const SortedVector<yield::TaggedString> &Tagged) {
   std::string Result;
 
   for (const yield::TaggedString &String : Tagged)
-    Result += emitTagged(ThePTMLBuilder, String);
+    Result += emitTagged(B, String);
 
   return Result += '\n';
 }
@@ -320,7 +320,7 @@ static std::string instruction(const PTMLBuilder &B,
   return Location + Out;
 }
 
-static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
+static std::string basicBlock(const PTMLBuilder &B,
                               const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
                               const model::Binary &Binary,
@@ -332,13 +332,13 @@ static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
 
   std::string Result;
   for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator)
-    Result += instruction(ThePTMLBuilder,
+    Result += instruction(B,
                           *Iterator,
                           BasicBlock,
                           Function,
                           Binary,
                           std::move(Prefixes));
-  Result += instruction(ThePTMLBuilder,
+  Result += instruction(B,
                         *(ToIterator++),
                         BasicBlock,
                         Function,
@@ -354,33 +354,33 @@ static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
                                               model::Function(Function.Entry())
                                                 .key(),
                                               BasicBlock.ID());
-    LabelString = ThePTMLBuilder.getTag(tags::Span)
+    LabelString = B.getTag(tags::Span)
                     .addAttribute(attributes::LocationDefinition, Location)
                     .serialize();
   }
 
-  return ThePTMLBuilder.getTag(tags::Div, LabelString + Result)
+  return B.getTag(tags::Div, LabelString + Result)
     .addAttribute(attributes::Scope, scopes::BasicBlock)
     .serialize();
 }
 
 template<bool ShouldMergeFallthroughTargets>
-static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
+static std::string labeledBlock(const PTMLBuilder &B,
                                 const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary,
                                 InstructionPrefixManager &&Prefixes = {}) {
   std::string Result;
-  std::string Label = emitTagged(ThePTMLBuilder, std::move(FirstBlock.Label()));
+  std::string Label = emitTagged(B, std::move(FirstBlock.Label()));
 
   using model::Architecture::getAssemblyLabelIndicator;
   std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
-  Label += ThePTMLBuilder.getTag(tags::Span, std::move(Indicator))
+  Label += B.getTag(tags::Span, std::move(Indicator))
              .addAttribute(attributes::Token, tokenTypes::LabelIndicator)
              .serialize();
 
   if constexpr (ShouldMergeFallthroughTargets == false) {
-    Result = basicBlock(ThePTMLBuilder,
+    Result = basicBlock(B,
                         FirstBlock,
                         Function,
                         Binary,
@@ -394,7 +394,7 @@ static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
 
     bool IsFirst = true;
     for (const auto &BasicBlock : BasicBlocks) {
-      Result += basicBlock(ThePTMLBuilder,
+      Result += basicBlock(B,
                            *BasicBlock,
                            Function,
                            Binary,
@@ -461,44 +461,40 @@ static model::Identifier functionNameHelper(std::string_view Location,
   }
 }
 
-std::string
-yield::ptml::functionNameDefinition(const PTMLBuilder &ThePTMLBuilder,
-                                    std::string_view Location,
-                                    const model::Binary &Binary) {
+std::string yield::ptml::functionNameDefinition(const PTMLBuilder &B,
+                                                std::string_view Location,
+                                                const model::Binary &Binary) {
   if (Location.empty())
     return "";
 
-  ::ptml::Tag Result = ThePTMLBuilder.getTag(tags::Div,
-                                             functionNameHelper(Location,
-                                                                Binary));
+  ::ptml::Tag Result = B.getTag(tags::Div,
+                                functionNameHelper(Location, Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationDefinition, Location);
   return Result.serialize();
 }
 
-std::string yield::ptml::functionLink(const PTMLBuilder &ThePTMLBuilder,
+std::string yield::ptml::functionLink(const PTMLBuilder &B,
                                       std::string_view Location,
                                       const model::Binary &Binary) {
   if (Location.empty())
     return "";
 
-  ::ptml::Tag Result = ThePTMLBuilder.getTag(tags::Div,
-                                             functionNameHelper(Location,
-                                                                Binary));
+  ::ptml::Tag Result = B.getTag(tags::Div,
+                                functionNameHelper(Location, Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
   return Result.serialize();
 }
 
-std::string yield::ptml::shallowFunctionLink(const PTMLBuilder &ThePTMLBuilder,
+std::string yield::ptml::shallowFunctionLink(const PTMLBuilder &B,
                                              std::string_view Location,
                                              const model::Binary &Binary) {
   if (Location.empty())
     return "";
 
-  ::ptml::Tag Result = ThePTMLBuilder.getTag(tags::Div,
-                                             functionNameHelper(Location,
-                                                                Binary));
+  ::ptml::Tag Result = B.getTag(tags::Div,
+                                functionNameHelper(Location, Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::ShallowNodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
   return Result.serialize();
