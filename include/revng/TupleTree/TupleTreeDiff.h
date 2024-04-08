@@ -73,6 +73,12 @@ struct CheckTypeIsCorrect {
     visit<tuple_element>();
   }
 
+  template<TraitedTupleLike T, int I, typename KindType>
+    requires(std::is_enum_v<KindType>)
+  void visitPolymorphicElement(KindType) {
+    visitTupleElement<T, I>();
+  }
+
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
@@ -215,6 +221,12 @@ struct MapDiffVisitor {
     visit<tuple_element>();
   }
 
+  template<TraitedTupleLike T, int I, typename KindType>
+    requires(std::is_enum_v<KindType>)
+  void visitPolymorphicElement(KindType) {
+    visitTupleElement<T, I>();
+  }
+
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
@@ -341,7 +353,9 @@ private:
           using LHSType = std::remove_cvref_t<decltype(LHSUpcasted)>;
           using RHSType = std::remove_cvref_t<decltype(RHSUpcasted)>;
           if constexpr (std::is_same_v<LHSType, RHSType>) {
+            Stack.push_back(LHSUpcasted.Kind());
             diffImpl(LHSUpcasted, RHSUpcasted);
+            Stack.pop_back();
           } else {
             Result.change(Stack, LHS, RHS);
           }
@@ -432,6 +446,12 @@ public:
     visit(Element);
   }
 
+  template<TraitedTupleLike TupleT, int I, typename K, typename KindType>
+    requires(std::is_enum_v<KindType>)
+  void visitPolymorphicElement(KindType, K &Element) {
+    visit(Element);
+  }
+
   template<typename TupleT, typename K, typename KeyT>
   void visitContainerElement(KeyT, K &Element) {
     visit(Element);
@@ -480,28 +500,36 @@ public:
 
   template<typename S>
   void visit(S &M) {
-    // This visitor handles key changes, so both Old and New are present. This
-    // will check that the tree contains Old and then replace its contents with
-    // New
-    if (C->Old == std::nullopt || C->New == std::nullopt) {
-      if (C->Old == std::nullopt)
+    // This visitor handles key changes, so both Old and New are present, unless
+    // one (or even both) of them is an unset polymorphic pointer.
+
+    // Ensure the tree matches `Old`
+    if (not C->Old.has_value()) {
+      if constexpr (SpecializationOf<S, UpcastablePointer>) {
+        if (M != nullptr) {
+          generateError("'Remove' does not match the contents of the pointer "
+                        "within the Tree",
+                        revng::DiffLocation::KindType::Old);
+          return;
+        }
+      } else {
         generateError("Missing 'Remove' key",
                       revng::DiffLocation::KindType::Old);
-      if (C->New == std::nullopt)
-        generateError("Missing 'Add' key", revng::DiffLocation::KindType::New);
-      return;
-    }
-
-    auto &Old = std::get<S>(*C->Old);
-    auto &New = std::get<S>(*C->New);
-
-    if (Old != M) {
+        return;
+      }
+    } else if (std::get<S>(*C->Old) != M) {
       generateError("'Remove' does not match the contents of the Tuple Tree",
                     revng::DiffLocation::KindType::Old);
       return;
     }
 
-    M = New;
+    // Replace the contents with `New`
+    if (C->New.has_value())
+      M = std::get<S>(*C->New);
+    else if constexpr (SpecializationOf<S, UpcastablePointer>)
+      M = nullptr;
+    else
+      generateError("Missing 'Add' key", revng::DiffLocation::KindType::New);
   }
 };
 

@@ -81,169 +81,143 @@ void visitTupleTree(T &Element,
 }
 
 //
-// tupleIndexByName
+// `callOnPathSteps` without an instance
 //
-template<TraitedTupleLike T, size_t I = 0>
-size_t tupleIndexByName(llvm::StringRef Name) {
-  if constexpr (I < std::tuple_size_v<T>) {
-    llvm::StringRef ThisName = TupleLikeTraits<T>::FieldNames[I];
-    if (Name == ThisName)
-      return I;
-    else
-      return tupleIndexByName<T, I + 1>(Name);
-  } else {
-    return -1;
-  }
+
+template<NotTupleTreeCompatible RootT, typename Visitor>
+bool callOnPathSteps(Visitor &, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+  if (Path.empty())
+    return true;
+
+  revng_abort("Unsupported step");
 }
 
-//
-// getByKey
-//
 namespace tupletree::detail {
 
-template<typename ResultT, size_t I = 0, typename RootT, typename KeyT>
-ResultT *getByKeyTuple(RootT &M, KeyT Key) {
+template<TupleSizeCompatible RootT,
+         size_t I = 0,
+         typename KindT,
+         typename Visitor>
+bool polymorphicTupleImpl(Visitor &V,
+                          llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+                          KindT Kind) {
   if constexpr (I < std::tuple_size_v<RootT>) {
-    if (I == Key) {
-      using tuple_element = typename std::tuple_element<I, RootT>::type;
-      revng_assert((std::is_same_v<tuple_element, ResultT>) );
-      return reinterpret_cast<ResultT *>(&get<I>(M));
+    if (Path[0].get<size_t>() == I) {
+      if constexpr (std::is_same_v<KindT, size_t>)
+        V.template visitTupleElement<RootT, I>();
+      else
+        V.template visitPolymorphicElement<RootT, I>(Kind);
+
+      using next_type = typename std::tuple_element<I, RootT>::type;
+      return callOnPathSteps<next_type>(V, Path.slice(1));
     } else {
-      return getByKeyTuple<ResultT, I + 1>(M, Key);
+      return polymorphicTupleImpl<RootT, I + 1>(V, Path, Kind);
     }
-  } else {
-    return nullptr;
   }
+
+  return false;
+}
+
+template<TupleSizeCompatible RootT, typename Visitor>
+bool tupleImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+  return polymorphicTupleImpl<RootT, 0, size_t>(V, Path, 0);
 }
 
 } // namespace tupletree::detail
 
-template<typename ResultT, UpcastablePointerLike RootT, typename KeyT>
-ResultT getByKey(RootT &M, KeyT Key) {
-  auto Dispatcher = [&](auto &Upcasted) { return getByKey(Upcasted, Key); };
-  return upcast(M, Dispatcher, ResultT{});
-}
-
-template<typename ResultT, TupleSizeCompatible RootT, typename KeyT>
-ResultT getByKey(RootT &M, KeyT Key) {
-  return tupletree::detail::getByKeyTuple<ResultT>(M, Key);
-}
-
-template<typename ResultT, KeyedObjectContainer RootT, typename KeyT>
-ResultT *getByKey(RootT &M, KeyT Key) {
-  for (auto &Element : M) {
-    using KOT = KeyedObjectTraits<std::remove_reference_t<decltype(Element)>>;
-    if (KOT::key(Element) == Key)
-      return &Element;
-  }
-  return nullptr;
-}
-
-//
-// callOnPathSteps (no instance)
-//
-template<TupleSizeCompatible RootT, typename Visitor>
-bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path);
-
-template<NotTupleTreeCompatible T, typename Visitor>
-bool callOnPathSteps(Visitor &, llvm::ArrayRef<TupleTreeKeyWrapper>) {
-  //"Unandled call on step";
-  return false;
-}
-
-template<NotUpcastablePointerLike T, typename Visitor>
-bool callOnPathStepsImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
-  return callOnPathSteps<T, Visitor>(V, Path.slice(1));
-}
-
 template<UpcastablePointerLike RootT, typename Visitor>
-bool callOnPathStepsImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
-  auto Dispatcher = [&](auto &Upcasted) -> bool {
-    return callOnPathStepsImpl<std::decay_t<decltype(Upcasted)>>(V, Path);
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+  if (Path.empty())
+    return true;
+
+  revng_assert(Path.size() > 1);
+
+  using KindType = std::decay_t<decltype(std::declval<RootT>()->Kind())>;
+  KindType Kind = Path[0].get<KindType>();
+  auto Dispatcher = [&V, &Path, &Kind]<TupleSizeCompatible UT>(UT &) -> bool {
+    return tupletree::detail::polymorphicTupleImpl<UT>(V, Path.slice(1), Kind);
   };
-  using KOT = KeyedObjectTraits<RootT>;
-  using key_type = decltype(KOT::key(std::declval<RootT>()));
-  auto TargetKey = Path[0].get<key_type>();
-  // TODO: in case of nullptr we should abort
-  auto Temporary = KeyedObjectTraits<RootT>::fromKey(TargetKey);
-  return upcast(Temporary, Dispatcher, false);
+
+  // Technically changing kind manually is unsafe, but since no-one is ever
+  // going to touch the object (we only care about the type), this is an easy
+  // way to trick "upcast" into doing what we want without introducing more
+  // complexity (or trying to fill in the rest of the key) to do this properly.
+  std::decay_t<typename RootT::element_type> Temporary;
+  Temporary.Kind() = Kind;
+  return upcast(&Temporary, Dispatcher, false);
+}
+
+template<TupleSizeCompatible RootT, typename Visitor>
+bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+  if (Path.empty())
+    return true;
+
+  return tupletree::detail::tupleImpl<RootT>(V, Path);
 }
 
 template<KeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+  if (Path.empty())
+    return true;
+
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
   using key_type = decltype(KOT::key(std::declval<value_type>()));
   auto TargetKey = Path[0].get<key_type>();
 
   V.template visitContainerElement<RootT>(TargetKey);
-  if (Path.size() > 1) {
-    return callOnPathStepsImpl<value_type>(V, Path);
-  }
 
-  return true;
+  using NextStep = std::conditional_t<std::is_const_v<RootT>,
+                                      const typename RootT::value_type,
+                                      typename RootT::value_type>;
+  return callOnPathSteps<NextStep>(V, Path.slice(1));
+}
+
+//
+// `callOnPathSteps` with an instance
+//
+
+template<NotTupleTreeCompatible RootT, typename Visitor>
+bool callOnPathSteps(Visitor &,
+                     llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+                     RootT &) {
+  if (Path.empty())
+    return true;
+
+  revng_abort("Unsupported step");
 }
 
 namespace tupletree::detail {
 
-template<typename RootT, size_t I = 0, typename Visitor>
-bool callOnPathStepsTuple(Visitor &V,
-                          llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+template<TupleSizeCompatible RootT,
+         size_t I = 0,
+         typename KindT,
+         typename Visitor>
+bool polymorphicTupleImpl(Visitor &V,
+                          llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+                          RootT &M,
+                          KindT Kind) {
   if constexpr (I < std::tuple_size_v<RootT>) {
-    if (Path.size() == 0)
-      return true;
-
     if (Path[0].get<size_t>() == I) {
+      auto &Element = get<I>(M);
+      if constexpr (std::is_same_v<KindT, size_t>)
+        V.template visitTupleElement<RootT, I>(Element);
+      else
+        V.template visitPolymorphicElement<RootT, I>(Kind, Element);
+
       using next_type = typename std::tuple_element<I, RootT>::type;
-      V.template visitTupleElement<RootT, I>();
-      if (Path.size() > 1) {
-        return callOnPathStepsImpl<next_type>(V, Path);
-      }
+      return callOnPathSteps<next_type>(V, Path.slice(1), Element);
     } else {
-      return callOnPathStepsTuple<RootT, I + 1>(V, Path);
+      return polymorphicTupleImpl<RootT, I + 1>(V, Path, M, Kind);
     }
   }
 
-  return true;
-}
-
-} // namespace tupletree::detail
-
-template<TupleSizeCompatible RootT, typename Visitor>
-bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
-  return tupletree::detail::callOnPathStepsTuple<RootT>(V, Path);
-}
-
-//
-// callOnPathSteps (with instance)
-//
-
-namespace tupletree::detail {
-
-template<NotTupleTreeCompatible T, typename Visitor>
-bool callOnPathSteps(Visitor &, llvm::ArrayRef<TupleTreeKeyWrapper>, T &) {
-  // Unandled call on step
   return false;
 }
 
-template<size_t I = 0, typename RootT, typename Visitor>
-bool callOnPathStepsTuple(Visitor &V,
-                          llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                          RootT &M) {
-  if constexpr (I < std::tuple_size_v<RootT>) {
-    if (Path[0].get<size_t>() == I) {
-      using next_type = typename std::tuple_element<I, RootT>::type;
-      next_type &Element = get<I>(M);
-      V.template visitTupleElement<RootT, I>(Element);
-      if (Path.size() > 1) {
-        return callOnPathSteps(V, Path.slice(1), Element);
-      }
-    } else {
-      return callOnPathStepsTuple<I + 1>(V, Path, M);
-    }
-  }
-
-  return true;
+template<TupleSizeCompatible RootT, typename Visitor>
+bool tupleImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path, RootT &M) {
+  return polymorphicTupleImpl<RootT, 0, size_t>(V, Path, M, 0);
 }
 
 } // namespace tupletree::detail
@@ -252,10 +226,17 @@ template<UpcastablePointerLike RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
-  auto Dispatcher = [&](auto &Upcasted) -> bool {
-    return callOnPathStepsTuple(V, Path, Upcasted);
+  auto Dispatcher = [&V, &Path]<TupleSizeCompatible UT>(UT &Upcasted) -> bool {
+    if (Path.empty())
+      return true;
+
+    using KindType = std::decay_t<decltype(std::declval<RootT>()->Kind())>;
+    return tupletree::detail::polymorphicTupleImpl<UT>(V,
+                                                       Path.slice(1),
+                                                       Upcasted,
+                                                       Path[0].get<KindType>());
   };
-  // TODO: in case of nullptr we should abort
+
   return upcast(M, Dispatcher, false);
 }
 
@@ -263,7 +244,10 @@ template<TupleSizeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
-  return tupletree::detail::callOnPathStepsTuple(V, Path, M);
+  if (Path.empty())
+    return true;
+
+  return tupletree::detail::tupleImpl<RootT>(V, Path, M);
 }
 
 template<typename T>
@@ -275,37 +259,34 @@ template<KeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M) {
+  if (Path.empty())
+    return true;
+
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
   using key_type = decltype(KOT::key(std::declval<value_type>()));
   auto TargetKey = Path[0].get<key_type>();
 
   decltype(&*M.find(TargetKey)) Entry;
-  if constexpr (HasTryGet<RootT>) {
+  if constexpr (HasTryGet<RootT>)
     Entry = M.tryGet(TargetKey);
-  } else {
-    auto Iter = M.find(TargetKey);
-    if (Iter == M.end())
-      Entry = nullptr;
-    else
-      Entry = &*Iter;
-  }
-
-  if (Entry == nullptr) {
+  else if (auto Iter = M.find(TargetKey); Iter != M.end())
+    Entry = &*Iter;
+  else
     return false;
-  }
 
   V.template visitContainerElement<RootT>(TargetKey, *Entry);
-  if (Path.size() > 1) {
-    return callOnPathSteps(V, Path.slice(1), *Entry);
-  }
 
-  return true;
+  using NextStep = std::conditional_t<std::is_const_v<RootT>,
+                                      const typename RootT::value_type,
+                                      typename RootT::value_type>;
+  return callOnPathSteps<NextStep>(V, Path.slice(1), *Entry);
 }
 
 //
-// callByPath (no instance)
+// `callByPath` without an instance
 //
+
 namespace tupletree::detail {
 
 template<typename Visitor>
@@ -318,6 +299,13 @@ struct CallByPathVisitor {
     --PathSize;
     if (PathSize == 0)
       V.template visitTupleElement<T, I>();
+  }
+
+  template<typename T, size_t I, typename KindType>
+  void visitPolymorphicElement(KindType Kind) {
+    PathSize -= 2;
+    if (PathSize == 0)
+      V.template visitPolymorphicElement<T, I>(Kind);
   }
 
   template<typename T, typename KeyT>
@@ -338,8 +326,9 @@ bool callByPath(Visitor &V, const TupleTreePath &Path) {
 }
 
 //
-// callByPath (with instance)
+// `callByPath` with an instance
 //
+
 namespace tupletree::detail {
 
 template<typename Visitor>
@@ -354,11 +343,18 @@ struct CallByPathVisitorWithInstance {
       V.template visitTupleElement<T, I>(Element);
   }
 
+  template<typename T, size_t I, typename K, typename KindType>
+  void visitPolymorphicElement(KindType Kind, K &Element) {
+    PathSize -= 2;
+    if (PathSize == 0)
+      V.template visitPolymorphicElement<T, I>(Kind, Element);
+  }
+
   template<typename T,
            StrictSpecializationOf<UpcastablePointer> K,
            typename KeyT>
   void visitContainerElement(KeyT Key, K &Element) {
-    PathSize -= 1;
+    --PathSize;
     if (PathSize == 0)
       V.template visitContainerElement<T>(Key, *Element.get());
   }
@@ -366,7 +362,7 @@ struct CallByPathVisitorWithInstance {
   template<typename T, typename K, typename KeyT>
     requires(not StrictSpecializationOf<K, UpcastablePointer>)
   void visitContainerElement(KeyT Key, K &Element) {
-    PathSize -= 1;
+    --PathSize;
     if (PathSize == 0)
       V.template visitContainerElement<T>(Key, Element);
   }
@@ -384,6 +380,7 @@ bool callByPath(Visitor &V, const TupleTreePath &Path, RootT &M) {
 //
 // getByPath
 //
+
 template<typename ResultT, typename RootT>
 ResultT *getByPath(const TupleTreePath &Path, RootT &M);
 
@@ -405,6 +402,13 @@ public:
     Stream << "/" << TupleLikeTraits<T>::FieldNames[I];
   }
 
+  template<TraitedTupleLike T, int I, typename KindType>
+    requires(std::is_enum_v<KindType>)
+  void visitPolymorphicElement(KindType Kind) {
+    Stream << "/" << serializeToString(Kind)
+           << "::" << TupleLikeTraits<T>::FieldNames[I];
+  }
+
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {
     Stream << "/" << getNameFromYAMLScalar(Key);
@@ -415,6 +419,10 @@ public:
 
 template<typename T>
 std::optional<std::string> pathAsString(const TupleTreePath &Path);
+
+//
+// Path matcher
+//
 
 class PathMatcher {
 private:
@@ -510,14 +518,16 @@ private:
                          PathMatcher &Result);
 
   template<UpcastablePointerLike T>
-  static bool
-  dispatchToConcreteType(llvm::StringRef String, PathMatcher &Result);
-
-  template<UpcastablePointerLike T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
   template<TupleSizeCompatible T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
+
+  template<TupleSizeCompatible T, typename KindType>
+    requires(std::is_enum_v<KindType>)
+  static bool visitTupleTreeNode(llvm::StringRef String,
+                                 PathMatcher &Result,
+                                 KindType Kind);
 
   template<KeyedObjectContainer T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
@@ -526,35 +536,41 @@ private:
   static bool visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
 };
 
-template<UpcastablePointerLike P, typename L>
-void invokeBySerializedKey(llvm::StringRef SerializedKey, L &&Callable) {
-  using element_type = std::remove_reference_t<decltype(*std::declval<P>())>;
-  using KOT = KeyedObjectTraits<element_type>;
-  using KeyT = decltype(KOT::key(std::declval<element_type>()));
-  auto Key = getValueFromYAMLScalar<KeyT>(SerializedKey);
-  invokeByKey<P, KeyT, L>(Key, std::forward<L>(Callable));
+namespace tupletree::details {
+
+template<typename RootT, size_t I = 0, typename Visitor>
+bool selectOptionImpl(llvm::StringRef Kind, Visitor &V) {
+  if constexpr (I < std::tuple_size_v<RootT>) {
+    using ElementT = std::tuple_element_t<I, RootT>;
+    if (TupleLikeTraits<ElementT>::Name == Kind)
+      return V.template operator()<ElementT>();
+    else
+      return selectOptionImpl<RootT, I + 1>(Kind, V);
+  }
+
+  return false;
 }
 
-template<UpcastablePointerLike T>
-bool PathMatcher::dispatchToConcreteType(llvm::StringRef String,
-                                         PathMatcher &Result) {
-
-  auto Parts = String.split('/');
-
-  bool Res = false;
-  auto Dispatch = [&]<typename Upcasted>(const Upcasted *Arg) {
-    Res = PathMatcher::visitTupleTreeNode<Upcasted>(Parts.second, Result);
-  };
-
-  invokeBySerializedKey<T>(Parts.first, Dispatch);
-
-  return Res;
-}
+} // namespace tupletree::details
 
 template<UpcastablePointerLike T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
                                      PathMatcher &Result) {
-  return dispatchToConcreteType<T>(String, Result);
+  if (String.size() == 0)
+    return true;
+
+  auto [Kind, RHS] = String.split("::");
+  auto Dispatch = [&RHS, &Result]<typename Upcasted>() {
+    auto [Before, After] = RHS.split('/');
+    return PathMatcher::visitTuple<Upcasted>(Before, After, Result);
+  };
+
+  using ElementType = typename T::element_type;
+  using KindType = std::decay_t<decltype(std::declval<ElementType>().Kind())>;
+  Result.Path.push_back(getValueFromYAMLScalar<KindType>(Kind));
+
+  using Options = typename concrete_types_traits<ElementType>::type;
+  return tupletree::details::selectOptionImpl<Options>(Kind, Dispatch);
 }
 
 template<TupleSizeCompatible T>
@@ -585,12 +601,12 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
       Result.Free.push_back(Result.Path.size());
 
       //
-      // Extract the Kind of the abstract type in the
-      // `model::UpcastableTypeDefinition`
+      // Extract the Kind of the abstract type in
+      // the `model::UpcastableTypeDefinition`
       //
+      // TODO: Consider using the kind from the next step instead.
 
       // Get the kind type for the abstract type
-      // TODO: add using for model::TypeDefinition's Kind
       using Kind = typename Value::element_type::TypeOfKind;
 
       // Extract Kind from "Kind-*" and deserialize it
@@ -607,8 +623,6 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
     } else {
       Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));
     }
-
-    return dispatchToConcreteType<Value>(String, Result);
   } else {
     if (Before == "*") {
       Result.Free.push_back(Result.Path.size());
@@ -616,15 +630,15 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
     } else {
       Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));
     }
-
-    return visitTupleTreeNode<Value>(After, Result);
   }
+
+  return visitTupleTreeNode<Value>(After, Result);
 }
 
 template<NotTupleTreeCompatible T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef Path,
                                      PathMatcher &Result) {
-  return Path.size() == 0;
+  return Path.empty();
 }
 
 template<TraitedTupleLike T, size_t I>
@@ -658,8 +672,9 @@ ResultT *getByPath(llvm::StringRef Path, RootT &M) {
 }
 
 //
-// validateTupleTree
+// Validation
 //
+
 template<typename T>
 concept TupleTreeScalar = not TupleSizeCompatible<T>
                           and not KeyedObjectContainer<T>

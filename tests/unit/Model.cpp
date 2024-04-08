@@ -50,39 +50,39 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
 }
 
 BOOST_AUTO_TEST_CASE(TestPathAccess) {
-  Binary TheBinary;
-  using FunctionsType = std::decay_t<decltype(TheBinary.Functions())>;
+  Binary Binary;
 
   TupleTreePath Zero;
   Zero.push_back(size_t(0));
-  auto *FirstField = getByPath<model::Architecture::Values>(Zero, TheBinary);
-  revng_check(FirstField == &TheBinary.Architecture());
+  auto *FirstField = getByPath<model::Architecture::Values>(Zero, Binary);
+  revng_check(FirstField == &Binary.Architecture());
 
-  auto *FunctionsField = getByPath<FunctionsType>("/Functions", TheBinary);
-  revng_check(FunctionsField == &TheBinary.Functions());
+  using FunctionsType = std::decay_t<decltype(Binary.Functions())>;
+  auto *FunctionsField = getByPath<FunctionsType>("/Functions", Binary);
+  revng_check(FunctionsField == &Binary.Functions());
 
   // Test non existing field
-  revng_check(getByPath<FunctionsType>("/Function", TheBinary) == nullptr);
+  revng_check(getByPath<FunctionsType>("/Function", Binary) == nullptr);
 
   // Test non existing entry in container
-  revng_check(getByPath<Function>("/Functions/:Invalid", TheBinary) == nullptr);
+  revng_check(getByPath<Function>("/Functions/:Invalid", Binary) == nullptr);
 
   // Test existing entry in container
-  Function &F = TheBinary.Functions()[MetaAddress::invalid()];
-  revng_check(getByPath<Function>("/Functions/:Invalid", TheBinary) == &F);
+  Function &F = Binary.Functions()[MetaAddress::invalid()];
+  revng_check(getByPath<Function>("/Functions/:Invalid", Binary) == &F);
 
   // Test UpcastablePointer
-  auto UInt8Path = TheBinary.getPrimitiveType(PrimitiveKind::Unsigned, 8);
+  auto UInt8Path = Binary.getPrimitiveType(PrimitiveKind::Unsigned, 8);
   model::TypeDefinition *UInt8 = UInt8Path.get();
 
   std::string Path = "/TypeDefinitions/" + std::to_string(UInt8->ID())
-                     + "-PrimitiveDefinition/OriginalName";
-  auto *OriginalNamePointer = getByPath<std::string>(Path, TheBinary);
+                     + "-PrimitiveDefinition/TypedefDefinition::OriginalName";
+  auto *OriginalNamePointer = getByPath<std::string>(Path, Binary);
   revng_check(OriginalNamePointer == &UInt8->OriginalName());
 
   Path = "/TypeDefinitions/" + std::to_string(UInt8->ID())
          + "-PrimitiveDefinition";
-  revng_check(getByPath<model::TypeDefinition>(Path, TheBinary) == UInt8);
+  revng_check(getByPath<model::TypeDefinition>(Path, Binary) == UInt8);
 }
 
 BOOST_AUTO_TEST_CASE(TestCompositeScalar) {
@@ -144,8 +144,9 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
   // Test matching through an UpcastablePointer
   //
   {
-    auto Matcher = PathMatcher::create<Binary>("/TypeDefinitions/"
-                                               "*-RawFunctionDefinition/"
+    auto Matcher = PathMatcher::create<Binary>("/TypeDefinitions"
+                                               "/*-RawFunctionDefinition/"
+                                               "RawFunctionDefinition::"
                                                "FinalStackOffset")
                      .value();
 
@@ -153,9 +154,9 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
       1000, model::TypeDefinitionKind::RawFunctionDefinition
     };
     auto Path1000 = pathAsString<Binary>(Matcher.apply(Key));
-    std::string SerializedPath1000 = "/TypeDefinitions/"
-                                     "1000-RawFunctionDefinition/"
-                                     "FinalStackOffset";
+    std::string SerializedPath1000 = "/TypeDefinitions"
+                                     "/1000-RawFunctionDefinition/"
+                                     "RawFunctionDefinition::FinalStackOffset";
     revng_check(Path1000 == SerializedPath1000);
 
     auto ToMatch = stringAsPath<Binary>(*Path1000);
@@ -164,8 +165,9 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
     revng_check(Match);
     revng_check(std::get<0>(*Match) == Key);
 
-    ToMatch = stringAsPath<Binary>("/TypeDefinitions/"
-                                   "1000-CABIFunctionDefinition/ID");
+    ToMatch = stringAsPath<Binary>("/TypeDefinitions"
+                                   "/1000-CABIFunctionDefinition/"
+                                   "CABIFunctionDefinition::ID");
     Match = Matcher.match<model::TypeDefinition::Key>(ToMatch.value());
     revng_check(not Match);
   }
@@ -296,7 +298,8 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypePathShouldParse) {
 }
 
 BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
-  const char *Path = "/TypeDefinitions/10000-CABIFunctionDefinition/Arguments";
+  const char *Path = "/TypeDefinitions/10000-CABIFunctionDefinition/"
+                     "CABIFunctionDefinition::Arguments";
   auto MaybeParsed = stringAsPath<model::Binary>(Path);
   BOOST_TEST(MaybeParsed.has_value());
 }
