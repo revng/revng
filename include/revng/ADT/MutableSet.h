@@ -155,6 +155,11 @@ public:
 
   size_type erase(const key_type &Key) { return TheMap.erase(Key); }
 
+  template<typename CallableType>
+  size_type erase_if(CallableType &&Callable) {
+    return std::erase_if(TheMap, std::forward<CallableType>(Callable));
+  }
+
   size_type count(const key_type &Key) const { return TheMap.count(Key); }
 
   iterator find(const key_type &Key) { return wrapIterator(TheMap.find(Key)); }

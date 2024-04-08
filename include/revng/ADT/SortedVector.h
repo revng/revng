@@ -261,6 +261,12 @@ public:
     }
   }
 
+  template<typename CallableType>
+  size_type erase_if(CallableType &&Callable) {
+    revng_assert(not BatchInsertInProgress);
+    return std::erase_if(TheVector, std::forward<CallableType>(Callable));
+  }
+
   size_type count(const key_type &Key) const {
     revng_assert(not BatchInsertInProgress);
     return find(Key) != end() ? 1 : 0;
