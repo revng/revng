@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -170,9 +171,6 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
       SerializeTypeFor(I->getOperandUse(Index));
   } else if (auto *Switch = dyn_cast<llvm::SwitchInst>(I)) {
     SerializeTypeFor(Switch->getOperandUse(0));
-  } else if (isa<llvm::TruncInst>(I) or isa<llvm::ZExtInst>(I)
-             or isa<llvm::SExtInst>(I)) {
-    SerializeTypeFor(I->getOperandUse(0));
   }
 
   return Result;
@@ -213,6 +211,72 @@ bool MMCP::runOnFunction(Function &F) {
   ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
   auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
+
+  // First of all, remove all SExt, ZExt and Trunc, and replace them with
+  // ModelCasts.
+  {
+    LLVMContext &LLVMCtxt = F.getContext();
+    IRBuilder<> Builder(LLVMCtxt);
+    for (BasicBlock &BB : F) {
+      for (Instruction &I : llvm::make_early_inc_range(BB)) {
+        auto *SExt = dyn_cast<llvm::SExtInst>(&I);
+        auto *ZExt = dyn_cast<llvm::ZExtInst>(&I);
+        auto *Trunc = dyn_cast<llvm::TruncInst>(&I);
+        if (not SExt and not ZExt and not Trunc)
+          continue;
+
+        llvm::Value *CastedOperand = I.getOperand(0);
+
+        // Build a FunctionType for the ModelCast function, and add it to the
+        // pool
+        auto *ResultTypeOnLLVM = cast<IntegerType>(I.getType());
+        llvm::Type *StringPtrType = getStringPtrType(LLVMCtxt);
+        auto *ModelCastType = FunctionType::get(ResultTypeOnLLVM,
+                                                { StringPtrType,
+                                                  CastedOperand->getType() },
+                                                /* IsVarArg */ false);
+        auto *ModelCastFunction = ModelCastPool
+                                    .get({ ResultTypeOnLLVM,
+                                           CastedOperand->getType() },
+                                         ModelCastType,
+                                         "ModelCast");
+
+        // Create the ModelCast call.
+        Builder.SetInsertPoint(&I);
+
+        // Compute the target type of the cast, depending on the cast we're
+        // replacing.
+
+        unsigned ResultBitWidth = ResultTypeOnLLVM->getBitWidth();
+        revng_assert(std::has_single_bit(ResultBitWidth));
+        revng_assert(ResultBitWidth == 1 or ResultBitWidth >= 8);
+        unsigned ByteSize = (ResultBitWidth == 1) ? 1 : ResultBitWidth / 8;
+
+        using model::PrimitiveTypeKind::Values::Number;
+        using model::PrimitiveTypeKind::Values::Signed;
+        using model::PrimitiveTypeKind::Values::Unsigned;
+        model::PrimitiveTypeKind::Values Kind = SExt ?
+                                                  Signed :
+                                                  (ZExt ? Unsigned : Number);
+        auto ResultModelType = model::QualifiedType{
+          Model->getPrimitiveType(Kind, ByteSize), {}
+        };
+
+        // Create a string constant to pass as first argument of the call to
+        // ModelCast, to represent the target model type.
+        Constant *TargetModelTypeString = serializeToLLVMString(ResultModelType,
+                                                                *M);
+        revng_assert(TargetModelTypeString);
+
+        Value *Call = Builder.CreateCall(ModelCastFunction,
+                                         { TargetModelTypeString,
+                                           CastedOperand });
+
+        I.replaceAllUsesWith(Call);
+        I.eraseFromParent();
+      }
+    }
+  }
 
   TypeMap = initModelTypes(Cache, F, ModelFunction, *Model, false);
 
