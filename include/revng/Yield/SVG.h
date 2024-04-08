@@ -35,13 +35,13 @@ using CrossRelations = yield::crossrelations::CrossRelations;
 
 } // namespace detail
 
-std::string controlFlowGraph(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string controlFlowGraph(const ::ptml::PTMLBuilder &B,
                              const yield::Function &InternalFunction,
                              const model::Binary &Binary);
-std::string callGraph(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string callGraph(const ::ptml::PTMLBuilder &B,
                       const detail::CrossRelations &CrossRelationTree,
                       const model::Binary &Binary);
-std::string callGraphSlice(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string callGraphSlice(const ::ptml::PTMLBuilder &B,
                            std::string_view SlicePoint,
                            const detail::CrossRelations &CrossRelationTree,
                            const model::Binary &Binary);

@@ -13,7 +13,7 @@ namespace ptml {
 
 /// Emits PTML containing a free-form comment passed in a string reformatted
 /// by appending a specified indicator as well maintaining a specific offset.
-std::string freeFormComment(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string freeFormComment(const ::ptml::PTMLBuilder &B,
                             llvm::StringRef Text,
                             llvm::StringRef CommentIndicator,
                             size_t Indentation,
@@ -49,7 +49,7 @@ std::string comment(const ::ptml::PTMLBuilder &Builder,
 ///        an indentation token (see `ptml::tokens::Indentation`).
 ///
 /// \returns a serialized PTML string containing the comment.
-std::string functionComment(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string functionComment(const ::ptml::PTMLBuilder &B,
                             const model::Function &Function,
                             const model::Binary &Binary,
                             llvm::StringRef CommentIndicator,

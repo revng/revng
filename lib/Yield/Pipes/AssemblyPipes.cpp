@@ -63,7 +63,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
-  PTMLBuilder ThePTMLBuilder;
+  PTMLBuilder B;
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
     revng_assert(MaybeFunction && MaybeFunction->verify());
@@ -73,14 +73,14 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
                                              .at(std::get<0>(Address));
     const model::Architecture::Values A = Model->Architecture();
     auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
-    std::string R = ptml::functionComment(ThePTMLBuilder,
+    std::string R = ptml::functionComment(B,
                                           ModelFunction,
                                           *Model,
                                           CommentIndicator,
                                           0,
                                           80);
-    R += yield::ptml::functionAssembly(ThePTMLBuilder, **MaybeFunction, *Model);
-    R = ThePTMLBuilder.getTag(ptml::tags::Div, std::move(R)).serialize();
+    R += yield::ptml::functionAssembly(B, **MaybeFunction, *Model);
+    R = B.getTag(ptml::tags::Div, std::move(R)).serialize();
     Output.insert_or_assign((*MaybeFunction)->Entry(), std::move(R));
   }
 }
