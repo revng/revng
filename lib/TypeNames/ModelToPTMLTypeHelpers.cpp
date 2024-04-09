@@ -175,7 +175,9 @@ TypeInlineHelper::findTypesToInlineInStacks(const model::Binary &Model) const {
   return Result;
 }
 
-TypeSet TypeInlineHelper::collectStackTypes(const model::Binary &Model) const {
+TypeSet
+TypeInlineHelper::collectTypesInlinableInStacks(const model::Binary &Model)
+  const {
   StackTypesMap TypesToInlineInStacks = findTypesToInlineInStacks(Model);
 
   TypeSet Result;

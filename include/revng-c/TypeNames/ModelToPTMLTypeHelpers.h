@@ -48,10 +48,10 @@ public:
   std::unordered_map<const model::Function *, std::set<const model::Type *>>
   findTypesToInlineInStacks(const model::Binary &Model) const;
 
-  // Collect all stack frame types, since we want to dump them inline in the
-  // function body.
+  // Collect all the types that can be emitted inline in the stack frame types
+  // of model functions.
   std::set<const model::Type *>
-  collectStackTypes(const model::Binary &Model) const;
+  collectTypesInlinableInStacks(const model::Binary &Model) const;
 
   // Find all nested types of the `RootType` that should be inlined into it.
   std::set<const model::Type *>
