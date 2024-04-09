@@ -40,7 +40,6 @@ public:
   TypeInlineHelper(const model::Binary &Model);
 
 public:
-  const GraphInfo &getTypeGraph() const;
   const std::set<const model::Type *> &getTypesToInline() const;
 
 public:

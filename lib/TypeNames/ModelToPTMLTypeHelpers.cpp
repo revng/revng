@@ -44,9 +44,6 @@ TypeInlineHelper::TypeInlineHelper(const model::Binary &Model) {
   TypesToInline = findTypesToInline(Model, TypeGraph);
 }
 
-const GraphInfo &TypeInlineHelper::getTypeGraph() const {
-  return TypeGraph;
-}
 const TypeSet &TypeInlineHelper::getTypesToInline() const {
   return TypesToInline;
 }
