@@ -1958,7 +1958,8 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
         // there could be a stack type that is being used somewhere else,
         // so we do not want to inline it.
         auto TheStackTypes = StackTypes.at(&ModelFunction);
-        if (TheStackTypes.contains(TheType) and !IsStackDefined) {
+        if (TheStackTypes.contains(TheType)) {
+          revng_assert(not IsStackDefined);
           IsStackDefined = true;
           std::map<model::QualifiedType, std::string> AdditionalTypeNames;
           // For all nested types within stack definition we print forward
