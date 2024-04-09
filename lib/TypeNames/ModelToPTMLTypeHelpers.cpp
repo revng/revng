@@ -33,7 +33,6 @@
 
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeSet = std::set<const model::Type *>;
-using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 using Node = TypeInlineHelper::Node;
 using StackTypesMap = std::unordered_map<const model::Function *,
@@ -42,7 +41,6 @@ using StackTypesMap = std::unordered_map<const model::Function *,
 TypeInlineHelper::TypeInlineHelper(const model::Binary &Model) {
   // Create graph that represents type system.
   TypeGraph = buildTypeGraph(Model);
-  TypeToNumOfRefs = calculateNumOfOccurences(Model);
   TypesToInline = findTypesToInline(Model, TypeGraph);
 }
 
@@ -139,31 +137,33 @@ GraphInfo TypeInlineHelper::buildTypeGraph(const model::Binary &Model) {
   return Result;
 }
 
-TypeToNumOfRefsMap
-TypeInlineHelper::calculateNumOfOccurences(const model::Binary &Model) {
-  TypeToNumOfRefsMap Result;
-  for (const UpcastablePointer<model::Type> &T : Model.Types()) {
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      Result[DependantType]++;
-    }
-  }
+/// Returns a set of types that are referred to by at least one other type in
+/// the \a Model. It does not take into consideration other references to the
+/// types that are not cross-references among types, like e.g. stack frame types
+/// that refer to model::Types from model::Functions.
+static TypeSet getCrossReferencedTypes(const model::Binary &Model) {
+  TypeSet Result;
+
+  for (const UpcastablePointer<model::Type> &T : Model.Types())
+    for (const model::QualifiedType &QT : T->edges())
+      Result.insert(QT.UnqualifiedType().get());
+
   return Result;
 }
 
 StackTypesMap
 TypeInlineHelper::findTypesToInlineInStacks(const model::Binary &Model) const {
-  StackTypesMap Result;
 
+  TypeSet CrossReferencedTypes = getCrossReferencedTypes(Model);
+
+  StackTypesMap Result;
   for (auto &Function : Model.Functions()) {
     if (not Function.StackFrameType().empty()) {
       const model::Type *StackT = Function.StackFrameType().getConst();
       revng_assert(StackT and StackT->Kind() == model::TypeKind::StructType);
 
-      // Do not inline stack types that are being used somewhere else.
-      auto TheTypeToNumOfRefs = TypeToNumOfRefs.find(StackT);
-      if (TheTypeToNumOfRefs != TypeToNumOfRefs.end()
-          and TheTypeToNumOfRefs->second != 0)
+      // Do not inline stack types that are used by at least one other type.
+      if (CrossReferencedTypes.contains(StackT))
         continue;
 
       Result[&Function].insert(StackT);

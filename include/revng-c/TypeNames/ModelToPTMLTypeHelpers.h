@@ -34,7 +34,6 @@ public:
 
 private:
   GraphInfo TypeGraph;
-  std::unordered_map<const model::Type *, unsigned> TypeToNumOfRefs;
   std::set<const model::Type *> TypesToInline;
 
 public:
@@ -64,9 +63,6 @@ private:
                                                   const GraphInfo &TypeGraph);
 
   GraphInfo buildTypeGraph(const model::Binary &Model);
-
-  std::unordered_map<const model::Type *, unsigned>
-  calculateNumOfOccurences(const model::Binary &Model);
 
   bool isReachableFromRootType(const model::Type *Type,
                                const model::Type *RootType,
