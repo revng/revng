@@ -47,7 +47,7 @@ public:
 public:
   // Collect stack frame types per model::Function.
   std::unordered_map<const model::Function *, std::set<const model::Type *>>
-  findStackTypesPerFunction(const model::Binary &Model) const;
+  findTypesToInlineInStacks(const model::Binary &Model) const;
 
   // Collect all stack frame types, since we want to dump them inline in the
   // function body.

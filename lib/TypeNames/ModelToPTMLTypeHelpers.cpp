@@ -152,7 +152,7 @@ TypeInlineHelper::calculateNumOfOccurences(const model::Binary &Model) {
 }
 
 StackTypesMap
-TypeInlineHelper::findStackTypesPerFunction(const model::Binary &Model) const {
+TypeInlineHelper::findTypesToInlineInStacks(const model::Binary &Model) const {
   StackTypesMap Result;
 
   for (auto &Function : Model.Functions()) {
