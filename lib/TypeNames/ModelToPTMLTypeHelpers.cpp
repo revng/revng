@@ -52,9 +52,6 @@ const GraphInfo &TypeInlineHelper::getTypeGraph() const {
 const TypeSet &TypeInlineHelper::getTypesToInline() const {
   return TypesToInline;
 }
-const TypeToNumOfRefsMap &TypeInlineHelper::getTypeToNumOfRefs() const {
-  return TypeToNumOfRefs;
-}
 
 bool TypeInlineHelper::isReachableFromRootType(const model::Type *Type,
                                                const model::Type *RootType,

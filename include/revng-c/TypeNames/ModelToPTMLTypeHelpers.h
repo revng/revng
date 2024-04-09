@@ -43,8 +43,6 @@ public:
 public:
   const GraphInfo &getTypeGraph() const;
   const std::set<const model::Type *> &getTypesToInline() const;
-  const std::unordered_map<const model::Type *, unsigned> &
-  getTypeToNumOfRefs() const;
 
 public:
   // Collect stack frame types per model::Function.
