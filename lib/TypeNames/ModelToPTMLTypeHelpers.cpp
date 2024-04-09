@@ -392,9 +392,8 @@ void printDeclaration(const model::TypedefType &TD,
          << getNamedCInstance(TD.UnderlyingType(), Type, B) << ";\n";
 }
 
-/// Generate the definition of a new struct type that wraps all the
-///        return values of \a F. The name of the struct type is provided by the
-///        caller.
+/// Generate the definition of a new struct type that wraps all the return
+/// values of \a F. The name of the struct type is provided by the caller.
 static void generateReturnValueWrapper(Logger<> &Log,
                                        const model::RawFunctionType &F,
                                        ptml::PTMLIndentedOstream &Header,
@@ -433,8 +432,8 @@ static void generateReturnValueWrapper(Logger<> &Log,
   Header << " " << getReturnTypeName(F, B, true) << ";\n";
 }
 
-/// If the function has more than one return value, generate a wrapper
-///        struct that contains them.
+/// If the function has more than one return value, generate a wrapper struct
+/// that contains them.
 static void printRawFunctionWrappers(Logger<> &Log,
                                      const model::RawFunctionType *F,
                                      ptml::PTMLIndentedOstream &Header,
@@ -447,8 +446,8 @@ static void printRawFunctionWrappers(Logger<> &Log,
     revng_assert(Arg.Type().isScalar());
 }
 
-/// Print a typedef for a RawFunctionType, that can be used when you have
-///        a variable that is a pointer to a function.
+/// Print a typedef for a RawFunctionType, that can be used when you have a
+/// variable that is a pointer to a function.
 static void printDeclaration(Logger<> &Log,
                              const model::RawFunctionType &F,
                              ptml::PTMLIndentedOstream &Header,
@@ -464,9 +463,8 @@ static void printDeclaration(Logger<> &Log,
   Header << ";\n";
 }
 
-/// Generate the definition of a new struct type that wraps \a ArrayType.
-///        This is used to wrap array arguments or array return values of
-///        CABIFunctionTypes.
+/// Generate the definition of a new struct type that wraps \a ArrayType. This
+/// is used to wrap array arguments or array return values of CABIFunctionTypes.
 static void generateArrayWrapper(const model::QualifiedType &ArrayType,
                                  ptml::PTMLIndentedOstream &Header,
                                  ptml::PTMLCBuilder &B,
@@ -492,8 +490,8 @@ static void generateArrayWrapper(const model::QualifiedType &ArrayType,
   Header << " " << B.tokenTag(WrapperName, ptml::c::tokens::Type) << ";\n";
 }
 
-/// If the return value or any of the arguments is an array, generate
-///        a wrapper struct for each of them, if it's not already in the cache.
+/// If the return value or any of the arguments is an array, generate a wrapper
+/// struct for each of them, if it's not already in the cache.
 static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
                                       ptml::PTMLIndentedOstream &Header,
                                       ptml::PTMLCBuilder &B,
@@ -506,8 +504,8 @@ static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
       generateArrayWrapper(Arg.Type(), Header, B, NamesCache);
 }
 
-/// Print a typedef for a CABIFunctionType, that can be used when you
-///        have a variable that is a pointer to a function.
+/// Print a typedef for a CABIFunctionType, that can be used when you have a
+/// variable that is a pointer to a function.
 static void printDeclaration(const model::CABIFunctionType &F,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &B,
