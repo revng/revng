@@ -337,7 +337,8 @@ public:
       IsOperatorPrecedenceResolutionPassEnabled = true;
   }
 
-  void emitFunction(bool NeedsLocalStateVar, InlineableTypesMap &StackTypes);
+  void emitFunction(bool NeedsLocalStateVar,
+                    const InlineableTypesMap &StackTypes);
 
 private:
   /// Visit a GHAST node and all its children recursively, emitting BBs
@@ -1912,7 +1913,7 @@ static std::string getModelArgIdentifier(const model::Type *ModelFunctionType,
 }
 
 void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
-                                  InlineableTypesMap &StackTypes) {
+                                  const InlineableTypesMap &StackTypes) {
   revng_log(Log, "========= Emitting Function " << LLVMFunction.getName());
   revng_log(VisitLog, "========= Function " << LLVMFunction.getName());
   LoggerIndent Indent{ VisitLog };
@@ -1958,8 +1959,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
         // there could be a stack type that is being used somewhere else,
         // so we do not want to inline it.
         auto TheStackTypes = StackTypes.at(&ModelFunction);
-        if (TheStackTypes.contains(TheType)) {
-          revng_assert(not IsStackDefined);
+        if (TheStackTypes.contains(TheType) and !IsStackDefined) {
           IsStackDefined = true;
           std::map<model::QualifiedType, std::string> AdditionalTypeNames;
           // For all nested types within stack definition we print forward
@@ -2008,7 +2008,7 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
                                      const Binary &Model,
                                      const ASTVarDeclMap &VarToDeclare,
                                      bool NeedsLocalStateVar,
-                                     InlineableTypesMap &StackTypes) {
+                                     const InlineableTypesMap &StackTypes) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
@@ -2060,11 +2060,11 @@ void decompile(FunctionMetadataCache &Cache,
                llvm::Module &Module,
                const model::Binary &Model,
                Container &DecompiledFunctions) {
-  TypeInlineHelper TheTypeInlineHelper(Model);
 
   // Get all Stack types and all the inlinable types reachable from it,
   // since we want to emit forward declarations for all of them.
-  auto StackTypes = TheTypeInlineHelper.findTypesToInlineInStacks(Model);
+  const auto StackTypes = TypeInlineHelper(Model)
+                            .findTypesToInlineInStacks(Model);
 
   auto
     T = llvm::make_task_on_set(llvm::make_address_range(FunctionTags::Isolated
