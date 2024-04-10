@@ -14,10 +14,11 @@ namespace revng::ranks {
 
 namespace detail {
 
+using TDK = model::TypeDefinition::Key;
 using SFK = model::StructField::Key;
 using UFK = model::UnionField::Key;
 using CAK = model::Argument::Key;
-using RAK = model::NamedTypedRegister::Key;
+using NRK = model::NamedTypedRegister::Key;
 
 } // namespace detail
 
@@ -31,16 +32,19 @@ inline auto Function = defineRank<"function", model::Function::Key>(Binary);
 inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
 inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 
-inline auto Type = defineRank<"type", model::TypeDefinition::Key>(Binary);
-inline auto StructField = defineRank<"struct-field", detail::SFK>(Type);
-inline auto UnionField = defineRank<"union-field", detail::UFK>(Type);
-inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(Type);
-inline auto CABIArgument = defineRank<"cabi-argument", detail::CAK>(Type);
-inline auto RawArgument = defineRank<"raw-argument", detail::RAK>(Type);
+inline auto TypeDefinition = defineRank<"type-definition", detail::TDK>(Binary);
 inline auto
-  ReturnValue = defineRank<"return-value", model::TypeDefinition::Key>(Binary);
-inline auto ReturnRegister = defineRank<"return-register",
-                                        model::NamedTypedRegister::Key>(Type);
+  StructField = defineRank<"struct-field", detail::SFK>(TypeDefinition);
+inline auto UnionField = defineRank<"union-field", detail::UFK>(TypeDefinition);
+inline auto
+  EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(TypeDefinition);
+inline auto
+  CABIArgument = defineRank<"cabi-argument", detail::CAK>(TypeDefinition);
+inline auto
+  RawArgument = defineRank<"raw-argument", detail::NRK>(TypeDefinition);
+inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
+inline auto
+  ReturnRegister = defineRank<"return-register", detail::NRK>(TypeDefinition);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);

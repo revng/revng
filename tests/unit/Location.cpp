@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
 
   // Extract a type back from the location by finding the relevant key
   // in the binary.
-  auto Type = NewModel->makeType(FieldLocation.at(ranks::Type));
+  auto Type = NewModel->makeType(FieldLocation.at(ranks::TypeDefinition));
 
   // Ensure the type we got is the same type we started with.
   revng_check(Type->tryGetAsDefinition()->name() == "my_cool_union");
@@ -81,7 +81,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
     // a list of unrelated serialized locations to use as sources of truth
     "/binary",
     "/instruction/0x12:Generic64/0x34:Generic64/0x56:Generic64",
-    "/type/1026-TypedefDefinition",
+    "/type-definition/1026-TypedefDefinition",
     "/raw-byte-range/0x78:Generic64/0x90:Generic64"
   };
 
@@ -111,12 +111,12 @@ BOOST_AUTO_TEST_CASE(Serialization) {
       revng_check(TestCase == Instruction->toString());
     }
 
-    if (auto Type = locationFromString(ranks::Type, TestCase)) {
+    if (auto Type = locationFromString(ranks::TypeDefinition, TestCase)) {
       revng_check(TestCase == TestCases[2]);
       revng_check(ParsedOnce == false);
       ParsedOnce = true;
 
-      revng_check(std::get<uint64_t>(Type->at(ranks::Type)) == 1026);
+      revng_check(std::get<uint64_t>(Type->at(ranks::TypeDefinition)) == 1026);
 
       revng_check(TestCase == Type->toString());
     }

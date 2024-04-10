@@ -357,7 +357,7 @@ template<kinds::TypeKind *TheKind,
          const char *TypeName,
          const char *MIMETypeParam,
          const char *ArchiveSuffix>
-using TypeStringMap = detail::GenericStringMap<&ranks::Type,
+using TypeStringMap = detail::GenericStringMap<&ranks::TypeDefinition,
                                                TheKind,
                                                TypeName,
                                                MIMETypeParam,
