@@ -38,7 +38,6 @@ using namespace llvm::cl;
 
 using std::pair;
 using std::string;
-using std::to_string;
 
 // TODO: Move the initialization of the logger here from "Utils.h"
 // Debug logger.

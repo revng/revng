@@ -33,7 +33,6 @@
 #include "SimplifyHybridNot.h"
 #include "SimplifyImplicitStatement.h"
 
-using std::make_unique;
 using std::unique_ptr;
 
 using namespace llvm;
