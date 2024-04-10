@@ -8,6 +8,7 @@ set -u
 
 CMAKE_BINARY_DIR="$1"
 EXPECTED_STATUS="$2"
+export ASAN_OPTIONS="${ASAN_OPTIONS:-:}handle_segv=false"
 export REVNG_CRASH_SIGNAL="$3"
 
 "${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline" --load "${CMAKE_BINARY_DIR}/lib/librevngBadBehaviorLibrary.so" 2>&1 \
