@@ -16,6 +16,7 @@ revng_add_analyses_library(
   MetaRegion.cpp
   PromoteCallNoReturn.cpp
   RegionCFGTree.cpp
+  RemoveDeadCode.cpp
   RestructureCFG.cpp
   SimplifyCompareNode.cpp
   SimplifyDualSwitch.cpp

@@ -28,6 +28,7 @@
 #include "FallThroughScopeAnalysis.h"
 #include "InlineDispatcherSwitch.h"
 #include "PromoteCallNoReturn.h"
+#include "RemoveDeadCode.h"
 #include "SimplifyCompareNode.h"
 #include "SimplifyDualSwitch.h"
 #include "SimplifyHybridNot.h"
@@ -1023,6 +1024,14 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Performing dispatcher switch inlining\n");
   RootNode = inlineDispatcherSwitch(CombedAST);
   Dumper.log("after-dispatcher-switch-inlining");
+
+  // Perform the dead code simplification.
+  // We invoke this pass here because the dispatcher case inlining may have
+  // moved around some non local control flow statements like `return`, in such
+  // a way that a dead code simplification step is needed.
+  revng_log(BeautifyLogger, "Performing dead code simplification\n");
+  RootNode = removeDeadCode(Model, CombedAST);
+  Dumper.log("after-dead-code-simplify");
 
   // Perform the simplification of `switch` with two entries in a `if`
   revng_log(BeautifyLogger, "Performing the dual switch simplification\n");
