@@ -509,6 +509,86 @@ static void processNestedWeavedSwitches(SwitchNode *Switch) {
   }
 }
 
+static RecursiveCoroutine<bool> containsContinueOrBreak(ASTNode *Node) {
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+
+    // As soon as we find an element of the `SequenceNode` that contains non
+    // local CF, we can signal it by early exiting returning `true`
+    for (ASTNode *N : llvm::reverse(Seq->nodes())) {
+      if (rc_recur containsContinueOrBreak(N)) {
+        rc_return true;
+      }
+    }
+
+    // This will be executed only if no non local CF has been found in the
+    // above iterations
+    rc_return false;
+  } break;
+  case ASTNode::NK_Scs: {
+
+    // At the current stage, we do not consider the possibility of inlining a
+    // `ScsNode`, because it would mean envisioning a way to handle also an
+    // eventual exit dispatcher associated to the `ScsNode`.
+    // We may want, however, to enable this possibility in the future.
+    rc_return true;
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    // We can early exit as soon as we find a branch with non local CF
+    if (If->hasThen()) {
+      ASTNode *Then = If->getThen();
+      if (rc_recur containsContinueOrBreak(Then)) {
+        rc_return true;
+      }
+    }
+    if (If->hasElse()) {
+      ASTNode *Else = If->getElse();
+      if (rc_recur containsContinueOrBreak(Else)) {
+        rc_return true;
+      }
+    }
+
+    // This will be executed only if no non local CF has been found in both the
+    // `then` and `else` branches
+    rc_return false;
+  } break;
+  case ASTNode::NK_Switch: {
+    auto *Switch = llvm::cast<SwitchNode>(Node);
+
+    // We can early exit as soon as we find a `case` with non local CF
+    for (auto &LabelCasePair : Switch->cases()) {
+      if (rc_recur containsContinueOrBreak(LabelCasePair.second)) {
+        rc_return true;
+      }
+    }
+
+    // This will be executed only if no non local CF has been found in any of
+    // the `case`s of the `switch`
+    rc_return false;
+  } break;
+  case ASTNode::NK_Set:
+  case ASTNode::NK_Code:
+  case ASTNode::NK_SwitchBreak: {
+
+    // The goal of this helper function is to identify just `continue` and
+    // `break` statements related to loops. The `SwitchBreak` statement does not
+    // fall in this category.
+    rc_return false;
+  } break;
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break: {
+    rc_return true;
+  } break;
+  default:
+    revng_unreachable();
+  }
+
+  revng_abort();
+}
+
 static RecursiveCoroutine<ASTNode *>
 inlineDispatcherSwitchImpl(ASTTree &AST,
                            ASTNode *Node,
@@ -624,7 +704,8 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
             revng_abort();
           } else if (Sets.size() == 1
                      and (not needsLoopVar(RelatedLoop)
-                          or not containsSet(Case))) {
+                          or not containsSet(Case))
+                     and not containsContinueOrBreak(Case)) {
 
             // We inline the body of the case only if the following conditions
             // stand:
@@ -635,6 +716,11 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
             // inline does not contain any `SetNode`. In that case indeed, we
             // would be moving a `SetNode` from a scope to another one, which is
             // not semantics preserving.
+            // 3) The `case` body we are trying to inline does not contain any
+            // loop related `NonLocalControlFlow`, meaning no `break` or
+            // `continue` statements. If that was the case, we would be moving
+            // such statements from an external loop to a more nested one,
+            // breaking the semantics.
             addToDispatcherSet(AST,
                                RelatedLoop->getBody(),
                                Case,
