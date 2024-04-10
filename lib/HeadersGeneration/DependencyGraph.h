@@ -19,8 +19,8 @@ struct TypeNode {
   /// For each model::Type we'll have nodes representing the type name or
   /// the full type, depending on this enum.
   enum Kind {
-    TypeName,
-    FullType
+    Declaration,
+    Definition
   } K;
 };
 
