@@ -535,7 +535,7 @@ void printDeclaration(Logger<> &Log,
                       bool ForEditing) {
   if (Log.isEnabled()) {
     auto Scope = helpers::LineComment(Header, B.isGenerateTagLessPTML());
-    Header << "Declaration of " << getNameFromYAMLScalar(T.key());
+    Header << "Declaration of " << getNameFromYAMLScalar(T.key()) << "\n";
   }
 
   revng_log(Log, "Declaring " << getNameFromYAMLScalar(T.key()));
