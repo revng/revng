@@ -485,7 +485,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, alwaysTrueEdge<DotGraph *>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -505,7 +507,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, alwaysFalseEdge<DotGraph *>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -527,7 +531,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'a'>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -550,7 +556,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'e'>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -573,7 +581,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, alwaysTrueEdge<DotGraph *>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -593,7 +603,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, alwaysFalseEdge<DotGraph *>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -615,7 +627,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'a'>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -638,7 +652,9 @@ end:
     using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'e'>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
+
     revng_check(Results.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
@@ -667,17 +683,21 @@ end:
 
     for (auto &It : llvm::depth_first(InvEFG(Exit)))
       FirstResults.push_back(It->getName());
+
     revng_check(FirstResults.size() == ExpectedResultsNames.size());
     for (size_t I = 0; I < FirstResults.size(); ++I)
       revng_check(FirstResults[I] == ExpectedResultsNames[I]);
 
     for (auto &It : llvm::inverse_depth_first(EFG(Exit)))
       SecondResults.push_back(It->getName());
+
     revng_check(SecondResults.size() == ExpectedResultsNames.size());
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I] == ExpectedResultsNames[I]);
   }
-  { // Filter all, leaving no edge
+
+  {
+    // Filter all, leaving no edge
     DotGraph Input;
     using namespace boost::unit_test::framework;
     revng_check(master_test_suite().argc == 2);
@@ -696,13 +716,16 @@ end:
     DotNode *Exit = Input.getNodeByName("end");
 
     for (auto &It : llvm::depth_first(InvEFG(Exit)))
-      FirstResults.push_back(It->getName().str());
+      FirstResults.push_back(It->getName());
+
     revng_check(FirstResults.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < FirstResults.size(); ++I)
       revng_check(FirstResults[I] == ExpectedResultsNames[I]);
 
     for (auto &It : llvm::inverse_depth_first(EFG(Exit)))
-      SecondResults.push_back(It->getName().str());
+      SecondResults.push_back(It->getName());
+
     revng_check(SecondResults.size() == ExpectedResultsNames.size());
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I] == ExpectedResultsNames[I]);
@@ -727,13 +750,17 @@ end:
 
     for (auto &It : llvm::depth_first(InvEFG(Exit)))
       FirstResults.push_back(It->getName());
+
     revng_check(FirstResults.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < FirstResults.size(); ++I)
       revng_check(FirstResults[I] == ExpectedResultsNames[I]);
 
     for (auto &It : llvm::inverse_depth_first(EFG(Exit)))
       SecondResults.push_back(It->getName());
+
     revng_check(SecondResults.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I] == ExpectedResultsNames[I]);
   }
@@ -760,13 +787,17 @@ end:
 
     for (auto &It : llvm::depth_first(InvEFG(Exit)))
       FirstResults.push_back(It->getName());
+
     revng_check(FirstResults.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < FirstResults.size(); ++I)
       revng_check(FirstResults[I] == ExpectedResultsNames[I]);
 
     for (auto &It : llvm::inverse_depth_first(EFG(Exit)))
       SecondResults.push_back(It->getName());
+
     revng_check(SecondResults.size() == ExpectedResultsNames.size());
+
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I] == ExpectedResultsNames[I]);
   }
