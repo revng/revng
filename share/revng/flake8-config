@@ -4,5 +4,5 @@
 
 [flake8]
 max-line-length = 100
-extend-ignore = E203,R504,R505
+extend-ignore = E203,R504,R505,A005
 eradicate-whitelist-extend = mypy:
