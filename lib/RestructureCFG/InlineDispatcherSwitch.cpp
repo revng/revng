@@ -619,18 +619,9 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
           auto &Sets = SetCounterMap.at(Label);
           if (llvm::isa<SwitchBreakNode>(Case)) {
 
-            // If the body of the case is composed by a single `SwitchBreakNode`
-            // node, we can remove it, by virtually inlining a `nullptr` in the
-            // place of all the corresponding `SetNode`s (we can do it multiple
-            // times since we are not duplicating code here)
-            for (SetNode *Set : Sets) {
-              addToDispatcherSet(AST,
-                                 RelatedLoop->getBody(),
-                                 nullptr,
-                                 Set,
-                                 RemoveSetNode);
-            }
-            ToRemoveCaseIndex.insert(Index);
+            // The superfluous `SwitchBreak` removal should have been already
+            // performed in the `simplifySwitchBreak` phase
+            revng_abort();
           } else if (Sets.size() == 1
                      and (not needsLoopVar(RelatedLoop)
                           or not containsSet(Case))) {
