@@ -5,8 +5,9 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
 
-#include "mlir/InitAllDialects.h"
-#include "mlir/InitAllPasses.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/Transforms/Passes.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 #include "revng/Support/Assert.h"
@@ -16,18 +17,19 @@
 
 using namespace llvm::cl;
 
+static constexpr char ToolName[] = "Standalone optimizer driver\n";
+
 int main(int Argc, char *Argv[]) {
-
   mlir::DialectRegistry Registry;
-  mlir::registerAllDialects(Registry);
 
-  mlir::registerAllPasses();
-
+  Registry.insert<mlir::DLTIDialect>();
+  Registry.insert<mlir::LLVM::LLVMDialect>();
   Registry.insert<mlir::clift::CliftDialect>();
+
+  mlir::LLVM::registerLLVMPasses();
 
   using mlir::asMainReturnCode;
   using mlir::MlirOptMain;
-  std::string ToolName = "Standalone optimizer driver\n";
 
   return asMainReturnCode(MlirOptMain(Argc, Argv, ToolName, Registry));
 
