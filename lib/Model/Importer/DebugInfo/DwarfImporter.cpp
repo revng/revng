@@ -960,6 +960,14 @@ private:
           std::optional<uint64_t> MaybeSize = Field.Type().trySize(VH);
           return MaybeSize.value_or(0) == 0;
         });
+
+        // We might have removed some entries, update numbers
+        // Note: changing the key of an element in a sorted container shouldn't
+        // be allowed. However, it should be fine in this case, since we
+        // preserve ordering.
+        for (auto &[Index, Field] : llvm::enumerate(Union->Fields()))
+          Field.Index() = Index;
+        revng_assert(Union->Fields().isSorted());
       }
 
       //
