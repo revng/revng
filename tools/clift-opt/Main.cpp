@@ -14,6 +14,7 @@
 #include "revng/Support/InitRevng.h"
 
 #include "revng-c/mlir/Dialect/Clift/IR/Clift.h"
+#include "revng-c/mlir/Dialect/Clift/Transforms/Passes.h"
 
 using namespace llvm::cl;
 
@@ -27,6 +28,7 @@ int main(int Argc, char *Argv[]) {
   Registry.insert<mlir::clift::CliftDialect>();
 
   mlir::LLVM::registerLLVMPasses();
+  mlir::clift::registerCliftPasses();
 
   using mlir::asMainReturnCode;
   using mlir::MlirOptMain;
