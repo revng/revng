@@ -1029,11 +1029,6 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   RootNode = simplifyDualSwitch(CombedAST, RootNode);
   Dumper.log("after-dual-switch-simplify");
 
-  // Fix loop breaks from within switches
-  revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
-  SwitchBreaksFixer().run(RootNode, CombedAST);
-  Dumper.log("after-fix-switch-breaks");
-
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
   RootNode = simplifyAtomicSequence(CombedAST, RootNode);
@@ -1090,6 +1085,11 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Performing the implicit return simplification\n");
   simplifyImplicitReturn(CombedAST, RootNode);
   Dumper.log("after-implicit-return-simplify");
+
+  // Fix loop breaks from within switches
+  revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
+  SwitchBreaksFixer().run(RootNode, CombedAST);
+  Dumper.log("after-fix-switch-breaks");
 
   // Serialize the collected metrics in the statistics file if necessary
   if (StatsFileStream) {
