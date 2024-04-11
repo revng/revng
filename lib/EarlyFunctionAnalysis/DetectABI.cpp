@@ -123,6 +123,12 @@ static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 
 namespace efa {
 
+static model::Architecture::Values getCodeArchitecture(const MetaAddress &MA) {
+  const auto MaybeArch = MetaAddressType::arch(MA.type());
+  revng_assert(MaybeArch && "The architecture is available for code addresses");
+  return model::Architecture::fromLLVMArchitecture(*MaybeArch);
+}
+
 static bool isWritingToMemory(llvm::Instruction &I) {
   if (auto *StoreInst = dyn_cast<llvm::StoreInst>(&I)) {
     auto *Destination = StoreInst->getPointerOperand();
@@ -686,6 +692,8 @@ void DetectABI::finalizeModel() {
     auto NewType = makeType<RawFunctionType>();
     auto &FunctionType = *llvm::cast<RawFunctionType>(NewType.get());
 
+    FunctionType.Architecture() = getCodeArchitecture(EntryPC);
+
     // Record arguments and return values
     recordRegisters(Summary.ABIResults.ArgumentsRegisters,
                     FunctionType.Arguments().batch_insert());
@@ -863,6 +871,8 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
   auto NewType = makeType<RawFunctionType>();
   auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
   {
+    CallType.Architecture() = getCodeArchitecture(CallerBlock.ID().start());
+
     bool Found = false;
     for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
       if (PC != CallerBlock.ID())

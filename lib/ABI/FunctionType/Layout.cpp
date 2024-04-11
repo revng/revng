@@ -109,6 +109,9 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   // Since this conversion cannot fail, nothing prevents us from creating
   // the result type right away.
   auto [NewType, NewTypePath] = Binary->makeType<model::RawFunctionType>();
+
+  revng_assert(FunctionType.ABI() != model::ABI::Invalid);
+  NewType.Architecture() = model::ABI::getArchitecture(FunctionType.ABI());
   model::copyMetadata(NewType, FunctionType);
 
   model::StructType StackArguments;
