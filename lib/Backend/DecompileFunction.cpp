@@ -1988,7 +1988,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
           // For all nested types within stack definition we print forward
           // declarations.
           for (auto *Type : TheStackTypes) {
-            revng_assert(isCandidateForInline(Type));
+            revng_assert(not declarationIsDefinition(Type));
             printForwardDeclaration(*Type, Out, B);
           }
           printDefinition(Log,

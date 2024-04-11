@@ -76,12 +76,10 @@ TypeSet TypeInlineHelper::findTypesToInline(const model::Binary &Model,
   for (const UpcastablePointer<model::Type> &T : Model.Types()) {
     for (const model::QualifiedType &QT : T->edges()) {
       auto *DependantType = QT.UnqualifiedType().get();
-      if (llvm::isa<model::RawFunctionType>(T.get())
-          or llvm::isa<model::CABIFunctionType>(T.get())
-          or llvm::isa<model::TypedefType>(T.get())) {
-        // Used as typename.
+      if (declarationIsDefinition(T.get())) {
+        // Should never be inlined
         ShouldIgnore.insert(DependantType);
-      } else if (isCandidateForInline(DependantType)) {
+      } else {
         // If it comes from a Type other than a function, consider that we are
         // interested for the type, or if it was referenced from a type other
         // than itself.
@@ -658,11 +656,6 @@ void printDefinition(Logger<> &Log,
       revng_abort();
     }
   }
-}
-
-bool isCandidateForInline(const model::Type *T) {
-  return llvm::isa<model::StructType>(T) or llvm::isa<model::UnionType>(T)
-         or llvm::isa<model::EnumType>(T);
 }
 
 using UPtrTy = UpcastablePointer<model::Type>;
