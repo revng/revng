@@ -473,6 +473,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
 BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   TupleTree<model::Binary> T;
+  T->Architecture() = Architecture::x86_64;
 
   auto Int32 = T->getPrimitiveType(Signed, 4);
   auto VoidT = T->getPrimitiveType(Void, 0);
@@ -535,12 +536,14 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
 
 BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   TupleTree<model::Binary> T;
+  T->Architecture() = Architecture::x86_64;
 
   auto Primitive64 = T->getPrimitiveType(model::PrimitiveTypeKind::Generic, 4);
   QualifiedType Generic64 = { Primitive64, {} };
 
   auto RAFPointer = T->makeType<model::RawFunctionType>().second;
   auto *RAF = cast<model::RawFunctionType>(RAFPointer.get());
+  RAF->Architecture() = Architecture::x86_64;
 
   revng_check(RAF->verify(true));
 

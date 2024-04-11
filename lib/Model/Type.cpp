@@ -1218,10 +1218,16 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const RawFunctionType *T) {
+  const model::Architecture::Values Architecture = T->Architecture();
+
+  if (Architecture == model::Architecture::Invalid)
+    rc_return VH.fail();
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (const NamedTypedRegister &Argument : T->Arguments()) {
     if (not rc_recur Argument.verify(VH))
+      rc_return VH.fail();
+    if (not isUsedInArchitecture(Argument.Location(), Architecture))
       rc_return VH.fail();
 
     // Verify CustomName for collisions
@@ -1234,13 +1240,19 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     }
   }
 
-  for (const NamedTypedRegister &Return : T->ReturnValues())
+  for (const NamedTypedRegister &Return : T->ReturnValues()) {
     if (not rc_recur Return.verify(VH))
       rc_return VH.fail();
+    if (not isUsedInArchitecture(Return.Location(), Architecture))
+      rc_return VH.fail();
+  }
 
-  for (const Register::Values &Preserved : T->PreservedRegisters())
+  for (const Register::Values &Preserved : T->PreservedRegisters()) {
     if (Preserved == Register::Invalid)
       rc_return VH.fail();
+    if (not isUsedInArchitecture(Preserved, Architecture))
+      rc_return VH.fail();
+  }
 
   auto &StackArgumentsType = T->StackArgumentsType();
   if (not StackArgumentsType.empty()
