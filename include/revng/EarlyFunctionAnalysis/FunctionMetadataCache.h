@@ -48,45 +48,88 @@ extractFunctionMetadata(const llvm::BasicBlock *BB) {
 
 } // namespace detail
 
-class FunctionMetadataCache {
-private:
-  std::map<const llvm::Value *, efa::FunctionMetadata> FunctionCache;
+template<typename T>
+concept FunctionMetadataCacheTraits = requires {
+  typename T::BasicBlock;
+  typename T::Function;
+  typename T::CallInst;
+  typename T::KeyType;
+
+  {
+    T::getKey(std::declval<typename T::Function>())
+  } -> std::same_as<typename T::KeyType>;
+
+  {
+    T::getKey(std::declval<typename T::BasicBlock>())
+  } -> std::same_as<typename T::KeyType>;
+
+  {
+    T::getLocation(std::declval<typename T::CallInst>())
+  } -> std::same_as<
+    std::optional<pipeline::Location<decltype(revng::ranks::Instruction)>>>;
+
+  {
+    T::getFunction(std::declval<typename T::CallInst>())
+  } -> std::same_as<typename T::Function>;
+
+  {
+    T::getModelFunction(std::declval<const model::Binary &>(),
+                        std::declval<typename T::Function>())
+  } -> std::same_as<const model::Function *>;
+
+  {
+    T::extractFunctionMetadata(std::declval<typename T::Function>())
+  } -> std::same_as<TupleTree<efa::FunctionMetadata>>;
+};
+
+/// The BasicFunctionMetadataCache is implemented as a class template customised
+/// via a traits class in order to enable reuse for both LLVM IR and MLIR.
+template<FunctionMetadataCacheTraits Traits>
+class BasicFunctionMetadataCache {
+  using BasicBlock = typename Traits::BasicBlock;
+  using Function = typename Traits::Function;
+  using CallInst = typename Traits::CallInst;
+
+  std::map<typename Traits::KeyType, efa::FunctionMetadata> FunctionCache;
 
 public:
-  const efa::FunctionMetadata &
-  getFunctionMetadata(const llvm::Function *Function) {
-    auto Iterator = FunctionCache.find(Function);
+  const efa::FunctionMetadata &getFunctionMetadata(Function Function) {
+    typename Traits::KeyType Key = Traits::getKey(Function);
+
+    auto Iterator = FunctionCache.find(Key);
     if (Iterator != FunctionCache.end())
       return Iterator->second;
 
-    efa::FunctionMetadata FM = *detail::extractFunctionMetadata(Function).get();
-    return FunctionCache.try_emplace(Function, FM).first->second;
+    efa::FunctionMetadata FM = *Traits::extractFunctionMetadata(Function).get();
+    return FunctionCache.try_emplace(Key, std::move(FM)).first->second;
   }
 
-  const efa::FunctionMetadata &getFunctionMetadata(const llvm::BasicBlock *BB) {
-    auto Iterator = FunctionCache.find(BB);
+  const efa::FunctionMetadata &getFunctionMetadata(BasicBlock BB) {
+    typename Traits::KeyType Key = Traits::getKey(BB);
+
+    auto Iterator = FunctionCache.find(Key);
     if (Iterator != FunctionCache.end())
       return Iterator->second;
 
-    efa::FunctionMetadata FM = *detail::extractFunctionMetadata(BB).get();
-    return FunctionCache.try_emplace(BB, FM).first->second;
+    efa::FunctionMetadata FM = *Traits::extractFunctionMetadata(BB).get();
+    return FunctionCache.try_emplace(Key, std::move(FM)).first->second;
   }
 
   /// Given a Call instruction and the model type of its parent function, return
   /// the edge on the model that represents that call (std::nullopt if this
   /// doesn't exist) and the BasicBlockID associated to the call-site.
   inline std::pair<std::optional<efa::CallEdge>, BasicBlockID>
-  getCallEdge(const model::Binary &Binary, const llvm::CallInst *Call) {
+  getCallEdge(const model::Binary &Binary, CallInst Call) {
     using namespace llvm;
 
-    auto MaybeLocation = getLocation(Call);
+    auto MaybeLocation = Traits::getLocation(Call);
 
     if (not MaybeLocation)
       return { std::nullopt, BasicBlockID::invalid() };
 
     auto BlockAddress = MaybeLocation->parent().back();
 
-    auto *ParentFunction = Call->getParent()->getParent();
+    Function ParentFunction = Traits::getFunction(Call);
     const efa::FunctionMetadata &FM = getFunctionMetadata(ParentFunction);
     const efa::BasicBlock &Block = FM.ControlFlowGraph().at(BlockAddress);
 
@@ -112,23 +155,62 @@ public:
   /// \note If the callsite has no associated prototype, e.g. the called
   /// functions
   ///       is not an isolated function, a null pointer is returned.
-  inline model::TypePath
+  model::TypePath
   getCallSitePrototype(const model::Binary &Binary,
-                       const llvm::CallInst *Call,
+                       CallInst Call,
                        const model::Function *ParentFunction = nullptr) {
     if (not ParentFunction)
-      ParentFunction = llvmToModelFunction(Binary, *Call->getFunction());
+      ParentFunction = Traits::getModelFunction(Binary,
+                                                Traits::getFunction(Call));
 
     if (not ParentFunction)
       return {};
 
     const auto &[Edge, BlockAddress] = getCallEdge(Binary, Call);
+
     if (not Edge)
       return {};
 
     return getPrototype(Binary, ParentFunction->Entry(), BlockAddress, *Edge);
   }
 };
+
+class LLVMIRMetadataTraits {
+  using Location = pipeline::Location<decltype(revng::ranks::Instruction)>;
+
+public:
+  using BasicBlock = const llvm::BasicBlock *;
+  using Function = const llvm::Function *;
+  using CallInst = const llvm::CallInst *;
+  using KeyType = const llvm::Value *;
+
+  static KeyType getKey(Function F) { return F; }
+  static KeyType getKey(BasicBlock BB) { return BB; }
+
+  static const llvm::Function *getFunction(const llvm::Instruction *const I) {
+    return I->getFunction();
+  }
+
+  static std::optional<Location> getLocation(const llvm::Instruction *const I) {
+    return ::getLocation(I);
+  }
+
+  static TupleTree<efa::FunctionMetadata>
+  extractFunctionMetadata(const llvm::Function *F) {
+    return detail::extractFunctionMetadata(F);
+  }
+
+  static TupleTree<efa::FunctionMetadata>
+  extractFunctionMetadata(const llvm::BasicBlock *BB) {
+    return detail::extractFunctionMetadata(BB);
+  }
+
+  static const model::Function *getModelFunction(const model::Binary &Binary,
+                                                 const llvm::Function *F) {
+    return llvmToModelFunction(Binary, *F);
+  }
+};
+using FunctionMetadataCache = BasicFunctionMetadataCache<LLVMIRMetadataTraits>;
 
 class FunctionMetadataCachePass : public llvm::ImmutablePass {
 public:
