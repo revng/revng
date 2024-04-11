@@ -48,69 +48,75 @@ const TypeSet &TypeInlineHelper::getTypesToInline() const {
   return TypesToInline;
 }
 
-bool TypeInlineHelper::isReachableFromRootType(const model::Type *Type,
-                                               const model::Type *RootType,
-                                               const GraphInfo &TypeGraph) {
-  for (Node *N : llvm::depth_first(TypeGraph.TypeToNode.at(RootType)))
-    if (N->data().T == Type)
-      return true;
-  return false;
-}
-
 /// Collect candidates for emitting inline types.
-TypeSet TypeInlineHelper::findTypesToInline(const model::Binary &Model,
-                                            const GraphInfo &TypeGraph) {
-  std::unordered_map<const model::Type *, uint64_t> Candidates;
-  std::set<const model::Type *> ShouldIgnore;
-
-  // We may find a struct that represents stack type that is being used exactly
-  // once somewhere else in Types:, but we do not want to inline it if that is
-  // the case.
-  for (auto &Function : Model.Functions()) {
-    if (not Function.StackFrameType().empty()) {
-      const model::Type *StackT = Function.StackFrameType().getConst();
-      ShouldIgnore.insert(StackT);
-    }
-  }
+std::set<const model::Type *>
+TypeInlineHelper::findTypesToInline(const model::Binary &Model,
+                                    const GraphInfo &TypeGraph) const {
+  using NumTypeRefMap = std::unordered_map<const model::Type *, uint64_t>;
+  NumTypeRefMap NumberOfRefsPerType;
+  std::set<const model::Type *> TypesWithBannedReferences;
 
   for (const UpcastablePointer<model::Type> &T : Model.Types()) {
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      if (declarationIsDefinition(T.get())) {
-        // Should never be inlined
-        ShouldIgnore.insert(DependantType);
-      } else {
-        // If it comes from a Type other than a function, consider that we are
-        // interested for the type, or if it was referenced from a type other
-        // than itself.
-        Candidates[DependantType]++;
+    const model::Type *TheType = T.get();
+    NumberOfRefsPerType.insert({ TheType, 0 });
 
-        // To inline a pointer type we need to know the sizes of all nested
-        // types, which may not be the case at the moment of inlining, so we
-        // avoid inlining it for now. In addition, we avoid inlining the types
-        // pointing to itself.
-        if (QT.isPointer() or T.get()->key() == DependantType->key()) {
-          ShouldIgnore.insert(DependantType);
-        } else if (isReachableFromRootType(T.get(), DependantType, TypeGraph)) {
-          // Or the type could point to itself on a nested level.
-          ShouldIgnore.insert(T.get());
-          ShouldIgnore.insert(DependantType);
-        }
-      }
+    bool ParentDeclIsDefinition = declarationIsDefinition(TheType);
+    for (const model::QualifiedType &QT : T->edges()) {
+      const model::Type *Dependency = QT.UnqualifiedType().get();
+      NumberOfRefsPerType[Dependency]++;
+
+      // If the parent type has a declaration that is also a definition, we
+      // cannot inline it there, since we only allow inlining inside types whose
+      // full definition is separate from declaration
+      if (ParentDeclIsDefinition)
+        TypesWithBannedReferences.insert(Dependency);
+
+      // To inline a pointer type, we should basically inline the pointee.
+      // At the moment we don't try to do this, and just prevent them to be
+      // inlined. We might try and do better in the future.
+      if (QT.isPointer())
+        TypesWithBannedReferences.insert(Dependency);
     }
   }
 
-  // A candidate for inline is the type IFF it was referenced only once.
+  for (auto &Function : Model.Functions())
+    if (not Function.StackFrameType().empty())
+      NumberOfRefsPerType[Function.StackFrameType().getConst()]++;
+
+  // TODO: In principle we should do this for segments to, to enable inlining
+  // their type definition directly in the declaration of the global variable
+  // representing the segment.
+  // This is not urgent now though, and it would require more tweaks to
+  // ModelToHeader that are low-priority now.
+  //
+  // for (auto &Segment : Model.Segments())
+  //  if (not Segment.Type().empty())
+  //    NumberOfRefsPerType[Segment.Type().getConst()]++;
+
+  const auto BanFromInlining =
+    [&NumberOfRefsPerType, &TypesWithBannedReferences](const model::Type *T) {
+      // If T's forward declaration cannot be separated by its full definition,
+      // ban it from inlining.
+      if (declarationIsDefinition(T))
+        return true;
+
+      // If T has banned references, ban it from inlining.
+      if (TypesWithBannedReferences.contains(T))
+        return true;
+
+      // If T has more than 1 other type referring to it, ban it from inlining.
+      return NumberOfRefsPerType.at(T) != 1;
+    };
+
   std::set<const model::Type *> Result;
-  using TypeReferences = const pair<const model::Type *, uint64_t>;
-  for_each(Candidates.begin(),
-           Candidates.end(),
-           [&Result, &ShouldIgnore](TypeReferences &TheType) {
-             if (TheType.second == 1
-                 and not ShouldIgnore.contains(TheType.first)) {
-               Result.insert(TheType.first);
-             }
-           });
+  llvm::for_each(Model.Types(),
+                 [&BanFromInlining,
+                  &Result](const UpcastablePointer<model::Type> &T) {
+                   auto *TheType = T.get();
+                   if (not BanFromInlining(TheType))
+                     Result.insert(TheType);
+                 });
+
   return Result;
 }
 

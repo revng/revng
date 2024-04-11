@@ -58,14 +58,11 @@ public:
                            const model::Type *RootType) const;
 
 private:
-  std::set<const model::Type *> findTypesToInline(const model::Binary &Model,
-                                                  const GraphInfo &TypeGraph);
+  std::set<const model::Type *>
+  findTypesToInline(const model::Binary &Model,
+                    const GraphInfo &TypeGraph) const;
 
   GraphInfo buildTypeGraph(const model::Binary &Model);
-
-  bool isReachableFromRootType(const model::Type *Type,
-                               const model::Type *RootType,
-                               const GraphInfo &TypeGraph);
 
   // Helper function used for finding all nested (into `RootType`) inlinable
   // types.
