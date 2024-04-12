@@ -2086,8 +2086,7 @@ void decompile(FunctionMetadataCache &Cache,
 
   // Get all Stack types and all the inlinable types reachable from it,
   // since we want to emit forward declarations for all of them.
-  const auto StackTypes = TypeInlineHelper(Model)
-                            .findTypesToInlineInStacks(Model);
+  const auto StackTypes = TypeInlineHelper(Model).findTypesToInlineInStacks();
 
   auto
     T = llvm::make_task_on_set(llvm::make_address_range(FunctionTags::Isolated

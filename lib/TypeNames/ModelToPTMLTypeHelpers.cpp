@@ -35,26 +35,14 @@ using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeSet = std::set<const model::Type *>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 using Node = TypeInlineHelper::Node;
-using StackTypesMap = std::unordered_map<const model::Function *,
-                                         std::set<const model::Type *>>;
-
-TypeInlineHelper::TypeInlineHelper(const model::Binary &Model) {
-  // Create graph that represents type system.
-  TypeGraph = buildTypeGraph(Model);
-  TypesToInline = findTypesToInline(Model, TypeGraph);
-}
-
-const TypeSet &TypeInlineHelper::getTypesToInline() const {
-  return TypesToInline;
-}
+using StackTypesMap = std::unordered_map<const model::Function *, TypeSet>;
 
 /// Collect candidates for emitting inline types.
-std::set<const model::Type *>
-TypeInlineHelper::findTypesToInline(const model::Binary &Model,
-                                    const GraphInfo &TypeGraph) const {
+static TypeSet findTypesToInline(const model::Binary &Model) {
+
   using NumTypeRefMap = std::unordered_map<const model::Type *, uint64_t>;
   NumTypeRefMap NumberOfRefsPerType;
-  std::set<const model::Type *> TypesWithBannedReferences;
+  TypeSet TypesWithBannedReferences;
 
   for (const UpcastablePointer<model::Type> &T : Model.Types()) {
     const model::Type *TheType = T.get();
@@ -109,7 +97,7 @@ TypeInlineHelper::findTypesToInline(const model::Binary &Model,
       return NumberOfRefsPerType.at(T) != 1;
     };
 
-  std::set<const model::Type *> Result;
+  TypeSet Result;
   llvm::for_each(Model.Types(),
                  [&BanFromInlining,
                   &Result](const UpcastablePointer<model::Type> &T) {
@@ -121,9 +109,11 @@ TypeInlineHelper::findTypesToInline(const model::Binary &Model,
   return Result;
 }
 
-GraphInfo TypeInlineHelper::buildTypeGraph(const model::Binary &Model) {
+static GraphInfo buildTypeGraph(const model::Binary &Model) {
+
   GraphInfo Result;
 
+  using NodeData = TypeInlineHelper::NodeData;
   for (const UpcastablePointer<model::Type> &T : Model.Types()) {
     Result.TypeToNode[T.get()] = Result.TypeGraph.addNode(NodeData{ T.get() });
   }
@@ -137,6 +127,16 @@ GraphInfo TypeInlineHelper::buildTypeGraph(const model::Binary &Model) {
   }
 
   return Result;
+}
+
+TypeInlineHelper::TypeInlineHelper(const model::Binary &TheModel) :
+  Model(TheModel),
+  TypeGraph(buildTypeGraph(Model)),
+  TypesToInline(findTypesToInline(Model)) {
+}
+
+const TypeSet &TypeInlineHelper::getTypesToInline() const {
+  return TypesToInline;
 }
 
 /// Returns a set of types that are referred to by at least one other type in
@@ -153,8 +153,7 @@ static TypeSet getCrossReferencedTypes(const model::Binary &Model) {
   return Result;
 }
 
-StackTypesMap
-TypeInlineHelper::findTypesToInlineInStacks(const model::Binary &Model) const {
+StackTypesMap TypeInlineHelper::findTypesToInlineInStacks() const {
 
   TypeSet CrossReferencedTypes = getCrossReferencedTypes(Model);
 
@@ -169,7 +168,7 @@ TypeInlineHelper::findTypesToInlineInStacks(const model::Binary &Model) const {
         continue;
 
       Result[&Function].insert(StackT);
-      auto AllNestedTypes = getTypesToInlineInTypeTy(Model, StackT);
+      auto AllNestedTypes = getTypesToInlineInTypeTy(StackT);
       Result[&Function].merge(AllNestedTypes);
     }
   }
@@ -177,14 +176,66 @@ TypeInlineHelper::findTypesToInlineInStacks(const model::Binary &Model) const {
   return Result;
 }
 
-TypeSet
-TypeInlineHelper::collectTypesInlinableInStacks(const model::Binary &Model)
-  const {
-  StackTypesMap TypesToInlineInStacks = findTypesToInlineInStacks(Model);
+TypeSet TypeInlineHelper::collectTypesInlinableInStacks() const {
+  StackTypesMap TypesToInlineInStacks = findTypesToInlineInStacks();
 
   TypeSet Result;
   for (auto [Function, TypesToInlineInStack] : TypesToInlineInStacks)
     Result.merge(std::move(TypesToInlineInStack));
+
+  return Result;
+}
+
+using UPtrTy = UpcastablePointer<model::Type>;
+TypeSet TypeInlineHelper::getNestedTypesToInline(const model::Type *RootType,
+                                                 const UPtrTy &NestedTy) const {
+  model::Type *CurrentTy = NestedTy.get();
+  TypeSet Result;
+  do {
+    Result.insert(CurrentTy);
+    auto
+      ParentNode = TypeGraph.TypeToNode.at(CurrentTy)->predecessors().begin();
+    if ((*ParentNode)->data().T == RootType) {
+      return Result;
+    } else if (TypesToInline.contains((*ParentNode)->data().T)) {
+      CurrentTy = (*ParentNode)->data().T;
+    } else {
+      return {};
+    }
+  } while (CurrentTy);
+
+  return {};
+}
+
+TypeSet
+TypeInlineHelper::getTypesToInlineInTypeTy(const model::Type *RootType) const {
+  TypeSet Result;
+  auto TheTypeToNode = TypeGraph.TypeToNode;
+
+  // Visit all the nodes reachable from RootType.
+  llvm::df_iterator_default_set<Node *> Visited;
+  for ([[maybe_unused]] Node *N :
+       depth_first_ext(TheTypeToNode.at(RootType), Visited))
+    ;
+
+  for (auto &Type : Model.Types()) {
+    if (Visited.contains(TheTypeToNode.at(Type.get()))
+        and TypesToInline.contains(Type.get())
+        and TheTypeToNode.at(Type.get())->predecessorCount() == 1) {
+      auto ParentNode = TheTypeToNode.at(Type.get())->predecessors().begin();
+      // In the case the parent is stack type itself, just insert the type.
+      if ((*ParentNode)->data().T == RootType) {
+        Result.insert(Type.get());
+      } else if (TypesToInline.contains((*ParentNode)->data().T)) {
+        // In the case the parent type is not the type RootType itself, make
+        // sure that the parent is inlinable into the type RootType. NOTE: This
+        // goes as further as possible in opposite direction in order to find
+        // all types that we should inline into the type RootType.
+        auto NestedTypesToInline = getNestedTypesToInline(RootType, Type);
+        Result.merge(NestedTypesToInline);
+      }
+    }
+  }
 
   return Result;
 }
@@ -663,59 +714,4 @@ void printDefinition(Logger<> &Log,
       revng_abort();
     }
   }
-}
-
-using UPtrTy = UpcastablePointer<model::Type>;
-TypeSet TypeInlineHelper::getNestedTypesToInline(const model::Type *RootType,
-                                                 const UPtrTy &NestedTy) const {
-  model::Type *CurrentTy = NestedTy.get();
-  TypeSet Result;
-  do {
-    Result.insert(CurrentTy);
-    auto
-      ParentNode = TypeGraph.TypeToNode.at(CurrentTy)->predecessors().begin();
-    if ((*ParentNode)->data().T == RootType) {
-      return Result;
-    } else if (TypesToInline.contains((*ParentNode)->data().T)) {
-      CurrentTy = (*ParentNode)->data().T;
-    } else {
-      return {};
-    }
-  } while (CurrentTy);
-
-  return {};
-}
-
-TypeSet
-TypeInlineHelper::getTypesToInlineInTypeTy(const model::Binary &Model,
-                                           const model::Type *RootType) const {
-  TypeSet Result;
-  auto TheTypeToNode = TypeGraph.TypeToNode;
-
-  // Visit all the nodes reachable from RootType.
-  llvm::df_iterator_default_set<Node *> Visited;
-  for ([[maybe_unused]] Node *N :
-       depth_first_ext(TheTypeToNode.at(RootType), Visited))
-    ;
-
-  for (auto &Type : Model.Types()) {
-    if (Visited.contains(TheTypeToNode.at(Type.get()))
-        and TypesToInline.contains(Type.get())
-        and TheTypeToNode.at(Type.get())->predecessorCount() == 1) {
-      auto ParentNode = TheTypeToNode.at(Type.get())->predecessors().begin();
-      // In the case the parent is stack type itself, just insert the type.
-      if ((*ParentNode)->data().T == RootType) {
-        Result.insert(Type.get());
-      } else if (TypesToInline.contains((*ParentNode)->data().T)) {
-        // In the case the parent type is not the type RootType itself, make
-        // sure that the parent is inlinable into the type RootType. NOTE: This
-        // goes as further as possible in opposite direction in order to find
-        // all types that we should inline into the type RootType.
-        auto NestedTypesToInline = getNestedTypesToInline(RootType, Type);
-        Result.merge(NestedTypesToInline);
-      }
-    }
-  }
-
-  return Result;
 }

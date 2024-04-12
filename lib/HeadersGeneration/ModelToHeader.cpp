@@ -71,8 +71,7 @@ static void printTypeDefinitions(const model::Binary &Model,
 
   std::set<const model::Type *> TypesToInlineInStacks;
   if (not Options.DisableTypeInlining)
-    TypesToInlineInStacks = TheTypeInlineHelper
-                              .collectTypesInlinableInStacks(Model);
+    TypesToInlineInStacks = TheTypeInlineHelper.collectTypesInlinableInStacks();
 
   DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
   const auto &TypeNodes = Dependencies.TypeNodes();
