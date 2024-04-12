@@ -71,10 +71,11 @@ TypeInlineHelper::findTypesToInline(const model::Binary &Model,
       if (ParentDeclIsDefinition)
         TypesWithBannedReferences.insert(Dependency);
 
-      // To inline a pointer type, we should basically inline the pointee.
+      // To inline an array or pointer type, we should basically inline the
+      // array element or the pointee type.
       // At the moment we don't try to do this, and just prevent them to be
       // inlined. We might try and do better in the future.
-      if (QT.isPointer())
+      if (QT.isPointer() or QT.isArray())
         TypesWithBannedReferences.insert(Dependency);
     }
   }
