@@ -45,12 +45,17 @@ public:
     ElectedFSO(ElectedFSO) {}
 
   FunctionSummary() = default;
-  FunctionSummary(const FunctionSummary &) = delete;
-  FunctionSummary &operator=(const FunctionSummary &) = delete;
 
   FunctionSummary(FunctionSummary &&Other) = default;
   FunctionSummary &operator=(FunctionSummary &&Other) = default;
   bool operator==(const FunctionSummary &Other) const = default;
+
+private:
+  FunctionSummary(const FunctionSummary &) = default;
+  FunctionSummary &operator=(const FunctionSummary &) = default;
+
+public:
+  FunctionSummary clone() const { return *this; }
 
 public:
   void combine(const FunctionSummary &Other) {
