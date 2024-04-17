@@ -202,6 +202,7 @@ inline Tag CSVsAsArgumentsWrapper("csvs-as-arguments-wrapper");
 inline Tag Marker("marker");
 inline Tag DynamicFunction("dynamic-function");
 inline Tag ClobbererFunction("clobberer-function");
+inline Tag WriterFunction("writer-function");
 inline Tag ReaderFunction("reader-function");
 
 inline Tag CSV("csv");

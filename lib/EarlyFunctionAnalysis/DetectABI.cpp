@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/GraphWriter.h"
@@ -252,7 +253,11 @@ void DetectABI::computeApproximateCallGraph() {
           BasicBlockNode *GraphNode = nullptr;
           auto It = BasicBlockNodeMap.find(Callee);
           if (It != BasicBlockNodeMap.end()) {
-            StartNode->addSuccessor(It->second);
+            auto IsCurrentSuccessor = [&It](auto &Successor) {
+              return Successor == It->second;
+            };
+            if (not any_of(StartNode->successors(), IsCurrentSuccessor))
+              StartNode->addSuccessor(It->second);
           }
         }
         BasicBlock *Next = getFallthrough(Current);
