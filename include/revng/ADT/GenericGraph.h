@@ -1460,10 +1460,10 @@ public:
 
   using EdgeRef = typename T::Edge &;
   template<typename Ty, typename True, typename False>
-  using if_const = std::conditional_t<std::is_const_v<Ty>, True, False>;
-  using ChildEdgeIteratorType = if_const<T,
-                                         typename T::const_edge_iterator,
-                                         typename T::edge_iterator>;
+  using if_const_t = std::conditional_t<std::is_const_v<Ty>, True, False>;
+  using ChildEdgeIteratorType = if_const_t<T,
+                                           typename T::const_edge_iterator,
+                                           typename T::edge_iterator>;
 
 public:
   static ChildIteratorType child_begin(NodeRef N) {
@@ -1496,6 +1496,13 @@ public:
                                                typename T::const_child_iterator,
                                                typename T::child_iterator>;
 
+  using EdgeRef = typename T::Edge &;
+  template<typename Ty, typename True, typename False>
+  using if_const_t = std::conditional_t<std::is_const_v<Ty>, True, False>;
+  using ChildEdgeIteratorType = if_const_t<T,
+                                           typename T::const_edge_iterator,
+                                           typename T::edge_iterator>;
+
 public:
   static ChildIteratorType child_begin(NodeRef N) {
     return N->predecessors().begin();
@@ -1504,6 +1511,16 @@ public:
   static ChildIteratorType child_end(NodeRef N) {
     return N->predecessors().end();
   }
+
+  static ChildEdgeIteratorType child_edge_begin(NodeRef N) {
+    return N->predecessor_edges().begin();
+  }
+
+  static ChildEdgeIteratorType child_edge_end(NodeRef N) {
+    return N->predecessor_edges().end();
+  }
+
+  static NodeRef edge_dest(EdgeRef Edge) { return Edge.Neighbor; }
 
   static NodeRef getEntryNode(llvm::Inverse<NodeRef> N) { return N.Graph; };
 };
