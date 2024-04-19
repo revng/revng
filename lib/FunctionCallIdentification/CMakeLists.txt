@@ -3,8 +3,8 @@
 #
 
 revng_add_library_internal(
-  revngFunctionCallIdentification STATIC FunctionCallIdentification.cpp
-  PruneRetSuccessors.cpp)
+  revngFunctionCallIdentification SHARED DropOpaqueReturnAddress.cpp
+  FunctionCallIdentification.cpp PruneRetSuccessors.cpp)
 
 target_link_libraries(revngFunctionCallIdentification revngSupport
                       revngBasicAnalyses)

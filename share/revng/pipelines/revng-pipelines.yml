@@ -171,6 +171,9 @@ Branches:
             UsedContainers: [module.ll]
             Passes: [O2]
             EnabledWhen: [O2]
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes: [drop-opaque-return-address]
           - Type: compile
             UsedContainers: [module.ll, object.o]
           - Type: link-for-translation
@@ -189,6 +192,9 @@ Branches:
             UsedContainers: [module.ll]
             Passes: [O2]
             EnabledWhen: [O2]
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes: [drop-opaque-return-address]
           - Type: compile-isolated
             UsedContainers: [module.ll, object.o]
           - Type: link-for-translation

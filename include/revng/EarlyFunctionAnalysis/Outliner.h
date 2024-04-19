@@ -5,10 +5,13 @@
 //
 
 #include "llvm/IR/Module.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
 
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
+#include "revng/Model/NamedTypedRegister.h"
+#include "revng/Support/OpaqueFunctionsPool.h"
 #include "revng/Support/UniqueValuePtr.h"
 
 class GeneratedCodeBasicInfo;
@@ -83,6 +86,8 @@ private:
   /// `unexpectedpc` of their caller.
   TemporaryOpaqueFunction UnexpectedPCMarker;
 
+  OpaqueFunctionsPool<llvm::Type *> OpaqueReturnAddress;
+
   llvm::CodeExtractorAnalysisCache CEAC;
 
 public:
@@ -93,7 +98,18 @@ public:
     GCBI(GCBI),
     Oracle(Oracle),
     UnexpectedPCMarker(initializeUnexpectedPCMarker(M)),
-    CEAC(*M.getFunction("root")) {}
+    OpaqueReturnAddress(&M, false),
+    CEAC(*M.getFunction("root")) {
+
+    using namespace llvm;
+    auto Effects = MemoryEffects::inaccessibleMemOnly(llvm::ModRefInfo::Ref);
+    OpaqueReturnAddress.setMemoryEffects(Effects);
+    OpaqueReturnAddress.addFnAttribute(Attribute::NoUnwind);
+    OpaqueReturnAddress.addFnAttribute(Attribute::WillReturn);
+    OpaqueReturnAddress.setTags({ &FunctionTags::OpaqueReturnAddressFunction });
+    OpaqueReturnAddress
+      .initializeFromReturnType(FunctionTags::OpaqueReturnAddressFunction);
+  }
 
 public:
   OutlinedFunction outline(llvm::BasicBlock *BB, CallHandler *TheCallHandler);

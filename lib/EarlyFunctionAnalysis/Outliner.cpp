@@ -5,6 +5,9 @@
 //
 
 #include "llvm/ADT/SCCIterator.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
@@ -15,6 +18,7 @@
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;
 
@@ -187,6 +191,39 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
   } else {
     Instruction *Term = BB->getTerminator();
     IRBuilder<> Builder(Term);
+
+    if (FunctionCall != nullptr) {
+      // This is a proper call, storing the return address somewhere: inject a
+      // store clobbering the return address. This will make the instruction
+      // saving the return address dead, the optimizer will collect it and then
+      // we'll drop this store too, resulting in an IR free of return addresses
+      // being written around.
+      Value *LinkRegister = FunctionCall->getArgOperand(3);
+      Value *Pointer = nullptr;
+      Type *PointeeType = nullptr;
+
+      // Are we using the link register or storing the return address on the top
+      // of the stack?
+      if (auto *CSV = dyn_cast_or_null<GlobalVariable>(LinkRegister)) {
+        Pointer = CSV;
+        PointeeType = CSV->getValueType();
+      } else {
+        PointeeType = GCBI.spReg()->getValueType();
+        Pointer = Builder.CreateIntToPtr(createLoad(Builder, GCBI.spReg()),
+                                         PointeeType->getPointerTo());
+      }
+
+      // Inject the store
+      std::string Name = ("opaque_"
+                          + to_string(PointeeType->getIntegerBitWidth()));
+      auto *OpaqueReturnAddressFunction = OpaqueReturnAddress.get(PointeeType,
+                                                                  PointeeType,
+                                                                  {},
+                                                                  Name);
+      Builder.CreateStore(Builder.CreateCall(OpaqueReturnAddressFunction),
+                          Pointer);
+    }
+
     TheCallHandler->handleCall(CallerBlockAddress,
                                Builder,
                                Callee,
