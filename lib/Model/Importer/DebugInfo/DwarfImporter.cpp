@@ -360,9 +360,20 @@ private:
     case llvm::dwarf::DW_TAG_structure_type:
       createPlaceholderType<model::StructType>(Die);
       break;
-    case llvm::dwarf::DW_TAG_union_type:
+    case llvm::dwarf::DW_TAG_union_type: {
+      // Handle small empty unions, usually due to transparent unions
+      auto MaybeByteSize = Die.find(DW_AT_byte_size);
+      if (MaybeByteSize and not Die.hasChildren()) {
+        auto Size = *MaybeByteSize->getAsUnsignedConstant();
+        record(Die,
+               Model->getPrimitiveType(model::PrimitiveTypeKind::Generic, Size),
+               true);
+        return;
+      }
+
+      // Handle regular unions
       createPlaceholderType<model::UnionType>(Die);
-      break;
+    } break;
     case llvm::dwarf::DW_TAG_enumeration_type:
       createPlaceholderType<model::EnumType>(Die);
       break;
