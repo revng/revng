@@ -890,13 +890,13 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     // TODO: Since we do not have info about parameters annotation, we use
     // default raw function.
     auto TheDefaultPrototype = Model->DefaultPrototype();
-    auto DefaulRawType = cast<RawFunctionType>(TheDefaultPrototype.get());
+    auto DefaultRawType = cast<RawFunctionType>(TheDefaultPrototype.get());
 
     auto FunctionType = cast<RawFunctionType>(NewType.get());
-    FunctionType->Arguments() = DefaulRawType->Arguments();
-    FunctionType->ReturnValues() = DefaulRawType->ReturnValues();
-    FunctionType->PreservedRegisters() = DefaulRawType->PreservedRegisters();
-    FunctionType->FinalStackOffset() = DefaulRawType->FinalStackOffset();
+    FunctionType->Arguments() = DefaultRawType->Arguments();
+    FunctionType->ReturnValues() = DefaultRawType->ReturnValues();
+    FunctionType->PreservedRegisters() = DefaultRawType->PreservedRegisters();
+    FunctionType->FinalStackOffset() = DefaultRawType->FinalStackOffset();
   }
 
   if (AnalysisOption == ImportFromCOption::EditType) {
