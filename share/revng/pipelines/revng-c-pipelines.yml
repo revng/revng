@@ -222,6 +222,20 @@ Branches:
           SingleTargetFilename: type.h
   - From: make-segment-ref
     Steps:
+      - Name: cleanup-ir
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes:
+              - instcombine
+              - cleanup-ir
+              - dce
+        Artifacts:
+          Container: module.ll
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: stack_access_segregate.ll
+  - From: make-segment-ref
+    Steps:
       - Name: convert-to-mlir
         Pipes:
           - Type: llvm-pipe

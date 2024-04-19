@@ -3,8 +3,13 @@
 #
 
 revng_add_analyses_library(
-  revngcRemoveLiftingArtifacts revngc PromoteInitCSVToUndef.cpp
-  RemoveLiftingArtifacts.cpp MakeSegmentRefPass.cpp MakeSegmentRefPipe.cpp)
+  revngcRemoveLiftingArtifacts
+  revngc
+  CleanupIRPass.cpp
+  PromoteInitCSVToUndef.cpp
+  RemoveLiftingArtifacts.cpp
+  MakeSegmentRefPass.cpp
+  MakeSegmentRefPipe.cpp)
 
 target_link_libraries(
   revngcRemoveLiftingArtifacts
