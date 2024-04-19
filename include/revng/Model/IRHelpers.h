@@ -14,12 +14,12 @@
 
 inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   revng_assert(FunctionTags::Isolated.isTagOf(&F));
-  return getMetaAddressMetadata(&F, FunctionEntryMDNName);
+  return getMetaAddressMetadata(&F, FunctionEntryMDName);
 }
 
 inline model::Function *llvmToModelFunction(model::Binary &Binary,
                                             const llvm::Function &F) {
-  auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
+  auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;
   if (auto It = Binary.Functions().find(MaybeMetaAddress);
@@ -31,7 +31,7 @@ inline model::Function *llvmToModelFunction(model::Binary &Binary,
 
 inline const model::Function *llvmToModelFunction(const model::Binary &Binary,
                                                   const llvm::Function &F) {
-  auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
+  auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;
   if (auto It = Binary.Functions().find(MaybeMetaAddress);
