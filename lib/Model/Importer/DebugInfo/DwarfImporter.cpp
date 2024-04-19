@@ -428,20 +428,22 @@ private:
     TypesWithIdentityCount = Placeholders.size();
   }
 
-  static std::string getName(const DWARFDie &Die) {
-    auto MaybeName = Die.find(DW_AT_name);
-
-    if (MaybeName) {
+  std::string getName(const DWARFDie &Die) const {
+    if (auto MaybeName = Die.find(DW_AT_name)) {
       auto MaybeString = MaybeName->getAsCString();
       if (auto E = MaybeString.takeError()) {
         auto Message = toString(std::move(E));
         revng_log(DILogger, "Can't get DIE name: " << Message);
+        return {};
       } else {
         return *MaybeString;
       }
+    } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
+      DWARFDie Origin = DICtx.getDIEForOffset(*MaybeOrigin->getAsReference());
+      return getName(Origin);
+    } else {
+      return {};
     }
-
-    return {};
   }
 
   static bool isNoReturn(DWARFUnit &CU, const DWARFDie &Die) {
