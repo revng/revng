@@ -3,6 +3,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Architecture: x86_64
+
 Functions:
   - Entry: "0x400700:Code_x86_64"
     CustomName: "fn"
@@ -81,6 +83,7 @@ Types:
     Size: 16
   - Kind: RawFunctionType
     ID: 3008
+    Architecture: x86_64
     Arguments:
       - Location: rcx_x86_64
         Type:

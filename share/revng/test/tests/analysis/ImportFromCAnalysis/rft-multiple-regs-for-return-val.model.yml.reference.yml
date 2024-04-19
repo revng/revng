@@ -2,6 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Architecture: x86_64
+
 Functions:
   - Entry: "0x400000:Code_x86_64"
     CustomName: new_function_name
@@ -9,6 +11,7 @@ Functions:
 Types:
   - Kind: RawFunctionType
     ID: 3000
+    Architecture: x86_64
     Arguments:
       - Location: rcx_x86_64
         Type:

@@ -428,7 +428,9 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   revng_assert(not Layout.hasSPTAR());
   revng_assert(Layout.returnMethod() != ReturnMethod::ModelAggregate);
 
-  Header << B.getAnnotateABI("raw");
+  Header << B.getAnnotateABI(("raw_"
+                              + model::Architecture::getName(RF.Architecture()))
+                               .str());
   if (Function and not Function->Attributes().empty())
     Header << getFunctionAttributesString(Function->Attributes());
   Header << (SingleLine ? " " : "\n");

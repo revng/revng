@@ -2,10 +2,13 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Architecture: x86_64
+
 Types:
   - # stack_frame prototype
     Kind: RawFunctionType
     ID: 7412439904038490792
+    Architecture: x86_64
     FinalStackOffset: 8
     -StackArgumentsType: ""
   - # stack_frame stack frame
@@ -15,6 +18,7 @@ Types:
   - # stack_frame_array prototype
     Kind: RawFunctionType
     ID: 13776914522867493387
+    Architecture: x86_64
     FinalStackOffset: 8
   - # stack_frame_array stack frame
     Kind: StructType
@@ -24,6 +28,7 @@ Types:
   - # stack_arguments_64 prototype
     Kind: RawFunctionType
     ID: 962527246414399901
+    Architecture: x86_64
     FinalStackOffset: 8
     StackArgumentsType: "/Types/2914208048943782880-StructType"
   - # stack_arguments_64 stack arguments type
@@ -33,6 +38,7 @@ Types:
   - # stack_arguments_32 prototype
     Kind: RawFunctionType
     ID: 15643449473528100124
+    Architecture: x86_64
     FinalStackOffset: 8
     StackArgumentsType: "/Types/17628016926864895242-StructType"
   - # stack_arguments_32 stack arguments type
