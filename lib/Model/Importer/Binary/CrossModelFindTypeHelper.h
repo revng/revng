@@ -75,8 +75,9 @@ struct FunctionInfo {
   std::string ModuleName;
 };
 
-std::optional<FunctionInfo> findPrototype(llvm::StringRef FunctionName,
-                                          ModelMap &ModelsOfDynamicLibraries) {
+inline std::optional<FunctionInfo>
+findPrototype(llvm::StringRef FunctionName,
+              ModelMap &ModelsOfDynamicLibraries) {
   for (auto &ModelOfDep : ModelsOfDynamicLibraries) {
     auto Prototype = findPrototypeInLocalFunctions(ModelOfDep.second
                                                      ->Functions(),
