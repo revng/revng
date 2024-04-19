@@ -894,6 +894,7 @@ private:
   }
 
   void createFunctions() {
+    revng_log(DILogger, "Creating functions");
     for (const auto &CU : DICtx.compile_units()) {
       for (const auto &Entry : CU->dies()) {
         DWARFDie Die = { CU.get(), &Entry };
@@ -913,11 +914,20 @@ private:
         }
 
         if (LowPC.isValid()) {
+          revng_log(DILogger,
+                    "Found a subprogram with LowPC "
+                      << LowPC.toString() << " and name \"" << SymbolName
+                      << "\"");
+
           // Get/create the local function
           auto &Function = Model->Functions()[LowPC];
 
-          if (MaybePath && not Function.Prototype().isValid())
-            Function.Prototype() = *MaybePath;
+          if (MaybePath) {
+            if (not Function.Prototype().isValid())
+              Function.Prototype() = *MaybePath;
+          } else {
+            revng_log(DILogger, "Can't get the prototype");
+          }
 
           if (SymbolName.size() != 0) {
             Function.ExportedNames().insert(SymbolName);
@@ -1168,9 +1178,9 @@ static bool fileExists(const Twine &Path) {
   bool Result = sys::fs::exists(Path);
 
   if (Result) {
-    revng_log(DILogger, "The following path does not exist: " << Path.str());
-  } else {
     revng_log(DILogger, "Found: " << Path.str());
+  } else {
+    revng_log(DILogger, "The following path does not exist: " << Path.str());
   }
 
   return Result;
@@ -1335,6 +1345,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
+      revng_log(DILogger, "Importing " << TheDebugFile.str());
       T.advance("Parsing detached debug info file "
                   + llvm::sys::path::filename(TheDebugFile),
                 true);
