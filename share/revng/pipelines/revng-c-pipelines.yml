@@ -63,6 +63,13 @@ Branches:
               - instsimplify
               - dse
               - dce
+              # In Outliner we inject some store of opaque values before calls
+              # targeting the link register/top of the stack: the goal is make
+              # sure the stores writing the return address are dead.
+              # After the previous optimization pipeline, dead store elimination
+              # should have removed such stores, therefore, we can now drop
+              # those injected by us too.
+              - drop-opaque-return-address
       - Name: detect-stack-size
         Pipes:
           - Type: llvm-pipe
