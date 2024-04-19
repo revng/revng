@@ -1,7 +1,7 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-// RUN: diff <(revng clift-opt %s -o -) <(revng clift-opt %s -o - | revng clift-opt -o -)
+// RUN: diff <(%revngcliftopt %s -o -) <(%revngcliftopt %s -o - | %revngcliftopt -o -)
 !const_int32_t = !clift.primitive<is_const = true, SignedKind 4>
 !const_uint32_t = !clift.primitive<is_const = true, UnsignedKind 8>
 !int32_t = !clift.primitive<SignedKind 4>
