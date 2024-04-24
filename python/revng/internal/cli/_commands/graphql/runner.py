@@ -10,7 +10,7 @@ from typing import Awaitable, Callable, Iterable, List, Tuple
 
 import aiohttp
 import yaml
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout, ServerDisconnectedError
 from gql import Client, gql
 from gql.client import AsyncClientSession
 from gql.transport.aiohttp import AIOHTTPTransport
@@ -34,8 +34,14 @@ async def run_on_daemon(handler: DaemonHandler, runners: Iterable[Runner]):
     async with Client(
         transport=transport, fetch_schema_from_transport=True, execute_timeout=None
     ) as client:
-        for runner in runners:
-            await runner(client)
+        try:
+            for runner in runners:
+                await runner(client)
+        except ServerDisconnectedError:
+            log("Server disconnected, aborting")
+            return 1
+
+    return 0
 
 
 def upload_file(executable_path: str):

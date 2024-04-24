@@ -75,13 +75,15 @@ class GraphQLCommand(Command):
         if args.produce_artifacts:
             runners.append(produce_artifacts(args.filter_artifacts))
 
-        asyncio.run(run_on_daemon(self.daemon_handler, runners))
+        run_rc = asyncio.run(run_on_daemon(self.daemon_handler, runners))
+        if run_rc != 0:
+            self.log(f"run_on_daemon exited with code {run_rc}")
 
         rc = self.daemon_handler.terminate()
         if rc != 0:
-            raise RuntimeError(f"Daemon exited with code {rc}")
+            self.log(f"Daemon exited with code {rc}")
 
-        return 0
+        return 1 if run_rc != 0 or rc != 0 else 0
 
     @staticmethod
     def log(string: str):
