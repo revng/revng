@@ -23,7 +23,8 @@ USAGE: revng-artifact [options] <artifact> <binary>
   emit-helpers-header         - text/x.c+ptml
   emit-model-header           - text/x.c+ptml
   emit-type-definitions       - text/x.c+tar+gz
-  convert-to-mlir             - text/mlir
+  convert-to-mlir             - application/x.mlir.bc
+  import-clift-types          - application/x.mlir.bc
 ```
 
 ## MIME types
@@ -47,6 +48,7 @@ The most common *base* MIME types we use are:
 * `application/x.llvm.bc`: LLVM IR in its binary representation (also known as bitcode).
 * `text/x.hexdump`: an ASCII representation of raw bytes.
 * `text/mlir`: MLIR IR in its textual representation.
+* `application/x.mlir.bc`: MLIR IR in its bytecode representation.
 * `text/x.yaml`: a YAML dictionary, with one key for each function.
 
 MIME types that are not `text/*` or `image/svg` will be transmitted over GraphQL via Base64 encoding
