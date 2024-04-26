@@ -29,33 +29,33 @@ namespace mlir::clift {
 // discourse.llvm.org/t/custom-walk-and-replace-for-non-tablegen-types/74229
 // This is very brittle and it is very likely that it will change again in
 // future llvm releases
-struct StructTypeStorage;
-class StructType
-  : public ::mlir::Attribute::AttrBase<StructType,
-                                       Attribute,
-                                       StructTypeStorage,
-                                       SubElementAttrInterface::Trait,
-                                       SizedType::Trait,
-                                       TypeDefinition::Trait,
-                                       AliasableAttr::Trait,
-                                       AttributeTrait::IsMutable> {
+struct StructTypeAttrStorage;
+class StructTypeAttr
+  : public mlir::Attribute::AttrBase<StructTypeAttr,
+                                     Attribute,
+                                     StructTypeAttrStorage,
+                                     SubElementAttrInterface::Trait,
+                                     SizedType::Trait,
+                                     TypeDefinition::Trait,
+                                     AliasableAttr::Trait,
+                                     AttributeTrait::IsMutable> {
 public:
   using Base::Base;
 
-  static StructType get(MLIRContext *Context, uint64_t ID);
+  static StructTypeAttr get(MLIRContext *Context, uint64_t ID);
 
-  static StructType
+  static StructTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID);
 
-  static StructType get(MLIRContext *Context,
-                        uint64_t ID,
-                        llvm::StringRef Name,
-                        uint64_t Size,
-                        llvm::ArrayRef<FieldAttr> Fields);
+  static StructTypeAttr get(MLIRContext *Context,
+                            uint64_t ID,
+                            llvm::StringRef Name,
+                            uint64_t Size,
+                            llvm::ArrayRef<FieldAttr> Fields);
 
-  static StructType
+  static StructTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID,
@@ -93,31 +93,31 @@ public:
                                         ArrayRef<Type> replTypes) const;
 };
 
-struct UnionTypeStorage;
-class UnionType : public Attribute::AttrBase<UnionType,
-                                             Attribute,
-                                             UnionTypeStorage,
-                                             SubElementAttrInterface::Trait,
-                                             SizedType::Trait,
-                                             TypeDefinition::Trait,
-                                             AliasableAttr::Trait,
-                                             AttributeTrait::IsMutable> {
+struct UnionTypeAttrStorage;
+class UnionTypeAttr : public Attribute::AttrBase<UnionTypeAttr,
+                                                 Attribute,
+                                                 UnionTypeAttrStorage,
+                                                 SubElementAttrInterface::Trait,
+                                                 SizedType::Trait,
+                                                 TypeDefinition::Trait,
+                                                 AliasableAttr::Trait,
+                                                 AttributeTrait::IsMutable> {
 public:
   using Base::Base;
 
-  static UnionType get(MLIRContext *Context, uint64_t ID);
+  static UnionTypeAttr get(MLIRContext *Context, uint64_t ID);
 
-  static UnionType
+  static UnionTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID);
 
-  static UnionType get(MLIRContext *Context,
-                       uint64_t ID,
-                       llvm::StringRef Name,
-                       llvm::ArrayRef<FieldAttr> Fields);
+  static UnionTypeAttr get(MLIRContext *Context,
+                           uint64_t ID,
+                           llvm::StringRef Name,
+                           llvm::ArrayRef<FieldAttr> Fields);
 
-  static UnionType
+  static UnionTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID,

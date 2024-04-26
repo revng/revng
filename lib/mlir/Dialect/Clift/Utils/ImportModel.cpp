@@ -307,7 +307,7 @@ private:
   getTypeAttribute(const model::StructType &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::StructType::get(Context, ModelType.ID());
+      const auto T = clift::StructTypeAttr::get(Context, ModelType.ID());
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -316,7 +316,8 @@ private:
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
-        EmitError() << "Recursive definition of StructType " << ModelType.ID();
+        EmitError() << "Recursive definition of StructTypeAttr "
+                    << ModelType.ID();
       rc_return nullptr;
     }
 
@@ -336,10 +337,10 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::StructType>(ModelType.ID(),
-                                      ModelType.name(),
-                                      ModelType.Size(),
-                                      Fields);
+    rc_return make<clift::StructTypeAttr>(ModelType.ID(),
+                                          ModelType.name(),
+                                          ModelType.Size(),
+                                          Fields);
   }
 
   RecursiveCoroutine<clift::TypeDefinition>
@@ -370,7 +371,7 @@ private:
   getTypeAttribute(const model::UnionType &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::UnionType::get(Context, ModelType.ID());
+      const auto T = clift::UnionTypeAttr::get(Context, ModelType.ID());
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -379,7 +380,8 @@ private:
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
-        EmitError() << "Recursive definition of UnionType " << ModelType.ID();
+        EmitError() << "Recursive definition of UnionTypeAttr "
+                    << ModelType.ID();
       rc_return nullptr;
     }
 
@@ -397,7 +399,9 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::UnionType>(ModelType.ID(), ModelType.name(), Fields);
+    rc_return make<clift::UnionTypeAttr>(ModelType.ID(),
+                                         ModelType.name(),
+                                         Fields);
   }
 
   RecursiveCoroutine<clift::TypeDefinition>

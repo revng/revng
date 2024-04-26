@@ -29,11 +29,12 @@
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
 void mlir::clift::CliftDialect::registerAttributes() {
-  addAttributes<StructType, UnionType, /* Include the auto-generated clift types
-                                        */
+  addAttributes<StructTypeAttr, UnionTypeAttr,
+
+  // Include the list of auto-generated attributes
 #define GET_ATTRDEF_LIST
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.cpp.inc"
-                /* End of types list */>();
+                /* End of auto-generated list */>();
 }
 
 mlir::LogicalResult mlir::clift::FieldAttr::verify(EmitErrorType EmitError,
@@ -119,11 +120,11 @@ mlir::clift::CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
   auto ParseResult = generatedAttributeParser(Parser, &Mnemonic, Type, GenAttr);
   if (ParseResult.has_value())
     return GenAttr;
-  if (Mnemonic == StructType::getMnemonic()) {
-    return StructType::parse(Parser);
+  if (Mnemonic == StructTypeAttr::getMnemonic()) {
+    return StructTypeAttr::parse(Parser);
   }
-  if (Mnemonic == UnionType::getMnemonic()) {
-    return UnionType::parse(Parser);
+  if (Mnemonic == UnionTypeAttr::getMnemonic()) {
+    return UnionTypeAttr::parse(Parser);
   }
 
   Parser.emitError(typeLoc) << "unknown  attr `" << Mnemonic << "` in dialect `"
@@ -138,39 +139,39 @@ void mlir::clift::CliftDialect::printAttribute(mlir::Attribute Attr,
 
   if (mlir::succeeded(generatedAttributePrinter(Attr, Printer)))
     return;
-  if (auto Casted = Attr.dyn_cast<StructType>()) {
+  if (auto Casted = Attr.dyn_cast<StructTypeAttr>()) {
     Casted.print(Printer);
     return;
   }
-  if (auto Casted = Attr.dyn_cast<UnionType>()) {
+  if (auto Casted = Attr.dyn_cast<UnionTypeAttr>()) {
     Casted.print(Printer);
     return;
   }
   revng_abort("cannot print attribute");
 }
 
-void mlir::clift::UnionType::print(AsmPrinter &Printer) const {
+void mlir::clift::UnionTypeAttr::print(AsmPrinter &Printer) const {
   printCompositeType(Printer, *this);
 }
 
-void mlir::clift::StructType::print(AsmPrinter &Printer) const {
+void mlir::clift::StructTypeAttr::print(AsmPrinter &Printer) const {
   printCompositeType(Printer, *this);
 }
 
-mlir::Attribute mlir::clift::UnionType::parse(AsmParser &Parser) {
-  return parseCompositeType<UnionType>(Parser, /*MinSubobjects=*/1);
+mlir::Attribute mlir::clift::UnionTypeAttr::parse(AsmParser &Parser) {
+  return parseCompositeType<UnionTypeAttr>(Parser, /*MinSubobjects=*/1);
 }
 
-mlir::Attribute mlir::clift::StructType::parse(AsmParser &Parser) {
-  return parseCompositeType<StructType>(Parser, /*MinSubobjects=*/0);
+mlir::Attribute mlir::clift::StructTypeAttr::parse(AsmParser &Parser) {
+  return parseCompositeType<StructTypeAttr>(Parser, /*MinSubobjects=*/0);
 }
 
 static bool isCompleteType(const mlir::Type Type) {
   if (auto T = mlir::dyn_cast<mlir::clift::DefinedType>(Type)) {
     auto Definition = T.getElementType();
-    if (auto D = mlir::dyn_cast<mlir::clift::StructType>(Definition))
+    if (auto D = mlir::dyn_cast<mlir::clift::StructTypeAttr>(Definition))
       return D.isDefinition();
-    if (auto D = mlir::dyn_cast<mlir::clift::UnionType>(Definition))
+    if (auto D = mlir::dyn_cast<mlir::clift::UnionTypeAttr>(Definition))
       return D.isDefinition();
     return true;
   }
@@ -181,17 +182,17 @@ static bool isCompleteType(const mlir::Type Type) {
   return true;
 }
 
-mlir::LogicalResult mlir::clift::StructType::verify(EmitErrorType EmitError,
-                                                    uint64_t ID) {
+mlir::LogicalResult mlir::clift::StructTypeAttr::verify(EmitErrorType EmitError,
+                                                        uint64_t ID) {
   return mlir::success();
 }
 
 mlir::LogicalResult
-mlir::clift::StructType::verify(const EmitErrorType EmitError,
-                                const uint64_t ID,
-                                llvm::StringRef,
-                                const uint64_t Size,
-                                const llvm::ArrayRef<FieldAttr> Fields) {
+mlir::clift::StructTypeAttr::verify(const EmitErrorType EmitError,
+                                    const uint64_t ID,
+                                    const llvm::StringRef Name,
+                                    const uint64_t Size,
+                                    const llvm::ArrayRef<FieldAttr> Fields) {
   if (Size == 0)
     return EmitError() << "struct type cannot have a size of zero";
 
@@ -227,16 +228,16 @@ mlir::clift::StructType::verify(const EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::LogicalResult mlir::clift::UnionType::verify(EmitErrorType EmitError,
-                                                   uint64_t ID) {
+mlir::LogicalResult mlir::clift::UnionTypeAttr::verify(EmitErrorType EmitError,
+                                                       uint64_t ID) {
   return mlir::success();
 }
 
 mlir::LogicalResult
-mlir::clift::UnionType::verify(EmitErrorType EmitError,
-                               uint64_t ID,
-                               llvm::StringRef,
-                               llvm::ArrayRef<FieldAttr> Fields) {
+mlir::clift::UnionTypeAttr::verify(EmitErrorType EmitError,
+                                   uint64_t ID,
+                                   llvm::StringRef,
+                                   llvm::ArrayRef<FieldAttr> Fields) {
   if (Fields.empty())
     return EmitError() << "union types must have at least one field";
 
@@ -257,77 +258,78 @@ mlir::clift::UnionType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::clift::StructType mlir::clift::StructType::get(MLIRContext *Context,
-                                                     uint64_t ID) {
+mlir::clift::StructTypeAttr
+mlir::clift::StructTypeAttr::get(MLIRContext *Context, uint64_t ID) {
   return Base::get(Context, ID);
 }
 
-mlir::clift::StructType
-mlir::clift::StructType::getChecked(EmitErrorType EmitError,
-                                    MLIRContext *Context,
-                                    uint64_t ID) {
+mlir::clift::StructTypeAttr
+mlir::clift::StructTypeAttr::getChecked(EmitErrorType EmitError,
+                                        MLIRContext *Context,
+                                        uint64_t ID) {
   return get(Context, ID);
 }
 
-mlir::clift::StructType
-mlir::clift::StructType::get(MLIRContext *Context,
-                             uint64_t ID,
-                             llvm::StringRef Name,
-                             uint64_t Size,
-                             llvm::ArrayRef<FieldAttr> Fields) {
+mlir::clift::StructTypeAttr
+mlir::clift::StructTypeAttr::get(MLIRContext *Context,
+                                 uint64_t ID,
+                                 llvm::StringRef Name,
+                                 uint64_t Size,
+                                 llvm::ArrayRef<FieldAttr> Fields) {
   auto Result = Base::get(Context, ID);
   Result.define(Name, Size, Fields);
   return Result;
 }
 
-mlir::clift::StructType
-mlir::clift::StructType::getChecked(EmitErrorType EmitError,
-                                    MLIRContext *Context,
-                                    uint64_t ID,
-                                    llvm::StringRef Name,
-                                    uint64_t Size,
-                                    llvm::ArrayRef<FieldAttr> Fields) {
+mlir::clift::StructTypeAttr
+mlir::clift::StructTypeAttr::getChecked(EmitErrorType EmitError,
+                                        MLIRContext *Context,
+                                        uint64_t ID,
+                                        llvm::StringRef Name,
+                                        uint64_t Size,
+                                        llvm::ArrayRef<FieldAttr> Fields) {
   if (failed(verify(EmitError, ID, Name, Size, Fields)))
     return {};
   return get(Context, ID, Name, Size, Fields);
 }
 
-mlir::clift::UnionType mlir::clift::UnionType::get(MLIRContext *Context,
-                                                   uint64_t ID) {
+mlir::clift::UnionTypeAttr mlir::clift::UnionTypeAttr::get(MLIRContext *Context,
+                                                           uint64_t ID) {
   return Base::get(Context, ID);
 }
 
-mlir::clift::UnionType
-mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
-                                   MLIRContext *Context,
-                                   uint64_t ID) {
+mlir::clift::UnionTypeAttr
+mlir::clift::UnionTypeAttr::getChecked(EmitErrorType EmitError,
+                                       MLIRContext *Context,
+                                       uint64_t ID) {
   return get(Context, ID);
 }
 
-mlir::clift::UnionType
-mlir::clift::UnionType::get(MLIRContext *Context,
-                            uint64_t ID,
-                            llvm::StringRef Name,
-                            llvm::ArrayRef<FieldAttr> Fields) {
+mlir::clift::UnionTypeAttr
+mlir::clift::UnionTypeAttr::get(MLIRContext *Context,
+                                uint64_t ID,
+                                llvm::StringRef Name,
+                                llvm::ArrayRef<FieldAttr> Fields) {
   auto Result = Base::get(Context, ID);
   Result.define(Name, Fields);
   return Result;
 }
 
-mlir::clift::UnionType
-mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
-                                   MLIRContext *Context,
-                                   uint64_t ID,
-                                   llvm::StringRef Name,
-                                   llvm::ArrayRef<FieldAttr> Fields) {
+mlir::clift::UnionTypeAttr
+mlir::clift::UnionTypeAttr::getChecked(EmitErrorType EmitError,
+                                       MLIRContext *Context,
+                                       uint64_t ID,
+                                       llvm::StringRef Name,
+                                       llvm::ArrayRef<FieldAttr> Fields) {
   if (failed(verify(EmitError, ID, Name, Fields)))
     return {};
   return get(Context, ID, Name, Fields);
 }
 
-void mlir::clift::StructType::define(const llvm::StringRef Name,
-                                     const uint64_t Size,
-                                     const llvm::ArrayRef<FieldAttr> Fields) {
+void mlir::clift::StructTypeAttr::define(const llvm::StringRef Name,
+                                         const uint64_t Size,
+                                         const llvm::ArrayRef<FieldAttr>
+                                           Fields) {
   // Call into the base to mutate the type.
   LogicalResult Result = Base::mutate(Name, Fields, Size);
 
@@ -338,8 +340,9 @@ void mlir::clift::StructType::define(const llvm::StringRef Name,
                   "type");
 }
 
-void mlir::clift::UnionType::define(const llvm::StringRef Name,
-                                    const llvm::ArrayRef<FieldAttr> Fields) {
+void mlir::clift::UnionTypeAttr::define(const llvm::StringRef Name,
+                                        const llvm::ArrayRef<FieldAttr>
+                                          Fields) {
   // Call into the base to mutate the type.
   LogicalResult Result = Base::mutate(Name, Fields);
 
@@ -350,49 +353,49 @@ void mlir::clift::UnionType::define(const llvm::StringRef Name,
                   "type");
 }
 
-uint64_t mlir::clift::StructType::getId() const {
+uint64_t mlir::clift::StructTypeAttr::getId() const {
   return getImpl()->getID();
 }
 
-llvm::StringRef mlir::clift::StructType::getName() const {
+llvm::StringRef mlir::clift::StructTypeAttr::getName() const {
   return getImpl()->getName();
 }
 
 llvm::ArrayRef<mlir::clift::FieldAttr>
-mlir::clift::StructType::getFields() const {
+mlir::clift::StructTypeAttr::getFields() const {
   return getImpl()->getSubobjects();
 }
 
-bool mlir::clift::StructType::isDefinition() const {
+bool mlir::clift::StructTypeAttr::isDefinition() const {
   return getImpl()->isInitialized();
 }
 
-uint64_t mlir::clift::StructType::getByteSize() const {
+uint64_t mlir::clift::StructTypeAttr::getByteSize() const {
   return getImpl()->getSize();
 }
 
-std::string mlir::clift::StructType::getAlias() const {
+std::string mlir::clift::StructTypeAttr::getAlias() const {
   return getName().str();
 }
 
-uint64_t mlir::clift::UnionType::getId() const {
+uint64_t mlir::clift::UnionTypeAttr::getId() const {
   return getImpl()->getID();
 }
 
-llvm::StringRef mlir::clift::UnionType::getName() const {
+llvm::StringRef mlir::clift::UnionTypeAttr::getName() const {
   return getImpl()->getName();
 }
 
 llvm::ArrayRef<mlir::clift::FieldAttr>
-mlir::clift::UnionType::getFields() const {
+mlir::clift::UnionTypeAttr::getFields() const {
   return getImpl()->getSubobjects();
 }
 
-bool mlir::clift::UnionType::isDefinition() const {
+bool mlir::clift::UnionTypeAttr::isDefinition() const {
   return getImpl()->isInitialized();
 }
 
-uint64_t mlir::clift::UnionType::getByteSize() const {
+uint64_t mlir::clift::UnionTypeAttr::getByteSize() const {
   uint64_t Max = 0;
   for (const auto &Field : getFields()) {
     mlir::Type FieldType = Field.getType();
@@ -402,7 +405,7 @@ uint64_t mlir::clift::UnionType::getByteSize() const {
   return Max;
 }
 
-std::string mlir::clift::UnionType::getAlias() const {
+std::string mlir::clift::UnionTypeAttr::getAlias() const {
   return getName().str();
 }
 

@@ -70,10 +70,12 @@ BOOST_AUTO_TEST_CASE(CliftModuleCannotContaintTypesWithSameID) {
   builder.createBlock(&cliftModule.getBody());
   auto TrueAttr = mlir::BoolAttr::get(&context, true);
   auto T1 = mlir::TypeAttr::get(DefinedType::get(&context,
-                                                 StructType::get(&context, 1),
+                                                 StructTypeAttr::get(&context,
+                                                                     1),
                                                  TrueAttr));
   auto T2 = mlir::TypeAttr::get(DefinedType::get(&context,
-                                                 UnionType::get(&context, 1),
+                                                 UnionTypeAttr::get(&context,
+                                                                    1),
                                                  TrueAttr));
   cliftModule->setAttr("dc", T1);
   cliftModule->setAttr("dc2", T2);
@@ -112,7 +114,7 @@ BOOST_AUTO_TEST_CASE(LabelsWithAGoToWithoutAssignMustFail) {
 }
 
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainThemself) {
-  auto UnionAttrT = mlir::clift::UnionType::get(builder.getContext(), 0);
+  auto UnionAttrT = mlir::clift::UnionTypeAttr::get(builder.getContext(), 0);
   using DefinedT = mlir::clift::DefinedType;
   auto UnionT = DefinedT::get(builder.getContext(),
                               UnionAttrT,

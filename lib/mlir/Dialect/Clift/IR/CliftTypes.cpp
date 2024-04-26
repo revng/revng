@@ -278,40 +278,38 @@ EnumAttr::verify(EmitErrorType emitError,
 
   return mlir::success();
 }
-void UnionType::walkImmediateSubElements(function_ref<void(Attribute)>
-                                           walkAttrsFn,
-                                         function_ref<void(Type)> walkTypesFn)
+
+void UnionTypeAttr::walkImmediateSubElements(function_ref<void(Attribute)>
+                                               WalkAttr,
+                                             function_ref<void(Type)> WalkType)
   const {
   if (not getImpl()->isInitialized())
     return;
   for (auto Field : getFields())
-    walkAttrsFn(Field);
+    WalkAttr(Field);
 }
 
 mlir::Attribute
-UnionType::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>
-                                         replAttrs,
-                                       llvm::ArrayRef<mlir::Type> replTypes)
-  const {
+UnionTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
+                                           llvm::ArrayRef<mlir::Type>) const {
   revng_abort("it does not make any sense to replace the elements of a "
-              "defined Union");
+              "defined union");
+  return {};
 }
 
-void StructType::walkImmediateSubElements(function_ref<void(Attribute)>
-                                            walkAttrsFn,
-                                          function_ref<void(Type)> walkTypesFn)
+void StructTypeAttr::walkImmediateSubElements(function_ref<void(Attribute)>
+                                                WalkAttr,
+                                              function_ref<void(Type)> WalkType)
   const {
   if (not getImpl()->isInitialized())
     return;
   for (auto Field : getFields())
-    walkAttrsFn(Field);
+    WalkAttr(Field);
 }
 
 mlir::Attribute
-StructType::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>
-                                          replAttrs,
-                                        llvm::ArrayRef<mlir::Type> replTypes)
-  const {
+StructTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
+                                            llvm::ArrayRef<mlir::Type>) const {
   revng_abort("it does not make any sense to replace the elements of a "
               "defined struct");
 }
@@ -450,9 +448,8 @@ void ScalarTupleType::walkImmediateSubElements(function_ref<void(Attribute)>
   }
 }
 
-mlir::Type
-ScalarTupleType::replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
-                                             ArrayRef<Type> NewTypes) const {
+mlir::Type ScalarTupleType::replaceImmediateSubElements(ArrayRef<Attribute>,
+                                                        ArrayRef<Type>) const {
   revng_abort("it does not make any sense to replace the elements of a "
               "scalar tuple");
 }
