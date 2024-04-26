@@ -109,12 +109,12 @@ FunctionAttr::verify(EmitErrorType EmitError,
 }
 
 /// Parse a type registered to this dialect
-::mlir::Attribute
-mlir::clift::CliftDialect::parseAttribute(::mlir::DialectAsmParser &Parser,
+mlir::Attribute
+mlir::clift::CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
                                           mlir::Type Type) const {
-  ::llvm::SMLoc typeLoc = Parser.getCurrentLocation();
-  ::llvm::StringRef Mnemonic;
-  ::mlir::Attribute GenAttr;
+  llvm::SMLoc typeLoc = Parser.getCurrentLocation();
+  llvm::StringRef Mnemonic;
+  mlir::Attribute GenAttr;
 
   auto ParseResult = generatedAttributeParser(Parser, &Mnemonic, Type, GenAttr);
   if (ParseResult.has_value())
@@ -132,11 +132,11 @@ mlir::clift::CliftDialect::parseAttribute(::mlir::DialectAsmParser &Parser,
 }
 
 /// Print a type registered to this dialect
-void mlir::clift::CliftDialect::printAttribute(::mlir::Attribute Attr,
-                                               ::mlir::DialectAsmPrinter
-                                                 &Printer) const {
+void mlir::clift::CliftDialect::printAttribute(mlir::Attribute Attr,
+                                               mlir::DialectAsmPrinter &Printer)
+  const {
 
-  if (::mlir::succeeded(generatedAttributePrinter(Attr, Printer)))
+  if (mlir::succeeded(generatedAttributePrinter(Attr, Printer)))
     return;
   if (auto Casted = Attr.dyn_cast<StructType>()) {
     Casted.print(Printer);

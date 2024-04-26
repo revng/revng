@@ -48,11 +48,11 @@ mlir::clift::CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
 }
 
 /// Print a type registered to this dialect
-void mlir::clift::CliftDialect::printType(::mlir::Type Type,
-                                          ::mlir::DialectAsmPrinter &Printer)
+void mlir::clift::CliftDialect::printType(mlir::Type Type,
+                                          mlir::DialectAsmPrinter &Printer)
   const {
 
-  if (::mlir::succeeded(generatedTypePrinter(Type, Printer)))
+  if (mlir::succeeded(generatedTypePrinter(Type, Printer)))
     return;
 
   if (auto T = mlir::dyn_cast<ScalarTupleType>(Type))
@@ -148,10 +148,10 @@ uint64_t mlir::clift::FunctionAttr::getByteSize() const {
   return 0;
 }
 
-::mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
-                                          mlir::clift::ValueType element_type,
-                                          uint64_t pointer_size,
-                                          BoolAttr IsConst) {
+mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
+                                        mlir::clift::ValueType element_type,
+                                        uint64_t pointer_size,
+                                        BoolAttr IsConst) {
   switch (pointer_size) {
   case 4:
   case 8:
@@ -162,17 +162,17 @@ uint64_t mlir::clift::FunctionAttr::getByteSize() const {
   return mlir::success();
 }
 
-::mlir::LogicalResult
+mlir::LogicalResult
 DefinedType::verify(EmitErrorType emitError,
                     mlir::clift::TypeDefinition element_type,
                     BoolAttr IsConst) {
   return mlir::success();
 }
 
-::mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
-                                        mlir::clift::ValueType element_type,
-                                        uint64_t count,
-                                        BoolAttr IsConst) {
+mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
+                                      mlir::clift::ValueType element_type,
+                                      uint64_t count,
+                                      BoolAttr IsConst) {
   if (count == 0) {
     return emitError() << "array type cannot have zero elements";
   }
@@ -197,12 +197,12 @@ static mlir::Type dealias(mlir::Type Type) {
 }
 
 using namespace mlir::clift;
-::mlir::LogicalResult
+mlir::LogicalResult
 EnumAttr::verify(EmitErrorType emitError,
                  uint64_t ID,
-                 ::llvm::StringRef,
+                 llvm::StringRef,
                  mlir::Type UnderlyingType,
-                 ::llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
+                 llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
   UnderlyingType = dealias(UnderlyingType);
 
   if (not UnderlyingType.isa<mlir::clift::PrimitiveType>())

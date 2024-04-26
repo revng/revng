@@ -8,11 +8,11 @@
 include "mlir/IR/OpBase.td"
 
 class Clift_TypeInterface<string name> : TypeInterface<name> {
-    let cppNamespace = "::mlir::clift";
+    let cppNamespace = "mlir::clift";
 }
 
 class Clift_AttrInterface<string name> : AttrInterface<name> {
-    let cppNamespace = "::mlir::clift";
+    let cppNamespace = "mlir::clift";
 }
 
 def AliasableAttr: Clift_AttrInterface<"AliasableAttr"> {
@@ -104,6 +104,6 @@ def TypeDefinition : Clift_AttrInterface<"TypeDefinition"> {
 
 }
 
-def AnyValueType: Type<CPred<"::llvm::isa<::mlir::clift::ValueType>($_self)">, "cliftValue", "::mlir::clift::ValueType">;
+def AnyValueType: Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">, "cliftValue", "mlir::clift::ValueType">;
 #endif
 

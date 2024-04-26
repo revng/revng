@@ -141,18 +141,18 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
   Iterator->second = Object.getImpl();
 
   using SubobjectType = typename ObjectT::ImplType::SubobjectTy;
-  using SubobjectVectorType = ::llvm::SmallVector<SubobjectType>;
-  using SubobjectParserType = ::mlir::FieldParser<SubobjectVectorType>;
-  ::mlir::FailureOr<SubobjectVectorType> Subobjects(SubobjectVectorType{});
+  using SubobjectVectorType = llvm::SmallVector<SubobjectType>;
+  using SubobjectParserType = mlir::FieldParser<SubobjectVectorType>;
+  mlir::FailureOr<SubobjectVectorType> Subobjects(SubobjectVectorType{});
 
   if (MinSubobjects > 0 or Parser.parseOptionalRSquare().failed()) {
     Subobjects = SubobjectParserType::parse(Parser);
 
-    if (::mlir::failed(Subobjects)) {
+    if (mlir::failed(Subobjects)) {
       Parser.emitError(Parser.getCurrentLocation(),
                        "failed to parse class type parameter 'fields' "
                        "which is to be a "
-                       "`::llvm::ArrayRef<mlir::clift::FieldAttr>`");
+                       "`llvm::ArrayRef<mlir::clift::FieldAttr>`");
     }
 
     if (Subobjects->size() < MinSubobjects) {

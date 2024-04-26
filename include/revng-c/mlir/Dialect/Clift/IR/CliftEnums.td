@@ -15,7 +15,7 @@ def PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
     I32EnumAttrCase<"SignedKind", 6>,
     I32EnumAttrCase<"FloatKind", 7>,
   ]> {
-  let cppNamespace = "::mlir::clift";
+  let cppNamespace = "mlir::clift";
   // since we want to wrap this enum into a clift type, do not generate
   // attribute wrapping it.
   let genSpecializedAttr = 0;
