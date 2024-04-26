@@ -189,8 +189,11 @@ uint64_t EnumTypeAttr::getByteSize() const {
   return mlir::cast<PrimitiveType>(getUnderlyingType()).getSize();
 }
 
-std::string EnumTypeAttr::getAlias() const {
-  return getName().str();
+bool EnumTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
 }
 
 //===--------------------------- TypedefTypeAttr --------------------------===//
@@ -206,8 +209,11 @@ uint64_t TypedefTypeAttr::getByteSize() const {
   return getUnderlyingType().getByteSize();
 }
 
-std::string TypedefTypeAttr::getAlias() const {
-  return getName().str();
+bool TypedefTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
 }
 
 //===------------------------ FunctionArgumentAttr ------------------------===//
@@ -245,8 +251,11 @@ uint64_t FunctionTypeAttr::getByteSize() const {
   return 0;
 }
 
-std::string FunctionTypeAttr::getAlias() const {
-  return getName().str();
+bool FunctionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
 }
 
 //===----------------------- ScalarTupleElementAttr -----------------------===//
@@ -367,8 +376,11 @@ uint64_t StructTypeAttr::getByteSize() const {
   return getImpl()->getSize();
 }
 
-std::string StructTypeAttr::getAlias() const {
-  return getName().str();
+bool StructTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
 }
 
 mlir::Attribute StructTypeAttr::parse(AsmParser &Parser) {
@@ -489,8 +501,11 @@ uint64_t UnionTypeAttr::getByteSize() const {
   return Max;
 }
 
-std::string UnionTypeAttr::getAlias() const {
-  return getName().str();
+bool UnionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
 }
 
 mlir::Attribute UnionTypeAttr::parse(AsmParser &Parser) {

@@ -77,7 +77,7 @@ public:
 
   [[nodiscard]] bool isComplete() const;
   [[nodiscard]] uint64_t getByteSize() const;
-  [[nodiscard]] std::string getAlias() const;
+  [[nodiscard]] bool getAlias(llvm::raw_ostream &OS) const;
   [[nodiscard]] BoolAttr getIsConst() const;
 
   static Type parse(AsmParser &Parser);

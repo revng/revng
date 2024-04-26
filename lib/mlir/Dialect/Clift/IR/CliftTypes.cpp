@@ -119,10 +119,12 @@ mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-std::string PrimitiveType::getAlias() const {
+bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
   model::PrimitiveType Type(kindToKind(getKind()), getByteSize());
-  return isConst() ? std::string("const_") + serializeToString(Type.name()) :
-                     serializeToString(Type.name());
+  OS << serializeToString(Type.name());
+  if (isConst())
+    OS << "$const";
+  return true;
 }
 
 //===----------------------------- PointerType ----------------------------===//
@@ -183,13 +185,16 @@ uint64_t DefinedType::getByteSize() const {
   return mlir::cast<SizedType>(getElementType()).getByteSize();
 }
 
-std::string DefinedType::getAlias() const {
-  if (auto Casted = getElementType().dyn_cast<AliasableAttr>()) {
-    if (Casted.getAlias().empty())
-      return "";
-    return isConst() ? "const_" + Casted.getAlias() : Casted.getAlias();
-  }
-  return "";
+bool DefinedType::getAlias(llvm::raw_ostream &OS) const {
+  const llvm::StringRef Name = getElementType().name();
+
+  if (Name.empty())
+    return false;
+
+  OS << Name;
+  if (isConst())
+    OS << "$const";
+  return true;
 }
 
 //===--------------------------- ScalarTupleType --------------------------===//
@@ -285,8 +290,11 @@ uint64_t ScalarTupleType::getByteSize() const {
   return Size;
 }
 
-std::string ScalarTupleType::getAlias() const {
-  return getName().str();
+bool ScalarTupleType::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$tuple";
+  return true;
 }
 
 mlir::BoolAttr ScalarTupleType::getIsConst() const {

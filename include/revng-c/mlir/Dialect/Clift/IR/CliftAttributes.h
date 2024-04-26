@@ -74,7 +74,7 @@ public:
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
-  std::string getAlias() const;
+  bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
@@ -134,7 +134,7 @@ public:
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
-  std::string getAlias() const;
+  bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;

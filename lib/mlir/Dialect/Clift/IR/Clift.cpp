@@ -17,24 +17,18 @@ public:
 
   AliasResult getAlias(mlir::Attribute Attr,
                        llvm::raw_ostream &OS) const final {
-    if (auto Casted = Attr.dyn_cast<mlir::clift::AliasableAttr>()) {
-      if (not Casted.getAlias().empty()) {
-        OS << Casted.getAlias();
+    if (auto Aliasable = mlir::dyn_cast<mlir::clift::AliasableAttr>(Attr)) {
+      if (Aliasable.getAlias(OS))
         return AliasResult::FinalAlias;
-      }
     }
-
     return AliasResult::NoAlias;
   }
 
   AliasResult getAlias(mlir::Type Type, llvm::raw_ostream &OS) const final {
-    if (auto Casted = Type.dyn_cast<mlir::clift::AliasableType>()) {
-      if (not Casted.getAlias().empty()) {
-        OS << Casted.getAlias();
+    if (auto Aliasable = mlir::dyn_cast<mlir::clift::AliasableType>(Type)) {
+      if (Aliasable.getAlias(OS))
         return AliasResult::FinalAlias;
-      }
     }
-
     return AliasResult::NoAlias;
   }
 };

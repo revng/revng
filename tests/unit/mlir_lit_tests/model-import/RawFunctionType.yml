@@ -18,13 +18,13 @@ Types:
         Type:
           UnqualifiedType: "/Types/108-PrimitiveType"
 
-    # CHECK: #my_function1_ = #clift.function<
+    # CHECK: #my_function1$def = #clift.function<
     # CHECK:   id = 1000
     # CHECK:   name = "my_function1"
     # CHECK:   return_type = !void
     # CHECK:   argument_types = []
     # CHECK: >
-    # CHECK: !my_function1_1 = !clift.defined<#my_function1_>
+    # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
   - ID: 1000
     Kind: RawFunctionType
     CustomName: "my_function1"
@@ -34,7 +34,7 @@ Types:
     PreservedRegisters: []
     FinalStackOffset: 0
 
-    # CHECK: #my_function2_ = #clift.function<
+    # CHECK: #my_function2$def = #clift.function<
     # CHECK:   id = 1001
     # CHECK:   name = "my_function2"
     # CHECK:   return_type = !uint64_t
@@ -42,7 +42,7 @@ Types:
     # CHECK:     !uint64_t
     # CHECK:   ]
     # CHECK: >
-    # CHECK: !my_function2_1 = !clift.defined<#my_function2_>
+    # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
   - ID: 1001
     Kind: RawFunctionType
     CustomName: "my_function2"
@@ -59,7 +59,7 @@ Types:
       - rdi_x86_64
     FinalStackOffset: 0
 
-    # CHECK: #my_function3_ = #clift.function<
+    # CHECK: #my_function3$def = #clift.function<
     # CHECK:   id = 1002
     # CHECK:   name = "my_function3"
     # CHECK:   return_type = !clift.tuple<
@@ -69,10 +69,7 @@ Types:
     # CHECK:         type = !uint64_t
     # CHECK:       >
     # CHECK:       <
-    # CHECK:         type = !clift.pointer<
-    # CHECK:           pointee_type = !uint64_t
-    # CHECK:           pointer_size = 8
-    # CHECK:         >
+    # CHECK:         type = !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
     # CHECK:       >
     # CHECK:     ]
     # CHECK:   >
@@ -81,20 +78,14 @@ Types:
     # CHECK:       type = !uint64_t
     # CHECK:     >
     # CHECK:     <
-    # CHECK:       type = !clift.pointer<
-    # CHECK:         pointee_type = !uint64_t
-    # CHECK:         pointer_size = 8
-    # CHECK:       >
+    # CHECK:       type = !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
     # CHECK:     >
     # CHECK:     <
-    # CHECK:       type = !clift.pointer<
-    # CHECK:         pointee_type = !my_struct1
-    # CHECK:         pointer_size = 8
-    # CHECK:       >
+    # CHECK:       type = !clift.pointer<pointee_type = !my_struct, pointer_size = 8>
     # CHECK:     >
     # CHECK:   ]
     # CHECK: >
-    # CHECK: !my_function3_1 = !clift.defined<#my_function3_>
+    # CHECK: !my_function3_ = !clift.defined<#my_function3$def>
   - ID: 1002
     Kind: RawFunctionType
     CustomName: "my_function3"

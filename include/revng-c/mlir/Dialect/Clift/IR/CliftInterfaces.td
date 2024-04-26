@@ -22,8 +22,8 @@ def Clift_AliasableAttr: Clift_AttrInterface<"AliasableAttr"> {
 
     let methods = [
         InterfaceMethod<
-            "returns the alias of the type.",
-            "std::string", "getAlias", (ins),
+            "Writes the alias to OS and returns true if it is non-empty.",
+            "bool", "getAlias", (ins "llvm::raw_ostream &":$OS),
             /*methodBody=*/[{}], /*defaultImplementation=*/[{}]
         >,
     ];
@@ -36,8 +36,8 @@ def Clift_AliasableType: Clift_TypeInterface<"AliasableType"> {
 
     let methods = [
         InterfaceMethod<
-            "returns the alias of the type.",
-            "std::string", "getAlias", (ins),
+            "Writes the alias to OS and returns true if it is non-empty.",
+            "bool", "getAlias", (ins "llvm::raw_ostream &":$OS),
             /*methodBody=*/[{}], /*defaultImplementation=*/[{}]
         >,
     ];
