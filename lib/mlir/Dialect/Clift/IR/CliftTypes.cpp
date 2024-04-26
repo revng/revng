@@ -89,7 +89,7 @@ mlir::clift::PrimitiveType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-std::string mlir::clift::EnumAttr::getAlias() const {
+std::string mlir::clift::EnumTypeAttr::getAlias() const {
   return getName().str();
 }
 
@@ -108,11 +108,11 @@ std::string mlir::clift::PrimitiveType::getAlias() const {
                      serializeToString(Type.name());
 }
 
-std::string mlir::clift::TypedefAttr::getAlias() const {
+std::string mlir::clift::TypedefTypeAttr::getAlias() const {
   return getName().str();
 }
 
-std::string mlir::clift::FunctionAttr::getAlias() const {
+std::string mlir::clift::FunctionTypeAttr::getAlias() const {
   return getName().str();
 }
 
@@ -132,7 +132,7 @@ uint64_t mlir::clift::DefinedType::getByteSize() const {
   return getElementType().cast<mlir::clift::SizedType>().getByteSize();
 }
 
-uint64_t mlir::clift::EnumAttr::getByteSize() const {
+uint64_t mlir::clift::EnumTypeAttr::getByteSize() const {
   return getUnderlyingType().cast<mlir::clift::PrimitiveType>().getSize();
 }
 
@@ -140,11 +140,11 @@ uint64_t mlir::clift::PointerType::getByteSize() const {
   return getPointerSize();
 }
 
-uint64_t mlir::clift::TypedefAttr::getByteSize() const {
+uint64_t mlir::clift::TypedefTypeAttr::getByteSize() const {
   return getUnderlyingType().getByteSize();
 }
 
-uint64_t mlir::clift::FunctionAttr::getByteSize() const {
+uint64_t mlir::clift::FunctionTypeAttr::getByteSize() const {
   return 0;
 }
 
@@ -164,7 +164,7 @@ mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
 
 mlir::LogicalResult
 DefinedType::verify(EmitErrorType emitError,
-                    mlir::clift::TypeDefinition element_type,
+                    mlir::clift::TypeDefinitionAttr element_type,
                     BoolAttr IsConst) {
   return mlir::success();
 }
@@ -184,9 +184,9 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
   return mlir::success();
 }
 
-static mlir::clift::TypedefAttr getTypedefAttr(mlir::Type Type) {
+static mlir::clift::TypedefTypeAttr getTypedefAttr(mlir::Type Type) {
   if (auto D = mlir::dyn_cast<mlir::clift::DefinedType>(Type))
-    return mlir::dyn_cast<mlir::clift::TypedefAttr>(D.getElementType());
+    return mlir::dyn_cast<mlir::clift::TypedefTypeAttr>(D.getElementType());
   return nullptr;
 }
 
@@ -198,11 +198,11 @@ static mlir::Type dealias(mlir::Type Type) {
 
 using namespace mlir::clift;
 mlir::LogicalResult
-EnumAttr::verify(EmitErrorType emitError,
-                 uint64_t ID,
-                 llvm::StringRef,
-                 mlir::Type UnderlyingType,
-                 llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
+EnumTypeAttr::verify(EmitErrorType emitError,
+                     uint64_t ID,
+                     llvm::StringRef,
+                     mlir::Type UnderlyingType,
+                     llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
   UnderlyingType = dealias(UnderlyingType);
 
   if (not UnderlyingType.isa<mlir::clift::PrimitiveType>())
@@ -323,7 +323,7 @@ static bool isScalarType(mlir::Type Type) {
     return T.getKind() != PrimitiveKind::VoidKind;
 
   if (auto T = mlir::dyn_cast<DefinedType>(Type))
-    return mlir::isa<EnumAttr>(T.getElementType());
+    return mlir::isa<EnumTypeAttr>(T.getElementType());
 
   return mlir::isa<PointerType>(Type);
 }

@@ -42,7 +42,7 @@ mlir::LogicalResult mlir::clift::FieldAttr::verify(EmitErrorType EmitError,
                                                    mlir::Type ElementType,
                                                    llvm::StringRef Name) {
   if (auto Definition = mlir::dyn_cast<mlir::clift::DefinedType>(ElementType))
-    if (mlir::isa<mlir::clift::FunctionAttr>(Definition.getElementType()))
+    if (mlir::isa<mlir::clift::FunctionTypeAttr>(Definition.getElementType()))
       return EmitError() << "Underlying type of field attr cannot be a "
                             "function type";
   mlir::clift::ValueType
@@ -64,11 +64,12 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-using TypedefAttr = mlir::clift::TypedefAttr;
-mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
-                                        uint64_t Id,
-                                        llvm::StringRef Name,
-                                        mlir::clift::ValueType UnderlyingType) {
+using TypedefTypeAttr = mlir::clift::TypedefTypeAttr;
+mlir::LogicalResult
+TypedefTypeAttr::verify(EmitErrorType EmitError,
+                        uint64_t Id,
+                        llvm::StringRef Name,
+                        mlir::clift::ValueType UnderlyingType) {
   return mlir::success();
 }
 
@@ -82,18 +83,16 @@ mlir::LogicalResult ArgAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-using FunctionAttr = mlir::clift::FunctionAttr;
+using mlir::clift::FunctionTypeAttr;
 mlir::LogicalResult
-FunctionAttr::verify(EmitErrorType EmitError,
-                     uint64_t Id,
-                     llvm::StringRef Name,
-                     mlir::clift::ValueType ReturnType,
-                     llvm::ArrayRef<mlir::clift::FunctionArgumentAttr> Args) {
-  if (mlir::clift::DefinedType
-        Type = mlir::dyn_cast<mlir::clift::DefinedType>(ReturnType)) {
-    using FunctionAttr = mlir::clift::FunctionAttr;
-    if (mlir::clift::FunctionAttr
-          Definition = mlir::dyn_cast<FunctionAttr>(Type.getElementType()))
+FunctionTypeAttr::verify(EmitErrorType EmitError,
+                         uint64_t Id,
+                         llvm::StringRef,
+                         mlir::clift::ValueType ReturnType,
+                         llvm::ArrayRef<mlir::clift::FunctionArgumentAttr>
+                           Args) {
+  if (auto Type = mlir::dyn_cast<mlir::clift::DefinedType>(ReturnType)) {
+    if (mlir::isa<FunctionTypeAttr>(Type.getElementType()))
       return EmitError() << "function type cannot return another function type";
   }
   std::set<llvm::StringRef> Names;

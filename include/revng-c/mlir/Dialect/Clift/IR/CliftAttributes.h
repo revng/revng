@@ -36,7 +36,7 @@ class StructTypeAttr
                                      StructTypeAttrStorage,
                                      SubElementAttrInterface::Trait,
                                      SizedType::Trait,
-                                     TypeDefinition::Trait,
+                                     TypeDefinitionAttr::Trait,
                                      AliasableAttr::Trait,
                                      AttributeTrait::IsMutable> {
 public:
@@ -99,7 +99,7 @@ class UnionTypeAttr : public Attribute::AttrBase<UnionTypeAttr,
                                                  UnionTypeAttrStorage,
                                                  SubElementAttrInterface::Trait,
                                                  SizedType::Trait,
-                                                 TypeDefinition::Trait,
+                                                 TypeDefinitionAttr::Trait,
                                                  AliasableAttr::Trait,
                                                  AttributeTrait::IsMutable> {
 public:

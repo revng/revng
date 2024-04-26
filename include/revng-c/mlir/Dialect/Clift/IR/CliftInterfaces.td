@@ -81,7 +81,7 @@ def ValueType : Clift_TypeInterface<"ValueType"> {
     ];
 }
 
-def TypeDefinition : Clift_AttrInterface<"TypeDefinition"> {
+def TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
     let description = [{
       A value type is a type with a ID and Name
     }];

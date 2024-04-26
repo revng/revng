@@ -189,7 +189,7 @@ struct ModuleValidator {
 private:
   llvm::SmallPtrSet<mlir::Type, 2> VisistedTypes;
   llvm::SmallPtrSet<mlir::Attribute, 2> VisitedAttrs;
-  llvm::DenseMap<size_t, mlir::clift::TypeDefinition> Definitions;
+  llvm::DenseMap<size_t, mlir::clift::TypeDefinitionAttr> Definitions;
 };
 
 mlir::LogicalResult mlir::clift::ModuleOp::verify() {

@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainThemself) {
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainFunctions) {
   using namespace mlir::clift;
   auto VoidT = PrimitiveType::getVoid(builder.getContext(), 0);
-  auto FunctionT = FunctionAttr::get(0, VoidT);
+  auto FunctionT = FunctionTypeAttr::get(0, VoidT);
   auto UnionT = DefinedType::get(builder.getContext(),
                                  FunctionT,
                                  mlir::BoolAttr::get(builder.getContext(),
@@ -156,10 +156,10 @@ BOOST_AUTO_TEST_CASE(FunctionTypesCantContainVoidArgs) {
 
 BOOST_AUTO_TEST_CASE(FunctionTypesCantContainFunctionTypes) {
   using namespace mlir::clift;
-  auto FunctionT = FunctionAttr::get(0,
-                                     PrimitiveType::getVoid(builder
-                                                              .getContext(),
-                                                            0));
+  auto FunctionT = FunctionTypeAttr::get(0,
+                                         PrimitiveType::getVoid(builder
+                                                                  .getContext(),
+                                                                0));
 
   using DefinedT = mlir::clift::DefinedType;
   auto DefinedType = DefinedT::get(builder.getContext(),
@@ -167,11 +167,11 @@ BOOST_AUTO_TEST_CASE(FunctionTypesCantContainFunctionTypes) {
                                    mlir::BoolAttr::get(builder.getContext(),
                                                        false));
 
-  BOOST_TEST(mlir::clift::FunctionAttr::verify(getDiagnosticEmitter(),
-                                               1,
-                                               "",
-                                               DefinedType,
-                                               {})
+  BOOST_TEST(mlir::clift::FunctionTypeAttr::verify(getDiagnosticEmitter(),
+                                                   1,
+                                                   "",
+                                                   DefinedType,
+                                                   {})
                .failed());
 }
 

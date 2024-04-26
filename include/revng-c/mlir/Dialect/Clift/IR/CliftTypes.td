@@ -61,10 +61,10 @@ def Clift_PointerType : Clift_Type<"Pointer", "pointer", [DeclareTypeInterfaceMe
 def DefinedType : Clift_Type<"Defined", "defined", [DeclareTypeInterfaceMethods<ValueType, ["getByteSize", "id"]>, SubElementTypeInterface, DeclareTypeInterfaceMethods<AliasableType>]> {
   let summary = "Clift nominal type";
 
-  let parameters = (ins "mlir::clift::TypeDefinition":$element_type, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
+  let parameters = (ins "mlir::clift::TypeDefinitionAttr":$element_type, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
 
   let description = [{
-     A defined type wraps a TypeDefinition attribute so that it can be attached
+     A defined type wraps a TypeDefinitionAttr attribute so that it can be attached
      to values. Defined type exists because we are mirroring the revng model
      type hierarchy which has the same concept. TypeDefinitions are attributes
      to prevent them from being attached to values without being wrapped into

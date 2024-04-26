@@ -73,14 +73,14 @@ def EnumFieldAttr : Clift_Attr<"EnumField", "enum_field", [DeclareAttrInterfaceM
   let assemblyFormat = "`<`struct($name, $raw_value)`>`";
 }
 
-def Clift_EnumAttr : Clift_Attr<"Enum", "enum", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinition, SubElementAttrInterface]> {
+def Clift_EnumTypeAttr : Clift_Attr<"EnumType", "enum", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinitionAttr, SubElementAttrInterface]> {
   let summary = "Clift enum type";
 
   let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::Type":$underlying_type, ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
 
   let builders = [
     TypeBuilderWithInferredContext<(ins "uint64_t":$ID, "llvm::StringRef":$Name, "mlir::Type":$ElementType, "llvm::ArrayRef<mlir::clift::EnumFieldAttr>":$Fields), [{
-      return EnumAttr::get(ElementType.getContext(), ID, Name, ElementType, Fields);
+      return EnumTypeAttr::get(ElementType.getContext(), ID, Name, ElementType, Fields);
      }]>,
   ];
 
@@ -92,14 +92,14 @@ def Clift_EnumAttr : Clift_Attr<"Enum", "enum", [DeclareAttrInterfaceMethods<Ali
   let assemblyFormat = "`<`struct($id, $name, $underlying_type)  `,` `fields` `=` `[` $fields `]``>` ";
 }
 
-def Clift_TypedefAttr: Clift_Attr<"Typedef", "typedef", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinition, SubElementAttrInterface]> {
+def Clift_TypedefTypeAttr: Clift_Attr<"TypedefType", "typedef", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinitionAttr, SubElementAttrInterface]> {
   let summary = "Clift typedef type";
 
   let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$underlying_type);
 
   let builders = [
     TypeBuilderWithInferredContext<(ins "uint64_t":$ID, "llvm::StringRef":$Name, "mlir::clift::ValueType":$ElementType), [{
-      return TypedefAttr::get(ElementType.getContext(), ID, Name, ElementType);
+      return TypedefTypeAttr::get(ElementType.getContext(), ID, Name, ElementType);
      }]>,
   ];
 
@@ -111,14 +111,14 @@ def Clift_TypedefAttr: Clift_Attr<"Typedef", "typedef", [DeclareAttrInterfaceMet
   let assemblyFormat = "`<`struct($id, $name, $underlying_type) `>` ";
 }
 
-def Clift_FunctionAttr : Clift_Attr<"Function", "function", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinition, SubElementAttrInterface]> {
+def Clift_FunctionTypeAttr : Clift_Attr<"FunctionType", "function", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinitionAttr, SubElementAttrInterface]> {
   let summary = "Clift function type";
 
   let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$return_type, OptionalArrayRefParameter<"mlir::clift::FunctionArgumentAttr">:$argument_types);
 
   let builders = [
     TypeBuilderWithInferredContext<(ins "uint64_t":$ID, "mlir::clift::ValueType":$ReturnType,   CArg<"llvm::ArrayRef<mlir::clift::FunctionArgumentAttr>", "{}">:$InputTypes, CArg<"llvm::StringRef", "\"\"">:$Name), [{
-      return FunctionAttr::get(ReturnType.getContext(), ID, Name, ReturnType, InputTypes);
+      return FunctionTypeAttr::get(ReturnType.getContext(), ID, Name, ReturnType, InputTypes);
      }]>,
   ];
 
