@@ -23,7 +23,7 @@ def Clift_LabelType : Clift_Type<"Label", "label"> {
   }];
 }
 
-def Clift_PrimitiveType : Clift_Type<"Primitive", "primitive", [ValueType, DeclareTypeInterfaceMethods<AliasableType>]> {
+def Clift_PrimitiveType : Clift_Type<"Primitive", "primitive", [Clift_ValueType, DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift primitive type";
 
   let parameters = (ins "PrimitiveKind":$kind, "uint64_t":$size, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
@@ -44,7 +44,7 @@ def Clift_PrimitiveType : Clift_Type<"Primitive", "primitive", [ValueType, Decla
 }
 
 
-def Clift_PointerType : Clift_Type<"Pointer", "pointer", [DeclareTypeInterfaceMethods<ValueType, ["getByteSize"]>, SubElementTypeInterface]> {
+def Clift_PointerType : Clift_Type<"Pointer", "pointer", [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>, SubElementTypeInterface]> {
   let summary = "Clift pointer type";
 
   let parameters = (ins "mlir::clift::ValueType":$pointee_type, "uint64_t":$pointer_size, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
@@ -58,7 +58,7 @@ def Clift_PointerType : Clift_Type<"Pointer", "pointer", [DeclareTypeInterfaceMe
   let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? struct($pointee_type, $pointer_size) `>` ";
 }
 
-def DefinedType : Clift_Type<"Defined", "defined", [DeclareTypeInterfaceMethods<ValueType, ["getByteSize", "id"]>, SubElementTypeInterface, DeclareTypeInterfaceMethods<AliasableType>]> {
+def Clift_DefinedType : Clift_Type<"Defined", "defined", [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize", "id"]>, SubElementTypeInterface, DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift nominal type";
 
   let parameters = (ins "mlir::clift::TypeDefinitionAttr":$element_type, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
@@ -79,7 +79,7 @@ def DefinedType : Clift_Type<"Defined", "defined", [DeclareTypeInterfaceMethods<
   let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? $element_type `>` ";
 }
 
-def Clift_ArrayType : Clift_Type<"Array", "array", [DeclareTypeInterfaceMethods<ValueType, ["getByteSize"]>, SubElementTypeInterface]> {
+def Clift_ArrayType : Clift_Type<"Array", "array", [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>, SubElementTypeInterface]> {
   let summary = "Clift Array type";
 
   let parameters = (ins "mlir::clift::ValueType":$element_type, "uint64_t":$elements_count, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);

@@ -15,7 +15,7 @@ class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   let mnemonic = attrMnemonic;
 }
 
-def FunctionArgumentAttr: Clift_Attr<"FunctionArgument", "farg", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+def Clift_FunctionArgumentAttr: Clift_Attr<"FunctionArgument", "farg", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
   let summary = "A attribute representing a argument of a function";
   let description = [{
     A attribute representing a argument of a function
@@ -35,7 +35,7 @@ def FunctionArgumentAttr: Clift_Attr<"FunctionArgument", "farg", [DeclareAttrInt
   let assemblyFormat = "`<`struct($name, $type)`>`";
 }
 
-def FieldAttr : Clift_Attr<"Field", "field", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+def Clift_FieldAttr : Clift_Attr<"Field", "field", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
   let summary = "A attribute representing a field of a struct or a union";
   let description = [{
     A attribute representing a field of a struct or a union
@@ -60,7 +60,7 @@ def FieldAttr : Clift_Attr<"Field", "field", [DeclareAttrInterfaceMethods<SubEle
   let assemblyFormat = "`<`struct($offset, $name, $type)`>`";
 }
 
-def EnumFieldAttr : Clift_Attr<"EnumField", "enum_field", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+def Clift_EnumFieldAttr : Clift_Attr<"EnumField", "enum_field", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
   let summary = "A attribute representing a field of enum";
   let description = [{
     A attribute representing a field of a struct or a union
@@ -73,7 +73,7 @@ def EnumFieldAttr : Clift_Attr<"EnumField", "enum_field", [DeclareAttrInterfaceM
   let assemblyFormat = "`<`struct($name, $raw_value)`>`";
 }
 
-def Clift_EnumTypeAttr : Clift_Attr<"EnumType", "enum", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinitionAttr, SubElementAttrInterface]> {
+def Clift_EnumTypeAttr : Clift_Attr<"EnumType", "enum", [DeclareAttrInterfaceMethods<Clift_AliasableAttr>, DeclareAttrInterfaceMethods<Clift_SizedType, ["getByteSize"]>, Clift_TypeDefinitionAttr, SubElementAttrInterface]> {
   let summary = "Clift enum type";
 
   let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::Type":$underlying_type, ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
@@ -92,7 +92,7 @@ def Clift_EnumTypeAttr : Clift_Attr<"EnumType", "enum", [DeclareAttrInterfaceMet
   let assemblyFormat = "`<`struct($id, $name, $underlying_type)  `,` `fields` `=` `[` $fields `]``>` ";
 }
 
-def Clift_TypedefTypeAttr: Clift_Attr<"TypedefType", "typedef", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinitionAttr, SubElementAttrInterface]> {
+def Clift_TypedefTypeAttr: Clift_Attr<"TypedefType", "typedef", [DeclareAttrInterfaceMethods<Clift_AliasableAttr>, DeclareAttrInterfaceMethods<Clift_SizedType, ["getByteSize"]>, Clift_TypeDefinitionAttr, SubElementAttrInterface]> {
   let summary = "Clift typedef type";
 
   let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$underlying_type);
@@ -111,7 +111,7 @@ def Clift_TypedefTypeAttr: Clift_Attr<"TypedefType", "typedef", [DeclareAttrInte
   let assemblyFormat = "`<`struct($id, $name, $underlying_type) `>` ";
 }
 
-def Clift_FunctionTypeAttr : Clift_Attr<"FunctionType", "function", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinitionAttr, SubElementAttrInterface]> {
+def Clift_FunctionTypeAttr : Clift_Attr<"FunctionType", "function", [DeclareAttrInterfaceMethods<Clift_AliasableAttr>, DeclareAttrInterfaceMethods<Clift_SizedType, ["getByteSize"]>, Clift_TypeDefinitionAttr, SubElementAttrInterface]> {
   let summary = "Clift function type";
 
   let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$return_type, OptionalArrayRefParameter<"mlir::clift::FunctionArgumentAttr">:$argument_types);
@@ -130,7 +130,7 @@ def Clift_FunctionTypeAttr : Clift_Attr<"FunctionType", "function", [DeclareAttr
   let assemblyFormat = "`<`struct($id, $name, $return_type) `,` `argument_types` `=` `[` (`]`) : ($argument_types^ `]`)?`>` ";
 }
 
-def ScalarTupleElementAttr : Clift_Attr<"ScalarTupleElement", "tuple_element", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+def Clift_ScalarTupleElementAttr : Clift_Attr<"ScalarTupleElement", "tuple_element", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
   let summary = "An attribute representing an element of a scalar tuple";
   let description = [{
     An attribute representing an element of a scalar tuple

@@ -6,7 +6,7 @@ include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 include "Clift.td"
 
-def PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
+def Clift_PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
     I32EnumAttrCase<"VoidKind", 1>,
     I32EnumAttrCase<"GenericKind", 2>,
     I32EnumAttrCase<"PointerOrNumberKind", 3>,
