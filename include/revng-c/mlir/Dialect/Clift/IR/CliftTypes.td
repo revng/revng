@@ -43,7 +43,6 @@ def Clift_PrimitiveType : Clift_Type<"Primitive", "primitive", [Clift_ValueType,
   let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` `)? $kind $size `>` ";
 }
 
-
 def Clift_PointerType : Clift_Type<"Pointer", "pointer", [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>, SubElementTypeInterface]> {
   let summary = "Clift pointer type";
 
@@ -91,4 +90,3 @@ def Clift_ArrayType : Clift_Type<"Array", "array", [DeclareTypeInterfaceMethods<
 
   let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? struct($element_type, $elements_count) `>` ";
 }
-

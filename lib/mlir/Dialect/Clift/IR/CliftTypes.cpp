@@ -14,6 +14,7 @@
 
 #include "CliftParser.h"
 #include "CliftStorage.h"
+#include "CliftTypeHelpers.h"
 
 #define GET_TYPEDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
@@ -22,13 +23,13 @@ using namespace mlir::clift;
 
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
-//******************************** CliftDialect ********************************
+//===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerTypes() {
   addTypes<ScalarTupleType, /* Include the auto-generated clift types */
 #define GET_TYPEDEF_LIST
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
-           /* End of types list */>();
+           /* End of auto-generated list */>();
 }
 
 /// Parse a type registered to this dialect
@@ -51,13 +52,14 @@ mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
 /// Print a type registered to this dialect
 void CliftDialect::printType(mlir::Type Type,
                              mlir::DialectAsmPrinter &Printer) const {
-
   if (mlir::succeeded(generatedTypePrinter(Type, Printer)))
     return;
 
   if (auto T = mlir::dyn_cast<ScalarTupleType>(Type))
     return T.print(Printer);
 }
+
+//===---------------------------- PrimitiveType ---------------------------===//
 
 static constexpr model::PrimitiveTypeKind::Values
 kindToKind(const PrimitiveKind Kind) {
@@ -108,25 +110,11 @@ mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
                                           PrimitiveKind kind,
                                           uint64_t size,
                                           BoolAttr IsConst) {
-
   model::PrimitiveType Type(kindToKind(kind), size);
   if (not Type.verify()) {
     return EmitError() << "primitive type verify failed";
   }
   return mlir::success();
-}
-
-std::string EnumTypeAttr::getAlias() const {
-  return getName().str();
-}
-
-std::string DefinedType::getAlias() const {
-  if (auto Casted = getElementType().dyn_cast<AliasableAttr>()) {
-    if (Casted.getAlias().empty())
-      return "";
-    return isConst() ? "const_" + Casted.getAlias() : Casted.getAlias();
-  }
-  return "";
 }
 
 std::string PrimitiveType::getAlias() const {
@@ -135,48 +123,10 @@ std::string PrimitiveType::getAlias() const {
                      serializeToString(Type.name());
 }
 
-std::string TypedefTypeAttr::getAlias() const {
-  return getName().str();
-}
-
-std::string FunctionTypeAttr::getAlias() const {
-  return getName().str();
-}
-
-llvm::StringRef DefinedType::name() {
-  return getElementType().name();
-}
-
-uint64_t DefinedType::id() {
-  return getElementType().id();
-}
-
-uint64_t ArrayType::getByteSize() const {
-  return getElementType().getByteSize() * getElementsCount();
-}
-
-uint64_t DefinedType::getByteSize() const {
-  return getElementType().cast<SizedType>().getByteSize();
-}
-
-uint64_t EnumTypeAttr::getByteSize() const {
-  return getUnderlyingType().cast<PrimitiveType>().getSize();
-}
-
-uint64_t PointerType::getByteSize() const {
-  return getPointerSize();
-}
-
-uint64_t TypedefTypeAttr::getByteSize() const {
-  return getUnderlyingType().getByteSize();
-}
-
-uint64_t FunctionTypeAttr::getByteSize() const {
-  return 0;
-}
+//===----------------------------- PointerType ----------------------------===//
 
 mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
-                                        clift::ValueType element_type,
+                                        ValueType element_type,
                                         uint64_t pointer_size,
                                         BoolAttr IsConst) {
   switch (pointer_size) {
@@ -189,14 +139,14 @@ mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
   return mlir::success();
 }
 
-mlir::LogicalResult DefinedType::verify(EmitErrorType emitError,
-                                        TypeDefinitionAttr element_type,
-                                        BoolAttr IsConst) {
-  return mlir::success();
+uint64_t PointerType::getByteSize() const {
+  return getPointerSize();
 }
 
+//===------------------------------ ArrayType -----------------------------===//
+
 mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
-                                      clift::ValueType element_type,
+                                      ValueType element_type,
                                       uint64_t count,
                                       BoolAttr IsConst) {
   if (count == 0) {
@@ -210,135 +160,40 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
   return mlir::success();
 }
 
-static TypedefTypeAttr getTypedefAttr(mlir::Type Type) {
-  if (auto D = mlir::dyn_cast<DefinedType>(Type))
-    return mlir::dyn_cast<TypedefTypeAttr>(D.getElementType());
-  return nullptr;
+uint64_t ArrayType::getByteSize() const {
+  return getElementType().getByteSize() * getElementsCount();
 }
 
-static mlir::Type dealias(mlir::Type Type) {
-  while (auto Attr = getTypedefAttr(Type))
-    Type = Attr.getUnderlyingType();
-  return Type;
-}
+//===----------------------------- DefinedType ----------------------------===//
 
-mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType emitError,
-                                         uint64_t ID,
-                                         llvm::StringRef,
-                                         mlir::Type UnderlyingType,
-                                         llvm::ArrayRef<EnumFieldAttr> Fields) {
-  UnderlyingType = dealias(UnderlyingType);
-
-  if (not UnderlyingType.isa<PrimitiveType>())
-    return emitError() << "type of enum must be a primitive type";
-
-  const auto PrimitiveType = UnderlyingType.cast<clift::PrimitiveType>();
-  const uint64_t BitWidth = PrimitiveType.getSize() * 8;
-
-  if (Fields.empty())
-    return emitError() << "enum requires at least one field";
-
-  uint64_t MinValue = 0;
-  uint64_t MaxValue = 0;
-  bool IsSigned = false;
-
-  switch (PrimitiveType.getKind()) {
-  case PrimitiveKind::UnsignedKind:
-    MaxValue = llvm::APInt::getMaxValue(BitWidth).getZExtValue();
-    break;
-  case PrimitiveKind::SignedKind:
-    MinValue = llvm::APInt::getSignedMinValue(BitWidth).getSExtValue();
-    MaxValue = llvm::APInt::getSignedMaxValue(BitWidth).getSExtValue();
-    IsSigned = true;
-    break;
-  default:
-    return emitError() << "enum underlying type must be an integral type";
-  }
-
-  uint64_t LastValue = 0;
-  bool CheckEqual = false;
-
-  for (const auto &Field : Fields) {
-    const uint64_t Value = Field.getRawValue();
-
-    const auto UsingSigned = [&](auto Callable, const auto... V) {
-      return IsSigned ? Callable(static_cast<int64_t>(V)...) : Callable(V...);
-    };
-
-    const auto CheckSigned =
-      [emitError](const auto Value,
-                  const auto MinValue,
-                  const auto MaxValue) -> mlir::LogicalResult {
-      if (Value < MinValue)
-        return emitError() << "enum field " << Value
-                           << " is less than the min value of the "
-                              "underlying type "
-                           << MinValue;
-
-      if (Value > MaxValue)
-        return emitError() << "enum field " << Value
-                           << " is greater than the max value of the "
-                              "underlying type "
-                           << MaxValue;
-
-      return mlir::success();
-    };
-
-    const mlir::LogicalResult R = UsingSigned(CheckSigned,
-                                              Value,
-                                              MinValue,
-                                              MaxValue);
-
-    if (failed(R))
-      return R;
-
-    if (Value < LastValue || (CheckEqual && Value == LastValue))
-      return emitError() << "enum fields must be strictly ordered by their "
-                            "unsigned values";
-
-    LastValue = Value;
-    CheckEqual = true;
-  }
-
+mlir::LogicalResult DefinedType::verify(EmitErrorType emitError,
+                                        TypeDefinitionAttr element_type,
+                                        BoolAttr IsConst) {
   return mlir::success();
 }
 
-void UnionTypeAttr::walkImmediateSubElements(function_ref<void(Attribute)>
-                                               WalkAttr,
-                                             function_ref<void(Type)> WalkType)
-  const {
-  if (not getImpl()->isInitialized())
-    return;
-  for (auto Field : getFields())
-    WalkAttr(Field);
+uint64_t DefinedType::id() {
+  return getElementType().id();
 }
 
-mlir::Attribute
-UnionTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
-                                           llvm::ArrayRef<mlir::Type>) const {
-  revng_abort("it does not make any sense to replace the elements of a "
-              "defined union");
-  return {};
+llvm::StringRef DefinedType::name() {
+  return getElementType().name();
 }
 
-void StructTypeAttr::walkImmediateSubElements(function_ref<void(Attribute)>
-                                                WalkAttr,
-                                              function_ref<void(Type)> WalkType)
-  const {
-  if (not getImpl()->isInitialized())
-    return;
-  for (auto Field : getFields())
-    WalkAttr(Field);
+uint64_t DefinedType::getByteSize() const {
+  return getElementType().cast<SizedType>().getByteSize();
 }
 
-mlir::Attribute
-StructTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
-                                            llvm::ArrayRef<mlir::Type>) const {
-  revng_abort("it does not make any sense to replace the elements of a "
-              "defined struct");
+std::string DefinedType::getAlias() const {
+  if (auto Casted = getElementType().dyn_cast<AliasableAttr>()) {
+    if (Casted.getAlias().empty())
+      return "";
+    return isConst() ? "const_" + Casted.getAlias() : Casted.getAlias();
+  }
+  return "";
 }
 
-//****************************** ScalarTupleType *******************************
+//===--------------------------- ScalarTupleType --------------------------===//
 
 static bool isScalarType(mlir::Type Type) {
   Type = dealias(Type);
