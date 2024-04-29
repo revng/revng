@@ -54,9 +54,11 @@ void CliftDialect::printType(mlir::Type Type,
                              mlir::DialectAsmPrinter &Printer) const {
   if (mlir::succeeded(generatedTypePrinter(Type, Printer)))
     return;
-
-  if (auto T = mlir::dyn_cast<ScalarTupleType>(Type))
-    return T.print(Printer);
+  if (auto T = mlir::dyn_cast<ScalarTupleType>(Type)) {
+    T.print(Printer);
+    return;
+  }
+  revng_abort("cannot print type");
 }
 
 //===---------------------------- PrimitiveType ---------------------------===//
