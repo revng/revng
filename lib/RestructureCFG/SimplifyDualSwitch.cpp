@@ -43,9 +43,16 @@ computeSwitchToIfPromotion(SwitchNode *Switch) {
   Case ElectedCase = Invalid;
 
   // We cannot promote switches with more than 2 cases
-  if (Switch->cases_size() > 2) {
+  size_t CaseNum = Switch->cases_size();
+  if (CaseNum > 2)
     return std::nullopt;
-  }
+
+  // We cannot promote non-dispatcher switches with exactly 2 cases and without
+  // default, because it would be semantically incorrect, given that the
+  // implicit default for a switch without a default is to jump past the switch.
+  if (Switch->getCondition() != nullptr and CaseNum == 2
+      and Switch->getDefault() == nullptr)
+    return std::nullopt;
   revng_assert(CasesNum == 2 or CasesNum == 1);
 
   // If both cases are eligible, select the one with the lower label value,
