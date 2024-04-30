@@ -1016,12 +1016,12 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // Perform the `SwitchBreak` simplification
   revng_log(BeautifyLogger, "Performing SwitchBreak simplification");
-  RootNode = simplifySwitchBreak(CombedAST, RootNode);
+  RootNode = simplifySwitchBreak(CombedAST);
   Dumper.log("After-switchbreak-simplify");
 
   // Perform the dispatcher `switch` inlining
   revng_log(BeautifyLogger, "Performing dispatcher switch inlining\n");
-  RootNode = inlineDispatcherSwitch(CombedAST, RootNode);
+  RootNode = inlineDispatcherSwitch(CombedAST);
   Dumper.log("after-dispatcher-switch-inlining");
 
   // Perform the simplification of `switch` with two entries in a `if`

@@ -767,12 +767,14 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
   rc_return Node;
 }
 
-ASTNode *inlineDispatcherSwitch(ASTTree &AST, ASTNode *RootNode) {
+ASTNode *inlineDispatcherSwitch(ASTTree &AST) {
 
   // Compute the loop -> dispatcher switch correspondence
   LoopDispatcherMap LoopDispatcherMap = computeLoopDispatcher(AST);
 
-  RootNode = inlineDispatcherSwitchImpl(AST, RootNode, LoopDispatcherMap);
+  ASTNode *RootNode = inlineDispatcherSwitchImpl(AST,
+                                                 AST.getRoot(),
+                                                 LoopDispatcherMap);
 
   // Update the root field of the AST
   AST.setRoot(RootNode);
@@ -945,13 +947,15 @@ simplifySwitchBreakImpl(ASTTree &AST,
 /// are superfluous. We consider such nodes as `SwitchBreakNode`s that compose
 /// the entirety of a `case` of a `switch`, which must not have a `default`
 /// `case`.
-ASTNode *simplifySwitchBreak(ASTTree &AST, ASTNode *RootNode) {
+ASTNode *simplifySwitchBreak(ASTTree &AST) {
 
   // Compute the loop -> dispatcher switch correspondence
   LoopDispatcherMap LoopDispatcherMap = computeLoopDispatcher(AST);
 
   // Simplify away `SwitchBreakNode`s from `switch`es
-  RootNode = simplifySwitchBreakImpl(AST, RootNode, LoopDispatcherMap);
+  ASTNode *RootNode = simplifySwitchBreakImpl(AST,
+                                              AST.getRoot(),
+                                              LoopDispatcherMap);
   AST.setRoot(RootNode);
 
   return RootNode;
