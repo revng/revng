@@ -227,7 +227,10 @@ fallThroughScopeImpl(const model::Binary &Model,
     rc_return FallThroughScopeType::FallThrough;
   } break;
   case ASTNode::NK_SwitchBreak: {
-    rc_return FallThroughScopeType::SwitchBreak;
+
+    // `The `SwitchBreak` represents the fact that we fallthrough from the
+    // switch out
+    rc_return FallThroughScopeType::FallThrough;
   } break;
   case ASTNode::NK_Continue: {
     rc_return FallThroughScopeType::Continue;
