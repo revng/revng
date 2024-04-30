@@ -405,6 +405,8 @@ public:
 
   links_container::size_type length() const { return NodeVec.size(); }
 
+  bool empty() const { return NodeVec.empty(); }
+
   ASTNode *getNodeN(links_container::size_type N) const { return NodeVec[N]; }
 
   links_container &getChildVec() { return NodeVec; }
