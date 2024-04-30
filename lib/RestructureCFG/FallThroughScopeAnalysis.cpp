@@ -85,16 +85,20 @@ fallThroughScopeImpl(const model::Binary &Model,
   case ASTNode::NK_Scs: {
     ScsNode *Loop = llvm::cast<ScsNode>(Node);
 
-    // The loop node inherits the attribute from the body node of the SCS.
+    // If a body of the loop is present, we recur on the body of the loop
     if (Loop->hasBody()) {
       ASTNode *Body = Loop->getBody();
       FallThroughScopeType BFallThrough = rc_recur
         fallThroughScopeImpl(Model, Body, ResultMap);
       ResultMap[Body] = BFallThrough;
-      rc_return BFallThrough;
-    } else {
-      rc_return FallThroughScopeType::FallThrough;
     }
+
+    // Without a semantic analysis we cannot conclude anything about the
+    // `FallThroughScopeType` of the `ScsNode`. The body of it, if present, will
+    // indeed perform fallthrough even if, the AST composing its body does not
+    // perform fallthrough (which is reasonable, considering that the body of a
+    // loop will end with `break` and `continue` statements)
+    rc_return FallThroughScopeType::FallThrough;
   } break;
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
