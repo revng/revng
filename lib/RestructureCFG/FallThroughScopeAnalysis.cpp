@@ -153,11 +153,13 @@ fallThroughScopeImpl(const model::Binary &Model,
     //    result, in cases where the `SwitchNode` does not have the `default`
     //    case, but it however covers all the possible values for the condition
     //    in the enumeration of the cases.
-    // 2) If we have a dispatcher `SwitchNode`, we have a guarantee by
-    //    construction, that all the `case`s span over the possible values.
-    //    Therefore, we can perform the analysis as if the `SwitchNode` had the
-    //    `default`.
-    if (not Switch->getCondition() or Switch->hasDefault()) {
+    // 2) Even when encountering a dispatcher `SwitchNode`, we can compute the
+    //    analysis result only if no `default` `case` is present. Indeed,
+    //    previous beautifications may have removed some of the `case`s, thus
+    //    invalidating the assumption, true at the beginning of the beautify
+    //    pipeline, that the `case`s of a dispatcher `switch` span over all the
+    //    possible values of the state variable.
+    if (Switch->hasDefault()) {
       rc_return AllFallThrough;
     } else {
       rc_return FallThroughScopeType::FallThrough;
