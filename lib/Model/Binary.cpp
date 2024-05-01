@@ -18,8 +18,10 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Qualifier.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/OverflowSafeInt.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Tracking.h"

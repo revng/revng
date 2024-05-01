@@ -12,7 +12,10 @@
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/ManagedStatic.h"
 
+#include "revng/Support/Assert.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 
 namespace cl = llvm::cl;
