@@ -13,10 +13,12 @@ extern "C" {
 
 #include <chrono>
 
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/Progress.h"
 #include "llvm/Support/Signals.h"
 
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 static void destroyTraceProgressListener(void *OpaqueListener);

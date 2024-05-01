@@ -22,6 +22,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"

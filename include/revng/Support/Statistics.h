@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "llvm/Support/CommandLine.h"
+
 #include "revng/Support/Debug.h"
 #include "revng/Support/OnQuit.h"
 

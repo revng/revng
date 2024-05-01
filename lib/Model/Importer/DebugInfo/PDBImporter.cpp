@@ -35,6 +35,7 @@
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/ProgramRunner.h"

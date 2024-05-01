@@ -18,6 +18,7 @@
 
 #include "revng/ADT/CompilationTime.h"
 #include "revng/ADT/Concepts.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 //

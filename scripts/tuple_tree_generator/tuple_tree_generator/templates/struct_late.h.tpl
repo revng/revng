@@ -20,6 +20,8 @@ The notice below applies to the generated files.
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTree.h"
+#include "revng/TupleTree/Visits.h"
+#include "revng/TupleTree/Tracking.h"
 
 using namespace std::string_view_literals;
 
