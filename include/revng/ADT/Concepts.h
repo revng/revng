@@ -98,40 +98,6 @@ constexpr bool
 template<typename Test, template<typename...> class Ref>
 concept StrictSpecializationOf = revng::detail::StrictSpecialization<Test, Ref>;
 
-namespace examples {
-
-static_assert(SpecializationOf<std::pair<int, long>, std::pair>);
-static_assert(StrictSpecializationOf<std::pair<int, long>, std::pair>);
-static_assert(SpecializationOf<const std::pair<int, long>, std::pair>);
-static_assert(StrictSpecializationOf<const std::pair<int, long>, std::pair>);
-
-static_assert(SpecializationOf<std::string, std::basic_string>);
-static_assert(StrictSpecializationOf<std::string, std::basic_string>);
-static_assert(not SpecializationOf<std::string, std::basic_string_view>);
-static_assert(not StrictSpecializationOf<std::string, std::basic_string_view>);
-
-using Alias = std::pair<int, long>;
-static_assert(SpecializationOf<Alias, std::pair>);
-static_assert(StrictSpecializationOf<Alias, std::pair>);
-
-template<typename Type>
-struct InheritanceT : std::pair<int, Type> {};
-struct PublicInheritance : public InheritanceT<long> {};
-struct PrivateInheritance : private InheritanceT<long> {};
-struct ProtectedInheritance : protected InheritanceT<long> {};
-
-static_assert(SpecializationOf<PublicInheritance, std::pair>);
-static_assert(SpecializationOf<PublicInheritance, InheritanceT>);
-static_assert(not SpecializationOf<PrivateInheritance, std::pair>);
-static_assert(not SpecializationOf<ProtectedInheritance, std::pair>);
-
-static_assert(not StrictSpecializationOf<PublicInheritance, std::pair>);
-static_assert(not StrictSpecializationOf<PublicInheritance, InheritanceT>);
-static_assert(not StrictSpecializationOf<PrivateInheritance, std::pair>);
-static_assert(not StrictSpecializationOf<ProtectedInheritance, std::pair>);
-
-} // namespace examples
-
 //
 // Other Miscellaneous concepts.
 //

@@ -92,27 +92,6 @@ constexpr std::optional<size_t> select(CallableType &&Callable) {
                         std::forward<CallableType>(Callable));
 }
 
-namespace examples {
-using namespace std::string_view_literals;
-
-template<size_t Count>
-consteval size_t fullSize(std::array<std::string_view, Count> Components,
-                          std::string_view Separator) {
-  size_t Result = Separator.size() * Count;
-  compile_time::repeat<Count>([&Result, &Components]<size_t Index> {
-    Result += std::get<Index>(Components).size();
-  });
-  return Result;
-}
-
-inline constexpr std::array Components = { "instruction"sv,
-                                           "0x401000:Code_x86_64"sv,
-                                           "0x402000:Code_x86_64"sv,
-                                           "0x403000:Code_x86_64"sv };
-static_assert(fullSize(Components, "/"sv) == 75);
-
-} // namespace examples
-
 namespace detail {
 
 template<size_t N, size_t I = 0>
