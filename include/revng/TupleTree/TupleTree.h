@@ -302,30 +302,5 @@ public:
   }
 
 private:
-  bool verifyReferences(bool Assert) const {
-    TrackGuard Guard(*Root);
-    bool Result = true;
-
-    visitReferences([&Result,
-                     &Assert,
-                     RootPointer = Root.get()](const auto &Element) {
-      if (Result) {
-        auto Check = [&Assert, &Result](bool Condition) {
-          if (not Condition) {
-            Result = false;
-            if (Assert)
-              revng_abort();
-          }
-        };
-
-        if (not Element.empty()) {
-          Check(Element.getRoot() == RootPointer);
-          Check(not Element.isConst());
-          Check(Element.isValid());
-        }
-      }
-    });
-
-    return Result;
-  }
+  bool verifyReferences(bool Assert) const;
 };

@@ -10,6 +10,7 @@ revng_add_library_internal(
   BasicBlockID.cpp
   CommandLine.cpp
   Debug.cpp
+  ExplicitSpecializations.cpp
   IRAnnotators.cpp
   FunctionTags.cpp
   IRHelpers.cpp

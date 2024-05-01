@@ -415,16 +415,7 @@ public:
 } // namespace tupletree::detail
 
 template<typename T>
-std::optional<std::string> pathAsString(const TupleTreePath &Path) {
-  std::string Result;
-  {
-    tupletree::detail::DumpPathVisitor PV(Result);
-    if (not callOnPathSteps<T>(PV, Path.toArrayRef())) {
-      return {};
-    }
-  }
-  return Result;
-}
+std::optional<std::string> pathAsString(const TupleTreePath &Path);
 
 class PathMatcher {
 private:

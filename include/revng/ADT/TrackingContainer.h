@@ -16,7 +16,7 @@
 #include "revng/Support/Generator.h"
 
 namespace revng {
-struct Tracking;
+struct TrackingImpl;
 } // namespace revng
 
 namespace revng {
@@ -31,7 +31,7 @@ namespace revng {
 template<KeyedObjectContainer T>
 class TrackingContainer {
 public:
-  friend struct revng::Tracking;
+  friend struct revng::TrackingImpl;
 
   using key_type = typename T::key_type;
   using TrackingSet = std::set<std::remove_const_t<key_type>>;

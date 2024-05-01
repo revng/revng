@@ -81,8 +81,8 @@ private:
 /// \note Tag can have a parent tag.
 class Tag : public DynamicHierarchy<Tag> {
 public:
-  Tag(llvm::StringRef Name) : DynamicHierarchy(Name) {}
-  Tag(llvm::StringRef Name, Tag &Parent) : DynamicHierarchy(Name, Parent) {}
+  Tag(llvm::StringRef Name);
+  Tag(llvm::StringRef Name, Tag &Parent);
 
 public:
   void addTo(Taggable auto *I) const {

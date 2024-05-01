@@ -4,22 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <functional>
-#include <memory>
-#include <ostream>
 #include <sstream>
-#include <string>
-#include <vector>
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
-
-#include "revng/Support/Assert.h"
-#include "revng/Support/CommandLine.h"
 
 // TODO: use a dedicated namespace
 extern std::ostream &dbg;
@@ -172,64 +162,14 @@ inline void writeToLog(Logger<X> &This, const llvm::Error &Error, int Ign) {
   writeToLog(This, Message, Ign);
 }
 
-/// A global registry for all the loggers
-///
-/// Loggers are usually global static variables in translation units, the role
-/// of this class is collecting them.
-class LoggersRegistry {
-public:
-  LoggersRegistry() {}
-
-  void add(Logger<true> *L) { Loggers.push_back(L); }
-  void add(Logger<false> *) {}
-
-  size_t size() const { return Loggers.size(); }
-
-  void enable(llvm::StringRef Name) {
-    for (Logger<true> *L : Loggers) {
-      if (L->name() == Name) {
-        L->enable();
-        return;
-      }
-    }
-
-    revng_abort("Requested logger not available");
-  }
-
-  void disable(llvm::StringRef Name) {
-    for (Logger<true> *L : Loggers) {
-      if (L->name() == Name) {
-        L->disable();
-        return;
-      }
-    }
-
-    revng_abort("Requested logger not available");
-  }
-
-  void registerArguments() const;
-
-private:
-  std::vector<Logger<true> *> Loggers;
-};
-
-extern llvm::ManagedStatic<LoggersRegistry> Loggers;
-
 /// Enables a debug feature and disables it when goes out of scope
 class ScopedDebugFeature {
 public:
   /// \param Name the name of the debugging feature
   /// \param Enable whether to actually enable it or not
-  ScopedDebugFeature(std::string Name, bool Enable) :
-    Name(Name), Enabled(Enable) {
-    if (Enabled)
-      Loggers->enable(Name);
-  }
+  ScopedDebugFeature(std::string Name, bool Enable);
 
-  ~ScopedDebugFeature() {
-    if (Enabled)
-      Loggers->disable(Name);
-  }
+  ~ScopedDebugFeature();
 
 private:
   std::string Name;

@@ -30,7 +30,60 @@ static cl::opt<unsigned> MaxLocationLength("debug-location-max-length",
                                            cl::init(0));
 
 size_t MaxLoggerNameLength = 0;
-llvm::ManagedStatic<LoggersRegistry> Loggers;
+
+/// A global registry for all the loggers
+///
+/// Loggers are usually global static variables in translation units, the role
+/// of this class is collecting them.
+class LoggersRegistry {
+public:
+  LoggersRegistry() {}
+
+  void add(Logger<true> *L) { Loggers.push_back(L); }
+  void add(Logger<false> *) {}
+
+  size_t size() const { return Loggers.size(); }
+
+  void enable(llvm::StringRef Name) {
+    for (Logger<true> *L : Loggers) {
+      if (L->name() == Name) {
+        L->enable();
+        return;
+      }
+    }
+
+    revng_abort("Requested logger not available");
+  }
+
+  void disable(llvm::StringRef Name) {
+    for (Logger<true> *L : Loggers) {
+      if (L->name() == Name) {
+        L->disable();
+        return;
+      }
+    }
+
+    revng_abort("Requested logger not available");
+  }
+
+  void registerArguments() const;
+
+private:
+  std::vector<Logger<true> *> Loggers;
+};
+
+static llvm::ManagedStatic<LoggersRegistry> Loggers;
+
+ScopedDebugFeature::ScopedDebugFeature(std::string Name, bool Enable) :
+  Name(Name), Enabled(Enable) {
+  if (Enabled)
+    Loggers->enable(Name);
+}
+
+ScopedDebugFeature::~ScopedDebugFeature() {
+  if (Enabled)
+    Loggers->disable(Name);
+}
 
 std::ostream &dbg(std::cerr);
 
