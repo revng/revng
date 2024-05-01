@@ -14,6 +14,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 // Forward declarations

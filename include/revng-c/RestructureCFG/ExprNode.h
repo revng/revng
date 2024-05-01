@@ -8,6 +8,8 @@
 
 #include "llvm/Support/Casting.h"
 
+#include "revng/Support/Assert.h"
+
 class AtomicNode;
 class NotNode;
 class AndNode;

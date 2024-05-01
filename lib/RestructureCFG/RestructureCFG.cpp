@@ -19,6 +19,7 @@
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
 
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/GraphAlgorithms.h"
