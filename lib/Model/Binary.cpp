@@ -326,6 +326,16 @@ static const model::TypePath &prototypeOr(const model::TypePath &Prototype,
   return Default;
 }
 
+// \note This function triggers a lot of materializations of
+// std::vector::insert, which is heavy on build time
+model::QualifiedType
+model::QualifiedType::getPointerTo(model::Architecture::Values Arch) const {
+  QualifiedType Result = *this;
+  Result.Qualifiers().insert(Result.Qualifiers().begin(),
+                             model::Qualifier::createPointer(Arch));
+  return Result;
+}
+
 model::TypePath Function::prototype(const model::Binary &Root) const {
   model::TypePath Result;
   auto ThePrototype = prototypeOr(Prototype(), Root.DefaultPrototype());

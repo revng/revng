@@ -76,3 +76,15 @@ std::optional<PathMatcher> PathMatcher::create(llvm::StringRef Path) {
   else
     return {};
 }
+
+template<typename T>
+std::optional<std::string> pathAsString(const TupleTreePath &Path) {
+  std::string Result;
+  {
+    tupletree::detail::DumpPathVisitor PV(Result);
+    if (not callOnPathSteps<T>(PV, Path.toArrayRef())) {
+      return {};
+    }
+  }
+  return Result;
+}

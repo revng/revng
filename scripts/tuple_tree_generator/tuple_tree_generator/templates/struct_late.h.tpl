@@ -142,6 +142,10 @@ struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
   static Key key(const UpcastablePointer</*= struct | user_fullname =*/> &Obj);
   static UpcastablePointer</*= struct | user_fullname =*/> fromKey(const Key &K);
 };
+
+extern template
+bool UpcastablePointer</*= struct | user_fullname =*/>::operator==(const UpcastablePointer &Other) const;
+
 /** endif **//*# End UpcastablePointer stuff #*/
 
 static_assert(validateTupleTree</*= struct | user_fullname =*/>(IsYamlizable),
@@ -252,5 +256,29 @@ TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> diff(const /*= base_nam
 extern template
 std::optional<TupleTreePath> stringAsPath</*= base_namespace =*/::/*= root_type =*/>(llvm::StringRef Path);
 
+extern template
+std::optional<std::string> pathAsString</*= base_namespace =*/::/*= root_type =*/>(const TupleTreePath &Path);
+
+extern template
+bool TupleTree</*= base_namespace =*/::/*= root_type =*/>::verifyReferences(bool Assert) const;
+
 /** endif **/
 
+/**- if emit_tracking **/
+
+extern template
+ReadFields revng::Tracking::collect(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+extern template
+void revng::Tracking::clearAndResume(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+extern template
+void revng::Tracking::push(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+extern template
+void revng::Tracking::pop(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+extern template
+void revng::Tracking::stop(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+/** endif **/

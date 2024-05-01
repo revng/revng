@@ -11,6 +11,7 @@ The notice below applies to the generated files.
 /** endif **/
 #include "revng/TupleTree/VisitsImpl.h"
 #include "revng/TupleTree/TupleTreeImpl.h"
+#include "revng/TupleTree/TrackingImpl.h"
 
 /**- for child_type in upcastable **/
 #include "/*= generator.user_include_path =*//*= child_type.name =*/.h"
@@ -62,6 +63,10 @@ KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::fromKey(
     return ResultType(nullptr);
   }
 }
+
+template
+bool UpcastablePointer</*= struct | user_fullname =*/>::operator==(const UpcastablePointer &Other) const;
+
 /** endif **/
 
 bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*/ &Other) const {
@@ -142,6 +147,31 @@ TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> diff(const /*= base_nam
 
 template
 std::optional<TupleTreePath> stringAsPath</*= base_namespace =*/::/*= root_type =*/>(llvm::StringRef Path);
+
+template
+std::optional<std::string> pathAsString</*= base_namespace =*/::/*= root_type =*/>(const TupleTreePath &Path);
+
+template
+bool TupleTree</*= base_namespace =*/::/*= root_type =*/>::verifyReferences(bool Assert) const;
+
+/** endif **/
+
+/**- if emit_tracking **/
+
+template
+ReadFields revng::Tracking::collect(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+template
+void revng::Tracking::clearAndResume(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+template
+void revng::Tracking::push(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+template
+void revng::Tracking::pop(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
+
+template
+void revng::Tracking::stop(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
 
 /** endif **/
 

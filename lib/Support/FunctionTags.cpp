@@ -20,6 +20,11 @@ using namespace llvm;
 
 namespace FunctionTags {
 
+Tag::Tag(llvm::StringRef Name) : DynamicHierarchy(Name) {
+}
+Tag::Tag(llvm::StringRef Name, Tag &Parent) : DynamicHierarchy(Name, Parent) {
+}
+
 llvm::MDNode *TagsSet::getMetadata(LLVMContext &C) const {
   SmallVector<Metadata *, 8> MDTags;
   for (const Tag *T : Tags)
