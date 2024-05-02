@@ -259,13 +259,23 @@ deserializeImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
 
 } // namespace revng::detail
 
-template<NotTupleTreeCompatible T>
+template<typename RootT>
+struct TupleTreeVisitor;
+
+// The "natural" deserialization of tuple tree roots is forbidden (as
+// it does not initialize references), use `TupleTree<T>::deserialize` instead.
+template<typename T>
+concept NotTupleTreeRoot = !requires(T &&) {
+  { TupleTreeVisitor<T>{} };
+};
+
+template<NotTupleTreeRoot T>
 llvm::Expected<T>
 deserialize(llvm::StringRef YAMLString, void *Context = nullptr) {
   return revng::detail::deserializeImpl<T>(YAMLString, Context);
 }
 
-template<NotTupleTreeCompatible T>
+template<NotTupleTreeRoot T>
 llvm::Expected<T>
 deserializeFileOrSTDIN(const llvm::StringRef &Path, void *Context = nullptr) {
   auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
