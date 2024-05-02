@@ -178,7 +178,7 @@ getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model) {
   } else if (auto *Call = getCallToTagged(&I, FunctionTags::ModelCast)) {
     if (Call->getArgOperandNo(&U) == 1) {
       if (IntConstant->isZero()) {
-        // If it's a ModelCast casting a zero constanto to a pointer, then we
+        // If it's a ModelCast casting a zero constant to a pointer, then we
         // decorate the constant so that it's printed as NULL.
         model::QualifiedType
           Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);

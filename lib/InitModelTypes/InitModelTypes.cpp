@@ -340,8 +340,8 @@ getCommonPrimitiveKind(model::PrimitiveKind::Values A,
 
   // Here, neither A nor B are Generic
 
-  // Given that A != B, and they're not generic, if either of them is Float, we
-  // directly go to Generic.
+  // Given that A != B, and they're not generic, if either of them is Float,
+  // we directly go to Generic.
   if (A == model::PrimitiveKind::Float or B == model::PrimitiveKind::Float)
     return model::PrimitiveKind::Generic;
 
