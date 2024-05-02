@@ -11,7 +11,6 @@
 
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
@@ -37,20 +36,19 @@ public:
 };
 
 using llvm::dyn_cast;
-using model::QualifiedType;
 
 static llvm::CallInst *buildDerefCall(llvm::Module &M,
                                       llvm::IRBuilder<> &Builder,
                                       llvm::Value *Arg,
-                                      model::QualifiedType &PointedType,
+                                      const model::UpcastableType &PointedType,
                                       llvm::Type *ReturnType) {
   llvm::Type *BaseType = Arg->getType();
 
   auto *ModelGEPFunction = getModelGEP(M, ReturnType, BaseType);
 
   // The first argument is always a pointer to a constant global variable
-  // that holds the string representing the yaml serialization of the
-  // qualified type of the base type of the modelGEP
+  // that holds the string representing the yaml serialization of the base type
+  // of the modelGEP
   auto *BaseTypeConstantStrPtr = serializeToLLVMString(PointedType, M);
 
   // The second argument is the base address, and the third (representing the
@@ -76,7 +74,7 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
   auto TypeMap = initModelTypes(F,
                                 llvmToModelFunction(*Model, F),
                                 *Model,
-                                /*PointersOnly=*/false);
+                                /* PointersOnly = */ false);
 
   // Initialize the IR builder to inject functions
   llvm::LLVMContext &LLVMCtx = F.getContext();
@@ -111,16 +109,16 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
 
       if (auto *Load = dyn_cast<llvm::LoadInst>(&I)) {
         llvm::Value *PtrOp = Load->getPointerOperand();
-        QualifiedType PointedType = TypeMap.at(Load);
+        const model::UpcastableType &PointedT = TypeMap.at(Load);
 
         // Check that the Model type is compatible with the Load size
-        revng_assert(areMemOpCompatible(PointedType, *Load->getType(), *Model));
+        revng_assert(areMemOpCompatible(*PointedT, *Load->getType(), *Model));
 
         // Create an index-less ModelGEP for the pointer operand
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PtrOp,
-                                         PointedType,
+                                         PointedT,
                                          Load->getType());
 
         // Create a Copy to dereference the ModelGEP
@@ -131,7 +129,7 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         InjectedCall = Builder.CreateCall(CopyFunction, { DerefCall });
 
         // Add the dereferenced type to the type map
-        auto [_, Inserted] = TypeMap.insert({ InjectedCall, PointedType });
+        auto [_, Inserted] = TypeMap.insert({ InjectedCall, PointedT.copy() });
         revng_assert(Inserted);
 
       } else if (auto *Store = dyn_cast<llvm::StoreInst>(&I)) {
@@ -139,13 +137,13 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         llvm::Value *PointerOp = Store->getPointerOperand();
         llvm::Type *PointedType = ValueOp->getType();
 
-        QualifiedType PointerOpQT = TypeMap.at(PointerOp);
-        QualifiedType StoredQT = TypeMap.at(ValueOp);
+        const model::Type &PointerOpType = *TypeMap.at(PointerOp);
+        model::UpcastableType StoredType = TypeMap.at(ValueOp);
 
         // Use the model information coming from pointer operand only if the
         // size is the same as the store's original size.
-        if (PointerOpQT.isPointer()) {
-          model::QualifiedType PointedQT = dropPointer(PointerOpQT);
+        if (PointerOpType.isPointer()) {
+          const model::Type &PointeeType = PointerOpType.getPointee();
 
           // We want to make sure that the StoredType is compatible with the
           // place it is being stored into.
@@ -159,19 +157,19 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
           if (isCallToTagged(ValueOp, FunctionTags::StringLiteral))
             PointedType = llvm::PointerType::getUnqual(Store->getContext());
 
-          if (areMemOpCompatible(PointedQT, *PointedType, *Model))
-            StoredQT = PointedQT;
+          if (areMemOpCompatible(PointeeType, *PointedType, *Model))
+            StoredType = PointeeType;
         }
-        revng_assert(areMemOpCompatible(StoredQT, *PointedType, *Model));
+        revng_assert(areMemOpCompatible(*StoredType, *PointedType, *Model));
 
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PointerOp,
-                                         StoredQT,
+                                         StoredType,
                                          ValueOp->getType());
 
         // Add the dereferenced type to the type map
-        TypeMap.insert({ DerefCall, StoredQT });
+        TypeMap.insert({ DerefCall, StoredType });
 
         // Inject Assign() function
         auto *AssignFnType = getAssignFunctionType(ValueOp->getType(),

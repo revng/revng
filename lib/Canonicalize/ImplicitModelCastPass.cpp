@@ -15,7 +15,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/YAMLTraits.h"
@@ -28,10 +27,7 @@
 
 static Logger<> Log{ "implicit-model-cast" };
 
-using namespace llvm;
-using model::QualifiedType;
-
-using ValueTypeMap = std::map<const llvm::Value *, const model::QualifiedType>;
+using ValueTypeMap = std::map<const llvm::Value *, const model::UpcastableType>;
 using ModelPromotedTypesMap = std::map<const llvm::Instruction *, ValueTypeMap>;
 
 struct ImplicitModelCastPass : public llvm::FunctionPass {
@@ -47,18 +43,17 @@ public:
     AU.addRequired<LoadModelWrapperPass>();
   }
 
-  bool process(Function &F, const model::Binary &Model);
+  bool process(llvm::Function &F, const model::Binary &Model);
 
 private:
-  bool collectTypeInfoForTypePromotion(Instruction *I,
+  bool collectTypeInfoForTypePromotion(llvm::Instruction *I,
                                        const model::Binary &Model);
-  SmallSet<llvm::Use *, 4> getOperandsToPromote(Instruction *I,
-                                                const model::Binary &Model);
+  llvm::SmallSet<llvm::Use *, 4>
+  getOperandsToPromote(llvm::Instruction *I, const model::Binary &Model);
 
-  bool collectTypeInfoForPromotionForSingleValue(const Value *Value,
-                                                 const model::QualifiedType
-                                                   &OperandType,
-                                                 Instruction *I,
+  bool collectTypeInfoForPromotionForSingleValue(const llvm::Value *Value,
+                                                 const model::Type &OperandType,
+                                                 llvm::Instruction *I,
                                                  const model::Binary &Model);
 
 private:
@@ -66,7 +61,7 @@ private:
   ModelPromotedTypesMap PromotedTypes;
 };
 
-static void setImplicitModelCast(Value *ModelCastCallValue) {
+static void setImplicitModelCast(llvm::Value *ModelCastCallValue) {
   revng_assert(isCallToTagged(ModelCastCallValue, FunctionTags::ModelCast));
 
   llvm::CallInst *ModelCastCall = cast<llvm::CallInst>(ModelCastCallValue);
@@ -79,44 +74,42 @@ static void setImplicitModelCast(Value *ModelCastCallValue) {
 // Return original or promoted type for a model type. Scalar type needs to be at
 // least as int (32 bits), so if needed, we return a "promoted" version of the
 // type. This is called "Integer Promotion".
-static std::optional<model::QualifiedType>
-getOriginalOrPromotedType(const model::QualifiedType &OperandType,
+static model::UpcastableType
+getOriginalOrPromotedType(const model::Type &OperandType,
                           const model::Binary &Model) {
-  if (OperandType.isPointer())
+
+  const auto &Unwrapped = *OperandType.skipConstAndTypedefs();
+  if (not Unwrapped.isObject() or not Unwrapped.isScalar())
+    return model::UpcastableType::empty();
+
+  if (OperandType.isPointer()) {
     return OperandType;
 
-  auto UnwrappedType = peelConstAndTypedefs(OperandType);
-  if (not UnwrappedType.isScalar())
-    return std::nullopt;
-
-  revng_assert(UnwrappedType.Qualifiers().empty());
-
-  // Enum's underlying types will be processed later, when checking if a type
-  // can be implicitly casted into another. Just make sure that enum's
-  // underlying type is at least 4 bytes wide.
-  const auto *Unqualified = UnwrappedType.UnqualifiedType().getConst();
-  if (llvm::isa<model::EnumDefinition>(Unqualified)) {
-    auto SizeOfTheType = OperandType.size();
-    if (SizeOfTheType and *SizeOfTheType >= 4u)
+  } else if (const model::EnumDefinition *Enum = Unwrapped.getEnum()) {
+    // Enum's underlying types will be processed later, when checking if a type
+    // can be implicitly casted into another. Just make sure that enum's
+    // underlying type is at least 4 bytes wide.
+    if (Enum->size() >= 4u)
       return OperandType;
     else
-      return std::nullopt;
+      return model::UpcastableType::empty();
+
+  } else if (const model::PrimitiveType *Primitive = Unwrapped.getPrimitive()) {
+    if (Primitive->isFloatPrimitive())
+      return model::UpcastableType::empty();
+
+    model::UpcastableType Copy = *Primitive;
+    if (Copy->toPrimitive().Size() < 4)
+      Copy->toPrimitive().Size() = 4;
+    return Copy;
+
+  } else {
+    revng_abort("Unsupported scalar type");
   }
-
-  auto AsPrimitive = cast<model::PrimitiveDefinition>(Unqualified);
-  auto TypeKind = AsPrimitive->PrimitiveKind();
-  if (TypeKind == model::PrimitiveKind::Void
-      or TypeKind == model::PrimitiveKind::Float)
-    return std::nullopt;
-
-  unsigned ByteSize = AsPrimitive->Size();
-  return model::QualifiedType{
-    Model.getPrimitiveType(TypeKind, std::max(4u, ByteSize)), {}
-  };
 }
 
 // Check if we want to apply the Integer Promotion.
-static bool shouldApplyIntegerPromotion(const Instruction *I) {
+static bool shouldApplyIntegerPromotion(const llvm::Instruction *I) {
   if (isCallToTagged(I, FunctionTags::ModelCast))
     return true;
 
@@ -165,106 +158,79 @@ static bool shouldApplyIntegerPromotion(const Instruction *I) {
   return false;
 }
 
-// Check if QT can be casted into Target type, without losing precision.
-static bool isImplicitCast(const model::QualifiedType &QT,
-                           const model::QualifiedType &Target,
+// Check if a type can be casted into Target type, without losing precision.
+static bool isImplicitCast(const model::Type &From,
+                           const model::Type &To,
                            const llvm::Value *V) {
-  using model::PrimitiveKind::Generic;
-  using model::PrimitiveKind::Number;
-  using model::PrimitiveKind::PointerOrNumber;
-  using model::PrimitiveKind::Signed;
-  using model::PrimitiveKind::Unsigned;
-  using model::PrimitiveKind::Void;
-
-  if (QT == Target)
+  if (From == To)
     return true;
 
   // This will automatically handle typedefs as well.
-  auto UnwrappedQTType = peelConstAndTypedefs(QT);
-  auto UnwrappedTargetType = peelConstAndTypedefs(Target);
-
-  if (not UnwrappedQTType.isScalar() or not UnwrappedTargetType.isScalar())
-    return false;
-
-  if (UnwrappedQTType == UnwrappedTargetType)
+  const model::Type *FromUnwrapped = From.skipConstAndTypedefs();
+  const model::Type *ToUnwrapped = To.skipConstAndTypedefs();
+  if (*FromUnwrapped == *ToUnwrapped)
     return true;
 
-  // A non-const pointer to void * is an implicit cast.
-  if (UnwrappedQTType.isPointer() and UnwrappedTargetType.isPointer()) {
-    const model::QualifiedType PointeeQT = UnwrappedQTType.stripPointer();
-    const model::QualifiedType PointeeTarget = UnwrappedTargetType
-                                                 .stripPointer();
-    if (PointeeQT.isConst() or PointeeTarget.isConst())
-      return false;
+  if (not FromUnwrapped->isScalar() or not ToUnwrapped->isScalar())
+    return false;
 
-    if (UnwrappedTargetType.isVoid())
+  // A non-const pointer to void * is an implicit cast.
+  if (FromUnwrapped->isPointer() and ToUnwrapped->isPointer()) {
+    if (FromUnwrapped->getPointee().isConst()
+        or ToUnwrapped->getPointee().isConst()) {
+      return false;
+    }
+
+    if (ToUnwrapped->isVoidPrimitive())
       return true;
+
     return false;
   }
 
-  if (UnwrappedQTType.isPointer() or UnwrappedTargetType.isPointer())
-    return UnwrappedQTType == UnwrappedTargetType;
+  if (FromUnwrapped->isPointer() or ToUnwrapped->isPointer())
+    return false;
 
-  const auto *Unqualified = UnwrappedQTType.UnqualifiedType().getConst();
-  if (const auto *QTAsEnum = dyn_cast<model::EnumDefinition>(Unqualified))
-    UnwrappedQTType = QTAsEnum->UnderlyingType();
+  if (const auto *Enum = FromUnwrapped->getEnum())
+    FromUnwrapped = &Enum->underlyingType();
+  if (const auto *Enum = ToUnwrapped->getEnum())
+    ToUnwrapped = &Enum->underlyingType();
 
-  const auto *UnqualTarget = UnwrappedTargetType.UnqualifiedType().getConst();
-  if (const auto *TargetAsEnum = dyn_cast<model::EnumDefinition>(UnqualTarget))
-    UnwrappedTargetType = TargetAsEnum->UnderlyingType();
+  const model::PrimitiveType &FromPrimitive = FromUnwrapped->toPrimitive();
+  const model::PrimitiveType &ToPrimitive = ToUnwrapped->toPrimitive();
 
-  revng_assert(UnwrappedQTType.Qualifiers().empty());
-  revng_assert(UnwrappedTargetType.Qualifiers().empty());
+  auto ShouldTreatAsUnsigned = [](const model::PrimitiveType &Primitive) {
+    return Primitive.PrimitiveKind() == model::PrimitiveKind::PointerOrNumber
+           or Primitive.PrimitiveKind() == model::PrimitiveKind::Generic
+           or Primitive.PrimitiveKind() == model::PrimitiveKind::Unsigned
+           or Primitive.PrimitiveKind() == model::PrimitiveKind::Number;
+  };
 
-  auto TargetAsPrimitive = cast<model::PrimitiveDefinition>(UnwrappedTargetType
-                                                              .UnqualifiedType()
-                                                              .getConst());
-  auto QTAsPrimitive = cast<model::PrimitiveDefinition>(UnwrappedQTType
-                                                          .UnqualifiedType()
-                                                          .getConst());
-  switch (QTAsPrimitive->PrimitiveKind()) {
-  // This will be identical in C, see `revng-primitive-types.h`.
-  case Generic:
-  case Unsigned:
-  case Number:
-  case PointerOrNumber: {
-    auto TargetKind = TargetAsPrimitive->PrimitiveKind();
-
+  if (ShouldTreatAsUnsigned(FromPrimitive)) {
     // Handle Unsigned to Unsigned.
-    if (TargetKind == Generic or TargetKind == Unsigned or TargetKind == Number
-        or TargetKind == PointerOrNumber) {
-      return QTAsPrimitive->Size() <= TargetAsPrimitive->Size();
-    }
+    if (ShouldTreatAsUnsigned(ToPrimitive))
+      return FromPrimitive.Size() <= ToPrimitive.Size();
 
     // Handle Unsigned to a Signed with larger size.
-    if (TargetKind == Signed)
-      return QTAsPrimitive->Size() < TargetAsPrimitive->Size();
+    if (ToPrimitive.PrimitiveKind() == model::PrimitiveKind::Signed)
+      return FromPrimitive.Size() < ToPrimitive.Size();
 
-    break;
-  }
-  case Signed: {
-    auto TargetKind = TargetAsPrimitive->PrimitiveKind();
-    if (TargetKind == Signed)
-      return QTAsPrimitive->Size() < TargetAsPrimitive->Size();
-    break;
-  }
-  default:
-    break;
+  } else if (FromPrimitive.PrimitiveKind() == model::PrimitiveKind::Signed) {
+    // Handle Signed to Signed.
+    if (ToPrimitive.PrimitiveKind() == model::PrimitiveKind::Signed)
+      return FromPrimitive.Size() < ToPrimitive.Size();
   }
 
   return false;
 }
 
 // This is to avoid -Wshift-count-overflow in C.
-static bool
-isShiftCountGreaterThanExpectedType(const model::QualifiedType &Type,
-                                    const llvm::Value *V) {
+static bool isShiftCountGreaterThanExpectedType(const model::Type &Type,
+                                                const llvm::Value *V) {
   if (auto *ModelCast = getCallToTagged(V, FunctionTags::ModelCast)) {
     llvm::Value *V = ModelCast->getArgOperand(1);
-    if (llvm::isa<ConstantInt>(V)) {
-      uint64_t ShiftCountValue = cast<ConstantInt>(V)->getZExtValue();
-      auto TypeSize = Type.size();
-      if (TypeSize and ShiftCountValue >= *TypeSize)
+    if (auto *ShiftCount = llvm::dyn_cast<llvm::ConstantInt>(V)) {
+      revng_assert(Type.size().has_value());
+      if (ShiftCount->getZExtValue() >= *Type.size())
         return true;
     }
   }
@@ -272,7 +238,7 @@ isShiftCountGreaterThanExpectedType(const model::QualifiedType &Type,
   return false;
 }
 
-static bool isShiftLikeInstruction(Instruction *I) {
+static bool isShiftLikeInstruction(llvm::Instruction *I) {
   if (I->getOpcode() == llvm::Instruction::Shl
       || I->getOpcode() == llvm::Instruction::AShr
       || I->getOpcode() == llvm::Instruction::LShr)
@@ -281,10 +247,10 @@ static bool isShiftLikeInstruction(Instruction *I) {
 }
 
 // Returns set of operand's indices that do not need a cast.
-SmallSet<llvm::Use *, 4>
-ImplicitModelCastPass::getOperandsToPromote(Instruction *I,
+llvm::SmallSet<llvm::Use *, 4>
+ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
                                             const model::Binary &Model) {
-  SmallSet<llvm::Use *, 4> Result;
+  llvm::SmallSet<llvm::Use *, 4> Result;
   if (not shouldApplyIntegerPromotion(I)) {
     revng_log(Log,
               "Shouldn't be applying integer promotion for "
@@ -306,7 +272,7 @@ ImplicitModelCastPass::getOperandsToPromote(Instruction *I,
     auto *CastedValue = CallToModelCast->getArgOperand(1);
     // Expected Type for the casted operand is the type of the cast, since the
     // MakeModelCast already made the cast.
-    QualifiedType ExpectedType = TypeMap.at(CallToModelCast);
+    const model::Type &ExpectedType = *TypeMap.at(CallToModelCast);
 
     // Check if shift count < width of type.
     if (isShiftLikeInstruction(I) and Op.getOperandNo() == 0
@@ -319,10 +285,10 @@ ImplicitModelCastPass::getOperandsToPromote(Instruction *I,
       continue;
 
     auto PromotedTypeForCastedValue = PromotedTypesForInstruction[CastedValue];
-    QualifiedType CastedValueType = TypeMap.at(CastedValue);
+    const model::Type &CastedValueType = *TypeMap.at(CastedValue);
     // If type of the value being casted or integer promoted type are implicit
     // casts, we can avoid the cast itself.
-    if (not isImplicitCast(PromotedTypeForCastedValue,
+    if (not isImplicitCast(*PromotedTypeForCastedValue,
                            ExpectedType,
                            CastedValue)
         and not isImplicitCast(CastedValueType, ExpectedType, CastedValue)) {
@@ -335,25 +301,31 @@ ImplicitModelCastPass::getOperandsToPromote(Instruction *I,
   return Result;
 }
 
-static bool isCandidate(Instruction &I) {
-  return std::any_of(I.op_begin(), I.op_end(), [](Value *V) {
+static bool isCandidate(llvm::Instruction &I) {
+  return std::any_of(I.op_begin(), I.op_end(), [](llvm::Value *V) {
     return isCallToTagged(V, FunctionTags::ModelCast);
   });
 }
 
 using IMCP = ImplicitModelCastPass;
 // Collect type information for a single operand from an LLVM instruction.
-bool IMCP::collectTypeInfoForPromotionForSingleValue(const Value *Value,
-                                                     const model::QualifiedType
+bool IMCP::collectTypeInfoForPromotionForSingleValue(const llvm::Value *Value,
+                                                     const model::Type
                                                        &OperandType,
-                                                     Instruction *I,
+                                                     llvm::Instruction *I,
                                                      const model::Binary
                                                        &Model) {
   auto PromotedType = getOriginalOrPromotedType(OperandType, Model);
   if (PromotedType) {
     // This will be used in the second stage of the
     // reducing-cast-algorithm.
-    PromotedTypes[I].insert({ Value, *PromotedType });
+    auto [It, Success] = PromotedTypes[I].try_emplace(Value, PromotedType);
+    if (not Success) {
+      revng_assert(not It->second.isEmpty());
+      revng_assert(not PromotedType.isEmpty());
+      revng_assert(*It->second == *PromotedType);
+    }
+
     return true;
   }
 
@@ -362,49 +334,53 @@ bool IMCP::collectTypeInfoForPromotionForSingleValue(const Value *Value,
 
 // Collect type information for the operands from an LLVM instructions. It will
 // be used for the type promotion later.
-bool IMCP::collectTypeInfoForTypePromotion(Instruction *I,
+bool IMCP::collectTypeInfoForTypePromotion(llvm::Instruction *I,
                                            const model::Binary &Model) {
   using namespace model;
   using namespace abi::FunctionType;
 
   bool Result = false;
   auto CheckTypeFor = [this, &Model, &Result, &I](const llvm::Use &Op) {
-    std::optional<QualifiedType> OperandType;
-    std::optional<QualifiedType> ExpectedType;
-    Value *ValueToPromoteTypeFor = nullptr;
+    const model::Type *OperandType = nullptr;
+    model::UpcastableType ExpectedType = model::UpcastableType::empty();
+    llvm::Value *ValueToPromoteTypeFor = nullptr;
     if (isCallToTagged(Op.get(), FunctionTags::ModelCast)) {
       // If it is a ModelCast, get the type for the value being casted.
       // The expected type is the type of the model-cast, since it was
       // already "casted" by the MakeModelCast Pass.
       llvm::CallInst *CallToModelCast = cast<llvm::CallInst>(Op.get());
       llvm::Value *CastedValue = CallToModelCast->getArgOperand(1);
-      OperandType = TypeMap.at(CastedValue);
+      OperandType = TypeMap.at(CastedValue).get();
       ValueToPromoteTypeFor = CastedValue;
       ExpectedType = TypeMap.at(Op.get());
     } else {
       // If it is not a ModelCast, promote the type for the llvm::Value itself.
-      OperandType = TypeMap.at(Op.get());
+      OperandType = TypeMap.at(Op.get()).get();
       ValueToPromoteTypeFor = Op.get();
       auto ModelTypes = getExpectedModelType(&Op, Model);
       if (ModelTypes.size() != 1)
         return;
-      ExpectedType = ModelTypes.back();
+      ExpectedType = std::move(ModelTypes.back());
     }
 
-    revng_assert(ExpectedType->UnqualifiedType().isValid());
-    revng_assert(OperandType->UnqualifiedType().isValid());
-    if (ExpectedType->isScalar() and OperandType->isScalar()) {
+    revng_assert(OperandType != nullptr);
+    revng_assert(OperandType->verify(true));
+    revng_assert(not ExpectedType.isEmpty());
+    revng_assert(ExpectedType->verify(true));
+    if (OperandType->isScalar() and ExpectedType->isScalar()) {
       // Integer promotion - stage 1: Try to see if the operand can be
       // promoted implicitly into the expected type, so we can avoid
       // casts later (see stage 2).
-      Result |= collectTypeInfoForPromotionForSingleValue(ValueToPromoteTypeFor,
-                                                          *OperandType,
-                                                          I,
-                                                          Model);
+      if (collectTypeInfoForPromotionForSingleValue(ValueToPromoteTypeFor,
+                                                    *OperandType,
+                                                    I,
+                                                    Model)) {
+        Result = true;
+      }
     }
   };
 
-  if (auto *Call = dyn_cast<CallInst>(I)) {
+  if (auto *Call = dyn_cast<llvm::CallInst>(I)) {
     auto *Callee = Call->getCalledFunction();
     if (isCallToIsolatedFunction(Call)) {
       if (not Callee)
@@ -430,7 +406,7 @@ bool IMCP::collectTypeInfoForTypePromotion(Instruction *I,
                or isCallToTagged(I, FunctionTags::BinaryNot)) {
       CheckTypeFor(I->getOperandUse(0));
     }
-  } else if (auto *Ret = dyn_cast<ReturnInst>(I)) {
+  } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(I)) {
     if (Ret->getNumOperands() > 0)
       CheckTypeFor(Ret->getOperandUse(0));
   } else if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)
@@ -445,7 +421,8 @@ bool IMCP::collectTypeInfoForTypePromotion(Instruction *I,
   return Result;
 }
 
-bool ImplicitModelCastPass::process(Function &F, const model::Binary &Model) {
+bool ImplicitModelCastPass::process(llvm::Function &F,
+                                    const model::Binary &Model) {
   bool Changed = false;
 
   for (llvm::BasicBlock &BB : F) {
@@ -463,7 +440,7 @@ bool ImplicitModelCastPass::process(Function &F, const model::Binary &Model) {
 
       // Integer promotion - stage 2: Try to avoid casts that are not needed in
       // C.
-      SmallSet<llvm::Use *, 4>
+      llvm::SmallSet<llvm::Use *, 4>
         OperandsToPromoteTypeFor = getOperandsToPromote(&I, Model);
       if (not OperandsToPromoteTypeFor.size()) {
         revng_log(Log,
@@ -489,7 +466,7 @@ bool ImplicitModelCastPass::process(Function &F, const model::Binary &Model) {
   return Changed;
 }
 
-bool ImplicitModelCastPass::runOnFunction(Function &F) {
+bool ImplicitModelCastPass::runOnFunction(llvm::Function &F) {
   bool Changed = false;
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
@@ -508,4 +485,4 @@ bool ImplicitModelCastPass::runOnFunction(Function &F) {
 char ImplicitModelCastPass::ID = 0;
 
 using P = ImplicitModelCastPass;
-static RegisterPass<P> X("implicit-model-cast", "ImplicitCasts", false, false);
+static llvm::RegisterPass<P> X("implicit-model-cast", "ImplicitCasts");

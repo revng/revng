@@ -13,12 +13,14 @@ TypeDefinitions:
         CustomName: "a1"
         OriginalName: a1
         Type:
-          UnqualifiedType: "/TypeDefinitions/3002-UnionDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-UnionDefinition"
       - Offset: 4
         CustomName: "a2"
         OriginalName: a2
         Type:
-          UnqualifiedType: "/TypeDefinitions/3002-UnionDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-UnionDefinition"
     Size: 8
   - Kind: UnionDefinition
     ID: 3002
@@ -29,13 +31,13 @@ TypeDefinitions:
         CustomName: "a"
         OriginalName: a
         Type:
-          UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4
       - Index: 1
         CustomName: "b"
         OriginalName: b
         Type:
-          UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
-  - Kind: PrimitiveDefinition
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

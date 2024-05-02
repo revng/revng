@@ -13,25 +13,26 @@
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/PTMLC.h"
 
-// This is used to encapsulate all the things necessary for type inlining.
+/// This is used to encapsulate all the things necessary for type inlining.
 struct TypeInlineHelper {
 public:
   struct NodeData {
-    model::TypeDefinition *T;
+    const model::TypeDefinition *T;
   };
 
   using Node = BidirectionalNode<NodeData>;
   using Graph = GenericGraph<Node>;
 
-  // This Graph is being used for the purpose of inlining types only.
+  /// This Graph is being used for the purpose of inlining types only.
   // TODO: this should be refactored to used the same DependencyGraph used in
   // ModelToHeader. Having a separate different implementation of the same idea
   // here is bug prone, and has in fact already cause bugs in the past.
   struct GraphInfo {
-    // The bi-directional graph used to analyze type connections in both
-    // directions.
+    /// The bi-directional graph used to analyze type connections in both
+    /// directions.
     Graph TypeGraph;
-    // This is being used for speeding up the counting of the type references.
+
+    /// This is being used for speeding up the counting of the type references.
     std::map<const model::TypeDefinition *, Node *> TypeToNode;
   };
 
@@ -47,87 +48,145 @@ public:
   const std::set<const model::TypeDefinition *> &getTypesToInline() const;
 
 public:
-  // Collect stack frame types per model::Function.
+  /// Collect stack frame types per model::Function.
   std::unordered_map<const model::Function *,
                      std::set<const model::TypeDefinition *>>
   findTypesToInlineInStacks() const;
 
-  // Collect all the types that can be emitted inline in the stack frame types
-  // of model functions.
+  /// Collect all stack frame types, since we want to print them inline in
+  /// the function body.
   std::set<const model::TypeDefinition *> collectTypesInlinableInStacks() const;
 
-  // Find all nested types of the `RootType` that should be inlined into it.
+  /// Find all nested types of the `RootType` that should be inlined into it.
   std::set<const model::TypeDefinition *>
-  getTypesToInlineInTypeTy(const model::TypeDefinition *RootType) const;
+  getTypesToInlineInTypeTy(const model::TypeDefinition &RootType) const;
 
 private:
   // Helper function used for finding all nested (into `RootType`) inlinable
   // types.
   std::set<const model::TypeDefinition *>
-  getNestedTypesToInline(const model::TypeDefinition *RootType,
-                         const model::UpcastableTypeDefinition &NestedTy) const;
+  getNestedTypesToInline(const model::TypeDefinition &RootType,
+                         const model::TypeDefinition &NestedTy) const;
 };
 
-extern bool declarationIsDefinition(const model::TypeDefinition *T);
+/// Returns true for types we never print definitions for (like typedefs)
+///
+/// \note As a side-effect this also determines whether type can be inlined:
+///       there's no point inlining a type for which we only emit
+///       the declaration
+inline bool declarationIsDefinition(const model::TypeDefinition &T) {
+  return not llvm::isa<model::StructDefinition>(&T)
+         and not llvm::isa<model::UnionDefinition>(&T)
+         and not llvm::isa<model::EnumDefinition>(&T);
+}
 
+/// Print a forward declaration corresponding to a given `model::TypeDefinition`
+///
+/// \param T the type to print the declaration for.
+/// \param Header the stream to output the results to.
+/// \param B the ptml tagging helper.
 extern void printForwardDeclaration(const model::TypeDefinition &T,
                                     ptml::PTMLIndentedOstream &Header,
                                     ptml::PTMLCBuilder &B);
 
-// Print a declaration for a Type. The last three arguments (`TypesToInline`
-// `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
-// inline. If the `NameOfInlineInstance` and `Qualifiers` are set, it means that
-// we should print the type inline. Types that can be inline are structs, unions
-// and enums.
+/// Print a declaration corresponding to a given `model::TypeDefinition`.
+///
+/// \param Log the logger to print the debugging information to.
+/// \param T the type to print the declaration for.
+/// \param Header the stream to output the results to.
+/// \param B the ptml tagging helper.
+/// \param Model the binary this type belongs to.
+/// \param AdditionalNames the cache containing the names of artificial types
+///        (like array wrappers).
 extern void
 printDeclaration(Logger<> &Log,
                  const model::TypeDefinition &T,
                  ptml::PTMLIndentedOstream &Header,
                  ptml::PTMLCBuilder &B,
                  const model::Binary &Model,
-                 std::map<model::QualifiedType, std::string> &AdditionalNames,
-                 const std::set<const model::TypeDefinition *> &TypesToInline,
-                 llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                 const std::vector<model::Qualifier> &Qualifiers = {},
-                 bool ForEditing = false);
+                 std::map<model::UpcastableType, std::string> &AdditionalNames);
 
-// Print a definition for a Type. The last three arguments (`TypesToInline`
-// `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
-// inline. If the `NameOfInlineInstance` and `Qualifiers` are set, it means that
-// we should print the type inline. Types that can be inline are structs, unions
-// and enums.
+/// Print a definition corresponding to a given `model::TypeDefinition`.
+///
+/// \param Log the logger to print the debugging information to.
+/// \param T the type to print the declaration for.
+/// \param Header the stream to output the results to.
+/// \param B the ptml tagging helper.
+/// \param Model the binary this type belongs to.
+/// \param AdditionalNames the cache containing the names of artificial types
+///        (like array wrappers).
+/// \param TypesToInline a set of types that should be inlined when printing
+///        this definition.
+/// \param ForEditing a helper flag to state the intention behind the output
+///        definition:
+///        * when set to true, the definition is intended to be parsed
+///          back (after, say, the user edited it), as such some extra
+///          information (like maximum enum value) is emitted.
+///        * otherwise, the type is emitted as cleanly as possible, as it is
+///          intended for people, not for compilers.
 extern void
 printDefinition(Logger<> &Log,
                 const model::TypeDefinition &T,
                 ptml::PTMLIndentedOstream &Header,
                 ptml::PTMLCBuilder &B,
                 const model::Binary &Model,
-                std::map<model::QualifiedType, std::string> &AdditionalNames,
-                const std::set<const model::TypeDefinition *> &TypesToInline,
-                llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                const std::vector<model::Qualifier> &Qualifiers = {},
+                std::map<model::UpcastableType, std::string> &AdditionalNames,
+                const std::set<const model::TypeDefinition *>
+                  &TypesToInline = {},
                 bool ForEditing = false);
 
-// Print a definition for a struct. The last three arguments (`TypesToInline`
-// `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
-// inline. If the `NameOfInlineInstance` and `Qualifiers` are set, it means that
-// we should print the type inline.
-extern void
-printDefinition(Logger<> &Log,
-                const model::StructDefinition &S,
-                ptml::PTMLIndentedOstream &Header,
-                ptml::PTMLCBuilder &B,
-                const model::Binary &Model,
-                std::map<model::QualifiedType, std::string> &AdditionalNames,
-                const std::set<const model::TypeDefinition *> &TypesToInline,
-                llvm::StringRef NameOfInlineInstance = llvm::StringRef(),
-                const std::vector<model::Qualifier> &Qualifiers = {});
+/// Print an inline definition corresponding to a given `model::TypeDefinition`.
+///
+/// \param Log the logger to print the debugging information to.
+/// \param Name the name of the variable/field/etc being printed.
+/// \param T the type to print the declaration for.
+/// \param Header the stream to output the results to.
+/// \param B the ptml tagging helper.
+/// \param Model the binary this type belongs to.
+/// \param AdditionalNames the cache containing the names of artificial types
+///        (like array wrappers).
+/// \param TypesToInline a set of types that should be inlined when printing
+///        this definition.
+extern void printInlineDefinition(Logger<> &Log,
+                                  llvm::StringRef Name,
+                                  const model::Type &T,
+                                  ptml::PTMLIndentedOstream &Header,
+                                  ptml::PTMLCBuilder &B,
+                                  const model::Binary &Model,
+                                  std::map<model::UpcastableType, std::string>
+                                    &AdditionalNames,
+                                  const std::set<const model::TypeDefinition *>
+                                    &TypesToInline);
 
-// Checks if a Type is valid candidate to inline. Types that can be inline are
-// structs, unions and enums.
-extern bool isCandidateForInline(const model::TypeDefinition *T);
+/// Print an inline definition corresponding to a given struct.
+///
+/// \param Log the logger to print the debugging information to.
+/// \param Struct the type to print the declaration for.
+/// \param Header the stream to output the results to.
+/// \param B the ptml tagging helper.
+/// \param Model the binary this type belongs to.
+/// \param AdditionalNames the cache containing the names of artificial types
+///        (like array wrappers).
+/// \param TypesToInline a set of types that should be inlined when printing
+///        this definition.
+/// \param Suffix a string to append after the definition, usually is just
+///        the name of the field/variable.
+extern void printInlineDefinition(Logger<> &Log,
+                                  const model::StructDefinition &Struct,
+                                  ptml::PTMLIndentedOstream &Header,
+                                  ptml::PTMLCBuilder &B,
+                                  const model::Binary &Model,
+                                  std::map<model::UpcastableType, std::string>
+                                    &AdditionalNames,
+                                  const std::set<const model::TypeDefinition *>
+                                    &TypesToInline,
+                                  std::string &&Suffix = "");
 
-// Print a typedef declaration.
+/// Print a declaration corresponding to a given typedef.
+///
+/// \param TD the typedef to print the declaration for.
+/// \param Header the stream to output the results to.
+/// \param B the ptml tagging helper.
 extern void printDeclaration(const model::TypedefDefinition &TD,
                              ptml::PTMLIndentedOstream &Header,
                              ptml::PTMLCBuilder &B);

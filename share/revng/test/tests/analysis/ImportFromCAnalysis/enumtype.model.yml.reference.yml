@@ -7,7 +7,9 @@ TypeDefinitions:
     ID: 3000
     CustomName: "my_enum"
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 0
         CustomName: "none"

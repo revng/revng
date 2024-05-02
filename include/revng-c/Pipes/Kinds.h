@@ -32,7 +32,7 @@ extern FunctionKind Decompiled;
 inline pipeline::SingleElementKind ModelHeader("model-header",
                                                Binary,
                                                ranks::Binary,
-                                               fat(ranks::Type,
+                                               fat(ranks::TypeDefinition,
                                                    ranks::StructField,
                                                    ranks::UnionField,
                                                    ranks::EnumEntry,
@@ -49,7 +49,7 @@ inline FunctionKind Decompiled("decompiled",
 
 inline TypeKind ModelTypeDefinition("model-type-definition",
                                     ModelHeader,
-                                    ranks::Type,
+                                    ranks::TypeDefinition,
                                     {},
                                     {});
 

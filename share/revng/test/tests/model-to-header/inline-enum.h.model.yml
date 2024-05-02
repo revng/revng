@@ -13,14 +13,17 @@ TypeDefinitions:
         CustomName: "the_a"
         OriginalName: the_a
         Type:
-          UnqualifiedType: "/TypeDefinitions/3002-EnumDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-EnumDefinition"
     Size: 4
   - Kind: EnumDefinition
     ID: 3002
     CustomName: "A"
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 0
         CustomName: "FIRST"
@@ -28,9 +31,5 @@ TypeDefinitions:
       - Value: 1
         CustomName: "SECOND"
         OriginalName: SECOND
-  - Kind: PrimitiveDefinition
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
 ---
 

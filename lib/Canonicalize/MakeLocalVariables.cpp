@@ -75,43 +75,43 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   const model::Function *ModelF = llvmToModelFunction(*Model, F);
   revng_assert(ModelF);
   using ModelTypesMap = std::map<const llvm::Value *,
-                                 const model::QualifiedType>;
+                                 const model::UpcastableType>;
   ModelTypesMap KnownTypes = initModelTypes(F,
                                             ModelF,
                                             *Model,
-                                            /*PointersOnly=*/false);
+                                            /* PointersOnly = */ false);
 
   for (auto *Alloca : ToReplace) {
     Builder.SetInsertPoint(Alloca);
     llvm::Type *ResultType = Alloca->getType();
 
     // Compute the allocated type for the alloca
-    model::QualifiedType AllocatedType;
-    {
-      std::set<model::QualifiedType> StoredTypes;
-      for (const llvm::Use &U : Alloca->uses()) {
-        if (auto *Store = dyn_cast<llvm::StoreInst>(U.getUser())) {
-          if (Store->getPointerOperandIndex() == U.getOperandNo()) {
-            llvm::Value *Stored = Store->getValueOperand();
-            auto It = KnownTypes.find(Stored);
-            if (It != KnownTypes.end()) {
-              StoredTypes.insert(It->second);
+    model::UpcastableType AllocatedType = model::UpcastableType::empty();
+    for (const llvm::Use &U : Alloca->uses()) {
+      if (auto *Store = dyn_cast<llvm::StoreInst>(U.getUser())) {
+        if (Store->getPointerOperandIndex() == U.getOperandNo()) {
+          llvm::Value *Stored = Store->getValueOperand();
+          auto It = KnownTypes.find(Stored);
+          if (It != KnownTypes.end()) {
+            if (AllocatedType.isEmpty()) {
+              AllocatedType = It->second.copy();
+            } else if (*AllocatedType != *It->second) {
+              // Found multiple possible types, relying on a fallback instead.
+              AllocatedType = model::UpcastableType::empty();
+              break;
             }
           }
         }
       }
-
-      if (StoredTypes.size() == 1)
-        AllocatedType = *StoredTypes.begin();
-      else
-        AllocatedType = llvmIntToModelType(Alloca->getAllocatedType(), *Model);
     }
-    revng_assert(AllocatedType.verify());
+
+    if (AllocatedType.isEmpty())
+      AllocatedType = llvmIntToModelType(Alloca->getAllocatedType(), *Model);
+    revng_assert(!AllocatedType.isEmpty() && AllocatedType->verify());
 
     llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
     auto LocalVarLLVMType = llvm::IntegerType::get(LLVMCtx,
-                                                   AllocatedType.size().value()
-                                                     * 8);
+                                                   *AllocatedType->size() * 8);
 
     // Inject call to LocalVariable
     auto *LocalVarFunctionType = getLocalVarType(LocalVarLLVMType);

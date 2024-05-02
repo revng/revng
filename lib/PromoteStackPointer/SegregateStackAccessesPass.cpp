@@ -368,7 +368,7 @@ public:
 
 private:
   pair<Instruction *, Instruction *>
-  createLocal(IRBuilder<> &B, const model::QualifiedType &VariableType) {
+  createLocal(IRBuilder<> &B, const model::Type &VariableType) {
     // Get call to local variable
     auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
     auto *LocalVarFunction = LocalVarPool.get(PtrSizedInteger,
@@ -395,14 +395,10 @@ private:
     return B.CreateIntToPtr(V, OpaquePointerType);
   }
 
-  auto getPointerTo(const model::QualifiedType &T) const {
-    return T.getPointerTo(Binary.Architecture());
-  }
-
   template<typename... Types>
   std::pair<CallInst *, CallInst *>
   createCallWithAddressOf(IRBuilder<> &B,
-                          model::QualifiedType &AllocatedType,
+                          const model::UpcastableType &AllocatedType,
                           FunctionCallee Callee,
                           Types... Arguments) {
 
@@ -450,9 +446,8 @@ private:
       // TODO: this is not very nice
       auto SymbolName = stripPrefix("dynamic_", OldFunction->getName()).str();
       auto &ImportedFunction = Binary.ImportedDynamicFunctions().at(SymbolName);
-      model::DefinitionReference Prototype = ImportedFunction.prototype(Binary);
-      auto [NewFunction, Layout] = recreateApplyingModelPrototype(OldFunction,
-                                                                  Prototype);
+      auto &ProtoT = *Binary.prototypeOrDefault(ImportedFunction.prototype());
+      recreateApplyingModelPrototype(OldFunction, ProtoT);
     }
   }
 
@@ -476,7 +471,7 @@ private:
       //
       // Create new FunctionType
       //
-      auto Prototype = ModelFunction.prototype(Binary);
+      auto &Prototype = *Binary.prototypeOrDefault(ModelFunction.prototype());
       auto [NewFunction, Layout] = recreateApplyingModelPrototype(OldFunction,
                                                                   Prototype);
       Type *NewReturnType = NewFunction->getReturnType();
@@ -514,8 +509,6 @@ private:
       auto ModelArguments = llvm::make_range(Layout.Arguments.begin(),
                                              Layout.Arguments.end());
 
-      model::QualifiedType ResultVariableType;
-
       // Perform sanity checks on the return value and extract the type of the
       // result variable, if we're returning through a variable
       auto ReturnMethod = Layout.returnMethod();
@@ -525,7 +518,7 @@ private:
         break;
 
       case ReturnMethod::ModelAggregate:
-        ResultVariableType = Layout.returnValueAggregateType();
+        // Nothing to check here.
         break;
 
       case ReturnMethod::RegisterSet:
@@ -546,8 +539,8 @@ private:
       Value *ReturnValueReference = nullptr;
       Value *ReturnValuePointer = nullptr;
       if (ReturnMethod == ReturnMethod::ModelAggregate) {
-        std::tie(ReturnValueReference,
-                 ReturnValuePointer) = createLocal(B, ResultVariableType);
+        auto RetValuePair = createLocal(B, Layout.returnValueAggregateType());
+        std::tie(ReturnValueReference, ReturnValuePointer) = RetValuePair;
 
         if (Layout.hasSPTAR()) {
           // Identify the SPTAR
@@ -587,7 +580,7 @@ private:
         if (ModelArgument.Kind == PointerToCopy) {
           auto Architecture = Binary.Architecture();
           auto PointerSize = model::Architecture::getPointerSize(Architecture);
-          revng_assert(ModelArgument.Type.size() > PointerSize);
+          revng_assert(ModelArgument.Type->size() > PointerSize);
 
           llvm::Constant
             *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
@@ -615,7 +608,7 @@ private:
           }
 
         } else if (ModelArgument.Kind == Scalar) {
-          revng_assert(ModelArgument.Type.isScalar());
+          revng_assert(ModelArgument.Type->isScalar());
           // Handle scalar argument
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
@@ -849,7 +842,7 @@ private:
     for (BasicBlock &BB : F)
       for (Instruction &I : BB)
         if (CallInst *SSACSCall = getCallTo(&I, SSACS))
-          handleCallSite(ModelFunction, AnalysisResult, SSACSCall);
+          handleCallSite(AnalysisResult, SSACSCall);
 
     //
     // Handle memory access, possibly targeting stack arguments
@@ -883,9 +876,7 @@ private:
     }
   }
 
-  void handleCallSite(const model::Function &ModelFunction,
-                      MFIResult &AnalysisResult,
-                      CallInst *SSACSCall) {
+  void handleCallSite(MFIResult &AnalysisResult, CallInst *SSACSCall) {
     LoggerIndent<> Indent(Log);
 
     //
@@ -896,10 +887,10 @@ private:
     // Get stack size at call site
     auto MaybeStackSize = getSignedConstantArg(SSACSCall, 0);
 
-    // Obtain RawFunctionType
-    auto Prototype = getCallSitePrototype(Binary, SSACSCall);
+    // Obtain the prototype
+    const auto &Prototype = *getCallSitePrototype(Binary, SSACSCall);
     using namespace abi::FunctionType;
-    abi::FunctionType::Layout Layout = Layout::make(*Prototype.getConst());
+    abi::FunctionType::Layout Layout = Layout::make(Prototype);
 
     // Find old call instruction
     CallInst *OldCall = findAssociatedCall(SSACSCall);
@@ -936,20 +927,15 @@ private:
     StackAccessRedirector Redirector(-MaybeStackSize.value_or(0)
                                      + CallInstructionPushSize);
 
-    model::QualifiedType ReturnType;
     SmallVector<llvm::Type *, 8> LLVMArgumentTypes;
     bool HasSPTAR = Layout.hasSPTAR();
 
-    auto returnMethod = Layout.returnMethod();
-    if (returnMethod == ReturnMethod::ModelAggregate) {
-      ReturnType = Layout.returnValueAggregateType();
-
-      if (HasSPTAR) {
-        // Inject the SPTAR in LLVMArgumentTypes
-        revng_assert(Layout.Arguments.size() > 0);
-        uint64_t SPTARSize = *Layout.Arguments[0].Type.size();
-        LLVMArgumentTypes.push_back(B.getIntNTy(SPTARSize * 8));
-      }
+    auto ReturnMethod = Layout.returnMethod();
+    if (ReturnMethod == ReturnMethod::ModelAggregate and HasSPTAR) {
+      // Inject the SPTAR in LLVMArgumentTypes
+      revng_assert(Layout.Arguments.size() > 0);
+      uint64_t SPTARSize = *Layout.Arguments[0].Type->size();
+      LLVMArgumentTypes.push_back(B.getIntNTy(SPTARSize * 8));
     }
 
     copy(CalleeType->params(), std::back_inserter(LLVMArgumentTypes));
@@ -957,8 +943,7 @@ private:
     bool MessageEmitted = false;
     for (auto [LLVMType, ModelArgument] :
          llvm::zip(LLVMArgumentTypes, Layout.Arguments)) {
-      model::QualifiedType ArgumentType = ModelArgument.Type;
-      uint64_t NewSize = *ArgumentType.size();
+      uint64_t NewSize = *ModelArgument.Type->size();
 
       switch (ModelArgument.Kind) {
 
@@ -968,7 +953,7 @@ private:
         if (ModelArgument.Stack) {
           model::Architecture::Values Architecture = Binary.Architecture();
           auto PointerSize = model::Architecture::getPointerSize(Architecture);
-          revng_assert(ModelArgument.Type.size() > PointerSize);
+          revng_assert(ModelArgument.Type->size() > PointerSize);
           revng_assert(ModelArgument.Registers.size() == 0);
           revng_assert(ModelArgument.Stack->Size == PointerSize);
           revng_assert(MaybeStackSize);
@@ -1005,7 +990,7 @@ private:
 
       case ArgumentKind::Scalar:
       case ArgumentKind::ShadowPointerToAggregateReturnValue: {
-        revng_assert(ArgumentType.isScalar());
+        revng_assert(ModelArgument.Type->isScalar());
         Value *Accumulator = ConstantInt::get(LLVMType, 0);
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
@@ -1161,11 +1146,13 @@ private:
         // Make reference out of ReturnValuePointer
         Type *T = ReturnValuePointer->getType();
         Function *GetModelGEPFunction = getModelGEP(M, T, T);
-        auto *BaseTypeConstantStrPtr = serializeToLLVMString(ReturnType, M);
         auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
         auto *Zero = ConstantInt::get(Int64Type, 0);
         B.CreateCall(GetModelGEPFunction,
-                     { BaseTypeConstantStrPtr, ReturnValuePointer, Zero });
+                     { serializeToLLVMString(Layout.returnValueAggregateType(),
+                                             M),
+                       ReturnValuePointer,
+                       Zero });
       } else {
         revng_assert(not ReturnValuePointer);
         auto *T = NewCall->getType();
@@ -1173,10 +1160,8 @@ private:
         auto *AddressOfFunction = AddressOfPool.get({ T, T },
                                                     AddressOfFunctionType,
                                                     "AddressOf");
-        Constant *
-          ReferenceString = serializeToLLVMString(Layout
-                                                    .returnValueAggregateType(),
-                                                  M);
+        const auto &ReturnValue = Layout.returnValueAggregateType();
+        Constant *ReferenceString = serializeToLLVMString(ReturnValue, M);
         ReturnValuePointer = B.CreateCall(AddressOfFunction,
                                           { ReferenceString, NewCall });
       }
@@ -1360,24 +1345,22 @@ private:
     // Find call to _init_local_sp
     //
     CallInst *Call = findCallTo(&F, InitLocalSP);
-    if (Call == nullptr or ModelFunction.StackFrameType().empty())
+    if (Call == nullptr or ModelFunction.StackFrameType().isEmpty())
       return;
 
     //
     // Get stack frame size
     //
-    std::optional<uint64_t> MaybeStackFrameSize;
-    if (const model::TypeDefinition *T = ModelFunction.StackFrameType().get())
-      MaybeStackFrameSize = T->size(VH);
-
-    uint64_t StackFrameSize = MaybeStackFrameSize.value_or(0);
+    uint64_t StackFrameSize = 0;
+    if (const model::TypeDefinition *T = ModelFunction.stackFrameType())
+      StackFrameSize = *T->size(VH);
 
     //
     // Create call and rebase SP0, if StackFrameSize is not zero
     //
     if (StackFrameSize != 0) {
       IRBuilder<> Builder(Call);
-      model::QualifiedType StackFrameType(ModelFunction.StackFrameType(), {});
+      model::UpcastableType StackFrameType = ModelFunction.StackFrameType();
       auto [_, StackFrameCall] = createCallWithAddressOf(Builder,
                                                          StackFrameType,
                                                          StackFrameAllocator,
@@ -1423,7 +1406,7 @@ private:
 private:
   std::pair<llvm::Function *, abi::FunctionType::Layout>
   recreateApplyingModelPrototype(Function *OldFunction,
-                                 const model::DefinitionReference &Prototype) {
+                                 const model::TypeDefinition &Prototype) {
     using namespace abi::FunctionType;
     auto Layout = Layout::make(Prototype);
 
@@ -1448,25 +1431,25 @@ private:
     using namespace abi::FunctionType;
     SmallVector<Type *> FunctionArguments;
     for (const Layout::Argument &Argument : Layout.Arguments) {
-      model::QualifiedType ArgumentType = Argument.Type;
-      using namespace abi::FunctionType::ArgumentKind;
+      model::UpcastableType ArgumentType = Argument.Type;
 
       switch (Argument.Kind) {
-      case ShadowPointerToAggregateReturnValue:
+      case abi::FunctionType::ArgumentKind::ShadowPointerToAggregateReturnValue:
+        // Skip SPTAR
         continue;
+      case abi::FunctionType::ArgumentKind::PointerToCopy:
+      case abi::FunctionType::ArgumentKind::ReferenceToAggregate:
+        ArgumentType = model::PointerType::make(std::move(ArgumentType),
+                                                Binary.Architecture());
         break;
-      case PointerToCopy:
-      case ReferenceToAggregate:
-        ArgumentType = getPointerTo(ArgumentType);
-        break;
-      case Scalar:
+      case abi::FunctionType::ArgumentKind::Scalar:
         // Do nothing
         break;
       default:
         revng_abort();
       }
 
-      auto *LLVMType = getLLVMTypeForScalar(M.getContext(), ArgumentType);
+      auto *LLVMType = getLLVMTypeForScalar(M.getContext(), *ArgumentType);
       FunctionArguments.push_back(LLVMType);
     }
 
@@ -1488,7 +1471,7 @@ private:
       // CABIFunctionDefinition returning stuff through registers
       unsigned Bits = 0;
       for (const Layout::ReturnValue &ReturnValue : Layout.ReturnValues)
-        Bits += ReturnValue.Type.size().value() * 8;
+        Bits += ReturnValue.Type->size().value() * 8;
       ReturnType = IntegerType::getIntNTy(OldReturnType->getContext(), Bits);
     } break;
 

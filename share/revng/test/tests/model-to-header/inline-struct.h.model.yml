@@ -13,7 +13,8 @@ TypeDefinitions:
         CustomName: "a1"
         OriginalName: a1
         Type:
-          UnqualifiedType: "/TypeDefinitions/3002-StructDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-StructDefinition"
     Size: 4
   - Kind: StructDefinition
     ID: 3002
@@ -24,15 +25,9 @@ TypeDefinitions:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
-    Size: 4
-  - Kind: PrimitiveDefinition
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
     Size: 4
 ---
 

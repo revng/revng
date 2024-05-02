@@ -3,20 +3,101 @@
 #
 # RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
-Types:
-  - ID: 1284
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 4
-
-    # CHECK:  #my_typedef$def = #clift.typedef<
-    # CHECK:    id = 1001
-    # CHECK:    name = "my_typedef"
-    # CHECK:    underlying_type = !uint32_t
-    # CHECK:  >
-    # CHECK:  !my_typedef = !clift.defined<#my_typedef$def>
-  - ID: 1001
+TypeDefinitions:
+  # CHECK:  #my_float$def = #clift.typedef<
+  # CHECK:    id = 0,
+  # CHECK:    name = "my_float",
+  # CHECK:    underlying_type = !float96_t
+  # CHECK:  >
+  - ID: 0
     Kind: TypedefDefinition
-    CustomName: "my_typedef"
+    CustomName: "my_float"
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Float
+      Size: 12
+
+  # CHECK:  #my_generic$def = #clift.typedef<
+  # CHECK:    id = 1,
+  # CHECK:    name = "my_generic",
+  # CHECK:    underlying_type = !generic8_t
+  # CHECK:  >
+  - ID: 1
+    Kind: TypedefDefinition
+    CustomName: "my_generic"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 1
+
+  # CHECK:  #my_int$def = #clift.typedef<
+  # CHECK:    id = 2,
+  # CHECK:    name = "my_int",
+  # CHECK:    underlying_type = !int64_t
+  # CHECK:  >
+  - ID: 2
+    Kind: TypedefDefinition
+    CustomName: "my_int"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
+
+  # CHECK:  #my_number$def = #clift.typedef<
+  # CHECK:    id = 3,
+  # CHECK:    name = "my_number",
+  # CHECK:    underlying_type = !number32_t
+  # CHECK:  >
+  - ID: 3
+    Kind: TypedefDefinition
+    CustomName: "my_number"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Number
+      Size: 4
+
+  # CHECK:  #my_pon$def = #clift.typedef<
+  # CHECK:    id = 4,
+  # CHECK:    name = "my_pon",
+  # CHECK:    underlying_type = !pointer_or_number16_t
+  # CHECK:  >
+  - ID: 4
+    Kind: TypedefDefinition
+    CustomName: "my_pon"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: PointerOrNumber
+      Size: 2
+
+  # CHECK:  #my_uint$def = #clift.typedef<
+  # CHECK:    id = 5,
+  # CHECK:    name = "my_uint",
+  # CHECK:    underlying_type = !uint64_t
+  # CHECK:  >
+  - ID: 5
+    Kind: TypedefDefinition
+    CustomName: "my_uint"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
+
+  # CHECK:  #my_void$def = #clift.typedef<
+  # CHECK:    id = 6,
+  # CHECK:    name = "my_void",
+  # CHECK:    underlying_type = !void
+  # CHECK:  >
+  - ID: 6
+    Kind: TypedefDefinition
+    CustomName: "my_void"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Void
+
+  # CHECK:  !my_float = !clift.defined<#my_float$def>
+  # CHECK:  !my_generic = !clift.defined<#my_generic$def>
+  # CHECK:  !my_int = !clift.defined<#my_int$def>
+  # CHECK:  !my_number = !clift.defined<#my_number$def>
+  # CHECK:  !my_pon = !clift.defined<#my_pon$def>
+  # CHECK:  !my_uint = !clift.defined<#my_uint$def>
+  # CHECK:  !my_void = !clift.defined<#my_void$def>

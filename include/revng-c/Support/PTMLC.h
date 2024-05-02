@@ -459,7 +459,7 @@ public:
   std::string serializeLocation(const model::TypeDefinition &T) const {
     if (isGenerateTagLessPTML())
       return "";
-    return pipeline::serializedLocation(revng::ranks::Type, T.key());
+    return pipeline::serializedLocation(revng::ranks::TypeDefinition, T.key());
   }
 
   std::string getLocation(bool IsDefinition,
@@ -471,9 +471,7 @@ public:
 
     std::string Location = serializeLocation(T);
     Result.addAttribute(getLocationAttribute(IsDefinition), Location);
-    // non-primitive types are editable
-    if (not llvm::isa<model::PrimitiveDefinition>(&T))
-      Result.addAttribute(attributes::ActionContextLocation, Location);
+    Result.addAttribute(attributes::ActionContextLocation, Location);
 
     if (not AllowedActions.empty())
       Result.addListAttribute(attributes::AllowedActions, AllowedActions);
@@ -491,6 +489,34 @@ public:
   getLocationReference(const model::TypeDefinition &T,
                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
     return getLocation(false, T, AllowedActions);
+  }
+
+  std::string getLocationDefinition(const model::PrimitiveType &P) const {
+    std::string CName = P.getCName();
+    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
+    if (isGenerateTagLessPTML())
+      return Result.serialize();
+
+    std::string L = pipeline::serializedLocation(revng::ranks::PrimitiveType,
+                                                 P.getCName());
+    Result.addAttribute(getLocationAttribute(true), L);
+    Result.addAttribute(attributes::ActionContextLocation, L);
+
+    return Result.serialize();
+  }
+
+  std::string getLocationReference(const model::PrimitiveType &P) const {
+    std::string CName = P.getCName();
+    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
+    if (isGenerateTagLessPTML())
+      return Result.serialize();
+
+    std::string L = pipeline::serializedLocation(revng::ranks::PrimitiveType,
+                                                 P.getCName());
+    Result.addAttribute(getLocationAttribute(false), L);
+    Result.addAttribute(attributes::ActionContextLocation, L);
+
+    return Result.serialize();
   }
 
   std::string serializeLocation(const model::Segment &T) const {

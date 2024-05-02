@@ -462,11 +462,7 @@ public:
           if (not isCallToIsolatedFunction(C))
             continue;
 
-          const auto PrototypeRef = getCallSitePrototype(Model, C);
-          if (PrototypeRef.empty())
-            continue;
-
-          const model::TypeDefinition *Prototype = PrototypeRef.getConst();
+          const auto *Prototype = getCallSitePrototype(Model, C);
           revng_assert(Prototype);
 
           const Function *Callee = getCallee(C);
@@ -646,13 +642,13 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   revng_assert(Call->isIndirectCall());
   bool Changed = false;
 
-  auto Prototype = getCallSitePrototype(Model, Call);
-  if (Prototype.empty())
+  const auto *Prototype = getCallSitePrototype(Model, Call);
+  if (Prototype == nullptr)
     return false;
 
-  auto It = VisitedPrototypes.find(Prototype.getConst());
+  auto It = VisitedPrototypes.find(Prototype);
   if (It == VisitedPrototypes.end()) {
-    VisitedPrototypes.insert({ Prototype.getConst(), Call });
+    VisitedPrototypes.insert({ Prototype, Call });
   } else {
     FuncOrCallInst OtherCall = It->second;
     revng_assert(not OtherCall.isNull());

@@ -36,8 +36,6 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/PrimitiveKind.h"
-#include "revng/Model/QualifiedType.h"
-#include "revng/Model/Qualifier.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Segment.h"
 #include "revng/Model/StructDefinition.h"
@@ -84,7 +82,6 @@ using llvm::StringRef;
 
 using model::Binary;
 using model::CABIFunctionDefinition;
-using model::QualifiedType;
 using model::RawFunctionDefinition;
 using model::TypedefDefinition;
 
@@ -97,7 +94,8 @@ namespace tokens = ptml::c::tokens;
 using tokenDefinition::types::StringToken;
 
 using TokenMapT = std::map<const llvm::Value *, std::string>;
-using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
+using ModelTypesMap = std::map<const llvm::Value *,
+                               const model::UpcastableType>;
 using TypeDefinitionSet = std::set<const model::TypeDefinition *>;
 using InlineableTypesMap = std::unordered_map<const model::Function *,
                                               TypeDefinitionSet>;
@@ -153,10 +151,8 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
   revng_assert(Value.getBitWidth() <= 128);
   using PTMLOperator = ptml::PTMLCBuilder::Operator;
 
-  using model::PrimitiveKind::Unsigned;
-  model::QualifiedType
-    U128 = model::QualifiedType(Model.getPrimitiveType(Unsigned, 16), {});
-  std::string Cast = addAlwaysParentheses(getTypeName(U128, B));
+  auto U128 = model::PrimitiveType::makeUnsigned(16);
+  std::string Cast = addAlwaysParentheses(getTypeName(*U128, B));
 
   if (Value.isZero())
     return addAlwaysParentheses(Cast + " " + B.getNumber(0));
@@ -313,13 +309,13 @@ public:
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
-    Prototype(*ModelFunction.prototype(Model).getConst()),
+    Prototype(*Model.prototypeOrDefault(ModelFunction.prototype())),
     GHAST(GHAST),
     VariablesToDeclare(VarToDeclare),
     TypeMap(initModelTypes(LLVMFunction,
                            &ModelFunction,
                            Model,
-                           /*PointersOnly=*/false)),
+                           /* PointersOnly = */ false)),
     Out(Out, DecompiledCCodeIndentation),
     B(B),
     SwitchStateVars(),
@@ -402,8 +398,8 @@ private:
   /// \a DestType. If no casting is needed between the two expression, the
   /// original expression is returned.
   std::string buildCastExpr(StringRef ExprToCast,
-                            const model::QualifiedType &SrcType,
-                            const model::QualifiedType &DestType) const;
+                            const model::Type &SrcType,
+                            const model::Type &DestType) const;
 
 private:
   std::string createStackFrameVarDeclName(const llvm::Instruction *I) {
@@ -450,29 +446,22 @@ std::string CCodeGenerator::buildAddressExpr(llvm::StringRef Expr) const {
          + addParentheses(Expr);
 }
 
-std::string
-CCodeGenerator::buildCastExpr(StringRef ExprToCast,
-                              const model::QualifiedType &SrcType,
-                              const model::QualifiedType &DestType) const {
-  if (SrcType == DestType or SrcType.UnqualifiedType().empty()
-      or DestType.UnqualifiedType().empty())
+std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
+                                          const model::Type &SrcType,
+                                          const model::Type &DestType) const {
+  if (SrcType == DestType)
     return ExprToCast.str();
 
-  revng_assert(SrcType.skipTypedefs() == DestType.skipTypedefs()
+  revng_assert(*SrcType.skipTypedefs() == *DestType.skipTypedefs()
                or (SrcType.isScalar() and DestType.isScalar()));
 
   return addAlwaysParentheses(getTypeName(DestType, B)) + " "
          + addParentheses(ExprToCast);
 }
 
-static std::string getUndefToken(model::QualifiedType UndefType,
+static std::string getUndefToken(const model::Type &UndefType,
                                  const ptml::PTMLCBuilder &B) {
-  UndefType = peelConstAndTypedefs(UndefType);
-  revng_assert(UndefType.isPrimitive());
-  revng_assert(UndefType.Qualifiers().empty());
-  std::string Result = "_undef_";
-  Result += UndefType.UnqualifiedType().getConst()->name().str().str() + "()";
-  return Result;
+  return "_undef_" + UndefType.toPrimitive().getCName() + "()";
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
@@ -514,7 +503,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   revng_assert(isCConstant(C));
 
   if (auto *Undef = dyn_cast<llvm::UndefValue>(C))
-    rc_return getUndefToken(TypeMap.at(Undef), B);
+    rc_return getUndefToken(*TypeMap.at(Undef), B);
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
     rc_return B.getNullTag().serialize();
@@ -564,8 +553,8 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
 
     case Instruction::IntToPtr: {
       const auto *Operand = cast<llvm::Constant>(ConstExpr->getOperand(0));
-      const QualifiedType &SrcType = TypeMap.at(Operand);
-      const QualifiedType &DstType = TypeMap.at(ConstExpr);
+      const model::Type &SrcType = *TypeMap.at(Operand);
+      const model::Type &DstType = *TypeMap.at(ConstExpr);
 
       // IntToPtr has no effect on values that we already know to be pointers
       if (SrcType.isPointer())
@@ -591,21 +580,6 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   rc_return "";
 }
 
-/// Traverse all nested typedefs inside \a QT, skipping const Qualifiers, and
-/// returns a QualifiedType that represents the full traversal.
-static RecursiveCoroutine<QualifiedType>
-flattenTypedefsIgnoringConst(const QualifiedType &QT) {
-  QualifiedType Result = peelConstAndTypedefs(QT);
-  const auto *Unqualified = Result.UnqualifiedType().getConst();
-  if (auto *Typedef = dyn_cast<TypedefDefinition>(Unqualified)) {
-    auto &Underlying = Typedef->UnderlyingType();
-    QualifiedType Nested = rc_recur flattenTypedefsIgnoringConst(Underlying);
-    Result.UnqualifiedType() = Nested.UnqualifiedType();
-    llvm::move(Nested.Qualifiers(), std::back_inserter(Result.Qualifiers()));
-  }
-  rc_return Result;
-}
-
 RecursiveCoroutine<std::string>
 CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
@@ -618,7 +592,8 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
   // First argument is a string containing the base type
   auto *CurArg = Call->arg_begin();
-  QualifiedType CurType = deserializeFromLLVMString(CurArg->get(), Model);
+  model::UpcastableType CurType = deserializeFromLLVMString(CurArg->get(),
+                                                            Model);
 
   // Second argument is the base llvm::Value
   ++CurArg;
@@ -629,7 +604,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
   if (IsRef) {
     // In ModelGEPRefs, the base value is a reference, and the base type is
     // its type
-    revng_assert(TypeMap.at(BaseValue) == CurType,
+    revng_assert(*TypeMap.at(BaseValue) == *CurType,
                  "The ModelGEP base type is not coherent with the "
                  "propagated type.");
     // If there are no further arguments we're just dereferencing the base value
@@ -640,8 +615,8 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
   } else {
     // In ModelGEPs, the base value is a pointer, and the base type is the
     // type pointed by the base value
-    QualifiedType Pointer = CurType.getPointerTo(Model.Architecture());
-    revng_assert(TypeMap.at(BaseValue).skipTypedefs() == Pointer.skipTypedefs(),
+    const model::Type &Pointee = TypeMap.at(BaseValue)->getPointee();
+    revng_assert(Pointee == *CurType,
                  "The ModelGEP base type is not coherent with the propagated "
                  "type.");
 
@@ -685,16 +660,14 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       // We make it with only 1 element because in the following the number of
       // elements of the array is not actually used for generating the C code,
       // so we can get away with it.
-      auto LongArray = model::Qualifier::createArray(1);
-      Pointer.Qualifiers().front() = std::move(LongArray);
-      CurType = Pointer;
+      CurType = model::ArrayType::make(std::move(CurType), 1);
     } else {
       // Otherwise, we're not accessing the base pointer as an array.
       // So we can skip an additional argument.
       ++CurArg;
 
       // But the base type could still be an array.
-      if (CurType.isArray()) {
+      if (CurType->isArray()) {
         // If the base type is an array the first level of indirection will be
         // represented by square brackets that want to access elements of the
         // array. So we have to first dereference the pointer-to-array in order
@@ -717,27 +690,8 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
   // Traverse the model to decide whether to emit "." or "[]"
   for (; CurArg != Call->arg_end(); ++CurArg) {
-
-    CurType = flattenTypedefsIgnoringConst(CurType);
-    auto &Qualifiers = CurType.Qualifiers();
-
-    if (not Qualifiers.empty()) {
-      // If it's an array or a pointer, add "[]"
-
-      // Get the ArrayQualifier out, and drop it.
-      model::Qualifier ArrayQualifier = Qualifiers.front();
-      revng_assert(model::Qualifier::isArray(ArrayQualifier));
-      Qualifiers.erase(Qualifiers.begin());
-
-      std::string IndexExpr;
-      if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
-        IndexExpr = B.getNumber(Const->getValue()).serialize();
-      } else {
-        IndexExpr = rc_recur getToken(CurArg->get());
-      }
-
-      CurExpr += "[" + IndexExpr + "]";
-    } else {
+    const auto &Unwrapped = *std::as_const(CurType)->skipConstAndTypedefs();
+    if (const auto *D = llvm::dyn_cast<model::DefinedType>(&Unwrapped)) {
       // If it's a struct or union, we can only navigate it with fixed
       // indexes.
       // TODO: decide how to emit constants
@@ -747,22 +701,35 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       CurExpr += Deref.serialize();
 
       // Find the field name
-      const auto *UnqualType = CurType.UnqualifiedType().getConst();
+      const model::TypeDefinition &Definition = D->unwrap();
+      if (auto *S = dyn_cast<model::StructDefinition>(&Definition)) {
+        const model::StructField &Field = S->Fields().at(FieldIdx);
+        CurExpr += B.getLocationReference(*S, Field);
+        CurType = std::move(S->Fields().at(FieldIdx).Type());
 
-      if (auto *Struct = dyn_cast<model::StructDefinition>(UnqualType)) {
-        const model::StructField &Field = Struct->Fields().at(FieldIdx);
-        CurExpr += B.getLocationReference(*Struct, Field);
-        CurType = Struct->Fields().at(FieldIdx).Type();
-
-      } else if (auto *Union = dyn_cast<model::UnionDefinition>(UnqualType)) {
-        const model::UnionField &Field = Union->Fields().at(FieldIdx);
-        CurExpr += B.getLocationReference(*Union, Field);
-        CurType = Union->Fields().at(FieldIdx).Type();
+      } else if (auto *U = dyn_cast<model::UnionDefinition>(&Definition)) {
+        const model::UnionField &Field = U->Fields().at(FieldIdx);
+        CurExpr += B.getLocationReference(*U, Field);
+        CurType = std::move(U->Fields().at(FieldIdx).Type());
 
       } else {
-        CurType.dump();
+        CurType->dump();
         revng_abort("Unexpected ModelGEP type found: ");
       }
+
+    } else if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Unwrapped)) {
+      std::string IndexExpr;
+      if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
+        IndexExpr = B.getNumber(Const->getValue()).serialize();
+      } else {
+        IndexExpr = rc_recur getToken(CurArg->get());
+      }
+
+      CurExpr += "[" + IndexExpr + "]";
+      CurType = std::move(Array->ElementType());
+
+    } else {
+      revng_abort("Integers/pointers do not have fields.");
     }
 
     // Regardless if the base type was a pointer or not, we are now
@@ -794,7 +761,8 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::ModelCast)) {
     // First argument is a string containing the base type
     auto *CurArg = Call->arg_begin();
-    QualifiedType CurType = deserializeFromLLVMString(CurArg->get(), Model);
+    model::UpcastableType CurType = deserializeFromLLVMString(CurArg->get(),
+                                                              Model);
 
     // Second argument is the base llvm::Value
     ++CurArg;
@@ -807,18 +775,18 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
       rc_return Token;
 
     // Emit the parenthesized cast expr, and we are done.
-    rc_return buildCastExpr(Token, TypeMap.at(BaseValue), CurType);
+    rc_return buildCastExpr(Token, *TypeMap.at(BaseValue), *CurType);
   }
 
   if (isCallToTagged(Call, FunctionTags::AddressOf)) {
     // First operand is the type of the value being addressed (should not
     // introduce casts)
-    QualifiedType ArgType = deserializeFromLLVMString(Call->getArgOperand(0),
-                                                      Model);
+    const model::UpcastableType
+      ArgType = deserializeFromLLVMString(Call->getArgOperand(0), Model);
 
     // Second argument is the value being addressed
     llvm::Value *Arg = Call->getArgOperand(1);
-    revng_assert(ArgType.skipTypedefs() == TypeMap.at(Arg).skipTypedefs());
+    revng_assert(*ArgType->skipTypedefs() == *TypeMap.at(Arg)->skipTypedefs());
 
     std::string ArgString = rc_recur getToken(Arg);
     rc_return buildAddressExpr(ArgString);
@@ -853,7 +821,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::OpaqueExtractValue)) {
 
     const llvm::Value *AggregateOp = Call->getArgOperand(0);
-    const auto *Idx = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
+    const auto *I = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
 
     const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
     const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
@@ -861,21 +829,17 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
                                                        CallReturnsStruct);
 
     std::string StructFieldRef;
-    if (CalleePrototype.empty()) {
+    if (not CalleePrototype) {
       // The call returning a struct is a call to a helper function.
       // It must be a direct call.
       revng_assert(Callee);
       StructFieldRef = getReturnStructFieldLocationReference(Callee,
-                                                             Idx
-                                                               ->getZExtValue(),
+                                                             I->getZExtValue(),
                                                              B);
     } else {
-      const model::TypeDefinition *CalleeType = CalleePrototype.getConst();
-      auto RFT = llvm::cast<const model::RawFunctionDefinition>(CalleeType);
-      uint64_t Index = Idx->getZExtValue();
-      StructFieldRef = std::next(RFT->ReturnValues().begin(), Index)
-                         ->name()
-                         .str();
+      auto RF = llvm::cast<const model::RawFunctionDefinition>(CalleePrototype);
+      uint64_t Idx = I->getZExtValue();
+      StructFieldRef = std::next(RF->ReturnValues().begin(), Idx)->name().str();
     }
 
     rc_return rc_recur getToken(AggregateOp) + "." + StructFieldRef;
@@ -985,7 +949,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
 
   // Build the call expression
   revng_assert(not CalleeToken.empty());
-  auto *Prototype = getCallSitePrototype(Model, Call).getConst();
+  const auto *Prototype = getCallSitePrototype(Model, Call);
   rc_return rc_recur getCallToken(Call, CalleeToken, Prototype);
 }
 
@@ -1106,8 +1070,8 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     std::string Op0Token = rc_recur getToken(Op0);
     std::string Op1Token = rc_recur getToken(Op1);
 
-    const QualifiedType &OpType0 = TypeMap.at(Op0);
-    const QualifiedType &OpType1 = TypeMap.at(Op1);
+    const model::Type &OpType0 = *TypeMap.at(Op0);
+    const model::Type &OpType1 = *TypeMap.at(Op1);
 
     revng_assert(OpType0.isScalar() and OpType1.isScalar());
 
@@ -1122,10 +1086,10 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
       // the other must be a constant integer that fits in the pointer size, at
       // most masked behind a decorator.
       revng_assert(OpType0.isPointer() xor OpType1.isPointer());
-      const QualifiedType &PointerModelType = OpType0.isPointer() ? OpType0 :
-                                                                    OpType1;
-      const QualifiedType &IntegerModelType = OpType0.isPointer() ? OpType1 :
-                                                                    OpType0;
+      const model::Type &PointerModelType = OpType0.isPointer() ? OpType0 :
+                                                                  OpType1;
+      const model::Type &IntegerModelType = OpType0.isPointer() ? OpType1 :
+                                                                  OpType0;
       auto PointerByteSize = *PointerModelType.size();
       auto IntegerByteSize = *IntegerModelType.size();
       revng_assert(PointerByteSize < IntegerByteSize);
@@ -1347,7 +1311,7 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
       // Handle the implicit `return` emission. If the correct parameter is set,
       // avoid the emission of the `Instruction` token.
       if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn)) {
-        Out << getToken(&I) << ";\n";
+        Out << std::string(getToken(&I)) << ";\n";
       }
     } else if (isHelperAggregateLocalVarDecl(Call)
                or isArtificialAggregateLocalVarDecl(Call)) {
@@ -1589,26 +1553,17 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         // To work around this, until we don't support emission of variable
         // declarations with inline initialization, we have to strip away
         // constness.
-        QualifiedType VarType = TypeMap.at(VarDeclCall);
-        if (VarType.isConst()) {
-          while (not VarType.Qualifiers().empty()
-                 and model::Qualifier::isConst(VarType.Qualifiers().front())) {
-            VarType.Qualifiers().erase(VarType.Qualifiers().begin());
-          }
-          if (VarType.isConst())
-            VarType = peelConstAndTypedefs(VarType);
-        }
+        auto NonConst = model::getNonConst(*TypeMap.at(VarDeclCall));
 
-        Out << getNamedCInstance(VarType, VarName, B) << ";\n";
+        Out << getNamedCInstance(*NonConst, VarName, B) << ";\n";
       } else if (isHelperAggregateLocalVarDecl(VarDeclCall)
                  or isArtificialAggregateLocalVarDecl(VarDeclCall)) {
         // Create missing local variable declarations
         std::string VarName = createLocalVarDeclName(VarDeclCall);
         revng_assert(not VarName.empty());
-        const auto &Prototype = getCallSitePrototype(Model, VarDeclCall);
-        revng_assert(Prototype.isValid() and not Prototype.empty());
-        const auto *FunctionType = Prototype.getConst();
-        Out << getNamedInstanceOfReturnType(*FunctionType, VarName, B, false)
+        const auto *Prototype = getCallSitePrototype(Model, VarDeclCall);
+        revng_assert(Prototype != nullptr);
+        Out << getNamedInstanceOfReturnType(*Prototype, VarName, B, false)
             << ";\n";
       } else {
         revng_assert(not VarDeclCall->getType()->isAggregateType());
@@ -1785,7 +1740,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     // Generate the condition of the switch
     StringToken SwitchVarToken;
-    model::QualifiedType SwitchVarType;
+    model::UpcastableType SwitchVarType;
     llvm::Value *SwitchVar = Switch->getCondition();
     if (SwitchVar) {
       // If the switch is not weaved we need to print the instructions in
@@ -1797,7 +1752,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       }
       std::string SwitchVarString = getToken(SwitchVar);
       SwitchVarToken = SwitchVarString;
-      SwitchVarType = TypeMap.at(SwitchVar);
+      SwitchVarType = TypeMap.at(SwitchVar).copy();
     } else {
       revng_assert(Switch->getOriginalBB() == nullptr);
       revng_assert(!LoopStateVar.empty());
@@ -1806,8 +1761,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       SwitchVarToken = LoopStateVar;
 
       // TODO: finer decision on the type of the loop state variable
-      using model::PrimitiveKind::Unsigned;
-      SwitchVarType.UnqualifiedType() = Model.getPrimitiveType(Unsigned, 8);
+      SwitchVarType = model::PrimitiveType::makeUnsigned(8);
     }
     revng_assert(not SwitchVarToken.empty());
 
@@ -1918,7 +1872,7 @@ static std::string getModelArgIdentifier(const model::TypeDefinition *ModelFT,
     auto NumModelArguments = RFT->Arguments().size();
     revng_assert(ArgNo <= NumModelArguments + 1);
     revng_assert(LLVMFunction->arg_size() == NumModelArguments
-                 or (not RFT->StackArgumentsType().empty()
+                 or (not RFT->StackArgumentsType().isEmpty()
                      and (LLVMFunction->arg_size() == NumModelArguments + 1)));
     if (ArgNo < NumModelArguments) {
       return std::next(RFT->Arguments().begin(), ArgNo)->name().str().str();
@@ -1966,7 +1920,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
     bool IsStackDefined = false;
 
     // Declare the local variable representing the stack frame
-    if (not ModelFunction.StackFrameType().empty()) {
+    if (not ModelFunction.StackFrameType().isEmpty()) {
       revng_log(Log, "Stack Frame Declaration");
       const auto &IsStackFrameDecl = [](const llvm::Instruction &I) {
         return isStackFrameDecl(&I);
@@ -1977,32 +1931,32 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
         const auto *Call = &cast<llvm::CallInst>(*It);
         std::string VarName = createStackFrameVarDeclName(Call);
         revng_assert(not VarName.empty());
-        auto *TheType = ModelFunction.StackFrameType().getConst();
+        const model::StructDefinition &Struct = *ModelFunction.stackFrameType();
         // This will contain the stack types that we can inline, since
         // there could be a stack type that is being used somewhere else,
         // so we do not want to inline it.
         auto StackTypesIt = StackTypes.find(&ModelFunction);
         if (StackTypesIt != StackTypes.end() and not IsStackDefined
-            and StackTypesIt->second.contains(TheType)) {
-          auto TheStackTypes = StackTypesIt->second;
+            and StackTypesIt->second.contains(&Struct)) {
+          auto &TheStackTypes = StackTypesIt->second;
           IsStackDefined = true;
-          std::map<model::QualifiedType, std::string> AdditionalTypeNames;
+          std::map<model::UpcastableType, std::string> AdditionalTypeNames;
           // For all nested types within stack definition we print forward
           // declarations.
           for (auto *Type : TheStackTypes) {
-            revng_assert(not declarationIsDefinition(Type));
+            revng_assert(not declarationIsDefinition(*Type));
             printForwardDeclaration(*Type, Out, B);
           }
-          printDefinition(Log,
-                          *cast<model::StructDefinition>(TheType),
-                          Out,
-                          B,
-                          Model,
-                          AdditionalTypeNames,
-                          TheStackTypes,
-                          VarName);
+          printInlineDefinition(Log,
+                                Struct,
+                                Out,
+                                B,
+                                Model,
+                                AdditionalTypeNames,
+                                TheStackTypes,
+                                std::move(VarName));
         } else {
-          Out << getNamedCInstance(TypeMap.at(Call), VarName, B) << ";\n";
+          Out << getNamedCInstance(*TypeMap.at(Call), VarName, B) << ";\n";
         }
       } else {
 

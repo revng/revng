@@ -26,29 +26,23 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 
 } // namespace ArtificialTypes
 
-/// Return a string containing the C Type name of \a QT and a
+/// Return a string containing the C Type name of \a Type and a
 /// (possibly empty) \a InstanceName.
 extern tokenDefinition::types::TypeString
-getNamedCInstance(const model::QualifiedType &QT,
+getNamedCInstance(const model::Type &Type,
                   llvm::StringRef InstanceName,
                   const ptml::PTMLCBuilder &B,
-                  llvm::ArrayRef<std::string> AllowedActions = {});
-
-extern tokenDefinition::types::TypeString
-getNamedCInstance(llvm::StringRef TypeName,
-                  const std::vector<model::Qualifier> &Qualifiers,
-                  llvm::StringRef InstanceName,
-                  const ptml::PTMLCBuilder &B);
+                  llvm::ArrayRef<std::string> AllowedActions = {},
+                  bool OmitInnerTypeName = false);
 
 inline tokenDefinition::types::TypeString
-getTypeName(const model::QualifiedType &QT, const ptml::PTMLCBuilder &B) {
-  return getNamedCInstance(QT, "", B);
+getTypeName(const model::Type &Type, const ptml::PTMLCBuilder &B) {
+  return getNamedCInstance(Type, "", B);
 }
 
-/// Return the name of the array wrapper that wraps \a QT (QT must be
-/// an array).
+/// Return the name of the array wrapper that wraps \a ArrayType
 extern tokenDefinition::types::TypeString
-getArrayWrapper(const model::QualifiedType &QT, const ptml::PTMLCBuilder &B);
+getArrayWrapper(const model::ArrayType &ArrayType, const ptml::PTMLCBuilder &B);
 
 /// Return a string containing the C Type name of the return type of \a
 /// FunctionType, and a (possibly empty) \a InstanceName.

@@ -6,20 +6,22 @@ Architecture: x86_64
 
 Functions:
   - CustomName: "new_function_name"
-    Prototype: "/TypeDefinitions/3000-RawFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3000-RawFunctionDefinition"
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 1544
-    PrimitiveKind: Signed
-    Size: 8
   - ID: 3000
     Kind: RawFunctionDefinition
     Architecture: x86_64
     Arguments:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1544-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 8
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1544-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 8

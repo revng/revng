@@ -9,16 +9,23 @@ TypeDefinitions:
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1544-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/1537-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: PrimitiveType
+              PrimitiveKind: Unsigned
+              Size: 1

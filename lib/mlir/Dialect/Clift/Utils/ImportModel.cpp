@@ -66,17 +66,17 @@ public:
   ~CliftConverter() { revng_assert(DefinitionGuardSet.empty()); }
 
   clift::ValueType
-  convertUnqualifiedType(const model::TypeDefinition &ModelType) {
-    const clift::ValueType T = getUnwrappedValueType(ModelType,
-                                                     /*RequireComplete=*/true);
+  convertTypeDefinition(const model::TypeDefinition &ModelType) {
+    const clift::ValueType T = fromTypeDefinition(ModelType,
+                                                  /* RequireComplete = */ true);
     if (T and not processIncompleteTypes())
       return nullptr;
     return T;
   }
 
-  clift::ValueType convertQualifiedType(const model::QualifiedType &ModelType) {
-    const clift::ValueType T = getQualifiedValueType(ModelType,
-                                                     /*RequireComplete=*/true);
+  clift::ValueType convertType(const model::Type &ModelType) {
+    const clift::ValueType T = fromType(ModelType,
+                                        /* RequireComplete = */ true);
     if (T and not processIncompleteTypes())
       return nullptr;
     return T;
@@ -97,7 +97,7 @@ private:
   }
 
   static clift::PrimitiveKind
-  getPrimitiveKind(const model::PrimitiveDefinition &ModelType) {
+  getPrimitiveKind(const model::PrimitiveType &ModelType) {
     switch (ModelType.PrimitiveKind()) {
     case model::PrimitiveKind::Void:
       return clift::PrimitiveKind::VoidKind;
@@ -120,13 +120,6 @@ private:
     }
   }
 
-  clift::ValueType getPrimitiveType(const model::PrimitiveDefinition &ModelType,
-                                    const bool Const) {
-    return make<clift::PrimitiveType>(getPrimitiveKind(ModelType),
-                                      ModelType.Size(),
-                                      getBool(Const));
-  }
-
   RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::CABIFunctionDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
@@ -141,7 +134,7 @@ private:
     Args.reserve(ModelType.Arguments().size());
 
     for (const model::Argument &Argument : ModelType.Arguments()) {
-      const auto Type = rc_recur getQualifiedValueType(Argument.Type());
+      const auto Type = rc_recur fromType(*Argument.Type());
       if (not Type)
         rc_return nullptr;
       const llvm::StringRef Name = Argument.name();
@@ -151,8 +144,11 @@ private:
       Args.push_back(Attribute);
     }
 
-    const auto ReturnType = rc_recur getQualifiedValueType(ModelType
-                                                             .ReturnType());
+    clift::ValueType ReturnType = nullptr;
+    if (ModelType.ReturnType().isEmpty())
+      ReturnType = rc_recur fromType(*model::PrimitiveType::makeVoid());
+    else
+      ReturnType = rc_recur fromType(*ModelType.ReturnType());
     if (not ReturnType)
       rc_return nullptr;
 
@@ -172,8 +168,7 @@ private:
       rc_return nullptr;
     }
 
-    const auto UnderlyingType = rc_recur
-      getQualifiedValueType(ModelType.UnderlyingType());
+    const auto UnderlyingType = rc_recur fromType(*ModelType.UnderlyingType());
     if (not UnderlyingType)
       rc_return nullptr;
 
@@ -203,7 +198,7 @@ private:
     Elements.reserve(ModelType.ReturnValues().size());
 
     for (const model::NamedTypedRegister &Register : ModelType.ReturnValues()) {
-      const auto RegisterType = rc_recur getQualifiedValueType(Register.Type());
+      const auto RegisterType = rc_recur fromType(*Register.Type());
       if (not RegisterType)
         rc_return nullptr;
 
@@ -230,9 +225,8 @@ private:
     clift::FunctionArgumentAttr StackArgument;
     size_t ArgumentsCount = 0;
 
-    if (ModelType.StackArgumentsType().isValid()) {
-      const auto Type = rc_recur
-        getUnwrappedValueType(*ModelType.StackArgumentsType().get());
+    if (not ModelType.StackArgumentsType().isEmpty()) {
+      const auto Type = rc_recur fromType(*ModelType.StackArgumentsType());
       if (not Type)
         rc_return nullptr;
 
@@ -255,7 +249,7 @@ private:
     Args.reserve(ArgumentsCount);
 
     for (const model::NamedTypedRegister &Register : ModelType.Arguments()) {
-      const auto Type = rc_recur getQualifiedValueType(Register.Type());
+      const auto Type = rc_recur fromType(*Register.Type());
       if (not Type)
         rc_return nullptr;
       const llvm::StringRef Name = Register.name();
@@ -277,8 +271,7 @@ private:
       break;
 
     case 1:
-      ReturnType = rc_recur
-        getQualifiedValueType(ModelType.ReturnValues().begin()->Type());
+      ReturnType = rc_recur fromType(*ModelType.ReturnValues().begin()->Type());
       break;
 
     default:
@@ -320,8 +313,8 @@ private:
     Fields.reserve(ModelType.Fields().size());
 
     for (const model::StructField &Field : ModelType.Fields()) {
-      const auto FieldType = rc_recur
-        getQualifiedValueType(Field.Type(), /*RequireComplete=*/true);
+      const auto FieldType = rc_recur fromType(*Field.Type(),
+                                               /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
       const auto Attribute = make<clift::FieldAttr>(Field.Offset(),
@@ -353,8 +346,8 @@ private:
       }
     }
 
-    const auto UnderlyingType = rc_recur
-      getQualifiedValueType(ModelType.UnderlyingType(), RequireComplete);
+    const auto UnderlyingType = rc_recur fromType(*ModelType.UnderlyingType(),
+                                                  RequireComplete);
     if (not UnderlyingType)
       rc_return nullptr;
     rc_return make<clift::TypedefTypeAttr>(ModelType.ID(),
@@ -384,8 +377,8 @@ private:
     Fields.reserve(ModelType.Fields().size());
 
     for (const model::UnionField &Field : ModelType.Fields()) {
-      const auto FieldType = rc_recur
-        getQualifiedValueType(Field.Type(), /*RequireComplete=*/true);
+      const auto FieldType = rc_recur fromType(*Field.Type(),
+                                               /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
       const auto Attribute = make<clift::FieldAttr>(0, FieldType, Field.name());
@@ -400,60 +393,41 @@ private:
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::TypeDefinition &ModelType,
-                   bool &RequireComplete) {
-    switch (ModelType.Kind()) {
-    case model::TypeDefinitionKind::CABIFunctionDefinition: {
-      RequireComplete = true;
-      const auto &T = llvm::cast<model::CABIFunctionDefinition>(ModelType);
-      return getTypeAttribute(T);
-    }
-    case model::TypeDefinitionKind::EnumDefinition: {
-      RequireComplete = true;
-      const auto &T = llvm::cast<model::EnumDefinition>(ModelType);
-      return getTypeAttribute(T);
-    }
-    case model::TypeDefinitionKind::RawFunctionDefinition: {
-      RequireComplete = true;
-      const auto &T = llvm::cast<model::RawFunctionDefinition>(ModelType);
-      return getTypeAttribute(T);
-    }
-    case model::TypeDefinitionKind::StructDefinition: {
-      const auto &T = llvm::cast<model::StructDefinition>(ModelType);
-      return getTypeAttribute(T, RequireComplete);
-    }
-    case model::TypeDefinitionKind::TypedefDefinition: {
-      const auto &T = llvm::cast<model::TypedefDefinition>(ModelType);
-      return getTypeAttribute(T, RequireComplete);
-    }
-    case model::TypeDefinitionKind::UnionDefinition: {
-      const auto &T = llvm::cast<model::UnionDefinition>(ModelType);
-      return getTypeAttribute(T, RequireComplete);
-    }
+  getTypeAttribute(const model::TypeDefinition &T, bool &RequireComplete) {
+    if (const auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(&T))
+      rc_return getTypeAttribute(*CFT);
 
-    case model::TypeDefinitionKind::PrimitiveDefinition:
-      revng_abort("Primitive types have no corresponding attribute.");
+    if (const auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&T))
+      rc_return getTypeAttribute(*RFT);
 
-    case model::TypeDefinitionKind::Invalid:
-    case model::TypeDefinitionKind::Count:
-      revng_abort("These are invalid values. Something has gone wrong.");
-    }
+    if (const auto *Enum = llvm::dyn_cast<model::EnumDefinition>(&T))
+      rc_return getTypeAttribute(*Enum);
+
+    if (const auto *Struct = llvm::dyn_cast<model::StructDefinition>(&T))
+      rc_return getTypeAttribute(*Struct, RequireComplete);
+
+    if (const auto *Union = llvm::dyn_cast<model::UnionDefinition>(&T))
+      rc_return getTypeAttribute(*Union, RequireComplete);
+
+    if (const auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(&T))
+      rc_return getTypeAttribute(*Typedef, RequireComplete);
+
+    revng_abort("Unsupported type definition kind.");
   }
 
   RecursiveCoroutine<clift::ValueType>
-  getUnwrappedValueType(const model::TypeDefinition &ModelType,
-                        bool RequireComplete = false,
-                        const bool Const = false) {
-    if (const auto
-          *const T = llvm::dyn_cast<model::PrimitiveDefinition>(&ModelType))
-      rc_return getPrimitiveType(*T, Const);
-
-    const auto getDefinedType = [&](const auto Attr) -> clift::ValueType {
-      return make<clift::DefinedType>(Attr, getBool(Const));
-    };
-
+  fromTypeDefinition(const model::TypeDefinition &ModelType,
+                     bool RequireComplete = false,
+                     const bool Const = false) {
     if (const auto It = Cache.find(ModelType.ID()); It != Cache.end())
-      rc_return getDefinedType(It->second);
+      rc_return make<clift::DefinedType>(It->second, getBool(Const));
+
+    if (not ModelType.verify()) {
+      if (EmitError)
+        EmitError() << "Invalid model type definition";
+
+      rc_return nullptr;
+    }
 
     const clift::TypeDefinitionAttr Attr = getTypeAttribute(ModelType,
                                                             RequireComplete);
@@ -466,85 +440,48 @@ private:
       revng_assert(R.second);
     }
 
-    rc_return getDefinedType(Attr);
+    rc_return make<clift::DefinedType>(Attr, getBool(Const));
   }
 
-  RecursiveCoroutine<clift::ValueType>
-  getQualifiedValueType(const model::QualifiedType &ModelType,
-                        bool RequireComplete = false) {
-    if (not ModelType.UnqualifiedType().isValid()) {
+  RecursiveCoroutine<clift::ValueType> fromType(const model::Type &ModelType,
+                                                bool RequireComplete = false) {
+    if (not ModelType.verify()) {
       if (EmitError)
-        EmitError() << "Invalid UnqualifiedType in QualifiedType";
+        EmitError() << "Invalid model type";
+
       rc_return nullptr;
     }
 
-    auto Qualifiers = llvm::ArrayRef(ModelType.Qualifiers());
+    if (const auto &P = llvm::dyn_cast<model::PrimitiveType>(&ModelType)) {
+      rc_return make<clift::PrimitiveType>(getPrimitiveKind(*P),
+                                           P->Size(),
+                                           getBool(P->IsConst()));
 
-    // Qualifier::isPointer verifies itself, which interferes with unit testing.
-    static constexpr auto IsPointer = [](const model::Qualifier &Q) {
-      return Q.Kind() == model::QualifierKind::Pointer;
-    };
+    } else if (const auto &D = llvm::dyn_cast<model::DefinedType>(&ModelType)) {
+      rc_return fromTypeDefinition(D->unwrap(), RequireComplete, D->IsConst());
 
-    // If the set of qualifiers contains any pointers,
-    // the base type does not need to be complete.
-    if (RequireComplete and llvm::any_of(Qualifiers, IsPointer))
+    } else if (const auto &A = llvm::dyn_cast<model::ArrayType>(&ModelType)) {
+      rc_return make<clift::ArrayType>(rc_recur fromType(*A->ElementType(),
+                                                         RequireComplete),
+                                       A->ElementCount(),
+                                       getFalse());
+
+    } else if (const auto &P = llvm::dyn_cast<model::PointerType>(&ModelType)) {
+      // If there's a pointer in the way, the base type does not have to be
+      // complete.
       RequireComplete = false;
 
-    // Qualifier::isConst verifies itself, which interferes with unit testing.
-    static constexpr auto IsConst = [](const model::Qualifier &Q) {
-      return Q.Kind() == model::QualifierKind::Const;
-    };
+      rc_return make<clift::PointerType>(rc_recur fromType(*P->PointeeType(),
+                                                           RequireComplete),
+                                         P->PointerSize(),
+                                         getBool(P->IsConst()));
 
-    const auto TakeConst = [&Qualifiers]() -> bool {
-      if (not Qualifiers.empty() and IsConst(Qualifiers.back())) {
-        Qualifiers = Qualifiers.slice(0, Qualifiers.size() - 1);
-        return true;
-      }
-      return false;
-    };
+    } else {
+      if (EmitError)
+        EmitError() << "Unknown model type";
 
-    clift::ValueType ResultType = rc_recur
-      getUnwrappedValueType(*ModelType.UnqualifiedType().get(),
-                            RequireComplete,
-                            TakeConst());
-
-    if (not ResultType)
       rc_return nullptr;
-
-    const auto TakeQualifier = [&Qualifiers]() -> const model::Qualifier & {
-      const model::Qualifier &Qualifier = Qualifiers.back();
-      Qualifiers = Qualifiers.slice(0, Qualifiers.size() - 1);
-      return Qualifier;
-    };
-
-    // Loop over (qualifier, const (optional)) pairs wrapping the type at each
-    // iteration, until the list of qualifiers is exhausted.
-    while (not Qualifiers.empty()) {
-      switch (const model::Qualifier &Qualifier = TakeQualifier();
-              Qualifier.Kind()) {
-      case model::QualifierKind::Pointer:
-        ResultType = make<clift::PointerType>(ResultType,
-                                              Qualifier.Size(),
-                                              getBool(TakeConst()));
-        break;
-
-      case model::QualifierKind::Array:
-        ResultType = make<clift::ArrayType>(ResultType,
-                                            Qualifier.Size(),
-                                            getBool(TakeConst()));
-        break;
-
-      default:
-        if (EmitError)
-          EmitError() << "invalid type qualifiers";
-        rc_return nullptr;
-      }
-
-      if (not ResultType)
-        rc_return nullptr;
     }
-
-    rc_return ResultType;
   }
 
   bool processIncompleteTypes() {
@@ -558,8 +495,8 @@ private:
             RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType)) {
         CompleteType = getScalarTupleType(*RFT);
       } else {
-        CompleteType = getUnwrappedValueType(ModelType,
-                                             /*RequireComplete=*/true);
+        CompleteType = fromTypeDefinition(ModelType,
+                                          /* RequireComplete = */ true);
       }
 
       if (not CompleteType)
@@ -576,12 +513,12 @@ clift::ValueType
 clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                        mlir::MLIRContext &Context,
                        const model::TypeDefinition &ModelType) {
-  return CliftConverter(Context, EmitError).convertUnqualifiedType(ModelType);
+  return CliftConverter(Context, EmitError).convertTypeDefinition(ModelType);
 }
 
 clift::ValueType
 clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                        mlir::MLIRContext &Context,
-                       const model::QualifiedType &ModelType) {
-  return CliftConverter(Context, EmitError).convertQualifiedType(ModelType);
+                       const model::Type &ModelType) {
+  return CliftConverter(Context, EmitError).convertType(ModelType);
 }

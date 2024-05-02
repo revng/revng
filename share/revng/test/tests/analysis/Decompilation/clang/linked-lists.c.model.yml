@@ -7,73 +7,90 @@ Architecture: x86_64
 
 Functions:
   - OriginalName: init_list
-    Prototype: "/TypeDefinitions/1867-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1867-CABIFunctionDefinition"
   - OriginalName: release_list
-    Prototype: "/TypeDefinitions/1868-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1868-CABIFunctionDefinition"
   - OriginalName: sum
-    Prototype: "/TypeDefinitions/1869-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1869-CABIFunctionDefinition"
   - OriginalName: compute
-    Prototype: "/TypeDefinitions/1870-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1870-CABIFunctionDefinition"
 TypeDefinitions:
-  - ID: 520
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Generic
-    Size: 8
   - ID: 1848
     Kind: StructDefinition
     Size: 48
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Array
-              Size: 5
+          Kind: ArrayType
+          ElementCount: 5
+          ElementType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
       - Offset: 40
         Type:
-          UnqualifiedType: "/TypeDefinitions/1848-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1848-StructDefinition"
   - ID: 1867
     Kind: CABIFunctionDefinition
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1848-StructDefinition"
-      Qualifiers:
-        - Kind: Pointer
+      Kind: PointerType
+      PointeeType:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/1848-StructDefinition"
     Arguments: []
   - ID: 1868
     Kind: CABIFunctionDefinition
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1848-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1848-StructDefinition"
   - ID: 1869
     Kind: CABIFunctionDefinition
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1848-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1848-StructDefinition"
   - ID: 1870
     Kind: CABIFunctionDefinition
     ABI: SystemV_x86_64
     # Ignore return type to cope with some non-determinsm in ABI detection
     # TODO: consider to re-enable this after EFA 4 is ready.
     # ReturnType:
-    #   UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+    #   Kind: PrimitiveType
+    #   PrimitiveKind: Generic
+    #   Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1848-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1848-StructDefinition"

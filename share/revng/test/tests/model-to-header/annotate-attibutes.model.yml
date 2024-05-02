@@ -9,64 +9,58 @@ Functions:
   - Entry: "0x400700:Code_x86_64"
     CustomName: "fn"
     OriginalName: fn
-    StackFrameType: "/TypeDefinitions/3007-StructDefinition"
-    Prototype: "/TypeDefinitions/3001-CABIFunctionDefinition"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3001-CABIFunctionDefinition"
     ExportedNames:
       - fn
   - Entry: "0x400800:Code_x86_64"
     CustomName: "fn2"
     OriginalName: fn2
-    StackFrameType: "/TypeDefinitions/3007-StructDefinition"
-    Prototype: "/TypeDefinitions/3008-RawFunctionDefinition"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3008-RawFunctionDefinition"
     ExportedNames:
       - fn2
 TypeDefinitions:
   - Kind: CABIFunctionDefinition
     ID: 3001
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
         CustomName: "b"
         OriginalName: b
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
         CustomName: "c"
         OriginalName: c
       - Index: 2
         Type:
-          UnqualifiedType: "/TypeDefinitions/1282-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
         CustomName: "d"
         OriginalName: d
-  - Kind: PrimitiveDefinition
-    ID: 256
-    PrimitiveKind: Void
-    Size: 0
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: PrimitiveDefinition
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
-  - Kind: PrimitiveDefinition
-    ID: 1282
-    PrimitiveKind: Unsigned
-    Size: 2
-  - Kind: PrimitiveDefinition
-    ID: 1544
-    PrimitiveKind: Signed
-    Size: 8
   - Kind: EnumDefinition
     ID: 3009
     CustomName: "prefix_enum_9"
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1544-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
     Entries:
       - Value: 0
         CustomName: "prefix_enum_9_none"
@@ -79,7 +73,9 @@ TypeDefinitions:
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     Size: 16
   - Kind: RawFunctionDefinition
     ID: 3008
@@ -87,22 +83,34 @@ TypeDefinitions:
     Arguments:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: rdx_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: rsi_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: rdi_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: r8_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: r9_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     ReturnValues: []
     PreservedRegisters:
       - rbx_x86_64

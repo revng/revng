@@ -29,7 +29,8 @@ TypeDefinitions:
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1001-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 4
+          Kind: PointerType
+          PointerSize: 4
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1001-StructDefinition"

@@ -75,7 +75,7 @@ using MLIRControlFlowGraphCache = BasicControlFlowGraphCache<MetadataTraits>;
 static void importReachableModelTypes(const model::Binary &Model,
                                       const revng::pipes::CFGMap &CFGMap,
                                       mlir::ModuleOp Module) {
-  llvm::DenseSet<const model::Type *> ImportedTypes;
+  llvm::DenseSet<const model::TypeDefinition *> ImportedTypes;
 
   MLIRControlFlowGraphCache Cache(CFGMap);
 
@@ -90,23 +90,21 @@ static void importReachableModelTypes(const model::Binary &Model,
     const auto It = ModelFunctions.find(MA);
     revng_assert(It != ModelFunctions.end());
     const model::Function &ModelFunction = *It;
+    revng_assert(ModelFunction.prototype() != nullptr);
 
     // Insert the prototype of this function.
-    ImportedTypes.insert(ModelFunction.Prototype().getConst());
+    ImportedTypes.insert(ModelFunction.prototype());
 
     if (F.isExternal())
       return;
 
     F->walk([&](LLVMCallOp Call) {
-      const auto CalleePrototype = Cache.getCallSitePrototype(Model,
-                                                              Call,
-                                                              &ModelFunction);
+      const auto *CalleePrototype = Cache.getCallSitePrototype(Model,
+                                                               Call,
+                                                               &ModelFunction);
 
-      if (CalleePrototype.empty())
-        return;
-
-      // Insert the prototype of the callee.
-      ImportedTypes.insert(CalleePrototype.getConst());
+      if (CalleePrototype != nullptr)
+        ImportedTypes.insert(CalleePrototype);
     });
   });
 
@@ -125,7 +123,7 @@ static void importReachableModelTypes(const model::Binary &Model,
 
   // Import each model type in the set as a Clift type and insert an undef op
   // referencing that type in the module.
-  for (const model::Type *ModelType : ImportedTypes) {
+  for (const model::TypeDefinition *ModelType : ImportedTypes) {
     const auto CliftType = importModelType(EmitError, Context, *ModelType);
     revng_assert(CliftType);
 
@@ -179,7 +177,7 @@ static void importAllModelTypes(const model::Binary &Model,
   };
 
   mlir::OpBuilder Builder(Module.getRegion());
-  for (const auto &ModelType : Model.Types()) {
+  for (const auto &ModelType : Model.TypeDefinitions()) {
     auto CliftType = importModelType(EmitError, *Context, *ModelType);
     Builder.create<UndefOp>(mlir::UnknownLoc::get(Context), CliftType);
   }

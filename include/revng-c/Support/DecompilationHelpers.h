@@ -52,19 +52,19 @@ inline bool mayReadMemory(const llvm::Instruction &I) {
 
 /// Check if \a ModelType can be assigned to an llvm::Value of type \a LLVMType
 /// during a memory operations (load, store and the like).
-inline bool areMemOpCompatible(const model::QualifiedType &ModelType,
+inline bool areMemOpCompatible(const model::Type &ModelType,
                                const llvm::Type &LLVMType,
                                const model::Binary &Model) {
+
+  // loads/stores from/to void pointers are not allowed
+  if (ModelType.isVoidPrimitive())
+    return false;
 
   // We don't load or store entire structs in a single mem operation
   if (not ModelType.isScalar())
     return false;
 
-  // loads/stores from/to void pointers are not allowed
-  if (ModelType.isVoid())
-    return false;
-
-  auto ModelSize = ModelType.size().value();
+  uint64_t ModelSize = ModelType.size().value();
 
   // For LLVM pointers, we want to check that the model type has the correct
   // size with respect to the current architecture

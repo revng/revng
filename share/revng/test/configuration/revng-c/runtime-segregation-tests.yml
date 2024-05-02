@@ -14,10 +14,7 @@ commands:
       python3 "${SOURCES_ROOT}/share/revng/test/tests/abi/prepare-tested-model.py"
         "${ABI_NAME}"
         "${OUTPUT}/imported_binary.yml"
-        "${OUTPUT}/prepared_binary.yml";
-      revng analyze add-primitive-types "${INPUT}/functions"
-        -m="${OUTPUT}/prepared_binary.yml"
-        -o="${OUTPUT}/reference_binary.yml";
+        "${OUTPUT}/reference_binary.yml";
       revng artifact decompile-to-single-file "${INPUT}/functions"
         -m="${OUTPUT}/reference_binary.yml"
         --resume="${OUTPUT}/resume"

@@ -9,47 +9,48 @@ TypeDefinitions:
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/3005-StructDefinition"
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3005-StructDefinition"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/3005-StructDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3005-StructDefinition"
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/3006-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3006-StructDefinition"
       - Index: 2
         Type:
-          UnqualifiedType: "/TypeDefinitions/3006-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: DefinedType
+              Definition: "/TypeDefinitions/3006-StructDefinition"
       - Index: 3
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-  - Kind: PrimitiveDefinition
-    ID: 1537
-    PrimitiveKind: Signed
-    Size: 1
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 4
   - Kind: StructDefinition
-    ID: 5
+    ID: 3005
     Fields:
       - Offset: 0
         CustomName: "can_do_threads"
         OriginalName: can_do_threads
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
     Size: 4
   - Kind: StructDefinition
     ID: 3006
@@ -58,5 +59,7 @@ TypeDefinitions:
         CustomName: "do_threads"
         OriginalName: do_threads
         Type:
-          UnqualifiedType: "/TypeDefinitions/1537-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 1
     Size: 1

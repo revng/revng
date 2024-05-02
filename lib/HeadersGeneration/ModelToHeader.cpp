@@ -34,7 +34,7 @@
 
 using llvm::isa;
 
-using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
+using TypeNameMap = std::map<model::UpcastableType, std::string>;
 using TypeToNumOfRefsMap = std::unordered_map<const model::TypeDefinition *,
                                               unsigned>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
@@ -44,29 +44,23 @@ static Logger<> Log{ "model-to-header" };
 static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header,
                                const ptml::PTMLCBuilder &B) {
-  auto S = B.getLocationDefinition(Segment);
+  auto Location = B.getLocationDefinition(Segment);
 
-  model::QualifiedType SegmentType;
-  if (Segment.Type().empty()) {
+  if (Segment.Type().isEmpty()) {
     // If the segment has not type, we emit it as an array of bytes.
-    const model::Binary *Model = Segment.Type().getRoot();
-    model::DefinitionReference
-      Byte = Model->getPrimitiveType(model::PrimitiveKind::Generic, 1);
-    model::Qualifier Array = model::Qualifier::createArray(Segment
-                                                             .VirtualSize());
-    SegmentType = model::QualifiedType{ Byte, { Array } };
+    auto Array = model::ArrayType::make(model::PrimitiveType::makeGeneric(1),
+                                        Segment.VirtualSize());
+    Header << getNamedCInstance(*Array, Location, B) << ";\n";
   } else {
-    SegmentType = model::QualifiedType{ Segment.Type(), {} };
+    Header << getNamedCInstance(*Segment.Type(), Location, B) << ";\n";
   }
-
-  Header << getNamedCInstance(SegmentType, S, B) << ";\n";
 }
 
 /// Print all type definitions for the types in the model
 static void printTypeDefinitions(const model::Binary &Model,
                                  ptml::PTMLIndentedOstream &Header,
                                  ptml::PTMLCBuilder &B,
-                                 QualifiedTypeNameMap &AdditionalTypeNames,
+                                 TypeNameMap &AdditionalTypeNames,
                                  const ModelToHeaderOptions &Options) {
 
   std::set<const model::TypeDefinition *> TypesToInlineInStacks;
@@ -133,19 +127,13 @@ static void printTypeDefinitions(const model::Binary &Model,
         // emitted even for inlined types, because it's only the full definition
         // that will be inlined.
         revng_log(Log, "printDeclaration");
-        printDeclaration(Log,
-                         *NodeT,
-                         Header,
-                         B,
-                         Model,
-                         AdditionalTypeNames,
-                         ToInline);
+        printDeclaration(Log, *NodeT, Header, B, Model, AdditionalTypeNames);
 
       } else {
         revng_log(Log, "Definition");
 
         revng_assert(Defined.contains(TypeNodes.at({ NodeT, Declaration })));
-        if (not declarationIsDefinition(NodeT)
+        if (not declarationIsDefinition(*NodeT)
             and not ToInline.contains(NodeT)) {
           revng_log(Log, "printDefinition");
           printDefinition(Log,
@@ -199,8 +187,8 @@ bool dumpModelToHeader(const model::Binary &Model,
       Header << B.getLineComment("==== Types ====");
       Header << B.getLineComment("===============");
       Header << '\n';
-      QualifiedTypeNameMap AdditionalTypeNames;
 
+      TypeNameMap AdditionalTypeNames;
       printTypeDefinitions(Model, Header, B, AdditionalTypeNames, Options);
     }
 
@@ -216,8 +204,8 @@ bool dumpModelToHeader(const model::Binary &Model,
         if (Options.FunctionsToOmit.contains(MF.Entry()))
           continue;
 
-        const model::TypeDefinition *FT = MF.prototype(Model).get();
-        if (Options.TypesToOmit.contains(FT))
+        const auto &FT = *Model.prototypeOrDefault(MF.prototype());
+        if (Options.TypesToOmit.contains(&FT))
           continue;
 
         auto FName = MF.name();
@@ -227,10 +215,10 @@ bool dumpModelToHeader(const model::Binary &Model,
           Header << "Analyzing Model function " << FName << "\n";
           serialize(Header, MF);
           Header << "Prototype\n";
-          serialize(Header, *FT);
+          serialize(Header, model::copyTypeDefinition(FT));
         }
 
-        printFunctionPrototype(*FT, MF, Header, B, Model, false);
+        printFunctionPrototype(FT, MF, Header, B, Model, false);
         Header << ";\n";
       }
     }
@@ -247,9 +235,8 @@ bool dumpModelToHeader(const model::Binary &Model,
       Header << '\n';
       for (const model::DynamicFunction &MF :
            Model.ImportedDynamicFunctions()) {
-        const model::TypeDefinition *FT = MF.prototype(Model).get();
-        revng_assert(FT != nullptr);
-        if (Options.TypesToOmit.contains(FT))
+        const auto &FT = *Model.prototypeOrDefault(MF.prototype());
+        if (Options.TypesToOmit.contains(&FT))
           continue;
 
         auto FName = MF.name();
@@ -259,9 +246,9 @@ bool dumpModelToHeader(const model::Binary &Model,
           Header << "Analyzing dynamic function " << FName << "\n";
           serialize(Header, MF);
           Header << "Prototype\n";
-          serialize(Header, *FT);
+          serialize(Header, model::copyTypeDefinition(FT));
         }
-        printFunctionPrototype(*FT, MF, Header, B, Model, false);
+        printFunctionPrototype(FT, MF, Header, B, Model, false);
         Header << ";\n";
       }
     }

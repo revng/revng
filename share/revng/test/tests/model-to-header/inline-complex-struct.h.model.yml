@@ -13,7 +13,8 @@ TypeDefinitions:
         CustomName: "the_struct_y"
         OriginalName: the_struct_y
         Type:
-          UnqualifiedType: "/TypeDefinitions/3002-StructDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-StructDefinition"
     Size: 56
   - Kind: StructDefinition
     ID: 3002
@@ -24,20 +25,23 @@ TypeDefinitions:
         CustomName: "the_union_w"
         OriginalName: the_union_w
         Type:
-          UnqualifiedType: "/TypeDefinitions/3003-UnionDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3003-UnionDefinition"
       - Offset: 4
         CustomName: "the_union_z"
         OriginalName: the_union_z
         Type:
-          UnqualifiedType: "/TypeDefinitions/3004-UnionDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3004-UnionDefinition"
       - Offset: 48
         CustomName: "ptr_to_E"
         OriginalName: ptr_to_E
         Type:
-          UnqualifiedType: "/TypeDefinitions/3007-EnumDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3007-EnumDefinition"
     Size: 56
   - Kind: UnionDefinition
     ID: 3003
@@ -48,7 +52,9 @@ TypeDefinitions:
         CustomName: "field"
         OriginalName: field
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
   - Kind: UnionDefinition
     ID: 3004
     CustomName: "Z"
@@ -58,21 +64,25 @@ TypeDefinitions:
         CustomName: "the_enum_e"
         OriginalName: the_enum_e
         Type:
-          UnqualifiedType: "/TypeDefinitions/3005-EnumDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3005-EnumDefinition"
       - Index: 1
         CustomName: "array_of_a"
         OriginalName: array_of_a
         Type:
-          UnqualifiedType: "/TypeDefinitions/3006-StructDefinition"
-          Qualifiers:
-            - Kind: Array
-              Size: 10
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3006-StructDefinition"
   - Kind: EnumDefinition
     ID: 3005
     CustomName: "E"
     OriginalName: E
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 2
         CustomName: "VALUE"
@@ -89,14 +99,18 @@ TypeDefinitions:
         CustomName: "field"
         OriginalName: field
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
     Size: 4
   - Kind: EnumDefinition
     ID: 3007
     CustomName: "E2"
     OriginalName: E2
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 1
         CustomName: "FIRST"
@@ -104,14 +118,5 @@ TypeDefinitions:
       - Value: 2
         CustomName: "SECOND"
         OriginalName: SECOND
-
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: PrimitiveDefinition
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
 ---
 

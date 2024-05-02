@@ -87,6 +87,11 @@ target_compile_definitions(test_clift_type PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_clift_type PRIVATE "${CMAKE_SOURCE_DIR}"
                                                    "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
-  test_clift_type MLIRCliftDialect MLIRCliftUtils Boost::unit_test_framework
-  revng::revngUnitTestHelpers ${LLVM_LIBRARIES})
+  test_clift_type
+  MLIRCliftDialect
+  MLIRCliftUtils
+  Boost::unit_test_framework
+  revng::revngModel
+  revng::revngUnitTestHelpers
+  ${LLVM_LIBRARIES})
 add_test(NAME test_clift_type COMMAND test_clift_type)

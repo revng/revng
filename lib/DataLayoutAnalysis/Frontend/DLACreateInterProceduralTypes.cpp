@@ -49,16 +49,13 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     const model::TypeDefinition *Prototype = nullptr;
     if (FunctionTags::Isolated.isTagOf(&F)) {
       const model::Function *ModelFunc = llvmToModelFunction(Model, F);
-      Prototype = ModelFunc->Prototype().getConst();
+      Prototype = Model.prototypeOrDefault(ModelFunc->prototype());
     } else {
       llvm::StringRef SymbolName = F.getName().drop_front(strlen("dynamic_"));
 
       auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
       revng_assert(It != Model.ImportedDynamicFunctions().end());
-      const model::DynamicFunction &DF = *It;
-      const auto &TTR = DF.prototype(Model);
-      revng_assert(TTR.isValid());
-      Prototype = TTR.getConst();
+      Prototype = Model.prototypeOrDefault(It->prototype());
     }
 
     revng_assert(Prototype);
@@ -88,7 +85,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     const auto *CABIFT = dyn_cast<model::CABIFunctionDefinition>(Prototype);
     if (RFT) {
       revng_assert(F.arg_size() == RFT->Arguments().size()
-                   or (not RFT->StackArgumentsType().empty()
+                   or (not RFT->StackArgumentsType().isEmpty()
                        and (F.arg_size() == RFT->Arguments().size() + 1)));
     } else if (CABIFT) {
       revng_assert(CABIFT->Arguments().size() == F.arg_size());
@@ -105,51 +102,44 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       auto [ArgNode, _] = getOrCreateLayoutType(&ArgVal);
       revng_assert(ArgNode);
 
-      model::QualifiedType ArgumentModelType;
+      model::UpcastableType ArgumentModelType;
       if (RFT) {
         const auto &ModelArgs = RFT->Arguments();
-        auto NumModelArguments = ModelArgs.size();
-        if (ArgIndex < NumModelArguments) {
-          auto ArgIt = std::next(ModelArgs.begin(), ArgIndex);
-          ArgumentModelType = ArgIt->Type();
-        } else {
-          ArgumentModelType = { RFT->StackArgumentsType(), {} };
-        }
+        if (ArgIndex < ModelArgs.size())
+          ArgumentModelType = std::next(ModelArgs.begin(), ArgIndex)->Type();
+        else
+          ArgumentModelType = RFT->StackArgumentsType();
       } else {
         revng_assert(CABIFT);
-        const auto &Args = CABIFT->Arguments();
-        ArgumentModelType = Args.at(ArgIndex).Type();
+        ArgumentModelType = CABIFT->Arguments().at(ArgIndex).Type();
       }
 
-      if (ArgumentModelType.UnqualifiedType().isValid()
-          and ArgumentModelType.isPointer()) {
-        const model::QualifiedType
-          Pointee = peelConstAndTypedefs(ArgumentModelType).stripPointer();
+      if (model::PointerType *Pointer = ArgumentModelType->getPointer()) {
+        if (const model::UpcastableType &Pointee = Pointer->PointeeType()) {
+          if (not Pointee->isVoidPrimitive()) {
+            bool IsFunction = Pointee->isPrototype();
+            bool IsScalar = !IsFunction && Pointee->isScalar();
 
-        bool IsScalar = Pointee.isScalar();
+            auto MaybeSize = Pointee->size();
+            bool IsSized = MaybeSize.has_value();
 
-        auto MaybeSize = Pointee.size();
-        bool IsSized = MaybeSize.has_value();
+            // If it is not scalar then it must be sized or a function type
+            revng_assert(IsFunction or IsScalar or IsSized);
 
-        namespace TDKind = model::TypeDefinitionKind;
-        bool IsFunction = Pointee.is(TDKind::RawFunctionDefinition)
-                          or Pointee.is(TDKind::CABIFunctionDefinition);
-
-        // If it is not scalar then it must be sized or a function type
-        revng_assert(IsScalar or IsSized or IsFunction);
-
-        if (not IsScalar) {
-          ArgNode->NonScalar = true;
-          if (IsSized)
-            ArgNode->Size = *MaybeSize;
-          else if (IsFunction)
-            ArgNode->Size = getPointerSize(Model.Architecture());
-        } else {
-          // Skip char, because they alias and propagate weird information.
-          if (IsSized and *MaybeSize > 1)
-            ArgNode->Size = *MaybeSize;
-          else if (IsFunction)
-            ArgNode->Size = getPointerSize(Model.Architecture());
+            if (not IsScalar) {
+              ArgNode->NonScalar = true;
+              if (IsSized)
+                ArgNode->Size = *MaybeSize;
+              else if (IsFunction)
+                ArgNode->Size = getPointerSize(Model.Architecture());
+            } else {
+              // Skip char, because they alias and propagate weird information.
+              if (IsSized and *MaybeSize > 1)
+                ArgNode->Size = *MaybeSize;
+              else if (IsFunction)
+                ArgNode->Size = getPointerSize(Model.Architecture());
+            }
+          }
         }
       }
 

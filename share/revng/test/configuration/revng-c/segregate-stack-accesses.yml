@@ -12,7 +12,6 @@ commands:
       export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
 
       revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
-      revng analyze --resume "$OUTPUT" add-primitive-types "$INPUT" -o /dev/null;
 
       revng model override-by-name
         "$OUTPUT/context/model.yml"

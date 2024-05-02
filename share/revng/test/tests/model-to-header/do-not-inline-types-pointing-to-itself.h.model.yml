@@ -13,10 +13,11 @@ TypeDefinitions:
         CustomName: "next"
         OriginalName: next
         Type:
-          UnqualifiedType: "/TypeDefinitions/3001-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3001-StructDefinition"
     Size: 8
 ---
 

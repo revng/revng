@@ -31,6 +31,6 @@ importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
 ValueType
 importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                 mlir::MLIRContext &Context,
-                const model::QualifiedType &ModelType);
+                const model::Type &ModelType);
 
 } // namespace mlir::clift

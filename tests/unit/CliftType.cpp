@@ -28,7 +28,7 @@ static bool verify(const model::TypeDefinition &ModelType, const bool Assert) {
   });
 }
 
-static bool verify(const model::QualifiedType &ModelType, bool Assert) {
+static bool verify(const model::Type &ModelType, bool Assert) {
   return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
     return static_cast<bool>(mlir::clift::importModelType(EmitError,
                                                           Context,
@@ -37,7 +37,7 @@ static bool verify(const model::QualifiedType &ModelType, bool Assert) {
 }
 
 static bool verify(const model::Binary &Tree, const bool Assert) {
-  return Tree.verify(false);
+  return Tree.verify(Assert);
 }
 
 static bool checkSerialization(const TupleTree<model::Binary> &Tree) {

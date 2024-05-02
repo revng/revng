@@ -180,10 +180,9 @@ getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model) {
       if (IntConstant->isZero()) {
         // If it's a ModelCast casting a zero constant to a pointer, then we
         // decorate the constant so that it's printed as NULL.
-        model::QualifiedType
-          Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        if (Type.isPointer())
-          return FormatInt{ IntFormatting::NULLPTR, UseToPrettyPrint };
+        auto Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+        if (Type->isPointer())
+          return FormatInt{ IntFormatting::NULLPTR, &U };
       }
     }
     return std::nullopt;

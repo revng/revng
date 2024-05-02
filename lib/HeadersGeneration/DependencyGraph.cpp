@@ -59,9 +59,47 @@ std::string llvm::DOTGraphTraits<DepGraph *>::getNodeLabel(const DepNode *N,
   return ::getNodeLabel(N);
 }
 
+struct DependencyEdgeAnalysisResult {
+  const model::TypeDefinition *EdgeTarget;
+  bool ThereIsAPointerBetweenTypes;
+};
+
+static RecursiveCoroutine<DependencyEdgeAnalysisResult>
+analyzeDependencyEdges(const model::Type &Type, bool PointerFound = false) {
+  if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
+    const model::Type &Pointee = *Pointer->PointeeType();
+    const auto *Defined = llvm::dyn_cast<model::DefinedType>(&Pointee);
+    const auto *Definition = Defined ? &Defined->unwrap() : nullptr;
+    if (Definition || llvm::isa<model::PrimitiveType>(&Pointee)) {
+      rc_return{ .EdgeTarget = Definition,
+                 .ThereIsAPointerBetweenTypes = true };
+    } else {
+      rc_return rc_recur analyzeDependencyEdges(Pointee, true);
+    }
+
+  } else if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+    const model::Type &Element = *Array->ElementType();
+    const auto *Defined = llvm::dyn_cast<model::DefinedType>(&Element);
+    const auto *Definition = Defined ? &Defined->unwrap() : nullptr;
+    if (Definition || llvm::isa<model::PrimitiveType>(&Element)) {
+      rc_return{ .EdgeTarget = Definition,
+                 .ThereIsAPointerBetweenTypes = PointerFound };
+    } else {
+      rc_return rc_recur analyzeDependencyEdges(Element, PointerFound);
+    }
+
+  } else {
+    // This is only reachable on the very first step.
+    const auto *Defined = llvm::dyn_cast<model::DefinedType>(&Type);
+    const auto *Definition = Defined ? &Defined->unwrap() : nullptr;
+    revng_assert(Definition || llvm::isa<model::PrimitiveType>(&Type));
+    rc_return{ .EdgeTarget = Definition, .ThereIsAPointerBetweenTypes = false };
+  }
+}
+
 template<TypeNode::Kind K>
 static TypeDependencyNode *
-getDependencyFor(const model::QualifiedType &QT,
+getDependencyFor(const model::Type &Type,
                  const TypeToDependencyNodeMap &TypeToNode) {
 
   // TODO: Unfortunately, here we have to deal with some quirks of the C
@@ -70,7 +108,7 @@ getDependencyFor(const model::QualifiedType &QT,
   // `ptr_to_array` that points to an array with two elements of type `struct
   // X`. The problem is that, because of a quirk of paragraph 6.7.6.2 of the
   // C11 standard (Array declarators), to declare `ptr_to_array` it is required
-  // to see the copmlete definition of `struct X`.
+  // to see the complete definition of `struct X`.
   // Even if MSVC seems to compile it just fine, clang and gcc don't.
   //
   // In principle this could be worked around by
@@ -94,39 +132,35 @@ getDependencyFor(const model::QualifiedType &QT,
   // the full definition of the element type of the wrapped array.
   // The emission of the full definition of the wrapper must be postponed until
   // the element type of the wrapped type is fully defined, otherwise it would
-  // fail compilation. So fow now we've put this forced dependency, that could
+  // fail compilation. So for now we've put this forced dependency, that could
   // be relaxed if we properly handle the array wrappers.
 
-  const auto *Unqualified = QT.UnqualifiedType().get();
-
-  bool LastIsArray = false;
-  bool PointerFound = false;
-  for (const auto &Qualifier : QT.Qualifiers()) {
-    if (model::Qualifier::isArray(Qualifier)) {
-      LastIsArray = true;
-    } else if (model::Qualifier::isPointer(Qualifier)) {
-      PointerFound = true;
-      LastIsArray = false;
-    }
+  DependencyEdgeAnalysisResult Analyzed = analyzeDependencyEdges(Type);
+  auto [EdgeTarget, PointerIsBetweenTypes] = Analyzed;
+  if (EdgeTarget == nullptr) {
+    // By definition, all the primitives are always present.
+    // As such, there's no need to add any edges for such cases.
+    return nullptr;
   }
 
-  // If the last non-const qualifier was an array, because of the quirks of the
-  // C standard mentioned above, we have to depend on the Definition of the
-  // element type of the array.
-  if (LastIsArray)
-    return TypeToNode.at({ Unqualified, TypeNode::Kind::Definition });
+  if (llvm::isa<model::ArrayType>(Type)) {
+    // If the last type edge was an array, because of the quirks of
+    // the C standard mentioned above, we have to depend on the Definition
+    // of the element type of the array.
+    return TypeToNode.at({ EdgeTarget, TypeNode::Kind::Definition });
+  }
 
-  // Otherwise, if we've found at least a pointer, we only depend on the name of
-  // the UnqualifiedType.
-  if (PointerFound)
-    return TypeToNode.at({ Unqualified, TypeNode::Kind::Declaration });
+  if (PointerIsBetweenTypes) {
+    // Otherwise, if we've found at least a pointer, we only depend on the name
+    // of the pointee.
+    return TypeToNode.at({ EdgeTarget, TypeNode::Kind::Declaration });
+  }
 
-  // In all the other cases we depend on the UnqualifiedType with the kind
-  // indicated by K.
-  return TypeToNode.at({ Unqualified, K });
+  // In all the other cases we depend on the type with the kind indicated by K.
+  return TypeToNode.at({ EdgeTarget, K });
 }
 
-static void registerDependencies(const model::TypeDefinition *T,
+static void registerDependencies(const model::TypeDefinition &T,
                                  const TypeToDependencyNodeMap &TypeToNode) {
 
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
@@ -138,94 +172,49 @@ static void registerDependencies(const model::TypeDefinition *T,
   // declared it) but it doesn't introduce cycles and it enables the algorithm
   // that decides on the ordering on the declarations and definitions to make
   // more assumptions about definitions being emitted before declarations.
-  auto *DefNode = TypeToNode.at({ T, TypeNode::Kind::Definition });
-  auto *DeclNode = TypeToNode.at({ T, TypeNode::Kind::Declaration });
+  auto *DefNode = TypeToNode.at({ &T, TypeNode::Kind::Definition });
+  auto *DeclNode = TypeToNode.at({ &T, TypeNode::Kind::Declaration });
   Deps.push_back({ DefNode, DeclNode });
 
-  switch (T->Kind()) {
+  if (llvm::isa<model::EnumDefinition>(T)) {
+    // Enums can only depend on primitives, and those are always present by
+    // definition. As such, there's nothing to do here.
 
-  case model::TypeDefinitionKind::Invalid: {
-    revng_abort("Primitive or Invalid type should never depend on others");
-  } break;
-
-  case model::TypeDefinitionKind::PrimitiveDefinition: {
-    // Nothing to do here. Primitive types names and full definitions can
-    // always be defined without dependencies, because they are either not
-    // necessary (for primitive types that are already present in stdint.h)
-    // or they boil down to a simple typedef of a type in stdint.h. In both
-    // cases, the definition provide visibility on both the name and on the
-    // full definition.
-  } break;
-
-  case model::TypeDefinitionKind::EnumDefinition: {
-    // Enum names and full definitions could always be conjured out of thin
-    // air. However, given that we have enums with underlying primitive
-    // types, for consistency we enforce that enums names and full
-    // definitions always depend on full definition of the underlying
-    // primitive type. This adds a little unnecessary edges, but makes the
-    // overall structure of the graph easier to reason about. Moreover, full
-    // definitions of primitive types can also always be conjured out of
-    // thin air, so we're always sure that this does not generates infinite
-    // loops.
-    const auto *E = cast<model::EnumDefinition>(T);
-    const model::QualifiedType &UnderQT = E->UnderlyingType();
-    revng_assert(T->edges().size() == 1 and UnderQT == *T->edges().begin()
-                 and UnderQT.Qualifiers().empty());
-
-    auto *U = cast<model::PrimitiveDefinition>(UnderQT.UnqualifiedType().get());
-    auto *EnumDef = TypeToNode.at({ E, TypeNode::Kind::Declaration });
-    auto *EnumDecl = TypeToNode.at({ E, TypeNode::Kind::Definition });
-    auto *UnderDecl = TypeToNode.at({ U, TypeNode::Kind::Definition });
-    Deps.push_back({ EnumDef, UnderDecl });
-    Deps.push_back({ EnumDecl, UnderDecl });
-    revng_log(Log,
-              getNodeLabel(EnumDef)
-                << " depends on " << getNodeLabel(UnderDecl));
-    revng_log(Log,
-              getNodeLabel(EnumDecl)
-                << " depends on " << getNodeLabel(UnderDecl));
-  } break;
-
-  case model::TypeDefinitionKind::StructDefinition:
-  case model::TypeDefinitionKind::UnionDefinition: {
+  } else if (llvm::isa<model::StructDefinition>(T)
+             || llvm::isa<model::UnionDefinition>(T)) {
     // Struct and Union names can always be conjured out of thin air thanks to
     // typedefs. So we only need to add dependencies between their full
     // definition and the full definition of their fields.
-    auto *Decl = TypeToNode.at({ T, TypeNode::Kind::Definition });
-    for (const model::QualifiedType &QT : T->edges()) {
-      TypeDependencyNode
-        *Dep = getDependencyFor<TypeNode::Definition>(QT, TypeToNode);
-      Deps.push_back({ Decl, Dep });
-      revng_log(Log, getNodeLabel(Decl) << " depends on " << getNodeLabel(Dep));
+    auto *Full = TypeToNode.at({ &T, TypeNode::Kind::Definition });
+    for (const model::Type *Edge : T.edges()) {
+      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge, TypeToNode)) {
+        Deps.push_back({ Full, D });
+        revng_log(Log, getNodeLabel(Full) << " depends on " << getNodeLabel(D));
+      }
     }
-  } break;
 
-  case model::TypeDefinitionKind::TypedefDefinition: {
+  } else if (auto *TD = llvm::dyn_cast<model::TypedefDefinition>(&T)) {
     // Typedefs are nasty.
-    auto *TD = cast<model::TypedefDefinition>(T);
-    const model::QualifiedType &Underlying = TD->UnderlyingType();
+    const model::Type &Under = *TD->UnderlyingType();
 
-    auto *TDDef = TypeToNode.at({ TD, TypeNode::Kind::Declaration });
-    TypeDependencyNode
-      *Def = getDependencyFor<TypeNode::Declaration>(Underlying, TypeToNode);
-    Deps.push_back({ TDDef, Def });
-    revng_log(Log, getNodeLabel(TDDef) << " depends on " << getNodeLabel(Def));
+    auto *TDDef = TypeToNode.at({ TD, TypeNode::Kind::Definition });
+    if (auto *D = getDependencyFor<TypeNode::Definition>(Under, TypeToNode)) {
+      Deps.push_back({ TDDef, D });
+      revng_log(Log, getNodeLabel(TDDef) << " depends on " << getNodeLabel(D));
+    }
 
-    auto *TDDecl = TypeToNode.at({ TD, TypeNode::Kind::Definition });
-    TypeDependencyNode
-      *Decl = getDependencyFor<TypeNode::Definition>(Underlying, TypeToNode);
-    Deps.push_back({ TDDecl, Decl });
-    revng_log(Log,
-              getNodeLabel(TDDecl) << " depends on " << getNodeLabel(Decl));
-  } break;
+    auto *TDDecl = TypeToNode.at({ TD, TypeNode::Kind::Declaration });
+    if (auto *D = getDependencyFor<TypeNode::Declaration>(Under, TypeToNode)) {
+      Deps.push_back({ TDDecl, D });
+      revng_log(Log, getNodeLabel(TDDecl) << " depends on " << getNodeLabel(D));
+    }
 
-  case model::TypeDefinitionKind::CABIFunctionDefinition:
-  case model::TypeDefinitionKind::RawFunctionDefinition: {
+  } else if (T.isPrototype()) {
     // For function types we can print a valid typedef definition as long as
     // we have visibility on all the names of all the argument types and all
     // return types.
-    for (const model::QualifiedType &QT : T->edges()) {
 
+    for (const model::Type *Edge : T.edges()) {
       // The two dependencies added here below are actually stricter than
       // necessary for e.g. stack arguments.
       // The reason is that, on the model, stack arguments are represented by
@@ -241,22 +230,21 @@ static void registerDependencies(const model::TypeDefinition *T,
       // this dependencies, or pre-processing the model so that what reaches
       // this point is always guaranteed to be in a form that can be emitted.
 
-      TypeDependencyNode
-        *Decl = getDependencyFor<TypeNode::Definition>(QT, TypeToNode);
-      Deps.push_back({ DefNode, Decl });
-      revng_log(Log,
-                getNodeLabel(DefNode) << " depends on " << getNodeLabel(Decl));
+      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge, TypeToNode)) {
+        Deps.push_back({ DefNode, D });
+        revng_log(Log,
+                  getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
+      }
 
-      TypeDependencyNode
-        *Def = getDependencyFor<TypeNode::Declaration>(QT, TypeToNode);
-      Deps.push_back({ DeclNode, Def });
-      revng_log(Log,
-                getNodeLabel(DeclNode) << " depends on " << getNodeLabel(Def));
+      if (auto *D = getDependencyFor<TypeNode::Declaration>(*Edge,
+                                                            TypeToNode)) {
+        Deps.push_back({ DeclNode, D });
+        revng_log(Log,
+                  getNodeLabel(DeclNode) << " depends on " << getNodeLabel(D));
+      }
     }
 
-  } break;
-
-  default:
+  } else {
     revng_abort();
   }
 
@@ -277,7 +265,7 @@ DependencyGraph buildDependencyGraph(const TypeVector &Types) {
 
   // Compute dependencies and add them to the graph
   for (const model::UpcastableTypeDefinition &MT : Types)
-    registerDependencies(MT.get(), Dependencies.TypeNodes());
+    registerDependencies(*MT, Dependencies.TypeNodes());
 
   if (Log.isEnabled())
     llvm::ViewGraph(&Dependencies, "type-deps.dot");

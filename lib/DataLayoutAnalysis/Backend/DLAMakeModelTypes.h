@@ -10,7 +10,7 @@
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-using TypeMapT = std::map<dla::LayoutTypePtr, model::QualifiedType>;
+using TypeMapT = std::map<dla::LayoutTypePtr, model::UpcastableType>;
 
 namespace dla {
 

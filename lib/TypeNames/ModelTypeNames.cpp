@@ -18,7 +18,6 @@
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
@@ -117,202 +116,157 @@ std::string getVariableLocationReference(llvm::StringRef VariableName,
   return getVariableLocation<false>(VariableName, F, B);
 }
 
-TypeString getNamedCInstance(const model::QualifiedType &QT,
+struct NamedCInstanceImpl {
+  const ptml::PTMLCBuilder &B;
+  llvm::ArrayRef<std::string> AllowedActions;
+  bool OmitInnerTypeName;
+
+public:
+  RecursiveCoroutine<std::string> getString(const model::Type &Type,
+                                            std::string &&Emitted,
+                                            bool PreviousWasAPointer = false) {
+    bool NeedsSpace = true; // Emit a space except in cases where we are
+    if (Emitted.empty())
+      NeedsSpace = false; // emitting a nameless instance,
+    if (llvm::isa<model::PointerType>(Type) and not Type.IsConst())
+      NeedsSpace = false; // a non-const pointer,
+    if (llvm::isa<model::ArrayType>(Type))
+      NeedsSpace = false; // or an array.
+
+    if (NeedsSpace)
+      Emitted = " " + std::move(Emitted);
+
+    if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+      rc_return rc_recur impl(*Array, std::move(Emitted), PreviousWasAPointer);
+
+    } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
+      rc_return rc_recur impl(*Pointer,
+                              std::move(Emitted),
+                              PreviousWasAPointer);
+
+    } else if (auto *Def = llvm::dyn_cast<model::DefinedType>(&Type)) {
+      rc_return rc_recur impl(*Def, std::move(Emitted));
+
+    } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
+      rc_return rc_recur impl(*Primitive, std::move(Emitted));
+
+    } else {
+      revng_abort("Unsupported type.");
+    }
+  }
+
+private:
+  RecursiveCoroutine<std::string> impl(const model::ArrayType &Array,
+                                       std::string &&Emitted,
+                                       bool PreviousWasAPointer) {
+    revng_assert(Array.IsConst() == false);
+
+    if (PreviousWasAPointer)
+      Emitted = "(" + std::move(Emitted) + ")";
+
+    Emitted += "[" + std::to_string(Array.ElementCount()) + "]";
+    rc_return rc_recur getString(*Array.ElementType(),
+                                 std::move(Emitted),
+                                 false);
+  }
+
+  RecursiveCoroutine<std::string> impl(const model::PointerType &Pointer,
+                                       std::string &&Emitted,
+                                       bool PreviousWasAPointer) {
+    std::string Current = B.getTag(ptml::tags::Span, "*")
+                            .addAttribute(attributes::Token, tokens::Operator)
+                            .serialize();
+    if (Pointer.IsConst())
+      Current += constKeyword();
+    Current += std::move(Emitted);
+
+    rc_return rc_recur getString(*Pointer.PointeeType(),
+                                 std::move(Current),
+                                 true);
+  }
+
+  RecursiveCoroutine<std::string> impl(const model::DefinedType &Def,
+                                       std::string &&Emitted) {
+    std::string Result = "";
+    if (not OmitInnerTypeName) {
+      if (Def.IsConst())
+        Result += constKeyword() + " ";
+
+      Result += B.getLocationReference(Def.unwrap(), AllowedActions);
+    }
+
+    Result += std::move(Emitted);
+
+    rc_return Result;
+  }
+
+  RecursiveCoroutine<std::string> impl(const model::PrimitiveType &Primitive,
+                                       std::string &&Emitted) {
+    std::string Result = "";
+    if (not OmitInnerTypeName) {
+      if (Primitive.IsConst())
+        Result += constKeyword() + " ";
+
+      Result += B.getLocationReference(Primitive);
+    }
+
+    Result += std::move(Emitted);
+
+    rc_return Result;
+  }
+
+  std::string constKeyword() {
+    using PTMLKW = ptml::PTMLCBuilder::Keyword;
+    return B.getKeyword(PTMLKW::Const).serialize();
+  }
+};
+
+TypeString getNamedCInstance(const model::Type &Type,
                              StringRef InstanceName,
                              const ptml::PTMLCBuilder &B,
-                             llvm::ArrayRef<std::string> AllowedActions) {
-  const model::TypeDefinition &Unqualified = *QT.UnqualifiedType().getConst();
-  std::string TypeName = B.getLocationReference(Unqualified, AllowedActions);
+                             llvm::ArrayRef<std::string> AllowedActions,
+                             bool OmitInnerTypeName) {
+  NamedCInstanceImpl Helper(B, AllowedActions, OmitInnerTypeName);
 
-  if (auto *Enum = dyn_cast<model::EnumDefinition>(&Unqualified)) {
-    const model::QualifiedType &Underlying = Enum->UnderlyingType();
-    revng_assert(Underlying.Qualifiers().empty());
-    std::string UnderlyingName = B.getLocationReference(*Underlying
-                                                           .UnqualifiedType()
-                                                           .getConst(),
-                                                        AllowedActions);
+  std::string Result = InstanceName.str();
+  Result = Helper.getString(Type, std::move(Result));
 
-    std::string EnumTypeWithAttribute = B.getAnnotateEnum(UnderlyingName);
-    EnumTypeWithAttribute += " " + std::move(TypeName);
-    TypeName = std::move(EnumTypeWithAttribute);
+  return TypeString(std::move(Result));
+}
+
+static RecursiveCoroutine<std::string>
+getArrayWrapperImpl(const model::Type &Type, const ptml::PTMLCBuilder &B) {
+  if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+    std::string Result = "array_" + std::to_string(Array->ElementCount())
+                         + "_of_";
+    Result += rc_recur getArrayWrapperImpl(*Array->ElementType(), B);
+    rc_return Result;
+
+  } else if (auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
+    std::string Result = (D->IsConst() ? "const_" : "");
+    rc_return std::move(Result += D->unwrap().name().str().str());
+
+  } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
+    std::string Result = (D->IsConst() ? "const_ptr_to_" : "ptr_to_");
+    rc_return std::move(Result += rc_recur
+                          getArrayWrapperImpl(*Pointer->PointeeType(), B));
+
+  } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
+    std::string Result = (D->IsConst() ? "const_" : "");
+    rc_return std::move(Result += Primitive->getCName());
+
+  } else {
+    revng_abort("Unsupported model::Type.");
   }
-
-  return getNamedCInstance(TypeName, QT.Qualifiers(), InstanceName, B);
 }
 
-TypeString getNamedCInstance(StringRef TypeName,
-                             const std::vector<model::Qualifier> &Qualifiers,
-                             StringRef InstanceName,
-                             const ptml::PTMLCBuilder &B) {
-  constexpr auto &isConst = model::Qualifier::isConst;
-  constexpr auto &isPointer = model::Qualifier::isPointer;
-
-  bool IsUnqualified = Qualifiers.empty();
-  bool FirstQualifierIsPointer = IsUnqualified or isPointer(Qualifiers.front());
-  bool PrependWhitespaceToInstanceName = not InstanceName.empty()
-                                         and (IsUnqualified
-                                              or not FirstQualifierIsPointer);
-
-  TypeString Result;
-
-  // Here we have a bunch of pointers, const, and array qualifiers.
-  // Because of arrays, we have to emit the types with C infamous clockwise
-  // spiral rule. Luckily all our function types have names, so at least this
-  // cannot become too nasty.
-
-  auto QIt = Qualifiers.begin();
-  auto QEnd = Qualifiers.end();
-  do {
-    // Accumulate the result that are outside the array.
-    TypeString Partial;
-
-    // Find the first qualifier that is an array.
-    auto QArrayIt = std::find_if(QIt, QEnd, model::Qualifier::isArray);
-    {
-      // If we find it, go back to the first previous const-qualifier that
-      // const-qualifies the array itself. This is necessary because C does not
-      // have const arrays, only arrays of const, so we have to handle
-      // const-arrays specially, and emit the const-qualifier on the element in
-      // C, even if in the model it was on the array.
-      if (QArrayIt != QEnd and QArrayIt != QIt
-          and isConst(*std::make_reverse_iterator(QArrayIt)))
-        QArrayIt = std::prev(QArrayIt);
-    }
-
-    // Emit non-array qualifiers.
-    {
-      bool PrevPointer = false;
-      for (const model::Qualifier &Q :
-           llvm::reverse(llvm::make_range(QIt, QArrayIt))) {
-        if (not PrevPointer)
-          Partial.append(" ");
-
-        switch (Q.Kind()) {
-
-        case model::QualifierKind::Const:
-          using PTMLKW = ptml::PTMLCBuilder::Keyword;
-          Partial.append(B.getKeyword(PTMLKW::Const).serialize());
-          PrevPointer = false;
-          break;
-        case model::QualifierKind::Pointer:
-          Partial.append(B.getTag(ptml::tags::Span, "*")
-                           .addAttribute(attributes::Token, tokens::Operator)
-                           .serialize());
-          PrevPointer = true;
-          break;
-
-        default:
-          revng_abort();
-        }
-      }
-    }
-
-    // Print the actual instance name.
-    if (QIt == Qualifiers.begin()) {
-      if (PrependWhitespaceToInstanceName)
-        Partial.append(" ");
-      Result.append(InstanceName.str());
-    }
-
-    // Now we can prepend the qualifiers that are outside the array to the
-    // Result string. This always work because at this point Result holds
-    // whatever is left from previous iteration, so it's either empty, or it
-    // starts with '(' because we're using the clockwise spiral rule.
-    Result = (Twine(Partial) + Twine(Result)).str();
-
-    // After this point we'll only be emitting parenthesis for the clockwise
-    // spiral rule, or append square brackets at the end of Result for arrays.
-
-    // Find the next non-array qualifier. Skip over const-qualifiers, because in
-    // C there are no const-arrays, so we'll have to deal with const-arrays
-    // separately.
-    auto QPointerIt = std::find_if(QArrayIt, QEnd, model::Qualifier::isPointer);
-    {
-      // If we find the next pointer qualifier, go back to the first previous
-      // const-qualifier that const-qualifies the pointer itself. This is
-      // necessary, so that we can reason about the element of the array being
-      // const, and we can deal properly with const arrays.
-      if (QPointerIt != QEnd and QPointerIt != QArrayIt
-          and isConst(*std::make_reverse_iterator(QPointerIt)))
-        QPointerIt = std::prev(QPointerIt);
-    }
-
-    if (QArrayIt != QPointerIt) {
-      // If QT is s a pointer to an array we have to add parentheses for the
-      // clockwise spiral rule
-      auto ReverseQArrayIt = std::make_reverse_iterator(QArrayIt);
-      bool LastWasPointer = QArrayIt != QIt and isPointer(*ReverseQArrayIt);
-      if (LastWasPointer)
-        Result = (Twine("(") + Twine(Result) + Twine(")")).str();
-
-      const auto &ArrayOrConstRange = llvm::make_range(QArrayIt, QPointerIt);
-      bool ConstQualifiedArray = llvm::any_of(ArrayOrConstRange, isConst);
-
-      // If the array is const-qualfied and its element is not const-qualified,
-      // just print it as an array of const-qualified elements, because that's
-      // the equivalent semantics in C anyway.
-      if (ConstQualifiedArray) {
-        bool ElementIsConstQualified = QPointerIt != QEnd
-                                       and isConst(*QPointerIt);
-        // If the array is const qualified but the element is not, we have to
-        // force const-ness onto the element, because in C there's no way to
-        // const-qualify arrays. If the element is already const-qualified, then
-        // there's no need to do that, because we're still gonna print the
-        // const-qualifier for the element.
-        if (not ElementIsConstQualified) {
-
-          const auto &Const = B.getKeyword(ptml::PTMLCBuilder::Keyword::Const)
-                                .serialize();
-          Result = (Twine(" ") + Twine(Const) + Twine(" ") + Twine(Result))
-                     .str();
-        }
-      }
-
-      for (const model::Qualifier &ArrayQ :
-           llvm::reverse(llvm::make_filter_range(ArrayOrConstRange,
-                                                 model::Qualifier::isArray)))
-        Result.append((Twine("[") + Twine(ArrayQ.Size()) + Twine("]")).str());
-    }
-
-    QIt = QPointerIt;
-  } while (QIt != QEnd);
-
-  Result = (Twine(TypeName) + Twine(Result)).str();
-
-  return Result;
-}
-
-TypeString getArrayWrapper(const model::QualifiedType &QT,
+TypeString getArrayWrapper(const model::ArrayType &ArrayType,
                            const ptml::PTMLCBuilder &B) {
-  revng_assert(QT.isArray());
-  TypeString Result;
-  Result.append(ArrayWrapperPrefix);
+  std::string Result = ArrayWrapperPrefix;
 
-  for (const auto &Qualifier : QT.Qualifiers()) {
+  Result += getArrayWrapperImpl(ArrayType, B);
 
-    switch (Qualifier.Kind()) {
-
-    case model::QualifierKind::Const: {
-      Result.append("const_");
-    } break;
-
-    case model::QualifierKind::Pointer: {
-      Result.append("ptr_to_");
-    } break;
-
-    case model::QualifierKind::Array: {
-      auto NElem = Qualifier.Size();
-      Result.append(("array_" + Twine(NElem) + "_of_").str());
-    } break;
-
-    default:
-      revng_abort();
-    }
-  }
-
-  Result.append(QT.UnqualifiedType().get()->name());
-  Tag ResultTag = B.getTag(ptml::tags::Span, Result.str());
-  return TypeString(ResultTag.serialize());
+  return TypeString(B.getTag(ptml::tags::Span, std::move(Result)).serialize());
 }
 
 TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
@@ -338,23 +292,24 @@ TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
 
   case ReturnMethod::ModelAggregate:
   case ReturnMethod::Scalar: {
-    model::QualifiedType ReturnType;
+    const model::Type *ReturnType = nullptr;
 
     if (ReturnMethod == ReturnMethod::ModelAggregate) {
-      ReturnType = Layout.returnValueAggregateType();
+      ReturnType = &Layout.returnValueAggregateType();
     } else {
       revng_assert(Layout.ReturnValues.size() == 1);
-      ReturnType = Layout.ReturnValues[0].Type;
+      ReturnType = Layout.ReturnValues[0].Type.get();
     }
 
     // When returning arrays, they need to be wrapped into an artificial
     // struct
-    if (ReturnType.isArray()) {
-      Result = getArrayWrapper(ReturnType, B);
+    if (const model::ArrayType *Array = ReturnType->getArray()) {
+      Result = getArrayWrapper(*Array, B);
       if (not InstanceName.empty())
         Result.append((Twine(" ") + Twine(InstanceName)).str());
+
     } else {
-      Result = getNamedCInstance(ReturnType, InstanceName, B, AllowedActions);
+      Result = getNamedCInstance(*ReturnType, InstanceName, B, AllowedActions);
     }
 
   } break;
@@ -436,7 +391,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   Header << (SingleLine ? " " : "\n");
   Header << getNamedInstanceOfReturnType(RF, FunctionName, B, false);
 
-  if (RF.Arguments().empty() and RF.StackArgumentsType().empty()) {
+  if (RF.Arguments().empty() and RF.StackArgumentsType().isEmpty()) {
     Header << "(" << B.tokenTag("void", ptml::c::tokens::Type) << ")";
   } else {
     const StringRef Open = "(";
@@ -449,7 +404,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
 
       std::string
-        MarkedType = getNamedCInstance(Arg.Type(), ArgString, B).str().str();
+        MarkedType = getNamedCInstance(*Arg.Type(), ArgString, B).str().str();
       std::string
         MarkedReg = B.getAnnotateReg(model::Register::getName(Arg.Location()));
       Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + MarkedReg);
@@ -462,7 +417,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
       Separator = Comma;
     }
 
-    if (not RF.StackArgumentsType().empty()) {
+    if (not RF.StackArgumentsType().isEmpty()) {
       // Add last argument representing a pointer to the stack arguments
       std::string StackArgName;
       if (Function != nullptr)
@@ -470,9 +425,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                                      *Function,
                                                      B);
       Header << Separator
-             << getNamedCInstance({ RF.StackArgumentsType(), {} },
-                                  StackArgName,
-                                  B);
+             << getNamedCInstance(*RF.StackArgumentsType(), StackArgName, B);
       Header << " " << B.getAnnotateStack();
     }
     Header << ")";
@@ -507,14 +460,14 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
 
       TypeString ArgDeclaration;
-      if (Arg.Type().isArray()) {
-        ArgDeclaration = getArrayWrapper(Arg.Type(), B);
+      if (const model::ArrayType *Array = Arg.Type()->getArray()) {
+        ArgDeclaration = getArrayWrapper(*Array, B);
         if (not ArgString.empty()) {
           ArgDeclaration.append(" ");
           ArgDeclaration.append(ArgString);
         }
       } else {
-        ArgDeclaration = getNamedCInstance(Arg.Type(), ArgString, B);
+        ArgDeclaration = getNamedCInstance(*Arg.Type(), ArgString, B);
       }
 
       Tag ArgTag = B.getTag(ptml::tags::Span, ArgDeclaration);

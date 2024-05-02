@@ -14,7 +14,8 @@ TypeDefinitions:
       - Offset: 0
         CustomName: "first_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/3003-StructDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3003-StructDefinition"

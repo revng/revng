@@ -3,30 +3,6 @@
 #
 
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 522
-    PrimitiveKind: Generic
-    Size: 10
-  - Kind: PrimitiveDefinition
-    ID: 524
-    PrimitiveKind: Generic
-    Size: 12
-  - Kind: PrimitiveDefinition
-    ID: 1552
-    PrimitiveKind: Signed
-    Size: 16
-  - Kind: PrimitiveDefinition
-    ID: 1802
-    PrimitiveKind: Float
-    Size: 10
-  - Kind: PrimitiveDefinition
-    ID: 1804
-    PrimitiveKind: Float
-    Size: 12
-  - Kind: PrimitiveDefinition
-    ID: 1808
-    PrimitiveKind: Float
-    Size: 16
   - Kind: UnionDefinition
     ID: 3000
     CustomName: "my_union"
@@ -34,20 +10,30 @@ TypeDefinitions:
       - Index: 0
         CustomName: "first_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/522-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 10
       - Index: 1
         CustomName: "second_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/524-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 12
       - Index: 2
         CustomName: "third_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1802-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 10
       - Index: 3
         CustomName: "fourth_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1804-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 12
       - Index: 4
         CustomName: "fifth_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1808-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 16

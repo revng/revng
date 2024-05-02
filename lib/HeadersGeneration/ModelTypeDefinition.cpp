@@ -17,7 +17,7 @@ std::string dumpModelTypeDefinition(const model::Binary &Model,
   ptml::PTMLIndentedOstream PTMLOut(Out, DecompiledCCodeIndentation, true);
   ptml::PTMLCBuilder B(true);
 
-  std::map<model::QualifiedType, std::string> AdditionalNames;
+  std::map<model::UpcastableType, std::string> AdditionalNames;
   const std::set<const model::TypeDefinition *> TypesToInline;
 
   printDefinition(Log,
@@ -26,8 +26,6 @@ std::string dumpModelTypeDefinition(const model::Binary &Model,
                   B,
                   Model,
                   AdditionalNames,
-                  TypesToInline,
-                  {},
                   {},
                   true);
 

@@ -5,37 +5,17 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  - ID: 256
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Void
-    Size: 0
-
-  - ID: 1281
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 1
-  - ID: 1282
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 2
-  - ID: 1284
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 4
-
-    # CHECK: #my_function1$def = #clift.function<
-    # CHECK:   id = 1001
-    # CHECK:   name = "my_function1"
-    # CHECK:   return_type = !void
-    # CHECK:   argument_types = []
-    # CHECK: >
-    # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
+  # CHECK: #my_function1$def = #clift.function<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_function1"
+  # CHECK:   return_type = !void
+  # CHECK:   argument_types = []
+  # CHECK: >
+  # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
   - ID: 1001
     Kind: CABIFunctionDefinition
     CustomName: "my_function1"
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/TypeDefinitions/256-PrimitiveDefinition"
     Arguments: []
 
     # CHECK: #my_function2$def = #clift.function<
@@ -57,11 +37,17 @@ TypeDefinitions:
     CustomName: "my_function2"
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1281-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 1
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1282-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
       - Index: 1
         Type:
-          UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

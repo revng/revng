@@ -37,7 +37,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/Qualifier.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Model/VerifyHelper.h"
@@ -77,12 +76,11 @@ using model::RawFunctionDefinition;
 static Logger<> ModelGEPLog{ "make-model-gep" };
 
 // This struct represents an llvm::Value for which it has been determined that
-// it has pointer semantic on the model, along with the model::QualifiedType of
-// the pointee.
+// it has pointer semantic on the model, along with the type of the pointee.
 class ModelTypedIRAddress {
 
 private:
-  model::QualifiedType PointeeType = {};
+  model::UpcastableType PointeeType = {};
   Value *Address = nullptr;
 
 public:
@@ -96,15 +94,17 @@ public:
   ModelTypedIRAddress &operator=(ModelTypedIRAddress &) = default;
 
 public:
-  ModelTypedIRAddress(const model::QualifiedType &PT, Value *A) :
-    PointeeType(PT), Address(A) {
-    revng_assert(PointeeType.verify() and nullptr != Address);
+  ModelTypedIRAddress(model::UpcastableType &&Pointee, Value *A) :
+    PointeeType(std::move(Pointee)), Address(A) {
+
+    revng_assert(isValid());
   }
 
   static ModelTypedIRAddress invalid() { return ModelTypedIRAddress(); }
 
   bool isValid() const {
-    return nullptr != Address and not PointeeType.UnqualifiedType().empty();
+    return nullptr != Address and not PointeeType.isEmpty()
+           and PointeeType->verify();
   }
 
   const auto &getPointeeType() const { return PointeeType; }
@@ -471,8 +471,8 @@ public:
   // Factories
   //
 
-  static IRArithmetic address(model::QualifiedType Type, Value *Address) {
-    return IRArithmetic(ModelTypedIRAddress(dropPointer(Type), Address));
+  static IRArithmetic address(const model::Type &T, Value *Address) {
+    return IRArithmetic(ModelTypedIRAddress(T.getPointee(), Address));
   }
 
   static IRArithmetic index(ConstantInt *Coefficient, Value *Index) {
@@ -501,7 +501,7 @@ public:
   void dump() const debug_function { dump(llvm::dbgs()); }
 };
 
-using ModelTypesMap = std::map<const Value *, const model::QualifiedType>;
+using ModelTypesMap = std::map<const Value *, const model::UpcastableType>;
 
 static RecursiveCoroutine<std::optional<IRArithmetic>>
 getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
@@ -517,10 +517,10 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
 
     auto &[AddressVal, Type] = *TypeIt;
 
-    revng_assert(Type.isPointer());
+    revng_assert(Type->isPointer());
     revng_log(ModelGEPLog, "Use is typed!");
 
-    rc_return IRArithmetic::address(Type, AddressArith);
+    rc_return IRArithmetic::address(*Type, AddressArith);
 
   } else if (isa<ConstantExpr>(AddressArith)
              or isa<Instruction>(AddressArith)) {
@@ -895,10 +895,10 @@ using ChildIndexVector = SmallVector<ChildInfo>;
 // very poor, resulting in situations where not all the pointer arithmetic in
 // LLVM IR can be neatly translated in a ModelGEP.
 struct ModelGEPReplacementInfo {
-  model::QualifiedType BaseType;
+  model::UpcastableType BaseType;
   ChildIndexVector IndexVector;
   IRSummation Mismatched;
-  model::QualifiedType AccessedType;
+  model::UpcastableType AccessedType;
 
   void dump(llvm::raw_ostream &OS) const debug_function {
     OS << "ModelGEPReplacementInfo {\nBaseType:\n";
@@ -929,33 +929,27 @@ struct ModelGEPReplacementInfo {
   ModelGEPReplacementInfo(ModelGEPReplacementInfo &&) = default;
   ModelGEPReplacementInfo &operator=(ModelGEPReplacementInfo &&) = default;
 
-  ModelGEPReplacementInfo(const model::QualifiedType &Base,
+  ModelGEPReplacementInfo(const model::UpcastableType &Base,
                           const ChildIndexVector &Indices,
                           const IRSummation &Mismatch,
-                          const model::QualifiedType &Accessed) :
+                          const model::UpcastableType &Accessed) :
     BaseType(Base),
     IndexVector(Indices),
     Mismatched(Mismatch),
     AccessedType(Accessed) {}
 };
 
-using QualifiedTypeOrNone = std::optional<model::QualifiedType>;
-
 // Compute the lower bound of DifferenceScore if we can try to match more things
 // in the GEPReplacementInfo
 static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
-                                  const QualifiedTypeOrNone &AccessedTypeOnIR,
+                                  const model::UpcastableType &AccessedTypeOnIR,
                                   model::VerifyHelper &VH) {
 
   const auto &[BaseOffset, Indices] = GEPInfo.Mismatched;
 
-  size_t BaseSize = *GEPInfo.BaseType.size(VH);
-  revng_assert(BaseSize);
-
-  bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
-  if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
+  if (not AccessedTypeOnIR.isEmpty()) {
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR->size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
@@ -969,6 +963,7 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
   // We cannot foresee how big will be the Mismatched part.
   // But we're estimating a lower bound, so we know that it will be out of bound
   // for at least BaseOffset + AccessedSizeOnIR - BaseSize
+  uint64_t BaseSize = *GEPInfo.BaseType->size(VH);
   if ((BaseOffset + AccessedSizeOnIR).ugt(BaseSize))
     return DifferenceScore::nestedOutOfBound(IRSummation(BaseOffset
                                                          + AccessedSizeOnIR
@@ -989,7 +984,7 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
   // If the IR doesn't have a pointee type the best case scenario is an inRange.
   // We cannot have a perfectMatch or a sameSizeMatch if we don't have another
   // type to compare it with.
-  if (not IRHasPointee)
+  if (AccessedTypeOnIR.isEmpty())
     return DifferenceScore::inRange(MatchDepth);
 
   // If the IR has a pointee type, the best that can happen we find a perfect
@@ -1002,10 +997,9 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
 // ModelGEP replacemente, represented by ModelGEPInfo.
 // The smaller the difference, the best ModelGEPInfo represents the memory
 // access as it is computed on the IR.
-static DifferenceScore
-difference(const ModelGEPReplacementInfo &GEPInfo,
-           const std::optional<model::QualifiedType> &AccessedTypeOnIR,
-           model::VerifyHelper &VH) {
+static DifferenceScore difference(const ModelGEPReplacementInfo &GEPInfo,
+                                  const model::UpcastableType &AccessedTypeOnIR,
+                                  model::VerifyHelper &VH) {
 
   // The number of valid indices in IndexVector represents the depth we've
   // reached so far without going out of bounds.
@@ -1025,22 +1019,19 @@ difference(const ModelGEPReplacementInfo &GEPInfo,
   // 1. If the AccessedTypeOnIR is NOT known we assume its not the same as
   // GEPInfo.AccessedType BUT we assume it's not out of bound so we return
   // inRange
-  if (not AccessedTypeOnIR.has_value())
+  if (AccessedTypeOnIR.isEmpty())
     return DifferenceScore::inRange(Depth);
-
-  const model::QualifiedType &AccessedOnIR = AccessedTypeOnIR.value();
-  const model::QualifiedType &AccessedFromModelGEP = GEPInfo.AccessedType;
 
   // 2. if the AccessedTypeOnIR is known, and is the same as the
   // GEPInfo.AccessedType then we have perfectMatch
-  if (AccessedOnIR == AccessedFromModelGEP)
+  if (*AccessedTypeOnIR == *GEPInfo.AccessedType)
     return DifferenceScore::perfectMatch(Depth);
 
-  std::optional<uint64_t> SizeOnIROrNOne = AccessedOnIR.size(VH);
+  std::optional<uint64_t> SizeOnIROrNOne = AccessedTypeOnIR->size(VH);
   auto IRSize = SizeOnIROrNOne.value_or(0ULL);
-  auto GEPSize = *AccessedFromModelGEP.size(VH);
+  std::optional<uint64_t> GEPSize = GEPInfo.AccessedType->size(VH);
   revng_assert(GEPSize);
-  auto Cmp = IRSize <=> GEPSize;
+  auto Cmp = IRSize <=> *GEPSize;
 
   // 3. if the AccessedTypeOnIR is known, and is NOT the same as the
   // GEPInfo.AccessedType BUT it has the same size then we have sameSizeMatch
@@ -1058,51 +1049,37 @@ difference(const ModelGEPReplacementInfo &GEPInfo,
 }
 
 static RecursiveCoroutine<ModelGEPReplacementInfo>
-computeBest(const model::QualifiedType &BaseType,
+computeBest(const model::UpcastableType &BaseType,
             const IRSummation &IRSum,
-            const std::optional<model::QualifiedType> &AccessedTypeOnIR,
+            const model::UpcastableType &AccessedTypeOnIR,
             model::VerifyHelper &VH);
 
 static RecursiveCoroutine<ModelGEPReplacementInfo>
-computeBestInArray(const model::QualifiedType &BaseType,
+computeBestInArray(const model::UpcastableType &BaseType,
                    const IRSummation &IRSum,
-                   const std::optional<model::QualifiedType> &AccessedTypeOnIR,
+                   const model::UpcastableType &AccessedTypeOnIR,
                    model::VerifyHelper &VH) {
 
   revng_log(ModelGEPLog, "computeBestInArray for IRSum: " << IRSum);
   auto ArrayIndent = LoggerIndent{ ModelGEPLog };
 
-  model::QualifiedType BaseArray = peelConstAndTypedefs(BaseType);
-  revng_assert(BaseArray.isArray());
-
-  // In case of arrays, we need to unwrap the first layer
-  // (qualifier) and keep looking for other TAPs that might be generated.
-  auto QBeg = BaseArray.Qualifiers().begin();
-  auto QEnd = BaseArray.Qualifiers().end();
-
-  auto &ArrayQualifier = *QBeg;
-  revng_assert(model::Qualifier::isArray(ArrayQualifier));
-  auto ElementType = model::QualifiedType(BaseArray.UnqualifiedType(),
-                                          { std::next(QBeg), QEnd });
-
-  std::optional<uint64_t> MaybeElementTypeSize = ElementType.size(VH);
-  revng_assert(MaybeElementTypeSize.has_value()
-               and MaybeElementTypeSize.value());
-  uint64_t ElementSize = MaybeElementTypeSize.value();
-  uint64_t NElems = ArrayQualifier.Size();
-  uint64_t ArraySize = ElementSize * NElems;
+  const model::ArrayType &Array = BaseType->toArray();
+  uint64_t ElementSize = *Array.ElementType()->size(VH);
+  uint64_t ArraySize = ElementSize * Array.ElementCount();
 
   const auto &[BaseOffset, Indices] = IRSum;
 
   // Setup a return value for all the cases where we cannot traverse the array
-  // successfully. We basically emit no index and keep the whol IRSum as
-  // Mismatch.
-  ModelGEPReplacementInfo ArrayNotTraversed(BaseArray, {}, IRSum, BaseArray);
+  // successfully. We basically emit no index and keep the whole IRSum as
+  // a Mismatch.
+  ModelGEPReplacementInfo ArrayNotTraversed(/* Base = */ BaseType,
+                                            /* Indices = */ {},
+                                            /* Mismatch = */ IRSum,
+                                            /* Accessed = */ BaseType);
 
-  bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
-  if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
+  if (not AccessedTypeOnIR.isEmpty()) {
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR->size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
@@ -1218,10 +1195,10 @@ computeBestInArray(const model::QualifiedType &BaseType,
   auto ArrayAccessInfo = ChildInfo{ .Index = std::move(ElementSummation),
                                     .Type = AggregateKind::Array };
 
-  ModelGEPReplacementInfo BestInArray(BaseArray,
-                                      { ArrayAccessInfo },
-                                      SummationInElement,
-                                      ElementType);
+  ModelGEPReplacementInfo BestInArray(/* Base = */ BaseType,
+                                      /* Indices = */ { ArrayAccessInfo },
+                                      /* Mismatch = */ SummationInElement,
+                                      /* Accessed = */ Array.ElementType());
 
   revng_log(ModelGEPLog, "BestInArray: " << BestInArray);
   DifferenceScore BestScore = difference(BestInArray, AccessedTypeOnIR, VH);
@@ -1237,12 +1214,12 @@ computeBestInArray(const model::QualifiedType &BaseType,
   revng_log(ModelGEPLog, "Analyze array element");
   auto ElementIndex = LoggerIndent{ ModelGEPLog };
 
-  auto ElementResult = rc_recur computeBest(ElementType,
+  auto ElementResult = rc_recur computeBest(Array.ElementType(),
                                             SummationInElement,
                                             AccessedTypeOnIR,
                                             VH);
   // Fixup the ElementResult to be comparable with BestInArray
-  ElementResult.BaseType = BaseArray;
+  ElementResult.BaseType = Array;
   ElementResult.IndexVector.insert(ElementResult.IndexVector.begin(),
                                    ArrayAccessInfo);
 
@@ -1262,33 +1239,32 @@ computeBestInArray(const model::QualifiedType &BaseType,
 }
 
 static RecursiveCoroutine<ModelGEPReplacementInfo>
-computeBestInStruct(const model::QualifiedType &BaseStruct,
+computeBestInStruct(const model::UpcastableType &BaseStruct,
                     const IRSummation &IRSum,
-                    const std::optional<model::QualifiedType> &AccessedTypeOnIR,
+                    const model::UpcastableType &AccessedTypeOnIR,
                     model::VerifyHelper &VH) {
   revng_log(ModelGEPLog, "computeBestInStruct for IRSum: " << IRSum);
   auto StructIndent = LoggerIndent{ ModelGEPLog };
 
-  revng_assert(BaseStruct.is(model::TypeDefinitionKind::StructDefinition)
-               and BaseStruct.Qualifiers().empty());
-  const auto *Unqualified = BaseStruct.UnqualifiedType().getConst();
-  const auto *TheStructType = cast<model::StructDefinition>(Unqualified);
+  const auto &StructDefinition = BaseStruct->toStruct();
 
-  // Setup a return value for all the cases where we cannot traverse the union
-  // successfully. We basically emit no index and keep the whol IRSum as
-  // Mismatch.
-  ModelGEPReplacementInfo BestInStruct(BaseStruct, {}, IRSum, BaseStruct);
+  // Setup a return value for all the cases where we cannot traverse this struct
+  // successfully. We basically emit no index and keep the whole IRSum as
+  // a mismatch.
+  ModelGEPReplacementInfo BestInStruct(/* Base = */ BaseStruct,
+                                       /* Indices = */ {},
+                                       /* Mismatch = */ IRSum,
+                                       /* Accessed = */ BaseStruct);
 
-  bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
-  if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
+  if (not AccessedTypeOnIR.isEmpty()) {
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR->size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
   const auto &[BaseOffset, Indices] = IRSum;
 
-  auto StructSize = *BaseStruct.size(VH);
+  uint64_t StructSize = *StructDefinition.size(VH);
   if ((BaseOffset + AccessedSizeOnIR).ugt(StructSize)) {
     revng_log(ModelGEPLog,
               "Struct not traversed for large offset. BestInStruct: "
@@ -1307,14 +1283,14 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
     rc_return BestInStruct;
   }
 
-  // Now we try to unwrap the union fields, and see if we can get better results
-  // on them.
+  // Now we try to unwrap the struct fields, and see if we can get better
+  // results on them.
 
-  auto FieldBegin = TheStructType->Fields().begin();
+  auto FieldBegin = StructDefinition.Fields().begin();
   // Let's detect the leftmost field that starts later than the maximum offset
   // reachable by the IRSum. This is the first element that we don't want to
   // compare because it's not a valid traversal for the given IRSum.
-  auto FieldIt = TheStructType->Fields().upper_bound(BaseOffset.getZExtValue());
+  auto FEnd = StructDefinition.Fields().upper_bound(BaseOffset.getZExtValue());
 
   enum {
     InitiallyImproving,
@@ -1322,7 +1298,7 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
   } Status = InitiallyImproving;
 
   for (const model::StructField &Field :
-       llvm::reverse(llvm::make_range(FieldBegin, FieldIt))) {
+       llvm::reverse(llvm::make_range(FieldBegin, FEnd))) {
     revng_log(ModelGEPLog, "Analyze Field with Offset: " << Field.Offset());
     auto FieldIndent = LoggerIndent{ ModelGEPLog };
 
@@ -1330,14 +1306,13 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
     auto FieldAccessInfo = ChildInfo{ .Index = IRSummation(Field.Offset()),
                                       .Type = AggregateKind::Struct };
 
-    auto &FieldType = Field.Type();
-
     IRSummation SumInField = IRSum;
     SumInField -= Field.Offset();
-    ModelGEPReplacementInfo InField(BaseStruct,
-                                    { FieldAccessInfo },
-                                    SumInField,
-                                    FieldType);
+
+    ModelGEPReplacementInfo InField(/* Base = */ BaseStruct,
+                                    /* Indices = */ { FieldAccessInfo },
+                                    /* Mismatch = */ SumInField,
+                                    /* Accessed = */ Field.Type());
 
     DifferenceScore ElementLowerBound = lowerBound(InField,
                                                    AccessedTypeOnIR,
@@ -1354,7 +1329,7 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
       continue;
     }
 
-    auto FieldResult = rc_recur computeBest(FieldType,
+    auto FieldResult = rc_recur computeBest(Field.Type(),
                                             SumInField,
                                             AccessedTypeOnIR,
                                             VH);
@@ -1379,34 +1354,33 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
 }
 
 static RecursiveCoroutine<ModelGEPReplacementInfo>
-computeBestInUnion(const model::QualifiedType &BaseUnion,
+computeBestInUnion(const model::UpcastableType &BaseUnion,
                    const IRSummation &IRSum,
-                   const std::optional<model::QualifiedType> &AccessedTypeOnIR,
+                   const model::UpcastableType &AccessedTypeOnIR,
                    model::VerifyHelper &VH) {
 
   revng_log(ModelGEPLog, "computeBestInUnion for IRSum: " << IRSum);
   auto UnionIndent = LoggerIndent{ ModelGEPLog };
 
-  revng_assert(BaseUnion.is(model::TypeDefinitionKind::UnionDefinition)
-               and BaseUnion.Qualifiers().empty());
-  const auto *Unqualified = BaseUnion.UnqualifiedType().getConst();
-  const auto *TheUnionType = cast<model::UnionDefinition>(Unqualified);
+  const model::UnionDefinition &UnionDefinition = BaseUnion->toUnion();
 
   // Setup a return value for all the cases where we cannot traverse the union
   // successfully. We basically emit no index and keep the whol IRSum as
   // Mismatch.
-  ModelGEPReplacementInfo BestInUnion(BaseUnion, {}, IRSum, BaseUnion);
+  ModelGEPReplacementInfo BestInUnion(/* Base = */ BaseUnion,
+                                      /* Indices = */ {},
+                                      /* Mismatch = */ IRSum,
+                                      /* Accessed = */ BaseUnion);
 
-  bool IRHasPointee = AccessedTypeOnIR.has_value();
   uint64_t AccessedSizeOnIR = 0ULL;
-  if (IRHasPointee) {
-    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR.value().size(VH);
+  if (AccessedTypeOnIR) {
+    std::optional<uint64_t> AccessedSize = AccessedTypeOnIR->size(VH);
     AccessedSizeOnIR = AccessedSize.value_or(0ULL);
   }
 
   const auto &[BaseOffset, Indices] = IRSum;
 
-  auto UnionSize = *BaseUnion.size(VH);
+  uint64_t UnionSize = *UnionDefinition.size(VH);
   if ((BaseOffset + AccessedSizeOnIR).ugt(UnionSize)) {
     revng_log(ModelGEPLog,
               "Union not traversed for large offset. BestInUnion: "
@@ -1428,7 +1402,7 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
   // Now we try to unwrap the union fields, and see if we can get better results
   // on them.
 
-  for (const model::UnionField &Field : TheUnionType->Fields()) {
+  for (const model::UnionField &Field : UnionDefinition.Fields()) {
     revng_log(ModelGEPLog, "Analyze Field with ID: " << Field.Index());
     auto FieldIndent = LoggerIndent{ ModelGEPLog };
 
@@ -1436,12 +1410,10 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
     auto FieldAccessInfo = ChildInfo{ .Index = IRSummation(Field.Index()),
                                       .Type = AggregateKind::Union };
 
-    auto &FieldType = Field.Type();
-
-    ModelGEPReplacementInfo InField(BaseUnion,
-                                    { FieldAccessInfo },
-                                    IRSum,
-                                    FieldType);
+    ModelGEPReplacementInfo InField(/* Base = */ BaseUnion,
+                                    /* Indices = */ { FieldAccessInfo },
+                                    /* Mismatch = */ IRSum,
+                                    /* Accessed = */ Field.Type());
 
     DifferenceScore ElementLowerBound = lowerBound(InField,
                                                    AccessedTypeOnIR,
@@ -1452,7 +1424,7 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
       continue;
     }
 
-    auto FieldResult = rc_recur computeBest(FieldType,
+    auto FieldResult = rc_recur computeBest(Field.Type(),
                                             IRSum,
                                             AccessedTypeOnIR,
                                             VH);
@@ -1477,30 +1449,31 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
 }
 
 static RecursiveCoroutine<ModelGEPReplacementInfo>
-computeBest(const model::QualifiedType &BaseType,
+computeBest(const model::UpcastableType &BaseType,
             const IRSummation &IRSum,
-            const std::optional<model::QualifiedType> &AccessedTypeOnIR,
+            const model::UpcastableType &AccessedTypeOnIR,
             model::VerifyHelper &VH) {
   revng_log(ModelGEPLog, "Computing Best ModelGEP for IRSum: " << IRSum);
-  namespace TDKind = model::TypeDefinitionKind;
-  revng_assert(not BaseType.isVoid()
-               and not BaseType.is(TDKind::RawFunctionDefinition)
-               and not BaseType.is(TDKind::CABIFunctionDefinition));
+
+  const auto &UnwrappedBaseType = *BaseType->skipConstAndTypedefs();
+  revng_assert(UnwrappedBaseType.isObject());
 
   // This Result models no access, and leaves all the IRSum as a mismatch.
   // It's handful for easy bail out for obvious failures to traverse this
   // BaseType properly.
-  ModelGEPReplacementInfo Result{ BaseType, {}, IRSum, BaseType };
+  ModelGEPReplacementInfo Result(/* Base = */ BaseType,
+                                 /* Indices = */ {},
+                                 /* Mismatch = */ IRSum,
+                                 /* Accessed = */ BaseType);
 
   // If we've reached a type that cannot be "traversed" by a ModelGEP we have
-  // nothing to do. This might be subject to cheange in the future when we'll
+  // nothing to do. This might be subject to change in the future when we'll
   // need to support "accessing" pointer with the square brackets as if they
   // were arrays.
-  if (BaseType.isPrimitive() or BaseType.isPointer()
-      or BaseType.is(model::TypeDefinitionKind::EnumDefinition)) {
+  if (UnwrappedBaseType.isScalar()) {
     revng_log(ModelGEPLog,
-              "Never replace pointer arithmetic from a type that is not a "
-              "struct, a union, or an array, with a ModelGEP");
+              "We never replace pointer arithmetic from a type that is not "
+              "a struct, a union, or an array, with a ModelGEP");
     rc_return Result;
   }
 
@@ -1516,8 +1489,6 @@ computeBest(const model::QualifiedType &BaseType,
     rc_return Result;
   }
 
-  auto UnwrappedBaseType = peelConstAndTypedefs(BaseType);
-
   if (UnwrappedBaseType.isArray()) {
     revng_log(ModelGEPLog, "Array");
     ModelGEPReplacementInfo ArrayResult = rc_recur
@@ -1530,46 +1501,37 @@ computeBest(const model::QualifiedType &BaseType,
     revng_log(ModelGEPLog, "ArrayBestScore: " << ArrayBestScore);
 
     if (ArrayBestScore < BestScore) {
-      Result = ArrayResult;
-      revng_log(ModelGEPLog, "New BestScore: " << Result);
+      revng_log(ModelGEPLog, "New BestScore: " << ArrayResult);
+      rc_return ArrayResult;
     }
 
     rc_return Result;
-  }
 
-  // TODO: we're gonna need to handle pointers in the future.
-  revng_assert(UnwrappedBaseType.Qualifiers().empty());
+  } else if (UnwrappedBaseType.isPointer()) {
+    // TODO: we're gonna need to handle pointers in the future.
+    revng_abort();
 
-  const auto *BaseT = UnwrappedBaseType.UnqualifiedType().getConst();
+  } else if (UnwrappedBaseType.isStruct()) {
+    rc_return rc_recur computeBestInStruct(UnwrappedBaseType,
+                                           IRSum,
+                                           AccessedTypeOnIR,
+                                           VH);
 
-  switch (BaseT->Kind()) {
-
-  case model::TypeDefinitionKind::StructDefinition: {
-    Result = rc_recur computeBestInStruct(UnwrappedBaseType,
+  } else if (UnwrappedBaseType.isUnion()) {
+    rc_return rc_recur computeBestInUnion(UnwrappedBaseType,
                                           IRSum,
                                           AccessedTypeOnIR,
                                           VH);
-  } break;
 
-  case model::TypeDefinitionKind::UnionDefinition: {
-    Result = rc_recur computeBestInUnion(UnwrappedBaseType,
-                                         IRSum,
-                                         AccessedTypeOnIR,
-                                         VH);
-  } break;
-
-  default:
+  } else {
     revng_abort();
   }
-
-  rc_return Result;
 }
 
-static model::QualifiedType getType(const model::QualifiedType &BaseType,
-                                    const ChildIndexVector &IndexVector,
-                                    model::VerifyHelper &VH) {
-
-  model::QualifiedType CurrType = BaseType;
+static const model::Type &getType(const model::Type &BaseType,
+                                  const ChildIndexVector &IndexVector,
+                                  model::VerifyHelper &VH) {
+  const model::Type *CurrType = &BaseType;
   bool TopLevel = true;
   for (const auto &[Index, AggregateType] : IndexVector) {
 
@@ -1577,43 +1539,36 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
 
     case AggregateKind::Struct: {
 
-      revng_assert(Index.isConstant());
-      CurrType = peelConstAndTypedefs(CurrType);
-      using StructDefinition = model::StructDefinition;
-      auto *S = cast<StructDefinition>(CurrType.UnqualifiedType().getConst());
-      CurrType = S->Fields().at(Index.getConstant().getZExtValue()).Type();
+      const auto &Fields = CurrType->toStruct().Fields();
+      CurrType = Fields.at(Index.getConstant().getZExtValue()).Type().get();
 
     } break;
 
     case AggregateKind::Union: {
 
-      revng_assert(Index.isConstant());
-      CurrType = peelConstAndTypedefs(CurrType);
-      using UnionDefinition = model::UnionDefinition;
-      auto *U = cast<UnionDefinition>(CurrType.UnqualifiedType().getConst());
-      CurrType = U->Fields().at(Index.getConstant().getZExtValue()).Type();
+      const auto &Fields = CurrType->toUnion().Fields();
+      CurrType = Fields.at(Index.getConstant().getZExtValue()).Type().get();
 
     } break;
 
     case AggregateKind::Array: {
 
-      CurrType = peelConstAndTypedefs(CurrType);
-      auto Begin = CurrType.Qualifiers().begin();
-      revng_assert(Begin != CurrType.Qualifiers().end());
+      // For arrays and pointers we don't need to look at the value of
+      // the index, we just unwrap them.
+      const model::Type &Unwrapped = *CurrType->skipConstAndTypedefs();
+      if (auto *Pointer = Unwrapped.getPointer()) {
+        revng_assert(TopLevel);
+        CurrType = Pointer->PointeeType().get();
 
-      {
-        [[maybe_unused]] bool IsArray = model::Qualifier::isArray(*Begin);
-        [[maybe_unused]] bool IsPointer = model::Qualifier::isPointer(*Begin);
-        [[maybe_unused]] auto IndexValue = Index.getConstant().getZExtValue();
-        revng_assert((IsArray and Begin->Size() > IndexValue)
-                     or (IsPointer and TopLevel));
+      } else if (auto *Array = Unwrapped.getArray()) {
+        auto IndexValue = Index.getConstant().getZExtValue();
+        revng_assert(Array->ElementCount() > IndexValue);
+
+        CurrType = Array->ElementType().get();
+
+      } else {
+        revng_abort("An array or a pointer is expected.");
       }
-
-      // For arrays we don't need to look at the value of the index, we just
-      // unwrap the array and go on.
-      CurrType = model::QualifiedType(CurrType.UnqualifiedType(),
-                                      { std::next(Begin),
-                                        CurrType.Qualifiers().end() });
     } break;
 
     default:
@@ -1623,20 +1578,20 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
     TopLevel = false;
   }
 
-  return CurrType;
+  return *CurrType;
 }
 
-using UseTypeMap = std::map<Use *, model::QualifiedType>;
+using UseTypeMap = std::map<Use *, const model::UpcastableType>;
 
-static std::optional<model::QualifiedType>
-getAccessedTypeOnIR(const Use &U,
+static model::UpcastableType
+getAccessedTypeOnIR(const llvm::Use &U,
                     const model::Binary &Model,
                     const ModelTypesMap &PointerTypes,
                     const UseTypeMap &GEPifiedUseTypes) {
 
   auto *UserInstr = dyn_cast<Instruction>(U.getUser());
   if (nullptr == UserInstr)
-    return std::nullopt;
+    return model::UpcastableType::empty();
 
   switch (UserInstr->getOpcode()) {
 
@@ -1645,28 +1600,28 @@ getAccessedTypeOnIR(const Use &U,
     revng_log(ModelGEPLog, "User is Load");
     // If the user of U is a load, we know that the pointee's size is equal to
     // the size of the loaded value
-    revng_assert(Load->getType()->isIntOrPtrTy());
-    const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
-    auto PointeeSize = DL.getTypeStoreSize(Load->getType());
 
-    model::QualifiedType QPointee;
+    model::UpcastableType Result;
     auto *PtrOp = Load->getPointerOperand();
-    auto *PtrOpUse = &Load->getOperandUse(Load->getPointerOperandIndex());
     if (auto It = PointerTypes.find(PtrOp); It != PointerTypes.end()) {
-      QPointee = dropPointer(It->second);
+      // If it's a known pointer, unwrap it before matching the type.
+      Result = It->second->getPointee();
     }
+
+    auto *PtrOpUse = &Load->getOperandUse(Load->getPointerOperandIndex());
     if (auto It = GEPifiedUseTypes.find(PtrOpUse);
         It != GEPifiedUseTypes.end()) {
-      QPointee = dropPointer(It->second);
+      Result = It->second->getPointee();
+
     } else {
-      model::DefinitionReference
-        Pointee = Model.getPrimitiveType(model::PrimitiveKind::Generic,
-                                         PointeeSize);
-      QPointee = model::QualifiedType(Pointee, {});
+      revng_assert(Load->getType()->isIntOrPtrTy());
+      const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
+      auto PointeeSize = DL.getTypeStoreSize(Load->getType());
+      Result = model::PrimitiveType::makeGeneric(PointeeSize);
     }
 
-    revng_log(ModelGEPLog, "QPointee: " << serializeToString(QPointee));
-    return QPointee;
+    revng_log(ModelGEPLog, "AccessedTypeOnIR: " << serializeToString(Result));
+    return Result;
   } break;
 
   case llvm::Instruction::Store: {
@@ -1676,39 +1631,30 @@ getAccessedTypeOnIR(const Use &U,
     // that the pointee's size is equal to the size of the stored value.
     if (U.getOperandNo() == llvm::StoreInst::getPointerOperandIndex()) {
       revng_log(ModelGEPLog, "Use is pointer operand");
-      auto *Stored = Store->getValueOperand();
-
-      revng_assert(Stored->getType()->isIntOrPtrTy());
-      const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
-      unsigned long PointeeSize = DL.getTypeStoreSize(Stored->getType());
-
-      model::DefinitionReference
-        Pointee = Model.getPrimitiveType(model::PrimitiveKind::Generic,
-                                         PointeeSize);
-      model::QualifiedType Generic = model::QualifiedType(Pointee, {});
-      model::QualifiedType QPointee = Generic;
-
+      model::UpcastableType Result;
       auto *PtrOp = Store->getPointerOperand();
-      auto *PtrOpUse = &Store->getOperandUse(Store->getPointerOperandIndex());
-
       if (auto It = PointerTypes.find(PtrOp); It != PointerTypes.end()) {
-        QPointee = dropPointer(It->second);
-        if (QPointee.is(model::TypeDefinitionKind::StructDefinition)
-            or QPointee.is(model::TypeDefinitionKind::UnionDefinition)) {
-          QPointee = Generic;
-        }
+        // If it's a known pointer, unwrap it before matching the type.
+        Result = It->second->getPointee();
       }
+
+      auto *PtrOpUse = &Store->getOperandUse(Store->getPointerOperandIndex());
       if (auto It = GEPifiedUseTypes.find(PtrOpUse);
           It != GEPifiedUseTypes.end()) {
-        QPointee = dropPointer(It->second);
-        if (QPointee.is(model::TypeDefinitionKind::StructDefinition)
-            or QPointee.is(model::TypeDefinitionKind::UnionDefinition)) {
-          QPointee = Generic;
-        }
+        Result = It->second->getPointee();
       }
 
-      revng_log(ModelGEPLog, "QPointee: " << serializeToString(QPointee));
-      return QPointee;
+      if (Result.isEmpty() or Result->isStruct() or Result->isUnion()) {
+        // Do not allow structs or unions.
+        auto *Stored = Store->getValueOperand();
+        revng_assert(Stored->getType()->isIntOrPtrTy());
+        const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
+        unsigned long PointeeSize = DL.getTypeStoreSize(Stored->getType());
+        Result = model::PrimitiveType::makeGeneric(PointeeSize);
+      }
+
+      revng_log(ModelGEPLog, "AccessedTypeOnIR: " << serializeToString(Result));
+      return Result;
     } else {
       revng_log(ModelGEPLog, "Use is pointer operand");
     }
@@ -1722,31 +1668,28 @@ getAccessedTypeOnIR(const Use &U,
     // If the user is a ret, we want to look at the return type of the
     // function we're returning from, and use it as a pointee type.
 
-    const model::Function *MF = llvmToModelFunction(Model, *ReturningF);
-    revng_assert(MF);
+    const model::Function &MF = *llvmToModelFunction(Model, *ReturningF);
+    const auto &Prototype = *Model.prototypeOrDefault(MF.prototype());
+    const auto Layout = abi::FunctionType::Layout::make(Prototype);
 
-    using namespace abi::FunctionType;
-    const auto Layout = Layout::make(MF->prototype(Model));
-
-    std::optional<model::QualifiedType> SingleReturnType;
-
+    const model::Type *SingleReturnType = nullptr;
     switch (Layout.returnMethod()) {
-    case ReturnMethod::ModelAggregate:
-      SingleReturnType = Layout.returnValueAggregateType();
+    case abi::FunctionType::ReturnMethod::ModelAggregate:
+      SingleReturnType = &Layout.returnValueAggregateType();
       break;
 
-    case ReturnMethod::Scalar:
-      SingleReturnType = Layout.ReturnValues[0].Type;
+    case abi::FunctionType::ReturnMethod::Scalar:
+      SingleReturnType = Layout.ReturnValues[0].Type.get();
       break;
 
-    case ReturnMethod::Void:
+    case abi::FunctionType::ReturnMethod::Void:
       // If the callee function does not return anything, skip to the next
       // instruction.
       revng_log(ModelGEPLog, "Does not return values in the model. Skip ...");
       revng_assert(not Ret->getReturnValue());
       break;
 
-    case ReturnMethod::RegisterSet: {
+    case abi::FunctionType::ReturnMethod::RegisterSet: {
       auto *RetVal = Ret->getReturnValue();
       auto *StructTy = cast<llvm::StructType>(RetVal->getType());
       revng_log(ModelGEPLog, "Has many return types.");
@@ -1773,13 +1716,11 @@ getAccessedTypeOnIR(const Use &U,
       // type of IRPattern to the pointee of the return type.
       // Otherwise the Function is not returning a pointer, and we can skip
       // it.
-      if (SingleReturnType->isPointer()) {
+      if (const auto *Pointer = SingleReturnType->getPointer()) {
         auto _ = LoggerIndent(ModelGEPLog);
         revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
-        revng_log(ModelGEPLog,
-                  "Pointee: model::QualifiedType: "
-                    << serializeToString(*SingleReturnType));
-        return dropPointer(*SingleReturnType);
+        revng_log(ModelGEPLog, "Pointee: " << serializeToString(*Pointer));
+        return SingleReturnType->getPointee();
       }
     }
 
@@ -1795,31 +1736,28 @@ getAccessedTypeOnIR(const Use &U,
 
     if (isCallToTagged(Call, FunctionTags::StructInitializer)) {
 
-      const llvm::Function *CalledF = Call->getCalledFunction();
+      const llvm::Function &CalledF = *Call->getCalledFunction();
 
       // Special case for struct initializers
       unsigned ArgNum = Call->getArgOperandNo(&U);
 
-      const model::Function *CalledFType = llvmToModelFunction(Model, *CalledF);
-      const auto *CalledProtoT = CalledFType->prototype(Model).getConst();
-
-      if (auto *RFT = dyn_cast<RawFunctionDefinition>(CalledProtoT)) {
+      const model::Function &CalledFType = *llvmToModelFunction(Model, CalledF);
+      if (const auto *RFT = CalledFType.rawPrototype()) {
         revng_log(ModelGEPLog, "Has RawFunctionDefinition prototype.");
         revng_assert(RFT->ReturnValues().size() > 1);
 
-        auto *StructTy = cast<llvm::StructType>(CalledF->getReturnType());
+        auto *StructTy = cast<llvm::StructType>(CalledF.getReturnType());
         revng_log(ModelGEPLog, "Has many return types.");
         auto ValuesCount = RFT->ReturnValues().size();
         revng_assert(StructTy->getNumElements() == ValuesCount);
 
-        model::QualifiedType
-          RetTy = std::next(RFT->ReturnValues().begin(), ArgNum)->Type();
-        if (RetTy.isPointer()) {
-          model::QualifiedType Pointee = dropPointer(RetTy);
-          revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
-          return Pointee;
+        auto RetTy = std::next(RFT->ReturnValues().begin(), ArgNum)->Type();
+        if (const model::PointerType *Pointer = RetTy->getPointer()) {
+          revng_log(ModelGEPLog,
+                    "Pointee: " << serializeToString(Pointer->PointeeType()));
+          return Pointer->PointeeType();
         }
-      } else if (auto *CFT = dyn_cast<CABIFunctionDefinition>(CalledProtoT)) {
+      } else if (CalledFType.cabiPrototype() != nullptr) {
         revng_log(ModelGEPLog, "Has CABIFunctionDefinition prototype.");
         // TODO: we haven't handled return values of CABIFunctions yet
         revng_abort();
@@ -1829,46 +1767,40 @@ getAccessedTypeOnIR(const Use &U,
       }
 
     } else if (isCallToIsolatedFunction(Call)) {
-      auto *ProtoT = Cache.getCallSitePrototype(Model, Call).getConst();
+      auto *ProtoT = getCallSitePrototype(Model, Call);
       revng_assert(ProtoT != nullptr);
 
-      if (const auto *RFT = dyn_cast<RawFunctionDefinition>(ProtoT)) {
+      if (const auto *RFT = llvm::dyn_cast<RawFunctionDefinition>(ProtoT)) {
 
         auto MoreIndent = LoggerIndent(ModelGEPLog);
         auto ModelArgSize = RFT->Arguments().size();
-        auto &Type = RFT->StackArgumentsType();
-        revng_assert((ModelArgSize == Call->arg_size() - 1 and Type.isValid())
+        bool HasStackArgs = not RFT->StackArgumentsType().isEmpty();
+        revng_assert((ModelArgSize == Call->arg_size() - 1 and HasStackArgs)
                      or ModelArgSize == Call->arg_size());
         revng_log(ModelGEPLog, "model::RawFunctionDefinition");
 
         auto _ = LoggerIndent(ModelGEPLog);
         if (not Call->isCallee(&U)) {
-          unsigned ArgOpNum = Call->getArgOperandNo(&U);
-          revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
+          unsigned N = Call->getArgOperandNo(&U);
+          revng_log(ModelGEPLog, "ArgOpNum: " << N);
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
 
-          model::QualifiedType ArgTy;
-          if (ArgOpNum >= ModelArgSize) {
-            // The only case in which the argument's index can be greater than
-            // the number of arguments in the model is for RawFunctionDefinition
-            // functions that have stack arguments.
-            // Stack arguments are passed as the last argument of the llvm
-            // function, but they do not have a corresponding argument in the
-            // model. In this case, we have to retrieve the StackArgumentsType
-            // from the function prototype.
-            ArgTy = { RFT->StackArgumentsType(), {} };
-            revng_assert(ArgTy.UnqualifiedType().isValid());
-          } else {
-            auto ArgIt = std::next(RFT->Arguments().begin(), ArgOpNum);
-            ArgTy = ArgIt->Type();
-          }
+          // The only case in which the RawFunctionDefinition's argument index
+          // can be greater than the number of register arguments in the model
+          // is when the function has stack arguments.
+          // Stack arguments are passed as the last argument of the llvm
+          // function, but they do not have a corresponding argument in the
+          // model. In this case, we have to retrieve the StackArgumentsType
+          // from the function prototype.
+          const auto &ArgTy = N >= ModelArgSize ?
+                                RFT->StackArgumentsType() :
+                                std::next(RFT->Arguments().begin(), N)->Type();
 
-          revng_log(ModelGEPLog,
-                    "model::QualifiedType: " << serializeToString(ArgTy));
-          if (ArgTy.isPointer()) {
-            model::QualifiedType Pointee = dropPointer(ArgTy);
-            revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
-            return Pointee;
+          revng_log(ModelGEPLog, "Type: " << serializeToString(ArgTy));
+          if (const model::PointerType *Pointer = ArgTy->getPointer()) {
+            revng_log(ModelGEPLog,
+                      "Pointee: " << serializeToString(Pointer->PointeeType()));
+            return Pointer->PointeeType();
           }
         } else {
           revng_log(ModelGEPLog, "IsCallee");
@@ -1885,13 +1817,12 @@ getAccessedTypeOnIR(const Use &U,
           unsigned ArgOpNum = Call->getArgOperandNo(&U);
           revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
-          model::QualifiedType ArgTy = CFT->Arguments().at(ArgOpNum).Type();
-          revng_log(ModelGEPLog,
-                    "model::QualifiedType: " << serializeToString(ArgTy));
-          if (ArgTy.isPointer()) {
-            model::QualifiedType Pointee = dropPointer(ArgTy);
-            revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
-            return Pointee;
+          const auto &ArgTy = CFT->Arguments().at(ArgOpNum).Type();
+          revng_log(ModelGEPLog, "Type: " << serializeToString(ArgTy));
+          if (const model::PointerType *Pointer = ArgTy->getPointer()) {
+            revng_log(ModelGEPLog,
+                      "Pointee: " << serializeToString(Pointer->PointeeType()));
+            return Pointer->PointeeType();
           }
         } else {
           revng_log(ModelGEPLog, "IsCallee");
@@ -1906,10 +1837,10 @@ getAccessedTypeOnIR(const Use &U,
   } break;
 
   default:
-    return std::nullopt;
+    return model::UpcastableType::empty();
   }
 
-  return std::nullopt;
+  return model::UpcastableType::empty();
 }
 
 struct UseReplacementWithModelGEP {
@@ -1935,7 +1866,7 @@ makeGEPReplacements(llvm::Function &F,
   ModelTypesMap PointerTypes = initModelTypes(F,
                                               ModelF,
                                               Model,
-                                              /*PointersOnly=*/true);
+                                              /* PointersOnly = */ true);
   if (PointerTypes.empty()) {
     revng_log(ModelGEPLog, "Model Types not found for " << F.getName());
     return Result;
@@ -2009,33 +1940,25 @@ makeGEPReplacements(llvm::Function &F,
           continue;
 
         const auto &[BaseAddress, IRSum] = IRPointerArithmetic;
-        const model::QualifiedType &PointeeType = BaseAddress.getPointeeType();
+        const model::Type &PointeeType = *BaseAddress.getPointeeType();
 
-        namespace TypeDefinitionKind = model::TypeDefinitionKind;
-        if (PointeeType.isVoid()
-            or PointeeType.is(TypeDefinitionKind::RawFunctionDefinition)
-            or PointeeType.is(TypeDefinitionKind::CABIFunctionDefinition))
+        const auto &Unwrapped = *PointeeType.skipConstAndTypedefs();
+        if (Unwrapped.isVoidPrimitive() or Unwrapped.isPrototype())
           continue;
 
         // Compute the type accessed by this use if any.
-        std::optional<model::QualifiedType>
-          AccessedTypeOnIR = getAccessedTypeOnIR(U,
-                                                 Model,
-                                                 PointerTypes,
-                                                 GEPifiedUsedTypes);
+        auto AccessedTypeOnIR = getAccessedTypeOnIR(U,
+                                                    Model,
+                                                    PointerTypes,
+                                                    GEPifiedUsedTypes);
 
         // Now, compute the best GEP arguments for traversing the PointeeType.
         //
         // Notice that we have to try and access the pointer both via a
         // regular dereference and with the [] operator.
-        // In order to do this, we have to create a fake array qualifier to
-        // wrap around the PointeeType, and compute the best access in there.
-        const model::Architecture::Values &Arch = Model.Architecture();
-        model::QualifiedType FakeArray = PointeeType.getPointerTo(Arch);
-        // Now replace the pointer qualifier with an array qualifier with
-        // arbitrary maximum length. Don't use the max value for uint64_t
-        // because it may overflow when computing the array size as array
-        // length * element size.
+        // In order to do this, we have to create a fake array to wrap
+        // the `PointeeType` into, and compute the best access in there.
+        //
         // TODO: MaxArrayLength is arbitrary. On the one hand we should make
         // it large enough to enable traversals with large indices without
         // falling back to out-of-bound raw-integer-arithmetic. On the other
@@ -2044,8 +1967,7 @@ makeGEPReplacements(llvm::Function &F,
         // compromise, but at some point we might need to handle this
         // properly.
         const uint64_t MaxArrayLength = std::numeric_limits<uint32_t>::max();
-        auto LongArray = model::Qualifier::createArray(MaxArrayLength);
-        FakeArray.Qualifiers().front() = std::move(LongArray);
+        auto FakeArray = model::ArrayType::make(PointeeType, MaxArrayLength);
 
         // Select among the computed TAPIndices the one which best fits the
         // IRPattern
@@ -2059,11 +1981,12 @@ makeGEPReplacements(llvm::Function &F,
         GEPArgs.BaseType = PointeeType;
         revng_log(ModelGEPLog, "GEPArgs: " << GEPArgs);
 
-        // If the result is doesn't have any Mismatched we can use it to
+        // If the result doesn't have any mismatches we can use it to
         // propagate information in GEPifiedUsedTypes and PointerTypes.
         if (GEPArgs.Mismatched.isZero()) {
-          auto PointerToGEPArgs = GEPArgs.AccessedType.getPointerTo(Arch);
-          GEPifiedUsedTypes.insert({ &U, PointerToGEPArgs });
+          auto Ptr = model::PointerType::make(GEPArgs.AccessedType.copy(),
+                                              Model.Architecture());
+          GEPifiedUsedTypes.insert({ &U, std::move(Ptr) });
 
           revng_log(ModelGEPLog, "Best GEPArgs: " << GEPArgs);
 
@@ -2094,9 +2017,7 @@ makeGEPReplacements(llvm::Function &F,
           // - if I is a select instruction we can do something like the PHI
           // - if I is an alloca, I'm not sure what we can do
           if (auto *Load = dyn_cast<llvm::LoadInst>(&I)) {
-            model::QualifiedType GEPType = getType(FakeArray,
-                                                   GEPArgs.IndexVector,
-                                                   VH);
+            const auto &GEPType = getType(*FakeArray, GEPArgs.IndexVector, VH);
             if (GEPType.isPointer())
               PointerTypes.insert({ Load, GEPType });
           }
@@ -2111,16 +2032,14 @@ makeGEPReplacements(llvm::Function &F,
 
 class ModelGEPArgCache {
 
-  std::map<model::QualifiedType, Constant *> GlobalModelGEPTypeArgs;
+  std::map<model::UpcastableType, Constant *> GlobalModelGEPTypeArgs;
 
 public:
-  Value *getQualifiedTypeArg(const model::QualifiedType &QT, llvm::Module &M) {
-    auto It = GlobalModelGEPTypeArgs.find(QT);
-    if (It != GlobalModelGEPTypeArgs.end())
-      return It->second;
+  Constant *get(const model::UpcastableType &Type, llvm::Module &M) {
+    auto [It, Success] = GlobalModelGEPTypeArgs.try_emplace(Type, nullptr);
+    if (Success)
+      It->second = serializeToLLVMString(Type, M);
 
-    It = GlobalModelGEPTypeArgs.insert({ QT, serializeToLLVMString(QT, M) })
-           .first;
     return It->second;
   }
 };
@@ -2233,11 +2152,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     Args.reserve(GEPArgs.IndexVector.size() + 2);
 
     // The first argument is always a pointer to a constant global variable
-    // that holds the string representing the yaml serialization of the
-    // qualified type of the base type of the modelGEP
-    auto *BaseTypeConstantStrPtr = TypeArgCache.getQualifiedTypeArg(BaseType,
-                                                                    M);
-    Args.push_back(BaseTypeConstantStrPtr);
+    // that holds the string representing the yaml serialization of
+    // the base type of the modelGEP
+    Args.push_back(TypeArgCache.get(*BaseType, M));
 
     // The second argument is the base address
     Args.push_back(BaseAddress);
@@ -2319,11 +2236,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
                                                   PtrSizedInteger },
                                                 AddressOfFunctionType,
                                                 "AddressOf");
-    auto *PointeeConstantStrPtr = TypeArgCache.getQualifiedTypeArg(AccessedType,
-                                                                   M);
+    auto *Cached = TypeArgCache.get(*AccessedType, M);
     Value *ModelGEPPtr = Builder.CreateCall(AddressOfFunction,
-                                            { PointeeConstantStrPtr,
-                                              ModelGEPRef });
+                                            { Cached, ModelGEPRef });
 
     if (not Mismatched.isZero()) {
       // If the GEPArgs have a RestOff that is strictly positive, we have to

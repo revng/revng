@@ -8,24 +8,22 @@ DefaultABI: SystemV_x86_64
 Functions:
   - Entry: "0x400000:Code_x86_64"
     CustomName: "old_function_name"
-    Prototype: "/TypeDefinitions/3000-CABIFunctionDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3000-CABIFunctionDefinition"
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
   - Kind: CABIFunctionDefinition
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
         CustomName: "fd"
         OriginalName: fd

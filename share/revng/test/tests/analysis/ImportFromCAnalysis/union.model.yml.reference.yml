@@ -3,14 +3,6 @@
 #
 
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 1288
-    PrimitiveKind: Unsigned
-    Size: 8
-  - Kind: PrimitiveDefinition
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
   - Kind: UnionDefinition
     ID: 3000
     CustomName: new_union_name
@@ -18,8 +10,12 @@ TypeDefinitions:
       - Index: 0
         CustomName: "first_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
       - Index: 1
         CustomName: "second_field"
         Type:
-          UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

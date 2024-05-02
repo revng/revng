@@ -3,12 +3,10 @@
 #
 
 TypeDefinitions:
-  - Kind: PrimitiveDefinition
-    ID: 1538
-    PrimitiveKind: Signed
-    Size: 2
   - Kind: TypedefDefinition
     ID: 3000
     CustomName: my_typedef
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1538-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 2

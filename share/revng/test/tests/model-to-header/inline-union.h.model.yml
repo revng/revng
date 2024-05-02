@@ -13,7 +13,8 @@ TypeDefinitions:
         CustomName: "a1"
         OriginalName: a1
         Type:
-          UnqualifiedType: "/TypeDefinitions/3002-UnionDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-UnionDefinition"
     Size: 4
   - Kind: UnionDefinition
     ID: 3002
@@ -24,10 +25,8 @@ TypeDefinitions:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
-  - Kind: PrimitiveDefinition
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
 ---
 

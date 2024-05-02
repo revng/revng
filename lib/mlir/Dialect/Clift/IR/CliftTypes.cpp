@@ -8,7 +8,7 @@
 
 #include "revng-c/mlir/Dialect/Clift/IR/CliftTypes.h"
 // keep this order
-#include "revng/Model/PrimitiveDefinition.h"
+#include "revng/Model/Binary.h"
 
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 
@@ -112,16 +112,15 @@ mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
                                           PrimitiveKind Kind,
                                           uint64_t Size,
                                           BoolAttr IsConst) {
-  model::PrimitiveDefinition Type(kindToKind(Kind), Size);
-  if (not Type.verify()) {
+  if (not model::PrimitiveType::make(kindToKind(Kind), Size)->verify())
     return EmitError() << "primitive type verify failed";
-  }
+
   return mlir::success();
 }
 
 bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
-  model::PrimitiveDefinition Type(kindToKind(getKind()), getByteSize());
-  OS << serializeToString(Type.name());
+  OS << serializeToString(model::PrimitiveType::getCName(kindToKind(getKind()),
+                                                         getByteSize()));
   if (isConst())
     OS << "$const";
   return true;

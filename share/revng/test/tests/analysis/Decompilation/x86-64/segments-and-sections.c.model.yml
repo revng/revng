@@ -5,21 +5,22 @@
 Segments:
   - IsReadable: true
     IsWriteable: false
-    Type: "/TypeDefinitions/1812-StructDefinition"
+    Type:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1812-StructDefinition"
   - IsReadable: true
     IsWriteable: true
-    Type: "/TypeDefinitions/1815-StructDefinition"
+    Type:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1815-StructDefinition"
 TypeDefinitions:
-  - ID: 516
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Generic
-    Size: 4
   - ID: 1812
     Kind: StructDefinition
     Fields:
       - OriginalName: .rodata
         Type:
-          UnqualifiedType: "/TypeDefinitions/1813-StructDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1813-StructDefinition"
   - ID: 1813
     Kind: StructDefinition
     Size: 13
@@ -28,20 +29,26 @@ TypeDefinitions:
     Fields:
       - OriginalName: .data
         Type:
-          UnqualifiedType: "/TypeDefinitions/1816-StructDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1816-StructDefinition"
   - ID: 1816
     Kind: StructDefinition
     Fields:
       - OriginalName: TheData
         Type:
-          UnqualifiedType: "/TypeDefinitions/1817-StructDefinition"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1817-StructDefinition"
   - ID: 1817
     Kind: StructDefinition
     Size: 1008
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/516-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
       - Offset: 1004
         Type:
-          UnqualifiedType: "/TypeDefinitions/516-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4

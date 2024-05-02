@@ -9,8 +9,12 @@ Functions:
   - Entry: "0x401129:Code_x86_64"
     CustomName: "fn"
     OriginalName: fn
-    StackFrameType: "/TypeDefinitions/3001-StructDefinition"
-    Prototype: "/TypeDefinitions/3002-CABIFunctionDefinition"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3001-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3002-CABIFunctionDefinition"
     ExportedNames:
       - fn
 TypeDefinitions:
@@ -18,18 +22,18 @@ TypeDefinitions:
     ID: 3002
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments: []
   - Kind: StructDefinition
     ID: 3001
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/520-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     Size: 16
-  - Kind: PrimitiveDefinition
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
 ---
 

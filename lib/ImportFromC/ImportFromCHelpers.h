@@ -26,21 +26,21 @@
 namespace {
 
 struct NodeData {
-  model::TypeDefinition *T;
+  const model::TypeDefinition *T;
 };
 using Node = BidirectionalNode<NodeData>;
 using Graph = GenericGraph<Node>;
 using TypeToNodeMap = std::map<const model::TypeDefinition *, Node *>;
 
 inline llvm::SmallPtrSet<const model::TypeDefinition *, 2>
-getIncomingTypesFor(const model::TypeDefinition *T,
+getIncomingTypesFor(const model::TypeDefinition &T,
                     const TupleTree<model::Binary> &Model,
                     const TypeToNodeMap &TypeToNode) {
   llvm::SmallPtrSet<const model::TypeDefinition *, 2> Result;
 
   // Visit all the nodes reachable from RootType.
   llvm::df_iterator_default_set<Node *> Visited;
-  for ([[maybe_unused]] Node *N : depth_first_ext(TypeToNode.at(T), Visited))
+  for ([[maybe_unused]] Node *N : depth_first_ext(TypeToNode.at(&T), Visited))
     ;
 
   for (auto &Type : Model->TypeDefinitions()) {
@@ -53,7 +53,7 @@ getIncomingTypesFor(const model::TypeDefinition *T,
 
 // Remember dependencies between types.
 inline llvm::SmallPtrSet<const model::TypeDefinition *, 2>
-populateDependencies(const model::TypeDefinition *TheType,
+populateDependencies(const model::TypeDefinition &TheType,
                      const TupleTree<model::Binary> &Model) {
   llvm::SmallPtrSet<const model::TypeDefinition *, 2> Result;
 
@@ -65,41 +65,37 @@ populateDependencies(const model::TypeDefinition *TheType,
   }
 
   // Create type system edges
-  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
-    }
-  }
+  for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions())
+    for (const model::Type *Edge : T->edges())
+      if (auto *DependantType = Edge->skipToDefinition())
+        TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
 
   // Process types.
   for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
+    for (const model::Type *Edge : T->edges()) {
+      if (auto *DependantType = Edge->skipToDefinition()) {
+        // For non-typedefs, we can only keep the types that use the type
+        // we are about to edit if there's a pointer in-between.
+        if (not declarationIsDefinition(TheType) and Edge->isPointer())
+          continue;
 
-      // For types other than TypeDefs, we can keep the types that use the type
-      // we are about to edit iff the type is being used via pointer.
-      if ((not llvm::isa<model::TypedefDefinition>(TheType)
-           and not llvm::isa<model::RawFunctionDefinition>(TheType)
-           and not llvm::isa<model::CABIFunctionDefinition>(TheType))
-          and QT.isPointer())
-        continue;
+        // Current type depends on TheType.
+        if (*DependantType == TheType) {
+          Result.insert(T.get());
 
-      // This type depends on TheType.
-      if (DependantType == TheType) {
-        Result.insert(T.get());
-
-        // We need to skip all the types that can reach to this type we have
-        // just ignored by doing DFS on the inverse graph.
-        auto AllThatUseTypeT = getIncomingTypesFor(T.get(), Model, TypeToNode);
-        llvm::copy(AllThatUseTypeT, std::inserter(Result, Result.begin()));
+          // We need to skip all the types that can reach to this type we have
+          // just ignored by doing DFS on the inverse graph.
+          auto AllThatUseTypeT = getIncomingTypesFor(*T, Model, TypeToNode);
+          llvm::copy(AllThatUseTypeT, std::inserter(Result, Result.begin()));
+        }
       }
     }
   }
 
   // Skip the type itself.
-  Result.insert(TheType);
+  Result.insert(&TheType);
 
   return Result;
 }
+
 } // namespace

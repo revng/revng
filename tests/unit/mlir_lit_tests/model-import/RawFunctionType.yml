@@ -5,11 +5,6 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  - ID: 1288
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 8
-
   - ID: 201
     Kind: StructDefinition
     CustomName: my_struct
@@ -17,7 +12,9 @@ TypeDefinitions:
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
 
     # CHECK: #my_function1$def = #clift.function<
     # CHECK:   id = 1000
@@ -51,11 +48,15 @@ TypeDefinitions:
     Arguments:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
     ReturnValues:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
     PreservedRegisters:
       - rdi_x86_64
     FinalStackOffset: 0
@@ -94,25 +95,35 @@ TypeDefinitions:
     Arguments:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
       - Location: rbx_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
     ReturnValues:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
       - Location: rdx_x86_64
         Type:
-          UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
     PreservedRegisters:
       - rdi_x86_64
       - rsi_x86_64
     FinalStackOffset: 0
-    StackArgumentsType: "/TypeDefinitions/201-StructDefinition"
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/201-StructDefinition"

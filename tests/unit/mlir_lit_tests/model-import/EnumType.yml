@@ -9,50 +9,35 @@
 # RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-TypeDefinitions %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 TypeDefinitions:
-  - ID: 1540
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Signed
-    Size: 4
-  - ID: 1544
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Signed
-    Size: 8
-  - ID: 1284
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 4
-  - ID: 1288
-    Kind: PrimitiveDefinition
-    PrimitiveKind: Unsigned
-    Size: 8
-
-    # CHECK: #my_enum1$def = #clift.enum<
-    # CHECK:   id = 1104
-    # CHECK:   name = "my_enum1"
-    # CHECK:   underlying_type = !int32_t
-    # CHECK:   fields = [
-    # CHECK:     <
-    # CHECK:       raw_value = 0
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 1
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 2147483647
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 18446744071562067968
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 18446744073709551615
-    # CHECK:     >
-    # CHECK:   ]
-    # CHECK: >
+  # CHECK: #my_enum1$def = #clift.enum<
+  # CHECK:   id = 1104
+  # CHECK:   name = "my_enum1"
+  # CHECK:   underlying_type = !int32_t
+  # CHECK:   fields = [
+  # CHECK:     <
+  # CHECK:       raw_value = 0
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 1
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 2147483647
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 18446744071562067968
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 18446744073709551615
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
   - ID: 1104
     Kind: EnumDefinition
     CustomName: "my_enum1"
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1540-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Entries:
       - Value: 0
       - Value: 1
@@ -86,7 +71,9 @@ TypeDefinitions:
     Kind: EnumDefinition
     CustomName: "my_enum2"
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1544-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
     Entries:
       - Value: 0
       - Value: 1
@@ -114,7 +101,9 @@ TypeDefinitions:
     Kind: EnumDefinition
     CustomName: "my_enum3"
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1284-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 0
       - Value: 1
@@ -140,7 +129,9 @@ TypeDefinitions:
     Kind: EnumDefinition
     CustomName: "my_enum4"
     UnderlyingType:
-      UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
     Entries:
       - Value: 0
       - Value: 1

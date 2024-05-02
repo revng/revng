@@ -212,29 +212,16 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
                                                             SegmentRefType },
                                                           AddressOfFunctionType,
                                                           "AddressOf");
-              model::QualifiedType SegmentQualifiedType;
-              {
-                auto SegmentTypePath = Model->Segments()
-                                         .at({ StartAddress, VirtualSize })
-                                         .Type();
-                if (SegmentTypePath.empty()) {
-                  // If the segment has not type, we emit it as an array of
-                  // bytes.
-                  const model::Binary *Model = SegmentTypePath.getRoot();
-                  using model::PrimitiveKind::Generic;
-                  auto Byte = Model->getPrimitiveType(Generic, 1);
-                  model::Qualifier
-                    Array = model::Qualifier::createArray(VirtualSize);
-                  SegmentQualifiedType = model::QualifiedType{ Byte,
-                                                               { Array } };
-                } else {
-                  SegmentQualifiedType = model::QualifiedType{ SegmentTypePath,
-                                                               {} };
-                }
+              Constant *ModelTypeString = nullptr;
+              if (const auto &SegmentType = Model->Segments()
+                                              .at({ StartAddress, VirtualSize })
+                                              .Type()) {
+                ModelTypeString = serializeToLLVMString(SegmentType, M);
+              } else {
+                auto Byte = model::PrimitiveType::makeGeneric(1);
+                auto Arr = model::ArrayType::make(std::move(Byte), VirtualSize);
+                ModelTypeString = serializeToLLVMString(Arr, M);
               }
-              Constant
-                *ModelTypeString = serializeToLLVMString(SegmentQualifiedType,
-                                                         M);
               Value *AddressOfCall = IRB.CreateCall(AddressOfFunction,
                                                     { ModelTypeString,
                                                       SegmentRefCall });
