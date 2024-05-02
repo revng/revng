@@ -49,12 +49,12 @@ public:
     }
 
     return std::make_unique<LocalReadableFile>(std::move(MaybeBuffer.get()));
-  };
+  }
 
   llvm::Expected<std::unique_ptr<WritableFile>>
   getWritableFile(llvm::StringRef Path, ContentEncoding Encoding) override {
     revng_abort();
-  };
+  }
 
 private:
   virtual std::string dumpString() const override { return "stdin"; }
@@ -67,7 +67,7 @@ public:
   llvm::Expected<std::unique_ptr<ReadableFile>>
   getReadableFile(llvm::StringRef Path) override {
     revng_abort();
-  };
+  }
 
   llvm::Expected<std::unique_ptr<WritableFile>>
   getWritableFile(llvm::StringRef Path, ContentEncoding Encoding) override {
@@ -83,7 +83,7 @@ public:
       return llvm::createStringError(EC, "Could not open stdout");
 
     return std::make_unique<LocalWritableFile>(std::move(OS));
-  };
+  }
 
 private:
   virtual std::string dumpString() const override { return "stdout"; }
