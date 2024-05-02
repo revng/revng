@@ -48,7 +48,10 @@ public:
     return std::visit(GetPtrToConstRoot, Root);
   }
 
-  void setRoot(ConstOrNot<RootT> auto *NewRoot) { Root = NewRoot; }
+  void setRoot(ConstOrNot<RootT> auto *NewRoot) {
+    evictCachedTarget();
+    Root = NewRoot;
+  }
 
 private:
   // Friend class that is allowed to manage the cached pointer to the target
