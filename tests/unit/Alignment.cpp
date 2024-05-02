@@ -128,10 +128,10 @@ constexpr std::array TestedABIs{ model::ABI::AAPCS64,
                                  model::ABI::SystemV_x86 };
 
 static void compareTypeAlignments(const abi::Definition &ABI,
-                                  const model::Type &LHS,
-                                  const model::Type &RHS) {
-  std::optional<uint64_t> Left = ABI.alignment(LHS);
-  std::optional<uint64_t> Right = ABI.alignment(RHS);
+                                  const model::UpcastableType &LHS,
+                                  const model::UpcastableType &RHS) {
+  std::optional<uint64_t> Left = ABI.alignment(*LHS);
+  std::optional<uint64_t> Right = ABI.alignment(*RHS);
   if (Left != Right) {
     std::string Error = "Alignment comparison run failed for types:\n"
                         + serializeToString(LHS) + "and\n"
@@ -162,8 +162,8 @@ BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
       for (uint64_t Size = 1; Size <= 16; Size *= 2)
         if (ABIhasIntsOfSizes(ABI, { Size }))
           compareTypeAlignments(ABI,
-                                *model::PrimitiveType::makeGeneric(Size),
-                                *model::PrimitiveType::make(PKind, Size));
+                                model::PrimitiveType::makeGeneric(Size),
+                                model::PrimitiveType::make(PKind, Size));
   }
 }
 
@@ -186,27 +186,27 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     SimpleDefinition.addField(Int32.copy());
     SimpleDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
-      compareTypeAlignments(ABI, *Int64, *Simple);
+      compareTypeAlignments(ABI, Int64, Simple);
 
     auto [SmallFloatDefinition, SmallFloat] = Binary->makeUnionDefinition();
     SmallFloatDefinition.addField(Int32.copy());
     SmallFloatDefinition.addField(Float.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, *Int32, *SmallFloat);
-      compareTypeAlignments(ABI, *Float, *SmallFloat);
+      compareTypeAlignments(ABI, Int32, SmallFloat);
+      compareTypeAlignments(ABI, Float, SmallFloat);
     }
 
     auto [BigFloatDefinition, BigFloat] = Binary->makeUnionDefinition();
     BigFloatDefinition.addField(LongDouble.copy());
     BigFloatDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
-      compareTypeAlignments(ABI, *LongDouble, *BigFloat);
+      compareTypeAlignments(ABI, LongDouble, BigFloat);
 
     auto [WeirdFloatDefinition, WeirdFloat] = Binary->makeUnionDefinition();
     WeirdFloatDefinition.addField(WeirdLD.copy());
     WeirdFloatDefinition.addField(Int32.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
-      compareTypeAlignments(ABI, *WeirdLD, *WeirdFloat);
+      compareTypeAlignments(ABI, WeirdLD, WeirdFloat);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
@@ -214,22 +214,22 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     EclipsedFloatDefinition.addField(Float.copy());
     EclipsedFloatDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, *Int64, *EclipsedFl);
+      compareTypeAlignments(ABI, Int64, EclipsedFl);
 
     auto [NestedDefinition, Nested] = Binary->makeUnionDefinition();
     NestedDefinition.addField(SmallFloat.copy());
     NestedDefinition.addField(Int16.copy());
     if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, *Int32, *Nested);
-      compareTypeAlignments(ABI, *Float, *Nested);
-      compareTypeAlignments(ABI, *SmallFloat, *Nested);
+      compareTypeAlignments(ABI, Int32, Nested);
+      compareTypeAlignments(ABI, Float, Nested);
+      compareTypeAlignments(ABI, SmallFloat, Nested);
     }
 
     auto [EclipsedNestedDefinition, EclipsedN] = Binary->makeUnionDefinition();
     EclipsedNestedDefinition.addField(SmallFloat.copy());
     EclipsedNestedDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, *Int64, *EclipsedN);
+      compareTypeAlignments(ABI, Int64, EclipsedN);
   }
 }
 
@@ -252,27 +252,27 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
     SimpleDefinition.addField(0, Int32.copy());
     SimpleDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
-      compareTypeAlignments(ABI, *Int64, *Simple);
+      compareTypeAlignments(ABI, Int64, Simple);
 
     auto [SmallFloatDefinition, SmallFloat] = Binary->makeStructDefinition();
     SmallFloatDefinition.addField(0, Int32.copy());
     SmallFloatDefinition.addField(4, Float.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, *Int32, *SmallFloat);
-      compareTypeAlignments(ABI, *Float, *SmallFloat);
+      compareTypeAlignments(ABI, Int32, SmallFloat);
+      compareTypeAlignments(ABI, Float, SmallFloat);
     }
 
     auto [BigFloatDefinition, BigFloat] = Binary->makeStructDefinition();
     BigFloatDefinition.addField(0, LongDouble.copy());
     BigFloatDefinition.addField(16, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
-      compareTypeAlignments(ABI, *LongDouble, *BigFloat);
+      compareTypeAlignments(ABI, LongDouble, BigFloat);
 
     auto [WeirdFloatDefinition, WeirdFloat] = Binary->makeStructDefinition();
     WeirdFloatDefinition.addField(0, WeirdLD.copy());
     WeirdFloatDefinition.addField(12, Int32.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
-      compareTypeAlignments(ABI, *WeirdLD, *WeirdFloat);
+      compareTypeAlignments(ABI, WeirdLD, WeirdFloat);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
@@ -280,22 +280,22 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
     EclipsedFloatDefinition.addField(0, Float.copy());
     EclipsedFloatDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, *Int64, *EclipsedFl);
+      compareTypeAlignments(ABI, Int64, EclipsedFl);
 
     auto [NestedDefinition, Nested] = Binary->makeStructDefinition();
     NestedDefinition.addField(0, SmallFloat.copy());
     NestedDefinition.addField(8, Int16.copy());
     if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, *Int32, *Nested);
-      compareTypeAlignments(ABI, *Float, *Nested);
-      compareTypeAlignments(ABI, *SmallFloat, *Nested);
+      compareTypeAlignments(ABI, Int32, Nested);
+      compareTypeAlignments(ABI, Float, Nested);
+      compareTypeAlignments(ABI, SmallFloat, Nested);
     }
 
     auto [EclipsedNestedDefinition, EclipsedN] = Binary->makeStructDefinition();
     EclipsedNestedDefinition.addField(0, SmallFloat.copy());
     EclipsedNestedDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, *Int64, *EclipsedN);
+      compareTypeAlignments(ABI, Int64, EclipsedN);
   }
 }
 
@@ -312,26 +312,26 @@ BOOST_AUTO_TEST_CASE(ArraysAndPointers) {
     auto IntPointer = model::PointerType::make(Int32.copy(),
                                                ABI.getPointerSize());
     if (ABI.getPointerSize() == 8)
-      compareTypeAlignments(ABI, *Int64, *IntPointer);
+      compareTypeAlignments(ABI, Int64, IntPointer);
     else
-      compareTypeAlignments(ABI, *Int32, *IntPointer);
+      compareTypeAlignments(ABI, Int32, IntPointer);
 
     auto IntArray = model::ArrayType::make(Int32.copy(), 100);
-    compareTypeAlignments(ABI, *Int32, *IntArray);
+    compareTypeAlignments(ABI, Int32, IntArray);
 
     auto ConstInt = Int32.copy();
     ConstInt->IsConst() = true;
-    compareTypeAlignments(ABI, *Int32, *ConstInt);
+    compareTypeAlignments(ABI, Int32, ConstInt);
 
     auto DoublePointer = model::PointerType::make(Double.copy(),
                                                   ABI.getPointerSize());
-    compareTypeAlignments(ABI, *IntPointer, *DoublePointer);
+    compareTypeAlignments(ABI, IntPointer, DoublePointer);
 
     auto DoubleArray = model::ArrayType::make(Double.copy(), 100);
-    compareTypeAlignments(ABI, *Double, *DoubleArray);
+    compareTypeAlignments(ABI, Double, DoubleArray);
 
     auto ConstDouble = Double.copy();
     ConstInt->IsConst() = true;
-    compareTypeAlignments(ABI, *Double, *ConstDouble);
+    compareTypeAlignments(ABI, Double, ConstDouble);
   }
 }

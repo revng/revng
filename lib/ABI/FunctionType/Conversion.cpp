@@ -339,9 +339,8 @@ bool canBeNext(ArgumentDistributor &Distributor,
 
   revng_log(Log,
             "Checking whether the argument #"
-              << Distributor.ArgumentIndex << " can be slotted right in:\n"
-              << serializeToString(CurrentType) << "Currently "
-              << Distributor.UsedGeneralPurposeRegisterCount
+              << Distributor.ArgumentIndex << " can be slotted right in.\n"
+              << "Currently " << Distributor.UsedGeneralPurposeRegisterCount
               << " general purpose and " << Distributor.UsedVectorRegisterCount
               << " vector registers are in use.");
 

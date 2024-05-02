@@ -63,6 +63,15 @@ U/*= struct.name =*/ /*= struct.name =*/KOT::fromKey(const /*= struct.name =*/Ke
 
 /** if upcastable **/
 
+/*= struct.namespace =*/::Upcastable/*= struct.name =*/
+/*= struct.namespace =*/::copy/*= struct.name =*/(const /*= struct.name =*/ &From) {
+  Upcastable/*= struct.name =*/ Result;
+  upcast(&From, [&Result]<typename T>(const T &Upcasted) {
+    Result = Upcastable/*= struct.name =*/::make<T>(Upcasted);
+  });
+  return Result;
+}
+
 template
 bool UpcastablePointer</*= struct | user_fullname =*/>::operator==(const UpcastablePointer &Other) const;
 

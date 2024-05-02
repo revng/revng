@@ -828,7 +828,8 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
         if (!Function.Prototype().empty())
           Log << "(" << serializeToString(Function.Prototype()) << ") ";
         Log << "with wrapped function's prototype: "
-            << serializeToString(*Prototype) << DoLog;
+            << serializeToString(model::copyTypeDefinition(*Prototype))
+            << DoLog;
       }
 
       Function.Prototype() = Binary->makeType(Prototype->key());
