@@ -11,5 +11,26 @@ commands:
       revng artifact
         --analyses-list=revng-initial-auto-analysis
         emit-cfg "$INPUT" |
+        ./filter.py |
         revng model to-json --remap |
         revng model compare "${SOURCE}.cfg.yml"
+    scripts:
+      filter.py: |-
+        #!/usr/bin/env python3
+
+        import sys
+        import yaml
+
+        def should_keep(cfg):
+            if cfg["OriginalName"]:
+                return True
+
+            for block in cfg["FunctionMetadata"]["ControlFlowGraph"]:
+                for successor in block["Successors"]:
+                    if successor.get("DynamicFunction", ""):
+                        return True
+
+            return False
+
+        cfgs = [cfg for cfg in yaml.safe_load(sys.stdin.read()) if should_keep(cfg)]
+        print(yaml.dump(cfgs))
