@@ -18,7 +18,7 @@ public:
   ~StdStorageClient() override = default;
 
   llvm::Expected<PathType> type(llvm::StringRef Path) override {
-    revng_abort();
+    return PathType::Missing;
   };
 
   llvm::Error createDirectory(llvm::StringRef Path) override { revng_abort(); };
