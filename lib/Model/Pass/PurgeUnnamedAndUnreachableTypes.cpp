@@ -7,6 +7,7 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/Model/Filters.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Processing.h"
@@ -30,13 +31,64 @@ static RegisterModelPass R2("purge-unreachable-types",
                             "a type \"outside\" the type system itself",
                             model::purgeUnreachableTypes);
 
+// Helper for fixing array constness.
+static RecursiveCoroutine<void> fixConstArrays(model::Type &Type) {
+  if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+    if (Array->IsConst()) {
+      Array->ElementType()->IsConst() = true;
+      Array->IsConst() = false;
+    }
+
+    if (not Array->ElementType().empty())
+      rc_recur fixConstArrays(*Array->ElementType());
+
+  } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
+    if (not Pointer->PointeeType().empty())
+      rc_recur fixConstArrays(*Pointer->PointeeType());
+
+  } else {
+    // Here we assume that this helper is run for every definition, as such
+    // there's no need to unwrap `model::DefinedType`s.
+    revng_assert(llvm::isa<model::DefinedType>(Type)
+                 || llvm::isa<model::PrimitiveType>(Type));
+  }
+}
+
 void model::purgeInvalidTypes(TupleTree<model::Binary> &Model) {
   model::VerifyHelper VH;
-  auto IsInvalid = [&VH](const model::UpcastableTypeDefinition &T) {
+
+  // Ensure there are no const arrays, since we explicitly disallow those.
+  for (auto &Definition : Model->TypeDefinitions())
+    for (model::Type *Edge : Definition->edges())
+      fixConstArrays(*Edge);
+
+  // To avoid removing entire structs/unions, remove invalid fields first.
+  auto IsFieldInvalid = [&VH](const auto &Field) {
+    std::optional<uint64_t> MaybeSize = Field.Type()->size(VH);
+    return !Field.Type()->verify(VH) && MaybeSize.has_value();
+  };
+  for (auto &&Struct : Model->TypeDefinitions() | model::filter::Struct)
+    Struct.Fields().erase_if(IsFieldInvalid);
+  for (auto &&Union : Model->TypeDefinitions() | model::filter::Union) {
+    size_t ErasedCount = Union.Fields().erase_if(IsFieldInvalid);
+
+    if (ErasedCount != 0) {
+      // We have removed some entries, so we need to update their indices.
+      //
+      // Note: changing the key of an element in a sorted container shouldn't
+      // be allowed. However, it should be fine in this case, since we
+      // preserve the ordering.
+      for (auto &[Index, Field] : llvm::enumerate(Union.Fields()))
+        Field.Index() = Index;
+      revng_assert(Union.Fields().isSorted());
+    }
+  }
+
+  // If there are still any invalid types, we have to get rid of them.
+  auto IsTypeInvalid = [&VH](const model::UpcastableTypeDefinition &T) {
     return !T->verify(VH);
   };
-
-  auto ToDrop = Model->TypeDefinitions() | std::views::filter(IsInvalid)
+  auto ToDrop = Model->TypeDefinitions() | std::views::filter(IsTypeInvalid)
                 | std::views::transform([](const auto &T) { return T.get(); })
                 | revng::to<std::set<const model::TypeDefinition *>>();
   unsigned DroppedCount = dropTypesDependingOnDefinitions(Model, ToDrop);
