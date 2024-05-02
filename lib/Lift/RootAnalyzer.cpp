@@ -11,6 +11,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"

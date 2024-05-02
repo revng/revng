@@ -21,6 +21,7 @@
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -195,6 +196,9 @@ public:
   std::string path(const model::Segment &Segment) const {
     return "/Segments/" + key(Segment);
   }
+
+public:
+  MetaAddressRangeSet executableRanges() const;
 
 public:
   bool verify(bool Assert) const debug_function;

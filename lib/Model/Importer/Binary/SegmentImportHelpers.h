@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Section.h"
 #include "revng/Support/Assert.h"
@@ -78,34 +79,49 @@ inline void importSymbolsInto(model::Binary &Binary,
   }
 }
 
+struct Section {
+  MetaAddress StartAddress;
+  uint64_t Size;
+  bool CanContainCode = false;
+  std::string Name;
+};
+
 inline model::TypePath
 populateSegmentTypeStruct(model::Binary &Binary,
                           model::Segment &Segment,
-                          llvm::SmallVector<DataSymbol, 32> DataSymbols) {
+                          llvm::SmallVector<DataSymbol, 32> DataSymbols,
+                          llvm::ArrayRef<Section> Sections,
+                          bool SegmentIsExecutable) {
   using namespace llvm;
   using namespace model;
 
   // Create a struct for the segment
   TypePath SegmentStructPath = createEmptyStruct(Binary, Segment.VirtualSize());
   auto *SegmentStruct = cast<model::StructType>(SegmentStructPath.get());
+  SegmentStruct->CanContainCode() = SegmentIsExecutable;
 
-  for (model::Section &Section : Segment.Sections()) {
-    auto Offset = Section.StartAddress() - Segment.StartAddress();
+  for (const auto &Section : Sections) {
+    if (not Segment.contains(Section.StartAddress, Section.Size))
+      continue;
+
+    auto Offset = Section.StartAddress - Segment.StartAddress();
     revng_assert(Offset.has_value());
 
+    if (checkForOverlap(*SegmentStruct, *Offset, Section.Size))
+      continue;
+
     // Create a struct for each section
-    TypePath SectionStructPath = createEmptyStruct(Binary, Section.Size());
+    TypePath SectionStructPath = createEmptyStruct(Binary, Section.Size);
     auto *SectionStruct = cast<model::StructType>(SectionStructPath.get());
+    SectionStruct->CanContainCode() = (SegmentIsExecutable
+                                       and Section.CanContainCode);
 
     // Import (and consume) symbols that fall within such section
-    importSymbolsInto(Binary,
-                      DataSymbols,
-                      SectionStruct,
-                      Section.StartAddress());
+    importSymbolsInto(Binary, DataSymbols, SectionStruct, Section.StartAddress);
 
     // Insert the field the segment struct
     StructField SectionField{
-      *Offset, {}, Section.Name(), {}, { SectionStructPath, {} }
+      *Offset, {}, Section.Name, {}, { SectionStructPath, {} }
     };
     SegmentStruct->Fields().insert(SectionField);
   }
@@ -113,6 +129,6 @@ populateSegmentTypeStruct(model::Binary &Binary,
   // Pour the remaining symbols into the segment struct
   importSymbolsInto(Binary, DataSymbols, SegmentStruct, Segment.StartAddress());
 
-  revng_assert(SegmentStruct->verify());
+  SegmentStruct->verify(true);
   return SegmentStructPath;
 }

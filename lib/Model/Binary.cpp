@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <queue>
 #include <system_error>
 
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -89,6 +90,73 @@ static std::string toIdentifier(const MetaAddress &Address) {
 }
 
 namespace model {
+
+MetaAddressRangeSet Binary::executableRanges() const {
+  MetaAddressRangeSet ExecutableRanges;
+
+  struct Entry {
+    Entry(MetaAddress Start, const model::Type *Type) :
+      Start(Start), Type(Type) {}
+    MetaAddress Start;
+    const model::Type *Type = nullptr;
+  };
+  std::queue<Entry> Queue;
+
+  for (const model::Segment &Segment : Segments()) {
+    if (Segment.IsExecutable()) {
+      if (not Segment.Type().empty()) {
+        Queue.emplace(Segment.StartAddress(), Segment.Type().get());
+      } else {
+        ExecutableRanges.add(Segment.StartAddress(), Segment.endAddress());
+      }
+    }
+  }
+
+  while (not Queue.empty()) {
+    auto QueueEntry = Queue.front();
+    Queue.pop();
+
+    auto *Struct = dyn_cast<model::StructType>(QueueEntry.Type);
+
+    if (not Struct or not Struct->CanContainCode())
+      continue;
+
+    MetaAddress PaddingStart = QueueEntry.Start;
+    MetaAddress PaddingEnd;
+    model::VerifyHelper Helper;
+
+    for (const model::StructField &Field : Struct->Fields()) {
+      // Record the start address of field
+      MetaAddress FieldStart = QueueEntry.Start + Field.Offset();
+
+      // Update the end of padding
+      PaddingEnd = FieldStart;
+
+      // Register the padding as an executable range
+      if (PaddingStart != PaddingEnd)
+        ExecutableRanges.add(PaddingStart, PaddingEnd);
+
+      // Enqueue the field type for processing
+      if (Field.Type().Qualifiers().size() == 0)
+        Queue.emplace(FieldStart, Field.Type().UnqualifiedType().get());
+
+      // Set the next padding start
+      auto FieldSize = *Field.Type().size(Helper);
+      PaddingStart = FieldStart + FieldSize;
+    }
+
+    // Record the trailing padding, if any
+    PaddingEnd = QueueEntry.Start + Struct->Size();
+    if (PaddingStart != PaddingEnd)
+      ExecutableRanges.add(PaddingStart, PaddingEnd);
+  }
+
+  for (const model::Function &F : Functions()) {
+    ExecutableRanges.add(F.Entry().toGeneric(), F.Entry().toGeneric() + 1);
+  }
+
+  return ExecutableRanges;
+}
 
 model::TypePath Binary::getPrimitiveType(PrimitiveTypeKind::Values V,
                                          uint8_t ByteSize) {
@@ -439,23 +507,6 @@ bool Segment::verify(VerifyHelper &VH) const {
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow", *this);
 
-  for (const model::Section &Section : Sections()) {
-    if (not Section.verify(VH))
-      return VH.fail("Invalid section", Section);
-
-    if (not contains(Section.StartAddress())
-        or (VirtualSize() > 0 and not contains(Section.endAddress() - 1))) {
-      return VH.fail("The segment contains a section out of its boundaries",
-                     Section);
-    }
-
-    if (Section.ContainsCode() and not IsExecutable()) {
-      return VH.fail("A Section is marked as containing code but the "
-                     "containing segment is not executable",
-                     *this);
-    }
-  }
-
   for (const model::Relocation &Relocation : Relocations()) {
     if (not Relocation.verify(VH))
       return VH.fail("Invalid relocation", Relocation);
@@ -479,6 +530,18 @@ bool Segment::verify(VerifyHelper &VH) const {
                        + Twine(" != Segment->Type()->Size(): ")
                        + Twine(Struct->Size()),
                      *this);
+    }
+
+    if (Struct->CanContainCode() != IsExecutable()) {
+      if (IsExecutable()) {
+        return VH.fail("The StructType representing the type of a executable "
+                       "segment has CanContainedCode disabled",
+                       *this);
+      } else {
+        return VH.fail("The StructType representing the type of a "
+                       "non-executable segment has CanContainedCode enabled",
+                       *this);
+      }
     }
 
     if (not Type().get()->verify(VH))
