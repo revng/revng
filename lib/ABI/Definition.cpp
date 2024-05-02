@@ -351,7 +351,7 @@ naturalAlignment(const abi::Definition &ABI,
   }
 }
 
-template<typename T>
+template<Yamlizable T>
 std::optional<AlignmentInfo>
 assertOnFailure(std::optional<AlignmentInfo> &&ComputationResult,
                 const T &ThingToDumpOnFailure) {
@@ -366,7 +366,8 @@ assertOnFailure(std::optional<AlignmentInfo> &&ComputationResult,
 
 std::optional<uint64_t> Definition::alignment(const model::Type &Type,
                                               AlignmentCache &Cache) const {
-  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
+  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache),
+                                model::copyType(Type));
   if (Result->Value == 0)
     return std::nullopt;
 
@@ -374,7 +375,8 @@ std::optional<uint64_t> Definition::alignment(const model::Type &Type,
 }
 std::optional<uint64_t> Definition::alignment(const model::TypeDefinition &Type,
                                               AlignmentCache &Cache) const {
-  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
+  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache),
+                                model::copyTypeDefinition(Type));
   if (Result->Value == 0)
     return std::nullopt;
 
@@ -384,7 +386,8 @@ std::optional<uint64_t> Definition::alignment(const model::TypeDefinition &Type,
 std::optional<bool>
 Definition::hasNaturalAlignment(const model::Type &Type,
                                 AlignmentCache &Cache) const {
-  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
+  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache),
+                                model::copyType(Type));
   if (Result->Value == 0)
     return std::nullopt;
 
@@ -393,7 +396,8 @@ Definition::hasNaturalAlignment(const model::Type &Type,
 std::optional<bool>
 Definition::hasNaturalAlignment(const model::TypeDefinition &Type,
                                 AlignmentCache &Cache) const {
-  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache), Type);
+  auto Result = assertOnFailure(naturalAlignment(*this, Type, Cache),
+                                model::copyTypeDefinition(Type));
   if (Result->Value == 0)
     return std::nullopt;
 

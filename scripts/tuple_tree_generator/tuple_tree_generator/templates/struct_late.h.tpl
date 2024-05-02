@@ -84,6 +84,7 @@ template <int I> auto &get(/*= struct.name =*/ &x) {
 }
 /*# --- End TupleLikeTraits --- -#*/
 
+/** if not upcastable **/
 template<>
 struct llvm::yaml::MappingTraits</*= struct | user_fullname =*/>
   : public TupleLikeMappingTraits</*= struct | user_fullname =*/
@@ -91,6 +92,7 @@ struct llvm::yaml::MappingTraits</*= struct | user_fullname =*/>
       , TupleLikeTraits</*= struct | user_fullname =*/>::Fields::/*= field.name =*/
       /** endfor -**/
     > {};
+/**- endif **/
 
 /** if struct._key **/
 template<>
@@ -169,19 +171,29 @@ inline Upcastable/*= struct.name =*/ make/*= struct.name =*/(Args &&...A) {
   return Upcastable/*= struct.name =*/::make<T>(std::forward<Args>(A)...);
 }
 
+Upcastable/*= struct.name =*/ copy/*= struct.name =*/(const /*= struct.name =*/ &From);
+
 } // namespace /*= struct.namespace =*/
 
 extern template
 bool UpcastablePointer</*= struct | user_fullname =*/>::operator==(const UpcastablePointer &Other) const;
 
-/** endif **//*# End UpcastablePointer stuff #*/
+static_assert(validateTupleTree<UpcastablePointer</*= struct | user_fullname =*/>>(IsYamlizable),
+              "UpcastablePointer</*= struct | user_fullname =*/> must be YAMLizable");
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(UpcastablePointer</*= struct | user_fullname =*/>)
+static_assert(Yamlizable<std::vector<UpcastablePointer</*= struct | user_fullname =*/>>>,
+              "std::vector<UpcastablePointer</*= struct | user_fullname =*/>> must be YAMLizable");
+
+/** else **//*# End UpcastablePointer stuff #*/
 
 static_assert(validateTupleTree</*= struct | user_fullname =*/>(IsYamlizable),
               "/*= struct | user_fullname =*/ must be YAMLizable");
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(/*= struct | user_fullname =*/)
 static_assert(Yamlizable<std::vector</*= struct | user_fullname =*/>>,
-              "/*= struct | user_fullname =*/ must be YAMLizable");
+              "std::vector</*= struct | user_fullname =*/> must be YAMLizable");
+/** endif **/
 
 /** if root_type == struct.name **/
 namespace /*= namespace =*/ {
