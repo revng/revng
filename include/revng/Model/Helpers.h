@@ -13,35 +13,55 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Segment.h"
 
+//
+// The following helpers are designed to help with handling metadata.
+//
+// Metadata are some common fields appearing in different (sometime unrelated)
+// types within the model. These allow to work with those in a generic manner.
+
 namespace model {
 
+// Every supported metadata field should have an `EntityWithXXX` concept
+// declared for it.
+
 template<typename Type>
-concept EntityWithKey = requires(Type &&Value) {
+concept EntityWithKey = requires(const Type &Value) {
   { Value.key() } -> std::convertible_to<const typename Type::Key &>;
 };
 
 template<typename Type>
-concept EntityWithCustomName = requires(Type &&Value) {
-  { Value.CustomName() } -> std::convertible_to<model::Identifier &>;
+concept EntityWithCustomName = requires(const Type &Value) {
+  { Value.CustomName() } -> std::convertible_to<const model::Identifier &>;
 };
 
 template<typename Type>
-concept EntityWithOriginalName = requires(Type &&Value) {
-  { Value.OriginalName() } -> std::convertible_to<std::string &>;
+concept EntityWithOriginalName = requires(const Type &Value) {
+  { Value.OriginalName() } -> std::convertible_to<const std::string &>;
 };
 
 template<typename Type>
-concept EntityWithComment = requires(Type &&Value) {
-  { Value.Comment() } -> std::convertible_to<std::string &>;
+concept EntityWithComment = requires(const Type &Value) {
+  { Value.Comment() } -> std::convertible_to<const std::string &>;
 };
 
 template<typename Type>
-concept EntityWithReturnValueComment = requires(Type &&Value) {
-  { Value.ReturnValueComment() } -> std::convertible_to<std::string &>;
+concept EntityWithReturnValueComment = requires(const Type &Value) {
+  { Value.ReturnValueComment() } -> std::convertible_to<const std::string &>;
 };
+
+template<typename Type>
+void ensureCompatibility() {
+  static_assert(EntityWithCustomName<Type> || EntityWithOriginalName<Type>
+                  || EntityWithComment<Type>
+                  || EntityWithReturnValueComment<Type>,
+                "This would be a no-op.");
+}
 
 template<typename LHS, typename RHS>
 LHS &copyMetadata(LHS &To, const RHS &From) {
+  ensureCompatibility<LHS>();
+  ensureCompatibility<RHS>();
+
   if constexpr (EntityWithCustomName<LHS> && EntityWithCustomName<RHS>)
     To.CustomName() = From.CustomName();
 
@@ -60,7 +80,10 @@ LHS &copyMetadata(LHS &To, const RHS &From) {
 }
 
 template<typename LHS, typename RHS>
-LHS &moveMetadata(LHS &To, RHS &&From) {
+LHS &moveMetadata(LHS &To, const RHS &From) {
+  ensureCompatibility<LHS>();
+  ensureCompatibility<RHS>();
+
   if constexpr (EntityWithCustomName<LHS> && EntityWithCustomName<RHS>)
     To.CustomName() = std::move(From.CustomName());
 
@@ -79,7 +102,9 @@ LHS &moveMetadata(LHS &To, RHS &&From) {
 }
 
 template<typename Type>
-bool hasMetadata(Type &Value) {
+bool hasMetadata(const Type &Value) {
+  ensureCompatibility<Type>();
+
   if constexpr (EntityWithCustomName<Type>)
     if (!Value.CustomName().empty())
       return true;
