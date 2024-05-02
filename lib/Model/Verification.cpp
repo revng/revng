@@ -235,6 +235,9 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   if (OriginalName().size() == 0)
     return VH.fail("Dynamic functions must have an OriginalName.", *this);
 
+  if (OriginalName().find('/') != std::string::npos)
+    return VH.fail("Dynamic function names must not contain '/'.", *this);
+
   if (not Prototype().empty()) {
     if (not Prototype()->isPrototype())
       return VH.fail("`Prototype()` type must be a prototype.", *this);
