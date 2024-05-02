@@ -52,10 +52,11 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
 BOOST_AUTO_TEST_CASE(TestPathAccess) {
   Binary TheBinary;
   using FunctionsType = std::decay_t<decltype(TheBinary.Functions())>;
+
   TupleTreePath Zero;
   Zero.push_back(size_t(0));
-  auto *FirstField = getByPath<FunctionsType>(Zero, TheBinary);
-  revng_check(FirstField == &TheBinary.Functions());
+  auto *FirstField = getByPath<model::Architecture::Values>(Zero, TheBinary);
+  revng_check(FirstField == &TheBinary.Architecture());
 
   auto *FunctionsField = getByPath<FunctionsType>("/Functions", TheBinary);
   revng_check(FunctionsField == &TheBinary.Functions());
@@ -98,10 +99,10 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
   revng_check(stringAsPath<Binary>("/").value() == TupleTreePath{});
   TupleTreePath Zero;
   Zero.push_back(size_t(0));
-  revng_check(stringAsPath<Binary>("/Functions").value() == Zero);
+  revng_check(stringAsPath<Binary>("/Architecture").value() == Zero);
 
   TupleTreePath InvalidFunctionPath;
-  InvalidFunctionPath.push_back(size_t(0));
+  InvalidFunctionPath.push_back(size_t(9));
   InvalidFunctionPath.push_back(MetaAddress::invalid());
   auto MaybeInvalidFunctionPath = stringAsPath<Binary>("/Functions/:Invalid");
   revng_check(MaybeInvalidFunctionPath.value() == InvalidFunctionPath);
