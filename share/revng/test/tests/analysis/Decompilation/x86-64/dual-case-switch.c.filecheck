@@ -1,9 +1,7 @@
 This file is distributed under the MIT License. See LICENSE.md for details.
 
-
-We match the only argument of the f function
-CHECK: {{.*}}64_t f({{.*}}64_t [[ARG0:.*]])
-
 We should have correctly promoted the exit dispatcher switch to an if (switch
-with two cases). The condition of the if should be the argument of the function.
-CHECK: if (({{.*}}32_t) [[ARG0]] == 2)
+with two cases). The condition of the if should be the `loop_state_var` (we are
+relying on the promotion of an exit dispatcher, which uses such variable as the
+condition).
+CHECK: if ({{.*}}_loop_state_var{{.*}})
