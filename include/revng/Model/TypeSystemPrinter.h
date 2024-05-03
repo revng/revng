@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SmallPtrSet.h"
+
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Segment.h"
 

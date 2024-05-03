@@ -79,12 +79,7 @@ public:
   }
 
 public:
-  model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
-    QualifiedType Result = *this;
-    Result.Qualifiers().insert(Result.Qualifiers().begin(),
-                               model::Qualifier::createPointer(Arch));
-    return Result;
-  }
+  model::QualifiedType getPointerTo(model::Architecture::Values Arch) const;
 
   model::QualifiedType stripPointer() const {
     model::QualifiedType Result = *this;

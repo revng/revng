@@ -10,6 +10,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/UnitTestHelpers/DotGraphObject.h"
 

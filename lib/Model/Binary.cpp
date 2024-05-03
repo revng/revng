@@ -18,8 +18,10 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Qualifier.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/OverflowSafeInt.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Tracking.h"
@@ -322,6 +324,16 @@ static const model::TypePath &prototypeOr(const model::TypePath &Prototype,
   }
 
   return Default;
+}
+
+// \note This function triggers a lot of materializations of
+// std::vector::insert, which is heavy on build time
+model::QualifiedType
+model::QualifiedType::getPointerTo(model::Architecture::Values Arch) const {
+  QualifiedType Result = *this;
+  Result.Qualifiers().insert(Result.Qualifiers().begin(),
+                             model::Qualifier::createPointer(Arch));
+  return Result;
 }
 
 model::TypePath Function::prototype(const model::Binary &Root) const {

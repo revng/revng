@@ -5,6 +5,7 @@
 //
 
 #include "revng/Lift/Lift.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/ResourceFinder.h"
 
 #include "CodeGenerator.h"

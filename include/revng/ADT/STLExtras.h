@@ -18,6 +18,7 @@
 
 #include "revng/ADT/CompilationTime.h"
 #include "revng/ADT/Concepts.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 //
@@ -421,30 +422,6 @@ constexpr auto takeAsTuple(RangeType &&R) {
   });
 }
 
-namespace examples {
-
-consteval int takeAsTupleExample() {
-  std::array<int, 6> Data = { 42, 43, 44, 45, 46, 47 };
-
-  {
-    // Edit some elements.
-    auto [First, Second, Third] = takeAsTuple<3>(Data);
-    ++First;
-    Second = 2;
-    Third = 3;
-  }
-
-  {
-    // Read multiple elements through a view.
-    auto [Second, Third] = takeAsTuple<2>(Data | std::views::drop(1));
-    return Second + Third;
-  }
-}
-
-static_assert(takeAsTupleExample() == 5);
-
-} // namespace examples
-
 //
 // Some views from the STL.
 // TODO: remove these after updating the libc++ version.
@@ -500,36 +477,3 @@ template<std::ranges::range Range,
 constexpr Container operator|(Range &&R, revng::detail::ToImpl<Container> T) {
   return T.asContainer(std::forward<Range>(R));
 }
-
-namespace examples {
-
-constexpr bool test() {
-  constexpr std::array Input{ 1, 2, 3, 5, 7, 8, 10, 1 };
-
-  auto IsOdd = [](int i) { return i % 2 == 1; };
-
-  // The "copy" approach works fine for vectors
-  std::vector<int> InserterVectorOutput;
-  std::ranges::copy(Input | std::views::filter(IsOdd),
-                    std::back_inserter(InserterVectorOutput));
-
-  // But it starts looking a lot uglier when applied to other containers.
-  // (using vector in this test because `std::set` only became `constexpr` in
-  // c++23, but the idea is the same: you cannot use `std::back_inserter` with
-  // sets).
-  using FakeSet = std::/* set */ vector<int>;
-  FakeSet InserterSetOutput;
-  std::ranges::copy(Input | std::views::filter(IsOdd),
-                    std::inserter(InserterSetOutput,
-                                  InserterSetOutput.begin()));
-
-  // On the other hand, `revng::to` just works (tm) for everything that can be
-  // constructed from two iterators. And even looks nicer to boot.
-  FakeSet ToOutput = Input | std::views::filter(IsOdd) | revng::to<FakeSet>();
-
-  return ToOutput.size() == InserterVectorOutput.size()
-         && InserterVectorOutput.size() == InserterSetOutput.size();
-}
-static_assert(test());
-
-} // namespace examples

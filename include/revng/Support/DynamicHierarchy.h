@@ -12,6 +12,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 /// A dynamic hierarchy is a tree that can be extended by downstream

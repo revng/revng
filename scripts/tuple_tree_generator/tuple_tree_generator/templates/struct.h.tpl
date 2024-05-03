@@ -29,7 +29,7 @@ void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName);
 
 /**- if emit_tracking **/
 namespace revng {
-struct Tracking;
+struct TrackingImpl;
 }
 
 struct ReadFields;
@@ -40,7 +40,7 @@ struct /*= struct | fullname =*/
   /**- if struct.inherits **/ : public /*= struct.inherits | user_fullname =*/ /** endif -**/
 {
   /** if emit_tracking -**/
-  friend struct revng::Tracking;
+  friend struct revng::TrackingImpl;
   inline static constexpr bool HasTracking = true;
   /**- endif **/
 

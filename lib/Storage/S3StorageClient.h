@@ -7,6 +7,7 @@
 #include "aws/core/auth/AWSCredentials.h"
 #include "aws/s3/S3Client.h"
 
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/Storage/StorageClient.h"

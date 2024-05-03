@@ -8,6 +8,7 @@
 
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/TupleTree/TupleTree.h"

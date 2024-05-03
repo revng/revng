@@ -7,6 +7,7 @@
 #include "revng/Pipeline/Analysis.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Registry.h"
+#include "revng/Support/CommandLine.h"
 
 namespace pipeline {
 

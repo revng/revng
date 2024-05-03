@@ -42,14 +42,3 @@ public:
     return std::string_view{ String.data(), String.size() };
   }
 };
-
-namespace examples {
-
-template<ConstexprString String>
-struct StringParametrizedTrait {
-  static constexpr std::string_view value = String;
-};
-
-static_assert(StringParametrizedTrait<"value">::value == "value");
-
-} // namespace examples
