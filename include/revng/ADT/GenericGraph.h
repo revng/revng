@@ -8,7 +8,10 @@
 
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/GraphWriter.h"
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Debug.h"
@@ -101,6 +104,9 @@ struct Edge : public EdgeLabel {
   Edge(Node *Neighbor) : Neighbor(Neighbor) {}
   Edge(Node *Neighbor, EdgeLabel EL) : EdgeLabel(EL), Neighbor(Neighbor) {}
   Node *Neighbor = nullptr;
+  bool operator==(const Edge &Other) const {
+    return Other.Neighbor == Neighbor and EdgeLabel::operator==(Other);
+  }
 };
 
 //
@@ -435,14 +441,19 @@ public:
   }
 
   void removePredecessorEdge(edge_iterator It) {
-    auto Edge = *It;
+    Edge Edge = *It;
     bool Found = false;
+
+    // Extract predecessor
     auto Predecessor = Edge.Neighbor;
+
+    // Invert the edge direction
+    Edge.Neighbor = this;
+
     auto PredecessorSuccessors = Predecessor->successor_edges();
     for (auto PredecessorIt = PredecessorSuccessors.begin(),
               Last = PredecessorSuccessors.end();
          PredecessorIt != Last;) {
-      Edge.Neighbor = this;
       if (Edge == *PredecessorIt) {
         Predecessor->Successors.erase(PredecessorIt);
         Found = true;
@@ -487,12 +498,17 @@ public:
   void removeSuccessorEdge(edge_iterator It) {
     auto Edge = *It;
     bool Found = false;
+
+    // Extract successor
     auto Successor = Edge.Neighbor;
+
+    // Invert edge direction
+    Edge.Neighbor = this;
+
     auto SuccessorPredecessors = Successor->predecessor_edges();
     for (auto SuccessorIt = SuccessorPredecessors.begin(),
               Last = SuccessorPredecessors.end();
          SuccessorIt != Last;) {
-      Edge.Neighbor = this;
       if (Edge == *SuccessorIt) {
         Successor->Predecessors.erase(SuccessorIt);
         Found = true;
@@ -1299,12 +1315,45 @@ public:
   GenericGraph &operator=(const GenericGraph &) = delete;
   GenericGraph &operator=(GenericGraph &&) = default;
 
-  bool verify() const debug_function {
-    for (const std::unique_ptr<NodeT> &Node : Nodes)
-      if (Node.get() == nullptr)
-        return false;
-    return true;
+  llvm::Error verify() const debug_function {
+    llvm::SmallPtrSet<NodeT *, 32> ValidNodes;
+
+    // Collect all valid nodes and ensure there are no nullptr
+    for (const std::unique_ptr<NodeT> &Node : Nodes) {
+
+      if (Node.get() == nullptr) {
+        return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                       "Graph contains a nullptr node");
+      }
+
+      ValidNodes.insert(Node.get());
+    }
+
+    // Ensure we only point to valid nodes
+    for (const std::unique_ptr<NodeT> &Node : Nodes) {
+      for (NodeT *Successor : Node->successors()) {
+        if (not ValidNodes.contains(Successor)) {
+          return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                         "A node contains an unknown "
+                                         "successor");
+        }
+      }
+
+      if constexpr (StrictSpecializationOfBidirectionalNode<NodeT>) {
+        for (NodeT *Predecessor : Node->predecessors()) {
+          if (not ValidNodes.contains(Predecessor)) {
+            return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                           "A node contains an unknown "
+                                           "predecessor");
+          }
+        }
+      }
+    }
+
+    return llvm::Error::success();
   }
+
+  void dumpGraph() const debug_function { llvm::WriteGraph(this, ""); }
 
 public:
   static NodeT *getNode(std::unique_ptr<NodeT> &E) { return E.get(); }

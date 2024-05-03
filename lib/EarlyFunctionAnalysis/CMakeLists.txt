@@ -2,12 +2,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-add_subdirectory(ABIAnalyses)
-
 # Define revngEarlyFunctionAnalysis library
 revng_add_analyses_library_internal(
   revngEarlyFunctionAnalysis
   AAWriterPass.cpp
+  AnalyzeRegisterUsage.cpp
   AttachDebugInfo.cpp
   CFGAnalyzer.cpp
   CollectCFG.cpp
@@ -37,7 +36,6 @@ target_link_libraries(
   revngEarlyFunctionAnalysis
   revngBasicAnalyses
   revngABI
-  revngABIAnalyses
   revngSupport
   revngModel
   revngPipes

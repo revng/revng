@@ -263,7 +263,7 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
     Entry.Operands = MFPResult.OutValue;
   }
 
-  revng_assert(DataFlowGraph.verify());
+  revng_assert(not DataFlowGraph.verify());
   MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, MFPRes);
 
   return Result;

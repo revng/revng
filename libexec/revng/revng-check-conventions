@@ -581,7 +581,7 @@ class CPPCheckPass(TaggedPass):
         headers_without_pragma_once = [
             file
             for file, content in header_files.items()
-            if content.splitlines()[0] != "#pragma once"
+            if content and content.splitlines()[0] != "#pragma once"
         ]
 
         return PassResult.make_from(

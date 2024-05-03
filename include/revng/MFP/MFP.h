@@ -90,18 +90,18 @@ getMaximalFixedPoint(const MFI &Instance,
   llvm::SmallSet<Label, 8> Visited{};
   std::map<Label, size_t> LabelPriority;
 
-  // Step 1 initialize the worklist and extremal labels
+  //
+  // Initialize the worklist and extremal labels
+  //
   for (Label ExtremalLabel : ExtremalLabels) {
     AnalysisResult[ExtremalLabel].InValue = ExtremalValue;
   }
 
   for (Label Start : InitialNodes) {
     if (!Visited.contains(Start)) {
-      // Fill the worklist with nodes in reverse post order
-      // launching a visit from each remaining node
-      ReversePostOrderTraversalExt<LGT,
-                                   llvm::GraphTraits<LGT>,
-                                   llvm::SmallSet<Label, 8>>
+      // Fill the worklist with nodes in reverse post order launching a visit
+      // from each remaining node
+      ReversePostOrderTraversalExt<LGT, GT, llvm::SmallSet<Label, 8>>
         RPOTE(Start, Visited);
       for (Label Node : RPOTE) {
         LabelPriority[Node] = LabelPriority.size();

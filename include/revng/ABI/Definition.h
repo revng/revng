@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "revng/ABI/FunctionType/Support.h"
-#include "revng/ABI/RegisterState.h"
 #include "revng/ABI/ScalarType.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/ABI.h"
@@ -415,6 +414,8 @@ public:
   }
 
 public:
+  using RegisterSet = std::set<model::Register::Values>;
+
   /// Try to deduce the specific "holes" in the provided register state
   /// information.
   ///
@@ -427,21 +428,23 @@ public:
   /// \returns `std::nullopt` if \ref State does not match the ABI (i.e. it
   ///          marks a non-argument register (like `r5` in the example used) as
   ///          an argument).
-  std::optional<abi::RegisterState::Map>
-  tryDeducingRegisterState(const abi::RegisterState::Map &State) const;
+  std::optional<RegisterSet>
+  tryDeducingArgumentRegisterState(RegisterSet &&Arguments) const;
+  std::optional<RegisterSet>
+  tryDeducingReturnValueRegisterState(RegisterSet &&ReturnValues) const;
 
-  /// A more strict version of \ref tryDeducingRegisterState.
+  /// A more strict version of \ref tryDeducingArgumentRegisterState.
   ///
-  /// The difference is that `tryDeducingRegisterState` expects all the input
-  /// information to be 100% correct, with the most likely problem being
-  /// the fact that we didn't detect ABI correctly (the original function uses
-  /// one that differs from the one specified), while this one
-  /// (`enforceRegisterState`) believes the ABI first and foremost, allowing
-  /// this deduction to discard any contradicting data (for example if `r5` is
-  /// specified as an argument, it's silently changed to `No` because ABI does
-  /// not allow it to be).
-  abi::RegisterState::Map
-  enforceRegisterState(const abi::RegisterState::Map &State) const;
+  /// The difference is that `tryDeducingArgumentRegisterState` expects all
+  /// the input information to be 100% correct, with the most likely problem
+  /// being the fact that we didn't detect ABI correctly (the original function
+  /// uses one that differs from the one specified), while this one
+  /// (`enforceArgumentRegisterState`) believes the ABI first and foremost,
+  /// allowing this deduction to discard any contradicting data (for example
+  /// if `r5` is specified as an argument, it's silently changed to `No`
+  /// because ABI does not allow it to be).
+  RegisterSet enforceArgumentRegisterState(RegisterSet &&Arguments) const;
+  RegisterSet enforceReturnValueRegisterState(RegisterSet &&ReturnValues) const;
 
 private:
   llvm::SmallVector<model::Register::Values, 8> argumentOrder() const {

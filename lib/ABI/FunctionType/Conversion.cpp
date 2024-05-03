@@ -210,28 +210,21 @@ std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   // Rely onto the register state deduction to make sure no "holes" are
   // present in-between the argument registers.
-  abi::RegisterState::Map Map(model::ABI::getArchitecture(ABI.ABI()));
-  for (const model::NamedTypedRegister &Reg : Registers)
-    Map[Reg.Location()].IsUsedForPassingArguments = abi::RegisterState::Yes;
-  abi::RegisterState::Map DeductionResults = Map;
-  if (UseSoftRegisterStateDeductions) {
-    std::optional MaybeDeductionResults = ABI.tryDeducingRegisterState(Map);
-    if (MaybeDeductionResults.has_value())
-      DeductionResults = std::move(MaybeDeductionResults.value());
-    else
-      return std::nullopt;
-  } else {
-    DeductionResults = ABI.enforceRegisterState(Map);
-  }
+  auto Unwrap = std::views::transform([](const model::NamedTypedRegister &R) {
+    return R.Location();
+  });
+  auto Deduced = Registers | Unwrap | revng::to<abi::Definition::RegisterSet>();
 
-  llvm::SmallVector<model::Register::Values, 8> ArgumentRegisters;
-  for (auto [Register, Pair] : DeductionResults)
-    if (abi::RegisterState::shouldEmit(Pair.IsUsedForPassingArguments))
-      ArgumentRegisters.emplace_back(Register);
+  if (!UseSoftRegisterStateDeductions)
+    Deduced = ABI.enforceArgumentRegisterState(std::move(Deduced));
+  else if (auto R = ABI.tryDeducingArgumentRegisterState(std::move(Deduced)))
+    Deduced = *R;
+  else
+    return std::nullopt;
 
   // But just knowing which registers we need is not sufficient, we also have to
   // order them properly.
-  auto Ordered = ABI.sortArguments(ArgumentRegisters);
+  auto Ordered = ABI.sortArguments(std::move(Deduced));
 
   llvm::SmallVector<model::Argument, 8> Result;
   for (model::Register::Values Register : Ordered) {
@@ -582,25 +575,19 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
   // (i.e. ARM64 because it uses a separate `PointerToCopyLocation` register),
   // but for now the dumb approach should suffice.
 
-  abi::RegisterState::Map Map(model::ABI::getArchitecture(ABI.ABI()));
-  for (const model::NamedTypedRegister &Register : Registers)
-    Map[Register.Location()].IsUsedForReturningValues = abi::RegisterState::Yes;
-  abi::RegisterState::Map DeductionResults = Map;
-  if (UseSoftRegisterStateDeductions) {
-    std::optional MaybeDeductionResults = ABI.tryDeducingRegisterState(Map);
-    if (MaybeDeductionResults.has_value())
-      DeductionResults = std::move(MaybeDeductionResults.value());
-    else
-      return std::nullopt;
-  } else {
-    DeductionResults = ABI.enforceRegisterState(Map);
-  }
+  auto Unwrap = std::views::transform([](const model::NamedTypedRegister &R) {
+    return R.Location();
+  });
+  auto Deduced = Registers | Unwrap | revng::to<abi::Definition::RegisterSet>();
 
-  SortedVector<model::Register::Values> ReturnValueRegisters;
-  for (auto [Register, Pair] : DeductionResults)
-    if (abi::RegisterState::shouldEmit(Pair.IsUsedForReturningValues))
-      ReturnValueRegisters.insert_or_assign(Register);
-  auto Ordered = ABI.sortReturnValues(ReturnValueRegisters);
+  if (!UseSoftRegisterStateDeductions)
+    Deduced = ABI.enforceReturnValueRegisterState(std::move(Deduced));
+  else if (auto R = ABI.tryDeducingReturnValueRegisterState(std::move(Deduced)))
+    Deduced = *R;
+  else
+    return std::nullopt;
+
+  auto Ordered = ABI.sortReturnValues(std::move(Deduced));
 
   if (Ordered.size() == 1) {
     if (auto Iter = Registers.find(*Ordered.begin()); Iter != Registers.end()) {

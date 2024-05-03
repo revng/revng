@@ -29,6 +29,7 @@
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/AnalyzeRegisterUsage.h"
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
@@ -376,7 +377,7 @@ public:
   void handleCall(MetaAddress CallerBlock,
                   llvm::IRBuilder<> &Builder,
                   MetaAddress Callee,
-                  const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
+                  const efa::CSVSet &ClobberedRegisters,
                   const std::optional<int64_t> &MaybeFSO,
                   bool IsNoReturn,
                   bool IsTailCall,
@@ -394,11 +395,10 @@ public:
                         DebugLoc());
   }
 
-  void
-  handleIndirectJump(llvm::IRBuilder<> &Builder,
-                     MetaAddress Block,
-                     const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
-                     llvm::Value *SymbolNamePointer) final {
+  void handleIndirectJump(llvm::IRBuilder<> &Builder,
+                          MetaAddress Block,
+                          const efa::CSVSet &ClobberedRegisters,
+                          llvm::Value *SymbolNamePointer) final {
     revng_assert(SymbolNamePointer != nullptr);
     if (not isa<ConstantPointerNull>(SymbolNamePointer))
       handleCall(Builder, MetaAddress::invalid(), SymbolNamePointer);

@@ -2,10 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-command:
+commands:
   - type: revng.test-detect-abi
     from:
-      - type: revng-qa.compiled-stripped
+      - type: revng-qa.compiled-with-debug-info
         filter: for-detect-abi
     command: |-
       revng analyze

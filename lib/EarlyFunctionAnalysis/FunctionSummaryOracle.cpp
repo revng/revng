@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/GlobalVariable.h"
+
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
@@ -27,11 +29,10 @@ enum class PrototypeImportLevel {
 template<PrototypeImportLevel Level>
 struct PrototypeImporter {
   using Register = model::Register::Values;
-  using State = abi::RegisterState::Values;
 
 public:
   llvm::Module &M;
-  const std::set<llvm::GlobalVariable *> &ABICSVs;
+  const CSVSet &ABICSVs;
 
 public:
   FunctionSummary prototype(const AttributesSet &Attributes,
@@ -47,13 +48,10 @@ public:
     auto IgnoreNullptr = std::views::filter([](const auto *Pointer) -> bool {
       return Pointer != nullptr;
     });
-
-    auto Preserved = abi::FunctionType::calleeSavedRegisters(Prototype)
-                     | TransformToCSV | IgnoreNullptr
-                     | revng::to<std::set<llvm::GlobalVariable *>>();
-    std::erase_if(Summary.ClobberedRegisters, [&Preserved](const auto &E) {
-      return Preserved.contains(E);
-    });
+    for (auto *CSV : abi::FunctionType::calleeSavedRegisters(Prototype)
+                       | TransformToCSV | IgnoreNullptr) {
+      Summary.ClobberedRegisters.erase(CSV);
+    }
 
     // Stop importing prototype here, if `ClobberedRegisters` is the only
     // information callee needs.
@@ -67,8 +65,8 @@ public:
       return Summary;
 
     for (llvm::GlobalVariable *CSV : ABICSVs) {
-      Summary.ABIResults.ArgumentsRegisters[CSV] = State::No;
-      Summary.ABIResults.FinalReturnValuesRegisters[CSV] = State::No;
+      Summary.ABIResults.ArgumentsRegisters.erase(CSV);
+      Summary.ABIResults.ReturnValuesRegisters.erase(CSV);
     }
 
     auto [ArgumentRegisters,
@@ -76,13 +74,13 @@ public:
     for (Register ArgumentRegister : ArgumentRegisters) {
       llvm::StringRef Name = model::Register::getCSVName(ArgumentRegister);
       if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-        Summary.ABIResults.ArgumentsRegisters.at(CSV) = State::Yes;
+        Summary.ABIResults.ArgumentsRegisters.insert(CSV);
     }
 
     for (Register ReturnValueRegister : ReturnValueRegisters) {
       llvm::StringRef Name = model::Register::getCSVName(ReturnValueRegister);
       if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-        Summary.ABIResults.FinalReturnValuesRegisters.at(CSV) = State::Yes;
+        Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
     }
 
     // This point is only ever reached on the "full" import (like the one
@@ -96,7 +94,7 @@ FunctionSummaryOracle::getCallSite(MetaAddress Function,
                                    BasicBlockID CallerBlockAddress,
                                    MetaAddress CalledLocalFunction,
                                    llvm::StringRef CalledSymbol) const {
-  auto [Summary, IsTailCall] = getCallSiteImpl(Function, CallerBlockAddress);
+  auto [Summary, IsTailCall] = getExactCallSite(Function, CallerBlockAddress);
   if (Summary != nullptr) {
     return { Summary, IsTailCall };
   } else if (not CalledSymbol.empty()) {
@@ -181,11 +179,10 @@ FunctionSummaryOracle importImpl(llvm::Module &M,
   auto RegisterFilter = std::views::filter([SP = GCBI.spReg()](GV *CSV) {
     return CSV != nullptr && CSV != SP;
   });
-  PrototypeImporter<Level> Importer{
-    .M = M,
-    .ABICSVs = GCBI.abiRegisters() | RegisterFilter
-               | revng::to<std::set<llvm::GlobalVariable *>>()
-  };
+  PrototypeImporter<Level> Importer{ .M = M,
+                                     .ABICSVs = GCBI.abiRegisters()
+                                                | RegisterFilter
+                                                | revng::to<CSVSet>() };
 
   // Import the default prototype
   Oracle.setDefault(Importer.prototype({}, Binary.DefaultPrototype()));

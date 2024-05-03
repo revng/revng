@@ -360,9 +360,20 @@ private:
     case llvm::dwarf::DW_TAG_structure_type:
       createPlaceholderType<model::StructType>(Die);
       break;
-    case llvm::dwarf::DW_TAG_union_type:
+    case llvm::dwarf::DW_TAG_union_type: {
+      // Handle small empty unions, usually due to transparent unions
+      auto MaybeByteSize = Die.find(DW_AT_byte_size);
+      if (MaybeByteSize and not Die.hasChildren()) {
+        auto Size = *MaybeByteSize->getAsUnsignedConstant();
+        record(Die,
+               Model->getPrimitiveType(model::PrimitiveTypeKind::Generic, Size),
+               true);
+        return;
+      }
+
+      // Handle regular unions
       createPlaceholderType<model::UnionType>(Die);
-      break;
+    } break;
     case llvm::dwarf::DW_TAG_enumeration_type:
       createPlaceholderType<model::EnumType>(Die);
       break;
@@ -417,20 +428,22 @@ private:
     TypesWithIdentityCount = Placeholders.size();
   }
 
-  static std::string getName(const DWARFDie &Die) {
-    auto MaybeName = Die.find(DW_AT_name);
-
-    if (MaybeName) {
+  std::string getName(const DWARFDie &Die) const {
+    if (auto MaybeName = Die.find(DW_AT_name)) {
       auto MaybeString = MaybeName->getAsCString();
       if (auto E = MaybeString.takeError()) {
         auto Message = toString(std::move(E));
         revng_log(DILogger, "Can't get DIE name: " << Message);
+        return {};
       } else {
         return *MaybeString;
       }
+    } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
+      DWARFDie Origin = DICtx.getDIEForOffset(*MaybeOrigin->getAsReference());
+      return getName(Origin);
+    } else {
+      return {};
     }
-
-    return {};
   }
 
   static bool isNoReturn(DWARFUnit &CU, const DWARFDie &Die) {
@@ -881,6 +894,7 @@ private:
   }
 
   void createFunctions() {
+    revng_log(DILogger, "Creating functions");
     for (const auto &CU : DICtx.compile_units()) {
       for (const auto &Entry : CU->dies()) {
         DWARFDie Die = { CU.get(), &Entry };
@@ -900,11 +914,20 @@ private:
         }
 
         if (LowPC.isValid()) {
+          revng_log(DILogger,
+                    "Found a subprogram with LowPC "
+                      << LowPC.toString() << " and name \"" << SymbolName
+                      << "\"");
+
           // Get/create the local function
           auto &Function = Model->Functions()[LowPC];
 
-          if (MaybePath && not Function.Prototype().isValid())
-            Function.Prototype() = *MaybePath;
+          if (MaybePath) {
+            if (not Function.Prototype().isValid())
+              Function.Prototype() = *MaybePath;
+          } else {
+            revng_log(DILogger, "Can't get the prototype");
+          }
 
           if (SymbolName.size() != 0) {
             Function.ExportedNames().insert(SymbolName);
@@ -1155,9 +1178,9 @@ static bool fileExists(const Twine &Path) {
   bool Result = sys::fs::exists(Path);
 
   if (Result) {
-    revng_log(DILogger, "The following path does not exist: " << Path.str());
-  } else {
     revng_log(DILogger, "Found: " << Path.str());
+  } else {
+    revng_log(DILogger, "The following path does not exist: " << Path.str());
   }
 
   return Result;
@@ -1322,6 +1345,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
+      revng_log(DILogger, "Importing " << TheDebugFile.str());
       T.advance("Parsing detached debug info file "
                   + llvm::sys::path::filename(TheDebugFile),
                 true);

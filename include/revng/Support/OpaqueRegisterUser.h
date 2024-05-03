@@ -15,12 +15,13 @@ class OpaqueRegisterUser {
 private:
   llvm::Module *M;
   OpaqueFunctionsPool<std::string> Clobberers;
+  OpaqueFunctionsPool<std::string> Writers;
   OpaqueFunctionsPool<std::string> Readers;
   llvm::SmallVector<llvm::Instruction *, 16> Created;
 
 public:
   OpaqueRegisterUser(llvm::Module *M) :
-    M(M), Clobberers(M, false), Readers(M, false) {
+    M(M), Clobberers(M, false), Writers(M, false), Readers(M, false) {
     using namespace llvm;
 
     Clobberers.setMemoryEffects(MemoryEffects::readOnly());
@@ -28,6 +29,12 @@ public:
     Clobberers.addFnAttribute(Attribute::WillReturn);
     Clobberers.setTags({ &FunctionTags::ClobbererFunction });
     Clobberers.initializeFromName(FunctionTags::ClobbererFunction);
+
+    Writers.setMemoryEffects(MemoryEffects::readOnly());
+    Writers.addFnAttribute(Attribute::NoUnwind);
+    Writers.addFnAttribute(Attribute::WillReturn);
+    Writers.setTags({ &FunctionTags::WriterFunction });
+    Writers.initializeFromName(FunctionTags::WriterFunction);
 
     Readers.setMemoryEffects(MemoryEffects::inaccessibleMemOnly());
     Readers.addFnAttribute(Attribute::NoUnwind);
@@ -39,23 +46,26 @@ public:
 public:
   llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
                            llvm::GlobalVariable *CSV) {
-    auto *CSVTy = CSV->getValueType();
-    std::string Name = "clobber_" + CSV->getName().str();
-    llvm::Function *Clobberer = Clobberers.get(Name, CSVTy, {}, Name);
-
-    auto *OpaqueCall = Builder.CreateCall(Clobberer);
-    auto *Store = Builder.CreateStore(OpaqueCall, CSV);
-
-    Created.push_back(Store);
-    Created.push_back(OpaqueCall);
-
-    return Store;
+    return writeImpl(Builder, CSV, "clobber_", Clobberers);
   }
 
   llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
                            model::Register::Values Value) {
     if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
       return clobber(Builder, CSV);
+    else
+      return nullptr;
+  }
+
+  llvm::StoreInst *write(llvm::IRBuilder<> &Builder,
+                         llvm::GlobalVariable *CSV) {
+    return writeImpl(Builder, CSV, "write_", Writers);
+  }
+
+  llvm::StoreInst *write(llvm::IRBuilder<> &Builder,
+                         model::Register::Values Value) {
+    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
+      return write(Builder, CSV);
     else
       return nullptr;
   }
@@ -90,5 +100,23 @@ public:
     for (llvm::Instruction *I : Created)
       I->eraseFromParent();
     Created.clear();
+  }
+
+private:
+  llvm::StoreInst *writeImpl(llvm::IRBuilder<> &Builder,
+                             llvm::GlobalVariable *CSV,
+                             llvm::StringRef Prefix,
+                             OpaqueFunctionsPool<std::string> &Pool) {
+    auto *CSVTy = CSV->getValueType();
+    std::string Name = Prefix.str() + CSV->getName().str();
+    llvm::Function *Writer = Pool.get(Name, CSVTy, {}, Name);
+
+    auto *OpaqueCall = Builder.CreateCall(Writer);
+    auto *Store = Builder.CreateStore(OpaqueCall, CSV);
+
+    Created.push_back(Store);
+    Created.push_back(OpaqueCall);
+
+    return Store;
   }
 };

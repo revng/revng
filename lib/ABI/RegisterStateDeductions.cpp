@@ -1,4 +1,4 @@
-/// \file ApplyRegisterStateDeductions.cpp
+/// \file RegisterStateDeductions.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -14,41 +14,20 @@
 
 static Logger Log("abi-register-state-deduction");
 
-using State = abi::RegisterState::Values;
-using StateMap = abi::RegisterState::Map;
-using StatePair = StateMap::StatePair;
-using AccessorType = State &(StatePair &);
-using CAccessorType = const State &(const StatePair &);
-
-static State &accessArgument(StatePair &Input) {
-  return Input.IsUsedForPassingArguments;
-}
-static State &accessReturnValue(StatePair &Input) {
-  return Input.IsUsedForReturningValues;
-}
-
-static const State &accessCArgument(const StatePair &Input) {
-  return Input.IsUsedForPassingArguments;
-}
-static const State &accessCReturnValue(const StatePair &Input) {
-  return Input.IsUsedForReturningValues;
-}
-
-using CRegister = const model::Register::Values;
-
 /// Finds last relevant (`Yes` or `Dead`) register out of the provided list.
 ///
 /// Returns `0` if no registers from the list were mentioned.
-template<CAccessorType Accessor>
-size_t findLastUsedIndex(llvm::ArrayRef<model::Register::Values> Registers,
-                         const StateMap &State) {
-  namespace RS = abi::RegisterState;
+static size_t
+findLastUsedIndex(llvm::ArrayRef<model::Register::Values> Registers,
+                  const abi::Definition::RegisterSet &State) {
   for (size_t Index = Registers.size(); Index != 0; --Index)
-    if (RS::isYesOrDead(Accessor(State.at(Registers[Index - 1]))))
+    if (State.contains(Registers[Index - 1]))
       return Index;
 
   return 0;
 }
+
+using Def = abi::Definition;
 
 template<bool EnforceABIConformance>
 struct DeductionImpl {
@@ -57,94 +36,66 @@ struct DeductionImpl {
   explicit DeductionImpl(const abi::Definition &ABI) :
     ABI(ABI), ABIName(model::ABI::getName(ABI.ABI())) {}
 
-  std::optional<StateMap> run(const StateMap &InputState) {
-    if (ABI.ArgumentsArePositionBased())
-      return runForPositionBasedABIs(InputState);
-    else
-      return runForNonPositionBasedABIs(InputState);
+  std::optional<Def::RegisterSet> arguments(Def::RegisterSet Arguments) {
+    if (!ensureRegistersAreAllowed(Arguments, allowedArgumentRegisters()))
+      return std::nullopt;
+
+    if (ABI.ArgumentsArePositionBased()) {
+      if (deducePositionBasedArguments(Arguments))
+        return std::move(Arguments);
+
+    } else {
+      if (deduceNonPositionBasedArguments(Arguments))
+        return std::move(Arguments);
+    }
+
+    return std::nullopt;
+  }
+
+  std::optional<Def::RegisterSet> returnValues(Def::RegisterSet ReturnValues) {
+    if (!ensureRegistersAreAllowed(ReturnValues, allowedReturnValueRegisters()))
+      return std::nullopt;
+
+    if (deduceReturnValues(ReturnValues))
+      return std::move(ReturnValues);
+
+    return std::nullopt;
   }
 
 private:
-  std::optional<StateMap> runForPositionBasedABIs(const StateMap &State) {
-    // Copy the state to serve as a return value.
-    StateMap Result = State;
-
-    if (!runForPositionBasedArguments(Result))
-      return std::nullopt;
-
-    if (!runForPositionBasedReturnValues(Result))
-      return std::nullopt;
-
-    // Check whether the input state is valid and set all the registers still
-    // remaining as "unknown" to `No`.
-    for (auto [Register, RegisterState] : Result) {
-      if (auto &A = accessArgument(RegisterState))
-        revng_assert(A != abi::RegisterState::Invalid);
-      else
-        A = abi::RegisterState::No;
-
-      if (auto &RV = accessReturnValue(RegisterState))
-        revng_assert(RV != abi::RegisterState::Invalid);
-      else
-        RV = abi::RegisterState::No;
-    }
-
-    if (!checkPositionBasedABIConformance(Result))
-      return std::nullopt;
-
-    return Result;
+  using CRegister = const model::Register::Values;
+  auto allowedArgumentRegisters() const {
+    return llvm::concat<CRegister>(ABI.GeneralPurposeArgumentRegisters(),
+                                   ABI.VectorArgumentRegisters());
+  }
+  auto allowedReturnValueRegisters() const {
+    return llvm::concat<CRegister>(ABI.GeneralPurposeReturnValueRegisters(),
+                                   ABI.VectorReturnValueRegisters());
   }
 
-  bool checkPositionBasedABIConformance(StateMap &State) {
-    llvm::ArrayRef GPAR = ABI.GeneralPurposeArgumentRegisters();
-    llvm::ArrayRef VAR = ABI.VectorArgumentRegisters();
-    llvm::ArrayRef GPRV = ABI.GeneralPurposeReturnValueRegisters();
-    llvm::ArrayRef VRVR = ABI.VectorReturnValueRegisters();
+  template<range_with_value_type<CRegister> Registers>
+  bool ensureRegistersAreAllowed(Def::RegisterSet &UsedSet,
+                                 Registers &&AllowedRegisters) const {
+    if constexpr (EnforceABIConformance == true) {
+      size_t CountBefore = UsedSet.size();
+      std::erase_if(UsedSet, [&](model::Register::Values Register) {
+        return !llvm::is_contained(AllowedRegisters, Register);
+      });
+      if (size_t RemovedCount = UsedSet.size() != CountBefore)
+        revng_log(Log,
+                  "Removing " << RemovedCount
+                              << " registers from the set, as ABI doesn't "
+                                 "allow them to be used.");
 
-    auto AllowedArgumentRegisters = llvm::concat<CRegister>(GPAR, VAR);
-    auto AllowedReturnValueRegisters = llvm::concat<CRegister>(GPRV, VRVR);
-    for (auto [Register, RegisterState] : State) {
-      auto &[UsedForPassingArguments, UsedForReturningValues] = RegisterState;
-
-      revng_assert(UsedForPassingArguments != abi::RegisterState::Invalid);
-      if (abi::RegisterState::isYesOrDead(UsedForPassingArguments)) {
-        if (!llvm::is_contained(AllowedArgumentRegisters, Register)) {
-          if constexpr (EnforceABIConformance == true) {
-            revng_log(Log,
-                      "Enforcing `model::Register::"
-                        << model::Register::getName(Register).data()
-                        << "` to `No` as `" << ABIName
-                        << "` ABI doesn't allow it to be used.");
-            UsedForPassingArguments = abi::RegisterState::No;
-          } else {
-            revng_log(Log,
-                      "Aborting, `model::Register::"
-                        << model::Register::getName(Register).data()
-                        << "` register is used despite not being allowed by `"
-                        << ABIName << "` ABI.");
-            return false;
-          }
-        }
-      }
-
-      revng_assert(UsedForReturningValues != abi::RegisterState::Invalid);
-      if (abi::RegisterState::isYesOrDead(UsedForReturningValues)) {
-        if (!llvm::is_contained(AllowedReturnValueRegisters, Register)) {
-          if constexpr (EnforceABIConformance == true) {
-            revng_log(Log,
-                      "Enforcing `model::Register::"
-                        << model::Register::getName(Register).data()
-                        << "` to `No` as `" << ABIName
-                        << "` ABI doesn't allow it to be used.");
-            UsedForReturningValues = abi::RegisterState::No;
-          } else {
-            revng_log(Log,
-                      "Aborting, `model::Register::"
-                        << model::Register::getName(Register).data()
-                        << "` register is used despite not being allowed by `"
-                        << ABIName << "` ABI.");
-            return false;
-          }
+    } else {
+      for (model::Register::Values Register : UsedSet) {
+        if (!llvm::is_contained(AllowedRegisters, Register)) {
+          revng_log(Log,
+                    "Aborting, `model::Register::"
+                      << model::Register::getName(Register).data()
+                      << "` register is used despite not being allowed by `"
+                      << ABIName << "` ABI.");
+          return false;
         }
       }
     }
@@ -152,179 +103,47 @@ private:
     return true;
   }
 
-  template<AccessorType Accessor>
-  void offsetPositionBasedArgument(model::Register::Values Register,
-                                   bool &IsRequired,
-                                   StateMap &State) {
-    auto &Accessed = Accessor(State[Register]);
-    if (Accessed == abi::RegisterState::Invalid)
-      Accessed = abi::RegisterState::Maybe;
-
-    if (IsRequired == true) {
-      if (abi::RegisterState::isYesOrDead(Accessed)) {
-        // Nothing to do, it's already set.
-      } else {
-        // Set it.
-        Accessed = abi::RegisterState::YesOrDead;
-      }
-    } else {
-      if (abi::RegisterState::isYesOrDead(Accessed)) {
-        // Make all the subsequent registers required.
-        IsRequired = true;
-      } else {
-        // Nothing to do, it doesn't have to be set.
-      }
-    }
-  }
-
-  bool runForPositionBasedArguments(StateMap &State) {
+  bool deducePositionBasedArguments(Def::RegisterSet &State) {
     llvm::ArrayRef GPAR = ABI.GeneralPurposeArgumentRegisters();
     llvm::ArrayRef VAR = ABI.VectorArgumentRegisters();
 
     bool IsRequired = false;
     if (GPAR.size() > VAR.size()) {
-      for (auto Register : llvm::reverse(GPAR.drop_front(VAR.size())))
-        offsetPositionBasedArgument<accessArgument>(Register,
-                                                    IsRequired,
-                                                    State);
+      for (auto Register : llvm::reverse(GPAR.drop_front(VAR.size()))) {
+        if (State.contains(Register))
+          IsRequired = true;
+        else if (IsRequired)
+          State.emplace(Register);
+      }
       GPAR = GPAR.take_front(VAR.size());
     } else if (VAR.size() > GPAR.size()) {
-      for (auto Register : llvm::reverse(VAR.drop_front(GPAR.size())))
-        offsetPositionBasedArgument<accessArgument>(Register,
-                                                    IsRequired,
-                                                    State);
+      for (auto Register : llvm::reverse(VAR.drop_front(GPAR.size()))) {
+        if (State.contains(Register))
+          IsRequired = true;
+        else if (IsRequired)
+          State.emplace(Register);
+      }
       VAR = VAR.take_front(GPAR.size());
     }
 
     auto ArgumentRange = llvm::zip(llvm::reverse(GPAR), llvm::reverse(VAR));
-    for (auto [GPRegister, VRegister] : ArgumentRange) {
-      if (auto D = singlePositionBasedDeduction<accessCArgument>(GPRegister,
-                                                                 VRegister,
-                                                                 IsRequired,
-                                                                 State)) {
-        accessArgument(State[GPRegister]) = D->GPR;
-        accessArgument(State[VRegister]) = D->VR;
-      } else {
+    for (auto [GPR, VR] : ArgumentRange)
+      if (!singlePositionBasedDeduction(GPR, VR, State, IsRequired))
         return false;
-      }
-    }
 
     return true;
   }
 
-  bool runForPositionBasedReturnValues(StateMap &State) {
-    llvm::ArrayRef GPRV = ABI.GeneralPurposeReturnValueRegisters();
-    llvm::ArrayRef VRVR = ABI.VectorReturnValueRegisters();
-
-    size_t GPRVCount = findLastUsedIndex<accessCReturnValue>(GPRV, State);
-    auto UsedGPRV = llvm::ArrayRef(GPRV).take_front(GPRVCount);
-    size_t VRVRCount = findLastUsedIndex<accessCReturnValue>(VRVR, State);
-    auto UsedVRVR = llvm::ArrayRef(VRVR).take_front(VRVRCount);
-
-    auto AllowedRetValRegisters = llvm::concat<CRegister>(GPRV, VRVR);
-    auto UsedRetValRegisters = llvm::concat<CRegister>(UsedGPRV, UsedVRVR);
-
-    // Even for position based ABIs, return values have behaviour patterns
-    // similar to non-position based ones, so the initial deduction step is
-    // to run the non-position based deduction.
-    for (auto [Register, RegisterState] : State) {
-      auto &RVState = accessReturnValue(RegisterState);
-      bool IsRVAllowed = llvm::is_contained(AllowedRetValRegisters, Register);
-      bool IsRVRequired = llvm::is_contained(UsedRetValRegisters, Register);
-      auto Deduced = singleNonPositionBasedDeduction(RVState,
-                                                     IsRVAllowed,
-                                                     IsRVRequired,
-                                                     Register);
-      if (Deduced == abi::RegisterState::Invalid)
-        return false;
-      else
-        RVState = Deduced;
-    }
-
-    // Then we make sure that only either GPRs or VRs are used, never both.
-    bool Dummy = false;
-    if (auto D = singlePositionBasedDeduction<accessCReturnValue>(GPRV.front(),
-                                                                  VRVR.front(),
-                                                                  Dummy,
-                                                                  State)) {
-      if (abi::RegisterState::isYesOrDead(D->GPR)) {
-        if (abi::RegisterState::isYesOrDead(D->VR)) {
-          revng_log(Log,
-                    "Impossible to differentiate whether the return value is "
-                    "passed in a general purpose register or in vector ones. "
-                    "The ABI is "
-                      << ABIName << ".");
-          return false;
-        } else {
-          // The return value is in GPRs, mark all the vector register as `No`.
-          for (auto Register : VRVR)
-            accessReturnValue(State[Register]) = abi::RegisterState::No;
-        }
-      } else {
-        if (abi::RegisterState::isYesOrDead(D->VR)) {
-          // The return value is in vector registers, mark all the GPRs as `No`.
-          for (auto Register : GPRV)
-            accessReturnValue(State[Register]) = abi::RegisterState::No;
-        } else {
-          // No return value (???)
-          // Since there's no way to confirm, do nothing.
-        }
-      }
-    } else {
-      return false;
-    }
-
-    return true;
-  }
-
-  struct PositionBasedDeductionResult {
-    abi::RegisterState::Values GPR;
-    abi::RegisterState::Values VR;
-  };
-  template<CAccessorType Accessor>
-  std::optional<PositionBasedDeductionResult>
-  singlePositionBasedDeduction(model::Register::Values GPRegister,
-                               model::Register::Values VRegister,
-                               bool &IsRequired,
-                               const StateMap &State) {
-    PositionBasedDeductionResult Result;
-
-    Result.GPR = Accessor(State[GPRegister]);
-    bool IsGPInvalid = Result.GPR == abi::RegisterState::Invalid ?
-                         Result.GPR = abi::RegisterState::Maybe :
-                         false;
-
-    Result.VR = Accessor(State[VRegister]);
-    bool IsVRInvalid = Result.VR == abi::RegisterState::Invalid ?
-                         Result.VR = abi::RegisterState::Maybe :
-                         false;
-
-    // If only one register of the pair is specified, consider it to be
-    // the dominant one.
-    if (IsGPInvalid != IsVRInvalid) {
-      if (IsVRInvalid) {
-        if (IsRequired) {
-          if (!abi::RegisterState::isYesOrDead(Result.GPR))
-            Result.GPR = abi::RegisterState::YesOrDead;
-          Result.VR = abi::RegisterState::No;
-        }
-      } else if (IsGPInvalid) {
-        if (IsRequired) {
-          if (!abi::RegisterState::isYesOrDead(Result.VR))
-            Result.VR = abi::RegisterState::YesOrDead;
-          Result.GPR = abi::RegisterState::No;
-        }
-      }
-    }
-
-    // Do the deduction
-    if (abi::RegisterState::isYesOrDead(Result.GPR)) {
-      if (abi::RegisterState::isYesOrDead(Result.VR)) {
+  bool singlePositionBasedDeduction(model::Register::Values GPRegister,
+                                    model::Register::Values VRegister,
+                                    Def::RegisterSet &State,
+                                    bool &IsRequired) {
+    if (State.contains(GPRegister)) {
+      if (State.contains(VRegister)) {
         // Both are set - there's no way to tell which one is actually used.
         if constexpr (EnforceABIConformance == true) {
           // Pick one arbitrarily because most likely both of them are `Dead`.
-          Result.GPR = abi::RegisterState::YesOrDead;
-          Result.VR = abi::RegisterState::No;
+          State.erase(VRegister);
         } else {
           // Report the problem and abort.
           revng_log(Log,
@@ -335,25 +154,22 @@ private:
                       << model::Register::getName(VRegister).data()
                       << "`) should be used: both are `YesOrDead`. The ABI is "
                       << ABIName << ".");
-          return std::nullopt;
+          return false;
         }
       } else {
-        // Only GPR is set, ensure VR is marked as `No`.
-        Result.VR = abi::RegisterState::No;
+        // Only general purpose one is set: we're happy.
         IsRequired = true;
       }
     } else {
-      if (abi::RegisterState::isYesOrDead(Result.VR)) {
-        // Only VR is set, ensure GPR is marked as `No`.
-        Result.GPR = abi::RegisterState::No;
+      if (State.contains(VRegister)) {
+        // Only vector one is set: we're happy.
         IsRequired = true;
       } else {
-        // Neither one is used.
+        // Neither one is set.
         if (IsRequired) {
           if constexpr (EnforceABIConformance == true) {
             // Pick one arbitrarily because most likely both of them are `Dead`.
-            Result.GPR = abi::RegisterState::YesOrDead;
-            Result.VR = abi::RegisterState::No;
+            State.emplace(GPRegister);
           } else {
             // Report the problem and abort.
             revng_log(Log,
@@ -364,181 +180,92 @@ private:
                         << model::Register::getName(VRegister).data()
                         << "`) should be used: neither is `YesOrDead`. "
                         << "The ABI is " << ABIName << ".");
-            return std::nullopt;
+            return false;
           }
         }
       }
     }
 
-    return Result;
+    return true;
   }
 
-  std::optional<StateMap> runForNonPositionBasedABIs(const StateMap &State) {
-    if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
-      // There's a possibility for more in-depth deductions taking the register
-      // alignment into consideration.
-      // TODO: Investigate this further.
-    }
-
-    // Separate all the registers before the "last used one" into separate
-    // sub-ranges.
-
-    auto &GPAR = ABI.GeneralPurposeArgumentRegisters();
-    size_t GPARCount = findLastUsedIndex<accessCArgument>(GPAR, State);
-    auto UsedGPAR = llvm::ArrayRef(GPAR).take_front(GPARCount);
-
-    auto &VAR = ABI.VectorArgumentRegisters();
-    size_t VARCount = findLastUsedIndex<accessCArgument>(VAR, State);
-    auto UsedVAR = llvm::ArrayRef(VAR).take_front(VARCount);
-
-    auto &GPRVR = ABI.GeneralPurposeReturnValueRegisters();
-    size_t GPRVRCount = findLastUsedIndex<accessCReturnValue>(GPRVR, State);
-    auto UsedGPRVR = llvm::ArrayRef(GPRVR).take_front(GPRVRCount);
-
-    auto &VRVR = ABI.VectorReturnValueRegisters();
-    size_t VRVRCount = findLastUsedIndex<accessCReturnValue>(VRVR, State);
-    auto UsedVRVR = llvm::ArrayRef(VRVR).take_front(VRVRCount);
-
-    // Merge sub-ranges together to get the final register sets.
-    auto AllowedArgRegisters = llvm::concat<CRegister>(GPAR, VAR);
-    auto AllowedRetValRegisters = llvm::concat<CRegister>(GPRVR, VRVR);
-    auto UsedArgRegisters = llvm::concat<CRegister>(UsedGPAR, UsedVAR);
-    auto UsedRetValRegisters = llvm::concat<CRegister>(UsedGPRVR, UsedVRVR);
-
-    // Copy the state to serve as a return value.
-    StateMap Result = State;
-
-    // Try and apply deductions for each register. Abort if any of them fails.
-    for (auto [Register, RegisterState] : Result) {
-      auto &Argument = accessArgument(RegisterState);
-      bool IsArgAllowed = llvm::is_contained(AllowedArgRegisters, Register);
-      bool IsArgRequired = llvm::is_contained(UsedArgRegisters, Register);
-      auto DeducedArgument = singleNonPositionBasedDeduction(Argument,
-                                                             IsArgAllowed,
-                                                             IsArgRequired,
-                                                             Register);
-      if (DeducedArgument == abi::RegisterState::Invalid)
-        return std::nullopt;
-      else
-        Argument = DeducedArgument;
-
-      auto &ReturnValue = accessReturnValue(RegisterState);
-      bool IsRVAllowed = llvm::is_contained(AllowedRetValRegisters, Register);
-      bool IsRVRequired = llvm::is_contained(UsedRetValRegisters, Register);
-      auto DeducedReturnValue = singleNonPositionBasedDeduction(ReturnValue,
-                                                                IsRVAllowed,
-                                                                IsRVRequired,
-                                                                Register);
-      if (DeducedReturnValue == abi::RegisterState::Invalid)
-        return std::nullopt;
-      else
-        ReturnValue = DeducedReturnValue;
-    }
-
-    return Result;
+  template<range_with_value_type<CRegister> Registers>
+  void fillState(Def::RegisterSet &State, Registers RequiredRegisters) {
+    for (model::Register::Values Register : RequiredRegisters)
+      State.emplace(Register);
   }
 
-  abi::RegisterState::Values
-  singleNonPositionBasedDeduction(const abi::RegisterState::Values &Input,
-                                  bool IsAllowed,
-                                  bool IsRequired,
-                                  model::Register::Values Register) {
-    auto Result = Input; // Copy the input to serve as a return value.
+  bool deduceNonPositionBasedArguments(Def::RegisterSet &State) {
+    llvm::ArrayRef GPs = ABI.GeneralPurposeArgumentRegisters();
+    llvm::ArrayRef RequiredGPRs = GPs.take_front(findLastUsedIndex(GPs, State));
+    llvm::ArrayRef VRs = ABI.VectorArgumentRegisters();
+    llvm::ArrayRef RequiredVRs = VRs.take_front(findLastUsedIndex(VRs, State));
 
-    // Normalize the state.
-    if (Result == abi::RegisterState::Invalid)
-      Result = abi::RegisterState::Maybe;
+    fillState(State, llvm::concat<CRegister>(RequiredGPRs, RequiredVRs));
 
-    // Fail if the register is not allowed.
-    if (!IsAllowed) {
-      if constexpr (EnforceABIConformance == true) {
-        revng_log(Log,
-                  "Enforcing `model::Register::"
-                    << model::Register::getName(Register).data()
-                    << "` to `No` as `" << ABIName
-                    << "` ABI doesn't allow it to be used.");
-        return abi::RegisterState::No;
-      } else {
-        using namespace abi::RegisterState;
-        if (Result != Maybe && Result != No && Result != NoOrDead) {
-          revng_log(Log,
-                    "Aborting, `model::Register::"
-                      << model::Register::getName(Register).data()
-                      << "` register is used despite not being allowed by `"
-                      << ABIName << "` ABI.");
-          return abi::RegisterState::Invalid;
-        } else {
-          return abi::RegisterState::No;
-        }
-      }
-    }
+    return true;
+  }
 
-    if (abi::RegisterState::isYesOrDead(Result)) {
-      // If a usable register is set, it's required by definition.
-      revng_assert(IsRequired,
-                   "Encountered an impossible state: the data structure is "
-                   "probably corrupted.");
+  bool deduceReturnValues(Def::RegisterSet &State) {
+    llvm::ArrayRef GPs = ABI.GeneralPurposeReturnValueRegisters();
+    llvm::ArrayRef RequiredGPRs = GPs.take_front(findLastUsedIndex(GPs, State));
+    llvm::ArrayRef VRs = ABI.VectorReturnValueRegisters();
+    llvm::ArrayRef RequiredVRs = VRs.take_front(findLastUsedIndex(VRs, State));
 
-      // The current state looks good, preserve it.
-      return Result;
-    } else {
-      if (IsRequired) {
-        if (Result == abi::RegisterState::NoOrDead) {
-          // The register is required so it must not be marked as `No`.
-          // As such `Dead` is the only option left.
-          return abi::RegisterState::Dead;
-        }
-
-        if (Result == abi::RegisterState::Maybe) {
-          // There's no information about the register.
-          // Return the most generic acceptable option.
-          return abi::RegisterState::YesOrDead;
-        }
-
+    if (!RequiredGPRs.empty()) {
+      if (!RequiredVRs.empty()) {
         if constexpr (EnforceABIConformance == true) {
-          // The states are incompatible.
-          // Overwrite the result with the most generic acceptable option.
-          return abi::RegisterState::YesOrDead;
+          // Even though we shouldn't let both through, we have no way
+          // to differentiate between the two. So just keep them as is.
         } else {
-          // Abort if the required register is marked as contradiction.
-          if (Result == abi::RegisterState::Contradiction) {
-            revng_log(Log,
-                      "Aborting, `model::Register::"
-                        << model::Register::getName(Register).data()
-                        << "` is set to `Contradiction`.");
-            return abi::RegisterState::Invalid;
-          }
-
-          // Abort if the required register is marked as `No`.
-          if (Result == abi::RegisterState::No) {
-            revng_log(Log,
-                      "Aborting, `model::Register::"
-                        << model::Register::getName(Register).data()
-                        << "` is set to `No` despite being required.");
-            return abi::RegisterState::Invalid;
-          }
+          revng_log(Log,
+                    "Impossible to differentiate whether the return value uses "
+                    "general purpose registers or in vector ones: it cannot be "
+                    "both. The ABI is "
+                      << ABIName << ".");
+          return false;
         }
       } else {
-        // The current state looks good, preserve it.
-        return Result;
+        // Only general purpose registers are used: we're happy.
+        fillState(State, RequiredGPRs);
+      }
+    } else {
+      if (!RequiredVRs.empty()) {
+        // Only vector registers are used: we're happy.
+        fillState(State, RequiredVRs);
+      } else {
+        // No return value (???)
+        // Since there's no way to confirm, do nothing.
       }
     }
 
-    // Abort in case of unusual circumstances, like a new state enumerator.
-    revng_assert("This point should never be reached.");
-    return abi::RegisterState::Invalid;
+    return true;
   }
 };
 
-using Def = abi::Definition;
-std::optional<abi::RegisterState::Map>
-Def::tryDeducingRegisterState(const abi::RegisterState::Map &State) const {
-  return DeductionImpl<false>(*this).run(State);
+using SoftDeduction = DeductionImpl<false>;
+using StrictDeduction = DeductionImpl<true>;
+
+std::optional<abi::Definition::RegisterSet>
+Def::tryDeducingArgumentRegisterState(RegisterSet &&Arguments) const {
+  return SoftDeduction(*this).arguments(std::move(Arguments));
 }
 
-abi::RegisterState::Map
-Def::enforceRegisterState(const abi::RegisterState::Map &State) const {
-  auto Result = DeductionImpl<true>(*this).run(State);
+std::optional<abi::Definition::RegisterSet>
+Def::tryDeducingReturnValueRegisterState(RegisterSet &&ReturnValues) const {
+  return SoftDeduction(*this).returnValues(std::move(ReturnValues));
+}
+
+abi::Definition::RegisterSet
+Def::enforceArgumentRegisterState(RegisterSet &&Arguments) const {
+  auto Result = StrictDeduction(*this).arguments(std::move(Arguments));
+  revng_assert(Result != std::nullopt);
+  return Result.value();
+}
+
+abi::Definition::RegisterSet
+Def::enforceReturnValueRegisterState(RegisterSet &&ReturnValues) const {
+  auto Result = StrictDeduction(*this).returnValues(std::move(ReturnValues));
   revng_assert(Result != std::nullopt);
   return Result.value();
 }

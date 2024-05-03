@@ -128,7 +128,7 @@ public:
       for (const auto &S : N.Successors)
         Map[KOC::key(N.Node)]->addSuccessor(Map[S.Neighbor], S.Label);
 
-    if constexpr (GenericGraph<NodeType>::hasEntryNode) {
+    if constexpr (GenericGraph<GenericGraphNodeType>::hasEntryNode) {
       Ret.setEntryNode(Map[EntryNode]);
     }
 
@@ -164,7 +164,7 @@ toSerializable(const G &Graph) {
       Inserter.insert({ KOC::key(*J.Neighbor), J });
   }
 
-  if constexpr (GenericGraph<Node>::hasEntryNode) {
+  if constexpr (GenericGraph<typename G::Node>::hasEntryNode) {
     if (Graph.getEntryNode() != nullptr)
       Result.EntryNode = KOC::key(*Graph.getEntryNode());
   }

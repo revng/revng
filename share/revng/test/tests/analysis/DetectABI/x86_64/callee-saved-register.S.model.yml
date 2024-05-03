@@ -1,0 +1,15 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - OriginalName: function
+    Prototype: "/Types/1814-RawFunctionType"
+Types:
+  - ID: 1814
+    Kind: RawFunctionType
+    $Arguments: []
+    $ReturnValues: []
+    PreservedRegisters:
+      - rbp_x86_64
