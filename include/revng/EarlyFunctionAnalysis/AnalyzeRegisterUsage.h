@@ -19,7 +19,7 @@
 namespace efa {
 
 // TODO: switch to model::Register?
-using CSVSet = llvm::SmallPtrSet<llvm::GlobalVariable *, 16>;
+using CSVSet = std::set<llvm::GlobalVariable *>;
 
 class RUAResults {
 public:
