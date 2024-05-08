@@ -12,6 +12,7 @@
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng-c/mlir/Dialect/Clift/Transforms/Passes.h"
 #include "revng-c/mlir/Dialect/Clift/Utils/ImportModel.h"
+#include "revng-c/mlir/Dialect/Clift/Utils/ImportReachableModelTypes.h"
 
 namespace mlir {
 namespace clift {
@@ -43,7 +44,10 @@ static void importAllModelTypes(mlir::ModuleOp Module,
 using clift::impl::CliftImportModelTypesBase;
 struct ImportModelTypesPass : CliftImportModelTypesBase<ImportModelTypesPass> {
   void runOnOperation() override {
-    importAllModelTypes(getOperation(), *Model);
+    if (ImportAll)
+      importAllModelTypes(getOperation(), *Model);
+    else
+      clift::importReachableModelTypes(getOperation(), *Model);
   };
 };
 

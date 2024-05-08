@@ -13,6 +13,7 @@ def CliftImportModelTypes : Pass<"import-model-types", "mlir::ModuleOp"> {
   let dependentDialects = ["clift::CliftDialect"];
 
   let options = [
+    Option<"ImportAll", "import-all", "bool", /*default=*/"false", "Import all model types">,
     Option<"Model", "model", "mlir::clift::ModelOptionType", /*default=*/"nullptr", "Model path">
   ];
 }
