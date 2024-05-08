@@ -30,8 +30,7 @@ static bool isPreferredAsFallThrough(FallThroughScopeType Element) {
   switch (Element) {
   case FallThroughScopeType::Return:
   case FallThroughScopeType::Continue:
-  case FallThroughScopeType::LoopBreak:
-  case FallThroughScopeType::SwitchBreak: {
+  case FallThroughScopeType::LoopBreak: {
     return true;
   } break;
   case FallThroughScopeType::FallThrough:

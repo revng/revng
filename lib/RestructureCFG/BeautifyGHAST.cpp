@@ -28,12 +28,12 @@
 #include "FallThroughScopeAnalysis.h"
 #include "InlineDispatcherSwitch.h"
 #include "PromoteCallNoReturn.h"
+#include "RemoveDeadCode.h"
 #include "SimplifyCompareNode.h"
 #include "SimplifyDualSwitch.h"
 #include "SimplifyHybridNot.h"
 #include "SimplifyImplicitStatement.h"
 
-using std::make_unique;
 using std::unique_ptr;
 
 using namespace llvm;
@@ -1017,23 +1017,26 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // Perform the `SwitchBreak` simplification
   revng_log(BeautifyLogger, "Performing SwitchBreak simplification");
-  RootNode = simplifySwitchBreak(CombedAST, RootNode);
+  RootNode = simplifySwitchBreak(CombedAST);
   Dumper.log("After-switchbreak-simplify");
 
   // Perform the dispatcher `switch` inlining
   revng_log(BeautifyLogger, "Performing dispatcher switch inlining\n");
-  RootNode = inlineDispatcherSwitch(CombedAST, RootNode);
+  RootNode = inlineDispatcherSwitch(CombedAST);
   Dumper.log("after-dispatcher-switch-inlining");
+
+  // Perform the dead code simplification.
+  // We invoke this pass here because the dispatcher case inlining may have
+  // moved around some non local control flow statements like `return`, in such
+  // a way that a dead code simplification step is needed.
+  revng_log(BeautifyLogger, "Performing dead code simplification\n");
+  RootNode = removeDeadCode(Model, CombedAST);
+  Dumper.log("after-dead-code-simplify");
 
   // Perform the simplification of `switch` with two entries in a `if`
   revng_log(BeautifyLogger, "Performing the dual switch simplification\n");
   RootNode = simplifyDualSwitch(CombedAST, RootNode);
   Dumper.log("after-dual-switch-simplify");
-
-  // Fix loop breaks from within switches
-  revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
-  SwitchBreaksFixer().run(RootNode, CombedAST);
-  Dumper.log("after-fix-switch-breaks");
 
   // Remove empty sequences.
   revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
@@ -1091,6 +1094,11 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Performing the implicit return simplification\n");
   simplifyImplicitReturn(CombedAST, RootNode);
   Dumper.log("after-implicit-return-simplify");
+
+  // Fix loop breaks from within switches
+  revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
+  SwitchBreaksFixer().run(RootNode, CombedAST);
+  Dumper.log("after-fix-switch-breaks");
 
   // Serialize the collected metrics in the statistics file if necessary
   if (StatsFileStream) {

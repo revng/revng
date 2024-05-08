@@ -221,6 +221,15 @@ static RecursiveCoroutine<ASTNode *> addToDispatcherSet(ASTTree &AST,
   rc_return Node;
 }
 
+/// Wrapper helper used to remove a specific `SetNode` from the body of a loop,
+/// reusing the code of the `addToDispatcherSet` helper
+static void removeDispatcherSet(ASTTree &AST, ASTNode *Node, ASTNode *Set) {
+
+  // We perform the `SetNode` by instructing `addToDispatcherSet` to inline a
+  // `nullptr`, and to remove the original `SetNode`
+  addToDispatcherSet(AST, Node, nullptr, Set, true);
+}
+
 static bool isDispatcherIf(ASTNode *If) {
   const ExprNode *E = llvm::cast<IfNode>(If)->getCondExpr();
   using NodeKind = ExprNode::NodeKind;
@@ -509,6 +518,86 @@ static void processNestedWeavedSwitches(SwitchNode *Switch) {
   }
 }
 
+static RecursiveCoroutine<bool> containsContinueOrBreak(ASTNode *Node) {
+  switch (Node->getKind()) {
+  case ASTNode::NK_List: {
+    SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
+
+    // As soon as we find an element of the `SequenceNode` that contains non
+    // local CF, we can signal it by early exiting returning `true`
+    for (ASTNode *N : llvm::reverse(Seq->nodes())) {
+      if (rc_recur containsContinueOrBreak(N)) {
+        rc_return true;
+      }
+    }
+
+    // This will be executed only if no non local CF has been found in the
+    // above iterations
+    rc_return false;
+  } break;
+  case ASTNode::NK_Scs: {
+
+    // At the current stage, we do not consider the possibility of inlining a
+    // `ScsNode`, because it would mean envisioning a way to handle also an
+    // eventual exit dispatcher associated to the `ScsNode`.
+    // We may want, however, to enable this possibility in the future.
+    rc_return true;
+  } break;
+  case ASTNode::NK_If: {
+    IfNode *If = llvm::cast<IfNode>(Node);
+
+    // We can early exit as soon as we find a branch with non local CF
+    if (If->hasThen()) {
+      ASTNode *Then = If->getThen();
+      if (rc_recur containsContinueOrBreak(Then)) {
+        rc_return true;
+      }
+    }
+    if (If->hasElse()) {
+      ASTNode *Else = If->getElse();
+      if (rc_recur containsContinueOrBreak(Else)) {
+        rc_return true;
+      }
+    }
+
+    // This will be executed only if no non local CF has been found in both the
+    // `then` and `else` branches
+    rc_return false;
+  } break;
+  case ASTNode::NK_Switch: {
+    auto *Switch = llvm::cast<SwitchNode>(Node);
+
+    // We can early exit as soon as we find a `case` with non local CF
+    for (auto &LabelCasePair : Switch->cases()) {
+      if (rc_recur containsContinueOrBreak(LabelCasePair.second)) {
+        rc_return true;
+      }
+    }
+
+    // This will be executed only if no non local CF has been found in any of
+    // the `case`s of the `switch`
+    rc_return false;
+  } break;
+  case ASTNode::NK_Set:
+  case ASTNode::NK_Code:
+  case ASTNode::NK_SwitchBreak: {
+
+    // The goal of this helper function is to identify just `continue` and
+    // `break` statements related to loops. The `SwitchBreak` statement does not
+    // fall in this category.
+    rc_return false;
+  } break;
+  case ASTNode::NK_Continue:
+  case ASTNode::NK_Break: {
+    rc_return true;
+  } break;
+  default:
+    revng_unreachable();
+  }
+
+  revng_abort();
+}
+
 static RecursiveCoroutine<ASTNode *>
 inlineDispatcherSwitchImpl(ASTTree &AST,
                            ASTNode *Node,
@@ -619,21 +708,13 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
           auto &Sets = SetCounterMap.at(Label);
           if (llvm::isa<SwitchBreakNode>(Case)) {
 
-            // If the body of the case is composed by a single `SwitchBreakNode`
-            // node, we can remove it, by virtually inlining a `nullptr` in the
-            // place of all the corresponding `SetNode`s (we can do it multiple
-            // times since we are not duplicating code here)
-            for (SetNode *Set : Sets) {
-              addToDispatcherSet(AST,
-                                 RelatedLoop->getBody(),
-                                 nullptr,
-                                 Set,
-                                 RemoveSetNode);
-            }
-            ToRemoveCaseIndex.insert(Index);
+            // The superfluous `SwitchBreak` removal should have been already
+            // performed in the `simplifySwitchBreak` phase
+            revng_abort();
           } else if (Sets.size() == 1
                      and (not needsLoopVar(RelatedLoop)
-                          or not containsSet(Case))) {
+                          or not containsSet(Case))
+                     and not containsContinueOrBreak(Case)) {
 
             // We inline the body of the case only if the following conditions
             // stand:
@@ -644,6 +725,11 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
             // inline does not contain any `SetNode`. In that case indeed, we
             // would be moving a `SetNode` from a scope to another one, which is
             // not semantics preserving.
+            // 3) The `case` body we are trying to inline does not contain any
+            // loop related `NonLocalControlFlow`, meaning no `break` or
+            // `continue` statements. If that was the case, we would be moving
+            // such statements from an external loop to a more nested one,
+            // breaking the semantics.
             addToDispatcherSet(AST,
                                RelatedLoop->getBody(),
                                Case,
@@ -681,12 +767,14 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
   rc_return Node;
 }
 
-ASTNode *inlineDispatcherSwitch(ASTTree &AST, ASTNode *RootNode) {
+ASTNode *inlineDispatcherSwitch(ASTTree &AST) {
 
   // Compute the loop -> dispatcher switch correspondence
   LoopDispatcherMap LoopDispatcherMap = computeLoopDispatcher(AST);
 
-  RootNode = inlineDispatcherSwitchImpl(AST, RootNode, LoopDispatcherMap);
+  ASTNode *RootNode = inlineDispatcherSwitchImpl(AST,
+                                                 AST.getRoot(),
+                                                 LoopDispatcherMap);
 
   // Update the root field of the AST
   AST.setRoot(RootNode);
@@ -694,7 +782,10 @@ ASTNode *inlineDispatcherSwitch(ASTTree &AST, ASTNode *RootNode) {
   return RootNode;
 }
 
-static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
+static RecursiveCoroutine<ASTNode *>
+simplifySwitchBreakImpl(ASTTree &AST,
+                        ASTNode *Node,
+                        const LoopDispatcherMap &LoopDispatcherMap) {
   switch (Node->getKind()) {
   case ASTNode::NK_List: {
     SequenceNode *Seq = llvm::cast<SequenceNode>(Node);
@@ -702,7 +793,7 @@ static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
     // In place of a sequence node, we just need to inspect all the nodes in the
     // sequence
     for (ASTNode *&N : Seq->nodes()) {
-      N = rc_recur simplifySwitchBreakImpl(N);
+      N = rc_recur simplifySwitchBreakImpl(AST, N, LoopDispatcherMap);
     }
 
     // In this beautify, it may be that a dispatcher switch is completely
@@ -718,7 +809,9 @@ static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
     // Inspect loop nodes
     if (Scs->hasBody()) {
       ASTNode *Body = Scs->getBody();
-      ASTNode *NewBody = rc_recur simplifySwitchBreakImpl(Body);
+      ASTNode *NewBody = rc_recur simplifySwitchBreakImpl(AST,
+                                                          Body,
+                                                          LoopDispatcherMap);
       Scs->setBody(NewBody);
     }
 
@@ -729,12 +822,16 @@ static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
     // Inspect the `then` and `else` branches
     if (If->hasThen()) {
       ASTNode *Then = If->getThen();
-      ASTNode *NewThen = rc_recur simplifySwitchBreakImpl(Then);
+      ASTNode *NewThen = rc_recur simplifySwitchBreakImpl(AST,
+                                                          Then,
+                                                          LoopDispatcherMap);
       If->setThen(NewThen);
     }
     if (If->hasElse()) {
       ASTNode *Else = If->getElse();
-      ASTNode *NewElse = rc_recur simplifySwitchBreakImpl(Else);
+      ASTNode *NewElse = rc_recur simplifySwitchBreakImpl(AST,
+                                                          Else,
+                                                          LoopDispatcherMap);
       If->setElse(NewElse);
     }
   } break;
@@ -747,8 +844,8 @@ static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
     for (auto &Group : llvm::enumerate(Switch->cases())) {
       unsigned Index = Group.index();
       auto &LabelCasePair = Group.value();
-      LabelCasePair
-        .second = rc_recur simplifySwitchBreakImpl(LabelCasePair.second);
+      LabelCasePair.second = rc_recur
+        simplifySwitchBreakImpl(AST, LabelCasePair.second, LoopDispatcherMap);
 
       if (LabelCasePair.second == nullptr) {
         ToRemoveCaseIndex.push_back(Index);
@@ -777,6 +874,9 @@ static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
       // Search for cases that are composed by a single `SwitchBreak` node
       llvm::SmallVector<size_t> ToRemoveCaseIndex;
 
+      // Save the `LabelSet`s associated to the removed `case`s
+      llvm::SmallSet<size_t, 1> RemovedLabels;
+
       // We do not need to skip the `default` case here, because there is no
       // `default` in first place
       for (auto &Group : llvm::enumerate(Switch->cases())) {
@@ -785,11 +885,41 @@ static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
 
         if (llvm::isa<SwitchBreakNode>(Case)) {
           ToRemoveCaseIndex.push_back(Index);
+
+          // If we are removing an atomic `Label`, we save it for later removal
+          // of the associated `SetNode`. We do not remove the `SetNode`s
+          // associated to multiple `Label`s `case`s, because that would not be
+          // correct. The removal of the associated `SetNode` should be
+          // performed only in correspondence of the `case`s containing the
+          // atomic `Label`.
+          if (LabelSet.size() == 1) {
+            RemovedLabels.insert(*LabelSet.begin());
+          }
         }
       }
 
       for (auto ToRemoveCase : llvm::reverse(ToRemoveCaseIndex)) {
         Switch->removeCaseN(ToRemoveCase);
+      }
+
+      // In case we are simplifying the `SwitchBreak` associated to an exit
+      // dispatcher, we also need to remove the corresponding `SetNode`s
+      using DispatcherKind = typename SwitchNode::DispatcherKind;
+      if (not Switch->getCondition()
+          and Switch->getDispatcherKind() == DispatcherKind::DK_Exit) {
+
+        // Precompute how many `SetNode`s are present in the related `Scs`
+        auto &[RelatedLoop, RemoveSetNode] = LoopDispatcherMap.at(Switch);
+        SetNodeCounterMap SetCounterMap;
+        countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+
+        // Remove the `SetNode`s associated to the removed `Label`s
+        for (auto &Label : RemovedLabels) {
+          auto &Sets = SetCounterMap.at(Label);
+          for (auto *Set : Sets) {
+            removeDispatcherSet(AST, RelatedLoop->getBody(), Set);
+          }
+        }
       }
     }
 
@@ -817,10 +947,15 @@ static RecursiveCoroutine<ASTNode *> simplifySwitchBreakImpl(ASTNode *Node) {
 /// are superfluous. We consider such nodes as `SwitchBreakNode`s that compose
 /// the entirety of a `case` of a `switch`, which must not have a `default`
 /// `case`.
-ASTNode *simplifySwitchBreak(ASTTree &AST, ASTNode *RootNode) {
+ASTNode *simplifySwitchBreak(ASTTree &AST) {
+
+  // Compute the loop -> dispatcher switch correspondence
+  LoopDispatcherMap LoopDispatcherMap = computeLoopDispatcher(AST);
 
   // Simplify away `SwitchBreakNode`s from `switch`es
-  RootNode = simplifySwitchBreakImpl(RootNode);
+  ASTNode *RootNode = simplifySwitchBreakImpl(AST,
+                                              AST.getRoot(),
+                                              LoopDispatcherMap);
   AST.setRoot(RootNode);
 
   return RootNode;

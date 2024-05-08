@@ -21,7 +21,6 @@ enum class FallThroughScopeType {
   Return,
   Continue,
   LoopBreak,
-  SwitchBreak,
 };
 
 using FallThroughScopeTypeMap = std::map<const ASTNode *, FallThroughScopeType>;

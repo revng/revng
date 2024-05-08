@@ -85,16 +85,20 @@ fallThroughScopeImpl(const model::Binary &Model,
   case ASTNode::NK_Scs: {
     ScsNode *Loop = llvm::cast<ScsNode>(Node);
 
-    // The loop node inherits the attribute from the body node of the SCS.
+    // If a body of the loop is present, we recur on the body of the loop
     if (Loop->hasBody()) {
       ASTNode *Body = Loop->getBody();
       FallThroughScopeType BFallThrough = rc_recur
         fallThroughScopeImpl(Model, Body, ResultMap);
       ResultMap[Body] = BFallThrough;
-      rc_return BFallThrough;
-    } else {
-      rc_return FallThroughScopeType::FallThrough;
     }
+
+    // Without a semantic analysis we cannot conclude anything about the
+    // `FallThroughScopeType` of the `ScsNode`. The body of it, if present, will
+    // indeed perform fallthrough even if, the AST composing its body does not
+    // perform fallthrough (which is reasonable, considering that the body of a
+    // loop will end with `break` and `continue` statements)
+    rc_return FallThroughScopeType::FallThrough;
   } break;
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
@@ -149,11 +153,13 @@ fallThroughScopeImpl(const model::Binary &Model,
     //    result, in cases where the `SwitchNode` does not have the `default`
     //    case, but it however covers all the possible values for the condition
     //    in the enumeration of the cases.
-    // 2) If we have a dispatcher `SwitchNode`, we have a guarantee by
-    //    construction, that all the `case`s span over the possible values.
-    //    Therefore, we can perform the analysis as if the `SwitchNode` had the
-    //    `default`.
-    if (not Switch->getCondition() or Switch->hasDefault()) {
+    // 2) Even when encountering a dispatcher `SwitchNode`, we can compute the
+    //    analysis result only if no `default` `case` is present. Indeed,
+    //    previous beautifications may have removed some of the `case`s, thus
+    //    invalidating the assumption, true at the beginning of the beautify
+    //    pipeline, that the `case`s of a dispatcher `switch` span over all the
+    //    possible values of the state variable.
+    if (Switch->hasDefault()) {
       rc_return AllFallThrough;
     } else {
       rc_return FallThroughScopeType::FallThrough;
@@ -221,7 +227,10 @@ fallThroughScopeImpl(const model::Binary &Model,
     rc_return FallThroughScopeType::FallThrough;
   } break;
   case ASTNode::NK_SwitchBreak: {
-    rc_return FallThroughScopeType::SwitchBreak;
+
+    // `The `SwitchBreak` represents the fact that we fallthrough from the
+    // switch out
+    rc_return FallThroughScopeType::FallThrough;
   } break;
   case ASTNode::NK_Continue: {
     rc_return FallThroughScopeType::Continue;

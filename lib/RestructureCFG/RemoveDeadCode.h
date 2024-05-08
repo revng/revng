@@ -10,6 +10,4 @@
 class ASTNode;
 class ASTTree;
 
-extern ASTNode *inlineDispatcherSwitch(ASTTree &AST);
-
-extern ASTNode *simplifySwitchBreak(ASTTree &AST);
+extern ASTNode *removeDeadCode(const model::Binary &Model, ASTTree &AST);
