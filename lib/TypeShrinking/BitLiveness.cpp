@@ -8,7 +8,7 @@
 /// are alive, then the first R bits of the operands are also alive
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include <limits>

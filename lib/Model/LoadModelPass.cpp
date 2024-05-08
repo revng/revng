@@ -3,7 +3,7 @@
 /// taking care of its deserialization on the IR.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 // LLVM includes

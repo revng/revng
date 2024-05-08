@@ -3,7 +3,7 @@
 /// the content of the pipeline before the execution of such pipes.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include "llvm/Support/Error.h"

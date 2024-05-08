@@ -1,7 +1,7 @@
 #pragma once
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 // This files has been from the cppcoro project by Lewis Baker, which is

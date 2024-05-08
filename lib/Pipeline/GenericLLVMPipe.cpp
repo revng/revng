@@ -2,7 +2,7 @@
 /// A llvm pipe is a pipe that operates on a llvm container.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include "llvm/PassRegistry.h"

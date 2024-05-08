@@ -2,7 +2,7 @@
 /// The compile module pipe transforms an llvm module into an object file.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include <memory>

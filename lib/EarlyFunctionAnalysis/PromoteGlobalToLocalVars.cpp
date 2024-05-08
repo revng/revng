@@ -2,7 +2,7 @@
 /// Promote CSVs in form of global variables to local variables.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include "llvm/ADT/STLExtras.h"

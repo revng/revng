@@ -1,5 +1,5 @@
 #
-# This file is distributed under the MIT License. See LICENSE.md for details.
+# This file is distributed under the MIT License. See LICENSE.mit for details.
 #
 
 cmake_minimum_required(VERSION 3.15.0)

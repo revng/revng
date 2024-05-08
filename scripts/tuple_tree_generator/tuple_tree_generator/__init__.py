@@ -1,4 +1,4 @@
-# This file is distributed under the MIT License. See LICENSE.md for details.
+# This file is distributed under the MIT License. See LICENSE.mit for details.
 
 from .generators import CppHeadersGenerator, JSONSchemaGenerator, PythonGenerator
 from .generators import TypeScriptGenerator

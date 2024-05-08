@@ -2,7 +2,7 @@
 /// Collect the function entry points from unused addresses.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include "boost/icl/interval_set.hpp"

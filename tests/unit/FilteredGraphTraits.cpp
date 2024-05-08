@@ -2,7 +2,7 @@
 /// Tests for the FilteredGraphTraits template.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #define BOOST_TEST_MODULE FilteredGraphTraits

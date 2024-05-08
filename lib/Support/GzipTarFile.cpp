@@ -2,7 +2,7 @@
 /// \brief Classes for reading and writing a slight variation of a .tar.gz
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 // Some snippets of code were adapted from llvm/llvm/lib/Support/TarWriter.cpp

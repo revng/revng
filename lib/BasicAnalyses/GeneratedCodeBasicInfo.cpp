@@ -3,7 +3,7 @@
 /// about the translated code (e.g., which CSV is the PC).
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include <queue>

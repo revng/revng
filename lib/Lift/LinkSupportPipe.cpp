@@ -2,7 +2,7 @@
 /// Link support adds the helper functions to a lifeted module
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 #include <string>
 

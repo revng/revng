@@ -17,7 +17,7 @@
 /// call sites targeting it need to have debug information too.
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include "llvm/ADT/PostOrderIterator.h"

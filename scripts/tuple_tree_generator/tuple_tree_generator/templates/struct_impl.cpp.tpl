@@ -1,9 +1,9 @@
 /*#-
-This template file is distributed under the MIT License. See LICENSE.md for details.
+This template file is distributed under the MIT License. See LICENSE.mit for details.
 The notice below applies to the generated files.
 #*/
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 /** if root_type **/
