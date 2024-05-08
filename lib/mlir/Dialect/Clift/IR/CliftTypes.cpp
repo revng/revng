@@ -13,6 +13,8 @@
 #define GET_TYPEDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
 
+using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
+
 void mlir::clift::CliftDialect::registerTypes() {
   addTypes</* Include the auto-generated clift types */
 #define GET_TYPEDEF_LIST
@@ -62,16 +64,15 @@ static_assert(Primitive::Generic == kindToKind(PrimitiveKind::GenericKind));
 static_assert(Primitive::Signed == kindToKind(PrimitiveKind::SignedKind));
 static_assert(Primitive::Number == kindToKind(PrimitiveKind::NumberKind));
 
-using LoggerType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 mlir::LogicalResult
-mlir::clift::PrimitiveType::verify(LoggerType logger,
+mlir::clift::PrimitiveType::verify(EmitErrorType EmitError,
                                    mlir::clift::PrimitiveKind kind,
                                    uint64_t size,
                                    BoolAttr IsConst) {
 
   model::PrimitiveType Type(kindToKind(kind), size);
   if (not Type.verify()) {
-    return logger() << "primitive type verify failed";
+    return EmitError() << "primitive type verify failed";
   }
   return mlir::success();
 }
@@ -135,12 +136,10 @@ uint64_t mlir::clift::FunctionAttr::getByteSize() const {
   return 0;
 }
 
-::mlir::LogicalResult
-PointerType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()>
-                      emitError,
-                    mlir::clift::ValueType element_type,
-                    uint64_t pointer_size,
-                    BoolAttr IsConst) {
+::mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
+                                          mlir::clift::ValueType element_type,
+                                          uint64_t pointer_size,
+                                          BoolAttr IsConst) {
   switch (pointer_size) {
   case 4:
   case 8:
@@ -152,18 +151,16 @@ PointerType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()>
 }
 
 ::mlir::LogicalResult
-DefinedType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()>
-                      emitError,
+DefinedType::verify(EmitErrorType emitError,
                     mlir::clift::TypeDefinition element_type,
                     BoolAttr IsConst) {
   return mlir::success();
 }
 
-::mlir::LogicalResult
-ArrayType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
-                  mlir::clift::ValueType element_type,
-                  uint64_t count,
-                  BoolAttr IsConst) {
+::mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
+                                        mlir::clift::ValueType element_type,
+                                        uint64_t count,
+                                        BoolAttr IsConst) {
   if (count == 0) {
     return emitError() << "array type cannot have zero elements";
   }
@@ -189,7 +186,7 @@ static mlir::Type dealias(mlir::Type Type) {
 
 using namespace mlir::clift;
 ::mlir::LogicalResult
-EnumAttr::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
+EnumAttr::verify(EmitErrorType emitError,
                  uint64_t ID,
                  ::llvm::StringRef,
                  mlir::Type UnderlyingType,
