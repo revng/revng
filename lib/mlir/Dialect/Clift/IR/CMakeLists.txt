@@ -22,3 +22,9 @@ add_mlir_dialect_library(
   MLIRIR
   PRIVATE
   revng::revngModel)
+
+install(
+  TARGETS MLIRCliftDialect
+  EXPORT revngc
+  LIBRARY DESTINATION lib/
+  ARCHIVE DESTINATION lib/)
