@@ -124,6 +124,13 @@ members:
       The latest version of the documentation can be found
       \sa https://github.com/ARM-software/abi-aa/releases
 
+  - name: Apple_AAPCS64
+    doc: "Stands for `Arm Architecture Procedure Call Standard (64-bit)`.\n
+          This represents the version of the ABI used by the apple products.\n
+          For differences from the original ABI see\n
+          \\sa https://developer.apple.com/documentation/xcode/writing-arm64-\
+          code-for-apple-platforms\n"
+
   - name: AAPCS
     doc: |
       Stands for `Arm Architecture Procedure Call Standard`.
@@ -178,6 +185,7 @@ getArchitecture(model::ABI::Values V) {
     return model::Architecture::x86;
 
   case model::ABI::AAPCS64:
+  case model::ABI::Apple_AAPCS64:
     return model::Architecture::aarch64;
   case model::ABI::AAPCS:
     return model::Architecture::arm;
@@ -321,6 +329,8 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
 
   case model::ABI::AAPCS64:
     return "64-bit ARM abi";
+  case model::ABI::Apple_AAPCS64:
+    return "Apple version of 64-bit ARM abi";
   case model::ABI::AAPCS:
     return "32-bit ARM abi";
 
