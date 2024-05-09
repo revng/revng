@@ -896,8 +896,10 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
              and CallConv == CallingConvention::ArmCall) {
     return model::ABI::AAPCS;
   } else if (Arch == model::Architecture::aarch64
-             and CallConv == CallingConvention::ArmCall) {
-    return model::ABI::AAPCS64;
+             /* and CallConv == CallingConvention::ArmCall
+                (I'm seeing CallingConvention::NearC)
+             */) {
+    return model::ABI::Microsoft_AAPCS64;
   } else {
     revng_abort();
   }
