@@ -103,7 +103,8 @@ ValueDistributor::distribute(uint64_t Size,
   DistributedValue &DA = Result.emplace_back();
   DA.Size = Size;
 
-  bool AllowSplitting = !ForbidSplittingBetweenRegistersAndStack
+  bool AllowSplitting = CanUseRegisters
+                        && !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
   bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
