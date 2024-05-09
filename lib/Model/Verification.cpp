@@ -135,6 +135,9 @@ bool Segment::verify(VerifyHelper &VH) const {
   if (FileSize() > VirtualSize())
     return VH.fail("FileSize cannot be larger than VirtualSize", *this);
 
+  if (not StartAddress().isGeneric())
+    return VH.fail("The segment start address must be generic", *this);
+
   auto EndOffset = OverflowSafeInt(StartOffset()) + FileSize();
   if (not EndOffset)
     return VH.fail("Computing the segment end offset leads to overflow", *this);
