@@ -102,6 +102,19 @@ fields:
       (if `ArgumentsArePositionBased` is `false`).
     type: bool
 
+  - name: BigArgumentsUsePointersToCopy
+    doc: |
+      This allows a non-position-based ABI to take advantage of one of the main
+      traits of position-based ABI: ability to use pointers to copy to pass
+      big aggregates.
+
+      This is one of the defining features of arm64 ABI, which allows it to get
+      the best of both approaches - an ability to pass aggregates by copy in
+      registers from the non-position-based approach while also being able to
+      sometimes avoid a copy of a bigger aggregate from the position-based
+      approach.
+    type: bool
+
   - name: NoRegisterArgumentsCanComeAfterStackOnes
     doc: |
       States whether ABI allows a stack argument (mainly one too big

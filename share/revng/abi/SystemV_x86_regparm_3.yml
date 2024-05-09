@@ -7,6 +7,7 @@ ABI: SystemV_x86_regparm_3
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
 AllowUnnaturallyAlignedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false

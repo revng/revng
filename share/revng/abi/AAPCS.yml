@@ -7,6 +7,7 @@ ABI: AAPCS
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
 ArgumentsCanBeSplitBetweenRegistersAndStack: true
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
 AllowUnnaturallyAlignedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false

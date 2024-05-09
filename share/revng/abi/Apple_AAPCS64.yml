@@ -7,6 +7,7 @@ ABI: Apple_AAPCS64
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+BigArgumentsUsePointersToCopy: true
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowUnnaturallyAlignedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
