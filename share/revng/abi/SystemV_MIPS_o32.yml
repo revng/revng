@@ -63,6 +63,7 @@ CalleeSavedRegisters:
   - f31_mips
 
 ReturnValueLocationRegister: v0_mips
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

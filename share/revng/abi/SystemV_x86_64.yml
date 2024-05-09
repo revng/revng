@@ -51,6 +51,7 @@ CalleeSavedRegisters:
   - r15_x86_64
 
 ReturnValueLocationRegister: rdi_x86_64
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

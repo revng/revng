@@ -284,6 +284,17 @@ fields:
     type: bool
     optional: true
 
+  - name: ReturnValueLocationIsReturned
+    doc: |
+      Specifies whether functions whose return value is saved in a memory area
+      pointed by an argument passed by the caller (SPTAR) should also return
+      such pointer using the first return value register.
+
+      This is only relevant if either  `ReturnValueLocationRegister` or
+      `ReturnValueLocationOnStack` is specified.
+    type: bool
+    optional: true
+
   - name: ScalarTypes
     doc: |
       This provides a way to introduce some type-specific constraint information

@@ -80,6 +80,7 @@ CalleeSavedRegisters:
   - v15_aarch64
 
 ReturnValueLocationRegister: x8_aarch64
+ReturnValueLocationIsReturned: false
 
 ScalarTypes:
   - Size: 1

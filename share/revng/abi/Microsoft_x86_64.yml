@@ -47,6 +47,7 @@ CalleeSavedRegisters:
   - xmm7_x86_64
 
 ReturnValueLocationRegister: rcx_x86_64
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1
