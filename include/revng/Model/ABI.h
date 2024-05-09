@@ -124,6 +124,13 @@ members:
       The latest version of the documentation can be found
       \sa https://github.com/ARM-software/abi-aa/releases
 
+  - name: Microsoft_AAPCS64
+    doc: "Stands for `Arm Architecture Procedure Call Standard (64-bit)`.\n
+          This represents the version of the ABI used by windows-on-arm.\n
+          For differences from the original ABI see\n
+          \\sa https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-\
+          conventions\n"
+
   - name: Apple_AAPCS64
     doc: "Stands for `Arm Architecture Procedure Call Standard (64-bit)`.\n
           This represents the version of the ABI used by the apple products.\n
@@ -185,6 +192,7 @@ getArchitecture(model::ABI::Values V) {
     return model::Architecture::x86;
 
   case model::ABI::AAPCS64:
+  case model::ABI::Microsoft_AAPCS64:
   case model::ABI::Apple_AAPCS64:
     return model::Architecture::aarch64;
   case model::ABI::AAPCS:
@@ -329,6 +337,8 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
 
   case model::ABI::AAPCS64:
     return "64-bit ARM abi";
+  case model::ABI::Microsoft_AAPCS64:
+    return "Microsoft version of 64-bit ARM abi";
   case model::ABI::Apple_AAPCS64:
     return "Apple version of 64-bit ARM abi";
   case model::ABI::AAPCS:
