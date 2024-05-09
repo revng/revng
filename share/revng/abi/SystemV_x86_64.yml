@@ -13,6 +13,7 @@ CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
 
 StackAlignment: 16
+MinimumStackArgumentSize: 8
 
 # \note: if an aggregate argument contains SSE-fields, this doesn't apply.
 MaximumGPRsPerAggregateArgument: 2

@@ -649,8 +649,8 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         Definition.Fields().insert(std::move(Field));
 
         // Update the total struct size: insert some padding if necessary.
-        uint64_t RegisterSize = model::ABI::getPointerSize(ABI.ABI());
-        Definition.Size() += paddedSizeOnStack(FieldSize.value(), RegisterSize);
+        Definition.Size() += paddedSizeOnStack(FieldSize.value(),
+                                               ABI.MinimumStackArgumentSize());
       }
 
       revng_assert(Definition.Size() != 0 && !Definition.Fields().empty());

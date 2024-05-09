@@ -15,6 +15,7 @@ FloatsUseGPRs: false
 # This might need to be set to 16 depending on the OS.
 # TODO: investigate.
 StackAlignment: 4
+MinimumStackArgumentSize: 4
 
 MaximumGPRsPerAggregateArgument: 0
 MaximumGPRsPerAggregateReturnValue: 0
