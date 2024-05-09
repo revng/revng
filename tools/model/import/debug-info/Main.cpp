@@ -67,19 +67,25 @@ int main(int Argc, char *Argv[]) {
     Importer.import(InputFilename, Options);
   } else if (auto *TheBinary = dyn_cast<object::COFFObjectFile>(&ObjectFile)) {
     MetaAddress ImageBase = MetaAddress::invalid();
-    auto LLVMArchitecture = ObjectFile.makeTriple().getArch();
-    using namespace model::Architecture;
-    using namespace model::ABI;
-    Model->Architecture() = fromLLVMArchitecture(LLVMArchitecture);
-    if (Model->DefaultABI() == model::ABI::Invalid)
-      Model->DefaultABI() = getDefaultMicrosoftABI(Model->Architecture());
+    auto LLVMArch = ObjectFile.makeTriple().getArch();
+    Model->Architecture() = model::Architecture::fromLLVMArchitecture(LLVMArch);
+
+    if (Model->DefaultABI() == model::ABI::Invalid) {
+      revng_assert(Model->Architecture() != model::Architecture::Invalid);
+      if (auto ABI = model::ABI::getDefaultForPECOFF(Model->Architecture())) {
+        Model->DefaultABI() = ABI.value();
+      } else {
+        auto AName = model::Architecture::getName(Model->Architecture()).str();
+        revng_abort(("Unsupported architecture for PECOFF: " + AName).c_str());
+      }
+    }
 
     // Create a default prototype.
     Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(*Model);
 
     const llvm::object::pe32_header *PE32Header = TheBinary->getPE32Header();
     if (PE32Header) {
-      ImageBase = MetaAddress::fromPC(LLVMArchitecture, PE32Header->ImageBase);
+      ImageBase = MetaAddress::fromPC(LLVMArch, PE32Header->ImageBase);
     } else {
       const llvm::object::pe32plus_header
         *PE32PlusHeader = TheBinary->getPE32PlusHeader();
@@ -87,8 +93,7 @@ int main(int Argc, char *Argv[]) {
         return EXIT_FAILURE;
 
       // PE32+ Header.
-      ImageBase = MetaAddress::fromPC(LLVMArchitecture,
-                                      PE32PlusHeader->ImageBase);
+      ImageBase = MetaAddress::fromPC(LLVMArch, PE32PlusHeader->ImageBase);
     }
     PDBImporter Importer(Model, ImageBase);
     Importer.import(*TheBinary, Options);

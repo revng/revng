@@ -189,23 +189,17 @@ Error MachOImporter::import() {
   using LoadCommandInfo = MachOObjectFile::LoadCommandInfo;
 
   auto &MachO = cast<object::MachOObjectFile>(TheBinary);
-
   revng_assert(Model->Architecture() != Architecture::Invalid);
 
-  switch (Model->Architecture()) {
-  case Architecture::x86:
-    Model->DefaultABI() = model::ABI::SystemV_x86;
-    break;
-
-  case Architecture::x86_64:
-    Model->DefaultABI() = model::ABI::SystemV_x86_64;
-    break;
-
-  default:
-    auto ArchitectureName = Architecture::getName(Model->Architecture()).str();
-    return createStringError(llvm::inconvertibleErrorCode(),
-                             "Unsupported architecture for MachO: "
-                               + ArchitectureName);
+  if (Model->DefaultABI() == model::ABI::Invalid) {
+    if (auto ABI = model::ABI::getDefaultForMachO(Model->Architecture())) {
+      Model->DefaultABI() = ABI.value();
+    } else {
+      auto ArchName = model::Architecture::getName(Model->Architecture()).str();
+      return createStringError(llvm::inconvertibleErrorCode(),
+                               "Unsupported architecture for PECOFF: "
+                                 + ArchName);
+    }
   }
 
   bool IsLittleEndian = Architecture::isLittleEndian(Model->Architecture());
