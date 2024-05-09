@@ -65,6 +65,7 @@ CalleeSavedRegisters:
   - f13_systemz
 
 ReturnValueLocationRegister: r2_systemz
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

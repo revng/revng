@@ -32,6 +32,7 @@ CalleeSavedRegisters:
   - esi_x86
 
 ReturnValueLocationRegister: ecx_x86
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

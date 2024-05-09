@@ -54,6 +54,7 @@ CalleeSavedRegisters:
   - q7_arm
 
 ReturnValueLocationRegister: r0_arm
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1
