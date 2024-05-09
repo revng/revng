@@ -179,6 +179,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
                                       bool HasNaturalAlignment) {
   uint64_t RegisterLimit = 0;
   bool ForbidSplitting = false;
+  bool UsesPointerToCopy = false;
   uint64_t *RegisterCounter = nullptr;
   std::span<const model::Register::Values> RegisterList;
   if (IsFloat && !ABI.FloatsUseGPRs()) {
@@ -213,6 +214,15 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     RegisterCounter = &UsedGeneralPurposeRegisterCount;
     RegisterLimit = IsScalar ? ABI.MaximumGPRsPerScalarArgument() :
                                ABI.MaximumGPRsPerAggregateArgument();
+
+    // Allow positional-ABI-like pointer-to-copy substitution if ABI requires it
+    if (ABI.BigArgumentsUsePointersToCopy()
+        && Size > ABI.getPointerSize() * RegisterLimit) {
+      Size = ABI.getPointerSize();
+      Alignment = ABI.getPointerSize();
+      HasNaturalAlignment = true;
+      UsesPointerToCopy = true;
+    }
   }
 
   auto [Result, NextRegisterIndex] = distribute(Size,
@@ -222,6 +232,10 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
                                                 *RegisterCounter,
                                                 RegisterLimit,
                                                 ForbidSplitting);
+  if (UsesPointerToCopy) {
+    revng_assert(Result.size() == 1);
+    Result[0].UsesPointerToCopy = UsesPointerToCopy;
+  }
 
   // Verify that the next register makes sense.
   auto VerifyNextRegisterIndex = [&](uint64_t Current, uint64_t Next) {
