@@ -13,6 +13,7 @@ CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
 
 StackAlignment: 16
+MinimumStackArgumentSize: 8
 
 MaximumGPRsPerAggregateArgument: 2
 MaximumGPRsPerAggregateReturnValue: 2

@@ -145,6 +145,13 @@ fields:
       ARM ABI), the value of `StackAlignment` should be equal to 4.
     type: uint64_t
 
+  - name: MinimumStackArgumentSize
+    doc: |
+      States the minimum possible stack argument size in bytes.
+      When the actual type of an argument is below this value, it should be
+      extended.
+    type: uint64_t
+
   - name: StackBytesAllocatedForRegisterArguments
     doc: |
       States the number of bytes reserved for the callee to be able to "mirror"
@@ -551,7 +558,7 @@ public:
   ///
   /// \return The size of the argument with the padding.
   uint64_t paddedSizeOnStack(uint64_t Size) const {
-    return FunctionType::paddedSizeOnStack(Size, getPointerSize());
+    return FunctionType::paddedSizeOnStack(Size, MinimumStackArgumentSize());
   }
 };
 
