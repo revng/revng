@@ -201,8 +201,14 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
   // Make sure the value is the same both before and after the call.
   verifyValuePreservation(Argument.ExpectedBytes, Argument.FoundBytes);
 
-  // Check for the "pointer-to-copy" style arguments first.
-  if (!Remaining.Registers.empty()) {
+  // Check for the "pointer-to-copy" style register arguments first.
+  bool UsesPointerToCopy = false;
+  if (ABI.ArgumentsArePositionBased() || ABI.BigArgumentsUsePointersToCopy()) {
+    auto MinSize = ABI.getPointerSize() * ABI.MaximumGPRsPerScalarArgument();
+    if (Argument.FoundBytes.size() > MinSize)
+      UsesPointerToCopy = true;
+  }
+  if (UsesPointerToCopy && !Remaining.Registers.empty()) {
     llvm::ArrayRef Bytes = State.Registers.at(Remaining.Registers[0]).Bytes;
     if (Bytes.equals(Argument.AddressBytes)) {
       Remaining.Registers = Remaining.Registers.drop_front();
@@ -226,8 +232,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
     }
 
     // We're out of registers, turn to the stack next.
-    if (ABI.ArgumentsArePositionBased()
-        && Argument.FoundBytes.size() > ABI.getPointerSize()) {
+    if (UsesPointerToCopy) {
       // Position based ABIs use pointer-to-copy semantics for stack too.
       // This verifies whether that's the case here.
       revng_assert(ArgumentBytes.equals(Argument.FoundBytes),
