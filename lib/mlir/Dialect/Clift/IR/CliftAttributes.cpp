@@ -31,22 +31,6 @@ using namespace mlir::clift;
 
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
-static bool isCompleteType(const mlir::Type Type) {
-  if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-    auto Definition = T.getElementType();
-    if (auto D = mlir::dyn_cast<StructTypeAttr>(Definition))
-      return D.isDefinition();
-    if (auto D = mlir::dyn_cast<UnionTypeAttr>(Definition))
-      return D.isDefinition();
-    return true;
-  }
-
-  if (auto T = mlir::dyn_cast<ScalarTupleType>(Type))
-    return T.isComplete();
-
-  return true;
-}
-
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {
@@ -102,13 +86,11 @@ mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
                                       uint64_t Offset,
                                       clift::ValueType ElementType,
                                       llvm::StringRef Name) {
-  if (auto Definition = mlir::dyn_cast<DefinedType>(ElementType)) {
-    if (mlir::isa<FunctionTypeAttr>(Definition.getElementType()))
-      return EmitError() << "Underlying type of field attr cannot be a "
-                            "function type";
-  }
-  if (ElementType.getByteSize() == 0)
-    return EmitError() << "Field cannot be of zero size";
+  if (not isObjectType(ElementType))
+    return EmitError() << "Struct and union field types must be object types.";
+  if (not isCompleteType(ElementType))
+    return EmitError() << "Struct and union field types must be complete.";
+
   return mlir::success();
 }
 
@@ -129,10 +111,10 @@ mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
                                          llvm::ArrayRef<EnumFieldAttr> Fields) {
   UnderlyingType = dealias(UnderlyingType);
 
-  if (not UnderlyingType.isa<PrimitiveType>())
-    return EmitError() << "type of enum must be a primitive type";
+  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(UnderlyingType);
+  if (not PrimitiveType)
+    return EmitError() << "Underlying type of enum must be a primitive type";
 
-  const auto PrimitiveType = UnderlyingType.cast<clift::PrimitiveType>();
   const uint64_t BitWidth = PrimitiveType.getSize() * 8;
 
   if (Fields.empty())
@@ -233,8 +215,11 @@ std::string TypedefTypeAttr::getAlias() const {
 mlir::LogicalResult FunctionArgumentAttr::verify(EmitErrorType EmitError,
                                                  clift::ValueType Underlying,
                                                  llvm::StringRef Name) {
-  if (Underlying.getByteSize() == 0)
-    return EmitError() << "type of argument of function cannot be zero size";
+  if (not isObjectType(Underlying))
+    return EmitError() << "Function parameter type must be an object type";
+  if (isArrayType(Underlying))
+    return EmitError() << "Function parameter type may not be an array type";
+
   return mlir::success();
 }
 
@@ -246,10 +231,12 @@ FunctionTypeAttr::verify(EmitErrorType EmitError,
                          llvm::StringRef Name,
                          clift::ValueType ReturnType,
                          llvm::ArrayRef<FunctionArgumentAttr> Args) {
-  if (const auto Type = mlir::dyn_cast<DefinedType>(ReturnType)) {
-    if (mlir::isa<FunctionTypeAttr>(Type.getElementType()))
-      return EmitError() << "function type cannot return another function type";
-  }
+  if (not isVoid(ReturnType) and not isObjectType(ReturnType)
+      and not mlir::isa<ScalarTupleType>(ReturnType))
+    return EmitError() << "Function return type must be void or an object type "
+                          "or a scalar tuple type.";
+  if (isArrayType(ReturnType))
+    return EmitError() << "Function return type may not be an array type.";
 
   return mlir::success();
 }
@@ -268,6 +255,9 @@ mlir::LogicalResult
 ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
                                clift::ValueType Type,
                                const llvm::StringRef Name) {
+  if (not isScalarType(Type))
+    return EmitError() << "Scalar tuple element types must be scalar types.";
+
   return mlir::success();
 }
 
@@ -292,9 +282,6 @@ StructTypeAttr::verify(const EmitErrorType EmitError,
 
     llvm::SmallSet<llvm::StringRef, 16> NameSet;
     for (const auto &Field : Fields) {
-      if (not isCompleteType(Field.getType()))
-        return EmitError() << "Fields of structs must be complete types";
-
       if (Field.getOffset() < LastEndOffset)
         return EmitError() << "Fields of structs must be ordered by offset, "
                               "and "
@@ -426,9 +413,6 @@ mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
 
   llvm::SmallSet<llvm::StringRef, 16> NameSet;
   for (const auto &Field : Fields) {
-    if (not isCompleteType(Field.getType()))
-      return EmitError() << "Fields of unions must be complete types";
-
     if (Field.getOffset() != 0)
       return EmitError() << "union field offsets must be zero";
 

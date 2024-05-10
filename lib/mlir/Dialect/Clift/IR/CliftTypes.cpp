@@ -151,14 +151,11 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
                                       ValueType ElementType,
                                       uint64_t ElementCount,
                                       BoolAttr IsConst) {
-  if (ElementCount == 0) {
-    return EmitError() << "array type cannot have zero elements";
-  }
-  if (ElementType.getByteSize() == 0) {
-    return EmitError() << "array type cannot have size zero. Did you created a "
-                          "array type with a uninitialized struct or union "
-                          "type inside?";
-  }
+  if (not isObjectType(ElementType))
+    return EmitError() << "Array type element type must be an object type.";
+  if (ElementCount == 0)
+    return EmitError() << "Array type must have no less than one element.";
+
   return mlir::success();
 }
 
@@ -197,18 +194,6 @@ std::string DefinedType::getAlias() const {
 
 //===--------------------------- ScalarTupleType --------------------------===//
 
-static bool isScalarType(mlir::Type Type) {
-  Type = dealias(Type);
-
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return T.getKind() != PrimitiveKind::VoidKind;
-
-  if (auto T = mlir::dyn_cast<DefinedType>(Type))
-    return mlir::isa<EnumTypeAttr>(T.getElementType());
-
-  return mlir::isa<PointerType>(Type);
-}
-
 mlir::LogicalResult ScalarTupleType::verify(const EmitErrorType EmitError,
                                             const uint64_t ID) {
   return mlir::success();
@@ -224,9 +209,6 @@ ScalarTupleType::verify(const EmitErrorType EmitError,
 
   llvm::SmallSet<llvm::StringRef, 16> NameSet;
   for (auto Element : Elements) {
-    if (not isScalarType(Element.getType()))
-      return EmitError() << "Scalar tuple element types must be scalar types";
-
     if (not Element.getName().empty()) {
       if (not NameSet.insert(Element.getName()).second)
         return EmitError() << "Scalar tuple element names must be empty or "

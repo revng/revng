@@ -125,13 +125,12 @@ BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainThemself) {
 
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainFunctions) {
   auto VoidT = PrimitiveType::getVoid(builder.getContext(), 0);
-  auto FunctionT = FunctionTypeAttr::get(0, VoidT);
-  auto UnionT = DefinedType::get(builder.getContext(),
-                                 FunctionT,
-                                 mlir::BoolAttr::get(builder.getContext(),
-                                                     false));
+  auto FunctionT = DefinedType::get(builder.getContext(),
+                                    FunctionTypeAttr::get(0, VoidT),
+                                    mlir::BoolAttr::get(builder.getContext(),
+                                                        false));
 
-  BOOST_TEST(FieldAttr::verify(getDiagnosticEmitter(), 0, UnionT, "field")
+  BOOST_TEST(FieldAttr::verify(getDiagnosticEmitter(), 0, FunctionT, "field")
                .failed());
 }
 
