@@ -77,7 +77,9 @@ ValueDistributor::distribute(uint64_t Size,
   // padding to be inserted even for arguments passed in registers.
   if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
     const uint64_t PointerSize = ABI.getPointerSize();
-    bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize);
+    bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize)
+                        || (Size > PointerSize
+                            && ABI.BigArgumentsUsePointersToCopy());
     bool LastRegisterUsed = ConsideredRegisterCounter == OccupiedRegisterCount;
     bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
     if (MultiAligned && !LastRegisterUsed && FirstRegisterOdd) {
@@ -87,14 +89,19 @@ ValueDistributor::distribute(uint64_t Size,
                 "registers to also be aligned, an extra register needs "
                 "to be used to hold the padding.");
 
-      // Add an extra "padding" argument to represent this.
-      DistributedValue &Padding = Result.emplace_back();
-      Padding.Registers = { Registers[OccupiedRegisterCount++] };
-      Padding.Size = model::Register::getSize(Padding.Registers[0]);
-      Padding.RepresentsPadding = true;
+      if (OccupiedRegisterCount + 1 == Registers.size()) {
+        // Omit marking the very last register as padding since the argument
+        // is going to end up on the stack anyway.
+      } else {
+        // Add an extra "padding" argument to represent this.
+        DistributedValue &Padding = Result.emplace_back();
+        Padding.Registers = { Registers[OccupiedRegisterCount++] };
+        Padding.Size = PointerSize;
+        Padding.RepresentsPadding = true;
+      }
 
-      revng_assert(SizeCounter >= Padding.Size);
-      SizeCounter -= Padding.Size;
+      revng_assert(SizeCounter >= PointerSize);
+      SizeCounter -= PointerSize;
       if (ConsideredRegisterCounter < LastRegister)
         ++ConsideredRegisterCounter;
     }
