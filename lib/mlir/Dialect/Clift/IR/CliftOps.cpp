@@ -91,7 +91,7 @@ struct ModuleValidator {
     if (checkTypeIsAcceptable(Type, ContainingOp).failed())
       return mlir::failure();
 
-    auto Casted = Type.dyn_cast<mlir::clift::DefinedType>();
+    auto Casted = mlir::dyn_cast<mlir::clift::DefinedType>(Type);
     if (not Casted)
       return mlir::success();
     if (auto Iter = Definitions.find(Casted.id());
@@ -114,7 +114,7 @@ struct ModuleValidator {
     if (visitSingleType(ContainingOp, Type).failed())
       return mlir::failure();
 
-    auto Casted = Type.dyn_cast<mlir::SubElementTypeInterface>();
+    auto Casted = mlir::dyn_cast<mlir::SubElementTypeInterface>(Type);
     if (not Casted) {
       return mlir::success();
     }
@@ -137,7 +137,7 @@ struct ModuleValidator {
       return mlir::success();
     VisitedAttrs.insert(Attr);
 
-    auto Casted = Attr.dyn_cast<mlir::SubElementAttrInterface>();
+    auto Casted = mlir::dyn_cast<mlir::SubElementAttrInterface>(Attr);
     if (not Casted) {
       return mlir::success();
     }
@@ -156,8 +156,8 @@ struct ModuleValidator {
 
   mlir::LogicalResult checkTypeIsAcceptable(mlir::Type Type,
                                             mlir::Operation *Op) {
-    if (not Type.isa<mlir::clift::LabelType>()
-        and not Type.isa<mlir::clift::ValueType>()) {
+    if (not mlir::isa<mlir::clift::LabelType>(Type)
+        and not mlir::isa<mlir::clift::ValueType>(Type)) {
       Op->emitError("Only label types and value types are accepted in a "
                     "clift module value");
       return mlir::failure();

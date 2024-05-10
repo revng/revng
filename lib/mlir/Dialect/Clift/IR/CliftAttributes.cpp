@@ -58,40 +58,39 @@ void CliftDialect::registerAttributes() {
                 /* End of auto-generated list */>();
 }
 
-/// Parse a type registered to this dialect
+/// Parse an attribute registered to this dialect
 mlir::Attribute CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
                                              mlir::Type Type) const {
-  llvm::SMLoc typeLoc = Parser.getCurrentLocation();
+  llvm::SMLoc TypeLoc = Parser.getCurrentLocation();
+
   llvm::StringRef Mnemonic;
-  mlir::Attribute GenAttr;
-
-  auto ParseResult = generatedAttributeParser(Parser, &Mnemonic, Type, GenAttr);
-  if (ParseResult.has_value())
+  if (mlir::Attribute GenAttr;
+      generatedAttributeParser(Parser, &Mnemonic, Type, GenAttr).has_value())
     return GenAttr;
-  if (Mnemonic == StructTypeAttr::getMnemonic()) {
-    return StructTypeAttr::parse(Parser);
-  }
-  if (Mnemonic == UnionTypeAttr::getMnemonic()) {
-    return UnionTypeAttr::parse(Parser);
-  }
 
-  Parser.emitError(typeLoc) << "unknown  attr `" << Mnemonic << "` in dialect `"
+  if (Mnemonic == StructTypeAttr::getMnemonic())
+    return StructTypeAttr::parse(Parser);
+
+  if (Mnemonic == UnionTypeAttr::getMnemonic())
+    return UnionTypeAttr::parse(Parser);
+
+  Parser.emitError(TypeLoc) << "unknown attr `" << Mnemonic << "` in dialect `"
                             << getNamespace() << "`";
   return {};
 }
 
-/// Print a type registered to this dialect
+/// Print an attribute registered to this dialect
 void CliftDialect::printAttribute(mlir::Attribute Attr,
                                   mlir::DialectAsmPrinter &Printer) const {
 
   if (mlir::succeeded(generatedAttributePrinter(Attr, Printer)))
     return;
-  if (auto Casted = Attr.dyn_cast<StructTypeAttr>()) {
-    Casted.print(Printer);
+  if (auto T = mlir::dyn_cast<StructTypeAttr>(Attr)) {
+    T.print(Printer);
     return;
   }
-  if (auto Casted = Attr.dyn_cast<UnionTypeAttr>()) {
-    Casted.print(Printer);
+  if (auto T = mlir::dyn_cast<UnionTypeAttr>(Attr)) {
+    T.print(Printer);
     return;
   }
   revng_abort("cannot print attribute");
@@ -128,21 +127,21 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
 
 //===---------------------------- EnumTypeAttr ----------------------------===//
 
-mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType emitError,
+mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
                                          uint64_t ID,
-                                         llvm::StringRef,
+                                         llvm::StringRef Name,
                                          mlir::Type UnderlyingType,
                                          llvm::ArrayRef<EnumFieldAttr> Fields) {
   UnderlyingType = dealias(UnderlyingType);
 
   if (not UnderlyingType.isa<PrimitiveType>())
-    return emitError() << "type of enum must be a primitive type";
+    return EmitError() << "type of enum must be a primitive type";
 
   const auto PrimitiveType = UnderlyingType.cast<clift::PrimitiveType>();
   const uint64_t BitWidth = PrimitiveType.getSize() * 8;
 
   if (Fields.empty())
-    return emitError() << "enum requires at least one field";
+    return EmitError() << "enum requires at least one field";
 
   uint64_t MinValue = 0;
   uint64_t MaxValue = 0;
@@ -158,7 +157,7 @@ mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType emitError,
     IsSigned = true;
     break;
   default:
-    return emitError() << "enum underlying type must be an integral type";
+    return EmitError() << "enum underlying type must be an integral type";
   }
 
   uint64_t LastValue = 0;
@@ -172,17 +171,17 @@ mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType emitError,
     };
 
     const auto CheckSigned =
-      [emitError](const auto Value,
+      [EmitError](const auto Value,
                   const auto MinValue,
                   const auto MaxValue) -> mlir::LogicalResult {
       if (Value < MinValue)
-        return emitError() << "enum field " << Value
+        return EmitError() << "enum field " << Value
                            << " is less than the min value of the "
                               "underlying type "
                            << MinValue;
 
       if (Value > MaxValue)
-        return emitError() << "enum field " << Value
+        return EmitError() << "enum field " << Value
                            << " is greater than the max value of the "
                               "underlying type "
                            << MaxValue;
@@ -199,7 +198,7 @@ mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType emitError,
       return R;
 
     if (Value < LastValue || (CheckEqual && Value == LastValue))
-      return emitError() << "enum fields must be strictly ordered by their "
+      return EmitError() << "enum fields must be strictly ordered by their "
                             "unsigned values";
 
     LastValue = Value;
@@ -210,7 +209,7 @@ mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType emitError,
 }
 
 uint64_t EnumTypeAttr::getByteSize() const {
-  return getUnderlyingType().cast<PrimitiveType>().getSize();
+  return mlir::cast<PrimitiveType>(getUnderlyingType()).getSize();
 }
 
 std::string EnumTypeAttr::getAlias() const {
@@ -220,7 +219,7 @@ std::string EnumTypeAttr::getAlias() const {
 //===--------------------------- TypedefTypeAttr --------------------------===//
 
 mlir::LogicalResult TypedefTypeAttr::verify(EmitErrorType EmitError,
-                                            uint64_t Id,
+                                            uint64_t ID,
                                             llvm::StringRef Name,
                                             clift::ValueType UnderlyingType) {
   return mlir::success();
@@ -237,11 +236,10 @@ std::string TypedefTypeAttr::getAlias() const {
 //===------------------------ FunctionArgumentAttr ------------------------===//
 
 mlir::LogicalResult FunctionArgumentAttr::verify(EmitErrorType EmitError,
-                                                 clift::ValueType underlying,
+                                                 clift::ValueType Underlying,
                                                  llvm::StringRef Name) {
-  if (underlying.getByteSize() == 0) {
+  if (Underlying.getByteSize() == 0)
     return EmitError() << "type of argument of function cannot be zero size";
-  }
   return mlir::success();
 }
 
@@ -249,8 +247,8 @@ mlir::LogicalResult FunctionArgumentAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult
 FunctionTypeAttr::verify(EmitErrorType EmitError,
-                         uint64_t Id,
-                         llvm::StringRef,
+                         uint64_t ID,
+                         llvm::StringRef Name,
                          clift::ValueType ReturnType,
                          llvm::ArrayRef<FunctionArgumentAttr> Args) {
   if (const auto Type = mlir::dyn_cast<DefinedType>(ReturnType)) {

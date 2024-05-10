@@ -79,18 +79,18 @@ public:
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID);
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID,
                               llvm::StringRef Name,
                               uint64_t Size,
                               llvm::ArrayRef<FieldAttr> Fields);
 
-  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
-                                function_ref<void(Type)> walkTypesFn) const;
-  Attribute replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                        ArrayRef<Type> replTypes) const;
+  void walkImmediateSubElements(function_ref<void(Attribute)> WalkAttrs,
+                                function_ref<void(Type)> WalkTypes) const;
+  Attribute replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
+                                        ArrayRef<Type> NewTypes) const;
 };
 
 struct UnionTypeAttrStorage;
@@ -139,9 +139,9 @@ public:
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID);
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID,
                               llvm::StringRef Name,
                               llvm::ArrayRef<FieldAttr> Fields);
@@ -151,9 +151,9 @@ public:
   // to do. Notice that since LLVM17 these are no longer methods requested
   // by the SubElementAttrInterface but are instead a builtin property of
   // all types and attributes, so it will break.
-  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
-                                function_ref<void(Type)> walkTypesFn) const;
-  Attribute replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                        ArrayRef<Type> replTypes) const;
+  void walkImmediateSubElements(function_ref<void(Attribute)> WalkAttrs,
+                                function_ref<void(Type)> WalkTypes) const;
+  Attribute replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
+                                        ArrayRef<Type> NewTypes) const;
 };
 } // namespace mlir::clift

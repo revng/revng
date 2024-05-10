@@ -44,7 +44,7 @@ mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
   if (Mnemonic == ScalarTupleType::getMnemonic())
     return ScalarTupleType::parse(Parser);
 
-  Parser.emitError(TypeLoc) << "unknown  type `" << Mnemonic << "` in dialect `"
+  Parser.emitError(TypeLoc) << "unknown type `" << Mnemonic << "` in dialect `"
                             << getNamespace() << "`";
   return {};
 }
@@ -109,10 +109,10 @@ static consteval bool testKindToKind() {
 static_assert(testKindToKind());
 
 mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
-                                          PrimitiveKind kind,
-                                          uint64_t size,
+                                          PrimitiveKind Kind,
+                                          uint64_t Size,
                                           BoolAttr IsConst) {
-  model::PrimitiveType Type(kindToKind(kind), size);
+  model::PrimitiveType Type(kindToKind(Kind), Size);
   if (not Type.verify()) {
     return EmitError() << "primitive type verify failed";
   }
@@ -127,16 +127,16 @@ std::string PrimitiveType::getAlias() const {
 
 //===----------------------------- PointerType ----------------------------===//
 
-mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
-                                        ValueType element_type,
-                                        uint64_t pointer_size,
+mlir::LogicalResult PointerType::verify(EmitErrorType EmitError,
+                                        ValueType ElementType,
+                                        uint64_t PointerSize,
                                         BoolAttr IsConst) {
-  switch (pointer_size) {
+  switch (PointerSize) {
   case 4:
   case 8:
     break;
   default:
-    return emitError() << "invalid pointer size: " << pointer_size;
+    return EmitError() << "invalid pointer size: " << PointerSize;
   }
   return mlir::success();
 }
@@ -147,15 +147,15 @@ uint64_t PointerType::getByteSize() const {
 
 //===------------------------------ ArrayType -----------------------------===//
 
-mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
-                                      ValueType element_type,
-                                      uint64_t count,
+mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
+                                      ValueType ElementType,
+                                      uint64_t ElementCount,
                                       BoolAttr IsConst) {
-  if (count == 0) {
-    return emitError() << "array type cannot have zero elements";
+  if (ElementCount == 0) {
+    return EmitError() << "array type cannot have zero elements";
   }
-  if (element_type.getByteSize() == 0) {
-    return emitError() << "array type cannot have size zero. Did you created a "
+  if (ElementType.getByteSize() == 0) {
+    return EmitError() << "array type cannot have size zero. Did you created a "
                           "array type with a uninitialized struct or union "
                           "type inside?";
   }
@@ -168,8 +168,8 @@ uint64_t ArrayType::getByteSize() const {
 
 //===----------------------------- DefinedType ----------------------------===//
 
-mlir::LogicalResult DefinedType::verify(EmitErrorType emitError,
-                                        TypeDefinitionAttr element_type,
+mlir::LogicalResult DefinedType::verify(EmitErrorType EmitError,
+                                        TypeDefinitionAttr Definition,
                                         BoolAttr IsConst) {
   return mlir::success();
 }
@@ -183,7 +183,7 @@ llvm::StringRef DefinedType::name() {
 }
 
 uint64_t DefinedType::getByteSize() const {
-  return getElementType().cast<SizedType>().getByteSize();
+  return mlir::cast<SizedType>(getElementType()).getByteSize();
 }
 
 std::string DefinedType::getAlias() const {
