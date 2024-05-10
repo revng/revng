@@ -24,7 +24,7 @@ def Clift_FunctionArgumentAttr: Clift_Attr<"FunctionArgument", "farg", [DeclareA
   let parameters = (ins "mlir::clift::ValueType":$type, StringRefParameter<>:$name);
 
   let builders = [
-    AttrBuilderWithInferredContext<(ins "mlir::Type":$Type,
+    AttrBuilderWithInferredContext<(ins "mlir::clift::ValueType":$Type,
                                         CArg<"llvm::StringRef", "\"\"">:$Name), [{
       return $_get(Type.getContext(), Type, Name);
     }]>
@@ -41,15 +41,15 @@ def Clift_FieldAttr : Clift_Attr<"Field", "field", [DeclareAttrInterfaceMethods<
     A attribute representing a field of a struct or a union
   }];
 
-  let parameters = (ins "uint64_t":$offset, "mlir::Type":$type, StringRefParameter<>:$name);
+  let parameters = (ins "uint64_t":$offset, "mlir::clift::ValueType":$type, StringRefParameter<>:$name);
 
   let builders = [
     AttrBuilderWithInferredContext<(ins "uint64_t":$Offset,
-                                        "mlir::Type":$Type,
+                                        "mlir::clift::ValueType":$Type,
                                         CArg<"llvm::StringRef", "\"\"">:$Name), [{
       return $_get(Type.getContext(), Offset, Type, Name);
     }]>,
-    AttrBuilderWithInferredContext<(ins "mlir::Type":$Type,
+    AttrBuilderWithInferredContext<(ins "mlir::clift::ValueType":$Type,
                                         CArg<"llvm::StringRef", "\"\"">:$Name), [{
       return $_get(Type.getContext(), 0, Type, Name);
     }]>
@@ -76,10 +76,10 @@ def Clift_EnumFieldAttr : Clift_Attr<"EnumField", "enum_field", [DeclareAttrInte
 def Clift_EnumTypeAttr : Clift_Attr<"EnumType", "enum", [DeclareAttrInterfaceMethods<Clift_AliasableAttr>, DeclareAttrInterfaceMethods<Clift_SizedType, ["getByteSize"]>, Clift_TypeDefinitionAttr, SubElementAttrInterface]> {
   let summary = "Clift enum type";
 
-  let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::Type":$underlying_type, ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
+  let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$underlying_type, ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
 
   let builders = [
-    TypeBuilderWithInferredContext<(ins "uint64_t":$ID, "llvm::StringRef":$Name, "mlir::Type":$ElementType, "llvm::ArrayRef<mlir::clift::EnumFieldAttr>":$Fields), [{
+    TypeBuilderWithInferredContext<(ins "uint64_t":$ID, "llvm::StringRef":$Name, "mlir::clift::ValueType":$ElementType, "llvm::ArrayRef<mlir::clift::EnumFieldAttr>":$Fields), [{
       return EnumTypeAttr::get(ElementType.getContext(), ID, Name, ElementType, Fields);
      }]>,
   ];
@@ -136,7 +136,7 @@ def Clift_ScalarTupleElementAttr : Clift_Attr<"ScalarTupleElement", "tuple_eleme
     An attribute representing an element of a scalar tuple
   }];
 
-  let parameters = (ins "mlir::Type":$type, StringRefParameter<>:$name);
+  let parameters = (ins "mlir::clift::ValueType":$type, StringRefParameter<>:$name);
 
   let genVerifyDecl = 1;
 

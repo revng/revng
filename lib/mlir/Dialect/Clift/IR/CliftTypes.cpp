@@ -299,7 +299,7 @@ bool ScalarTupleType::isComplete() const {
 uint64_t ScalarTupleType::getByteSize() const {
   uint64_t Size = 0;
   for (ScalarTupleElementAttr Element : getElements())
-    Size += mlir::cast<ValueType>(Element.getType()).getByteSize();
+    Size += Element.getType().getByteSize();
   return Size;
 }
 

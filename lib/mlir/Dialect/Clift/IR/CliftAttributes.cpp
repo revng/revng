@@ -100,20 +100,15 @@ void CliftDialect::printAttribute(mlir::Attribute Attr,
 
 mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
                                       uint64_t Offset,
-                                      mlir::Type ElementType,
+                                      clift::ValueType ElementType,
                                       llvm::StringRef Name) {
-  if (auto Definition = mlir::dyn_cast<DefinedType>(ElementType))
+  if (auto Definition = mlir::dyn_cast<DefinedType>(ElementType)) {
     if (mlir::isa<FunctionTypeAttr>(Definition.getElementType()))
       return EmitError() << "Underlying type of field attr cannot be a "
                             "function type";
-  clift::ValueType Casted = mlir::dyn_cast<clift::ValueType>(ElementType);
-  if (Casted == nullptr) {
-    return EmitError() << "Underlying type of a field attr must be a value "
-                          "type";
   }
-  if (Casted.getByteSize() == 0) {
+  if (ElementType.getByteSize() == 0)
     return EmitError() << "Field cannot be of zero size";
-  }
   return mlir::success();
 }
 
@@ -130,7 +125,7 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
 mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
                                          uint64_t ID,
                                          llvm::StringRef Name,
-                                         mlir::Type UnderlyingType,
+                                         clift::ValueType UnderlyingType,
                                          llvm::ArrayRef<EnumFieldAttr> Fields) {
   UnderlyingType = dealias(UnderlyingType);
 
@@ -271,11 +266,8 @@ std::string FunctionTypeAttr::getAlias() const {
 
 mlir::LogicalResult
 ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
-                               mlir::Type Type,
+                               clift::ValueType Type,
                                const llvm::StringRef Name) {
-  if (not mlir::isa<clift::ValueType>(Type))
-    return EmitError() << "Scalar tuple element type must be a value type";
-
   return mlir::success();
 }
 
@@ -308,8 +300,7 @@ StructTypeAttr::verify(const EmitErrorType EmitError,
                               "and "
                               "they cannot overlap";
 
-      LastEndOffset = Field.getOffset()
-                      + Field.getType().cast<clift::ValueType>().getByteSize();
+      LastEndOffset = Field.getOffset() + Field.getType().getByteSize();
 
       if (not Field.getName().empty()) {
         if (not NameSet.insert(Field.getName()).second)
@@ -509,11 +500,8 @@ bool UnionTypeAttr::isDefinition() const {
 
 uint64_t UnionTypeAttr::getByteSize() const {
   uint64_t Max = 0;
-  for (const auto &Field : getFields()) {
-    mlir::Type FieldType = Field.getType();
-    uint64_t Size = FieldType.cast<clift::ValueType>().getByteSize();
-    Max = Size > Max ? Size : Max;
-  }
+  for (auto const &Field : getFields())
+    Max = std::max(Max, Field.getType().getByteSize());
   return Max;
 }
 
