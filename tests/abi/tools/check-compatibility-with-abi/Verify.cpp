@@ -344,21 +344,31 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
   bool UsesSPTAR = FunctionLayout.hasSPTAR();
   if (!UsesSPTAR) {
     bool SingleArgument = FunctionLayout.Arguments.size() == 1;
-    bool SingleReturnValue = FunctionLayout.ReturnValues.size() == 1;
-    if (SingleArgument && SingleReturnValue) {
+    bool ExpectedReturnValue = ABI.ReturnValueLocationIsReturned() ?
+                                 FunctionLayout.ReturnValues.size() == 1 :
+                                 FunctionLayout.ReturnValues.empty();
+    if (SingleArgument && ExpectedReturnValue) {
       const auto &ArgumentType = FunctionLayout.Arguments[0].Type;
-      const auto &ReturnValueType = FunctionLayout.ReturnValues[0].Type;
-      bool TypesMatch = ArgumentType == ReturnValueType;
-      bool ReturnValueIsAPointer = ReturnValueType->isPointer();
+      if (ABI.ReturnValueLocationIsReturned()) {
+        const auto &ReturnValueType = FunctionLayout.ReturnValues[0].Type;
+        bool TypesMatch = ArgumentType == ReturnValueType;
+        bool ReturnValueIsAPointer = ReturnValueType->isPointer();
 
-      // Case for a register SPTAR - types must match.
-      if (TypesMatch && ReturnValueIsAPointer)
-        UsesSPTAR = true;
+        // Case for a register SPTAR - types must match.
+        if (TypesMatch && ReturnValueIsAPointer)
+          UsesSPTAR = true;
 
-      // Case for a stack SPTAR - allow any type as the argument as long as
-      // it's pointer-sized.
-      if (*ArgumentType->size() == PointerSize && ReturnValueIsAPointer)
-        UsesSPTAR = true;
+        // Case for a stack SPTAR - allow any type as the argument as long as
+        // it's pointer-sized.
+        if (*ArgumentType->size() == PointerSize && ReturnValueIsAPointer)
+          UsesSPTAR = true;
+      } else {
+        // Only support register SPTARs for ABI that do not return the pointer
+        // back (AArch64). This is a safe assumption to make because non-SPTAR
+        // return value tests never have arguments in the first place.
+        if (ArgumentType->isPointer())
+          UsesSPTAR = true;
+      }
     }
   }
 
