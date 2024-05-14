@@ -33,6 +33,17 @@ inline bool mayReadMemory(const llvm::Instruction &I) {
   if (not Call)
     return false;
 
+  // We have to hardcode revng_call_stack_arguments and revng_stack_frame
+  // because SegregateStackAccesses has to mark them as functions that read
+  // inaccessible memory, in order to prevent some LLVM optimizations.
+  if (llvm::Function *Callee = Call->getCalledFunction()) {
+    llvm::StringRef Name = Callee->getName();
+    if (Name.startswith("revng_call_stack_arguments")
+        or Name.startswith("revng_stack_frame"))
+      return false;
+  }
+
+  // In all the other cases we can just use memory effects.
   auto CallMemoryEffects = Call->getMemoryEffects();
   bool MayAccessMemory = not CallMemoryEffects.doesNotAccessMemory();
   bool OnlyReadsMemory = CallMemoryEffects.onlyReadsMemory();
