@@ -14,6 +14,8 @@ revng_add_analyses_library(
   CycleEquivalencePass.cpp
   ExprNode.cpp
   FallThroughScopeAnalysis.cpp
+  GenericRegionInfo.cpp
+  GenericRegionPass.cpp
   InlineDispatcherSwitch.cpp
   MetaRegion.cpp
   PromoteCallNoReturn.cpp
