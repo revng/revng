@@ -175,7 +175,7 @@ getAccessedLocalVariableFromModelGEP(const CallInst *ModelGEPRefCall) {
     rc_return GEPBase;
 
   // If the GEPBase is directly a LocalVariable, we're done
-  if (isCallToTagged(GEPBase, FunctionTags::LocalVariable))
+  if (isCallToTagged(GEPBase, FunctionTags::AllocatesLocalVariable))
     rc_return GEPBase;
 
   // If the GEPBase is another ModelGEPRef we recur.
@@ -208,7 +208,7 @@ getAccessedLocalVariable(const Instruction *I) {
   // If the accessed thing is directly an Argument or a LocalVariable we're
   // done.
   if (isa<Argument>(Accessed)
-      or isCallToTagged(Accessed, FunctionTags::LocalVariable)) {
+      or isCallToTagged(Accessed, FunctionTags::AllocatesLocalVariable)) {
     return Accessed;
   }
 
