@@ -636,12 +636,15 @@ IT::newInstruction(PTCInstruction *Instr,
   else
     NextPC = EndPC;
 
-  if (AbortAt.isValid() and NextPC.addressGreaterThan(AbortAt))
+  PointerType *Int8PtrTy = getStringPtrType(Context);
+
+  if (AbortAt.isValid() and NextPC.addressGreaterThan(AbortAt)) {
+    emitNewPCCall(Builder, PC, 1, ConstantPointerNull::get(Int8PtrTy));
     return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
+  }
 
   MDNode *MDOriginalInstr = nullptr;
   Constant *String = nullptr;
-  PointerType *Int8PtrTy = getStringPtrType(Context);
   if (RecordASM) {
     std::stringstream OriginalStringStream;
     revng_assert(NextPC - PC);

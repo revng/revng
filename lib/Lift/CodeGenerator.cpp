@@ -976,6 +976,13 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
                                                    EndPC,
                                                    true,
                                                    AbortAt);
+
+      if (Result == InstructionTranslator::Abort) {
+        StopTranslation = true;
+        Builder.CreateCall(AbortFunction);
+        Builder.CreateUnreachable();
+      }
+
       J++;
     }
 

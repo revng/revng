@@ -218,8 +218,8 @@ void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
     BranchInst::Create(TargetBlock, ExitTBCall->getParent());
     JTM->recordNewBranches(ExitTBCall->getParent(), 1);
   } else {
-    // We're jumping to an unknown or invalid location,
-    // jump back to the dispatcher
+    // We're jumping to an unknown or invalid location, jump back to the
+    // dispatcher
     // TODO: emit a warning
     BranchInst::Create(JTM->unexpectedPC(), ExitTBCall);
   }
