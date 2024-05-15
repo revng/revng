@@ -432,7 +432,15 @@ private:
 
     StringRef SymbolName = extractFromConstantStringPtr(SymbolNamePointer);
     revng_assert(SymbolName == CallEdge->DynamicFunction());
-    revng_assert(Callee == CallEdge->Destination().notInlinedAddress());
+
+    if (Callee != CallEdge->Destination().notInlinedAddress()) {
+      revng_assert(not CallEdge->Destination().notInlinedAddress().isValid());
+
+      // The callee in the IR is different from the one we get from the CFG.
+      // This likely means that the called address is not a function.
+      // For now, we represent this as an indirect function call.
+      Callee = MetaAddress::invalid();
+    }
 
     // Identify callee
     Function *CalledFunction = nullptr;
