@@ -99,7 +99,8 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
 
     const llvm::BasicBlock *PredecessorJumpTargetBB = nullptr;
     for (const llvm::BasicBlock *Predecessor : predecessors(JumpTargetBB)) {
-      if (GCBI.isTranslated(Predecessor)) {
+      auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
+      if (GCBI.isTranslated(Predecessor) or getType(Predecessor) == IBDHB) {
         const llvm::BasicBlock *NewJT = getJumpTargetBlock(Predecessor);
         if (PredecessorJumpTargetBB != nullptr) {
           revng_assert(PredecessorJumpTargetBB == NewJT,
