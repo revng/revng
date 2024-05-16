@@ -22,6 +22,10 @@ CHECK: {{.*}}64_t bitwise_or({{.*}}64_t [[ARG:.*]]) {
 CHECK: 0xABCDEF1234567890
 CHECK: }
 
+CHECK: {{.*}}64_t bitwise_xor({{.*}}64_t [[ARG:.*]]) {
+CHECK: 0xABCDEF1234567890
+CHECK: }
+
 Character literal
 
 CHECK: write_and_get_char(void) {

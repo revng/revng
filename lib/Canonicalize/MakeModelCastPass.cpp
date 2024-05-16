@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -61,7 +62,7 @@ private:
                              const model::Binary &);
   void createAndInjectModelCast(Instruction *,
                                 const SerializedType &,
-                                OpaqueFunctionsPool<Type *> &);
+                                OpaqueFunctionsPool<TypePair> &);
 };
 
 using MMCP = MakeModelCastPass;
@@ -164,36 +165,73 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
         Result.emplace_back(std::move(Type));
       }
     }
+  } else if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)
+             or isa<llvm::SelectInst>(I)) {
+    for (unsigned Index = 0; Index < I->getNumOperands(); ++Index)
+      SerializeTypeFor(I->getOperandUse(Index));
+  } else if (auto *Switch = dyn_cast<llvm::SwitchInst>(I)) {
+    SerializeTypeFor(Switch->getOperandUse(0));
   }
 
   return Result;
 }
 
+static FunctionType *getModelCastType(TypePair Key) {
+  LLVMContext &LLVMCtxt = Key.RetType->getContext();
+  Type *StringPtrType = getStringPtrType(LLVMCtxt);
+  IntegerType *Int1 = llvm::IntegerType::getInt1Ty(LLVMCtxt);
+  return FunctionType::get(Key.RetType,
+                           { StringPtrType, Key.ArgType, Int1 },
+                           /* VarArg */ false);
+}
+
+static Function *
+getModelCastFunction(TypePair Key,
+                     OpaqueFunctionsPool<TypePair> &ModelCastPool) {
+  FunctionType *ModelCastType = getModelCastType(Key);
+  return ModelCastPool.get(Key, ModelCastType, "ModelCast");
+}
+
+// Create a call to explicit ModelCast. Later on, we run `ImplicitModelCastPass`
+// to detect implicit casts.
+static Value *createCallToModelCast(IRBuilder<> &Builder,
+                                    TypePair Key,
+                                    Constant *SerializedTypeAsString,
+                                    Value *Operand,
+                                    OpaqueFunctionsPool<TypePair> &Pool) {
+  auto *ModelCastFunction = getModelCastFunction(Key, Pool);
+  LLVMContext &Context = Builder.getContext();
+  ConstantInt *IsImplicit = llvm::ConstantInt::getFalse(Context);
+  Value *Call = Builder.CreateCall(ModelCastFunction,
+                                   { SerializedTypeAsString,
+                                     Operand,
+                                     IsImplicit });
+  return Call;
+}
+
 void MMCP::createAndInjectModelCast(Instruction *Ins,
                                     const SerializedType &ST,
-                                    OpaqueFunctionsPool<Type *> &Pool) {
+                                    OpaqueFunctionsPool<TypePair> &Pool) {
   IRBuilder<> Builder(Ins);
 
   uint64_t OperandId = ST.OperandId;
-  Constant *StringType = ST.StringType;
+  Value *Operand = Ins->getOperand(OperandId);
   Type *BaseAddressTy = Ins->getOperand(OperandId)->getType();
-
-  llvm::Type *StringPtrType = getStringPtrType(Ins->getContext());
-  auto *ModelCastType = FunctionType::get(BaseAddressTy,
-                                          { StringPtrType, BaseAddressTy },
-                                          false);
-  auto *ModelCastFunction = Pool.get(BaseAddressTy, ModelCastType, "ModelCast");
-
-  Value *Call = Builder.CreateCall(ModelCastFunction,
-                                   { StringType, Ins->getOperand(OperandId) });
-  Ins->setOperand(OperandId, Call);
+  Value *CallToModelCast = createCallToModelCast(Builder,
+                                                 { BaseAddressTy,
+                                                   BaseAddressTy },
+                                                 ST.StringType,
+                                                 Operand,
+                                                 Pool);
+  Ins->setOperand(OperandId, CallToModelCast);
 }
 
 bool MMCP::runOnFunction(Function &F) {
   bool Changed = false;
 
-  OpaqueFunctionsPool<Type *> ModelCastPool(F.getParent(), false);
-  initModelCastPool(ModelCastPool);
+  Module *M = F.getParent();
+  OpaqueFunctionsPool<TypePair> ModelCastPool(M, false);
+  initModelCastPool(ModelCastPool, M);
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
@@ -201,6 +239,64 @@ bool MMCP::runOnFunction(Function &F) {
   ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
   auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
+
+  // First of all, remove all SExt, ZExt and Trunc, and replace them with
+  // ModelCasts.
+  {
+    LLVMContext &LLVMCtxt = F.getContext();
+    IRBuilder<> Builder(LLVMCtxt);
+    for (BasicBlock &BB : F) {
+      for (Instruction &I : llvm::make_early_inc_range(BB)) {
+        auto *SExt = dyn_cast<llvm::SExtInst>(&I);
+        auto *ZExt = dyn_cast<llvm::ZExtInst>(&I);
+        auto *Trunc = dyn_cast<llvm::TruncInst>(&I);
+        if (not SExt and not ZExt and not Trunc)
+          continue;
+
+        llvm::Value *CastedOperand = I.getOperand(0);
+
+        // Build a FunctionType for the ModelCast function, and add it to the
+        // pool
+        auto *ResultTypeOnLLVM = cast<IntegerType>(I.getType());
+        TypePair Key = TypePair{ .RetType = ResultTypeOnLLVM,
+                                 .ArgType = CastedOperand->getType() };
+        // Create the ModelCast call.
+        Builder.SetInsertPoint(&I);
+
+        // Compute the target type of the cast, depending on the cast we're
+        // replacing.
+
+        unsigned ResultBitWidth = ResultTypeOnLLVM->getBitWidth();
+        revng_assert(std::has_single_bit(ResultBitWidth));
+        revng_assert(ResultBitWidth == 1 or ResultBitWidth >= 8);
+        unsigned ByteSize = (ResultBitWidth == 1) ? 1 : ResultBitWidth / 8;
+
+        using model::PrimitiveTypeKind::Values::Number;
+        using model::PrimitiveTypeKind::Values::Signed;
+        using model::PrimitiveTypeKind::Values::Unsigned;
+        model::PrimitiveTypeKind::Values Kind = SExt ?
+                                                  Signed :
+                                                  (ZExt ? Unsigned : Number);
+        auto ResultModelType = model::QualifiedType{
+          Model->getPrimitiveType(Kind, ByteSize), {}
+        };
+
+        // Create a string constant to pass as first argument of the call to
+        // ModelCast, to represent the target model type.
+        Constant *TargetModelTypeString = serializeToLLVMString(ResultModelType,
+                                                                *M);
+        revng_assert(TargetModelTypeString);
+
+        Value *CallToModelCast = createCallToModelCast(Builder,
+                                                       Key,
+                                                       TargetModelTypeString,
+                                                       CastedOperand,
+                                                       ModelCastPool);
+        I.replaceAllUsesWith(CallToModelCast);
+        I.eraseFromParent();
+      }
+    }
+  }
 
   TypeMap = initModelTypes(Cache, F, ModelFunction, *Model, false);
 

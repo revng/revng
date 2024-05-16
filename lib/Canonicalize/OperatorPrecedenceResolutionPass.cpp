@@ -218,7 +218,19 @@ static unsigned getOpcode(const Instruction *I) {
   return I->getOpcode();
 }
 
+static bool isImplicitCast(const Value *V) {
+  if (not isCallToTagged(V, FunctionTags::ModelCast))
+    return false;
+
+  // If it is an implicit cast, omit the parentheses.
+  const llvm::CallInst *ModelCastCall = cast<llvm::CallInst>(V);
+  return cast<llvm::ConstantInt>(ModelCastCall->getArgOperand(2))->isOne();
+}
+
 static bool isTransparentOpCode(const Value *V) {
+  if (isImplicitCast(V))
+    return true;
+
   if (isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V) or isa<BitCastInst>(V)
       or isa<FreezeInst>(V))
     return true;
@@ -240,6 +252,8 @@ static Value *traverseTransparentOpcodes(Value *I) {
       I = CallToCopy->getArgOperand(0);
     else if (auto *CallToMGR = getCallToTagged(I, FunctionTags::ModelGEPRef))
       I = CallToMGR->getArgOperand(1);
+    else if (isImplicitCast(I))
+      I = cast<CallInst>(I)->getArgOperand(1);
     else
       revng_abort("unexpected transparent opcode");
   }
