@@ -247,12 +247,14 @@ public:
 
   /// Executes all the pipes of this step, merges the results in the final
   /// containers and returns the containers filtered according to the request.
-  ContainerSet run(ContainerSet &&Targets);
+  ContainerSet run(ContainerSet &&Targets,
+                   const std::vector<PipeExecutionEntry> &ExecutionInfos);
 
-  /// Returns the set of goals that are already contained in the backing
-  /// containers of this step, furthermore adds to the container ToLoad those
-  /// that were not present.
-  ContainerToTargetsMap
+  /// Given the input required goals, calculates backwards how such goals are
+  /// achieved by the current step and returns the targets that must be loaded
+  /// from the containers in the step before this one, as well as a list of for
+  /// each pipe.
+  std::pair<ContainerToTargetsMap, std::vector<PipeExecutionEntry>>
   analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const;
 
   llvm::Error checkPrecondition() const;

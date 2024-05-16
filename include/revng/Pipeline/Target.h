@@ -224,6 +224,11 @@ public:
     return Contained.erase(std::forward<Args>(A)...);
   }
 
+  void erase(const Target &Target) {
+    Contained.erase(std::remove(Contained.begin(), Contained.end(), Target),
+                    Contained.end());
+  }
+
   TargetsList intersect(const TargetsList &Other) const {
     TargetsList ToReturn;
     std::set_intersection(begin(),
@@ -344,6 +349,7 @@ public:
 
 public:
   void merge(const ContainerToTargetsMap &Other);
+  void erase(const ContainerToTargetsMap &Other);
 
   void add(llvm::StringRef Name,
            std::initializer_list<std::string> Names,

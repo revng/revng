@@ -30,6 +30,19 @@ void TargetsList::merge(const TargetsList &Source) {
   Contained.erase(unique(Contained.begin(), Contained.end()), Contained.end());
 }
 
+void ContainerToTargetsMap::erase(const ContainerToTargetsMap &Other) {
+  for (const auto &Container : Other.Status) {
+    const auto &ContainerName = Container.first();
+    const auto &ContainerSymbols = Container.second;
+    if (Status.find(ContainerName) == Status.end())
+      continue;
+    auto &ToRemoveFrom = Status[ContainerName];
+
+    for (auto &Symbol : ContainerSymbols)
+      ToRemoveFrom.erase(Symbol);
+  }
+}
+
 void ContainerToTargetsMap::merge(const ContainerToTargetsMap &Other) {
   for (const auto &Container : Other.Status) {
     const auto &ContainerName = Container.first();

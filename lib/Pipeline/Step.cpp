@@ -210,18 +210,22 @@ ContainerInvalidationMetadata::deserialize(const Context &Ctx,
   return ToReturn;
 }
 
-ContainerToTargetsMap
+std::pair<ContainerToTargetsMap, std::vector<PipeExecutionEntry>>
 Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const {
 
   ContainerToTargetsMap AlreadyAvailable;
   ContainerToTargetsMap Targets = RequiredGoals;
   removeSatisfiedGoals(Targets, AlreadyAvailable);
+
+  std::vector<PipeExecutionEntry> PipesExecutionEntries;
   for (const PipeWrapper &Pipe :
        llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
-    Targets = Pipe.Pipe->getRequirements(*Ctx, Targets);
+    PipesExecutionEntries.push_back(Pipe.Pipe->getRequirements(*Ctx, Targets));
+    Targets = PipesExecutionEntries.back().Input;
   }
+  std::reverse(PipesExecutionEntries.begin(), PipesExecutionEntries.end());
 
-  return Targets;
+  return std::make_pair(std::move(Targets), std::move(PipesExecutionEntries));
 }
 
 void Step::explainStartStep(const ContainerToTargetsMap &Targets,
@@ -270,15 +274,16 @@ void Step::explainExecutedPipe(const InvokableWrapperBase &Wrapper,
   CommandLogger << DoLog;
 }
 
-ContainerSet Step::run(ContainerSet &&Input) {
+ContainerSet Step::run(ContainerSet &&Input,
+                       const std::vector<PipeExecutionEntry> &ExecutionInfos) {
   ContainerToTargetsMap InputEnumeration = Input.enumerate();
   explainStartStep(InputEnumeration);
 
   Task T(Pipes.size() + 1, "Step " + getName());
-  for (PipeWrapper &Pipe : Pipes) {
+  for (const auto &[Pipe, Info] : llvm::zip(Pipes, ExecutionInfos)) {
     T.advance(Pipe.Pipe->getName(), false);
     explainExecutedPipe(*Pipe.Pipe);
-    ExecutionContext Context(*Ctx, &Pipe, InputEnumeration);
+    ExecutionContext Context(*Ctx, &Pipe, Info.Output);
     Pipe.Pipe->deduceResults(*Ctx, Context.getCurrentRequestedTargets());
     cantFail(Pipe.Pipe->run(Context, Input));
     llvm::cantFail(Input.verify());

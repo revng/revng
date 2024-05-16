@@ -196,6 +196,7 @@ public:
 
 bool InvokeIsolatedFunctionsPass::run(Module &M,
                                       const pipeline::TargetsList &Targets) {
+
   if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
     return false;
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
