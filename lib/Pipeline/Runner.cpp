@@ -28,11 +28,17 @@ public:
   Step *ToExecute;
   ContainerToTargetsMap Output;
   ContainerToTargetsMap Input;
+  std::vector<PipeExecutionEntry> PipesExecuteEntries;
 
   PipelineExecutionEntry(Step &ToExecute,
                          ContainerToTargetsMap Output,
-                         ContainerToTargetsMap Input) :
-    ToExecute(&ToExecute), Output(std::move(Output)), Input(std::move(Input)) {}
+                         ContainerToTargetsMap Input,
+                         std::vector<PipeExecutionEntry>
+                           PipesToExecuteEntries) :
+    ToExecute(&ToExecute),
+    Output(std::move(Output)),
+    Input(std::move(Input)),
+    PipesExecuteEntries(std::move(PipesToExecuteEntries)) {}
 };
 
 static Error getObjectives(Runner &Runner,
@@ -44,8 +50,12 @@ static Error getObjectives(Runner &Runner,
   while (CurrentStep != nullptr and not ToLoad.empty()) {
 
     ContainerToTargetsMap Output = ToLoad;
-    ToLoad = CurrentStep->analyzeGoals(ToLoad);
-    ToExec.emplace_back(*CurrentStep, Output, ToLoad);
+    auto [Required, PipesExecutionEntries] = CurrentStep->analyzeGoals(ToLoad);
+    ToLoad = std::move(Required);
+    ToExec.emplace_back(*CurrentStep,
+                        Output,
+                        ToLoad,
+                        std::move(PipesExecutionEntries));
     CurrentStep = CurrentStep->hasPredecessor() ?
                     &CurrentStep->getPredecessor() :
                     nullptr;
@@ -367,7 +377,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
   Task T(ToExec.size() - 1, "Produce steps required up to " + EndingStepName);
   for (PipelineExecutionEntry &StepGoalsPairs : llvm::drop_begin(ToExec)) {
-    auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
+    auto &[Step, PredictedOutput, Input, PipesInfo] = StepGoalsPairs;
     T.advance(Step->getName(), true);
 
     Task T2(3, "Run step");
@@ -378,7 +388,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
     // Run the step
     T2.advance("Run the step", true);
-    Step->run(std::move(CurrentContainer));
+    Step->run(std::move(CurrentContainer), PipesInfo);
 
     T2.advance("Extract the requested targets", true);
     if (VerifyLog.isEnabled()) {

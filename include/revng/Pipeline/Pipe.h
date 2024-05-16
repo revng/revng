@@ -28,6 +28,19 @@
 
 namespace pipeline {
 
+/// rappresents the requested (not expected, which means that it contains only
+/// the targets the user care about, not all those that will be generated as a
+/// side effect) input and output of a given invocation of a pipe.
+class PipeExecutionEntry {
+public:
+  ContainerToTargetsMap Output;
+  ContainerToTargetsMap Input;
+
+  PipeExecutionEntry(ContainerToTargetsMap Output,
+                     ContainerToTargetsMap Input) :
+    Output(std::move(Output)), Input(std::move(Input)) {}
+};
+
 namespace detail {
 
 template<typename T>
@@ -78,7 +91,7 @@ public:
   using ImplType = PipeWrapperImpl<PipeType>;
 
 public:
-  virtual ContainerToTargetsMap
+  virtual PipeExecutionEntry
   getRequirements(const Context &Ctx,
                   const ContainerToTargetsMap &Target) const = 0;
   virtual ContainerToTargetsMap
@@ -143,17 +156,21 @@ public:
     return false;
   }
 
-  ContainerToTargetsMap
+  PipeExecutionEntry
   getRequirements(const Context &Ctx,
                   const ContainerToTargetsMap &Target) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
-    auto ToReturn = Target;
+    auto Requirements = Target;
     for (const auto &Contract : llvm::reverse(Contracts))
-      ToReturn = Contract
-                   .deduceRequirements(Ctx,
-                                       ToReturn,
-                                       Invokable.getRunningContainersNames());
-    return ToReturn;
+      Requirements = Contract
+                       .deduceRequirements(Ctx,
+                                           Requirements,
+                                           Invokable
+                                             .getRunningContainersNames());
+    auto TargetsProducedByMe = Target;
+    TargetsProducedByMe.erase(Requirements);
+
+    return PipeExecutionEntry(TargetsProducedByMe, Requirements);
   }
 
   ContainerToTargetsMap
