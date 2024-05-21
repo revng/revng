@@ -18,11 +18,13 @@
 #define GET_TYPEDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
 
+using namespace mlir::clift;
+
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
 //******************************** CliftDialect ********************************
 
-void mlir::clift::CliftDialect::registerTypes() {
+void CliftDialect::registerTypes() {
   addTypes<ScalarTupleType, /* Include the auto-generated clift types */
 #define GET_TYPEDEF_LIST
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
@@ -30,8 +32,7 @@ void mlir::clift::CliftDialect::registerTypes() {
 }
 
 /// Parse a type registered to this dialect
-mlir::Type
-mlir::clift::CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
+mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
   const llvm::SMLoc TypeLoc = Parser.getCurrentLocation();
 
   llvm::StringRef Mnemonic;
@@ -48,9 +49,8 @@ mlir::clift::CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
 }
 
 /// Print a type registered to this dialect
-void mlir::clift::CliftDialect::printType(mlir::Type Type,
-                                          mlir::DialectAsmPrinter &Printer)
-  const {
+void CliftDialect::printType(mlir::Type Type,
+                             mlir::DialectAsmPrinter &Printer) const {
 
   if (mlir::succeeded(generatedTypePrinter(Type, Printer)))
     return;
@@ -60,12 +60,11 @@ void mlir::clift::CliftDialect::printType(mlir::Type Type,
 }
 
 static constexpr model::PrimitiveType::PrimitiveKindType
-kindToKind(mlir::clift::PrimitiveKind kind) {
+kindToKind(PrimitiveKind kind) {
   return static_cast<model::PrimitiveType::PrimitiveKindType>(kind);
 }
 
 using Primitive = model::PrimitiveType::PrimitiveKindType;
-using namespace mlir::clift;
 static_assert(Primitive::Float == kindToKind(PrimitiveKind::FloatKind));
 static_assert(Primitive::Void == kindToKind(PrimitiveKind::VoidKind));
 static const auto
@@ -76,11 +75,10 @@ static_assert(Primitive::Generic == kindToKind(PrimitiveKind::GenericKind));
 static_assert(Primitive::Signed == kindToKind(PrimitiveKind::SignedKind));
 static_assert(Primitive::Number == kindToKind(PrimitiveKind::NumberKind));
 
-mlir::LogicalResult
-mlir::clift::PrimitiveType::verify(EmitErrorType EmitError,
-                                   mlir::clift::PrimitiveKind kind,
-                                   uint64_t size,
-                                   BoolAttr IsConst) {
+mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
+                                          PrimitiveKind kind,
+                                          uint64_t size,
+                                          BoolAttr IsConst) {
 
   model::PrimitiveType Type(kindToKind(kind), size);
   if (not Type.verify()) {
@@ -89,12 +87,12 @@ mlir::clift::PrimitiveType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-std::string mlir::clift::EnumTypeAttr::getAlias() const {
+std::string EnumTypeAttr::getAlias() const {
   return getName().str();
 }
 
-std::string mlir::clift::DefinedType::getAlias() const {
-  if (auto Casted = getElementType().dyn_cast<mlir::clift::AliasableAttr>()) {
+std::string DefinedType::getAlias() const {
+  if (auto Casted = getElementType().dyn_cast<AliasableAttr>()) {
     if (Casted.getAlias().empty())
       return "";
     return isConst() ? "const_" + Casted.getAlias() : Casted.getAlias();
@@ -102,54 +100,54 @@ std::string mlir::clift::DefinedType::getAlias() const {
   return "";
 }
 
-std::string mlir::clift::PrimitiveType::getAlias() const {
+std::string PrimitiveType::getAlias() const {
   model::PrimitiveType Type(kindToKind(getKind()), getByteSize());
   return isConst() ? std::string("const_") + serializeToString(Type.name()) :
                      serializeToString(Type.name());
 }
 
-std::string mlir::clift::TypedefTypeAttr::getAlias() const {
+std::string TypedefTypeAttr::getAlias() const {
   return getName().str();
 }
 
-std::string mlir::clift::FunctionTypeAttr::getAlias() const {
+std::string FunctionTypeAttr::getAlias() const {
   return getName().str();
 }
 
-llvm::StringRef mlir::clift::DefinedType::name() {
+llvm::StringRef DefinedType::name() {
   return getElementType().name();
 }
 
-uint64_t mlir::clift::DefinedType::id() {
+uint64_t DefinedType::id() {
   return getElementType().id();
 }
 
-uint64_t mlir::clift::ArrayType::getByteSize() const {
+uint64_t ArrayType::getByteSize() const {
   return getElementType().getByteSize() * getElementsCount();
 }
 
-uint64_t mlir::clift::DefinedType::getByteSize() const {
-  return getElementType().cast<mlir::clift::SizedType>().getByteSize();
+uint64_t DefinedType::getByteSize() const {
+  return getElementType().cast<SizedType>().getByteSize();
 }
 
-uint64_t mlir::clift::EnumTypeAttr::getByteSize() const {
-  return getUnderlyingType().cast<mlir::clift::PrimitiveType>().getSize();
+uint64_t EnumTypeAttr::getByteSize() const {
+  return getUnderlyingType().cast<PrimitiveType>().getSize();
 }
 
-uint64_t mlir::clift::PointerType::getByteSize() const {
+uint64_t PointerType::getByteSize() const {
   return getPointerSize();
 }
 
-uint64_t mlir::clift::TypedefTypeAttr::getByteSize() const {
+uint64_t TypedefTypeAttr::getByteSize() const {
   return getUnderlyingType().getByteSize();
 }
 
-uint64_t mlir::clift::FunctionTypeAttr::getByteSize() const {
+uint64_t FunctionTypeAttr::getByteSize() const {
   return 0;
 }
 
 mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
-                                        mlir::clift::ValueType element_type,
+                                        clift::ValueType element_type,
                                         uint64_t pointer_size,
                                         BoolAttr IsConst) {
   switch (pointer_size) {
@@ -162,15 +160,14 @@ mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
   return mlir::success();
 }
 
-mlir::LogicalResult
-DefinedType::verify(EmitErrorType emitError,
-                    mlir::clift::TypeDefinitionAttr element_type,
-                    BoolAttr IsConst) {
+mlir::LogicalResult DefinedType::verify(EmitErrorType emitError,
+                                        TypeDefinitionAttr element_type,
+                                        BoolAttr IsConst) {
   return mlir::success();
 }
 
 mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
-                                      mlir::clift::ValueType element_type,
+                                      clift::ValueType element_type,
                                       uint64_t count,
                                       BoolAttr IsConst) {
   if (count == 0) {
@@ -184,9 +181,9 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
   return mlir::success();
 }
 
-static mlir::clift::TypedefTypeAttr getTypedefAttr(mlir::Type Type) {
-  if (auto D = mlir::dyn_cast<mlir::clift::DefinedType>(Type))
-    return mlir::dyn_cast<mlir::clift::TypedefTypeAttr>(D.getElementType());
+static TypedefTypeAttr getTypedefAttr(mlir::Type Type) {
+  if (auto D = mlir::dyn_cast<DefinedType>(Type))
+    return mlir::dyn_cast<TypedefTypeAttr>(D.getElementType());
   return nullptr;
 }
 
@@ -196,19 +193,17 @@ static mlir::Type dealias(mlir::Type Type) {
   return Type;
 }
 
-using namespace mlir::clift;
-mlir::LogicalResult
-EnumTypeAttr::verify(EmitErrorType emitError,
-                     uint64_t ID,
-                     llvm::StringRef,
-                     mlir::Type UnderlyingType,
-                     llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
+mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType emitError,
+                                         uint64_t ID,
+                                         llvm::StringRef,
+                                         mlir::Type UnderlyingType,
+                                         llvm::ArrayRef<EnumFieldAttr> Fields) {
   UnderlyingType = dealias(UnderlyingType);
 
-  if (not UnderlyingType.isa<mlir::clift::PrimitiveType>())
+  if (not UnderlyingType.isa<PrimitiveType>())
     return emitError() << "type of enum must be a primitive type";
 
-  const auto PrimitiveType = UnderlyingType.cast<mlir::clift::PrimitiveType>();
+  const auto PrimitiveType = UnderlyingType.cast<clift::PrimitiveType>();
   const uint64_t BitWidth = PrimitiveType.getSize() * 8;
 
   if (Fields.empty())
