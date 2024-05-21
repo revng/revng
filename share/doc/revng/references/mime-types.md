@@ -17,6 +17,7 @@ USAGE: revng-artifact [options] <artifact> <binary>
   recompile                   - application/x-executable
   recompile-isolated          - application/x-executable
   emit-cfg                    - text/x.yaml
+  simplify-switch             - text/x.llvm.ir
   make-segment-ref            - text/x.llvm.ir
   decompile                   - text/x.c+ptml+tar+gz
   decompile-to-single-file    - text/x.c+ptml
