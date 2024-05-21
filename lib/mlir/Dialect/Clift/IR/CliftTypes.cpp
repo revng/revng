@@ -59,21 +59,50 @@ void CliftDialect::printType(mlir::Type Type,
     return T.print(Printer);
 }
 
-static constexpr model::PrimitiveType::PrimitiveKindType
-kindToKind(PrimitiveKind kind) {
-  return static_cast<model::PrimitiveType::PrimitiveKindType>(kind);
+static constexpr model::PrimitiveTypeKind::Values
+kindToKind(const PrimitiveKind Kind) {
+  return static_cast<model::PrimitiveTypeKind::Values>(Kind);
 }
 
-using Primitive = model::PrimitiveType::PrimitiveKindType;
-static_assert(Primitive::Float == kindToKind(PrimitiveKind::FloatKind));
-static_assert(Primitive::Void == kindToKind(PrimitiveKind::VoidKind));
-static const auto
-  PointerOrNumber = kindToKind(PrimitiveKind::PointerOrNumberKind);
-static_assert(Primitive::PointerOrNumber == PointerOrNumber);
-static_assert(Primitive::Unsigned == kindToKind(PrimitiveKind::UnsignedKind));
-static_assert(Primitive::Generic == kindToKind(PrimitiveKind::GenericKind));
-static_assert(Primitive::Signed == kindToKind(PrimitiveKind::SignedKind));
-static_assert(Primitive::Number == kindToKind(PrimitiveKind::NumberKind));
+/// Test that kindToKind converts each clift::PrimitiveKind to the matching
+/// model::PrimitiveTypeKind. Use a switch converting in the opposite direction
+/// in order to produce a warning if a new primitive kind is ever added.
+static consteval bool testKindToKind() {
+  PrimitiveKind UninitializedKind;
+  const auto TestSwitch = [&](const model::PrimitiveTypeKind::Values Kind) {
+    switch (Kind) {
+    case model::PrimitiveTypeKind::Float:
+      return PrimitiveKind::FloatKind;
+    case model::PrimitiveTypeKind::Generic:
+      return PrimitiveKind::GenericKind;
+    case model::PrimitiveTypeKind::Number:
+      return PrimitiveKind::NumberKind;
+    case model::PrimitiveTypeKind::PointerOrNumber:
+      return PrimitiveKind::PointerOrNumberKind;
+    case model::PrimitiveTypeKind::Signed:
+      return PrimitiveKind::SignedKind;
+    case model::PrimitiveTypeKind::Unsigned:
+      return PrimitiveKind::UnsignedKind;
+    case model::PrimitiveTypeKind::Void:
+      return PrimitiveKind::VoidKind;
+
+    case model::PrimitiveTypeKind::Invalid:
+    case model::PrimitiveTypeKind::Count:
+      // Unreachable. This causes an error during constant evaluation.
+      return UninitializedKind;
+    }
+  };
+
+  for (int I = 0; I < static_cast<int>(model::PrimitiveTypeKind::Count); ++I) {
+    auto const Kind = static_cast<model::PrimitiveTypeKind::Values>(I);
+    if (Kind != model::PrimitiveTypeKind::Invalid) {
+      if (kindToKind(TestSwitch(Kind)) != Kind)
+        return false;
+    }
+  }
+  return true;
+}
+static_assert(testKindToKind());
 
 mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
                                           PrimitiveKind kind,
