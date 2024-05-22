@@ -5,15 +5,9 @@
 Segments:
   - IsReadable: true
     IsWriteable: false
-    Sections:
-      - Name: .rodata
-        ContainsCode: false
     Type: "/Types/1812-StructType"
   - IsReadable: true
     IsWriteable: true
-    Sections:
-      - Name: .data
-        ContainsCode: false
     Type: "/Types/1815-StructType"
 Types:
   - ID: 516

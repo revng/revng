@@ -3,19 +3,42 @@
 #
 
 commands:
-  - type: revng-c.decompilation
+  - # Run pipeline up to decompile-to-single-file
+    type: revng-c.decompile-to-single-file
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-decompilation
     suffix: /
     command: |-
-      WORKDIR="$OUTPUT/decompiled-to-check" ;
-      RESUME="$OUTPUT/resume" ;
-      mkdir -p "$$WORKDIR" ;
-      revng analyze revng-initial-auto-analysis "$INPUT" --resume "$$RESUME" -o /dev/null ;
-      revng analyze revng-c-initial-auto-analysis "$INPUT" --resume "$$RESUME" -o - | revng model compare "${SOURCE}".model.yml ;
-      revng artifact decompile-to-single-file "$INPUT" --resume "$$RESUME" -o - | revng ptml -p > "$$WORKDIR/decompiled.c" ;
-      revng artifact emit-model-header "$INPUT" --resume "$$RESUME" -o - | revng ptml -p > "$$WORKDIR/types-and-globals.h" ;
-      revng artifact emit-helpers-header "$INPUT" --resume "$$RESUME" -o - | revng ptml -p > "$$WORKDIR/helpers.h" ;
-      revng check-decompiled-c "$$WORKDIR/decompiled.c" -I "$$WORKDIR" ;
-      cat "$$WORKDIR/decompiled.c" | FileCheck "${SOURCE}".filecheck ;
+      revng artifact --resume "$OUTPUT" --analyze decompile-to-single-file "$INPUT" -o /dev/null
+  - # Perform checks on the model
+    type: revng-c.decompile-to-single-file.model-check
+    from:
+      - type: revng-c.decompile-to-single-file
+    command: |-
+      revng model compare "${SOURCE}".model.yml "$INPUT/context/model.yml"
+  - # Check well-formedness of decompiled C
+    type: revng-c.decompile-to-single-file.check-decompiled-c
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-decompilation
+      - type: revng-c.decompile-to-single-file
+    suffix: /
+    command: |-
+      RESUME=$$(temp -d);
+      cp -Tar "$INPUT2" "$$RESUME";
+      revng artifact --resume "$$RESUME" decompile-to-single-file "$INPUT1" | revng ptml > "$OUTPUT/decompiled.c";
+      revng artifact --resume "$$RESUME" emit-model-header "$INPUT1" | revng ptml > "$OUTPUT/types-and-globals.h";
+      revng artifact --resume "$$RESUME" emit-helpers-header "$INPUT1" | revng ptml > "$OUTPUT/helpers.h";
+      revng check-decompiled-c "$OUTPUT/decompiled.c" -I "$OUTPUT";
+      cat "$OUTPUT/decompiled.c" | FileCheck "${SOURCE}".filecheck
+  - # Perform checks on the decompiled C code
+    type: revng-c.decompile-to-single-file.filecheck
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-decompilation
+      - type: revng-c.decompile-to-single-file
+    command: |-
+      RESUME=$$(temp -d);
+      cp -Tar "$INPUT2" "$$RESUME";
+      revng artifact --resume "$$RESUME" decompile-to-single-file "$INPUT1" | revng ptml | FileCheck "${SOURCE}".filecheck
