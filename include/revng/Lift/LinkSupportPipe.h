@@ -30,6 +30,10 @@ public:
   void run(const pipeline::ExecutionContext &Ctx,
            pipeline::LLVMContainer &TargetsList);
 
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
+
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,
              llvm::ArrayRef<std::string> RunningContainersNames) const;

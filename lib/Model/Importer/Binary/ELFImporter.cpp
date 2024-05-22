@@ -35,6 +35,11 @@ using namespace llvm::object;
 
 Logger<> ELFImporterLog("elf-importer");
 
+template<typename A, typename B>
+static bool hasFlag(A Flag, B Value) {
+  return (Flag & Value) != 0;
+}
+
 FilePortion::FilePortion(const RawBinaryView &File) :
   File(File),
   HasAddress(false),
@@ -159,6 +164,7 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 
 template<typename T, bool HasAddend>
 Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
+  revng_log(ELFImporterLog, "Starting ELF import");
   llvm::Task Task(11, "Import ELF");
   Task.advance("Parse ELF", true);
 
@@ -194,34 +200,57 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
   Task.advance("Parse sections", true);
 
-  auto Sections = TheELF.sections();
-  if (auto Error = Sections.takeError()) {
+  SmallVector<Section, 16> Sections;
+  auto ELFSections = TheELF.sections();
+  if (auto Error = ELFSections.takeError()) {
     revng_log(ELFImporterLog, "Sections unavailable: " << Error);
     llvm::consumeError(std::move(Error));
   } else {
-    for (auto &Section : *Sections) {
-      auto NameOrErr = TheELF.getSectionName(Section);
-      if (NameOrErr) {
-        auto &Name = *NameOrErr;
-        if (Name == ".symtab") {
-          // TODO: check dedicated field in section header
-          if (SymtabShdr == nullptr)
-            SymtabShdr = &Section;
-          else
-            revng_log(ELFImporterLog, "Multiple .symtab. Ignoring.");
-        } else if (Name == ".eh_frame") {
-          if (not EHFrameAddress) {
-            EHFrameAddress = relocate(fromGeneric(Section.sh_addr));
-            EHFrameSize = static_cast<uint64_t>(Section.sh_size);
-          } else {
-            revng_log(ELFImporterLog, "Duplicate .eh_frame. Ignoring.");
-          }
-        } else if (Name == ".dynamic") {
-          if (not DynamicAddress)
-            DynamicAddress = relocate(fromGeneric(Section.sh_addr));
-          else
-            revng_log(ELFImporterLog, "Duplicate .dynamic. Ignoring.");
+    for (ConstElf_Shdr &SectionHeader : *ELFSections) {
+      // Obtain the section name
+      StringRef SectionName;
+      if (auto NameOrErr = TheELF.getSectionName(SectionHeader))
+        SectionName = *NameOrErr;
+
+      // Collect section names
+      if (hasFlag(SectionHeader.sh_flags, ELF::SHF_ALLOC)) {
+        bool CanContainCode = hasFlag(SectionHeader.sh_flags,
+                                      ELF::SHF_EXECINSTR);
+        auto SectionStart = relocate(fromGeneric(SectionHeader.sh_addr));
+        uint64_t Size = SectionHeader.sh_size;
+        auto SectionEnd = SectionStart + Size;
+
+        // Note: we will discard overlapping sections later on, in
+        // populateSegmentTypeStruct
+        if (SectionStart.isValid() and SectionEnd.isValid()
+            and SectionStart.addressLowerThan(SectionEnd)) {
+          Section NewSection(SectionStart, SectionHeader.sh_size);
+
+          NewSection.Name = SectionName.str();
+          NewSection.CanContainCode = CanContainCode;
+          Sections.push_back(std::move(NewSection));
         }
+      }
+
+      // Handle well-known sections
+      if (SectionName == ".symtab") {
+        // TODO: check dedicated field in section header
+        if (SymtabShdr == nullptr)
+          SymtabShdr = &SectionHeader;
+        else
+          revng_log(ELFImporterLog, "Multiple .symtab. Ignoring.");
+      } else if (SectionName == ".eh_frame") {
+        if (not EHFrameAddress) {
+          EHFrameAddress = relocate(fromGeneric(SectionHeader.sh_addr));
+          EHFrameSize = static_cast<uint64_t>(SectionHeader.sh_size);
+        } else {
+          revng_log(ELFImporterLog, "Duplicate .eh_frame. Ignoring.");
+        }
+      } else if (SectionName == ".dynamic") {
+        if (not DynamicAddress)
+          DynamicAddress = relocate(fromGeneric(SectionHeader.sh_addr));
+        else
+          revng_log(ELFImporterLog, "Duplicate .dynamic. Ignoring.");
       }
     }
   }
@@ -351,9 +380,15 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // Do not replace it, if `Type` is valid (may be added by the user); note that
   // `isValid` checks also for being empty.
   Task.advance("Parse segment struct from data symbols", true);
-  for (auto &Segment : Model->Segments())
-    if (Segment.Type().empty())
-      Segment.Type() = populateSegmentTypeStruct(*Model, Segment, DataSymbols);
+  for (auto &Segment : Model->Segments()) {
+    if (Segment.Type().empty()) {
+      Segment.Type() = populateSegmentTypeStruct(*Model,
+                                                 Segment,
+                                                 DataSymbols,
+                                                 Sections,
+                                                 Segment.IsExecutable());
+    }
+  }
 
   // Create a default prototype
 
@@ -411,8 +446,10 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
 
       auto &Object = *cast<llvm::object::ObjectFile>(BinaryOrErr->getBinary());
       auto *TheBinary = dyn_cast<ELFObjectFileBase>(&Object);
-      if (!TheBinary)
+      if (!TheBinary) {
+        revng_log(ELFImporterLog, "Can't parse the binary");
         continue;
+      }
 
       using model::Binary;
       using std::make_unique;
@@ -622,11 +659,6 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
   }
 }
 
-template<typename A, typename B>
-static bool hasFlag(A Flag, B Value) {
-  return (Flag & Value) != 0;
-}
-
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
   // Loop over the program headers looking for PT_LOAD segments, read them out
@@ -682,40 +714,6 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       NewSegment.IsReadable() = hasFlag(ProgramHeader.p_flags, ELF::PF_R);
       NewSegment.IsWriteable() = hasFlag(ProgramHeader.p_flags, ELF::PF_W);
       NewSegment.IsExecutable() = hasFlag(ProgramHeader.p_flags, ELF::PF_X);
-
-      // If it's an executable segment, and we've been asked so, register
-      // which sections actually contain code
-      auto Sections = TheELF.sections();
-      if (auto Error = Sections.takeError()) {
-        revng_log(ELFImporterLog, "Sections unavailable: " << Error);
-        llvm::consumeError(std::move(Error));
-      } else {
-        using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
-        auto Inserter = NewSegment.Sections().batch_insert();
-        for (Elf_Shdr &SectionHeader : *Sections) {
-          if (not hasFlag(SectionHeader.sh_flags, ELF::SHF_ALLOC))
-            continue;
-
-          bool ContainsCode = (NewSegment.IsExecutable()
-                               and hasFlag(SectionHeader.sh_flags,
-                                           ELF::SHF_EXECINSTR));
-          auto SectionStart = relocate(fromGeneric(SectionHeader.sh_addr));
-          uint64_t Size = SectionHeader.sh_size;
-          auto SectionEnd = SectionStart + Size;
-
-          if (SectionStart.isValid() and SectionEnd.isValid()
-              and SectionStart.addressLowerThan(SectionEnd)
-              and NewSegment.contains(SectionStart, Size)) {
-            model::Section NewSection(SectionStart, SectionHeader.sh_size);
-            if (auto SectionName = TheELF.getSectionName(SectionHeader);
-                SectionName)
-              NewSection.Name() = SectionName->str();
-            NewSection.ContainsCode() = ContainsCode;
-            NewSection.verify(true);
-            Inserter.insert(std::move(NewSection));
-          }
-        }
-      }
 
       NewSegment.verify(true);
 

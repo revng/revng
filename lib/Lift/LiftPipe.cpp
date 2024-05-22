@@ -57,6 +57,13 @@ llvm::Error Lift::checkPrecondition(const pipeline::Context &Ctx) const {
                                    "invalid.");
   }
 
+  if (Model.DefaultABI() == model::ABI::Invalid
+      and Model.DefaultPrototype().empty()) {
+    return llvm::createStringError(inconvertibleErrorCode(),
+                                   "Cannot lift binary without either a "
+                                   "DefaultABI or a DefaultPrototype.");
+  }
+
   return llvm::Error::success();
 }
 

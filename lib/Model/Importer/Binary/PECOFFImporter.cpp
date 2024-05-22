@@ -132,26 +132,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     // TODO: replace the following with `populateSegmentTypeStruct`, when
     // symbol table and dynamic symbol table parsing is finalized
     Segment.Type() = createEmptyStruct(*Model, Segment.VirtualSize());
-
-    // NOTE: Unlike ELF, PE/COFF does not have segments. Instead, it has
-    // sections only. All the raw data in a section must be loaded
-    // contiguously. Segments just map file range to virtual address space
-    // range.
-    auto SectionStart = ImageBase + u64(CoffRef->VirtualAddress);
-    uint64_t Size = u64(CoffRef->VirtualSize);
-    auto SectionEnd = SectionStart + Size;
-
-    if (SectionStart.isValid() and SectionEnd.isValid()
-        and SectionStart.addressLowerThan(SectionEnd)) {
-      model::Section NewSection(SectionStart, Size);
-      if (auto SectionName = TheBinary.getSectionName(CoffRef))
-        NewSection.Name() = SectionName->str();
-      NewSection.ContainsCode() = Segment.IsExecutable();
-      revng_assert(NewSection.verify(true));
-      Segment.Sections().insert(std::move(NewSection));
-    } else {
-      revng_log(Log, "Found an invalid section");
-    }
+    auto *SegmentStruct = cast<model::StructType>(Segment.Type().get());
+    SegmentStruct->CanContainCode() = Segment.IsExecutable();
 
     Segment.verify(true);
     Model->Segments().insert(std::move(Segment));

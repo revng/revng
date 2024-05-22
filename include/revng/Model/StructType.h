@@ -19,6 +19,10 @@ fields:
   - name: Size
     doc: Size in bytes
     type: uint64_t
+  - name: CanContainCode
+    doc: Whether this struct, when in a Segment can contain code.
+    type: bool
+    optional: true
   - name: Fields
     sequence:
       type: SortedVector

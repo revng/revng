@@ -241,6 +241,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 class HexDumpPipe {
 public:
   static constexpr auto Name = "hex-dump";
+
   std::array<pipeline::ContractGroup, 2> getContract() const {
     const pipeline::Contract
       FunctionsContract(kinds::Isolated,
@@ -256,6 +257,7 @@ public:
                      pipeline::InputPreservation::Preserve);
     return { pipeline::ContractGroup({ FunctionsContract, BinaryContract }) };
   }
+
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            const pipeline::LLVMContainer &Module,
@@ -272,6 +274,10 @@ public:
 
     StringRef OutputPath = Output.getOrCreatePath();
     outputHexDump(Binary, Module, SourceBinary, OutputPath);
+  }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
   }
 
   void print(const pipeline::Context &Ctx,

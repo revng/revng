@@ -21,6 +21,7 @@
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -31,21 +32,13 @@ name: Binary
 doc: Data structure representing the whole binary
 type: struct
 fields:
-  - name: Functions
-    doc: List of the functions within the binary
-    sequence:
-      type: SortedVector
-      elementType: Function
-    optional: true
-  - name: ImportedDynamicFunctions
-    doc: List of the functions within the binary
-    sequence:
-      type: SortedVector
-      elementType: DynamicFunction
-    optional: true
   - name: Architecture
     doc: Binary architecture
     type: Architecture
+    optional: true
+  - name: EntryPoint
+    doc: Program entry point
+    type: MetaAddress
     optional: true
   - name: DefaultABI
     doc: The default ABI of `RawFunctionType`s within the binary
@@ -57,28 +50,14 @@ fields:
       pointeeType: Type
       rootType: Binary
     optional: true
+  - name: Configuration
+    type: Configuration
+    optional: true
   - name: Segments
     doc: List of segments in the original binary
     sequence:
       type: SortedVector
       elementType: Segment
-    optional: true
-  - name: EntryPoint
-    doc: Program entry point
-    type: MetaAddress
-    optional: true
-  - name: Types
-    doc: The type system
-    sequence:
-      type: SortedVector
-      upcastable: true
-      elementType: Type
-    optional: true
-  - name: ImportedLibraries
-    doc: List of imported libraries
-    sequence:
-      type: SortedVector
-      elementType: string
     optional: true
   - name: ExtraCodeAddresses
     doc: Addresses containing code in order to help translation
@@ -86,8 +65,30 @@ fields:
     sequence:
       type: SortedVector
       elementType: MetaAddress
-  - name: Configuration
-    type: Configuration
+  - name: ImportedLibraries
+    doc: List of imported libraries
+    sequence:
+      type: SortedVector
+      elementType: string
+    optional: true
+  - name: ImportedDynamicFunctions
+    doc: List of the functions within the binary
+    sequence:
+      type: SortedVector
+      elementType: DynamicFunction
+    optional: true
+  - name: Functions
+    doc: List of the functions within the binary
+    sequence:
+      type: SortedVector
+      elementType: Function
+    optional: true
+  - name: Types
+    doc: The type system
+    sequence:
+      type: SortedVector
+      upcastable: true
+      elementType: Type
     optional: true
 TUPLE-TREE-YAML */
 
@@ -195,6 +196,9 @@ public:
   std::string path(const model::Segment &Segment) const {
     return "/Segments/" + key(Segment);
   }
+
+public:
+  MetaAddressRangeSet executableRanges() const;
 
 public:
   bool verify(bool Assert) const debug_function;

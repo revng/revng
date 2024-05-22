@@ -11,6 +11,8 @@
 #include "llvm/Support/Progress.h"
 #include "llvm/Transforms/Scalar.h"
 
+#include "revng/Model/VerifyHelper.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
 
 #include "JumpTargetManager.h"
@@ -429,23 +431,20 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 
   prepareDispatcher();
 
-  //
   // Collect executable ranges from the model
-  //
-  for (const model::Segment &Segment : Model->Segments()) {
-    if (Segment.IsExecutable()) {
-      if (Segment.Sections().size() > 0) {
-        for (const model::Section &Section : Segment.Sections()) {
-          if (Section.ContainsCode()) {
-            ExecutableRanges.emplace_back(Section.StartAddress(),
-                                          Section.endAddress());
-          }
-        }
-      } else {
-        ExecutableRanges.emplace_back(Segment.StartAddress(),
-                                      Segment.endAddress());
-      }
+  ExecutableRanges = Model->executableRanges();
+
+  if (RegisterJTLog.isEnabled()) {
+    RegisterJTLog << "Executable ranges:\n";
+    for (const auto &[Start, End] : ExecutableRanges) {
+      RegisterJTLog << "  " << Start.toString() << "-" << End.toString()
+                    << "\n";
     }
+    RegisterJTLog << DoLog;
+  }
+
+  for (const model::Function &F : Model->Functions()) {
+    revng_assert(isExecutableAddress(F.Entry()));
   }
 
   // Configure GlobalValueNumbering

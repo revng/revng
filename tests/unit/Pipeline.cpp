@@ -257,6 +257,10 @@ public:
       }
     Target.enumerate().dump();
   }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
 };
 
 BOOST_AUTO_TEST_CASE(PipeCanBeWrapper) {
@@ -558,6 +562,10 @@ public:
       Target.get({ std::move(PathComponents), FunctionKind }) = Element.second;
     }
   }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
 };
 
 class CopyPipe {
@@ -577,6 +585,10 @@ public:
     for (const auto &Element : Source.getMap())
       if (&Element.first.getKind() == &FunctionKind)
         Target.get(Element.first) = Element.second;
+  }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
   }
 };
 

@@ -22,6 +22,10 @@ public:
 
 public:
   void run(const ExecutionContext &, const Source &S, Destination &T) { T = S; }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
 };
 
 } // namespace pipeline

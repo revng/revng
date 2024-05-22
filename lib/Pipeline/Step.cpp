@@ -361,10 +361,11 @@ Error Step::store(const revng::DirectoryPath &DirPath) const {
 
 Error Step::checkPrecondition() const {
   for (const PipeWrapper &Pipe : Pipes) {
-    if (llvm::Error Error = Pipe.Pipe->checkPrecondition(*Ctx); Error)
-      return llvm::make_error<AnnotatedError>(std::move(Error),
-                                              "While scheduling pipe "
-                                                + Pipe.Pipe->getName() + ":");
+    if (llvm::Error Error = Pipe.Pipe->checkPrecondition(*Ctx); Error) {
+      std::string Message = "While scheduling the " + Pipe.Pipe->getName()
+                            + " pipe a precondition check failed:";
+      return llvm::make_error<AnnotatedError>(std::move(Error), Message);
+    }
   }
   return llvm::Error::success();
 }

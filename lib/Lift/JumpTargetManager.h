@@ -26,6 +26,7 @@
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
 // Forward declarations
@@ -213,7 +214,6 @@ public:
 
 public:
   using BlockMap = std::map<MetaAddress, JumpTarget>;
-  using RangesVector = std::vector<std::pair<MetaAddress, MetaAddress>>;
   using CSAAFactory = std::function<CPUStateAccessAnalysisPass *(void)>;
 
 public:
@@ -275,19 +275,9 @@ public:
 
   /// Return true if the whole [\p Start,\p End) range is in an executable
   /// segment
-  bool isExecutableRange(MetaAddress Start, MetaAddress End) const {
-    revng_assert(Start.isValid() and End.isValid());
-
-    for (const std::pair<MetaAddress, MetaAddress> &Range : ExecutableRanges) {
-      if (Range.first.addressLowerThanOrEqual(Start)
-          and Start.addressLowerThan(Range.second)
-          and Range.first.addressLowerThanOrEqual(End)
-          and End.addressLowerThan(Range.second)) {
-        return true;
-      }
-    }
-
-    return false;
+  bool isExecutableRange(const MetaAddress &Start,
+                         const MetaAddress &End) const {
+    return ExecutableRanges.contains(Start, End);
   }
 
   bool isMapped(MetaAddress Start, MetaAddress End) const {
@@ -330,16 +320,8 @@ public:
   }
 
   /// Return true if \p PC is in an executable segment
-  bool isExecutableAddress(MetaAddress PC) const {
-    revng_assert(PC.isValid());
-
-    for (std::pair<MetaAddress, MetaAddress> Range : ExecutableRanges) {
-      if (Range.first.addressLowerThanOrEqual(PC)
-          and PC.addressLowerThan(Range.second)) {
-        return true;
-      }
-    }
-    return false;
+  bool isExecutableAddress(const MetaAddress &PC) const {
+    return ExecutableRanges.contains(PC);
   }
 
   /// Get the basic block associated to the original address \p PC
@@ -609,7 +591,7 @@ private:
   std::vector<BlockWithAddress> Unexplored;
 
   llvm::Function *ExitTB;
-  RangesVector ExecutableRanges;
+  MetaAddressRangeSet ExecutableRanges;
 
   llvm::BasicBlock *Dispatcher;
   llvm::SwitchInst *DispatcherSwitch;

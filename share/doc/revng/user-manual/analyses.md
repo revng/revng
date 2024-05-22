@@ -34,14 +34,14 @@ However, the typical workflow does not require the user to manually specify what
 
 ```bash
 $ revng analyze \
-        --resume=working-directory  \
-        revng-initial-auto-analysis  \
-        example  \
+        --resume=working-directory \
+        revng-initial-auto-analysis \
+        example \
         -o /dev/null
 $ revng analyze \
-        --resume=working-directory  \
-        revng-c-initial-auto-analysis  \
-        example  \
+        --resume=working-directory \
+        revng-c-initial-auto-analysis \
+        example \
         -o /dev/null
 $ revng artifact \
         --resume working-directory \
