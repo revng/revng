@@ -1,7 +1,7 @@
 # User's manual
 
 The user's manual describes concepts that are mostly useful for users.
-If you just want to use the UI, most of these are benficial but not strictly necessary.
+If you just want to use the UI, most of these are beneficial but not strictly necessary.
 On other hand, they are vital to get a better understanding of rev.ng and in particular to approach scripting rev.ng.
 
 The manual discusses the following topics:

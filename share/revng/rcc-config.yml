@@ -21,7 +21,7 @@ matchers:
     suffixes: ["html", "js", "json", "ts", "yaml", "yml"]
   codespell:
     type: all_except
-    suffixes: ["css"]
+    suffixes: ["css", "cfg"]
   all: { type: all_filter }
 
 write_passes:
