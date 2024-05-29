@@ -336,7 +336,7 @@ static bool isCompleteType(const mlir::Type Type) {
 }
 
 mlir::LogicalResult mlir::clift::StructType::verify(EmitErrorType EmitError,
-                                                    uint64_t id) {
+                                                    uint64_t ID) {
   return mlir::success();
 }
 
@@ -381,6 +381,11 @@ mlir::clift::StructType::verify(const EmitErrorType EmitError,
   return mlir::success();
 }
 
+mlir::LogicalResult mlir::clift::UnionType::verify(EmitErrorType EmitError,
+                                                   uint64_t ID) {
+  return mlir::success();
+}
+
 mlir::LogicalResult
 mlir::clift::UnionType::verify(EmitErrorType EmitError,
                                uint64_t ID,
@@ -406,76 +411,70 @@ mlir::clift::UnionType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::clift::StructType mlir::clift::StructType::get(MLIRContext *ctx,
+mlir::clift::StructType mlir::clift::StructType::get(MLIRContext *Context,
                                                      uint64_t ID) {
-  return Base::get(ctx, ID);
+  return Base::get(Context, ID);
 }
 
 mlir::clift::StructType
 mlir::clift::StructType::getChecked(EmitErrorType EmitError,
-                                    MLIRContext *ctx,
+                                    MLIRContext *Context,
                                     uint64_t ID) {
-  if (failed(verify(EmitError, ID)))
-    return {};
-  return get(ctx, ID);
+  return get(Context, ID);
 }
 
 mlir::clift::StructType
-mlir::clift::StructType::get(MLIRContext *ctx,
+mlir::clift::StructType::get(MLIRContext *Context,
                              uint64_t ID,
                              llvm::StringRef Name,
                              uint64_t Size,
                              llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(ctx, ID);
+  auto Result = Base::get(Context, ID);
   Result.define(Name, Size, Fields);
   return Result;
 }
 
 mlir::clift::StructType
 mlir::clift::StructType::getChecked(EmitErrorType EmitError,
-                                    MLIRContext *ctx,
+                                    MLIRContext *Context,
                                     uint64_t ID,
                                     llvm::StringRef Name,
                                     uint64_t Size,
                                     llvm::ArrayRef<FieldAttr> Fields) {
   if (failed(verify(EmitError, ID, Name, Size, Fields)))
     return {};
-  return get(ctx, ID, Name, Size, Fields);
+  return get(Context, ID, Name, Size, Fields);
 }
 
-mlir::clift::UnionType mlir::clift::UnionType::get(MLIRContext *ctx,
+mlir::clift::UnionType mlir::clift::UnionType::get(MLIRContext *Context,
                                                    uint64_t ID) {
-  // Call into the base to get a uniqued instance of this type. The parameter
-  // (name) is passed after the context.
-  return Base::get(ctx, ID);
+  return Base::get(Context, ID);
 }
 
 mlir::clift::UnionType
 mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
-                                   MLIRContext *ctx,
+                                   MLIRContext *Context,
                                    uint64_t ID) {
-  if (failed(verify(EmitError, ID)))
-    return {};
-  return get(ctx, ID);
+  return get(Context, ID);
 }
 
 mlir::clift::UnionType
-mlir::clift::UnionType::get(MLIRContext *ctx,
+mlir::clift::UnionType::get(MLIRContext *Context,
                             uint64_t ID,
                             llvm::StringRef Name,
                             llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(ctx, ID);
+  auto Result = Base::get(Context, ID);
   Result.define(Name, Fields);
   return Result;
 }
 
 mlir::clift::UnionType
 mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
-                                   MLIRContext *ctx,
+                                   MLIRContext *Context,
                                    uint64_t ID,
                                    llvm::StringRef Name,
                                    llvm::ArrayRef<FieldAttr> Fields) {
   if (failed(verify(EmitError, ID, Name, Fields)))
     return {};
-  return get(ctx, ID, Name, Fields);
+  return get(Context, ID, Name, Fields);
 }
