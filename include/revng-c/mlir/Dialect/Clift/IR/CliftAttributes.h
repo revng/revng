@@ -20,7 +20,6 @@
 // This include should stay here for correct build procedure
 #define GET_ATTRDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h.inc"
-#include "revng-c/mlir/Dialect/Clift/IR/CliftStorage.h"
 
 namespace mlir::clift {
 
@@ -30,6 +29,7 @@ namespace mlir::clift {
 // discourse.llvm.org/t/custom-walk-and-replace-for-non-tablegen-types/74229
 // This is very brittle and it is very likely that it will change again in
 // future llvm releases
+struct StructTypeStorage;
 class StructType
   : public ::mlir::Attribute::AttrBase<StructType,
                                        Attribute,
@@ -63,34 +63,18 @@ public:
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields);
 
-  static llvm::StringRef getMnemonic() { return "struct"; }
-  std::string getAlias() const { return getName().str(); }
+  static llvm::StringLiteral getMnemonic() { return { "struct" }; }
 
-  void define(llvm::StringRef Name,
-              uint64_t Size,
-              llvm::ArrayRef<FieldAttr> Fields) {
-    // Call into the base to mutate the type.
-    LogicalResult Result = Base::mutate(Name, Fields, Size);
+  void
+  define(llvm::StringRef Name, uint64_t Size, llvm::ArrayRef<FieldAttr> Fields);
 
-    // Most types expect the mutation to always succeed, but types can implement
-    // custom logic for handling mutation failures.
-    revng_assert(succeeded(Result)
-                 && "attempting to change the body of an already-initialized "
-                    "type");
-  }
+  uint64_t getId() const;
+  llvm::StringRef getName() const;
+  llvm::ArrayRef<FieldAttr> getFields() const;
 
-  /// Returns the contained type, which may be null if it has not been
-  /// initialized yet.
-  llvm::ArrayRef<FieldAttr> getFields() { return getImpl()->getFields(); }
-
-  /// Returns the name.
-  StringRef getName() const { return getImpl()->getName(); }
-
-  bool isDefinition() const { return getImpl()->isInitialized(); }
-
-  uint64_t getId() const { return getImpl()->getID(); }
-
-  uint64_t getByteSize() { return getImpl()->getSize(); }
+  bool isDefinition() const;
+  uint64_t getByteSize() const;
+  std::string getAlias() const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
@@ -109,6 +93,7 @@ public:
                                         ArrayRef<Type> replTypes) const;
 };
 
+struct UnionTypeStorage;
 class UnionType : public Attribute::AttrBase<UnionType,
                                              Attribute,
                                              UnionTypeStorage,
@@ -139,40 +124,17 @@ public:
              llvm::StringRef Name,
              llvm::ArrayRef<FieldAttr> Fields);
 
-  static llvm::StringRef getMnemonic() { return "union"; }
-  std::string getAlias() const { return getName().str(); }
+  static llvm::StringLiteral getMnemonic() { return { "union" }; }
 
-  void define(llvm::StringRef Name, llvm::ArrayRef<FieldAttr> Fields) {
-    // Call into the base to mutate the type.
-    LogicalResult Result = Base::mutate(Name, Fields);
+  void define(llvm::StringRef Name, llvm::ArrayRef<FieldAttr> Fields);
 
-    // Most types expect the mutation to always succeed, but types can implement
-    // custom logic for handling mutation failures.
-    revng_assert(succeeded(Result)
-                 && "attempting to change the body of an already-initialized "
-                    "type");
-  }
+  uint64_t getId() const;
+  llvm::StringRef getName() const;
+  llvm::ArrayRef<FieldAttr> getFields() const;
 
-  /// Returns the contained type, which may be null if it has not been
-  /// initialized yet.
-  llvm::ArrayRef<FieldAttr> getFields() { return getImpl()->getFields(); }
-
-  /// Returns the name.
-  StringRef getName() const { return getImpl()->getName(); }
-
-  bool isDefinition() const { return getImpl()->isInitialized(); }
-
-  uint64_t getId() const { return getImpl()->getID(); }
-
-  uint64_t getByteSize() {
-    uint64_t Max = 0;
-    for (auto const &Field : getFields()) {
-      mlir::Type FieldType = Field.getType();
-      uint64_t Size = FieldType.cast<mlir::clift::ValueType>().getByteSize();
-      Max = Size > Max ? Size : Max;
-    }
-    return Max;
-  }
+  bool isDefinition() const;
+  uint64_t getByteSize() const;
+  std::string getAlias() const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;

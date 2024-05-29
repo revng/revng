@@ -19,6 +19,7 @@
 #include "revng-c/mlir/Dialect/Clift/IR/CliftTypes.h"
 
 #include "CliftParser.h"
+#include "CliftStorage.h"
 
 // This include should stay here for correct build procedure
 //
@@ -319,4 +320,85 @@ mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
   if (failed(verify(EmitError, ID, Name, Fields)))
     return {};
   return get(Context, ID, Name, Fields);
+}
+
+void mlir::clift::StructType::define(const llvm::StringRef Name,
+                                     const uint64_t Size,
+                                     const llvm::ArrayRef<FieldAttr> Fields) {
+  // Call into the base to mutate the type.
+  LogicalResult Result = Base::mutate(Name, Fields, Size);
+
+  // Most types expect the mutation to always succeed, but types can implement
+  // custom logic for handling mutation failures.
+  revng_assert(succeeded(Result)
+               && "attempting to change the body of an already-initialized "
+                  "type");
+}
+
+void mlir::clift::UnionType::define(const llvm::StringRef Name,
+                                    const llvm::ArrayRef<FieldAttr> Fields) {
+  // Call into the base to mutate the type.
+  LogicalResult Result = Base::mutate(Name, Fields);
+
+  // Most types expect the mutation to always succeed, but types can implement
+  // custom logic for handling mutation failures.
+  revng_assert(succeeded(Result)
+               && "attempting to change the body of an already-initialized "
+                  "type");
+}
+
+uint64_t mlir::clift::StructType::getId() const {
+  return getImpl()->getID();
+}
+
+llvm::StringRef mlir::clift::StructType::getName() const {
+  return getImpl()->getName();
+}
+
+llvm::ArrayRef<mlir::clift::FieldAttr>
+mlir::clift::StructType::getFields() const {
+  return getImpl()->getFields();
+}
+
+bool mlir::clift::StructType::isDefinition() const {
+  return getImpl()->isInitialized();
+}
+
+uint64_t mlir::clift::StructType::getByteSize() const {
+  return getImpl()->getSize();
+}
+
+std::string mlir::clift::StructType::getAlias() const {
+  return getName().str();
+}
+
+uint64_t mlir::clift::UnionType::getId() const {
+  return getImpl()->getID();
+}
+
+llvm::StringRef mlir::clift::UnionType::getName() const {
+  return getImpl()->getName();
+}
+
+llvm::ArrayRef<mlir::clift::FieldAttr>
+mlir::clift::UnionType::getFields() const {
+  return getImpl()->getFields();
+}
+
+bool mlir::clift::UnionType::isDefinition() const {
+  return getImpl()->isInitialized();
+}
+
+uint64_t mlir::clift::UnionType::getByteSize() const {
+  uint64_t Max = 0;
+  for (const auto &Field : getFields()) {
+    mlir::Type FieldType = Field.getType();
+    uint64_t Size = FieldType.cast<mlir::clift::ValueType>().getByteSize();
+    Max = Size > Max ? Size : Max;
+  }
+  return Max;
+}
+
+std::string mlir::clift::UnionType::getAlias() const {
+  return getName().str();
 }

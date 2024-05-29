@@ -10,6 +10,8 @@
 
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 
+#include "CliftStorage.h"
+
 #define GET_TYPEDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
 
@@ -272,8 +274,8 @@ void UnionType::walkImmediateSubElements(function_ref<void(Attribute)>
   const {
   if (not getImpl()->isInitialized())
     return;
-  for (auto field : getImpl()->getFields())
-    walkAttrsFn(field);
+  for (auto Field : getFields())
+    walkAttrsFn(Field);
 }
 
 mlir::Attribute
@@ -291,8 +293,8 @@ void StructType::walkImmediateSubElements(function_ref<void(Attribute)>
   const {
   if (not getImpl()->isInitialized())
     return;
-  for (auto field : getImpl()->getFields())
-    walkAttrsFn(field);
+  for (auto Field : getFields())
+    walkAttrsFn(Field);
 }
 
 mlir::Attribute
