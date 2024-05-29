@@ -71,7 +71,7 @@ inline void eraseFromParent(llvm::Value *V) {
   }
 }
 
-constexpr const char *FunctionEntryMDNName = "revng.function.entry";
+constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
 constexpr const char *FunctionMetadataMDName = "revng.function.metadata";
 

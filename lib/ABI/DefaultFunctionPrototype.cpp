@@ -27,6 +27,9 @@ static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
   TypePath TypePath = TheBinary.makeType<RawFunctionType>().second;
   auto &Prototype = *llvm::cast<RawFunctionType>(TypePath.get());
 
+  revng_assert(ABI != model::ABI::Invalid);
+  Prototype.Architecture() = model::ABI::getArchitecture(ABI);
+
   const abi::Definition &Defined = abi::Definition::get(ABI);
   for (const auto &Register : Defined.GeneralPurposeArgumentRegisters()) {
     NamedTypedRegister Argument(Register);

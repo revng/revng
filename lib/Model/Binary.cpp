@@ -225,6 +225,17 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
     auto Name = Type->name();
     if (not Names.insert(Name).second)
       return VH.fail(Twine("Multiple types with the following name: ") + Name);
+
+    if (const auto *T = llvm::dyn_cast<model::CABIFunctionType>(Type.get())) {
+      if (getArchitecture(T->ABI()) != Architecture())
+        return VH.fail("Function type architecture differs from the binary "
+                       "architecture");
+    } else if (const auto
+                 *T = llvm::dyn_cast<model::RawFunctionType>(Type.get())) {
+      if (T->Architecture() != Architecture())
+        return VH.fail("Function type architecture differs from the binary "
+                       "architecture");
+    }
   }
 
   return true;

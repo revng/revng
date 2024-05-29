@@ -563,7 +563,7 @@ void IsolateFunctionsImpl::run() {
     IsolatedFunctionsMap[Function.Entry()] = NewFunction;
     FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
-    setMetaAddressMetadata(NewFunction, FunctionEntryMDNName, Function.Entry());
+    setMetaAddressMetadata(NewFunction, FunctionEntryMDName, Function.Entry());
 
     auto *OriginalEntry = GCBI.getBlockAt(Function.Entry())->getTerminator();
     auto *MDNode = OriginalEntry->getMetadata(FunctionMetadataMDName);

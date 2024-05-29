@@ -14,14 +14,19 @@ name: RawFunctionType
 type: struct
 inherits: Type
 fields:
+  - name: Architecture
+    type: Architecture
+    doc: The processor architecture of this function
   - name: Arguments
     sequence:
       type: SortedVector
       elementType: NamedTypedRegister
+    doc: The argument registers must be valid in the target architecture
   - name: ReturnValues
     sequence:
       type: SortedVector
       elementType: NamedTypedRegister
+    doc: The return value registers must be valid in the target architecture
   - name: ReturnValueComment
     type: string
     optional: true
@@ -29,6 +34,7 @@ fields:
     sequence:
       type: SortedVector
       elementType: Register
+    doc: The preserved registers must be valid in the target architecture
   - name: FinalStackOffset
     type: uint64_t
   - name: StackArgumentsType
