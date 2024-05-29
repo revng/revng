@@ -95,7 +95,7 @@ getExtractedValuesFromInstruction(llvm::Instruction *);
 extern llvm::SmallVector<llvm::SmallPtrSet<const llvm::CallInst *, 2>, 2>
 getExtractedValuesFromInstruction(const llvm::Instruction *);
 
-/// Deletes the body of an llvm::Function, but preservin all the tags and
+/// Deletes the body of an llvm::Function, but preserving all the tags and
 /// attributes (which llvm::Function::deleteBody() does not preserve).
 /// Returns true if the body was cleared, false if it was already empty.
 extern bool deleteOnlyBody(llvm::Function &F);

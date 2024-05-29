@@ -206,7 +206,7 @@ fallThroughScopeImpl(const model::Binary &Model,
                                              FunctionTags::DynamicFunction)) {
 
           // The called function may be a dynamic function. In this case, we use
-          // the name of the dyamic symbol in order to retrieve the
+          // the name of the dynamic symbol in order to retrieve the
           // `model::DynamicFunction` and check for the `NoReturn` attribute.
           const Function *CalleeFunction = Call->getCalledFunction();
           llvm::StringRef SymbolName = CalleeFunction->getName()

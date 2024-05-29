@@ -93,7 +93,7 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
   // that are connected by means of SCCNodeView edges. In this way we divide the
   // graph in subgraphs, such that for each pair of nodes P and Q with (P != Q)
   // in the same sugraphs (i.e. with the same component) P is reachable from Q
-  // lookin only at **undirected** SCCNodeView edges. Each of this subgraphs is
+  // looking only at **undirected** SCCNodeView edges. Each of this subgraphs is
   // called "component". The idea is that SCCNodeView edges are more meaningful
   // than SCCBackedgeView edges, so we don't want to remove any of them, but we
   // need to identify such edges that create loops across multiple components,

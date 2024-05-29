@@ -116,7 +116,7 @@ removeDeadCodeImpl(ASTNode *Node,
 
 /// This simplification routine mimics a dead code elimination pass. Basically,
 /// when we have a `SequenceNode`, and we find a node sporting the
-/// `nofallthrough` beahvior, we can remove all the following nodes in the
+/// `nofallthrough` beahavior, we can remove all the following nodes in the
 /// `SequenceNode`.
 /// A practical example of why this may happen: after the inlining of dispatcher
 /// `case`s, if a `return` statement is moved into an inner loop in place of a

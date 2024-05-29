@@ -36,7 +36,7 @@ static bool removeCallsToArtifacts(Function &F) {
           }
         }
 
-      // Remove LLVM debug intrisics
+      // Remove LLVM debug intrinsics
       if (auto *Dbg = dyn_cast<DbgInfoIntrinsic>(&I))
         ToErase.push_back(Dbg);
     }

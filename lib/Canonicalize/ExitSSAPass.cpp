@@ -370,7 +370,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
         revng_assert(IncomingBlock == CurrentBlock);
         // For all the entries after the first, we cannot inject the Store in
-        // the same Block as CurrentBlock, because they would confilct with the
+        // the same Block as CurrentBlock, because they would conflict with the
         // other we've just inserted.
         // Hence we have to create a new BasicBlock from Block to the proper
         // PHI, where we will inject the Store.
