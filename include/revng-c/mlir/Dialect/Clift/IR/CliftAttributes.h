@@ -67,15 +67,15 @@ public:
 
   std::string getAlias() const { return getName().str(); }
 
-  void setBody(llvm::StringRef Name,
-               uint64_t Size,
-               llvm::ArrayRef<FieldAttr> fields) {
+  void define(llvm::StringRef Name,
+              uint64_t Size,
+              llvm::ArrayRef<FieldAttr> Fields) {
     // Call into the base to mutate the type.
-    LogicalResult result = Base::mutate(Name, Size, fields);
+    LogicalResult Result = Base::mutate(Name, Fields, Size);
 
     // Most types expect the mutation to always succeed, but types can implement
     // custom logic for handling mutation failures.
-    revng_assert(succeeded(result)
+    revng_assert(succeeded(Result)
                  && "attempting to change the body of an already-initialized "
                     "type");
   }
@@ -143,13 +143,13 @@ public:
 
   static llvm::StringRef getMnemonic() { return "union"; }
 
-  void setBody(llvm::StringRef Name, llvm::ArrayRef<FieldAttr> fields) {
+  void define(llvm::StringRef Name, llvm::ArrayRef<FieldAttr> Fields) {
     // Call into the base to mutate the type.
-    LogicalResult result = Base::mutate(Name, fields);
+    LogicalResult Result = Base::mutate(Name, Fields);
 
     // Most types expect the mutation to always succeed, but types can implement
     // custom logic for handling mutation failures.
-    revng_assert(succeeded(result)
+    revng_assert(succeeded(Result)
                  && "attempting to change the body of an already-initialized "
                     "type");
   }

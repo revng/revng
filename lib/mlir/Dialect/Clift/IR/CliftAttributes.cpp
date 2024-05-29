@@ -307,9 +307,9 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     return OnUnexpectedToken(">");
   }
   if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
-    ToReturn.setBody(OptionalName, Size, *Attrs);
+    ToReturn.define(OptionalName, Size, *Attrs);
   } else {
-    ToReturn.setBody(OptionalName, *Attrs);
+    ToReturn.define(OptionalName, *Attrs);
   }
   return ToReturn;
 }
@@ -427,7 +427,7 @@ mlir::clift::StructType::get(MLIRContext *ctx,
                              uint64_t Size,
                              llvm::ArrayRef<FieldAttr> Fields) {
   auto Result = Base::get(ctx, ID);
-  Result.setBody(Name, Size, Fields);
+  Result.define(Name, Size, Fields);
   return Result;
 }
 
@@ -464,10 +464,8 @@ mlir::clift::UnionType::get(MLIRContext *ctx,
                             uint64_t ID,
                             llvm::StringRef Name,
                             llvm::ArrayRef<FieldAttr> Fields) {
-  // Call into the base to get a uniqued instance of this type. The parameter
-  // (name) is passed after the context.
   auto Result = Base::get(ctx, ID);
-  Result.setBody(Name, Fields);
+  Result.define(Name, Fields);
   return Result;
 }
 

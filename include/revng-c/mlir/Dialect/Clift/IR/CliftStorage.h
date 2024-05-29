@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/TypeSupport.h"
@@ -12,8 +14,28 @@
 
 namespace mlir::clift {
 
-struct StructTypeStorage : public mlir::AttributeStorage {
-public:
+template<typename StorageT, typename ValueT>
+class ClassTypeStorage : public mlir::AttributeStorage {
+  struct KeyBase {
+    llvm::StringRef Name;
+    llvm::ArrayRef<FieldAttr> Fields;
+  };
+
+  struct KeyDefinition : KeyBase, ValueT {
+    template<typename... ArgsT>
+    explicit KeyDefinition(mlir::StorageUniquer::StorageAllocator &Allocator,
+                           const llvm::StringRef Name,
+                           const llvm::ArrayRef<FieldAttr> Fields,
+                           ArgsT &&...Args) :
+      KeyBase{ Allocator.copyInto(Name), Allocator.copyInto(Fields) },
+      ValueT{ std::forward<ArgsT>(Args)... } {}
+
+    explicit KeyDefinition(mlir::StorageUniquer::StorageAllocator &Allocator,
+                           const KeyDefinition &Key) :
+      KeyBase{ Allocator.copyInto(Key.Name), Allocator.copyInto(Key.Fields) },
+      ValueT(static_cast<const ValueT &>(Key)) {}
+  };
+
   // Some internal mechanism of mlir have access to the key of the storage
   // instead of the entire storage or the key using that storage. For that
   // reason it is best to throw everything related to the type inside the key,
@@ -21,157 +43,108 @@ public:
   // fields. That way when it is needed one can access everything.
   struct Key {
     uint64_t ID;
-    llvm::StringRef name;
-    uint64_t Size;
-    Optional<llvm::SmallVector<FieldAttr, 2>> fields;
+    std::optional<KeyDefinition> Definition;
+
+    Key(const uint64_t ID) : ID(ID) {}
 
     // struct storages are never exposed to the user, they are only used
     // internally to figure out how to create unique objects. only operator== is
     // every used, everything else is handled by hasValue
-    bool operator==(const Key &Other) const { return Other.ID == ID; }
-
-    llvm::hash_code hashValue() const { return llvm::hash_value(ID); }
-
-    [[nodiscard]] bool isInitialized() const { return fields.has_value(); }
-  };
-
-  using KeyTy = Key;
-
-  static llvm::hash_code hashKey(const KeyTy &key) { return key.hashValue(); }
-
-  /// Construct the storage from the type name. Explicitly initialize the
-  /// containedType to nullptr, which is used as marker for the mutable
-  /// component being not yet initialized.
-  StructTypeStorage(uint64_t ID) { TheKey.ID = ID; }
-
-  bool operator==(const Key &Other) const { return this->TheKey == Other; }
-
-  /// Define a construction method for creating a new instance of the storage.
-  static StructTypeStorage *
-  construct(mlir::StorageUniquer::StorageAllocator &allocator,
-            const KeyTy &Key) {
-    auto ToReturn = new (allocator.allocate<StructTypeStorage>())
-      StructTypeStorage(Key.ID);
-    if (Key.isInitialized()) {
-      auto Res = ToReturn->mutate(allocator, Key.name, Key.Size, *Key.fields);
-      revng_assert(Res.succeeded());
+    friend bool operator==(const Key &LHS, const Key &RHS) {
+      return LHS.ID == RHS.ID;
     }
 
-    return ToReturn;
-  }
+    [[nodiscard]] llvm::hash_code hashValue() const {
+      return llvm::hash_value(ID);
+    }
+  };
 
-  /// Define a mutation method for changing the type after it is created. In
-  /// many cases, we only want to set the mutable component once and reject
-  /// any further modification, which can be achieved by returning failure
-  /// from this function.
-  mlir::LogicalResult mutate(mlir::StorageUniquer::StorageAllocator &alloc,
-                             llvm::StringRef name,
-                             uint64_t Size,
-                             llvm::ArrayRef<FieldAttr> body) {
-    if (TheKey.fields.has_value() and body == *TheKey.fields
-        and TheKey.name == name and TheKey.Size == Size)
-      return mlir::success();
-
-    if (TheKey.fields.has_value())
-      return mlir::failure();
-
-    TheKey.fields = llvm::SmallVector<FieldAttr, 2>();
-    for (auto field : body)
-      TheKey.fields->push_back(field);
-    TheKey.name = alloc.copyInto(name);
-    TheKey.Size = Size;
-    return mlir::success();
-  }
-
-  [[nodiscard]] llvm::StringRef getName() const { return TheKey.name; }
-
-  [[nodiscard]] bool isInitialized() const { return TheKey.isInitialized(); }
-
-  llvm::ArrayRef<FieldAttr> getFields() const {
-    revng_assert(isInitialized());
-    return *TheKey.fields;
-  }
-
-  uint64_t getSize() const { return TheKey.Size; }
-
-  uint64_t getID() const { return TheKey.ID; }
-
-private:
   Key TheKey;
-};
 
-struct UnionTypeStorage : public mlir::AttributeStorage {
 public:
-  struct Key {
-
-    uint64_t ID;
-    llvm::StringRef name;
-    Optional<llvm::SmallVector<FieldAttr, 2>> fields;
-
-    bool operator==(const Key &Other) const { return Other.ID == ID; }
-
-    llvm::hash_code hashValue() const { return llvm::hash_value(ID); }
-
-    [[nodiscard]] bool isInitialized() const { return fields.has_value(); }
-  };
-
   using KeyTy = Key;
 
-  static llvm::hash_code hashKey(const KeyTy &key) { return key.hashValue(); }
+  const Key &getAsKey() const { return TheKey; }
 
-  UnionTypeStorage(uint64_t ID) { TheKey.ID = ID; }
+  static llvm::hash_code hashKey(const KeyTy &Key) { return Key.hashValue(); }
 
-  /// Define the comparison function.
-  bool operator==(const KeyTy &key) const { return key == TheKey; }
+  bool operator==(const Key &Other) const { return TheKey == Other; }
 
-  /// Define a construction method for creating a new instance of the storage.
-  static UnionTypeStorage *
-  construct(mlir::StorageUniquer::StorageAllocator &allocator,
-            const KeyTy &Key) {
-    auto ToReturn = new (allocator.allocate<UnionTypeStorage>())
-      UnionTypeStorage(Key.ID);
-    if (Key.isInitialized()) {
-      auto Res = ToReturn->mutate(allocator, Key.name, *Key.fields);
-      revng_assert(Res.succeeded());
-    }
+  template<typename... ArgsT>
+  ClassTypeStorage(const uint64_t ID) : TheKey(ID) {}
 
-    return ToReturn;
+  static StorageT *construct(mlir::StorageUniquer::StorageAllocator &Allocator,
+                             const KeyTy &Key) {
+    StorageT *const S = new (Allocator.allocate<StorageT>()) StorageT(Key.ID);
+    if (Key.Definition)
+      S->TheKey.Definition.emplace(Allocator, *Key.Definition);
+    return S;
   }
 
   /// Define a mutation method for changing the type after it is created. In
   /// many cases, we only want to set the mutable component once and reject
   /// any further modification, which can be achieved by returning failure
   /// from this function.
-  mlir::LogicalResult mutate(mlir::StorageUniquer::StorageAllocator &alloc,
-                             llvm::StringRef name,
-                             llvm::ArrayRef<FieldAttr> body) {
-    if (TheKey.fields.has_value() and body == *TheKey.fields
-        and TheKey.name == name)
+  template<typename... ArgsT>
+  [[nodiscard]] mlir::LogicalResult
+  mutate(mlir::StorageUniquer::StorageAllocator &Allocator,
+         const llvm::StringRef Name,
+         const llvm::ArrayRef<FieldAttr> Fields,
+         ArgsT &&...Args) {
+    if (not TheKey.Definition.has_value()) {
+      TheKey.Definition.emplace(Allocator,
+                                Name,
+                                Fields,
+                                std::forward<ArgsT>(Args)...);
       return mlir::success();
+    }
 
-    if (TheKey.fields.has_value())
+    if (Name != TheKey.Definition->Name)
       return mlir::failure();
 
-    TheKey.fields = llvm::SmallVector<FieldAttr, 2>();
-    for (auto field : body)
-      TheKey.fields->push_back(field);
-    TheKey.name = alloc.copyInto(name);
+    if (not std::equal(Fields.begin(),
+                       Fields.end(),
+                       TheKey.Definition->Fields.begin(),
+                       TheKey.Definition->Fields.end()))
+      return mlir::failure();
+
     return mlir::success();
   }
 
-  [[nodiscard]] llvm::StringRef getName() const { return TheKey.name; }
+  [[nodiscard]] uint64_t getID() const { return TheKey.ID; }
 
-  [[nodiscard]] bool isInitialized() const { return TheKey.isInitialized(); }
-
-  llvm::ArrayRef<FieldAttr> getFields() const {
-
-    revng_assert(isInitialized());
-    return *TheKey.fields;
+  [[nodiscard]] bool isInitialized() const {
+    return TheKey.Definition.has_value();
   }
 
-  uint64_t getID() const { return TheKey.ID; }
+  [[nodiscard]] llvm::StringRef getName() const {
+    return TheKey.Definition ? TheKey.Definition->Name : llvm::StringRef{};
+  }
 
-private:
-  Key TheKey;
+  [[nodiscard]] llvm::ArrayRef<FieldAttr> getFields() const {
+    return TheKey.Definition ? TheKey.Definition->Fields :
+                               llvm::ArrayRef<FieldAttr>{};
+  }
+
+protected:
+  [[nodiscard]] const ValueT &getValue() const { return *TheKey.Definition; }
 };
+
+struct StructTypeStorageValue {
+  uint64_t Size;
+  StructTypeStorageValue(const uint64_t Size) : Size(Size) {}
+};
+
+struct StructTypeStorage
+  : ClassTypeStorage<StructTypeStorage, StructTypeStorageValue> {
+  using ClassTypeStorage::ClassTypeStorage;
+
+  [[nodiscard]] uint64_t getSize() const { return getValue().Size; }
+};
+
+struct UnionTypeKey {};
+struct UnionTypeStorage : ClassTypeStorage<UnionTypeStorage, UnionTypeKey> {
+  using ClassTypeStorage::ClassTypeStorage;
+};
+
 } // namespace mlir::clift
