@@ -70,6 +70,14 @@ Branches:
               # should have removed such stores, therefore, we can now drop
               # those injected by us too.
               - drop-opaque-return-address
+      - Name: simplify-switch
+        Pipes:
+          - Type: simplify-switch
+            UsedContainers: [input, module.ll]
+        Artifacts:
+          Container: module.ll
+          Kind: stack-pointer-promoted
+          SingleTargetFilename: simplify-switch.ll
       - Name: detect-stack-size
         Pipes:
           - Type: llvm-pipe

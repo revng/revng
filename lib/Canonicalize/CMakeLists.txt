@@ -20,6 +20,7 @@ revng_add_analyses_library(
   RemoveLLVMAssumeCallsPass.cpp
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
+  SimplifySwitchPass.cpp
   SplitOverflowIntrinsicsPass.cpp
   SwitchToStatements.cpp
   TernaryReductionPass.cpp
@@ -32,6 +33,8 @@ target_link_libraries(
   revngcSupport
   revng::revngABI
   revng::revngModel
+  revng::revngPipes
   revng::revngPTML
   revng::revngSupport
+  revng::revngLift
   ${LLVM_LIBRARIES})
