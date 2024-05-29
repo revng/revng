@@ -2,6 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 ---
+Architecture: x86_64
+
 Functions:
   - OriginalName: raw_primitives_on_registers
     Prototype: "/Types/100000-RawFunctionType"
@@ -42,6 +44,7 @@ Types:
     Size: 16
   - Kind: RawFunctionType
     ID: 100000
+    Architecture: x86_64
     Arguments:
       - Location: rdi_x86_64
         Type:
@@ -57,6 +60,7 @@ Types:
     FinalStackOffset: 8
   - Kind: RawFunctionType
     ID: 100001
+    Architecture: x86_64
     Arguments:
       - Location: rdi_x86_64
         Type:
@@ -78,6 +82,7 @@ Types:
     FinalStackOffset: 8
   - Kind: RawFunctionType
     ID: 100002
+    Architecture: x86_64
     Arguments:
       - Location: rdi_x86_64
         Type:

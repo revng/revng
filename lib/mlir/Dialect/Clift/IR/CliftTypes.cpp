@@ -4,34 +4,45 @@
 
 #include <string>
 
+#include "llvm/ADT/SmallSet.h"
+
 #include "revng-c/mlir/Dialect/Clift/IR/CliftTypes.h"
 // keep this order
 #include "revng/Model/PrimitiveType.h"
 
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 
+#include "CliftParser.h"
+#include "CliftStorage.h"
+
 #define GET_TYPEDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
 
+using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
+
+//******************************** CliftDialect ********************************
+
 void mlir::clift::CliftDialect::registerTypes() {
-  addTypes</* Include the auto-generated clift types */
+  addTypes<ScalarTupleType, /* Include the auto-generated clift types */
 #define GET_TYPEDEF_LIST
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
            /* End of types list */>();
 }
 
 /// Parse a type registered to this dialect
-::mlir::Type
-mlir::clift::CliftDialect::parseType(::mlir::DialectAsmParser &Parser) const {
-  ::llvm::SMLoc typeLoc = Parser.getCurrentLocation();
-  ::llvm::StringRef Mnemonic;
-  ::mlir::Type GenType;
+mlir::Type
+mlir::clift::CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
+  const llvm::SMLoc TypeLoc = Parser.getCurrentLocation();
 
-  auto ParseResult = generatedTypeParser(Parser, &Mnemonic, GenType);
-  if (ParseResult.has_value())
+  llvm::StringRef Mnemonic;
+  if (mlir::Type GenType;
+      generatedTypeParser(Parser, &Mnemonic, GenType).has_value())
     return GenType;
 
-  Parser.emitError(typeLoc) << "unknown  type `" << Mnemonic << "` in dialect `"
+  if (Mnemonic == ScalarTupleType::getMnemonic())
+    return ScalarTupleType::parse(Parser);
+
+  Parser.emitError(TypeLoc) << "unknown  type `" << Mnemonic << "` in dialect `"
                             << getNamespace() << "`";
   return {};
 }
@@ -43,6 +54,9 @@ void mlir::clift::CliftDialect::printType(::mlir::Type Type,
 
   if (::mlir::succeeded(generatedTypePrinter(Type, Printer)))
     return;
+
+  if (auto T = mlir::dyn_cast<ScalarTupleType>(Type))
+    return T.print(Printer);
 }
 
 static constexpr model::PrimitiveType::PrimitiveKindType
@@ -62,16 +76,15 @@ static_assert(Primitive::Generic == kindToKind(PrimitiveKind::GenericKind));
 static_assert(Primitive::Signed == kindToKind(PrimitiveKind::SignedKind));
 static_assert(Primitive::Number == kindToKind(PrimitiveKind::NumberKind));
 
-using LoggerType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 mlir::LogicalResult
-mlir::clift::PrimitiveType::verify(LoggerType logger,
+mlir::clift::PrimitiveType::verify(EmitErrorType EmitError,
                                    mlir::clift::PrimitiveKind kind,
-                                   unsigned long size,
+                                   uint64_t size,
                                    BoolAttr IsConst) {
 
   model::PrimitiveType Type(kindToKind(kind), size);
   if (not Type.verify()) {
-    return logger() << "primitive type verify failed";
+    return EmitError() << "primitive type verify failed";
   }
   return mlir::success();
 }
@@ -135,23 +148,31 @@ uint64_t mlir::clift::FunctionAttr::getByteSize() const {
   return 0;
 }
 
-::mlir::LogicalResult
-PointerType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()>
-                      emitError,
-                    mlir::clift::ValueType element_type,
-                    uint64_t pointer_size,
-                    BoolAttr IsConst) {
-  if (pointer_size == 0) {
-    return emitError() << "pointer type cannot have size zero";
+::mlir::LogicalResult PointerType::verify(EmitErrorType emitError,
+                                          mlir::clift::ValueType element_type,
+                                          uint64_t pointer_size,
+                                          BoolAttr IsConst) {
+  switch (pointer_size) {
+  case 4:
+  case 8:
+    break;
+  default:
+    return emitError() << "invalid pointer size: " << pointer_size;
   }
   return mlir::success();
 }
 
 ::mlir::LogicalResult
-ArrayType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
-                  mlir::clift::ValueType element_type,
-                  uint64_t count,
-                  BoolAttr IsConst) {
+DefinedType::verify(EmitErrorType emitError,
+                    mlir::clift::TypeDefinition element_type,
+                    BoolAttr IsConst) {
+  return mlir::success();
+}
+
+::mlir::LogicalResult ArrayType::verify(EmitErrorType emitError,
+                                        mlir::clift::ValueType element_type,
+                                        uint64_t count,
+                                        BoolAttr IsConst) {
   if (count == 0) {
     return emitError() << "array type cannot have zero elements";
   }
@@ -163,77 +184,96 @@ ArrayType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
   return mlir::success();
 }
 
+static mlir::clift::TypedefAttr getTypedefAttr(mlir::Type Type) {
+  if (auto D = mlir::dyn_cast<mlir::clift::DefinedType>(Type))
+    return mlir::dyn_cast<mlir::clift::TypedefAttr>(D.getElementType());
+  return nullptr;
+}
+
+static mlir::Type dealias(mlir::Type Type) {
+  while (auto Attr = getTypedefAttr(Type))
+    Type = Attr.getUnderlyingType();
+  return Type;
+}
+
 using namespace mlir::clift;
 ::mlir::LogicalResult
-EnumAttr::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
+EnumAttr::verify(EmitErrorType emitError,
                  uint64_t ID,
-                 ::llvm::StringRef name,
-                 mlir::Type element_type,
+                 ::llvm::StringRef,
+                 mlir::Type UnderlyingType,
                  ::llvm::ArrayRef<mlir::clift::EnumFieldAttr> Fields) {
-  if (not element_type.isa<mlir::clift::PrimitiveType>()) {
+  UnderlyingType = dealias(UnderlyingType);
+
+  if (not UnderlyingType.isa<mlir::clift::PrimitiveType>())
     return emitError() << "type of enum must be a primitive type";
-  }
-  auto casted = element_type.cast<mlir::clift::PrimitiveType>();
-  if (casted.getKind() != PrimitiveKind::UnsignedKind
-      and casted.getKind() != PrimitiveKind::SignedKind) {
-    return emitError() << "enum underlying type must be a unsigned int";
+
+  const auto PrimitiveType = UnderlyingType.cast<mlir::clift::PrimitiveType>();
+  const uint64_t BitWidth = PrimitiveType.getSize() * 8;
+
+  if (Fields.empty())
+    return emitError() << "enum requires at least one field";
+
+  uint64_t MinValue = 0;
+  uint64_t MaxValue = 0;
+  bool IsSigned = false;
+
+  switch (PrimitiveType.getKind()) {
+  case PrimitiveKind::UnsignedKind:
+    MaxValue = llvm::APInt::getMaxValue(BitWidth).getZExtValue();
+    break;
+  case PrimitiveKind::SignedKind:
+    MinValue = llvm::APInt::getSignedMinValue(BitWidth).getSExtValue();
+    MaxValue = llvm::APInt::getSignedMaxValue(BitWidth).getSExtValue();
+    IsSigned = true;
+    break;
+  default:
+    return emitError() << "enum underlying type must be an integral type";
   }
 
-  if (casted.getKind() == PrimitiveKind::UnsignedKind) {
-    size_t lastValue = 0;
-    for (auto field : Fields) {
-      auto Max = llvm::APInt::getMaxValue(casted.getSize()).getZExtValue();
-      if (field.getRawValue() > Max) {
-        return emitError() << "enum field " << field.getRawValue()
-                           << "is greater than the max value of the "
-                              "underlying type"
-                           << Max;
-      }
-      if (field.getRawValue() < lastValue) {
-        return emitError() << "enum fields are not in ascending order";
-      }
-      lastValue = field.getRawValue();
-    }
-  }
+  uint64_t LastValue = 0;
+  bool CheckEqual = false;
 
-  if (casted.getKind() == PrimitiveKind::UnsignedKind) {
-    int64_t lastValue = std::numeric_limits<int64_t>::min();
-    for (auto field : Fields) {
-      uint64_t Raw = field.getRawValue();
-      int64_t Value;
-      std::memcpy(&Value, &Raw, sizeof(Value));
-      auto Max = llvm::APInt::getSignedMaxValue(casted.getSize())
-                   .getSExtValue();
-      auto Min = llvm::APInt::getSignedMinValue(casted.getSize())
-                   .getSExtValue();
-      if (Value > Max) {
-        return emitError() << "enum field " << Value
-                           << " is greater than the max value of the "
-                              "underlying type "
-                           << Max;
-      }
-      if (Value < Min) {
+  for (const auto &Field : Fields) {
+    const uint64_t Value = Field.getRawValue();
+
+    const auto UsingSigned = [&](auto Callable, const auto... V) {
+      return IsSigned ? Callable(static_cast<int64_t>(V)...) : Callable(V...);
+    };
+
+    const auto CheckSigned =
+      [emitError](const auto Value,
+                  const auto MinValue,
+                  const auto MaxValue) -> mlir::LogicalResult {
+      if (Value < MinValue)
         return emitError() << "enum field " << Value
                            << " is less than the min value of the "
                               "underlying type "
-                           << Min;
-      }
-      if (Value < lastValue) {
-        return emitError() << "enum fields are not in ascending order";
-      }
-      lastValue = Value;
-    }
-  }
+                           << MinValue;
 
-  std::set<llvm::StringRef> Names;
-  for (auto Field : Fields) {
-    if (Field.getName().empty())
-      continue;
-    if (Names.contains(Field.getName())) {
-      return emitError() << "multiple definitions of enum field attr named "
-                         << Field.getName();
-    }
-    Names.insert(Field.getName());
+      if (Value > MaxValue)
+        return emitError() << "enum field " << Value
+                           << " is greater than the max value of the "
+                              "underlying type "
+                           << MaxValue;
+
+      return mlir::success();
+    };
+
+    const mlir::LogicalResult R = UsingSigned(CheckSigned,
+                                              Value,
+                                              MinValue,
+                                              MaxValue);
+
+    if (failed(R))
+      return R;
+
+    if (Value < LastValue || (CheckEqual && Value == LastValue))
+      return emitError() << "enum fields must be strictly ordered by their "
+                            "unsigned values";
+
+    LastValue = Value;
+    CheckEqual = true;
   }
 
   return mlir::success();
@@ -244,8 +284,8 @@ void UnionType::walkImmediateSubElements(function_ref<void(Attribute)>
   const {
   if (not getImpl()->isInitialized())
     return;
-  for (auto field : getImpl()->getFields())
-    walkAttrsFn(field);
+  for (auto Field : getFields())
+    walkAttrsFn(Field);
 }
 
 mlir::Attribute
@@ -253,9 +293,8 @@ UnionType::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>
                                          replAttrs,
                                        llvm::ArrayRef<mlir::Type> replTypes)
   const {
-  revng_assert("it does not make any sense to replace the elements of a "
-               "defined Union");
-  return {};
+  revng_abort("it does not make any sense to replace the elements of a "
+              "defined Union");
 }
 
 void StructType::walkImmediateSubElements(function_ref<void(Attribute)>
@@ -264,8 +303,8 @@ void StructType::walkImmediateSubElements(function_ref<void(Attribute)>
   const {
   if (not getImpl()->isInitialized())
     return;
-  for (auto field : getImpl()->getFields())
-    walkAttrsFn(field);
+  for (auto Field : getFields())
+    walkAttrsFn(Field);
 }
 
 mlir::Attribute
@@ -273,7 +312,147 @@ StructType::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>
                                           replAttrs,
                                         llvm::ArrayRef<mlir::Type> replTypes)
   const {
-  revng_assert("it does not make any sense to replace the elements of a "
-               "defined struct");
-  return {};
+  revng_abort("it does not make any sense to replace the elements of a "
+              "defined struct");
+}
+
+//****************************** ScalarTupleType *******************************
+
+static bool isScalarType(mlir::Type Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return T.getKind() != PrimitiveKind::VoidKind;
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type))
+    return mlir::isa<EnumAttr>(T.getElementType());
+
+  return mlir::isa<PointerType>(Type);
+}
+
+mlir::LogicalResult ScalarTupleType::verify(const EmitErrorType EmitError,
+                                            const uint64_t ID) {
+  return mlir::success();
+}
+
+mlir::LogicalResult
+ScalarTupleType::verify(const EmitErrorType EmitError,
+                        const uint64_t ID,
+                        const llvm::StringRef Name,
+                        const llvm::ArrayRef<ScalarTupleElementAttr> Elements) {
+  if (Elements.size() < 2)
+    return EmitError() << "Scalar tuple types must have at least two elements";
+
+  llvm::SmallSet<llvm::StringRef, 16> NameSet;
+  for (auto Element : Elements) {
+    if (not isScalarType(Element.getType()))
+      return EmitError() << "Scalar tuple element types must be scalar types";
+
+    if (not Element.getName().empty()) {
+      if (not NameSet.insert(Element.getName()).second)
+        return EmitError() << "Scalar tuple element names must be empty or "
+                              "unique";
+    }
+  }
+
+  return mlir::success();
+}
+
+ScalarTupleType ScalarTupleType::get(MLIRContext *const Context,
+                                     const uint64_t ID) {
+  return Base::get(Context, ID);
+}
+
+ScalarTupleType ScalarTupleType::getChecked(const EmitErrorType EmitError,
+                                            MLIRContext *const Context,
+                                            const uint64_t ID) {
+  return get(Context, ID);
+}
+
+ScalarTupleType
+ScalarTupleType::get(MLIRContext *const Context,
+                     const uint64_t ID,
+                     const llvm::StringRef Name,
+                     const llvm::ArrayRef<ScalarTupleElementAttr> Elements) {
+  auto Result = Base::get(Context, ID);
+  Result.define(Name, Elements);
+  return Result;
+}
+
+ScalarTupleType
+ScalarTupleType::getChecked(const EmitErrorType EmitError,
+                            MLIRContext *const Context,
+                            const uint64_t ID,
+                            const llvm::StringRef Name,
+                            const llvm::ArrayRef<ScalarTupleElementAttr>
+                              Elements) {
+  if (failed(verify(EmitError, ID, Name, Elements)))
+    return {};
+  return get(Context, ID, Name, Elements);
+}
+
+void ScalarTupleType::define(const llvm::StringRef Name,
+                             const llvm::ArrayRef<ScalarTupleElementAttr>
+                               Elements) {
+  LogicalResult Result = Base::mutate(Name, Elements);
+
+  revng_assert(succeeded(Result)
+               && "attempting to change the body of an already-initialized "
+                  "type");
+}
+
+uint64_t ScalarTupleType::getId() const {
+  return getImpl()->getID();
+}
+
+llvm::StringRef ScalarTupleType::getName() const {
+  return getImpl()->getName();
+}
+
+llvm::ArrayRef<ScalarTupleElementAttr> ScalarTupleType::getElements() const {
+  return getImpl()->getSubobjects();
+}
+
+bool ScalarTupleType::isComplete() const {
+  return getImpl()->isInitialized();
+}
+
+uint64_t ScalarTupleType::getByteSize() const {
+  uint64_t Size = 0;
+  for (ScalarTupleElementAttr Element : getElements())
+    Size += mlir::cast<ValueType>(Element.getType()).getByteSize();
+  return Size;
+}
+
+std::string ScalarTupleType::getAlias() const {
+  return getName().str();
+}
+
+mlir::BoolAttr ScalarTupleType::getIsConst() const {
+  return BoolAttr::get(getContext(), false);
+}
+
+mlir::Type ScalarTupleType::parse(AsmParser &Parser) {
+  return parseCompositeType<ScalarTupleType>(Parser, /*MinSubobjects=*/2);
+}
+
+void ScalarTupleType::print(AsmPrinter &Printer) const {
+  return printCompositeType(Printer, *this);
+}
+
+void ScalarTupleType::walkImmediateSubElements(function_ref<void(Attribute)>
+                                                 WalkAttr,
+                                               function_ref<void(Type)>
+                                                 WalkType) const {
+  if (getImpl()->isInitialized()) {
+    for (auto Element : getElements())
+      WalkAttr(Element);
+  }
+}
+
+mlir::Type
+ScalarTupleType::replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
+                                             ArrayRef<Type> NewTypes) const {
+  revng_abort("it does not make any sense to replace the elements of a "
+              "scalar tuple");
 }

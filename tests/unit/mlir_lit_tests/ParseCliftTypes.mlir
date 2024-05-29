@@ -1,11 +1,11 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-// RUN: diff <(revng clift-opt %s -o -) <(revng clift-opt %s -o - | revng clift-opt -o -)
+// RUN: diff <(%revngcliftopt %s -o -) <(%revngcliftopt %s -o - | %revngcliftopt -o -)
 !const_int32_t = !clift.primitive<is_const = true, SignedKind 4>
 !const_uint32_t = !clift.primitive<is_const = true, UnsignedKind 8>
 !int32_t = !clift.primitive<SignedKind 4>
-#dc2_ = #clift.enum<id = 40, name = "dc2", underlying_type = !const_uint32_t, fields = [<name = "dc3", raw_value = 20>, <name = "dc4", raw_value = 20>]>
+#dc2_ = #clift.enum<id = 40, name = "dc2", underlying_type = !const_uint32_t, fields = [<name = "dc3", raw_value = 20>, <name = "dc4", raw_value = 21>]>
 #int_type_def = #clift.typedef<id = 40, name = "int_type_def", underlying_type = !const_int32_t>
 !dc2_1 = !clift.defined<#dc2_>
 !int_type_def1 = !clift.defined<#int_type_def>

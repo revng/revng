@@ -1,0 +1,66 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+
+Types:
+  - ID: 100
+    Kind: PrimitiveType
+    PrimitiveKind: Void
+    Size: 0
+
+  - ID: 201
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 1
+  - ID: 202
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 2
+  - ID: 204
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 4
+
+    # CHECK: #my_function1_ = #clift.function<
+    # CHECK:   id = 1001
+    # CHECK:   name = "my_function1"
+    # CHECK:   return_type = !void
+    # CHECK:   argument_types = []
+    # CHECK: >
+    # CHECK: !my_function1_1 = !clift.defined<#my_function1_>
+  - ID: 1001
+    Kind: CABIFunctionType
+    CustomName: "my_function1"
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/100-PrimitiveType"
+    Arguments: []
+
+    # CHECK: #my_function2_ = #clift.function<
+    # CHECK:   id = 1002
+    # CHECK:   name = "my_function2"
+    # CHECK:   return_type = !uint8_t
+    # CHECK:   argument_types = [
+    # CHECK:     <
+    # CHECK:       type = !uint16_t
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       type = !uint32_t
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+    # CHECK: !my_function2_1 = !clift.defined<#my_function2_>
+  - ID: 1002
+    Kind: CABIFunctionType
+    CustomName: "my_function2"
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/201-PrimitiveType"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/202-PrimitiveType"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/204-PrimitiveType"

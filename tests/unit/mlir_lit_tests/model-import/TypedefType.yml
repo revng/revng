@@ -1,0 +1,22 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+
+Types:
+  - ID: 104
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 4
+
+    # CHECK:  #my_typedef = #clift.typedef<
+    # CHECK:    id = 1001
+    # CHECK:    name = "my_typedef"
+    # CHECK:    underlying_type = !uint32_t
+    # CHECK:  >
+    # CHECK:  !my_typedef1 = !clift.defined<#my_typedef>
+  - ID: 1001
+    Kind: TypedefType
+    CustomName: "my_typedef"
+    UnderlyingType:
+      UnqualifiedType: "/Types/104-PrimitiveType"

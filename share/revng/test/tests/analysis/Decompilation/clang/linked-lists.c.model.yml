@@ -2,6 +2,9 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+
+Architecture: x86_64
+
 Functions:
   - OriginalName: init_list
     Prototype: "/Types/1867-CABIFunctionType"

@@ -68,6 +68,8 @@ def EnumFieldAttr : Clift_Attr<"EnumField", "enum_field", [DeclareAttrInterfaceM
 
   let parameters = (ins "uint64_t":$raw_value, StringRefParameter<>:$name);
 
+  let genVerifyDecl = 1;
+
   let assemblyFormat = "`<`struct($name, $raw_value)`>`";
 }
 
@@ -104,6 +106,7 @@ def Clift_TypedefAttr: Clift_Attr<"Typedef", "typedef", [DeclareAttrInterfaceMet
   let description = [{
     Typedef type.
   }];
+  let genVerifyDecl = 1;
 
   let assemblyFormat = "`<`struct($id, $name, $underlying_type) `>` ";
 }
@@ -111,7 +114,7 @@ def Clift_TypedefAttr: Clift_Attr<"Typedef", "typedef", [DeclareAttrInterfaceMet
 def Clift_FunctionAttr : Clift_Attr<"Function", "function", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinition, SubElementAttrInterface]> {
   let summary = "Clift function type";
 
-  let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$return_type, ArrayRefParameter<"mlir::clift::FunctionArgumentAttr">:$argument_types);
+  let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$return_type, OptionalArrayRefParameter<"mlir::clift::FunctionArgumentAttr">:$argument_types);
 
   let builders = [
     TypeBuilderWithInferredContext<(ins "uint64_t":$ID, "mlir::clift::ValueType":$ReturnType,   CArg<"llvm::ArrayRef<mlir::clift::FunctionArgumentAttr>", "{}">:$InputTypes, CArg<"llvm::StringRef", "\"\"">:$Name), [{
@@ -124,7 +127,20 @@ def Clift_FunctionAttr : Clift_Attr<"Function", "function", [DeclareAttrInterfac
   }];
   let genVerifyDecl = 1;
 
-  let assemblyFormat = "`<`struct($id, $name, $return_type) `,` `argument_types` `=` `[` $argument_types `]``>` ";
+  let assemblyFormat = "`<`struct($id, $name, $return_type) `,` `argument_types` `=` `[` (`]`) : ($argument_types^ `]`)?`>` ";
+}
+
+def ScalarTupleElementAttr : Clift_Attr<"ScalarTupleElement", "tuple_element", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+  let summary = "An attribute representing an element of a scalar tuple";
+  let description = [{
+    An attribute representing an element of a scalar tuple
+  }];
+
+  let parameters = (ins "mlir::Type":$type, StringRefParameter<>:$name);
+
+  let genVerifyDecl = 1;
+
+  let assemblyFormat = "`<`struct($name, $type)`>`";
 }
 
 #endif

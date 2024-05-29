@@ -26,7 +26,7 @@ static Logger<> Log("header-to-model");
 static constexpr std::string_view InputCFile = "revng-input.c";
 static constexpr std::string_view PrimitiveTypeHeader = "revng-primitive-"
                                                         "types.h";
-static constexpr std::string_view RawABI = "raw";
+static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
 static constexpr const char *ABIAnnotatePrefix = "abi:";
 static constexpr size_t
@@ -177,6 +177,11 @@ static std::optional<std::string> getABI(llvm::StringRef ABIAnnotate) {
   if (not ABIAnnotate.startswith(ABIAnnotatePrefix))
     return std::nullopt;
   return std::string(ABIAnnotate.substr(ABIAnnotatePrefixLength));
+}
+
+static model::Architecture::Values getRawABIArchitecture(llvm::StringRef ABI) {
+  revng_assert(ABI.starts_with(RawABIPrefix));
+  return model::Architecture::fromName(ABI.substr(RawABIPrefix.size()));
 }
 
 // Parse location of parameter (`reg:` or `stack`).
@@ -613,7 +618,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   }
 
   revng_assert(MaybeABI.has_value());
-  bool IsRawFunctionType = *MaybeABI == std::string(RawABI);
+  bool IsRawFunctionType = MaybeABI->starts_with(RawABIPrefix);
   auto NewType = IsRawFunctionType ? makeType<RawFunctionType>() :
                                      makeType<CABIFunctionType>();
 
@@ -653,6 +658,14 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   } else {
     auto TheRetClangType = FD->getReturnType();
     auto TheRawFunctionType = cast<RawFunctionType>(NewType.get());
+
+    auto Architecture = getRawABIArchitecture(*MaybeABI);
+    if (Architecture == model::Architecture::Invalid) {
+      revng_log(Log, "Invalid raw abi architecture");
+      return false;
+    }
+    TheRawFunctionType->Architecture() = Architecture;
+
     auto ReturnValuesInserter = TheRawFunctionType->ReturnValues()
                                   .batch_insert();
 
@@ -847,7 +860,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     return false;
   }
 
-  bool IsRawFunctionType = *ABI == std::string(RawABI);
+  bool IsRawFunctionType = ABI->starts_with(RawABIPrefix);
   auto NewType = IsRawFunctionType ? makeType<RawFunctionType>() :
                                      makeType<CABIFunctionType>();
 
@@ -887,16 +900,23 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
       ++Index;
     }
   } else {
+    auto Architecture = getRawABIArchitecture(*ABI);
+    if (Architecture == model::Architecture::Invalid) {
+      revng_log(Log, "Invalid raw abi architecture");
+      return false;
+    }
+
     // TODO: Since we do not have info about parameters annotation, we use
     // default raw function.
     auto TheDefaultPrototype = Model->DefaultPrototype();
-    auto DefaulRawType = cast<RawFunctionType>(TheDefaultPrototype.get());
+    auto DefaultRawType = cast<RawFunctionType>(TheDefaultPrototype.get());
 
     auto FunctionType = cast<RawFunctionType>(NewType.get());
-    FunctionType->Arguments() = DefaulRawType->Arguments();
-    FunctionType->ReturnValues() = DefaulRawType->ReturnValues();
-    FunctionType->PreservedRegisters() = DefaulRawType->PreservedRegisters();
-    FunctionType->FinalStackOffset() = DefaulRawType->FinalStackOffset();
+    FunctionType->Architecture() = Architecture;
+    FunctionType->Arguments() = DefaultRawType->Arguments();
+    FunctionType->ReturnValues() = DefaultRawType->ReturnValues();
+    FunctionType->PreservedRegisters() = DefaultRawType->PreservedRegisters();
+    FunctionType->FinalStackOffset() = DefaultRawType->FinalStackOffset();
   }
 
   if (AnalysisOption == ImportFromCOption::EditType) {

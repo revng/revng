@@ -3,6 +3,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Architecture: x86_64
+
 Functions:
   - Entry: "0x400700:Code_x86_64"
     CustomName: "fn"

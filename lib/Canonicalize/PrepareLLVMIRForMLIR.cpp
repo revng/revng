@@ -37,7 +37,7 @@ static void saveFunctionEntryPointInDISubprogram(llvm::Function &F) {
   QuickMetadata QMD(getContext(F.getParent()));
 
   std::string FunctionEntryLocation;
-  auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
+  auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDName);
   if (MaybeMetaAddress != MetaAddress::invalid()) {
     FunctionEntryLocation = serializedLocation(ranks::Function,
                                                MaybeMetaAddress);

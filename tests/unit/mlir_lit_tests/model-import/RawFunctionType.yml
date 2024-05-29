@@ -1,0 +1,126 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+
+Types:
+  - ID: 108
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 8
+
+  - ID: 201
+    Kind: StructType
+    CustomName: my_struct
+    Size: 8
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/108-PrimitiveType"
+
+    # CHECK: #my_function1_ = #clift.function<
+    # CHECK:   id = 1000
+    # CHECK:   name = "my_function1"
+    # CHECK:   return_type = !void
+    # CHECK:   argument_types = []
+    # CHECK: >
+    # CHECK: !my_function1_1 = !clift.defined<#my_function1_>
+  - ID: 1000
+    Kind: RawFunctionType
+    CustomName: "my_function1"
+    Architecture: x86_64
+    Arguments: []
+    ReturnValues: []
+    PreservedRegisters: []
+    FinalStackOffset: 0
+
+    # CHECK: #my_function2_ = #clift.function<
+    # CHECK:   id = 1001
+    # CHECK:   name = "my_function2"
+    # CHECK:   return_type = !uint64_t
+    # CHECK:   argument_types = [
+    # CHECK:     !uint64_t
+    # CHECK:   ]
+    # CHECK: >
+    # CHECK: !my_function2_1 = !clift.defined<#my_function2_>
+  - ID: 1001
+    Kind: RawFunctionType
+    CustomName: "my_function2"
+    Architecture: x86_64
+    Arguments:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/108-PrimitiveType"
+    ReturnValues:
+      - Location: rcx_x86_64
+        Type:
+          UnqualifiedType: "/Types/108-PrimitiveType"
+    PreservedRegisters:
+      - rdi_x86_64
+    FinalStackOffset: 0
+
+    # CHECK: #my_function3_ = #clift.function<
+    # CHECK:   id = 1002
+    # CHECK:   name = "my_function3"
+    # CHECK:   return_type = !clift.tuple<
+    # CHECK:     id = 1002
+    # CHECK:     fields = [
+    # CHECK:       <
+    # CHECK:         type = !uint64_t
+    # CHECK:       >
+    # CHECK:       <
+    # CHECK:         type = !clift.pointer<
+    # CHECK:           pointee_type = !uint64_t
+    # CHECK:           pointer_size = 8
+    # CHECK:         >
+    # CHECK:       >
+    # CHECK:     ]
+    # CHECK:   >
+    # CHECK:   argument_types = [
+    # CHECK:     <
+    # CHECK:       type = !uint64_t
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       type = !clift.pointer<
+    # CHECK:         pointee_type = !uint64_t
+    # CHECK:         pointer_size = 8
+    # CHECK:       >
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       type = !clift.pointer<
+    # CHECK:         pointee_type = !my_struct1
+    # CHECK:         pointer_size = 8
+    # CHECK:       >
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+    # CHECK: !my_function3_1 = !clift.defined<#my_function3_>
+  - ID: 1002
+    Kind: RawFunctionType
+    CustomName: "my_function3"
+    Architecture: x86_64
+    Arguments:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/108-PrimitiveType"
+      - Location: rbx_x86_64
+        Type:
+          UnqualifiedType: "/Types/108-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    ReturnValues:
+      - Location: rcx_x86_64
+        Type:
+          UnqualifiedType: "/Types/108-PrimitiveType"
+      - Location: rdx_x86_64
+        Type:
+          UnqualifiedType: "/Types/108-PrimitiveType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    PreservedRegisters:
+      - rdi_x86_64
+      - rsi_x86_64
+    FinalStackOffset: 0
+    StackArgumentsType: "/Types/201-StructType"

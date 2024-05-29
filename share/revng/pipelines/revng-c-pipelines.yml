@@ -220,8 +220,18 @@ Branches:
             UsedContainers: [module.ll, module.mlir]
         Artifacts:
           Container: module.mlir
-          Kind: mlir-llvm-module
+          Kind: mlir-module
           SingleTargetFilename: mlir-llvm-dialect.mlir
+  - From: convert-to-mlir
+    Steps:
+      - Name: import-clift-types
+        Pipes:
+          - Type: import-clift-types
+            UsedContainers: [module.mlir]
+        Artifacts:
+          Container: module.mlir
+          Kind: mlir-module
+          SingleTargetFilename: mlir-llvm-dialect-with-clift-types.mlir
 AnalysesLists:
   - Name: revng-c-initial-auto-analysis
     Analyses:
