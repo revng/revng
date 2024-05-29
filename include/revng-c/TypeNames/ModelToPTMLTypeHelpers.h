@@ -34,27 +34,23 @@ public:
 
 private:
   GraphInfo TypeGraph;
-  std::unordered_map<const model::Type *, unsigned> TypeToNumOfRefs;
   std::set<const model::Type *> TypesToInline;
 
 public:
   TypeInlineHelper(const model::Binary &Model);
 
 public:
-  const GraphInfo &getTypeGraph() const;
   const std::set<const model::Type *> &getTypesToInline() const;
-  const std::unordered_map<const model::Type *, unsigned> &
-  getTypeToNumOfRefs() const;
 
 public:
   // Collect stack frame types per model::Function.
   std::unordered_map<const model::Function *, std::set<const model::Type *>>
-  findStackTypesPerFunction(const model::Binary &Model) const;
+  findTypesToInlineInStacks(const model::Binary &Model) const;
 
-  // Collect all stack frame types, since we want to dump them inline in the
-  // function body.
+  // Collect all the types that can be emitted inline in the stack frame types
+  // of model functions.
   std::set<const model::Type *>
-  collectStackTypes(const model::Binary &Model) const;
+  collectTypesInlinableInStacks(const model::Binary &Model) const;
 
   // Find all nested types of the `RootType` that should be inlined into it.
   std::set<const model::Type *>
@@ -66,9 +62,6 @@ private:
                                                   const GraphInfo &TypeGraph);
 
   GraphInfo buildTypeGraph(const model::Binary &Model);
-
-  std::unordered_map<const model::Type *, unsigned>
-  calculateNumOfOccurences(const model::Binary &Model);
 
   bool isReachableFromRootType(const model::Type *Type,
                                const model::Type *RootType,

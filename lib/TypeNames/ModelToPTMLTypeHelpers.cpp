@@ -33,7 +33,6 @@
 
 using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 using TypeSet = std::set<const model::Type *>;
-using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 using Node = TypeInlineHelper::Node;
 using StackTypesMap = std::unordered_map<const model::Function *,
@@ -42,18 +41,20 @@ using StackTypesMap = std::unordered_map<const model::Function *,
 TypeInlineHelper::TypeInlineHelper(const model::Binary &Model) {
   // Create graph that represents type system.
   TypeGraph = buildTypeGraph(Model);
-  TypeToNumOfRefs = calculateNumOfOccurences(Model);
   TypesToInline = findTypesToInline(Model, TypeGraph);
 }
 
-const GraphInfo &TypeInlineHelper::getTypeGraph() const {
-  return TypeGraph;
-}
 const TypeSet &TypeInlineHelper::getTypesToInline() const {
   return TypesToInline;
 }
-const TypeToNumOfRefsMap &TypeInlineHelper::getTypeToNumOfRefs() const {
-  return TypeToNumOfRefs;
+
+bool TypeInlineHelper::isReachableFromRootType(const model::Type *Type,
+                                               const model::Type *RootType,
+                                               const GraphInfo &TypeGraph) {
+  for (Node *N : llvm::depth_first(TypeGraph.TypeToNode.at(RootType)))
+    if (N->data().T == Type)
+      return true;
+  return false;
 }
 
 /// Collect candidates for emitting inline types.
@@ -133,32 +134,35 @@ GraphInfo TypeInlineHelper::buildTypeGraph(const model::Binary &Model) {
   return Result;
 }
 
-TypeToNumOfRefsMap
-TypeInlineHelper::calculateNumOfOccurences(const model::Binary &Model) {
-  TypeToNumOfRefsMap Result;
-  for (const UpcastablePointer<model::Type> &T : Model.Types()) {
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      Result[DependantType]++;
-    }
-  }
+/// Returns a set of types that are referred to by at least one other type in
+/// the \a Model. It does not take into consideration other references to the
+/// types that are not cross-references among types, like e.g. stack frame types
+/// that refer to model::Types from model::Functions.
+static TypeSet getCrossReferencedTypes(const model::Binary &Model) {
+  TypeSet Result;
+
+  for (const UpcastablePointer<model::Type> &T : Model.Types())
+    for (const model::QualifiedType &QT : T->edges())
+      Result.insert(QT.UnqualifiedType().get());
+
   return Result;
 }
 
 StackTypesMap
-TypeInlineHelper::findStackTypesPerFunction(const model::Binary &Model) const {
-  StackTypesMap Result;
+TypeInlineHelper::findTypesToInlineInStacks(const model::Binary &Model) const {
 
+  TypeSet CrossReferencedTypes = getCrossReferencedTypes(Model);
+
+  StackTypesMap Result;
   for (auto &Function : Model.Functions()) {
     if (not Function.StackFrameType().empty()) {
       const model::Type *StackT = Function.StackFrameType().getConst();
-      // Do not inline stack types that are being used somewhere else.
-      auto TheTypeToNumOfRefs = TypeToNumOfRefs.find(StackT);
-      if (TheTypeToNumOfRefs != TypeToNumOfRefs.end()
-          and TheTypeToNumOfRefs->second != 0)
+      revng_assert(StackT and StackT->Kind() == model::TypeKind::StructType);
+
+      // Do not inline stack types that are used by at least one other type.
+      if (CrossReferencedTypes.contains(StackT))
         continue;
 
-      revng_assert(StackT->Kind() == model::TypeKind::StructType);
       Result[&Function].insert(StackT);
       auto AllNestedTypes = getTypesToInlineInTypeTy(Model, StackT);
       Result[&Function].merge(AllNestedTypes);
@@ -168,25 +172,14 @@ TypeInlineHelper::findStackTypesPerFunction(const model::Binary &Model) const {
   return Result;
 }
 
-TypeSet TypeInlineHelper::collectStackTypes(const model::Binary &Model) const {
+TypeSet
+TypeInlineHelper::collectTypesInlinableInStacks(const model::Binary &Model)
+  const {
+  StackTypesMap TypesToInlineInStacks = findTypesToInlineInStacks(Model);
+
   TypeSet Result;
-  for (auto &Function : Model.Functions()) {
-    if (not Function.StackFrameType().empty()) {
-      const model::Type *StackT = Function.StackFrameType().getConst();
-      revng_assert(StackT->Kind() == model::TypeKind::StructType);
-
-      // Do not inline stack types that are being used somewhere else.
-      auto TheTypeToNumOfRefs = TypeToNumOfRefs.find(StackT);
-      if (TheTypeToNumOfRefs != TypeToNumOfRefs.end()
-          and TheTypeToNumOfRefs->second != 0)
-        continue;
-
-      revng_assert(StackT != nullptr);
-      Result.insert(StackT);
-      auto AllNestedTypes = getTypesToInlineInTypeTy(Model, StackT);
-      Result.merge(AllNestedTypes);
-    }
-  }
+  for (auto [Function, TypesToInlineInStack] : TypesToInlineInStacks)
+    Result.merge(std::move(TypesToInlineInStack));
 
   return Result;
 }
@@ -542,7 +535,7 @@ void printDeclaration(Logger<> &Log,
                       bool ForEditing) {
   if (Log.isEnabled()) {
     auto Scope = helpers::LineComment(Header, B.isGenerateTagLessPTML());
-    Header << "Declaration of " << getNameFromYAMLScalar(T.key());
+    Header << "Declaration of " << getNameFromYAMLScalar(T.key()) << "\n";
   }
 
   revng_log(Log, "Declaring " << getNameFromYAMLScalar(T.key()));
@@ -672,20 +665,6 @@ void printDefinition(Logger<> &Log,
 bool isCandidateForInline(const model::Type *T) {
   return llvm::isa<model::StructType>(T) or llvm::isa<model::UnionType>(T)
          or llvm::isa<model::EnumType>(T);
-}
-
-bool TypeInlineHelper::isReachableFromRootType(const model::Type *Type,
-                                               const model::Type *RootType,
-                                               const GraphInfo &TypeGraph) {
-  auto TheTypeToNode = TypeGraph.TypeToNode;
-
-  // Visit all the nodes reachable from RootType.
-  llvm::df_iterator_default_set<Node *> Visited;
-  for ([[maybe_unused]] Node *N :
-       depth_first_ext(TheTypeToNode.at(RootType), Visited))
-    ;
-
-  return Visited.contains(TheTypeToNode.at(Type));
 }
 
 using UPtrTy = UpcastablePointer<model::Type>;

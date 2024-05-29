@@ -68,17 +68,18 @@ static void printTypeDefinitions(const model::Binary &Model,
                                  ptml::PTMLCBuilder &B,
                                  QualifiedTypeNameMap &AdditionalTypeNames,
                                  const ModelToHeaderOptions &Options) {
-  std::set<const model::Type *> StackTypes, EmptyInlineTypes;
+  std::set<const model::Type *> TypesToInlineInStacks;
   if (not Options.DisableTypeInlining)
-    StackTypes = TheTypeInlineHelper.collectStackTypes(Model);
+    TypesToInlineInStacks = TheTypeInlineHelper
+                              .collectTypesInlinableInStacks(Model);
 
   DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
   const auto &TypeNodes = Dependencies.TypeNodes();
-  auto &ToInline = Options.DisableTypeInlining ?
-                     EmptyInlineTypes :
-                     TheTypeInlineHelper.getTypesToInline();
-  std::set<const TypeDependencyNode *> Defined;
+  const auto &ToInline = Options.DisableTypeInlining ?
+                           std::set<const model::Type *>{} :
+                           TheTypeInlineHelper.getTypesToInline();
 
+  std::set<const TypeDependencyNode *> Defined;
   for (const auto *Root : Dependencies.nodes()) {
     revng_log(Log, "======== PostOrder " << getNodeLabel(Root));
 
@@ -93,7 +94,7 @@ static void printTypeDefinitions(const model::Binary &Model,
           revng_log(Log, "      NOT DEFINED");
       }
 
-      if (StackTypes.contains(Node->T)) {
+      if (TypesToInlineInStacks.contains(Node->T)) {
         if (Options.DisableTypeInlining) {
           revng_log(Log, "      PRINTED STACK TYPE");
         } else {
