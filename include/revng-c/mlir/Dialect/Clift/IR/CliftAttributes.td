@@ -114,7 +114,7 @@ def Clift_TypedefAttr: Clift_Attr<"Typedef", "typedef", [DeclareAttrInterfaceMet
 def Clift_FunctionAttr : Clift_Attr<"Function", "function", [DeclareAttrInterfaceMethods<AliasableAttr>, DeclareAttrInterfaceMethods<SizedType, ["getByteSize"]>, TypeDefinition, SubElementAttrInterface]> {
   let summary = "Clift function type";
 
-  let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$return_type, ArrayRefParameter<"mlir::clift::FunctionArgumentAttr">:$argument_types);
+  let parameters = (ins "uint64_t":$id, StringRefParameter<>:$name, "mlir::clift::ValueType":$return_type, OptionalArrayRefParameter<"mlir::clift::FunctionArgumentAttr">:$argument_types);
 
   let builders = [
     TypeBuilderWithInferredContext<(ins "uint64_t":$ID, "mlir::clift::ValueType":$ReturnType,   CArg<"llvm::ArrayRef<mlir::clift::FunctionArgumentAttr>", "{}">:$InputTypes, CArg<"llvm::StringRef", "\"\"">:$Name), [{
@@ -127,7 +127,7 @@ def Clift_FunctionAttr : Clift_Attr<"Function", "function", [DeclareAttrInterfac
   }];
   let genVerifyDecl = 1;
 
-  let assemblyFormat = "`<`struct($id, $name, $return_type) `,` `argument_types` `=` `[` $argument_types `]``>` ";
+  let assemblyFormat = "`<`struct($id, $name, $return_type) `,` `argument_types` `=` `[` (`]`) : ($argument_types^ `]`)?`>` ";
 }
 
 #endif

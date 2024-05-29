@@ -150,37 +150,37 @@ void mlir::clift::CliftDialect::printAttribute(::mlir::Attribute Attr,
 
 template<typename AttrType>
 static mlir::Attribute printImpl(mlir::AsmPrinter &P, AttrType Attr) {
+  const uint64_t ID = Attr.getImpl()->getID();
+
   P << Attr.getMnemonic();
   P << "<id = ";
-  size_t ID = Attr.getImpl()->getID();
   P << ID;
-  if (not Attr.getImpl()->isInitialized()) {
-    P << ">";
-    return Attr;
-  }
+
   if (auto Iter = CurrentlyPrintedTypes.find(ID);
       Iter != CurrentlyPrintedTypes.end()) {
     P << ">";
     return Attr;
   }
 
-  CurrentlyPrintedTypes[ID] = Attr;
-  auto guard = llvm::make_scope_exit([&]() {
-    CurrentlyPrintedTypes.erase(ID);
-  });
-
   P << ", name = ";
   P << "\"" << Attr.getName() << "\"";
-  P << ", ";
+
   if constexpr (std::is_same_v<AttrType, mlir::clift::StructType>) {
+    P << ", ";
     P.printKeywordOrString("size");
     P << " = ";
     P << Attr.getByteSize();
-    P << ", ";
   }
-  P << "fields = [";
+
+  CurrentlyPrintedTypes[ID] = Attr;
+  auto EraseGuard = llvm::make_scope_exit([&]() {
+    CurrentlyPrintedTypes.erase(ID);
+  });
+
+  P << ", fields = [";
   P.printStrippedAttrOrType(Attr.getImpl()->getFields());
   P << "]>";
+
   return Attr;
 }
 
@@ -193,7 +193,10 @@ mlir::Attribute mlir::clift::StructType::print(AsmPrinter &p) const {
 }
 
 template<typename AttrType>
-AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
+static AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
+  static constexpr bool
+    IsStruct = std::is_same_v<mlir::clift::StructType, AttrType>;
+
   const auto OnUnexpectedToken = [&parser,
                                   TypeName](llvm::StringRef name) -> AttrType {
     parser.emitError(parser.getCurrentLocation(),
@@ -252,12 +255,12 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     return OnUnexpectedToken("<string>");
   }
 
-  if (parser.parseComma().failed()) {
-    return OnUnexpectedToken(",");
-  }
-
   uint64_t Size;
-  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
+  if constexpr (IsStruct) {
+    if (parser.parseComma().failed()) {
+      return OnUnexpectedToken(",");
+    }
+
     if (parser.parseKeyword("size").failed()) {
       return OnUnexpectedToken("keyword 'size'");
     }
@@ -267,12 +270,12 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     }
 
     if (parser.parseInteger(Size).failed()) {
-      return OnUnexpectedToken("<size_t>");
+      return OnUnexpectedToken("<uint64_t>");
     }
+  }
 
-    if (parser.parseComma().failed()) {
-      return OnUnexpectedToken(",");
-    }
+  if (parser.parseComma().failed()) {
+    return OnUnexpectedToken(",");
   }
 
   if (parser.parseKeyword("fields").failed()) {
@@ -287,30 +290,42 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     return OnUnexpectedToken("[");
   }
 
-  using SmallVectorType = ::llvm::SmallVector<mlir::clift::FieldAttr>;
-  using ParserType = ::mlir::FieldParser<SmallVectorType>;
-  ::mlir::FailureOr<::llvm::SmallVector<mlir::clift::FieldAttr>>
-    Attrs = ParserType::parse(parser);
-  if (::mlir::failed(Attrs)) {
-    parser.emitError(parser.getCurrentLocation(),
-                     "failed to parse Clift_EnumAttr parameter 'fields' "
-                     "which "
-                     "is to be a "
-                     "`::llvm::ArrayRef<mlir::clift::FieldAttr>`");
-  }
+  using FieldsVectorType = ::llvm::SmallVector<mlir::clift::FieldAttr>;
+  using FieldsParserType = ::mlir::FieldParser<FieldsVectorType>;
+  ::mlir::FailureOr<FieldsVectorType> Fields(FieldsVectorType{});
 
-  if (parser.parseRSquare().failed()) {
-    return OnUnexpectedToken("]");
+  const auto ParseFieldsRSquare = [&]() -> bool {
+    if constexpr (IsStruct) {
+      return parser.parseOptionalRSquare().failed();
+    } else {
+      return false;
+    }
+  };
+
+  if (not ParseFieldsRSquare()) {
+    Fields = FieldsParserType::parse(parser);
+
+    if (::mlir::failed(Fields)) {
+      parser.emitError(parser.getCurrentLocation(),
+                       "failed to parse class type parameter 'fields' "
+                       "which is to be a "
+                       "`::llvm::ArrayRef<mlir::clift::FieldAttr>`");
+    }
+
+    if (parser.parseRSquare().failed()) {
+      return OnUnexpectedToken("]");
+    }
   }
 
   if (parser.parseGreater().failed()) {
     return OnUnexpectedToken(">");
   }
-  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
-    ToReturn.define(OptionalName, Size, *Attrs);
-  } else {
-    ToReturn.define(OptionalName, *Attrs);
-  }
+
+  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>)
+    ToReturn.define(OptionalName, Size, *Fields);
+  else
+    ToReturn.define(OptionalName, *Fields);
+
   return ToReturn;
 }
 
