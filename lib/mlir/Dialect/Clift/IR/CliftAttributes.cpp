@@ -158,11 +158,11 @@ void mlir::clift::StructType::print(AsmPrinter &Printer) const {
 }
 
 mlir::Attribute mlir::clift::UnionType::parse(AsmParser &Parser) {
-  return parseCompositeType<UnionType>(Parser, /*MinFields=*/1);
+  return parseCompositeType<UnionType>(Parser, /*MinSubobjects=*/1);
 }
 
 mlir::Attribute mlir::clift::StructType::parse(AsmParser &Parser) {
-  return parseCompositeType<StructType>(Parser, /*MinFields=*/0);
+  return parseCompositeType<StructType>(Parser, /*MinSubobjects=*/0);
 }
 
 static bool isCompleteType(const mlir::Type Type) {
@@ -174,6 +174,9 @@ static bool isCompleteType(const mlir::Type Type) {
       return D.isDefinition();
     return true;
   }
+
+  if (auto T = mlir::dyn_cast<mlir::clift::ScalarTupleType>(Type))
+    return T.isComplete();
 
   return true;
 }
@@ -357,7 +360,7 @@ llvm::StringRef mlir::clift::StructType::getName() const {
 
 llvm::ArrayRef<mlir::clift::FieldAttr>
 mlir::clift::StructType::getFields() const {
-  return getImpl()->getFields();
+  return getImpl()->getSubobjects();
 }
 
 bool mlir::clift::StructType::isDefinition() const {
@@ -382,7 +385,7 @@ llvm::StringRef mlir::clift::UnionType::getName() const {
 
 llvm::ArrayRef<mlir::clift::FieldAttr>
 mlir::clift::UnionType::getFields() const {
-  return getImpl()->getFields();
+  return getImpl()->getSubobjects();
 }
 
 bool mlir::clift::UnionType::isDefinition() const {
@@ -401,4 +404,16 @@ uint64_t mlir::clift::UnionType::getByteSize() const {
 
 std::string mlir::clift::UnionType::getAlias() const {
   return getName().str();
+}
+
+//************************** ScalarTupleElementAttr ****************************
+
+mlir::LogicalResult
+mlir::clift::ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
+                                            mlir::Type Type,
+                                            const llvm::StringRef Name) {
+  if (not mlir::isa<mlir::clift::ValueType>(Type))
+    return EmitError() << "Scalar tuple element type must be a value type";
+
+  return mlir::success();
 }

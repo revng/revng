@@ -54,12 +54,12 @@ void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
   }
 
   Printer << ", fields = [";
-  Printer.printStrippedAttrOrType(Object.getImpl()->getFields());
+  Printer.printStrippedAttrOrType(Object.getImpl()->getSubobjects());
   Printer << "]>";
 }
 
 template<typename ObjectT>
-ObjectT parseCompositeType(AsmParser &Parser, const size_t MinFields) {
+ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
   const auto OnUnexpectedToken = [&](const llvm::StringRef Name) -> ObjectT {
     Parser.emitError(Parser.getCurrentLocation(),
                      "Expected " + Name + " while parsing mlir "
@@ -140,24 +140,25 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinFields) {
   ObjectT Object = ObjectT::get(Parser.getContext(), ID);
   Iterator->second = Object.getImpl();
 
-  using FieldVectorType = ::llvm::SmallVector<FieldAttr>;
-  using FieldParserType = ::mlir::FieldParser<FieldVectorType>;
-  ::mlir::FailureOr<FieldVectorType> Fields(FieldVectorType{});
+  using SubobjectType = typename ObjectT::ImplType::SubobjectTy;
+  using SubobjectVectorType = ::llvm::SmallVector<SubobjectType>;
+  using SubobjectParserType = ::mlir::FieldParser<SubobjectVectorType>;
+  ::mlir::FailureOr<SubobjectVectorType> Subobjects(SubobjectVectorType{});
 
-  if (MinFields > 0 or Parser.parseOptionalRSquare().failed()) {
-    Fields = FieldParserType::parse(Parser);
+  if (MinSubobjects > 0 or Parser.parseOptionalRSquare().failed()) {
+    Subobjects = SubobjectParserType::parse(Parser);
 
-    if (::mlir::failed(Fields)) {
+    if (::mlir::failed(Subobjects)) {
       Parser.emitError(Parser.getCurrentLocation(),
                        "failed to parse class type parameter 'fields' "
                        "which is to be a "
                        "`::llvm::ArrayRef<mlir::clift::FieldAttr>`");
     }
 
-    if (Fields->size() < MinFields) {
+    if (Subobjects->size() < MinSubobjects) {
       Parser.emitError(Parser.getCurrentLocation(),
                        llvm::Twine(ObjectT::getMnemonic())
-                         + " requires at least " + llvm::Twine(MinFields)
+                         + " requires at least " + llvm::Twine(MinSubobjects)
                          + " fields");
       return {};
     }
@@ -170,9 +171,9 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinFields) {
     return OnUnexpectedToken(">");
 
   if constexpr (hasExplicitSize<ObjectT>)
-    Object.define(OptionalName, Size, *Fields);
+    Object.define(OptionalName, Size, *Subobjects);
   else
-    Object.define(OptionalName, *Fields);
+    Object.define(OptionalName, *Subobjects);
 
   return Object;
 }

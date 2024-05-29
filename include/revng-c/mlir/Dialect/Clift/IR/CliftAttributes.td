@@ -130,4 +130,17 @@ def Clift_FunctionAttr : Clift_Attr<"Function", "function", [DeclareAttrInterfac
   let assemblyFormat = "`<`struct($id, $name, $return_type) `,` `argument_types` `=` `[` (`]`) : ($argument_types^ `]`)?`>` ";
 }
 
+def ScalarTupleElementAttr : Clift_Attr<"ScalarTupleElement", "tuple_element", [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+  let summary = "An attribute representing an element of a scalar tuple";
+  let description = [{
+    An attribute representing an element of a scalar tuple
+  }];
+
+  let parameters = (ins "mlir::Type":$type, StringRefParameter<>:$name);
+
+  let genVerifyDecl = 1;
+
+  let assemblyFormat = "`<`struct($name, $type)`>`";
+}
+
 #endif

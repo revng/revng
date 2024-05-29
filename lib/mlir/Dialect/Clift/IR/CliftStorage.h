@@ -5,6 +5,7 @@
 //
 
 #include <optional>
+#include <utility>
 
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
@@ -14,25 +15,29 @@
 
 namespace mlir::clift {
 
-template<typename StorageT, typename ValueT>
-class ClassTypeStorage : public mlir::AttributeStorage {
+template<typename StorageT,
+         typename BaseT,
+         typename SubobjectT,
+         typename ValueT = std::monostate>
+class ClassTypeStorage : public BaseT {
   struct KeyBase {
     llvm::StringRef Name;
-    llvm::ArrayRef<FieldAttr> Fields;
+    llvm::ArrayRef<SubobjectT> Subobjects;
   };
 
   struct KeyDefinition : KeyBase, ValueT {
     template<typename... ArgsT>
     explicit KeyDefinition(mlir::StorageUniquer::StorageAllocator &Allocator,
                            const llvm::StringRef Name,
-                           const llvm::ArrayRef<FieldAttr> Fields,
+                           const llvm::ArrayRef<SubobjectT> Subobjects,
                            ArgsT &&...Args) :
-      KeyBase{ Allocator.copyInto(Name), Allocator.copyInto(Fields) },
+      KeyBase{ Allocator.copyInto(Name), Allocator.copyInto(Subobjects) },
       ValueT{ std::forward<ArgsT>(Args)... } {}
 
     explicit KeyDefinition(mlir::StorageUniquer::StorageAllocator &Allocator,
                            const KeyDefinition &Key) :
-      KeyBase{ Allocator.copyInto(Key.Name), Allocator.copyInto(Key.Fields) },
+      KeyBase{ Allocator.copyInto(Key.Name),
+               Allocator.copyInto(Key.Subobjects) },
       ValueT(static_cast<const ValueT &>(Key)) {}
   };
 
@@ -64,6 +69,8 @@ class ClassTypeStorage : public mlir::AttributeStorage {
 public:
   using KeyTy = Key;
 
+  using SubobjectTy = SubobjectT;
+
   const Key &getAsKey() const { return TheKey; }
 
   static llvm::hash_code hashKey(const KeyTy &Key) { return Key.hashValue(); }
@@ -89,12 +96,12 @@ public:
   [[nodiscard]] mlir::LogicalResult
   mutate(mlir::StorageUniquer::StorageAllocator &Allocator,
          const llvm::StringRef Name,
-         const llvm::ArrayRef<FieldAttr> Fields,
+         const llvm::ArrayRef<SubobjectT> Subobjects,
          ArgsT &&...Args) {
     if (not TheKey.Definition.has_value()) {
       TheKey.Definition.emplace(Allocator,
                                 Name,
-                                Fields,
+                                Subobjects,
                                 std::forward<ArgsT>(Args)...);
       return mlir::success();
     }
@@ -102,10 +109,10 @@ public:
     if (Name != TheKey.Definition->Name)
       return mlir::failure();
 
-    if (not std::equal(Fields.begin(),
-                       Fields.end(),
-                       TheKey.Definition->Fields.begin(),
-                       TheKey.Definition->Fields.end()))
+    if (not std::equal(Subobjects.begin(),
+                       Subobjects.end(),
+                       TheKey.Definition->Subobjects.begin(),
+                       TheKey.Definition->Subobjects.end()))
       return mlir::failure();
 
     return mlir::success();
@@ -121,9 +128,9 @@ public:
     return TheKey.Definition ? TheKey.Definition->Name : llvm::StringRef{};
   }
 
-  [[nodiscard]] llvm::ArrayRef<FieldAttr> getFields() const {
-    return TheKey.Definition ? TheKey.Definition->Fields :
-                               llvm::ArrayRef<FieldAttr>{};
+  [[nodiscard]] llvm::ArrayRef<SubobjectT> getSubobjects() const {
+    return TheKey.Definition ? TheKey.Definition->Subobjects :
+                               llvm::ArrayRef<SubobjectT>{};
   }
 
 protected:
@@ -135,15 +142,23 @@ struct StructTypeStorageValue {
   StructTypeStorageValue(const uint64_t Size) : Size(Size) {}
 };
 
-struct StructTypeStorage
-  : ClassTypeStorage<StructTypeStorage, StructTypeStorageValue> {
+struct StructTypeStorage : ClassTypeStorage<StructTypeStorage,
+                                            mlir::AttributeStorage,
+                                            FieldAttr,
+                                            StructTypeStorageValue> {
   using ClassTypeStorage::ClassTypeStorage;
 
   [[nodiscard]] uint64_t getSize() const { return getValue().Size; }
 };
 
-struct UnionTypeKey {};
-struct UnionTypeStorage : ClassTypeStorage<UnionTypeStorage, UnionTypeKey> {
+struct UnionTypeStorage
+  : ClassTypeStorage<UnionTypeStorage, mlir::AttributeStorage, FieldAttr> {
+  using ClassTypeStorage::ClassTypeStorage;
+};
+
+struct ScalarTupleTypeStorage : ClassTypeStorage<ScalarTupleTypeStorage,
+                                                 mlir::TypeStorage,
+                                                 ScalarTupleElementAttr> {
   using ClassTypeStorage::ClassTypeStorage;
 };
 
