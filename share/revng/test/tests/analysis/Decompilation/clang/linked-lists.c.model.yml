@@ -81,12 +81,10 @@ TypeDefinitions:
   - ID: 1870
     Kind: CABIFunctionDefinition
     ABI: SystemV_x86_64
-    # Ignore return type to cope with some non-determinsm in ABI detection
-    # TODO: consider to re-enable this after EFA 4 is ready.
-    # ReturnType:
-    #   Kind: PrimitiveType
-    #   PrimitiveKind: Generic
-    #   Size: 8
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
