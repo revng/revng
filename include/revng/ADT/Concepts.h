@@ -109,6 +109,12 @@ concept StrictSpecializationOf = revng::detail::StrictSpecialization<Test, Ref>;
 template<typename T, typename R>
 concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 
+template<typename T>
+constexpr bool IsConstReference = std::is_const_v<std::remove_reference_t<T>>;
+
+template<typename R, typename T>
+using ConstPtrIfConst = std::conditional_t<IsConstReference<R>, const T *, T *>;
+
 template<class R, typename ValueType>
 concept range_with_value_type = std::ranges::range<R>
                                 and std::is_convertible_v<
