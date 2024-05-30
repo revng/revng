@@ -212,6 +212,21 @@ public:
     return Pointer == P;
   }
 
+  UpcastablePointer &operator=(const T &Another) noexcept {
+    Pointer.reset();
+    ::upcast(&Another, [this]<typename UT>(const UT &Upcasted) {
+      *this = make<UT>(Upcasted);
+    });
+    return *this;
+  }
+
+  UpcastablePointer(const T &Another) noexcept : UpcastablePointer(nullptr) {
+    ::upcast(&Another, [this]<typename UT>(const UT &Upcasted) {
+      *this = make<UT>(Upcasted);
+    });
+  }
+
+public:
   bool operator==(const UpcastablePointer &Other) const {
     if (empty() || Other.empty())
       return Pointer == Other.Pointer;
