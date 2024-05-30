@@ -73,6 +73,10 @@ concept SpecializationOf = requires(Type &Value) {
   }(const_cast<std::remove_const_t<Type> &>(Value));
 };
 
+template<typename T, typename Base>
+concept NonBaseDerived = std::derived_from<T, Base>
+                         and not std::is_same_v<T, Base>;
+
 namespace revng::detail {
 
 template<typename Test, template<typename...> class Ref>
