@@ -80,7 +80,7 @@ struct TrackingImpl {
 
   template<typename M, StrictSpecializationOf<UpcastablePointer> T>
   static void collectImpl(const T &UP, TupleTreePath &Stack, ReadFields &Info) {
-    if (!UP.empty()) {
+    if (!UP.isEmpty()) {
       UP.upcast([&](auto &Upcasted) {
         // Don't forget to add the kind of the polymorphic object to the stack.
         Stack.push_back(Upcasted.Kind());
@@ -139,7 +139,7 @@ struct TrackingImpl {
            typename Visitor,
            StrictSpecializationOf<UpcastablePointer> T>
   static void visitImpl(T &UP) {
-    if (!UP.empty())
+    if (!UP.isEmpty())
       UP.upcast([&](const auto &Upcasted) { visitImpl<M, Visitor>(Upcasted); });
   }
 

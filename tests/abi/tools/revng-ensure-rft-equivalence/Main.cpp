@@ -151,7 +151,7 @@ int main(int Argc, char *Argv[]) {
   // Gather all the `RawFunctionDefinition` prototypes present in the first
   // model.
   for (model::Function &F : LeftModel->Functions()) {
-    if (F.Prototype().empty())
+    if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
     revng_assert(F.name() != "",
@@ -172,7 +172,7 @@ int main(int Argc, char *Argv[]) {
   // Gather all the `RawFunctionDefinition` prototypes present in the second
   // model.
   for (model::Function &F : RightModel->Functions()) {
-    if (F.Prototype().empty())
+    if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
     revng_assert(F.name() != "",
@@ -270,8 +270,8 @@ int main(int Argc, char *Argv[]) {
   // Erase the default prototypes because they interfere with the test.
   LeftModel->TypeDefinitions().erase(LeftModel->defaultPrototype()->key());
   RightModel->TypeDefinitions().erase(RightModel->defaultPrototype()->key());
-  LeftModel->DefaultPrototype() = {};
-  RightModel->DefaultPrototype() = {};
+  LeftModel->DefaultPrototype() = model::UpcastableType::empty();
+  RightModel->DefaultPrototype() = model::UpcastableType::empty();
 
   // Streamline both models and diff them
   model::purgeUnreachableTypes(LeftModel);

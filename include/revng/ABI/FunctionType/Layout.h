@@ -119,7 +119,7 @@ public:
       revng_abort("Layouts of non-function types are not supported.");
   }
   static Layout make(const model::UpcastableType &FunctionType) {
-    revng_assert(!FunctionType.empty());
+    revng_assert(!FunctionType.isEmpty());
     return make(FunctionType->toPrototype());
   }
 
@@ -197,7 +197,7 @@ calleeSavedRegisters(const model::TypeDefinition &Prototype) {
 
 inline std::span<const model::Register::Values>
 calleeSavedRegisters(const model::UpcastableType &FunctionType) {
-  revng_assert(!FunctionType.empty());
+  revng_assert(!FunctionType.isEmpty());
   return calleeSavedRegisters(FunctionType->toPrototype());
 }
 
@@ -217,7 +217,7 @@ inline uint64_t finalStackOffset(const model::TypeDefinition &Prototype) {
 }
 
 inline uint64_t finalStackOffset(const model::UpcastableType &Prototype) {
-  revng_assert(!Prototype.empty());
+  revng_assert(!Prototype.isEmpty());
   return finalStackOffset(Prototype->toPrototype());
 }
 
@@ -247,7 +247,7 @@ inline UsedRegisters usedRegisters(const model::TypeDefinition &Prototype) {
 }
 
 inline UsedRegisters usedRegisters(const model::UpcastableType &FunctionType) {
-  revng_assert(!FunctionType.empty());
+  revng_assert(!FunctionType.isEmpty());
   return usedRegisters(FunctionType->toPrototype());
 }
 

@@ -236,7 +236,7 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       model::Argument &Current = Result.emplace_back();
       Current.CustomName() = CurrentRegisterIterator->CustomName();
 
-      revng_assert(!CurrentRegisterIterator->Type().empty());
+      revng_assert(!CurrentRegisterIterator->Type().isEmpty());
       Current.Type() = CurrentRegisterIterator->Type().copy();
     } else {
       // This register is unused but we still have to create an argument
@@ -389,7 +389,7 @@ bool canBeNext(ArgumentDistributor &Distributor,
 std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                                  ArgumentDistributor Distributor) {
-  if (StackStruct.empty()) {
+  if (StackStruct.isEmpty()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating
     // a new empty type.

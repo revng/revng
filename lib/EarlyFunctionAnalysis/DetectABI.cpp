@@ -374,7 +374,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
     // Perform some early sanity checks once the CFG is ready
     revng_assert(AnalysisResult.CFG.size() > 0);
 
-    if (not Binary->Functions()[EntryPointAddress].Prototype().empty()) {
+    if (not Binary->Functions()[EntryPointAddress].Prototype().isEmpty()) {
       Oracle.getLocalFunction(EntryPointAddress)
         .CFG = std::move(AnalysisResult.CFG);
       continue;
@@ -413,7 +413,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
           if (CallerSummary.Attributes.contains(Inline))
             InlineFunctionWorklist.insert(Caller);
 
-          if (Binary->Functions().at(CallerPC).Prototype().empty()) {
+          if (Binary->Functions().at(CallerPC).Prototype().isEmpty()) {
             revng_log(Log, CallerPC.toString());
             EntrypointsQueue.insert(Caller);
           }
@@ -670,7 +670,7 @@ void DetectABI::finalizeModel() {
   std::set<model::Function *> Functions;
   for (model::Function &Function : Binary->Functions()) {
     // Ignore if we already have a prototype
-    if (not Function.Prototype().empty())
+    if (not Function.Prototype().isEmpty())
       continue;
 
     MetaAddress EntryPC = Function.Entry();
@@ -825,7 +825,7 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
 
       if (Log.isEnabled()) {
         Log << "Overwriting " << Entry.toString() << " prototype ";
-        if (!Function.Prototype().empty())
+        if (!Function.Prototype().isEmpty())
           Log << "(" << serializeToString(Function.Prototype()) << ") ";
         Log << "with wrapped function's prototype: "
             << serializeToString(model::copyTypeDefinition(*Prototype))

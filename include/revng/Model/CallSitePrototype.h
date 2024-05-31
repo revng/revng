@@ -54,7 +54,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
-  bool isDirect() const { return Prototype().empty(); }
+  bool isDirect() const { return Prototype().isEmpty(); }
 };
 
 #include "revng/Model/Generated/Late/CallSitePrototype.h"

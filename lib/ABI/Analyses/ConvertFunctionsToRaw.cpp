@@ -30,7 +30,7 @@ public:
     auto ToConvert = filterTypes<CABIFD>(Model->TypeDefinitions());
     for (model::CABIFunctionDefinition *Old : ToConvert) {
       model::UpcastableType New = abi::FunctionType::convertToRaw(*Old, Model);
-      revng_assert(!New.empty());
+      revng_assert(!New.isEmpty());
       revng_assert(New->verify(VH));
     }
 

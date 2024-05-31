@@ -380,7 +380,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // Do not replace it, if `Type` is present (may have been added by the user).
   Task.advance("Parse segment struct from data symbols", true);
   for (auto &Segment : Model->Segments()) {
-    if (Segment.Type().empty()) {
+    if (Segment.Type().isEmpty()) {
       Segment.Type() = populateSegmentTypeStruct(*Model,
                                                  Segment,
                                                  DataSymbols,
@@ -485,7 +485,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   };
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0)
+    if (not Fn.Prototype().isEmpty() or Fn.OriginalName().size() == 0)
       continue;
 
     if (auto Found = findPrototype(Fn.OriginalName(), ModelsOfLibraries)) {

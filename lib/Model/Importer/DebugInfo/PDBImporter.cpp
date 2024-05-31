@@ -537,7 +537,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                PointerRecord &Ptr) {
   TypeIndex ReferencedType = Ptr.getReferentType();
   auto ReferencedTypeFromModel = makeModelTypeForIndex(ReferencedType);
-  if (ReferencedTypeFromModel.empty()) {
+  if (ReferencedTypeFromModel.isEmpty()) {
     revng_log(DILogger,
               "LF_POINTER: Unknown referenced type "
                 << ReferencedType.getIndex());
@@ -559,7 +559,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                ArrayRecord &Array) {
   TypeIndex ElementType = Array.getElementType();
   auto ElementTypeFromModel = makeModelTypeForIndex(ElementType);
-  if (ElementTypeFromModel.empty()) {
+  if (ElementTypeFromModel.isEmpty()) {
     revng_log(DILogger,
               "LF_ARRAY: Unknown element type " << ElementType.getIndex());
   } else {
@@ -585,7 +585,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex ReferencedType = Modifier.getModifiedType();
 
   auto ModelType = makeModelTypeForIndex(ReferencedType);
-  if (ModelType.empty()) {
+  if (ModelType.isEmpty()) {
     revng_log(DILogger,
               "LF_MODIFIER: Unknown referenced type "
                 << ReferencedType.getIndex());
@@ -690,7 +690,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       // Create new field.
       uint64_t Offset = Field.getFieldOffset();
       auto FieldModelType = makeModelTypeForIndex(Field.getType());
-      if (FieldModelType.empty()) {
+      if (FieldModelType.isEmpty()) {
         revng_log(DILogger,
                   "LF_STRUCTURE: Unknown field type "
                     << Field.getType().getIndex());
@@ -755,7 +755,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       auto &MemberFunction = InProgressConcreteFunctionMemberTypes[FnTypeIndex];
       TypeIndex ReturnTypeIndex = MemberFunction.ReturnType;
       auto ModelReturnType = makeModelTypeForIndex(ReturnTypeIndex);
-      if (ModelReturnType.empty()) {
+      if (ModelReturnType.isEmpty()) {
         revng_log(DILogger,
                   "LF_MFUNCTION: Unknown return type "
                     << ReturnTypeIndex.getIndex());
@@ -767,7 +767,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       auto &Prototype = *cast<CABIFunctionDefinition>(NewDefinition.get());
       Prototype.ABI() = Model->DefaultABI();
 
-      if (!ModelReturnType.empty() && !ModelReturnType->isVoidPrimitive())
+      if (!ModelReturnType.isEmpty() && !ModelReturnType->isVoidPrimitive())
         Prototype.ReturnType() = std::move(ModelReturnType);
 
       TypeIndex ArgListTyIndex = MemberFunction.getArgumentList();
@@ -929,7 +929,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     Prototype->ABI() = getMicrosoftABI(Proc.getCallConv(),
                                        Model->Architecture());
 
-    if (!ModelReturnType.empty() && !ModelReturnType->isVoidPrimitive())
+    if (!ModelReturnType.isEmpty() && !ModelReturnType->isVoidPrimitive())
       Prototype->ReturnType() = std::move(ModelReturnType);
 
     TypeIndex ArgListTyIndex = Proc.getArgumentList();
@@ -998,7 +998,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   for (const auto &Field : TheFields) {
     // Create new field.
     auto FieldModelType = makeModelTypeForIndex(Field.getType());
-    if (FieldModelType.empty()) {
+    if (FieldModelType.isEmpty()) {
       revng_log(DILogger,
                 "LF_UNION: Unknown field type " << Field.getType().getIndex());
       // Avoid incomplete unions.
@@ -1242,7 +1242,7 @@ PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
         auto PointerSize = getPointerSizeFromPDB(SimpleType);
         if (!PointerSize) {
           revng_log(DILogger, "Invalid pointer size " << SimpleType.getIndex());
-          return nullptr;
+          return model::UpcastableType::empty();
         }
 
         auto Pointer = model::PointerType::make(std::move(Primitive),
@@ -1256,7 +1256,7 @@ PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
       }
     } else {
       revng_log(DILogger, "Invalid simple type " << SimpleType.getIndex());
-      return nullptr;
+      return model::UpcastableType::empty();
     }
   }
 }
@@ -1269,7 +1269,7 @@ PDBImporterTypeVisitor::makeModelTypeForIndex(TypeIndex Index) {
   if (auto Iter = ProcessedTypes.find(Index); Iter != ProcessedTypes.end())
     return Iter->second.copy();
   else
-    return nullptr;
+    return model::UpcastableType::empty();
 }
 
 // ==== Implementation of the Model Symbol-type connection. ==== //

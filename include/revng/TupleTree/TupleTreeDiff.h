@@ -245,7 +245,7 @@ struct MapDiffVisitor {
     if (Io->outputting()) {
       T &Unwrapped = std::get<T>(*Change);
       if constexpr (SpecializationOf<T, UpcastablePointer>)
-        if (Unwrapped.empty())
+        if (Unwrapped.isEmpty())
           return;
       Io->mapRequired(MappingName, Unwrapped);
     } else {
@@ -344,7 +344,7 @@ private:
 
   template<StrictSpecializationOf<UpcastablePointer> T>
   void diffImpl(const T &LHS, const T &RHS) {
-    if (LHS.empty() || RHS.empty()) {
+    if (LHS.isEmpty() || RHS.isEmpty()) {
       if (LHS != RHS)
         Result.change(Stack, LHS, RHS);
     } else {
@@ -527,7 +527,7 @@ public:
     if (C->New.has_value())
       M = std::get<S>(*C->New);
     else if constexpr (SpecializationOf<S, UpcastablePointer>)
-      M = nullptr;
+      M = S::empty();
     else
       generateError("Missing 'Add' key", revng::DiffLocation::KindType::New);
   }

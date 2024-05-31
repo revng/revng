@@ -239,7 +239,7 @@ public:
     // TODO: after `abi::Definition` is merged back into the model,
     //       the prototype will always be present, so this should return
     //       a reference instead.
-    if (DefaultPrototype().empty())
+    if (DefaultPrototype().isEmpty())
       return nullptr;
     else
       return &DefaultPrototype()->toPrototype();
@@ -252,7 +252,7 @@ public:
     // TODO: after `abi::Definition` is merged back into the model,
     //       the prototype will always be present, so this should return
     //       a reference instead.
-    if (DefaultPrototype().empty())
+    if (DefaultPrototype().isEmpty())
       return nullptr;
     else
       return &DefaultPrototype()->toPrototype();

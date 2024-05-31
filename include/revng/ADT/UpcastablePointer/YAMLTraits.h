@@ -56,6 +56,6 @@ struct PolymorphicMappingTraits {
     // If kind is default-initialized, clear the pointer.
     if (!TheIO.outputting())
       if (size_t(Obj->Kind()) == 0)
-        Obj = nullptr;
+        Obj.reset();
   }
 };

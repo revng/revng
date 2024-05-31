@@ -141,31 +141,31 @@ public:
     // Figure the primitive kind out.
     auto [Kind, RemainingName] = PrimitiveKind::tryConsumeCPrefix(Name);
     if (Kind == PrimitiveKind::Invalid || RemainingName == Name)
-      return nullptr;
+      return UpcastableType::empty();
 
     if (Kind == PrimitiveKind::Void)
       return makeVoid();
 
     // Ensure the name ends with _t
     if (not RemainingName.consume_back("_t"))
-      return nullptr;
+      return UpcastableType::empty();
 
     // Consume bit size
     unsigned Bits = 0;
     if (RemainingName.consumeInteger(10, Bits))
-      return nullptr;
+      return UpcastableType::empty();
 
     // Ensure we consumed everything
     if (RemainingName.size() != 0)
-      return nullptr;
+      return UpcastableType::empty();
 
     // Ensure the bit size is a multiple of 8
     if (Bits % 8 != 0)
-      return nullptr;
+      return UpcastableType::empty();
 
     model::UpcastableType Result = make(Kind, Bits / 8);
     if (not Result->verify())
-      return nullptr;
+      return UpcastableType::empty();
 
     return Result;
   }

@@ -145,8 +145,6 @@ public:
 
 public:
   constexpr UpcastablePointer() noexcept : Pointer(nullptr, Deleter) {}
-  constexpr UpcastablePointer(std::nullptr_t P) noexcept :
-    Pointer(P, Deleter) {}
   explicit UpcastablePointer(pointer P) noexcept : Pointer(P, Deleter) {}
 
 public:
@@ -184,11 +182,6 @@ public:
     *this = std::move(Other);
   }
 
-  UpcastablePointer &operator=(std::nullptr_t) noexcept {
-    Pointer.reset(nullptr);
-    return *this;
-  }
-
   constexpr bool operator==(std::nullptr_t P) const noexcept {
     return Pointer == P;
   }
@@ -211,7 +204,7 @@ public:
   template<UpcastablePointerLike PointerLike>
     requires(std::equality_comparable_with<T, Dereferenced<PointerLike>>)
   bool operator==(const PointerLike &Other) const {
-    if (empty() || Other.empty())
+    if (isEmpty() || Other.isEmpty())
       return Pointer == Other.Pointer;
 
     bool Result = false;
@@ -245,7 +238,10 @@ public:
 
   void reset(pointer Other = pointer()) noexcept { Pointer.reset(Other); }
 
-  bool empty() const noexcept { return Pointer == nullptr; }
+  bool isEmpty() const noexcept { return Pointer == nullptr; }
+  constexpr static UpcastablePointer empty() noexcept {
+    return UpcastablePointer(nullptr);
+  }
 
 private:
   inner_pointer Pointer;

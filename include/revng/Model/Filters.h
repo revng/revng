@@ -37,7 +37,7 @@ concept HasTypeAccessor = requires(Type &&Value) {
 template<typename Type, typename CallableType>
 auto unwrap(const Type &Value, CallableType &&Callable) {
   if constexpr (SpecializationOf<Type, UpcastablePointer>) {
-    revng_assert(!Value.empty());
+    revng_assert(!Value.isEmpty());
     return unwrap(*Value, std::forward<CallableType>(Callable));
   } else if constexpr (SpecializationOf<Type, CommonTypeMethods>) {
     return Callable(Value);

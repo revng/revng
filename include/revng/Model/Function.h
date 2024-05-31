@@ -83,7 +83,7 @@ public:
   /// Use this when you need to access/modify the existing struct,
   /// and \ref StackFrameType() when you need to assign a new one.
   model::StructDefinition *stackFrameType() {
-    if (StackFrameType().empty())
+    if (StackFrameType().isEmpty())
       return nullptr;
     else
       return StackFrameType()->getStruct();
@@ -93,7 +93,7 @@ public:
   /// Use this when you need to access/modify the existing struct,
   /// and \ref StackFrameType() when you need to assign a new one.
   const model::StructDefinition *stackFrameType() const {
-    if (StackFrameType().empty())
+    if (StackFrameType().isEmpty())
       return nullptr;
     else
       return StackFrameType()->getStruct();
