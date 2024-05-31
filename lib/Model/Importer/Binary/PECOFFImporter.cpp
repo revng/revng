@@ -446,7 +446,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
   };
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0)
+    if (not Fn.Prototype().isEmpty() or Fn.OriginalName().size() == 0)
       continue;
 
     revng_log(Log, "Searching for prototype for " << Fn.OriginalName());

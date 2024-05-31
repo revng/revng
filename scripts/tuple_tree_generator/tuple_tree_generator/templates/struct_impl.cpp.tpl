@@ -55,7 +55,7 @@ U/*= struct.name =*/ /*= struct.name =*/KOT::fromKey(const /*= struct.name =*/Ke
   }
   /**- endif -**/
   else {
-    return U/*= struct.name =*/(nullptr);
+    return U/*= struct.name =*/::empty();
   }
 }
 
@@ -100,7 +100,7 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
 
   /**- if schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
   /**- if field.upcastable -**/
-  if (this->/*= field.name =*/().empty() || Other./*= field.name =*/().empty()) {
+  if (this->/*= field.name =*/().isEmpty() || Other./*= field.name =*/().isEmpty()) {
     if (this->/*= field.name =*/() != Other./*= field.name =*/())
       return false;
   } else if (not this->/*= field.name =*/()->localCompare(*Other./*= field.name =*/()))

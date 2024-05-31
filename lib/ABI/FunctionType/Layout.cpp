@@ -95,7 +95,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
   // Since shadow arguments are a concern, we need to deal with the return
   // value first.
   bool UsesSPTAR = false;
-  if (!FunctionType.ReturnType().empty()) {
+  if (!FunctionType.ReturnType().isEmpty()) {
     auto ReturnValue = distributeReturnValue(*FunctionType.ReturnType());
     if (!ReturnValue.Registers.empty()) {
       revng_assert(ReturnValue.SizeOnStack == 0);
@@ -283,7 +283,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
     }
 
     // Otherwise, add a new struct to the model.
-    if (NewPrototype.StackArgumentsType().empty()) {
+    if (NewPrototype.StackArgumentsType().isEmpty()) {
       auto [_, Path] = Binary->makeStructDefinition(std::move(StackArguments));
       NewPrototype.StackArgumentsType() = Path;
     }
@@ -335,7 +335,7 @@ using TRC = ToRawConverter;
 uint64_t
 TRC::combinedStackArgumentSize(const model::CABIFunctionDefinition &Def) const {
   DistributedValue ReturnValue;
-  if (!Def.ReturnType().empty())
+  if (!Def.ReturnType().isEmpty())
     ReturnValue = distributeReturnValue(*Def.ReturnType());
 
   ArgumentDistributor Distributor(ABI);
@@ -378,11 +378,11 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
   //
 
   bool UsesSPTAR = false;
-  if (!Function.ReturnType().empty()) {
+  if (!Function.ReturnType().isEmpty()) {
     const auto Architecture = model::ABI::getArchitecture(Function.ABI());
     auto RV = Converter.distributeReturnValue(*Function.ReturnType());
     if (RV.SizeOnStack == 0) {
-      if (Function.ReturnType().empty()) {
+      if (Function.ReturnType().isEmpty()) {
         // This function returns `void`: no need to do anything special.
       } else {
         // Nothing on the stack, the return value fits into the registers.
@@ -495,7 +495,7 @@ Layout::Layout(const model::RawFunctionDefinition &Function) {
   }
 
   // Lay stack arguments out.
-  if (not Function.StackArgumentsType().empty()) {
+  if (not Function.StackArgumentsType().isEmpty()) {
     auto &NewArg = Arguments.emplace_back(Function.StackArgumentsType().copy());
 
     // Stack argument is always passed by pointer for RawFunctionDefinition
@@ -650,7 +650,7 @@ UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Function) {
   // Ready the return value register data.
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   DistributedValue RV;
-  if (!Function.ReturnType().empty())
+  if (!Function.ReturnType().isEmpty())
     RV = ToRawConverter(ABI).distributeReturnValue(*Function.ReturnType());
   std::ranges::move(RV.Registers, std::back_inserter(Result.ReturnValues));
 

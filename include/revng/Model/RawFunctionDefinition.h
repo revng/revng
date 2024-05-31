@@ -74,7 +74,7 @@ public:
   /// Use this when you need to access/modify the existing struct,
   /// and \ref StackArgumentsType() when you need to assign a new one.
   model::StructDefinition *stackArgumentsType() {
-    if (StackArgumentsType().empty())
+    if (StackArgumentsType().isEmpty())
       return nullptr;
     else
       return &StackArgumentsType()->toStruct();
@@ -84,7 +84,7 @@ public:
   /// Use this when you need to access/modify the existing struct,
   /// and \ref StackArgumentsType() when you need to assign a new one.
   const model::StructDefinition *stackArgumentsType() const {
-    if (StackArgumentsType().empty())
+    if (StackArgumentsType().isEmpty())
       return nullptr;
     else
       return &StackArgumentsType()->toStruct();
@@ -95,14 +95,14 @@ public:
     llvm::SmallVector<const model::Type *, 4> Result;
 
     for (const auto &Argument : Arguments())
-      if (!Argument.Type().empty())
+      if (!Argument.Type().isEmpty())
         Result.push_back(Argument.Type().get());
 
     for (const auto &ReturnValue : ReturnValues())
-      if (!ReturnValue.Type().empty())
+      if (!ReturnValue.Type().isEmpty())
         Result.push_back(ReturnValue.Type().get());
 
-    if (!StackArgumentsType().empty())
+    if (!StackArgumentsType().isEmpty())
       Result.push_back(StackArgumentsType().get());
 
     return Result;
@@ -111,14 +111,14 @@ public:
     llvm::SmallVector<model::Type *, 4> Result;
 
     for (auto &Argument : Arguments())
-      if (!Argument.Type().empty())
+      if (!Argument.Type().isEmpty())
         Result.push_back(Argument.Type().get());
 
     for (auto &ReturnValue : ReturnValues())
-      if (!ReturnValue.Type().empty())
+      if (!ReturnValue.Type().isEmpty())
         Result.push_back(ReturnValue.Type().get());
 
-    if (!StackArgumentsType().empty())
+    if (!StackArgumentsType().isEmpty())
       Result.push_back(StackArgumentsType().get());
 
     return Result;

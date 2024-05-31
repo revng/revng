@@ -40,7 +40,7 @@ public:
     llvm::SmallVector<const model::Type *> Result;
 
     for (const auto &Field : Fields())
-      if (!Field.Type().empty())
+      if (!Field.Type().isEmpty())
         Result.push_back(Field.Type().get());
 
     return Result;
@@ -49,7 +49,7 @@ public:
     llvm::SmallVector<model::Type *> Result;
 
     for (auto &Field : Fields())
-      if (!Field.Type().empty())
+      if (!Field.Type().isEmpty())
         Result.push_back(Field.Type().get());
 
     return Result;

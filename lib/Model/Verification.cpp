@@ -144,7 +144,7 @@ bool Segment::verify(VerifyHelper &VH) const {
     if (not Relocation.verify(VH))
       return VH.fail("Invalid relocation", Relocation);
 
-  if (not Type().empty()) {
+  if (not Type().isEmpty()) {
 
     if (not Type()->isStruct())
       return VH.fail("Segment's `Type()` must be a struct.", *this);
@@ -185,7 +185,7 @@ bool Segment::verify(VerifyHelper &VH) const {
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (Prototype().empty())
+  if (Prototype().isEmpty())
     return VH.fail("Call sites must have a prototype.", *this);
 
   if (not Prototype()->isPrototype())
@@ -203,7 +203,7 @@ bool Function::verify(VerifyHelper &VH) const {
   if (not Entry().isValid())
     return VH.fail("Invalid Entry", *this);
 
-  if (not Prototype().empty()) {
+  if (not Prototype().isEmpty()) {
 
     if (not Prototype()->isPrototype())
       return VH.fail("`Prototype()` must be a prototype.", *this);
@@ -212,7 +212,7 @@ bool Function::verify(VerifyHelper &VH) const {
       return VH.fail("Function prototype does not verify.", *this);
   }
 
-  if (not StackFrameType().empty()) {
+  if (not StackFrameType().isEmpty()) {
 
     if (not StackFrameType()->isStruct())
       return VH.fail("`StackFrameType()` must be a struct.", *this);
@@ -238,7 +238,7 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   if (OriginalName().find('/') != std::string::npos)
     return VH.fail("Dynamic function names must not contain '/'.", *this);
 
-  if (not Prototype().empty()) {
+  if (not Prototype().isEmpty()) {
     if (not Prototype()->isPrototype())
       return VH.fail("`Prototype()` type must be a prototype.", *this);
 
@@ -303,7 +303,7 @@ RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
       if (Array->ElementCount() == 0)
         rc_return VH.fail("0 element arrays are not supported", *Array);
 
-      if (Array->ElementType().empty()) {
+      if (Array->ElementType().isEmpty()) {
         rc_return VH.fail("Arrays without an element type are not supported",
                           *Array);
       }
@@ -342,7 +342,7 @@ RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
                           *Pointer);
       }
 
-      if (Pointer->PointeeType().empty()) {
+      if (Pointer->PointeeType().isEmpty()) {
         rc_return VH.fail("Pointers without an pointee type are not supported. "
                           "Use a `PrimitiveType::makeVoid`, if you want to "
                           "represent `void *`.",
@@ -381,7 +381,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   if (T.Entries().empty() or not T.CustomName().verify(VH))
     rc_return VH.fail();
 
-  if (T.UnderlyingType().empty())
+  if (T.UnderlyingType().isEmpty())
     rc_return VH.fail("Enum must have an underlying type.", T);
 
   if (not rc_recur T.UnderlyingType()->verify(VH))
@@ -409,14 +409,14 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const TypedefDefinition &T) {
   rc_return VH.maybeFail(T.CustomName().verify(VH)
                          and T.Kind() == TypeDefinitionKind::TypedefDefinition
-                         and not T.UnderlyingType().empty()
+                         and not T.UnderlyingType().isEmpty()
                          and rc_recur T.UnderlyingType()->verify(VH));
 }
 
 RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (Type().empty())
+  if (Type().isEmpty())
     rc_return VH.fail("Struct field must have a type.", *this);
 
   if (not rc_recur Type()->verify(VH))
@@ -503,7 +503,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (Type().empty())
+  if (Type().isEmpty())
     rc_return VH.fail("Union field must have a type.", *this);
 
   if (not rc_recur Type()->verify(VH))
@@ -561,7 +561,7 @@ RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
   if (not CustomName().verify(VH))
     rc_return VH.fail("A function argument has invalid CustomName", *this);
 
-  if (Type().empty())
+  if (Type().isEmpty())
     rc_return VH.fail("A function argument must have a type", *this);
 
   if (not rc_recur Type()->verify(VH))
@@ -578,7 +578,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   if (not T.CustomName().verify(VH))
     rc_return VH.fail();
 
-  if (not T.ReturnType().empty()) {
+  if (not T.ReturnType().isEmpty()) {
     if (not rc_recur T.ReturnType()->verify(VH))
       rc_return VH.fail();
 
@@ -625,7 +625,7 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   if (not CustomName().verify(VH))
     rc_return VH.fail();
 
-  if (Type().empty())
+  if (Type().isEmpty())
     rc_return VH.fail("NamedTypedRegister must have a type", *this);
 
   if (not rc_recur Type()->verify(VH))
@@ -696,7 +696,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   // TODO: neither arguments nor return values should be preserved.
 
   auto &StackArgumentsType = T.StackArgumentsType();
-  if (not StackArgumentsType.empty()
+  if (not StackArgumentsType.isEmpty()
       and not rc_recur StackArgumentsType->verify(VH))
     rc_return VH.fail();
 

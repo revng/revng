@@ -117,7 +117,7 @@ checkVectorRegisterSupport(model::VerifyHelper &VH,
     }
 
     const auto &Stack = llvm::cast<RawFT>(Type).StackArgumentsType();
-    if (not Stack.empty())
+    if (not Stack.isEmpty())
       Result = Result && rc_recur checkVectorRegisterSupport(VH, *Stack);
   } break;
 
@@ -268,7 +268,7 @@ public:
       namespace FT = abi::FunctionType;
       if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
         // If the conversion succeeds, make sure the returned type is valid,
-        revng_assert(!New->empty());
+        revng_assert(!New->isEmpty());
 
         // and verifies
         if (VerifyLog.isEnabled())

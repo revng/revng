@@ -39,11 +39,11 @@ static RecursiveCoroutine<void> fixConstArrays(model::Type &Type) {
       Array->IsConst() = false;
     }
 
-    if (not Array->ElementType().empty())
+    if (not Array->ElementType().isEmpty())
       rc_recur fixConstArrays(*Array->ElementType());
 
   } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
-    if (not Pointer->PointeeType().empty())
+    if (not Pointer->PointeeType().isEmpty())
       rc_recur fixConstArrays(*Pointer->PointeeType());
 
   } else {
