@@ -31,9 +31,13 @@ using BBGHASTNodeMap = std::multimap<const llvm::BasicBlock *, const ASTNode *>;
 static RecursiveCoroutine<void>
 collectExprBB(ExprNode *Expr, const ASTNode *Node, BBGHASTNodeMap &ResultMap) {
   switch (Expr->getKind()) {
-  case ExprNode::NodeKind::NK_ValueCompare:
   case ExprNode::NodeKind::NK_LoopStateCompare: {
     // There is no associated `BasicBlock`
+  } break;
+  case ExprNode::NodeKind::NK_ValueCompare: {
+    auto *RHS = llvm::cast<ValueCompareNode>(Expr);
+    llvm::BasicBlock *BB = RHS->getBasicBlock();
+    ResultMap.insert(std::make_pair(BB, Node));
   } break;
   case ExprNode::NodeKind::NK_Atomic: {
     auto *Atomic = llvm::cast<AtomicNode>(Expr);
