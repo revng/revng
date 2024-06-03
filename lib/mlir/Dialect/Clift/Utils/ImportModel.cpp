@@ -63,28 +63,21 @@ public:
   CliftConverter(const CliftConverter &) = delete;
   CliftConverter &operator=(const CliftConverter &) = delete;
 
-  ~CliftConverter() {
-    revng_assert(DefinitionGuardSet.empty());
-    revng_assert(IncompleteTypes.empty());
-  }
+  ~CliftConverter() { revng_assert(DefinitionGuardSet.empty()); }
 
   clift::ValueType convertUnqualifiedType(const model::Type &ModelType) {
     const clift::ValueType T = getUnwrappedValueType(ModelType,
                                                      /*RequireComplete=*/true);
-    if (T and not processIncompleteTypes()) {
-      IncompleteTypes.clear();
+    if (T and not processIncompleteTypes())
       return nullptr;
-    }
     return T;
   }
 
   clift::ValueType convertQualifiedType(const model::QualifiedType &ModelType) {
     const clift::ValueType T = getQualifiedValueType(ModelType,
                                                      /*RequireComplete=*/true);
-    if (T and not processIncompleteTypes()) {
-      IncompleteTypes.clear();
+    if (T and not processIncompleteTypes())
       return nullptr;
-    }
     return T;
   }
 
