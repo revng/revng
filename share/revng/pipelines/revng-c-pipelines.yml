@@ -111,6 +111,9 @@ Branches:
               - remove-extractvalues
               - sroa
               - simplify-cfg-with-hoist-and-sink
+              # loop-rotate rearranges loops in a way that should make it
+              # easier to match do-while loops
+              - loop-rotate
               - loop-rewrite-with-canonical-induction-variable
               - simplify-cfg-with-hoist-and-sink
               # don't run simplify-cfg{,-with-hoist-and-sink} after
