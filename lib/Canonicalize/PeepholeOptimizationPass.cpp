@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -106,7 +107,6 @@ static bool reusePHIIncomings(PHINode &PHI, const DominatorTree &DT) {
   bool Changed = false;
   for (Use &IncomingUse : PHI.incoming_values()) {
     Value *Incoming = IncomingUse.get();
-    BasicBlock *IncomingBlock = PHI.getIncomingBlock(IncomingUse);
     // Only look at binary operators
     auto *AddSub = dyn_cast<BinaryOperator>(Incoming);
     if (not AddSub)
@@ -133,31 +133,72 @@ static bool reusePHIIncomings(PHINode &PHI, const DominatorTree &DT) {
     // Incoming that can be rewritten to reuse Incoming instead of some other
     // operands.
 
-    BasicBlock *AddSubBlock = AddSub->getParent();
+    BasicBlock *BlockToCompare = AddSub->getParent();
+    BasicBlock::iterator CompareStart = AddSub->getIterator();
+
+    // If the AddSub is dominated by the PHI we have the opportunity to move it
+    // as early as possible.
+    // Given that AddSub has PHI as one operand and the other operand is a
+    // constant, we can always anticipate it in the same block as the PHI, right
+    // after all the PHINodes in that block.
+    // Anticipating it means that it will come before more instructions, which
+    // means that there are more opportunities for other instructions to be
+    // rewritten using it, without affecting semantics.
+    // However, we only really want to move it if we find at least one
+    // instruction that can be rewritten thanks to this. Otherwise we want to
+    // leave it alon. For this reason we set up some auxiliary variables to
+    // detect that situation and in case move the AddSub later.
+    if (DT.findNearestCommonDominator(&PHI, AddSub) == &PHI) {
+      BlockToCompare = PHI.getParent();
+      CompareStart = BlockToCompare->getFirstNonPHI()->getIterator();
+    }
 
     revng_log(Log, "Look for instruction that can be rewritten using AddSub");
     LoggerIndent MoreIndent{ Log };
-    // Start looking in remainder of the same block of Incoming.
+
+    Instruction *FirstRewritten = nullptr;
+    bool CanAnticipateAddSub = true;
+
+    // Start looking in remainder of the BlockToCompare
     {
-      revng_log(Log, "In Block: " << AddSubBlock->getName());
+      revng_log(Log, "In Block: " << BlockToCompare->getName());
       LoggerIndent MoreIndent{ Log };
-      auto AfterIncoming = std::next(AddSub->getIterator());
-      auto BinaryOpBlockEnd = AddSubBlock->getTerminator()->getIterator();
-      for (Instruction &I : llvm::make_range(AfterIncoming, BinaryOpBlockEnd))
-        Changed |= replaceNonConstantOperandWithAddSub(I, AddSub, Builder);
+      auto BinaryOpBlockEnd = BlockToCompare->getTerminator()->getIterator();
+      for (Instruction &I : llvm::make_range(CompareStart, BinaryOpBlockEnd)) {
+
+        if (&I == AddSub)
+          CanAnticipateAddSub = false;
+
+        bool Worked = replaceNonConstantOperandWithAddSub(I, AddSub, Builder);
+        Changed |= Worked;
+        if (Worked and CanAnticipateAddSub and not FirstRewritten)
+          FirstRewritten = &I;
+      }
     }
 
-    // Then look at all the other blocks dominated by Incoming.
-    for (auto *DominatorNode : llvm::depth_first(DT.getNode(IncomingBlock))) {
+    // Then look at all the other blocks dominated by BlockToCompare.
+    for (auto *DominatorNode :
+         llvm::drop_begin(llvm::depth_first(DT.getNode(BlockToCompare)))) {
       BasicBlock *BB = DominatorNode->getBlock();
-      if (BB == AddSubBlock)
-        continue;
 
       revng_log(Log, "In Block: " << BB->getName());
       LoggerIndent MoreIndent{ Log };
 
-      for (Instruction &I : *BB)
-        Changed |= replaceNonConstantOperandWithAddSub(I, AddSub, Builder);
+      for (Instruction &I : *BB) {
+
+        if (&I == AddSub)
+          CanAnticipateAddSub = false;
+
+        bool Worked = replaceNonConstantOperandWithAddSub(I, AddSub, Builder);
+        Changed |= Worked;
+        if (CanAnticipateAddSub and Worked and not FirstRewritten)
+          FirstRewritten = &I;
+      }
+    }
+
+    if (FirstRewritten) {
+      AddSub->removeFromParent();
+      AddSub->insertBefore(FirstRewritten);
     }
   }
 
