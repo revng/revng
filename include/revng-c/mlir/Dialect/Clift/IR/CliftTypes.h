@@ -29,6 +29,9 @@ struct ScalarTupleTypeStorage;
 /// Scalar tuples are used to represent the multiple register return values of
 /// raw function types. They are much like structs, but permit only scalar
 /// element types and have no explicit offsets for their elements.
+///
+/// The scalar tuple type is intended as a temporary solution to be replaced in
+/// the future by auto-generated struct types.
 class ScalarTupleType : public Type::TypeBase<ScalarTupleType,
                                               Type,
                                               ScalarTupleTypeStorage,
