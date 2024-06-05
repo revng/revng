@@ -29,33 +29,33 @@ namespace mlir::clift {
 // discourse.llvm.org/t/custom-walk-and-replace-for-non-tablegen-types/74229
 // This is very brittle and it is very likely that it will change again in
 // future llvm releases
-struct StructTypeStorage;
-class StructType
-  : public ::mlir::Attribute::AttrBase<StructType,
-                                       Attribute,
-                                       StructTypeStorage,
-                                       SubElementAttrInterface::Trait,
-                                       SizedType::Trait,
-                                       TypeDefinition::Trait,
-                                       AliasableAttr::Trait,
-                                       AttributeTrait::IsMutable> {
+struct StructTypeAttrStorage;
+class StructTypeAttr
+  : public mlir::Attribute::AttrBase<StructTypeAttr,
+                                     Attribute,
+                                     StructTypeAttrStorage,
+                                     SubElementAttrInterface::Trait,
+                                     SizedType::Trait,
+                                     TypeDefinitionAttr::Trait,
+                                     AliasableAttr::Trait,
+                                     AttributeTrait::IsMutable> {
 public:
   using Base::Base;
 
-  static StructType get(MLIRContext *Context, uint64_t ID);
+  static StructTypeAttr get(MLIRContext *Context, uint64_t ID);
 
-  static StructType
+  static StructTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID);
 
-  static StructType get(MLIRContext *Context,
-                        uint64_t ID,
-                        llvm::StringRef Name,
-                        uint64_t Size,
-                        llvm::ArrayRef<FieldAttr> Fields);
+  static StructTypeAttr get(MLIRContext *Context,
+                            uint64_t ID,
+                            llvm::StringRef Name,
+                            uint64_t Size,
+                            llvm::ArrayRef<FieldAttr> Fields);
 
-  static StructType
+  static StructTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID,
@@ -74,50 +74,50 @@ public:
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
-  std::string getAlias() const;
+  bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID);
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID,
                               llvm::StringRef Name,
                               uint64_t Size,
                               llvm::ArrayRef<FieldAttr> Fields);
 
-  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
-                                function_ref<void(Type)> walkTypesFn) const;
-  Attribute replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                        ArrayRef<Type> replTypes) const;
+  void walkImmediateSubElements(function_ref<void(Attribute)> WalkAttrs,
+                                function_ref<void(Type)> WalkTypes) const;
+  Attribute replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
+                                        ArrayRef<Type> NewTypes) const;
 };
 
-struct UnionTypeStorage;
-class UnionType : public Attribute::AttrBase<UnionType,
-                                             Attribute,
-                                             UnionTypeStorage,
-                                             SubElementAttrInterface::Trait,
-                                             SizedType::Trait,
-                                             TypeDefinition::Trait,
-                                             AliasableAttr::Trait,
-                                             AttributeTrait::IsMutable> {
+struct UnionTypeAttrStorage;
+class UnionTypeAttr : public Attribute::AttrBase<UnionTypeAttr,
+                                                 Attribute,
+                                                 UnionTypeAttrStorage,
+                                                 SubElementAttrInterface::Trait,
+                                                 SizedType::Trait,
+                                                 TypeDefinitionAttr::Trait,
+                                                 AliasableAttr::Trait,
+                                                 AttributeTrait::IsMutable> {
 public:
   using Base::Base;
 
-  static UnionType get(MLIRContext *Context, uint64_t ID);
+  static UnionTypeAttr get(MLIRContext *Context, uint64_t ID);
 
-  static UnionType
+  static UnionTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID);
 
-  static UnionType get(MLIRContext *Context,
-                       uint64_t ID,
-                       llvm::StringRef Name,
-                       llvm::ArrayRef<FieldAttr> Fields);
+  static UnionTypeAttr get(MLIRContext *Context,
+                           uint64_t ID,
+                           llvm::StringRef Name,
+                           llvm::ArrayRef<FieldAttr> Fields);
 
-  static UnionType
+  static UnionTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              uint64_t ID,
@@ -134,14 +134,14 @@ public:
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
-  std::string getAlias() const;
+  bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID);
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
                               uint64_t ID,
                               llvm::StringRef Name,
                               llvm::ArrayRef<FieldAttr> Fields);
@@ -151,9 +151,9 @@ public:
   // to do. Notice that since LLVM17 these are no longer methods requested
   // by the SubElementAttrInterface but are instead a builtin property of
   // all types and attributes, so it will break.
-  void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
-                                function_ref<void(Type)> walkTypesFn) const;
-  Attribute replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
-                                        ArrayRef<Type> replTypes) const;
+  void walkImmediateSubElements(function_ref<void(Attribute)> WalkAttrs,
+                                function_ref<void(Type)> WalkTypes) const;
+  Attribute replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
+                                        ArrayRef<Type> NewTypes) const;
 };
 } // namespace mlir::clift

@@ -32,7 +32,7 @@ def Clift_LoopOp : Clift_Op<"loop", [Terminator]> {
 
 def Clift_ContinueOp : Clift_Op<"continue", [HasParent<"LoopOp">, Terminator]> {}
 
-def LabelResource : Resource<"LabelResource">;
+def Clift_LabelResource : Resource<"LabelResource">;
 
 def Clift_AssignLabelOp : Clift_Op<"assign_label"> {
   let arguments = (ins Arg<Clift_LabelType, "", [MemFree]>:$label);
@@ -154,7 +154,7 @@ Clift_FunctionBase<"function"> {
 }
 
 def Clift_UndefOp: Clift_Op<"undef"> {
-  let results = (outs AnyValueType:$result);
+  let results = (outs Clift_AnyValueType:$result);
 
   let assemblyFormat = [{
     type($result) attr-dict

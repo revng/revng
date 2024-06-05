@@ -17,7 +17,7 @@ Types:
     PrimitiveKind: Unsigned
     Size: 4
 
-    # CHECK: #my_struct = #clift.struct<
+    # CHECK: #my_struct$def = #clift.struct<
     # CHECK:   id = 1001
     # CHECK:   name = "my_struct"
     # CHECK:   size = 8
@@ -36,7 +36,7 @@ Types:
     # CHECK:     >
     # CHECK:   ]
     # CHECK: >
-    # CHECK: !my_struct1 = !clift.defined<#my_struct>
+    # CHECK: !my_struct = !clift.defined<#my_struct$def>
   - ID: 1001
     Kind: StructType
     CustomName: "my_struct"

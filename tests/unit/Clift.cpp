@@ -24,13 +24,15 @@ bool init_unit_test();
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOps.h"
 
+using namespace mlir::clift;
+
 class CliftTest {
 public:
   CliftTest() :
     module(mlir::ModuleOp::create(mlir::UnknownLoc::get(&context))),
     builder(module.getBodyRegion()) {
 
-    registry.insert<mlir::clift::CliftDialect>();
+    registry.insert<CliftDialect>();
     context.appendDialectRegistry(registry);
     context.loadAllAvailableDialects();
   }
@@ -56,8 +58,7 @@ protected:
 BOOST_FIXTURE_TEST_SUITE(CliftTestSuite, CliftTest)
 
 BOOST_AUTO_TEST_CASE(CliftModuleCannotContainExtraneousTypes) {
-  auto cliftModule = builder
-                       .create<mlir::clift::ModuleOp>(builder.getUnknownLoc());
+  auto cliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
   builder.createBlock(&cliftModule.getBody());
   cliftModule->setAttr("dc",
                        mlir::TypeAttr::get(mlir::IndexType::get(&context)));
@@ -65,15 +66,16 @@ BOOST_AUTO_TEST_CASE(CliftModuleCannotContainExtraneousTypes) {
 }
 
 BOOST_AUTO_TEST_CASE(CliftModuleCannotContaintTypesWithSameID) {
-  using namespace mlir::clift;
   auto cliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
   builder.createBlock(&cliftModule.getBody());
   auto TrueAttr = mlir::BoolAttr::get(&context, true);
   auto T1 = mlir::TypeAttr::get(DefinedType::get(&context,
-                                                 StructType::get(&context, 1),
+                                                 StructTypeAttr::get(&context,
+                                                                     1),
                                                  TrueAttr));
   auto T2 = mlir::TypeAttr::get(DefinedType::get(&context,
-                                                 UnionType::get(&context, 1),
+                                                 UnionTypeAttr::get(&context,
+                                                                    1),
                                                  TrueAttr));
   cliftModule->setAttr("dc", T1);
   cliftModule->setAttr("dc2", T2);
@@ -81,9 +83,8 @@ BOOST_AUTO_TEST_CASE(CliftModuleCannotContaintTypesWithSameID) {
 }
 
 BOOST_AUTO_TEST_CASE(LabelsWithoutGoToMustBeTriviallyDead) {
-  auto label = builder
-                 .create<mlir::clift::MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<mlir::clift::AssignLabelOp>(builder.getUnknownLoc(), label);
+  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
+  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
 
   BOOST_ASSERT(not module.getBody()->getOperations().empty());
 
@@ -92,10 +93,9 @@ BOOST_AUTO_TEST_CASE(LabelsWithoutGoToMustBeTriviallyDead) {
 }
 
 BOOST_AUTO_TEST_CASE(LabelsWithGoToMustBeAlive) {
-  auto label = builder
-                 .create<mlir::clift::MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<mlir::clift::AssignLabelOp>(builder.getUnknownLoc(), label);
-  builder.create<mlir::clift::GoToOp>(builder.getUnknownLoc(), label);
+  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
+  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
+  builder.create<GoToOp>(builder.getUnknownLoc(), label);
 
   BOOST_CHECK(not module.getBody()->getOperations().empty());
 
@@ -104,79 +104,66 @@ BOOST_AUTO_TEST_CASE(LabelsWithGoToMustBeAlive) {
 }
 
 BOOST_AUTO_TEST_CASE(LabelsWithAGoToWithoutAssignMustFail) {
-  auto label = builder
-                 .create<mlir::clift::MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<mlir::clift::GoToOp>(builder.getUnknownLoc(), label);
+  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
+  builder.create<GoToOp>(builder.getUnknownLoc(), label);
 
   BOOST_TEST(mlir::verify(module).failed());
 }
 
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainThemself) {
-  auto UnionAttrT = mlir::clift::UnionType::get(builder.getContext(), 0);
-  using DefinedT = mlir::clift::DefinedType;
+  auto UnionAttrT = UnionTypeAttr::get(builder.getContext(), 0);
+  using DefinedT = DefinedType;
   auto UnionT = DefinedT::get(builder.getContext(),
                               UnionAttrT,
                               mlir::BoolAttr::get(builder.getContext(), false));
 
   // Just check that you can't make a field out of a forward declared type, a
   // pointer to the type must be used instead.
-  BOOST_TEST(mlir::clift::FieldAttr::verify(getDiagnosticEmitter(),
-                                            0,
-                                            UnionT,
-                                            "field")
+  BOOST_TEST(FieldAttr::verify(getDiagnosticEmitter(), 0, UnionT, "field")
                .failed());
 }
 
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainFunctions) {
-  using namespace mlir::clift;
   auto VoidT = PrimitiveType::getVoid(builder.getContext(), 0);
-  auto FunctionT = FunctionAttr::get(0, VoidT);
-  auto UnionT = DefinedType::get(builder.getContext(),
-                                 FunctionT,
-                                 mlir::BoolAttr::get(builder.getContext(),
-                                                     false));
+  auto FunctionT = DefinedType::get(builder.getContext(),
+                                    FunctionTypeAttr::get(0, VoidT),
+                                    mlir::BoolAttr::get(builder.getContext(),
+                                                        false));
 
-  BOOST_TEST(mlir::clift::FieldAttr::verify(getDiagnosticEmitter(),
-                                            0,
-                                            UnionT,
-                                            "field")
+  BOOST_TEST(FieldAttr::verify(getDiagnosticEmitter(), 0, FunctionT, "field")
                .failed());
 }
 
 BOOST_AUTO_TEST_CASE(FunctionTypesCantContainVoidArgs) {
-  auto VoidType = mlir::clift::PrimitiveType::getVoid(builder.getContext(), 0);
+  auto VoidType = PrimitiveType::getVoid(builder.getContext(), 0);
 
-  BOOST_TEST(mlir::clift::FunctionArgumentAttr::verify(getDiagnosticEmitter(),
-                                                       VoidType,
-                                                       "")
+  BOOST_TEST(FunctionArgumentAttr::verify(getDiagnosticEmitter(), VoidType, "")
                .failed());
 }
 
 BOOST_AUTO_TEST_CASE(FunctionTypesCantContainFunctionTypes) {
-  using namespace mlir::clift;
-  auto FunctionT = FunctionAttr::get(0,
-                                     PrimitiveType::getVoid(builder
-                                                              .getContext(),
-                                                            0));
+  auto FunctionT = FunctionTypeAttr::get(0,
+                                         PrimitiveType::getVoid(builder
+                                                                  .getContext(),
+                                                                0));
 
-  using DefinedT = mlir::clift::DefinedType;
-  auto DefinedType = DefinedT::get(builder.getContext(),
+  auto DefinedT = DefinedType::get(builder.getContext(),
                                    FunctionT,
                                    mlir::BoolAttr::get(builder.getContext(),
                                                        false));
 
-  BOOST_TEST(mlir::clift::FunctionAttr::verify(getDiagnosticEmitter(),
-                                               1,
-                                               "",
-                                               DefinedType,
-                                               {})
+  BOOST_TEST(FunctionTypeAttr::verify(getDiagnosticEmitter(),
+                                      1,
+                                      "",
+                                      DefinedT,
+                                      {})
                .failed());
 }
 
 using namespace mlir::clift;
 BOOST_AUTO_TEST_CASE(PrimitiveTypesDefaultToNonConst) {
   auto Type = PrimitiveType::get(&context,
-                                 mlir::clift::PrimitiveKind::GenericKind,
+                                 PrimitiveKind::GenericKind,
                                  4,
                                  mlir::BoolAttr::get(&context, false));
   BOOST_TEST((Type.isConst() == false));
@@ -184,15 +171,14 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypesDefaultToNonConst) {
 
 BOOST_AUTO_TEST_CASE(CanWalkPointerTypes) {
   auto Type = PrimitiveType::get(&context,
-                                 mlir::clift::PrimitiveKind::GenericKind,
+                                 PrimitiveKind::GenericKind,
                                  4,
                                  mlir::BoolAttr::get(&context, false));
 
-  auto Ptr = mlir::clift::PointerType::get(&context,
-                                           Type,
-                                           8,
-                                           mlir::BoolAttr::get(&context,
-                                                               false));
+  auto Ptr = PointerType::get(&context,
+                              Type,
+                              8,
+                              mlir::BoolAttr::get(&context, false));
   size_t Count = 0;
   Ptr.walkSubTypes([&](mlir::Type Underlying) {
     BOOST_TEST((Underlying == Type));

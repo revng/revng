@@ -142,17 +142,17 @@ struct StructTypeStorageValue {
   StructTypeStorageValue(const uint64_t Size) : Size(Size) {}
 };
 
-struct StructTypeStorage : ClassTypeStorage<StructTypeStorage,
-                                            mlir::AttributeStorage,
-                                            FieldAttr,
-                                            StructTypeStorageValue> {
+struct StructTypeAttrStorage : ClassTypeStorage<StructTypeAttrStorage,
+                                                mlir::AttributeStorage,
+                                                FieldAttr,
+                                                StructTypeStorageValue> {
   using ClassTypeStorage::ClassTypeStorage;
 
   [[nodiscard]] uint64_t getSize() const { return getValue().Size; }
 };
 
-struct UnionTypeStorage
-  : ClassTypeStorage<UnionTypeStorage, mlir::AttributeStorage, FieldAttr> {
+struct UnionTypeAttrStorage
+  : ClassTypeStorage<UnionTypeAttrStorage, mlir::AttributeStorage, FieldAttr> {
   using ClassTypeStorage::ClassTypeStorage;
 };
 

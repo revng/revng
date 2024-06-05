@@ -26,7 +26,7 @@ Types:
     PrimitiveKind: Unsigned
     Size: 8
 
-    # CHECK: #my_enum1_ = #clift.enum<
+    # CHECK: #my_enum1$def = #clift.enum<
     # CHECK:   id = 1104
     # CHECK:   name = "my_enum1"
     # CHECK:   underlying_type = !int32_t
@@ -60,7 +60,7 @@ Types:
       - Value: 0xffffffff80000000 # 2^64 - 2^31
       - Value: 0xffffffffffffffff # 2^64 - 1
 
-    # CHECK: #my_enum2_ = #clift.enum<
+    # CHECK: #my_enum2$def = #clift.enum<
     # CHECK:   id = 1108
     # CHECK:   name = "my_enum2"
     # CHECK:   underlying_type = !int64_t
@@ -94,7 +94,7 @@ Types:
       - Value: 0x8000000000000000 # 2^63
       - Value: 0xffffffffffffffff # 2^64 - 1
 
-    # CHECK: #my_enum3_ = #clift.enum<
+    # CHECK: #my_enum3$def = #clift.enum<
     # CHECK:   id = 1204
     # CHECK:   name = "my_enum3"
     # CHECK:   underlying_type = !uint32_t
@@ -120,7 +120,7 @@ Types:
       - Value: 1
       - Value: 0x00000000ffffffff # 2^32 - 1
 
-    # CHECK: #my_enum4_ = #clift.enum<
+    # CHECK: #my_enum4$def = #clift.enum<
     # CHECK:   id = 1208
     # CHECK:   name = "my_enum4"
     # CHECK:   underlying_type = !uint64_t
@@ -147,7 +147,7 @@ Types:
       - Value: 0xffffffffffffffff # 2^64 - 1
 
 
-    # CHECK: !my_enum1_1 = !clift.defined<#my_enum1_>
-    # CHECK: !my_enum2_1 = !clift.defined<#my_enum2_>
-    # CHECK: !my_enum3_1 = !clift.defined<#my_enum3_>
-    # CHECK: !my_enum4_1 = !clift.defined<#my_enum4_>
+    # CHECK: !my_enum1_ = !clift.defined<#my_enum1$def>
+    # CHECK: !my_enum2_ = !clift.defined<#my_enum2$def>
+    # CHECK: !my_enum3_ = !clift.defined<#my_enum3$def>
+    # CHECK: !my_enum4_ = !clift.defined<#my_enum4$def>

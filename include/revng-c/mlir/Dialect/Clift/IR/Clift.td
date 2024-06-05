@@ -20,7 +20,7 @@ def Clift_Dialect : Dialect {
   let name = "clift";
 
   // The C++ namespace that the dialect, and its sub-components, get placed in
-  let cppNamespace = "::mlir::clift";
+  let cppNamespace = "mlir::clift";
   let useDefaultTypePrinterParser = 0;
   let useDefaultAttributePrinterParser = 0;
   let useFoldAPI = kEmitFoldAdaptorFolder;

@@ -8,42 +8,42 @@
 include "mlir/IR/OpBase.td"
 
 class Clift_TypeInterface<string name> : TypeInterface<name> {
-    let cppNamespace = "::mlir::clift";
+    let cppNamespace = "mlir::clift";
 }
 
 class Clift_AttrInterface<string name> : AttrInterface<name> {
-    let cppNamespace = "::mlir::clift";
+    let cppNamespace = "mlir::clift";
 }
 
-def AliasableAttr: Clift_AttrInterface<"AliasableAttr"> {
+def Clift_AliasableAttr: Clift_AttrInterface<"AliasableAttr"> {
     let description = [{
       A Aliasable type is a type with a size and a constness
     }];
 
     let methods = [
         InterfaceMethod<
-            "returns the alias of the type.",
-            "std::string", "getAlias", (ins),
+            "Writes the alias to OS and returns true if it is non-empty.",
+            "bool", "getAlias", (ins "llvm::raw_ostream &":$OS),
             /*methodBody=*/[{}], /*defaultImplementation=*/[{}]
         >,
     ];
 }
 
-def AliasableType: Clift_TypeInterface<"AliasableType"> {
+def Clift_AliasableType: Clift_TypeInterface<"AliasableType"> {
     let description = [{
       A Aliasable type is a type with a size and a constness
     }];
 
     let methods = [
         InterfaceMethod<
-            "returns the alias of the type.",
-            "std::string", "getAlias", (ins),
+            "Writes the alias to OS and returns true if it is non-empty.",
+            "bool", "getAlias", (ins "llvm::raw_ostream &":$OS),
             /*methodBody=*/[{}], /*defaultImplementation=*/[{}]
         >,
     ];
 }
 
-def SizedType : Clift_AttrInterface<"SizedType"> {
+def Clift_SizedType : Clift_AttrInterface<"SizedType"> {
     let description = [{
       A sized type is a type with a size
     }];
@@ -59,7 +59,7 @@ def SizedType : Clift_AttrInterface<"SizedType"> {
     ];
 }
 
-def ValueType : Clift_TypeInterface<"ValueType"> {
+def Clift_ValueType : Clift_TypeInterface<"ValueType"> {
     let description = [{
       A value type is a type with a size and a constness
     }];
@@ -81,7 +81,7 @@ def ValueType : Clift_TypeInterface<"ValueType"> {
     ];
 }
 
-def TypeDefinition : Clift_AttrInterface<"TypeDefinition"> {
+def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
     let description = [{
       A value type is a type with a ID and Name
     }];
@@ -104,6 +104,6 @@ def TypeDefinition : Clift_AttrInterface<"TypeDefinition"> {
 
 }
 
-def AnyValueType: Type<CPred<"::llvm::isa<::mlir::clift::ValueType>($_self)">, "cliftValue", "::mlir::clift::ValueType">;
+def Clift_AnyValueType: Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">, "cliftValue", "mlir::clift::ValueType">;
 #endif
 

@@ -22,13 +22,13 @@ Types:
     PrimitiveKind: Unsigned
     Size: 4
 
-    # CHECK: #my_function1_ = #clift.function<
+    # CHECK: #my_function1$def = #clift.function<
     # CHECK:   id = 1001
     # CHECK:   name = "my_function1"
     # CHECK:   return_type = !void
     # CHECK:   argument_types = []
     # CHECK: >
-    # CHECK: !my_function1_1 = !clift.defined<#my_function1_>
+    # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
   - ID: 1001
     Kind: CABIFunctionType
     CustomName: "my_function1"
@@ -37,7 +37,7 @@ Types:
       UnqualifiedType: "/Types/100-PrimitiveType"
     Arguments: []
 
-    # CHECK: #my_function2_ = #clift.function<
+    # CHECK: #my_function2$def = #clift.function<
     # CHECK:   id = 1002
     # CHECK:   name = "my_function2"
     # CHECK:   return_type = !uint8_t
@@ -50,7 +50,7 @@ Types:
     # CHECK:     >
     # CHECK:   ]
     # CHECK: >
-    # CHECK: !my_function2_1 = !clift.defined<#my_function2_>
+    # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
   - ID: 1002
     Kind: CABIFunctionType
     CustomName: "my_function2"

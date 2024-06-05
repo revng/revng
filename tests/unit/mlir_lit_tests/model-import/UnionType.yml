@@ -17,7 +17,7 @@ Types:
     PrimitiveKind: Unsigned
     Size: 4
 
-    # CHECK: #my_union = #clift.union<
+    # CHECK: #my_union$def = #clift.union<
     # CHECK:   id = 1001
     # CHECK:   name = "my_union"
     # CHECK:   fields = [
@@ -35,7 +35,7 @@ Types:
     # CHECK:     >
     # CHECK:   ]
     # CHECK: >
-    # CHECK: !my_union1 = !clift.defined<#my_union>
+    # CHECK: !my_union = !clift.defined<#my_union$def>
   - ID: 1001
     Kind: UnionType
     CustomName: "my_union"

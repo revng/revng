@@ -6,7 +6,7 @@ include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 include "Clift.td"
 
-def PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
+def Clift_PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
     I32EnumAttrCase<"VoidKind", 1>,
     I32EnumAttrCase<"GenericKind", 2>,
     I32EnumAttrCase<"PointerOrNumberKind", 3>,
@@ -15,7 +15,7 @@ def PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
     I32EnumAttrCase<"SignedKind", 6>,
     I32EnumAttrCase<"FloatKind", 7>,
   ]> {
-  let cppNamespace = "::mlir::clift";
+  let cppNamespace = "mlir::clift";
   // since we want to wrap this enum into a clift type, do not generate
   // attribute wrapping it.
   let genSpecializedAttr = 0;

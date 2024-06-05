@@ -20,178 +20,269 @@
 
 #include "CliftParser.h"
 #include "CliftStorage.h"
+#include "CliftTypeHelpers.h"
 
 // This include should stay here for correct build procedure
 //
 #define GET_ATTRDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.cpp.inc"
 
+using namespace mlir::clift;
+
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
-void mlir::clift::CliftDialect::registerAttributes() {
-  addAttributes<StructType, UnionType, /* Include the auto-generated clift types
-                                        */
+//===---------------------------- CliftDialect ----------------------------===//
+
+void CliftDialect::registerAttributes() {
+  addAttributes<StructTypeAttr, UnionTypeAttr,
+
+  // Include the list of auto-generated attributes
 #define GET_ATTRDEF_LIST
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.cpp.inc"
-                /* End of types list */>();
+                /* End of auto-generated list */>();
 }
 
-mlir::LogicalResult mlir::clift::FieldAttr::verify(EmitErrorType EmitError,
-                                                   uint64_t Offset,
-                                                   mlir::Type ElementType,
-                                                   llvm::StringRef Name) {
-  if (auto Definition = mlir::dyn_cast<mlir::clift::DefinedType>(ElementType))
-    if (mlir::isa<mlir::clift::FunctionAttr>(Definition.getElementType()))
-      return EmitError() << "Underlying type of field attr cannot be a "
-                            "function type";
-  mlir::clift::ValueType
-    Casted = mlir::dyn_cast<mlir::clift::ValueType>(ElementType);
-  if (Casted == nullptr) {
-    return EmitError() << "Underlying type of a field attr must be a value "
-                          "type";
+/// Parse an attribute registered to this dialect
+mlir::Attribute CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
+                                             mlir::Type Type) const {
+  llvm::SMLoc TypeLoc = Parser.getCurrentLocation();
+
+  llvm::StringRef Mnemonic;
+  if (mlir::Attribute GenAttr;
+      generatedAttributeParser(Parser, &Mnemonic, Type, GenAttr).has_value())
+    return GenAttr;
+
+  if (Mnemonic == StructTypeAttr::getMnemonic())
+    return StructTypeAttr::parse(Parser);
+
+  if (Mnemonic == UnionTypeAttr::getMnemonic())
+    return UnionTypeAttr::parse(Parser);
+
+  Parser.emitError(TypeLoc) << "unknown attr `" << Mnemonic << "` in dialect `"
+                            << getNamespace() << "`";
+  return {};
+}
+
+/// Print an attribute registered to this dialect
+void CliftDialect::printAttribute(mlir::Attribute Attr,
+                                  mlir::DialectAsmPrinter &Printer) const {
+
+  if (mlir::succeeded(generatedAttributePrinter(Attr, Printer)))
+    return;
+  if (auto T = mlir::dyn_cast<StructTypeAttr>(Attr)) {
+    T.print(Printer);
+    return;
   }
-  if (Casted.getByteSize() == 0) {
-    return EmitError() << "Field cannot be of zero size";
+  if (auto T = mlir::dyn_cast<UnionTypeAttr>(Attr)) {
+    T.print(Printer);
+    return;
   }
+  revng_abort("cannot print attribute");
+}
+
+//===------------------------------ FieldAttr -----------------------------===//
+
+mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
+                                      uint64_t Offset,
+                                      clift::ValueType ElementType,
+                                      llvm::StringRef Name) {
+  if (not isObjectType(ElementType))
+    return EmitError() << "Struct and union field types must be object types.";
+  if (not isCompleteType(ElementType))
+    return EmitError() << "Struct and union field types must be complete.";
+
   return mlir::success();
 }
 
-using EnumFieldAttr = mlir::clift::EnumFieldAttr;
+//===---------------------------- EnumFieldAttr ---------------------------===//
+
 mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
                                           uint64_t RawValue,
                                           llvm::StringRef Name) {
   return mlir::success();
 }
 
-using TypedefAttr = mlir::clift::TypedefAttr;
-mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
-                                        uint64_t Id,
-                                        llvm::StringRef Name,
-                                        mlir::clift::ValueType UnderlyingType) {
+//===---------------------------- EnumTypeAttr ----------------------------===//
+
+mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
+                                         uint64_t ID,
+                                         llvm::StringRef Name,
+                                         clift::ValueType UnderlyingType,
+                                         llvm::ArrayRef<EnumFieldAttr> Fields) {
+  UnderlyingType = dealias(UnderlyingType);
+
+  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(UnderlyingType);
+  if (not PrimitiveType)
+    return EmitError() << "Underlying type of enum must be a primitive type";
+
+  const uint64_t BitWidth = PrimitiveType.getSize() * 8;
+
+  if (Fields.empty())
+    return EmitError() << "enum requires at least one field";
+
+  uint64_t MinValue = 0;
+  uint64_t MaxValue = 0;
+  bool IsSigned = false;
+
+  switch (PrimitiveType.getKind()) {
+  case PrimitiveKind::UnsignedKind:
+    MaxValue = llvm::APInt::getMaxValue(BitWidth).getZExtValue();
+    break;
+  case PrimitiveKind::SignedKind:
+    MinValue = llvm::APInt::getSignedMinValue(BitWidth).getSExtValue();
+    MaxValue = llvm::APInt::getSignedMaxValue(BitWidth).getSExtValue();
+    IsSigned = true;
+    break;
+  default:
+    return EmitError() << "enum underlying type must be an integral type";
+  }
+
+  uint64_t LastValue = 0;
+  bool CheckEqual = false;
+
+  for (const auto &Field : Fields) {
+    const uint64_t Value = Field.getRawValue();
+
+    const auto UsingSigned = [&](auto Callable, const auto... V) {
+      return IsSigned ? Callable(static_cast<int64_t>(V)...) : Callable(V...);
+    };
+
+    const auto CheckSigned =
+      [EmitError](const auto Value,
+                  const auto MinValue,
+                  const auto MaxValue) -> mlir::LogicalResult {
+      if (Value < MinValue)
+        return EmitError() << "enum field " << Value
+                           << " is less than the min value of the "
+                              "underlying type "
+                           << MinValue;
+
+      if (Value > MaxValue)
+        return EmitError() << "enum field " << Value
+                           << " is greater than the max value of the "
+                              "underlying type "
+                           << MaxValue;
+
+      return mlir::success();
+    };
+
+    const mlir::LogicalResult R = UsingSigned(CheckSigned,
+                                              Value,
+                                              MinValue,
+                                              MaxValue);
+
+    if (failed(R))
+      return R;
+
+    if (Value < LastValue || (CheckEqual && Value == LastValue))
+      return EmitError() << "enum fields must be strictly ordered by their "
+                            "unsigned values";
+
+    LastValue = Value;
+    CheckEqual = true;
+  }
+
   return mlir::success();
 }
 
-using ArgAttr = mlir::clift::FunctionArgumentAttr;
-mlir::LogicalResult ArgAttr::verify(EmitErrorType EmitError,
-                                    mlir::clift::ValueType underlying,
-                                    llvm::StringRef Name) {
-  if (underlying.getByteSize() == 0) {
-    return EmitError() << "type of argument of function cannot be zero size";
-  }
-  return mlir::success();
+uint64_t EnumTypeAttr::getByteSize() const {
+  return mlir::cast<PrimitiveType>(getUnderlyingType()).getSize();
 }
 
-using FunctionAttr = mlir::clift::FunctionAttr;
-mlir::LogicalResult
-FunctionAttr::verify(EmitErrorType EmitError,
-                     uint64_t Id,
-                     llvm::StringRef Name,
-                     mlir::clift::ValueType ReturnType,
-                     llvm::ArrayRef<mlir::clift::FunctionArgumentAttr> Args) {
-  if (mlir::clift::DefinedType
-        Type = mlir::dyn_cast<mlir::clift::DefinedType>(ReturnType)) {
-    using FunctionAttr = mlir::clift::FunctionAttr;
-    if (mlir::clift::FunctionAttr
-          Definition = mlir::dyn_cast<FunctionAttr>(Type.getElementType()))
-      return EmitError() << "function type cannot return another function type";
-  }
-  std::set<llvm::StringRef> Names;
-  for (auto Arg : Args) {
-    if (Arg.getName().empty())
-      continue;
-    if (Names.contains(Arg.getName())) {
-      return EmitError() << "multiple definitions of function argument named "
-                         << Arg.getName();
-    }
-    Names.insert(Arg.getName());
-  }
-  return mlir::success();
-}
-
-/// Parse a type registered to this dialect
-::mlir::Attribute
-mlir::clift::CliftDialect::parseAttribute(::mlir::DialectAsmParser &Parser,
-                                          mlir::Type Type) const {
-  ::llvm::SMLoc typeLoc = Parser.getCurrentLocation();
-  ::llvm::StringRef Mnemonic;
-  ::mlir::Attribute GenAttr;
-
-  auto ParseResult = generatedAttributeParser(Parser, &Mnemonic, Type, GenAttr);
-  if (ParseResult.has_value())
-    return GenAttr;
-  if (Mnemonic == StructType::getMnemonic()) {
-    return StructType::parse(Parser);
-  }
-  if (Mnemonic == UnionType::getMnemonic()) {
-    return UnionType::parse(Parser);
-  }
-
-  Parser.emitError(typeLoc) << "unknown  attr `" << Mnemonic << "` in dialect `"
-                            << getNamespace() << "`";
-  return {};
-}
-
-/// Print a type registered to this dialect
-void mlir::clift::CliftDialect::printAttribute(::mlir::Attribute Attr,
-                                               ::mlir::DialectAsmPrinter
-                                                 &Printer) const {
-
-  if (::mlir::succeeded(generatedAttributePrinter(Attr, Printer)))
-    return;
-  if (auto Casted = Attr.dyn_cast<StructType>()) {
-    Casted.print(Printer);
-    return;
-  }
-  if (auto Casted = Attr.dyn_cast<UnionType>()) {
-    Casted.print(Printer);
-    return;
-  }
-  revng_abort("cannot print attribute");
-}
-
-void mlir::clift::UnionType::print(AsmPrinter &Printer) const {
-  printCompositeType(Printer, *this);
-}
-
-void mlir::clift::StructType::print(AsmPrinter &Printer) const {
-  printCompositeType(Printer, *this);
-}
-
-mlir::Attribute mlir::clift::UnionType::parse(AsmParser &Parser) {
-  return parseCompositeType<UnionType>(Parser, /*MinSubobjects=*/1);
-}
-
-mlir::Attribute mlir::clift::StructType::parse(AsmParser &Parser) {
-  return parseCompositeType<StructType>(Parser, /*MinSubobjects=*/0);
-}
-
-static bool isCompleteType(const mlir::Type Type) {
-  if (auto T = mlir::dyn_cast<mlir::clift::DefinedType>(Type)) {
-    auto Definition = T.getElementType();
-    if (auto D = mlir::dyn_cast<mlir::clift::StructType>(Definition))
-      return D.isDefinition();
-    if (auto D = mlir::dyn_cast<mlir::clift::UnionType>(Definition))
-      return D.isDefinition();
-    return true;
-  }
-
-  if (auto T = mlir::dyn_cast<mlir::clift::ScalarTupleType>(Type))
-    return T.isComplete();
-
+bool EnumTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
   return true;
 }
 
-mlir::LogicalResult mlir::clift::StructType::verify(EmitErrorType EmitError,
-                                                    uint64_t ID) {
+//===--------------------------- TypedefTypeAttr --------------------------===//
+
+mlir::LogicalResult TypedefTypeAttr::verify(EmitErrorType EmitError,
+                                            uint64_t ID,
+                                            llvm::StringRef Name,
+                                            clift::ValueType UnderlyingType) {
+  return mlir::success();
+}
+
+uint64_t TypedefTypeAttr::getByteSize() const {
+  return getUnderlyingType().getByteSize();
+}
+
+bool TypedefTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
+}
+
+//===------------------------ FunctionArgumentAttr ------------------------===//
+
+mlir::LogicalResult FunctionArgumentAttr::verify(EmitErrorType EmitError,
+                                                 clift::ValueType Underlying,
+                                                 llvm::StringRef Name) {
+  if (not isObjectType(Underlying))
+    return EmitError() << "Function parameter type must be an object type";
+  if (isArrayType(Underlying))
+    return EmitError() << "Function parameter type may not be an array type";
+
+  return mlir::success();
+}
+
+//===-------------------------- FunctionTypeAttr --------------------------===//
+
+mlir::LogicalResult
+FunctionTypeAttr::verify(EmitErrorType EmitError,
+                         uint64_t ID,
+                         llvm::StringRef Name,
+                         clift::ValueType ReturnType,
+                         llvm::ArrayRef<FunctionArgumentAttr> Args) {
+  if (not isVoid(ReturnType) and not isObjectType(ReturnType)
+      and not mlir::isa<ScalarTupleType>(ReturnType))
+    return EmitError() << "Function return type must be void or an object type "
+                          "or a scalar tuple type.";
+  if (isArrayType(ReturnType))
+    return EmitError() << "Function return type may not be an array type.";
+
+  return mlir::success();
+}
+
+uint64_t FunctionTypeAttr::getByteSize() const {
+  return 0;
+}
+
+bool FunctionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
+}
+
+//===----------------------- ScalarTupleElementAttr -----------------------===//
+
+mlir::LogicalResult
+ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
+                               clift::ValueType Type,
+                               const llvm::StringRef Name) {
+  if (not isScalarType(Type))
+    return EmitError() << "Scalar tuple element types must be scalar types.";
+
+  return mlir::success();
+}
+
+//===--------------------------- StructTypeAttr ---------------------------===//
+
+mlir::LogicalResult StructTypeAttr::verify(EmitErrorType EmitError,
+                                           uint64_t ID) {
   return mlir::success();
 }
 
 mlir::LogicalResult
-mlir::clift::StructType::verify(const EmitErrorType EmitError,
-                                const uint64_t ID,
-                                llvm::StringRef,
-                                const uint64_t Size,
-                                const llvm::ArrayRef<FieldAttr> Fields) {
+StructTypeAttr::verify(const EmitErrorType EmitError,
+                       const uint64_t ID,
+                       const llvm::StringRef Name,
+                       const uint64_t Size,
+                       const llvm::ArrayRef<FieldAttr> Fields) {
   if (Size == 0)
     return EmitError() << "struct type cannot have a size of zero";
 
@@ -200,18 +291,12 @@ mlir::clift::StructType::verify(const EmitErrorType EmitError,
 
     llvm::SmallSet<llvm::StringRef, 16> NameSet;
     for (const auto &Field : Fields) {
-      if (not isCompleteType(Field.getType()))
-        return EmitError() << "Fields of structs must be complete types";
-
       if (Field.getOffset() < LastEndOffset)
         return EmitError() << "Fields of structs must be ordered by offset, "
                               "and "
                               "they cannot overlap";
 
-      LastEndOffset = Field.getOffset()
-                      + Field.getType()
-                          .cast<mlir::clift::ValueType>()
-                          .getByteSize();
+      LastEndOffset = Field.getOffset() + Field.getType().getByteSize();
 
       if (not Field.getName().empty()) {
         if (not NameSet.insert(Field.getName()).second)
@@ -227,24 +312,119 @@ mlir::clift::StructType::verify(const EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::LogicalResult mlir::clift::UnionType::verify(EmitErrorType EmitError,
-                                                   uint64_t ID) {
+StructTypeAttr StructTypeAttr::get(MLIRContext *Context, uint64_t ID) {
+  return Base::get(Context, ID);
+}
+
+StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
+                                          MLIRContext *Context,
+                                          uint64_t ID) {
+  return Base::get(Context, ID);
+}
+
+StructTypeAttr StructTypeAttr::get(MLIRContext *Context,
+                                   uint64_t ID,
+                                   llvm::StringRef Name,
+                                   uint64_t Size,
+                                   llvm::ArrayRef<FieldAttr> Fields) {
+  auto Result = Base::get(Context, ID);
+  Result.define(Name, Size, Fields);
+  return Result;
+}
+
+StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
+                                          MLIRContext *Context,
+                                          uint64_t ID,
+                                          llvm::StringRef Name,
+                                          uint64_t Size,
+                                          llvm::ArrayRef<FieldAttr> Fields) {
+  if (failed(verify(EmitError, ID, Name, Size, Fields)))
+    return {};
+  return get(Context, ID, Name, Size, Fields);
+}
+
+void StructTypeAttr::define(const llvm::StringRef Name,
+                            const uint64_t Size,
+                            const llvm::ArrayRef<FieldAttr> Fields) {
+  // Call into the base to mutate the type.
+  LogicalResult Result = Base::mutate(Name, Fields, Size);
+
+  // Most types expect the mutation to always succeed, but types can implement
+  // custom logic for handling mutation failures.
+  revng_assert(succeeded(Result)
+               && "attempting to change the body of an already-initialized "
+                  "type");
+}
+
+uint64_t StructTypeAttr::getId() const {
+  return getImpl()->getID();
+}
+
+llvm::StringRef StructTypeAttr::getName() const {
+  return getImpl()->getName();
+}
+
+llvm::ArrayRef<FieldAttr> StructTypeAttr::getFields() const {
+  return getImpl()->getSubobjects();
+}
+
+bool StructTypeAttr::isDefinition() const {
+  return getImpl()->isInitialized();
+}
+
+uint64_t StructTypeAttr::getByteSize() const {
+  return getImpl()->getSize();
+}
+
+bool StructTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
+}
+
+mlir::Attribute StructTypeAttr::parse(AsmParser &Parser) {
+  return parseCompositeType<StructTypeAttr>(Parser, /*MinSubobjects=*/0);
+}
+
+void StructTypeAttr::print(AsmPrinter &Printer) const {
+  printCompositeType(Printer, *this);
+}
+
+void StructTypeAttr::walkImmediateSubElements(function_ref<void(Attribute)>
+                                                WalkAttr,
+                                              function_ref<void(Type)> WalkType)
+  const {
+  if (not getImpl()->isInitialized())
+    return;
+  for (auto Field : getFields())
+    WalkAttr(Field);
+}
+
+mlir::Attribute
+StructTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
+                                            llvm::ArrayRef<mlir::Type>) const {
+  revng_abort("it does not make any sense to replace the elements of a "
+              "defined struct");
+  return {};
+}
+
+//===---------------------------- UnionTypeAttr ---------------------------===//
+
+mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
+                                          uint64_t ID) {
   return mlir::success();
 }
 
-mlir::LogicalResult
-mlir::clift::UnionType::verify(EmitErrorType EmitError,
-                               uint64_t ID,
-                               llvm::StringRef,
-                               llvm::ArrayRef<FieldAttr> Fields) {
+mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
+                                          uint64_t ID,
+                                          llvm::StringRef Name,
+                                          llvm::ArrayRef<FieldAttr> Fields) {
   if (Fields.empty())
     return EmitError() << "union types must have at least one field";
 
   llvm::SmallSet<llvm::StringRef, 16> NameSet;
   for (const auto &Field : Fields) {
-    if (not isCompleteType(Field.getType()))
-      return EmitError() << "Fields of unions must be complete types";
-
     if (Field.getOffset() != 0)
       return EmitError() << "union field offsets must be zero";
 
@@ -257,89 +437,37 @@ mlir::clift::UnionType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::clift::StructType mlir::clift::StructType::get(MLIRContext *Context,
-                                                     uint64_t ID) {
+UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context, uint64_t ID) {
   return Base::get(Context, ID);
 }
 
-mlir::clift::StructType
-mlir::clift::StructType::getChecked(EmitErrorType EmitError,
-                                    MLIRContext *Context,
-                                    uint64_t ID) {
-  return get(Context, ID);
-}
-
-mlir::clift::StructType
-mlir::clift::StructType::get(MLIRContext *Context,
-                             uint64_t ID,
-                             llvm::StringRef Name,
-                             uint64_t Size,
-                             llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(Context, ID);
-  Result.define(Name, Size, Fields);
-  return Result;
-}
-
-mlir::clift::StructType
-mlir::clift::StructType::getChecked(EmitErrorType EmitError,
-                                    MLIRContext *Context,
-                                    uint64_t ID,
-                                    llvm::StringRef Name,
-                                    uint64_t Size,
-                                    llvm::ArrayRef<FieldAttr> Fields) {
-  if (failed(verify(EmitError, ID, Name, Size, Fields)))
-    return {};
-  return get(Context, ID, Name, Size, Fields);
-}
-
-mlir::clift::UnionType mlir::clift::UnionType::get(MLIRContext *Context,
-                                                   uint64_t ID) {
+UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
+                                        MLIRContext *Context,
+                                        uint64_t ID) {
   return Base::get(Context, ID);
 }
 
-mlir::clift::UnionType
-mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
-                                   MLIRContext *Context,
-                                   uint64_t ID) {
-  return get(Context, ID);
-}
-
-mlir::clift::UnionType
-mlir::clift::UnionType::get(MLIRContext *Context,
-                            uint64_t ID,
-                            llvm::StringRef Name,
-                            llvm::ArrayRef<FieldAttr> Fields) {
+UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context,
+                                 uint64_t ID,
+                                 llvm::StringRef Name,
+                                 llvm::ArrayRef<FieldAttr> Fields) {
   auto Result = Base::get(Context, ID);
   Result.define(Name, Fields);
   return Result;
 }
 
-mlir::clift::UnionType
-mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
-                                   MLIRContext *Context,
-                                   uint64_t ID,
-                                   llvm::StringRef Name,
-                                   llvm::ArrayRef<FieldAttr> Fields) {
+UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
+                                        MLIRContext *Context,
+                                        uint64_t ID,
+                                        llvm::StringRef Name,
+                                        llvm::ArrayRef<FieldAttr> Fields) {
   if (failed(verify(EmitError, ID, Name, Fields)))
     return {};
   return get(Context, ID, Name, Fields);
 }
 
-void mlir::clift::StructType::define(const llvm::StringRef Name,
-                                     const uint64_t Size,
-                                     const llvm::ArrayRef<FieldAttr> Fields) {
-  // Call into the base to mutate the type.
-  LogicalResult Result = Base::mutate(Name, Fields, Size);
-
-  // Most types expect the mutation to always succeed, but types can implement
-  // custom logic for handling mutation failures.
-  revng_assert(succeeded(Result)
-               && "attempting to change the body of an already-initialized "
-                  "type");
-}
-
-void mlir::clift::UnionType::define(const llvm::StringRef Name,
-                                    const llvm::ArrayRef<FieldAttr> Fields) {
+void UnionTypeAttr::define(const llvm::StringRef Name,
+                           const llvm::ArrayRef<FieldAttr> Fields) {
   // Call into the base to mutate the type.
   LogicalResult Result = Base::mutate(Name, Fields);
 
@@ -350,70 +478,58 @@ void mlir::clift::UnionType::define(const llvm::StringRef Name,
                   "type");
 }
 
-uint64_t mlir::clift::StructType::getId() const {
+uint64_t UnionTypeAttr::getId() const {
   return getImpl()->getID();
 }
 
-llvm::StringRef mlir::clift::StructType::getName() const {
+llvm::StringRef UnionTypeAttr::getName() const {
   return getImpl()->getName();
 }
 
-llvm::ArrayRef<mlir::clift::FieldAttr>
-mlir::clift::StructType::getFields() const {
+llvm::ArrayRef<FieldAttr> UnionTypeAttr::getFields() const {
   return getImpl()->getSubobjects();
 }
 
-bool mlir::clift::StructType::isDefinition() const {
+bool UnionTypeAttr::isDefinition() const {
   return getImpl()->isInitialized();
 }
 
-uint64_t mlir::clift::StructType::getByteSize() const {
-  return getImpl()->getSize();
-}
-
-std::string mlir::clift::StructType::getAlias() const {
-  return getName().str();
-}
-
-uint64_t mlir::clift::UnionType::getId() const {
-  return getImpl()->getID();
-}
-
-llvm::StringRef mlir::clift::UnionType::getName() const {
-  return getImpl()->getName();
-}
-
-llvm::ArrayRef<mlir::clift::FieldAttr>
-mlir::clift::UnionType::getFields() const {
-  return getImpl()->getSubobjects();
-}
-
-bool mlir::clift::UnionType::isDefinition() const {
-  return getImpl()->isInitialized();
-}
-
-uint64_t mlir::clift::UnionType::getByteSize() const {
+uint64_t UnionTypeAttr::getByteSize() const {
   uint64_t Max = 0;
-  for (const auto &Field : getFields()) {
-    mlir::Type FieldType = Field.getType();
-    uint64_t Size = FieldType.cast<mlir::clift::ValueType>().getByteSize();
-    Max = Size > Max ? Size : Max;
-  }
+  for (auto const &Field : getFields())
+    Max = std::max(Max, Field.getType().getByteSize());
   return Max;
 }
 
-std::string mlir::clift::UnionType::getAlias() const {
-  return getName().str();
+bool UnionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
+  if (getName().empty())
+    return false;
+  OS << getName() << "$def";
+  return true;
 }
 
-//************************** ScalarTupleElementAttr ****************************
+mlir::Attribute UnionTypeAttr::parse(AsmParser &Parser) {
+  return parseCompositeType<UnionTypeAttr>(Parser, /*MinSubobjects=*/1);
+}
 
-mlir::LogicalResult
-mlir::clift::ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
-                                            mlir::Type Type,
-                                            const llvm::StringRef Name) {
-  if (not mlir::isa<mlir::clift::ValueType>(Type))
-    return EmitError() << "Scalar tuple element type must be a value type";
+void UnionTypeAttr::print(AsmPrinter &Printer) const {
+  printCompositeType(Printer, *this);
+}
 
-  return mlir::success();
+void UnionTypeAttr::walkImmediateSubElements(function_ref<void(Attribute)>
+                                               WalkAttr,
+                                             function_ref<void(Type)> WalkType)
+  const {
+  if (not getImpl()->isInitialized())
+    return;
+  for (auto Field : getFields())
+    WalkAttr(Field);
+}
+
+mlir::Attribute
+UnionTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
+                                           llvm::ArrayRef<mlir::Type>) const {
+  revng_abort("it does not make any sense to replace the elements of a "
+              "defined union");
+  return {};
 }

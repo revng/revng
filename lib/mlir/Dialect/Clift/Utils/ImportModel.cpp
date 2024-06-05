@@ -23,7 +23,7 @@ class CliftConverter {
   mlir::MLIRContext *Context;
   llvm::function_ref<mlir::InFlightDiagnostic()> EmitError;
 
-  llvm::DenseMap<uint64_t, clift::TypeDefinition> Cache;
+  llvm::DenseMap<uint64_t, clift::TypeDefinitionAttr> Cache;
   llvm::DenseMap<uint64_t, const model::Type *> IncompleteTypes;
 
   llvm::SmallSet<uint64_t, 16> DefinitionGuardSet;
@@ -63,28 +63,21 @@ public:
   CliftConverter(const CliftConverter &) = delete;
   CliftConverter &operator=(const CliftConverter &) = delete;
 
-  ~CliftConverter() {
-    revng_assert(DefinitionGuardSet.empty());
-    revng_assert(IncompleteTypes.empty());
-  }
+  ~CliftConverter() { revng_assert(DefinitionGuardSet.empty()); }
 
   clift::ValueType convertUnqualifiedType(const model::Type &ModelType) {
     const clift::ValueType T = getUnwrappedValueType(ModelType,
                                                      /*RequireComplete=*/true);
-    if (T and not processIncompleteTypes()) {
-      IncompleteTypes.clear();
+    if (T and not processIncompleteTypes())
       return nullptr;
-    }
     return T;
   }
 
   clift::ValueType convertQualifiedType(const model::QualifiedType &ModelType) {
     const clift::ValueType T = getQualifiedValueType(ModelType,
                                                      /*RequireComplete=*/true);
-    if (T and not processIncompleteTypes()) {
-      IncompleteTypes.clear();
+    if (T and not processIncompleteTypes())
       return nullptr;
-    }
     return T;
   }
 
@@ -133,7 +126,7 @@ private:
                                       getBool(Const));
   }
 
-  RecursiveCoroutine<clift::TypeDefinition>
+  RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::CABIFunctionType &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
@@ -162,13 +155,13 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionAttr>(ModelType.ID(),
-                                        ModelType.name(),
-                                        ReturnType,
-                                        Args);
+    rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
+                                            ModelType.name(),
+                                            ReturnType,
+                                            Args);
   }
 
-  RecursiveCoroutine<clift::TypeDefinition>
+  RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::EnumType &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
@@ -194,10 +187,10 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::EnumAttr>(ModelType.ID(),
-                                    ModelType.name(),
-                                    UnderlyingType,
-                                    Fields);
+    rc_return make<clift::EnumTypeAttr>(ModelType.ID(),
+                                        ModelType.name(),
+                                        UnderlyingType,
+                                        Fields);
   }
 
   RecursiveCoroutine<clift::ValueType>
@@ -222,7 +215,7 @@ private:
     rc_return make<clift::ScalarTupleType>(ModelType.ID(), "", Elements);
   }
 
-  RecursiveCoroutine<clift::TypeDefinition>
+  RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::RawFunctionType &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
@@ -297,17 +290,17 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionAttr>(ModelType.ID(),
-                                        ModelType.name(),
-                                        ReturnType,
-                                        Args);
+    rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
+                                            ModelType.name(),
+                                            ReturnType,
+                                            Args);
   }
 
-  RecursiveCoroutine<clift::TypeDefinition>
+  RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::StructType &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::StructType::get(Context, ModelType.ID());
+      const auto T = clift::StructTypeAttr::get(Context, ModelType.ID());
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -316,7 +309,8 @@ private:
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
-        EmitError() << "Recursive definition of StructType " << ModelType.ID();
+        EmitError() << "Recursive definition of StructTypeAttr "
+                    << ModelType.ID();
       rc_return nullptr;
     }
 
@@ -336,13 +330,13 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::StructType>(ModelType.ID(),
-                                      ModelType.name(),
-                                      ModelType.Size(),
-                                      Fields);
+    rc_return make<clift::StructTypeAttr>(ModelType.ID(),
+                                          ModelType.name(),
+                                          ModelType.Size(),
+                                          Fields);
   }
 
-  RecursiveCoroutine<clift::TypeDefinition>
+  RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::TypedefType &ModelType,
                    const bool RequireComplete) {
     std::optional<RecursiveDefinitionGuard> Guard;
@@ -361,16 +355,16 @@ private:
       getQualifiedValueType(ModelType.UnderlyingType(), RequireComplete);
     if (not UnderlyingType)
       rc_return nullptr;
-    rc_return make<clift::TypedefAttr>(ModelType.ID(),
-                                       ModelType.name(),
-                                       UnderlyingType);
+    rc_return make<clift::TypedefTypeAttr>(ModelType.ID(),
+                                           ModelType.name(),
+                                           UnderlyingType);
   }
 
-  RecursiveCoroutine<clift::TypeDefinition>
+  RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::UnionType &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::UnionType::get(Context, ModelType.ID());
+      const auto T = clift::UnionTypeAttr::get(Context, ModelType.ID());
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -379,7 +373,8 @@ private:
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
-        EmitError() << "Recursive definition of UnionType " << ModelType.ID();
+        EmitError() << "Recursive definition of UnionTypeAttr "
+                    << ModelType.ID();
       rc_return nullptr;
     }
 
@@ -397,10 +392,12 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::UnionType>(ModelType.ID(), ModelType.name(), Fields);
+    rc_return make<clift::UnionTypeAttr>(ModelType.ID(),
+                                         ModelType.name(),
+                                         Fields);
   }
 
-  RecursiveCoroutine<clift::TypeDefinition>
+  RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::Type &ModelType, bool &RequireComplete) {
     switch (ModelType.Kind()) {
     case model::TypeKind::CABIFunctionType: {
@@ -454,8 +451,8 @@ private:
     if (const auto It = Cache.find(ModelType.ID()); It != Cache.end())
       rc_return getDefinedType(It->second);
 
-    const clift::TypeDefinition Attr = getTypeAttribute(ModelType,
-                                                        RequireComplete);
+    const clift::TypeDefinitionAttr Attr = getTypeAttribute(ModelType,
+                                                            RequireComplete);
 
     if (not Attr)
       rc_return nullptr;
