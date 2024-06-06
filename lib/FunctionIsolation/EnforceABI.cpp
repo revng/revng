@@ -446,6 +446,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
   revng_assert(Result->getDebugLoc());
+  setStringMetadata(Result, PrototypeMDName, Prototype.toString());
 
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;

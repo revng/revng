@@ -9,12 +9,24 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/CommonOptions.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+
+constexpr const char *PrototypeMDName = "revng.prototype";
 
 inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   revng_assert(FunctionTags::Isolated.isTagOf(&F));
   return getMetaAddressMetadata(&F, FunctionEntryMDName);
+}
+
+inline model::TypePath
+getCallSitePrototype(ConstOrNot<model::Binary> auto &Root,
+                     const llvm::Instruction *Call) {
+  using namespace llvm;
+  revng_assert(isa<CallInst>(Call));
+  return model::TypePath::fromString(&Root,
+                                     fromStringMetadata(Call, PrototypeMDName));
 }
 
 inline model::Function *llvmToModelFunction(model::Binary &Binary,

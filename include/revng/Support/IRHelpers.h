@@ -1411,15 +1411,15 @@ static_assert(HasMetadata<llvm::Function>);
 static_assert(HasMetadata<llvm::GlobalVariable>);
 static_assert(not HasMetadata<llvm::Constant>);
 
-template<typename R, HasMetadata T>
-R fromStringMetadata(const T *U, llvm::StringRef Name) {
+template<HasMetadata T>
+llvm::StringRef fromStringMetadata(const T *U, llvm::StringRef Name) {
   using namespace llvm;
 
   if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
     if (auto *String = dyn_cast<MDString>(MD->getOperand(0)))
-      return R::fromString(String->getString());
+      return String->getString();
 
-  return R::invalid();
+  revng_abort();
 }
 
 template<HasMetadata T>
