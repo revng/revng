@@ -9,6 +9,6 @@ Functions:
 Types:
   - ID: 1814
     Kind: RawFunctionType
-    $Arguments: []
-    $ReturnValues: []
-    $PreservedRegisters: []
+    "-Arguments": 0
+    "-ReturnValues": 0
+    "-PreservedRegisters": 0

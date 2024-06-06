@@ -9,4 +9,4 @@ Functions:
 Types:
   - ID: 1814
     Kind: RawFunctionType
-    $ReturnValues: []
+    "-ReturnValues": 0

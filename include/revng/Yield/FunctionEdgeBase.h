@@ -16,6 +16,7 @@ doc: An edge on the CFG
 type: struct
 fields:
   - name: Destination
+    optional: true
     doc: |
       Target of the CFG edge
 
