@@ -426,24 +426,11 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     for (CallBase *Call : FunctionCallCalls) {
       Builder.SetInsertPoint(Call);
 
-      RegisterSet *PreservedRegisters = &DefaultPreservedRegisters;
       RegisterSet CalleePreservedRegisters;
-
-      // If the callee is available in the model, compute the set of preserved
-      // registers from its prototype, instead of using the default one
-      auto *Terminator = Call->getParent()->getTerminator();
-      if (BasicBlock *Callee = getFunctionCallCallee(Terminator)) {
-        MetaAddress CalleeAddress = getBasicBlockJumpTarget(Callee);
-        auto It = Model->Functions().find(CalleeAddress);
-        if (It != Model->Functions().end() and not It->Prototype().empty()) {
-          CalleePreservedRegisters = getPreservedRegisters(It->Prototype());
-        }
-      }
-
       // Clobber registers that are not preserved
       for (model::Register::Values Register :
            model::Architecture::registers(Model->Architecture())) {
-        if (not PreservedRegisters->contains(Register))
+        if (not DefaultPreservedRegisters.contains(Register))
           Clobberer.clobber(Builder, Register);
       }
     }
