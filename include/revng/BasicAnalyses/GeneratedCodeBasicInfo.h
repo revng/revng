@@ -75,11 +75,11 @@ public:
     return false;
   }
 
-  uint32_t getJTReasons(llvm::BasicBlock *BB) const {
+  static uint32_t getJTReasons(llvm::BasicBlock *BB) {
     return getJTReasons(BB->getTerminator());
   }
 
-  uint32_t getJTReasons(llvm::Instruction *T) const {
+  static uint32_t getJTReasons(llvm::Instruction *T) {
     using namespace llvm;
 
     revng_assert(T->isTerminator());
