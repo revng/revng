@@ -23,6 +23,8 @@ using namespace std;
 using namespace llvm;
 using namespace pipeline;
 
+static Logger<> Log("invalidation");
+
 class PipelineExecutionEntry {
 public:
   Step *ToExecute;
@@ -448,9 +450,21 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                                   TargetInStepSet &Map) const {
 
+  // Iterate over each step, skipping the begin step
   for (const Step &Step : llvm::drop_begin(*this)) {
-    auto &StepInvalidations = Map[Step.getName()];
+    revng_log(Log, "Computing invalidations in step " << Step.getName());
+    LoggerIndent<> I(Log);
+
+    ContainerToTargetsMap &StepInvalidations = Map[Step.getName()];
+
+    // Iterate over each pipe and feed it the non-const containers
+    // TODO: this is misguided! The pipe are going to be looking at the
+    //       containers *at the end* of the pipe. This might mean that what
+    //       we're looking for might no longer be there!
+    Step.pipeInvalidate(Diff, StepInvalidations);
+
     for (const auto &Container : Step.containers()) {
+
       if (not Container.second)
         continue;
 
@@ -463,10 +477,16 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
         if (Step.invalidationMetadataContains(Diff.getGlobalName(), ToFind))
           continue;
 
+        revng_log(Log, "Invalidating " << Target.serialize());
         StepInvalidations[Container.first()].push_back(Target);
       }
     }
 
+    // Compute the set of things we need to invalidate by looking at all the
+    // paths changed by Diff.
+    // Also, this will invalidate all the targets depending on them and all the
+    // targets depending on stuff that's already in Map.
+    revng_log(Log, Diff.getPaths().size() << " paths have changed");
     for (const TupleTreePath *Path : Diff.getPaths()) {
       Step.registerTargetsDependingOn(Diff.getGlobalName(), *Path, Map);
     }

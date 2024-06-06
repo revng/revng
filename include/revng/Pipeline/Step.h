@@ -251,6 +251,9 @@ public:
   ContainerSet run(ContainerSet &&Targets,
                    const std::vector<PipeExecutionEntry> &ExecutionInfos);
 
+  void pipeInvalidate(const GlobalTupleTreeDiff &Diff,
+                      ContainerToTargetsMap &Map) const;
+
   /// Given the input required goals, calculates backwards how such goals are
   /// achieved by the current step and returns the targets that must be loaded
   /// from the containers in the step before this one, as well as a list of for

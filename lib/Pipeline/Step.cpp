@@ -307,6 +307,13 @@ ContainerSet Step::run(ContainerSet &&Input,
   return Cloned;
 }
 
+void Step::pipeInvalidate(const GlobalTupleTreeDiff &Diff,
+                          ContainerToTargetsMap &Map) const {
+  for (const auto &Pipe : Pipes) {
+    Pipe.Pipe->invalidate(Diff, Map, Containers);
+  }
+}
+
 llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
                               const ContainerToTargetsMap &Targets,
                               const llvm::StringMap<std::string> &ExtraArgs) {

@@ -31,6 +31,12 @@ public:
   virtual std::unique_ptr<AnalysisWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
 
+  void invalidate(const GlobalTupleTreeDiff &Diff,
+                  ContainerToTargetsMap &Map,
+                  const ContainerSet &Containers) const override {
+    revng_abort();
+  }
+
   const std::string &getUserBoundName() const { return BoundName; }
 
   void setUserBoundName(std::string NewName) { BoundName = std::move(NewName); }
