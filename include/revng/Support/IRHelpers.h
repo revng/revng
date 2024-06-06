@@ -17,6 +17,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
@@ -1523,15 +1524,13 @@ unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
   }
 }
 
-template<typename T, typename Inserter>
-llvm::Instruction *
-createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::GlobalVariable *GV) {
+inline llvm::Instruction *createLoad(llvm::IRBuilderBase &Builder,
+                                     llvm::GlobalVariable *GV) {
   return Builder.CreateLoad(GV->getValueType(), GV);
 }
 
-template<typename T, typename Inserter>
-llvm::Instruction *
-createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::AllocaInst *Alloca) {
+inline llvm::Instruction *createLoad(llvm::IRBuilderBase &Builder,
+                                     llvm::AllocaInst *Alloca) {
   return Builder.CreateLoad(Alloca->getAllocatedType(), Alloca);
 }
 

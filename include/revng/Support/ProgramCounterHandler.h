@@ -93,18 +93,18 @@ public:
   /// \param Store the StoreInst targeting a CSV
   ///
   /// \return true if new instructions have been emitted.
-  bool handleStore(llvm::IRBuilder<> &Builder, llvm::StoreInst *Store) const {
+  bool handleStore(llvm::IRBuilderBase &Builder, llvm::StoreInst *Store) const {
     if (affectsPC(Store))
       return handleStoreInternal(Builder, Store);
     return false;
   }
 
-  void initializePC(llvm::IRBuilder<> &Builder, MetaAddress NewPC) const {
+  void initializePC(llvm::IRBuilderBase &Builder, MetaAddress NewPC) const {
     setPC(Builder, NewPC);
     initializePCInternal(Builder, NewPC);
   }
 
-  void setPC(llvm::IRBuilder<> &Builder, MetaAddress NewPC) const {
+  void setPC(llvm::IRBuilderBase &Builder, MetaAddress NewPC) const {
     revng_assert(NewPC.isValid() and NewPC.isCode());
     store(Builder, AddressCSV, NewPC.address());
     store(Builder, EpochCSV, NewPC.epoch());
@@ -119,18 +119,18 @@ public:
     setPC(Builder, Address);
   }
 
-  void setCurrentPCPlainMetaAddress(llvm::IRBuilder<> &Builder) const;
-  void setLastPCPlainMetaAddress(llvm::IRBuilder<> &Builder,
+  void setCurrentPCPlainMetaAddress(llvm::IRBuilderBase &Builder) const;
+  void setLastPCPlainMetaAddress(llvm::IRBuilderBase &Builder,
                                  const MetaAddress &Address) const;
-  void setPlainMetaAddress(llvm::IRBuilder<> &Builder,
+  void setPlainMetaAddress(llvm::IRBuilderBase &Builder,
                            llvm::StringRef GlobalName,
                            const MetaAddress &Address) const;
 
 protected:
-  virtual void initializePCInternal(llvm::IRBuilder<> &Builder,
+  virtual void initializePCInternal(llvm::IRBuilderBase &Builder,
                                     MetaAddress NewPC) const = 0;
 
-  virtual bool handleStoreInternal(llvm::IRBuilder<> &Builder,
+  virtual bool handleStoreInternal(llvm::IRBuilderBase &Builder,
                                    llvm::StoreInst *Store) const = 0;
 
 public:
@@ -153,7 +153,7 @@ public:
   std::pair<NextJumpTarget::Values, MetaAddress>
   getUniqueJumpTarget(llvm::BasicBlock *BB);
 
-  void deserializePC(llvm::IRBuilder<> &Builder) const {
+  void deserializePC(llvm::IRBuilderBase &Builder) const {
     using namespace llvm;
 
     // Load and re-store each CSV affecting the PC and then feed them to
@@ -172,19 +172,19 @@ public:
     }
   }
 
-  virtual llvm::Value *loadJumpablePC(llvm::IRBuilder<> &Builder) const = 0;
+  virtual llvm::Value *loadJumpablePC(llvm::IRBuilderBase &Builder) const = 0;
 
   virtual std::array<llvm::Value *, 4>
-  dissectJumpablePC(llvm::IRBuilder<> &Builder,
+  dissectJumpablePC(llvm::IRBuilderBase &Builder,
                     llvm::Value *ToDissect,
                     llvm::Triple::ArchType Arch) const = 0;
 
   virtual void
-  deserializePCFromSignalContext(llvm::IRBuilder<> &Builder,
+  deserializePCFromSignalContext(llvm::IRBuilderBase &Builder,
                                  llvm::Value *PCAddress,
                                  llvm::Value *SavedRegisters) const = 0;
 
-  llvm::Instruction *composeIntegerPC(llvm::IRBuilder<> &B) const {
+  llvm::Instruction *composeIntegerPC(llvm::IRBuilderBase &B) const {
     return MetaAddress::composeIntegerPC(B,
                                          align(B, createLoad(B, AddressCSV)),
                                          createLoad(B, EpochCSV),
@@ -206,7 +206,7 @@ public:
   ///        sorted.
   DispatcherInfo
   buildDispatcher(DispatcherTargets &Targets,
-                  llvm::IRBuilder<> &Builder,
+                  llvm::IRBuilderBase &Builder,
                   llvm::BasicBlock *Default,
                   std::optional<BlockType::Values> SetBlockType) const;
 
@@ -226,7 +226,7 @@ public:
 
   void destroyDispatcher(llvm::SwitchInst *Root) const;
 
-  void buildHotPath(llvm::IRBuilder<> &Builder,
+  void buildHotPath(llvm::IRBuilderBase &Builder,
                     const DispatcherTarget &CandidateTarget,
                     llvm::BasicBlock *Default) const;
 
@@ -242,7 +242,7 @@ protected:
       TypeCSV = createType(M);
   }
 
-  llvm::Value *align(llvm::IRBuilder<> &Builder, llvm::Value *V) const {
+  llvm::Value *align(llvm::IRBuilderBase &Builder, llvm::Value *V) const {
     revng_assert(Alignment != 0);
 
     if (Alignment == 1)
@@ -300,8 +300,9 @@ private:
   }
 
 protected:
-  static llvm::StoreInst *
-  store(llvm::IRBuilder<> &Builder, llvm::GlobalVariable *GV, uint64_t Value) {
+  static llvm::StoreInst *store(llvm::IRBuilderBase &Builder,
+                                llvm::GlobalVariable *GV,
+                                uint64_t Value) {
     using namespace llvm;
     auto *Type = cast<IntegerType>(GV->getValueType());
     return Builder.CreateStore(ConstantInt::get(Type, Value), GV);
