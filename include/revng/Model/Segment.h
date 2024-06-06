@@ -6,7 +6,6 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/Section.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"

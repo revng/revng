@@ -457,25 +457,6 @@ bool Relocation::verify(VerifyHelper &VH) const {
   return true;
 }
 
-bool Section::verify() const {
-  return verify(false);
-}
-
-bool Section::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool Section::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  auto EndAddress = StartAddress() + Size();
-  if (not EndAddress.isValid())
-    return VH.fail("Computing the end address leads to overflow");
-
-  return true;
-}
-
 Identifier Segment::name() const {
   using llvm::Twine;
   if (not CustomName().empty()) {

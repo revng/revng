@@ -7,7 +7,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/QualifiedType.h"
-#include "revng/Model/Section.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
