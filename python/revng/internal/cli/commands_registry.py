@@ -199,6 +199,7 @@ commands_registry = CommandsRegistry()
 commands_registry.define_namespace(
     ("model",), f"Model manipulation helpers, see {executable_name()} model --help"
 )
+commands_registry.define_namespace(("tar",), "Manipulate tar archives")
 commands_registry.define_namespace(
     ("model", "import"), f"Model import helpers, see {executable_name()} model import --help"
 )
