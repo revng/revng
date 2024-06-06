@@ -3,46 +3,44 @@
 #
 
 ---
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "2"
-        ID: "1"
-        Successors:
-          - Destination: "2"
-            Type: DirectBranch
-          - Destination: "5"
-            Type: DirectBranch
-      - End: "3"
-        ID: "2"
-        Successors:
-          - Destination: "1"
-            Type: FunctionCall
-      - End: "4"
-        ID: "3"
-        Successors:
-          - Destination: "1"
-            Type: FunctionCall
-      - End: "5"
-        ID: "4"
-        Successors:
-          - Destination: "5"
-            Type: DirectBranch
-      - End: "6"
-        ID: "5"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
-  OriginalName: fibonacci
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "7"
-        ID: "6"
-        Successors:
-          - Destination: "1"
-            Type: FunctionCall
-      - End: "8"
-        ID: "7"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
-  OriginalName: _start
+- OriginalName: fibonacci
+  ControlFlowGraph:
+    - ID: "1"
+      End: "2"
+      Successors:
+        - Destination: "2"
+          Type: DirectBranch
+        - Destination: "5"
+          Type: DirectBranch
+    - ID: "2"
+      End: "3"
+      Successors:
+        - Destination: "1"
+          Type: FunctionCall
+    - ID: "3"
+      End: "4"
+      Successors:
+        - Destination: "1"
+          Type: FunctionCall
+    - ID: "4"
+      End: "5"
+      Successors:
+        - Destination: "5"
+          Type: DirectBranch
+    - ID: "5"
+      End: "6"
+      Successors:
+        - "-Destination": ""
+          Type: Return
+- OriginalName: _start
+  ControlFlowGraph:
+    - ID: "6"
+      End: "7"
+      Successors:
+        - Destination: "1"
+          Type: FunctionCall
+    - ID: "7"
+      End: "8"
+      Successors:
+        - "-Destination": ""
+          Type: Return

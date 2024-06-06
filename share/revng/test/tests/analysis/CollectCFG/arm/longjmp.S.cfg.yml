@@ -3,36 +3,34 @@
 #
 
 ---
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "2"
-        ID: "1"
-        Successors:
-          - Destination: "3"
-            Type: FunctionCall
-      - End: "3"
-        ID: "2"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
-  OriginalName: _start
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "4"
-        ID: "3"
-        Successors:
-          - Destination: "4"
-            Type: DirectBranch
-          - Destination: "5"
-            Type: DirectBranch
-      - End: "5"
-        ID: "4"
-        Successors:
-          - Destination: ":Invalid"
-            Type: LongJmp
-      - End: "6"
-        ID: "5"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
-  OriginalName: longjmp
+- OriginalName: _start
+  ControlFlowGraph:
+    - ID: "1"
+      End: "2"
+      Successors:
+        - Destination: "3"
+          Type: FunctionCall
+    - ID: "2"
+      End: "3"
+      Successors:
+        - "-Destination": ""
+          Type: Return
+- OriginalName: longjmp
+  ControlFlowGraph:
+    - ID: "3"
+      End: "4"
+      Successors:
+        - Destination: "4"
+          Type: DirectBranch
+        - Destination: "5"
+          Type: DirectBranch
+    - ID: "4"
+      End: "5"
+      Successors:
+        - "-Destination": ""
+          Type: LongJmp
+    - ID: "5"
+      End: "6"
+      Successors:
+        - "-Destination": ""
+          Type: Return

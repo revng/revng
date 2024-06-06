@@ -4,31 +4,28 @@
 
 ---
 - OriginalName: "strlen"
-  FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Destination: ":Invalid"
-            Type: FunctionCall
-            DynamicFunction: strlen
-            IsTailCall: true
+  ControlFlowGraph:
+    - Successors:
+        - "-Destination": ""
+          Type: FunctionCall
+          DynamicFunction: strlen
+          IsTailCall: true
 - OriginalName: use_plt
-  FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Kind: CallEdge
-            Type: FunctionCall
-      - Successors:
-          - Type: FunctionCall
-      - Successors:
-          - Type: Return
+  ControlFlowGraph:
+    - Successors:
+        - Kind: CallEdge
+          Type: FunctionCall
+    - Successors:
+        - Type: FunctionCall
+    - Successors:
+        - Type: Return
 - OriginalName: do_not_use_plt
-  FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Destination: ":Invalid"
-            Type: FunctionCall
-            DynamicFunction: strlen
-      - Successors:
-          - Type: FunctionCall
-      - Successors:
-          - Type: Return
+  ControlFlowGraph:
+    - Successors:
+        - "-Destination": ""
+          Type: FunctionCall
+          DynamicFunction: strlen
+    - Successors:
+        - Type: FunctionCall
+    - Successors:
+        - Type: Return

@@ -10,7 +10,10 @@ commands:
     command: |-
       revng artifact
         --analyses-list=revng-initial-auto-analysis
+        --debug-names
         emit-cfg "$INPUT" |
+        revng tar to-yaml |
+        yq '[.[]]' -y |
         ./filter.py |
         revng model to-json --remap |
         revng model compare "${SOURCE}.cfg.yml"
@@ -22,10 +25,10 @@ commands:
         import yaml
 
         def should_keep(cfg):
-            if cfg["OriginalName"]:
+            if cfg.get("OriginalName", ""):
                 return True
 
-            for block in cfg["FunctionMetadata"]["ControlFlowGraph"]:
+            for block in cfg["ControlFlowGraph"]:
                 for successor in block["Successors"]:
                     if successor.get("DynamicFunction", ""):
                         return True

@@ -3,20 +3,18 @@
 #
 
 ---
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "2"
-        ID: "1"
-        Successors:
-          - Destination: "3"
-            Type: FunctionCall
-  OriginalName: _start
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "4"
-        ID: "3"
-        Successors:
-          - Destination: ":Invalid"
-            Type: FunctionCall
-            IsTailCall: true
-  OriginalName: tailcall
+- OriginalName: _start
+  ControlFlowGraph:
+    - ID: "1"
+      End: "2"
+      Successors:
+        - Destination: "3"
+          Type: FunctionCall
+- OriginalName: tailcall
+  ControlFlowGraph:
+    - ID: "3"
+      End: "4"
+      Successors:
+        - "-Destination": ""
+          Type: FunctionCall
+          IsTailCall: true

@@ -3,17 +3,17 @@
 #
 
 ---
-FunctionMetadata:
+- OriginalName: myfunc
   ControlFlowGraph:
-    - End: "2"
-      ID: "1"
+    - ID: "1"
+      End: "2"
       Successors:
         - Destination: "2"
           Type: DirectBranch
         - Destination: "8"
           Type: DirectBranch
-    - End: "3"
-      ID: "2"
+    - ID: "2"
+      End: "3"
       Successors:
         - Destination: "3"
           Type: DirectBranch
@@ -27,34 +27,33 @@ FunctionMetadata:
           Type: DirectBranch
         - Destination: "8"
           Type: DirectBranch
-    - End: "4"
-      ID: "3"
+    - ID: "3"
+      End: "4"
       Successors:
-        - Destination: :Invalid
+        - "-Destination": ""
           Type: Return
-    - End: "5"
-      ID: "4"
+    - ID: "4"
+      End: "5"
       Successors:
-        - Destination: :Invalid
+        - "-Destination": ""
           Type: Return
-    - End: "6"
-      ID: "5"
+    - ID: "5"
+      End: "6"
       Successors:
-        - Destination: :Invalid
+        - "-Destination": ""
           Type: Return
-    - End: "7"
-      ID: "6"
+    - ID: "6"
+      End: "7"
       Successors:
-        - Destination: :Invalid
+        - "-Destination": ""
           Type: Return
-    - End: "8"
-      ID: "7"
+    - ID: "7"
+      End: "8"
       Successors:
-        - Destination: :Invalid
+        - "-Destination": ""
           Type: Return
-    - End: "9"
-      ID: "8"
+    - ID: "8"
+      End: "9"
       Successors:
-        - Destination: :Invalid
+        - "-Destination": ""
           Type: Return
-OriginalName: myfunc

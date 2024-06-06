@@ -4,43 +4,40 @@
 
 ---
 - OriginalName: _start
-  FunctionMetadata:
-    ControlFlowGraph:
-      - End: "2"
-        ID: "1"
-        Successors:
-          - Destination: "3"
-            Type: DirectBranch
-      - End: "3"
-        ID: "2"
-        Successors:
-          - Destination: "4"
-            Type: DirectBranch
-      - End: "4"
-        ID: "3"
-        Successors:
-          - Destination: "2"
-            Type: DirectBranch
-      - End: "5"
-        ID: "4"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
+  ControlFlowGraph:
+    - End: "2"
+      ID: "1"
+      Successors:
+        - Destination: "3"
+          Type: DirectBranch
+    - End: "3"
+      ID: "2"
+      Successors:
+        - Destination: "4"
+          Type: DirectBranch
+    - End: "4"
+      ID: "3"
+      Successors:
+        - Destination: "2"
+          Type: DirectBranch
+    - End: "5"
+      ID: "4"
+      Successors:
+        - "-Destination": ""
+          Type: Return
 - OriginalName: prologue
-  Attributes: [Inline]
-  FunctionMetadata:
-    ControlFlowGraph:
-      - ID: "3"
-        End: "4"
-        Successors:
-          - Destination: ":Invalid"
-            Type: BrokenReturn
+  # Note: this function is inline, if necessary, we can add it here.
+  ControlFlowGraph:
+    - ID: "3"
+      End: "4"
+      Successors:
+        - "-Destination": ""
+          Type: BrokenReturn
 - OriginalName: epilogue
-  Attributes: [NoReturn]
-  FunctionMetadata:
-    ControlFlowGraph:
-      - End: "5"
-        ID: "4"
-        Successors:
-          - Destination: ":Invalid"
-            Type: LongJmp
+  # Note: this function is noreturn, if necessary, we can add it here.
+  ControlFlowGraph:
+    - End: "5"
+      ID: "4"
+      Successors:
+        - "-Destination": ""
+          Type: LongJmp
