@@ -102,6 +102,7 @@ public:
   ~GlobalTupleTreeDiff() = default;
 
   void serialize(llvm::raw_ostream &OS) const { Diff->serialize(OS); }
+  void dump() const debug_function { serialize(llvm::dbgs()); }
 
   template<TupleTreeCompatible T>
   const TupleTreeDiff<T> *getAs() const {
