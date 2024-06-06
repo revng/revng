@@ -248,12 +248,6 @@ function(
     set(TRACKING "")
   endif()
 
-  if(${TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG})
-    set(TRACKING_DEBUG "--tracking-debug")
-  else()
-    set(TRACKING_DEBUG "")
-  endif()
-
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py" --namespace

@@ -39,9 +39,11 @@ struct ReadFields;
 struct /*= struct | fullname =*/
   /**- if struct.inherits **/ : public /*= struct.inherits | user_fullname =*/ /** endif -**/
 {
-  /** if emit_tracking -**/
   friend struct revng::TrackingImpl;
+  /** if emit_tracking -**/
   inline static constexpr bool HasTracking = true;
+  /**- else **/
+  inline static constexpr bool HasTracking = false;
   /**- endif **/
 
   /** if struct.inherits **/
@@ -70,11 +72,11 @@ public:
   const /*= field | field_type =*/ & /*= field.name =*/() const {
     /**- if emit_tracking **/
     /**- if not field in struct.key_fields **/
+    /**- if field.resolved_type.is_scalar **/
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    fieldAccessed("/*= field.name =*/" , "/*= struct | fullname =*/");
+#endif
     /*= field.name =*/Tracker.access();
-
-    /**- if emit_tracking_debug **/
-    if (/*= field.name =*/Tracker.peak())
-      fieldAccessed("/*= field.name =*/" , "/*= struct | fullname =*/");
     /** endif -**/
 
     /** endif -**/
@@ -85,9 +87,6 @@ public:
 
   /*= field.doc | docstring =*/
   /*= field | field_type =*/ & /*= field.name =*/() {
-  /**- if emit_tracking **/
-    /*= field.name =*/Tracker.access();
-  /** endif -**/
     return The/*= field.name =*/;
   }
   /**- endfor **/

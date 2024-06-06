@@ -6,7 +6,13 @@
 
 #include <cstdint>
 
+#include "llvm/ADT/StringRef.h"
+
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
+
+void onFieldAccess(llvm::StringRef FieldName,
+                   llvm::StringRef StructName) debug_function;
 
 namespace revng {
 

@@ -32,9 +32,6 @@
 #include "revng/TupleTree/Visits.h"
 
 template<typename T>
-concept HasTracking = requires(T _) { T::HasTracking; };
-
-template<typename T>
 struct TrackGuard {
   const T *TrackedObject;
 
@@ -42,7 +39,7 @@ public:
   TrackGuard(const T &TrackedObject) : TrackedObject(&TrackedObject) {
     // Since the model classes may have been generated either with or without
     // tracking, a trackguard should do nothing if the concept returns false.
-    if constexpr (HasTracking<T>)
+    if constexpr (T::HasTracking)
       revng::Tracking::push(*this->TrackedObject);
   }
 
@@ -69,7 +66,7 @@ public:
 
 private:
   void onDestruction() {
-    if constexpr (HasTracking<T>) {
+    if constexpr (T::HasTracking) {
       if (TrackedObject != nullptr) {
         revng::Tracking::pop(*TrackedObject);
       }

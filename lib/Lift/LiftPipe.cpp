@@ -5,11 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/Support/Error.h"
 extern "C" {
 #include "dlfcn.h"
 }
 
+#include "llvm/Support/Error.h"
+
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LiftPipe.h"
 #include "revng/Model/LoadModelPass.h"
@@ -19,6 +21,7 @@ extern "C" {
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Support/IRAnnotators.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
 
 using namespace llvm;

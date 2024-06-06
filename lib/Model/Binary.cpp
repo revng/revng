@@ -14,6 +14,7 @@
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -31,6 +32,7 @@ using namespace llvm;
 
 namespace {
 
+// TODO: all this logic should be moved to lib/TupleTree
 Logger<> FieldAccessedLogger("field-accessed");
 
 constexpr const char *StructNameHelpText = "regex that will make the program "
@@ -59,16 +61,19 @@ cl::opt<std::string> FieldNameRegex("tracking-debug-field-name",
                                     cl::init(""),
                                     cl::cat(MainCategory));
 
-void onFieldAccess(StringRef FieldName, StringRef StructName) debug_function;
+} // namespace
 
 void onFieldAccess(StringRef FieldName, StringRef StructName) {
-  FieldAccessedLogger << ((StringRef("Field ") + FieldName + " of struct "
-                           + StructName + " accessed")
-                            .str()
-                            .c_str());
-  FieldAccessedLogger.flush();
+  if (FieldAccessedLogger.isEnabled()) {
+    FieldAccessedLogger << (StructName + "::" + FieldName + " accessed").str();
+    {
+      auto LLVMStream = FieldAccessedLogger.getAsLLVMStream();
+      llvm::sys::PrintStackTrace(*LLVMStream);
+    }
+
+    FieldAccessedLogger << DoLog;
+  }
 }
-} // namespace
 
 void fieldAccessed(StringRef FieldName, StringRef StructName) {
   if (StructNameRegex == "" and FieldNameRegex == "")
