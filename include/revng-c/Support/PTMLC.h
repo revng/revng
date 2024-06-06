@@ -637,8 +637,8 @@ private:
   llvm::raw_ostream &OS;
 
 public:
-  PairedScope(llvm::raw_ostream &OS) : OS(OS) { OS << Open.String.data(); }
-  ~PairedScope() { OS << Close.String.data(); }
+  PairedScope(llvm::raw_ostream &OS) : OS(OS) { OS << *Open; }
+  ~PairedScope() { OS << *Close; }
 };
 
 /// RAII object for handling c style braced scopes. This will,
