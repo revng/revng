@@ -39,10 +39,6 @@ void ExecutionContext::commit(const Target &Target,
                                  Pipe->InvalidationMetadata.getPathCache());
 }
 
-void ExecutionContext::clearAndResumeTracking() {
-  getContext().clearAndResume();
-}
-
 void ExecutionContext::commitUniqueTarget(const ContainerBase &Container) {
   auto Enumeration = Container.enumerate();
   revng_check(Enumeration.size() == 1);

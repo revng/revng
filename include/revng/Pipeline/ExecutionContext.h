@@ -83,8 +83,6 @@ public:
   void commit(const Target &Target, const ContainerBase &Container);
   void commitUniqueTarget(const ContainerBase &Container);
 
-  void clearAndResumeTracking();
-
   const ContainerToTargetsMap &getCurrentRequestedTargets() const {
     return Requested;
   }

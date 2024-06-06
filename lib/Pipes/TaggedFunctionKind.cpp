@@ -66,7 +66,9 @@ TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
   for (const Target &Target :
        Context.getCurrentRequestedTargets()[ContainerName]) {
     auto MetaAddress = MetaAddress::fromString(Target.getPathComponents()[0]);
-    Context.clearAndResumeTracking();
+
+    Context.getContext().pushReadFields();
+
     auto &ModelFunction = Binary->Functions().at(MetaAddress);
     auto Iter = AddressToFunction.find(MetaAddress);
     if (Iter == AddressToFunction.end())
@@ -76,6 +78,8 @@ TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
       co_yield std::pair<const model::Function *,
                          llvm::Function *>(&ModelFunction, Iter->second);
     Context.commit(Target, ContainerName);
+
+    Context.getContext().popReadFields();
   }
 }
 
@@ -86,11 +90,14 @@ TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
   auto &Binary = getModelFromContext(Context);
   for (const Target &Target :
        Context.getCurrentRequestedTargets()[Container.name()]) {
-    Context.clearAndResumeTracking();
+
+    Context.getContext().pushReadFields();
 
     auto MetaAddress = MetaAddress::fromString(Target.getPathComponents()[0]);
     co_yield &Binary->Functions().at(MetaAddress);
 
     Context.commit(Target, Container);
+
+    Context.getContext().popReadFields();
   }
 }
