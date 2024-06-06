@@ -66,6 +66,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   OFPOriginalHelper.setMemoryEffects(MemoryEffects::readOnly());
   OFPOriginalHelper.addFnAttribute(Attribute::NoUnwind);
   OFPOriginalHelper.addFnAttribute(Attribute::WillReturn);
+  OFPOriginalHelper.setTags({ &FunctionTags::UniquedByPrototype });
 
   IRBuilder<> Builder(F.getContext());
   for (auto *I : ToReplace) {

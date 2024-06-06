@@ -547,6 +547,7 @@ void CFGAnalyzer::opaqueBranchConditions(llvm::Function *F,
       auto MemoryEffects = MemoryEffects::inaccessibleMemOnly();
       OpaqueBranchConditionsPool.setMemoryEffects(MemoryEffects);
       OpaqueBranchConditionsPool.addFnAttribute(Attribute::WillReturn);
+      OpaqueBranchConditionsPool.setTags({ &FunctionTags::UniquedByPrototype });
 
       auto *FTy = llvm::FunctionType::get(Condition->getType(),
                                           { Condition->getType() },

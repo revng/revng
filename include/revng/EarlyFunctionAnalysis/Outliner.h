@@ -106,7 +106,8 @@ public:
     OpaqueReturnAddress.setMemoryEffects(Effects);
     OpaqueReturnAddress.addFnAttribute(Attribute::NoUnwind);
     OpaqueReturnAddress.addFnAttribute(Attribute::WillReturn);
-    OpaqueReturnAddress.setTags({ &FunctionTags::OpaqueReturnAddressFunction });
+    OpaqueReturnAddress.setTags({ &FunctionTags::OpaqueReturnAddressFunction,
+                                  &FunctionTags::UniquedByPrototype });
     OpaqueReturnAddress
       .initializeFromReturnType(FunctionTags::OpaqueReturnAddressFunction);
   }

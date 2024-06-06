@@ -211,6 +211,11 @@ inline Tag OpaqueReturnAddressFunction("opaque-return-address");
 
 inline Tag CSV("csv");
 
+inline Tag UniquedByPrototype("uniqued-by-prototype");
+
+inline const char *UniqueIDMDName = "revng.unique_id";
+inline Tag UniquedByMetadata("uniqued-by-metadata");
+
 } // namespace FunctionTags
 
 inline bool isRootOrLifted(const llvm::Function *F) {

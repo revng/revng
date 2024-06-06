@@ -25,6 +25,7 @@
 
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMKind.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ModuleStatistics.h"
 
@@ -201,6 +202,64 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
 
   if (auto *Global = Module->getGlobalVariable(GlobalArray2))
     Global->eraseFromParent();
+
+  llvm::DenseSet<llvm::Function *> ToErase;
+
+  auto MarkDuplicates = [&ToErase](const auto &Map) {
+    using Key = typename std::decay_t<decltype(Map)>::key_type;
+    Key LastKey;
+    llvm::Function *Leader = nullptr;
+    for (auto &[Key, F] : Map) {
+
+      if (Key != LastKey) {
+        Leader = F;
+        LastKey = Key;
+      } else {
+        revng_assert(F->getFunctionType() == Leader->getFunctionType());
+        F->replaceAllUsesWith(Leader);
+        ToErase.insert(F);
+      }
+    }
+  };
+
+  // Dedup based on UniquedByPrototype
+  {
+    using namespace llvm;
+    using Key = std::pair<FunctionTags::TagsSet, FunctionType *>;
+
+    std::multimap<Key, Function *> Map;
+    for (Function &F : FunctionTags::UniquedByPrototype.functions(&*Module)) {
+      Key TheKey = { FunctionTags::TagsSet::from(&F), F.getFunctionType() };
+      Map.emplace(TheKey, &F);
+    }
+
+    MarkDuplicates(Map);
+  }
+
+  // Dedup based on UniquedByMetadata
+  {
+    using namespace llvm;
+    using Key = std::pair<FunctionTags::TagsSet, MDNode *>;
+
+    std::multimap<Key, Function *> Map;
+    for (Function &F : FunctionTags::UniquedByMetadata.functions(&*Module)) {
+      MDNode *MD = F.getMetadata(FunctionTags::UniqueIDMDName);
+      revng_assert(MD->isUniqued());
+      Key TheKey = { FunctionTags::TagsSet::from(&F), MD };
+      Map.emplace(TheKey, &F);
+    }
+
+    MarkDuplicates(Map);
+  }
+
+  // Purge all unused non-target functions
+  // TODO: this should be transitive
+  for (llvm::Function &F : Module->functions())
+    if (not FunctionTags::Isolated.isTagOf(&F) and F.use_empty())
+      ToErase.insert(&F);
+
+  for (llvm::Function *F : ToErase)
+    F->eraseFromParent();
 
   // Prune llvm.dbg.cu so that they grow exponentially due to multiple cloning
   // + linking.
