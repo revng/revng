@@ -11,6 +11,7 @@
 #include "llvm/Support/Progress.h"
 #include "llvm/Transforms/Scalar.h"
 
+#include "revng/Lift/Lift.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
@@ -443,10 +444,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
     RegisterJTLog << DoLog;
   }
 
-  for (const model::Function &F : Model->Functions()) {
-    revng_assert(isExecutableAddress(F.Entry()));
-  }
-
   // Configure GlobalValueNumbering
   StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
   getOption<bool>(Options, "enable-load-pre")->setInitialValue(false);
@@ -462,10 +459,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 }
 
 void JumpTargetManager::harvestGlobalData() {
-  // Register symbols
-  for (const model::Function &Function : Model->Functions())
-    registerJT(Function.Entry(), JTReason::FunctionSymbol);
-
   // Register ExtraCodeAddresses
   for (MetaAddress Address : Model->ExtraCodeAddresses())
     registerJT(Address, JTReason::GlobalData);
@@ -933,7 +926,11 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
   }
 
   // Associate the PC with the chosen basic block
-  JumpTargets[PC] = JumpTarget(NewBlock, Reason);
+  auto &NewJumpTarget = JumpTargets[PC];
+  NewJumpTarget = JumpTarget(NewBlock, Reason);
+
+  if (AftedAddingFunctionEntries)
+    NewJumpTarget.setReason(JTReason::DependsOnModelFunction);
 
   // PC was not a jump target, record it as new
   ValueMaterializerPCWhiteList.insert(PC);
@@ -1134,7 +1131,8 @@ void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
       // Add to the switch all the unreachable jump targets whose reason is not
       // just direct jump
       if (not Reachable.contains(BB) and IsWhitelisted
-          and not JT.isOnlyReason(JTReason::DirectJump)) {
+          and not JT.isOnlyReason(JTReason::DirectJump,
+                                  JTReason::DependsOnModelFunction)) {
         PCH->addCaseToDispatcher(DispatcherSwitch,
                                  { PC, BB },
                                  BlockType::RootDispatcherHelperBlock);
@@ -1240,6 +1238,16 @@ void JumpTargetManager::harvest() {
       HarvestingStats.push("harvest 3: cloneOptimizeAndHarvest");
       revng_log(JTCountLog, "Harvesting with Advanced Value Info");
       RootAnalyzer(*this).cloneOptimizeAndHarvest(TheFunction);
+    }
+
+    if (empty()) {
+      // Register model::Function entry nodes
+
+      AftedAddingFunctionEntries = true;
+
+      TrackGuard Guard(*Model);
+      for (const model::Function &Function : Model->Functions())
+        registerJT(Function.Entry(), JTReason::FunctionSymbol);
     }
 
     // TODO: eventually, `setCFGForm` should be replaced by using a CustomCFG

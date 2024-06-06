@@ -7,6 +7,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 
 namespace efa {
 
@@ -19,6 +20,7 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
+    AU.addRequired<FunctionMetadataCachePass>();
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
     AU.addRequired<LoadModelWrapperPass>();
   }

@@ -14,39 +14,28 @@
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/FunctionTags.h"
 
-bool pipeline::ModulePass::runOnModule(llvm::Module &Module) {
-  auto &Analysis = getAnalysis<pipeline::LoadExecutionContextPass>();
-  ExecutionContext *Ctx = Analysis.get();
-  revng_assert(Ctx != nullptr);
-  bool Result = false;
-  auto Name = Analysis.getContainerName();
-  auto *RequestedTargets = &Ctx->getCurrentRequestedTargets()[Name];
-  Result = run(Module, *RequestedTargets);
-  Ctx->getContext().pushReadFields();
-  for (auto &Target : *RequestedTargets)
-    Ctx->commit(Target, Analysis.getContainerName());
-
-  Ctx->getContext().popReadFields();
-  Ctx->getContext().clearAndResume();
-
-  return Result;
-}
-
 bool pipeline::detail::runOnModule(llvm::Module &Module,
                                    FunctionPassImpl &Pipe) {
   auto &Analysis = Pipe.getAnalysis<pipeline::LoadExecutionContextPass>();
+
+  // Obtain the context
   ExecutionContext *Ctx = Analysis.get();
   revng_assert(Ctx != nullptr);
-  auto &ModelWrapper = Pipe.getAnalysis<LoadModelWrapperPass>().get();
-  bool Result = Pipe.prologue(Module, *ModelWrapper.getReadOnlyModel());
 
+  // Run the prologue
+  auto &ModelWrapper = Pipe.getAnalysis<LoadModelWrapperPass>().get();
+  bool Result = Pipe.prologue();
+
+  // Run on individual functions
   using Type = revng::kinds::TaggedFunctionKind;
   auto ToIterOn = Type::getFunctionsAndCommit(*Ctx,
                                               Module,
                                               Analysis.getContainerName());
   for (const auto &[First, Second] : ToIterOn) {
-    Result = Pipe.runOnFunction(*Second, *First) or Result;
+    Result = Pipe.runOnFunction(*First, *Second) or Result;
   }
+
+  Result = Pipe.epilogue() or Result;
 
   return Result;
 }

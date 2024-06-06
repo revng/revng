@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/LegacyPassManager.h"
 
+#include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
@@ -39,6 +40,11 @@ public:
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
+
+  std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
+  invalidate(const BinaryFileContainer &SourceBinary,
+             const pipeline::LLVMContainer &Output,
+             const pipeline::GlobalTupleTreeDiff &Diff) const;
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
 

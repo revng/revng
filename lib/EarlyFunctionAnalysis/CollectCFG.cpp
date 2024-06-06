@@ -6,75 +6,102 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
-#include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
+#include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/RegisterContainerFactory.h"
+#include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/StringMap.h"
+#include "revng/Support/CommonOptions.h"
+#include "revng/Support/YAMLTraits.h"
 
 using namespace llvm;
 
-namespace efa {
-class CollectCFG {
-private:
-  GeneratedCodeBasicInfo &GCBI;
-  const TupleTree<model::Binary> &Binary;
-  CFGAnalyzer &Analyzer;
+namespace revng::pipes {
+
+class CollectCFGPipe {
+public:
+  static constexpr const auto Name = "collect-cfg";
 
 public:
-  CollectCFG(GeneratedCodeBasicInfo &GCBI,
-             const TupleTree<model::Binary> &Binary,
-             CFGAnalyzer &Analyzer) :
-    GCBI(GCBI), Binary(Binary), Analyzer(Analyzer) {}
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    using namespace ::revng::kinds;
+    return { pipeline::ContractGroup(kinds::Root,
+                                     0,
+                                     kinds::CFG,
+                                     1,
+                                     pipeline::InputPreservation::Preserve) };
+  }
 
 public:
-  void run();
+  void run(pipeline::ExecutionContext &Context,
+           pipeline::LLVMContainer &Module,
+           CFGMap &CFGs) {
+    const auto &Binary = getModelFromContext(Context);
+    llvm::Module &M = Module.getModule();
+    using FSOracle = efa::FunctionSummaryOracle;
+
+    // Collect GCBI
+    GeneratedCodeBasicInfo GCBI(*Binary);
+    GCBI.run(M);
+
+    FSOracle Oracle = FSOracle::importBasicPrototypeData(M, GCBI, *Binary);
+    efa::CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
+
+    pipeline::TargetsList
+      RequestedTargets = Context.getCurrentRequestedTargets()[CFGs.name()];
+
+    for (const pipeline::Target &Target : RequestedTargets) {
+      if (&Target.getKind() != &revng::kinds::CFG)
+        continue;
+      Context.getContext().pushReadFields();
+
+      auto EntryAddress = MetaAddress::fromString(Target
+                                                    .getPathComponents()[0]);
+
+      // Recover the control-flow graph of the function
+      efa::FunctionMetadata New;
+      New.Entry() = EntryAddress;
+      New.ControlFlowGraph() = std::move(Analyzer.analyze(EntryAddress).CFG);
+
+      if (DebugNames) {
+        auto Function = Binary->Functions().at(EntryAddress);
+        New.OriginalName() = Function.OriginalName();
+      }
+
+      revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
+
+      // Run final steps on the CFG
+      New.simplify(*Binary);
+
+      revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
+
+      // TODO: we'd need a function-wise TupleTreeContainer
+      CFGs[EntryAddress] = serializeToString(New);
+
+      // Commit the produced target
+      Context.commit(Target, CFGs.name());
+
+      Context.getContext().popReadFields();
+    }
+  }
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {}
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
 };
 
-void CollectCFG::run() {
-  for (const auto &Function : Binary->Functions()) {
-    auto *Entry = GCBI.getBlockAt(Function.Entry());
-    revng_assert(Entry != nullptr);
+static pipeline::RegisterPipe<CollectCFGPipe> X;
 
-    // Recover the control-flow graph of the function
-    efa::FunctionMetadata New;
-    New.Entry() = Function.Entry();
-    New.ControlFlowGraph() = std::move(Analyzer.analyze(Entry).CFG);
+} // namespace revng::pipes
 
-    revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
-
-    // Run final steps on the CFG
-    New.simplify(*Binary);
-
-    revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
-
-    New.serialize(GCBI);
-  }
-}
-
-bool CollectCFGPass::runOnModule(Module &M) {
-  revng_log(PassesLog, "Starting EarlyFunctionAnalysis");
-
-  if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
-    return false;
-
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
-
-  const TupleTree<model::Binary> &Binary = LMP.getReadOnlyModel();
-
-  using FSOracle = FunctionSummaryOracle;
-  FSOracle Oracle = FSOracle::importBasicPrototypeData(M, GCBI, *Binary);
-  CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
-
-  CollectCFG CFGCollector(GCBI, Binary, Analyzer);
-
-  CFGCollector.run();
-
-  return false;
-}
-
-char CollectCFGPass::ID = 0;
-
-using CFGCollectionPass = RegisterPass<CollectCFGPass>;
-static CFGCollectionPass X("collect-cfg", "CFG Collection Pass", true, true);
-
-} // namespace efa
+static pipeline::RegisterDefaultConstructibleContainer<revng::pipes::CFGMap> X2;

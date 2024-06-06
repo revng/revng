@@ -10,35 +10,35 @@
 
 #include "revng/Model/Function.h"
 
+class LoadModelWrapperPass;
+
 namespace pipeline {
+class LoadExecutionContextPass;
 class ExecutionContext;
 class TargetsList;
+} // namespace pipeline
 
-/// Class to be extended when a pass withes to have access to both
-/// the module and the list of targets to be produced.
-class ModulePass : public llvm::ModulePass {
-  using llvm::ModulePass::ModulePass;
-
-  bool runOnModule(llvm::Module &Module) final;
-
-  virtual bool run(llvm::Module &Module, const TargetsList &Targets) = 0;
-};
+// We shouldn't use the pipeline namespace in revng/Pipes
+namespace pipeline {
 
 /// Extent this class to implement a transformation of the IR that needs to read
 /// the model and operates function wise.
 class FunctionPassImpl {
-private:
+protected:
   llvm::ModulePass *Pass;
 
 public:
   FunctionPassImpl(llvm::ModulePass &Pass) : Pass(&Pass) {}
+
   virtual ~FunctionPassImpl() = default;
 
 public:
-  virtual bool prologue(llvm::Module &Module, const model::Binary &Binary) = 0;
+  virtual bool prologue() { return false; }
 
-  virtual bool runOnFunction(llvm::Function &Function,
-                             const model::Function &ModelFunction) = 0;
+  virtual bool runOnFunction(const model::Function &ModelFunction,
+                             llvm::Function &Function) = 0;
+
+  virtual bool epilogue() { return false; }
 
 public:
   template<typename T>
@@ -53,17 +53,32 @@ concept IsFunctionPipeImpl = std::derived_from<std::decay_t<T>,
 
 namespace detail {
 bool runOnModule(llvm::Module &Module, FunctionPassImpl &Pipe);
-}
+} // namespace detail
 
 /// Wrap your clas deriving from a FunctionPassImpl with this class to turn it
 /// compatible with a llvm passmanager
 template<IsFunctionPipeImpl T>
 class FunctionPass : public llvm::ModulePass {
 public:
-  FunctionPass(char &ID) : llvm::ModulePass::ModulePass(ID) {}
+  static char ID;
+
+public:
+  FunctionPass() : llvm::ModulePass::ModulePass(ID) {}
+
   bool runOnModule(llvm::Module &Module) override {
-    T Payload(*this);
+    T Payload(*this,
+              *getAnalysis<LoadModelWrapperPass>()
+                 .get()
+                 .getReadOnlyModel()
+                 .get(),
+              Module);
     return detail::runOnModule(Module, Payload);
+  }
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const final {
+    AU.addRequired<LoadModelWrapperPass>();
+    AU.addRequired<pipeline::LoadExecutionContextPass>();
+    T::getAnalysisUsage(AU);
   }
 };
 } // namespace pipeline

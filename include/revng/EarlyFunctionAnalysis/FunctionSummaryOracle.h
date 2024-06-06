@@ -102,6 +102,31 @@ public:
   }
 };
 
+enum class PrototypeImportLevel {
+  // Do not import any prototype-related information except for
+  // the callee saved register list (which is ABI-defined for CFTs).
+  None,
+
+  // Only import final stack offset on top of the callee saved register list.
+  Partial,
+
+  // Import everything present in the prototype.
+  Full
+};
+
+struct PrototypeImporter {
+  using Register = model::Register::Values;
+
+public:
+  PrototypeImportLevel Level;
+  llvm::Module &M;
+  CSVSet ABICSVs;
+
+public:
+  FunctionSummary prototype(const AttributesSet &Attributes,
+                            const model::TypePath &Prototype);
+};
+
 /// An oracle providing information about functions.
 ///
 /// This oracle can be populated with analysis results. But even if it has not
@@ -109,6 +134,9 @@ public:
 /// about the function.
 class FunctionSummaryOracle {
 private:
+  const model::Binary &Binary;
+  PrototypeImporter Importer;
+
   /// Call site-specific overrides
   ///
   /// Key is composed by <FunctionEntryPoint, CallSiteBasicBlockAddress>
@@ -123,7 +151,13 @@ private:
   std::map<std::string, FunctionSummary> DynamicFunctions;
 
   /// Default
-  FunctionSummary Default;
+  std::optional<FunctionSummary> Default;
+
+public:
+  FunctionSummaryOracle() = delete;
+  FunctionSummaryOracle(const model::Binary &Binary,
+                        PrototypeImporter Importer) :
+    Binary(Binary), Importer(std::move(Importer)) {}
 
 public:
   /// Create an oracle based on the binary, but importing all the function
@@ -148,15 +182,9 @@ public:
                           const model::Binary &Binary);
 
 public:
-  const FunctionSummary &getDefault() const { return Default; }
+  const FunctionSummary &getDefault();
 
-  const FunctionSummary &getLocalFunction(MetaAddress PC) const {
-    return LocalFunctions.at(PC);
-  }
-
-  FunctionSummary &getLocalFunction(MetaAddress PC) {
-    return LocalFunctions.at(PC);
-  }
+  FunctionSummary &getLocalFunction(MetaAddress PC);
 
   /// \return a description of the call and boolean indicating whether the call
   ///         site is a tail call or not.
@@ -164,7 +192,9 @@ public:
   getCallSite(MetaAddress Function,
               BasicBlockID CallerBlockAddress,
               MetaAddress CalledLocalFunction,
-              llvm::StringRef CalledSymbol) const;
+              llvm::StringRef CalledSymbol);
+
+  const FunctionSummary &getDynamicFunction(llvm::StringRef Name);
 
 public:
   bool registerCallSite(MetaAddress Function,
@@ -182,23 +212,8 @@ public:
     return DynamicFunctions.at(Name.str());
   }
 
-  std::pair<const FunctionSummary *, bool>
-  getExactCallSite(MetaAddress Function, BasicBlockID CallSite) const {
-    auto It = CallSites.find({ Function, CallSite });
-    if (It == CallSites.end())
-      return { nullptr, false };
-    else
-      return { &It->second.first, It->second.second };
-  }
-
   std::pair<FunctionSummary *, bool> getExactCallSite(MetaAddress Function,
-                                                      BasicBlockID CallSite) {
-    auto It = CallSites.find({ Function, CallSite });
-    if (It == CallSites.end())
-      return { nullptr, false };
-    else
-      return { &It->second.first, It->second.second };
-  }
+                                                      BasicBlockID CallSite);
 };
 
 } // namespace efa

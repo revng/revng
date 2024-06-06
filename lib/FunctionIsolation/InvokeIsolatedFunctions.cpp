@@ -32,7 +32,21 @@ struct InvokeIsolatedPipe {
 
   std::vector<pipeline::ContractGroup> getContract() const {
     using namespace revng::kinds;
-    return { pipeline::ContractGroup(Root, 0, IsolatedRoot, 0) };
+    using namespace pipeline;
+
+    // TODO: we're not using the following contract even if we should, probably
+    //       due to some error in the contract logic.
+    //       Specifically, adding this contract leads to deduce that we do *not*
+    //       need /:root at beginning of the recompile-isolated step.
+    ContractGroup IsolatedToRoot(Isolated,
+                                 0,
+                                 IsolatedRoot,
+                                 0,
+                                 pipeline::InputPreservation::Preserve);
+
+    return {
+      ContractGroup(Root, 0, IsolatedRoot, 0, InputPreservation::Erase)
+    };
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {

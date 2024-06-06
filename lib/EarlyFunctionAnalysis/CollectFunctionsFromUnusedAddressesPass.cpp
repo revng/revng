@@ -43,11 +43,9 @@ private:
     for (auto &Function : Binary.Functions()) {
       llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry());
       llvm::Instruction *Term = Entry->getTerminator();
-      auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
 
-      revng_assert(FMMDNode != nullptr);
-
-      const efa::FunctionMetadata &FM = MDCache.getFunctionMetadata(Entry);
+      const efa::FunctionMetadata &FM = MDCache.getFunctionMetadata(Function
+                                                                      .Entry());
       for (const efa::BasicBlock &Block : FM.ControlFlowGraph()) {
         auto Start = Block.ID().start();
         auto End = Block.End();

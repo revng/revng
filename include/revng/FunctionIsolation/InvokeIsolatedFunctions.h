@@ -16,13 +16,14 @@ public:
   static char ID;
 
 public:
-  InvokeIsolatedFunctionsPass() : ModulePass(ID) {}
+  InvokeIsolatedFunctionsPass() : llvm::ModulePass(ID) {}
 
   bool runOnModule(llvm::Module &M) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
     AU.addRequired<LoadModelWrapperPass>();
+    AU.addRequired<pipeline::LoadExecutionContextPass>();
     AU.setPreservesAll();
   }
 };

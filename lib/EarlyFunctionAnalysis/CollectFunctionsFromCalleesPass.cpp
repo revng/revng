@@ -8,7 +8,6 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 
 using namespace llvm;
 

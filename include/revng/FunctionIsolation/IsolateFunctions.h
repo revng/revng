@@ -9,14 +9,13 @@
 #include "llvm/Pass.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/Model/LoadModelPass.h"
 
 class IsolateFunctions : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
-  IsolateFunctions() : ModulePass(ID) {}
+  IsolateFunctions() : llvm::ModulePass(ID) {}
 
   bool runOnModule(llvm::Module &M) override;
 

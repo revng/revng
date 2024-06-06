@@ -18,6 +18,8 @@
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
 using namespace llvm;
@@ -250,14 +252,10 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
 
 OutlinedFunction
 Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
-                                  llvm::BasicBlock *Entry,
+                                  const MetaAddress &FunctionAddress,
                                   OutlinedFunctionsMap &FunctionsToInline) {
   using namespace llvm;
   using llvm::BasicBlock;
-
-  MetaAddress FunctionAddress = getBasicBlockAddress(Entry);
-
-  Function *Root = Entry->getParent();
 
   OutlinedFunction OutlinedFunction;
   OutlinedFunction.Address = FunctionAddress;
@@ -266,8 +264,14 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
 
   auto *AnyPCBB = GCBI.anyPC();
   auto *UnexpectedPCBB = GCBI.unexpectedPC();
+  Function *Root = AnyPCBB->getParent();
 
-  Queue.insert(Entry);
+  BasicBlock *EntryBlock = GCBI.getBlockAt(FunctionAddress);
+  bool HasEntryBlock = EntryBlock != nullptr;
+
+  if (HasEntryBlock)
+    Queue.insert(EntryBlock);
+
   Queue.insert(AnyPCBB);
   Queue.insert(UnexpectedPCBB);
 
@@ -385,6 +389,17 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
         ++ArgNo;
       }
     }
+  }
+
+  if (not HasEntryBlock) {
+    auto *EntryBlock = BasicBlock::Create(Root->getContext(), "", Root);
+    Function *AbortFunction = notNull(Root->getParent()->getFunction("_abort"));
+    IRBuilder<> Builder(EntryBlock);
+    emitCall(Builder,
+             AbortFunction,
+             "This starts at non-executable address",
+             DebugLoc());
+    BlocksToExtract.insert(BlocksToExtract.begin(), EntryBlock);
   }
 
   // Extract outlined function
@@ -522,7 +537,7 @@ private:
   }
 };
 
-OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry,
+OutlinedFunction Outliner::outline(const MetaAddress &Entry,
                                    CallHandler *Handler) {
   using namespace llvm;
 
@@ -549,7 +564,7 @@ OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry,
       for (const auto &[Address, F] : FunctionsToInline) {
         if (F->isDeclaration()) {
           Function *ToInline = createFunctionToInline(Handler,
-                                                      GCBI.getBlockAt(Address),
+                                                      Address,
                                                       FunctionsToInline);
           F->replaceAllUsesWith(ToInline);
           FunctionsToInline.set(Address, ToInline);
@@ -603,7 +618,7 @@ OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry,
 
 llvm::Function *
 Outliner::createFunctionToInline(CallHandler *TheCallHandler,
-                                 llvm::BasicBlock *Entry,
+                                 const MetaAddress &Entry,
                                  OutlinedFunctionsMap &FunctionsToInline) {
   using namespace llvm;
   LLVMContext &Context = M.getContext();

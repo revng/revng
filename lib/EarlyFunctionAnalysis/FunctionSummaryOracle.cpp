@@ -14,93 +14,71 @@ static Logger<> Log("efa-import-model");
 
 namespace efa {
 
-enum class PrototypeImportLevel {
-  // Do not import any prototype-related information except for
-  // the callee saved register list (which is ABI-defined for CFTs).
-  None,
-
-  // Only import final stack offset on top of the callee saved register list.
-  Partial,
-
-  // Import everything present in the prototype.
-  Full
-};
-
-template<PrototypeImportLevel Level>
-struct PrototypeImporter {
-  using Register = model::Register::Values;
-
-public:
-  llvm::Module &M;
-  const CSVSet &ABICSVs;
-
-public:
-  FunctionSummary prototype(const AttributesSet &Attributes,
-                            const model::TypePath &Prototype) {
-    FunctionSummary Summary(Attributes, ABICSVs, {}, {}, {});
-    if (Prototype.empty())
-      return Summary;
-
-    // Drop known to be preserved registers from `Summary.ClobberedRegisters`.
-    auto TransformToCSV = std::views::transform([this](Register Register) {
-      return M.getGlobalVariable(model::Register::getCSVName(Register), true);
-    });
-    auto IgnoreNullptr = std::views::filter([](const auto *Pointer) -> bool {
-      return Pointer != nullptr;
-    });
-    for (auto *CSV : abi::FunctionType::calleeSavedRegisters(Prototype)
-                       | TransformToCSV | IgnoreNullptr) {
-      Summary.ClobberedRegisters.erase(CSV);
-    }
-
-    // Stop importing prototype here, if `ClobberedRegisters` is the only
-    // information callee needs.
-    if constexpr (Level == PrototypeImportLevel::None)
-      return Summary;
-
-    Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
-
-    // Stop importing prototype here, if callee also needs final stack offset.
-    if constexpr (Level == PrototypeImportLevel::None)
-      return Summary;
-
-    for (llvm::GlobalVariable *CSV : ABICSVs) {
-      Summary.ABIResults.ArgumentsRegisters.erase(CSV);
-      Summary.ABIResults.ReturnValuesRegisters.erase(CSV);
-    }
-
-    auto [ArgumentRegisters,
-          ReturnValueRegisters] = abi::FunctionType::usedRegisters(Prototype);
-    for (Register ArgumentRegister : ArgumentRegisters) {
-      llvm::StringRef Name = model::Register::getCSVName(ArgumentRegister);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-        Summary.ABIResults.ArgumentsRegisters.insert(CSV);
-    }
-
-    for (Register ReturnValueRegister : ReturnValueRegisters) {
-      llvm::StringRef Name = model::Register::getCSVName(ReturnValueRegister);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-        Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
-    }
-
-    // This point is only ever reached on the "full" import (like the one
-    // DetectABI does) - the proper function summary in extracted.
+FunctionSummary PrototypeImporter::prototype(const AttributesSet &Attributes,
+                                             const model::TypePath &Prototype) {
+  FunctionSummary Summary(Attributes, ABICSVs, {}, {}, {});
+  if (Prototype.empty())
     return Summary;
+
+  // Drop known to be preserved registers from `Summary.ClobberedRegisters`.
+  auto TransformToCSV = std::views::transform([this](Register Register) {
+    return M.getGlobalVariable(model::Register::getCSVName(Register), true);
+  });
+  auto IgnoreNullptr = std::views::filter([](const auto *Pointer) -> bool {
+    return Pointer != nullptr;
+  });
+  for (auto *CSV : abi::FunctionType::calleeSavedRegisters(Prototype)
+                     | TransformToCSV | IgnoreNullptr) {
+    Summary.ClobberedRegisters.erase(CSV);
   }
-};
+
+  // Stop importing prototype here, if `ClobberedRegisters` is the only
+  // information callee needs.
+  if (Level == PrototypeImportLevel::None)
+    return Summary;
+
+  Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
+
+  // Stop importing prototype here, if callee also needs final stack offset.
+  if (Level == PrototypeImportLevel::None)
+    return Summary;
+
+  for (llvm::GlobalVariable *CSV : ABICSVs) {
+    Summary.ABIResults.ArgumentsRegisters.erase(CSV);
+    Summary.ABIResults.ReturnValuesRegisters.erase(CSV);
+  }
+
+  auto [ArgumentRegisters,
+        ReturnValueRegisters] = abi::FunctionType::usedRegisters(Prototype);
+  for (Register ArgumentRegister : ArgumentRegisters) {
+    llvm::StringRef Name = model::Register::getCSVName(ArgumentRegister);
+    if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
+      Summary.ABIResults.ArgumentsRegisters.insert(CSV);
+  }
+
+  for (Register ReturnValueRegister : ReturnValueRegisters) {
+    llvm::StringRef Name = model::Register::getCSVName(ReturnValueRegister);
+    if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
+      Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
+  }
+
+  // This point is only ever reached on the "full" import (like the one
+  // DetectABI does) - the proper function summary in extracted.
+  return Summary;
+}
 
 std::pair<const FunctionSummary *, bool>
 FunctionSummaryOracle::getCallSite(MetaAddress Function,
                                    BasicBlockID CallerBlockAddress,
                                    MetaAddress CalledLocalFunction,
-                                   llvm::StringRef CalledSymbol) const {
+                                   llvm::StringRef CalledSymbol) {
   auto [Summary, IsTailCall] = getExactCallSite(Function, CallerBlockAddress);
   if (Summary != nullptr) {
     return { Summary, IsTailCall };
   } else if (not CalledSymbol.empty()) {
     return { &getDynamicFunction(CalledSymbol), false };
   } else if (CalledLocalFunction.isValid()
-             and LocalFunctions.contains(CalledLocalFunction)) {
+             and Binary.Functions().contains(CalledLocalFunction)) {
     return { &getLocalFunction(CalledLocalFunction), false };
   } else {
     return { &getDefault(), false };
@@ -167,68 +145,88 @@ bool FunctionSummaryOracle::registerDynamicFunction(llvm::StringRef Name,
   }
 }
 
-template<PrototypeImportLevel Level>
-FunctionSummaryOracle importImpl(llvm::Module &M,
-                                 GeneratedCodeBasicInfo &GCBI,
-                                 const model::Binary &Binary) {
-  FunctionSummaryOracle Oracle;
+const FunctionSummary &FunctionSummaryOracle::getDefault() {
+  if (not Default.has_value())
+    setDefault(Importer.prototype({}, Binary.DefaultPrototype()));
+  return Default.value();
+}
 
-  LoggerIndent Indent(Log);
-
-  using GV = llvm::GlobalVariable;
-  auto RegisterFilter = std::views::filter([SP = GCBI.spReg()](GV *CSV) {
-    return CSV != nullptr && CSV != SP;
-  });
-  PrototypeImporter<Level> Importer{ .M = M,
-                                     .ABICSVs = GCBI.abiRegisters()
-                                                | RegisterFilter
-                                                | revng::to<CSVSet>() };
-
-  // Import the default prototype
-  Oracle.setDefault(Importer.prototype({}, Binary.DefaultPrototype()));
-
-  std::map<llvm::BasicBlock *, MetaAddress> InlineFunctions;
-
-  // Import existing functions from model
-  for (const model::Function &Function : Binary.Functions()) {
-    // Import call-site specific information
-    for (const model::CallSitePrototype &CallSite :
-         Function.CallSitePrototypes()) {
-
-      AttributesSet Attributes;
-      for (auto &ToCopy : CallSite.Attributes())
-        Attributes.insert(ToCopy);
-      Oracle.registerCallSite(Function.Entry(),
-                              BasicBlockID(CallSite.CallerBlockAddress()),
-                              Importer.prototype(Attributes,
-                                                 CallSite.prototype()),
-                              CallSite.IsTailCall());
-    }
-
+FunctionSummary &FunctionSummaryOracle::getLocalFunction(MetaAddress PC) {
+  if (not LocalFunctions.contains(PC)) {
+    const model::Function &Function = Binary.Functions().at(PC);
     AttributesSet Attributes;
     for (auto &ToCopy : Function.Attributes())
       Attributes.insert(ToCopy);
     auto Summary = Importer.prototype(Attributes, Function.prototype(Binary));
-
-    // Create function to inline, if necessary
-    if (Summary.Attributes.contains(model::FunctionAttribute::Inline))
-      InlineFunctions[GCBI.getBlockAt(Function.Entry())] = Function.Entry();
-
-    Oracle.registerLocalFunction(Function.Entry(), std::move(Summary));
+    registerLocalFunction(Function.Entry(), std::move(Summary));
   }
 
-  // Register all dynamic symbols
-  for (const auto &DynamicFunction : Binary.ImportedDynamicFunctions()) {
+  return LocalFunctions.at(PC);
+}
+
+const FunctionSummary &
+FunctionSummaryOracle::getDynamicFunction(llvm::StringRef Name) {
+  if (not DynamicFunctions.contains(Name.str())) {
+    const auto &DynamicFunction = Binary.ImportedDynamicFunctions()
+                                    .at(Name.str());
     const auto &Prototype = DynamicFunction.prototype(Binary);
     AttributesSet Attributes;
     for (auto &ToCopy : DynamicFunction.Attributes())
       Attributes.insert(ToCopy);
 
-    Oracle.registerDynamicFunction(DynamicFunction.OriginalName(),
-                                   Importer.prototype(Attributes, Prototype));
+    registerDynamicFunction(DynamicFunction.OriginalName(),
+                            Importer.prototype(Attributes, Prototype));
   }
+  return DynamicFunctions.at(Name.str());
+}
 
-  return Oracle;
+std::pair<FunctionSummary *, bool>
+FunctionSummaryOracle::getExactCallSite(MetaAddress Entry,
+                                        BasicBlockID CallSiteAddress) {
+  auto It = CallSites.find({ Entry, CallSiteAddress });
+  if (It == CallSites.end()) {
+    // Note: in case of absence we're doing the lookup every time, not super
+    // efficient.
+
+    const model::Function &Function = Binary.Functions().at(Entry);
+
+    // TODO: should CallSitePrototypes be index by BasicBlockID?
+    if (auto *CallSite = Function.CallSitePrototypes()
+                           .tryGet(CallSiteAddress.start())) {
+
+      AttributesSet Attributes;
+      for (auto &ToCopy : CallSite->Attributes())
+        Attributes.insert(ToCopy);
+      registerCallSite(Function.Entry(),
+                       BasicBlockID(CallSite->CallerBlockAddress()),
+                       Importer.prototype(Attributes, CallSite->prototype()),
+                       CallSite->IsTailCall());
+    }
+  }
+  It = CallSites.find({ Entry, CallSiteAddress });
+  if (It == CallSites.end()) {
+    return { nullptr, false };
+  } else {
+    return { &It->second.first, It->second.second };
+  }
+}
+
+template<PrototypeImportLevel Level>
+FunctionSummaryOracle importImpl(llvm::Module &M,
+                                 GeneratedCodeBasicInfo &GCBI,
+                                 const model::Binary &Binary) {
+  using GV = llvm::GlobalVariable;
+  auto RegisterFilter = std::views::filter([SP = GCBI.spReg()](GV *CSV) {
+    return CSV != nullptr && CSV != SP;
+  });
+  PrototypeImporter Importer{
+    .Level = Level,
+    .M = M,
+    .ABICSVs = GCBI.abiRegisters() | RegisterFilter
+               | revng::to<std::set<llvm::GlobalVariable *>>()
+  };
+
+  return FunctionSummaryOracle(Binary, std::move(Importer));
 }
 
 FunctionSummaryOracle

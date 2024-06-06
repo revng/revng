@@ -74,11 +74,14 @@ Branches:
             UsedContainers: [module.ll]
       - Name: isolate
         Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [module.ll]
-            Passes: [isolate, invoke-isolated-functions, attach-debug-info]
+          - Type: collect-cfg
+            UsedContainers: [module.ll, cfg.yml]
+          - Type: isolate
+            UsedContainers: [cfg.yml, module.ll]
+          - Type: attach-debug-info-to-isolated
+            UsedContainers: [cfg.yml, module.ll]
           - Type: process-call-graph
-            UsedContainers: [module.ll, cross-relations.yml]
+            UsedContainers: [cfg.yml, cross-relations.yml]
         Artifacts:
           Container: module.ll
           Kind: isolated
@@ -89,7 +92,11 @@ Branches:
             UsedContainers: [module.ll]
             Passes:
               - drop-root
-              - enforce-abi
+          - Type: enforce-abi
+            UsedContainers: [cfg.yml, module.ll]
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes:
               - strip-debug-info-from-helpers
               # Note: we're running promote-csvs twice: it is important to run
               #       it before inline-helpers so that mem2reg can constant
@@ -99,7 +106,11 @@ Branches:
               - promote-csvs
               - mem2reg
               - inline-helpers
-              - attach-debug-info
+          - Type: attach-debug-info-to-abi-enforced
+            UsedContainers: [cfg.yml, module.ll]
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes:
               - promote-csvs
               - remove-exceptional-functions
 
@@ -109,10 +120,18 @@ Branches:
           SingleTargetFilename: module_abienforced.ll
   - From: isolate
     Steps:
+      - Name: emit-cfg
+        Pipes: []
+        Artifacts:
+          Container: cfg.yml
+          Kind: cfg
+          SingleTargetFilename: cfg.yml
+  - From: isolate
+    Steps:
       - Name: hexdump
         Pipes:
           - Type: hex-dump
-            UsedContainers: [input, module.ll, hex.dump]
+            UsedContainers: [input, module.ll, cfg.yml, hex.dump]
         Artifacts:
           Container: hex.dump
           Kind: hex-dump
@@ -132,7 +151,7 @@ Branches:
       - Name: render-svg-call-graph-slice
         Pipes:
           - Type: yield-call-graph-slice
-            UsedContainers: [module.ll, cross-relations.yml, call-graph-slice.svg.tar.gz]
+            UsedContainers: [cfg.yml, cross-relations.yml, call-graph-slice.svg.tar.gz]
         Artifacts:
           Container: call-graph-slice.svg.tar.gz
           Kind: call-graph-slice-svg
@@ -142,7 +161,7 @@ Branches:
       - Name: process-assembly
         Pipes:
           - Type: process-assembly
-            UsedContainers: [input, module.ll, assembly-internal.yml.tar.gz]
+            UsedContainers: [input, cfg.yml, assembly-internal.yml.tar.gz]
       - Name: disassemble
         Pipes:
           - Type: yield-assembly
@@ -186,6 +205,9 @@ Branches:
     Steps:
       - Name: recompile-isolated
         Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes: [invoke-isolated-functions]
           - Type: link-support
             UsedContainers: [module.ll]
           - Type: llvm-pipe
@@ -203,16 +225,6 @@ Branches:
           Container: output
           Kind: translated
           SingleTargetFilename: isolated-translated-binary
-  - From: isolate
-    Steps:
-      - Name: emit-cfg
-        Pipes:
-          - Type: emit-cfg
-            UsedContainers: [module.ll, cfg.yml]
-        Artifacts:
-          Container: cfg.yml
-          Kind: cfg
-          SingleTargetFilename: cfg.yml
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:

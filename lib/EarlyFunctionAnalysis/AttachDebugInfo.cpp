@@ -27,12 +27,33 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 
-#include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/FunctionTags.h"
 
 using namespace llvm;
+
+class AttachDebugInfo : public llvm::ModulePass {
+public:
+  static char ID;
+
+public:
+  AttachDebugInfo() : llvm::ModulePass(ID) {}
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
+    AU.addRequired<FunctionMetadataCachePass>();
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  }
+
+  bool runOnModule(llvm::Module &M) override;
+};
 
 char AttachDebugInfo::ID = 0;
 
@@ -177,3 +198,75 @@ bool AttachDebugInfo::runOnModule(llvm::Module &M) {
 
   return true;
 }
+
+// Note: unfortunately, due to the presence of kinds, we need two distinct pipes
+
+struct AttachDebugInfoToIsolatedPipe {
+  static constexpr auto Name = "attach-debug-info-to-isolated";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace revng;
+    using namespace pipeline;
+    return { ContractGroup({ Contract(kinds::CFG,
+                                      0,
+                                      kinds::Isolated,
+                                      1,
+                                      InputPreservation::Preserve),
+                             Contract(kinds::Isolated,
+                                      1,
+                                      kinds::Isolated,
+                                      1,
+                                      InputPreservation::Preserve) }) };
+  }
+
+  void run(pipeline::ExecutionContext &Ctx,
+           const revng::pipes::CFGMap &CFGMap,
+           pipeline::LLVMContainer &Module) {
+    llvm::legacy::PassManager Manager;
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new FunctionMetadataCachePass(CFGMap));
+    Manager.add(new AttachDebugInfo());
+    Manager.run(Module.getModule());
+  }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
+};
+
+static pipeline::RegisterPipe<AttachDebugInfoToIsolatedPipe> Y1;
+
+struct AttachDebugInfoToABIEnforcedPipe {
+  static constexpr auto Name = "attach-debug-info-to-abi-enforced";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace revng;
+    using namespace pipeline;
+    return { ContractGroup({ Contract(kinds::ABIEnforced,
+                                      1,
+                                      kinds::ABIEnforced,
+                                      1,
+                                      InputPreservation::Preserve),
+                             Contract(kinds::CFG,
+                                      0,
+                                      kinds::Isolated,
+                                      1,
+                                      InputPreservation::Preserve) }) };
+  }
+
+  void run(pipeline::ExecutionContext &Ctx,
+           const revng::pipes::CFGMap &CFGMap,
+           pipeline::LLVMContainer &Module) {
+    llvm::legacy::PassManager Manager;
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new FunctionMetadataCachePass(CFGMap));
+    Manager.add(new AttachDebugInfo());
+    Manager.run(Module.getModule());
+  }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
+};
+
+static pipeline::RegisterPipe<AttachDebugInfoToABIEnforcedPipe> Y2;

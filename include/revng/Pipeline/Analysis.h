@@ -89,6 +89,12 @@ public:
     return Invokable.run(Ctx, Containers, ExtraArgs);
   }
 
+  void invalidate(const GlobalTupleTreeDiff &Diff,
+                  ContainerToTargetsMap &Map,
+                  const ContainerSet &Containers) const override {
+    revng_abort();
+  }
+
   std::vector<std::string> getOptionsNames() const override {
     return Invokable.getOptionsNames();
   }

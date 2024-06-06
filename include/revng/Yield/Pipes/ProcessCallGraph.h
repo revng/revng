@@ -8,8 +8,10 @@
 #include <string>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
@@ -18,7 +20,6 @@
 #include "revng/Pipes/StringMap.h"
 #include "revng/Pipes/TupleTreeContainer.h"
 #include "revng/Yield/CrossRelations/CrossRelations.h"
-#include "revng/Yield/Generated/ForwardDecls.h"
 
 namespace revng::pipes {
 
@@ -55,16 +56,17 @@ public:
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(kinds::Isolated,
-                                     0,
-                                     kinds::BinaryCrossRelations,
-                                     1,
-                                     pipeline::InputPreservation::Preserve) };
+    using namespace pipeline;
+    return { ContractGroup(kinds::CFG,
+                           0,
+                           kinds::BinaryCrossRelations,
+                           1,
+                           pipeline::InputPreservation::Preserve) };
   }
 
 public:
   void run(pipeline::ExecutionContext &Context,
-           const pipeline::LLVMContainer &TargetsList,
+           const CFGMap &CFGMap,
            CrossRelationsFileContainer &OutputFile);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

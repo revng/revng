@@ -13,6 +13,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Pipes/TupleTreeContainer.h"
+#include "revng/TupleTree/TupleTree.h"
 #include "revng/Yield/CrossRelations/CrossRelations.h"
 #include "revng/Yield/Generated/ForwardDecls.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
@@ -25,18 +26,16 @@ using ptml::PTMLBuilder;
 namespace revng::pipes {
 
 void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
-                           const pipeline::LLVMContainer &TargetList,
+                           const CFGMap &CFGMap,
                            CrossRelationsFileContainer &OutputFile) {
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
-  // Access the llvm module
-  const llvm::Module &Module = TargetList.getModule();
-
   // Gather function metadata
   SortedVector<efa::FunctionMetadata> Metadata;
-  for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module))
-    Metadata.insert(*::detail::extractFunctionMetadata(&LLVMFunction));
+  for (const auto &[Address, CFGString] : CFGMap)
+    Metadata
+      .insert(*TupleTree<efa::FunctionMetadata>::deserialize(CFGString)->get());
 
   // If some functions are missing, do not output anything
   if (Metadata.size() != Model->Functions().size())
@@ -72,24 +71,25 @@ void YieldCallGraph::print(const pipeline::Context &,
 }
 
 void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
-                              const pipeline::LLVMContainer &TargetList,
+                              const CFGMap &CFGMap,
                               const CrossRelationsFileContainer &Relations,
                               CallGraphSliceSVGStringMap &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
 
   // Access the llvm module
-  const llvm::Module &Module = TargetList.getModule();
   PTMLBuilder ThePTMLBuilder;
-  FunctionMetadataCache Cache;
-  for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
-    auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
+
+  FunctionMetadataCache Cache(CFGMap);
+  for (const auto &[Key, _] : CFGMap) {
+    MetaAddress Address = std::get<0>(Key);
+    auto &Metadata = Cache.getFunctionMetadata(Address);
     revng_assert(llvm::is_contained(Model->Functions(), Metadata.Entry()));
 
     // Slice the graph for the current function and convert it to SVG
     auto SlicePoint = pipeline::serializedLocation(revng::ranks::Function,
                                                    Metadata.Entry());
-    Output.insert_or_assign(Metadata.Entry(),
+    Output.insert_or_assign(Address,
                             yield::svg::callGraphSlice(ThePTMLBuilder,
                                                        SlicePoint,
                                                        *Relations.get(),

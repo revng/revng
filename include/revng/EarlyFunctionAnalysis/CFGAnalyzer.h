@@ -69,7 +69,7 @@ private:
   llvm::Module &M;
   GeneratedCodeBasicInfo &GCBI;
   const ProgramCounterHandler *PCH;
-  const FunctionSummaryOracle &Oracle;
+  FunctionSummaryOracle &Oracle;
   const TupleTree<model::Binary> &Binary;
 
   llvm::SmallVector<llvm::GlobalVariable *, 16> ABICSVs;
@@ -92,7 +92,7 @@ public:
   CFGAnalyzer(llvm::Module &M,
               GeneratedCodeBasicInfo &GCBI,
               const TupleTree<model::Binary> &Binary,
-              const FunctionSummaryOracle &Oracle);
+              FunctionSummaryOracle &Oracle);
 
 public:
   llvm::Function *preCallHook() const { return PreCallHook.get(); }
@@ -101,9 +101,9 @@ public:
   const auto &abiCSVs() const { return ABICSVs; }
 
 public:
-  FunctionSummary analyze(llvm::BasicBlock *Entry);
+  FunctionSummary analyze(const MetaAddress &Entry);
 
-  OutlinedFunction outline(llvm::BasicBlock *Entry);
+  OutlinedFunction outline(const MetaAddress &Entry);
 
 private:
   static llvm::FunctionType *createCallMarkerType(llvm::Module &M);

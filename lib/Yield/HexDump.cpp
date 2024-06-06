@@ -11,6 +11,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/PTML/Tag.h"
@@ -34,6 +35,7 @@ static FormattedNumber formatNumber(uint64_t Number, unsigned Width = 8) {
 
 static void outputHexDump(const TupleTree<model::Binary> &Binary,
                           const pipeline::LLVMContainer &Module,
+                          const CFGMap &CFGMap,
                           const BinaryFileContainer &SourceBinary,
                           StringRef OutputPath) {
   auto BufferOrError = MemoryBuffer::getFileOrSTDIN(*SourceBinary.path());
@@ -45,7 +47,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 
   revng_assert(not ErrorCode, "Could not open file!");
 
-  FunctionMetadataCache FunctionMetadataCache;
+  FunctionMetadataCache FunctionMetadataCache(CFGMap);
 
   using boost::icl::discrete_interval;
   using boost::icl::inplace_plus;
@@ -241,39 +243,49 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 class HexDumpPipe {
 public:
   static constexpr auto Name = "hex-dump";
-
-  std::array<pipeline::ContractGroup, 2> getContract() const {
-    const pipeline::Contract
-      FunctionsContract(kinds::Isolated,
-                        1,
-                        kinds::HexDump,
-                        2,
-                        pipeline::InputPreservation::Preserve);
-    const pipeline::Contract
-      BinaryContract(kinds::Binary,
-                     0,
-                     kinds::HexDump,
-                     2,
-                     pipeline::InputPreservation::Preserve);
-    return { pipeline::ContractGroup({ FunctionsContract, BinaryContract }) };
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    return { ContractGroup({ Contract(kinds::Binary,
+                                      0,
+                                      kinds::HexDump,
+                                      3,
+                                      InputPreservation::Preserve),
+                             Contract(kinds::Isolated,
+                                      1,
+                                      kinds::HexDump,
+                                      3,
+                                      InputPreservation::Preserve),
+                             Contract(kinds::CFG,
+                                      2,
+                                      kinds::HexDump,
+                                      3,
+                                      InputPreservation::Preserve) }) };
   }
 
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            const pipeline::LLVMContainer &Module,
+           const CFGMap &CFGMap,
            HexDumpFileContainer &Output) {
-    pipeline::TargetsList Enumeration = Module.enumerate();
 
-    if (not Enumeration.contains(kinds::Isolated.allTargets(Ctx.getContext())))
+    // This pipe works only if we have all the targets
+    pipeline::TargetsList FunctionList = Module.enumerate();
+    if (not FunctionList.contains(kinds::Isolated.allTargets(Ctx.getContext())))
       return;
 
     if (not SourceBinary.exists())
       return;
 
-    const TupleTree<model::Binary> &Binary = getModelFromContext(Ctx);
+    pipeline::TargetsList CFGList = CFGMap.enumerate();
+    if (not CFGList.contains(kinds::CFG.allTargets(Ctx.getContext())))
+      return;
 
-    StringRef OutputPath = Output.getOrCreatePath();
-    outputHexDump(Binary, Module, SourceBinary, OutputPath);
+    // Proceed with emission
+    outputHexDump(getModelFromContext(Ctx),
+                  Module,
+                  CFGMap,
+                  SourceBinary,
+                  Output.getOrCreatePath());
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

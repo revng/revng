@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
@@ -24,26 +25,21 @@ public:
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    pipeline::Contract BinaryContract(kinds::Binary,
-                                      0,
-                                      kinds::Binary,
-                                      0,
-                                      pipeline::InputPreservation::Preserve);
+    using namespace pipeline;
 
-    pipeline::Contract FunctionContract(kinds::Isolated,
-                                        1,
-                                        kinds::FunctionAssemblyInternal,
-                                        2,
-                                        pipeline::InputPreservation::Preserve);
-
-    return { pipeline::ContractGroup{ std::move(BinaryContract),
-                                      std::move(FunctionContract) } };
+    return { ContractGroup{
+      Contract(kinds::Binary, 0, kinds::Binary, 0, InputPreservation::Preserve),
+      Contract(kinds::CFG,
+               1,
+               kinds::FunctionAssemblyInternal,
+               2,
+               InputPreservation::Preserve) } };
   }
 
 public:
   void run(pipeline::ExecutionContext &Context,
            const BinaryFileContainer &SourceBinary,
-           const pipeline::LLVMContainer &TargetsList,
+           const CFGMap &CFGMap,
            FunctionAssemblyStringMap &OutputAssembly);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

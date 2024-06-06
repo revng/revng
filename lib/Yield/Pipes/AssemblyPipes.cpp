@@ -26,7 +26,7 @@ namespace revng::pipes {
 
 void ProcessAssembly::run(pipeline::ExecutionContext &Context,
                           const BinaryFileContainer &SourceBinary,
-                          const pipeline::LLVMContainer &TargetList,
+                          const CFGMap &CFGMap,
                           FunctionAssemblyStringMap &Output) {
   if (not SourceBinary.exists())
     return;
@@ -40,17 +40,15 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
   revng_assert(MaybeBinary);
   const RawBinaryView &BinaryView = MaybeBinary->first;
 
-  // Access the llvm module
-  const llvm::Module &Module = TargetList.getModule();
-
   // Define the helper object to store the disassembly pipeline.
   // This allows it to only be created once.
   DissassemblyHelper Helper;
 
-  FunctionMetadataCache Cache;
-  for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
-    const auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model->Functions().find(Metadata.Entry());
+  FunctionMetadataCache Cache(CFGMap);
+  for (const auto &[Key, _] : CFGMap) {
+    MetaAddress Address = std::get<0>(Key);
+    const auto &Metadata = Cache.getFunctionMetadata(Address);
+    auto ModelFunctionIterator = Model->Functions().find(Address);
     revng_assert(ModelFunctionIterator != Model->Functions().end());
 
     const auto &Func = *ModelFunctionIterator;

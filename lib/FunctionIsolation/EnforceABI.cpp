@@ -10,8 +10,10 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
@@ -22,15 +24,18 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
-#include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/RevngPasses.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/BlockType.h"
@@ -41,94 +46,80 @@
 
 using namespace llvm;
 
-char EnforceABI::ID = 0;
-using Register = RegisterPass<EnforceABI>;
-static Register X("enforce-abi", "Enforce ABI Pass", true, true);
-
-static Logger<> EnforceABILog("enforce-abi");
-
-struct EnforceABIPipe {
-  static constexpr auto Name = "enforce-abi";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace pipeline;
-    using namespace ::revng::kinds;
-    return { ContractGroup::transformOnlyArgument(Isolated,
-                                                  ABIEnforced,
-                                                  InputPreservation::Erase) };
-  }
-
-  void registerPasses(llvm::legacy::PassManager &Manager) {
-    Manager.add(new EnforceABI());
-  }
-};
-
-static pipeline::RegisterLLVMPass<EnforceABIPipe> Y;
-
-class EnforceABIImpl {
-public:
-  EnforceABIImpl(Module &M,
-                 GeneratedCodeBasicInfo &GCBI,
-                 const model::Binary &Binary,
-                 FunctionMetadataCache &Cache) :
-    M(M),
-    GCBI(GCBI),
-    FunctionDispatcher(M.getFunction("function_dispatcher")),
-    Context(M.getContext()),
-    Initializers(&M),
-    Binary(Binary),
-    Cache(&Cache) {}
-
-  void run();
+class EnforceABI final : public pipeline::FunctionPassImpl {
+private:
+  using UsedRegisters = abi::FunctionType::UsedRegisters;
 
 private:
-  Function *handleFunction(Function &OldFunction,
-                           const model::Function &FunctionModel);
+  const model::Binary &Binary;
+  llvm::Module &M;
+  std::map<Function *, Function *> OldToNew;
+  std::vector<Function *> OldFunctions;
+  Function *FunctionDispatcher = nullptr;
+  StructInitializers Initializers;
+  FunctionMetadataCache &Cache;
+  pipeline::LoadExecutionContextPass &LECP;
+  GeneratedCodeBasicInfo &GCBI;
+
+public:
+  EnforceABI(llvm::ModulePass &Pass,
+             const model::Binary &Binary,
+             llvm::Module &M) :
+    pipeline::FunctionPassImpl(Pass),
+    Binary(Binary),
+    M(M),
+    Initializers(&M),
+    Cache(getAnalysis<FunctionMetadataCachePass>().get()),
+    LECP(getAnalysis<pipeline::LoadExecutionContextPass>()),
+    GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()) {}
+
+  ~EnforceABI() final = default;
+
+public:
+  bool prologue() final;
+
+  bool runOnFunction(const model::Function &ModelFunction,
+                     llvm::Function &Function) final;
+
+  bool epilogue() final;
+
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU);
+
+private:
+  Function *getOrCreateNewFunction(Function &OldFunction,
+                                   const UsedRegisters &UsedRegisters);
 
   Function *recreateFunction(Function &OldFunction,
-                             const model::TypePath &Prototype);
+                             const UsedRegisters &UsedRegisters);
 
   void createPrologue(Function *NewFunction,
-                      const model::Function &FunctionModel);
+                      const UsedRegisters &UsedRegisters);
 
-  void handleRegularFunctionCall(CallInst *Call);
+  void handleRegularFunctionCall(const MetaAddress &CallerAddress,
+                                 CallInst *Call);
   CallInst *generateCall(IRBuilder<> &Builder,
                          MetaAddress Entry,
                          FunctionCallee Callee,
                          const efa::BasicBlock &CallSiteBlock,
                          const efa::CallEdge &CallSite);
-
-private:
-  Module &M;
-  GeneratedCodeBasicInfo &GCBI;
-  std::map<Function *, const model::Function *> FunctionsMap;
-  std::map<Function *, Function *> OldToNew;
-  Function *FunctionDispatcher;
-  LLVMContext &Context;
-  StructInitializers Initializers;
-  const model::Binary &Binary;
-  FunctionMetadataCache *Cache;
 };
 
-bool EnforceABI::runOnModule(Module &M) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  // TODO: prepopulate type system with basic types of the ABI, so this can be
-  //       const
-  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel().get();
+template<>
+char pipeline::FunctionPass<EnforceABI>::ID = 0;
 
-  EnforceABIImpl Impl(M,
-                      GCBI,
-                      Binary,
-                      getAnalysis<FunctionMetadataCachePass>().get());
-  Impl.run();
-  return false;
-}
+using Register = RegisterPass<pipeline::FunctionPass<EnforceABI>>;
 
-void EnforceABIImpl::run() {
-  std::vector<Function *> OldFunctions;
+static Register X("enforce-abi", "Enforce ABI Pass", true, true);
+
+static Logger<> EnforceABILog("enforce-abi");
+
+bool EnforceABI::prologue() {
+  FunctionDispatcher = M.getFunction("function_dispatcher");
+
   if (FunctionDispatcher != nullptr)
     OldFunctions.push_back(FunctionDispatcher);
+
+  // TODO: make this lazy and push to runOnFunction
 
   // Recreate dynamic functions with arguments
   for (const model::DynamicFunction &FunctionModel :
@@ -141,8 +132,9 @@ void EnforceABIImpl::run() {
       continue;
     OldFunctions.push_back(OldFunction);
 
-    Function *NewFunction = recreateFunction(*OldFunction,
-                                             FunctionModel.prototype(Binary));
+    model::TypePath Prototype = FunctionModel.prototype(Binary);
+    auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+    Function *NewFunction = recreateFunction(*OldFunction, UsedRegisters);
 
     // EnforceABI currently does not support execution
     NewFunction->deleteBody();
@@ -153,45 +145,56 @@ void EnforceABIImpl::run() {
     OldToNew[OldFunction] = NewFunction;
   }
 
-  // Recreate isolated functions with arguments
-  for (const model::Function &FunctionModel : Binary.Functions()) {
-    revng_assert(not FunctionModel.name().empty());
-    auto OldFunctionName = (Twine("local_") + FunctionModel.name()).str();
-    Function *OldFunction = M.getFunction(OldFunctionName);
-    revng_assert(OldFunction != nullptr);
-    OldFunctions.push_back(OldFunction);
+  return true;
+}
 
-    Function *NewFunction = handleFunction(*OldFunction, FunctionModel);
+bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
+                               llvm::Function &OldFunction) {
+  revng_assert(not FunctionModel.name().empty());
+  auto OldFunctionName = getLLVMFunctionName(FunctionModel);
+  OldFunctions.push_back(&OldFunction);
 
-    FunctionsMap[NewFunction] = &FunctionModel;
-    OldToNew[OldFunction] = NewFunction;
+  // Recreate the function with the right prototype and the function prologue
+  const model::TypePath &Prototype = FunctionModel.prototype(Binary);
+  auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+  Function *NewFunction = getOrCreateNewFunction(OldFunction, UsedRegisters);
+
+  // Collect function calls
+  SmallVector<CallInst *, 16> Calls;
+  for (Instruction &I : llvm::instructions(NewFunction)) {
+    if (auto *Call = dyn_cast<CallInst>(&I)) {
+      // All the calls are still calling the old function
+      Function *Callee = Call->getCalledFunction();
+
+      // Mainly for dynamic functions
+      bool Recreated = OldToNew.contains(Callee);
+      if (Recreated or isCallToIsolatedFunction(Call)
+          or Callee == FunctionDispatcher) {
+        Calls.emplace_back(Call);
+      }
+    }
   }
 
-  auto IsInIsolatedFunction = [this](Instruction *I) -> bool {
-    return FunctionsMap.contains(I->getParent()->getParent());
-  };
+  // Actually process function calls
+  for (CallInst *Call : Calls)
+    handleRegularFunctionCall(FunctionModel.Entry(), Call);
 
-  // Handle function calls in isolated functions
-  std::vector<CallInst *> RegularCalls;
-  for (auto *F : OldFunctions)
-    for (User *U : F->users())
-      if (auto *Call = dyn_cast<CallInst>(skipCasts(U)))
-        if (IsInIsolatedFunction(Call))
-          RegularCalls.push_back(Call);
+  return true;
+}
 
-  for (CallInst *Call : RegularCalls)
-    handleRegularFunctionCall(Call);
-
+bool EnforceABI::epilogue() {
   // Drop all the old functions, after we stole all of its blocks
   for (Function *OldFunction : OldFunctions)
     eraseFromParent(OldFunction);
 
   // Quick and dirty DCE
-  for (auto [F, _] : FunctionsMap)
+  for (auto [_, F] : OldToNew)
     if (not F->isDeclaration())
       EliminateUnreachableBlocks(*F, nullptr, false);
 
   revng::verify(&M);
+
+  return true;
 }
 
 using UsedRegisters = abi::FunctionType::UsedRegisters;
@@ -224,26 +227,33 @@ getLLVMReturnTypeAndArguments(llvm::Module *M, const UsedRegisters &Registers) {
   return { ReturnType, ArgumentsTypes };
 }
 
-Function *EnforceABIImpl::handleFunction(Function &OldFunction,
-                                         const model::Function &FunctionModel) {
-  bool IsDeclaration = OldFunction.isDeclaration();
+Function *
+EnforceABI::getOrCreateNewFunction(Function &OldFunction,
+                                   const UsedRegisters &UsedRegisters) {
+  // NOTE: all the model *must* be read above this line!
+  //       If we don't do this, we will break invalidation tracking information.
+  auto It = OldToNew.find(&OldFunction);
+  if (It != OldToNew.end())
+    return It->second;
 
-  Function *NewFunction = recreateFunction(OldFunction,
-                                           FunctionModel.prototype(Binary));
+  Function *NewFunction = recreateFunction(OldFunction, UsedRegisters);
   FunctionTags::ABIEnforced.addTo(NewFunction);
 
-  if (not IsDeclaration)
-    createPrologue(NewFunction, FunctionModel);
+  if (not NewFunction->isDeclaration())
+    createPrologue(NewFunction, UsedRegisters);
+
+  OldToNew[&OldFunction] = NewFunction;
 
   return NewFunction;
 }
 
-Function *EnforceABIImpl::recreateFunction(Function &OldFunction,
-                                           const model::TypePath &Prototype) {
+Function *EnforceABI::recreateFunction(Function &OldFunction,
+                                       const abi::FunctionType::UsedRegisters
+                                         &Registers) {
   // Create new function
-  auto Registers = abi::FunctionType::usedRegisters(Prototype);
   auto [NewReturnType, NewArguments] = getLLVMReturnTypeAndArguments(&M,
                                                                      Registers);
+
   auto *Result = changeFunctionType(OldFunction, NewReturnType, NewArguments);
   revng_assert(Result->arg_size() == Registers.Arguments.size());
 
@@ -283,15 +293,14 @@ getCSVOrUndef(Module *M, model::Register::Values Register) {
   }
 }
 
-void EnforceABIImpl::createPrologue(Function *NewFunction,
-                                    const model::Function &FunctionModel) {
+void EnforceABI::createPrologue(Function *NewFunction,
+                                const abi::FunctionType::UsedRegisters
+                                  &UsedRegisters) {
   SmallVector<Constant *, 8> ArgumentCSVs;
   SmallVector<std::pair<Type *, Constant *>, 8> ReturnCSVs;
 
   // We sort arguments by their CSV name
-  const model::TypePath &Prototype = FunctionModel.prototype(Binary);
-  auto [ArgumentRegisters,
-        ReturnValueRegisters] = abi::FunctionType::usedRegisters(Prototype);
+  auto [ArgumentRegisters, ReturnValueRegisters] = UsedRegisters;
   for (model::Register::Values Register : ArgumentRegisters)
     ArgumentCSVs.push_back(getCSVOrUndef(&M, Register).second);
   for (model::Register::Values Register : ReturnValueRegisters)
@@ -323,20 +332,13 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
   }
 }
 
-void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
+void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
+                                           CallInst *Call) {
   revng_assert(Call->getDebugLoc());
-  Function *Caller = Call->getParent()->getParent();
-  const model::Function &FunctionModel = *FunctionsMap.at(Caller);
-
-  Function *CallerFunction = Call->getParent()->getParent();
-
-  Function *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
-  bool IsDirect = (Callee != FunctionDispatcher);
-  if (IsDirect)
-    Callee = OldToNew.at(Callee);
 
   // Identify the corresponding call site in the model
-  const efa::FunctionMetadata &FM = Cache->getFunctionMetadata(CallerFunction);
+  Function *CallerFunction = Call->getParent()->getParent();
+  const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(CallerFunction);
 
   const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
   revng_assert(CallerBlock != nullptr);
@@ -350,6 +352,20 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
       break;
   }
   revng_assert(CallSite != nullptr);
+
+  // Get or create the called function
+  Function *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
+  bool IsDirect = (Callee != FunctionDispatcher);
+  bool IsDynamic = not CallSite->DynamicFunction().empty();
+  if (IsDynamic) {
+    Callee = OldToNew.at(Callee);
+  } else if (IsDirect) {
+    MetaAddress CalleeAddress = CallSite->Destination().notInlinedAddress();
+    const model::Function &ModelFunction = Binary.Functions().at(CalleeAddress);
+    const model::TypePath &Prototype = ModelFunction.prototype(Binary);
+    auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+    Callee = getOrCreateNewFunction(*Callee, UsedRegisters);
+  }
 
   // Note that currently, in case of indirect call, we emit a call to a
   // placeholder function that will throw an exception. If exceptions are
@@ -374,7 +390,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   // Generate the call
   IRBuilder<> Builder(Call);
   CallInst *NewCall = generateCall(Builder,
-                                   FunctionModel.Entry(),
+                                   CallerAddress,
                                    Callee,
                                    *CallerBlock,
                                    *CallSite);
@@ -397,11 +413,11 @@ toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
   return FunctionCallee(FT, Callee);
 }
 
-CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
-                                       MetaAddress Entry,
-                                       FunctionCallee Callee,
-                                       const efa::BasicBlock &CallSiteBlock,
-                                       const efa::CallEdge &CallSite) {
+CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
+                                   MetaAddress Entry,
+                                   FunctionCallee Callee,
+                                   const efa::BasicBlock &CallSiteBlock,
+                                   const efa::CallEdge &CallSite) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
@@ -461,9 +477,44 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   return Result;
 }
 
-void EnforceABI::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void EnforceABI::getAnalysisUsage(llvm::AnalysisUsage &AU) {
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<FunctionMetadataCachePass>();
   AU.setPreservesAll();
 }
+
+struct EnforceABIPipe {
+  static constexpr auto Name = "enforce-abi";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace revng;
+    using namespace pipeline;
+    return { ContractGroup({ Contract(kinds::Isolated,
+                                      1,
+                                      kinds::ABIEnforced,
+                                      1,
+                                      InputPreservation::Erase),
+                             Contract(kinds::CFG,
+                                      0,
+                                      kinds::ABIEnforced,
+                                      1,
+                                      InputPreservation::Preserve) }) };
+  }
+
+  void run(pipeline::ExecutionContext &Ctx,
+           const revng::pipes::CFGMap &CFGMap,
+           pipeline::LLVMContainer &Module) {
+    llvm::legacy::PassManager Manager;
+    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx, Module.name()));
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new FunctionMetadataCachePass(CFGMap));
+    Manager.add(new pipeline::FunctionPass<EnforceABI>());
+    Manager.run(Module.getModule());
+  }
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    return llvm::Error::success();
+  }
+};
+
+static pipeline::RegisterPipe<EnforceABIPipe> Y;

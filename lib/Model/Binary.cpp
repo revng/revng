@@ -156,10 +156,6 @@ MetaAddressRangeSet Binary::executableRanges() const {
       ExecutableRanges.add(PaddingStart, PaddingEnd);
   }
 
-  for (const model::Function &F : Functions()) {
-    ExecutableRanges.add(F.Entry().toGeneric(), F.Entry().toGeneric() + 1);
-  }
-
   return ExecutableRanges;
 }
 
