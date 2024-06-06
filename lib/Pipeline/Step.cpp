@@ -189,21 +189,29 @@ ContainerInvalidationMetadata::deserialize(const Context &Ctx,
 
   PathTargetBimap ToReturn;
   for (const ValueType &Entry : Data) {
-    if (Entry.first.PipeName != PipeName)
+    if (Entry.first.PipeName != PipeName) {
       continue;
+    }
+
     llvm::Expected<SmallVector<TargetInContainer>>
       MaybeTarget = Entry.first.deserialize(Ctx, ContainerName);
-    if (not MaybeTarget)
+
+    if (not MaybeTarget) {
       return MaybeTarget.takeError();
+    }
 
     for (auto &SerializedPath : Entry.second) {
       std::optional<TupleTreePath>
         MaybeParsedPath = Global.deserializePath(SerializedPath);
-      if (not MaybeParsedPath)
+
+      if (not MaybeParsedPath) {
         return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                        "could not parse " + SerializedPath);
-      for (const TargetInContainer &Path : *MaybeTarget)
+      }
+
+      for (const TargetInContainer &Path : *MaybeTarget) {
         ToReturn.insert(std::move(Path), std::move(*MaybeParsedPath));
+      }
     }
   }
 
@@ -284,7 +292,9 @@ ContainerSet Step::run(ContainerSet &&Input,
     T.advance(Pipe.Pipe->getName(), false);
     explainExecutedPipe(*Pipe.Pipe);
     ExecutionContext Context(*Ctx, &Pipe, Info.Output);
+
     Pipe.Pipe->deduceResults(*Ctx, Context.getCurrentRequestedTargets());
+
     cantFail(Pipe.Pipe->run(Context, Input));
     llvm::cantFail(Input.verify());
   }

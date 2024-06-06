@@ -19,8 +19,7 @@ class GeneratedCodeBasicInfo;
 /* TUPLE-TREE-YAML
 name: FunctionMetadata
 doc: "Metadata attached to a function. As of now, it includes a list of basic
-blocks, representing the control-flow graph. It is meant to include further
-information in the future."
+blocks, representing the control-flow graph."
 type: struct
 fields:
   - name: Entry

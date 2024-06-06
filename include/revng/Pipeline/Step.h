@@ -100,7 +100,7 @@ public:
     Ctx(&Ctx) {}
 
 public:
-  // TODO: drop the Out parameter pattern if favour of coorutines in the whole
+  // TODO: drop the Out parameter pattern if favour of coroutines in the whole
   // codebase.
   void registerTargetsDependingOn(llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
@@ -118,6 +118,7 @@ public:
                                                         .at(Container.first())
                                                         .enumerate());
     }
+
     Out[getName()].merge(OutMap);
   }
 

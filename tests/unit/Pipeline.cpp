@@ -1353,7 +1353,7 @@ public:
            uint64_t Third) {
     BOOST_TEST(First == 10);
     BOOST_TEST(Second == "something");
-    BOOST_TEST(Third == 32);
+    BOOST_TEST(Third == 32UL);
   }
 };
 

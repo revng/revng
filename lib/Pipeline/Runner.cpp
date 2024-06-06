@@ -48,7 +48,6 @@ static Error getObjectives(Runner &Runner,
   ContainerToTargetsMap ToLoad = Targets;
   Step *CurrentStep = &(Runner[EndingStepName]);
   while (CurrentStep != nullptr and not ToLoad.empty()) {
-
     ContainerToTargetsMap Output = ToLoad;
     auto [Required, PipesExecutionEntries] = CurrentStep->analyzeGoals(ToLoad);
     ToLoad = std::move(Required);
@@ -64,6 +63,7 @@ static Error getObjectives(Runner &Runner,
   if (not ToLoad.empty())
     return make_error<UnsatisfiableRequestError>(Targets, ToLoad);
   reverse(ToExec.begin(), ToExec.end());
+
   return Error::success();
 }
 

@@ -126,6 +126,7 @@ public:
   }
 
   bool isEmpty() const { return Diff.get()->isEmpty(); }
+
   llvm::StringRef getGlobalName() const { return Diff->getGlobalName(); }
 };
 

@@ -94,15 +94,20 @@ public:
   virtual PipeExecutionEntry
   getRequirements(const Context &Ctx,
                   const ContainerToTargetsMap &Target) const = 0;
+
   virtual ContainerToTargetsMap
   deduceResults(const Context &Ctx, ContainerToTargetsMap &Target) const = 0;
+
   virtual bool areRequirementsMet(const Context &Ctx,
                                   const ContainerToTargetsMap &Input) const = 0;
+
   virtual std::unique_ptr<PipeWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
+
   virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
 
   virtual size_t getContainerArgumentsCount() const = 0;
+
   virtual llvm::StringRef getContainerName(size_t Index) const = 0;
 
   virtual ~PipeWrapperBase() = default;

@@ -285,7 +285,7 @@ public:
              ArrayRef<std::string> ContainerNames) const {
     Os << "revng artifact HexDump " << ContainerNames[0] << " -o "
        << ContainerNames[2] << "-m ModelFile\n";
-  };
+  }
 };
 
 } // namespace revng::pipes

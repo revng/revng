@@ -24,12 +24,15 @@ public:
 
 public:
   virtual ~AnalysisWrapperBase() override = default;
+
   virtual llvm::ArrayRef<Kind *>
   getAcceptedKinds(size_t ContainerIndex) const = 0;
 
   virtual std::unique_ptr<AnalysisWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
+
   const std::string &getUserBoundName() const { return BoundName; }
+
   void setUserBoundName(std::string NewName) { BoundName = std::move(NewName); }
 };
 
