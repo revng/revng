@@ -74,7 +74,7 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   if (Requirements.empty())
     return;
 
-  ExplanationLogger << "OBJECTIVES requested\n";
+  ExplanationLogger << "Requested targets:\n";
   indent(ExplanationLogger, 1);
 
   if (Requirements.size() <= 1) {
@@ -86,7 +86,9 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   prettyPrintStatus(Targets, ExplanationLogger, 2);
 
   ExplanationLogger << DoLog;
-  ExplanationLogger << "DEDUCED steps content to be produced: \n";
+
+  ExplanationLogger << "We need to have the following targets at the beginning "
+                       "of the steps\n";
 
   indent(ExplanationLogger, 1);
   ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
@@ -359,6 +361,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
                   const ContainerToTargetsMap &Targets) {
 
   vector<PipelineExecutionEntry> ToExec;
+  revng_log(ExplanationLogger, "Running until step " << EndingStepName);
 
   if (llvm::Error Error = getObjectives(*this, EndingStepName, Targets, ToExec);
       Error)
@@ -395,8 +398,14 @@ Error Runner::run(llvm::StringRef EndingStepName,
     T2.advance("Extract the requested targets", true);
     if (VerifyLog.isEnabled()) {
       ContainerSet Produced = Step->containers().cloneFiltered(PredictedOutput);
-      revng_check(Produced.enumerate().contains(PredictedOutput),
-                  "Not all the expected targets have been produced");
+
+      if (not Produced.enumerate().contains(PredictedOutput)) {
+        dbg << "PredictedOutput:\n";
+        PredictedOutput.dump(dbg, 2, false);
+        dbg << "Produced:\n";
+        Produced.enumerate().dump(dbg, 2, false);
+        revng_abort("Not all the expected targets have been produced");
+      }
       revng_check(Step->containers().enumerate().contains(PredictedOutput));
     }
   }
@@ -468,9 +477,13 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
       if (not Container.second)
         continue;
 
+      revng_log(Log,
+                "Computing invalidations in container " << Container.getKey());
+      LoggerIndent<> II(Log);
+
+      // Look for targets that are not recorded in the invalidation map and mark
+      // them to be deleted
       const TargetsList &ExistingTargets = Container.second->enumerate();
-      // for all targets that are not cached anywhere, mark them to be deleated
-      // every time, since we must be conservative
       for (const Target &Target : ExistingTargets) {
 
         TargetInContainer ToFind(Target, Container.first().str());

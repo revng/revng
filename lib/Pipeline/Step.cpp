@@ -240,7 +240,8 @@ void Step::explainStartStep(const ContainerToTargetsMap &Targets,
                             size_t Indentation) const {
 
   indent(ExplanationLogger, Indentation);
-  ExplanationLogger << "STARTING step on containers\n";
+  ExplanationLogger << "Now starting step " << getName()
+                    << " with the following inputs:\n";
   indent(ExplanationLogger, Indentation + 1);
   ExplanationLogger << getName() << ":\n";
   prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
@@ -251,7 +252,8 @@ void Step::explainEndStep(const ContainerToTargetsMap &Targets,
                           size_t Indentation) const {
 
   indent(ExplanationLogger, Indentation);
-  ExplanationLogger << "ENDING step, the following have been produced\n";
+  ExplanationLogger << "Step " << getName()
+                    << " completed\nThe following targets have been produced\n";
   indent(ExplanationLogger, Indentation + 1);
   ExplanationLogger << getName() << ":\n";
   prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
@@ -260,26 +262,18 @@ void Step::explainEndStep(const ContainerToTargetsMap &Targets,
 
 void Step::explainExecutedPipe(const InvokableWrapperBase &Wrapper,
                                size_t Indentation) const {
-  ExplanationLogger << "RUN " << Wrapper.getName();
-  ExplanationLogger << "(";
+  ExplanationLogger << "Running " << Wrapper.getName() << " in step "
+                    << getName();
 
-  std::vector<std::string> Vec = Wrapper.getRunningContainersNames();
-  if (not Vec.empty()) {
-    for (size_t I = 0; I < Vec.size() - 1; I++) {
-      ExplanationLogger << Vec[I];
-      ExplanationLogger << ", ";
-    }
-    ExplanationLogger << Vec.back();
+  auto RunningContainersNames = Wrapper.getRunningContainersNames();
+  if (RunningContainersNames.empty()) {
+    ExplanationLogger << " with no arguments";
+  } else {
+    ExplanationLogger << " with the following containers:\n";
+    for (const std::string &ContainerName : RunningContainersNames)
+      ExplanationLogger << "  " << ContainerName << "\n";
   }
-
-  ExplanationLogger << ")";
-  ExplanationLogger << "\n";
   ExplanationLogger << DoLog;
-
-  auto CommandStream = CommandLogger.getAsLLVMStream();
-  Wrapper.print(*Ctx, *CommandStream, Indentation);
-  CommandStream->flush();
-  CommandLogger << DoLog;
 }
 
 ContainerSet Step::run(ContainerSet &&Input,
