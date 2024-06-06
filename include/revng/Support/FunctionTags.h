@@ -45,6 +45,9 @@ public:
   TagsSet() {}
   TagsSet(std::initializer_list<const Tag *> I) : Tags{ I } {}
 
+  bool operator<(const TagsSet &Other) const { return this->Tags < Other.Tags; }
+  bool operator==(const TagsSet &Other) const = default;
+
 public:
   static TagsSet from(const Taggable auto *V) {
     return from(V->getMetadata(TagsMetadataName));
