@@ -110,7 +110,7 @@ public:
   /// from the \param Function.
   static Layout make(const model::TypePath &Function) {
     revng_assert(Function.isValid());
-    return make(*Function.get());
+    return make(*Function.getConst());
   }
 
   static Layout make(const model::Type &Function) {
@@ -205,7 +205,7 @@ calleeSavedRegisters(const model::Type &Function) {
 inline std::span<const model::Register::Values>
 calleeSavedRegisters(const model::TypePath &Function) {
   revng_assert(Function.isValid());
-  return calleeSavedRegisters(*Function.get());
+  return calleeSavedRegisters(*Function.getConst());
 }
 
 uint64_t finalStackOffset(const model::CABIFunctionType &Function);
@@ -224,7 +224,7 @@ inline uint64_t finalStackOffset(const model::Type &Function) {
 
 inline uint64_t finalStackOffset(const model::TypePath &Function) {
   revng_assert(Function.isValid());
-  return finalStackOffset(*Function.get());
+  return finalStackOffset(*Function.getConst());
 }
 
 struct UsedRegisters {
@@ -253,7 +253,7 @@ inline UsedRegisters usedRegisters(const model::Type &Function) {
 
 inline UsedRegisters usedRegisters(const model::TypePath &Function) {
   revng_assert(Function.isValid());
-  return usedRegisters(*Function.get());
+  return usedRegisters(*Function.getConst());
 }
 
 } // namespace abi::FunctionType

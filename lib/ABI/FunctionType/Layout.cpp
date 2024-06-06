@@ -294,7 +294,7 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
     if (StackArguments.Fields().size() == 1) {
       auto FirstFieldType = StackArguments.Fields().begin()->Type();
       if (FirstFieldType.Qualifiers().empty()) {
-        auto *Unqualified = FirstFieldType.UnqualifiedType().get();
+        auto *Unqualified = FirstFieldType.UnqualifiedType().getConst();
         if (auto *Struct = llvm::dyn_cast<model::StructType>(Unqualified))
           if (Struct->Size() == StackArguments.Size())
             NewType.StackArgumentsType() = Binary->getTypePath(Struct->key());
@@ -512,7 +512,8 @@ Layout::Layout(const model::RawFunctionType &Function) {
   // Lay stack arguments out.
   if (not Function.StackArgumentsType().empty()) {
     const model::TypePath &StackArgTypeRef = Function.StackArgumentsType();
-    auto *StackStruct = llvm::cast<model::StructType>(StackArgTypeRef.get());
+    auto *StackStruct = llvm::cast<model::StructType>(StackArgTypeRef
+                                                        .getConst());
 
     auto &Argument = Arguments.emplace_back();
 
