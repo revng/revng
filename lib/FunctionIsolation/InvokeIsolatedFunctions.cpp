@@ -11,6 +11,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/Kinds.h"
@@ -65,8 +66,7 @@ public:
     GCBI(GCBI) {
 
     for (const model::Function &Function : Binary.Functions()) {
-      // TODO: this temporary
-      auto Name = (Twine("local_") + Function.name()).str();
+      auto Name = getLLVMFunctionName(Function);
       llvm::Function *F = M->getFunction(Name);
       revng_assert(F != nullptr);
       Map[Function.Entry()] = { &Function, nullptr, F };

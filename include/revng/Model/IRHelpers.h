@@ -75,3 +75,13 @@ inline model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
   NewStruct->Size() = Size;
   return Path;
 }
+
+inline std::string getLLVMFunctionName(const model::Function &Function) {
+  std::string Result = "local_";
+  if (DebugNames)
+    Result += Function.name().str().str();
+  else
+    Result += Function.Entry().toString();
+
+  return Result;
+}

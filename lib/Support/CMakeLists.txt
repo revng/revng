@@ -9,6 +9,7 @@ revng_add_library_internal(
   Assert.cpp
   BasicBlockID.cpp
   CommandLine.cpp
+  CommonOptions.cpp
   Debug.cpp
   ExplicitSpecializations.cpp
   IRAnnotators.cpp
