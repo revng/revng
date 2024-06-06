@@ -1576,7 +1576,30 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       if (isLocalVarDecl(VarDeclCall) or isCallStackArgumentDecl(VarDeclCall)) {
         std::string VarName = createLocalVarDeclName(VarDeclCall);
         revng_assert(not VarName.empty());
-        Out << getNamedCInstance(TypeMap.at(VarDeclCall), VarName, B) << ";\n";
+
+        // TODO: drop this workaround when we properly support emission of
+        // variable declarations with inline initialization.
+        //
+        // At the moment in C we can't emit variable declarations with inline
+        // initialization. Not for some substantial problem, but we haven't
+        // implemented it yet. As a result if TypeMap.at(VarDeclCall) returns a
+        // const-qualified type we will end up generating C code that doesn't
+        // compile, when it tries to assign a value to the variable for
+        // initializing it separately from the declaration.
+        // To work around this, until we don't support emission of variable
+        // declarations with inline initialization, we have to strip away
+        // constness.
+        QualifiedType VarType = TypeMap.at(VarDeclCall);
+        if (VarType.isConst()) {
+          while (not VarType.Qualifiers().empty()
+                 and model::Qualifier::isConst(VarType.Qualifiers().front())) {
+            VarType.Qualifiers().erase(VarType.Qualifiers().begin());
+          }
+          if (VarType.isConst())
+            VarType = peelConstAndTypedefs(VarType);
+        }
+
+        Out << getNamedCInstance(VarType, VarName, B) << ";\n";
       } else if (isHelperAggregateLocalVarDecl(VarDeclCall)
                  or isArtificialAggregateLocalVarDecl(VarDeclCall)) {
         // Create missing local variable declarations
