@@ -82,7 +82,8 @@ class PythonGenerator:
     def render_docstring(docstr: str, indent=1):
         if not docstr:
             return ""
-        lines = docstr.splitlines(keepends=False)
+        # Replace '\' with '\\' to avoid "SyntaxWarning: invalid escape sequence"
+        lines = docstr.replace("\\", "\\\\").splitlines(keepends=False)
         rendered_docstring = '"""'
         rendered_docstring += ("\n" + "    " * indent).join(lines)
         if len(lines) > 1:
