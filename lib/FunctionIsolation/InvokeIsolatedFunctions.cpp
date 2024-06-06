@@ -191,17 +191,20 @@ public:
     // Remove all the orphan basic blocks from the root function (e.g., the
     // blocks that have been substituted by the trampoline)
     EliminateUnreachableBlocks(*RootFunction, nullptr, false);
+
+    FunctionTags::IsolatedRoot.addTo(RootFunction);
   }
 };
 
 bool InvokeIsolatedFunctionsPass::runOnModule(Module &M) {
-
   if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
     return false;
+
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
   InvokeIsolatedFunctions TheFunction(Binary, M.getFunction("root"), GCBI);
   TheFunction.run();
+
   return true;
 }

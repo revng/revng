@@ -684,8 +684,6 @@ void IsolateFunctionsImpl::run() {
 
   // Before emitting it in output, verify the module
   revng::verify(TheModule);
-
-  FunctionTags::IsolatedRoot.addTo(RootFunction);
 }
 
 bool IF::runOnModule(Module &TheModule) {
