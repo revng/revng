@@ -3,14 +3,14 @@
 #
 
 ---
-- ControlFlowGraph:
+- Blocks:
     - Successors:
         - "-Destination": ""
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true
 - OriginalName: use_plt
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - Type: FunctionCall
     - Successors:
@@ -18,6 +18,6 @@
     - Successors:
         - Type: Return
 - OriginalName: __x86.get_pc_thunk.bx
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - Type: Return

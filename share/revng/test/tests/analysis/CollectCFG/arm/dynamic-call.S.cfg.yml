@@ -3,20 +3,20 @@
 #
 
 ---
-- ControlFlowGraph:
+- Blocks:
     - Successors:
         - "-Destination": ""
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true
 - OriginalName: _start
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - Type: FunctionCall
     - Successors:
         - Type: Return
 - OriginalName: use_plt
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - Type: FunctionCall
     - Successors:

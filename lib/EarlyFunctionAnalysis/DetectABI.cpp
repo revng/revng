@@ -366,7 +366,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
     {
       TupleTree<efa::FunctionMetadata> New;
       New->Entry() = EntryNode->Address;
-      New->ControlFlowGraph() = AnalysisResult.CFG;
+      New->Blocks() = AnalysisResult.CFG;
       New->simplify(*Binary);
       FMC.set(std::move(New));
     }

@@ -18,7 +18,7 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
                                 const model::Binary &Binary,
                                 const Configuration &Configuration) {
   using PLG = PreLayoutGraph;
-  const auto &ControlFlowGraph = Function.ControlFlowGraph();
+  const auto &ControlFlowGraph = Function.Blocks();
   auto [Result, Lookup] = efa::buildControlFlowGraph<PLG>(ControlFlowGraph,
                                                           Function.Entry(),
                                                           Binary);
@@ -38,7 +38,7 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
   }
 
   // Colour 'taken' and 'refused' edges.
-  for (const auto &BasicBlock : Function.ControlFlowGraph()) {
+  for (const auto &BasicBlock : Function.Blocks()) {
     auto NodeIterator = Lookup.find(BasicBlock.ID());
     revng_assert(NodeIterator != Lookup.end());
     auto &CurrentNode = *NodeIterator->second;

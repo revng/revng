@@ -4,7 +4,7 @@
 
 ---
 - OriginalName: __start
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - Type: DirectBranch
         - Type: DirectBranch
@@ -27,7 +27,7 @@
         - "-Destination": ""
           Type: LongJmp
 - OriginalName: function
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - "-Destination": ""
           Type: Return

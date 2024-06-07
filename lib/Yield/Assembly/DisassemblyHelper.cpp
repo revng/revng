@@ -50,7 +50,7 @@ static void analyzeBasicBlocks(yield::Function &Function,
   // Gather all the basic blocks that only have a single predecessor.
   std::map<BasicBlockID, std::optional<BasicBlockID>> Predecessors;
 
-  for (const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
+  for (const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
     auto [It, Success] = Predecessors.try_emplace(BasicBlock.ID());
     revng_assert(Success,
                  "Duplicate basic blocks in a `SortedVector`? "
@@ -62,7 +62,7 @@ static void analyzeBasicBlocks(yield::Function &Function,
   revng_assert(RemovedCount == 1,
                "No basic block at the function entry address!");
 
-  for (const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
+  for (const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
     for (const auto &Edge : BasicBlock.Successors()) {
       auto [NextBlock, _] = efa::parseSuccessor(*convert(Edge).get(),
                                                 BasicBlock.nextBlock(),
@@ -88,14 +88,14 @@ static void analyzeBasicBlocks(yield::Function &Function,
   // Save the results of the analysis
   for (auto [CurrentAddress, PredecessorAddress] : Predecessors) {
     if (PredecessorAddress.has_value()) {
-      auto Current = Metadata.ControlFlowGraph().find(CurrentAddress);
-      revng_assert(Current != Metadata.ControlFlowGraph().end());
+      auto Current = Metadata.Blocks().find(CurrentAddress);
+      revng_assert(Current != Metadata.Blocks().end());
 
-      auto Predecessor = Metadata.ControlFlowGraph().find(*PredecessorAddress);
-      revng_assert(Predecessor != Metadata.ControlFlowGraph().end());
+      auto Predecessor = Metadata.Blocks().find(*PredecessorAddress);
+      revng_assert(Predecessor != Metadata.Blocks().end());
 
-      auto CurrentBlock = Function.ControlFlowGraph().find(CurrentAddress);
-      revng_assert(CurrentBlock != Function.ControlFlowGraph().end());
+      auto CurrentBlock = Function.Blocks().find(CurrentAddress);
+      revng_assert(CurrentBlock != Function.Blocks().end());
 
       if (Predecessor->nextBlock() == Current->ID())
         CurrentBlock->IsLabelAlwaysRequired() = false;
@@ -109,9 +109,8 @@ yield::Function DH::disassemble(const model::Function &Function,
                                 const model::Binary &Binary) {
   yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
-  for (auto BasicBlockInserter =
-         ResultFunction.ControlFlowGraph().batch_insert();
-       const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
+  for (auto BasicBlockInserter = ResultFunction.Blocks().batch_insert();
+       const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
     auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type(),
                                       Binary.Configuration().Disassembly());
 
@@ -188,7 +187,7 @@ yield::Function DH::disassemble(const model::Function &Function,
 
   analyzeBasicBlocks(ResultFunction, Metadata, Binary);
 
-  for (yield::BasicBlock &BasicBlock : ResultFunction.ControlFlowGraph()) {
+  for (yield::BasicBlock &BasicBlock : ResultFunction.Blocks()) {
     BasicBlock.setLabel(ResultFunction, Binary);
     for (yield::Instruction &Instruction : BasicBlock.Instructions())
       Instruction.handleSpecialTags(BasicBlock, ResultFunction, Binary);

@@ -229,7 +229,7 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
       .Location = serializedLocation(revng::ranks::Function,
                                      ModelFunction->key()),
     };
-  } else if (Function.ControlFlowGraph().contains(BasicBlock)) {
+  } else if (Function.Blocks().contains(BasicBlock)) {
     std::string BBPr = Binary.Configuration().Disassembly().BasicBlockPrefix();
     if (BBPr.empty()) {
       // TODO: introduce a better way to handle default configuration values.

@@ -28,7 +28,7 @@ commands:
             if cfg.get("OriginalName", ""):
                 return True
 
-            for block in cfg["ControlFlowGraph"]:
+            for block in cfg["Blocks"]:
                 for successor in block["Successors"]:
                     if successor.get("DynamicFunction", ""):
                         return True

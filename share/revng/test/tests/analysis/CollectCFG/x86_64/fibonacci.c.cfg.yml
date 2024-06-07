@@ -4,7 +4,7 @@
 
 ---
 - OriginalName: fibonacci
-  ControlFlowGraph:
+  Blocks:
     - ID: "1"
       End: "2"
       Successors:
@@ -33,7 +33,7 @@
         - "-Destination": ""
           Type: Return
 - OriginalName: _start
-  ControlFlowGraph:
+  Blocks:
     - ID: "6"
       End: "7"
       Successors:

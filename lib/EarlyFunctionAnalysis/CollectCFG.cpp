@@ -67,19 +67,19 @@ public:
       // Recover the control-flow graph of the function
       efa::FunctionMetadata New;
       New.Entry() = EntryAddress;
-      New.ControlFlowGraph() = std::move(Analyzer.analyze(EntryAddress).CFG);
+      New.Blocks() = std::move(Analyzer.analyze(EntryAddress).CFG);
 
       if (DebugNames) {
         auto Function = Binary->Functions().at(EntryAddress);
         New.OriginalName() = Function.OriginalName();
       }
 
-      revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
+      revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
 
       // Run final steps on the CFG
       New.simplify(*Binary);
 
-      revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
+      revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
 
       // TODO: we'd need a function-wise TupleTreeContainer
       CFGs[EntryAddress] = serializeToString(New);

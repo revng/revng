@@ -4,14 +4,14 @@
 
 ---
 - OriginalName: function_call
-  ControlFlowGraph:
+  Blocks:
     - ID: "1"
       End: "2"
       Successors:
         - "-Destination": ""
           Type: Return
 - OriginalName: _start
-  ControlFlowGraph:
+  Blocks:
     - End: "3"
       ID: "2"
       Successors:

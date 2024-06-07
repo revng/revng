@@ -228,8 +228,8 @@ void yield::cfg::calculateNodeSizes(PreLayoutGraph &Graph,
     if (!Node->isEmpty()) {
       // A normal node.
       BasicBlockID BasicBlock = Node->getBasicBlock();
-      if (auto Iterator = Function.ControlFlowGraph().find(BasicBlock);
-          Iterator != Function.ControlFlowGraph().end()) {
+      if (auto Iterator = Function.Blocks().find(BasicBlock);
+          Iterator != Function.Blocks().end()) {
         Node->Size = basicBlockSize(*Iterator, Function, Binary, Configuration);
       } else if (const auto *F = tryGetFunction(Binary, BasicBlock)) {
         Node->Size = singleLineSize(F->name().str(),

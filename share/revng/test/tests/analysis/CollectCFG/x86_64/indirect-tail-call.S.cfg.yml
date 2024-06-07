@@ -4,14 +4,14 @@
 
 ---
 - OriginalName: _start
-  ControlFlowGraph:
+  Blocks:
     - ID: "1"
       End: "2"
       Successors:
         - Destination: "3"
           Type: FunctionCall
 - OriginalName: tailcall
-  ControlFlowGraph:
+  Blocks:
     - ID: "3"
       End: "4"
       Successors:

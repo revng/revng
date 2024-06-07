@@ -46,7 +46,7 @@ private:
 
       const efa::FunctionMetadata &FM = MDCache.getFunctionMetadata(Function
                                                                       .Entry());
-      for (const efa::BasicBlock &Block : FM.ControlFlowGraph()) {
+      for (const efa::BasicBlock &Block : FM.Blocks()) {
         auto Start = Block.ID().start();
         auto End = Block.End();
         revng_log(Log,

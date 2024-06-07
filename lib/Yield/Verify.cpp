@@ -114,10 +114,10 @@ bool yield::Function::verify(model::VerifyHelper &VH) const {
   if (Entry().isInvalid())
     return VH.fail("A function has to have a valid entry point.");
 
-  if (ControlFlowGraph().empty())
+  if (Blocks().empty())
     return VH.fail("A function has to store at least a single basic block.");
 
-  for (const auto &BasicBlock : ControlFlowGraph())
+  for (const auto &BasicBlock : Blocks())
     if (!BasicBlock.verify(VH))
       return VH.fail("Basic block verification failed.");
 

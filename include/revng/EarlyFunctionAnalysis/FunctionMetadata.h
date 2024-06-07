@@ -29,7 +29,7 @@ fields:
     type: string
     doc: Optional name for debugging purposes
     optional: true
-  - name: ControlFlowGraph
+  - name: Blocks
     sequence:
       type: SortedVector
       elementType: BasicBlock

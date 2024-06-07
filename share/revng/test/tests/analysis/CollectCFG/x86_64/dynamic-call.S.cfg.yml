@@ -4,14 +4,14 @@
 
 ---
 - OriginalName: "strlen"
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - "-Destination": ""
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true
 - OriginalName: use_plt
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - Kind: CallEdge
           Type: FunctionCall
@@ -20,7 +20,7 @@
     - Successors:
         - Type: Return
 - OriginalName: do_not_use_plt
-  ControlFlowGraph:
+  Blocks:
     - Successors:
         - "-Destination": ""
           Type: FunctionCall

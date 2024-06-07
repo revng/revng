@@ -5,7 +5,7 @@
 ---
 - OriginalName: __start
   Entry: "1"
-  ControlFlowGraph:
+  Blocks:
     - ID: "1"
       End: "2"
       Successors:

@@ -4,7 +4,7 @@
 
 ---
 - OriginalName: _start
-  ControlFlowGraph:
+  Blocks:
     - ID: "1"
       End: "2"
       Successors:
@@ -16,7 +16,7 @@
         - "-Destination": ""
           Type: Return
 - OriginalName: call
-  ControlFlowGraph:
+  Blocks:
     - ID: "3"
       End: "4"
       Successors:

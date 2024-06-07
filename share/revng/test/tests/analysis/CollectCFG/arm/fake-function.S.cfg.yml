@@ -4,7 +4,7 @@
 
 ---
 - OriginalName: _start
-  ControlFlowGraph:
+  Blocks:
     - End: "2"
       ID: "1"
       Successors:
@@ -27,7 +27,7 @@
           Type: Return
 - OriginalName: prologue
   # Note: this function is inline, if necessary, we can add it here.
-  ControlFlowGraph:
+  Blocks:
     - ID: "3"
       End: "4"
       Successors:
@@ -35,7 +35,7 @@
           Type: BrokenReturn
 - OriginalName: epilogue
   # Note: this function is noreturn, if necessary, we can add it here.
-  ControlFlowGraph:
+  Blocks:
     - End: "5"
       ID: "4"
       Successors:

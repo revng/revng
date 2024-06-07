@@ -84,7 +84,7 @@ static void handleFunction(DIBuilder &DIB,
         BasicBlockID Address = blockIDFromNewPC(Call);
 
         if (isTrue(Call->getArgOperand(NewPCArguments::IsJumpTarget))) {
-          const auto &CFG = FM.ControlFlowGraph();
+          const auto &CFG = FM.Blocks();
           if (CFG.contains(Address)) {
             LastJumpTarget = Address;
           } else {

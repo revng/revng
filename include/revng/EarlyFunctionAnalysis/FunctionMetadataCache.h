@@ -105,7 +105,7 @@ public:
 
     Function ParentFunction = Traits::getFunction(Call);
     const efa::FunctionMetadata &FM = getFunctionMetadata(ParentFunction);
-    const efa::BasicBlock &Block = FM.ControlFlowGraph().at(BlockAddress);
+    const efa::BasicBlock &Block = FM.Blocks().at(BlockAddress);
 
     // Find the call edge
     efa::CallEdge *ModelCall = nullptr;
