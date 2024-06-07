@@ -175,6 +175,20 @@ public:
   const ContainerSet &containers() const { return Containers; }
   ContainerSet &containers() { return Containers; }
 
+  std::set<llvm::StringRef> mutableContainers() const {
+    std::set<llvm::StringRef> MutableContainers;
+    for (const auto &Pipe : Pipes) {
+      size_t ArgumentsCount = Pipe.Pipe->getContainerArgumentsCount();
+      for (size_t I = 0; I < ArgumentsCount; ++I) {
+        if (not Pipe.Pipe->isContainerArgumentConst(I)) {
+          MutableContainers.insert(Pipe.Pipe->getContainerName(I));
+        }
+      }
+    }
+
+    return MutableContainers;
+  }
+
   llvm::Error setArtifacts(std::string ContainerName,
                            const Kind *ArtifactsKind,
                            std::string SingleTargetFilename) {

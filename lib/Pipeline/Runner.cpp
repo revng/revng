@@ -472,9 +472,14 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
     //       we're looking for might no longer be there!
     Step.pipeInvalidate(Diff, StepInvalidations);
 
+    std::set<StringRef> Mutablecontainers = Step.mutableContainers();
+
     for (const auto &Container : Step.containers()) {
 
       if (not Container.second)
+        continue;
+
+      if (not Mutablecontainers.contains(Container.first()))
         continue;
 
       revng_log(Log,
