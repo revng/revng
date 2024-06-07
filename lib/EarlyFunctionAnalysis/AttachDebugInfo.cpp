@@ -221,12 +221,12 @@ struct AttachDebugInfoToIsolatedPipe {
 
   void run(pipeline::ExecutionContext &Ctx,
            const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &Module) {
+           pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
     Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
     Manager.add(new FunctionMetadataCachePass(CFGMap));
     Manager.add(new AttachDebugInfo());
-    Manager.run(Module.getModule());
+    Manager.run(ModuleContainer.getModule());
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
@@ -256,12 +256,12 @@ struct AttachDebugInfoToABIEnforcedPipe {
 
   void run(pipeline::ExecutionContext &Ctx,
            const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &Module) {
+           pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
     Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
     Manager.add(new FunctionMetadataCachePass(CFGMap));
     Manager.add(new AttachDebugInfo());
-    Manager.run(Module.getModule());
+    Manager.run(ModuleContainer.getModule());
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

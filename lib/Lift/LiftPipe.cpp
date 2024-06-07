@@ -53,15 +53,16 @@ void Lift::run(ExecutionContext &Ctx,
 
 std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
 Lift::invalidate(const BinaryFileContainer &SourceBinary,
-                 const pipeline::LLVMContainer &Output,
+                 const pipeline::LLVMContainer &ModuleContainer,
                  const GlobalTupleTreeDiff &Diff) const {
   // Prepare result in case of invalidation
   std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
     InvalidateResult;
-  InvalidateResult[&Output].push_back(pipeline::Target({}, kinds::Root));
+  InvalidateResult[&ModuleContainer].push_back(pipeline::Target({},
+                                                                kinds::Root));
 
-  Function *Root = Output.getModule().getFunction("root");
-  Function *NewPC = Output.getModule().getFunction("newpc");
+  Function *Root = ModuleContainer.getModule().getFunction("root");
+  Function *NewPC = ModuleContainer.getModule().getFunction("newpc");
 
   if (Root == nullptr or NewPC == nullptr)
     return InvalidateResult;

@@ -28,7 +28,7 @@ public:
   }
 
   void run(const pipeline::ExecutionContext &Ctx,
-           pipeline::LLVMContainer &TargetsList);
+           pipeline::LLVMContainer &ModuleContainer);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();

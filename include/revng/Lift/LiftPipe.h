@@ -39,11 +39,11 @@ public:
 
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
-           pipeline::LLVMContainer &Output);
+           pipeline::LLVMContainer &ModuleContainer);
 
   std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
   invalidate(const BinaryFileContainer &SourceBinary,
-             const pipeline::LLVMContainer &Output,
+             const pipeline::LLVMContainer &ModuleContainer,
              const pipeline::GlobalTupleTreeDiff &Diff) const;
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;

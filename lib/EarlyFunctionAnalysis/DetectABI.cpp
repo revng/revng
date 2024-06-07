@@ -102,7 +102,7 @@ public:
              llvm::ArrayRef<std::string> ContainerNames) const {}
 
   void run(const pipeline::ExecutionContext &Ctx,
-           pipeline::LLVMContainer &Container) {
+           pipeline::LLVMContainer &ModuleContainer) {
     revng::pipes::CFGMap CFGs("");
     llvm::legacy::PassManager Manager;
     using namespace revng;
@@ -114,7 +114,7 @@ public:
     Manager.add(new efa::DetectABIPass());
     Manager.add(new CollectFunctionsFromUnusedAddressesWrapperPass());
     Manager.add(new efa::DetectABIPass());
-    Manager.run(Container.getModule());
+    Manager.run(ModuleContainer.getModule());
   }
 };
 

@@ -34,7 +34,7 @@ static FormattedNumber formatNumber(uint64_t Number, unsigned Width = 8) {
 };
 
 static void outputHexDump(const TupleTree<model::Binary> &Binary,
-                          const pipeline::LLVMContainer &Module,
+                          const pipeline::LLVMContainer &ModuleContainer,
                           const CFGMap &CFGMap,
                           const BinaryFileContainer &SourceBinary,
                           StringRef OutputPath) {
@@ -72,7 +72,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
   };
 
   for (const Function &F :
-       FunctionTags::Isolated.functions(&Module.getModule())) {
+       FunctionTags::Isolated.functions(&ModuleContainer.getModule())) {
     const efa::FunctionMetadata &Metadata = FunctionMetadataCache
                                               .getFunctionMetadata(&F);
     MetaAddress EntryAddress = Metadata.Entry();
@@ -264,12 +264,12 @@ public:
 
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
-           const pipeline::LLVMContainer &Module,
+           const pipeline::LLVMContainer &ModuleContainer,
            const CFGMap &CFGMap,
            HexDumpFileContainer &Output) {
 
     // This pipe works only if we have all the targets
-    pipeline::TargetsList FunctionList = Module.enumerate();
+    pipeline::TargetsList FunctionList = ModuleContainer.enumerate();
     if (not FunctionList.contains(kinds::Isolated.allTargets(Ctx.getContext())))
       return;
 
@@ -282,7 +282,7 @@ public:
 
     // Proceed with emission
     outputHexDump(getModelFromContext(Ctx),
-                  Module,
+                  ModuleContainer,
                   CFGMap,
                   SourceBinary,
                   Output.getOrCreatePath());

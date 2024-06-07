@@ -40,10 +40,10 @@ public:
 
 public:
   void run(pipeline::ExecutionContext &Context,
-           pipeline::LLVMContainer &Module,
+           pipeline::LLVMContainer &ModuleContainer,
            CFGMap &CFGs) {
     const auto &Binary = getModelFromContext(Context);
-    llvm::Module &M = Module.getModule();
+    llvm::Module &M = ModuleContainer.getModule();
     using FSOracle = efa::FunctionSummaryOracle;
 
     // Collect GCBI

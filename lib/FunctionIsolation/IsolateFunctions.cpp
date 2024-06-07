@@ -90,15 +90,16 @@ struct IsolatePipe {
 
   void run(pipeline::ExecutionContext &Ctx,
            const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &Module) {
+           pipeline::LLVMContainer &ModuleContainer) {
     using namespace revng;
     llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx, Module.name()));
+    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx,
+                                                       ModuleContainer.name()));
     Manager
       .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(Ctx))));
     Manager.add(new FunctionMetadataCachePass(CFGMap));
     Manager.add(new IsolateFunctions());
-    Manager.run(Module.getModule());
+    Manager.run(ModuleContainer.getModule());
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

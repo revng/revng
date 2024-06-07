@@ -29,7 +29,7 @@ public:
     return { pipeline::ContractGroup(kinds::Root, 0, kinds::Object, 1) };
   }
   void run(const pipeline::ExecutionContext &,
-           pipeline::LLVMContainer &TargetsList,
+           pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
@@ -59,7 +59,7 @@ public:
   }
 
   void run(const pipeline::ExecutionContext &,
-           pipeline::LLVMContainer &TargetsList,
+           pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
