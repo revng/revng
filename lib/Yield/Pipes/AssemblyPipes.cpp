@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
 #include "revng/PTML/Constants.h"
@@ -44,10 +44,10 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
   // This allows it to only be created once.
   DissassemblyHelper Helper;
 
-  FunctionMetadataCache Cache(CFGMap);
+  ControlFlowGraphCache Cache(CFGMap);
   for (const auto &[Key, _] : CFGMap) {
     MetaAddress Address = std::get<0>(Key);
-    const auto &Metadata = Cache.getFunctionMetadata(Address);
+    const auto &Metadata = Cache.getControlFlowGraph(Address);
     auto ModelFunctionIterator = Model->Functions().find(Address);
     revng_assert(ModelFunctionIterator != Model->Functions().end());
 

@@ -1,4 +1,4 @@
-/// \file FunctionMetadata.cpp
+/// \file ControlFlowGraph.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -12,7 +12,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -36,7 +36,7 @@ public:
   std::map<BasicBlockID, FunctionCFGNode *> Map;
 
 public:
-  FunctionCFGVerificationHelper(const efa::FunctionMetadata &Metadata,
+  FunctionCFGVerificationHelper(const efa::ControlFlowGraph &Metadata,
                                 const model::Binary &Binary) {
     using G = FunctionCFG;
     std::tie(Graph, Map) = buildControlFlowGraph<G>(Metadata.Blocks(),
@@ -85,7 +85,7 @@ public:
   }
 };
 
-const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
+const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
                                                    llvm::BasicBlock *BB) const {
   const llvm::BasicBlock *JumpTargetBB = getJumpTargetBlock(BB);
   if (JumpTargetBB == nullptr)
@@ -121,7 +121,7 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
   return &*It;
 }
 
-void FunctionMetadata::serialize(GeneratedCodeBasicInfo &GCBI) const {
+void ControlFlowGraph::serialize(GeneratedCodeBasicInfo &GCBI) const {
   using namespace llvm;
   using llvm::BasicBlock;
 
@@ -135,10 +135,10 @@ void FunctionMetadata::serialize(GeneratedCodeBasicInfo &GCBI) const {
 
   Instruction *Term = BB->getTerminator();
   MDNode *Node = MDNode::get(Context, MDString::get(Context, Buffer));
-  Term->setMetadata(FunctionMetadataMDName, Node);
+  Term->setMetadata(ControlFlowGraphMDName, Node);
 }
 
-void FunctionMetadata::simplify(const model::Binary &Binary) {
+void ControlFlowGraph::simplify(const model::Binary &Binary) {
   // If A does not end with a call and A.end == B.start and A is the only
   // predecessor of B and B is the only successor of A, merge
 
@@ -205,16 +205,16 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
   }
 }
 
-bool FunctionMetadata::verify(const model::Binary &Binary) const {
+bool ControlFlowGraph::verify(const model::Binary &Binary) const {
   return verify(Binary, false);
 }
 
-bool FunctionMetadata::verify(const model::Binary &Binary, bool Assert) const {
+bool ControlFlowGraph::verify(const model::Binary &Binary, bool Assert) const {
   model::VerifyHelper VH(Assert);
   return verify(Binary, VH);
 }
 
-bool FunctionMetadata::verify(const model::Binary &Binary,
+bool ControlFlowGraph::verify(const model::Binary &Binary,
                               model::VerifyHelper &VH) const {
   const auto &Function = Binary.Functions().at(Entry());
 
@@ -291,11 +291,11 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
   return true;
 }
 
-void FunctionMetadata::dump() const {
+void ControlFlowGraph::dump() const {
   ::serialize(dbg, *this);
 }
 
-void FunctionMetadata::dumpCFG(const model::Binary &Binary) const {
+void ControlFlowGraph::dumpCFG(const model::Binary &Binary) const {
   auto [Graph,
         _] = buildControlFlowGraph<FunctionCFG>(Blocks(), Entry(), Binary);
   WriteGraph(&Graph, "function-metadata");

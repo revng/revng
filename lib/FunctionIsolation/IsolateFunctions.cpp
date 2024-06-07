@@ -32,10 +32,10 @@
 #include "revng/EarlyFunctionAnalysis/AnalyzeRegisterUsage.h"
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/Generated/ForwardDecls.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
@@ -97,7 +97,7 @@ struct IsolatePipe {
                                                        ModuleContainer.name()));
     Manager
       .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(Ctx))));
-    Manager.add(new FunctionMetadataCachePass(CFGMap));
+    Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new IsolateFunctions());
     Manager.run(ModuleContainer.getModule());
   }
@@ -172,7 +172,7 @@ private:
   std::map<MetaAddress, Function *> IsolatedFunctionsMap;
   std::map<StringRef, Function *> DynamicFunctionsMap;
 
-  FunctionMetadataCache *Cache = nullptr;
+  ControlFlowGraphCache *Cache = nullptr;
   FunctionType *IsolatedFunctionType = nullptr;
   pipeline::LoadExecutionContextPass &LECP;
 
@@ -180,7 +180,7 @@ public:
   IsolateFunctionsImpl(Function *RootFunction,
                        GeneratedCodeBasicInfo &GCBI,
                        const model::Binary &Binary,
-                       FunctionMetadataCache &Cache,
+                       ControlFlowGraphCache &Cache,
                        pipeline::LoadExecutionContextPass &LECP) :
     RootFunction(RootFunction),
     TheModule(RootFunction->getParent()),
@@ -254,7 +254,7 @@ private:
 
   void handleUnexpectedPCCloned(efa::OutlinedFunction &Outlined);
   void handleAnyPCJumps(efa::OutlinedFunction &Outlined,
-                        const efa::FunctionMetadata &FM);
+                        const efa::ControlFlowGraph &FM);
 };
 
 void IFI::populateFunctionDispatcher() {
@@ -372,11 +372,11 @@ void printAddressListComparison(const LeftMap &ExpectedAddresses,
 class CallIsolatedFunction : public efa::CallHandler {
 private:
   IsolateFunctionsImpl &IFI;
-  const efa::FunctionMetadata &FM;
+  const efa::ControlFlowGraph &FM;
 
 public:
   CallIsolatedFunction(IsolateFunctionsImpl &IFI,
-                       const efa::FunctionMetadata &FM) :
+                       const efa::ControlFlowGraph &FM) :
     IFI(IFI), FM(FM) {}
 
 public:
@@ -570,7 +570,7 @@ void IsolateFunctionsImpl::run() {
     Context.getContext().pushReadFields();
 
     auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
-    const efa::FunctionMetadata &FM = Cache->getFunctionMetadata(Entry);
+    const efa::ControlFlowGraph &FM = Cache->getControlFlowGraph(Entry);
 
     // Get or create the llvm::Function
     Function *F = getLocalFunction(Entry);
@@ -633,7 +633,7 @@ void IsolateFunctionsImpl::handleUnexpectedPCCloned(efa::OutlinedFunction
 }
 
 void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
-                                            const efa::FunctionMetadata &FM) {
+                                            const efa::ControlFlowGraph &FM) {
   if (BasicBlock *AnyPC = Outlined.AnyPCCloned) {
     for (BasicBlock *AnyPCPredecessor : toVector(predecessors(AnyPC))) {
       // First of all, identify the basic block
@@ -716,7 +716,7 @@ bool IF::runOnModule(Module &TheModule) {
   IFI Impl(TheModule.getFunction("root"),
            GCBI,
            Binary,
-           getAnalysis<FunctionMetadataCachePass>().get(),
+           getAnalysis<ControlFlowGraphCachePass>().get(),
            getAnalysis<pipeline::LoadExecutionContextPass>());
   Impl.run();
 
@@ -727,6 +727,6 @@ void IsolateFunctions::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<FunctionMetadataCachePass>();
+  AU.addRequired<ControlFlowGraphCachePass>();
   AU.addRequired<pipeline::LoadExecutionContextPass>();
 }

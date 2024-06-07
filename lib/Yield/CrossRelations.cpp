@@ -15,7 +15,7 @@
 
 namespace CR = yield::crossrelations;
 
-using MetadataContainer = SortedVector<efa::FunctionMetadata>;
+using MetadataContainer = SortedVector<efa::ControlFlowGraph>;
 CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
                                    const model::Binary &Binary) {
   revng_assert(Metadata.size() == Binary.Functions().size());

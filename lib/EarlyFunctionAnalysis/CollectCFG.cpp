@@ -7,7 +7,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Contract.h"
@@ -65,7 +65,7 @@ public:
                                                     .getPathComponents()[0]);
 
       // Recover the control-flow graph of the function
-      efa::FunctionMetadata New;
+      efa::ControlFlowGraph New;
       New.Entry() = EntryAddress;
       New.Blocks() = std::move(Analyzer.analyze(EntryAddress).CFG);
 

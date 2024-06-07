@@ -12,7 +12,7 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -47,7 +47,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 
   revng_assert(not ErrorCode, "Could not open file!");
 
-  FunctionMetadataCache FunctionMetadataCache(CFGMap);
+  ControlFlowGraphCache ControlFlowGraphCache(CFGMap);
 
   using boost::icl::discrete_interval;
   using boost::icl::inplace_plus;
@@ -73,8 +73,8 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 
   for (const Function &F :
        FunctionTags::Isolated.functions(&ModuleContainer.getModule())) {
-    const efa::FunctionMetadata &Metadata = FunctionMetadataCache
-                                              .getFunctionMetadata(&F);
+    const efa::ControlFlowGraph &Metadata = ControlFlowGraphCache
+                                              .getControlFlowGraph(&F);
     MetaAddress EntryAddress = Metadata.Entry();
 
     for (const Instruction &I : llvm::instructions(F)) {

@@ -27,10 +27,10 @@
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Pass/PromoteOriginalName.h"
@@ -106,7 +106,7 @@ public:
                              .getGlobal<ModelGlobal>(ModelGlobalName));
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
     Manager.add(new CollectFunctionsFromCalleesWrapperPass());
-    Manager.add(new FunctionMetadataCachePass(CFGs));
+    Manager.add(new ControlFlowGraphCachePass(CFGs));
     Manager.add(new efa::DetectABIPass());
     Manager.add(new CollectFunctionsFromUnusedAddressesWrapperPass());
     Manager.add(new efa::DetectABIPass());
@@ -145,7 +145,7 @@ private:
   llvm::Module &M;
   llvm::LLVMContext &Context;
   GeneratedCodeBasicInfo &GCBI;
-  FunctionMetadataCache &FMC;
+  ControlFlowGraphCache &FMC;
   TupleTree<model::Binary> &Binary;
   FunctionSummaryOracle &Oracle;
   CFGAnalyzer &Analyzer;
@@ -156,7 +156,7 @@ private:
 public:
   DetectABI(llvm::Module &M,
             GeneratedCodeBasicInfo &GCBI,
-            FunctionMetadataCache &FMC,
+            ControlFlowGraphCache &FMC,
             TupleTree<model::Binary> &Binary,
             FunctionSummaryOracle &Oracle,
             CFGAnalyzer &Analyzer) :
@@ -362,9 +362,9 @@ void DetectABI::preliminaryFunctionAnalysis() {
       Log << DoLog;
     }
 
-    // Serialize CFG in the FunctionMetadataCache
+    // Serialize CFG in the ControlFlowGraphCache
     {
-      TupleTree<efa::FunctionMetadata> New;
+      TupleTree<efa::ControlFlowGraph> New;
       New->Entry() = EntryNode->Address;
       New->Blocks() = AnalysisResult.CFG;
       New->simplify(*Binary);
@@ -748,7 +748,7 @@ void DetectABI::finalizeModel() {
 
   for (auto &Function : Functions) {
     auto &Summary = Oracle.getLocalFunction(Function->Entry());
-    efa::FunctionMetadata FM(Function->Entry(), "", Summary.CFG);
+    efa::ControlFlowGraph FM(Function->Entry(), "", Summary.CFG);
     FM.verify(*Binary, true);
   }
 
@@ -1082,7 +1082,7 @@ bool DetectABIPass::runOnModule(Module &M) {
     return false;
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  auto &FMC = getAnalysis<FunctionMetadataCachePass>().get();
+  auto &FMC = getAnalysis<ControlFlowGraphCachePass>().get();
   auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
 
   TupleTree<model::Binary> &Binary = LMP.getWriteableModel();

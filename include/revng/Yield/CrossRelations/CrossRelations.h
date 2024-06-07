@@ -5,7 +5,7 @@
 //
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Yield/CallGraphs/Graph.h"
 #include "revng/Yield/CrossRelations/RelationDescription.h"
@@ -30,7 +30,7 @@ private:
 
 public:
   CrossRelations() = default;
-  CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
+  CrossRelations(const SortedVector<efa::ControlFlowGraph> &Metadata,
                  const model::Binary &Binary);
 
   GenericGraph<Node, 16, true> toCallGraph() const;

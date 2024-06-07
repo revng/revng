@@ -17,7 +17,7 @@ class BasicBlock;
 class GeneratedCodeBasicInfo;
 
 /* TUPLE-TREE-YAML
-name: FunctionMetadata
+name: ControlFlowGraph
 doc: "Metadata attached to a function. As of now, it includes a list of basic
 blocks, representing the control-flow graph."
 type: struct
@@ -38,11 +38,11 @@ key:
   - Entry
 TUPLE-TREE-YAML */
 
-#include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Early/ControlFlowGraph.h"
 
-class efa::FunctionMetadata : public efa::generated::FunctionMetadata {
+class efa::ControlFlowGraph : public efa::generated::ControlFlowGraph {
 public:
-  using generated::FunctionMetadata::FunctionMetadata;
+  using generated::ControlFlowGraph::ControlFlowGraph;
 
 public:
   const efa::BasicBlock *findBlock(GeneratedCodeBasicInfo &GCBI,
@@ -61,4 +61,4 @@ public:
   void simplify(const model::Binary &Binary);
 };
 
-#include "revng/EarlyFunctionAnalysis/Generated/Late/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Late/ControlFlowGraph.h"

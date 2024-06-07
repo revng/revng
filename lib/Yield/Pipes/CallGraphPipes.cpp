@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/Pipe.h"
@@ -32,10 +32,10 @@ void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
   const auto &Model = getModelFromContext(Context);
 
   // Gather function metadata
-  SortedVector<efa::FunctionMetadata> Metadata;
+  SortedVector<efa::ControlFlowGraph> Metadata;
   for (const auto &[Address, CFGString] : CFGMap)
     Metadata
-      .insert(*TupleTree<efa::FunctionMetadata>::deserialize(CFGString)->get());
+      .insert(*TupleTree<efa::ControlFlowGraph>::deserialize(CFGString)->get());
 
   // If some functions are missing, do not output anything
   if (Metadata.size() != Model->Functions().size())
@@ -68,10 +68,10 @@ void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
   // Access the llvm module
   PTMLBuilder ThePTMLBuilder;
 
-  FunctionMetadataCache Cache(CFGMap);
+  ControlFlowGraphCache Cache(CFGMap);
   for (const auto &[Key, _] : CFGMap) {
     MetaAddress Address = std::get<0>(Key);
-    auto &Metadata = Cache.getFunctionMetadata(Address);
+    auto &Metadata = Cache.getControlFlowGraph(Address);
     revng_assert(llvm::is_contained(Model->Functions(), Metadata.Entry()));
 
     // Slice the graph for the current function and convert it to SVG

@@ -5,7 +5,7 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/RawBinaryView.h"
@@ -45,7 +45,7 @@ convert(const UpcastablePointer<efa::FunctionEdgeBase> &Source) {
 }
 
 static void analyzeBasicBlocks(yield::Function &Function,
-                               const efa::FunctionMetadata &Metadata,
+                               const efa::ControlFlowGraph &Metadata,
                                const model::Binary &Binary) {
   // Gather all the basic blocks that only have a single predecessor.
   std::map<BasicBlockID, std::optional<BasicBlockID>> Predecessors;
@@ -104,7 +104,7 @@ static void analyzeBasicBlocks(yield::Function &Function,
 }
 
 yield::Function DH::disassemble(const model::Function &Function,
-                                const efa::FunctionMetadata &Metadata,
+                                const efa::ControlFlowGraph &Metadata,
                                 const RawBinaryView &BinaryView,
                                 const model::Binary &Binary) {
   yield::Function ResultFunction;

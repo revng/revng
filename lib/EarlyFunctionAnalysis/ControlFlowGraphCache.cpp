@@ -2,13 +2,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 
-char FunctionMetadataCachePass::ID = '_';
+char ControlFlowGraphCachePass::ID = '_';
 
-llvm::AnalysisKey FunctionMetadataCacheAnalysis::Key;
+llvm::AnalysisKey ControlFlowGraphCacheAnalysis::Key;
 
-static llvm::RegisterPass<FunctionMetadataCachePass> _("metadata-cache",
+static llvm::RegisterPass<ControlFlowGraphCachePass> _("metadata-cache",
                                                        "Create metadata cache "
                                                        "to be "
                                                        "used by later passes",

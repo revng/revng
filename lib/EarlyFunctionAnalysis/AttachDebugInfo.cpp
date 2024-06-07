@@ -28,7 +28,7 @@
 #include "llvm/IR/Metadata.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -48,7 +48,7 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<FunctionMetadataCachePass>();
+    AU.addRequired<ControlFlowGraphCachePass>();
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   }
 
@@ -68,7 +68,7 @@ static bool isTrue(const llvm::Value *V) {
 static void handleFunction(DIBuilder &DIB,
                            llvm::Function &F,
                            DISubprogram *TheSubprogram,
-                           efa::FunctionMetadata &FM,
+                           efa::ControlFlowGraph &FM,
                            GeneratedCodeBasicInfo &GCBI) {
   namespace ranks = revng::ranks;
 
@@ -140,7 +140,7 @@ static void handleFunction(DIBuilder &DIB,
 
 bool AttachDebugInfo::runOnModule(llvm::Module &M) {
   DIBuilder DIB(M);
-  FunctionMetadataCache *Cache = &getAnalysis<FunctionMetadataCachePass>()
+  ControlFlowGraphCache *Cache = &getAnalysis<ControlFlowGraphCachePass>()
                                     .get();
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
@@ -169,7 +169,7 @@ bool AttachDebugInfo::runOnModule(llvm::Module &M) {
     if (F.isDeclaration())
       continue;
 
-    auto FM = Cache->getFunctionMetadata(&F);
+    auto FM = Cache->getControlFlowGraph(&F);
     revng_log(Log,
               "Metadata for Function " << F.getName() << ":"
                                        << FM.Entry().toString());
@@ -224,7 +224,7 @@ struct AttachDebugInfoToIsolatedPipe {
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
     Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
-    Manager.add(new FunctionMetadataCachePass(CFGMap));
+    Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new AttachDebugInfo());
     Manager.run(ModuleContainer.getModule());
   }
@@ -259,7 +259,7 @@ struct AttachDebugInfoToABIEnforcedPipe {
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
     Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
-    Manager.add(new FunctionMetadataCachePass(CFGMap));
+    Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new AttachDebugInfo());
     Manager.run(ModuleContainer.getModule());
   }

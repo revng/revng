@@ -26,7 +26,7 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Register.h"
@@ -57,7 +57,7 @@ private:
   std::vector<Function *> OldFunctions;
   Function *FunctionDispatcher = nullptr;
   StructInitializers Initializers;
-  FunctionMetadataCache &Cache;
+  ControlFlowGraphCache &Cache;
   pipeline::LoadExecutionContextPass &LECP;
   GeneratedCodeBasicInfo &GCBI;
 
@@ -69,7 +69,7 @@ public:
     Binary(Binary),
     M(M),
     Initializers(&M),
-    Cache(getAnalysis<FunctionMetadataCachePass>().get()),
+    Cache(getAnalysis<ControlFlowGraphCachePass>().get()),
     LECP(getAnalysis<pipeline::LoadExecutionContextPass>()),
     GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()) {}
 
@@ -338,7 +338,7 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
 
   // Identify the corresponding call site in the model
   Function *CallerFunction = Call->getParent()->getParent();
-  const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(CallerFunction);
+  const efa::ControlFlowGraph &FM = Cache.getControlFlowGraph(CallerFunction);
 
   const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
   revng_assert(CallerBlock != nullptr);
@@ -479,7 +479,7 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
 
 void EnforceABI::getAnalysisUsage(llvm::AnalysisUsage &AU) {
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.addRequired<FunctionMetadataCachePass>();
+  AU.addRequired<ControlFlowGraphCachePass>();
   AU.setPreservesAll();
 }
 
@@ -508,7 +508,7 @@ struct EnforceABIPipe {
     Manager.add(new pipeline::LoadExecutionContextPass(&Ctx,
                                                        ModuleContainer.name()));
     Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
-    Manager.add(new FunctionMetadataCachePass(CFGMap));
+    Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new pipeline::FunctionPass<EnforceABI>());
     Manager.run(ModuleContainer.getModule());
   }

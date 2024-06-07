@@ -76,7 +76,7 @@ inline void eraseFromParent(llvm::Value *V) {
 
 constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
-constexpr const char *FunctionMetadataMDName = "revng.function.metadata";
+constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {

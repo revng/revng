@@ -9,7 +9,7 @@
 
 #include "revng/ADT/Concepts.h"
 #include "revng/ADT/GenericGraph.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/FunctionAttribute.h"
 
 namespace efa {
