@@ -29,6 +29,9 @@ struct ModelToHeaderOptions {
   ///    type
   /// 2. Not printing any type which its only use (either directly or
   ///    transitively) derives from (1)
+  /// TODO: this now conflates a) printing stack types inline in function=
+  /// bodies; b) printing inline types in types-and-globals.h
+  /// In principle the two options could be split and activated separately.
   bool DisableTypeInlining = false;
 };
 
