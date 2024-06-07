@@ -63,21 +63,18 @@ static void printSegmentsTypes(const model::Segment &Segment,
 
 /// Print all type definitions for the types in the model
 static void printTypeDefinitions(const model::Binary &Model,
-                                 const TypeInlineHelper &TheTypeInlineHelper,
                                  ptml::PTMLIndentedOstream &Header,
                                  ptml::PTMLCBuilder &B,
                                  QualifiedTypeNameMap &AdditionalTypeNames,
                                  const ModelToHeaderOptions &Options) {
 
   std::set<const model::Type *> TypesToInlineInStacks;
-  if (not Options.DisableTypeInlining)
+  std::set<const model::Type *> ToInline;
+  if (not Options.DisableTypeInlining) {
+    TypeInlineHelper TheTypeInlineHelper(Model);
     TypesToInlineInStacks = TheTypeInlineHelper.collectTypesInlinableInStacks();
-
-  DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
-  const auto &TypeNodes = Dependencies.TypeNodes();
-  const auto &ToInline = Options.DisableTypeInlining ?
-                           std::set<const model::Type *>{} :
-                           TheTypeInlineHelper.getTypesToInline();
+    ToInline = TheTypeInlineHelper.getTypesToInline();
+  }
 
   if (Log.isEnabled()) {
     revng_log(Log, "TypesToInlineInStacks: {");
@@ -96,6 +93,9 @@ static void printTypeDefinitions(const model::Binary &Model,
     revng_log(Log, "}");
     revng_log(Log, "TypesToInlineInStacks should be a subset of ToInline");
   }
+
+  DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
+  const auto &TypeNodes = Dependencies.TypeNodes();
 
   std::set<const TypeDependencyNode *> Defined;
   for (const auto *Root : Dependencies.nodes()) {
@@ -199,14 +199,8 @@ bool dumpModelToHeader(const model::Binary &Model,
       Header << B.getLineComment("===============");
       Header << '\n';
       QualifiedTypeNameMap AdditionalTypeNames;
-      TypeInlineHelper TheTypeInlineHelper(Model);
 
-      printTypeDefinitions(Model,
-                           TheTypeInlineHelper,
-                           Header,
-                           B,
-                           AdditionalTypeNames,
-                           Options);
+      printTypeDefinitions(Model, Header, B, AdditionalTypeNames, Options);
     }
 
     if (not Model.Functions().empty()) {
