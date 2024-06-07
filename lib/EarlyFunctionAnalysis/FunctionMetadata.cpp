@@ -11,7 +11,7 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/IRHelpers.h"

@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Function.h"

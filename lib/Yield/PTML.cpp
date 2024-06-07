@@ -9,7 +9,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 
 #include "revng/ADT/Concepts.h"
-#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/PTML/Constants.h"
