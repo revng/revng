@@ -33,10 +33,6 @@ public:
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();
   }
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> RunningContainersNames) const;
 };
 
 } // namespace revng::pipes

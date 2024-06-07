@@ -97,10 +97,6 @@ public:
     { &revng::kinds::Root }
   };
 
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {}
-
   void run(const pipeline::ExecutionContext &Ctx,
            pipeline::LLVMContainer &ModuleContainer) {
     revng::pipes::CFGMap CFGs("");

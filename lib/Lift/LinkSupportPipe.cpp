@@ -74,13 +74,6 @@ static std::string getSupportPath(const Context &Ctx) {
   return SupportPath;
 }
 
-void LinkSupport::print(const pipeline::Context &Ctx,
-                        llvm::raw_ostream &OS,
-                        llvm::ArrayRef<std::string> Names) const {
-  OS << "llvm-link " << Names[0] << " " << getSupportPath(Ctx) << " -o "
-     << Names[0] << "\n";
-}
-
 void revng::pipes::LinkSupport::run(const ExecutionContext &Ctx,
                                     LLVMContainer &TargetsList) {
   if (TargetsList.enumerate().empty())

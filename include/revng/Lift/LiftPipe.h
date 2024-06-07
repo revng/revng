@@ -47,14 +47,6 @@ public:
              const pipeline::GlobalTupleTreeDiff &Diff) const;
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-
-    OS << *ResourceFinder.findFile("bin/revng");
-    OS << " lift " << ContainerNames[0] << " " << ContainerNames[1] << "\n";
-  }
 };
 
 } // namespace revng::pipes

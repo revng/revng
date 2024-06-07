@@ -435,8 +435,6 @@ public:
   virtual std::string getName() const = 0;
   virtual void dump(std::ostream &OS, size_t Indents) const = 0;
   virtual bool isContainerArgumentConst(size_t ArgumentIndex) const = 0;
-  virtual void
-  print(const Context &Ctx, llvm::raw_ostream &OS, size_t Indents) const = 0;
   virtual std::vector<std::string> getOptionsNames() const = 0;
   virtual std::vector<std::string> getOptionsTypes() const = 0;
 };
@@ -545,21 +543,6 @@ public:
     }
     if constexpr (Dumpable<InvokableType>)
       ActualPipe.dump(OS, Indentation);
-  }
-
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             size_t Indentation) const override {
-    indent(OS, Indentation);
-    if constexpr (Printable<InvokableType>) {
-      const auto &Names = getRunningContainersNames();
-      ActualPipe.print(Ctx, OS, Names);
-    } else {
-      OS << "revng pipe ";
-      OS << getName() << " ";
-      for (const auto &Name : getRunningContainersNames())
-        OS << Name << " ";
-    }
   }
 
   bool isContainerArgumentConst(size_t ArgumentIndex) const override {

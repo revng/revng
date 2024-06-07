@@ -57,12 +57,6 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
   }
 }
 
-void ProcessAssembly::print(const pipeline::Context &,
-                            llvm::raw_ostream &OS,
-                            llvm::ArrayRef<std::string> Files) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
-}
-
 void YieldAssembly::run(pipeline::ExecutionContext &Context,
                         const FunctionAssemblyStringMap &Input,
                         FunctionAssemblyPTMLStringMap &Output) {
@@ -89,12 +83,6 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
     R = ThePTMLBuilder.getTag(ptml::tags::Div, std::move(R)).serialize();
     Output.insert_or_assign((*MaybeFunction)->Entry(), std::move(R));
   }
-}
-
-void YieldAssembly::print(const pipeline::Context &,
-                          llvm::raw_ostream &OS,
-                          llvm::ArrayRef<std::string> Files) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 } // end namespace revng::pipes

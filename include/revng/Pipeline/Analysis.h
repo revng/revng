@@ -77,12 +77,6 @@ public:
     Invokable.dump(OS, Indentation);
   }
 
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             size_t Indentation) const override {
-    Invokable.print(Ctx, OS, Indentation);
-  }
-
   llvm::Error run(ExecutionContext &Ctx,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &ExtraArgs) override {

@@ -291,13 +291,6 @@ public:
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();
   }
-
-  void print(const pipeline::Context &Ctx,
-             raw_ostream &Os,
-             ArrayRef<std::string> ContainerNames) const {
-    Os << "revng artifact HexDump " << ContainerNames[0] << " -o "
-       << ContainerNames[2] << "-m ModelFile\n";
-  }
 };
 
 } // namespace revng::pipes

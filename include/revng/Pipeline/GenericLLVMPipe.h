@@ -204,19 +204,6 @@ public:
     Passes.emplace_back(std::move(Impl));
   }
 
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    OS << *revng::ResourceFinder.findFile("bin/revng");
-    OS << " opt --model-path=model.yml " << ContainerNames[0] << " -o "
-       << ContainerNames[0];
-    for (const auto &Pass : Passes) {
-      Pass->print(OS);
-      OS << " ";
-    }
-    OS << "\n";
-  }
-
 public:
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const {

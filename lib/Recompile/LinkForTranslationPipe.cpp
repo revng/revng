@@ -31,10 +31,4 @@ void LinkForTranslation::run(const ExecutionContext &Ctx,
                      OutputBinary.getOrCreatePath());
 }
 
-void LinkForTranslation::print(const Context &Ctx,
-                               llvm::raw_ostream &OS,
-                               llvm::ArrayRef<std::string> Names) const {
-  OS << "(unavailable)\n";
-}
-
 static RegisterPipe<LinkForTranslation> E5;

@@ -44,12 +44,6 @@ void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
   OutputFile.emplace(Metadata, *Model);
 }
 
-void ProcessCallGraph::print(const pipeline::Context &,
-                             llvm::raw_ostream &OS,
-                             llvm::ArrayRef<std::string>) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
-}
-
 void YieldCallGraph::run(pipeline::ExecutionContext &Context,
                          const CrossRelationsFileContainer &Relations,
                          CallGraphSVGFileContainer &Output) {
@@ -62,12 +56,6 @@ void YieldCallGraph::run(pipeline::ExecutionContext &Context,
 
   // Print the result.
   Output.setContent(std::move(Result));
-}
-
-void YieldCallGraph::print(const pipeline::Context &,
-                           llvm::raw_ostream &OS,
-                           llvm::ArrayRef<std::string>) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
@@ -97,11 +85,6 @@ void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
   }
 }
 
-void YieldCallGraphSlice::print(const pipeline::Context &,
-                                llvm::raw_ostream &OS,
-                                llvm::ArrayRef<std::string>) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
-}
 using namespace pipeline;
 
 static RegisterDefaultConstructibleContainer<CrossRelationsFileContainer> X1;
