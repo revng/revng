@@ -1245,7 +1245,7 @@ void JumpTargetManager::harvest() {
 
       AftedAddingFunctionEntries = true;
 
-      TrackGuard Guard(*Model);
+      DisableTracking Guard(*Model);
       for (const model::Function &Function : Model->Functions())
         registerJT(Function.Entry(), JTReason::FunctionSymbol);
     }

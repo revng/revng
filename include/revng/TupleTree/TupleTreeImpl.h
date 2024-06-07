@@ -28,7 +28,7 @@ void TupleTree<T>::visitImpl(typename TupleTreeVisitor<T>::VisitorBase &Pre,
 
 template<TupleTreeCompatible T>
 bool TupleTree<T>::verifyReferences(bool Assert) const {
-  TrackGuard Guard(*Root);
+  DisableTracking Guard(*Root);
   bool Result = true;
 
   visitReferences([&Result,

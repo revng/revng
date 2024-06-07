@@ -243,12 +243,12 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
 }
 
 void Binary::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
 void Binary::dumpTypeGraph(const char *Path) const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
 
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
@@ -260,7 +260,7 @@ void Binary::dumpTypeGraph(const char *Path) const {
 }
 
 std::string Binary::toString() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   std::string S;
   llvm::raw_string_ostream OS(S);
   serialize(OS, *this);
@@ -471,7 +471,7 @@ Identifier Segment::name() const {
 }
 
 void Segment::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -545,12 +545,12 @@ bool Segment::verify(VerifyHelper &VH) const {
 }
 
 void Function::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
 void Function::dumpTypeGraph(const char *Path) const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
   if (EC)
@@ -614,7 +614,7 @@ bool Function::verify(VerifyHelper &VH) const {
 }
 
 void DynamicFunction::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -659,7 +659,7 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 }
 
 void CallSitePrototype::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
