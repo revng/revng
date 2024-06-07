@@ -9,7 +9,7 @@
 
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Pipeline/ExecutionContext.h"
-#include "revng/Pipes/RevngPasses.h"
+#include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/Debug.h"
 
 namespace JTReason {

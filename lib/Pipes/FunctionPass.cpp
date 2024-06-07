@@ -1,4 +1,4 @@
-/// \file RevngPasses.cpp
+/// \file FunctionPass.cpp
 /// Contains the implementation of pipeline passes.
 
 ///
@@ -10,7 +10,7 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/LLVMKind.h"
-#include "revng/Pipes/RevngPasses.h"
+#include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/FunctionTags.h"
 
