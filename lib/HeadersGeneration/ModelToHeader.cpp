@@ -63,89 +63,90 @@ static void printSegmentsTypes(const model::Segment &Segment,
 
 /// Print all type definitions for the types in the model
 static void printTypeDefinitions(const model::Binary &Model,
-                                 const TypeInlineHelper &TheTypeInlineHelper,
                                  ptml::PTMLIndentedOstream &Header,
                                  ptml::PTMLCBuilder &B,
                                  QualifiedTypeNameMap &AdditionalTypeNames,
                                  const ModelToHeaderOptions &Options) {
+
   std::set<const model::Type *> TypesToInlineInStacks;
-  if (not Options.DisableTypeInlining)
-    TypesToInlineInStacks = TheTypeInlineHelper
-                              .collectTypesInlinableInStacks(Model);
+  std::set<const model::Type *> ToInline;
+  if (not Options.DisableTypeInlining) {
+    TypeInlineHelper TheTypeInlineHelper(Model);
+    TypesToInlineInStacks = TheTypeInlineHelper.collectTypesInlinableInStacks();
+    ToInline = TheTypeInlineHelper.getTypesToInline();
+  }
+
+  if (Log.isEnabled()) {
+    revng_log(Log, "TypesToInlineInStacks: {");
+    {
+      LoggerIndent Indent{ Log };
+      for (const model::Type *T : TypesToInlineInStacks)
+        revng_log(Log, T->ID());
+    }
+    revng_log(Log, "}");
+    revng_log(Log, "ToInline: {");
+    {
+      LoggerIndent Indent{ Log };
+      for (const model::Type *T : ToInline)
+        revng_log(Log, T->ID());
+    }
+    revng_log(Log, "}");
+    revng_log(Log, "TypesToInlineInStacks should be a subset of ToInline");
+  }
 
   DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
   const auto &TypeNodes = Dependencies.TypeNodes();
-  const auto &ToInline = Options.DisableTypeInlining ?
-                           std::set<const model::Type *>{} :
-                           TheTypeInlineHelper.getTypesToInline();
 
   std::set<const TypeDependencyNode *> Defined;
   for (const auto *Root : Dependencies.nodes()) {
-    revng_log(Log, "======== PostOrder " << getNodeLabel(Root));
+    revng_log(Log, "PostOrder from Root:" << getNodeLabel(Root));
 
     for (const auto *Node : llvm::post_order_ext(Root, Defined)) {
-      revng_log(Log, "== visiting " << getNodeLabel(Node));
-      for (const auto *Child :
-           llvm::children<const TypeDependencyNode *>(Node)) {
-        revng_log(Log, "= child " << getNodeLabel(Child));
-        if (Defined.contains(Child))
-          revng_log(Log, "      DEFINED");
-        else
-          revng_log(Log, "      NOT DEFINED");
-      }
 
-      if (TypesToInlineInStacks.contains(Node->T)) {
+      LoggerIndent PostOrderIndent{ Log };
+      revng_log(Log, "post_order visiting: " << getNodeLabel(Node));
+
+      const model::Type *NodeT = Node->T;
+      const auto DeclKind = Node->K;
+
+      if (TypesToInlineInStacks.contains(NodeT)) {
         if (Options.DisableTypeInlining) {
-          revng_log(Log, "      PRINTED STACK TYPE");
+          revng_log(Log, "Printed Stack Type");
         } else {
-          revng_log(Log, "      IGNORED STACK TYPE");
+          revng_log(Log, "Ignored Stack Type");
           continue;
         }
       }
 
-      const model::Type *NodeT = Node->T;
-      const auto DeclKind = Node->K;
-      constexpr auto TypeName = TypeNode::Kind::TypeName;
-      constexpr auto FullType = TypeNode::Kind::FullType;
-
-      if (Options.TypesToOmit.contains(NodeT))
+      if (Options.TypesToOmit.contains(NodeT)) {
+        revng_log(Log, "Omitted");
         continue;
+      }
 
-      if (DeclKind == FullType) {
+      constexpr auto Declaration = TypeNode::Kind::Declaration;
 
-        // When emitting a full definition we also want to emit a forward
-        // declaration first, if it wasn't already emitted somewhere else.
-        if (Defined.insert(TypeNodes.at({ NodeT, TypeName })).second
-            and not ToInline.contains(NodeT)) {
-          printDeclaration(Log,
-                           *NodeT,
-                           Header,
-                           B,
-                           Model,
-                           AdditionalTypeNames,
-                           ToInline);
-        }
+      if (DeclKind == Declaration) {
+        revng_log(Log, "Declaration");
 
+        // Print the declaration. Notice that the forward declarations are
+        // emitted even for inlined types, because it's only the full definition
+        // that will be inlined.
+        revng_log(Log, "printDeclaration");
+        printDeclaration(Log,
+                         *NodeT,
+                         Header,
+                         B,
+                         Model,
+                         AdditionalTypeNames,
+                         ToInline);
+
+      } else {
+        revng_log(Log, "Definition");
+
+        revng_assert(Defined.contains(TypeNodes.at({ NodeT, Declaration })));
         if (not declarationIsDefinition(NodeT)
             and not ToInline.contains(NodeT)) {
-          // For all inlinable types that we have seen them yet produce forward
-          // declaration.
-          if ((isa<model::UnionType>(NodeT) or isa<model::StructType>(NodeT))
-              and not ToInline.contains(NodeT)) {
-            auto TypesToInline = TheTypeInlineHelper
-                                   .getTypesToInlineInTypeTy(Model, NodeT);
-            for (auto *Type : TypesToInline) {
-              revng_assert(isCandidateForInline(Type));
-              printDeclaration(Log,
-                               *Type,
-                               Header,
-                               B,
-                               Model,
-                               AdditionalTypeNames,
-                               ToInline);
-            }
-          }
-
+          revng_log(Log, "printDefinition");
           printDefinition(Log,
                           *NodeT,
                           Header,
@@ -154,38 +155,9 @@ static void printTypeDefinitions(const model::Binary &Model,
                           AdditionalTypeNames,
                           ToInline);
         }
-
-        // This is always a full type definition
-        Defined.insert(TypeNodes.at({ NodeT, FullType }));
-      } else {
-        if (not ToInline.contains(NodeT)) {
-          if (not Options.TypesToOmit.contains(Node->T)) {
-            printDeclaration(Log,
-                             *NodeT,
-                             Header,
-                             B,
-                             Model,
-                             AdditionalTypeNames,
-                             ToInline);
-          }
-          Defined.insert(TypeNodes.at({ NodeT, TypeName }));
-        }
-
-        // For primitive types the forward declaration we emit is also a full
-        // definition, so we need to keep track of this.
-        if (isa<model::PrimitiveType>(NodeT))
-          Defined.insert(TypeNodes.at({ NodeT, FullType }));
-
-        // For struct, enums and unions the forward declaration is just a
-        // forward declaration, without body.
-
-        // TypedefType, RawFunctionType and CABIFunctionType are emitted in C
-        // as typedefs, so they don't represent fully defined types, but just
-        // names, unless all the types they depend from are also fully
-        // defined, but that happens when DeclKind == FullType, not here.
       }
     }
-    revng_log(Log, "====== PostOrder DONE");
+    revng_log(Log, "PostOrder DONE");
   }
 }
 
@@ -227,14 +199,8 @@ bool dumpModelToHeader(const model::Binary &Model,
       Header << B.getLineComment("===============");
       Header << '\n';
       QualifiedTypeNameMap AdditionalTypeNames;
-      TypeInlineHelper TheTypeInlineHelper(Model);
 
-      printTypeDefinitions(Model,
-                           TheTypeInlineHelper,
-                           Header,
-                           B,
-                           AdditionalTypeNames,
-                           Options);
+      printTypeDefinitions(Model, Header, B, AdditionalTypeNames, Options);
     }
 
     if (not Model.Functions().empty()) {

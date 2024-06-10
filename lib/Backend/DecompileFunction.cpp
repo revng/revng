@@ -1988,7 +1988,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
           // For all nested types within stack definition we print forward
           // declarations.
           for (auto *Type : TheStackTypes) {
-            revng_assert(isCandidateForInline(Type));
+            revng_assert(not declarationIsDefinition(Type));
             printForwardDeclaration(*Type, Out, B);
           }
           printDefinition(Log,
@@ -2086,8 +2086,7 @@ void decompile(FunctionMetadataCache &Cache,
 
   // Get all Stack types and all the inlinable types reachable from it,
   // since we want to emit forward declarations for all of them.
-  const auto StackTypes = TypeInlineHelper(Model)
-                            .findTypesToInlineInStacks(Model);
+  const auto StackTypes = TypeInlineHelper(Model).findTypesToInlineInStacks();
 
   auto
     T = llvm::make_task_on_set(llvm::make_address_range(FunctionTags::Isolated

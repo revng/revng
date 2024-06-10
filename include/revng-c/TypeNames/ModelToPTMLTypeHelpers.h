@@ -24,6 +24,9 @@ public:
   using Graph = GenericGraph<Node>;
 
   // This Graph is being used for the purpose of inlining types only.
+  // TODO: this should be refactored to used the same DependencyGraph used in
+  // ModelToHeader. Having a separate different implementation of the same idea
+  // here is bug prone, and has in fact already cause bugs in the past.
   struct GraphInfo {
     // The bi-directional graph used to analyze type connections in both
     // directions.
@@ -33,6 +36,7 @@ public:
   };
 
 private:
+  const model::Binary &Model;
   GraphInfo TypeGraph;
   std::set<const model::Type *> TypesToInline;
 
@@ -45,28 +49,17 @@ public:
 public:
   // Collect stack frame types per model::Function.
   std::unordered_map<const model::Function *, std::set<const model::Type *>>
-  findTypesToInlineInStacks(const model::Binary &Model) const;
+  findTypesToInlineInStacks() const;
 
   // Collect all the types that can be emitted inline in the stack frame types
   // of model functions.
-  std::set<const model::Type *>
-  collectTypesInlinableInStacks(const model::Binary &Model) const;
+  std::set<const model::Type *> collectTypesInlinableInStacks() const;
 
   // Find all nested types of the `RootType` that should be inlined into it.
   std::set<const model::Type *>
-  getTypesToInlineInTypeTy(const model::Binary &Model,
-                           const model::Type *RootType) const;
+  getTypesToInlineInTypeTy(const model::Type *RootType) const;
 
 private:
-  std::set<const model::Type *> findTypesToInline(const model::Binary &Model,
-                                                  const GraphInfo &TypeGraph);
-
-  GraphInfo buildTypeGraph(const model::Binary &Model);
-
-  bool isReachableFromRootType(const model::Type *Type,
-                               const model::Type *RootType,
-                               const GraphInfo &TypeGraph);
-
   // Helper function used for finding all nested (into `RootType`) inlinable
   // types.
   std::set<const model::Type *>

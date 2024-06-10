@@ -27,23 +27,23 @@ using namespace llvm;
 
 static llvm::StringRef toString(TypeNode::Kind K) {
   switch (K) {
-  case TypeNode::Kind::TypeName:
-    return "TypeName";
-  case TypeNode::Kind::FullType:
-    return "FullType";
+  case TypeNode::Kind::Declaration:
+    return "Declaration";
+  case TypeNode::Kind::Definition:
+    return "Definition";
   }
   return "Invalid";
 }
 
 void DependencyGraph::addNode(const model::Type *T) {
 
-  constexpr auto TypeName = TypeNode::Kind::TypeName;
-  auto *NameNode = GenericGraph::addNode(TypeNode{ T, TypeName });
-  TypeToNode[TypeKindPair{ T, TypeName }] = NameNode;
+  constexpr auto Declaration = TypeNode::Kind::Declaration;
+  auto *DeclNode = GenericGraph::addNode(TypeNode{ T, Declaration });
+  TypeToNode[TypeKindPair{ T, Declaration }] = DeclNode;
 
-  constexpr auto FullType = TypeNode::Kind::FullType;
-  auto *FullNode = GenericGraph::addNode(TypeNode{ T, FullType });
-  TypeToNode[TypeKindPair{ T, FullType }] = FullNode;
+  constexpr auto Definition = TypeNode::Kind::Definition;
+  auto *DefNode = GenericGraph::addNode(TypeNode{ T, Definition });
+  TypeToNode[TypeKindPair{ T, Definition }] = DefNode;
 }
 
 std::string getNodeLabel(const TypeDependencyNode *N) {
@@ -111,15 +111,15 @@ getDependencyFor(const model::QualifiedType &QT,
   }
 
   // If the last non-const qualifier was an array, because of the quirks of the
-  // C standard mentioned above, we have to depend on the FullType of the
+  // C standard mentioned above, we have to depend on the Definition of the
   // element type of the array.
   if (LastIsArray)
-    return TypeToNode.at({ Unqualified, TypeNode::Kind::FullType });
+    return TypeToNode.at({ Unqualified, TypeNode::Kind::Definition });
 
   // Otherwise, if we've found at least a pointer, we only depend on the name of
   // the UnqualifiedType.
   if (PointerFound)
-    return TypeToNode.at({ Unqualified, TypeNode::Kind::TypeName });
+    return TypeToNode.at({ Unqualified, TypeNode::Kind::Declaration });
 
   // In all the other cases we depend on the UnqualifiedType with the kind
   // indicated by K.
@@ -131,6 +131,16 @@ static void registerDependencies(const model::Type *T,
 
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
   llvm::SmallVector<Edge, 2> Deps;
+
+  // The full definition always depends on declaration.
+  // This is not strictly necessary (e.g. when definition and declaration are
+  // the same, or when printing a the body of a struct without having forward
+  // declared it) but it doesn't introduce cycles and it enables the algorithm
+  // that decides on the ordering on the declarations and definitions to make
+  // more assumptions about definitions being emitted before declarations.
+  auto *DefNode = TypeToNode.at({ T, TypeNode::Kind::Definition });
+  auto *DeclNode = TypeToNode.at({ T, TypeNode::Kind::Declaration });
+  Deps.push_back({ DefNode, DeclNode });
 
   switch (T->Kind()) {
 
@@ -163,17 +173,17 @@ static void registerDependencies(const model::Type *T,
                  and UnderlyingQT.Qualifiers().empty());
 
     auto *U = cast<model::PrimitiveType>(UnderlyingQT.UnqualifiedType().get());
-    auto *EnumName = TypeToNode.at({ E, TypeNode::Kind::TypeName });
-    auto *EnumFull = TypeToNode.at({ E, TypeNode::Kind::FullType });
-    auto *UnderFull = TypeToNode.at({ U, TypeNode::Kind::FullType });
-    Deps.push_back({ EnumName, UnderFull });
-    Deps.push_back({ EnumFull, UnderFull });
+    auto *EnumDef = TypeToNode.at({ E, TypeNode::Kind::Declaration });
+    auto *EnumDecl = TypeToNode.at({ E, TypeNode::Kind::Definition });
+    auto *UnderDecl = TypeToNode.at({ U, TypeNode::Kind::Definition });
+    Deps.push_back({ EnumDef, UnderDecl });
+    Deps.push_back({ EnumDecl, UnderDecl });
     revng_log(Log,
-              getNodeLabel(EnumName)
-                << " depends on " << getNodeLabel(UnderFull));
+              getNodeLabel(EnumDef)
+                << " depends on " << getNodeLabel(UnderDecl));
     revng_log(Log,
-              getNodeLabel(EnumFull)
-                << " depends on " << getNodeLabel(UnderFull));
+              getNodeLabel(EnumDecl)
+                << " depends on " << getNodeLabel(UnderDecl));
   } break;
 
   case model::TypeKind::StructType:
@@ -181,12 +191,12 @@ static void registerDependencies(const model::Type *T,
     // Struct and Union names can always be conjured out of thin air thanks to
     // typedefs. So we only need to add dependencies between their full
     // definition and the full definition of their fields.
-    auto *Full = TypeToNode.at({ T, TypeNode::Kind::FullType });
+    auto *Decl = TypeToNode.at({ T, TypeNode::Kind::Definition });
     for (const model::QualifiedType &QT : T->edges()) {
       TypeDependencyNode
-        *Dep = getDependencyFor<TypeNode::FullType>(QT, TypeToNode);
-      Deps.push_back({ Full, Dep });
-      revng_log(Log, getNodeLabel(Full) << " depends on " << getNodeLabel(Dep));
+        *Dep = getDependencyFor<TypeNode::Definition>(QT, TypeToNode);
+      Deps.push_back({ Decl, Dep });
+      revng_log(Log, getNodeLabel(Decl) << " depends on " << getNodeLabel(Dep));
     }
   } break;
 
@@ -195,19 +205,18 @@ static void registerDependencies(const model::Type *T,
     auto *TD = cast<model::TypedefType>(T);
     const model::QualifiedType &Underlying = TD->UnderlyingType();
 
-    auto *TDName = TypeToNode.at({ TD, TypeNode::Kind::TypeName });
+    auto *TDDef = TypeToNode.at({ TD, TypeNode::Kind::Declaration });
     TypeDependencyNode
-      *NameDep = getDependencyFor<TypeNode::TypeName>(Underlying, TypeToNode);
-    Deps.push_back({ TDName, NameDep });
-    revng_log(Log,
-              getNodeLabel(TDName) << " depends on " << getNodeLabel(NameDep));
+      *Def = getDependencyFor<TypeNode::Declaration>(Underlying, TypeToNode);
+    Deps.push_back({ TDDef, Def });
+    revng_log(Log, getNodeLabel(TDDef) << " depends on " << getNodeLabel(Def));
 
-    auto *TDFull = TypeToNode.at({ TD, TypeNode::Kind::FullType });
+    auto *TDDecl = TypeToNode.at({ TD, TypeNode::Kind::Definition });
     TypeDependencyNode
-      *FullDep = getDependencyFor<TypeNode::FullType>(Underlying, TypeToNode);
-    Deps.push_back({ TDFull, FullDep });
+      *Decl = getDependencyFor<TypeNode::Definition>(Underlying, TypeToNode);
+    Deps.push_back({ TDDecl, Decl });
     revng_log(Log,
-              getNodeLabel(TDFull) << " depends on " << getNodeLabel(FullDep));
+              getNodeLabel(TDDecl) << " depends on " << getNodeLabel(Decl));
   } break;
 
   case model::TypeKind::CABIFunctionType:
@@ -215,8 +224,6 @@ static void registerDependencies(const model::Type *T,
     // For function types we can print a valid typedef definition as long as
     // we have visibility on all the names of all the argument types and all
     // return types.
-    auto *FullNode = TypeToNode.at({ T, TypeNode::Kind::FullType });
-    auto *NameNode = TypeToNode.at({ T, TypeNode::Kind::TypeName });
     for (const model::QualifiedType &QT : T->edges()) {
 
       // The two dependencies added here below are actually stricter than
@@ -235,18 +242,16 @@ static void registerDependencies(const model::Type *T,
       // this point is always guaranteed to be in a form that can be emitted.
 
       TypeDependencyNode
-        *FullDep = getDependencyFor<TypeNode::FullType>(QT, TypeToNode);
-      Deps.push_back({ FullNode, FullDep });
+        *Decl = getDependencyFor<TypeNode::Definition>(QT, TypeToNode);
+      Deps.push_back({ DefNode, Decl });
       revng_log(Log,
-                getNodeLabel(FullNode)
-                  << " depends on " << getNodeLabel(FullDep));
+                getNodeLabel(DefNode) << " depends on " << getNodeLabel(Decl));
 
       TypeDependencyNode
-        *NameDep = getDependencyFor<TypeNode::TypeName>(QT, TypeToNode);
-      Deps.push_back({ NameNode, NameDep });
+        *Def = getDependencyFor<TypeNode::Declaration>(QT, TypeToNode);
+      Deps.push_back({ DeclNode, Def });
       revng_log(Log,
-                getNodeLabel(NameNode)
-                  << " depends on " << getNodeLabel(NameDep));
+                getNodeLabel(DeclNode) << " depends on " << getNodeLabel(Def));
     }
 
   } break;
