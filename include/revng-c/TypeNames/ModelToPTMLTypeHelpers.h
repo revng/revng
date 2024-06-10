@@ -24,6 +24,9 @@ public:
   using Graph = GenericGraph<Node>;
 
   // This Graph is being used for the purpose of inlining types only.
+  // TODO: this should be refactored to used the same DependencyGraph used in
+  // ModelToHeader. Having a separate different implementation of the same idea
+  // here is bug prone, and has in fact already cause bugs in the past.
   struct GraphInfo {
     // The bi-directional graph used to analyze type connections in both
     // directions.
