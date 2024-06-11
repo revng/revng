@@ -26,7 +26,6 @@ TypeDefinitions:
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Void
-      Size: 0
   - Kind: TypedefDefinition
     ID: 3290784804431442976
     UnderlyingType:
@@ -76,7 +75,6 @@ TypeDefinitions:
       PointeeType:
         Kind: PrimitiveType
         PrimitiveKind: Void
-        Size: 0
   - Kind: TypedefDefinition
     ID: 17163826859945186478
     UnderlyingType:

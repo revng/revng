@@ -27,6 +27,7 @@ fields:
       Note that `Void` _has to_ have size of 0 and `Generic` can use all the
       supported sizes, floating point or not.
     type: uint64_t
+    optional: true
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/PrimitiveType.h"
