@@ -286,6 +286,9 @@ public:
 /// A map from container name to target list that is usually used to represents
 /// the state of a step.
 class ContainerToTargetsMap {
+  friend llvm::yaml::MappingTraits<ContainerToTargetsMap>;
+  friend llvm::yaml::MappingTraits<const ContainerToTargetsMap>;
+
 public:
   using Map = llvm::StringMap<TargetsList>;
   using iterator = Map::iterator;
