@@ -45,6 +45,10 @@ void dispatchMappingTraits(llvm::yaml::IO &TheIO, O &Obj) {
 template<UpcastablePointerLike T>
 struct PolymorphicMappingTraits {
   static void mapping(llvm::yaml::IO &TheIO, T &Obj) {
+    // Skip empty pointers when serializing
+    if (TheIO.outputting() && Obj.isEmpty())
+      return;
+
     if (!TheIO.outputting()) {
       std::string Kind;
       TheIO.mapRequired("Kind", Kind);
