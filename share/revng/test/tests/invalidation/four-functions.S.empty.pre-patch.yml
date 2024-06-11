@@ -1,0 +1,42 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Changes:
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500000:Code_x86_64"
+      CustomName: "caller"
+      Prototype: "/Types/2000-RawFunctionType"
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500006:Code_x86_64"
+      CustomName: "callee"
+      Prototype: "/Types/2001-RawFunctionType"
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500007:Code_x86_64"
+      CustomName: "not_called"
+      Prototype: "/Types/2002-RawFunctionType"
+  - Path: "/Types"
+    Add:
+      ID: 2000
+      Kind: RawFunctionType
+      Architecture: x86_64
+      PreservedRegisters:
+        - rax_x86_64
+  - Path: "/Types"
+    Add:
+      ID: 2001
+      Kind: RawFunctionType
+      Architecture: x86_64
+      PreservedRegisters:
+        - rax_x86_64
+  - Path: "/Types"
+    Add:
+      ID: 2002
+      Kind: RawFunctionType
+      Architecture: x86_64
+      PreservedRegisters:
+        - rax_x86_64

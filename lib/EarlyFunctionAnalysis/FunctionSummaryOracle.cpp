@@ -40,7 +40,7 @@ FunctionSummary PrototypeImporter::prototype(const AttributesSet &Attributes,
   Summary.ElectedFSO = abi::FunctionType::finalStackOffset(Prototype);
 
   // Stop importing prototype here, if callee also needs final stack offset.
-  if (Level == PrototypeImportLevel::None)
+  if (Level == PrototypeImportLevel::Partial)
     return Summary;
 
   for (llvm::GlobalVariable *CSV : ABICSVs) {

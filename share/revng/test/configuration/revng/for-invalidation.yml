@@ -1,0 +1,52 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-invalidation
+    from:
+      - type: revng-qa.compiled-stripped
+        filter: for-invalidation
+    command: |-
+      shopt -s nullglob;
+      for FILECHECK in "${SOURCE}."*".filecheck"; do
+          ./check-invalidations "${INPUT}" "$$FILECHECK";
+      done
+    scripts:
+      check-invalidations: |-
+        #!/usr/bin/env bash
+
+        set -euo pipefail
+
+        BINARY="$1"
+        shift
+
+        FILECHECK="$1"
+        shift
+
+        RESUME="$(mktemp -d)"
+        trap 'rm -rf "$RESUME"' EXIT
+
+        revng analyze --resume "$RESUME" import-binary "$BINARY" -o /dev/null
+
+        PRE_ARTIFACT_PATCH="${FILECHECK/.filecheck/.pre-patch.yml}"
+        if test -e "$PRE_ARTIFACT_PATCH"; then
+            revng analyze --resume "$RESUME" \
+                apply-diff \
+                --apply-diff-global-name=model.yml \
+                --apply-diff-diff-content-path="$PRE_ARTIFACT_PATCH" \
+                "$BINARY" \
+                -o /dev/null
+        fi
+
+        revng artifact --resume "$RESUME" enforce-abi "$BINARY" -o /dev/null
+
+        revng analyze --resume "$RESUME" \
+            apply-diff \
+            --apply-diff-global-name=model.yml \
+            --apply-diff-diff-content-path="$FILECHECK" \
+            "$BINARY" \
+            -o /dev/null \
+            --save-invalidations "$RESUME/invalidations.yml"
+
+        cat "$RESUME/invalidations.yml" | FileCheck "$FILECHECK"

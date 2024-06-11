@@ -1,0 +1,13 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Add regular entry function and 0x500003 which is not a jump target, therefore it should lead to invalidation
+---
+Changes:
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500001:Code_x86_64"
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500003:Code_x86_64"

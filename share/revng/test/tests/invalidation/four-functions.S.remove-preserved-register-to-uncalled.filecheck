@@ -1,0 +1,11 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Changes:
+  - Path:            "/Types/2002-RawFunctionType/PreservedRegisters"
+    Remove:          rax_x86_64
+...
+
+# CHECK-NOT: 0x500000:Code_x86_64:isolated

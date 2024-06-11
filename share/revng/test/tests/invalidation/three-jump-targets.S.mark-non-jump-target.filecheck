@@ -1,0 +1,14 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Add 0x500003, which is not a jump target and, therefore, it should lead to invalidation.
+---
+Changes:
+  - Path:            '/Functions'
+    Add:
+      Entry:           "0x500003:Code_x86_64"
+...
+# CHECK: lift:
+# CHECK:   module.ll:
+# CHECK:     - ":root"
