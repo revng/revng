@@ -24,7 +24,6 @@ TypeDefinitions:
           PointeeType:
             Kind: PrimitiveType
             PrimitiveKind: Void
-            Size: 0
         OriginalName: base
       - Index: 1
         Type:
@@ -73,7 +72,6 @@ TypeDefinitions:
             Kind: PrimitiveType
             IsConst: true
             PrimitiveKind: Void
-            Size: 0
       - Index: 1
         Type:
           Kind: PointerType
@@ -82,4 +80,3 @@ TypeDefinitions:
             Kind: PrimitiveType
             IsConst: true
             PrimitiveKind: Void
-            Size: 0
