@@ -6,7 +6,7 @@
 matchers:
   c:
     type: suffix_or_shebang
-    suffixes: ["c", "cc", "cpp", "h", "hpp"]
+    suffixes: ["c", "cc", "cpp", "h", "hpp", "inc"]
   python:
     type: suffix_or_shebang
     suffixes: ["py"]
