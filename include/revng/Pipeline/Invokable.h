@@ -118,22 +118,26 @@ OptionType<T, I> getOption(const llvm::StringMap<std::string> &Map) {
 
   if (auto Iter = Map.find(Name); Iter != Map.end()) {
     return deserializeImpl<T, I>(Iter->second);
-  } else if (auto &Option = CLOptionBase::getOption<OptionT>(Name);
-             Option.isSet()) {
-    if constexpr (std::is_same_v<OptionT, std::string>) {
-      auto &PathOpt = CLOptionBase::getOption<std::string>(Name + "-path");
-      if (not PathOpt.get().empty()) {
-        using llvm::MemoryBuffer;
-        auto MaybeBuffer = MemoryBuffer::getFile(PathOpt.get());
-        revng_assert(MaybeBuffer);
-        return MaybeBuffer->get()->getBuffer().str();
-      }
-    }
-
-    return Option.get();
-  } else {
-    return getOptionDefault<T, I>();
   }
+
+  // Handle --$OPTION-path flag
+  if constexpr (std::is_same_v<OptionT, std::string>) {
+    auto &PathOpt = CLOptionBase::getOption<std::string>(Name + "-path");
+    if (not PathOpt.get().empty()) {
+      using llvm::MemoryBuffer;
+      auto MaybeBuffer = MemoryBuffer::getFile(PathOpt.get());
+      revng_assert(MaybeBuffer);
+      return MaybeBuffer->get()->getBuffer().str();
+    }
+  }
+
+  // Handle --$OPTION flag
+  if (auto &Option = CLOptionBase::getOption<OptionT>(Name); Option.isSet()) {
+    return Option.get();
+  }
+
+  // Use default
+  return getOptionDefault<T, I>();
 }
 
 template<typename DeducedContextType,
