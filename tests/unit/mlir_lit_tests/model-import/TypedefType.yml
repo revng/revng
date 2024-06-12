@@ -1,10 +1,10 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 Types:
-  - ID: 104
+  - ID: 1284
     Kind: PrimitiveType
     PrimitiveKind: Unsigned
     Size: 4
@@ -19,4 +19,4 @@ Types:
     Kind: TypedefType
     CustomName: "my_typedef"
     UnderlyingType:
-      UnqualifiedType: "/Types/104-PrimitiveType"
+      UnqualifiedType: "/Types/1284-PrimitiveType"

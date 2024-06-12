@@ -1,23 +1,24 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
+Architecture: x86_64
 Types:
-  - ID: 100
+  - ID: 256
     Kind: PrimitiveType
     PrimitiveKind: Void
     Size: 0
 
-  - ID: 201
+  - ID: 1281
     Kind: PrimitiveType
     PrimitiveKind: Unsigned
     Size: 1
-  - ID: 202
+  - ID: 1282
     Kind: PrimitiveType
     PrimitiveKind: Unsigned
     Size: 2
-  - ID: 204
+  - ID: 1284
     Kind: PrimitiveType
     PrimitiveKind: Unsigned
     Size: 4
@@ -34,7 +35,7 @@ Types:
     CustomName: "my_function1"
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/100-PrimitiveType"
+      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments: []
 
     # CHECK: #my_function2$def = #clift.function<
@@ -56,11 +57,11 @@ Types:
     CustomName: "my_function2"
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/201-PrimitiveType"
+      UnqualifiedType: "/Types/1281-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/202-PrimitiveType"
+          UnqualifiedType: "/Types/1282-PrimitiveType"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/204-PrimitiveType"
+          UnqualifiedType: "/Types/1284-PrimitiveType"

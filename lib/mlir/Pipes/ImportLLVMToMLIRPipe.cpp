@@ -37,7 +37,7 @@ public:
   }
 
   void run(const pipeline::ExecutionContext &Ctx,
-           pipeline::LLVMContainer &LLVMContainer,
+           const pipeline::LLVMContainer &LLVMContainer,
            revng::pipes::MLIRContainer &MLIRContainer) {
     auto &Context = *MLIRContainer.getContext();
 
@@ -66,21 +66,14 @@ public:
     // functions.
     for (const llvm::Function &F : OldModule.functions()) {
       const llvm::MDNode *const Entry = F.getMetadata(FunctionEntryMDName);
-      const llvm::MDNode
-        *const Metadata = F.getMetadata(FunctionMetadataMDName);
 
-      if (Entry == nullptr || Metadata == nullptr)
+      if (Entry == nullptr)
         continue;
 
       // Find the matching function in the new MLIR module.
       mlir::Operation
         *const NewF = mlir::SymbolTable::lookupSymbolIn(*Module, F.getName());
       revng_assert(NewF != nullptr);
-
-      const auto getMDString =
-        [](const llvm::MDNode *const MD) -> llvm::StringRef {
-        return llvm::cast<llvm::MDString>(MD->getOperand(0))->getString();
-      };
 
       const auto getMDMetaAddress =
         [](const llvm::MDNode *const MD) -> MetaAddress {
