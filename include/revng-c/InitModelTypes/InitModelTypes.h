@@ -6,8 +6,6 @@
 
 #include <map>
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
-
 namespace llvm {
 class Value;
 class Function;
@@ -29,8 +27,7 @@ class Binary;
 /// \note If the `PointersOnly` flag is set, only pointer types will be added to
 /// the map
 extern std::map<const llvm::Value *, const model::QualifiedType>
-initModelTypes(FunctionMetadataCache &Cache,
-               const llvm::Function &F,
+initModelTypes(const llvm::Function &F,
                const model::Function *ModelF,
                const model::Binary &Model,
                bool PointersOnly);

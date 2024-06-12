@@ -11,7 +11,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
@@ -52,14 +52,11 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<LoadModelWrapperPass>();
-    AU.addRequired<FunctionMetadataCachePass>();
   }
 
 private:
-  std::vector<SerializedType>
-  serializeTypesForModelCast(FunctionMetadataCache &Cache,
-                             Instruction *,
-                             const model::Binary &);
+  std::vector<SerializedType> serializeTypesForModelCast(Instruction *,
+                                                         const model::Binary &);
   void createAndInjectModelCast(Instruction *,
                                 const SerializedType &,
                                 OpaqueFunctionsPool<TypePair> &);
@@ -68,38 +65,35 @@ private:
 using MMCP = MakeModelCastPass;
 
 std::vector<SerializedType>
-MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
-                                 Instruction *I,
-                                 const model::Binary &Model) {
+MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
   using namespace model;
   using namespace abi::FunctionType;
 
   std::vector<SerializedType> Result;
   Module *M = I->getModule();
 
-  auto SerializeTypeFor =
-    [this, &Model, &Result, &M, &Cache](const llvm::Use &Op) {
-      // Check if we have strong model information about this operand
-      auto ModelTypes = getExpectedModelType(Cache, &Op, Model);
+  auto SerializeTypeFor = [this, &Model, &Result, &M](const llvm::Use &Op) {
+    // Check if we have strong model information about this operand
+    auto ModelTypes = getExpectedModelType(&Op, Model);
 
-      // Aggregates that do not correspond to model structs (e.g. return types
-      // of RawFunctionTypes that return more than one value) cannot be handled
-      // with casts, since we don't have a model::Type to cast them to.
-      if (ModelTypes.size() == 1) {
-        QualifiedType ExpectedType = ModelTypes.back();
-        revng_assert(ExpectedType.UnqualifiedType().isValid());
+    // Aggregates that do not correspond to model structs (e.g. return types
+    // of RawFunctionTypes that return more than one value) cannot be handled
+    // with casts, since we don't have a model::Type to cast them to.
+    if (ModelTypes.size() == 1) {
+      QualifiedType ExpectedType = ModelTypes.back();
+      revng_assert(ExpectedType.UnqualifiedType().isValid());
 
-        const QualifiedType &OperandType = TypeMap.at(Op.get());
-        if (ExpectedType.skipTypedefs() != OperandType.skipTypedefs()) {
-          revng_assert(ExpectedType.isScalar() and OperandType.isScalar());
-          // Create a cast only if the expected type is different from the
-          // actual type propagated until here
-          auto Type = SerializedType(serializeToLLVMString(ExpectedType, *M),
-                                     Op.getOperandNo());
-          Result.emplace_back(std::move(Type));
-        }
+      const QualifiedType &OperandType = TypeMap.at(Op.get());
+      if (ExpectedType.skipTypedefs() != OperandType.skipTypedefs()) {
+        revng_assert(ExpectedType.isScalar() and OperandType.isScalar());
+        // Create a cast only if the expected type is different from the
+        // actual type propagated until here
+        auto Type = SerializedType(serializeToLLVMString(ExpectedType, *M),
+                                   Op.getOperandNo());
+        Result.emplace_back(std::move(Type));
       }
-    };
+    }
+  };
 
   if (auto *Call = dyn_cast<CallInst>(I)) {
     // Lifted functions have their prototype on the model
@@ -238,7 +232,6 @@ bool MMCP::runOnFunction(Function &F) {
 
   ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
-  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
   // First of all, remove all SExt, ZExt and Trunc, and replace them with
   // ModelCasts.
@@ -298,11 +291,11 @@ bool MMCP::runOnFunction(Function &F) {
     }
   }
 
-  TypeMap = initModelTypes(Cache, F, ModelFunction, *Model, false);
+  TypeMap = initModelTypes(F, ModelFunction, *Model, false);
 
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
-      auto SerializedTypes = serializeTypesForModelCast(Cache, &I, *Model);
+      auto SerializedTypes = serializeTypesForModelCast(&I, *Model);
 
       if (SerializedTypes.empty())
         continue;

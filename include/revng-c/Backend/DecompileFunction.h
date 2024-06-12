@@ -6,7 +6,7 @@
 
 #include "llvm/IR/Module.h"
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipes/StringMap.h"
 
@@ -16,7 +16,7 @@ namespace detail {
 using Container = revng::pipes::DecompileStringMap;
 }
 
-void decompile(FunctionMetadataCache &Cache,
+void decompile(ControlFlowGraphCache &Cache,
                llvm::Module &M,
                const model::Binary &Model,
                detail::Container &DecompiledFunctions);

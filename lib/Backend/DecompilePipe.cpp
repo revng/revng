@@ -19,11 +19,12 @@ static RegisterDefaultConstructibleContainer<DecompileStringMap> Reg;
 
 void Decompile::run(const pipeline::ExecutionContext &Ctx,
                     pipeline::LLVMContainer &IRContainer,
+                    const revng::pipes::CFGMap &CFGMap,
                     DecompileStringMap &DecompiledFunctions) {
 
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(Ctx);
-  FunctionMetadataCache Cache;
+  ControlFlowGraphCache Cache(CFGMap);
   decompile(Cache, Module, Model, DecompiledFunctions);
 }
 

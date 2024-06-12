@@ -170,7 +170,7 @@ Branches:
           - Type: model-to-header
             UsedContainers: [input, types-and-globals.h]
           - Type: decompile
-            UsedContainers: [module.ll, decompiled.tar.gz]
+            UsedContainers: [module.ll, cfg.yml, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
           Kind: decompiled
@@ -233,12 +233,10 @@ Branches:
           Container: module.mlir
           Kind: mlir-module
           SingleTargetFilename: mlir-llvm-dialect.mlir
-  - From: convert-to-mlir
-    Steps:
       - Name: import-clift-types
         Pipes:
           - Type: import-clift-types
-            UsedContainers: [module.mlir]
+            UsedContainers: [cfg.yml, module.mlir]
         Artifacts:
           Container: module.mlir
           Kind: mlir-module

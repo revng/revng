@@ -86,8 +86,6 @@ public:
       NewF->setAttr(FunctionEntryMDName,
                     mlir::StringAttr::get(&Context,
                                           getMDMetaAddress(Entry).toString()));
-      NewF->setAttr(FunctionMetadataMDName,
-                    mlir::StringAttr::get(&Context, getMDString(Metadata)));
     }
 
     MLIRContainer.setModule(std::move(Module));

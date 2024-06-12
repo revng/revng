@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/FileContainer.h"
@@ -39,12 +40,18 @@ public:
     return { ContractGroup({ Contract(StackAccessesSegregated,
                                       0,
                                       Decompiled,
+                                      2,
+                                      InputPreservation::Preserve),
+                             Contract(CFG,
                                       1,
+                                      Decompiled,
+                                      2,
                                       InputPreservation::Preserve) }) };
   }
 
   void run(const pipeline::ExecutionContext &Ctx,
            pipeline::LLVMContainer &IRContainer,
+           const revng::pipes::CFGMap &CFGMap,
            DecompileStringMap &DecompiledFunctionsContainer);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

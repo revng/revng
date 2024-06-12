@@ -30,7 +30,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/IRHelpers.h"
@@ -266,7 +266,7 @@ private:
   /// switches
   std::vector<std::string> SwitchStateVars;
 
-  FunctionMetadataCache &Cache;
+  ControlFlowGraphCache &Cache;
 
 private:
   class VarNameGenerator {
@@ -302,7 +302,7 @@ private:
   bool IsOperatorPrecedenceResolutionPassEnabled = false;
 
 public:
-  CCodeGenerator(FunctionMetadataCache &Cache,
+  CCodeGenerator(ControlFlowGraphCache &Cache,
                  const Binary &Model,
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
@@ -315,8 +315,7 @@ public:
     Prototype(*ModelFunction.prototype(Model).getConst()),
     GHAST(GHAST),
     VariablesToDeclare(VarToDeclare),
-    TypeMap(initModelTypes(Cache,
-                           LLVMFunction,
+    TypeMap(initModelTypes(LLVMFunction,
                            &ModelFunction,
                            Model,
                            /*PointersOnly=*/false)),
@@ -856,8 +855,8 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
 
     const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
     const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
-    const auto CalleePrototype = Cache.getCallSitePrototype(Model,
-                                                            CallReturnsStruct);
+    const auto &CalleePrototype = getCallSitePrototype(Model,
+                                                       CallReturnsStruct);
 
     std::string StructFieldRef;
     if (CalleePrototype.empty()) {
@@ -946,7 +945,6 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
   // Retrieve the CallEdge
   const auto &[CallEdge, _] = Cache.getCallEdge(Model, Call);
   revng_assert(CallEdge);
-  const auto &PrototypePath = Cache.getCallSitePrototype(Model, Call);
 
   // Construct the callee token (can be a function name or a function
   // pointer)
@@ -985,7 +983,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
 
   // Build the call expression
   revng_assert(not CalleeToken.empty());
-  auto *Prototype = PrototypePath.get();
+  auto *Prototype = getCallSitePrototype(Model, Call).getConst();
   rc_return rc_recur getCallToken(Call, CalleeToken, Prototype);
 }
 
@@ -1605,7 +1603,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         // Create missing local variable declarations
         std::string VarName = createLocalVarDeclName(VarDeclCall);
         revng_assert(not VarName.empty());
-        const auto &Prototype = Cache.getCallSitePrototype(Model, VarDeclCall);
+        const auto &Prototype = getCallSitePrototype(Model, VarDeclCall);
         revng_assert(Prototype.isValid() and not Prototype.empty());
         const auto *FunctionType = Prototype.getConst();
         Out << getNamedInstanceOfReturnType(*FunctionType, VarName, B, false)
@@ -2025,7 +2023,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
   Out << "\n";
 }
 
-static std::string decompileFunction(FunctionMetadataCache &Cache,
+static std::string decompileFunction(ControlFlowGraphCache &Cache,
                                      const llvm::Function &LLVMFunc,
                                      const ASTTree &CombedAST,
                                      const Binary &Model,
@@ -2079,7 +2077,7 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
 }
 
 using Container = revng::pipes::DecompileStringMap;
-void decompile(FunctionMetadataCache &Cache,
+void decompile(ControlFlowGraphCache &Cache,
                llvm::Module &Module,
                const model::Binary &Model,
                Container &DecompiledFunctions) {

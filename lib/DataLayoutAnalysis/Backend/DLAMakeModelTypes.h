@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
 
@@ -26,8 +25,7 @@ TypeMapT makeModelTypes(const LayoutTypeSystem &TS,
 /// Whether there was anything to update in the model.
 bool updateFuncSignatures(const llvm::Module &M,
                           TupleTree<model::Binary> &Model,
-                          const TypeMapT &TypeMap,
-                          FunctionMetadataCache &Cache);
+                          const TypeMapT &TypeMap);
 
 /// Attach model types to segments and update the model.
 bool updateSegmentsTypes(const llvm::Module &M,

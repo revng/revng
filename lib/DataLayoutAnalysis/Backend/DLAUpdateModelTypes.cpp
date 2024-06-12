@@ -23,8 +23,8 @@
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
@@ -712,8 +712,7 @@ static bool updateStackFrameType(model::Function &ModelFunc,
 
 bool dla::updateFuncSignatures(const llvm::Module &M,
                                TupleTree<model::Binary> &Model,
-                               const TypeMapT &TypeMap,
-                               FunctionMetadataCache &Cache) {
+                               const TypeMapT &TypeMap) {
   if (ModelLog.isEnabled())
     writeToFile(Model->toString(), "model-before-func-update.yaml");
   if (VerifyLog.isEnabled())
@@ -740,7 +739,7 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     // Update prototypes associated to indirect calls, if any are found
     for (const auto &Inst : LLVMFunc)
       if (const auto *I = llvm::dyn_cast<llvm::CallInst>(&Inst)) {
-        auto Prototype = Cache.getCallSitePrototype(*Model.get(), I, ModelFunc);
+        auto Prototype = getCallSitePrototype(*Model.get(), I);
         if (not Prototype.empty()) {
           revng_log(Log,
                     "Updating prototype of indirect call "

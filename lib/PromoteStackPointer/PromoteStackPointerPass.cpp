@@ -23,7 +23,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Support/Assert.h"
@@ -38,8 +38,7 @@ using namespace llvm;
 
 static Logger<> Log("promote-stack-pointer");
 
-static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
-                                  const model::Binary &Binary,
+static bool adjustStackAfterCalls(const model::Binary &Binary,
                                   Function &F,
                                   GlobalVariable *GlobalSP) {
   bool Changed = false;
@@ -48,16 +47,11 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
 
   Type *SPType = GlobalSP->getValueType();
 
-  MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
-  auto &ModelFunction = Binary.Functions().at(Entry);
-
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       if (isCallToIsolatedFunction(&I)) {
         // TODO: handle CABIFunctionType
-        model::TypePath P = Cache.getCallSitePrototype(Binary,
-                                                       cast<CallInst>(&I),
-                                                       &ModelFunction);
+        model::TypePath P = getCallSitePrototype(Binary, cast<CallInst>(&I));
         uint64_t FinalStackOffset = abi::FunctionType::finalStackOffset(P);
         auto *FSO = ConstantInt::get(SPType, FinalStackOffset);
 
@@ -95,12 +89,7 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
-  Changed = adjustStackAfterCalls(getAnalysis<FunctionMetadataCachePass>()
-                                    .get(),
-                                  Binary,
-                                  F,
-                                  GlobalSP)
-            or Changed;
+  Changed = adjustStackAfterCalls(Binary, F, GlobalSP) or Changed;
 
   std::vector<Instruction *> SPUsers;
   for (User *U : GlobalSP->users()) {
@@ -181,7 +170,6 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
 void PromoteStackPointerPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.addRequired<FunctionMetadataCachePass>();
   AU.setPreservesCFG();
 }
 

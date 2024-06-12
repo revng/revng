@@ -19,7 +19,6 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
@@ -167,8 +166,7 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
 /// Reconstruct the return type(s) of a Call instruction from its
 /// prototype, if it's an isolated function. For non-isolated functions,
 /// special rules apply to recover the returned type.
-static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
-                                 const llvm::CallInst *Call,
+static TypeVector getReturnTypes(const llvm::CallInst *Call,
                                  const model::Function *ParentFunc,
                                  const Binary &Model,
                                  const ModelTypesMap &TypeMap) {
@@ -178,7 +176,7 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
     return {};
 
   // Check if we already have strong model information for this call
-  ReturnTypes = getStrongModelInfo(Cache, Call, Model);
+  ReturnTypes = getStrongModelInfo(Call, Model);
 
   if (not ReturnTypes.empty())
     return ReturnTypes;
@@ -255,15 +253,13 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
 /// Given a call instruction, to either an isolated or a non-isolated
 /// function, assign to it its return type. If the call returns more than
 /// one type, infect the uses of the returned value with those types.
-static void handleCallInstruction(FunctionMetadataCache &Cache,
-                                  const llvm::CallInst *Call,
+static void handleCallInstruction(const llvm::CallInst *Call,
                                   const model::Function *ParentFunc,
                                   const Binary &Model,
                                   ModelTypesMap &TypeMap,
                                   bool PointersOnly) {
 
-  TypeVector ReturnedQualTypes = getReturnTypes(Cache,
-                                                Call,
+  TypeVector ReturnedQualTypes = getReturnTypes(Call,
                                                 ParentFunc,
                                                 Model,
                                                 TypeMap);
@@ -491,8 +487,7 @@ getTransitivePHIIncomings(const llvm::PHINode *PHI) {
 }
 
 static RecursiveCoroutine<std::optional<QualifiedType>>
-initModelTypesImpl(FunctionMetadataCache &Cache,
-                   const llvm::Instruction &I,
+initModelTypesImpl(const llvm::Instruction &I,
                    const llvm::Function &F,
                    const model::Function *ModelF,
                    const Binary &Model,
@@ -516,7 +511,7 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
         // the function, which affects the type of the
         auto *Called = Call->getCalledOperand();
         if (auto *CalledFunction = dyn_cast<llvm::Function>(Called)) {
-          auto Prototype = Cache.getCallSitePrototype(Model, Call);
+          auto Prototype = getCallSitePrototype(Model, Call);
           revng_assert(Prototype.isValid() and not Prototype.empty());
           TypeMap.insert({ CalledFunction, createPointerTo(Prototype, Model) });
           continue;
@@ -537,7 +532,7 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
   // the binary or to special intrinsics used by the backend, so they need
   // to be handled separately
   if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
-    handleCallInstruction(Cache, Call, ModelF, Model, TypeMap, PointersOnly);
+    handleCallInstruction(Call, ModelF, Model, TypeMap, PointersOnly);
     auto CallTypeIt = TypeMap.find(Call);
     std::optional<QualifiedType> CallType = std::nullopt;
     if (CallTypeIt != TypeMap.end())
@@ -679,8 +674,7 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
         } else {
           if (auto
                 *IncomingInstruction = dyn_cast<llvm::Instruction>(Incoming)) {
-            IncomingType = rc_recur initModelTypesImpl(Cache,
-                                                       *IncomingInstruction,
+            IncomingType = rc_recur initModelTypesImpl(*IncomingInstruction,
                                                        F,
                                                        ModelF,
                                                        Model,
@@ -714,8 +708,7 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
 }
 
 static RecursiveCoroutine<ModelTypesMap>
-initModelTypesImpl(FunctionMetadataCache &Cache,
-                   const llvm::Function &F,
+initModelTypesImpl(const llvm::Function &F,
                    const model::Function *ModelF,
                    const Binary &Model,
                    bool PointersOnly,
@@ -731,8 +724,7 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
 
   for (const BasicBlock *BB : RPOT<const llvm::Function *>(&F)) {
     for (const Instruction &I : *BB) {
-      std::optional<QualifiedType> Type = initModelTypesImpl(Cache,
-                                                             I,
+      std::optional<QualifiedType> Type = initModelTypesImpl(I,
                                                              F,
                                                              ModelF,
                                                              Model,
@@ -758,10 +750,9 @@ initModelTypesImpl(FunctionMetadataCache &Cache,
   rc_return TypeMap;
 }
 
-ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
-                             const llvm::Function &F,
+ModelTypesMap initModelTypes(const llvm::Function &F,
                              const model::Function *ModelF,
                              const Binary &Model,
                              bool PointersOnly) {
-  return initModelTypesImpl(Cache, F, ModelF, Model, PointersOnly);
+  return initModelTypesImpl(F, ModelF, Model, PointersOnly);
 }

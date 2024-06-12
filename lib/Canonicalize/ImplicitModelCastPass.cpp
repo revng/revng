@@ -12,7 +12,6 @@
 #include "llvm/Pass.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
@@ -46,20 +45,15 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<LoadModelWrapperPass>();
-    AU.addRequired<FunctionMetadataCachePass>();
   }
 
-  bool process(Function &F,
-               const model::Binary &Model,
-               FunctionMetadataCache &Cache);
+  bool process(Function &F, const model::Binary &Model);
 
 private:
   bool collectTypeInfoForTypePromotion(Instruction *I,
-                                       const model::Binary &Model,
-                                       FunctionMetadataCache &Cache);
+                                       const model::Binary &Model);
   SmallSet<llvm::Use *, 4> getOperandsToPromote(Instruction *I,
-                                                const model::Binary &Model,
-                                                FunctionMetadataCache &Cache);
+                                                const model::Binary &Model);
 
   bool collectTypeInfoForPromotionForSingleValue(const Value *Value,
                                                  const model::QualifiedType
@@ -293,8 +287,7 @@ static bool isShiftLikeInstruction(Instruction *I) {
 // Returns set of operand's indices that do not need a cast.
 SmallSet<llvm::Use *, 4>
 ImplicitModelCastPass::getOperandsToPromote(Instruction *I,
-                                            const model::Binary &Model,
-                                            FunctionMetadataCache &Cache) {
+                                            const model::Binary &Model) {
   SmallSet<llvm::Use *, 4> Result;
   if (not shouldApplyIntegerPromotion(I)) {
     revng_log(Log,
@@ -374,13 +367,12 @@ bool IMCP::collectTypeInfoForPromotionForSingleValue(const Value *Value,
 // Collect type information for the operands from an LLVM instructions. It will
 // be used for the type promotion later.
 bool IMCP::collectTypeInfoForTypePromotion(Instruction *I,
-                                           const model::Binary &Model,
-                                           FunctionMetadataCache &Cache) {
+                                           const model::Binary &Model) {
   using namespace model;
   using namespace abi::FunctionType;
 
   bool Result = false;
-  auto CheckTypeFor = [this, &Model, &Result, &Cache, &I](const llvm::Use &Op) {
+  auto CheckTypeFor = [this, &Model, &Result, &I](const llvm::Use &Op) {
     std::optional<QualifiedType> OperandType;
     std::optional<QualifiedType> ExpectedType;
     Value *ValueToPromoteTypeFor = nullptr;
@@ -397,7 +389,7 @@ bool IMCP::collectTypeInfoForTypePromotion(Instruction *I,
       // If it is not a ModelCast, promote the type for the llvm::Value itself.
       OperandType = TypeMap.at(Op.get());
       ValueToPromoteTypeFor = Op.get();
-      auto ModelTypes = getExpectedModelType(Cache, &Op, Model);
+      auto ModelTypes = getExpectedModelType(&Op, Model);
       if (ModelTypes.size() != 1)
         return;
       ExpectedType = ModelTypes.back();
@@ -457,9 +449,7 @@ bool IMCP::collectTypeInfoForTypePromotion(Instruction *I,
   return Result;
 }
 
-bool ImplicitModelCastPass::process(Function &F,
-                                    const model::Binary &Model,
-                                    FunctionMetadataCache &Cache) {
+bool ImplicitModelCastPass::process(Function &F, const model::Binary &Model) {
   bool Changed = false;
 
   for (llvm::BasicBlock &BB : F) {
@@ -469,7 +459,7 @@ bool ImplicitModelCastPass::process(Function &F,
       if (not isCandidate(I) or not shouldApplyIntegerPromotion(&I))
         continue;
 
-      bool HasTypes = collectTypeInfoForTypePromotion(&I, Model, Cache);
+      bool HasTypes = collectTypeInfoForTypePromotion(&I, Model);
       if (not HasTypes) {
         revng_log(Log, "No types collected to promote for " << dumpToString(I));
         continue;
@@ -478,7 +468,7 @@ bool ImplicitModelCastPass::process(Function &F,
       // Integer promotion - stage 2: Try to avoid casts that are not needed in
       // C.
       SmallSet<llvm::Use *, 4>
-        OperandsToPromoteTypeFor = getOperandsToPromote(&I, Model, Cache);
+        OperandsToPromoteTypeFor = getOperandsToPromote(&I, Model);
       if (not OperandsToPromoteTypeFor.size()) {
         revng_log(Log,
                   "No operands detected for type promotion in "
@@ -511,11 +501,10 @@ bool ImplicitModelCastPass::runOnFunction(Function &F) {
 
   auto ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
-  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
-  TypeMap = initModelTypes(Cache, F, ModelFunction, *Model, false);
+  TypeMap = initModelTypes(F, ModelFunction, *Model, false);
 
-  Changed = process(F, *Model, Cache);
+  Changed = process(F, *Model);
 
   return Changed;
 }
