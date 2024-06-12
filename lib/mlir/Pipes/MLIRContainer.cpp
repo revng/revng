@@ -262,8 +262,13 @@ void MLIRContainer::mergeBackImpl(MLIRContainer &&SourceContainer) {
   mlir::Block &DestinationBlock = getModuleBlock(*Module);
   visit(*TemporaryModule, [&](SymbolOpInterface Symbol) {
     // Erase an existing symbol with the same name, if one exists.
-    if (auto S = SymbolTable::lookupSymbolIn(*Module, Symbol.getName()))
+    if (auto S = SymbolTable::lookupSymbolIn(*Module, Symbol.getName())) {
+      if (auto F = mlir::dyn_cast<FunctionOpInterface>(Symbol.getOperation())) {
+        if (F.isExternal())
+          return;
+      }
       S->erase();
+    }
 
     // Move each new symbol from the temporary module to the container's module.
     Symbol->remove();
