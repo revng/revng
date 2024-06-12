@@ -13,7 +13,6 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawFunctionType.h"
@@ -134,26 +133,27 @@ static void adjustRevngMetadata(Module &M) {
   }
 }
 
-static void setStructNameIfNeeded(llvm::Type *Type,
-                                  const model::Type &Prototype) {
-  if (llvm::StructType *ST = llvm::dyn_cast<llvm::StructType>(Type)) {
-    if (not ST->isLiteral() and not ST->hasName()) {
-      if (llvm::isa<model::CABIFunctionType>(Prototype))
-        ST->setName("struct_returned_by_cft_" + std::to_string(Prototype.ID()));
-      else if (llvm::isa<model::RawFunctionType>(Prototype))
-        ST->setName("struct_returned_by_rft_" + std::to_string(Prototype.ID()));
-      else
-        revng_abort("Non-FunctionType prototypes are no allowed.");
-    }
-  }
-}
-
 /// Give a name to all anonymous structs, because LLVM MLIR dialect does not
 /// expect nameless structs. Only literals can be anonymous.
 static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
   PTMLCBuilder B(/*GeneratePlainC*/ true);
-  FunctionMetadataCache Cache;
+
+  unsigned Index = 0;
+  auto setStructNameIfNeeded = [&Index](llvm::Type *T) {
+    if (llvm::StructType *ST = llvm::dyn_cast<llvm::StructType>(T)) {
+      if (not ST->isLiteral() and not ST->hasName()) {
+        std::string Name = "struct";
+        for (llvm::Type *T : ST->elements()) {
+          auto *IntType = cast<IntegerType>(T);
+          Name += "_i" + to_string(IntType->getBitWidth());
+        }
+        Name += "_" + to_string(Index);
+        ST->setName(Name);
+        ++Index;
+      }
+    }
+  };
 
   for (llvm::Function &F : M) {
     auto FunctionTags = FunctionTags::TagsSet::from(&F);
@@ -164,33 +164,15 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
         and not FunctionTags.contains(FunctionTags::DynamicFunction))
       continue;
 
-    const model::Type *Prototype = nullptr;
-    if (IsIsolated) {
-      const model::Function *ModelFunc = llvmToModelFunction(Model, F);
-      Prototype = ModelFunc->Prototype().getConst();
-    } else if (FunctionTags.contains(FunctionTags::DynamicFunction)) {
-      llvm::StringRef SymbolName = F.getName().drop_front(strlen("dynamic_"));
-      auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
-      revng_assert(It != Model.ImportedDynamicFunctions().end());
-      const auto &TTR = It->prototype(Model);
-      revng_assert(TTR.isValid());
-      Prototype = TTR.getConst();
-    }
-
-    revng_assert(Prototype);
-
     for (Argument &Argument : F.args())
       revng_assert(not Argument.getType()->isStructTy());
 
-    llvm::Type *ReturnType = F.getReturnType();
-    setStructNameIfNeeded(ReturnType, *Prototype);
+    setStructNameIfNeeded(F.getReturnType());
 
     // Look for all the call sites: they might return anonymous structs too
     for (Instruction &I : llvm::instructions(F)) {
-      auto *T = I.getType();
-      CallInst *Ins = getCallToIsolatedFunction(&I);
-      if (Ins != nullptr and T->isStructTy())
-        setStructNameIfNeeded(T, *Cache.getCallSitePrototype(Model, Ins).get());
+      if (isCallToIsolatedFunction(&I))
+        setStructNameIfNeeded(I.getType());
     }
   }
 
@@ -199,8 +181,12 @@ static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
   StructTypes.run(M, /* OnlyNamed */ false);
 
   for (auto *STy : StructTypes) {
-    if (not STy->isLiteral())
-      revng_assert(STy->hasName());
+    if (not STy->isLiteral()) {
+      if (not STy->hasName()) {
+        STy->dump();
+        revng_abort();
+      }
+    }
   }
 }
 
