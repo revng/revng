@@ -177,7 +177,8 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
                                          StartAddress,
                                          VirtualSize,
                                          OffsetInSegment,
-                                         Str.size());
+                                         Str.size(),
+                                         RealOpType);
               }
 
               Value *Call = IRB.CreateCall(LiteralFunction, { ConstExpr });
@@ -193,10 +194,12 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
                                                             {},
                                                             "segmentRef");
 
-              if (SegmentRefFunction->getMetadata(SegmentRefMDName) == nullptr)
+              auto UniqueIDMDName = FunctionTags::UniqueIDMDName;
+              if (SegmentRefFunction->getMetadata(UniqueIDMDName) == nullptr) {
                 setSegmentKeyMetadata(*SegmentRefFunction,
                                       StartAddress,
                                       VirtualSize);
+              }
 
               // Inject call to SegmentRef
               auto *SegmentRefCall = IRB.CreateCall(SegmentRefFunction);

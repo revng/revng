@@ -288,7 +288,8 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     const auto &[StartAddress,
                  VirtualSize,
                  Offset,
-                 StrLen] = extractStringLiteralFromMetadata(F);
+                 StrLen,
+                 _] = extractStringLiteralFromMetadata(F);
 
     const model::Segment *Segment = &Segments.at({ StartAddress, VirtualSize });
     LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);

@@ -7,6 +7,7 @@
 #include "llvm/IR/Type.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -105,7 +106,7 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   Pool.addFnAttribute(llvm::Attribute::NoMerge);
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::AddressOf });
+  Pool.setTags({ &FunctionTags::AddressOf, &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   auto &AddressOfTag = FunctionTags::AddressOf;
@@ -124,15 +125,16 @@ void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::StringLiteral });
+  Pool.setTags({ &FunctionTags::StringLiteral,
+                 &FunctionTags::UniquedByMetadata });
 
   // Initialize the pool
   for (llvm::Function &F : FunctionTags::StringLiteral.functions(M)) {
     const auto &[StartAddress,
                  VirtualSize,
                  Offset,
-                 StrLen] = extractStringLiteralFromMetadata(F);
-    auto Type = F.getFunctionType()->getReturnType();
+                 StrLen,
+                 Type] = extractStringLiteralFromMetadata(F);
     StringLiteralPoolKey Key = { StartAddress, VirtualSize, Offset, Type };
     Pool.record(Key, &F);
   }
@@ -145,7 +147,7 @@ void initModelCastPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::ModelCast });
+  Pool.setTags({ &FunctionTags::ModelCast, &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   for (llvm::Function &F : FunctionTags::ModelCast.functions(M)) {
@@ -165,7 +167,8 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::Parentheses });
+  Pool.setTags({ &FunctionTags::Parentheses,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::Parentheses);
@@ -179,7 +182,8 @@ void initHexPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::HexInteger,
-                 &FunctionTags::LiteralPrintDecorator });
+                 &FunctionTags::LiteralPrintDecorator,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::HexInteger);
@@ -193,7 +197,8 @@ void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::CharInteger,
-                 &FunctionTags::LiteralPrintDecorator });
+                 &FunctionTags::LiteralPrintDecorator,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::CharInteger);
@@ -207,7 +212,8 @@ void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::BoolInteger,
-                 &FunctionTags::LiteralPrintDecorator });
+                 &FunctionTags::LiteralPrintDecorator,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::BoolInteger);
@@ -221,7 +227,8 @@ void initNullPtrPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::NullPtr,
-                 &FunctionTags::LiteralPrintDecorator });
+                 &FunctionTags::LiteralPrintDecorator,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::NullPtr);
@@ -234,7 +241,8 @@ void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::UnaryMinus });
+  Pool.setTags({ &FunctionTags::UnaryMinus,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::UnaryMinus);
@@ -247,7 +255,7 @@ void initBinaryNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::BinaryNot });
+  Pool.setTags({ &FunctionTags::BinaryNot, &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::BinaryNot);
@@ -260,7 +268,8 @@ void initBooleanNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::BooleanNot });
+  Pool.setTags({ &FunctionTags::BooleanNot,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromNthArgType(FunctionTags::BooleanNot, 0);
@@ -274,7 +283,9 @@ void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
   Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
-  Pool.setTags({ &FunctionTags::SegmentRef, &FunctionTags::IsRef });
+  Pool.setTags({ &FunctionTags::SegmentRef,
+                 &FunctionTags::IsRef,
+                 &FunctionTags::UniquedByMetadata });
 
   // Initialize the pool
   for (llvm::Function &F : FunctionTags::SegmentRef.functions(M)) {
@@ -389,7 +400,8 @@ void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setTags({ &FunctionTags::LocalVariable,
                  &FunctionTags::IsRef,
                  &FunctionTags::AllocatesLocalVariable,
-                 &FunctionTags::ReturnsPolymorphic });
+                 &FunctionTags::ReturnsPolymorphic,
+                 &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
@@ -428,7 +440,7 @@ void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
                         | llvm::MemoryEffects::readOnly());
 
   const auto &EVTag = FunctionTags::OpaqueExtractValue;
-  Pool.setTags({ &EVTag });
+  Pool.setTags({ &EVTag, &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   for (llvm::Function &F : EVTag.functions(M)) {
@@ -452,7 +464,7 @@ void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::writeOnly());
-  Pool.setTags({ &FunctionTags::Assign });
+  Pool.setTags({ &FunctionTags::Assign, &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
@@ -472,7 +484,7 @@ void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.setMemoryEffects(llvm::MemoryEffects::readOnly());
-  Pool.setTags({ &FunctionTags::Copy });
+  Pool.setTags({ &FunctionTags::Copy, &FunctionTags::UniquedByPrototype });
 
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.

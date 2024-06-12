@@ -78,8 +78,6 @@ inline std::optional<int64_t> getSignedConstantArg(llvm::CallInst *Call,
 }
 
 inline const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
-inline const char *SegmentRefMDName = "revng.segment_ref";
-inline const char *StringLiteralMDName = "revng.cstring_literal";
 
 namespace llvm {
 
@@ -116,12 +114,13 @@ extern void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
                                      MetaAddress StartAddress,
                                      uint64_t VirtualSize,
                                      uint64_t Offset,
-                                     uint64_t StringLength);
+                                     uint64_t StringLength,
+                                     llvm::Type *ReturnType);
 
 extern bool
 hasStringLiteralMetadata(const llvm::Function &StringLiteralFunction);
 
-extern std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t>
+extern std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
 extractStringLiteralFromMetadata(const llvm::Function &StringLiteralFunction);
 
 void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);

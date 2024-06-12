@@ -160,12 +160,13 @@ void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
   auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Context), VirtualSize);
   auto *VSMD = ConstantAsMetadata::get(VSConstant);
 
-  SegmentRefFunction.setMetadata(SegmentRefMDName, QMD.tuple({ SAMD, VSMD }));
+  SegmentRefFunction.setMetadata(FunctionTags::UniqueIDMDName,
+                                 QMD.tuple({ SAMD, VSMD }));
 }
 
 bool hasSegmentKeyMetadata(const llvm::Function &F) {
   auto &Ctx = F.getContext();
-  auto SegmentRefMDKind = Ctx.getMDKindID(SegmentRefMDName);
+  auto SegmentRefMDKind = Ctx.getMDKindID(FunctionTags::UniqueIDMDName);
   return nullptr != F.getMetadata(SegmentRefMDKind);
 }
 
@@ -176,7 +177,7 @@ extractSegmentKeyFromMetadata(const llvm::Function &F) {
 
   auto &Ctx = F.getContext();
 
-  auto SegmentRefMDKind = Ctx.getMDKindID(SegmentRefMDName);
+  auto SegmentRefMDKind = Ctx.getMDKindID(FunctionTags::UniqueIDMDName);
   auto *Node = F.getMetadata(SegmentRefMDKind);
 
   auto *SAMD = cast<MDString>(Node->getOperand(0));
@@ -191,17 +192,17 @@ void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
                               MetaAddress StartAddress,
                               uint64_t VirtualSize,
                               uint64_t Offset,
-                              uint64_t StringLength) {
+                              uint64_t StringLength,
+                              llvm::Type *ReturnType) {
   using namespace llvm;
 
   auto *M = StringLiteralFunction.getParent();
   auto &Ctx = StringLiteralFunction.getContext();
 
   QuickMetadata QMD(M->getContext());
-  auto StringLiteralMDKind = Ctx.getMDKindID(StringLiteralMDName);
+  auto StringLiteralMDKind = Ctx.getMDKindID(FunctionTags::UniqueIDMDName);
 
-  Constant *SAConstant = StartAddress.toValue(M);
-  auto *SAMD = ConstantAsMetadata::get(SAConstant);
+  auto *SAMD = QMD.get(StartAddress.toString());
 
   auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Ctx), VirtualSize);
   auto *VSMD = ConstantAsMetadata::get(VSConstant);
@@ -212,37 +213,49 @@ void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
   auto *StrLenConstant = ConstantInt::get(Type::getInt64Ty(Ctx), StringLength);
   auto *StrLenMD = ConstantAsMetadata::get(StrLenConstant);
 
-  auto QMDTuple = QMD.tuple({ SAMD, VSMD, OffsetMD, StrLenMD });
+  unsigned Value = ReturnType->isPointerTy() ? 0 :
+                                               ReturnType->getIntegerBitWidth();
+  auto *ReturnTypeConstant = ConstantInt::get(Type::getInt64Ty(Ctx), Value);
+  auto *ReturnTypeMD = ConstantAsMetadata::get(ReturnTypeConstant);
+
+  auto QMDTuple = QMD.tuple({ SAMD, VSMD, OffsetMD, StrLenMD, ReturnTypeMD });
   StringLiteralFunction.setMetadata(StringLiteralMDKind, QMDTuple);
 }
 
 bool hasStringLiteralMetadata(const llvm::Function &F) {
   auto &Ctx = F.getContext();
-  auto StringLiteralMDKind = Ctx.getMDKindID(StringLiteralMDName);
+  auto StringLiteralMDKind = Ctx.getMDKindID(FunctionTags::UniqueIDMDName);
   return nullptr != F.getMetadata(StringLiteralMDKind);
 }
 
-std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t>
+std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
 extractStringLiteralFromMetadata(const llvm::Function &F) {
   using namespace llvm;
   revng_assert(hasStringLiteralMetadata(F));
 
   auto &Ctx = F.getContext();
 
-  auto StringLiteralMDKind = Ctx.getMDKindID(StringLiteralMDName);
+  auto StringLiteralMDKind = Ctx.getMDKindID(FunctionTags::UniqueIDMDName);
   auto *Node = F.getMetadata(StringLiteralMDKind);
 
-  auto *SAMD = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
-  auto *SAConstant = cast<Constant>(SAMD);
-  MetaAddress StartAddress = MetaAddress::fromValue(SAConstant);
-  auto *VSMD = cast<ConstantAsMetadata>(Node->getOperand(1))->getValue();
-  uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
-  auto *OffsetMD = cast<ConstantAsMetadata>(Node->getOperand(2))->getValue();
-  uint64_t Offset = cast<ConstantInt>(OffsetMD)->getZExtValue();
-  auto *StrLenMD = cast<ConstantAsMetadata>(Node->getOperand(3))->getValue();
-  uint64_t StrLen = cast<ConstantInt>(StrLenMD)->getZExtValue();
+  StringRef SAMD = cast<MDString>(Node->getOperand(0))->getString();
+  MetaAddress StartAddress = MetaAddress::fromString(SAMD);
 
-  return { StartAddress, VirtualSize, Offset, StrLen };
+  auto ExtractInteger = [](const MDOperand &Operand) {
+    auto *MD = cast<ConstantAsMetadata>(Operand)->getValue();
+    return cast<ConstantInt>(MD)->getZExtValue();
+  };
+
+  uint64_t VirtualSize = ExtractInteger(Node->getOperand(1));
+  uint64_t Offset = ExtractInteger(Node->getOperand(2));
+  uint64_t StrLen = ExtractInteger(Node->getOperand(3));
+  uint64_t ReturnTypeLength = ExtractInteger(Node->getOperand(4));
+  llvm::Type *PointerType = llvm::PointerType::get(Ctx, 0);
+  llvm::Type *ReturnType = ReturnTypeLength == 0 ?
+                             PointerType :
+                             llvm::IntegerType::get(Ctx, ReturnTypeLength);
+
+  return { StartAddress, VirtualSize, Offset, StrLen, ReturnType };
 }
 
 void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message) {
