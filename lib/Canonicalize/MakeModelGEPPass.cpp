@@ -73,7 +73,6 @@ using llvm::Use;
 using llvm::User;
 using llvm::Value;
 using model::CABIFunctionType;
-using model::Qualifier;
 using model::RawFunctionType;
 
 static Logger<> ModelGEPLog{ "make-model-gep" };
