@@ -88,8 +88,6 @@ mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
                                       llvm::StringRef Name) {
   if (not isObjectType(ElementType))
     return EmitError() << "Struct and union field types must be object types.";
-  if (not isCompleteType(ElementType))
-    return EmitError() << "Struct and union field types must be complete.";
 
   return mlir::success();
 }
