@@ -32,13 +32,12 @@ static constexpr const char *TableOpts = "border='0' cellborder='1' "
 static constexpr const char *PaddingOpts = "cellpadding='10'";
 
 static constexpr const char *Green = "\"#8DB596\"";
-static constexpr const char *LightGreen = "\"#D3EBCD\"";
-static constexpr const char *Red = "\"#EC5858\"";
+static constexpr const char *Red = "\"#DC7878\"";
 static constexpr const char *Blue = "\"#93ABD3\"";
 static constexpr const char *Orange = "\"#EEEE00\"";
 static constexpr const char *Purple = "\"#C689C6\"";
 static constexpr const char *Pink = "\"#FF99CC\"";
-static constexpr const char *Grey = "\"#7C3E66\"";
+static constexpr const char *Grey = "\"#CCCCCC\"";
 static constexpr const char *White = "\"white\"";
 
 /// Background and border color for records of a given TypeDefinitionKind
@@ -51,7 +50,7 @@ static llvm::StringRef getColor(model::TypeDefinitionKind::Values K) {
   else if (K == model::TypeDefinitionKind::StructDefinition)
     return Blue;
 
-  return White;
+  return Grey;
 }
 
 /// Cell with inner padding, a colored background and a white border
@@ -112,9 +111,9 @@ TypeSystemPrinter::TypeSystemPrinter(llvm::raw_ostream &Out, bool OrthoEdges) :
   if (OrthoEdges)
     Out << "splines=ortho;\n";
   Out << "node [shape=none, margin=0];\n";
-  Out << "graph [fontname=monospace];\n";
-  Out << "node [fontname=monospace];\n";
-  Out << "edge [fontname=monospace];\n";
+  Out << "graph [fontname=Courier];\n";
+  Out << "node [fontname=Courier];\n";
+  Out << "edge [fontname=Courier];\n";
 }
 
 TypeSystemPrinter::~TypeSystemPrinter() {
@@ -123,6 +122,8 @@ TypeSystemPrinter::~TypeSystemPrinter() {
 }
 
 /// Build a C-like string for a given Type
+// TODO: replace this with a call to `getNamedCInstance` once the two repos
+//       are merged together.
 static std::string buildFieldName(const model::Type &Type,
                                   std::string &&Prefix = {},
                                   std::string &&Suffix = {}) {
