@@ -224,7 +224,7 @@ private:
   void initializeUncachedReferences() {
     DisableTracking Guard(*Root);
     visitReferences([this](auto &Element) {
-      Element.Root = Root.get();
+      Element.setRoot(Root.get());
       Element.evictCachedTarget();
     });
     AllReferencesAreCached = false;
@@ -234,7 +234,7 @@ public:
   void initializeReferences() {
     DisableTracking Guard(*Root);
     revng_assert(not AllReferencesAreCached);
-    visitReferences([this](auto &Element) { Element.Root = Root.get(); });
+    visitReferences([this](auto &Element) { Element.setRoot(Root.get()); });
   }
 
   void cacheReferences() {
