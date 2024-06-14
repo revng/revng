@@ -54,4 +54,6 @@ inline auto Segment = defineRank<"segment", model::Segment::Key>(Binary);
 inline auto DynamicFunction = defineRank<"dynamic-function",
                                          model::DynamicFunction::Key>(Binary);
 
+inline auto PrimitiveType = defineRank<"primitive", std::string>(Binary);
+
 } // namespace revng::ranks
