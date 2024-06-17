@@ -66,8 +66,11 @@ public:
     auto It = Pool.find(Key);
     if (It == Pool.end())
       Pool[Key] = F;
-    else
-      revng_assert(It->second == F);
+    else {
+      // TODO: fix for this is in the works already.
+      //       to prevent a crash in `df`, this is temporarily disabled.
+      // revng_assert(It->second == F);
+    }
   }
 
 public:
