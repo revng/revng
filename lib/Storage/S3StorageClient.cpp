@@ -308,6 +308,19 @@ std::string S3StorageClient::dumpString() const {
 
 llvm::Expected<PathType> S3StorageClient::type(llvm::StringRef Path) {
   if (FilenameMap.count(Path) > 0) {
+    Aws::S3::Model::HeadObjectRequest Request;
+    Request.SetBucket(Bucket);
+    Request.SetKey(resolvePath(FilenameMap[Path]));
+
+    Aws::S3::Model::HeadObjectOutcome Result = Client.HeadObject(Request);
+    if (not Result.IsSuccess()) {
+      using Aws::Http::HttpResponseCode::NOT_FOUND;
+      if (Result.GetError().GetResponseCode() == NOT_FOUND)
+        return PathType::Missing;
+      else
+        return toError(Result);
+    }
+
     return PathType::File;
   } else {
     std::string Prefix = Path.endswith("/") ? Path.str() : (Path.str() + "/");
