@@ -86,10 +86,10 @@ mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
                                       uint64_t Offset,
                                       clift::ValueType ElementType,
                                       llvm::StringRef Name) {
-  if (not isObjectType(ElementType))
-    return EmitError() << "Struct and union field types must be object types.";
-  if (not isCompleteType(ElementType))
-    return EmitError() << "Struct and union field types must be complete.";
+  if (not isObjectType(ElementType)) {
+    return EmitError() << "Struct and union field types must be object types. "
+                       << "Field at offset " << Offset << " is not.";
+  }
 
   return mlir::success();
 }
