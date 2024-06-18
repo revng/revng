@@ -181,21 +181,30 @@ computeOffsetAfterPush(NeighborIterator ToBePushed,
 // the other. If so return proper info.
 static std::optional<PushThroughComparisonResult>
 canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
+  revng_log(Log, "canPushThrough");
+  LoggerIndent Indent{ Log };
+
   // An edge can never be pushed through itself
-  if (AIt == BIt)
+  if (AIt == BIt) {
+    revng_log(Log, "nullopt: same");
     return std::nullopt;
+  }
 
   // If any edge is not an instance edge, the edges are not comparable.
-  if (not isInstanceEdge(*AIt) or not isInstanceEdge(*BIt))
+  if (not isInstanceEdge(*AIt) or not isInstanceEdge(*BIt)) {
+    revng_log(Log, "nullopt: not instance");
     return std::nullopt;
+  }
 
   // Here both edges are instance edges.
 
   const auto &[AChild, ATag] = *AIt;
   const auto &[BChild, BTag] = *BIt;
 
-  if (isLeaf(AChild) and isLeaf(BChild))
+  if (isLeaf(AChild) and isLeaf(BChild)) {
+    revng_log(Log, "nullopt: child");
     return std::nullopt;
+  }
 
   const auto &[AOffset, AStrides, ATripCounts] = ATag->getOffsetExpr();
   const auto &[BOffset, BStrides, BTripCounts] = BTag->getOffsetExpr();
@@ -213,27 +222,37 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
 
   // If A and B occupy disjoint ranges of memory, none of them can be pushed
   // through the other, so they are not comparable.
-  if (AFieldEnd <= BOffset)
+  if (AFieldEnd <= BOffset) {
+    revng_log(Log, "nullopt: A ends before B starts");
     return std::nullopt;
+  }
 
-  if (BFieldEnd <= AOffset)
+  if (BFieldEnd <= AOffset) {
+    revng_log(Log, "nullopt: B ends before A starts");
     return std::nullopt;
+  }
 
   // Here we have the guarantee that A and B occupy partly overlapping ranges.
   // They are not necessarily comparable yet, because they could still be partly
   // overlapping and not included.
   // Detect the partly overlapping case and return unordered for them
-  if (AOffset < BOffset and AFieldEnd < BFieldEnd)
+  if (AOffset < BOffset and AFieldEnd < BFieldEnd) {
+    revng_log(Log, "nullopt: partly overlapping, A starts first");
     return std::nullopt;
-  if (AOffset > BOffset and AFieldEnd > BFieldEnd)
+  }
+  if (AOffset > BOffset and AFieldEnd > BFieldEnd) {
+    revng_log(Log, "nullopt: partly overlapping, B starts first");
     return std::nullopt;
+  }
 
   // The two fields start at the same point and have the same size. None of them
   // strictly includes the other, so they need to be structurally inspected to
   // be merged. There's a separate pass doing this later in DLA, so we're not
   // taking care of it now.
-  if (AOffset == BOffset and AFieldEnd == BFieldEnd)
+  if (AOffset == BOffset and AFieldEnd == BFieldEnd) {
+    revng_log(Log, "nullopt: equal ranges, needs structural inspection");
     return std::nullopt;
+  }
 
   // Here we have the guarantee that one of the following holds:
   // - A is included in or occupies the same range as B
@@ -245,8 +264,10 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
   const auto &[Outer, OuterTag] = *OuterIt;
 
   // If the larger node is a leaf we cannot push the other down, so we bail out.
-  if (isLeaf(Outer))
+  if (isLeaf(Outer)) {
+    revng_log(Log, "nullopt: outer is a leaf");
     return std::nullopt;
+  }
 
   auto InnerIt = AIsOuter ? BIt : AIt;
   const auto &[Inner, InnerTag] = *InnerIt;
@@ -264,8 +285,12 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
 
   auto OffsetInElem = OffsetAfterPush % OuterElemSize;
   auto EndByteInElem = OffsetInElem + InnerFieldSize;
-  if (EndByteInElem > Outer->Size)
+  if (EndByteInElem > Outer->Size) {
+    revng_log(Log,
+              "nullopt: EndByteInElem: " << EndByteInElem << " > "
+                                         << " Outer->Size: " << Outer->Size);
     return std::nullopt;
+  }
 
   return PushThroughComparisonResult{
     .ToPush = InnerIt,
@@ -291,6 +316,8 @@ static std::weak_ordering operator<=>(const NeighborIterator &LHS,
 
 static llvm::SmallPtrSet<LayoutTypeSystemNode *, 8>
 absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
+  revng_log(Log, "absorbVolatileChildren of: " << Parent->ID);
+  LoggerIndent Indent{ Log };
 
   llvm::SmallPtrSet<LayoutTypeSystemNode *, 8> Absorbed;
 
@@ -342,6 +369,7 @@ absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
     for (LayoutTypeSystemNode *Volatile : VolatileChildren) {
       Absorbed.insert(Volatile);
       TS.dropOutgoingEdges(Volatile);
+      revng_log(Log, "Merge volatile child: " << Volatile->ID);
       TS.mergeNodes({ Parent, Volatile });
     }
 
@@ -423,6 +451,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
 
       revng_log(Log, "Analyzing parent: " << Parent->ID);
       revng_assert(Parent != FakeRoot);
+      LoggerIndent Indent{ Log };
 
       // If we reach this point we have to analyze Parent, to see if some of its
       // Instance children can be pushed down some other of its Instance
@@ -450,6 +479,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         OffsetExpression FinalOE;
       };
 
+      revng_log(Log, "Initialize ChildrenHierarchy");
       // A map whose key is an edge iterator representing an instance edge, and
       // the mapped type is a vector of other edges that can be pushed through
       // the key, along the updated offsets that they will have after pushing
@@ -473,14 +503,19 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
           ChildrenHierarchy[AIt];
       }
 
+      revng_log(Log, "Compare children edges");
       // Now compare each root only with other roots
       auto ARootIt = ChildrenHierarchy.begin();
       auto ARootNext = ARootIt;
-      auto HierarchyEnd = ChildrenHierarchy.begin();
+      auto HierarchyEnd = ChildrenHierarchy.end();
       for (; ARootIt != HierarchyEnd; ARootIt = ARootNext) {
-        ARootNext = std::next(ARootIt);
+        LoggerIndent ChildIndent{ Log };
 
         auto &[AEdgeIt, PushedInsideA] = *ARootIt;
+
+        revng_log(Log,
+                  "comparing AEdge: " << AEdgeIt->first->ID
+                                      << " label: " << AEdgeIt->second);
 
         // A vector of instance edges that are contained in AEdgeIt and that
         // should be pushed through it, along with the new offsets they will
@@ -493,10 +528,13 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         // through them.
         llvm::SmallVector<EdgeWithOffset> ContainsA;
 
-        for (auto BRootIt = std::next(ARootIt); BRootIt != HierarchyEnd;
-             ++BRootIt) {
+        for (auto BRootIt = ARootNext; BRootIt != HierarchyEnd; ++BRootIt) {
+          LoggerIndent OtherChildIndent{ Log };
 
           auto &[BEdgeIt, ContainedInB] = *BRootIt;
+          revng_log(Log,
+                    "with BEdge: " << BEdgeIt->first->ID
+                                   << " label: " << BEdgeIt->second);
 
           auto MaybePushThrough = canPushThrough(AEdgeIt, BEdgeIt);
           if (not MaybePushThrough.has_value())
@@ -505,6 +543,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
           auto &[ToPush, Through, OEAfterPush] = MaybePushThrough.value();
           revng_assert(ToPush == AEdgeIt or ToPush == BEdgeIt);
           revng_assert(Through == AEdgeIt or Through == BEdgeIt);
+          revng_assert(Through != ToPush);
           if (ToPush == AEdgeIt) {
             revng_assert(Through == BEdgeIt);
             // AEdgeIt can be pushed inside BEdgeIt
@@ -532,6 +571,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         // A itself (that transitively can be pushed through the others too).
         // After we've pushed A through all edges in ContainsA, we can remove A
         // itelf from ChildrenHierarchy, since it's not a root anymore.
+        ARootNext = std::next(ARootIt);
         if (not ContainsA.empty()) {
           for (const auto &[LargerThanA, FinalOE] : ContainsA) {
 
@@ -561,26 +601,38 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       }
 
       llvm::SmallSet<NeighborIterator, 4> EdgesToErase;
-      for (auto &[EdgeToPushThrough, EdgesToPush] : ChildrenHierarchy) {
+      {
+        revng_log(Log, "Collect EdgesToErase");
+        LoggerIndent IndentCollect{ Log };
+        for (auto &[EdgeToPushThrough, EdgesToPush] : ChildrenHierarchy) {
 
-        if (EdgesToPush.empty())
-          continue;
+          if (EdgesToPush.empty())
+            continue;
 
-        auto *ToPushThrough = EdgeToPushThrough->first;
-        ToAnalyze.insert(ToPushThrough);
+          auto *ToPushThrough = EdgeToPushThrough->first;
+          ToAnalyze.insert(ToPushThrough);
 
-        for (auto &[PushedEdgeIt, FinalOE] : EdgesToPush) {
-          EdgesToErase.insert(PushedEdgeIt);
-          auto *ToPushDown = PushedEdgeIt->first;
+          for (auto &[PushedEdgeIt, FinalOE] : EdgesToPush) {
+            EdgesToErase.insert(PushedEdgeIt);
+            auto *ToPushDown = PushedEdgeIt->first;
 
-          revng_assert(not isLeaf(ToPushThrough));
-          TS.addInstanceLink(ToPushThrough, ToPushDown, std::move(FinalOE));
+            revng_assert(not isLeaf(ToPushThrough));
+            TS.addInstanceLink(ToPushThrough, ToPushDown, std::move(FinalOE));
+          }
         }
       }
 
       // Now finally clean up the edges that were pushed down.
-      for (const auto &ToErase : EdgesToErase)
-        TS.eraseEdge(Parent, ToErase);
+      {
+        revng_log(Log, "Erase edges");
+        LoggerIndent IndentErase{ Log };
+        for (const auto &ToErase : EdgesToErase) {
+          revng_log(Log,
+                    "erase: " << Parent->ID << " -> " << ToErase->first->ID
+                              << " label: " << ToErase->second);
+          TS.eraseEdge(Parent, ToErase);
+        }
+      }
 
       Changed |= not EdgesToErase.empty();
     }
