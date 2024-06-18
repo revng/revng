@@ -221,7 +221,7 @@ getLLVMReturnTypeAndArguments(llvm::Module *M, const UsedRegisters &Registers) {
   else if (ReturnTypes.size() == 1)
     ReturnType = ReturnTypes[0];
   else
-    ReturnType = StructType::create(ReturnTypes);
+    ReturnType = StructType::get(Context, ReturnTypes, true);
 
   // Create new function
   return { ReturnType, ArgumentsTypes };
