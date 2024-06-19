@@ -25,6 +25,11 @@ Error importBinary(TupleTree<model::Binary> &Model,
                    const ImporterOptions &Options) {
   using namespace llvm::object;
   using namespace model::Architecture;
+
+  // If we have segments, we already imported a binary, bail out.
+  if (Model->Segments().size() > 0)
+    return Error::success();
+
   Model->Architecture() = fromLLVMArchitecture(ObjectFile.getArch());
 
   if (Model->Architecture() == model::Architecture::Invalid)
