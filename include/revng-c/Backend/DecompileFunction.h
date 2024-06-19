@@ -19,4 +19,5 @@ using Container = revng::pipes::DecompileStringMap;
 void decompile(ControlFlowGraphCache &Cache,
                llvm::Module &M,
                const model::Binary &Model,
-               detail::Container &DecompiledFunctions);
+               detail::Container &DecompiledFunctions,
+               bool GeneratePlainC = false);

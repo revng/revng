@@ -1987,11 +1987,12 @@ static std::string decompileFunction(ControlFlowGraphCache &Cache,
                                      const Binary &Model,
                                      const ASTVarDeclMap &VarToDeclare,
                                      bool NeedsLocalStateVar,
-                                     const InlineableTypesMap &StackTypes) {
+                                     const InlineableTypesMap &StackTypes,
+                                     bool GeneratePlainC) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
-  ptml::PTMLCBuilder B;
+  ptml::PTMLCBuilder B{ GeneratePlainC };
 
   CCodeGenerator
     Backend(Cache, Model, LLVMFunc, CombedAST, VarToDeclare, Out, B);
@@ -2038,7 +2039,8 @@ using Container = revng::pipes::DecompileStringMap;
 void decompile(ControlFlowGraphCache &Cache,
                llvm::Module &Module,
                const model::Binary &Model,
-               Container &DecompiledFunctions) {
+               Container &DecompiledFunctions,
+               bool GeneratePlainC) {
 
   // Get all Stack types and all the inlinable types reachable from it,
   // since we want to emit forward declarations for all of them.
@@ -2097,7 +2099,8 @@ void decompile(ControlFlowGraphCache &Cache,
                                           Model,
                                           VariablesToDeclare,
                                           NeedsLoopStateVar,
-                                          StackTypes);
+                                          StackTypes,
+                                          GeneratePlainC);
 
     // Push the C code into
     MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");
