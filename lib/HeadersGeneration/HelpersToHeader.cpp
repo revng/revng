@@ -92,9 +92,11 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
   return llvm::any_of(F.getFunctionType()->params(), IsUnprintable);
 }
 
-bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
+bool dumpHelpersToHeader(const llvm::Module &M,
+                         llvm::raw_ostream &Out,
+                         bool GeneratePlainC) {
   using PTMLCBuilder = ptml::PTMLCBuilder;
-  PTMLCBuilder B;
+  PTMLCBuilder B{ GeneratePlainC };
   auto Header = ptml::PTMLIndentedOstream(Out, DecompiledCCodeIndentation);
   {
     auto Scope = B.getTag(ptml::tags::Div).scope(Header);
