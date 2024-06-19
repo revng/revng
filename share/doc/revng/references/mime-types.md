@@ -24,6 +24,7 @@ USAGE: revng-artifact [options] <artifact> <binary>
   emit-helpers-header         - text/x.c+ptml
   emit-model-header           - text/x.c+ptml
   emit-type-definitions       - text/x.c+tar+gz
+  cleanup-ir                  - text/x.llvm.ir
   convert-to-mlir             - application/x.mlir.bc
   import-clift-types          - application/x.mlir.bc
 ```
