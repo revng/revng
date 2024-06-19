@@ -8,12 +8,15 @@ revng_add_analyses_library(
   ALAPVariableDeclaration.cpp
   DecompilePipe.cpp
   DecompileFunction.cpp
+  DecompileToDirectoryPipe.cpp
   DecompileToSingleFile.cpp
   DecompileToSingleFilePipe.cpp)
 
 target_link_libraries(
   revngcBackend
+  revngcHelpersToHeader
   revngcInitModelTypes
+  revngcModelToHeader
   revngcRestructureCFG
   revngcSupport
   revngcTypeNames
