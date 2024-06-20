@@ -163,41 +163,68 @@ static bool shouldApplyIntegerPromotion(const llvm::Instruction *I) {
 static bool isImplicitCast(const model::Type &From,
                            const model::Type &To,
                            const llvm::Value *V) {
+  // If types are the same, the cast is meaningless anyway.
   if (From == To)
     return true;
 
-  // This will automatically handle typedefs as well.
-  const model::Type *FromUnwrapped = From.skipConstAndTypedefs();
-  const model::Type *ToUnwrapped = To.skipConstAndTypedefs();
-  if (*FromUnwrapped == *ToUnwrapped)
+  // Force an explicit cast if it is discarding constness information.
+  bool FromConst = From.isConst();
+  bool ToConst = To.isConst();
+  if (FromConst != ToConst and FromConst)
+    return false;
+
+  // If types only differ in typedefs or constness, make the cast implicit.
+  const model::UpcastableType PostConstFrom = model::getNonConst(From);
+  const model::UpcastableType PostConstTo = model::getNonConst(To);
+  const model::Type *UnwrappedFrom = PostConstFrom->skipTypedefs();
+  const model::Type *UnwrappedTo = PostConstTo->skipTypedefs();
+  if (*UnwrappedFrom == *UnwrappedTo)
     return true;
 
-  if (not FromUnwrapped->isScalar() or not ToUnwrapped->isScalar())
+  // Always preserve casts involving non-scalars.
+  if (not UnwrappedFrom->isScalar() or not UnwrappedTo->isScalar())
     return false;
 
-  // A non-const pointer to void * is an implicit cast.
-  if (FromUnwrapped->isPointer() and ToUnwrapped->isPointer()) {
-    if (FromUnwrapped->getPointee().isConst()
-        or ToUnwrapped->getPointee().isConst()) {
+  if (const model::PointerType *FromPointer = UnwrappedFrom->getPointer()) {
+    if (const model::PointerType *ToPointer = UnwrappedTo->getPointer()) {
+      // Force an explicit cast if it is discarding constness information.
+      bool FromConst = FromPointer->PointeeType()->isConst();
+      bool ToConst = ToPointer->PointeeType()->isConst();
+      if (FromConst != ToConst and FromConst)
+        return false;
+
+      // If pointee types only differ in typedefs or constness,
+      // make the cast implicit.
+      const auto NonConstFrom = model::getNonConst(*FromPointer->PointeeType());
+      const auto NonConstTo = model::getNonConst(*ToPointer->PointeeType());
+      const model::Type *UnwrappedFrom = NonConstFrom->skipTypedefs();
+      const model::Type *UnwrappedTo = NonConstTo->skipTypedefs();
+      if (*UnwrappedFrom == *UnwrappedTo)
+        return true;
+
+      // Always allow casts to void pointers.
+      if (UnwrappedTo->isVoidPrimitive())
+        return true;
+
+      // Forbid all other pointer casts.
+      // TODO: are there any others we want to allow?
       return false;
     }
-
-    if (ToUnwrapped->isVoidPrimitive())
-      return true;
-
-    return false;
   }
 
-  if (FromUnwrapped->isPointer() or ToUnwrapped->isPointer())
+  // Explicitly forbid casts between pointers and non-pointers.
+  if (UnwrappedFrom->isPointer() or UnwrappedTo->isPointer())
     return false;
 
-  if (const auto *Enum = FromUnwrapped->getEnum())
-    FromUnwrapped = &Enum->underlyingType();
-  if (const auto *Enum = ToUnwrapped->getEnum())
-    ToUnwrapped = &Enum->underlyingType();
+  // Unwrap enums.
+  if (const auto *Enum = UnwrappedFrom->getEnum())
+    UnwrappedFrom = &Enum->underlyingType();
+  if (const auto *Enum = UnwrappedTo->getEnum())
+    UnwrappedTo = &Enum->underlyingType();
 
-  const model::PrimitiveType &FromPrimitive = FromUnwrapped->toPrimitive();
-  const model::PrimitiveType &ToPrimitive = ToUnwrapped->toPrimitive();
+  // If we get to this point, both of those are always primitie.
+  const model::PrimitiveType &FromPrimitive = UnwrappedFrom->toPrimitive();
+  const model::PrimitiveType &ToPrimitive = UnwrappedTo->toPrimitive();
 
   auto ShouldTreatAsUnsigned = [](const model::PrimitiveType &Primitive) {
     return Primitive.PrimitiveKind() == model::PrimitiveKind::PointerOrNumber
