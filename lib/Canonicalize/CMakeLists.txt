@@ -17,6 +17,7 @@ revng_add_analyses_library(
   PeepholeOptimizationPass.cpp
   PrepareLLVMIRForMLIR.cpp
   PrettyIntFormattingPass.cpp
+  RemoveBrokenDebugInformation.cpp
   RemoveLLVMAssumeCallsPass.cpp
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
