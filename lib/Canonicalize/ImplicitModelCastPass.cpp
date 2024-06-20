@@ -24,6 +24,7 @@
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
+#include "revng-c/TypeNames/ModelTypeNames.h"
 
 static Logger<> Log{ "implicit-model-cast" };
 
@@ -288,11 +289,26 @@ ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
     const model::Type &CastedValueType = *TypeMap.at(CastedValue);
     // If type of the value being casted or integer promoted type are implicit
     // casts, we can avoid the cast itself.
-    if (not isImplicitCast(*PromotedTypeForCastedValue,
-                           ExpectedType,
-                           CastedValue)
-        and not isImplicitCast(CastedValueType, ExpectedType, CastedValue)) {
+    bool IsImplicit = isImplicitCast(*PromotedTypeForCastedValue,
+                                     ExpectedType,
+                                     CastedValue)
+                      || isImplicitCast(CastedValueType,
+                                        ExpectedType,
+                                        CastedValue);
+
+    if (not IsImplicit) {
+      revng_log(Log,
+                " '" << getPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
+                     << getPlainTypeName(CastedValueType)
+                     << "') CANNOT be implicitly cast to '"
+                     << getPlainTypeName(ExpectedType) << "'.");
       continue;
+    } else {
+      revng_log(Log,
+                " '" << getPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
+                     << getPlainTypeName(CastedValueType)
+                     << "') can be implicitly cast to '"
+                     << getPlainTypeName(ExpectedType) << "'.");
     }
 
     Result.insert(&Op);

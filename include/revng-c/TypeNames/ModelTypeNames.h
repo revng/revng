@@ -40,6 +40,11 @@ getTypeName(const model::Type &Type, const ptml::PTMLCBuilder &B) {
   return getNamedCInstance(Type, "", B);
 }
 
+inline std::string getPlainTypeName(const model::Type &Type) {
+  ptml::PTMLCBuilder B(/* GeneratePlainC = */ true);
+  return getTypeName(Type, B).str().str();
+}
+
 /// Return the name of the array wrapper that wraps \a ArrayType
 extern tokenDefinition::types::TypeString
 getArrayWrapper(const model::ArrayType &ArrayType, const ptml::PTMLCBuilder &B);
