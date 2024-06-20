@@ -57,7 +57,7 @@ void DecompileToDirectory::run(const pipeline::ExecutionContext &Ctx,
 
     Out.flush();
 
-    TarWriter.append("decompiled/decompiled.c",
+    TarWriter.append("decompiled/functions.c",
                      llvm::ArrayRef{ DecompiledC.data(),
                                      DecompiledC.length() });
   }
@@ -94,29 +94,29 @@ void DecompileToDirectory::run(const pipeline::ExecutionContext &Ctx,
 
   {
     auto Path = revng::ResourceFinder.findFile("share/revng-c/include/"
-                                               "revng-attributes.h");
+                                               "attributes.h");
 
     if (not Path or Path->empty())
-      revng_abort("can't find revng-attributes.h");
+      revng_abort("can't find attributes.h");
 
     auto BufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(*Path);
     auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
 
-    TarWriter.append("decompiled/revng-attributes.h",
+    TarWriter.append("decompiled/attributes.h",
                      { Buffer->getBufferStart(), Buffer->getBufferSize() });
   }
 
   {
     auto Path = revng::ResourceFinder.findFile("share/revng-c/include/"
-                                               "revng-primitive-types.h");
+                                               "primitive-types.h");
 
     if (not Path or Path->empty())
-      revng_abort("can't find revng-primitive-types.h");
+      revng_abort("can't find primitive-types.h");
 
     auto BufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(*Path);
     auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
 
-    TarWriter.append("decompiled/revng-primitive-types.h",
+    TarWriter.append("decompiled/primitive-types.h",
                      { Buffer->getBufferStart(), Buffer->getBufferSize() });
   }
 

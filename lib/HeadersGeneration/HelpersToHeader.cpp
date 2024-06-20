@@ -103,7 +103,7 @@ bool dumpHelpersToHeader(const llvm::Module &M,
     Header << B.getPragmaOnce();
     Header << B.getIncludeAngle("stdint.h");
     Header << B.getIncludeAngle("stdbool.h");
-    Header << B.getIncludeQuote("revng-primitive-types.h");
+    Header << B.getIncludeQuote("primitive-types.h");
     Header << "\n";
 
     for (const llvm::Function &F : M.functions()) {

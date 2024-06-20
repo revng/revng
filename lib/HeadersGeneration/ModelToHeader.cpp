@@ -165,8 +165,8 @@ bool dumpModelToHeader(const model::Binary &Model,
     Header << "\n";
     Header << B.getIncludeAngle("stdint.h");
     Header << B.getIncludeAngle("stdbool.h");
-    Header << B.getIncludeQuote("revng-primitive-types.h");
-    Header << B.getIncludeQuote("revng-attributes.h");
+    Header << B.getIncludeQuote("primitive-types.h");
+    Header << B.getIncludeQuote("attributes.h");
     Header << "\n";
 
     if (Options.PostIncludes.size())

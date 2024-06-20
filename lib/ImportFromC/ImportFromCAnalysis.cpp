@@ -232,13 +232,13 @@ struct ImportFromCAnalysis {
     }
     Compilation.push_back("-I" + CompilerHeadersPath.str().str());
 
-    // Find revng-primitive-types.h and revng-attributes.h.
+    // Find primitive-types.h and attributes.h.
     const char *PrimitivesHeader = "share/revng-c/include/"
-                                   "revng-primitive-types.h";
+                                   "primitive-types.h";
     auto MaybePrimitiveHeaderPath = findHeaderFile(PrimitivesHeader);
     if (not MaybePrimitiveHeaderPath) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Couldn't find revng-primitive-types.h");
+                                     "Couldn't find primitive-types.h");
     }
     Compilation.push_back("-I" + *MaybePrimitiveHeaderPath);
 
