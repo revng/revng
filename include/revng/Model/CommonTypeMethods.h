@@ -178,12 +178,19 @@ public:
   /// This helper returns true if and only if this type is a primitive or
   /// a pointer.
   ///
+  /// \note This helpers considers enums to be primitives.
+  ///
   /// \note it asserts if called on something that's not an object.
   ///
   /// \note similarly to other `isX` methods, this also skips typedefs.
   bool isScalar() const;
 
-  // TODO: we want more of these, like `isAggregate`
+  /// This helper returns true if and only if this type is is not scalar.
+  ///
+  /// \note it asserts if called on something that's not an object.
+  ///
+  /// \note similarly to other `isX` methods, this also skips typedefs.
+  bool isAggregate() const { return !isScalar(); }
 
 public:
   /// Use this method to check whether a specific type is constant or not, as
