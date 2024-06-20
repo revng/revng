@@ -126,36 +126,6 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
     if (Ret->getNumOperands() > 0)
       SerializeTypeFor(Ret->getOperandUse(0));
 
-  } else if (auto *SI = dyn_cast<StoreInst>(I)) {
-    auto &PtrOperandPtrType = *TypeMap.at(SI->getPointerOperand());
-    auto &ValOperandType = *TypeMap.at(SI->getValueOperand());
-
-    bool IsPointerToAnAggregate = false;
-    const model::UpcastableType *PointeeType = nullptr;
-    if (const model::PointerType *Pointer = PtrOperandPtrType.getPointer()) {
-      PointeeType = &Pointer->PointeeType();
-      if (**PointeeType == ValOperandType) {
-        // Types already match, no need to do anything.
-        return Result;
-      }
-
-      IsPointerToAnAggregate = (*PointeeType)->isStruct()
-                               || (*PointeeType)->isUnion();
-    }
-
-    if (isa<ConstantPointerNull>(SI->getPointerOperand())
-        || IsPointerToAnAggregate) {
-      // Pointer operand needs to be cast to a pointer of the value operand.
-      const model::Architecture::Values &Arch = Model.Architecture();
-      auto New = model::PointerType::make(ValOperandType, Arch);
-      Result.emplace_back(SerializedType(serializeToLLVMString(New, *M),
-                                         SI->getPointerOperandIndex()));
-    } else {
-      // Value operand needs to be cast to the pointee of the pointer type.
-      revng_assert(PtrOperandPtrType.isPointer());
-      auto *LLVMString = serializeToLLVMString(*PointeeType, *M);
-      Result.emplace_back(SerializedType(LLVMString));
-    }
   } else if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)
              or isa<llvm::SelectInst>(I)) {
     for (unsigned Index = 0; Index < I->getNumOperands(); ++Index)
