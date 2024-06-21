@@ -72,7 +72,8 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // Graph optimization phase
   //
   revng_check(SM.addStep<dla::CollapseSingleChild>());
-  revng_check(SM.addStep<dla::DeduplicateFields>());
+  // TODO: re-enable this when we fix bugs in it that cause verifyDAG to fail
+  // revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::MergePointeesOfPointerUnion>(PtrSize));
   revng_check(SM.addStep<dla::MergePointerNodes>());
   revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
@@ -88,7 +89,8 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // CompactCompatibleArrays and ArrangeAccessesHierarchically, to allow them to
   // produce better results
   revng_check(SM.addStep<dla::CollapseSingleChild>());
-  revng_check(SM.addStep<dla::DeduplicateFields>());
+  // TODO: re-enable this when we fix bugs in it that cause verifyDAG to fail
+  // revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::ArrangeAccessesHierarchically>());
   revng_check(SM.addStep<dla::CompactCompatibleArrays>());
   revng_check(SM.addStep<dla::PushDownPointers>());
@@ -100,7 +102,8 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // improve the results even further.
   revng_check(SM.addStep<dla::ResolveLeafUnions>());
   revng_check(SM.addStep<dla::CollapseSingleChild>());
-  revng_check(SM.addStep<dla::DeduplicateFields>());
+  // TODO: re-enable this when we fix bugs in it that cause verifyDAG to fail
+  // revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());
   SM.run(TS);
 
