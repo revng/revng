@@ -17,4 +17,4 @@ class Module;
 /// new struct type will be defined and serialized on-the-fly.
 bool dumpHelpersToHeader(const llvm::Module &M,
                          llvm::raw_ostream &Out,
-                         bool GeneratePlainC = false);
+                         bool GeneratePlainC);

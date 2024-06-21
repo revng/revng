@@ -296,11 +296,6 @@ private:
       .addAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
   }
 
-  Tag scopeTagHelper(const llvm::StringRef AttributeName) const {
-    return ptml::PTMLBuilder::getTag(ptml::tags::Div)
-      .addAttribute(ptml::attributes::Scope, AttributeName);
-  }
-
   Tag directiveTagHelper(const llvm::StringRef Str) const {
     return tokenTag(Str, ptml::c::tokens::Directive);
   }
@@ -346,7 +341,15 @@ public:
 
   // String literal.
   Tag getStringLiteral(const llvm::StringRef Str) const {
-    return ptml::PTMLBuilder::tokenTag(Str, ptml::c::tokens::StringLiteral);
+    if (isGenerateTagLessPTML())
+      return ptml::PTMLBuilder::tokenTag(Str, ptml::c::tokens::StringLiteral);
+
+    std::string Escaped;
+    {
+      llvm::raw_string_ostream EscapeHTMLStream(Escaped);
+      llvm::printHTMLEscaped(Str, EscapeHTMLStream);
+    }
+    return ptml::PTMLBuilder::tokenTag(Escaped, ptml::c::tokens::StringLiteral);
   }
 
   // Keywords.
@@ -358,23 +361,23 @@ public:
   Tag getScope(Scopes TheScope) const {
     switch (TheScope) {
     case Scopes::Scope:
-      return scopeTagHelper(ptml::c::scopes::Scope);
+      return scopeTag(ptml::c::scopes::Scope);
     case Scopes::Function:
-      return scopeTagHelper(ptml::c::scopes::Function);
+      return scopeTag(ptml::c::scopes::Function);
     case Scopes::FunctionBody:
-      return scopeTagHelper(ptml::c::scopes::FunctionBody);
+      return scopeTag(ptml::c::scopes::FunctionBody);
     case Scopes::StructBody:
-      return scopeTagHelper(ptml::c::scopes::StructBody);
+      return scopeTag(ptml::c::scopes::StructBody);
     case Scopes::UnionBody:
-      return scopeTagHelper(ptml::c::scopes::UnionBody);
+      return scopeTag(ptml::c::scopes::UnionBody);
     case Scopes::TypeDeclarations:
-      return scopeTagHelper(ptml::c::scopes::TypeDeclarationsList);
+      return scopeTag(ptml::c::scopes::TypeDeclarationsList);
     case Scopes::FunctionDeclarations:
-      return scopeTagHelper(ptml::c::scopes::FunctionDeclarationsList);
+      return scopeTag(ptml::c::scopes::FunctionDeclarationsList);
     case Scopes::DynamicFunctionDeclarations:
-      return scopeTagHelper(ptml::c::scopes::DynamicFunctionDeclarationsList);
+      return scopeTag(ptml::c::scopes::DynamicFunctionDeclarationsList);
     case Scopes::SegmentDeclarations:
-      return scopeTagHelper(ptml::c::scopes::SegmentDeclarationsList);
+      return scopeTag(ptml::c::scopes::SegmentDeclarationsList);
     default:
       revng_unreachable("Unknown scope");
     }
@@ -392,23 +395,13 @@ public:
   }
 
   std::string getIncludeAngle(const llvm::StringRef Str) {
-    std::string TheStr;
-    if (!isGenerateTagLessPTML())
-      TheStr = "&lt;" + Str.str() + "&gt;";
-    else
-      TheStr = "<" + Str.str() + ">";
-
+    std::string TheStr = "<" + Str.str() + ">";
     return getDirective(Directive::Include) + " " + getStringLiteral(TheStr)
            + "\n";
   }
 
   std::string getIncludeQuote(const llvm::StringRef Str) {
-    std::string TheStr;
-    if (!isGenerateTagLessPTML())
-      TheStr = "&quot;" + Str.str() + "&quot;";
-    else
-      TheStr = "\"" + Str.str() + "\"";
-
+    std::string TheStr = "\"" + Str.str() + "\"";
     return getDirective(Directive::Include) + " " + getStringLiteral(TheStr)
            + "\n";
   }

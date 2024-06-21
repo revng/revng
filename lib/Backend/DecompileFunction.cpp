@@ -316,7 +316,7 @@ public:
                            &ModelFunction,
                            Model,
                            /* PointersOnly = */ false)),
-    Out(Out, DecompiledCCodeIndentation),
+    Out(Out, DecompiledCCodeIndentation, B.isGenerateTagLessPTML()),
     B(B),
     SwitchStateVars(),
     Cache(Cache) {
@@ -889,14 +889,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
     const auto Operand = Call->getArgOperand(0);
     std::string StringLiteral = rc_recur getToken(Operand);
-
-    std::string EscapedHTML;
-    {
-      llvm::raw_string_ostream EscapeHTMLStream(EscapedHTML);
-      llvm::printHTMLEscaped(StringLiteral, EscapeHTMLStream);
-    }
-
-    rc_return B.getStringLiteral(EscapedHTML).serialize();
+    rc_return B.getStringLiteral(StringLiteral).serialize();
   }
 
   std::string Error = "Cannot get token for custom opcode: "

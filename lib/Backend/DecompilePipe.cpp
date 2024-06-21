@@ -25,7 +25,11 @@ void Decompile::run(const pipeline::ExecutionContext &Ctx,
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(Ctx);
   ControlFlowGraphCache Cache(CFGMap);
-  decompile(Cache, Module, Model, DecompiledFunctions);
+  decompile(Cache,
+            Module,
+            Model,
+            DecompiledFunctions,
+            /* GeneratePlainC */ false);
 }
 
 void Decompile::print(const pipeline::Context &Ctx,

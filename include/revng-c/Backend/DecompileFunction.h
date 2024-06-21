@@ -20,4 +20,4 @@ void decompile(ControlFlowGraphCache &Cache,
                llvm::Module &M,
                const model::Binary &Model,
                detail::Container &DecompiledFunctions,
-               bool GeneratePlainC = false);
+               bool GeneratePlainC);
