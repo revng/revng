@@ -1979,8 +1979,10 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
         // This will contain the stack types that we can inline, since
         // there could be a stack type that is being used somewhere else,
         // so we do not want to inline it.
-        auto TheStackTypes = StackTypes.at(&ModelFunction);
-        if (TheStackTypes.contains(TheType) and !IsStackDefined) {
+        auto StackTypesIt = StackTypes.find(&ModelFunction);
+        if (StackTypesIt != StackTypes.end() and not IsStackDefined
+            and StackTypesIt->second.contains(TheType)) {
+          auto TheStackTypes = StackTypesIt->second;
           IsStackDefined = true;
           std::map<model::QualifiedType, std::string> AdditionalTypeNames;
           // For all nested types within stack definition we print forward
@@ -2084,7 +2086,14 @@ void decompile(ControlFlowGraphCache &Cache,
 
   // Get all Stack types and all the inlinable types reachable from it,
   // since we want to emit forward declarations for all of them.
-  const auto StackTypes = TypeInlineHelper(Model).findTypesToInlineInStacks();
+  // TODO: we have temporarily disabled stack-types inlining due to the fact
+  // that type inlining is broken on rare cases involving recursive types (do to
+  // the fact that it uses a different logic than ModelToHeader).
+  // For this reason this is always the empty set for now. When type inlining
+  // will be fixed this can be re-enabled.
+  const InlineableTypesMap StackTypes = {};
+  // const auto StackTypes =
+  // TypeInlineHelper(Model).findTypesToInlineInStacks();
 
   auto
     T = llvm::make_task_on_set(llvm::make_address_range(FunctionTags::Isolated

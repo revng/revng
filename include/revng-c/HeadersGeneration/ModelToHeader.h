@@ -32,7 +32,10 @@ struct ModelToHeaderOptions {
   /// TODO: this now conflates a) printing stack types inline in function=
   /// bodies; b) printing inline types in types-and-globals.h
   /// In principle the two options could be split and activated separately.
-  bool DisableTypeInlining = false;
+  /// TODO: type inlining is currently broken in rare cases involving recursive
+  /// types, due to its logic using a different graph than ModelToHeader proper.
+  /// Revert back to false when the bugs are fixed.
+  bool DisableTypeInlining = true;
 };
 
 /// Generate a C header containing a serialization of the type system,

@@ -26,6 +26,6 @@ commands:
         filter: model-to-header
     suffix: .h
     command: |-
-      revng artifact emit-model-header /dev/null --model "$INPUT" | revng ptml > "$OUTPUT";
+      revng artifact --inline-types emit-model-header /dev/null --model "$INPUT" | revng ptml > "$OUTPUT";
       revng check-decompiled-c "$OUTPUT";
       FileCheck --input-file="$OUTPUT" "${SOURCE}.filecheck";
