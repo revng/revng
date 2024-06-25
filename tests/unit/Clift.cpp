@@ -218,7 +218,6 @@ BOOST_AUTO_TEST_CASE(FunctionTypesCantContainFunctionTypes) {
                .failed());
 }
 
-using namespace mlir::clift;
 BOOST_AUTO_TEST_CASE(PrimitiveTypesDefaultToNonConst) {
   auto Type = PrimitiveType::get(&context,
                                  PrimitiveKind::GenericKind,
