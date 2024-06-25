@@ -11,6 +11,7 @@ bool init_unit_test();
 #include "llvm/IR/PassManager.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 template<typename T>
 void instantiateModuleAnalysis(llvm::Module *M) {
