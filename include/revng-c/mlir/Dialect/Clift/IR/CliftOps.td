@@ -143,73 +143,136 @@ def Clift_UndefOp: Clift_Op<"undef"> {
 
 //===----------------------------- Statements -----------------------------===//
 
-def Clift_LoopOp : Clift_Op<"loop", [Terminator]> {
-  let regions = (region AnyRegion:$body);
-  let successors = (successor
-    VariadicSuccessor<AnySuccessor>:$LoopDestinations);
-
-  let assemblyFormat = [{
-    $body $LoopDestinations attr-dict
-  }];
-
-  let hasRegionVerifier = 1;
-}
-
-def Clift_ContinueOp : Clift_Op<"continue", [HasParent<"LoopOp">, Terminator]> {}
-
-def Clift_LabelResource : Resource<"LabelResource">;
-
-def Clift_AssignLabelOp : Clift_Op<"assign_label"> {
-  let arguments = (ins Arg<Clift_LabelType, "", [MemFree]>:$label);
-
-  let assemblyFormat = [{
-    $label type($label) attr-dict
-  }];
-
-  let hasCanonicalizeMethod = 1;
-}
-
-def Clift_GoToOp : Clift_Op<"goto", [Terminator]> {
-  let arguments = (ins Arg<Clift_LabelType, "", [MemRead]>:$label);
-
-  let assemblyFormat = [{
-    $label type($label) attr-dict
-  }];
-}
-
-def Clift_MakeLabelOp : Clift_Op<"make_label", [Clift_OneUseOfType<"AssignLabelOp">] > {
-  let results = (outs Res<Clift_LabelType, "", [MemAlloc, MemWrite] >:$result);
+def Clift_MakeLabelOp : Clift_Op<"make_label",
+                                 [Clift_StatementOpInterface,
+                                  Clift_OneUseOfType<"mlir::clift::AssignLabelOp">] > {
+  let results = (outs Clift_LabelType:$result);
 
   let assemblyFormat = [{
     type($result) attr-dict
   }];
+
+  let hasCanonicalizeMethod = 1;
   let hasVerifier = 1;
 
   let builders = [
-     OpBuilder<(ins), [{
-       build($_builder, $_state, mlir::clift::LabelType::get($_builder.getContext()));
-   }]>
-   ];
+    OpBuilder<(ins), [{
+      build($_builder,
+            $_state,
+            mlir::clift::LabelType::get($_builder.getContext()));
+    }]>
+  ];
 }
 
-def Clift_ConstantOp: Clift_Op<"constant", [Pure]> {
-  let arguments = (ins AnyAttrOf<[I64Attr, F64Attr, BoolAttr]>:$value);
-
-  let results = (outs Clift_PrimitiveType:$result);
+def Clift_AssignLabelOp : Clift_Op<"assign_label",
+                                   [Clift_StatementOpInterface]> {
+  let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
-    $value type($result) attr-dict
+    $label type($label) attr-dict
+  }];
+}
+
+def Clift_GoToOp : Clift_Op<"goto",
+                            [Clift_StatementOpInterface,
+                             Clift_NoFallthrough]> {
+  let arguments = (ins Clift_LabelType:$label);
+
+  let assemblyFormat = [{
+    $label type($label) attr-dict
+  }];
+}
+
+def Clift_IfOp : Clift_Op<"if",
+                          [Clift_StatementOpInterface,
+                           NoTerminator]> {
+  let regions = (region Clift_ExpressionRegion:$condition,
+                        Clift_StatementRegion:$then,
+                        Clift_StatementRegion:$else);
+
+  let assemblyFormat = [{
+    $condition $then (`else` $else^)? attr-dict
+  }];
+}
+
+def Clift_LocalVariableOp : Clift_Op<"local",
+                                     [Clift_StatementOpInterface,
+                                      NoTerminator]> {
+  let arguments = (ins StrAttr:$sym_name,
+                       TypeAttrOf<Clift_ValueType>:$type);
+
+  let regions = (region Clift_OptionalExpressionRegion:$initializer);
+
+  let assemblyFormat = [{
+    $type $sym_name (`=` $initializer^)? attr-dict
+  }];
+}
+
+def Clift_ReturnOp : Clift_Op<"return",
+                              [Clift_StatementOpInterface,
+                               Clift_NoFallthrough,
+                               NoTerminator]> {
+  let regions = (region Clift_OptionalExpressionRegion:$result);
+
+  let assemblyFormat = [{
+    $result attr-dict
+  }];
+}
+
+def Clift_SwitchOp : Clift_Op<"switch",
+                              [Clift_StatementOpInterface,
+                               NoTerminator]> {
+  let arguments = (ins DenseI64ArrayAttr:$case_values);
+
+  let regions = (region Clift_ExpressionRegion:$condition,
+                        Clift_StatementRegion:$default,
+                        VariadicRegion<Clift_StatementRegion>:$cases);
+
+  let assemblyFormat = [{
+    $condition $cases (`default` $default^)? attr-dict
   }];
 
-   let builders = [
-        OpBuilder<(ins "mlir::Type":$type, "double":$value), [{
-            build($_builder, $_state, type, $_builder.getF64FloatAttr(value));
-    }]>,OpBuilder<(ins "mlir::Type":$type, "bool":$value), [{
-            build($_builder, $_state, type, $_builder.getBoolAttr(value));
-    }]>,OpBuilder<(ins "mlir::Type":$type, "std::int64_t":$value), [{
-            build($_builder, $_state, type, $_builder.getI64IntegerAttr(value));
-    }]>
-    ];
+  let hasVerifier = 1;
+
+  let builders = [
+    OpBuilder<(ins "llvm::ArrayRef<uint64_t>":$case_values)>
+  ];
+
+  code extraClassDeclaration = [{
+    [[nodiscard]] Region &getConditionRegion() {
+      return getRegion(0);
+    }
+
+    [[nodiscard]] bool hasDefaultCase() {
+      return not getDefaultCaseRegion().empty();
+    }
+
+    [[nodiscard]] Region &getDefaultCaseRegion() {
+      return getRegion(1);
+    }
+
+    [[nodiscard]] unsigned getNumCases() {
+      return getNumRegions() - 2;
+    }
+
+    [[nodiscard]] uint64_t getCaseValue(const unsigned index) {
+      return static_cast<uint64_t>(getCaseValues()[index]);
+    }
+
+    [[nodiscard]] Region &getCaseRegion(const unsigned index) {
+      return getRegion(index + 2u);
+    }
+
+    [[nodiscard]] Region *findCaseRegion(const uint64_t value);
+  }];
+}
+
+def Clift_SwitchBreakOp : Clift_Op<"switch_break",
+                                   [Clift_StatementOpInterface,
+                                    Clift_NoFallthrough]> {
+  let assemblyFormat = [{
+    attr-dict
+  }];
 }
 
 #endif

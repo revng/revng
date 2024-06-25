@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include "mlir/IR/RegionGraphTraits.h"
 
@@ -248,65 +249,76 @@ mlir::LogicalResult clift::ModuleOp::verify() {
   return Validator.visitOp(*this);
 }
 
-//===-----------------------------------------------------------------========//
-// Code for clift::AssignLabelOp.
-//===----------------------------------------------------------------------===//
+//===----------------------------- Statements -----------------------------===//
 
-mlir::LogicalResult
-mlir::clift::AssignLabelOp::canonicalize(mlir::clift::AssignLabelOp Op,
-                                         mlir::PatternRewriter &Rewriter) {
-  for (const mlir::OpOperand &Use : Op.getLabel().getUses())
-    if (mlir::isa<mlir::clift::GoToOp>(Use.getOwner()))
-      return mlir::success();
+//===----------------------------- MakeLabelOp ----------------------------===//
+
+static std::pair<size_t, size_t> getNumLabelUsers(MakeLabelOp Op) {
+  size_t Assignments = 0;
+  size_t GoTos = 0;
+  for (mlir::OpOperand &Operand : Op.getResult().getUses()) {
+    if (mlir::isa<AssignLabelOp>(Operand.getOwner()))
+      ++Assignments;
+    else if (mlir::isa<GoToOp>(Operand.getOwner()))
+      ++GoTos;
+  }
+  return { Assignments, GoTos };
+}
+
+mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
+                                              PatternRewriter &Rewriter) {
+  const auto [Assignments, GoTos] = getNumLabelUsers(Op);
+
+  if (GoTos != 0)
+    return mlir::success();
+
+  for (mlir::OpOperand &Operand : Op.getResult().getUses()) {
+    if (auto AssignOp = mlir::dyn_cast<AssignLabelOp>(Operand.getOwner()))
+      Rewriter.eraseOp(AssignOp);
+  }
 
   Rewriter.eraseOp(Op);
   return mlir::success();
 }
 
-//===-----------------------------------------------------------------========//
-// Code for clift::MakeLabelOp.
-//===----------------------------------------------------------------------===//
+mlir::LogicalResult MakeLabelOp::verify() {
+  const auto [Assignments, GoTos] = getNumLabelUsers(*this);
 
-mlir::LogicalResult mlir::clift::MakeLabelOp::verify() {
+  if (Assignments > 1)
+    return emitOpError() << getOperationName()
+                         << " may only have one assignment.";
 
-  auto AssignOwnerLambda = [](mlir::OpOperand &Operand) {
-    return mlir::isa<mlir::clift::AssignLabelOp>(Operand.getOwner());
-  };
-  const bool HasAssign = llvm::any_of(getResult().getUses(), AssignOwnerLambda);
+  if (GoTos != 0 and Assignments == 0)
+    return emitOpError() << getOperationName() << " with a use by "
+                         << GoToOp::getOperationName()
+                         << " must have an assignment.";
 
-  if (HasAssign)
-    return mlir::success();
-
-  auto GoToOwnerLambda = [](mlir::OpOperand &Operand) {
-    return mlir::isa<mlir::clift::GoToOp>(Operand.getOwner());
-  };
-  const bool HasGoTo = llvm::any_of(getResult().getUses(), GoToOwnerLambda);
-
-  if (not HasGoTo)
-    return mlir::success();
-
-  emitOpError(getOperationName() + " with a "
-              + mlir::clift::GoToOp::getOperationName() + " use must have a "
-              + mlir::clift::AssignLabelOp::getOperationName() + " use too.");
-  return mlir::failure();
+  return mlir::success();
 }
 
-//===-----------------------------------------------------------------========//
-// Code for clift::LoopOp.
-//===----------------------------------------------------------------------===//
+//===------------------------------ SwitchOp ------------------------------===//
 
-mlir::LogicalResult mlir::clift::LoopOp::verifyRegions() {
+void SwitchOp::build(OpBuilder &OdsBuilder,
+                     OperationState &OdsState,
+                     const llvm::ArrayRef<uint64_t> CaseValues) {
+  llvm::SmallVector<int64_t> SignedCaseValues;
+  SignedCaseValues.resize_for_overwrite(CaseValues.size());
+  std::copy(CaseValues.begin(), CaseValues.end(), SignedCaseValues.begin());
+  build(OdsBuilder, OdsState, SignedCaseValues, CaseValues.size());
+}
 
-  // Verify that the region inside each `clift.loop` is acyclic
+mlir::LogicalResult SwitchOp::verify() {
+  // One region for the condition, one for the default case and N for others.
+  if (getNumRegions() != 2 + getCaseValues().size())
+    return emitOpError() << getOperationName()
+                         << " must have a case value for each case region.";
 
-  // TODO: this verifier does not cover the root region, because that is not
-  //       inside a `clift.loop`. A solution to this may be the definition of a
-  //       `IsCombableInterface` in order to perform the verification on the
-  //       interface and not on the operation.
-  mlir::Region &LoopOpRegion = getBody();
-  if (isDAG(&LoopOpRegion)) {
-    return success();
-  } else {
-    return failure();
+  llvm::SmallSet<uint64_t, 16> CaseValueSet;
+  for (uint64_t const CaseValue : getCaseValues()) {
+    if (not CaseValueSet.insert(CaseValue).second)
+      return emitOpError() << getOperationName()
+                           << " case values must be unique.";
   }
+
+  return mlir::success();
 }

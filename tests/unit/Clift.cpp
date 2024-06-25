@@ -57,6 +57,8 @@ protected:
 
 BOOST_FIXTURE_TEST_SUITE(CliftTestSuite, CliftTest)
 
+//===-------------------------------- Types -------------------------------===//
+
 BOOST_AUTO_TEST_CASE(CliftModuleCannotContainExtraneousTypes) {
   auto cliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
   builder.createBlock(&cliftModule.getBody());
@@ -80,34 +82,6 @@ BOOST_AUTO_TEST_CASE(CliftModuleCannotContaintTypesWithSameID) {
   cliftModule->setAttr("dc", T1);
   cliftModule->setAttr("dc2", T2);
   BOOST_TEST(cliftModule.verify().failed());
-}
-
-BOOST_AUTO_TEST_CASE(LabelsWithoutGoToMustBeTriviallyDead) {
-  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
-
-  BOOST_ASSERT(not module.getBody()->getOperations().empty());
-
-  canonicalize();
-  BOOST_ASSERT(module.getBody()->getOperations().empty());
-}
-
-BOOST_AUTO_TEST_CASE(LabelsWithGoToMustBeAlive) {
-  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
-  builder.create<GoToOp>(builder.getUnknownLoc(), label);
-
-  BOOST_CHECK(not module.getBody()->getOperations().empty());
-
-  canonicalize();
-  BOOST_TEST(module.getBody()->getOperations().size() == 3);
-}
-
-BOOST_AUTO_TEST_CASE(LabelsWithAGoToWithoutAssignMustFail) {
-  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<GoToOp>(builder.getUnknownLoc(), label);
-
-  BOOST_TEST(mlir::verify(module).failed());
 }
 
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantDirectlyContainThemselves) {
@@ -242,6 +216,63 @@ BOOST_AUTO_TEST_CASE(CanWalkPointerTypes) {
     Count++;
   });
   BOOST_TEST(Count == 1);
+}
+
+//===----------------------------- Statements -----------------------------===//
+
+BOOST_AUTO_TEST_CASE(LabelsWithoutGoToMustBeTriviallyDead) {
+  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
+  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
+
+  BOOST_ASSERT(not module.getBody()->getOperations().empty());
+
+  canonicalize();
+  BOOST_ASSERT(module.getBody()->getOperations().empty());
+}
+
+BOOST_AUTO_TEST_CASE(LabelsWithGoToMustBeAlive) {
+  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
+  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
+  builder.create<GoToOp>(builder.getUnknownLoc(), label);
+
+  BOOST_CHECK(not module.getBody()->getOperations().empty());
+
+  canonicalize();
+  BOOST_TEST(module.getBody()->getOperations().size() == 3);
+}
+
+BOOST_AUTO_TEST_CASE(LabelsWithAGoToWithoutAssignMustFail) {
+  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
+  builder.create<GoToOp>(builder.getUnknownLoc(), label);
+
+  BOOST_TEST(mlir::verify(module).failed());
+}
+
+BOOST_AUTO_TEST_CASE(SwitchWithMismatchedCaseValuesAndRegionsIsNotValid) {
+  const int64_t CaseValues[] = { 1 };
+  builder.create<SwitchOp>(builder.getUnknownLoc(),
+                           /*case_values=*/CaseValues,
+                           /*casesCount=*/2);
+
+  BOOST_TEST(mlir::verify(module).failed());
+}
+
+BOOST_AUTO_TEST_CASE(SwitchOpWithNoCasesIsValid) {
+  const llvm::ArrayRef<uint64_t> CaseValues = {};
+  builder.create<SwitchOp>(builder.getUnknownLoc(), CaseValues);
+  BOOST_TEST(mlir::verify(module).succeeded());
+}
+
+BOOST_AUTO_TEST_CASE(SwitchOpWithExplicitCasesIsValid) {
+  const uint64_t CaseValues[] = { 1, 3, 2 };
+  builder.create<SwitchOp>(builder.getUnknownLoc(), CaseValues);
+  BOOST_TEST(mlir::verify(module).succeeded());
+}
+
+BOOST_AUTO_TEST_CASE(SwitchOpWithDuplicateCasesIsNotValid) {
+  const uint64_t CaseValues[] = { 1, 3, 2, 1 };
+  builder.create<SwitchOp>(builder.getUnknownLoc(), CaseValues);
+  BOOST_TEST(mlir::verify(module).failed());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
