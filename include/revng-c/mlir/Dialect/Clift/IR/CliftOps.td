@@ -11,11 +11,23 @@ include "mlir/IR/BuiltinAttributes.td"
 include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 
+include "CliftOpInterfaces.td"
 include "CliftOpTraits.td"
 include "CliftTypes.td"
 
 class Clift_Op<string mnemonic, list<Trait> traits = []> :
     Op<Clift_Dialect, mnemonic, traits>;
+
+//===---------------------------- Region types ----------------------------===//
+
+def Clift_StatementRegion : Region<CPred<"::mlir::clift::impl::verifyStatementRegion($_self)">,
+                                   "Region containing statements">;
+
+def Clift_ExpressionRegion : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, true)">,
+                                    "Region representing an expression">;
+
+def Clift_OptionalExpressionRegion : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, false)">,
+                                            "Optional region representing an expression">;
 
 def Clift_LoopOp : Clift_Op<"loop", [Terminator]> {
   let regions = (region AnyRegion:$body);

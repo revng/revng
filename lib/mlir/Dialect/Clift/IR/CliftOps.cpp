@@ -25,6 +25,42 @@ void mlir::clift::CliftDialect::registerOperations() {
                 /* End of operations list */>();
 }
 
+//===---------------------------- Region types ----------------------------===//
+
+template<typename OpInterface>
+static bool verifyRegionContent(Region &R, const bool Required) {
+  if (R.empty())
+    return not Required;
+
+  if (not R.hasOneBlock())
+    return false;
+
+  for (Operation &Op : R.front()) {
+    if (not mlir::isa<OpInterface>(&Op))
+      return false;
+  }
+
+  return true;
+}
+
+bool clift::impl::verifyStatementRegion(Region &R) {
+  return verifyRegionContent<StatementOpInterface>(R, false);
+}
+
+bool clift::impl::verifyExpressionRegion(Region &R, const bool Required) {
+  if (not verifyRegionContent<ExpressionOpInterface>(R, Required))
+    return false;
+
+  if (not R.empty()) {
+    Block &B = R.front();
+
+    if (B.empty())
+      return false;
+  }
+
+  return true;
+}
+
 //===-----------------------------------------------------------------========//
 // Code for clift::AssignLabelOp.
 //===----------------------------------------------------------------------===//
