@@ -5,12 +5,13 @@
 #ifndef MLIR_CLIFT_OPS
 #define MLIR_CLIFT_OPS
 
-include "CliftTypes.td"
-include "mlir/IR/SymbolInterfaces.td"
-include "mlir/IR/RegionKindInterface.td"
-include "mlir/IR/BuiltinAttributes.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/BuiltinAttributes.td"
+include "mlir/IR/RegionKindInterface.td"
+include "mlir/IR/SymbolInterfaces.td"
+
+include "CliftTypes.td"
 
 class OneUseOfType<string op>
     : ParamNativeOpTrait<"OneUseOfType", op>, StructuralOpTrait;
