@@ -11,10 +11,8 @@ include "mlir/IR/BuiltinAttributes.td"
 include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 
+include "CliftOpTraits.td"
 include "CliftTypes.td"
-
-class OneUseOfType<string op>
-    : ParamNativeOpTrait<"OneUseOfType", op>, StructuralOpTrait;
 
 class Clift_Op<string mnemonic, list<Trait> traits = []> :
     Op<Clift_Dialect, mnemonic, traits>;
@@ -53,7 +51,7 @@ def Clift_GoToOp : Clift_Op<"goto", [Terminator]> {
   }];
 }
 
-def Clift_MakeLabelOp : Clift_Op<"make_label", [OneUseOfType<"AssignLabelOp">] > {
+def Clift_MakeLabelOp : Clift_Op<"make_label", [Clift_OneUseOfType<"AssignLabelOp">] > {
   let results = (outs Res<Clift_LabelType, "", [MemAlloc, MemWrite] >:$result);
 
   let assemblyFormat = [{

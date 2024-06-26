@@ -15,7 +15,7 @@
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftEnums.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftInterfaces.h"
-#include "revng-c/mlir/Dialect/Clift/IR/CliftTraits.h"
+#include "revng-c/mlir/Dialect/Clift/IR/CliftOpTraits.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftTypes.h"
 
 // This include should stay here for correct build procedure
