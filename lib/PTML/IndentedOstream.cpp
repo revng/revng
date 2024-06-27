@@ -40,8 +40,7 @@ void PTMLIndentedOstream::write_impl(const char *Ptr, size_t Size) {
 
 void PTMLIndentedOstream::writeIndent() {
   if (IndentDepth > 0) {
-    OS << ThePTMLBuilder
-            .getTag(tags::Span, std::string(IndentSize * IndentDepth, ' '))
+    OS << B.getTag(tags::Span, std::string(IndentSize * IndentDepth, ' '))
             .addAttribute(attributes::Token, ptml::tokens::Indentation)
             .serialize();
   }

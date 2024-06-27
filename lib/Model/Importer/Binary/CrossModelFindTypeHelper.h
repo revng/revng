@@ -15,12 +15,20 @@ namespace {
 using ModelMap = std::map<std::string, TupleTree<model::Binary>>;
 
 using TypeCopierMap = std::map<std::string, std::unique_ptr<TypeCopier>>;
-using ModelFunctionAttributes = TrackingMutableSet<
-  model::FunctionAttribute::Values>;
+
+// This represents information about dynamic function we are about to copy into
+// the Model.
+struct FunctionInfo {
+  const model::TypeDefinition &Prototype;
+  const TrackingMutableSet<model::FunctionAttribute::Values> &Attributes;
+  llvm::StringRef ModuleName = {};
+};
 
 template<typename T>
-std::optional<std::pair<model::TypePath, ModelFunctionAttributes>>
-findPrototypeInLocalFunctions(T &Functions, llvm::StringRef FunctionName) {
+std::optional<FunctionInfo>
+findPrototypeInLocalFunctions(T &Functions,
+                              llvm::StringRef FunctionName,
+                              llvm::StringRef ModuleName) {
   for (auto &Function : Functions) {
     if (Function.ExportedNames().size()) {
       bool FoundAlias = false;
@@ -40,60 +48,44 @@ findPrototypeInLocalFunctions(T &Functions, llvm::StringRef FunctionName) {
         continue;
     }
 
-    if (!Function.Prototype().isValid())
-      continue;
-
-    return std::make_pair(Function.Prototype(), Function.Attributes());
+    if (const model::TypeDefinition *Prototype = Function.prototype())
+      return FunctionInfo{ .Prototype = *Prototype,
+                           .Attributes = Function.Attributes(),
+                           .ModuleName = ModuleName };
   }
 
   return std::nullopt;
 }
 
 template<typename T>
-std::optional<std::pair<model::TypePath, ModelFunctionAttributes>>
-findPrototypeInDynamicFunctions(T &Functions, llvm::StringRef FunctionName) {
+std::optional<FunctionInfo>
+findPrototypeInDynamicFunctions(T &Functions,
+                                llvm::StringRef FunctionName,
+                                llvm::StringRef ModuleName) {
   for (auto &DynamicFunction : Functions) {
     // Rely on OriginalName only.
     if (DynamicFunction.OriginalName() != FunctionName)
       continue;
 
-    if (!DynamicFunction.Prototype().isValid())
-      continue;
-
-    return std::make_pair(DynamicFunction.Prototype(),
-                          DynamicFunction.Attributes());
+    if (const model::TypeDefinition *Prototype = DynamicFunction.prototype())
+      return FunctionInfo{ .Prototype = *Prototype,
+                           .Attributes = DynamicFunction.Attributes(),
+                           .ModuleName = ModuleName };
   }
 
   return std::nullopt;
 }
 
-// This represents information about dynamic function we are about to copy into
-// the Model.
-struct FunctionInfo {
-  model::TypePath Type;
-  ModelFunctionAttributes Attributes;
-  std::string ModuleName;
-};
-
 inline std::optional<FunctionInfo>
-findPrototype(llvm::StringRef FunctionName,
-              ModelMap &ModelsOfDynamicLibraries) {
-  for (auto &ModelOfDep : ModelsOfDynamicLibraries) {
-    auto Prototype = findPrototypeInLocalFunctions(ModelOfDep.second
-                                                     ->Functions(),
-                                                   FunctionName);
-    if (Prototype)
-      return FunctionInfo{ (*Prototype).first,
-                           (*Prototype).second,
-                           ModelOfDep.first };
+findPrototype(llvm::StringRef Function, ModelMap &ModelsOfDynamicLibraries) {
+  for (const auto &[Module, Model] : ModelsOfDynamicLibraries) {
+    const auto &Ls = Model->Functions();
+    if (std::optional R = findPrototypeInLocalFunctions(Ls, Function, Module))
+      return R;
 
-    Prototype = findPrototypeInDynamicFunctions(ModelOfDep.second
-                                                  ->ImportedDynamicFunctions(),
-                                                FunctionName);
-    if (Prototype)
-      return FunctionInfo{ (*Prototype).first,
-                           (*Prototype).second,
-                           ModelOfDep.first };
+    const auto &Ds = Model->ImportedDynamicFunctions();
+    if (std::optional R = findPrototypeInDynamicFunctions(Ds, Function, Module))
+      return R;
   }
 
   return std::nullopt;

@@ -11,20 +11,36 @@
 #include "revng/ADT/Concepts.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/DefinedType.h"
 
 namespace abi::FunctionType {
 
-/// Replace all the references to `OldKey` with the references to
-/// the newly added `NewType`. It also erases the old type.
+/// Replace all the references to a type definition with \p OldKey key with
+/// the \p NewType. It also erases the old type definition.
 ///
-/// \param OldKey The type references of which should be replaced.
-/// \param NewTypePath The reference to a type references should be replaced to.
-/// \param Model The tuple tree where replacement should take place in.
-///
-/// \return The new path to the added type.
-const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
-                                          const model::TypePath &NewTypePath,
-                                          TupleTree<model::Binary> &Model);
+/// \param Old The type references of which should be replaced.
+/// \param New The new type to replace references to.
+inline void replaceTypeDefinition(const model::TypeDefinition::Key &Old,
+                                  const model::DefinitionReference &New,
+                                  TupleTree<model::Binary> &Binary) {
+  using Reference = model::DefinitionReference;
+  Binary.replaceReferencesIf(New, [&Old](const Reference &Path) -> bool {
+    if (Path.empty())
+      return false;
+
+    return Old == Path.getConst()->key();
+  });
+}
+inline void replaceTypeDefinition(const model::TypeDefinition::Key &Old,
+                                  const model::DefinedType &New,
+                                  TupleTree<model::Binary> &Binary) {
+  return replaceTypeDefinition(Old, New.Definition(), Binary);
+}
+inline void replaceTypeDefinition(const model::TypeDefinition::Key &O,
+                                  const model::Type &N,
+                                  TupleTree<model::Binary> &B) {
+  return replaceTypeDefinition(O, llvm::cast<model::DefinedType>(N), B);
+}
 
 /// Takes care of extending (padding) the size of a stack argument.
 ///
@@ -54,11 +70,12 @@ inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
 /// \tparam DerivedType The desired type to filter based on
 /// \param Types The list of types to filter
 /// \return filtered list
-template<derived_from<model::Type> DerivedType>
+template<derived_from<model::TypeDefinition> DerivedType>
 std::vector<DerivedType *>
-filterTypes(TrackingSortedVector<UpcastablePointer<model::Type>> &Types) {
+filterTypes(TrackingSortedVector<model::UpcastableTypeDefinition>
+              &Definitions) {
   std::vector<DerivedType *> Result;
-  for (model::UpcastableType &Type : Types)
+  for (model::UpcastableTypeDefinition &Type : Definitions)
     if (auto *Upscaled = llvm::dyn_cast<DerivedType>(Type.get()))
       Result.emplace_back(Upscaled);
   return Result;

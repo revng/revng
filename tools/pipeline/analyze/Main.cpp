@@ -146,9 +146,8 @@ int main(int argc, char *argv[]) {
     if (not Step) {
       AbortOnError(createStringError(inconvertibleErrorCode(),
                                      "No known analysis named %s, invoke "
-                                     "this "
-                                     "command without arguments to see the "
-                                     "list of available analysis",
+                                     "this command without arguments to see "
+                                     "the list of available analysis",
                                      Arguments[0].c_str()));
     }
 

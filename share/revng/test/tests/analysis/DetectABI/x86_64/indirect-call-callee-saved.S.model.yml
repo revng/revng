@@ -5,8 +5,11 @@
 ---
 Functions:
   - OriginalName: indirect_caller
-    Prototype: "/Types/1-RawFunctionType"
-Types:
-  - ID: 1
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-RawFunctionDefinition"
+TypeDefinitions:
+  - Kind: RawFunctionDefinition
+    ID: 1
     PreservedRegisters:
       - r12_x86_64

@@ -2,43 +2,49 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - ID: 1028
-    Kind: PrimitiveType
-    PrimitiveKind: Number
-    Size: 4
-  - ID: 1025
-    Kind: PrimitiveType
-    PrimitiveKind: Number
-    Size: 1
-  - Kind: CABIFunctionType
+Functions:
+  - OriginalName: main
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/9061286636309425384-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
     ID: 9061286636309425384
-    OriginalName: main
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1028-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Number
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
         OriginalName: argc
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1025-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Pointer
-              Size: 8
-            - Kind: Const
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: PrimitiveType
+              IsConst: true
+              PrimitiveKind: Number
+              Size: 1
         OriginalName: argv
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1025-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Pointer
-              Size: 8
-            - Kind: Const
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: PrimitiveType
+              IsConst: true
+              PrimitiveKind: Number
+              Size: 1
         OriginalName: envp

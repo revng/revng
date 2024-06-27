@@ -1,9 +1,8 @@
+/// \file Doxygen.cpp
+
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-
-/// \file Doxygen.cpp
-/// \brief
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
@@ -47,8 +46,8 @@ struct DoxygenToken {
 
 public:
   /// \note Consumes the value: must only be used once per object.
-  std::string emit(const ptml::PTMLBuilder &ThePTMLBuilder) {
-    auto Result = ThePTMLBuilder.getTag(ptml::tags::Span, std::move(Value));
+  std::string emit(const ptml::PTMLBuilder &B) {
+    auto Result = B.getTag(ptml::tags::Span, std::move(Value));
 
     switch (Type) {
     case DoxygenToken::Types::Untagged:
@@ -259,14 +258,13 @@ namespace ranks = revng::ranks;
 static llvm::SmallVector<DoxygenLine, 16>
 gatherArgumentComments(const model::Binary &Binary,
                        const model::Function &Function) {
-  if (Function.Prototype().empty())
+  if (Function.Prototype().isEmpty())
     return {};
 
   static constexpr std::string_view Keyword = "\\param ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
-  const model::Type *Prototype = Function.Prototype().get();
-  if (auto *FT = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
+  if (auto *FT = Function.cabiPrototype()) {
     abi::FunctionType::Layout Layout(*FT);
     // Using layout here lets us put detailed register/stack information into
     // the comments. Consider that the same comments are used for disassembly
@@ -360,7 +358,7 @@ gatherArgumentComments(const model::Binary &Binary,
                                          ptml::actions::Comment);
       }
     }
-  } else if (auto *FT = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
+  } else if (auto *FT = Function.rawPrototype()) {
     for (const model::NamedTypedRegister &Argument : FT->Arguments()) {
       if (!Argument.Comment().empty()) {
         model::Register::Values Register = Argument.Location();
@@ -396,17 +394,14 @@ gatherArgumentComments(const model::Binary &Binary,
       }
     }
 
-    if (not FT->StackArgumentsType().empty()) {
-      auto *Unqualified = FT->StackArgumentsType().get();
-      const auto &Stack = *llvm::cast<model::StructType>(Unqualified);
-
+    if (const model::StructDefinition *Stack = FT->stackArgumentsType()) {
       struct FieldMapEntry {
         std::string Name;
         llvm::StringRef Comment;
         const model::StructField &Field;
       };
       llvm::SmallVector<FieldMapEntry> Comments;
-      for (const model::StructField &Field : Stack.Fields())
+      for (const model::StructField &Field : Stack->Fields())
         if (!Field.Comment().empty())
           Comments.emplace_back(Field.name().str().str(),
                                 Field.Comment(),
@@ -436,7 +431,7 @@ gatherArgumentComments(const model::Binary &Binary,
 
           auto &L = Line->emplace_back(DoxygenToken::Types::Identifier, Name);
           std::string Location = serializedLocation(ranks::StructField,
-                                                    Stack.key(),
+                                                    Stack->key(),
                                                     Field.key());
           L.ExtraAttributes
             .emplace_back(ptml::attributes::ActionContextLocation, Location);
@@ -464,29 +459,27 @@ gatherArgumentComments(const model::Binary &Binary,
 static llvm::SmallVector<DoxygenLine, 16>
 gatherReturnValueComments(const model::Binary &Binary,
                           const model::Function &Function) {
-  if (Function.Prototype().empty())
+  if (Function.Prototype().isEmpty())
     return {};
 
   static constexpr std::string_view Keyword = "\\returns ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
-  const model::Type *Prototype = Function.Prototype().get();
-  std::string ContextLocation = serializedLocation(ranks::ReturnValue,
-                                                   Prototype->key());
-  if (auto *F = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
-    if (!F->ReturnValueComment().empty()) {
+  if (auto *FT = Function.cabiPrototype()) {
+    if (!FT->ReturnValueComment().empty()) {
       DoxygenLine &Line = Result.emplace_back();
       Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));
       Line.InternalIndentation = Keyword.size();
 
       DoxygenToken &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
-                                             F->ReturnValueComment());
+                                             FT->ReturnValueComment());
       Tag.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
-                                       ContextLocation);
+                                       serializedLocation(ranks::ReturnValue,
+                                                          FT->key()));
       Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                        ptml::actions::Comment);
     }
-  } else if (auto *FT = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
+  } else if (auto *FT = Function.rawPrototype()) {
     if (!FT->ReturnValueComment().empty()) {
       DoxygenLine &Line = Result.emplace_back();
       Line->emplace_back(DoxygenToken::Types::Keyword, std::string(Keyword));
@@ -495,7 +488,8 @@ gatherReturnValueComments(const model::Binary &Binary,
       DoxygenToken &T = Line->emplace_back(DoxygenToken::Types::Untagged,
                                            FT->ReturnValueComment());
       T.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
-                                     ContextLocation);
+                                     serializedLocation(ranks::ReturnValue,
+                                                        FT->key()));
       T.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                      ptml::actions::Comment);
     }

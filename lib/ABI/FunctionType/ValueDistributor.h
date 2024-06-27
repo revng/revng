@@ -7,7 +7,6 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include "revng/ABI/Definition.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Register.h"
 
 namespace abi::FunctionType {
@@ -57,8 +56,8 @@ struct DistributedValue {
   /// a separate argument to be able to place all the following arguments
   /// in the correct positions.
   ///
-  /// The "padding" arguments are emitted as normal arguments in RawFunctionType
-  /// but are omitted in `Layout`.
+  /// The "padding" arguments are emitted as normal arguments in
+  /// `RawFunctionDefinition` but are omitted in `Layout`.
   bool RepresentsPadding = false;
 
   static DistributedValue voidReturnValue() {
@@ -75,10 +74,6 @@ struct DistributedValue {
 using DistributedValues = llvm::SmallVector<DistributedValue, 8>;
 
 using RegisterSpan = std::span<const model::Register::Values>;
-
-template<typename T>
-concept ModelTypeLike = std::derived_from<T, model::Type>
-                        || std::same_as<T, model::QualifiedType>;
 
 class ValueDistributor {
 public:
@@ -123,9 +118,9 @@ protected:
              uint64_t AllowedRegisterLimit,
              bool ForbidSplittingBetweenRegistersAndStack);
 
-  template<ModelTypeLike ModelType>
+  template<model::AnyType AnyType>
   std::pair<DistributedValues, uint64_t>
-  distribute(const ModelType &Type,
+  distribute(const AnyType &Type,
              RegisterSpan Registers,
              uint64_t OccupiedRegisterCount,
              uint64_t AllowedRegisterLimit,
@@ -163,37 +158,19 @@ public:
     }
   }
 
-  DistributedValues nextArgument(const model::QualifiedType &ArgumentType) {
+  template<model::AnyType AnyType>
+  DistributedValues nextArgument(const AnyType &Type) {
     if (ABI.ArgumentsArePositionBased()) {
-      return positionBased(ArgumentType.isFloat(), *ArgumentType.size());
+      return positionBased(Type.isFloatPrimitive(), *Type.size());
     } else {
       abi::Definition::AlignmentCache Cache;
-      uint64_t Alignment = *ABI.alignment(ArgumentType, Cache);
-      bool IsNatural = *ABI.hasNaturalAlignment(ArgumentType, Cache);
-      return nonPositionBased(ArgumentType.isScalar(),
-                              ArgumentType.isFloat(),
-                              *ArgumentType.size(),
+      uint64_t Alignment = *ABI.alignment(Type, Cache);
+      bool IsNatural = *ABI.hasNaturalAlignment(Type, Cache);
+      return nonPositionBased(Type.isScalar(),
+                              Type.isFloatPrimitive(),
+                              *Type.size(),
                               Alignment,
                               IsNatural);
-    }
-  }
-  DistributedValues nextArgument(const model::Type &ArgumentType) {
-    auto *AsPrimitive = llvm::dyn_cast<model::PrimitiveType>(&ArgumentType);
-    constexpr auto FloatKind = model::PrimitiveTypeKind::Float;
-    bool IsFloat = AsPrimitive && AsPrimitive->PrimitiveKind() == FloatKind;
-
-    uint64_t Size = *ArgumentType.size();
-    if (ABI.ArgumentsArePositionBased()) {
-      return positionBased(IsFloat, Size);
-    } else {
-      bool IsScalar = llvm::isa<model::PrimitiveType>(ArgumentType)
-                      || llvm::isa<model::EnumType>(ArgumentType);
-
-      abi::Definition::AlignmentCache Cache;
-      uint64_t Alignment = *ABI.alignment(ArgumentType, Cache);
-      bool IsNatural = *ABI.hasNaturalAlignment(ArgumentType, Cache);
-
-      return nonPositionBased(IsScalar, IsFloat, Size, Alignment, IsNatural);
     }
   }
 
@@ -236,7 +213,7 @@ public:
   explicit ReturnValueDistributor(const abi::Definition &ABI) :
     ValueDistributor(ABI){};
 
-  DistributedValue returnValue(const model::QualifiedType &ReturnValueType);
+  DistributedValue returnValue(const model::Type &ReturnValueType);
 };
 
 } // namespace abi::FunctionType

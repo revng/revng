@@ -93,50 +93,44 @@ void model::promoteOriginalName(TupleTree<model::Binary> &Model) {
   // Reserve symbols we can't use both for local symbols and global symbols
   Promoter.recordGlobalSymbols(Model->Functions(), AddressOf);
   Promoter.recordGlobalSymbols(Model->ImportedDynamicFunctions(), AddressOf);
-  Promoter.recordGlobalSymbols(Model->Types(), Unwrap);
-  for (auto &UP : Model->Types())
-    if (auto *Enum = dyn_cast<EnumType>(UP.get()))
+  Promoter.recordGlobalSymbols(Model->TypeDefinitions(), Unwrap);
+  for (auto &UP : Model->TypeDefinitions())
+    if (auto *Enum = dyn_cast<model::EnumDefinition>(UP.get()))
       Promoter.recordGlobalSymbols(Enum->Entries(), AddressOf);
 
   Promoter.recordGlobalSymbols(Model->Segments(), AddressOf);
 
   // Reserve symbols we can't use for global symbols
-  for (auto &UP : Model->Types()) {
-    model::Type *T = UP.get();
-
-    if (auto *Struct = dyn_cast<StructType>(T)) {
+  for (auto &UP : Model->TypeDefinitions()) {
+    if (auto *Struct = dyn_cast<model::StructDefinition>(UP.get()))
       Promoter.recordLocalSymbols(Struct->Fields(), AddressOf);
-    } else if (auto *Union = dyn_cast<UnionType>(T)) {
+    else if (auto *Union = dyn_cast<model::UnionDefinition>(UP.get()))
       Promoter.recordLocalSymbols(Union->Fields(), AddressOf);
-    } else if (auto *CFT = dyn_cast<CABIFunctionType>(T)) {
+    else if (auto *CFT = dyn_cast<model::CABIFunctionDefinition>(UP.get()))
       Promoter.recordLocalSymbols(CFT->Arguments(), AddressOf);
-    } else if (auto *RFT = dyn_cast<RawFunctionType>(T)) {
+    else if (auto *RFT = dyn_cast<model::RawFunctionDefinition>(UP.get()))
       Promoter.recordLocalSymbols(RFT->Arguments(), AddressOf);
-    }
   }
 
   // Promote global symbols
   Promoter.promoteGlobalSymbols(Model->Functions(), AddressOf);
   Promoter.promoteGlobalSymbols(Model->ImportedDynamicFunctions(), AddressOf);
-  Promoter.promoteGlobalSymbols(Model->Types(), Unwrap);
-  for (auto &UP : Model->Types())
-    if (auto *Enum = dyn_cast<EnumType>(UP.get()))
+  Promoter.promoteGlobalSymbols(Model->TypeDefinitions(), Unwrap);
+  for (auto &UP : Model->TypeDefinitions())
+    if (auto *Enum = dyn_cast<model::EnumDefinition>(UP.get()))
       Promoter.promoteGlobalSymbols(Enum->Entries(), AddressOf);
 
   Promoter.promoteGlobalSymbols(Model->Segments(), AddressOf);
 
   // Promote local symbols
-  for (auto &UP : Model->Types()) {
-    model::Type *T = UP.get();
-
-    if (auto *Struct = dyn_cast<StructType>(T)) {
+  for (auto &UP : Model->TypeDefinitions()) {
+    if (auto *Struct = dyn_cast<model::StructDefinition>(UP.get()))
       Promoter.promoteLocalSymbols(Struct->Fields(), AddressOf);
-    } else if (auto *Union = dyn_cast<UnionType>(T)) {
+    else if (auto *Union = dyn_cast<model::UnionDefinition>(UP.get()))
       Promoter.promoteLocalSymbols(Union->Fields(), AddressOf);
-    } else if (auto *CFT = dyn_cast<CABIFunctionType>(T)) {
+    else if (auto *CFT = dyn_cast<model::CABIFunctionDefinition>(UP.get()))
       Promoter.promoteLocalSymbols(CFT->Arguments(), AddressOf);
-    } else if (auto *RFT = dyn_cast<RawFunctionType>(T)) {
+    else if (auto *RFT = dyn_cast<model::RawFunctionDefinition>(UP.get()))
       Promoter.promoteLocalSymbols(RFT->Arguments(), AddressOf);
-    }
   }
 }

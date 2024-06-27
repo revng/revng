@@ -20,13 +20,18 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   return getMetaAddressMetadata(&F, FunctionEntryMDName);
 }
 
-inline model::TypePath
-getCallSitePrototype(ConstOrNot<model::Binary> auto &Root,
-                     const llvm::Instruction *Call) {
-  using namespace llvm;
-  revng_assert(isa<CallInst>(Call));
-  return model::TypePath::fromString(&Root,
-                                     fromStringMetadata(Call, PrototypeMDName));
+template<ConstOrNot<model::Binary> T>
+inline ConstPtrIfConst<T, model::TypeDefinition>
+getCallSitePrototype(T &Binary, const llvm::Instruction *Call) {
+  revng_assert(llvm::isa<llvm::CallInst>(Call));
+
+  llvm::StringRef SerializedRef = fromStringMetadata(Call, PrototypeMDName);
+  auto Result = model::DefinitionReference::fromString(&Binary, SerializedRef);
+
+  if constexpr (std::is_const_v<T>)
+    return Result.getConst();
+  else
+    return Result.get();
 }
 
 inline model::Function *llvmToModelFunction(model::Binary &Binary,
@@ -52,28 +57,16 @@ inline const model::Function *llvmToModelFunction(const model::Binary &Binary,
   return nullptr;
 }
 
-inline llvm::IntegerType *
-getLLVMIntegerTypeFor(llvm::LLVMContext &Context,
-                      const model::QualifiedType &QT) {
-  revng_assert(QT.size());
-  return llvm::IntegerType::getIntNTy(Context, *QT.size() * 8);
+inline llvm::IntegerType *getLLVMIntegerTypeFor(llvm::LLVMContext &Context,
+                                                const model::Type &Type) {
+  revng_assert(Type.size());
+  return llvm::IntegerType::getIntNTy(Context, *Type.size() * 8);
 }
 
 inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
-                                               const model::QualifiedType &QT) {
-  revng_assert(QT.isScalar());
-  return getLLVMIntegerTypeFor(Context, QT);
-}
-
-/// Create an empty model::StructType of size Size in Binary
-inline model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
-  using namespace model;
-
-  revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
-  TypePath Path = Binary.makeType<model::StructType>().second;
-  model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
-  NewStruct->Size() = Size;
-  return Path;
+                                               const model::Type &Type) {
+  revng_assert(Type.isScalar());
+  return getLLVMIntegerTypeFor(Context, Type);
 }
 
 inline std::string getLLVMFunctionName(const model::Function &Function) {

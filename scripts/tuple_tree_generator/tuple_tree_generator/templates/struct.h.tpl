@@ -22,12 +22,11 @@ The notice below applies to the generated files.
 
 void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName);
 
-/**- for header in includes **/
-#include "/*= generator.user_include_path =*//*= header =*/"
+/** for header in includes **/
+#include "/*= user_include_path =*//*= header =*/"
 /**- endfor **/
 
-
-/**- if emit_tracking **/
+/** if emit_tracking **/
 namespace revng {
 struct TrackingImpl;
 }
@@ -50,25 +49,40 @@ struct /*= struct | fullname =*/
   static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
   using BaseClass = /*= struct.inherits | user_fullname =*/;
   /**- else **//** if struct.abstract **/
+  static constexpr const /*= struct.name =*/Kind::Values AssociatedKind = /*= struct.name =*/Kind::Invalid;
   using BaseClass = /*= struct | user_fullname =*/;
   /**- else **/
   using BaseClass = void;
   /**- endif **//** endif **/
 
-  /*#- --- Member list --- #*/
-  /**- for field in struct.fields **/
 private:
+  //
+  // Member list
+  //
+  /**- for field in struct.fields **/
   /*= field | field_type =*/ The/*= field.name =*/ = /*= field | field_type =*/{};
-  static_assert(Yamlizable</*= field | field_type =*/>);
+  /**- endfor **/
 
+  /** for field in struct.fields **/
+  static_assert(Yamlizable</*= field | field_type =*/>);
+  /**- endfor **/
+
+  //
+  // Tracking helpers
+  //
   /**- if emit_tracking **/
+  /**- for field in struct.fields **/
   mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
-  /** endif -**/
+  /**- endfor **/
+  /**- endif **/
 
 public:
-  using /*= field.name =*/Type = /*= field | field_type =*/;
+  //
+  // Member accessors
+  //
+  /**- for field in struct.fields **/
 
-  /*= field.doc | docstring =*/
+  /*= field.doc | docstring -=*/
   const /*= field | field_type =*/ & /*= field.name =*/() const {
     /**- if emit_tracking **/
     /**- if not field in struct.key_fields **/
@@ -84,14 +98,20 @@ public:
 
     return The/*= field.name =*/;
   }
+  /**- endfor **/
 
-  /*= field.doc | docstring =*/
+  /**- for field in struct.fields **/
+
+  /*= field.doc | docstring -=*/
   /*= field | field_type =*/ & /*= field.name =*/() {
     return The/*= field.name =*/;
   }
   /**- endfor **/
 
-  /*# --- Default constructor --- #*/
+  /** for field in struct.fields **/
+  using TypeOf/*= field.name =*/ = /*= field | field_type =*/;
+  /**- endfor **/
+
   /// Default constructor
   /*= struct.name =*/() :
     /**- if struct.inherits **//*= struct.inherits.name =*/()/** endif **/
@@ -103,7 +123,6 @@ public:
       /**- endif -**/
     }
 
-  /*# --- Key constructor --- #*/
   /**- if struct.key_fields **/
   /// Key constructor
   /*= struct.name =*/(
@@ -128,30 +147,38 @@ public:
     }
   /** endif **/
 
-  /*# --- Full constructor --- #*/
   /** if struct.emit_full_constructor **/
   /// Full constructor
   /*= struct.name =*/(
     /*#- Inherited fields #*/
     /**- for field in struct.inherits.fields **/
+    /**- if field.name != 'Kind' **/
     /*=- field | field_type =*/ /*= field.name =*/
     /** if (struct.fields | length > 0) or (not loop.last) **/, /** endif **/
+    /**- endif **/
     /**- endfor **/
 
     /*#- Own fields #*/
     /**- for field in struct.fields **/
-    /*=- field | field_type =*/ /*= field.name =*//** if not loop.last **/, /** endif **/
+    /*=- field | field_type =*/ /*= field.name =*/
+    /**- if not loop.last **/, /** endif -**/
     /**- endfor **/
   ) :
     /*#- Invoke base class constructor #*/
     /**- if struct.inherits **/
     /*= struct.inherits.name =*/(
       /**- for field in struct.inherits.fields **/
-      /*= field.name =*//** if not loop.last **/, /** endif **/
+      /**- if field.name != 'Kind' **/
+      /*=- field.name =*/
+      /**- if not loop.last **/, /** endif -**/
+      /**- else **/
+      AssociatedKind
+      /**- if not loop.last **/, /** endif -**/
+      /**- endif **/
       /**- endfor **/
     )
     /** if struct.fields | length > 0 **/, /** endif **/
-    /** endif **/
+    /**- endif **/
 
     /*#- Initialize own fields #*/
     /**- for field in struct.fields **/
@@ -159,8 +186,8 @@ public:
     /**- endfor **/ {}
   /** endif **/
 
-  /*# --- Key definition for KeyedObjectTraits --- #*/
   /** if struct._key **/
+  // Key definition for KeyedObjectTraits
   using KeyTuple = std::tuple<
     /**- for key_field in struct.key_fields -**/
     /*= key_field | field_type =*//** if not loop.last **/, /** endif **/
@@ -171,8 +198,9 @@ public:
   };
   /** endif **/
 
-  /*# --- Comparison operator --- #*/
-  /** if struct.key_fields **/
+  // Comparison operators
+  /** if not struct.inherits **/
+  /** if struct.key_fields -**/
   Key key() const {
     return Key {
       /**- for key_field in struct.key_fields -**/
@@ -184,7 +212,7 @@ public:
   bool operator<(const /*= struct.name =*/ &Other) const { return key() < Other.key(); }
   bool operator>(const /*= struct.name =*/ &Other) const { return key() > Other.key(); }
 
-  /** else **/
+  /** elif not struct.abstract -**/
   bool operator==(const /*= struct.name =*/ &Other) const {
     /**- for field in struct.fields **/
     if (/*= field.name =*/() != Other./*= field.name =*/())
@@ -193,9 +221,11 @@ public:
     return true;
   }
   /** endif **/
+  /** endif **/
 
   /**- if emit_tracking **/
 private:
+  // Tracking helpers
   template<size_t I>
   revng::AccessTracker& getTracker() const {
     /**- for field in struct.all_fields **/
@@ -234,6 +264,25 @@ private:
   /** endif -**/
 public:
   bool localCompare(const /*= struct | user_fullname =*/ &Other) const;
+  void dump(llvm::raw_ostream &Stream) const;
+  void dump(std::ostream &Stream) const {
+    llvm::raw_os_ostream LLVMStreamAdapter(Stream);
+    dump(LLVMStreamAdapter);
+  }
+  void dump() const debug_function { dump(dbg); }
+  void dump(const char *Path) const debug_function;
+  std::string toString() const debug_function;
+
+  /**- if struct.abstract **/
+public:
+  static bool classof(const /*= struct | user_fullname =*/ *P) { return true; }
+  /** endif **/
+
+  /**- if struct.inherits **/
+public:
+  static bool classof(const /*= struct.inherits | user_fullname =*/ *P);
+  static bool classof(const /*= struct.inherits.name =*/Kind::Values &Kind) { return Kind == AssociatedKind; }
+  /** endif -**/
 };
 
 /** if struct._key **/

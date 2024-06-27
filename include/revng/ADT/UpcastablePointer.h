@@ -14,9 +14,6 @@
 #include "revng/Support/Assert.h"
 
 template<typename T>
-struct KeyedObjectTraits;
-
-template<typename T>
 struct concrete_types_traits;
 
 template<typename T>
@@ -46,6 +43,9 @@ concept Dereferenceable = requires(T A) {
 static_assert(Dereferenceable<int *>);
 static_assert(not Dereferenceable<int>);
 
+template<Dereferenceable T>
+using Dereferenced = std::decay_t<decltype(*std::declval<T>())>;
+
 template<typename T>
 concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 
@@ -66,7 +66,7 @@ ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
     if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
       return Callable(*Upcasted);
     } else {
-      return upcast<ReturnT, L, P, I + 1>(Upcastable,
+      return upcast<ReturnT, L, P, I + 1>(std::forward<P>(Upcastable),
                                           Callable,
                                           std::forward<ReturnT>(IfNull));
     }
@@ -103,25 +103,6 @@ void upcast(P &&Upcastable, L &&Callable) {
     return true;
   };
   upcast(Upcastable, Wrapper, false);
-}
-
-template<UpcastablePointerLike P, typename KeyT, typename L>
-void invokeByKey(const KeyT &Key, L &&Callable) {
-  auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
-
-  upcast(Upcastable, [&Callable]<typename UpcastedT>(const UpcastedT &C) {
-    Callable(static_cast<UpcastedT *>(nullptr));
-  });
-}
-
-template<UpcastablePointerLike P, typename KeyT, typename L, typename ReturnT>
-ReturnT invokeByKey(const KeyT &Key, L &&Callable, const ReturnT &IfNull) {
-  auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
-
-  auto ToCall = [&Callable]<typename UpcastedT>(const UpcastedT &C) {
-    return Callable(static_cast<UpcastedT *>(nullptr));
-  };
-  return upcast(Upcastable, ToCall, IfNull);
 }
 
 /// A unique_ptr copiable thanks to LLVM RTTI
@@ -164,14 +145,16 @@ public:
 
 public:
   constexpr UpcastablePointer() noexcept : Pointer(nullptr, Deleter) {}
-  constexpr UpcastablePointer(std::nullptr_t P) noexcept :
-    Pointer(P, Deleter) {}
   explicit UpcastablePointer(pointer P) noexcept : Pointer(P, Deleter) {}
 
 public:
   template<std::derived_from<T> Q, typename... Args>
   static UpcastablePointer<T> make(Args &&...TheArgs) {
     return UpcastablePointer<T>(new Q(std::forward<Args>(TheArgs)...));
+  }
+
+  UpcastablePointer copy() const {
+    return UpcastablePointer(clone(Pointer.get()));
   }
 
 public:
@@ -199,25 +182,66 @@ public:
     *this = std::move(Other);
   }
 
-  bool operator==(const UpcastablePointer &Other) const {
+  constexpr bool operator==(std::nullptr_t P) const noexcept {
+    return Pointer == P;
+  }
+
+  UpcastablePointer &operator=(const T &Another) noexcept {
+    Pointer.reset();
+    ::upcast(&Another, [this]<typename UT>(const UT &Upcasted) {
+      *this = make<UT>(Upcasted);
+    });
+    return *this;
+  }
+
+  UpcastablePointer(const T &Another) noexcept : UpcastablePointer(nullptr) {
+    ::upcast(&Another, [this]<typename UT>(const UT &Upcasted) {
+      *this = make<UT>(Upcasted);
+    });
+  }
+
+public:
+  template<UpcastablePointerLike PointerLike>
+    requires(std::equality_comparable_with<T, Dereferenced<PointerLike>>)
+  bool operator==(const PointerLike &Other) const {
+    if (isEmpty() || Other.isEmpty())
+      return Pointer == Other.Pointer;
+
     bool Result = false;
     upcast([&](auto &Upcasted) {
       Other.upcast([&](auto &OtherUpcasted) {
         using ThisType = std::remove_cvref_t<decltype(Upcasted)>;
         using OtherType = std::remove_cvref_t<decltype(OtherUpcasted)>;
-        if constexpr (std::is_same_v<ThisType, OtherType>) {
+        if constexpr (std::is_same_v<ThisType, OtherType>)
           Result = Upcasted == OtherUpcasted;
-        }
       });
     });
     return Result;
   }
 
-  auto get() const noexcept { return Pointer.get(); }
-  auto &operator*() const { return *Pointer; }
-  auto *operator->() const noexcept { return Pointer.operator->(); }
+  template<UpcastablePointerLike PointerLike>
+    requires(std::three_way_comparable_with<T, Dereferenced<PointerLike>>)
+  auto operator<=>(const PointerLike &Other) const {
+    return *Pointer <=> *Other;
+  }
+
+  auto *get() noexcept { return Pointer.get(); }
+  const auto *get() const noexcept { return Pointer.get(); }
+
+  auto &operator*() { return *Pointer; }
+  const auto &operator*() const { return *Pointer; }
+
+  auto *operator->() noexcept { return Pointer.operator->(); }
+  const auto *operator->() const noexcept { return Pointer.operator->(); }
+
+  explicit operator bool() const noexcept { return static_cast<bool>(Pointer); }
 
   void reset(pointer Other = pointer()) noexcept { Pointer.reset(Other); }
+
+  bool isEmpty() const noexcept { return Pointer == nullptr; }
+  constexpr static UpcastablePointer empty() noexcept {
+    return UpcastablePointer(nullptr);
+  }
 
 private:
   inner_pointer Pointer;

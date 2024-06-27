@@ -23,6 +23,21 @@ The notice below applies to the generated files.
 #include "revng/TupleTree/Visits.h"
 #include "revng/TupleTree/Tracking.h"
 
+/** if root_type == struct.name -**/
+/** for type in schema.struct_definitions() -**/
+/** if type.name != root_type -**/
+#include "/*= user_include_path =*//*= type.name =*/.h"
+/** endif **/
+/**- endfor **/
+/**- endif **/
+
+/**- if struct.inherits **/
+inline bool
+/*= struct | fullname =*/::classof(const /*= struct.inherits | user_fullname =*/ *P) {
+  return classof(P->Kind());
+}
+/**- endif **/
+
 using namespace std::string_view_literals;
 
 /*# --- TupleLikeTraits --- -#*/
@@ -31,7 +46,8 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
   static constexpr const llvm::StringRef FullName = "/*=- struct | user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
-    /*=- struct | user_fullname =*/::/*=- field.name =*/Type/** if not loop.last **/, /** endif -**/
+    /*=- struct | user_fullname =*/::TypeOf/*=- field.name =*/
+    /**- if not loop.last **/, /** endif -**/
     /**- endfor **/>;
 
   static constexpr std::array<llvm::StringRef, std::tuple_size_v<tuple>> FieldNames = {
@@ -48,35 +64,27 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
 };
 
 namespace /*= struct.namespace =*/ {
-template <int I> auto &get(/*= struct.name =*/ &&x) {
-  if constexpr (false)
-    return __null;
-  /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
-    return x./*= field.name =*/();
-  /**- endfor **/
-}
-
 template <int I> const auto &get(const /*= struct.name =*/ &x) {
-  if constexpr (false)
-    return __null;
   /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
+  if constexpr (I == /*= loop.index0 =*/)
     return x./*= field.name =*/();
+  else
   /**- endfor **/
+    static_assert(value_always_false_v<I>);
 }
 
 template <int I> auto &get(/*= struct.name =*/ &x) {
-  if constexpr (false)
-    return __null;
   /**- for field in struct.all_fields **/
-  else if constexpr (I == /*= loop.index0 =*/)
+  if constexpr (I == /*= loop.index0 =*/)
     return x./*= field.name =*/();
+  else
   /**- endfor **/
+    static_assert(value_always_false_v<I>);
 }
 }
 /*# --- End TupleLikeTraits --- -#*/
 
+/** if not upcastable **/
 template<>
 struct llvm::yaml::MappingTraits</*= struct | user_fullname =*/>
   : public TupleLikeMappingTraits</*= struct | user_fullname =*/
@@ -84,6 +92,7 @@ struct llvm::yaml::MappingTraits</*= struct | user_fullname =*/>
       , TupleLikeTraits</*= struct | user_fullname =*/>::Fields::/*= field.name =*/
       /** endfor -**/
     > {};
+/**- endif **/
 
 /** if struct._key **/
 template<>
@@ -136,24 +145,55 @@ template<>
 struct llvm::yaml::MappingTraits<UpcastablePointer</*= struct | user_fullname =*/>>
   : public PolymorphicMappingTraits<UpcastablePointer</*= struct | user_fullname =*/>> {};
 
+/** if struct._key **/
 template<>
 struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
   using Key = /*= struct | user_fullname =*/::Key;
   static Key key(const UpcastablePointer</*= struct | user_fullname =*/> &Obj);
   static UpcastablePointer</*= struct | user_fullname =*/> fromKey(const Key &K);
 };
+/** endif **/
+
+namespace /*= struct.namespace =*/ {
+
+/// Is roughly equivalent to
+/// ```
+///   std::variant<std::monostate,
+/**- for child_type in upcastable | sort(attribute = "user_fullname") **/
+///                /*= child_type | user_fullname -=*//**- if not loop.last **/, /** endif -**/
+/** endfor -**/>
+/// ```
+/// with our custom spin on top.
+using Upcastable/*= struct.name =*/ = UpcastablePointer</*= struct | user_fullname =*/>;
+
+template<std::derived_from</*= struct | user_fullname =*/> T, typename... Args>
+inline Upcastable/*= struct.name =*/ make/*= struct.name =*/(Args &&...A) {
+  return Upcastable/*= struct.name =*/::make<T>(std::forward<Args>(A)...);
+}
+
+Upcastable/*= struct.name =*/ copy/*= struct.name =*/(const /*= struct.name =*/ &From);
+
+} // namespace /*= struct.namespace =*/
 
 extern template
 bool UpcastablePointer</*= struct | user_fullname =*/>::operator==(const UpcastablePointer &Other) const;
 
-/** endif **//*# End UpcastablePointer stuff #*/
+static_assert(validateTupleTree<UpcastablePointer</*= struct | user_fullname =*/>>(IsYamlizable),
+              "UpcastablePointer</*= struct | user_fullname =*/> must be YAMLizable");
+
+LLVM_YAML_IS_SEQUENCE_VECTOR(UpcastablePointer</*= struct | user_fullname =*/>)
+static_assert(Yamlizable<std::vector<UpcastablePointer</*= struct | user_fullname =*/>>>,
+              "std::vector<UpcastablePointer</*= struct | user_fullname =*/>> must be YAMLizable");
+
+/** else **//*# End UpcastablePointer stuff #*/
 
 static_assert(validateTupleTree</*= struct | user_fullname =*/>(IsYamlizable),
               "/*= struct | user_fullname =*/ must be YAMLizable");
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(/*= struct | user_fullname =*/)
 static_assert(Yamlizable<std::vector</*= struct | user_fullname =*/>>,
-              "/*= struct | user_fullname =*/ must be YAMLizable");
+              "std::vector</*= struct | user_fullname =*/> must be YAMLizable");
+/** endif **/
 
 /** if root_type == struct.name **/
 namespace /*= namespace =*/ {

@@ -30,7 +30,7 @@ bool LoadBinaryWrapperPass::runOnModule(llvm::Module &M) {
 
 llvm::Expected<std::pair<RawBinaryView, std::unique_ptr<llvm::MemoryBuffer>>>
 loadBinary(const model::Binary &Model, llvm::StringRef BinaryPath) {
-  revng_assert(Model.verify());
+  revng_assert(Model.verify(true));
 
   auto FileContentsBuffer = llvm::MemoryBuffer::getFileOrSTDIN(BinaryPath);
   if (auto ErrorCode = FileContentsBuffer.getError())

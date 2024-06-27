@@ -5,15 +5,19 @@
 ---
 Functions:
   - OriginalName: callee
-    Prototype: "/Types/1814-RawFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1814-RawFunctionDefinition"
   - OriginalName: caller
-    Prototype: "/Types/1815-RawFunctionType"
-Types:
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1815-RawFunctionDefinition"
+TypeDefinitions:
   - ID: 1814
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     PreservedRegisters:
       - rbp_x86_64
   - ID: 1815
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     "-Arguments": 0
     "-ReturnValues": 0

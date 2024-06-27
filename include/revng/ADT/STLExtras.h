@@ -202,8 +202,7 @@ skip(T &&From, T &&To, size_t Front = 0, size_t Back = 0) {
 }
 
 template<std::input_iterator T>
-inline decltype(auto) // NOLINTNEXTLINE
-skip_front(T &&From, T &&To, size_t SkippedCount = 1) {
+inline decltype(auto) skip_front(T &&From, T &&To, size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         SkippedCount,
@@ -211,8 +210,7 @@ skip_front(T &&From, T &&To, size_t SkippedCount = 1) {
 }
 
 template<std::bidirectional_iterator T>
-inline decltype(auto) // NOLINTNEXTLINE
-skip_back(T &&From, T &&To, size_t SkippedCount = 1) {
+inline decltype(auto) skip_back(T &&From, T &&To, size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
                         std::forward<T>(To),
                         0,
@@ -226,18 +224,18 @@ inline decltype(auto) skip(T &&Range, size_t Front = 0, size_t Back = 0) {
   return revng::detail::skip(Range.begin(), Range.end(), Front, Back);
 }
 
-template<std::ranges::range T> // NOLINTNEXTLINE
+template<std::ranges::range T>
 inline decltype(auto) skip_front(T &&Range, size_t SkippedCount = 1) {
   return revng::detail::skip_front(Range.begin(), Range.end(), SkippedCount);
 }
 
-template<std::ranges::range T> // NOLINTNEXTLINE
+template<std::ranges::range T>
 inline decltype(auto) skip_back(T &&Range, size_t SkippedCount = 1) {
   return revng::detail::skip_back(Range.begin(), Range.end(), SkippedCount);
 }
 
 // TODO: reimplement in terms of `std::views::adjacent` once that's available.
-template<std::ranges::range T> // NOLINTNEXTLINE
+template<std::ranges::range T>
 inline decltype(auto) zip_pairs(T &&Range) {
   return llvm::zip(revng::detail::skipImpl<false>(Range.begin(),
                                                   Range.end(),
@@ -352,7 +350,7 @@ constexpr decltype(auto) find(R &&Range, const T &Value) {
 }
 
 /// \note use `llvm::find_if` instead after it's made `constexpr`.
-template<typename R, typename CallableType> // NOLINTNEXTLINE
+template<typename R, typename CallableType>
 constexpr decltype(auto) find_if(R &&Range, CallableType &&Callable) {
   return std::find_if(std::begin(std::forward<R>(Range)),
                       std::end(std::forward<R>(Range)),
@@ -360,7 +358,7 @@ constexpr decltype(auto) find_if(R &&Range, CallableType &&Callable) {
 }
 
 /// \note use `llvm::find_if_not` instead after it's made `constexpr`.
-template<typename R, typename CallableType> // NOLINTNEXTLINE
+template<typename R, typename CallableType>
 constexpr decltype(auto) find_if_not(R &&Range, CallableType &&Callable) {
   return std::find_if_not(std::begin(std::forward<R>(Range)),
                           std::end(std::forward<R>(Range)),
@@ -369,7 +367,7 @@ constexpr decltype(auto) find_if_not(R &&Range, CallableType &&Callable) {
 
 /// \note `std::find_last` is introduced in c++23,
 ///       replace with the llvm version when it's available.
-template<typename R, typename T> // NOLINTNEXTLINE
+template<typename R, typename T>
 constexpr decltype(auto) find_last(R &&Range, const T &Value) {
   return std::find(std::rbegin(std::forward<R>(Range)),
                    std::rend(std::forward<R>(Range)),
@@ -378,7 +376,7 @@ constexpr decltype(auto) find_last(R &&Range, const T &Value) {
 
 /// \note `std::find_last_if` is introduced in c++23,
 ///       replace with the llvm version when it's available.
-template<typename R, typename CallableType> // NOLINTNEXTLINE
+template<typename R, typename CallableType>
 constexpr decltype(auto) find_last_if(R &&Range, CallableType &&Callable) {
   return std::find_if(std::rbegin(std::forward<R>(Range)),
                       std::rend(std::forward<R>(Range)),
@@ -387,7 +385,7 @@ constexpr decltype(auto) find_last_if(R &&Range, CallableType &&Callable) {
 
 /// \note `std::find_last_if_not` is introduced in c++23,
 ///       replace with the llvm version when it's available.
-template<typename R, typename CallableType> // NOLINTNEXTLINE
+template<typename R, typename CallableType>
 constexpr decltype(auto) find_last_if_not(R &&Range, CallableType &&Callable) {
   return std::find_if_not(std::rbegin(std::forward<R>(Range)),
                           std::rend(std::forward<R>(Range)),
@@ -395,12 +393,12 @@ constexpr decltype(auto) find_last_if_not(R &&Range, CallableType &&Callable) {
 }
 
 /// \note use `llvm::is_contained` instead after it's made `constexpr`.
-template<typename R, typename T> // NOLINTNEXTLINE
+template<typename R, typename T>
 constexpr bool is_contained(R &&Range, const T &Value) {
   return revng::find(std::forward<R>(Range), Value) != std::end(Range);
 }
 
-template<typename Range, typename C> // NOLINTNEXTLINE
+template<typename Range, typename C>
 constexpr bool is_contained_if(Range &&R, C &&L) {
   return find_if(std::forward<Range>(R), std::forward<C>(L)) != std::end(R);
 }
@@ -427,12 +425,12 @@ constexpr auto takeAsTuple(RangeType &&R) {
 // TODO: remove these after updating the libc++ version.
 //
 template<typename EnumType>
-[[nodiscard]] constexpr std::underlying_type<EnumType>::type // NOLINTNEXTLINE
+[[nodiscard]] constexpr std::underlying_type<EnumType>::type
 to_underlying(EnumType Value) {
   return static_cast<std::underlying_type<EnumType>::type>(Value);
 }
 
-template<typename RangeType> // NOLINTNEXTLINE
+template<typename RangeType>
 auto as_rvalue(RangeType &&Range) {
   return llvm::make_range(std::make_move_iterator(Range.begin()),
                           std::make_move_iterator(Range.end()));

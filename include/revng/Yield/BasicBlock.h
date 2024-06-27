@@ -9,8 +9,8 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Support/MetaAddress.h"
-#include "revng/Support/MetaAddress/YAMLTraits.h"
+#include "revng/Support/BasicBlockID.h"
+#include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/FunctionEdge.h"
 #include "revng/Yield/FunctionEdgeBase.h"
@@ -91,7 +91,6 @@ public:
 
 public:
   bool verify(model::VerifyHelper &VH) const;
-  void dump() const debug_function;
 
 public:
   inline bool verify() const debug_function { return verify(false); }

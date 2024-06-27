@@ -6,57 +6,37 @@
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/ABI/Definition.h"
+#include "revng/ABI/FunctionType/Support.h"
 #include "revng/Support/EnumSwitch.h"
 
-using namespace model;
-
-constexpr static PrimitiveTypeKind::Values selectTypeKind(Register::Values) {
-  // TODO: implement a way to determine the register type. At the very least
-  // we should be able to differentiate GPRs from the vector registers.
-
-  return PrimitiveTypeKind::PointerOrNumber;
-}
-
-static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
-  PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
-  uint64_t Size = Register::getSize(Register);
-  return QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
-}
-
-static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
-  TypePath TypePath = TheBinary.makeType<RawFunctionType>().second;
-  auto &Prototype = *llvm::cast<RawFunctionType>(TypePath.get());
+static model::UpcastableType defaultPrototype(model::Binary &Binary,
+                                              model::ABI::Values ABI) {
+  auto [Definition, Type] = Binary.makeRawFunctionDefinition();
 
   revng_assert(ABI != model::ABI::Invalid);
-  Prototype.Architecture() = model::ABI::getArchitecture(ABI);
+  Definition.Architecture() = model::ABI::getArchitecture(ABI);
 
   const abi::Definition &Defined = abi::Definition::get(ABI);
-  for (const auto &Register : Defined.GeneralPurposeArgumentRegisters()) {
-    NamedTypedRegister Argument(Register);
-    Argument.Type() = buildType(Register, TheBinary);
-    Prototype.Arguments().insert(Argument);
-  }
+  for (const auto &Register : Defined.GeneralPurposeArgumentRegisters())
+    Definition.addArgument(Register, model::PrimitiveType::make(Register));
 
-  for (const auto &Register : Defined.GeneralPurposeReturnValueRegisters()) {
-    NamedTypedRegister ReturnValue(Register);
-    ReturnValue.Type() = buildType(Register, TheBinary);
-    Prototype.ReturnValues().insert(ReturnValue);
-  }
+  for (const auto &Register : Defined.GeneralPurposeReturnValueRegisters())
+    Definition.addReturnValue(Register, model::PrimitiveType::make(Register));
 
   for (const auto &Register : Defined.CalleeSavedRegisters())
-    Prototype.PreservedRegisters().insert(Register);
+    Definition.PreservedRegisters().insert(Register);
 
-  using namespace Architecture;
-  Prototype.FinalStackOffset() = getCallPushSize(TheBinary.Architecture());
+  Definition.FinalStackOffset() = getCallPushSize(Binary.Architecture());
 
-  return TypePath;
+  return Type;
 }
 
-model::TypePath
-abi::registerDefaultFunctionPrototype(Binary &Binary,
-                                      std::optional<ABI::Values> MaybeABI) {
+using OptionalABI = std::optional<model::ABI::Values>;
+model::UpcastableType
+abi::registerDefaultFunctionPrototype(model::Binary &Binary,
+                                      OptionalABI MaybeABI) {
   if (!MaybeABI.has_value())
     MaybeABI = Binary.DefaultABI();
-  revng_assert(*MaybeABI != ABI::Invalid);
+  revng_assert(*MaybeABI != model::ABI::Invalid);
   return defaultPrototype(Binary, MaybeABI.value());
 }

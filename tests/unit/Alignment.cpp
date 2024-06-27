@@ -26,10 +26,9 @@ struct Expected {
 
 template<typename... Types>
   requires(same_as<Types, Expected> && ...)
-void testAlignment(const model::QualifiedType &Type,
-                   const Types &...TestCases) {
+void testAlignment(model::UpcastableType &&Type, const Types &...TestCases) {
   for (auto [ABI, Expected] : std::array{ TestCases... }) {
-    std::optional<uint64_t> TestResult = ABI.alignment(Type);
+    std::optional<uint64_t> TestResult = ABI.alignment(*Type);
     if (TestResult.value_or(0) != Expected) {
       std::string Error = "Alignment run failed for type:\n"
                           + serializeToString(Type) + "ABI ('"
@@ -57,46 +56,40 @@ static bool ABIhasFloatsOfSizes(const abi::Definition &ABI,
   });
 }
 
-namespace Primitive = model::PrimitiveTypeKind;
-static model::QualifiedType
-makePrimitive(Primitive::Values Kind, uint64_t Size, model::Binary &Binary) {
-  return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
-}
-
 BOOST_AUTO_TEST_CASE(GenericPrimitiveTypes) {
   TupleTree<model::Binary> Binary;
 
-  testAlignment(makePrimitive(Primitive::Void, 0, *Binary),
+  testAlignment(model::PrimitiveType::makeVoid(),
                 Expected(model::ABI::AAPCS64, 0),
                 Expected(model::ABI::AAPCS, 0),
                 Expected(model::ABI::SystemZ_s390x, 0),
                 Expected(model::ABI::SystemV_x86, 0));
 
-  testAlignment(makePrimitive(Primitive::Generic, 1, *Binary),
+  testAlignment(model::PrimitiveType::makeGeneric(1),
                 Expected(model::ABI::AAPCS64, 1),
                 Expected(model::ABI::AAPCS, 1),
                 Expected(model::ABI::SystemZ_s390x, 1),
                 Expected(model::ABI::SystemV_x86, 1));
 
-  testAlignment(makePrimitive(Primitive::Generic, 2, *Binary),
+  testAlignment(model::PrimitiveType::makeGeneric(2),
                 Expected(model::ABI::AAPCS64, 2),
                 Expected(model::ABI::AAPCS, 2),
                 Expected(model::ABI::SystemZ_s390x, 2),
                 Expected(model::ABI::SystemV_x86, 2));
 
-  testAlignment(makePrimitive(Primitive::Generic, 4, *Binary),
+  testAlignment(model::PrimitiveType::makeGeneric(4),
                 Expected(model::ABI::AAPCS64, 4),
                 Expected(model::ABI::AAPCS, 4),
                 Expected(model::ABI::SystemZ_s390x, 4),
                 Expected(model::ABI::SystemV_x86, 4));
 
-  testAlignment(makePrimitive(Primitive::Generic, 8, *Binary),
+  testAlignment(model::PrimitiveType::makeGeneric(8),
                 Expected(model::ABI::AAPCS64, 8),
                 Expected(model::ABI::AAPCS, 8),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86, 4));
 
-  testAlignment(makePrimitive(Primitive::Generic, 16, *Binary),
+  testAlignment(model::PrimitiveType::makeGeneric(16),
                 Expected(model::ABI::AAPCS64, 16),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86_64, 16));
@@ -105,24 +98,24 @@ BOOST_AUTO_TEST_CASE(GenericPrimitiveTypes) {
 BOOST_AUTO_TEST_CASE(FloatingPointPrimitiveTypes) {
   TupleTree<model::Binary> Binary;
 
-  testAlignment(makePrimitive(Primitive::Float, 2, *Binary),
+  testAlignment(model::PrimitiveType::makeFloat(2),
                 Expected(model::ABI::AAPCS64, 2),
                 Expected(model::ABI::AAPCS, 2),
                 Expected(model::ABI::SystemV_x86_64, 2));
 
-  testAlignment(makePrimitive(Primitive::Float, 4, *Binary),
+  testAlignment(model::PrimitiveType::makeFloat(4),
                 Expected(model::ABI::AAPCS64, 4),
                 Expected(model::ABI::AAPCS, 4),
                 Expected(model::ABI::SystemZ_s390x, 4),
                 Expected(model::ABI::SystemV_x86, 4));
 
-  testAlignment(makePrimitive(Primitive::Float, 8, *Binary),
+  testAlignment(model::PrimitiveType::makeFloat(8),
                 Expected(model::ABI::AAPCS64, 8),
                 Expected(model::ABI::AAPCS, 8),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86, 4));
 
-  testAlignment(makePrimitive(Primitive::Float, 16, *Binary),
+  testAlignment(model::PrimitiveType::makeFloat(16),
                 Expected(model::ABI::AAPCS64, 16),
                 Expected(model::ABI::SystemZ_s390x, 8),
                 Expected(model::ABI::SystemV_x86, 16),
@@ -135,10 +128,10 @@ constexpr std::array TestedABIs{ model::ABI::AAPCS64,
                                  model::ABI::SystemV_x86 };
 
 static void compareTypeAlignments(const abi::Definition &ABI,
-                                  const model::QualifiedType &LHS,
-                                  const model::QualifiedType &RHS) {
-  std::optional<uint64_t> Left = ABI.alignment(LHS);
-  std::optional<uint64_t> Right = ABI.alignment(RHS);
+                                  const model::UpcastableType &LHS,
+                                  const model::UpcastableType &RHS) {
+  std::optional<uint64_t> Left = ABI.alignment(*LHS);
+  std::optional<uint64_t> Right = ABI.alignment(*RHS);
   if (Left != Right) {
     std::string Error = "Alignment comparison run failed for types:\n"
                         + serializeToString(LHS) + "and\n"
@@ -156,235 +149,189 @@ static void compareTypeAlignments(const abi::Definition &ABI,
 BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
   TupleTree<model::Binary> Binary;
 
-  constexpr std::array<model::PrimitiveTypeKind::Values, 5> RemainingTypes{
-    model::PrimitiveTypeKind::Unsigned,
-    model::PrimitiveTypeKind::Signed,
-    model::PrimitiveTypeKind::Number,
-    model::PrimitiveTypeKind::PointerOrNumber
+  constexpr std::array<model::PrimitiveKind::Values, 5> RemainingTypes{
+    model::PrimitiveKind::Unsigned,
+    model::PrimitiveKind::Signed,
+    model::PrimitiveKind::Number,
+    model::PrimitiveKind::PointerOrNumber
   };
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
-    for (const auto &PrimitiveKind : RemainingTypes) {
-      for (uint64_t Size = 1; Size <= 16; Size *= 2) {
-        if (ABIhasIntsOfSizes(ABI, { Size })) {
-          constexpr auto Generic = model::PrimitiveTypeKind::Generic;
+    for (const auto &PKind : RemainingTypes)
+      for (uint64_t Size = 1; Size <= 16; Size *= 2)
+        if (ABIhasIntsOfSizes(ABI, { Size }))
           compareTypeAlignments(ABI,
-                                makePrimitive(Generic, Size, *Binary),
-                                makePrimitive(PrimitiveKind, Size, *Binary));
-        }
-      }
-    }
+                                model::PrimitiveType::makeGeneric(Size),
+                                model::PrimitiveType::make(PKind, Size));
   }
-}
-
-static model::UnionField makeUnionField(uint64_t Index,
-                                        model::QualifiedType Type) {
-  model::UnionField Result;
-  Result.Index() = Index;
-  Result.Type() = Type;
-  return Result;
-}
-
-template<typename... FieldTypes>
-  requires(std::is_convertible_v<FieldTypes, model::UnionField> && ...)
-static model::QualifiedType
-makeUnion(model::Binary &Binary, FieldTypes &&...Fields) {
-  auto [Union, Path] = Binary.makeType<model::UnionType>();
-  (Union.Fields().emplace(std::forward<FieldTypes>(Fields)), ...);
-  return model::QualifiedType(Path, {});
 }
 
 BOOST_AUTO_TEST_CASE(UnionTypes) {
   TupleTree<model::Binary> Binary;
 
-  using QT = model::QualifiedType;
-  QT Int16 = makePrimitive(model::PrimitiveTypeKind::Signed, 2, *Binary);
-  QT Int32 = makePrimitive(model::PrimitiveTypeKind::Signed, 4, *Binary);
-  QT Int64 = makePrimitive(model::PrimitiveTypeKind::Signed, 8, *Binary);
-  QT Float = makePrimitive(model::PrimitiveTypeKind::Float, 4, *Binary);
-  QT Double = makePrimitive(model::PrimitiveTypeKind::Float, 8, *Binary);
-  QT LongDouble = makePrimitive(model::PrimitiveTypeKind::Float, 16, *Binary);
-  QT WeirdLD = makePrimitive(model::PrimitiveTypeKind::Float, 12, *Binary);
+  auto Int16 = model::PrimitiveType::makeSigned(2);
+  auto Int32 = model::PrimitiveType::makeSigned(4);
+  auto Int64 = model::PrimitiveType::makeSigned(8);
+
+  auto Float = model::PrimitiveType::makeFloat(4);
+  auto Double = model::PrimitiveType::makeFloat(8);
+  auto LongDouble = model::PrimitiveType::makeFloat(16);
+  auto WeirdLD = model::PrimitiveType::makeFloat(12);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
 
-    QT SimpleUnion = makeUnion(*Binary,
-                               makeUnionField(0, Int32),
-                               makeUnionField(1, Int64));
+    auto [SimpleDefinition, Simple] = Binary->makeUnionDefinition();
+    SimpleDefinition.addField(Int32.copy());
+    SimpleDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
-      compareTypeAlignments(ABI, Int64, SimpleUnion);
+      compareTypeAlignments(ABI, Int64, Simple);
 
-    QT SmallFloatUnion = makeUnion(*Binary,
-                                   makeUnionField(0, Int32),
-                                   makeUnionField(1, Float));
+    auto [SmallFloatDefinition, SmallFloat] = Binary->makeUnionDefinition();
+    SmallFloatDefinition.addField(Int32.copy());
+    SmallFloatDefinition.addField(Float.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, Int32, SmallFloatUnion);
-      compareTypeAlignments(ABI, Float, SmallFloatUnion);
+      compareTypeAlignments(ABI, Int32, SmallFloat);
+      compareTypeAlignments(ABI, Float, SmallFloat);
     }
 
-    QT BigFloatUnion = makeUnion(*Binary,
-                                 makeUnionField(0, LongDouble),
-                                 makeUnionField(1, Int64));
+    auto [BigFloatDefinition, BigFloat] = Binary->makeUnionDefinition();
+    BigFloatDefinition.addField(LongDouble.copy());
+    BigFloatDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
-      compareTypeAlignments(ABI, LongDouble, BigFloatUnion);
+      compareTypeAlignments(ABI, LongDouble, BigFloat);
 
-    QT WeirdFloatUnion = makeUnion(*Binary,
-                                   makeUnionField(0, WeirdLD),
-                                   makeUnionField(1, Int32));
+    auto [WeirdFloatDefinition, WeirdFloat] = Binary->makeUnionDefinition();
+    WeirdFloatDefinition.addField(WeirdLD.copy());
+    WeirdFloatDefinition.addField(Int32.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
-      compareTypeAlignments(ABI, WeirdLD, WeirdFloatUnion);
+      compareTypeAlignments(ABI, WeirdLD, WeirdFloat);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
-    QT EclipsedFloatUnion = makeUnion(*Binary,
-                                      makeUnionField(0, Float),
-                                      makeUnionField(1, Int64));
+    auto [EclipsedFloatDefinition, EclipsedFl] = Binary->makeUnionDefinition();
+    EclipsedFloatDefinition.addField(Float.copy());
+    EclipsedFloatDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, Int64, EclipsedFloatUnion);
+      compareTypeAlignments(ABI, Int64, EclipsedFl);
 
-    QT NestedUnion = makeUnion(*Binary,
-                               makeUnionField(0, SmallFloatUnion),
-                               makeUnionField(1, Int16));
+    auto [NestedDefinition, Nested] = Binary->makeUnionDefinition();
+    NestedDefinition.addField(SmallFloat.copy());
+    NestedDefinition.addField(Int16.copy());
     if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, Int32, NestedUnion);
-      compareTypeAlignments(ABI, Float, NestedUnion);
-      compareTypeAlignments(ABI, SmallFloatUnion, NestedUnion);
+      compareTypeAlignments(ABI, Int32, Nested);
+      compareTypeAlignments(ABI, Float, Nested);
+      compareTypeAlignments(ABI, SmallFloat, Nested);
     }
 
-    QT EclipsedNestedUnion = makeUnion(*Binary,
-                                       makeUnionField(0, SmallFloatUnion),
-                                       makeUnionField(1, Int64));
+    auto [EclipsedNestedDefinition, EclipsedN] = Binary->makeUnionDefinition();
+    EclipsedNestedDefinition.addField(SmallFloat.copy());
+    EclipsedNestedDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, Int64, EclipsedNestedUnion);
+      compareTypeAlignments(ABI, Int64, EclipsedN);
   }
-}
-
-static model::StructField makeStructField(uint64_t Offset,
-                                          model::QualifiedType Type) {
-  model::StructField Result;
-  Result.Offset() = Offset;
-  Result.Type() = Type;
-  return Result;
-}
-
-template<typename... FieldTypes>
-  requires(std::is_convertible_v<FieldTypes, model::StructField> && ...)
-static model::QualifiedType
-makeStruct(model::Binary &Binary, FieldTypes &&...Fields) {
-  auto [Struct, Path] = Binary.makeType<model::StructType>();
-  (Struct.Fields().emplace(std::forward<FieldTypes>(Fields)), ...);
-  return model::QualifiedType(Path, {});
 }
 
 BOOST_AUTO_TEST_CASE(StructTypes) {
   TupleTree<model::Binary> Binary;
 
-  using QT = model::QualifiedType;
-  QT Int16 = makePrimitive(model::PrimitiveTypeKind::Signed, 2, *Binary);
-  QT Int32 = makePrimitive(model::PrimitiveTypeKind::Signed, 4, *Binary);
-  QT Int64 = makePrimitive(model::PrimitiveTypeKind::Signed, 8, *Binary);
-  QT Float = makePrimitive(model::PrimitiveTypeKind::Float, 4, *Binary);
-  QT Double = makePrimitive(model::PrimitiveTypeKind::Float, 8, *Binary);
-  QT LongDouble = makePrimitive(model::PrimitiveTypeKind::Float, 16, *Binary);
-  QT WeirdLD = makePrimitive(model::PrimitiveTypeKind::Float, 12, *Binary);
+  auto Int16 = model::PrimitiveType::makeSigned(2);
+  auto Int32 = model::PrimitiveType::makeSigned(4);
+  auto Int64 = model::PrimitiveType::makeSigned(8);
+
+  auto Float = model::PrimitiveType::makeFloat(4);
+  auto Double = model::PrimitiveType::makeFloat(8);
+  auto LongDouble = model::PrimitiveType::makeFloat(16);
+  auto WeirdLD = model::PrimitiveType::makeFloat(12);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
 
-    QT SimpleStruct = makeStruct(*Binary,
-                                 makeStructField(0, Int32),
-                                 makeStructField(8, Int64));
+    auto [SimpleDefinition, Simple] = Binary->makeStructDefinition();
+    SimpleDefinition.addField(0, Int32.copy());
+    SimpleDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
-      compareTypeAlignments(ABI, Int64, SimpleStruct);
+      compareTypeAlignments(ABI, Int64, Simple);
 
-    QT SmallFloatStruct = makeStruct(*Binary,
-                                     makeStructField(0, Int32),
-                                     makeStructField(4, Float));
+    auto [SmallFloatDefinition, SmallFloat] = Binary->makeStructDefinition();
+    SmallFloatDefinition.addField(0, Int32.copy());
+    SmallFloatDefinition.addField(4, Float.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, Int32, SmallFloatStruct);
-      compareTypeAlignments(ABI, Float, SmallFloatStruct);
+      compareTypeAlignments(ABI, Int32, SmallFloat);
+      compareTypeAlignments(ABI, Float, SmallFloat);
     }
 
-    QT BigFloatStruct = makeStruct(*Binary,
-                                   makeStructField(0, LongDouble),
-                                   makeStructField(16, Int64));
+    auto [BigFloatDefinition, BigFloat] = Binary->makeStructDefinition();
+    BigFloatDefinition.addField(0, LongDouble.copy());
+    BigFloatDefinition.addField(16, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
-      compareTypeAlignments(ABI, LongDouble, BigFloatStruct);
+      compareTypeAlignments(ABI, LongDouble, BigFloat);
 
-    QT WeirdFloatStruct = makeStruct(*Binary,
-                                     makeStructField(0, WeirdLD),
-                                     makeStructField(12, Int32));
+    auto [WeirdFloatDefinition, WeirdFloat] = Binary->makeStructDefinition();
+    WeirdFloatDefinition.addField(0, WeirdLD.copy());
+    WeirdFloatDefinition.addField(12, Int32.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
-      compareTypeAlignments(ABI, WeirdLD, WeirdFloatStruct);
+      compareTypeAlignments(ABI, WeirdLD, WeirdFloat);
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
-    QT EclipsedFloatStruct = makeStruct(*Binary,
-                                        makeStructField(0, Float),
-                                        makeStructField(8, Int64));
+    auto [EclipsedFloatDefinition, EclipsedFl] = Binary->makeStructDefinition();
+    EclipsedFloatDefinition.addField(0, Float.copy());
+    EclipsedFloatDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, Int64, EclipsedFloatStruct);
+      compareTypeAlignments(ABI, Int64, EclipsedFl);
 
-    QT NestedStruct = makeStruct(*Binary,
-                                 makeStructField(0, SmallFloatStruct),
-                                 makeStructField(8, Int16));
+    auto [NestedDefinition, Nested] = Binary->makeStructDefinition();
+    NestedDefinition.addField(0, SmallFloat.copy());
+    NestedDefinition.addField(8, Int16.copy());
     if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
-      compareTypeAlignments(ABI, Int32, NestedStruct);
-      compareTypeAlignments(ABI, Float, NestedStruct);
-      compareTypeAlignments(ABI, SmallFloatStruct, NestedStruct);
+      compareTypeAlignments(ABI, Int32, Nested);
+      compareTypeAlignments(ABI, Float, Nested);
+      compareTypeAlignments(ABI, SmallFloat, Nested);
     }
 
-    QT EclipsedNestedStruct = makeStruct(*Binary,
-                                         makeStructField(0, SmallFloatStruct),
-                                         makeStructField(8, Int64));
+    auto [EclipsedNestedDefinition, EclipsedN] = Binary->makeStructDefinition();
+    EclipsedNestedDefinition.addField(0, SmallFloat.copy());
+    EclipsedNestedDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
-      compareTypeAlignments(ABI, Int64, EclipsedNestedStruct);
+      compareTypeAlignments(ABI, Int64, EclipsedN);
   }
 }
 
-BOOST_AUTO_TEST_CASE(QualifiedTypes) {
+BOOST_AUTO_TEST_CASE(ArraysAndPointers) {
   TupleTree<model::Binary> Binary;
 
-  using QT = model::QualifiedType;
-  QT Int32 = makePrimitive(model::PrimitiveTypeKind::Signed, 4, *Binary);
-  QT Int64 = makePrimitive(model::PrimitiveTypeKind::Signed, 8, *Binary);
-  QT Double = makePrimitive(model::PrimitiveTypeKind::Float, 8, *Binary);
+  auto Int32 = model::PrimitiveType::makeSigned(4);
+  auto Int64 = model::PrimitiveType::makeSigned(8);
+  auto Double = model::PrimitiveType::makeFloat(8);
 
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
-    auto Architecture = model::ABI::getArchitecture(ABI.ABI());
-    auto PointerQualifier = model::Qualifier::createPointer(Architecture);
 
-    QT IntPointer = Int32;
-    IntPointer.Qualifiers().emplace_back(PointerQualifier);
+    auto IntPointer = model::PointerType::make(Int32.copy(),
+                                               ABI.getPointerSize());
     if (ABI.getPointerSize() == 8)
       compareTypeAlignments(ABI, Int64, IntPointer);
     else
       compareTypeAlignments(ABI, Int32, IntPointer);
 
-    QT IntArray = Int32;
-    IntArray.Qualifiers().emplace_back(model::Qualifier::createArray(100));
+    auto IntArray = model::ArrayType::make(Int32.copy(), 100);
     compareTypeAlignments(ABI, Int32, IntArray);
 
-    QT ConstInt = Int32;
-    ConstInt.Qualifiers().emplace_back(model::Qualifier::createConst());
+    auto ConstInt = Int32.copy();
+    ConstInt->IsConst() = true;
     compareTypeAlignments(ABI, Int32, ConstInt);
 
-    QT DoublePointer = Double;
-    DoublePointer.Qualifiers().emplace_back(PointerQualifier);
-    if (ABI.getPointerSize() == 8)
-      compareTypeAlignments(ABI, Int64, DoublePointer);
-    else
-      compareTypeAlignments(ABI, Int32, DoublePointer);
+    auto DoublePointer = model::PointerType::make(Double.copy(),
+                                                  ABI.getPointerSize());
+    compareTypeAlignments(ABI, IntPointer, DoublePointer);
 
-    QT DoubleArray = Double;
-    DoubleArray.Qualifiers().emplace_back(model::Qualifier::createArray(100));
+    auto DoubleArray = model::ArrayType::make(Double.copy(), 100);
     compareTypeAlignments(ABI, Double, DoubleArray);
 
-    QT ConstDouble = Double;
-    ConstDouble.Qualifiers().emplace_back(model::Qualifier::createConst());
+    auto ConstDouble = Double.copy();
+    ConstInt->IsConst() = true;
     compareTypeAlignments(ABI, Double, ConstDouble);
   }
 }

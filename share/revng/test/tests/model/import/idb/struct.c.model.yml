@@ -2,17 +2,21 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 10354558065911308391
     OriginalName: my_struct
     Fields:
       - Offset: 0
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 4
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
     Size: 8

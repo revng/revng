@@ -5,9 +5,11 @@
 ---
 Functions:
   - OriginalName: caller
-    Prototype: "/Types/1815-RawFunctionType"
-Types:
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1815-RawFunctionDefinition"
+TypeDefinitions:
   - ID: 1815
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     Arguments:
       - Location: rdi_x86_64

@@ -14,113 +14,111 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/TupleTree/TupleTree.h"
 
-// TODO: dismiss using VerifyHelper for this verification. Introduce a
-//       new class instead.
-
-static RecursiveCoroutine<bool>
-checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type);
+// TODO: Stop using VerifyHelper for this verification.
+//       Introduce a new class instead.
 
 static RecursiveCoroutine<bool>
 checkVectorRegisterSupport(model::VerifyHelper &VH,
-                           const model::QualifiedType &Type) {
-  if (revng::is_contained_if(Type.Qualifiers(), model::Qualifier::isPointer)) {
-    // If it's a pointer, it's acceptable no matter what it points to.
-    rc_return true;
-  }
-
-  // `Array` and `Const` do not impact the type, so we can just ignore them.
-  const model::Type *Unqualified = Type.UnqualifiedType().get();
-  revng_assert(Unqualified != nullptr);
-  rc_return rc_recur checkVectorRegisterSupport(VH, *Unqualified);
-}
+                           const model::TypeDefinition &Type);
 
 static RecursiveCoroutine<bool>
 checkVectorRegisterSupport(model::VerifyHelper &VH,
-                           const model::PrimitiveTypeKind::Values &Kind) {
-  rc_return VH.maybeFail(Kind != model::PrimitiveTypeKind::Float,
+                           const model::PrimitiveKind::Values &Kind) {
+  rc_return VH.maybeFail(Kind != model::PrimitiveKind::Float,
                          "Floating Point primitive found.");
-}
-
-template<typename RealType>
-inline RecursiveCoroutine<bool>
-underlyingHelper(model::VerifyHelper &VH, const model::Type &Value) {
-  const RealType *Cast = llvm::cast<RealType>(&Value);
-  rc_return rc_recur checkVectorRegisterSupport(VH, Cast->UnderlyingType());
-}
-
-static RecursiveCoroutine<bool>
-checkVectorRegisterSupport(model::VerifyHelper &VH,
-                           const model::TypePath &Reference) {
-  const model::Type *Pointer = Reference.getConst();
-  revng_assert(Pointer != nullptr);
-  rc_return rc_recur checkVectorRegisterSupport(VH, *Pointer);
 }
 
 static RecursiveCoroutine<bool>
 checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type) {
-  if (VH.isVerified(&Type))
+  if (const auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+    // Arrays have no impact on the type, so just unwrap them.
+    rc_return rc_recur checkVectorRegisterSupport(VH, *Array->ElementType());
+
+  } else if (const auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
+    // Defined types need special processing, so unwrap them.
+    rc_return rc_recur checkVectorRegisterSupport(VH, D->unwrap());
+
+  } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
+    // If it's a pointer, it's acceptable no matter what it points to.
+    rc_return true;
+
+  } else if (const auto *P = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
+    // For primitives it depends purely on the kind.
+    rc_return rc_recur checkVectorRegisterSupport(VH, P->PrimitiveKind());
+
+  } else {
+    revng_abort("Unsupported type.");
+  }
+}
+
+template<typename RealType>
+inline RecursiveCoroutine<bool>
+underlyingHelper(model::VerifyHelper &VH, const model::TypeDefinition &Value) {
+  const RealType &Cast = llvm::cast<RealType>(Value);
+  rc_return rc_recur checkVectorRegisterSupport(VH, *Cast.UnderlyingType());
+}
+
+static RecursiveCoroutine<bool>
+checkVectorRegisterSupport(model::VerifyHelper &VH,
+                           const model::TypeDefinition &Type) {
+  if (VH.isVerified(Type))
     rc_return true;
 
   // Ensure we never recur indefinitely
-  if (VH.isVerificationInProgress(&Type))
+  if (VH.isVerificationInProgress(Type))
     rc_return VH.fail();
 
-  VH.verificationInProgress(&Type);
+  VH.verificationInProgress(Type);
 
   bool Result = false;
 
   switch (Type.Kind()) {
-  case model::TypeKind::PrimitiveType: {
-    const auto &Kind = llvm::cast<model::PrimitiveType>(&Type)->PrimitiveKind();
-    Result = rc_recur checkVectorRegisterSupport(VH, Kind);
+  case model::TypeDefinitionKind::EnumDefinition:
+    Result = rc_recur underlyingHelper<model::EnumDefinition>(VH, Type);
+    break;
+
+  case model::TypeDefinitionKind::TypedefDefinition:
+    Result = rc_recur underlyingHelper<model::TypedefDefinition>(VH, Type);
+    break;
+
+  case model::TypeDefinitionKind::StructDefinition:
+    Result = true;
+    for (const auto &F : llvm::cast<model::StructDefinition>(Type).Fields())
+      Result = Result && rc_recur checkVectorRegisterSupport(VH, *F.Type());
+    break;
+
+  case model::TypeDefinitionKind::UnionDefinition:
+    Result = true;
+    for (const auto &F : llvm::cast<model::UnionDefinition>(Type).Fields())
+      Result = Result && rc_recur checkVectorRegisterSupport(VH, *F.Type());
+    break;
+
+  case model::TypeDefinitionKind::CABIFunctionDefinition: {
+    Result = true;
+    using CABIFT = model::CABIFunctionDefinition;
+    for (const auto &A : llvm::cast<CABIFT>(Type).Arguments())
+      Result = Result && rc_recur checkVectorRegisterSupport(VH, *A.Type());
+    const auto &ReturnType = llvm::cast<CABIFT>(Type).ReturnType();
+    Result = Result && rc_recur checkVectorRegisterSupport(VH, *ReturnType);
   } break;
 
-  case model::TypeKind::EnumType:
-    Result = rc_recur underlyingHelper<model::EnumType>(VH, Type);
-    break;
-
-  case model::TypeKind::TypedefType:
-    Result = rc_recur underlyingHelper<model::TypedefType>(VH, Type);
-    break;
-
-  case model::TypeKind::StructType:
+  case model::TypeDefinitionKind::RawFunctionDefinition: {
     Result = true;
-    for (const auto &F : llvm::cast<model::StructType>(&Type)->Fields())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, F.Type());
-    break;
-
-  case model::TypeKind::UnionType:
-    Result = true;
-    for (const auto &F : llvm::cast<model::UnionType>(&Type)->Fields())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, F.Type());
-    break;
-
-  case model::TypeKind::CABIFunctionType: {
-    Result = true;
-    using CABIFT = model::CABIFunctionType;
-    for (const auto &A : llvm::cast<CABIFT>(&Type)->Arguments())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, A.Type());
-    const auto &ReturnType = llvm::cast<CABIFT>(&Type)->ReturnType();
-    Result = Result && rc_recur checkVectorRegisterSupport(VH, ReturnType);
-  } break;
-
-  case model::TypeKind::RawFunctionType: {
-    Result = true;
-    using RawFT = model::RawFunctionType;
-    for (const auto &A : llvm::cast<RawFT>(&Type)->Arguments()) {
+    using RawFT = model::RawFunctionDefinition;
+    for (const auto &A : llvm::cast<RawFT>(Type).Arguments()) {
       auto Kind = model::Register::primitiveKind(A.Location());
       Result = Result && rc_recur checkVectorRegisterSupport(VH, Kind);
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, A.Type());
+      Result = Result && rc_recur checkVectorRegisterSupport(VH, *A.Type());
     }
-    for (const auto &V : llvm::cast<RawFT>(&Type)->ReturnValues()) {
+    for (const auto &V : llvm::cast<RawFT>(Type).ReturnValues()) {
       auto Kind = model::Register::primitiveKind(V.Location());
       Result = Result && rc_recur checkVectorRegisterSupport(VH, Kind);
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, V.Type());
+      Result = Result && rc_recur checkVectorRegisterSupport(VH, *V.Type());
     }
 
-    const auto &Stack = llvm::cast<RawFT>(&Type)->StackArgumentsType();
-    if (not Stack.empty())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, Stack);
+    const auto &Stack = llvm::cast<RawFT>(Type).StackArgumentsType();
+    if (not Stack.isEmpty())
+      Result = Result && rc_recur checkVectorRegisterSupport(VH, *Stack);
   } break;
 
   default:
@@ -128,8 +126,8 @@ checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type) {
   }
 
   if (Result) {
-    VH.setVerified(&Type);
-    VH.verificationCompleted(&Type);
+    VH.setVerified(Type);
+    VH.verificationCompleted(Type);
   }
 
   rc_return VH.maybeFail(Result);
@@ -239,27 +237,26 @@ public:
 
     // Choose the applicable functions and run the conversion for them.
     using abi::FunctionType::filterTypes;
-    auto ToConvert = filterTypes<model::RawFunctionType>(Model->Types());
-    for (model::RawFunctionType *Old : ToConvert) {
-      if (!checkVectorRegisterSupport(VectorVH, Model->getTypePath(Old))) {
+    using RawFD = model::RawFunctionDefinition;
+    auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions());
+    for (model::RawFunctionDefinition *Old : ToConvert) {
+      auto &DT = llvm::cast<model::DefinedType>(*Model->makeType(Old->key()));
+      if (!checkVectorRegisterSupport(VectorVH, *Old)) {
         // TODO: remove this check after `abi::FunctionType` supports vectors.
         revng_log(Log,
                   "Skip a function conversion because it requires vector type "
                   "support: "
-                    << serializeToString(Model->getTypePath(Old->key())));
+                    << serializeToString(DT.Definition()));
         continue;
       }
 
       revng_log(Log,
                 "Converting a function: "
-                  << serializeToString(Model->getTypePath(Old->key())));
+                  << serializeToString(DT.Definition()));
       if (Log.isEnabled()) {
-        model::TypePath Reference = Model->getTypePath(Old->key());
-        revng_assert(!Reference.empty());
-
         std::string Message = "";
         for (model::Function &Function : Model->Functions())
-          if (Function.Prototype() == Reference)
+          if (Function.prototype() && Function.prototype()->key() == Old->key())
             Message += "'" + Function.name().str().str() + "', ";
 
         if (!Message.empty()) {
@@ -271,7 +268,7 @@ public:
       namespace FT = abi::FunctionType;
       if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
         // If the conversion succeeds, make sure the returned type is valid,
-        revng_assert(New->isValid());
+        revng_assert(!New->isEmpty());
 
         // and verifies
         if (VerifyLog.isEnabled())
@@ -282,7 +279,7 @@ public:
                     << serializeToString(*New));
       } else {
         // Do nothing if the conversion failed (the model is not modified).
-        // `RawFunctionType` is still used for those functions.
+        // `RawFunctionDefinition` is still used for those functions.
         // This might be an indication of an ABI misdetection.
         revng_log(Log, "Function Conversion Failed.");
       }

@@ -43,7 +43,6 @@ public:
     return Pointer;
   }
 
-  // NOLINTNEXTLINE(readability-identifier-naming)
   auto operator<=>(const NodeView &Another) const {
     revng_assert(Pointer != nullptr);
     revng_assert(Another.Pointer != nullptr);
@@ -73,7 +72,6 @@ struct EdgeDestinationView {
   EdgeDestinationView(NodeView To, const InternalEdge &Label) :
     To(To), EdgeIndex(Label.index()) {}
 
-  // NOLINTNEXTLINE(readability-identifier-naming)
   auto operator<=>(const EdgeDestinationView &) const = default;
 };
 
@@ -86,7 +84,6 @@ public:
   EdgeView(NodeView From, NodeView To, const InternalEdge &Label) :
     EdgeDestinationView(To, Label), From(From) {}
 
-  // NOLINTNEXTLINE(readability-identifier-naming)
   auto operator<=>(const EdgeView &) const = default;
 
   InternalEdge &label() {
@@ -158,7 +155,6 @@ struct Corner {
 struct NodePair {
   NodeView From, To;
 
-  // NOLINTNEXTLINE(readability-identifier-naming)
   auto operator<=>(const NodePair &) const = default;
 };
 

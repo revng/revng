@@ -30,7 +30,7 @@
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/ExecutionContext.h"
@@ -132,8 +132,9 @@ bool EnforceABI::prologue() {
       continue;
     OldFunctions.push_back(OldFunction);
 
-    model::TypePath Prototype = FunctionModel.prototype(Binary);
-    auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+    const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
+    revng_assert(ProtoT != nullptr);
+    auto UsedRegisters = abi::FunctionType::usedRegisters(*ProtoT);
     Function *NewFunction = recreateFunction(*OldFunction, UsedRegisters);
 
     // EnforceABI currently does not support execution
@@ -155,8 +156,9 @@ bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
   OldFunctions.push_back(&OldFunction);
 
   // Recreate the function with the right prototype and the function prologue
-  const model::TypePath &Prototype = FunctionModel.prototype(Binary);
-  auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+  const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
+  revng_assert(ProtoT != nullptr);
+  auto UsedRegisters = abi::FunctionType::usedRegisters(*ProtoT);
   Function *NewFunction = getOrCreateNewFunction(OldFunction, UsedRegisters);
 
   // Collect function calls
@@ -361,9 +363,10 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
     Callee = OldToNew.at(Callee);
   } else if (IsDirect) {
     MetaAddress CalleeAddress = CallSite->Destination().notInlinedAddress();
-    const model::Function &ModelFunction = Binary.Functions().at(CalleeAddress);
-    const model::TypePath &Prototype = ModelFunction.prototype(Binary);
-    auto UsedRegisters = abi::FunctionType::usedRegisters(Prototype);
+    const model::Function &ModelFunc = Binary.Functions().at(CalleeAddress);
+    const auto *Prototype = Binary.prototypeOrDefault(ModelFunc.prototype());
+    revng_assert(Prototype != nullptr);
+    auto UsedRegisters = abi::FunctionType::usedRegisters(*Prototype);
     Callee = getOrCreateNewFunction(*Callee, UsedRegisters);
   }
 
@@ -419,19 +422,16 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
                                    const efa::BasicBlock &CallSiteBlock,
                                    const efa::CallEdge &CallSite) {
   using model::NamedTypedRegister;
-  using model::RawFunctionType;
-  using model::TypedRegister;
+  using model::RawFunctionDefinition;
 
   revng_assert(Callee.getCallee() != nullptr);
 
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<Constant *, 8> ReturnCSVs;
 
-  model::TypePath Prototype = getPrototype(Binary,
-                                           Entry,
-                                           CallSiteBlock.ID(),
-                                           CallSite);
-  auto Registers = abi::FunctionType::usedRegisters(Prototype);
+  auto *Prototype = getPrototype(Binary, Entry, CallSiteBlock.ID(), CallSite);
+  revng_assert(Prototype != nullptr);
+  auto Registers = abi::FunctionType::usedRegisters(*Prototype);
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);
   if (IsIndirect) {
@@ -462,7 +462,9 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
   revng_assert(Result->getDebugLoc());
-  setStringMetadata(Result, PrototypeMDName, Prototype.toString());
+  setStringMetadata(Result,
+                    PrototypeMDName,
+                    Binary.getDefinitionReference(Prototype->key()).toString());
 
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
@@ -514,6 +516,29 @@ struct EnforceABIPipe {
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+    const auto &Model = *revng::getModelFromContext(Ctx);
+
+    if (!Model.DefaultPrototype().isEmpty())
+      return llvm::Error::success();
+
+    for (const auto &Function : Model.Functions()) {
+      if (Function.Prototype().isEmpty()) {
+        return llvm::createStringError(inconvertibleErrorCode(),
+                                       "Binary needs to either have a default "
+                                       "prototype, or a prototype for each "
+                                       "function.");
+      }
+    }
+
+    for (const auto &Function : Model.ImportedDynamicFunctions()) {
+      if (Function.Prototype().isEmpty()) {
+        return llvm::createStringError(inconvertibleErrorCode(),
+                                       "Binary needs to either have a default "
+                                       "prototype, or a prototype for each "
+                                       "function.");
+      }
+    }
+
     return llvm::Error::success();
   }
 };

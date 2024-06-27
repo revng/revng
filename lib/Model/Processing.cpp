@@ -18,22 +18,19 @@ namespace model {
 
 template<typename T>
 void purgeFunctions(T &Functions,
-                    const std::set<const model::Type *> &ToDelete) {
-  auto Begin = Functions.begin();
-  for (auto It = Begin; It != Functions.end(); ++It) {
-    if (not It->Prototype().isValid()
-        or ToDelete.contains(It->Prototype().get())) {
-      It->Prototype() = TupleTreeReference<model::Type, model::Binary>();
-    }
-  }
+                    const std::set<const model::TypeDefinition *> &ToDelete) {
+  for (auto &F : Functions)
+    if (F.prototype() == nullptr or ToDelete.contains(F.prototype()))
+      F.Prototype().reset();
 }
 
-unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
-                                   const std::set<const model::Type *> &Types) {
+using DefinitionPointerSet = std::set<const model::TypeDefinition *>;
+unsigned dropTypesDependingOnDefinitions(TupleTree<model::Binary> &Model,
+                                         const DefinitionPointerSet &Types) {
   // TODO: in case we reach a StructField or UnionField, we should drop the
   //       field and not proceed any further
   struct TypeNode {
-    const model::Type *T;
+    const model::TypeDefinition *T;
   };
 
   using Graph = GenericGraph<ForwardNode<TypeNode>>;
@@ -41,25 +38,24 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
   Graph ReverseDependencyGraph;
 
   // Create nodes in reverse dependency graph
-  std::map<const model::Type *, ForwardNode<TypeNode> *> TypeToNode;
-  for (UpcastablePointer<model::Type> &T : Model->Types())
+  std::map<const model::TypeDefinition *, ForwardNode<TypeNode> *> TypeToNode;
+  for (model::UpcastableTypeDefinition &T : Model->TypeDefinitions())
     TypeToNode[T.get()] = ReverseDependencyGraph.addNode(TypeNode{ T.get() });
 
   // Register edges
-  for (UpcastablePointer<model::Type> &T : Model->Types()) {
+  for (model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
     // Ignore dependencies of types we need to drop
     if (Types.contains(T.get()))
       continue;
 
-    for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
-    }
+    for (const model::Type *E : T->edges())
+      if (const model::TypeDefinition *Definition = E->skipToDefinition())
+        TypeToNode.at(Definition)->addSuccessor(TypeToNode.at(T.get()));
   }
 
   // Prepare for deletion all the nodes reachable from Types
-  std::set<const model::Type *> ToDelete;
-  for (const model::Type *Type : Types) {
+  std::set<const model::TypeDefinition *> ToDelete;
+  for (const model::TypeDefinition *Type : Types) {
     for (const auto *Node : depth_first(TypeToNode.at(Type))) {
       ToDelete.insert(Node->T);
     }
@@ -70,9 +66,10 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
   purgeFunctions(Model->Functions(), ToDelete);
 
   // Purge types depending on unresolved Types
-  for (auto It = Model->Types().begin(); It != Model->Types().end();) {
+  for (auto It = Model->TypeDefinitions().begin();
+       It != Model->TypeDefinitions().end();) {
     if (ToDelete.contains(It->get()))
-      It = Model->Types().erase(It);
+      It = Model->TypeDefinitions().erase(It);
     else
       ++It;
   }

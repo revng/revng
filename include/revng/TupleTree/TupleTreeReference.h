@@ -48,7 +48,10 @@ public:
     return std::visit(GetPtrToConstRoot, Root);
   }
 
-  void setRoot(ConstOrNot<RootT> auto *NewRoot) { Root = NewRoot; }
+  void setRoot(ConstOrNot<RootT> auto *NewRoot) {
+    evictCachedTarget();
+    Root = NewRoot;
+  }
 
 private:
   // Friend class that is allowed to manage the cached pointer to the target
@@ -144,7 +147,7 @@ public:
       return nullptr;
 
     const auto GetByPathVisitor = [&Path = Path](const auto &RootPointer) {
-      return getByPath<T>(Path, *RootPointer);
+      return static_cast<const T *>(getByPath<T>(Path, *RootPointer));
     };
 
     return std::visit(GetByPathVisitor, Root);

@@ -2,42 +2,52 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 12620553074732431538
     OriginalName: my_struct
     Fields:
       - Offset: 0
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 4
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 8
         OriginalName: z
         Type:
-          UnqualifiedType: "/Types/626103279023675435-TypedefType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/626103279023675435-TypedefDefinition"
     Size: 16
-  - Kind: TypedefType
+  - Kind: TypedefDefinition
     ID: 626103279023675435
     OriginalName: second_struct
     UnderlyingType:
-      UnqualifiedType: "/Types/2113910595525978593-StructType"
-  - Kind: StructType
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2113910595525978593-StructDefinition"
+  - Kind: StructDefinition
     ID: 2113910595525978593
     OriginalName: second_struct
     Fields:
       - Offset: 0
         OriginalName: a
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
       - Offset: 4
         OriginalName: b
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 4
     Size: 8

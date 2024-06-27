@@ -73,6 +73,10 @@ concept SpecializationOf = requires(Type &Value) {
   }(const_cast<std::remove_const_t<Type> &>(Value));
 };
 
+template<typename T, typename Base>
+concept NonBaseDerived = std::derived_from<T, Base>
+                         and not std::is_same_v<T, Base>;
+
 namespace revng::detail {
 
 template<typename Test, template<typename...> class Ref>
@@ -104,6 +108,12 @@ concept StrictSpecializationOf = revng::detail::StrictSpecialization<Test, Ref>;
 
 template<typename T, typename R>
 concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
+
+template<typename T>
+constexpr bool IsConstReference = std::is_const_v<std::remove_reference_t<T>>;
+
+template<typename R, typename T>
+using ConstPtrIfConst = std::conditional_t<IsConstReference<R>, const T *, T *>;
 
 template<class R, typename ValueType>
 concept range_with_value_type = std::ranges::range<R>

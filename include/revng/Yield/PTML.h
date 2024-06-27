@@ -24,10 +24,10 @@ class PTMLBuilder;
 
 namespace yield::ptml {
 
-std::string functionAssembly(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string functionAssembly(const ::ptml::PTMLBuilder &B,
                              const yield::Function &InternalFunction,
                              const model::Binary &Binary);
-std::string controlFlowNode(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string controlFlowNode(const ::ptml::PTMLBuilder &B,
                             const BasicBlockID &BasicBlock,
                             const yield::Function &Function,
                             const model::Binary &Binary);
@@ -42,7 +42,7 @@ std::string controlFlowNode(const ::ptml::PTMLBuilder &ThePTMLBuilder,
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string functionNameDefinition(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string functionNameDefinition(const ::ptml::PTMLBuilder &B,
                                    std::string_view Location,
                                    const model::Binary &Binary);
 
@@ -56,7 +56,7 @@ std::string functionNameDefinition(const ::ptml::PTMLBuilder &ThePTMLBuilder,
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string functionLink(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string functionLink(const ::ptml::PTMLBuilder &B,
                          std::string_view Location,
                          const model::Binary &Binary);
 
@@ -73,7 +73,7 @@ std::string functionLink(const ::ptml::PTMLBuilder &ThePTMLBuilder,
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string shallowFunctionLink(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+std::string shallowFunctionLink(const ::ptml::PTMLBuilder &B,
                                 std::string_view Location,
                                 const model::Binary &Binary);
 

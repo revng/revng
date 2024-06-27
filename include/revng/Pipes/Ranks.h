@@ -4,10 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/DynamicFunction.h"
-#include "revng/Model/Function.h"
-#include "revng/Model/Segment.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/Binary.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
@@ -17,10 +14,11 @@ namespace revng::ranks {
 
 namespace detail {
 
+using TDK = model::TypeDefinition::Key;
 using SFK = model::StructField::Key;
 using UFK = model::UnionField::Key;
 using CAK = model::Argument::Key;
-using RAK = model::NamedTypedRegister::Key;
+using NRK = model::NamedTypedRegister::Key;
 
 } // namespace detail
 
@@ -34,15 +32,19 @@ inline auto Function = defineRank<"function", model::Function::Key>(Binary);
 inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
 inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 
-inline auto Type = defineRank<"type", model::Type::Key>(Binary);
-inline auto StructField = defineRank<"struct-field", detail::SFK>(Type);
-inline auto UnionField = defineRank<"union-field", detail::UFK>(Type);
-inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(Type);
-inline auto CABIArgument = defineRank<"cabi-argument", detail::CAK>(Type);
-inline auto RawArgument = defineRank<"raw-argument", detail::RAK>(Type);
-inline auto ReturnValue = defineRank<"return-value", model::Type::Key>(Binary);
-inline auto ReturnRegister = defineRank<"return-register",
-                                        model::NamedTypedRegister::Key>(Type);
+inline auto TypeDefinition = defineRank<"type-definition", detail::TDK>(Binary);
+inline auto
+  StructField = defineRank<"struct-field", detail::SFK>(TypeDefinition);
+inline auto UnionField = defineRank<"union-field", detail::UFK>(TypeDefinition);
+inline auto
+  EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(TypeDefinition);
+inline auto
+  CABIArgument = defineRank<"cabi-argument", detail::CAK>(TypeDefinition);
+inline auto
+  RawArgument = defineRank<"raw-argument", detail::NRK>(TypeDefinition);
+inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
+inline auto
+  ReturnRegister = defineRank<"return-register", detail::NRK>(TypeDefinition);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
@@ -51,5 +53,7 @@ inline auto Segment = defineRank<"segment", model::Segment::Key>(Binary);
 
 inline auto DynamicFunction = defineRank<"dynamic-function",
                                          model::DynamicFunction::Key>(Binary);
+
+inline auto PrimitiveType = defineRank<"primitive", std::string>(Binary);
 
 } // namespace revng::ranks

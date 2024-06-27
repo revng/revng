@@ -222,7 +222,7 @@ public:
     return emplace_or_assign(Value);
   }
 
-  template<typename... Types> // NOLINTNEXTLINE
+  template<typename... Types>
   std::pair<iterator, bool> emplace_or_assign(Types &&...Values) {
     revng_assert(not BatchInsertInProgress);
 
@@ -259,6 +259,12 @@ public:
       erase(It);
       return 1;
     }
+  }
+
+  template<typename CallableType>
+  size_type erase_if(CallableType &&Callable) {
+    revng_assert(not BatchInsertInProgress);
+    return std::erase_if(TheVector, std::forward<CallableType>(Callable));
   }
 
   size_type count(const key_type &Key) const {
@@ -375,7 +381,7 @@ public:
     BatchInsertOrAssigner(SortedVector &SV) : BatchInserterBase<false>(SV) {}
 
   public:
-    template<typename... Types> // NOLINTNEXTLINE
+    template<typename... Types>
     T &emplace_or_assign(Types &&...Values) {
       return this->emplaceImpl(std::forward<Types>(Values)...);
     }

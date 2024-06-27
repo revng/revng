@@ -16,6 +16,9 @@ struct ConstexprString {
 public:
   /// The data members have to be public for a literal type to be usable as
   /// a template parameter :{
+  ///
+  /// That being said, please, think of it as a private field and never access
+  /// it directly.
   std::array<char, N - 1> String;
 
   constexpr ConstexprString(const char (&Value)[N]) noexcept
@@ -38,6 +41,9 @@ public:
   constexpr const char *end() const noexcept { return String.end(); }
   constexpr char operator[](size_t Idx) const noexcept { return String[Idx]; }
 
+  constexpr std::string_view operator*() const noexcept {
+    return operator std::string_view();
+  }
   constexpr operator std::string_view() const noexcept {
     return std::string_view{ String.data(), String.size() };
   }

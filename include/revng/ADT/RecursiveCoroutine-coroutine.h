@@ -246,6 +246,7 @@ public:
   }
 
   auto operator*() { return *this->operator ReturnT(); }
+  auto operator!() { return !this->operator ReturnT(); }
 
 protected:
   coro_handle OwnedHandle;

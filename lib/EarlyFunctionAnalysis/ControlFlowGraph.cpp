@@ -291,14 +291,9 @@ bool ControlFlowGraph::verify(const model::Binary &Binary,
   return true;
 }
 
-void ControlFlowGraph::dump() const {
-  ::serialize(dbg, *this);
-}
-
 void ControlFlowGraph::dumpCFG(const model::Binary &Binary) const {
-  auto [Graph,
-        _] = buildControlFlowGraph<FunctionCFG>(Blocks(), Entry(), Binary);
-  WriteGraph(&Graph, "function-metadata");
+  auto [G, _] = buildControlFlowGraph<FunctionCFG>(Blocks(), Entry(), Binary);
+  WriteGraph(&G, "function-metadata");
 }
 
 bool FunctionEdgeBase::verify() const {
@@ -346,21 +341,9 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   return true;
 }
 
-void FunctionEdgeBase::dump() const {
-  serialize(dbg, *this);
-}
-
-void CallEdge::dump() const {
-  serialize(dbg, *this);
-}
-
 model::Identifier BasicBlock::name() const {
   using llvm::Twine;
   return model::Identifier(std::string("bb_") + ID().toString());
-}
-
-void BasicBlock::dump() const {
-  serialize(dbg, *this);
 }
 
 bool BasicBlock::verify() const {

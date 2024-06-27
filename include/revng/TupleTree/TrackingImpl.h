@@ -79,9 +79,15 @@ struct TrackingImpl {
   }
 
   template<typename M, StrictSpecializationOf<UpcastablePointer> T>
-  static void
-  collectImpl(const T &LHS, TupleTreePath &Stack, ReadFields &Info) {
-    LHS.upcast([&](auto &Upcasted) { collectImpl<M>(Upcasted, Stack, Info); });
+  static void collectImpl(const T &UP, TupleTreePath &Stack, ReadFields &Info) {
+    if (!UP.isEmpty()) {
+      UP.upcast([&](auto &Upcasted) {
+        // Don't forget to add the kind of the polymorphic object to the stack.
+        Stack.push_back(Upcasted.Kind());
+        collectImpl<M>(Upcasted, Stack, Info);
+        Stack.pop_back();
+      });
+    }
   }
 
   template<typename M, TupleSizeCompatible T>
@@ -132,8 +138,9 @@ struct TrackingImpl {
   template<typename M,
            typename Visitor,
            StrictSpecializationOf<UpcastablePointer> T>
-  static void visitImpl(T &LHS) {
-    LHS.upcast([&](const auto &Upcasted) { visitImpl<M, Visitor>(Upcasted); });
+  static void visitImpl(T &UP) {
+    if (!UP.isEmpty())
+      UP.upcast([&](const auto &Upcasted) { visitImpl<M, Visitor>(Upcasted); });
   }
 
   template<typename M, typename Visitor, TupleSizeCompatible T>

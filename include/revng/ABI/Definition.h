@@ -10,7 +10,7 @@
 #include "revng/ABI/ScalarType.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/ABI.h"
-#include "revng/Model/RawFunctionType.h"
+#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -326,37 +326,31 @@ public:
   /// Make sure current definition is valid.
   bool verify() const debug_function;
 
-  /// Checks whether a given function data does not contradict this ABI
+  /// Checks whether a given function type definition contradicts this ABI
   ///
   /// \note this is not an exhaustive check, so if it returns `false`,
   /// the function definitely is NOT compatible, but if it returns `true`
   /// it might either be compatible or not.
   ///
-  /// \note this also asserts \ref isValid
-  ///
-  /// \tparam Register The type representing the registers, example of valid
-  ///         values include \ref model::TypedRegister and
-  ///         \ref model::NamedTypedRegister
-  ///
-  /// \param ArgumentRegisters The list of registers used for passing arguments
-  ///        of the function in question
-  /// \param ReturnValueRegisters The list of registers used for returning
-  ///        values of the function in question
+  /// \param RFT The function to check
   ///
   /// \return `false` if the function is definitely NOT compatible with the ABI,
   ///         `true` if it might be compatible.
-  bool isPreliminarilyCompatibleWith(const model::RawFunctionType &) const;
+  bool
+  isPreliminarilyCompatibleWith(const model::RawFunctionDefinition &RFT) const;
 
   struct AlignmentInfo {
     uint64_t Value;
     bool IsNatural;
   };
-  using AlignmentCache = std::unordered_map<const model::Type *, AlignmentInfo>;
+  using AlignmentCache = std::unordered_map<const model::TypeDefinition *,
+                                            AlignmentInfo>;
 
   /// Compute the natural alignment of the type in accordance with
   /// the current ABI
   ///
-  /// \note  It mirrors, `model::Type::size()` pretty closely, see documentation
+  /// \note  It mirrors, `model::TypeDefinition::size()` pretty closely, see
+  /// documentation
   ///        related to it (and usage of the coroutines inside this codebase
   ///        in general) for more details on how it works.
   ///
@@ -365,35 +359,27 @@ public:
   ///        of the type
   ///
   /// \return either an alignment or a `std::nullopt` when it's not applicable.
-  inline std::optional<uint64_t>
-  alignment(const model::QualifiedType &Type) const {
-    AlignmentCache Cache;
-    return alignment(Type, Cache);
-  }
-  inline std::optional<uint64_t> alignment(const model::Type &Type) const {
+  template<model::AnyType AnyType>
+  std::optional<uint64_t> alignment(const AnyType &Type) const {
     AlignmentCache Cache;
     return alignment(Type, Cache);
   }
 
-  inline std::optional<bool>
-  hasNaturalAlignment(const model::QualifiedType &Type) const {
-    AlignmentCache Cache;
-    return hasNaturalAlignment(Type, Cache);
-  }
-  inline std::optional<bool>
-  hasNaturalAlignment(const model::Type &Type) const {
+  template<model::AnyType AnyType>
+  std::optional<bool> hasNaturalAlignment(const AnyType &Type) const {
     AlignmentCache Cache;
     return hasNaturalAlignment(Type, Cache);
   }
 
-  std::optional<uint64_t> alignment(const model::QualifiedType &Type,
-                                    AlignmentCache &Cache) const;
   std::optional<uint64_t> alignment(const model::Type &Type,
                                     AlignmentCache &Cache) const;
-  std::optional<bool> hasNaturalAlignment(const model::QualifiedType &Type,
-                                          AlignmentCache &Cache) const;
+  std::optional<uint64_t> alignment(const model::TypeDefinition &Type,
+                                    AlignmentCache &Cache) const;
   std::optional<bool> hasNaturalAlignment(const model::Type &Type,
                                           AlignmentCache &Cache) const;
+  std::optional<bool>
+  hasNaturalAlignment(const model::TypeDefinition &Definition,
+                      AlignmentCache &Cache) const;
 
   uint64_t alignedOffset(uint64_t Offset, uint64_t Alignment) const {
     if (Offset == 0)
@@ -405,11 +391,9 @@ public:
 
     return Offset;
   }
-  uint64_t alignedOffset(uint64_t Offset,
-                         const model::QualifiedType &Type) const {
-    return alignedOffset(Offset, *alignment(Type));
-  }
-  uint64_t alignedOffset(uint64_t Offset, const model::Type &Type) const {
+
+  template<model::AnyType AnyType>
+  uint64_t alignedOffset(uint64_t Offset, const AnyType &Type) const {
     return alignedOffset(Offset, *alignment(Type));
   }
 

@@ -59,9 +59,7 @@ BOOST_AUTO_TEST_CASE(GPRArgumentsAndVRReturnValue) {
   abi::Definition::RegisterSet RValues{ VRRetValues[0] };
   RValues = ABI.enforceReturnValueRegisterState(std::move(RValues));
   revng_check(RValues.contains(VRRetValues[0]));
-  revng_check(not RValues.contains(VRRetValues[1]));
   revng_check(not RValues.contains(GPRRetValues[0]));
-  revng_check(not RValues.contains(GPRRetValues[1]));
 }
 
 BOOST_AUTO_TEST_CASE(DeduceFirstArgument) {

@@ -7,26 +7,25 @@ The notice below applies to the generated files.
 //
 
 /** if root_type **/
-#include "/*= generator.user_include_path =*//*= root_type =*/.h"
+#include "/*= user_include_path =*//*= root_type =*/.h"
 /** endif **/
 #include "revng/TupleTree/VisitsImpl.h"
 #include "revng/TupleTree/TupleTreeImpl.h"
 #include "revng/TupleTree/TrackingImpl.h"
 
 /**- for child_type in upcastable **/
-#include "/*= generator.user_include_path =*//*= child_type.name =*/.h"
+#include "/*= user_include_path =*//*= child_type.name =*/.h"
 /**- endfor **/
 
-#include "/*= generator.user_include_path =*//*= struct.name =*/.h"
+#include "/*= user_include_path =*//*= struct.name =*/.h"
 
-/** if upcastable **/
+/** if upcastable and struct.key_definition._key **/
 
-using Key = /*= struct | user_fullname =*/::Key;
+using /*= struct.name =*/Key = /*= struct | user_fullname =*/::Key;
+using U/*= struct.name =*/ = /*= struct.namespace =*/::Upcastable/*= struct.name =*/;
+using /*= struct.name =*/KOT = KeyedObjectTraits<U/*= struct.name =*/>;
 
-Key KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::key(
-  const UpcastablePointer</*= struct | user_fullname =*/> &Obj)
-{
-
+/*= struct.name =*/Key /*= struct.name =*/KOT::key(const U/*= struct.name =*/ &Obj) {
   return {
     /**- for key_field in struct.key_fields **/
     Obj->/*= key_field.name =*/()/** if not loop.last **/, /** endif **/
@@ -34,34 +33,43 @@ Key KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::key(
   };
 }
 
-UpcastablePointer</*= struct | user_fullname =*/>
-KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::fromKey(
-  const Key &K)
-{
+U/*= struct.name =*/ /*= struct.name =*/KOT::fromKey(const /*= struct.name =*/Key &K) {
   using namespace model;
-  using ResultType = UpcastablePointer</*= struct | user_fullname =*/>;
   /**- for child_type in upcastable|sort(attribute="user_fullname") **/
-  if (/*= child_type | user_fullname =*/::classof(K)) {
+  if (/*= child_type | user_fullname =*/::classof(std::get</*= struct._key_kind_index =*/>(K))) {
     auto *Tmp = new /*= child_type | user_fullname =*/(
       /**- for key_field in child_type.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
       /**- endfor **/);
-    return ResultType(Tmp);
+    return U/*= struct.name =*/(Tmp);
   }
-  /** if not loop.last **/else /** endif **/
+  /**- if not loop.last **/else /** endif **/
   /**- endfor **/
   /** if not struct.abstract **/
-  else if (/*= struct | user_fullname =*/::classof(K)) {
+  else if (/*= struct | user_fullname =*/::classof(std::get</*= struct._key_kind_index =*/>(K))) {
     auto *Tmp = new /*= struct | user_fullname =*/(
       /**- for key_field in struct.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
       /**- endfor **/);
-    return ResultType(Tmp);
+    return U/*= struct.name =*/(Tmp);
   }
-  /** endif **/
+  /**- endif -**/
   else {
-    return ResultType(nullptr);
+    return U/*= struct.name =*/::empty();
   }
+}
+
+/** endif **/
+
+/** if upcastable **/
+
+/*= struct.namespace =*/::Upcastable/*= struct.name =*/
+/*= struct.namespace =*/::copy/*= struct.name =*/(const /*= struct.name =*/ &From) {
+  Upcastable/*= struct.name =*/ Result;
+  upcast(&From, [&Result]<typename T>(const T &Upcasted) {
+    Result = Upcastable/*= struct.name =*/::make<T>(Upcasted);
+  });
+  return Result;
 }
 
 template
@@ -91,7 +99,14 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
   /**- if field.__class__.__name__ == "SimpleStructField" **/
 
   /**- if schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
+  /**- if field.upcastable -**/
+  if (this->/*= field.name =*/().isEmpty() || Other./*= field.name =*/().isEmpty()) {
+    if (this->/*= field.name =*/() != Other./*= field.name =*/())
+      return false;
+  } else if (not this->/*= field.name =*/()->localCompare(*Other./*= field.name =*/()))
+  /**- else -**/
   if (not this->/*= field.name =*/().localCompare(Other./*= field.name =*/()))
+  /**- endif -**/
     return false;
   /**- else -**/
   if (this->/*= field.name =*/() != Other./*= field.name =*/())
@@ -124,6 +139,35 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
 
   return true;
   /**- endif -**/
+}
+
+void /*= struct | fullname =*/::dump(llvm::raw_ostream &Stream) const {
+  auto *This = static_cast<const /*= struct | user_fullname =*/ *>(this);
+
+  /**- if emit_tracking **/
+  DisableTracking Guard(*This);
+  /**- endif **/
+
+  /**- if upcastable **/
+  upcast(This, [&Stream](auto &Upcasted) { serialize(Stream, Upcasted); });
+  /**- else **/
+  serialize(Stream, *This);
+  /** endif -**/
+}
+
+void /*= struct | fullname =*/::dump(const char *Path) const {
+  std::error_code EC;
+  llvm::raw_fd_stream Stream(Path, EC);
+  revng_assert(not EC);
+  dump(Stream);
+}
+
+std::string /*= struct | fullname =*/::toString() const {
+  std::string Buffer;
+  llvm::raw_string_ostream StringStream(Buffer);
+
+  dump(StringStream);
+  return Buffer;
 }
 
 /** if struct.name == root_type **/

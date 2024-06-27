@@ -26,15 +26,12 @@ public:
     model::VerifyHelper VH;
 
     using abi::FunctionType::filterTypes;
-    auto ToConvert = filterTypes<model::CABIFunctionType>(Model->Types());
-    for (model::CABIFunctionType *Old : ToConvert) {
-      model::TypePath New = abi::FunctionType::convertToRaw(*Old, Model);
-
-      // Make sure the returned type is valid,
-      revng_assert(New.isValid());
-
-      // and verifies.
-      revng_assert(New.get()->verify(VH));
+    using CABIFD = model::CABIFunctionDefinition;
+    auto ToConvert = filterTypes<CABIFD>(Model->TypeDefinitions());
+    for (model::CABIFunctionDefinition *Old : ToConvert) {
+      model::UpcastableType New = abi::FunctionType::convertToRaw(*Old, Model);
+      revng_assert(!New.isEmpty());
+      revng_assert(New->verify(VH));
     }
 
     // Don't forget to clean up any possible remainders of removed types.

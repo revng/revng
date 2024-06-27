@@ -6,11 +6,14 @@
 revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
+  CommonTypeMethods.cpp
   Identifier.cpp
   LoadModelPass.cpp
   TypeSystemPrinter.cpp
   Processing.cpp
   Type.cpp
+  TypeDefinition.cpp
+  Verification.cpp
   Visits.cpp)
 
 target_link_libraries(revngModel revngSupport)
@@ -28,7 +31,7 @@ target_tuple_tree_generator(
   NAMESPACE
   model
   SCHEMA_PATH
-  ${SCHEMA_PATH}
+  "${SCHEMA_PATH}"
   JSONSCHEMA_PATH
   "${JSONSCHEMA_PATH}"
   PYTHON_PATH
@@ -53,37 +56,37 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/ABI.h"
   "${MODEL_HEADERS_DIR}/Architecture.h"
   "${MODEL_HEADERS_DIR}/Argument.h"
+  "${MODEL_HEADERS_DIR}/ArrayType.h"
   "${MODEL_HEADERS_DIR}/Binary.h"
   "${MODEL_HEADERS_DIR}/Configuration.h"
-  "${MODEL_HEADERS_DIR}/CABIFunctionType.h"
+  "${MODEL_HEADERS_DIR}/CABIFunctionDefinition.h"
   "${MODEL_HEADERS_DIR}/CanonicalRegisterValue.h"
   "${MODEL_HEADERS_DIR}/CallSitePrototype.h"
+  "${MODEL_HEADERS_DIR}/DefinedType.h"
   "${MODEL_HEADERS_DIR}/DisassemblyConfiguration.h"
   "${MODEL_HEADERS_DIR}/DisassemblyConfigurationAddressStyle.h"
   "${MODEL_HEADERS_DIR}/DisassemblyConfigurationImmediateStyle.h"
   "${MODEL_HEADERS_DIR}/DynamicFunction.h"
+  "${MODEL_HEADERS_DIR}/EnumDefinition.h"
   "${MODEL_HEADERS_DIR}/EnumEntry.h"
-  "${MODEL_HEADERS_DIR}/EnumType.h"
   "${MODEL_HEADERS_DIR}/Function.h"
   "${MODEL_HEADERS_DIR}/FunctionAttribute.h"
   "${MODEL_HEADERS_DIR}/NamedTypedRegister.h"
+  "${MODEL_HEADERS_DIR}/PointerType.h"
+  "${MODEL_HEADERS_DIR}/PrimitiveKind.h"
   "${MODEL_HEADERS_DIR}/PrimitiveType.h"
-  "${MODEL_HEADERS_DIR}/PrimitiveTypeKind.h"
-  "${MODEL_HEADERS_DIR}/QualifiedType.h"
-  "${MODEL_HEADERS_DIR}/Qualifier.h"
-  "${MODEL_HEADERS_DIR}/QualifierKind.h"
-  "${MODEL_HEADERS_DIR}/RawFunctionType.h"
+  "${MODEL_HEADERS_DIR}/RawFunctionDefinition.h"
   "${MODEL_HEADERS_DIR}/Relocation.h"
   "${MODEL_HEADERS_DIR}/RelocationType.h"
   "${MODEL_HEADERS_DIR}/Register.h"
   "${MODEL_HEADERS_DIR}/Segment.h"
+  "${MODEL_HEADERS_DIR}/StructDefinition.h"
   "${MODEL_HEADERS_DIR}/StructField.h"
-  "${MODEL_HEADERS_DIR}/StructType.h"
   "${MODEL_HEADERS_DIR}/Type.h"
-  "${MODEL_HEADERS_DIR}/TypedRegister.h"
-  "${MODEL_HEADERS_DIR}/TypedefType.h"
-  "${MODEL_HEADERS_DIR}/UnionField.h"
-  "${MODEL_HEADERS_DIR}/UnionType.h")
+  "${MODEL_HEADERS_DIR}/TypeDefinition.h"
+  "${MODEL_HEADERS_DIR}/TypedefDefinition.h"
+  "${MODEL_HEADERS_DIR}/UnionDefinition.h"
+  "${MODEL_HEADERS_DIR}/UnionField.h")
 
 add_subdirectory(Pass)
 add_subdirectory(Importer)

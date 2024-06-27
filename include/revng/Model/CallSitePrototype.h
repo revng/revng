@@ -4,7 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/Type.h"
+#include "revng/Model/CommonFunctionMethods.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -18,10 +19,8 @@ fields:
     doc: Address of the basic block of the call
     type: MetaAddress
   - name: Prototype
-    doc: Prototype
-    reference:
-      pointeeType: Type
-      rootType: Binary
+    type: Type
+    upcastable: true
   - name: IsTailCall
     doc: Whether this call site is a tail call or not
     type: bool
@@ -38,21 +37,24 @@ TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/CallSitePrototype.h"
 
-class model::CallSitePrototype : public model::generated::CallSitePrototype {
+class model::CallSitePrototype
+  : public model::generated::CallSitePrototype,
+    public model::CommonFunctionMethods<CallSitePrototype> {
 public:
   using generated::CallSitePrototype::CallSitePrototype;
-
-  /// Get the actual prototype, skipping any typedefs
-  model::TypePath prototype() const {
-    return model::QualifiedType::getFunctionType(Prototype()).value();
-  }
+  CallSitePrototype(MetaAddress CallerAddress,
+                    model::UpcastableType &&Prototype,
+                    bool IsTailCall) :
+    generated::CallSitePrototype(CallerAddress,
+                                 std::move(Prototype),
+                                 IsTailCall,
+                                 {}) {}
 
 public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
-  void dump() const debug_function;
-  bool isDirect() const { return Prototype().empty(); }
+  bool isDirect() const { return Prototype().isEmpty(); }
 };
 
 #include "revng/Model/Generated/Late/CallSitePrototype.h"

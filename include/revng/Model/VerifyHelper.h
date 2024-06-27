@@ -19,7 +19,7 @@
 inline Logger<> ModelVerifyLogger("model-verify");
 
 namespace model {
-class Type;
+class TypeDefinition;
 class Identifier;
 class VerifyHelper {
 private:
@@ -70,9 +70,9 @@ private:
   friend class VerifyHelper;
 
 private:
-  std::set<const model::Type *> VerifiedCache;
-  std::map<const model::Type *, uint64_t> SizeCache;
-  std::set<const model::Type *> InProgress;
+  std::set<const model::TypeDefinition *> VerifiedCache;
+  std::map<const model::TypeDefinition *, uint64_t> SizeCache;
+  std::set<const model::TypeDefinition *> InProgress;
   bool AssertOnFail = false;
   std::map<model::Identifier, std::string> GlobalSymbols;
   bool HasPushedTracking = false;
@@ -101,41 +101,42 @@ public:
   }
 
 public:
-  void setVerified(const model::Type *T) {
+  void setVerified(const model::TypeDefinition &T) {
     revng_assert(not isVerified(T));
-    VerifiedCache.insert(T);
+    VerifiedCache.insert(&T);
   }
 
-  bool isVerified(const model::Type *T) const {
-    return VerifiedCache.contains(T);
+  bool isVerified(const model::TypeDefinition &T) const {
+    return VerifiedCache.contains(&T);
   }
 
   const std::string &getReason() const { return ReasonBuffer; }
 
 public:
-  bool isVerificationInProgress(const model::Type *T) const {
-    return InProgress.contains(T);
+  bool isVerificationInProgress(const model::TypeDefinition &T) const {
+    return InProgress.contains(&T);
   }
 
-  void verificationInProgress(const model::Type *T) {
+  void verificationInProgress(const model::TypeDefinition &T) {
     revng_assert(not isVerificationInProgress(T));
     revng_assert(not isVerified(T));
-    InProgress.insert(T);
+    InProgress.insert(&T);
   }
 
-  void verificationCompleted(const model::Type *T) {
+  void verificationCompleted(const model::TypeDefinition &T) {
     revng_assert(isVerificationInProgress(T));
-    InProgress.erase(T);
+    InProgress.erase(&T);
   }
 
 public:
-  void setSize(const model::Type *T, uint64_t Size) {
+  uint64_t setSize(const model::TypeDefinition &T, uint64_t Size) {
     revng_assert(not size(T));
-    SizeCache[T] = Size;
+    SizeCache[&T] = Size;
+    return Size;
   }
 
-  std::optional<uint64_t> size(const model::Type *T) {
-    auto It = SizeCache.find(T);
+  std::optional<uint64_t> size(const model::TypeDefinition &T) {
+    auto It = SizeCache.find(&T);
     if (It != SizeCache.end())
       return It->second;
     else

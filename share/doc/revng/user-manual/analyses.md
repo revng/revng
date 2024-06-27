@@ -44,7 +44,7 @@ $ revng analyze \
         example \
         -o /dev/null
 $ revng artifact \
-        --resume working-directory \
+        --resume=working-directory \
         decompile-to-single-file \
         example \
         | revng ptml | grep -A2 -B1 '\bmain\b'

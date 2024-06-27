@@ -7,7 +7,7 @@
 ///
 /// The main differences from `diff` is the fact that it invokes
 /// `model::purgeUnnamedAndUnreachableTypes` on both models and also
-/// specifically handles the IDs of `RawFunctionType`'s stack arguments.
+/// specifically handles the IDs of `RawFunctionDefinition`'s stack arguments.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -52,9 +52,11 @@ static cl::opt<std::string> OutputFilename("o",
                                                           "filename"),
                                            llvm::cl::value_desc("filename"));
 
-static std::optional<std::pair<model::TypePath, model::TypePath>>
-ensureIDMatch(const model::Type::Key &Left,
-              const model::Type::Key &Right,
+using DefinitionPair = std::pair<model::DefinitionReference,
+                                 model::DefinitionReference>;
+static std::optional<DefinitionPair>
+ensureIDMatch(const model::TypeDefinition::Key &Left,
+              const model::TypeDefinition::Key &Right,
               llvm::StringRef ExpectedName,
               model::Binary &Model) {
   auto &[LeftID, LeftKind] = Left;
@@ -63,12 +65,12 @@ ensureIDMatch(const model::Type::Key &Left,
 
   if (LeftID != RightID) {
     // Find the type
-    model::TypePath OldPath = Model.getTypePath(Right);
-    auto LeftIterator = Model.Types().find(Left);
-    auto RightIterator = Model.Types().find(Right);
+    model::DefinitionReference OldPath = Model.getDefinitionReference(Right);
+    auto LeftIterator = Model.TypeDefinitions().find(Left);
+    auto RightIterator = Model.TypeDefinitions().find(Right);
 
     // Make sure the replacement ID is not in use already.
-    if (LeftIterator != Model.Types().end()) {
+    if (LeftIterator != Model.TypeDefinitions().end()) {
       if (ExpectedName == LeftIterator->get()->OriginalName()) {
         // Original names match: assume the types are the same and skip
         // the replacement.
@@ -85,15 +87,15 @@ ensureIDMatch(const model::Type::Key &Left,
 
     // Since the ID is a part of the key, we cannot just modify the type,
     // we need to move the type out, and then reinsert it back in.
-    model::UpcastableType MovedOut = std::move(*RightIterator);
-    Model.Types().erase(RightIterator);
+    model::UpcastableTypeDefinition MovedOut = std::move(*RightIterator);
+    Model.TypeDefinitions().erase(RightIterator);
 
     // Replace the ID of the moved out type.
     MovedOut->ID() = LeftID;
-    model::TypePath NewPath = Model.getTypePath(MovedOut->key());
+    auto NewPath = Model.getDefinitionReference(MovedOut->key());
 
     // Reinsert the type.
-    auto [_, Success] = Model.Types().insert(std::move(MovedOut));
+    auto [_, Success] = Model.TypeDefinitions().insert(std::move(MovedOut));
     revng_assert(Success);
 
     // Return the "replacement pair", so that the caller is able to gather them
@@ -130,8 +132,8 @@ int main(int Argc, char *Argv[]) {
   // Introduce a function pair container to allow grouping them based on their
   // `CustomName`.
   struct KeyPair {
-    std::optional<model::Type::Key> Left = std::nullopt;
-    std::optional<model::Type::Key> Right = std::nullopt;
+    std::optional<model::TypeDefinition::Key> Left = std::nullopt;
+    std::optional<model::TypeDefinition::Key> Right = std::nullopt;
     bool operator<(const KeyPair &Another) const {
       return Left < Another.Left && Right < Another.Right;
     }
@@ -146,52 +148,53 @@ int main(int Argc, char *Argv[]) {
   std::map<model::Identifier, KeyPair, TransparentComparator> Functions;
   std::unordered_set<uint64_t> FunctionIDLookup;
 
-  // Make sure the default prototype is valid.
-  revng_assert(LeftModel->DefaultPrototype().isValid());
-  const auto &DefaultPrototype = *LeftModel->DefaultPrototype().get();
-
-  // Gather all the `RawFunctionType`s prototypes present in the first model.
-  for (model::Function &LF : LeftModel->Functions()) {
-    if (LF.Prototype().empty())
+  // Gather all the `RawFunctionDefinition` prototypes present in the first
+  // model.
+  for (model::Function &F : LeftModel->Functions()) {
+    if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(LF.name() != "",
+    revng_assert(F.name() != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
 
-    auto *Left = llvm::cast<model::RawFunctionType>(LF.Prototype().get());
-    if (Left->ID() == DefaultPrototype.ID())
-      continue; // Skip the default prototype.
+    if (const model::RawFunctionDefinition *Left = F.rawPrototype()) {
+      if (Left->ID() == LeftModel->defaultPrototype()->ID())
+        continue; // Skip the default prototype.
 
-    auto [Iterator, Success] = Functions.try_emplace(LF.name());
-    revng_assert(Success);
-    Iterator->second.Left = Left->key();
+      auto [Iterator, Success] = Functions.try_emplace(F.name());
+      revng_assert(Success);
+      Iterator->second.Left = Left->key();
+    }
   }
 
-  // Gather all the `RawFunctionType`s prototypes present in the second model.
-  for (model::Function &RF : RightModel->Functions()) {
-    if (RF.Prototype().empty())
+  // Gather all the `RawFunctionDefinition` prototypes present in the second
+  // model.
+  for (model::Function &F : RightModel->Functions()) {
+    if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(RF.name() != "",
+    revng_assert(F.name() != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
 
-    auto *Right = llvm::cast<model::RawFunctionType>(RF.Prototype().get());
-    if (Right->ID() == DefaultPrototype.ID())
-      continue; // Skip the default prototype.
+    if (const model::RawFunctionDefinition *Right = F.rawPrototype()) {
+      if (Right->ID() == LeftModel->defaultPrototype()->ID())
+        continue; // Skip the default prototype.
 
-    auto Iterator = Functions.find(RF.name());
-    if (Iterator == Functions.end()) {
-      std::string Error = "A function present in the right model is missing in "
-                          "the left one: "
-                          + RF.name().str().str();
-      revng_abort(Error.c_str());
+      auto Iterator = Functions.find(F.name());
+      if (Iterator == Functions.end()) {
+        std::string Error = "A function present in the right model is missing "
+                            "in "
+                            "the left one: "
+                            + F.name().str().str();
+        revng_abort(Error.c_str());
+      }
+      revng_assert(Iterator->second.Right == std::nullopt);
+      Iterator->second.Right = Right->key();
     }
-    revng_assert(Iterator->second.Right == std::nullopt);
-    Iterator->second.Right = Right->key();
   }
 
   // Deduplicate the list of IDs to replace.
@@ -223,67 +226,52 @@ int main(int Argc, char *Argv[]) {
   // the same IDs. This makes it possible to use simple diff for comparing two
   // models instead of doing that manually, since the ID is the only piece
   // of the types that is allowed to change.
-  std::map<model::TypePath, model::TypePath> RightReplacements;
+  std::map<model::DefinitionReference, model::DefinitionReference> Replacements;
   for (auto [Name, Pair] : Functions) {
-    auto [LeftKey, RightKey] = Pair;
+    auto [LKey, RKey] = Pair;
 
-    auto LeftIterator = LeftModel->Types().find(LeftKey.value());
-    revng_assert(LeftIterator != LeftModel->Types().end());
-    auto *Left = llvm::cast<model::RawFunctionType>(LeftIterator->get());
+    auto LeftIt = LeftModel->TypeDefinitions().find(LKey.value());
+    revng_assert(LeftIt != LeftModel->TypeDefinitions().end());
+    auto &Left = *llvm::cast<model::RawFunctionDefinition>(LeftIt->get());
 
-    auto RightIterator = RightModel->Types().find(RightKey.value());
-    revng_assert(RightIterator != RightModel->Types().end());
-    auto *Right = llvm::cast<model::RawFunctionType>(RightIterator->get());
+    auto RightIt = RightModel->TypeDefinitions().find(RKey.value());
+    revng_assert(RightIt != RightModel->TypeDefinitions().end());
+    auto &Right = *llvm::cast<model::RawFunctionDefinition>(RightIt->get());
 
-    revng_check(Left->Kind() == Right->Kind());
+    revng_check(Left.Kind() == Right.Kind());
 
     // Try and access the argument struct.
-    auto *LeftStack = Left->StackArgumentsType().get();
-    auto *RightStack = Right->StackArgumentsType().get();
+    auto *LeftStack = Left.stackArgumentsType();
+    auto *RightStack = Right.stackArgumentsType();
 
     // XOR the `bool`eans - make sure that either both functions have stack
     // argument or neither one does.
     revng_check(!LeftStack == !RightStack);
     if (LeftStack != nullptr) {
-      model::Type::Key LeftSKey = LeftStack->key();
-      model::Type::Key RightSKey = RightStack->key();
-      llvm::StringRef ExpName = LeftModel->Types().at(LeftSKey)->OriginalName();
-      if (auto R = ensureIDMatch(LeftSKey, RightSKey, ExpName, *RightModel))
-        RightReplacements.emplace(std::move(R.value()));
+      const model::TypeDefinition::Key &LSK = LeftStack->key();
+      const model::TypeDefinition::Key &RSK = RightStack->key();
+      llvm::StringRef N = LeftModel->TypeDefinitions().at(LSK)->OriginalName();
+      if (auto Replacement = ensureIDMatch(LSK, RSK, N, *RightModel))
+        Replacements.emplace(std::move(Replacement.value()));
     }
 
-    llvm::StringRef ExpName = LeftModel->Types().at(*LeftKey)->OriginalName();
-    if (auto R = ensureIDMatch(*LeftKey, *RightKey, ExpName, *RightModel))
-      RightReplacements.emplace(std::move(R.value()));
+    llvm::StringRef N = LeftModel->TypeDefinitions().at(*LKey)->OriginalName();
+    if (auto Replacement = ensureIDMatch(*LKey, *RKey, N, *RightModel))
+      Replacements.emplace(std::move(Replacement.value()));
   }
 
   // Replace references to modified types.
-  RightModel.replaceReferences(RightReplacements);
+  RightModel.replaceReferences(Replacements);
 
   // Remove all the dynamic functions so that they don't interfere
   LeftModel->ImportedDynamicFunctions().clear();
   RightModel->ImportedDynamicFunctions().clear();
 
-  // Remove all the functions that are not strictly related to the test.
-  auto IsUnrelatedToTheTest = [](const model::Function &Function) {
-    llvm::StringRef Name = Function.OriginalName();
-    if (Name.take_front(5) == "test_")
-      return false;
-    if (Name.take_front(6) == "setup_")
-      return false;
-    if (Name == "main")
-      return false;
-
-    return true;
-  };
-  llvm::erase_if(LeftModel->Functions(), IsUnrelatedToTheTest);
-  llvm::erase_if(RightModel->Functions(), IsUnrelatedToTheTest);
-
   // Erase the default prototypes because they interfere with the test.
-  LeftModel->Types().erase(LeftModel->DefaultPrototype().get()->key());
-  RightModel->Types().erase(RightModel->DefaultPrototype().get()->key());
-  LeftModel->DefaultPrototype() = model::TypePath{};
-  RightModel->DefaultPrototype() = model::TypePath{};
+  LeftModel->TypeDefinitions().erase(LeftModel->defaultPrototype()->key());
+  RightModel->TypeDefinitions().erase(RightModel->defaultPrototype()->key());
+  LeftModel->DefaultPrototype() = model::UpcastableType::empty();
+  RightModel->DefaultPrototype() = model::UpcastableType::empty();
 
   // Streamline both models and diff them
   model::purgeUnreachableTypes(LeftModel);

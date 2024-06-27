@@ -15,21 +15,22 @@ private:
   TupleTree<model::Binary> &Model;
   std::vector<std::string> LoadedFiles;
   using DwarfID = std::pair<size_t, size_t>;
-  std::map<DwarfID, model::QualifiedType> DwarfToModel;
+  std::map<DwarfID, model::UpcastableType> DwarfToModel;
 
 public:
   DwarfImporter(TupleTree<model::Binary> &Model) : Model(Model) {}
 
 public:
-  model::QualifiedType *findType(DwarfID ID) {
+  model::UpcastableType findType(DwarfID ID) {
     auto It = DwarfToModel.find(ID);
-    return It == DwarfToModel.end() ? nullptr : &It->second;
+    return It != DwarfToModel.end() ? It->second.copy() :
+                                      model::UpcastableType::empty();
   }
 
-  const model::QualifiedType &recordType(DwarfID ID,
-                                         const model::QualifiedType &QT) {
+  model::UpcastableType &recordType(DwarfID ID,
+                                    model::UpcastableType &&NewType) {
     revng_assert(!DwarfToModel.contains(ID));
-    return DwarfToModel.insert({ ID, QT }).first->second;
+    return DwarfToModel.insert({ ID, std::move(NewType) }).first->second;
   }
 
   TupleTree<model::Binary> &getModel() { return Model; }

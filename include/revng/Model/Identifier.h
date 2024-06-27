@@ -12,9 +12,6 @@
 
 namespace model {
 
-extern const std::set<llvm::StringRef> ReservedKeywords;
-inline const char *PrefixForReservedNames = "unreserved_";
-
 /// \note Zero-sized identifiers are valid
 class Identifier : public llvm::SmallString<16> {
 public:

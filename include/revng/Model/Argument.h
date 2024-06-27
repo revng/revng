@@ -6,7 +6,7 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/QualifiedType.h"
+#include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
@@ -19,7 +19,8 @@ fields:
   - name: Index
     type: uint64_t
   - name: Type
-    type: QualifiedType
+    type: Type
+    upcastable: true
   - name: CustomName
     type: Identifier
     optional: true
@@ -38,6 +39,8 @@ TUPLE-TREE-YAML */
 class model::Argument : public model::generated::Argument {
 public:
   using generated::Argument::Argument;
+  Argument(uint64_t Index, UpcastableType &&Type) :
+    model::generated::Argument(Index, std::move(Type), {}, {}, {}) {}
 
   Identifier name() const;
 
@@ -45,7 +48,6 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
-  void dump() const debug_function;
 };
 
 #include "revng/Model/Generated/Late/Argument.h"

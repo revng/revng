@@ -131,9 +131,9 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // TODO: replace the following with `populateSegmentTypeStruct`, when
     // symbol table and dynamic symbol table parsing is finalized
-    Segment.Type() = createEmptyStruct(*Model, Segment.VirtualSize());
-    auto *SegmentStruct = cast<model::StructType>(Segment.Type().get());
-    SegmentStruct->CanContainCode() = Segment.IsExecutable();
+    auto [Struct, Type] = Model->makeStructDefinition(Segment.VirtualSize());
+    Struct.CanContainCode() = Segment.IsExecutable();
+    Segment.Type() = std::move(Type);
 
     Segment.verify(true);
     Model->Segments().insert(std::move(Segment));
@@ -431,29 +431,41 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
     }
   }
 
-  for (auto &ModelOfDep : ModelsOfLibraries) {
-    auto &TheModel = ModelOfDep.second;
-    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel,
-                                                                 Model);
-  }
+  auto GetOrMakeACopier = [&](llvm::StringRef Name) -> TypeCopier & {
+    if (auto It = TypeCopiers.find(Name.str()); It != TypeCopiers.end())
+      return *It->second;
+
+    auto Iterator = ModelsOfLibraries.find(Name.str());
+    revng_assert(Iterator != ModelsOfLibraries.end());
+
+    auto NewCopier = std::make_unique<TypeCopier>(Iterator->second, Model);
+    auto [Result, Success] = TypeCopiers.emplace(Name.str(),
+                                                 std::move(NewCopier));
+    revng_assert(Success);
+    return *Result->second;
+  };
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0)
+    if (not Fn.Prototype().isEmpty() or Fn.OriginalName().size() == 0)
       continue;
 
     revng_log(Log, "Searching for prototype for " << Fn.OriginalName());
-    auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
-    if (TypeLocation) {
-      revng_log(Log, "Found type for " << Fn.OriginalName());
-      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName];
-      Fn.Prototype() = TheTypeCopier->copyTypeInto((*TypeLocation).Type);
+    if (auto Found = findPrototype(Fn.OriginalName(), ModelsOfLibraries)) {
+      revng_assert(!Found->ModuleName.empty());
+      revng_assert(Found->Prototype.verify(true));
 
-      // Copy the Attributes (all but the `Inline`).
-      auto &Attributes = (*TypeLocation).Attributes;
-      for (auto &Attribute : Attributes) {
+      model::UpcastableTypeDefinition SerializablePrototype = Found->Prototype;
+      revng_log(Log,
+                "Found type for " << Fn.OriginalName() << " in "
+                                  << Found->ModuleName << ": "
+                                  << serializeToString(SerializablePrototype));
+      TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
+      Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
+
+      // Copy all the Attributes except for `Inline`.
+      for (auto &Attribute : Found->Attributes)
         if (Attribute != model::FunctionAttribute::Inline)
           Fn.Attributes().insert(Attribute);
-      }
     }
   }
 

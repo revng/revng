@@ -25,13 +25,13 @@ static RegisterModelPass R("deduplicate-equivalent-types",
                            "structurally equivalent",
                            model::deduplicateEquivalentTypes);
 
-static void
-compareAll(SmallVector<model::Type *> &ToTest,
-           std::function<bool(model::Type *, model::Type *)> Compare) {
+using Comparator = bool(model::TypeDefinition *, model::TypeDefinition *);
+static void compareAll(SmallVector<model::TypeDefinition *> &ToTest,
+                       std::function<Comparator> Compare) {
   for (auto It = ToTest.begin(), End = ToTest.end(); It != End; ++It) {
-    model::Type *Left = *It;
+    model::TypeDefinition *Left = *It;
 
-    auto IsDuplicate = [Compare, Left](model::Type *Right) {
+    auto IsDuplicate = [Compare, Left](model::TypeDefinition *Right) {
       return Compare(Left, Right);
     };
 
@@ -43,27 +43,27 @@ compareAll(SmallVector<model::Type *> &ToTest,
 class TypeSystemDeduplicator {
 private:
   struct TypeNode {
-    model::Type *T;
+    model::TypeDefinition *T;
   };
   using Node = ForwardNode<TypeNode>;
   using Graph = GenericGraph<Node>;
 
 private:
-  std::vector<model::Type *> Types;
-  EquivalenceClasses<model::Type *> StrongEquivalence;
-  EquivalenceClasses<model::Type *> WeakEquivalence;
+  std::vector<model::TypeDefinition *> Types;
+  EquivalenceClasses<model::TypeDefinition *> StrongEquivalence;
+  EquivalenceClasses<model::TypeDefinition *> WeakEquivalence;
   Graph TypeGraph;
-  std::map<const model::Type *, Node *> TypeToNode;
-  std::vector<model::Type *> VisitOrder;
+  std::map<const model::TypeDefinition *, Node *> TypeToNode;
+  std::vector<model::TypeDefinition *> VisitOrder;
 
 private:
   TypeSystemDeduplicator(TupleTree<model::Binary> &Model) {
-    for (auto &T : Model->Types())
+    for (auto &T : Model->TypeDefinitions())
       Types.push_back(&*T);
   }
 
 public:
-  static EquivalenceClasses<model::Type *>
+  static EquivalenceClasses<model::TypeDefinition *>
   run(TupleTree<model::Binary> &Model) {
     TypeSystemDeduplicator Helper(Model);
     Helper.computeWeakEquivalenceClasses();
@@ -78,28 +78,30 @@ private:
     revng_log(Log, "Computing weak equivalence classes");
     LoggerIndent Indent(Log);
 
-    auto ComputeKey = [](model::Type *T) {
+    auto ComputeKey = [](model::TypeDefinition *T) {
       return std::pair{ T->OriginalName(), T->Kind() };
     };
 
     // Sort types by the key (the name)
-    llvm::sort(Types, [&ComputeKey](model::Type *Left, model::Type *Right) {
-      return ComputeKey(Left) < ComputeKey(Right);
-    });
+    llvm::sort(Types,
+               [&ComputeKey](model::TypeDefinition *Left,
+                             model::TypeDefinition *Right) {
+                 return ComputeKey(Left) < ComputeKey(Right);
+               });
 
     auto GroupStart = Types.begin();
     auto End = Types.end();
     while (GroupStart != End) {
       // Find group end and collect types
       auto GroupKey = ComputeKey(*GroupStart);
-      std::string GroupName = (TypeKind::getName(GroupKey.second) + " "
-                               + GroupKey.first)
+      std::string GroupName = (TypeDefinitionKind::getName(GroupKey.second)
+                               + " " + GroupKey.first)
                                 .str();
       revng_log(Log, "Considering \"" << GroupName << "\"");
       LoggerIndent Indent2(Log);
 
       auto GroupEnd = GroupStart;
-      SmallVector<model::Type *> ToTest;
+      SmallVector<model::TypeDefinition *> ToTest;
       do {
         ToTest.push_back(*GroupEnd);
         ++GroupEnd;
@@ -107,7 +109,8 @@ private:
 
       if (not GroupKey.first.empty()) {
 
-        auto Compare = [this](model::Type *Left, model::Type *Right) -> bool {
+        auto Compare = [this](model::TypeDefinition *Left,
+                              model::TypeDefinition *Right) -> bool {
           revng_assert(Left != Right
                        and not WeakEquivalence.isEquivalent(Left, Right));
           if (Left->localCompare(*Right)) {
@@ -124,7 +127,7 @@ private:
             if (Log.isEnabled()) {
               Log << "The following types have same kind and name but are "
                      "locally different.";
-              model::Type *M = Left;
+              model::TypeDefinition *M = Left;
               upcast(M, [](auto &U) { serialize(Log, U); });
               upcast(Right, [](auto &U) { serialize(Log, U); });
               Log << DoLog;
@@ -150,13 +153,13 @@ private:
     revng_log(Log, "Building the type graph");
 
     // Create nodes
-    for (model::Type *T : Types)
+    for (model::TypeDefinition *T : Types)
       TypeToNode[T] = TypeGraph.addNode(TypeNode{ T });
 
     // Create edges
-    for (const model::Type *T : Types)
-      for (const model::QualifiedType &QT : T->edges())
-        addEdge(T, QT);
+    for (const model::TypeDefinition *Type : Types)
+      for (const model::Type *EdgeType : Type->edges())
+        addEdge(*Type, *EdgeType);
   }
 
   /// Compute a visit order: post order in the leaders of WeakEquivalence
@@ -167,7 +170,7 @@ private:
     for (Node *N : TypeGraph.nodes())
       Entry->addSuccessor(N);
 
-    std::set<model::Type *> Inserted;
+    std::set<model::TypeDefinition *> Inserted;
     for (Node *N : post_order(Entry)) {
 
       auto LeaderIt = WeakEquivalence.findLeader(N->T);
@@ -185,7 +188,7 @@ private:
     revng_log(Log, "Computing strong equivalence classes");
     LoggerIndent Indent(Log);
 
-    for (model::Type *Leader : VisitOrder) {
+    for (model::TypeDefinition *Leader : VisitOrder) {
       revng_log(Log, "Considering " << Leader->OriginalName());
       LoggerIndent Indent2(Log);
 
@@ -193,12 +196,13 @@ private:
       auto LeaderIt = WeakEquivalence.findValue(Leader);
       revng_assert(LeaderIt->isLeader());
 
-      SmallVector<model::Type *> ToTest;
+      SmallVector<model::TypeDefinition *> ToTest;
       std::copy(WeakEquivalence.member_begin(LeaderIt),
                 WeakEquivalence.member_end(),
                 std::back_inserter(ToTest));
 
-      auto Compare = [this](model::Type *Left, model::Type *Right) {
+      auto Compare = [this](model::TypeDefinition *Left,
+                            model::TypeDefinition *Right) {
         if (Left == Right or StrongEquivalence.isEquivalent(Left, Right))
           return true;
 
@@ -217,12 +221,13 @@ private:
   }
 
 private:
-  void addEdge(const model::Type *T, const model::QualifiedType &QT) {
-    auto *DependantType = QT.UnqualifiedType().get();
-    TypeToNode.at(T)->addSuccessor(TypeToNode.at(DependantType));
+  void addEdge(const model::TypeDefinition &T, const model::Type &Type) {
+    if (const model::TypeDefinition *Definition = Type.skipToDefinition())
+      TypeToNode.at(&T)->addSuccessor(TypeToNode.at(Definition));
   }
 
-  bool deepCompare(model::Type *LeftType, model::Type *RightType) {
+  bool deepCompare(model::TypeDefinition *LeftType,
+                   model::TypeDefinition *RightType) {
     Node *Left = TypeToNode.at(LeftType);
     Node *Right = TypeToNode.at(RightType);
 
@@ -338,8 +343,8 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
 
   auto EquivalentTypes = TypeSystemDeduplicator::run(Model);
 
-  std::set<model::Type *> ToErase;
-  std::map<TypePath, TypePath> Replacements;
+  std::set<model::TypeDefinition *> ToErase;
+  std::map<DefinitionReference, DefinitionReference> Replacements;
   for (auto LeaderIt = EquivalentTypes.begin(), End = EquivalentTypes.end();
        LeaderIt != End;
        ++LeaderIt) {
@@ -347,13 +352,12 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
     if (!LeaderIt->isLeader())
       continue;
 
-    model::Type *Leader = LeaderIt->getData();
-    model::TypePath LeaderPath = Model->getTypePath(Leader);
+    auto LeaderR = Model->getDefinitionReference(LeaderIt->getData()->key());
 
-    for (model::Type *ToCollapse :
+    for (model::TypeDefinition *ToCollapse :
          make_range(++EquivalentTypes.member_begin(LeaderIt),
                     EquivalentTypes.member_end())) {
-      Replacements[Model->getTypePath(ToCollapse)] = LeaderPath;
+      Replacements[Model->getDefinitionReference(ToCollapse->key())] = LeaderR;
       ToErase.insert(ToCollapse);
     }
   }
@@ -364,7 +368,8 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
   Model.replaceReferences(Replacements);
 
   // Actually drop the types
-  llvm::erase_if(Model->Types(), [&ToErase](UpcastablePointer<model::Type> &P) {
-    return ToErase.contains(P.get());
-  });
+  llvm::erase_if(Model->TypeDefinitions(),
+                 [&ToErase](model::UpcastableTypeDefinition &P) {
+                   return ToErase.contains(P.get());
+                 });
 }

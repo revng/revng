@@ -4,10 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
+#include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BasicBlockID.h"
@@ -66,41 +68,32 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
-  void dump() const debug_function;
 };
 
-inline model::TypePath getPrototype(const model::Binary &Binary,
-                                    MetaAddress CallerFunctionAddress,
-                                    const efa::BasicBlock &CallerBlock,
-                                    const efa::CallEdge &Edge) {
-  model::TypePath Result;
-
-  MetaAddress Caller = CallerFunctionAddress;
-  Caller = CallerBlock.InlinedFrom();
-
+inline auto getPrototype(ConstOrNot<model::Binary> auto &Binary,
+                         MetaAddress CallerFunctionAddress,
+                         const efa::BasicBlock &CallerBlock,
+                         const efa::CallEdge &Edge) {
   auto &CallSitePrototypes = Binary.Functions()
                                .at(CallerFunctionAddress)
                                .CallSitePrototypes();
   auto It = CallSitePrototypes.find(CallerBlock.ID().start());
   if (It != CallSitePrototypes.end())
-    Result = It->Prototype();
+    return It->prototype();
 
   if (Edge.Type() == efa::FunctionEdgeType::FunctionCall) {
     if (not Edge.DynamicFunction().empty()) {
-      // Get the dynamic function prototype
-      Result = Binary.ImportedDynamicFunctions()
-                 .at(Edge.DynamicFunction())
-                 .Prototype();
+      auto &DFs = Binary.ImportedDynamicFunctions();
+      if (auto *Prototype = DFs.at(Edge.DynamicFunction()).prototype())
+        return Prototype;
     } else if (Edge.Destination().isValid()) {
-      // Get the function prototype
-      Result = Binary.Functions().at(Edge.Destination().start()).Prototype();
+      auto &LFs = Binary.Functions();
+      if (auto *Prototype = LFs.at(Edge.Destination().start()).prototype())
+        return Prototype;
     }
   }
 
-  if (Result.empty())
-    Result = Binary.DefaultPrototype();
-
-  return model::QualifiedType::getFunctionType(Result).value();
+  return Binary.defaultPrototype();
 }
 
 #include "revng/EarlyFunctionAnalysis/Generated/Late/BasicBlock.h"

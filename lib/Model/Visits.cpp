@@ -7,14 +7,15 @@
 #include "revng/Model/Binary.h"
 #include "revng/TupleTree/VisitsImpl.h"
 
-template const model::Type *
-getByPath<const model::Type, const model::Binary>(const TupleTreePath &Path,
-                                                  const model::Binary &M);
+template const model::TypeDefinition *
+getByPath<const model::TypeDefinition,
+          const model::Binary>(const TupleTreePath &Path,
+                               const model::Binary &M);
 
-template model::Type *
-getByPath<model::Type, const model::Binary>(const TupleTreePath &Path,
-                                            const model::Binary &M);
+template const model::TypeDefinition *
+getByPath<model::TypeDefinition, const model::Binary>(const TupleTreePath &Path,
+                                                      const model::Binary &M);
 
-template model::Type *
-getByPath<model::Type, model::Binary>(const TupleTreePath &Path,
-                                      model::Binary &M);
+template model::TypeDefinition *
+getByPath<model::TypeDefinition, model::Binary>(const TupleTreePath &Path,
+                                                model::Binary &M);

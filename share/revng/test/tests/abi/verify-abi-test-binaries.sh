@@ -38,17 +38,9 @@ python3 \
     "${SCRIPT_DIRECTORY}/prepare-tested-model.py" \
     "$ABI_NAME" \
     "${OUTPUT_DIRECTORY}/imported_binary.yml" \
-    "${OUTPUT_DIRECTORY}/prepared_binary.yml"
+    "${OUTPUT_DIRECTORY}/reference_binary.yml"
 
-# Make sure all the primitive types are available
-revng \
-    analyze \
-    add-primitive-types \
-    "$BINARY" \
-    -m="${OUTPUT_DIRECTORY}/prepared_binary.yml" \
-    -o="${OUTPUT_DIRECTORY}/reference_binary.yml"
-
-# Convert CABIFunctionType to RawFunctionType
+# Convert CABIFunctionDefinition to RawFunctionDefinition
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
@@ -57,7 +49,7 @@ revng \
     -m="${OUTPUT_DIRECTORY}/reference_binary.yml" \
     -o="${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml"
 
-# Convert RawFunctionType back to CABIFunctionType
+# Convert RawFunctionDefinition back to CABIFunctionDefinition
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
@@ -67,7 +59,7 @@ revng \
     -m="${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
     -o="${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
 
-# Back to RawFunctionType again
+# Back to RawFunctionDefinition again
 revng \
     analyze \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \

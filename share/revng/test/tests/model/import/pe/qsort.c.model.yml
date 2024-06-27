@@ -12,73 +12,73 @@
 
 ---
 Functions:
-  - CustomName: "cmpfunc"
-    OriginalName: cmpfunc
-    Prototype: "/Types/5944255354151483434-CABIFunctionType"
-  - CustomName: "qsort"
-    OriginalName: qsort
-    Prototype: "/Types/17913232940792519997-CABIFunctionType"
-Types:
-  - Kind: PrimitiveType
-    ID: 256
-    PrimitiveKind: Void
-    Size: 0
-  - Kind: PrimitiveType
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1284
-    PrimitiveKind: Unsigned
-  - Kind: TypedefType
+  - OriginalName: cmpfunc
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/5944255354151483434-CABIFunctionDefinition"
+  - OriginalName: qsort
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/17913232940792519997-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: TypedefDefinition
     ID: 14210609572455956746
     UnderlyingType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
-      Qualifiers:
-        - Kind: Const
-  - Kind: TypedefType
+      Kind: PrimitiveType
+      PrimitiveKind: Void
+  - Kind: TypedefDefinition
     ID: 3290784804431442976
     UnderlyingType:
-      UnqualifiedType: "/Types/14210609572455956746-TypedefType"
-      Qualifiers:
-        - Kind: Pointer
-  - Kind: CABIFunctionType
+      Kind: PointerType
+      PointeeType:
+        Kind: DefinedType
+        IsConst: true
+        Definition: "/TypeDefinitions/14210609572455956746-TypedefDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 5944255354151483434
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/3290784804431442976-TypedefType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3290784804431442976-TypedefDefinition"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/3290784804431442976-TypedefType"
-  - Kind: CABIFunctionType
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3290784804431442976-TypedefDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 17913232940792519997
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/9032570991415481170-TypedefType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/9032570991415481170-TypedefDefinition"
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/17163826859945186478-TypedefType"
-  - Kind: TypedefType
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/17163826859945186478-TypedefDefinition"
+  - Kind: TypedefDefinition
     ID: 9032570991415481170
     UnderlyingType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
-      Qualifiers:
-        - Kind: Pointer
-  - Kind: TypedefType
+      Kind: PointerType
+      PointeeType:
+        Kind: PrimitiveType
+        PrimitiveKind: Void
+  - Kind: TypedefDefinition
     ID: 17163826859945186478
     UnderlyingType:
-      UnqualifiedType: "/Types/5944255354151483434-CABIFunctionType"
-      Qualifiers:
-        - Kind: Pointer
+      Kind: PointerType
+      PointeeType:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/5944255354151483434-CABIFunctionDefinition"

@@ -5,8 +5,10 @@
 ---
 Functions:
   - OriginalName: function
-    Prototype: "/Types/1814-RawFunctionType"
-Types:
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1814-RawFunctionDefinition"
+TypeDefinitions:
   - ID: 1814
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     "-Arguments": 0

@@ -33,13 +33,10 @@ void dispatchMappingTraits(llvm::yaml::IO &TheIO, O &Obj) {
 
   if constexpr (I < std::tuple_size_v<concrete_types>) {
     using type = typename std::tuple_element_t<I, concrete_types>;
-    auto Pointer = Obj.get();
-    if (llvm::isa<type>(Pointer)) {
-      llvm::yaml::MappingTraits<type>::mapping(TheIO,
-                                               *llvm::cast<type>(Pointer));
-    } else {
+    if (type *Upcast = llvm::dyn_cast<type>(Obj.get()))
+      llvm::yaml::MappingTraits<type>::mapping(TheIO, *Upcast);
+    else
       dispatchMappingTraits<O, I + 1>(TheIO, Obj);
-    }
   } else {
     revng_abort();
   }
@@ -48,6 +45,10 @@ void dispatchMappingTraits(llvm::yaml::IO &TheIO, O &Obj) {
 template<UpcastablePointerLike T>
 struct PolymorphicMappingTraits {
   static void mapping(llvm::yaml::IO &TheIO, T &Obj) {
+    // Skip empty pointers when serializing
+    if (TheIO.outputting() && Obj.isEmpty())
+      return;
+
     if (!TheIO.outputting()) {
       std::string Kind;
       TheIO.mapRequired("Kind", Kind);
@@ -55,5 +56,10 @@ struct PolymorphicMappingTraits {
     }
 
     dispatchMappingTraits(TheIO, Obj);
+
+    // If kind is default-initialized, clear the pointer.
+    if (!TheIO.outputting())
+      if (size_t(Obj->Kind()) == 0)
+        Obj.reset();
   }
 };
