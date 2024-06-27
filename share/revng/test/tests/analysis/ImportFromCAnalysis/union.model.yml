@@ -5,18 +5,18 @@
 ---
 Architecture: x86_64
 DefaultABI: SystemV_x86_64
-Types:
-  - Kind: PrimitiveType
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
-  - Kind: UnionType
+TypeDefinitions:
+  - Kind: UnionDefinition
     ID: 3000
     CustomName: old_union_name
     Fields:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8

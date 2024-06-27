@@ -3,35 +3,32 @@
 #
 # RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
-Types:
-  - ID: 513
-    Kind: PrimitiveType
-    PrimitiveKind: Generic
-    Size: 1
-
-    # CHECK: #my_struct$def = #clift.struct<
-    # CHECK:   id = 1001
-    # CHECK:   name = "my_struct"
-    # CHECK:   size = 1024
-    # CHECK:   fields = [
-    # CHECK:     <
-    # CHECK:       offset = 0
-    # CHECK:       type = !clift.array<
-    # CHECK:         element_type = !clift.primitive<GenericKind 1>
-    # CHECK:         elements_count = 1024
-    # CHECK:       >
-    # CHECK:     >
-    # CHECK:   ]
-    # CHECK: >
-    # CHECK: !my_struct = !clift.defined<#my_struct$def>
+TypeDefinitions:
+  # CHECK: #my_struct$def = #clift.struct<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_struct"
+  # CHECK:   size = 1024
+  # CHECK:   fields = [
+  # CHECK:     <
+  # CHECK:       offset = 0
+  # CHECK:       type = !clift.array<
+  # CHECK:         element_type = !clift.primitive<GenericKind 1>
+  # CHECK:         elements_count = 1024
+  # CHECK:       >
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  # CHECK: !my_struct = !clift.defined<#my_struct$def>
   - ID: 1001
-    Kind: StructType
+    Kind: StructDefinition
     CustomName: "my_struct"
     Size: 1024
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/513-PrimitiveType"
-          Qualifiers:
-            - Kind: Array
-              Size: 1024
+          Kind: ArrayType
+          ElementCount: 1024
+          ElementType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 1

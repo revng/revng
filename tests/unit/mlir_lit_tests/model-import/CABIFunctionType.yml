@@ -1,41 +1,21 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-TypeDefinitions %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 Architecture: x86_64
-Types:
-  - ID: 256
-    Kind: PrimitiveType
-    PrimitiveKind: Void
-    Size: 0
-
-  - ID: 1281
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 1
-  - ID: 1282
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 2
-  - ID: 1284
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 4
-
-    # CHECK: #my_function1$def = #clift.function<
-    # CHECK:   id = 1001
-    # CHECK:   name = "my_function1"
-    # CHECK:   return_type = !void
-    # CHECK:   argument_types = []
-    # CHECK: >
-    # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
+TypeDefinitions:
+  # CHECK: #my_function1$def = #clift.function<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_function1"
+  # CHECK:   return_type = !void
+  # CHECK:   argument_types = []
+  # CHECK: >
+  # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
   - ID: 1001
-    Kind: CABIFunctionType
+    Kind: CABIFunctionDefinition
     CustomName: "my_function1"
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments: []
 
     # CHECK: #my_function2$def = #clift.function<
@@ -53,15 +33,21 @@ Types:
     # CHECK: >
     # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
   - ID: 1002
-    Kind: CABIFunctionType
+    Kind: CABIFunctionDefinition
     CustomName: "my_function2"
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1281-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 1
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1282-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

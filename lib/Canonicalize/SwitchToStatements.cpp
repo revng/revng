@@ -841,7 +841,7 @@ private:
   std::unordered_map<const Instruction *, size_t> ProgramOrdering;
 };
 
-using TypeMap = std::map<const Value *, const model::QualifiedType>;
+using TypeMap = std::map<const Value *, const model::UpcastableType>;
 
 class VariableBuilder {
 public:
@@ -913,12 +913,12 @@ bool VariableBuilder::usesNeedToBeReplacedWithCopiesFromLocal(const Instruction
   if (not Call)
     return true;
 
-  auto Prototype = getCallSitePrototype(Model, I);
-  using namespace abi::FunctionType;
-  abi::FunctionType::Layout Layout = Layout::make(*Prototype.getConst());
+  const auto *ProtoT = getCallSitePrototype(Model, cast<CallInst>(I));
+  abi::FunctionType::Layout Layout = abi::FunctionType::Layout::make(*ProtoT);
+
   // If the Isolated function doesn't return an aggregate, we have to
   // inject copies from local variables.
-  if (Layout.returnMethod() != ReturnMethod::ModelAggregate)
+  if (Layout.returnMethod() != abi::FunctionType::ReturnMethod::ModelAggregate)
     return true;
 
   unsigned NumUses = I->getNumUses();
@@ -960,9 +960,9 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
                                             "LocalVariable");
 
   // Compute the model type returned from the call.
-  model::QualifiedType VariableType = TheTypeMap.at(I);
+  const model::UpcastableType &VariableType = TheTypeMap.at(I);
   const llvm::DataLayout &DL = I->getModule()->getDataLayout();
-  auto ModelSize = VariableType.size().value();
+  auto ModelSize = VariableType->size().value();
   auto IRSize = DL.getTypeStoreSize(IType);
   if (ModelSize < IRSize) {
     revng_assert(IType->isPointerTy());
@@ -970,9 +970,9 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
     auto PtrSize = getPointerSize(Model.Architecture());
     revng_assert(ModelSize == PtrSize);
   } else if (ModelSize > IRSize) {
-    auto Prototype = getCallSitePrototype(Model, I);
+    auto &Prototype = *getCallSitePrototype(Model, cast<CallInst>(I));
     using namespace abi::FunctionType;
-    abi::FunctionType::Layout Layout = Layout::make(*Prototype.getConst());
+    abi::FunctionType::Layout Layout = Layout::make(Prototype);
     revng_assert(Layout.returnMethod() == ReturnMethod::ModelAggregate);
     if (Layout.hasSPTAR())
       revng_assert(0 == I->getNumUses());
@@ -983,16 +983,12 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
   // variables, because their initialization (which is forcibly out-of-line)
   // would assign them and fail to compile.
   // For this reason if at this point we're trying to declare a constant
-  // local variable, we're forced to throw away the const-qualifier.
-  if (VariableType.isConst())
-    VariableType = getNonConst(VariableType);
-
-  Constant *ModelTypeString = serializeToLLVMString(VariableType,
-                                                    *F.getParent());
+  // local variable, we're forced to throw away the constness information.
+  Constant *TString = serializeToLLVMString(model::getNonConst(*VariableType),
+                                            *F.getParent());
 
   // Inject call to LocalVariable
-  CallInst *LocalVarCall = Builder.CreateCall(LocalVarFunction,
-                                              { ModelTypeString });
+  CallInst *LocalVarCall = Builder.CreateCall(LocalVarFunction, { TString });
 
   // Then, we have to replace all the uses of I so that they make a Copy
   // from the LocalVariable, unless it's a call to an IsolatedFunction that

@@ -9,523 +9,475 @@ Functions:
   - Entry: "0x400700:Code_x86_64"
     CustomName: "fn"
     OriginalName: fn
-    StackFrameType: "/Types/3007-StructType"
-    Prototype: "/Types/3001-CABIFunctionType"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3001-CABIFunctionDefinition"
     ExportedNames:
       - fn
   - Entry: "0x400740:Code_x86_64"
     CustomName: "fn2"
     OriginalName: fn2
-    StackFrameType: "/Types/3007-StructType"
-    Prototype: "/Types/3002-CABIFunctionType"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3002-CABIFunctionDefinition"
     ExportedNames:
       - fn2
   - Entry: "0x400749:Code_x86_64"
     CustomName: "fn3"
     OriginalName: fn3
-    StackFrameType: "/Types/3007-StructType"
-    Prototype: "/Types/3003-CABIFunctionType"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3003-CABIFunctionDefinition"
     ExportedNames:
       - fn3
   - Entry: "0x400770:Code_x86_64"
     CustomName: "fn4"
     OriginalName: fn4
-    StackFrameType: "/Types/3007-StructType"
-    Prototype: "/Types/3004-CABIFunctionType"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3004-CABIFunctionDefinition"
     ExportedNames:
       - fn4
   - Entry: "0x4007e8:Code_x86_64"
     CustomName: "fn5"
     OriginalName: fn5
-    StackFrameType: "/Types/3007-StructType"
-    Prototype: "/Types/3005-CABIFunctionType"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3005-CABIFunctionDefinition"
     ExportedNames:
       - fn5
   - Entry: "0x402266:Code_x86_64"
     CustomName: "fn6"
     OriginalName: fn6
-    StackFrameType: "/Types/3007-StructType"
-    Prototype: "/Types/3006-CABIFunctionType"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3006-CABIFunctionDefinition"
     ExportedNames:
       - fn6
   - Entry: "0x402288:Code_x86_64"
     CustomName: "fn7"
     OriginalName: fn7
-    StackFrameType: "/Types/3007-StructType"
-    Prototype: "/Types/3008-CABIFunctionType"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3008-CABIFunctionDefinition"
     ExportedNames:
       - fn7
-Types:
-  - Kind: CABIFunctionType
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
     ID: 3001
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 4
         CustomName: "b"
         OriginalName: b
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
         CustomName: "c"
         OriginalName: c
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1282-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 2
         CustomName: "d"
         OriginalName: d
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 3008
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/522-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 10
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/524-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 12
         CustomName: "arg6"
         OriginalName: arg6
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 3002
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/513-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 1
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/514-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 2
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/516-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 4
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
         CustomName: "arg4"
         OriginalName: arg4
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 3003
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/528-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 16
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/769-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 1
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/770-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 2
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/772-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 4
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/776-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 8
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/784-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 16
         CustomName: "arg6"
         OriginalName: arg6
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 3004
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1025-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 1
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1026-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 2
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1028-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 4
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/1032-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 8
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/1040-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 16
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/1281-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 1
         CustomName: "arg6"
         OriginalName: arg6
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 3005
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1282-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 2
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 4
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/1296-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 16
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/1537-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 1
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/1538-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 2
         CustomName: "arg6"
         OriginalName: arg6
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 3006
     ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/256-PrimitiveType"
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 4
         CustomName: "arg1"
         OriginalName: arg1
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1544-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 8
         CustomName: "arg2"
         OriginalName: arg2
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/1552-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 16
         CustomName: "arg3"
         OriginalName: arg3
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/1794-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 2
         CustomName: "arg4"
         OriginalName: arg4
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/1796-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 4
         CustomName: "arg5"
         OriginalName: arg5
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/1800-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 8
         CustomName: "arg6"
         OriginalName: arg6
       - Index: 6
         Type:
-          UnqualifiedType: "/Types/1802-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 10
         CustomName: "arg7"
         OriginalName: arg7
       - Index: 7
         Type:
-          UnqualifiedType: "/Types/1804-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 12
         CustomName: "arg8"
         OriginalName: arg8
       - Index: 8
         Type:
-          UnqualifiedType: "/Types/1808-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 16
         CustomName: "arg9"
         OriginalName: arg9
-  - Kind: PrimitiveType
-    ID: 256
-    PrimitiveKind: Void
-    Size: 0
-  - Kind: PrimitiveType
-    ID: 513
-    PrimitiveKind: Generic
-    Size: 1
-  - Kind: PrimitiveType
-    ID: 514
-    PrimitiveKind: Generic
-    Size: 2
-  - Kind: PrimitiveType
-    ID: 516
-    PrimitiveKind: Generic
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
-  - Kind: PrimitiveType
-    ID: 522
-    PrimitiveKind: Generic
-    Size: 10
-  - Kind: PrimitiveType
-    ID: 524
-    PrimitiveKind: Generic
-    Size: 12
-  - Kind: PrimitiveType
-    ID: 528
-    PrimitiveKind: Generic
-    Size: 16
-  - Kind: PrimitiveType
-    ID: 769
-    PrimitiveKind: PointerOrNumber
-    Size: 1
-  - Kind: PrimitiveType
-    ID: 770
-    PrimitiveKind: PointerOrNumber
-    Size: 2
-  - Kind: PrimitiveType
-    ID: 772
-    PrimitiveKind: PointerOrNumber
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 776
-    PrimitiveKind: PointerOrNumber
-    Size: 8
-  - Kind: PrimitiveType
-    ID: 784
-    PrimitiveKind: PointerOrNumber
-    Size: 16
-  - Kind: PrimitiveType
-    ID: 1025
-    PrimitiveKind: Number
-    Size: 1
-  - Kind: PrimitiveType
-    ID: 1026
-    PrimitiveKind: Number
-    Size: 2
-  - Kind: PrimitiveType
-    ID: 1028
-    PrimitiveKind: Number
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1032
-    PrimitiveKind: Number
-    Size: 8
-  - Kind: PrimitiveType
-    ID: 1040
-    PrimitiveKind: Number
-    Size: 16
-  - Kind: PrimitiveType
-    ID: 1281
-    PrimitiveKind: Unsigned
-    Size: 1
-  - Kind: PrimitiveType
-    ID: 1282
-    PrimitiveKind: Unsigned
-    Size: 2
-  - Kind: PrimitiveType
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1288
-    PrimitiveKind: Unsigned
-    Size: 8
-  - Kind: PrimitiveType
-    ID: 1296
-    PrimitiveKind: Unsigned
-    Size: 16
-  - Kind: PrimitiveType
-    ID: 1537
-    PrimitiveKind: Signed
-    Size: 1
-  - Kind: PrimitiveType
-    ID: 1538
-    PrimitiveKind: Signed
-    Size: 2
-  - Kind: PrimitiveType
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1544
-    PrimitiveKind: Signed
-    Size: 8
-  - Kind: PrimitiveType
-    ID: 1552
-    PrimitiveKind: Signed
-    Size: 16
-  - Kind: PrimitiveType
-    ID: 1794
-    PrimitiveKind: Float
-    Size: 2
-  - Kind: PrimitiveType
-    ID: 1796
-    PrimitiveKind: Float
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1800
-    PrimitiveKind: Float
-    Size: 8
-  - Kind: PrimitiveType
-    ID: 1802
-    PrimitiveKind: Float
-    Size: 10
-  - Kind: PrimitiveType
-    ID: 1804
-    PrimitiveKind: Float
-    Size: 12
-  - Kind: PrimitiveType
-    ID: 1808
-    PrimitiveKind: Float
-    Size: 16
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3007
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     Size: 16

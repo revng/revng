@@ -3,51 +3,44 @@
 #
 # RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
-Types:
-  - ID: 1281
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 1
-  - ID: 1282
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 2
-  - ID: 1284
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 4
-
-    # CHECK: #my_struct$def = #clift.struct<
-    # CHECK:   id = 1001
-    # CHECK:   name = "my_struct"
-    # CHECK:   size = 8
-    # CHECK:   fields = [
-    # CHECK:     <
-    # CHECK:       offset = 0
-    # CHECK:       type = !clift.primitive<UnsignedKind 1>
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       offset = 2
-    # CHECK:       type = !clift.primitive<UnsignedKind 2>
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       offset = 4
-    # CHECK:       type = !clift.primitive<UnsignedKind 4>
-    # CHECK:     >
-    # CHECK:   ]
-    # CHECK: >
-    # CHECK: !my_struct = !clift.defined<#my_struct$def>
+TypeDefinitions:
+  # CHECK: #my_struct$def = #clift.struct<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_struct"
+  # CHECK:   size = 8
+  # CHECK:   fields = [
+  # CHECK:     <
+  # CHECK:       offset = 0
+  # CHECK:       type = !clift.primitive<UnsignedKind 1>
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       offset = 2
+  # CHECK:       type = !clift.primitive<UnsignedKind 2>
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       offset = 4
+  # CHECK:       type = !clift.primitive<UnsignedKind 4>
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  # CHECK: !my_struct = !clift.defined<#my_struct$def>
   - ID: 1001
-    Kind: StructType
+    Kind: StructDefinition
     CustomName: "my_struct"
     Size: 8
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/1281-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
       - Offset: 2
         Type:
-          UnqualifiedType: "/Types/1282-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
       - Offset: 4
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

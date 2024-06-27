@@ -15,7 +15,7 @@
 struct ModelToHeaderOptions {
   /// If true, print plain C (i.e., no PTML markup)
   bool GeneratePlainC = false;
-  llvm::SmallPtrSet<const model::Type *, 2> TypesToOmit;
+  llvm::SmallPtrSet<const model::TypeDefinition *, 2> TypesToOmit;
   std::set<MetaAddress> FunctionsToOmit;
   /// Piece of code to include after the main includes have been emitted
   std::string PostIncludes;

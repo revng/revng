@@ -445,7 +445,7 @@ public:
 
   std::string getAttributePacked() { return "_PACKED"; }
 
-  Tag getNameTag(const model::Type &T) const {
+  Tag getNameTag(const model::TypeDefinition &T) const {
     return ptml::PTMLBuilder::tokenTag(T.name().str().str(),
                                        ptml::c::tokens::Type);
   }
@@ -456,14 +456,14 @@ public:
                           ptml::attributes::LocationReferences;
   }
 
-  std::string serializeLocation(const model::Type &T) const {
+  std::string serializeLocation(const model::TypeDefinition &T) const {
     if (isGenerateTagLessPTML())
       return "";
-    return pipeline::serializedLocation(revng::ranks::Type, T.key());
+    return pipeline::serializedLocation(revng::ranks::TypeDefinition, T.key());
   }
 
   std::string getLocation(bool IsDefinition,
-                          const model::Type &T,
+                          const model::TypeDefinition &T,
                           llvm::ArrayRef<std::string> AllowedActions) const {
     auto Result = getNameTag(T);
     if (isGenerateTagLessPTML())
@@ -471,9 +471,7 @@ public:
 
     std::string Location = serializeLocation(T);
     Result.addAttribute(getLocationAttribute(IsDefinition), Location);
-    // non-primitive types are editable
-    if (not llvm::isa<model::PrimitiveType>(&T))
-      Result.addAttribute(attributes::ActionContextLocation, Location);
+    Result.addAttribute(attributes::ActionContextLocation, Location);
 
     if (not AllowedActions.empty())
       Result.addListAttribute(attributes::AllowedActions, AllowedActions);
@@ -482,15 +480,43 @@ public:
   }
 
   std::string
-  getLocationDefinition(const model::Type &T,
+  getLocationDefinition(const model::TypeDefinition &T,
                         llvm::ArrayRef<std::string> AllowedActions = {}) const {
     return getLocation(true, T, AllowedActions);
   }
 
   std::string
-  getLocationReference(const model::Type &T,
+  getLocationReference(const model::TypeDefinition &T,
                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
     return getLocation(false, T, AllowedActions);
+  }
+
+  std::string getLocationDefinition(const model::PrimitiveType &P) const {
+    std::string CName = P.getCName();
+    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
+    if (isGenerateTagLessPTML())
+      return Result.serialize();
+
+    std::string L = pipeline::serializedLocation(revng::ranks::PrimitiveType,
+                                                 P.getCName());
+    Result.addAttribute(getLocationAttribute(true), L);
+    Result.addAttribute(attributes::ActionContextLocation, L);
+
+    return Result.serialize();
+  }
+
+  std::string getLocationReference(const model::PrimitiveType &P) const {
+    std::string CName = P.getCName();
+    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
+    if (isGenerateTagLessPTML())
+      return Result.serialize();
+
+    std::string L = pipeline::serializedLocation(revng::ranks::PrimitiveType,
+                                                 P.getCName());
+    Result.addAttribute(getLocationAttribute(false), L);
+    Result.addAttribute(attributes::ActionContextLocation, L);
+
+    return Result.serialize();
   }
 
   std::string serializeLocation(const model::Segment &T) const {
@@ -519,7 +545,7 @@ public:
     return getLocation(false, S);
   }
 
-  std::string serializeLocation(const model::EnumType &Enum,
+  std::string serializeLocation(const model::EnumDefinition &Enum,
                                 const model::EnumEntry &Entry) const {
     if (isGenerateTagLessPTML())
       return "";
@@ -529,7 +555,7 @@ public:
                                         Entry.key());
   }
 
-  std::string serializeLocation(const model::StructType &Struct,
+  std::string serializeLocation(const model::StructDefinition &Struct,
                                 const model::StructField &Field) const {
     if (isGenerateTagLessPTML())
       return "";
@@ -539,7 +565,7 @@ public:
                                         Field.key());
   }
 
-  std::string serializeLocation(const model::UnionType &Union,
+  std::string serializeLocation(const model::UnionDefinition &Union,
                                 const model::UnionField &Field) const {
     if (isGenerateTagLessPTML())
       return "";
@@ -549,14 +575,14 @@ public:
                                         Field.key());
   }
 
-  Tag getNameTag(const model::EnumType &Enum,
+  Tag getNameTag(const model::EnumDefinition &Enum,
                  const model::EnumEntry &Entry) const {
     return ptml::PTMLBuilder::tokenTag(Enum.entryName(Entry),
                                        ptml::c::tokens::Field);
   }
 
   std::string getLocation(bool IsDefinition,
-                          const model::EnumType &Enum,
+                          const model::EnumDefinition &Enum,
                           const model::EnumEntry &Entry) const {
     std::string Location = serializeLocation(Enum, Entry);
     return getNameTag(Enum, Entry)
@@ -611,8 +637,8 @@ private:
   llvm::raw_ostream &OS;
 
 public:
-  PairedScope(llvm::raw_ostream &OS) : OS(OS) { OS << Open.String.data(); }
-  ~PairedScope() { OS << Close.String.data(); }
+  PairedScope(llvm::raw_ostream &OS) : OS(OS) { OS << *Open; }
+  ~PairedScope() { OS << *Close; }
 };
 
 /// RAII object for handling c style braced scopes. This will,

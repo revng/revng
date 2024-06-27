@@ -6,242 +6,356 @@ Architecture: x86_64
 
 Functions:
   - OriginalName: raw_primitives_on_registers
-    Prototype: "/Types/100000-RawFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100000-RawFunctionDefinition"
   - OriginalName: raw_pointers_on_registers
-    Prototype: "/Types/100001-RawFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100001-RawFunctionDefinition"
   - OriginalName: raw_primitives_on_stack
-    Prototype: "/Types/100002-RawFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100002-RawFunctionDefinition"
   - OriginalName: cabi_primitives_on_registers
-    Prototype: "/Types/100004-CABIFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100004-CABIFunctionDefinition"
   - OriginalName: cabi_primitives_on_stack
-    Prototype: "/Types/100005-CABIFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100005-CABIFunctionDefinition"
   - OriginalName: cabi_aggregate_on_registers
-    Prototype: "/Types/100006-CABIFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100006-CABIFunctionDefinition"
   - OriginalName: cabi_aggregate_on_stack
-    Prototype: "/Types/100007-CABIFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100007-CABIFunctionDefinition"
   - OriginalName: cabi_aggregate_on_stack_and_registers
-    Prototype: "/Types/100008-CABIFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100008-CABIFunctionDefinition"
   - OriginalName: cabi_return_big_aggregate
-    Prototype: "/Types/100010-CABIFunctionType"
-Types:
-  - Kind: PrimitiveType
-    ID: 256
-    PrimitiveKind: Void
-    Size: 0
-  - Kind: PrimitiveType
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
-  - Kind: StructType
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100010-CABIFunctionDefinition"
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 100003
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 8
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     Size: 16
-  - Kind: RawFunctionType
+  - Kind: RawFunctionDefinition
     ID: 100000
     Architecture: x86_64
     Arguments:
       - Location: rdi_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: rsi_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     PreservedRegisters: []
     FinalStackOffset: 8
-  - Kind: RawFunctionType
+  - Kind: RawFunctionDefinition
     ID: 100001
     Architecture: x86_64
     Arguments:
       - Location: rdi_x86_64
         Type:
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
       - Location: rsi_x86_64
         Type:
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     PreservedRegisters: []
     FinalStackOffset: 8
-  - Kind: RawFunctionType
+  - Kind: RawFunctionDefinition
     ID: 100002
     Architecture: x86_64
     Arguments:
       - Location: rdi_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: rsi_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: rdx_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: r8_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Location: r9_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
-    StackArgumentsType: "/Types/100003-StructType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100003-StructDefinition"
     ReturnValues:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     PreservedRegisters: []
     FinalStackOffset: 8
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 100004
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/520-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
-  - Kind: CABIFunctionType
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+  - Kind: CABIFunctionDefinition
     ID: 100005
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/520-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 6
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 7
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
-  - Kind: CABIFunctionType
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+  - Kind: CABIFunctionDefinition
     ID: 100006
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/520-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/100003-StructType"
-  - Kind: CABIFunctionType
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/100003-StructDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 100007
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/520-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 6
         Type:
-          UnqualifiedType: "/Types/100003-StructType"
-  - Kind: CABIFunctionType
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/100003-StructDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 100008
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/520-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 3
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 4
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Index: 5
         Type:
-          UnqualifiedType: "/Types/100003-StructType"
-  - Kind: StructType
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/100003-StructDefinition"
+  - Kind: StructDefinition
     ID: 100009
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 8
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 16
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 24
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 32
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 40
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 48
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
       - Offset: 56
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     Size: 64
-  - Kind: CABIFunctionType
+  - Kind: CABIFunctionDefinition
     ID: 100010
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/100009-StructType"
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100009-StructDefinition"
     Arguments: []

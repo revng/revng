@@ -163,6 +163,7 @@ Branches:
               - implicit-model-cast
               - operatorprecedence-resolution
               - pretty-int-formatting
+              - remove-broken-debug-information
       - Name: decompile
         Pipes:
           - Type: helpers-to-header

@@ -15,7 +15,7 @@
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/RawFunctionType.h"
+#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/Ranks.h"

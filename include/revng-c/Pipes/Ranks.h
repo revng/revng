@@ -35,7 +35,8 @@ inline auto DynamicFunctionArgument = defineRank<"dynamic-function-argument",
 inline auto LocalVariable = defineRank<"local-variable", std::string>(Function);
 
 /// Rank for artificial structs returned by raw functions
-inline auto ArtificialStruct = defineRank<"artificial-struct",
-                                          model::RawFunctionType::Key>(Binary);
+inline auto
+  ArtificialStruct = defineRank<"artificial-struct",
+                                model::RawFunctionDefinition::Key>(Binary);
 
 } // namespace revng::ranks

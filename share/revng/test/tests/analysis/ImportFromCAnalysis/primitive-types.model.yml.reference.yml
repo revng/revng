@@ -2,52 +2,38 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: PrimitiveType
-    ID: 522
-    PrimitiveKind: Generic
-    Size: 10
-  - Kind: PrimitiveType
-    ID: 524
-    PrimitiveKind: Generic
-    Size: 12
-  - Kind: PrimitiveType
-    ID: 1552
-    PrimitiveKind: Signed
-    Size: 16
-  - Kind: PrimitiveType
-    ID: 1802
-    PrimitiveKind: Float
-    Size: 10
-  - Kind: PrimitiveType
-    ID: 1804
-    PrimitiveKind: Float
-    Size: 12
-  - Kind: PrimitiveType
-    ID: 1808
-    PrimitiveKind: Float
-    Size: 16
-  - Kind: UnionType
+TypeDefinitions:
+  - Kind: UnionDefinition
     ID: 3000
     CustomName: "my_union"
     Fields:
       - Index: 0
         CustomName: "first_field"
         Type:
-          UnqualifiedType: "/Types/522-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 10
       - Index: 1
         CustomName: "second_field"
         Type:
-          UnqualifiedType: "/Types/524-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 12
       - Index: 2
         CustomName: "third_field"
         Type:
-          UnqualifiedType: "/Types/1802-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 10
       - Index: 3
         CustomName: "fourth_field"
         Type:
-          UnqualifiedType: "/Types/1804-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 12
       - Index: 4
         CustomName: "fifth_field"
         Type:
-          UnqualifiedType: "/Types/1808-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Float
+          Size: 16

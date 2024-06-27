@@ -8,7 +8,7 @@
 
 #include "revng-c/mlir/Dialect/Clift/IR/CliftTypes.h"
 // keep this order
-#include "revng/Model/PrimitiveType.h"
+#include "revng/Model/Binary.h"
 
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 
@@ -63,43 +63,43 @@ void CliftDialect::printType(mlir::Type Type,
 
 //===---------------------------- PrimitiveType ---------------------------===//
 
-static constexpr model::PrimitiveTypeKind::Values
+static constexpr model::PrimitiveKind::Values
 kindToKind(const PrimitiveKind Kind) {
-  return static_cast<model::PrimitiveTypeKind::Values>(Kind);
+  return static_cast<model::PrimitiveKind::Values>(Kind);
 }
 
 /// Test that kindToKind converts each clift::PrimitiveKind to the matching
-/// model::PrimitiveTypeKind. Use a switch converting in the opposite direction
+/// model::PrimitiveKind. Use a switch converting in the opposite direction
 /// in order to produce a warning if a new primitive kind is ever added.
 static consteval bool testKindToKind() {
   PrimitiveKind UninitializedKind;
-  const auto TestSwitch = [&](const model::PrimitiveTypeKind::Values Kind) {
+  const auto TestSwitch = [&](const model::PrimitiveKind::Values Kind) {
     switch (Kind) {
-    case model::PrimitiveTypeKind::Float:
+    case model::PrimitiveKind::Float:
       return PrimitiveKind::FloatKind;
-    case model::PrimitiveTypeKind::Generic:
+    case model::PrimitiveKind::Generic:
       return PrimitiveKind::GenericKind;
-    case model::PrimitiveTypeKind::Number:
+    case model::PrimitiveKind::Number:
       return PrimitiveKind::NumberKind;
-    case model::PrimitiveTypeKind::PointerOrNumber:
+    case model::PrimitiveKind::PointerOrNumber:
       return PrimitiveKind::PointerOrNumberKind;
-    case model::PrimitiveTypeKind::Signed:
+    case model::PrimitiveKind::Signed:
       return PrimitiveKind::SignedKind;
-    case model::PrimitiveTypeKind::Unsigned:
+    case model::PrimitiveKind::Unsigned:
       return PrimitiveKind::UnsignedKind;
-    case model::PrimitiveTypeKind::Void:
+    case model::PrimitiveKind::Void:
       return PrimitiveKind::VoidKind;
 
-    case model::PrimitiveTypeKind::Invalid:
-    case model::PrimitiveTypeKind::Count:
+    case model::PrimitiveKind::Invalid:
+    case model::PrimitiveKind::Count:
       // Unreachable. This causes an error during constant evaluation.
       return UninitializedKind;
     }
   };
 
-  for (int I = 0; I < static_cast<int>(model::PrimitiveTypeKind::Count); ++I) {
-    auto const Kind = static_cast<model::PrimitiveTypeKind::Values>(I);
-    if (Kind != model::PrimitiveTypeKind::Invalid) {
+  for (int I = 0; I < static_cast<int>(model::PrimitiveKind::Count); ++I) {
+    auto const Kind = static_cast<model::PrimitiveKind::Values>(I);
+    if (Kind != model::PrimitiveKind::Invalid) {
       if (kindToKind(TestSwitch(Kind)) != Kind)
         return false;
     }
@@ -112,16 +112,15 @@ mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
                                           PrimitiveKind Kind,
                                           uint64_t Size,
                                           BoolAttr IsConst) {
-  model::PrimitiveType Type(kindToKind(Kind), Size);
-  if (not Type.verify()) {
+  if (not model::PrimitiveType::make(kindToKind(Kind), Size)->verify())
     return EmitError() << "primitive type verify failed";
-  }
+
   return mlir::success();
 }
 
 bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
-  model::PrimitiveType Type(kindToKind(getKind()), getByteSize());
-  OS << serializeToString(Type.name());
+  OS << serializeToString(model::PrimitiveType::getCName(kindToKind(getKind()),
+                                                         getByteSize()));
   if (isConst())
     OS << "$const";
   return true;

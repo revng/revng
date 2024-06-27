@@ -21,12 +21,10 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/CABIFunctionType.h"
+#include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/QualifiedType.h"
-#include "revng/Model/Qualifier.h"
-#include "revng/Model/RawFunctionType.h"
-#include "revng/Model/TypedefType.h"
+#include "revng/Model/RawFunctionDefinition.h"
+#include "revng/Model/TypedefDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/YAMLTraits.h"
@@ -41,53 +39,47 @@ using llvm::BasicBlock;
 using llvm::Function;
 using llvm::Instruction;
 
-using llvm::cast;
 using llvm::dyn_cast;
-using llvm::isa;
-
-using model::Binary;
-using model::QualifiedType;
 
 template<typename T>
 using RPOT = llvm::ReversePostOrderTraversal<T>;
 
-using TypeVector = llvm::SmallVector<QualifiedType, 8>;
-using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
+using TypeVector = llvm::SmallVector<model::UpcastableType, 8>;
+using ModelTypesMap = std::map<const llvm::Value *,
+                               const model::UpcastableType>;
 
-/// Map each llvm::Argument of the given llvm::Function to its
-/// QualifiedType in the model.
+/// Map each llvm::Argument of the given llvm::Function to its type in the model
 static void addArgumentsTypes(const llvm::Function &LLVMFunc,
-                              const model::Type *Prototype,
-                              const Binary &Model,
+                              const abi::FunctionType::Layout &Layout,
+                              const model::Binary &Model,
                               ModelTypesMap &TypeMap,
                               bool PointersOnly) {
 
-  const auto Layout = abi::FunctionType::Layout::make(*Prototype);
-
-  const auto IsNonShadow = [](const abi::FunctionType::Layout::Argument &A) {
-    using namespace abi::FunctionType::ArgumentKind;
-    return A.Kind != ShadowPointerToAggregateReturnValue;
-  };
-
-  auto NumArgs = LLVMFunc.arg_size();
-  size_t NumNonShadowArgs = llvm::count_if(Layout.Arguments, IsNonShadow);
-  revng_assert(NumNonShadowArgs == NumArgs);
-  auto NonShadowArgs = llvm::make_filter_range(Layout.Arguments, IsNonShadow);
+  using AK = abi::FunctionType::ArgumentKind::Values;
+  constexpr auto SPTAR = AK::ShadowPointerToAggregateReturnValue;
+  auto NonShadowArgs = std::ranges::subrange(Layout.Arguments.begin(),
+                                             Layout.Arguments.end());
+  if (!Layout.Arguments.empty() && Layout.Arguments[0].Kind == SPTAR) {
+    revng_assert(LLVMFunc.arg_size() + 1 == Layout.Arguments.size());
+    NonShadowArgs = std::ranges::subrange(std::next(Layout.Arguments.begin()),
+                                          Layout.Arguments.end());
+  } else {
+    revng_assert(LLVMFunc.arg_size() == Layout.Arguments.size());
+  }
 
   for (const auto &[ArgModelType, LLVMArg] :
        llvm::zip_first(NonShadowArgs, LLVMFunc.args())) {
-
-    QualifiedType ArgQualifiedType = ArgModelType.Type;
-    if (not PointersOnly or ArgQualifiedType.isPointer())
-      TypeMap.insert({ &LLVMArg, std::move(ArgQualifiedType) });
+    if (not PointersOnly or ArgModelType.Type->isPointer())
+      TypeMap.insert({ &LLVMArg, ArgModelType.Type.copy() });
   }
 }
 
-/// Create a QualifiedType for unvisited operands, i.e. constants,
-/// globals and constexprs.
-/// \return true if a new token has been generated for the operand
+/// Create a type for unvisited operands, i.e. constants, globals and
+/// constexprs.
+///
+/// \return true if a new token has been generated for the operand.
 static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
-                                               const Binary &Model,
+                                               const model::Binary &Model,
                                                ModelTypesMap &TypeMap,
                                                bool PointersOnly) {
 
@@ -100,63 +92,55 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
     if (Expr->getOpcode() == Instruction::IntToPtr) {
       auto It = TypeMap.find(Expr->getOperand(0));
       if (It != TypeMap.end()) {
-        const QualifiedType &OperandType = It->second;
+        const model::UpcastableType &OperandType = It->second;
 
-        if (OperandType.isPointer()) {
-          // If the operand has already a pointer qualified type, forward it
-          TypeMap.insert({ Operand, OperandType });
+        if (OperandType->isPointer()) {
+          // If the operand is already a pointer, just forward it
+          TypeMap.insert({ Operand, OperandType.copy() });
 
         } else if (not PointersOnly) {
-          auto
-            ByteSize = model::Architecture::getPointerSize(Model
-                                                             .Architecture());
-          auto BitWidth = 8 * ByteSize;
-          auto *LLVMIntPtrType = llvm::IntegerType::getIntNTy(Operand
-                                                                ->getContext(),
-                                                              BitWidth);
-          QualifiedType IntPtrType = llvmIntToModelType(LLVMIntPtrType, Model);
-          TypeMap.insert({ Operand, IntPtrType });
+          auto PS = model::Architecture::getPointerSize(Model.Architecture());
+          TypeMap.insert({ Operand, model::PrimitiveType::makeGeneric(PS) });
         }
         rc_return true;
       }
     }
-  } else if (isa<llvm::ConstantInt>(Operand)
-             or isa<llvm::GlobalVariable>(Operand)) {
+  } else if (llvm::isa<llvm::ConstantInt>(Operand)
+             or llvm::isa<llvm::GlobalVariable>(Operand)) {
 
-    model::QualifiedType Type = modelType(Operand, Model);
-    if (not PointersOnly or Type.isPointer())
-      TypeMap.insert({ Operand, Type });
+    model::UpcastableType Type = modelType(Operand, Model);
+    if (not PointersOnly or Type->isPointer())
+      TypeMap.insert({ Operand, std::move(Type) });
 
     rc_return true;
 
-  } else if (isa<llvm::PoisonValue>(Operand)
-             or isa<llvm::UndefValue>(Operand)) {
-    // poison and undef are always integers
+  } else if (llvm::isa<llvm::PoisonValue>(Operand)
+             or llvm::isa<llvm::UndefValue>(Operand)) {
+    // Skip if it's not a pointer and we are only interested in pointers
+    if (PointersOnly)
+      rc_return true;
+
+    // `poison` and `undef` can either be integers or pointers
     llvm::Type *OperandType = Operand->getType();
     revng_assert(OperandType->isIntOrPtrTy());
-    auto *IntType = dyn_cast<llvm::IntegerType>(OperandType);
-    if (not IntType) { // It's a pointer
-      auto ByteSize = model::Architecture::getPointerSize(Model.Architecture());
-      auto BitWidth = 8 * ByteSize;
-      IntType = llvm::IntegerType::getIntNTy(Operand->getContext(), BitWidth);
-    }
-    auto ConstType = llvmIntToModelType(IntType, Model);
-    revng_assert(not ConstType.isPointer());
+    auto ByteSize = model::Architecture::getPointerSize(Model.Architecture());
 
-    // Skip if it's not a pointer and we are only interested in pointers
-    if (not PointersOnly)
-      TypeMap.insert({ Operand, ConstType });
+    model::UpcastableType Result;
+    if (auto *IntType = dyn_cast<llvm::IntegerType>(OperandType))
+      Result = llvmIntToModelType(IntType, Model);
+    else
+      Result = model::PrimitiveType::makeGeneric(ByteSize);
+    revng_assert(llvm::isa<model::PrimitiveType>(Result.get()));
+
+    TypeMap.insert({ Operand, std::move(Result) });
     rc_return true;
 
   } else if (auto *NullPtr = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
-    if (not PointersOnly) {
-      auto PtrSize = model::Architecture::getPointerSize(Model.Architecture());
-      auto NullPointerType = model::QualifiedType{
-        Model.getPrimitiveType(model::PrimitiveTypeKind::Generic, PtrSize),
-        /*Qualifiers*/ {}
-      };
-      TypeMap.insert({ Operand, NullPointerType });
-    }
+    if (PointersOnly)
+      rc_return true;
+
+    auto PtrSize = model::Architecture::getPointerSize(Model.Architecture());
+    TypeMap.insert({ Operand, model::PrimitiveType::makeGeneric(PtrSize) });
     rc_return true;
   }
 
@@ -168,16 +152,13 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
 /// special rules apply to recover the returned type.
 static TypeVector getReturnTypes(const llvm::CallInst *Call,
                                  const model::Function *ParentFunc,
-                                 const Binary &Model,
+                                 const model::Binary &Model,
                                  const ModelTypesMap &TypeMap) {
-  TypeVector ReturnTypes;
-
   if (Call->getType()->isVoidTy())
     return {};
 
   // Check if we already have strong model information for this call
-  ReturnTypes = getStrongModelInfo(Call, Model);
-
+  TypeVector ReturnTypes = getStrongModelInfo(Call, Model);
   if (not ReturnTypes.empty())
     return ReturnTypes;
 
@@ -194,17 +175,12 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
         ConstInt and FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
       unsigned BitWidth = ConstInt->getType()->getIntegerBitWidth();
       unsigned ByteSize = std::max(1U, BitWidth / 8U);
-      using model::PrimitiveTypeKind::Signed;
-      auto SignedInt = model::QualifiedType(Model.getPrimitiveType(Signed,
-                                                                   ByteSize),
-                                            {});
-      revng_assert(SignedInt.verify());
-      ReturnTypes.push_back(std::move(SignedInt));
+      return { model::PrimitiveType::makeSigned(ByteSize) };
     } else {
       // Forward the type
       auto It = TypeMap.find(Arg);
       if (It != TypeMap.end())
-        ReturnTypes.push_back(It->second);
+        return { It->second };
     }
 
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
@@ -218,36 +194,40 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
     llvm::Type *ReturnedType = Call->getType();
 
     if (ReturnedType->isSingleValueType()) {
-      ReturnTypes.push_back(llvmIntToModelType(ReturnedType, Model));
+      return { llvmIntToModelType(ReturnedType, Model) };
 
     } else if (ReturnedType->isAggregateType()) {
       // For intrinsics and helpers returning aggregate types, we simply
       // return a list of all the subtypes, after transforming each in the
-      // corresponding primitive QualifiedType
-      for (llvm::Type *Subtype : ReturnedType->subtypes()) {
+      // corresponding primitive type
+      for (llvm::Type *Subtype : ReturnedType->subtypes())
         ReturnTypes.push_back(llvmIntToModelType(Subtype, Model));
-      }
+
+      return ReturnTypes;
 
     } else {
       revng_abort("Unknown value returned by non-isolated function");
     }
+
   } else if (FunctionTags::StringLiteral.isTagOf(CalledFunc)) {
-    using model::PrimitiveTypeKind::Values::Unsigned;
-    QualifiedType CharTy(Model.getPrimitiveType(Unsigned, 1), {});
-    ReturnTypes.push_back(CharTy.getPointerTo(Model.Architecture()));
+    return { model::PointerType::make(model::PrimitiveType::makeUnsigned(1),
+                                      Model.Architecture()) };
+
   } else if (FunctionTags::LiteralPrintDecorator.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
-    ReturnTypes.push_back(llvmIntToModelType(Arg->getType(), Model));
+    return { llvmIntToModelType(Arg->getType(), Model) };
+
   } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
-    ReturnTypes.push_back(llvmIntToModelType(Call->getType(), Model));
+    return { llvmIntToModelType(Call->getType(), Model) };
+
   } else if (FunctionTags::BooleanNot.isTagOf(CalledFunc)) {
-    auto IntType = llvm::IntegerType::getInt1Ty(CalledFunc->getContext());
-    ReturnTypes.push_back(llvmIntToModelType(IntType, Model));
+    return { model::PrimitiveType::makeGeneric(1) };
+
   } else {
     revng_abort("Unknown non-isolated function");
   }
 
-  return ReturnTypes;
+  return {};
 }
 
 /// Given a call instruction, to either an isolated or a non-isolated
@@ -255,47 +235,38 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
 /// one type, infect the uses of the returned value with those types.
 static void handleCallInstruction(const llvm::CallInst *Call,
                                   const model::Function *ParentFunc,
-                                  const Binary &Model,
+                                  const model::Binary &Model,
                                   ModelTypesMap &TypeMap,
                                   bool PointersOnly) {
 
-  TypeVector ReturnedQualTypes = getReturnTypes(Call,
-                                                ParentFunc,
-                                                Model,
-                                                TypeMap);
-
-  if (ReturnedQualTypes.empty())
+  TypeVector ReturnedTypes = getReturnTypes(Call, ParentFunc, Model, TypeMap);
+  if (ReturnedTypes.empty())
     return;
 
   llvm::Type *CallType = Call->getType();
-  if (ReturnedQualTypes.size() == 1) {
+  if (ReturnedTypes.size() == 1) {
     // If the function returns just one value, associate the computed
-    // QualifiedType to the Call Instruction
+    // type to the Call Instruction
     revng_assert(not CallType->isStructTy());
 
     // Skip if it's not a pointer and we are only interested in pointers
-    if (not PointersOnly or ReturnedQualTypes[0].isPointer()) {
-      TypeMap.insert({ Call, ReturnedQualTypes[0] });
-    }
+    if (not PointersOnly or ReturnedTypes[0]->isPointer())
+      TypeMap.insert({ Call, ReturnedTypes[0] });
 
   } else if (not CallType->isAggregateType()) {
-    // If we reach this point, we have many types in ReturnedQualTypes, but the
+    // If we reach this point, we have many types in ReturnedTypes, but the
     // Call on LLVM IR returns an integer.
     revng_assert(CallType->isIntegerTy());
     // In this case we cannot attach a rich type to the integer on LLVM IR, we
-    // just have to fall back to a Generic PrimitiveType
+    // just have to fall back to a generic primitive
     if (not PointersOnly) {
-      const auto GenericKind = model::PrimitiveTypeKind::Generic;
       auto BitWidth = CallType->getIntegerBitWidth();
       revng_assert(BitWidth > 0 and not(BitWidth % 8));
-      auto Generic = QualifiedType(Model.getPrimitiveType(GenericKind,
-                                                          BitWidth / 8),
-                                   {});
-      TypeMap.insert({ Call, std::move(Generic) });
+      TypeMap.insert({ Call, model::PrimitiveType::makeGeneric(BitWidth / 8) });
     }
 
   } else {
-    // If we reach this point, we have many types in ReturnedQualTypes, and
+    // If we reach this point, we have many types in ReturnedTypes, and
     // the Call also returns a struct on LLVM IR
 
     // Functions that return aggregate types have more than one return type.
@@ -303,164 +274,119 @@ static void handleCallInstruction(const llvm::CallInst *Call,
     // llvm::Value. Hence, we collect the returned types in a vector and
     // assign them to the values extracted from the returned struct.
     const auto ExtractedValues = getExtractedValuesFromInstruction(Call);
-    revng_assert(ReturnedQualTypes.size() == ExtractedValues.size());
+    revng_assert(ReturnedTypes.size() == ExtractedValues.size());
 
-    for (const auto &ZippedRetVals : zip(ReturnedQualTypes, ExtractedValues)) {
-      const auto &[QualType, ExtractedSet] = ZippedRetVals;
-      revng_assert(QualType.isScalar());
+    for (auto [Type, ExtractedSet] : zip(ReturnedTypes, ExtractedValues)) {
+      revng_assert(Type->isScalar());
 
       // Each extractedSet contains the set of instructions that extract the
       // same value from the struct
       for (const llvm::CallInst *ExtractValInst : ExtractedSet)
         // Skip if it's not a pointer and we are only interested in pointers
-        if (not PointersOnly or QualType.isPointer())
-          TypeMap.insert({ ExtractValInst, QualType });
+        if (not PointersOnly or Type->isPointer())
+          TypeMap.insert({ ExtractValInst, Type.copy() });
     }
   }
 }
 
-static model::PrimitiveTypeKind::Values
-getPrimitiveKind(const model::QualifiedType &QT) {
-  revng_assert(QT.isPrimitive());
-  model::QualifiedType Unwrapped = peelConstAndTypedefs(QT);
-  revng_assert(Unwrapped.Qualifiers().empty());
-  auto *Primitive = llvm::cast<model::PrimitiveType>(Unwrapped.UnqualifiedType()
-                                                       .getConst());
-  return Primitive->PrimitiveKind();
-}
-
-static model::PrimitiveTypeKind::Values
-getCommonPrimitiveKind(model::PrimitiveTypeKind::Values A,
-                       model::PrimitiveTypeKind::Values B) {
+static model::PrimitiveKind::Values
+getCommonPrimitiveKind(model::PrimitiveKind::Values A,
+                       model::PrimitiveKind::Values B) {
   if (A == B)
     return A;
 
-  if (A == model::PrimitiveTypeKind::Generic
-      or B == model::PrimitiveTypeKind::Generic)
-    return model::PrimitiveTypeKind::Generic;
+  if (A == model::PrimitiveKind::Generic or B == model::PrimitiveKind::Generic)
+    return model::PrimitiveKind::Generic;
 
   // Here, neither A nor B are Generic
 
-  // Given that A != B, and they're not generic, if either of them is Float, we
-  // directly go to Generic.
-  if (A == model::PrimitiveTypeKind::Float
-      or B == model::PrimitiveTypeKind::Float)
-    return model::PrimitiveTypeKind::Generic;
+  // Given that A != B, and they're not generic, if either of them is Float,
+  // we directly go to Generic.
+  if (A == model::PrimitiveKind::Float or B == model::PrimitiveKind::Float)
+    return model::PrimitiveKind::Generic;
 
   // Here neither A nor B is Generic nor Float
 
   // If either is PointerOrNumber, we go to PointerOrNumber.
-  if (A == model::PrimitiveTypeKind::PointerOrNumber
-      or B == model::PrimitiveTypeKind::PointerOrNumber)
-    return model::PrimitiveTypeKind::PointerOrNumber;
+  if (A == model::PrimitiveKind::PointerOrNumber
+      or B == model::PrimitiveKind::PointerOrNumber)
+    return model::PrimitiveKind::PointerOrNumber;
 
   // Here neither A nor B is Generic, Float, nor PointerOrNumber
   // Here A and B can only be Number, Signed or Unsigned.
   // Given that they are different, we always go to Number.
-  return model::PrimitiveTypeKind::Number;
+  return model::PrimitiveKind::Number;
 }
 
-static model::QualifiedType
-getEnumUnderlyingType(const model::QualifiedType &QT) {
-  revng_assert(QT.is(model::TypeKind::EnumType));
-  model::QualifiedType Unwrapped = peelConstAndTypedefs(QT);
-  revng_assert(Unwrapped.Qualifiers().empty());
-  auto *Enum = llvm::cast<model::EnumType>(Unwrapped.UnqualifiedType()
-                                             .getConst());
-  return Enum->UnderlyingType();
-}
-
-static std::optional<model::QualifiedType>
-getCommonScalarType(const model::QualifiedType &A,
-                    const model::QualifiedType &B,
-                    const model::Binary &Model) {
-
-  using model::PrimitiveTypeKind::Values::Float;
-  using model::PrimitiveTypeKind::Values::Generic;
-  using model::PrimitiveTypeKind::Values::PointerOrNumber;
-
+static model::UpcastableType getCommonScalarType(const model::Type &A,
+                                                 const model::Type &B) {
   revng_assert(A.isScalar());
   revng_assert(B.isScalar());
 
   if (A == B)
     return A;
 
-  revng_assert(A.isPrimitive() or A.isPointer()
-               or A.is(model::TypeKind::EnumType));
-  revng_assert(B.isPrimitive() or B.isPointer()
-               or B.is(model::TypeKind::EnumType));
+  revng_assert(A.isPrimitive() or A.isPointer() or A.isEnum());
+  revng_assert(B.isPrimitive() or B.isPointer() or B.isEnum());
 
   revng_assert(A.size() == B.size());
   uint64_t Size = A.size().value();
 
-  if (A.isPrimitive() and B.isPrimitive()) {
-    model::PrimitiveTypeKind::Values AKind = getPrimitiveKind(A);
-    model::PrimitiveTypeKind::Values BKind = getPrimitiveKind(B);
-    model::PrimitiveTypeKind::Values CommonKind = getCommonPrimitiveKind(AKind,
-                                                                         BKind);
-    return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
-  }
+  const model::PrimitiveType *PrimitiveA = A.getPrimitive();
+  const model::PrimitiveType *PrimitiveB = B.getPrimitive();
 
-  if (A.isPrimitive() or B.isPrimitive()) {
+  if (PrimitiveA and PrimitiveB) {
+    auto CommonKind = getCommonPrimitiveKind(PrimitiveA->PrimitiveKind(),
+                                             PrimitiveB->PrimitiveKind());
+    return model::PrimitiveType::make(CommonKind, Size);
 
-    const model::QualifiedType &Primitive = A.isPrimitive() ? A : B;
-    model::PrimitiveTypeKind::Values
-      PrimitiveKind = getPrimitiveKind(Primitive);
+  } else if (PrimitiveA or PrimitiveB) {
+    const auto [Primitive, Other] = PrimitiveA ? std::pair{ PrimitiveA, &B } :
+                                                 std::pair{ PrimitiveB, &A };
 
-    const model::QualifiedType &Other = A.isPrimitive() ? B : A;
+    if (Other->isPointer()) {
+      if (Primitive->PrimitiveKind() == model::PrimitiveKind::Generic)
+        return *Other;
 
-    if (Other.isPointer()) {
+      else if (Primitive->PrimitiveKind() == model::PrimitiveKind::Float)
+        return model::PrimitiveType::makeGeneric(Size);
 
-      if (PrimitiveKind == Generic)
-        return Other;
+      else
+        return model::PrimitiveType::makePointerOrNumber(Size);
 
-      if (PrimitiveKind == Float)
-        return model::QualifiedType(Model.getPrimitiveType(Generic, Size), {});
-
-      return model::QualifiedType(Model.getPrimitiveType(PointerOrNumber, Size),
-                                  {});
-
-    } else if (Other.is(model::TypeKind::EnumType)) {
-
-      model::PrimitiveTypeKind::Values
-        OtherKind = getPrimitiveKind(getEnumUnderlyingType(Other));
-
-      model::PrimitiveTypeKind::Values
-        CommonKind = getCommonPrimitiveKind(PrimitiveKind, OtherKind);
-
-      return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
+    } else if (const model::EnumDefinition *Enum = Other->getEnum()) {
+      auto UnderlyingKind = Enum->underlyingType().PrimitiveKind();
+      auto CommonKind = getCommonPrimitiveKind(UnderlyingKind,
+                                               Primitive->PrimitiveKind());
+      return model::PrimitiveType::make(CommonKind, Size);
 
     } else {
       revng_abort();
     }
+
+  } else {
+    // Here neither A nor B are primitive. They are either enums or pointers.
+
+    const model::EnumDefinition *EnumA = A.getEnum();
+    const model::EnumDefinition *EnumB = B.getEnum();
+    if (EnumA and EnumB) {
+      // Both are enums: make the common integer among the underlying types.
+      auto KindA = EnumA->underlyingType().PrimitiveKind();
+      auto KindB = EnumB->underlyingType().PrimitiveKind();
+      auto CommonKind = getCommonPrimitiveKind(KindA, KindB);
+      return model::PrimitiveType::make(CommonKind, Size);
+
+    } else if (A.isPointer() and B.isPointer()) {
+      // Make a `PointerOrNumber` of the proper size (or could we do a `void
+      // *`)
+      return model::PrimitiveType::makePointerOrNumber(Size);
+
+    } else {
+      // One is a pointer and the other is an enum: we can't find a common
+      // type.
+      return model::UpcastableType::empty();
+    }
   }
-
-  // Here neither A nor B are primitive. They are either enums or pointers.
-  // If one is a pointer and the other is an enum, we can't find a common type.
-  if (A.isPointer() and B.is(model::TypeKind::EnumType))
-    return std::nullopt;
-  if (B.isPointer() and A.is(model::TypeKind::EnumType))
-    return std::nullopt;
-
-  if (A.is(model::TypeKind::EnumType) and B.is(model::TypeKind::EnumType)) {
-    // Make the common integer among the underlying types
-    model::PrimitiveTypeKind::Values
-      AKind = getPrimitiveKind(getEnumUnderlyingType(A));
-    model::PrimitiveTypeKind::Values
-      BKind = getPrimitiveKind(getEnumUnderlyingType(B));
-    model::PrimitiveTypeKind::Values CommonKind = getCommonPrimitiveKind(AKind,
-                                                                         BKind);
-    return model::QualifiedType(Model.getPrimitiveType(CommonKind, Size), {});
-  }
-
-  if (A.isPointer() and B.isPointer()) {
-    // Make a pointerornumber of the proper size (or could we do a void *)
-    return model::QualifiedType(Model.getPrimitiveType(PointerOrNumber, Size),
-                                {});
-  }
-
-  // This should be unreachable, but we return a nullopt, to fail gracefully
-  return std::nullopt;
 }
 
 static llvm::SmallPtrSet<const llvm::Value *, 8>
@@ -486,11 +412,11 @@ getTransitivePHIIncomings(const llvm::PHINode *PHI) {
   return NonPHIIncomings;
 }
 
-static RecursiveCoroutine<std::optional<QualifiedType>>
+static RecursiveCoroutine<std::optional<model::UpcastableType>>
 initModelTypesImpl(const llvm::Instruction &I,
                    const llvm::Function &F,
                    const model::Function *ModelF,
-                   const Binary &Model,
+                   const model::Binary &Model,
                    bool PointersOnly,
                    ModelTypesMap &TypeMap,
                    llvm::SmallPtrSet<const llvm::PHINode *, 8>
@@ -512,8 +438,10 @@ initModelTypesImpl(const llvm::Instruction &I,
         auto *Called = Call->getCalledOperand();
         if (auto *CalledFunction = dyn_cast<llvm::Function>(Called)) {
           auto Prototype = getCallSitePrototype(Model, Call);
-          revng_assert(Prototype.isValid() and not Prototype.empty());
-          TypeMap.insert({ CalledFunction, createPointerTo(Prototype, Model) });
+          revng_assert(Prototype != nullptr);
+          auto Ptr = model::PointerType::make(Model.makeType(Prototype->key()),
+                                              Model.Architecture());
+          TypeMap.insert({ CalledFunction, std::move(Ptr) });
           continue;
         }
       }
@@ -522,31 +450,26 @@ initModelTypesImpl(const llvm::Instruction &I,
   }
 
   // Insert void types for consistency
-  if (InstType->isVoidTy()) {
-    using model::PrimitiveTypeKind::Values::Void;
-    QualifiedType VoidTy(Model.getPrimitiveType(Void, 0), {});
-    TypeMap.insert({ &I, VoidTy });
-    rc_return VoidTy;
-  }
+  if (InstType->isVoidTy())
+    rc_return model::PrimitiveType::makeVoid();
+
   // Function calls in the IR might correspond to real function calls in
   // the binary or to special intrinsics used by the backend, so they need
   // to be handled separately
   if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
     handleCallInstruction(Call, ModelF, Model, TypeMap, PointersOnly);
     auto CallTypeIt = TypeMap.find(Call);
-    std::optional<QualifiedType> CallType = std::nullopt;
     if (CallTypeIt != TypeMap.end())
-      CallType = CallTypeIt->second;
-    rc_return CallType;
+      rc_return CallTypeIt->second.copy();
+    else
+      rc_return std::nullopt;
   }
 
   // Only Call instructions can return aggregates
   revng_assert(not InstType->isAggregateType());
 
   // All ExtractValues should have been converted to OpaqueExtractValue
-  revng_assert(not isa<llvm::ExtractValueInst>(&I));
-
-  std::optional<QualifiedType> Type = std::nullopt;
+  revng_assert(not llvm::isa<llvm::ExtractValueInst>(&I));
 
   switch (I.getOpcode()) {
 
@@ -557,7 +480,7 @@ initModelTypesImpl(const llvm::Instruction &I,
     if (It == TypeMap.end())
       rc_return std::nullopt;
 
-    const auto &PtrOperandType = It->second;
+    const auto &PtrOperandType = *It->second;
 
     // If the pointer operand is a pointer in the model, we can exploit
     // this information to assign a model type to the loaded value. Note
@@ -567,25 +490,19 @@ initModelTypesImpl(const llvm::Instruction &I,
     // fields.
     // TODO: inspect the model to understand if we are loading the first
     // field.
-    if (PtrOperandType.isPointer()) {
-      model::QualifiedType Pointee = dropPointer(PtrOperandType);
-
-      if (areMemOpCompatible(Pointee, *Load->getType(), Model))
-        Type = Pointee;
-    }
-
-    // If it's not a pointer or a scalar of the right size, just
-    // fallback to the LLVM type
+    if (const model::PointerType *Pointer = PtrOperandType.getPointer())
+      if (areMemOpCompatible(*Pointer->PointeeType(), *Load->getType(), Model))
+        rc_return Pointer->PointeeType();
 
   } break;
 
   case Instruction::Alloca: {
     // TODO: eventually AllocaInst will be replaced by calls to
     // revng_local_variable with a type annotation
-    llvm::Type *BaseType = cast<llvm::AllocaInst>(&I)->getAllocatedType();
+    llvm::Type *BaseType = llvm::cast<llvm::AllocaInst>(&I)->getAllocatedType();
     revng_assert(BaseType->isSingleValueType());
-    const model::Architecture::Values &Architecture = Model.Architecture();
-    Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);
+    rc_return model::PointerType::make(llvmIntToModelType(BaseType, Model),
+                                       Model.Architecture());
   } break;
 
   case Instruction::Select: {
@@ -597,7 +514,7 @@ initModelTypesImpl(const llvm::Instruction &I,
     // the result
     if (Op1Entry != TypeMap.end() and Op2Entry != TypeMap.end()
         and Op1Entry->second == Op2Entry->second)
-      Type = Op1Entry->second;
+      rc_return Op1Entry->second;
 
   } break;
 
@@ -614,7 +531,7 @@ initModelTypesImpl(const llvm::Instruction &I,
       // Forward the type if there is one
       auto It = TypeMap.find(Operand);
       if (It != TypeMap.end())
-        Type = It->second;
+        rc_return It->second;
     }
 
   } break;
@@ -632,7 +549,7 @@ initModelTypesImpl(const llvm::Instruction &I,
       // Forward the type if there is one
       auto It = TypeMap.find(Operand);
       if (It != TypeMap.end())
-        Type = It->second;
+        rc_return It->second;
     }
 
   } break;
@@ -644,59 +561,51 @@ initModelTypesImpl(const llvm::Instruction &I,
     // Forward the type if there is one
     auto It = TypeMap.find(I.getOperand(0));
     if (It != TypeMap.end()) {
-      const QualifiedType &OperandType = It->second;
-      if (OperandType.isPointer()) {
-        Type = OperandType;
+      const model::UpcastableType &OperandType = It->second;
+      if (OperandType->isPointer()) {
+        rc_return OperandType;
       } else if (not PointersOnly) {
-        auto ByteSize = model::Architecture::getPointerSize(Model
-                                                              .Architecture());
-        auto BitWidth = 8 * ByteSize;
-        auto *LLVMIntPtrType = llvm::IntegerType::getIntNTy(I.getContext(),
-                                                            BitWidth);
-        Type = llvmIntToModelType(LLVMIntPtrType, Model);
-        revng_assert(ByteSize == Type->size());
+        auto PSize = model::Architecture::getPointerSize(Model.Architecture());
+        rc_return model::PrimitiveType::makeGeneric(PSize);
       }
     }
   } break;
 
   case Instruction::PHI: {
-    auto *PHI = cast<llvm::PHINode>(&I);
-    bool New = VisitedPHIs.insert(PHI).second;
-    if (New) {
+    auto *PHI = llvm::cast<llvm::PHINode>(&I);
+    if (bool New = VisitedPHIs.insert(PHI).second) {
+      std::optional<model::UpcastableType> Result = std::nullopt;
+
       llvm::SmallPtrSet<const llvm::Value *, 8>
         NonPHIIncomings = getTransitivePHIIncomings(PHI);
 
       for (const llvm::Value *Incoming : NonPHIIncomings) {
-        std::optional<QualifiedType> IncomingType = std::nullopt;
+        std::optional<model::UpcastableType> IncomingType = std::nullopt;
         auto IncomingTypeIt = TypeMap.find(Incoming);
         if (IncomingTypeIt != TypeMap.end()) {
           IncomingType = IncomingTypeIt->second;
-        } else {
-          if (auto
-                *IncomingInstruction = dyn_cast<llvm::Instruction>(Incoming)) {
-            IncomingType = rc_recur initModelTypesImpl(*IncomingInstruction,
-                                                       F,
-                                                       ModelF,
-                                                       Model,
-                                                       PointersOnly,
-                                                       TypeMap,
-                                                       VisitedPHIs);
-          }
+        } else if (auto *IncomingInst = dyn_cast<llvm::Instruction>(Incoming)) {
+          IncomingType = rc_recur initModelTypesImpl(*IncomingInst,
+                                                     F,
+                                                     ModelF,
+                                                     Model,
+                                                     PointersOnly,
+                                                     TypeMap,
+                                                     VisitedPHIs);
         }
-        if (not IncomingType)
+
+        if (not IncomingType.has_value())
           continue;
 
-        if (not Type) {
-          Type = IncomingType;
-        } else {
-          std::optional<model::QualifiedType>
-            CommonType = getCommonScalarType(*Type, *IncomingType, Model);
-          if (CommonType.has_value())
-            Type = CommonType.value();
-          else
-            Type = llvmIntToModelType(PHI->getType(), Model);
-        }
+        if (not Result.has_value())
+          Result = std::move(IncomingType);
+        else if (auto C = getCommonScalarType(**Result, **IncomingType))
+          Result = std::move(C);
+        else
+          Result = llvmIntToModelType(PHI->getType(), Model);
       }
+
+      rc_return Result;
     }
   } break;
 
@@ -704,45 +613,52 @@ initModelTypesImpl(const llvm::Instruction &I,
     break;
   }
 
-  rc_return Type;
+  // We didn't manage to find a suitable type: fall back to the LLVM one.
+  rc_return std::nullopt;
 }
 
 static RecursiveCoroutine<ModelTypesMap>
 initModelTypesImpl(const llvm::Function &F,
                    const model::Function *ModelF,
-                   const Binary &Model,
+                   const model::Binary &Model,
                    bool PointersOnly,
                    llvm::SmallPtrSet<const llvm::PHINode *, 8>
                      VisitedPHIs = {}) {
 
   ModelTypesMap TypeMap;
 
-  const model::Type *Prototype = ModelF->prototype(Model).getConst();
-  revng_assert(Prototype);
-
-  addArgumentsTypes(F, Prototype, Model, TypeMap, PointersOnly);
+  const auto *Prototype = Model.prototypeOrDefault(ModelF->prototype());
+  auto Layout = abi::FunctionType::Layout::make(*Prototype);
+  addArgumentsTypes(F, Layout, Model, TypeMap, PointersOnly);
 
   for (const BasicBlock *BB : RPOT<const llvm::Function *>(&F)) {
     for (const Instruction &I : *BB) {
-      std::optional<QualifiedType> Type = initModelTypesImpl(I,
-                                                             F,
-                                                             ModelF,
-                                                             Model,
-                                                             PointersOnly,
-                                                             TypeMap,
-                                                             VisitedPHIs);
+      std::optional<model::UpcastableType> Result = rc_recur
+        initModelTypesImpl(I,
+                           F,
+                           ModelF,
+                           Model,
+                           PointersOnly,
+                           TypeMap,
+                           VisitedPHIs);
       if (PointersOnly) {
         // Skip if it's not a pointer and we are only interested in pointers
-        if (Type and Type->isPointer())
-          TypeMap.insert({ &I, *Type });
+        if (Result.has_value() and !Result->isEmpty()
+            and (*Result)->isPointer())
+          TypeMap.insert({ &I, std::move(*Result) });
+
+      } else if (Result.has_value()) {
+        TypeMap.insert({ &I, std::move(*Result) });
+
+      } else if (I.getType()->isIntOrPtrTy()) {
+        // As a fallback, use the LLVM type
+        TypeMap.insert({ &I, llvmIntToModelType(I.getType(), Model) });
+
+      } else if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+        // TODO: is there more we can check here?
 
       } else {
-        // As a fallback, use the LLVM type to build the QualifiedType
-        if (not Type and I.getType()->isIntOrPtrTy())
-          Type = llvmIntToModelType(I.getType(), Model);
-
-        if (Type)
-          TypeMap.insert({ &I, *Type });
+        revng_abort("Couldn't process a type.");
       }
     }
   }
@@ -752,7 +668,7 @@ initModelTypesImpl(const llvm::Function &F,
 
 ModelTypesMap initModelTypes(const llvm::Function &F,
                              const model::Function *ModelF,
-                             const Binary &Model,
+                             const model::Binary &Model,
                              bool PointersOnly) {
   return initModelTypesImpl(F, ModelF, Model, PointersOnly);
 }

@@ -21,7 +21,7 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
-#include "revng/Model/Type.h"
+#include "revng/Model/Binary.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Option.h"
@@ -89,18 +89,19 @@ struct ImportFromCAnalysis {
     auto &Model = revng::getWritableModelFromContext(Ctx);
 
     // This will be used iff {Edit|Add}TypeFeature is used.
-    std::optional<model::Type *> TypeToEdit;
+    model::TypeDefinition *TypeToEdit = nullptr;
 
     // This will be used iff EditFunctionPrototypeFeature is used.
-    std::optional<model::Function> FunctionToBeEdited;
+    model::Function *FunctionToEdit = nullptr;
 
+    namespace RRanks = revng::ranks;
     if (LocationToEdit.empty()) {
       // This is the default option of the analysis.
       TheOption = ImportFromCOption::AddType;
     } else {
       if (auto L = pipeline::locationFromString(revng::ranks::Function,
                                                 LocationToEdit)) {
-        auto Key = std::get<0>(L->at(revng::ranks::Function));
+        auto [Key] = L->at(revng::ranks::Function);
         auto Iterator = Model->Functions().find(Key);
         if (Iterator == Model->Functions().end()) {
           return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -108,15 +109,13 @@ struct ImportFromCAnalysis {
                                            + LocationToEdit);
         }
 
-        FunctionToBeEdited = *Iterator;
+        FunctionToEdit = &*Iterator;
         TheOption = ImportFromCOption::EditFunctionPrototype;
-      } else if (auto L = pipeline::locationFromString(revng::ranks::Type,
+      } else if (auto L = pipeline::locationFromString(RRanks::TypeDefinition,
                                                        LocationToEdit)) {
-        auto Key = std::get<0>(L->at(revng::ranks::Type));
-        auto TypeKind = std::get<1>(L->at(revng::ranks::Type));
-
-        auto Iterator = Model->Types().find({ Key, TypeKind });
-        if (Iterator == Model->Types().end()) {
+        auto [Key, Kind] = L->at(revng::ranks::TypeDefinition);
+        auto Iterator = Model->TypeDefinitions().find({ Key, Kind });
+        if (Iterator == Model->TypeDefinitions().end()) {
           return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                          "Couldn't find the type "
                                            + LocationToEdit);
@@ -158,9 +157,7 @@ struct ImportFromCAnalysis {
     if (TheOption == ImportFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward
       // declarations.
-      if (not isa<model::RawFunctionType>(*TypeToEdit)
-          and not isa<model::CABIFunctionType>(*TypeToEdit)
-          and not isa<model::TypedefType>(*TypeToEdit)) {
+      if (not declarationIsDefinition(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(Options.PostIncludes);
         ptml::PTMLCBuilder B(true);
         ptml::PTMLIndentedOstream ThePTMLStream(Stream,
@@ -168,14 +165,14 @@ struct ImportFromCAnalysis {
                                                 true);
         Stream << B.getLineComment("The type we are editing");
         // The definition of this type will be at the end of the file.
-        printForwardDeclaration(**TypeToEdit, ThePTMLStream, B);
+        printForwardDeclaration(*TypeToEdit, ThePTMLStream, B);
         Stream << '\n';
       }
 
       // Find all types whose definition depends on the type we are editing.
       Options.TypesToOmit = populateDependencies(*TypeToEdit, Model);
     } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
-      Options.FunctionsToOmit.insert(FunctionToBeEdited->Entry());
+      Options.FunctionsToOmit.insert(FunctionToEdit->Entry());
     } else {
       revng_assert(TheOption == ImportFromCOption::AddType);
       // We have nothing to ignore
@@ -194,14 +191,16 @@ struct ImportFromCAnalysis {
     std::unique_ptr<HeaderToModelAction> Action;
 
     if (TheOption == ImportFromCOption::EditType) {
+      revng_assert(TypeToEdit != nullptr);
       Action = std::make_unique<HeaderToModelEditTypeAction>(OutModel,
                                                              Error,
-                                                             TypeToEdit);
+                                                             TypeToEdit->key());
     } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
+      revng_assert(FunctionToEdit != nullptr);
       using EditFunctionPrototype = HeaderToModelEditFunctionAction;
       Action = std::make_unique<EditFunctionPrototype>(OutModel,
                                                        Error,
-                                                       FunctionToBeEdited);
+                                                       FunctionToEdit->Entry());
     } else {
       Action = std::make_unique<HeaderToModelAddTypeAction>(OutModel, Error);
     }

@@ -5,93 +5,102 @@
 ---
 Architecture: x86_64
 DefaultABI: SystemV_x86_64
-Types:
-  - Kind: PrimitiveType
-    ID: 520
-    PrimitiveKind: Generic
-    Size: 8
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 3002
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/3003-StructType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3003-StructDefinition"
     Size: 40
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3006
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/3002-StructType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-StructDefinition"
     Size: 40
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3007
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/3003-StructType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3003-StructDefinition"
     Size: 40
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3008
     Fields:
       - Offset: 27
         Type:
-          UnqualifiedType: "/Types/3004-StructType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3004-StructDefinition"
     Size: 175
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3009
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/3004-StructType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3004-StructDefinition"
     Size: 40
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3005
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/3004-StructType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3004-StructDefinition"
     Size: 40
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3003
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/3001-StructType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3001-StructDefinition"
     Size: 8
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3001
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/3010-StructType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3010-StructDefinition"
     Size: 40
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3004
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Number
+          Size: 8
       - Offset: 8
         Type:
-          UnqualifiedType: "/Types/3004-StructType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3004-StructDefinition"
     Size: 48
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3010
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/520-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
     Size: 8

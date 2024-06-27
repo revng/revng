@@ -10,26 +10,22 @@
 static Logger<> Log{ "model-type-definition" };
 
 std::string dumpModelTypeDefinition(const model::Binary &Model,
-                                    model::Type::Key Key) {
+                                    model::TypeDefinition::Key Key) {
   std::string Result;
-
-  const UpcastablePointer<model::Type> &UpcastableType = Model.Types().at(Key);
 
   llvm::raw_string_ostream Out(Result);
   ptml::PTMLIndentedOstream PTMLOut(Out, DecompiledCCodeIndentation, true);
   ptml::PTMLCBuilder B(true);
 
-  std::map<model::QualifiedType, std::string> AdditionalNames;
-  const std::set<const model::Type *> TypesToInline;
+  std::map<model::UpcastableType, std::string> AdditionalNames;
+  const std::set<const model::TypeDefinition *> TypesToInline;
 
   printDefinition(Log,
-                  *UpcastableType,
+                  *Model.TypeDefinitions().at(Key),
                   PTMLOut,
                   B,
                   Model,
                   AdditionalNames,
-                  TypesToInline,
-                  {},
                   {},
                   true);
 

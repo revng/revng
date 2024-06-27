@@ -3,8 +3,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 3001
     CustomName: "X"
     OriginalName: X
@@ -13,9 +13,10 @@ Types:
         CustomName: "the_struct_y"
         OriginalName: the_struct_y
         Type:
-          UnqualifiedType: "/Types/3002-StructType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-StructDefinition"
     Size: 56
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3002
     CustomName: "Y"
     OriginalName: Y
@@ -24,22 +25,25 @@ Types:
         CustomName: "the_union_w"
         OriginalName: the_union_w
         Type:
-          UnqualifiedType: "/Types/3003-UnionType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3003-UnionDefinition"
       - Offset: 4
         CustomName: "the_union_z"
         OriginalName: the_union_z
         Type:
-          UnqualifiedType: "/Types/3004-UnionType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3004-UnionDefinition"
       - Offset: 48
         CustomName: "ptr_to_E"
         OriginalName: ptr_to_E
         Type:
-          UnqualifiedType: "/Types/3007-EnumType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3007-EnumDefinition"
     Size: 56
-  - Kind: UnionType
+  - Kind: UnionDefinition
     ID: 3003
     CustomName: "W"
     OriginalName: W
@@ -48,8 +52,10 @@ Types:
         CustomName: "field"
         OriginalName: field
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
-  - Kind: UnionType
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+  - Kind: UnionDefinition
     ID: 3004
     CustomName: "Z"
     OriginalName: Z
@@ -58,21 +64,25 @@ Types:
         CustomName: "the_enum_e"
         OriginalName: the_enum_e
         Type:
-          UnqualifiedType: "/Types/3005-EnumType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3005-EnumDefinition"
       - Index: 1
         CustomName: "array_of_a"
         OriginalName: array_of_a
         Type:
-          UnqualifiedType: "/Types/3006-StructType"
-          Qualifiers:
-            - Kind: Array
-              Size: 10
-  - Kind: EnumType
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3006-StructDefinition"
+  - Kind: EnumDefinition
     ID: 3005
     CustomName: "E"
     OriginalName: E
     UnderlyingType:
-      UnqualifiedType: "/Types/1284-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 2
         CustomName: "VALUE"
@@ -80,7 +90,7 @@ Types:
       - Value: 7
         CustomName: "OTHER"
         OriginalName: OTHER
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3006
     CustomName: "A"
     OriginalName: A
@@ -89,14 +99,18 @@ Types:
         CustomName: "field"
         OriginalName: field
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
     Size: 4
-  - Kind: EnumType
+  - Kind: EnumDefinition
     ID: 3007
     CustomName: "E2"
     OriginalName: E2
     UnderlyingType:
-      UnqualifiedType: "/Types/1284-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 1
         CustomName: "FIRST"
@@ -104,14 +118,5 @@ Types:
       - Value: 2
         CustomName: "SECOND"
         OriginalName: SECOND
-
-  - Kind: PrimitiveType
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
 ---
 

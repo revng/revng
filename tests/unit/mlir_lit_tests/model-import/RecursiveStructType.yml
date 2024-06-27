@@ -3,7 +3,7 @@
 #
 # RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
-Types:
+TypeDefinitions:
   # CHECK: #my_struct$def = #clift.struct<
   # CHECK:   id = 1001
   # CHECK:   name = "my_struct"
@@ -23,13 +23,14 @@ Types:
   # CHECK: >
   # CHECK: !my_struct = !clift.defined<#my_struct$def>
   - ID: 1001
-    Kind: StructType
+    Kind: StructDefinition
     CustomName: "my_struct"
     Size: 4
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/1001-StructType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 4
+          Kind: PointerType
+          PointerSize: 4
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1001-StructDefinition"

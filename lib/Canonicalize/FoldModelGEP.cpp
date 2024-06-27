@@ -13,7 +13,6 @@
 
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/YAMLTraits.h"
 
@@ -42,7 +41,6 @@ public:
 using llvm::CallInst;
 using llvm::dyn_cast;
 using llvm::StringRef;
-using model::QualifiedType;
 
 inline llvm::Value *traverseTransparentInstructions(llvm::Value *V) {
   llvm::Value *CurValue = V;
@@ -68,7 +66,7 @@ static llvm::Value *getValueToSubstitute(llvm::Instruction &I,
 
     // First argument is the model type of the base pointer
     llvm::Value *GEPFirstArg = Call->getArgOperand(0);
-    QualifiedType GEPBaseType = deserializeFromLLVMString(GEPFirstArg, Model);
+    auto GEPBaseType = deserializeFromLLVMString(GEPFirstArg, Model);
 
     // Second argument is the base pointer
     llvm::Value *SecondArg = Call->getArgOperand(1);
@@ -95,8 +93,7 @@ static llvm::Value *getValueToSubstitute(llvm::Instruction &I,
 
     // First argument of the AddressOf is the pointer's base type
     llvm::Value *AddrOfFirstArg = AddrOfCall->getArgOperand(0);
-    QualifiedType AddrOfBaseType = deserializeFromLLVMString(AddrOfFirstArg,
-                                                             Model);
+    auto AddrOfBaseType = deserializeFromLLVMString(AddrOfFirstArg, Model);
 
     // Skip if the ModelGEP is dereferencing the AddressOf with a
     // different type

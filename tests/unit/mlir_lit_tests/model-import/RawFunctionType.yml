@@ -4,20 +4,17 @@
 # RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 Architecture: x86_64
-Types:
-  - ID: 1288
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 8
-
+TypeDefinitions:
   - ID: 201
-    Kind: StructType
+    Kind: StructDefinition
     CustomName: my_struct
     Size: 8
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
 
     # CHECK: #my_function1$def = #clift.function<
     # CHECK:   id = 1000
@@ -27,7 +24,7 @@ Types:
     # CHECK: >
     # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
   - ID: 1000
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     CustomName: "my_function1"
     Architecture: x86_64
     Arguments: []
@@ -45,17 +42,21 @@ Types:
     # CHECK: >
     # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
   - ID: 1001
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     CustomName: "my_function2"
     Architecture: x86_64
     Arguments:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
     ReturnValues:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
     PreservedRegisters:
       - rdi_x86_64
     FinalStackOffset: 0
@@ -88,31 +89,41 @@ Types:
     # CHECK: >
     # CHECK: !my_function3_ = !clift.defined<#my_function3$def>
   - ID: 1002
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     CustomName: "my_function3"
     Architecture: x86_64
     Arguments:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
       - Location: rbx_x86_64
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
     ReturnValues:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
       - Location: rdx_x86_64
         Type:
-          UnqualifiedType: "/Types/1288-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
     PreservedRegisters:
       - rdi_x86_64
       - rsi_x86_64
     FinalStackOffset: 0
-    StackArgumentsType: "/Types/201-StructType"
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/201-StructDefinition"

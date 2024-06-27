@@ -3,8 +3,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 3001
     CustomName: "B"
     OriginalName: B
@@ -13,14 +13,16 @@ Types:
         CustomName: "a1"
         OriginalName: a1
         Type:
-          UnqualifiedType: "/Types/3002-UnionType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-UnionDefinition"
       - Offset: 4
         CustomName: "a2"
         OriginalName: a2
         Type:
-          UnqualifiedType: "/Types/3002-UnionType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-UnionDefinition"
     Size: 8
-  - Kind: UnionType
+  - Kind: UnionDefinition
     ID: 3002
     CustomName: "A"
     OriginalName: A
@@ -29,13 +31,13 @@ Types:
         CustomName: "a"
         OriginalName: a
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4
       - Index: 1
         CustomName: "b"
         OriginalName: b
         Type:
-          UnqualifiedType: "/Types/1284-PrimitiveType"
-  - Kind: PrimitiveType
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

@@ -5,63 +5,70 @@
 ---
 Architecture: x86_64
 DefaultABI: SystemV_x86_64
-Types:
-  - Kind: PrimitiveType
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
-  - Kind: PrimitiveType
-    ID: 1537
-    PrimitiveKind: Signed
-    Size: 1
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 3005
     Fields:
       - Offset: 0
         CustomName: "can_do_threads"
         OriginalName: can_do_threads
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
     Size: 4
-  - Kind: StructType
+  - Kind: StructDefinition
     ID: 3006
     Fields:
       - Offset: 0
         CustomName: "do_threads"
         OriginalName: do_threads
         Type:
-          UnqualifiedType: "/Types/1537-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 1
     Size: 1
-  - Kind: TypedefType
+  - Kind: TypedefDefinition
     ID: 3013
     UnderlyingType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
-  - Kind: TypedefType
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+  - Kind: TypedefDefinition
     ID: 3012
     UnderlyingType:
-      UnqualifiedType: "/Types/3013-TypedefType"
-  - Kind: TypedefType
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3013-TypedefDefinition"
+  - Kind: TypedefDefinition
     ID: 3011
     UnderlyingType:
-      UnqualifiedType: "/Types/3012-TypedefType"
-  - Kind: CABIFunctionType
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3012-TypedefDefinition"
+  - Kind: CABIFunctionDefinition
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1540-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
         CustomName: "argc"
         OriginalName: argc
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1537-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: PrimitiveType
+              PrimitiveKind: Signed
+              Size: 1
         CustomName: "argv"
         OriginalName: argv

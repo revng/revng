@@ -84,13 +84,13 @@ class HeaderToModelEditTypeAction : public HeaderToModelAction {
 public:
   HeaderToModelEditTypeAction(TupleTree<model::Binary> &Model,
                               std::optional<revng::ParseCCodeError> &Error,
-                              std::optional<model::Type *> &Type) :
+                              std::optional<model::TypeDefinition::Key> Type) :
     HeaderToModelAction(Model, ImportFromCOption::EditType, Error),
     Type(Type) {}
 
 private:
   // Type to be edited.
-  std::optional<model::Type *> &Type;
+  std::optional<model::TypeDefinition::Key> Type;
 
 public:
   virtual std::unique_ptr<ASTConsumer> newASTConsumer() override;
@@ -101,13 +101,13 @@ class HeaderToModelEditFunctionAction : public HeaderToModelAction {
 public:
   HeaderToModelEditFunctionAction(TupleTree<model::Binary> &Model,
                                   std::optional<revng::ParseCCodeError> &Error,
-                                  std::optional<model::Function> &Function) :
+                                  MetaAddress FunctionEntry) :
     HeaderToModelAction(Model, ImportFromCOption::EditFunctionPrototype, Error),
-    Function(Function) {}
+    FunctionEntry(FunctionEntry) {}
 
 private:
   // Function to be edited if we are editing function prototype.
-  std::optional<model::Function> &Function;
+  MetaAddress FunctionEntry;
 
 public:
   virtual std::unique_ptr<ASTConsumer> newASTConsumer() override;

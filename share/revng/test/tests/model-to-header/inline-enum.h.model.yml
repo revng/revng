@@ -3,8 +3,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-Types:
-  - Kind: StructType
+TypeDefinitions:
+  - Kind: StructDefinition
     ID: 1
     CustomName: "B"
     OriginalName: B
@@ -13,14 +13,17 @@ Types:
         CustomName: "the_a"
         OriginalName: the_a
         Type:
-          UnqualifiedType: "/Types/3002-EnumType"
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3002-EnumDefinition"
     Size: 4
-  - Kind: EnumType
+  - Kind: EnumDefinition
     ID: 3002
     CustomName: "A"
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/Types/1284-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 0
         CustomName: "FIRST"
@@ -28,9 +31,5 @@ Types:
       - Value: 1
         CustomName: "SECOND"
         OriginalName: SECOND
-  - Kind: PrimitiveType
-    ID: 1284
-    PrimitiveKind: Unsigned
-    Size: 4
 ---
 

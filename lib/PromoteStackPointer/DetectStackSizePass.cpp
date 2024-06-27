@@ -9,7 +9,6 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
@@ -26,7 +25,7 @@
 #include "Helpers.h"
 
 using namespace llvm;
-using model::RawFunctionType;
+using model::RawFunctionDefinition;
 
 static Logger<> Log("detect-stack-size");
 
@@ -81,7 +80,7 @@ static void setBound(BoundCollector<IsUpper> &BoundCollector, Value *V) {
 
 struct CallSite {
   std::optional<uint64_t> StackSize;
-  model::Type::Key CallType{};
+  model::TypeDefinition::Key CallType{};
 };
 
 class FunctionStackInfo {
@@ -100,9 +99,10 @@ class DetectStackSize {
 private:
   TupleTree<model::Binary> &Binary;
   std::vector<FunctionStackInfo> FunctionsStackInfo;
-  std::map<RawFunctionType *, UpperBoundCollector> FunctionTypeStackArguments;
+  std::map<RawFunctionDefinition *, UpperBoundCollector>
+    FunctionTypeStackArguments;
   const size_t CallInstructionPushSize = 0;
-  /// Helper for fast model::Type size computation
+  /// Helper for fast model::TypeDefinition size computation
   model::VerifyHelper VH;
 
 public:
@@ -122,8 +122,8 @@ public:
     // * FunctionsStackInfo: we can use it to elect stack frame size
 
     // Elect stack arguments size for prototypes
-    for (auto &[Prototype, UpperBound] : FunctionTypeStackArguments)
-      electStackArgumentsSize(Prototype, UpperBound);
+    for (auto [Prototype, UpperBound] : FunctionTypeStackArguments)
+      electStackArgumentsSize(*Prototype, UpperBound);
 
     // Now all prototypes have a definitive stack arguments size, we can elect
     // stack frame size
@@ -133,7 +133,7 @@ public:
 
 private:
   void collectStackBounds(Function &F);
-  void electStackArgumentsSize(RawFunctionType *Prototype,
+  void electStackArgumentsSize(RawFunctionDefinition &Prototype,
                                const UpperBoundCollector &Bound) const;
   void electFunctionStackFrameSize(FunctionStackInfo &FSI);
   std::optional<uint64_t> handleCallSite(const CallSite &CallSite);
@@ -149,15 +149,14 @@ void DetectStackSize::collectStackBounds(Function &F) {
 
   // Check if this function already has information about stack
   // frame/arguments
-  bool NeedsStackFrame = ModelFunction.StackFrameType().empty();
+  bool NeedsStackFrame = ModelFunction.StackFrameType().isEmpty();
   bool NeedsStackArguments = false;
-  model::Type *Prototype = ModelFunction.prototype(*Binary).get();
+  auto &Prototype = *Binary->prototypeOrDefault(ModelFunction.prototype());
 
-  // We only upgrade the stack size of RawFunctionType
-  RawFunctionType *RawPrototype = nullptr;
-  if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype))) {
-    NeedsStackArguments = RawPrototype->StackArgumentsType().empty();
-  }
+  // We only upgrade the stack size of RawFunctionDefinition
+  RawFunctionDefinition *RawPrototype = nullptr;
+  if ((RawPrototype = llvm::dyn_cast<RawFunctionDefinition>(&Prototype)))
+    NeedsStackArguments = RawPrototype->StackArgumentsType().isEmpty();
 
   revng_log(Log, "NeedsStackFrame: " << NeedsStackFrame);
   revng_log(Log, "NeedsStackArguments: " << NeedsStackArguments);
@@ -191,9 +190,9 @@ void DetectStackSize::collectStackBounds(Function &F) {
               NewCallSite.StackSize = Offset->getLimitedValue();
 
             // Get the prototype
-            auto Proto = getCallSitePrototype(*Binary.get(),
-                                              findAssociatedCall(Call));
-            NewCallSite.CallType = Proto.getConst()->key();
+            const auto &Proto = *getCallSitePrototype(*Binary.get(),
+                                                      findAssociatedCall(Call));
+            NewCallSite.CallType = Proto.key();
           }
         }
       }
@@ -220,9 +219,9 @@ void DetectStackSize::collectStackBounds(Function &F) {
 }
 
 using DSSI = DetectStackSize;
-void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
+void DSSI::electStackArgumentsSize(RawFunctionDefinition &Prototype,
                                    const UpperBoundCollector &Bound) const {
-  revng_assert(Prototype->StackArgumentsType().empty());
+  revng_assert(Prototype.StackArgumentsType().isEmpty());
   revng_assert(Bound.hasValue());
 
   APInt Value = Bound.value();
@@ -236,9 +235,10 @@ void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
   auto Size = Value.getLimitedValue();
   if (Value.sgt(0) and isValidStackSize(Size)) {
     revng_log(Log,
-              "electStackArgumentsSize for " << Prototype->ID() << ": "
-                                             << Size);
-    Prototype->StackArgumentsType() = createEmptyStruct(*Binary.get(), Size);
+              "electStackArgumentsSize for " << Prototype.ID() << ": " << Size);
+
+    auto EmptyStruct = Binary->makeStructDefinition(Size).second;
+    Prototype.StackArgumentsType() = std::move(EmptyStruct);
   }
 }
 
@@ -273,8 +273,9 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
 
   if (StackSize and isValidStackSize(*StackSize)) {
     revng_log(Log, "Final StackSize: " << *StackSize);
-    ModelFunction.StackFrameType() = createEmptyStruct(*Binary.get(),
-                                                       *StackSize);
+
+    auto EmptyStruct = Binary->makeStructDefinition(*StackSize).second;
+    ModelFunction.StackFrameType() = std::move(EmptyStruct);
   }
 }
 
@@ -290,8 +291,8 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
 
   using namespace abi::FunctionType;
   uint64_t StackArgumentSize = 0;
-  for (Layout::Argument &Argument :
-       Layout::make(*Binary->Types().at(CallSite.CallType).get()).Arguments) {
+  for (auto &Prototype = *Binary->TypeDefinitions().at(CallSite.CallType).get();
+       Layout::Argument & Argument : Layout::make(Prototype).Arguments) {
     if (Argument.Stack.has_value()) {
       StackArgumentSize = std::max(StackArgumentSize,
                                    Argument.Stack->Offset

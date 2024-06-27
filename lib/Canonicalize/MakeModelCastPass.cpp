@@ -15,7 +15,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Model/QualifiedType.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/YAMLTraits.h"
@@ -27,7 +26,8 @@
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 
 using namespace llvm;
-using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
+using ModelTypesMap = std::map<const llvm::Value *,
+                               const model::UpcastableType>;
 
 struct SerializedType {
   Constant *StringType;
@@ -78,14 +78,14 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
 
     // Aggregates that do not correspond to model structs (e.g. return types
     // of RawFunctionTypes that return more than one value) cannot be handled
-    // with casts, since we don't have a model::Type to cast them to.
+    // with casts, since we don't have a model::TypeDefinition to cast them to.
     if (ModelTypes.size() == 1) {
-      QualifiedType ExpectedType = ModelTypes.back();
-      revng_assert(ExpectedType.UnqualifiedType().isValid());
+      const model::UpcastableType &ExpectedType = ModelTypes.back();
+      revng_assert(ExpectedType->verify());
 
-      const QualifiedType &OperandType = TypeMap.at(Op.get());
-      if (ExpectedType.skipTypedefs() != OperandType.skipTypedefs()) {
-        revng_assert(ExpectedType.isScalar() and OperandType.isScalar());
+      const model::Type &OperandType = *TypeMap.at(Op.get());
+      if (*ExpectedType->skipTypedefs() != *OperandType.skipTypedefs()) {
+        revng_assert(ExpectedType->isScalar() and OperandType.isScalar());
         // Create a cast only if the expected type is different from the
         // actual type propagated until here
         auto Type = SerializedType(serializeToLLVMString(ExpectedType, *M),
@@ -126,39 +126,6 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
     if (Ret->getNumOperands() > 0)
       SerializeTypeFor(Ret->getOperandUse(0));
 
-  } else if (auto *SI = dyn_cast<StoreInst>(I)) {
-    auto &PtrOperandPtrType = TypeMap.at(SI->getPointerOperand());
-    auto &ValOperandType = TypeMap.at(SI->getValueOperand());
-
-    const model::Architecture::Values &Arch = Model.Architecture();
-    QualifiedType ValOperandPtrType = ValOperandType.getPointerTo(Arch);
-    if (PtrOperandPtrType != ValOperandPtrType) {
-      bool IsPtrOperandOfAggregateType = false;
-      QualifiedType PtrOperandType;
-
-      if (PtrOperandPtrType.isPointer()) {
-        PtrOperandType = dropPointer(PtrOperandPtrType);
-        const auto *Unqualified = PtrOperandType.UnqualifiedType().getConst();
-        IsPtrOperandOfAggregateType = isa<model::StructType>(Unqualified)
-                                      || isa<model::UnionType>(Unqualified);
-      }
-
-      if (isa<ConstantPointerNull>(SI->getPointerOperand())
-          || IsPtrOperandOfAggregateType) {
-        // Pointer operand needs to be casted to the model::QualifiedType of
-        // the value operand, added pointer qualified.
-        auto Type = SerializedType(serializeToLLVMString(ValOperandPtrType, *M),
-                                   SI->getPointerOperandIndex());
-        Result.emplace_back(std::move(Type));
-      } else {
-        // Value operand needs to be casted to the drop'd ptr of the
-        // model::QualifiedType of the pointer type.
-        revng_assert(PtrOperandPtrType.isPointer());
-        auto *LLVMString = serializeToLLVMString(PtrOperandType, *M);
-        auto Type = SerializedType(LLVMString);
-        Result.emplace_back(std::move(Type));
-      }
-    }
   } else if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)
              or isa<llvm::SelectInst>(I)) {
     for (unsigned Index = 0; Index < I->getNumOperands(); ++Index)
@@ -263,16 +230,11 @@ bool MMCP::runOnFunction(Function &F) {
         revng_assert(std::has_single_bit(ResultBitWidth));
         revng_assert(ResultBitWidth == 1 or ResultBitWidth >= 8);
         unsigned ByteSize = (ResultBitWidth == 1) ? 1 : ResultBitWidth / 8;
-
-        using model::PrimitiveTypeKind::Values::Number;
-        using model::PrimitiveTypeKind::Values::Signed;
-        using model::PrimitiveTypeKind::Values::Unsigned;
-        model::PrimitiveTypeKind::Values Kind = SExt ?
-                                                  Signed :
-                                                  (ZExt ? Unsigned : Number);
-        auto ResultModelType = model::QualifiedType{
-          Model->getPrimitiveType(Kind, ByteSize), {}
-        };
+        auto ResultModelType = SExt ?
+                                 model::PrimitiveType::makeSigned(ByteSize) :
+                               ZExt ?
+                                 model::PrimitiveType::makeUnsigned(ByteSize) :
+                                 model::PrimitiveType::makeNumber(ByteSize);
 
         // Create a string constant to pass as first argument of the call to
         // ModelCast, to represent the target model type.

@@ -4,21 +4,28 @@
 
 Architecture: x86_64
 
-Types:
-  - Kind: CABIFunctionType
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
     ID: 3000
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/1544-PrimitiveType"
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/1540-PrimitiveType"
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/1537-PrimitiveType"
-          Qualifiers:
-            - Kind: Pointer
-              Size: 8
-            - Kind: Pointer
-              Size: 8
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: PrimitiveType
+              PrimitiveKind: Unsigned
+              Size: 1

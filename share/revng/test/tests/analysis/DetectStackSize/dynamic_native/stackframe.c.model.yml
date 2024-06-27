@@ -4,63 +4,81 @@
 
 Architecture: x86_64
 
-Types:
+TypeDefinitions:
   - # stack_frame prototype
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     ID: 7412439904038490792
     Architecture: x86_64
     FinalStackOffset: 8
     -StackArgumentsType: ""
   - # stack_frame stack frame
-    Kind: StructType
+    Kind: StructDefinition
     ID: 17773669446801075323
     Size: 8
   - # stack_frame_array prototype
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     ID: 13776914522867493387
     Architecture: x86_64
     FinalStackOffset: 8
   - # stack_frame_array stack frame
-    Kind: StructType
+    Kind: StructDefinition
     ID: 10059356012972557344
     Fields: []
     Size: 80
   - # stack_arguments_64 prototype
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     ID: 962527246414399901
     Architecture: x86_64
     FinalStackOffset: 8
-    StackArgumentsType: "/Types/2914208048943782880-StructType"
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2914208048943782880-StructDefinition"
   - # stack_arguments_64 stack arguments type
-    Kind: StructType
+    Kind: StructDefinition
     ID: 2914208048943782880
     Size: 24
   - # stack_arguments_32 prototype
-    Kind: RawFunctionType
+    Kind: RawFunctionDefinition
     ID: 15643449473528100124
     Architecture: x86_64
     FinalStackOffset: 8
-    StackArgumentsType: "/Types/17628016926864895242-StructType"
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/17628016926864895242-StructDefinition"
   - # stack_arguments_32 stack arguments type
-    Kind: StructType
+    Kind: StructDefinition
     ID: 17628016926864895242
     # TODO: this should be 24, see source file for explanation
     Size: 20
 Functions:
   - CustomName: "stack_frame"
-    Prototype: "/Types/7412439904038490792-RawFunctionType"
-    StackFrameType: "/Types/17773669446801075323-StructType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/7412439904038490792-RawFunctionDefinition"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/17773669446801075323-StructDefinition"
   - CustomName: "stack_frame_array"
-    Prototype: "/Types/13776914522867493387-RawFunctionType"
-    StackFrameType: "/Types/10059356012972557344-StructType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/13776914522867493387-RawFunctionDefinition"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/10059356012972557344-StructDefinition"
   - CustomName: "stack_arguments_64"
-    Prototype: "/Types/962527246414399901-RawFunctionType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/962527246414399901-RawFunctionDefinition"
   - CustomName: "call_stack_arguments_64"
     -StackFrameType: ""
     # TODO: once we have references in the CFG we can test the relationship with
     #       the callee.
   - CustomName: "stack_arguments_32"
-    Prototype: "/Types/15643449473528100124-RawFunctionType"
-    StackFrameType: "/Types/4125551533421568229-StructType"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/15643449473528100124-RawFunctionDefinition"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/4125551533421568229-StructDefinition"
 # TODO: test indirect_call_stack_arguments_64 once we handle it
 # TODO: test array_stack_argument once we handle it

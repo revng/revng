@@ -444,9 +444,9 @@ void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
 
   // Initialize the pool from its internal llvm::Module if possible.
   for (llvm::Function &F : EVTag.functions(M)) {
-    auto StructType = F.getFunctionType()->getParamType(0);
+    auto StructDefinition = F.getFunctionType()->getParamType(0);
     auto RetType = F.getFunctionType()->getReturnType();
-    Pool.record({ RetType, StructType }, &F);
+    Pool.record({ RetType, StructDefinition }, &F);
   }
 }
 

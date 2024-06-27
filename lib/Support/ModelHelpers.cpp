@@ -19,10 +19,8 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/PrimitiveTypeKind.h"
-#include "revng/Model/QualifiedType.h"
-#include "revng/Model/Qualifier.h"
-#include "revng/Model/RawFunctionType.h"
+#include "revng/Model/PrimitiveKind.h"
+#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -34,278 +32,136 @@
 using llvm::cast;
 using llvm::dyn_cast;
 
-using QualKind = model::QualifierKind::Values;
-using CABIFT = model::CABIFunctionType;
-using RawFT = model::RawFunctionType;
-
-using model::QualifiedType;
-using model::Qualifier;
-using model::TypedefType;
-
 constexpr const size_t ModelGEPBaseArgIndex = 1;
 
-static RecursiveCoroutine<model::QualifiedType>
-peelConstAndTypedefsImpl(const model::QualifiedType &QT) {
-  // First look for non-const qualifiers
-  const auto &NonConst = std::not_fn(model::Qualifier::isConst);
-  auto QIt = llvm::find_if(QT.Qualifiers(), NonConst);
-  auto QEnd = QT.Qualifiers().end();
+model::UpcastableType modelType(const llvm::Value *V,
+                                const model::Binary &Model) {
+  model::UpcastableType Result;
 
-  // If we find a non-const qualifier we're done unwrapping
-  if (QIt != QEnd)
-    rc_return model::QualifiedType(QT.UnqualifiedType(), { QIt, QEnd });
-
-  // Here we have only const qualifiers
-
-  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst());
-
-  // If it's not a typedef, we're done. Just throw away the remaining const
-  // qualifiers.
-  if (not TD)
-    rc_return model::QualifiedType(QT.UnqualifiedType(), {});
-
-  // If it's a typedef, unwrap it and recur.
-  // Also in this case we can ignore
-  rc_return rc_recur peelConstAndTypedefsImpl(TD->UnderlyingType());
-}
-
-model::QualifiedType peelConstAndTypedefs(const model::QualifiedType &QT) {
-  return peelConstAndTypedefsImpl(QT);
-}
-
-static RecursiveCoroutine<model::QualifiedType>
-getNonConstImpl(const model::QualifiedType &QT) {
-  // First look for non-const qualifiers
-  const auto &NonConst = std::not_fn(model::Qualifier::isConst);
-  auto QIt = llvm::find_if(QT.Qualifiers(), NonConst);
-  auto QEnd = QT.Qualifiers().end();
-
-  // If we find a non-const qualifier we're done unwrapping
-  if (QIt != QEnd)
-    rc_return model::QualifiedType(QT.UnqualifiedType(), { QIt, QEnd });
-
-  // Here we have only const qualifiers
-
-  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst());
-
-  // If it's not a typedef, we're done. Just throw away the remaining const
-  // qualifiers. If it's a typedef but it also doesn't wrap a const type, we are
-  // also done.
-  if (not TD or not TD->UnderlyingType().isConst())
-    rc_return model::QualifiedType(QT.UnqualifiedType(), {});
-
-  // It's a typedef wrapping a const-type, in which case we still have to recur.
-  rc_return rc_recur getNonConstImpl(TD->UnderlyingType());
-}
-
-model::QualifiedType getNonConst(const model::QualifiedType &QT) {
-  return getNonConstImpl(QT);
-}
-
-const model::QualifiedType modelType(const llvm::Value *V,
-                                     const model::Binary &Model) {
   using namespace llvm;
 
-  Type *T = V->getType();
-
-  bool AddPointer = false;
+  llvm::Type *T = V->getType();
 
   // Handle pointers
-  if (isa<PointerType>(T)) {
-    revng_assert(isa<AllocaInst>(V) or isa<GlobalVariable>(V));
+  bool AddPointer = false;
+  if (isa<llvm::PointerType>(T)) {
+    revng_assert(isa<llvm::AllocaInst>(V) or isa<llvm::GlobalVariable>(V));
     AddPointer = true;
     T = getVariableType(V);
-    revng_assert(isa<IntegerType>(T) or isa<ArrayType>(T));
+    revng_assert(isa<llvm::IntegerType>(T) or isa<llvm::ArrayType>(T));
   } else {
-    revng_assert(isa<IntegerType>(T));
+    revng_assert(isa<llvm::IntegerType>(T));
   }
 
-  model::QualifiedType Result;
-
   // Actually build the core type
-  if (isa<IntegerType>(T)) {
+  if (isa<llvm::IntegerType>(T)) {
     Result = llvmIntToModelType(T, Model);
-  } else if (auto *Array = dyn_cast<ArrayType>(T)) {
+  } else if (auto *Array = llvm::dyn_cast<llvm::ArrayType>(T)) {
     revng_check(AddPointer);
     Result = llvmIntToModelType(Array->getElementType(), Model);
   }
 
-  revng_assert(Result.UnqualifiedType().isValid());
+  revng_assert(Result->verify());
 
-  // If it was a pointer, add the pointer qualifier
+  // If it is a pointer, make sure to mark is as such
   if (AddPointer)
-    Result = Result.getPointerTo(Model.Architecture());
+    return model::PointerType::make(std::move(Result), Model.Architecture());
+  else
+    return Result;
+}
 
+model::UpcastableType llvmIntToModelType(const llvm::Type *TypeToConvert,
+                                         const model::Binary &Model) {
+  model::UpcastableType Result = model::UpcastableType::empty();
+  if (isa<llvm::PointerType>(TypeToConvert)) {
+    // If it's a pointer, return intptr_t for the current architecture
+    //
+    // Note: this is suboptimal, in order to avoid this, please use modelType
+    // passing the Value instead of invoking llvmIntToModelType passing in just
+    // the type
+
+    auto PtrSize = model::Architecture::getPointerSize(Model.Architecture());
+    Result = model::PrimitiveType::makeGeneric(PtrSize);
+  }
+
+  if (auto *Int = dyn_cast<llvm::IntegerType>(TypeToConvert)) {
+    // Convert the integer type
+    if (Int->getIntegerBitWidth() == 1) {
+      Result = model::PrimitiveType::makeGeneric(1);
+    } else {
+      revng_assert(Int->getIntegerBitWidth() % 8 == 0);
+      Result = model::PrimitiveType::makeGeneric(Int->getIntegerBitWidth() / 8);
+    }
+  }
+
+  if (Result.isEmpty()) {
+    revng_abort("Only integer and pointer types can be directly converted from "
+                "LLVM types to C types.");
+  }
+
+  revng_assert(Result->verify(true),
+               ("Unsupported llvm type: " + serializeToString(Result)).c_str());
   return Result;
 }
 
-const model::QualifiedType llvmIntToModelType(const llvm::Type *LLVMType,
-                                              const model::Binary &Model) {
-  using namespace model::PrimitiveTypeKind;
-
-  const llvm::Type *TypeToConvert = LLVMType;
-
-  model::QualifiedType ModelType;
-
-  // If it's a pointer, return intptr_t for the current architecture
-  //
-  // Note: this is suboptimal, in order to avoid this, please use modelType
-  // passing the Value instead of invoking llvmIntToModelType passing in just
-  // the type
-  if (isa<llvm::PointerType>(TypeToConvert)) {
-    using namespace model;
-    auto Generic = PrimitiveTypeKind::Generic;
-    auto PointerSize = Architecture::getPointerSize(Model.Architecture());
-    ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, PointerSize);
-    return ModelType;
-  }
-
-  if (auto *IntType = dyn_cast<llvm::IntegerType>(TypeToConvert)) {
-    // Convert the integer type
-    switch (IntType->getIntegerBitWidth()) {
-    case 1:
-    case 8:
-      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 1);
-      break;
-
-    case 16:
-      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 2);
-      break;
-
-    case 32:
-      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 4);
-      break;
-
-    case 64:
-      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 8);
-      break;
-
-    case 80:
-      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 10);
-      break;
-
-    case 96:
-      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 12);
-      break;
-
-    case 128:
-      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 16);
-      break;
-
-    default:
-      revng_abort("Found an LLVM integer with a size that is not a power of "
-                  "two");
-    }
-  } else {
-    revng_abort("Only integer types can be directly converted from LLVM types "
-                "to C types.");
-  }
-
-  return ModelType;
-}
-
-QualifiedType deserializeFromLLVMString(llvm::Value *V,
-                                        const model::Binary &Model) {
+model::UpcastableType deserializeFromLLVMString(llvm::Value *V,
+                                                const model::Binary &Model) {
   // Try to get a string out of the llvm::Value
   llvm::StringRef BaseTypeString = extractFromConstantStringPtr(V);
-
-  // Try to parse the string as a qualified type (aborts on failure)
-  QualifiedType ParsedType;
-  {
-    llvm::yaml::Input YAMLInput(BaseTypeString);
-    YAMLInput >> ParsedType;
-    std::error_code EC = YAMLInput.error();
-    if (EC)
-      revng_abort("Could not deserialize the ModelGEP base type");
+  auto ParsedType = deserialize<model::UpcastableType>(BaseTypeString);
+  if (not ParsedType) {
+    std::string Error = "Could not deserialize the model type from LLVM "
+                        "constant string: '"
+                        + BaseTypeString.str() + "'.";
+    revng_abort(Error.c_str());
   }
-  ParsedType.UnqualifiedType().setRoot(&Model);
-  revng_assert(ParsedType.UnqualifiedType().isValid());
 
-  return ParsedType;
+  revng_assert(!ParsedType->isEmpty(),
+               "Type in a LLVM constant string was set to "
+               "`model::UpcastableType::empty()`. How did it slip through?");
+
+  if (model::DefinedType *Defined = (*ParsedType)->skipToDefinedType()) {
+    model::DefinitionReference &Reference = Defined->Definition();
+
+    revng_assert(Reference.isValid() == false);
+    Reference.setRoot(&Model);
+    revng_assert(Reference.isValid() == true);
+    revng_assert(Reference.getConst() != nullptr);
+  } else {
+    // Primitives have no references, so no need to do anything special.
+  }
+  revng_assert((*ParsedType)->verify(true));
+
+  return *ParsedType;
 }
 
-llvm::Constant *serializeToLLVMString(const model::QualifiedType &QT,
+llvm::Constant *serializeToLLVMString(const model::UpcastableType &Type,
                                       llvm::Module &M) {
-  // Create a string containing a serialization of the model type
-  std::string SerializedQT;
-  {
-    llvm::raw_string_ostream StringStream(SerializedQT);
-    llvm::yaml::Output YAMLOutput(StringStream);
-    YAMLOutput << const_cast<model::QualifiedType &>(QT);
-  }
-
-  // Build a constant global string containing the serialized type
-  return getUniqueString(&M, SerializedQT);
+  return getUniqueString(&M, serializeToString(Type));
 }
 
-RecursiveCoroutine<model::QualifiedType>
-dropPointer(const model::QualifiedType &QT) {
-  revng_assert(QT.isPointer());
+static const model::Type &getFieldType(const model::Type &Parent,
+                                       uint64_t Idx) {
+  const model::Type &Unwrapped = *Parent.skipConstAndTypedefs();
+  revng_assert(not Unwrapped.isPointer());
 
-  auto QEnd = QT.Qualifiers().end();
-  for (auto QIt = QT.Qualifiers().begin(); QIt != QEnd; ++QIt) {
+  // If it's an array, we can just return its element type.
+  if (const model::ArrayType *Array = Unwrapped.getArray())
+    return *Array->ElementType();
 
-    if (model::Qualifier::isConst(*QIt))
-      continue;
-
-    if (model::Qualifier::isPointer(*QIt)) {
-      rc_return model::QualifiedType(QT.UnqualifiedType(),
-                                     { std::next(QIt), QEnd });
-    } else {
-      revng_abort("Error: this is not a pointer");
-    }
-
-    rc_return QT;
-  }
-
-  // Recur if it has no pointer qualifier but it is a Typedef
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
-    rc_return rc_recur dropPointer(TD->UnderlyingType());
-
-  revng_abort("Cannot dropPointer, QT does not have pointer qualifiers");
-
-  rc_return{};
-}
-
-static RecursiveCoroutine<QualifiedType>
-getFieldType(const QualifiedType &Parent, uint64_t Idx) {
-  revng_assert(not Parent.isPointer());
-
-  // If it's an array, we want to discard any const qualifier we have before the
-  // first array qualifier, and traverse all typedefs.
-  // Pointers are treated as arrays, as if they were traversed by operator []
-  if (Parent.isArray() or Parent.isPointer()) {
-    QualifiedType Peeled = peelConstAndTypedefs(Parent);
-
-    auto Begin = Peeled.Qualifiers().begin();
-    auto End = Peeled.Qualifiers().end();
-    revng_assert(Begin != End);
-    revng_assert(model::Qualifier::isArray(*Begin)
-                 or model::Qualifier::isPointer(*Begin));
-    // Then we also throw away the first array qualifier to build a
-    // QualifiedType that represents the type of field of the array.
-    rc_return model::QualifiedType(Peeled.UnqualifiedType(),
-                                   { std::next(Begin), End });
-  }
-
-  // If we arrived here, there should be only const qualifiers left
-  revng_assert(llvm::all_of(Parent.Qualifiers(), Qualifier::isConst));
-  auto *UnqualType = Parent.UnqualifiedType().getConst();
-
-  // Traverse the UnqualifiedType
-  if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
-    rc_return Struct->Fields().at(Idx).Type();
-  } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
-    rc_return Union->Fields().at(Idx).Type();
-  } else if (auto *Typedef = dyn_cast<model::TypedefType>(UnqualType)) {
-    rc_return rc_recur getFieldType(Typedef->UnderlyingType(), Idx);
-  }
+  // If we get to this point, the type is neither a pointer nor an array,
+  // so it must be either a struct or a union.
+  revng_assert(llvm::isa<model::DefinedType>(Unwrapped));
+  if (auto *Struct = Unwrapped.getStruct())
+    return *Struct->Fields().at(Idx).Type();
+  else if (auto *Union = Unwrapped.getUnion())
+    return *Union->Fields().at(Idx).Type();
 
   revng_abort("Type does not contain fields");
 }
 
-static QualifiedType getFieldType(const QualifiedType &Parent,
-                                  llvm::Value *Idx) {
+static const model::Type &getFieldType(const model::Type &Parent,
+                                       llvm::Value *Idx) {
   revng_assert(not Parent.isPointer());
 
   uint64_t NumericIdx = 0;
@@ -323,11 +179,10 @@ static QualifiedType getFieldType(const QualifiedType &Parent,
   return getFieldType(Parent, NumericIdx);
 }
 
-static QualifiedType traverseModelGEP(const model::Binary &Model,
-                                      const llvm::CallInst *Call) {
+static model::UpcastableType traverseModelGEP(const model::Binary &Model,
+                                              const llvm::CallInst *Call) {
   // Deduce the base type from the first argument
-  QualifiedType CurType = deserializeFromLLVMString(Call->getArgOperand(0),
-                                                    Model);
+  auto Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
 
   // Compute the first index of variadic arguments that represent the traversal
   // starting from the CurType.
@@ -336,52 +191,45 @@ static QualifiedType traverseModelGEP(const model::Binary &Model,
     ++IndexOfFirstTraversalArgument;
   else
     revng_assert(isCallToTagged(Call, FunctionTags::ModelGEPRef));
-  // Traverse the model
-  for (auto &CurArg :
-       llvm::drop_begin(Call->args(), IndexOfFirstTraversalArgument))
-    CurType = getFieldType(CurType, CurArg);
 
-  return CurType;
+  // Traverse the model
+  const model::Type *Result = Type.get();
+  for (auto &CurArg :
+       llvm::drop_begin(Call->args(), IndexOfFirstTraversalArgument)) {
+    Result = &getFieldType(*Result, CurArg);
+  }
+
+  return *Result;
 }
 
-llvm::SmallVector<QualifiedType>
+llvm::SmallVector<model::UpcastableType>
 flattenReturnTypes(const abi::FunctionType::Layout &Layout,
                    const model::Binary &Model) {
 
-  llvm::SmallVector<QualifiedType> ReturnTypes;
+  llvm::SmallVector<model::UpcastableType> ReturnTypes;
 
   using namespace abi::FunctionType;
   revng_assert(Layout.returnMethod() == ReturnMethod::RegisterSet);
 
   auto PointerS = model::Architecture::getPointerSize(Model.Architecture());
   for (const Layout::ReturnValue &ReturnValue : Layout.ReturnValues) {
-    if (ReturnValue.Type.isScalar()) {
+    if (ReturnValue.Type->isScalar()) {
       if (ReturnValue.Registers.size() > 1) {
-        model::QualifiedType PointerSizedInt{
-          Model.getPrimitiveType(model::PrimitiveTypeKind::Generic, PointerS),
-          {}
-        };
-
         for (const model::Register::Values &Register : ReturnValue.Registers) {
           revng_assert(model::Register::getSize(Register) == PointerS);
-          ReturnTypes.push_back(PointerSizedInt);
+          ReturnTypes.push_back(model::PrimitiveType::makeGeneric(PointerS));
         }
       } else {
         ReturnTypes.push_back(ReturnValue.Type);
       }
     } else {
-      model::QualifiedType Underlying = peelConstAndTypedefs(ReturnValue.Type);
-      revng_assert(Underlying.is(model::TypeKind::StructType));
-      revng_assert(Underlying.Qualifiers().empty());
+      auto GetFieldType = std::views::transform([](const auto &F) {
+        return F.Type();
+      });
 
-      auto *ModelReturnType = Underlying.UnqualifiedType().get();
-      auto *StructReturnType = cast<model::StructType>(ModelReturnType);
-      for (model::QualifiedType FieldType :
-           llvm::map_range(StructReturnType->Fields(),
-                           [](const model::StructField &F) {
-                             return F.Type();
-                           })) {
-        revng_assert(FieldType.isScalar());
+      const auto &StructReturnType = ReturnValue.Type->toStruct();
+      for (const auto &FieldType : StructReturnType.Fields() | GetFieldType) {
+        revng_assert(FieldType->isScalar());
         ReturnTypes.push_back(std::move(FieldType));
       }
     }
@@ -390,8 +238,8 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
   return ReturnTypes;
 }
 
-static llvm::SmallVector<QualifiedType>
-handleReturnValue(const model::TypePath &Prototype,
+static llvm::SmallVector<model::UpcastableType>
+handleReturnValue(const model::TypeDefinition &Prototype,
                   const model::Binary &Model) {
   const auto Layout = abi::FunctionType::Layout::make(Prototype);
 
@@ -402,7 +250,7 @@ handleReturnValue(const model::TypePath &Prototype,
     return { Layout.returnValueAggregateType() };
   case abi::FunctionType::ReturnMethod::Scalar:
     revng_assert(Layout.ReturnValues.size() == 1);
-    revng_assert(Layout.ReturnValues[0].Type.isScalar());
+    revng_assert(Layout.ReturnValues[0].Type->isScalar());
     return { Layout.ReturnValues[0].Type };
     break;
   case abi::FunctionType::ReturnMethod::RegisterSet:
@@ -412,23 +260,18 @@ handleReturnValue(const model::TypePath &Prototype,
   }
 }
 
-RecursiveCoroutine<llvm::SmallVector<QualifiedType>>
+RecursiveCoroutine<llvm::SmallVector<model::UpcastableType, 8>>
 getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
-  llvm::SmallVector<QualifiedType> ReturnTypes;
-
-  auto ParentFunc = [&Model, &Inst]() {
-    return llvmToModelFunction(Model, *Inst->getParent()->getParent());
-  };
 
   if (auto *Call = dyn_cast<llvm::CallInst>(Inst)) {
 
     if (isCallToIsolatedFunction(Call)) {
-      auto Prototype = getCallSitePrototype(Model, Call);
-      revng_assert(Prototype.isValid() and not Prototype.empty());
+      const auto *Prototype = getCallSitePrototype(Model, Call);
+      revng_assert(Prototype != nullptr);
 
       // Isolated functions and dynamic functions have their prototype in the
       // model
-      ReturnTypes = handleReturnValue(Prototype, Model);
+      rc_return handleReturnValue(*Prototype, Model);
 
     } else {
       // Non-isolated functions do not have a Prototype in the model, but we can
@@ -437,76 +280,78 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
       const auto &FuncName = CalledFunc->getName();
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
+      auto ParentFunc = [&Model, &Inst]() {
+        return llvmToModelFunction(Model, *Inst->getParent()->getParent());
+      };
+
       if (FuncName.startswith("revng_call_stack_arguments")) {
         auto *Arg0Operand = Call->getArgOperand(0);
-        QualifiedType
-          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
-        revng_assert(not CallStackArgumentType.isVoid());
+        auto CallStackArgumentType = deserializeFromLLVMString(Arg0Operand,
+                                                               Model);
+        revng_assert(not CallStackArgumentType->isVoidPrimitive());
 
-        ReturnTypes.push_back(std::move(CallStackArgumentType));
+        rc_return{ CallStackArgumentType };
       } else if (FTags.contains(FunctionTags::ModelGEP)
                  or FTags.contains(FunctionTags::ModelGEPRef)) {
-        auto GEPpedType = traverseModelGEP(Model, Call);
-        ReturnTypes.push_back(GEPpedType);
+        rc_return{ traverseModelGEP(Model, Call) };
 
       } else if (FTags.contains(FunctionTags::AddressOf)) {
         // The first argument is the base type (not the pointer's type)
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        Base = Base.getPointerTo(Model.Architecture());
-
-        ReturnTypes.push_back(Base);
+        rc_return{ model::PointerType::make(std::move(Base),
+                                            Model.Architecture()) };
 
       } else if (FTags.contains(FunctionTags::ModelCast)
                  or FTags.contains(FunctionTags::LocalVariable)) {
         // The first argument is the returned type
         auto Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        ReturnTypes.push_back(Type);
+        rc_return{ std::move(Type) };
 
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
         // Struct initializers are only used to pack together return values of
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        ReturnTypes = handleReturnValue(ParentFunc()->prototype(Model), Model);
+        auto &Prototype = *Model.prototypeOrDefault(ParentFunc()->prototype());
+        rc_return handleReturnValue(Prototype, Model);
 
       } else if (FTags.contains(FunctionTags::SegmentRef)) {
         const auto &[StartAddress,
                      VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
         auto Segment = Model.Segments().at({ StartAddress, VirtualSize });
-        if (not Segment.Type().empty())
-          ReturnTypes.push_back(model::QualifiedType{ Segment.Type(), {} });
+        if (not Segment.Type().isEmpty())
+          rc_return{ Segment.Type() };
 
       } else if (FTags.contains(FunctionTags::Parentheses)) {
         const llvm::Value *Op = Call->getArgOperand(0);
         if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(Op))
-          ReturnTypes = rc_recur getStrongModelInfo(OriginalInst, Model);
+          rc_return rc_recur getStrongModelInfo(OriginalInst, Model);
 
       } else if (FTags.contains(FunctionTags::OpaqueExtractValue)) {
         const llvm::Value *Op0 = Call->getArgOperand(0);
         if (auto *Aggregate = llvm::dyn_cast<llvm::Instruction>(Op0)) {
-          llvm::SmallVector<QualifiedType> NestedReturnTypes = rc_recur
-            getStrongModelInfo(Aggregate, Model);
+          llvm::SmallVector NestedRVs = rc_recur getStrongModelInfo(Aggregate,
+                                                                    Model);
           const auto *Op1 = Call->getArgOperand(1);
           const auto *Index = llvm::cast<llvm::ConstantInt>(Op1);
-          ReturnTypes.push_back(NestedReturnTypes[Index->getZExtValue()]);
+          rc_return{ NestedRVs[Index->getZExtValue()] };
         }
 
       } else if (FuncName.startswith("revng_stack_frame")) {
         // Retrieve the stack frame type
-        auto &StackType = ParentFunc()->StackFrameType();
-        revng_assert(StackType.get());
-
-        ReturnTypes.push_back(QualifiedType{ StackType, {} });
+        revng_assert(not ParentFunc()->StackFrameType().isEmpty());
+        rc_return{ ParentFunc()->StackFrameType() };
 
       } else {
         revng_assert(not FuncName.startswith("revng_call_stack_arguments"));
       }
     }
   }
-  rc_return ReturnTypes;
+
+  rc_return{};
 }
 
-llvm::SmallVector<QualifiedType>
+llvm::SmallVector<model::UpcastableType>
 getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
   llvm::Instruction *User = dyn_cast<llvm::Instruction>(U->getUser());
 
@@ -520,15 +365,16 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
   if (auto *Call = dyn_cast<llvm::CallInst>(User)) {
     if (isCallToIsolatedFunction(Call)) {
       // Isolated functions have their prototype in the model
-      auto Prototype = getCallSitePrototype(Model, Call);
-      revng_assert(Prototype.isValid());
+      const auto *Prototype = getCallSitePrototype(Model, Call);
+      revng_assert(Prototype != nullptr);
 
       // If we are inspecting the callee return the prototype
       if (Call->isCallee(U))
-        return { createPointerTo(Prototype, Model) };
+        return { model::PointerType::make(Model.makeType(Prototype->key()),
+                                          Model.Architecture()) };
 
       if (Call->isArgOperand(U)) {
-        const auto Layout = abi::FunctionType::Layout::make(Prototype);
+        const auto Layout = abi::FunctionType::Layout::make(*Prototype);
         auto ArgNo = Call->getArgOperandNo(U);
 
         const auto IsNonShadow =
@@ -545,12 +391,10 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         revng_abort();
       }
     } else if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
-      auto Primitive = Model.getPrimitiveType(model::PrimitiveTypeKind::Signed,
-                                              8u);
-      auto Type = QualifiedType(Primitive,
-                                { model::Qualifier::createPointer(8u),
-                                  model::Qualifier::createConst() });
-      return { Type };
+      return {
+        model::PointerType::make(model::PrimitiveType::makeConstSigned(8),
+                                 Model.Architecture())
+      };
     } else {
       // Non-isolated functions do not have a Prototype in the model, but they
       // can carry type information on their operands
@@ -570,14 +414,15 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         // The type of the base value is contained in the first operand
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
         if (FTags.contains(FunctionTags::ModelGEP))
-          Base = Base.getPointerTo(Model.Architecture());
+          Base = model::PointerType::make(std::move(Base),
+                                          Model.Architecture());
         return { std::move(Base) };
 
       } else if (isCallTo(Call, "revng_call_stack_arguments")) {
         auto *Arg0Operand = Call->getArgOperand(0);
-        QualifiedType
-          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
-        revng_assert(not CallStackArgumentType.isVoid());
+        auto CallStackArgumentType = deserializeFromLLVMString(Arg0Operand,
+                                                               Model);
+        revng_assert(not CallStackArgumentType.isEmpty());
 
         return { std::move(CallStackArgumentType) };
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
@@ -586,61 +431,50 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
 
-        llvm::SmallVector<QualifiedType> ReturnTypes;
-        ReturnTypes = handleReturnValue(ParentFunc()->prototype(Model), Model);
-        return { ReturnTypes[ArgOperandIdx] };
+        auto &Prototype = *Model.prototypeOrDefault(ParentFunc()->prototype());
+        return { handleReturnValue(Prototype, Model)[ArgOperandIdx] };
       } else if (FTags.contains(FunctionTags::BinaryNot)) {
         return { llvmIntToModelType(Call->getType(), Model) };
       }
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
-    return handleReturnValue(ParentFunc()->prototype(Model), Model);
+    auto &Prototype = *Model.prototypeOrDefault(ParentFunc()->prototype());
+    return handleReturnValue(Prototype, Model);
   } else if (auto *BinaryOp = dyn_cast<llvm::BinaryOperator>(User)) {
-    using namespace model::PrimitiveTypeKind;
+    using namespace model::PrimitiveKind;
     auto Opcode = BinaryOp->getOpcode();
     switch (Opcode) {
 
     case llvm::Instruction::SDiv:
     case llvm::Instruction::SRem: {
-      model::QualifiedType Result;
       auto BitWidth = U->get()->getType()->getIntegerBitWidth();
       revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
-      auto Bytes = BitWidth / 8;
-      Result.UnqualifiedType() = Model.getPrimitiveType(Signed, Bytes);
-      return { Result };
+      return { model::PrimitiveType::makeSigned(BitWidth / 8) };
     } break;
 
     case llvm::Instruction::UDiv:
     case llvm::Instruction::URem: {
-      model::QualifiedType Result;
       auto BitWidth = U->get()->getType()->getIntegerBitWidth();
       revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
-      auto Bytes = BitWidth / 8;
-      Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, Bytes);
-      return { Result };
+      return { model::PrimitiveType::makeUnsigned(BitWidth / 8) };
     } break;
 
     case llvm::Instruction::AShr:
     case llvm::Instruction::LShr:
     case llvm::Instruction::Shl: {
-      model::QualifiedType Result;
       auto BitWidth = U->get()->getType()->getIntegerBitWidth();
       revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
-      auto Bytes = BitWidth / 8;
 
       if (U->getOperandNo() == 0) {
         switch (Opcode) {
         case llvm::Instruction::AShr:
-          Result.UnqualifiedType() = Model.getPrimitiveType(Signed, Bytes);
-          break;
+          return { model::PrimitiveType::makeSigned(BitWidth / 8) };
 
         case llvm::Instruction::LShr:
-          Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, Bytes);
-          break;
+          return { model::PrimitiveType::makeUnsigned(BitWidth / 8) };
 
         case llvm::Instruction::Shl:
-          Result.UnqualifiedType() = Model.getPrimitiveType(Number, Bytes);
-          break;
+          return { model::PrimitiveType::makeNumber(BitWidth / 8) };
 
         default:
           revng_abort();
@@ -648,36 +482,30 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
       }
 
       if (U->getOperandNo() == 1)
-        Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, Bytes);
+        return { model::PrimitiveType::makeUnsigned(BitWidth / 8) };
 
-      return { Result };
     } break;
     case llvm::Instruction::Sub:
     case llvm::Instruction::Add: {
-      model::QualifiedType Result;
       auto BitWidth = U->get()->getType()->getIntegerBitWidth();
       revng_assert(std::has_single_bit(BitWidth)
                    and (BitWidth == 1 or BitWidth >= 8));
       auto Bytes = (BitWidth == 1) ? 1 : BitWidth / 8;
       // The second operand of sub should be a number.
       if (Opcode == llvm::Instruction::Sub and U->getOperandNo() == 1)
-        Result.UnqualifiedType() = Model.getPrimitiveType(Number, Bytes);
+        return { model::PrimitiveType::makeNumber(Bytes) };
       else
-        Result.UnqualifiedType() = Model.getPrimitiveType(PointerOrNumber,
-                                                          Bytes);
-      return { Result };
+        return { model::PrimitiveType::makePointerOrNumber(Bytes) };
     } break;
     case llvm::Instruction::Mul:
     case llvm::Instruction::And:
     case llvm::Instruction::Or:
     case llvm::Instruction::Xor: {
-      model::QualifiedType Result;
       auto BitWidth = U->get()->getType()->getIntegerBitWidth();
       revng_assert(std::has_single_bit(BitWidth)
                    and (BitWidth == 1 or BitWidth >= 8));
       auto Bytes = (BitWidth == 1) ? 1 : BitWidth / 8;
-      Result.UnqualifiedType() = Model.getPrimitiveType(Number, Bytes);
-      return { Result };
+      return { model::PrimitiveType::makeNumber(Bytes) };
     } break;
     case llvm::Instruction::FAdd:
     case llvm::Instruction::FSub:
@@ -697,78 +525,53 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
     // If any of the operands is a pointer, we assume that both of operands are
     // pointers.
     if (Op0->getType()->isPointerTy() or Op1->getType()->isPointerTy()) {
-      model::QualifiedType Result;
-      using model::PrimitiveTypeKind::PointerOrNumber;
-      auto PointerSize = model::Architecture::getPointerSize(Model
-                                                               .Architecture());
-      Result.UnqualifiedType() = Model.getPrimitiveType(PointerOrNumber,
-                                                        PointerSize);
-      return { Result };
+      auto PSize = model::Architecture::getPointerSize(Model.Architecture());
+      return { model::PrimitiveType::makePointerOrNumber(PSize) };
     }
 
     // If we're not doing eq or neq, we have to make sure that the
     // signedness is compatible, otherwise it would break semantics.
-    using model::PrimitiveTypeKind::PointerOrNumber;
-    using model::PrimitiveTypeKind::Signed;
-    using model::PrimitiveTypeKind::Unsigned;
-    auto ICmpKind = ICmp->isEquality() ? PointerOrNumber :
-                                         (ICmp->isSigned() ? Signed : Unsigned);
+    auto ICmpKind = ICmp->isEquality() ?
+                      model::PrimitiveKind::PointerOrNumber :
+                      (ICmp->isSigned() ? model::PrimitiveKind::Signed :
+                                          model::PrimitiveKind::Unsigned);
 
     auto DL = ICmp->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(Op0->getType());
-
-    auto TargetType = model::QualifiedType(Model.getPrimitiveType(ICmpKind,
-                                                                  ByteSize),
-                                           {});
-    return { TargetType };
+    return { model::PrimitiveType::make(ICmpKind, ByteSize) };
 
   } else if (auto *Select = dyn_cast<llvm::SelectInst>(User)) {
 
     auto DL = Select->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(Select->getOperand(1)->getType());
-    model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Generic;
-    Result.UnqualifiedType() = Model.getPrimitiveType(Generic, ByteSize);
-    return { Result };
+    return { model::PrimitiveType::makeGeneric(ByteSize) };
 
   } else if (auto *Switch = dyn_cast<llvm::SwitchInst>(User)) {
 
     auto DL = Switch->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(Switch->getCondition()->getType());
-    model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Number;
-    Result.UnqualifiedType() = Model.getPrimitiveType(Number, ByteSize);
-    return { Result };
+    return { model::PrimitiveType::makeNumber(ByteSize) };
 
   } else if (auto *Trunc = dyn_cast<llvm::TruncInst>(User)) {
 
     llvm::Type *ResultTy = Trunc->getType();
     auto DL = Trunc->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
-    model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Number;
-    Result.UnqualifiedType() = Model.getPrimitiveType(Number, ByteSize);
-    return { Result };
+    return { model::PrimitiveType::makeNumber(ByteSize) };
 
   } else if (auto *SExt = dyn_cast<llvm::SExtInst>(User)) {
 
     llvm::Type *ResultTy = SExt->getType();
     auto DL = SExt->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
-    model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Signed;
-    Result.UnqualifiedType() = Model.getPrimitiveType(Signed, ByteSize);
-    return { Result };
+    return { model::PrimitiveType::makeSigned(ByteSize) };
 
   } else if (auto *ZExt = dyn_cast<llvm::ZExtInst>(User)) {
 
     llvm::Type *ResultTy = ZExt->getType();
     auto DL = ZExt->getModule()->getDataLayout();
     uint64_t ByteSize = DL.getTypeAllocSize(ResultTy);
-    model::QualifiedType Result;
-    using model::PrimitiveTypeKind::Unsigned;
-    Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, ByteSize);
-    return { Result };
+    return { model::PrimitiveType::makeUnsigned(ByteSize) };
   }
 
   return {};
