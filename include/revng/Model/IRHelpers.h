@@ -9,12 +9,24 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/CommonOptions.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+
+constexpr const char *PrototypeMDName = "revng.prototype";
 
 inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   revng_assert(FunctionTags::Isolated.isTagOf(&F));
   return getMetaAddressMetadata(&F, FunctionEntryMDName);
+}
+
+inline model::TypePath
+getCallSitePrototype(ConstOrNot<model::Binary> auto &Root,
+                     const llvm::Instruction *Call) {
+  using namespace llvm;
+  revng_assert(isa<CallInst>(Call));
+  return model::TypePath::fromString(&Root,
+                                     fromStringMetadata(Call, PrototypeMDName));
 }
 
 inline model::Function *llvmToModelFunction(model::Binary &Binary,
@@ -22,9 +34,8 @@ inline model::Function *llvmToModelFunction(model::Binary &Binary,
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;
-  if (auto It = Binary.Functions().find(MaybeMetaAddress);
-      It != Binary.Functions().end())
-    return &*It;
+  if (auto It = Binary.Functions().tryGet(MaybeMetaAddress); It != nullptr)
+    return It;
 
   return nullptr;
 }
@@ -63,4 +74,14 @@ inline model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
   model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
   NewStruct->Size() = Size;
   return Path;
+}
+
+inline std::string getLLVMFunctionName(const model::Function &Function) {
+  std::string Result = "local_";
+  if (DebugNames)
+    Result += Function.name().str().str();
+  else
+    Result += Function.Entry().toString();
+
+  return Result;
 }

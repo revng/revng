@@ -37,6 +37,11 @@ concept HasName = requires() {
 };
 
 template<typename T>
+concept HasInvalidate = requires() {
+  { &T::invalidate };
+};
+
+template<typename T>
 concept IsContainer = std::derived_from<std::decay_t<T>, ContainerBase>;
 
 template<typename T>
@@ -86,6 +91,11 @@ auto &getContainer(ContainerSet &Containers, llvm::StringRef Name) {
   return llvm::cast<T>(Containers[Name]);
 }
 
+template<typename T>
+auto &getContainer(const ContainerSet &Containers, llvm::StringRef Name) {
+  return llvm::cast<T>(Containers.at(Name));
+}
+
 template<typename T, size_t I>
   requires PipelineOptionType<OptionType<T, I>>
 OptionType<T, I> deserializeImpl(llvm::StringRef Value) {
@@ -108,22 +118,26 @@ OptionType<T, I> getOption(const llvm::StringMap<std::string> &Map) {
 
   if (auto Iter = Map.find(Name); Iter != Map.end()) {
     return deserializeImpl<T, I>(Iter->second);
-  } else if (auto &Option = CLOptionBase::getOption<OptionT>(Name);
-             Option.isSet()) {
-    if constexpr (std::is_same_v<OptionT, std::string>) {
-      auto &PathOpt = CLOptionBase::getOption<std::string>(Name + "-path");
-      if (not PathOpt.get().empty()) {
-        using llvm::MemoryBuffer;
-        auto MaybeBuffer = MemoryBuffer::getFile(PathOpt.get());
-        revng_assert(MaybeBuffer);
-        return MaybeBuffer->get()->getBuffer().str();
-      }
-    }
-
-    return Option.get();
-  } else {
-    return getOptionDefault<T, I>();
   }
+
+  // Handle --$OPTION-path flag
+  if constexpr (std::is_same_v<OptionT, std::string>) {
+    auto &PathOpt = CLOptionBase::getOption<std::string>(Name + "-path");
+    if (not PathOpt.get().empty()) {
+      using llvm::MemoryBuffer;
+      auto MaybeBuffer = MemoryBuffer::getFile(PathOpt.get());
+      revng_assert(MaybeBuffer);
+      return MaybeBuffer->get()->getBuffer().str();
+    }
+  }
+
+  // Handle --$OPTION flag
+  if (auto &Option = CLOptionBase::getOption<OptionT>(Name); Option.isSet()) {
+    return Option.get();
+  }
+
+  // Use default
+  return getOptionDefault<T, I>();
 }
 
 template<typename DeducedContextType,
@@ -148,6 +162,23 @@ auto invokeImpl(DeducedContextType &Ctx,
   return (Pipe.*F)(Ctx,
                    getContainer<decay_t<Args>>(Containers, ArgsNames[S])...,
                    getOption<InvokableType, OptionArgsIndexes>(OptionArgs)...);
+}
+
+template<typename InvokableType,
+         typename... AllArgs,
+         IsContainer... Args,
+         size_t... S>
+auto invokeInvalidateImpl(const InvokableType &Pipe,
+                          auto (InvokableType::*F)(AllArgs...) const,
+                          const ContainerSet &Containers,
+                          const StringArrayRef &ArgsNames,
+                          const std::tuple<Args...> *,
+                          const std::integer_sequence<size_t, S...> &,
+                          const GlobalTupleTreeDiff &Diff) {
+
+  using namespace std;
+  return (Pipe.*F)(getContainer<decay_t<Args>>(Containers, ArgsNames[S])...,
+                   Diff);
 }
 
 template<typename... T>
@@ -355,6 +386,30 @@ auto invokePipeFunction(ExecutionContext &Ctx,
                                       OptionArgsIndexes);
 }
 
+/// Invokes the F member function on the Pipe Pipe passing as nth argument the
+/// container with the name equal to the nth element of ArgsNames.
+template<typename InvokableType, typename... Args>
+auto invokeInvalidateFunction(const InvokableType &Pipe,
+                              auto (InvokableType::*F)(Args...) const,
+                              const ContainerSet &Containers,
+                              const llvm::ArrayRef<std::string> &ArgsNames,
+                              const GlobalTupleTreeDiff &Diff) {
+
+  using ContainersTypes = detail::FilterContainers<Args...>;
+  constexpr size_t ContainersCount = std::tuple_size<ContainersTypes>::value;
+  constexpr auto
+    Indexes = std::make_integer_sequence<size_t, ContainersCount>();
+  revng_assert(ContainersCount == ArgsNames.size());
+
+  return detail::invokeInvalidateImpl(Pipe,
+                                      F,
+                                      Containers,
+                                      ArgsNames,
+                                      static_cast<ContainersTypes *>(nullptr),
+                                      Indexes,
+                                      Diff);
+}
+
 template<typename T>
 concept Dumpable = requires(T D) {
   { D.dump(dbg, 0) };
@@ -374,13 +429,16 @@ public:
   virtual llvm::Error run(ExecutionContext &Ctx,
                           ContainerSet &Containers,
                           const llvm::StringMap<std::string> &Options = {}) = 0;
+
+  virtual void invalidate(const GlobalTupleTreeDiff &Diff,
+                          ContainerToTargetsMap &Map,
+                          const ContainerSet &Containers) const = 0;
+
   virtual ~InvokableWrapperBase() = default;
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
   virtual void dump(std::ostream &OS, size_t Indents) const = 0;
   virtual bool isContainerArgumentConst(size_t ArgumentIndex) const = 0;
-  virtual void
-  print(const Context &Ctx, llvm::raw_ostream &OS, size_t Indents) const = 0;
   virtual std::vector<std::string> getOptionsNames() const = 0;
   virtual std::vector<std::string> getOptionsTypes() const = 0;
 };
@@ -433,6 +491,30 @@ public:
     return llvm::Error::success();
   }
 
+  void invalidate(const GlobalTupleTreeDiff &Diff,
+                  ContainerToTargetsMap &Map,
+                  const ContainerSet &Containers) const override {
+    if constexpr (HasInvalidate<InvokableType>) {
+      std::map<const ContainerBase *, TargetsList> Result;
+
+      auto IsAvailable = [&Containers](const std::string &Name) -> bool {
+        return Containers.contains(Name);
+      };
+
+      if (llvm::all_of(RunningContainersNames, IsAvailable)) {
+        Result = invokeInvalidateFunction(ActualPipe,
+                                          &InvokableType::invalidate,
+                                          Containers,
+                                          RunningContainersNames,
+                                          Diff);
+      }
+
+      for (auto &[Container, Targets] : Result) {
+        Map[Container->name()].merge(Targets);
+      }
+    }
+  }
+
 public:
   std::vector<std::string> getRunningContainersNames() const override {
     return RunningContainersNames;
@@ -465,21 +547,6 @@ public:
     }
     if constexpr (Dumpable<InvokableType>)
       ActualPipe.dump(OS, Indentation);
-  }
-
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             size_t Indentation) const override {
-    indent(OS, Indentation);
-    if constexpr (Printable<InvokableType>) {
-      const auto &Names = getRunningContainersNames();
-      ActualPipe.print(Ctx, OS, Names);
-    } else {
-      OS << "revng pipe ";
-      OS << getName() << " ";
-      for (const auto &Name : getRunningContainersNames())
-        OS << Name << " ";
-    }
   }
 
   bool isContainerArgumentConst(size_t ArgumentIndex) const override {

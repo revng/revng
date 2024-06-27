@@ -293,8 +293,8 @@ struct llvm::yaml::MappingTraits<T> {
       }
     }
 
-    mapSingleEntry(IO, Info, "Add", Info.New);
     mapSingleEntry(IO, Info, "Remove", Info.Old);
+    mapSingleEntry(IO, Info, "Add", Info.New);
   }
 };
 

@@ -22,35 +22,28 @@ public:
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    pipeline::Contract BinaryContract(kinds::BinaryCrossRelations,
-                                      1,
-                                      kinds::BinaryCrossRelations,
-                                      1,
-                                      pipeline::InputPreservation::Preserve);
-
-    pipeline::Contract FunctionContract(kinds::Isolated,
-                                        0,
-                                        kinds::CallGraphSliceSVG,
-                                        2,
-                                        pipeline::InputPreservation::Preserve);
-
-    return { pipeline::ContractGroup{ std::move(BinaryContract),
-                                      std::move(FunctionContract) } };
+    using namespace pipeline;
+    return { ContractGroup{ Contract(kinds::BinaryCrossRelations,
+                                     1,
+                                     kinds::CallGraphSliceSVG,
+                                     2,
+                                     InputPreservation::Preserve),
+                            Contract(kinds::CFG,
+                                     0,
+                                     kinds::CallGraphSliceSVG,
+                                     2,
+                                     InputPreservation::Preserve) } };
   }
 
 public:
   void run(pipeline::ExecutionContext &Context,
-           const pipeline::LLVMContainer &TargetList,
+           const CFGMap &CFGMap,
            const CrossRelationsFileContainer &InputFile,
            CallGraphSliceSVGStringMap &Output);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();
   }
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const;
 };
 
 } // namespace revng::pipes

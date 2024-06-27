@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
@@ -19,8 +19,8 @@ fields:
     type: MetaAddress
   - name: OriginalName
     type: string
-  - name: FunctionMetadata
-    type: efa::FunctionMetadata
+  - name: ControlFlowGraph
+    type: efa::ControlFlowGraph
   - name: Attributes
     sequence:
       type: MutableSet

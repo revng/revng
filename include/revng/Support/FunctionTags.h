@@ -45,6 +45,9 @@ public:
   TagsSet() {}
   TagsSet(std::initializer_list<const Tag *> I) : Tags{ I } {}
 
+  bool operator<(const TagsSet &Other) const { return this->Tags < Other.Tags; }
+  bool operator==(const TagsSet &Other) const = default;
+
 public:
   static TagsSet from(const Taggable auto *V) {
     return from(V->getMetadata(TagsMetadataName));
@@ -207,6 +210,11 @@ inline Tag ReaderFunction("reader-function");
 inline Tag OpaqueReturnAddressFunction("opaque-return-address");
 
 inline Tag CSV("csv");
+
+inline Tag UniquedByPrototype("uniqued-by-prototype");
+
+inline const char *UniqueIDMDName = "revng.unique_id";
+inline Tag UniquedByMetadata("uniqued-by-metadata");
 
 } // namespace FunctionTags
 

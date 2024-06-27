@@ -100,7 +100,7 @@ public:
     Ctx(&Ctx) {}
 
 public:
-  // TODO: drop the Out parameter pattern if favour of coorutines in the whole
+  // TODO: drop the Out parameter pattern if favour of coroutines in the whole
   // codebase.
   void registerTargetsDependingOn(llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
@@ -118,6 +118,7 @@ public:
                                                         .at(Container.first())
                                                         .enumerate());
     }
+
     Out[getName()].merge(OutMap);
   }
 
@@ -173,6 +174,20 @@ public:
   llvm::StringRef getName() const { return Name; }
   const ContainerSet &containers() const { return Containers; }
   ContainerSet &containers() { return Containers; }
+
+  std::set<llvm::StringRef> mutableContainers() const {
+    std::set<llvm::StringRef> MutableContainers;
+    for (const auto &Pipe : Pipes) {
+      size_t ArgumentsCount = Pipe.Pipe->getContainerArgumentsCount();
+      for (size_t I = 0; I < ArgumentsCount; ++I) {
+        if (not Pipe.Pipe->isContainerArgumentConst(I)) {
+          MutableContainers.insert(Pipe.Pipe->getContainerName(I));
+        }
+      }
+    }
+
+    return MutableContainers;
+  }
 
   llvm::Error setArtifacts(std::string ContainerName,
                            const Kind *ArtifactsKind,
@@ -247,12 +262,17 @@ public:
 
   /// Executes all the pipes of this step, merges the results in the final
   /// containers and returns the containers filtered according to the request.
-  ContainerSet run(ContainerSet &&Targets);
+  ContainerSet run(ContainerSet &&Targets,
+                   const std::vector<PipeExecutionEntry> &ExecutionInfos);
 
-  /// Returns the set of goals that are already contained in the backing
-  /// containers of this step, furthermore adds to the container ToLoad those
-  /// that were not present.
-  ContainerToTargetsMap
+  void pipeInvalidate(const GlobalTupleTreeDiff &Diff,
+                      ContainerToTargetsMap &Map) const;
+
+  /// Given the input required goals, calculates backwards how such goals are
+  /// achieved by the current step and returns the targets that must be loaded
+  /// from the containers in the step before this one, as well as a list of for
+  /// each pipe.
+  std::pair<ContainerToTargetsMap, std::vector<PipeExecutionEntry>>
   analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const;
 
   llvm::Error checkPrecondition() const;

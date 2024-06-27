@@ -6,10 +6,13 @@
 
 #include <fstream>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -24,12 +27,17 @@
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/EarlyFunctionAnalysis/AAWriterPass.h"
+#include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
+#include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdgeType.h"
 #include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Model/Generated/Early/FunctionAttribute.h"
+#include "revng/Support/BasicBlockID.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
@@ -115,7 +123,7 @@ streamFromOption(const opt<std::string> &Option) {
 CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
                          GeneratedCodeBasicInfo &GCBI,
                          const TupleTree<model::Binary> &Binary,
-                         const FunctionSummaryOracle &Oracle) :
+                         FunctionSummaryOracle &Oracle) :
   M(M),
   GCBI(GCBI),
   PCH(GCBI.programCounterHandler()),
@@ -141,8 +149,8 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
   *OutputIBI << "\n";
 }
 
-OutlinedFunction CFGAnalyzer::outline(llvm::BasicBlock *Entry) {
-  auto &CFG = Oracle.getLocalFunction(getBasicBlockAddress(Entry)).CFG;
+OutlinedFunction CFGAnalyzer::outline(const MetaAddress &Entry) {
+  auto &CFG = Oracle.getLocalFunction(Entry).CFG;
   bool HasCFG = CFG.size() != 0;
   llvm::SmallSet<MetaAddress, 4> ReturnBlocks;
 
@@ -547,6 +555,7 @@ void CFGAnalyzer::opaqueBranchConditions(llvm::Function *F,
       auto MemoryEffects = MemoryEffects::inaccessibleMemOnly();
       OpaqueBranchConditionsPool.setMemoryEffects(MemoryEffects);
       OpaqueBranchConditionsPool.addFnAttribute(Attribute::WillReturn);
+      OpaqueBranchConditionsPool.setTags({ &FunctionTags::UniquedByPrototype });
 
       auto *FTy = llvm::FunctionType::get(Condition->getType(),
                                           { Condition->getType() },
@@ -703,7 +712,7 @@ static std::optional<int64_t> electFSO(const auto &MaybeReturns) {
 }
 
 static bool isNoReturn(const model::Binary &Binary,
-                       const FunctionSummaryOracle &Oracle,
+                       FunctionSummaryOracle &Oracle,
                        const efa::CallEdge &Edge) {
   if (Edge.Attributes().contains(model::FunctionAttribute::NoReturn))
     return true;
@@ -1020,11 +1029,9 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   return Result;
 }
 
-FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
+FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
   using namespace llvm;
   using llvm::BasicBlock;
-
-  BasicBlockID EntryID = getBasicBlockID(Entry);
 
   IRBuilder<> Builder(M.getContext());
 
@@ -1033,6 +1040,31 @@ FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
 
   // Recover the control-flow graph of the function
   SortedVector<efa::BasicBlock> CFG = collectDirectCFG(&OutlinedFunction);
+
+  BasicBlock &FirstBlock = OutlinedFunction.Function->getEntryBlock();
+  if (CFG.size() == 0) {
+    // Handle the situation in which the entry block is not in root.
+    // This can happen if a model::Function is a non-executable area.
+
+    // Ensure there are not calls to newpc. If there were, it'd be a bug not to
+    // have a CFG
+    auto IsCallToNewPC = [](Instruction &I) -> bool {
+      return isCallTo(&I, "newpc");
+    };
+    revng_assert(none_of(instructions(OutlinedFunction.Function.get()),
+                         IsCallToNewPC));
+
+    // Create a fake, 0-sized basic block performing a longjmp
+    efa::BasicBlock Block;
+    Block.ID() = BasicBlockID(Entry, 0);
+    Block.End() = Entry;
+    using Edge = UpcastablePointer<efa::FunctionEdgeBase>;
+    auto Successor = Edge::make<efa::FunctionEdge>();
+    Successor->Type() = FunctionEdgeType::LongJmp;
+    Block.Successors().insert(std::move(Successor));
+    CFG.insert(std::move(Block));
+  }
+
   revng_assert(CFG.size() > 0);
 
   // The analysis aims at identifying the callee-saved registers of a

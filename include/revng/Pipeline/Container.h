@@ -5,11 +5,13 @@
 //
 
 #include <memory>
+#include <system_error>
 #include <type_traits>
 #include <vector>
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/Concepts.h"
@@ -17,6 +19,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Storage/Path.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/YAMLTraits.h"
 
 namespace pipeline {
 
@@ -126,6 +129,15 @@ public:
   /// Return the serialized content of the specified non * target
   virtual llvm::Error extractOne(llvm::raw_ostream &OS,
                                  const Target &Target) const = 0;
+
+public:
+  void dump() const debug_function { cantFail(serialize(llvm::dbgs())); }
+
+  void dumpToDisk(const char *Path) const debug_function {
+    std::error_code EC;
+    llvm::raw_fd_stream Output(Path, EC);
+    cantFail(serialize(Output));
+  }
 };
 
 /// CRTP class to be extended to implement a pipeline container.

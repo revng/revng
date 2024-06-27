@@ -8,6 +8,8 @@
 #include "llvm/Pass.h"
 
 #include "revng/Lift/LoadBinaryPass.h"
+#include "revng/Pipeline/ExecutionContext.h"
+#include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/Debug.h"
 
 namespace JTReason {
@@ -40,7 +42,10 @@ enum Values {
   FunctionSymbol = 1024,
   /// Immediate value in the IR, usually a return address
   SimpleLiteral = 2048,
-  LastReason = SimpleLiteral
+  /// This jump target has been discovered *after* we added all the entry
+  /// addresses of model::Functions
+  DependsOnModelFunction = SimpleLiteral << 1,
+  LastReason = DependsOnModelFunction
 };
 
 inline const char *getName(Values Reason) {
@@ -69,6 +74,8 @@ inline const char *getName(Values Reason) {
     return "FunctionSymbol";
   case SimpleLiteral:
     return "SimpleLiteral";
+  case DependsOnModelFunction:
+    return "DependsOnModelFunction";
   }
 
   revng_abort();
@@ -99,6 +106,8 @@ inline Values fromName(llvm::StringRef ReasonName) {
     return FunctionSymbol;
   else if (ReasonName == "SimpleLiteral")
     return SimpleLiteral;
+  else if (ReasonName == "DependsOnModelFunction")
+    return DependsOnModelFunction;
   else
     revng_abort();
 }
@@ -158,6 +167,7 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<LoadBinaryWrapperPass>();
     AU.addRequired<LoadModelWrapperPass>();
+    AU.addRequired<pipeline::LoadExecutionContextPass>();
   }
 
   bool runOnModule(llvm::Module &M) override;

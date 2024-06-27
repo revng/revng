@@ -5,6 +5,7 @@
 //
 
 #include <stack>
+#include <type_traits>
 #include <vector>
 
 #include "llvm/ADT/BitVector.h"
@@ -12,14 +13,23 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
+#include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/AccessTracker.h"
 #include "revng/Support/Generator.h"
+#include "revng/TupleTree/TupleLikeTraits.h"
 
 namespace revng {
 struct TrackingImpl;
 } // namespace revng
 
 namespace revng {
+
+namespace detail {
+template<typename V>
+concept HasName = requires() {
+  { TupleLikeTraits<V>::Name } -> std::convertible_to<std::string_view>;
+};
+}
 
 /// Wrapper around a KeyedObjectContainer tracking accessed elements
 ///
@@ -187,11 +197,17 @@ public:
   /// @{
 
   bool operator==(const TrackingContainer &Other) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator==", name());
+#endif
     Exact.access();
     return Content == Other.Content;
   }
 
   const value_type &at(const key_type &Key) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("at", name());
+#endif
     markExistingKey(Key);
     return Content.at(Key);
   }
@@ -199,50 +215,80 @@ public:
   value_type &operator[](const key_type &Key) { return Content[Key]; }
 
   const_iterator begin() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("begin", name());
+#endif
     Exact.access();
     return Content.begin();
   }
 
   const_iterator end() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("end", name());
+#endif
     Exact.access();
     return Content.end();
   }
 
   const_iterator cbegin() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("cbegin", name());
+#endif
     Exact.access();
     return Content.cbegin();
   }
 
   const_iterator cend() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("cend", name());
+#endif
     Exact.access();
     return Content.cend();
   }
   const_reverse_iterator rbegin() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("rbegin", name());
+#endif
     Exact.access();
     return Content.rbegin();
   }
 
   const_reverse_iterator rend() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("rend", name());
+#endif
     Exact.access();
     return Content.rend();
   }
 
   const_reverse_iterator crbegin() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("crbegin", name());
+#endif
     Exact.access();
     return Content.crbegin();
   }
 
   const_reverse_iterator crend() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("crend", name());
+#endif
     Exact.access();
     return Content.crend();
   }
 
   bool empty() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("empty", name());
+#endif
     Exact.access();
     return Content.empty();
   }
 
   size_type size() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("size", name());
+#endif
     Exact.access();
     return Content.size();
   }
@@ -252,6 +298,9 @@ public:
   size_type capacity() const { return Content.capacity(); }
 
   size_type count(const key_type &Key) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("count", name());
+#endif
     auto Quantity = Content.count(Key);
 
     if (not TrackingIsActive)
@@ -267,7 +316,22 @@ public:
 
   bool contains(const key_type &Key) const { return count(Key) != 0; }
 
+  value_type *tryGet(const key_type &Key) {
+    auto Iter = Content.find(Key);
+    if (Iter == Content.end()) {
+      if (TrackingIsActive)
+        NonExisting.back().insert(Key);
+      return nullptr;
+    }
+
+    markExistingKey(Key);
+    return &*Iter;
+  }
+
   const value_type *tryGet(const key_type &Key) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("tryGet", name());
+#endif
     auto Iter = Content.find(Key);
     if (Iter == Content.end()) {
       if (TrackingIsActive)
@@ -280,17 +344,26 @@ public:
   }
 
   const_iterator find(const key_type &Key) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("find", name());
+#endif
     Exact.access();
     return Content.find(Key);
   }
 
   const_iterator lower_bound(const key_type &Key) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("lower_bound", name());
+#endif
     auto Iter = Content.lower_bound(Key);
     Exact.access();
     return Iter;
   }
 
   const_iterator upper_bound(const key_type &Key) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("upper_bound", name());
+#endif
     auto Iter = Content.upper_bound(Key);
     Exact.access();
     return Iter;
@@ -363,6 +436,23 @@ private:
     }
 
     return Set;
+  }
+
+  static auto name() { return "Container<" + valueName().str() + ">"; }
+
+  static auto valueName() -> llvm::StringRef {
+
+    if constexpr (SpecializationOf<typename T::value_type, UpcastablePointer>) {
+      using value_type = typename T::value_type::element_type;
+      if constexpr (detail::HasName<value_type>)
+        return TupleLikeTraits<value_type>::Name;
+    } else {
+      using value_type = typename T::value_type;
+      if constexpr (detail::HasName<value_type>)
+        return TupleLikeTraits<value_type>::Name;
+    }
+
+    return "unknown";
   }
 };
 

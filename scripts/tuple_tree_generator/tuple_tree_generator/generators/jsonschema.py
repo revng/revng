@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Any, Dict
+from typing import Any, Dict, MutableMapping
 
 import yaml
 
@@ -46,6 +46,7 @@ class JSONSchemaGenerator:
 
             if definition is not None:
                 assert type_definition.name not in definitions
+                assert type_definition.name
                 definitions[type_definition.name] = definition
 
         return yaml.dump(jsonschema)
@@ -65,7 +66,7 @@ class JSONSchemaGenerator:
         return jsonschema
 
     def _struct_jsonschema(self, definition: StructDefinition):
-        jsonschema = {
+        jsonschema: MutableMapping[str, Any] = {
             "type": "object",
             "title": definition.name,
             "additionalProperties": False,

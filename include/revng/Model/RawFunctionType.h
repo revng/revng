@@ -18,11 +18,13 @@ fields:
     type: Architecture
     doc: The processor architecture of this function
   - name: Arguments
+    optional: true
     sequence:
       type: SortedVector
       elementType: NamedTypedRegister
     doc: The argument registers must be valid in the target architecture
   - name: ReturnValues
+    optional: true
     sequence:
       type: SortedVector
       elementType: NamedTypedRegister
@@ -31,12 +33,14 @@ fields:
     type: string
     optional: true
   - name: PreservedRegisters
+    optional: true
     sequence:
       type: SortedVector
       elementType: Register
     doc: The preserved registers must be valid in the target architecture
   - name: FinalStackOffset
     type: uint64_t
+    optional: true
   - name: StackArgumentsType
     doc: The type of the struct representing stack arguments
     reference:

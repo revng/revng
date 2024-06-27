@@ -25,12 +25,12 @@
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
-#include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Pass/PromoteOriginalName.h"
@@ -38,7 +38,7 @@
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/LLVMAnalysisImplementation.h"
+#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
@@ -90,16 +90,6 @@ struct Changes {
 };
 
 class DetectABIAnalysis {
-private:
-  template<typename... T>
-  using Impl = revng::pipes::LLVMAnalysisImplementation<T...>;
-
-  Impl<CollectFunctionsFromCalleesWrapperPass,
-       efa::DetectABIPass,
-       CollectFunctionsFromUnusedAddressesWrapperPass,
-       efa::DetectABIPass>
-    Implementation;
-
 public:
   static constexpr auto Name = "detect-abi";
 
@@ -107,15 +97,20 @@ public:
     { &revng::kinds::Root }
   };
 
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    Implementation.print(Ctx, OS, ContainerNames);
-  }
-
   void run(const pipeline::ExecutionContext &Ctx,
-           pipeline::LLVMContainer &Container) {
-    Implementation.run(Ctx, Container);
+           pipeline::LLVMContainer &ModuleContainer) {
+    revng::pipes::CFGMap CFGs("");
+    llvm::legacy::PassManager Manager;
+    using namespace revng;
+    auto Global = cantFail(Ctx.getContext()
+                             .getGlobal<ModelGlobal>(ModelGlobalName));
+    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
+    Manager.add(new CollectFunctionsFromCalleesWrapperPass());
+    Manager.add(new ControlFlowGraphCachePass(CFGs));
+    Manager.add(new efa::DetectABIPass());
+    Manager.add(new CollectFunctionsFromUnusedAddressesWrapperPass());
+    Manager.add(new efa::DetectABIPass());
+    Manager.run(ModuleContainer.getModule());
   }
 };
 
@@ -150,6 +145,7 @@ private:
   llvm::Module &M;
   llvm::LLVMContext &Context;
   GeneratedCodeBasicInfo &GCBI;
+  ControlFlowGraphCache &FMC;
   TupleTree<model::Binary> &Binary;
   FunctionSummaryOracle &Oracle;
   CFGAnalyzer &Analyzer;
@@ -160,12 +156,14 @@ private:
 public:
   DetectABI(llvm::Module &M,
             GeneratedCodeBasicInfo &GCBI,
+            ControlFlowGraphCache &FMC,
             TupleTree<model::Binary> &Binary,
             FunctionSummaryOracle &Oracle,
             CFGAnalyzer &Analyzer) :
     M(M),
     Context(M.getContext()),
     GCBI(GCBI),
+    FMC(FMC),
     Binary(Binary),
     Oracle(Oracle),
     Analyzer(Analyzer) {}
@@ -357,21 +355,20 @@ void DetectABI::preliminaryFunctionAnalysis() {
     revng_log(Log, "Analyzing " << EntryPointAddress.toString());
     LoggerIndent<> Indent(Log);
 
-    llvm::BasicBlock *BB = GCBI.getBlockAt(EntryNode->Address);
-    FunctionSummary AnalysisResult = Analyzer.analyze(BB);
+    FunctionSummary AnalysisResult = Analyzer.analyze(EntryNode->Address);
 
     if (Log.isEnabled()) {
       AnalysisResult.dump(Log);
       Log << DoLog;
     }
 
-    // Serialize CFG in root
+    // Serialize CFG in the ControlFlowGraphCache
     {
-      efa::FunctionMetadata New;
-      New.Entry() = EntryNode->Address;
-      New.ControlFlowGraph() = AnalysisResult.CFG;
-      New.simplify(*Binary);
-      New.serialize(GCBI);
+      TupleTree<efa::ControlFlowGraph> New;
+      New->Entry() = EntryNode->Address;
+      New->Blocks() = AnalysisResult.CFG;
+      New->simplify(*Binary);
+      FMC.set(std::move(New));
     }
 
     // Perform some early sanity checks once the CFG is ready
@@ -460,7 +457,7 @@ void DetectABI::analyzeABI() {
   // Create all temporary functions
   Task.advance("Create temporary functions");
   for (model::Function &Function : Binary->Functions()) {
-    llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry());
+    const MetaAddress &Entry = Function.Entry();
     auto NewFunction = make_unique<OutlinedFunction>(Analyzer.outline(Entry));
     Functions[Function.Entry()] = std::move(NewFunction);
   }
@@ -751,7 +748,7 @@ void DetectABI::finalizeModel() {
 
   for (auto &Function : Functions) {
     auto &Summary = Oracle.getLocalFunction(Function->Entry());
-    efa::FunctionMetadata FM(Function->Entry(), Summary.CFG);
+    efa::ControlFlowGraph FM(Function->Entry(), "", Summary.CFG);
     FM.verify(*Binary, true);
   }
 
@@ -1085,6 +1082,7 @@ bool DetectABIPass::runOnModule(Module &M) {
     return false;
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
+  auto &FMC = getAnalysis<ControlFlowGraphCachePass>().get();
   auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
 
   TupleTree<model::Binary> &Binary = LMP.getWriteableModel();
@@ -1093,7 +1091,7 @@ bool DetectABIPass::runOnModule(Module &M) {
   FSOracle Oracle = FSOracle::importFullPrototypes(M, GCBI, *Binary);
   CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
 
-  DetectABI ABIDetector(M, GCBI, Binary, Oracle, Analyzer);
+  DetectABI ABIDetector(M, GCBI, FMC, Binary, Oracle, Analyzer);
 
   ABIDetector.run();
 

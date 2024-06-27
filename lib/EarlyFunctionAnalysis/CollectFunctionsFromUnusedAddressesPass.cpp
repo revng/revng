@@ -11,7 +11,7 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 
 using namespace llvm;
 
@@ -33,22 +33,20 @@ public:
             model::Binary &Binary) :
     M(M), GCBI(GCBI), Binary(Binary) {}
 
-  void run(FunctionMetadataCache &MDCache) {
+  void run(ControlFlowGraphCache &MDCache) {
     loadAllCFGs(MDCache);
     collectFunctionsFromUnusedAddresses();
   }
 
 private:
-  void loadAllCFGs(FunctionMetadataCache &MDCache) {
+  void loadAllCFGs(ControlFlowGraphCache &MDCache) {
     for (auto &Function : Binary.Functions()) {
       llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry());
       llvm::Instruction *Term = Entry->getTerminator();
-      auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
 
-      revng_assert(FMMDNode != nullptr);
-
-      const efa::FunctionMetadata &FM = MDCache.getFunctionMetadata(Entry);
-      for (const efa::BasicBlock &Block : FM.ControlFlowGraph()) {
+      const efa::ControlFlowGraph &FM = MDCache.getControlFlowGraph(Function
+                                                                      .Entry());
+      for (const efa::BasicBlock &Block : FM.Blocks()) {
         auto Start = Block.ID().start();
         auto End = Block.End();
         revng_log(Log,
@@ -68,7 +66,7 @@ private:
         continue;
 
       MetaAddress Entry = getBasicBlockAddress(getJumpTargetBlock(&BB));
-      if (Binary.Functions().find(Entry) != Binary.Functions().end())
+      if (Binary.Functions().tryGet(Entry) != nullptr)
         continue;
 
       uint32_t Reasons = GCBI.getJTReasons(&BB);
@@ -136,7 +134,7 @@ bool CFFUAWrapperPass::runOnModule(llvm::Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
   CFFUAImpl Impl(M, GCBI, *LMWP.getWriteableModel());
-  Impl.run(getAnalysis<FunctionMetadataCachePass>().get());
+  Impl.run(getAnalysis<ControlFlowGraphCachePass>().get());
   return false;
 }
 
@@ -150,13 +148,13 @@ CollectFunctionsFromUnusedAddressesPass::run(llvm::Module &M,
   auto &GCBI = MAM.getResult<GeneratedCodeBasicInfoAnalysis>(M);
 
   CFFUAImpl Impl(M, GCBI, *LM->getWriteableModel());
-  Impl.run(*MAM.getCachedResult<FunctionMetadataCacheAnalysis>(M));
+  Impl.run(*MAM.getCachedResult<ControlFlowGraphCacheAnalysis>(M));
   return llvm::PreservedAnalyses::all();
 }
 
 void CFFUAWrapperPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<FunctionMetadataCachePass>();
+  AU.addRequired<ControlFlowGraphCachePass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
 }

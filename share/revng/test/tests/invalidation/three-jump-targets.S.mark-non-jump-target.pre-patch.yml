@@ -1,0 +1,10 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Add regular entry function
+---
+Changes:
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500001:Code_x86_64"

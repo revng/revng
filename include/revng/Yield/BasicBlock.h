@@ -32,6 +32,7 @@ fields:
 
   - name: InlinedFrom
     type: MetaAddress
+    optional: true
     doc: Address of the function this basic block has been inlined from
 
   - name: Label

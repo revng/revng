@@ -25,12 +25,7 @@ class Module;
 class StructType;
 class GlobalVariable;
 class Instruction;
-class ConstantFolder;
-class IRBuilderDefaultInserter;
-
-template<typename T /* = ConstantFolder */,
-         typename Inserter /* = IRBuilderDefaultInserter */>
-class IRBuilder;
+class IRBuilderBase;
 } // namespace llvm
 
 namespace MetaAddressType {
@@ -547,10 +542,7 @@ public:
   llvm::Constant *toValue(llvm::Module *M) const;
 
 public:
-  using IRBuilderType = llvm::IRBuilder<llvm::ConstantFolder,
-                                        llvm::IRBuilderDefaultInserter>;
-
-  static llvm::Instruction *composeIntegerPC(IRBuilderType &B,
+  static llvm::Instruction *composeIntegerPC(llvm::IRBuilderBase &B,
                                              llvm::Value *AddressValue,
                                              llvm::Value *EpochValue,
                                              llvm::Value *AddressSpaceValue,

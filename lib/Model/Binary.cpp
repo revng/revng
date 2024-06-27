@@ -14,6 +14,7 @@
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -31,6 +32,7 @@ using namespace llvm;
 
 namespace {
 
+// TODO: all this logic should be moved to lib/TupleTree
 Logger<> FieldAccessedLogger("field-accessed");
 
 constexpr const char *StructNameHelpText = "regex that will make the program "
@@ -59,16 +61,19 @@ cl::opt<std::string> FieldNameRegex("tracking-debug-field-name",
                                     cl::init(""),
                                     cl::cat(MainCategory));
 
-void onFieldAccess(StringRef FieldName, StringRef StructName) debug_function;
+} // namespace
 
 void onFieldAccess(StringRef FieldName, StringRef StructName) {
-  FieldAccessedLogger << ((StringRef("Field ") + FieldName + " of struct "
-                           + StructName + " accessed")
-                            .str()
-                            .c_str());
-  FieldAccessedLogger.flush();
+  if (FieldAccessedLogger.isEnabled()) {
+    FieldAccessedLogger << (StructName + "::" + FieldName + " accessed").str();
+    {
+      auto LLVMStream = FieldAccessedLogger.getAsLLVMStream();
+      llvm::sys::PrintStackTrace(*LLVMStream);
+    }
+
+    FieldAccessedLogger << DoLog;
+  }
 }
-} // namespace
 
 void fieldAccessed(StringRef FieldName, StringRef StructName) {
   if (StructNameRegex == "" and FieldNameRegex == "")
@@ -149,10 +154,6 @@ MetaAddressRangeSet Binary::executableRanges() const {
     PaddingEnd = QueueEntry.Start + Struct->Size();
     if (PaddingStart != PaddingEnd)
       ExecutableRanges.add(PaddingStart, PaddingEnd);
-  }
-
-  for (const model::Function &F : Functions()) {
-    ExecutableRanges.add(F.Entry().toGeneric(), F.Entry().toGeneric() + 1);
   }
 
   return ExecutableRanges;
@@ -242,12 +243,12 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
 }
 
 void Binary::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
 void Binary::dumpTypeGraph(const char *Path) const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
 
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
@@ -259,7 +260,7 @@ void Binary::dumpTypeGraph(const char *Path) const {
 }
 
 std::string Binary::toString() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   std::string S;
   llvm::raw_string_ostream OS(S);
   serialize(OS, *this);
@@ -457,25 +458,6 @@ bool Relocation::verify(VerifyHelper &VH) const {
   return true;
 }
 
-bool Section::verify() const {
-  return verify(false);
-}
-
-bool Section::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool Section::verify(VerifyHelper &VH) const {
-  auto Guard = VH.suspendTracking(*this);
-
-  auto EndAddress = StartAddress() + Size();
-  if (not EndAddress.isValid())
-    return VH.fail("Computing the end address leads to overflow");
-
-  return true;
-}
-
 Identifier Segment::name() const {
   using llvm::Twine;
   if (not CustomName().empty()) {
@@ -489,7 +471,7 @@ Identifier Segment::name() const {
 }
 
 void Segment::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -563,12 +545,12 @@ bool Segment::verify(VerifyHelper &VH) const {
 }
 
 void Function::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
 void Function::dumpTypeGraph(const char *Path) const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
   if (EC)
@@ -632,7 +614,7 @@ bool Function::verify(VerifyHelper &VH) const {
 }
 
 void DynamicFunction::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -677,7 +659,7 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 }
 
 void CallSitePrototype::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 

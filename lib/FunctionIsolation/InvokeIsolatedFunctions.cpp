@@ -11,6 +11,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/Kinds.h"
@@ -31,7 +32,21 @@ struct InvokeIsolatedPipe {
 
   std::vector<pipeline::ContractGroup> getContract() const {
     using namespace revng::kinds;
-    return { pipeline::ContractGroup(Root, 0, IsolatedRoot, 0) };
+    using namespace pipeline;
+
+    // TODO: we're not using the following contract even if we should, probably
+    //       due to some error in the contract logic.
+    //       Specifically, adding this contract leads to deduce that we do *not*
+    //       need /:root at beginning of the recompile-isolated step.
+    ContractGroup IsolatedToRoot(Isolated,
+                                 0,
+                                 IsolatedRoot,
+                                 0,
+                                 pipeline::InputPreservation::Preserve);
+
+    return {
+      ContractGroup(Root, 0, IsolatedRoot, 0, InputPreservation::Erase)
+    };
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {
@@ -65,8 +80,7 @@ public:
     GCBI(GCBI) {
 
     for (const model::Function &Function : Binary.Functions()) {
-      // TODO: this temporary
-      auto Name = (Twine("local_") + Function.name()).str();
+      auto Name = getLLVMFunctionName(Function);
       llvm::Function *F = M->getFunction(Name);
       revng_assert(F != nullptr);
       Map[Function.Entry()] = { &Function, nullptr, F };
@@ -191,16 +205,20 @@ public:
     // Remove all the orphan basic blocks from the root function (e.g., the
     // blocks that have been substituted by the trampoline)
     EliminateUnreachableBlocks(*RootFunction, nullptr, false);
+
+    FunctionTags::IsolatedRoot.addTo(RootFunction);
   }
 };
 
 bool InvokeIsolatedFunctionsPass::runOnModule(Module &M) {
   if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
     return false;
+
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
   InvokeIsolatedFunctions TheFunction(Binary, M.getFunction("root"), GCBI);
   TheFunction.run();
+
   return true;
 }

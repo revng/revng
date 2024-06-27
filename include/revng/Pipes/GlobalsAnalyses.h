@@ -7,6 +7,7 @@
 #include <tuple>
 #include <vector>
 
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Option.h"
 
@@ -62,7 +63,7 @@ struct SetGlobalAnalysis {
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
   llvm::Error run(pipeline::ExecutionContext &Ctx,
-                  std::string SetGlobalNane,
+                  std::string SetGlobalName,
                   std::string GlobalContent);
 };
 

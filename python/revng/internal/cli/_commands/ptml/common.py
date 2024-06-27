@@ -5,11 +5,11 @@
 import re
 import sys
 from contextlib import suppress
-from io import BytesIO
-from tarfile import open as tar_open
 from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar, Union
 
 import yaml
+
+from ...support import extract_tar, is_tar
 
 
 def log(msg: str):
@@ -62,14 +62,8 @@ def handle_file(
     func_many: Callable[[Dict[str, str]], Optional[int]],
     filters: Union[str, List[str]],
 ) -> Optional[int]:
-    if raw.startswith(b"\x1f\x8b"):
-        dict_input: Dict[str, str] = {}
-        with tar_open(fileobj=BytesIO(raw), mode="r:gz") as file:
-            for element in file.getmembers():
-                extracted_element = file.extractfile(element)
-                if extracted_element is not None:
-                    dict_input[element.name] = extracted_element.read().decode("utf-8")
-        return handle_multiple(dict_input, func_one, func_many, filters)
+    if is_tar(raw):
+        return handle_multiple(extract_tar(raw), func_one, func_many, filters)
 
     raw_string = raw.decode("utf-8")
     if is_ptml(raw_string):

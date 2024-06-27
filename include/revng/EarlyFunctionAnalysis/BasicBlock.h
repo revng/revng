@@ -28,6 +28,7 @@ fields:
     type: MetaAddress
   - name: InlinedFrom
     type: MetaAddress
+    optional: true
     doc: Address of the function this basic block has been inlined from
   - name: Successors
     doc: List of successor edges

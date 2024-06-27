@@ -35,12 +35,6 @@ void YieldControlFlow::run(pipeline::ExecutionContext &Context,
   }
 }
 
-void YieldControlFlow::print(const pipeline::Context &,
-                             llvm::raw_ostream &OS,
-                             llvm::ArrayRef<std::string> Files) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
-}
-
 } // end namespace revng::pipes
 
 using namespace revng::pipes;

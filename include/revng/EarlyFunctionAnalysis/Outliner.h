@@ -79,7 +79,7 @@ class Outliner {
 private:
   llvm::Module &M;
   GeneratedCodeBasicInfo &GCBI;
-  const FunctionSummaryOracle &Oracle;
+  FunctionSummaryOracle &Oracle;
 
   /// UnexpectedPCMarker is used to indicate that `unexpectedpc` basic
   /// block of a function to inline need to be adjusted to jump to
@@ -93,7 +93,7 @@ private:
 public:
   Outliner(llvm::Module &M,
            GeneratedCodeBasicInfo &GCBI,
-           const FunctionSummaryOracle &Oracle) :
+           FunctionSummaryOracle &Oracle) :
     M(M),
     GCBI(GCBI),
     Oracle(Oracle),
@@ -106,13 +106,15 @@ public:
     OpaqueReturnAddress.setMemoryEffects(Effects);
     OpaqueReturnAddress.addFnAttribute(Attribute::NoUnwind);
     OpaqueReturnAddress.addFnAttribute(Attribute::WillReturn);
-    OpaqueReturnAddress.setTags({ &FunctionTags::OpaqueReturnAddressFunction });
+    OpaqueReturnAddress.setTags({ &FunctionTags::OpaqueReturnAddressFunction,
+                                  &FunctionTags::UniquedByPrototype });
     OpaqueReturnAddress
       .initializeFromReturnType(FunctionTags::OpaqueReturnAddressFunction);
   }
 
 public:
-  OutlinedFunction outline(llvm::BasicBlock *BB, CallHandler *TheCallHandler);
+  OutlinedFunction outline(const MetaAddress &EntryAddress,
+                           CallHandler *TheCallHandler);
 
 private:
   static TemporaryOpaqueFunction initializeUnexpectedPCMarker(llvm::Module &M) {
@@ -125,7 +127,7 @@ private:
 private:
   OutlinedFunction
   outlineFunctionInternal(CallHandler *TheCallHandler,
-                          llvm::BasicBlock *BB,
+                          const MetaAddress &EntryAddress,
                           OutlinedFunctionsMap &FunctionsToInline);
 
   /// \return a description of the call and boolean indicating whether the call
@@ -147,7 +149,7 @@ private:
 
   llvm::Function *
   createFunctionToInline(CallHandler *TheCallHandler,
-                         llvm::BasicBlock *BB,
+                         const MetaAddress &Entry,
                          OutlinedFunctionsMap &FunctionsToInline);
 
   void createAnyPCHooks(CallHandler *TheCallHandler, OutlinedFunction *F);

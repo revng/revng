@@ -21,7 +21,7 @@ fields:
   - name: Entry
     type: MetaAddress
 
-  - name: ControlFlowGraph
+  - name: Blocks
     sequence:
       type: SortedVector
       elementType: BasicBlock

@@ -189,46 +189,59 @@ ContainerInvalidationMetadata::deserialize(const Context &Ctx,
 
   PathTargetBimap ToReturn;
   for (const ValueType &Entry : Data) {
-    if (Entry.first.PipeName != PipeName)
+    if (Entry.first.PipeName != PipeName) {
       continue;
+    }
+
     llvm::Expected<SmallVector<TargetInContainer>>
       MaybeTarget = Entry.first.deserialize(Ctx, ContainerName);
-    if (not MaybeTarget)
+
+    if (not MaybeTarget) {
       return MaybeTarget.takeError();
+    }
 
     for (auto &SerializedPath : Entry.second) {
       std::optional<TupleTreePath>
         MaybeParsedPath = Global.deserializePath(SerializedPath);
-      if (not MaybeParsedPath)
+
+      if (not MaybeParsedPath) {
         return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                        "could not parse " + SerializedPath);
-      for (const TargetInContainer &Path : *MaybeTarget)
+      }
+
+      for (const TargetInContainer &Path : *MaybeTarget) {
         ToReturn.insert(std::move(Path), std::move(*MaybeParsedPath));
+      }
     }
   }
 
   return ToReturn;
 }
 
-ContainerToTargetsMap
+std::pair<ContainerToTargetsMap, std::vector<PipeExecutionEntry>>
 Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const {
 
   ContainerToTargetsMap AlreadyAvailable;
   ContainerToTargetsMap Targets = RequiredGoals;
   removeSatisfiedGoals(Targets, AlreadyAvailable);
+
+  std::vector<PipeExecutionEntry> PipesExecutionEntries;
   for (const PipeWrapper &Pipe :
        llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
-    Targets = Pipe.Pipe->getRequirements(*Ctx, Targets);
+    PipesExecutionEntries.push_back(Pipe.Pipe->getRequirements(*Ctx, Targets));
+    Targets = PipesExecutionEntries.back().Input;
   }
+  std::reverse(PipesExecutionEntries.begin(), PipesExecutionEntries.end());
 
-  return Targets;
+  return std::make_pair(std::move(Targets), std::move(PipesExecutionEntries));
 }
 
 void Step::explainStartStep(const ContainerToTargetsMap &Targets,
                             size_t Indentation) const {
 
   indent(ExplanationLogger, Indentation);
-  ExplanationLogger << "STARTING step on containers\n";
+  ExplanationLogger << "Now starting step " << getName()
+                    << " with the following inputs:\n";
   indent(ExplanationLogger, Indentation + 1);
   ExplanationLogger << getName() << ":\n";
   prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
@@ -239,7 +252,8 @@ void Step::explainEndStep(const ContainerToTargetsMap &Targets,
                           size_t Indentation) const {
 
   indent(ExplanationLogger, Indentation);
-  ExplanationLogger << "ENDING step, the following have been produced\n";
+  ExplanationLogger << "Step " << getName()
+                    << " completed\nThe following targets have been produced\n";
   indent(ExplanationLogger, Indentation + 1);
   ExplanationLogger << getName() << ":\n";
   prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
@@ -248,37 +262,33 @@ void Step::explainEndStep(const ContainerToTargetsMap &Targets,
 
 void Step::explainExecutedPipe(const InvokableWrapperBase &Wrapper,
                                size_t Indentation) const {
-  ExplanationLogger << "RUN " << Wrapper.getName();
-  ExplanationLogger << "(";
+  ExplanationLogger << "Running " << Wrapper.getName() << " in step "
+                    << getName();
 
-  std::vector<std::string> Vec = Wrapper.getRunningContainersNames();
-  if (not Vec.empty()) {
-    for (size_t I = 0; I < Vec.size() - 1; I++) {
-      ExplanationLogger << Vec[I];
-      ExplanationLogger << ", ";
-    }
-    ExplanationLogger << Vec.back();
+  auto RunningContainersNames = Wrapper.getRunningContainersNames();
+  if (RunningContainersNames.empty()) {
+    ExplanationLogger << " with no arguments";
+  } else {
+    ExplanationLogger << " with the following containers:\n";
+    for (const std::string &ContainerName : RunningContainersNames)
+      ExplanationLogger << "  " << ContainerName << "\n";
   }
-
-  ExplanationLogger << ")";
-  ExplanationLogger << "\n";
   ExplanationLogger << DoLog;
-
-  auto CommandStream = CommandLogger.getAsLLVMStream();
-  Wrapper.print(*Ctx, *CommandStream, Indentation);
-  CommandStream->flush();
-  CommandLogger << DoLog;
 }
 
-ContainerSet Step::run(ContainerSet &&Input) {
+ContainerSet Step::run(ContainerSet &&Input,
+                       const std::vector<PipeExecutionEntry> &ExecutionInfos) {
   ContainerToTargetsMap InputEnumeration = Input.enumerate();
   explainStartStep(InputEnumeration);
 
   Task T(Pipes.size() + 1, "Step " + getName());
-  for (PipeWrapper &Pipe : Pipes) {
+  for (const auto &[Pipe, Info] : llvm::zip(Pipes, ExecutionInfos)) {
     T.advance(Pipe.Pipe->getName(), false);
     explainExecutedPipe(*Pipe.Pipe);
-    ExecutionContext Context(*Ctx, *this, &Pipe);
+    ExecutionContext Context(*Ctx, &Pipe, Info.Output);
+
+    Pipe.Pipe->deduceResults(*Ctx, Context.getCurrentRequestedTargets());
+
     cantFail(Pipe.Pipe->run(Context, Input));
     llvm::cantFail(Input.verify());
   }
@@ -289,6 +299,13 @@ ContainerSet Step::run(ContainerSet &&Input) {
   InputEnumeration = deduceResults(InputEnumeration);
   ContainerSet Cloned = Containers.cloneFiltered(InputEnumeration);
   return Cloned;
+}
+
+void Step::pipeInvalidate(const GlobalTupleTreeDiff &Diff,
+                          ContainerToTargetsMap &Map) const {
+  for (const auto &Pipe : Pipes) {
+    Pipe.Pipe->invalidate(Diff, Map, Containers);
+  }
 }
 
 llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
@@ -307,7 +324,7 @@ llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
   explainExecutedPipe(*TheAnalysis);
 
   ContainerSet Cloned = Containers.cloneFiltered(Targets);
-  ExecutionContext ExecutionCtx(*Ctx, *this, nullptr);
+  ExecutionContext ExecutionCtx(*Ctx, nullptr);
   return TheAnalysis->run(ExecutionCtx, Cloned, ExtraArgs);
 }
 

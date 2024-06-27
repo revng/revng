@@ -179,9 +179,9 @@ public:
     }
     uint32_t getReasons() const { return Reasons; }
 
-    bool isOnlyReason(JTReason::Values Reason) const {
+    bool isOnlyReason(JTReason::Values Reason, JTReason::Values Ignore) const {
       return (hasReason(Reason)
-              and (Reasons & ~static_cast<uint32_t>(Reason)) == 0);
+              and (Reasons & ~static_cast<uint32_t>(Reason | Ignore)) == 0);
     }
 
     std::vector<const char *> getReasonNames() const {
@@ -614,6 +614,7 @@ private:
   MetaAddressSet ValueMaterializerPCWhiteList;
   const TupleTree<model::Binary> &Model;
   const RawBinaryView &BinaryView;
+  bool AftedAddingFunctionEntries = false;
 };
 
 template<>

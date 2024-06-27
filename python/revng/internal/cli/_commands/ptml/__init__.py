@@ -6,8 +6,7 @@ import argparse
 import sys
 from typing import Optional
 
-from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
-
+from ...commands_registry import Command, CommandsRegistry, Options
 from .common import suppress_brokenpipe
 from .text import cmd_text
 

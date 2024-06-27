@@ -10,6 +10,7 @@
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/Generator.h"
 
 namespace revng::kinds {
 
@@ -54,6 +55,16 @@ public:
 
   void appendAllTargets(const pipeline::Context &Ctx,
                         pipeline::TargetsList &Out) const override;
+
+  static cppcoro::generator<
+    std::pair<const model::Function *, llvm::Function *>>
+  getFunctionsAndCommit(pipeline::ExecutionContext &Context,
+                        llvm::Module &Module,
+                        llvm::StringRef ContainerName);
+
+  static cppcoro::generator<const model::Function *>
+  getFunctionsAndCommit(pipeline::ExecutionContext &Context,
+                        const pipeline::ContainerBase &Container);
 };
 
 } // namespace revng::kinds

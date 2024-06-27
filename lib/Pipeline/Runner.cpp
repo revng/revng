@@ -23,16 +23,24 @@ using namespace std;
 using namespace llvm;
 using namespace pipeline;
 
+static Logger<> Log("invalidation");
+
 class PipelineExecutionEntry {
 public:
   Step *ToExecute;
   ContainerToTargetsMap Output;
   ContainerToTargetsMap Input;
+  std::vector<PipeExecutionEntry> PipesExecuteEntries;
 
   PipelineExecutionEntry(Step &ToExecute,
                          ContainerToTargetsMap Output,
-                         ContainerToTargetsMap Input) :
-    ToExecute(&ToExecute), Output(std::move(Output)), Input(std::move(Input)) {}
+                         ContainerToTargetsMap Input,
+                         std::vector<PipeExecutionEntry>
+                           PipesToExecuteEntries) :
+    ToExecute(&ToExecute),
+    Output(std::move(Output)),
+    Input(std::move(Input)),
+    PipesExecuteEntries(std::move(PipesToExecuteEntries)) {}
 };
 
 static Error getObjectives(Runner &Runner,
@@ -42,10 +50,13 @@ static Error getObjectives(Runner &Runner,
   ContainerToTargetsMap ToLoad = Targets;
   Step *CurrentStep = &(Runner[EndingStepName]);
   while (CurrentStep != nullptr and not ToLoad.empty()) {
-
     ContainerToTargetsMap Output = ToLoad;
-    ToLoad = CurrentStep->analyzeGoals(ToLoad);
-    ToExec.emplace_back(*CurrentStep, Output, ToLoad);
+    auto [Required, PipesExecutionEntries] = CurrentStep->analyzeGoals(ToLoad);
+    ToLoad = std::move(Required);
+    ToExec.emplace_back(*CurrentStep,
+                        Output,
+                        ToLoad,
+                        std::move(PipesExecutionEntries));
     CurrentStep = CurrentStep->hasPredecessor() ?
                     &CurrentStep->getPredecessor() :
                     nullptr;
@@ -54,6 +65,7 @@ static Error getObjectives(Runner &Runner,
   if (not ToLoad.empty())
     return make_error<UnsatisfiableRequestError>(Targets, ToLoad);
   reverse(ToExec.begin(), ToExec.end());
+
   return Error::success();
 }
 
@@ -62,7 +74,7 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   if (Requirements.empty())
     return;
 
-  ExplanationLogger << "OBJECTIVES requested\n";
+  ExplanationLogger << "Requested targets:\n";
   indent(ExplanationLogger, 1);
 
   if (Requirements.size() <= 1) {
@@ -74,7 +86,9 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   prettyPrintStatus(Targets, ExplanationLogger, 2);
 
   ExplanationLogger << DoLog;
-  ExplanationLogger << "DEDUCED steps content to be produced: \n";
+
+  ExplanationLogger << "We need to have the following targets at the beginning "
+                       "of the steps\n";
 
   indent(ExplanationLogger, 1);
   ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
@@ -347,6 +361,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
                   const ContainerToTargetsMap &Targets) {
 
   vector<PipelineExecutionEntry> ToExec;
+  revng_log(ExplanationLogger, "Running until step " << EndingStepName);
 
   if (llvm::Error Error = getObjectives(*this, EndingStepName, Targets, ToExec);
       Error)
@@ -367,7 +382,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
   Task T(ToExec.size() - 1, "Produce steps required up to " + EndingStepName);
   for (PipelineExecutionEntry &StepGoalsPairs : llvm::drop_begin(ToExec)) {
-    auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
+    auto &[Step, PredictedOutput, Input, PipesInfo] = StepGoalsPairs;
     T.advance(Step->getName(), true);
 
     Task T2(3, "Run step");
@@ -378,13 +393,19 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
     // Run the step
     T2.advance("Run the step", true);
-    Step->run(std::move(CurrentContainer));
+    Step->run(std::move(CurrentContainer), PipesInfo);
 
     T2.advance("Extract the requested targets", true);
     if (VerifyLog.isEnabled()) {
       ContainerSet Produced = Step->containers().cloneFiltered(PredictedOutput);
-      revng_check(Produced.enumerate().contains(PredictedOutput),
-                  "Not all the expected targets have been produced");
+
+      if (not Produced.enumerate().contains(PredictedOutput)) {
+        dbg << "PredictedOutput:\n";
+        PredictedOutput.dump(dbg, 2, false);
+        dbg << "Produced:\n";
+        Produced.enumerate().dump(dbg, 2, false);
+        revng_abort("Not all the expected targets have been produced");
+      }
       revng_check(Step->containers().enumerate().contains(PredictedOutput));
     }
   }
@@ -438,25 +459,52 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                                   TargetInStepSet &Map) const {
 
+  // Iterate over each step, skipping the begin step
   for (const Step &Step : llvm::drop_begin(*this)) {
-    auto &StepInvalidations = Map[Step.getName()];
+    revng_log(Log, "Computing invalidations in step " << Step.getName());
+    LoggerIndent<> I(Log);
+
+    ContainerToTargetsMap &StepInvalidations = Map[Step.getName()];
+
+    // Iterate over each pipe and feed it the non-const containers
+    // TODO: this is misguided! The pipe are going to be looking at the
+    //       containers *at the end* of the pipe. This might mean that what
+    //       we're looking for might no longer be there!
+    Step.pipeInvalidate(Diff, StepInvalidations);
+
+    std::set<StringRef> Mutablecontainers = Step.mutableContainers();
+
     for (const auto &Container : Step.containers()) {
+
       if (not Container.second)
         continue;
 
+      if (not Mutablecontainers.contains(Container.first()))
+        continue;
+
+      revng_log(Log,
+                "Computing invalidations in container " << Container.getKey());
+      LoggerIndent<> II(Log);
+
+      // Look for targets that are not recorded in the invalidation map and mark
+      // them to be deleted
       const TargetsList &ExistingTargets = Container.second->enumerate();
-      // for all targets that are not cached anywhere, mark them to be deleated
-      // every time, since we must be conservative
       for (const Target &Target : ExistingTargets) {
 
         TargetInContainer ToFind(Target, Container.first().str());
         if (Step.invalidationMetadataContains(Diff.getGlobalName(), ToFind))
           continue;
 
+        revng_log(Log, "Invalidating " << Target.serialize());
         StepInvalidations[Container.first()].push_back(Target);
       }
     }
 
+    // Compute the set of things we need to invalidate by looking at all the
+    // paths changed by Diff.
+    // Also, this will invalidate all the targets depending on them and all the
+    // targets depending on stuff that's already in Map.
+    revng_log(Log, Diff.getPaths().size() << " paths have changed");
     for (const TupleTreePath *Path : Diff.getPaths()) {
       Step.registerTargetsDependingOn(Diff.getGlobalName(), *Path, Map);
     }

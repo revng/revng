@@ -8,48 +8,20 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
+#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Pipes/IRHelpers.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
-namespace detail {
-
-inline TupleTree<efa::FunctionMetadata>
-extractFunctionMetadata(llvm::MDNode *MD) {
-  using namespace llvm;
-
-  efa::FunctionMetadata FM;
-  revng_assert(MD != nullptr);
-  const MDOperand &Op = MD->getOperand(0);
-  revng_assert(isa<MDString>(Op));
-
-  StringRef YAMLString = cast<MDString>(Op)->getString();
-  auto MaybeParsed = TupleTree<efa::FunctionMetadata>::deserialize(YAMLString);
-  revng_assert(MaybeParsed and MaybeParsed->verify());
-  return std::move(MaybeParsed.get());
-}
-
-inline TupleTree<efa::FunctionMetadata>
-extractFunctionMetadata(const llvm::Function *F) {
-  auto *MDNode = F->getMetadata(FunctionMetadataMDName);
-  return detail::extractFunctionMetadata(MDNode);
-}
-
-inline TupleTree<efa::FunctionMetadata>
-extractFunctionMetadata(const llvm::BasicBlock *BB) {
-  auto *MDNode = BB->getTerminator()->getMetadata(FunctionMetadataMDName);
-  return detail::extractFunctionMetadata(MDNode);
-}
-
-} // namespace detail
-
 template<typename T>
-concept FunctionMetadataCacheTraits = requires {
+concept ControlFlowGraphCacheTraits = requires {
   typename T::BasicBlock;
   typename T::Function;
   typename T::CallInst;
@@ -78,41 +50,43 @@ concept FunctionMetadataCacheTraits = requires {
   } -> std::same_as<const model::Function *>;
 
   {
-    T::extractFunctionMetadata(std::declval<typename T::Function>())
-  } -> std::same_as<TupleTree<efa::FunctionMetadata>>;
+    T::getFunctionAddress(std::declval<typename T::Function>())
+  } -> std::same_as<MetaAddress>;
 };
 
-/// The BasicFunctionMetadataCache is implemented as a class template customised
+/// The BasicControlFlowGraphCache is implemented as a class template customised
 /// via a traits class in order to enable reuse for both LLVM IR and MLIR.
-template<FunctionMetadataCacheTraits Traits>
-class BasicFunctionMetadataCache {
+template<ControlFlowGraphCacheTraits Traits>
+class BasicControlFlowGraphCache {
   using BasicBlock = typename Traits::BasicBlock;
   using Function = typename Traits::Function;
   using CallInst = typename Traits::CallInst;
 
-  std::map<typename Traits::KeyType, efa::FunctionMetadata> FunctionCache;
+  const revng::pipes::CFGMap &CFGs;
+  std::map<MetaAddress, TupleTree<efa::ControlFlowGraph>> Deserialized;
 
 public:
-  const efa::FunctionMetadata &getFunctionMetadata(Function Function) {
-    typename Traits::KeyType Key = Traits::getKey(Function);
+  BasicControlFlowGraphCache(const revng::pipes::CFGMap &CFGs) : CFGs(CFGs) {}
 
-    auto Iterator = FunctionCache.find(Key);
-    if (Iterator != FunctionCache.end())
-      return Iterator->second;
-
-    efa::FunctionMetadata FM = *Traits::extractFunctionMetadata(Function).get();
-    return FunctionCache.try_emplace(Key, std::move(FM)).first->second;
+public:
+  void set(TupleTree<efa::ControlFlowGraph> &&New) {
+    Deserialized[New->Entry()] = std::move(New);
   }
 
-  const efa::FunctionMetadata &getFunctionMetadata(BasicBlock BB) {
-    typename Traits::KeyType Key = Traits::getKey(BB);
+public:
+  const efa::ControlFlowGraph &getControlFlowGraph(const MetaAddress &Address) {
+    auto It = Deserialized.find(Address);
+    if (It != Deserialized.end())
+      return *It->second.get();
 
-    auto Iterator = FunctionCache.find(Key);
-    if (Iterator != FunctionCache.end())
-      return Iterator->second;
+    TupleTree<efa::ControlFlowGraph> &Result = Deserialized[Address];
+    Result = TupleTree<efa::ControlFlowGraph>::deserialize(CFGs.at(Address))
+               .get();
+    return *Result.get();
+  }
 
-    efa::FunctionMetadata FM = *Traits::extractFunctionMetadata(BB).get();
-    return FunctionCache.try_emplace(Key, std::move(FM)).first->second;
+  const efa::ControlFlowGraph &getControlFlowGraph(const Function Function) {
+    return getControlFlowGraph(Traits::getFunctionAddress(Function));
   }
 
   /// Given a Call instruction and the model type of its parent function, return
@@ -130,8 +104,8 @@ public:
     auto BlockAddress = MaybeLocation->parent().back();
 
     Function ParentFunction = Traits::getFunction(Call);
-    const efa::FunctionMetadata &FM = getFunctionMetadata(ParentFunction);
-    const efa::BasicBlock &Block = FM.ControlFlowGraph().at(BlockAddress);
+    const efa::ControlFlowGraph &FM = getControlFlowGraph(ParentFunction);
+    const efa::BasicBlock &Block = FM.Blocks().at(BlockAddress);
 
     // Find the call edge
     efa::CallEdge *ModelCall = nullptr;
@@ -195,46 +169,42 @@ public:
     return ::getLocation(I);
   }
 
-  static TupleTree<efa::FunctionMetadata>
-  extractFunctionMetadata(const llvm::Function *F) {
-    return detail::extractFunctionMetadata(F);
-  }
-
-  static TupleTree<efa::FunctionMetadata>
-  extractFunctionMetadata(const llvm::BasicBlock *BB) {
-    return detail::extractFunctionMetadata(BB);
-  }
-
   static const model::Function *getModelFunction(const model::Binary &Binary,
                                                  const llvm::Function *F) {
     return llvmToModelFunction(Binary, *F);
   }
-};
-using FunctionMetadataCache = BasicFunctionMetadataCache<LLVMIRMetadataTraits>;
 
-class FunctionMetadataCachePass : public llvm::ImmutablePass {
+  static MetaAddress getFunctionAddress(const llvm::Function *F) {
+    return getMetaAddressOfIsolatedFunction(*F);
+  }
+};
+
+using ControlFlowGraphCache = BasicControlFlowGraphCache<LLVMIRMetadataTraits>;
+
+class ControlFlowGraphCachePass : public llvm::ImmutablePass {
 public:
   static char ID;
 
 private:
-  FunctionMetadataCache Cache;
+  ControlFlowGraphCache Cache;
 
 public:
-  FunctionMetadataCachePass() : llvm::ImmutablePass(ID) {}
-  FunctionMetadataCache &get() { return Cache; }
+  ControlFlowGraphCachePass(const revng::pipes::CFGMap &CFGs) :
+    llvm::ImmutablePass(ID), Cache(CFGs) {}
+  ControlFlowGraphCache &get() { return Cache; }
 };
 
-class FunctionMetadataCacheAnalysis
-  : public llvm::AnalysisInfoMixin<FunctionMetadataCacheAnalysis> {
-  friend llvm::AnalysisInfoMixin<FunctionMetadataCacheAnalysis>;
+class ControlFlowGraphCacheAnalysis
+  : public llvm::AnalysisInfoMixin<ControlFlowGraphCacheAnalysis> {
+  friend llvm::AnalysisInfoMixin<ControlFlowGraphCacheAnalysis>;
 
 private:
-  FunctionMetadataCache Cache;
+  ControlFlowGraphCache Cache;
   static llvm::AnalysisKey Key;
 
 public:
-  using Result = FunctionMetadataCache;
+  using Result = ControlFlowGraphCache;
 
 public:
-  FunctionMetadataCache *runOnModule(llvm::Module &M) { return &Cache; }
+  ControlFlowGraphCache *runOnModule(llvm::Module &M) { return &Cache; }
 };

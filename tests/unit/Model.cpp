@@ -373,11 +373,8 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
   ConstModel.Segments().at(Segment::Key(MetaAddress, 1000)).StartAddress();
 
   auto Collected = revng::Tracking::collect(Model);
-  BOOST_TEST(Collected.Read.size() == 2);
-  std::vector StringPaths = {
-    "/Segments",
-    "/Segments/0x0:Code_x86_64-1000",
-  };
+  BOOST_TEST(Collected.Read.size() == 1);
+  std::vector StringPaths = { "/Segments/0x0:Code_x86_64-1000" };
 
   std::set<TupleTreePath> Paths;
   for (const auto &Path : StringPaths) {
@@ -395,9 +392,8 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
   ConstModel.Segments().tryGet(Segment::Key(MetaAddress, 1000));
 
   auto Collected = revng::Tracking::collect(Model);
-  BOOST_TEST(Collected.Read.size() == 2);
+  BOOST_TEST(Collected.Read.size() == 1);
   std::set<TupleTreePath> Paths = {
-    *stringAsPath<model::Binary>("/Segments"),
     *stringAsPath<model::Binary>("/Segments/0x0:Code_x86_64-1000"),
   };
   BOOST_TEST(Collected.Read == Paths);
@@ -413,11 +409,12 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
   ConstModel.Segments().begin();
 
   auto Collected = revng::Tracking::collect(Model);
-  BOOST_TEST(Collected.Read.size() == 1);
+
+  BOOST_TEST(Collected.Read.size() == 0);
+
   std::set<TupleTreePath> Paths = {
     *stringAsPath<model::Binary>("/Segments"),
   };
-  BOOST_TEST(Collected.Read == Paths);
   BOOST_TEST(Collected.ExactVectors == Paths);
 }
 

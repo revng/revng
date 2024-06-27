@@ -73,7 +73,9 @@ class InternalDaemonHandler(DaemonHandler):
         current_interpreter = os.path.realpath(sys.executable)
         for proc in ps_process.children(recursive=True):
             cmdline = proc.cmdline()
-            if current_interpreter == os.path.realpath(cmdline[0]) and clean_url in cmdline:
+            if [
+                arg for arg in cmdline if current_interpreter == os.path.realpath(arg)
+            ] and clean_url in cmdline:
                 target_proc = proc
                 break
 

@@ -7,9 +7,13 @@ import shlex
 import signal
 import sys
 from dataclasses import dataclass
+from io import BytesIO
 from shutil import which
 from subprocess import Popen
-from typing import Any, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Union
+from tarfile import open as tar_open
+from typing import Any, Callable, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Union
+
+import yaml
 
 from revng.internal.support import get_root, read_lines
 from revng.internal.support.collect import collect_files, collect_libraries
@@ -172,3 +176,30 @@ def build_command_with_loads(command: str, args: Iterable[str], options: Options
 
 def executable_name() -> str:
     return os.path.basename(sys.argv[0])
+
+
+def is_tar(raw: bytes) -> bool:
+    return raw.startswith(b"\x1f\x8b")
+
+
+def to_string(filename: str, raw: bytes) -> str:
+    return raw.decode("utf8")
+
+
+def extract_tar(raw: bytes, process: Callable[[str, bytes], Any] = to_string) -> Dict[str, Any]:
+    if not is_tar(raw):
+        raise ValueError("A tar archive was expected")
+
+    result: Dict[str, Any] = {}
+
+    with tar_open(fileobj=BytesIO(raw), mode="r:gz") as file:
+        for element in file.getmembers():
+            extracted_element = file.extractfile(element)
+            if extracted_element is not None:
+                result[element.name] = process(element.name, extracted_element.read())
+
+    return result
+
+
+def to_yaml(filename: str, raw: bytes) -> str:
+    return yaml.safe_load(raw)

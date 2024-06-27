@@ -17,6 +17,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
@@ -31,6 +32,8 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
+
+class ProgramCounterHandler;
 
 extern void dumpUsers(llvm::Value *V) debug_function;
 
@@ -73,7 +76,7 @@ inline void eraseFromParent(llvm::Value *V) {
 
 constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
-constexpr const char *FunctionMetadataMDName = "revng.function.metadata";
+constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
@@ -1411,15 +1414,15 @@ static_assert(HasMetadata<llvm::Function>);
 static_assert(HasMetadata<llvm::GlobalVariable>);
 static_assert(not HasMetadata<llvm::Constant>);
 
-template<typename R, HasMetadata T>
-R fromStringMetadata(const T *U, llvm::StringRef Name) {
+template<HasMetadata T>
+llvm::StringRef fromStringMetadata(const T *U, llvm::StringRef Name) {
   using namespace llvm;
 
   if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
     if (auto *String = dyn_cast<MDString>(MD->getOperand(0)))
-      return R::fromString(String->getString());
+      return String->getString();
 
-  return R::invalid();
+  revng_abort();
 }
 
 template<HasMetadata T>
@@ -1523,15 +1526,13 @@ unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
   }
 }
 
-template<typename T, typename Inserter>
-llvm::Instruction *
-createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::GlobalVariable *GV) {
+inline llvm::Instruction *createLoad(llvm::IRBuilderBase &Builder,
+                                     llvm::GlobalVariable *GV) {
   return Builder.CreateLoad(GV->getValueType(), GV);
 }
 
-template<typename T, typename Inserter>
-llvm::Instruction *
-createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::AllocaInst *Alloca) {
+inline llvm::Instruction *createLoad(llvm::IRBuilderBase &Builder,
+                                     llvm::AllocaInst *Alloca) {
   return Builder.CreateLoad(Alloca->getAllocatedType(), Alloca);
 }
 
@@ -1576,3 +1577,13 @@ void forceVerify(const llvm::Function *F);
 } // namespace revng
 
 void collectTypes(llvm::Type *Root, std::set<llvm::Type *> &Set);
+
+/// Emit a call to a function passing as argument a string
+///
+/// \p PCH if not nullptr, the function will force the program counter CSVs to
+///    a sensible value for better debugging.
+void emitCall(llvm::IRBuilderBase &Builder,
+              llvm::Function *Callee,
+              const llvm::Twine &Reason,
+              const llvm::DebugLoc &DbgLocation,
+              const ProgramCounterHandler *PCH = nullptr);

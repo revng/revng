@@ -3,91 +3,90 @@
 #
 
 ---
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "2"
-        ID: "1"
-        Successors:
-          - Destination: "2"
-            Type: DirectBranch
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "3"
-        ID: "2"
-        Successors:
-          - Destination: "4"
-            Type: DirectBranch
-          - Destination: "5"
-            Type: DirectBranch
-          - Destination: "6"
-            Type: DirectBranch
-          - Destination: "7"
-            Type: DirectBranch
-          - Destination: "8"
-            Type: DirectBranch
-          - Destination: "10"
-            Type: DirectBranch
-          - Destination: "11"
-            Type: DirectBranch
-          - Destination: "12"
-            Type: DirectBranch
-          - Destination: "13"
-            Type: DirectBranch
-          - Destination: "14"
-            Type: DirectBranch
-      - End: "5"
-        ID: "4"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "6"
-        ID: "5"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "7"
-        ID: "6"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "8"
-        ID: "7"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "9"
-        ID: "8"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "11"
-        ID: "10"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "12"
-        ID: "11"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "13"
-        ID: "12"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "14"
-        ID: "13"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "15"
-        ID: "14"
-        Successors:
-          - Destination: "16"
-            Type: DirectBranch
-      - End: "17"
-        ID: "16"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
-  OriginalName: _start
+- OriginalName: _start
+  Blocks:
+    - ID: "1"
+      End: "2"
+      Successors:
+        - Destination: "2"
+          Type: DirectBranch
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "2"
+      End: "3"
+      Successors:
+        - Destination: "4"
+          Type: DirectBranch
+        - Destination: "5"
+          Type: DirectBranch
+        - Destination: "6"
+          Type: DirectBranch
+        - Destination: "7"
+          Type: DirectBranch
+        - Destination: "8"
+          Type: DirectBranch
+        - Destination: "10"
+          Type: DirectBranch
+        - Destination: "11"
+          Type: DirectBranch
+        - Destination: "12"
+          Type: DirectBranch
+        - Destination: "13"
+          Type: DirectBranch
+        - Destination: "14"
+          Type: DirectBranch
+    - ID: "4"
+      End: "5"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "5"
+      End: "6"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "6"
+      End: "7"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "7"
+      End: "8"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "8"
+      End: "9"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "10"
+      End: "11"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "11"
+      End: "12"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "12"
+      End: "13"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "13"
+      End: "14"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "14"
+      End: "15"
+      Successors:
+        - Destination: "16"
+          Type: DirectBranch
+    - ID: "16"
+      End: "17"
+      Successors:
+        - "-Destination": ""
+          Type: Return

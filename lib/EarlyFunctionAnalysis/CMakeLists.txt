@@ -13,11 +13,10 @@ revng_add_analyses_library_internal(
   CollectFunctionsFromCalleesPass.cpp
   CollectFunctionsFromUnusedAddressesPass.cpp
   DetectABI.cpp
-  EmitCFG.cpp
-  FunctionMetadata.cpp
+  ControlFlowGraph.cpp
   FunctionSummaryOracle.cpp
   IndirectBranchInfoPrinterPass.cpp
-  FunctionMetadataCache.cpp
+  ControlFlowGraphCache.cpp
   Outliner.cpp
   PromoteGlobalToLocalVars.cpp
   SegregateDirectStackAccesses.cpp
@@ -56,7 +55,7 @@ target_tuple_tree_generator(
   SCHEMA_PATH
   ${SCHEMA_PATH}
   ROOT_TYPE
-  FunctionMetadata
+  ControlFlowGraph
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
@@ -69,6 +68,6 @@ target_tuple_tree_generator(
   "${EFA_HEADERS_DIR}/FunctionEdge.h"
   "${EFA_HEADERS_DIR}/FunctionEdgeBase.h"
   "${EFA_HEADERS_DIR}/FunctionEdgeType.h"
-  "${EFA_HEADERS_DIR}/FunctionMetadata.h")
+  "${EFA_HEADERS_DIR}/ControlFlowGraph.h")
 
 install(DIRECTORY ${OUTPUT_DIR} DESTINATION include/revng/EarlyFunctionAnalysis)

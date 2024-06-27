@@ -58,17 +58,11 @@ public:
   static char ID;
 
 private:
-  TupleTree<model::Binary> InternalModel;
-  bool External;
   ModelWrapper Wrapper;
 
 public:
-  LoadModelWrapperPass() :
-    llvm::ImmutablePass(ID),
-    External(false),
-    Wrapper(ModelWrapper(InternalModel)) {}
   LoadModelWrapperPass(const ModelWrapper &Wrapper) :
-    llvm::ImmutablePass(ID), External(true), Wrapper(Wrapper) {}
+    llvm::ImmutablePass(ID), Wrapper(Wrapper) {}
 
 public:
   bool doInitialization(llvm::Module &M) override final;
@@ -76,8 +70,6 @@ public:
 
 public:
   ModelWrapper &get() { return Wrapper; }
-
-  bool isModelExternal() const { return External; }
 };
 
 class LoadModelAnalysis : public llvm::AnalysisInfoMixin<LoadModelAnalysis> {
@@ -90,23 +82,15 @@ public:
   using Result = ModelWrapper;
 
 private:
-  TupleTree<model::Binary> InternalModel;
-  bool External;
   ModelWrapper Wrapper;
 
 private:
-  LoadModelAnalysis() : External(false), Wrapper(ModelWrapper(InternalModel)) {}
-  LoadModelAnalysis(const ModelWrapper &Wrapper) :
-    External(true), Wrapper(Wrapper) {}
+  LoadModelAnalysis(const ModelWrapper &Wrapper) : Wrapper(Wrapper) {}
 
 public:
-  static LoadModelAnalysis fromModule() { return {}; }
   static LoadModelAnalysis fromModelWrapper(const ModelWrapper &Wrapper) {
     return { Wrapper };
   }
-
-public:
-  bool isModelExternal() const { return External; }
 
 public:
   ModelWrapper run(llvm::Module &M, llvm::ModuleAnalysisManager &);

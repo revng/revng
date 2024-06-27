@@ -7,4 +7,4 @@ from .definition import Definition
 
 class ScalarDefinition(Definition):
     def __init__(self, name):
-        super().__init__(name)
+        super().__init__(True, name)

@@ -7,5 +7,5 @@ from .definition import Definition
 
 class UpcastableDefinition(Definition):
     def __init__(self, base: Definition):
-        super().__init__()
+        super().__init__(False)
         self.base = base

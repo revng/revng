@@ -9,7 +9,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 
 #include "revng/ADT/Concepts.h"
-#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/PTML/Constants.h"
@@ -50,14 +50,14 @@ static std::string targetPath(const BasicBlockID &Target,
   if (const auto *F = yield::tryGetFunction(Binary, Target)) {
     // The target is a function
     return serializedLocation(ranks::Function, F->Entry());
-  } else if (auto Iterator = Function.ControlFlowGraph().find(Target);
-             Iterator != Function.ControlFlowGraph().end()) {
+  } else if (auto Iterator = Function.Blocks().find(Target);
+             Iterator != Function.Blocks().end()) {
     // The target is a basic block
     return serializedLocation(ranks::BasicBlock,
                               Function.Entry(),
                               Iterator->ID());
   } else if (Target.isValid()) {
-    for (const auto &Block : Function.ControlFlowGraph()) {
+    for (const auto &Block : Function.Blocks()) {
       if (Block.Instructions().contains(Target.start())) {
         // The target is an instruction
         return serializedLocation(ranks::Instruction,
@@ -146,7 +146,7 @@ public:
   InstructionPrefixManager(const yield::Function &Function,
                            const model::Binary &Binary) {
     const auto Config = Binary.Configuration().Disassembly();
-    for (const yield::BasicBlock &BasicBlock : Function.ControlFlowGraph()) {
+    for (const yield::BasicBlock &BasicBlock : Function.Blocks()) {
       auto [Iterator, Success] = Prefixes.try_emplace(BasicBlock.ID());
       revng_assert(Success, "Duplicate basic blocks?");
       auto &BBPrefixes = Iterator->second;
@@ -414,7 +414,7 @@ std::string yield::ptml::functionAssembly(const PTMLBuilder &B,
   std::string Result;
 
   InstructionPrefixManager P(Function, Binary);
-  for (const auto &BasicBlock : Function.ControlFlowGraph())
+  for (const auto &BasicBlock : Function.Blocks())
     Result += labeledBlock<true>(B, BasicBlock, Function, Binary, std::move(P));
 
   return B.getTag(tags::Div, Result)
@@ -426,8 +426,8 @@ std::string yield::ptml::controlFlowNode(const PTMLBuilder &B,
                                          const BasicBlockID &BasicBlock,
                                          const yield::Function &Function,
                                          const model::Binary &Binary) {
-  auto Iterator = Function.ControlFlowGraph().find(BasicBlock);
-  revng_assert(Iterator != Function.ControlFlowGraph().end());
+  auto Iterator = Function.Blocks().find(BasicBlock);
+  revng_assert(Iterator != Function.Blocks().end());
 
   auto Result = labeledBlock<false>(B, *Iterator, Function, Binary);
   revng_assert(!Result.empty());

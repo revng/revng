@@ -9,12 +9,14 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
@@ -22,28 +24,6 @@
 
 using namespace llvm;
 using namespace MFP;
-
-char PromoteCSVsPass::ID = 0;
-using Register = RegisterPass<PromoteCSVsPass>;
-static Register X("promote-csvs", "Promote CSVs Pass", true, true);
-
-struct PromoteCSVsPipe {
-  static constexpr auto Name = "promote-csvs";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace pipeline;
-    using namespace ::revng::kinds;
-    return { ContractGroup::transformOnlyArgument(ABIEnforced,
-                                                  CSVsPromoted,
-                                                  InputPreservation::Erase) };
-  }
-
-  void registerPasses(llvm::legacy::PassManager &Manager) {
-    Manager.add(new PromoteCSVsPass());
-  }
-};
-
-static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;
 
 // TODO: switch from CallInst to CallBase
 
@@ -61,57 +41,67 @@ struct CSVsUsageMap {
   }
 };
 
-class PromoteCSVs {
-private:
-  struct WrapperKey {
-  public:
-    Function *Helper;
+struct WrapperKey {
+public:
+  Function *Helper;
 
-    /// GlobalVariables representing read CPU State Variables sorted by name.
-    std::vector<GlobalVariable *> Read;
+  /// GlobalVariables representing read CPU State Variables sorted by name.
+  std::vector<GlobalVariable *> Read;
 
-    /// GlobalVariables representing written CPU State Variables sorted by name.
-    std::vector<GlobalVariable *> Written;
-
-  private:
-    auto tie() const { return std::tie(Helper, Read, Written); }
-
-  public:
-    bool operator<(const WrapperKey &Other) const {
-      return tie() < Other.tie();
-    }
-  };
+  /// GlobalVariables representing written CPU State Variables sorted by name.
+  std::vector<GlobalVariable *> Written;
 
 private:
-  Module *M;
+  auto tie() const { return std::tie(Helper, Read, Written); }
+
+public:
+  bool operator<(const WrapperKey &Other) const { return tie() < Other.tie(); }
+};
+
+class PromoteCSVs final : public pipeline::FunctionPassImpl {
+private:
   StructInitializers Initializers;
   OpaqueFunctionsPool<StringRef> CSVInitializers;
   std::map<WrapperKey, Function *> Wrappers;
   SetVector<GlobalVariable *> CSVs;
-  const model::Binary &Binary;
+  model::Architecture::Values Architecture;
 
 public:
-  PromoteCSVs(Module *M,
-              GeneratedCodeBasicInfo &GCBI,
-              const model::Binary &Binary);
+  PromoteCSVs(ModulePass &Pass, const model::Binary &Binary, Module &M);
 
 public:
-  void run();
+  bool prologue() final { return false; }
+
+  bool runOnFunction(const model::Function &ModelFunction,
+                     llvm::Function &Function) final;
+
+  bool epilogue() final { return false; }
+
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
+    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  }
 
 private:
   void wrap(CallInst *Call,
             const std::vector<GlobalVariable *> &Read,
             const std::vector<GlobalVariable *> &Written);
+
   void promoteCSVs(Function *F);
+
   Function *createWrapper(const WrapperKey &Key);
+
   CSVsUsageMap getUsedCSVs(ArrayRef<CallInst *> CallsRange);
+
   void wrapCallsToHelpers(Function *F);
 };
 
-PromoteCSVs::PromoteCSVs(Module *M,
-                         GeneratedCodeBasicInfo &GCBI,
-                         const model::Binary &Binary) :
-  M(M), Initializers(M), CSVInitializers(M, false), Binary(Binary) {
+PromoteCSVs::PromoteCSVs(ModulePass &Pass,
+                         const model::Binary &Binary,
+                         Module &M) :
+  pipeline::FunctionPassImpl(Pass),
+  Initializers(&M),
+  CSVInitializers(&M, false),
+  Architecture(Binary.Architecture()) {
 
   CSVInitializers.setMemoryEffects(MemoryEffects::readOnly());
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
@@ -119,6 +109,7 @@ PromoteCSVs::PromoteCSVs(Module *M,
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });
 
   // Record existing initializers
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &PCCSVs = GCBI.programCounterHandler()->pcCSVs();
   const auto &R = llvm::concat<GlobalVariable *const>(GCBI.csvs(), PCCSVs);
   SmallVector<GlobalVariable *> CSVsToSort{ R.begin(), R.end() };
@@ -128,7 +119,7 @@ PromoteCSVs::PromoteCSVs(Module *M,
       continue;
 
     CSVs.insert(CSV);
-    if (auto *F = M->getFunction((Twine("_init_") + CSV->getName()).str()))
+    if (auto *F = M.getFunction((Twine("_init_") + CSV->getName()).str()))
       if (FunctionTags::OpaqueCSVValue.isTagOf(F))
         CSVInitializers.record(CSV->getName(), F);
   }
@@ -304,7 +295,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     Type *CSVType = CSV->getValueType();
     llvm::StringRef CSVName = CSV->getName();
     using namespace model::Register;
-    Values Register = fromCSVName(CSVName, Binary.Architecture());
+    Values Register = fromCSVName(CSVName, Architecture);
     if (Register != Invalid) {
       auto *Initializer = CSVInitializers.get(CSVName,
                                               CSVType,
@@ -573,26 +564,41 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
   }
 }
 
-void PromoteCSVs::run() {
-  for (Function &F : FunctionTags::ABIEnforced.functions(M)) {
-    // Add tag
-    FunctionTags::CSVsPromoted.addTo(&F);
+bool PromoteCSVs::runOnFunction(const model::Function &ModelFunction,
+                                llvm::Function &Function) {
+  // Add tag
+  FunctionTags::CSVsPromoted.addTo(&Function);
 
-    if (not F.isDeclaration()) {
-      // Wrap calls to wrappers
-      wrapCallsToHelpers(&F);
+  if (not Function.isDeclaration()) {
+    // Wrap calls to wrappers
+    wrapCallsToHelpers(&Function);
 
-      // (Re-)promote CSVs
-      promoteCSVs(&F);
-    }
+    // (Re-)promote CSVs
+    promoteCSVs(&Function);
   }
-}
 
-bool PromoteCSVsPass::runOnModule(Module &M) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
-  PromoteCSVs HW(&M, GCBI, Binary);
-  HW.run();
   return true;
 }
+
+template<>
+char pipeline::FunctionPass<PromoteCSVs>::ID = 0;
+using Register = RegisterPass<pipeline::FunctionPass<PromoteCSVs>>;
+static Register X("promote-csvs", "Promote CSVs Pass", true, true);
+
+struct PromoteCSVsPipe {
+  static constexpr auto Name = "promote-csvs";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace ::revng::kinds;
+    return { ContractGroup::transformOnlyArgument(ABIEnforced,
+                                                  CSVsPromoted,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new pipeline::FunctionPass<PromoteCSVs>());
+  }
+};
+
+static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;

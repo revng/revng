@@ -16,7 +16,7 @@ namespace model {
 class Function;
 }
 namespace efa {
-class FunctionMetadata;
+class ControlFlowGraph;
 }
 class LLVMDisassemblerInterface;
 class RawBinaryView;
@@ -30,7 +30,7 @@ public:
   ~DissassemblyHelper();
 
   yield::Function disassemble(const model::Function &Function,
-                              const efa::FunctionMetadata &Metadata,
+                              const efa::ControlFlowGraph &Metadata,
                               const RawBinaryView &BinaryView,
                               const model::Binary &Binary);
 

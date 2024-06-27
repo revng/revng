@@ -129,6 +129,9 @@ void Contract::deduceRequirements(const Context &Ctx,
   auto Kinds = Target.getContainedKinds();
 
   for (auto &Kind : Kinds) {
+    if (Kind != TargetKind)
+      continue;
+
     bool PreservedInput = Preservation == pipeline::InputPreservation::Preserve;
     auto Targets = extracEntriesOfKind(Target, *Kind);
 
@@ -162,13 +165,13 @@ TargetsList Contract::backward(const Context &Ctx, TargetsList Output) const {
     return {};
 
   auto Kind = &Output.front().getKind();
+
   if (Source->depth() == TargetKind->depth()) {
-    if (TargetKind != Kind)
-      return Output;
     for (auto &Target : Output)
       Target.setKind(*Source);
     return Output;
   }
+
   if (Source->depth() < TargetKind->depth()) {
     TargetsList All;
     Source->appendAllTargets(Ctx, All);

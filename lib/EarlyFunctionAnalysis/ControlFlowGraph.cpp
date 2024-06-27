@@ -1,4 +1,4 @@
-/// \file FunctionMetadata.cpp
+/// \file ControlFlowGraph.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -11,8 +11,8 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -36,10 +36,10 @@ public:
   std::map<BasicBlockID, FunctionCFGNode *> Map;
 
 public:
-  FunctionCFGVerificationHelper(const efa::FunctionMetadata &Metadata,
+  FunctionCFGVerificationHelper(const efa::ControlFlowGraph &Metadata,
                                 const model::Binary &Binary) {
     using G = FunctionCFG;
-    std::tie(Graph, Map) = buildControlFlowGraph<G>(Metadata.ControlFlowGraph(),
+    std::tie(Graph, Map) = buildControlFlowGraph<G>(Metadata.Blocks(),
                                                     Metadata.Entry(),
                                                     Binary);
   }
@@ -85,7 +85,7 @@ public:
   }
 };
 
-const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
+const efa::BasicBlock *ControlFlowGraph::findBlock(GeneratedCodeBasicInfo &GCBI,
                                                    llvm::BasicBlock *BB) const {
   const llvm::BasicBlock *JumpTargetBB = getJumpTargetBlock(BB);
   if (JumpTargetBB == nullptr)
@@ -93,9 +93,9 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
 
   BasicBlockID CallerBlockID = getBasicBlockID(JumpTargetBB);
   revng_assert(CallerBlockID.isValid());
-  auto It = ControlFlowGraph().find(CallerBlockID);
+  auto It = Blocks().find(CallerBlockID);
 
-  while (It == ControlFlowGraph().end()) {
+  while (It == Blocks().end()) {
 
     const llvm::BasicBlock *PredecessorJumpTargetBB = nullptr;
     for (const llvm::BasicBlock *Predecessor : predecessors(JumpTargetBB)) {
@@ -115,13 +115,13 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
     revng_assert(JumpTargetBB != nullptr);
     CallerBlockID = getBasicBlockID(JumpTargetBB);
     revng_assert(CallerBlockID.isValid());
-    It = ControlFlowGraph().find(CallerBlockID);
+    It = Blocks().find(CallerBlockID);
   }
 
   return &*It;
 }
 
-void FunctionMetadata::serialize(GeneratedCodeBasicInfo &GCBI) const {
+void ControlFlowGraph::serialize(GeneratedCodeBasicInfo &GCBI) const {
   using namespace llvm;
   using llvm::BasicBlock;
 
@@ -135,16 +135,16 @@ void FunctionMetadata::serialize(GeneratedCodeBasicInfo &GCBI) const {
 
   Instruction *Term = BB->getTerminator();
   MDNode *Node = MDNode::get(Context, MDString::get(Context, Buffer));
-  Term->setMetadata(FunctionMetadataMDName, Node);
+  Term->setMetadata(ControlFlowGraphMDName, Node);
 }
 
-void FunctionMetadata::simplify(const model::Binary &Binary) {
+void ControlFlowGraph::simplify(const model::Binary &Binary) {
   // If A does not end with a call and A.end == B.start and A is the only
   // predecessor of B and B is the only successor of A, merge
 
   // Create quick map of predecessors
   std::map<BasicBlockID, SmallVector<BasicBlockID, 2>> Predecessors;
-  for (efa::BasicBlock &Block : ControlFlowGraph()) {
+  for (efa::BasicBlock &Block : Blocks()) {
     for (auto &Successor : Block.Successors()) {
       if (Successor->Type() == efa::FunctionEdgeType::DirectBranch
           and Successor->Destination().isValid()) {
@@ -161,7 +161,7 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
 
   // Identify blocks that need to be merged in their predecessor
   SmallVector<std::pair<BasicBlockID, BasicBlockID>, 4> ToMerge;
-  for (efa::BasicBlock &Block : ControlFlowGraph()) {
+  for (efa::BasicBlock &Block : Blocks()) {
     // Ignore entry block entirely
     if (Block.End() == Entry())
       continue;
@@ -189,8 +189,8 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
   }
 
   for (auto [PredecessorAddress, BlockAddress] : llvm::reverse(ToMerge)) {
-    efa::BasicBlock &Predecessor = ControlFlowGraph().at(PredecessorAddress);
-    efa::BasicBlock &Block = ControlFlowGraph().at(BlockAddress);
+    efa::BasicBlock &Predecessor = Blocks().at(PredecessorAddress);
+    efa::BasicBlock &Block = Blocks().at(BlockAddress);
 
     // Safety checks
     revng_assert(Predecessor.Successors().size() == 1);
@@ -201,24 +201,24 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
     Predecessor.Successors() = std::move(Block.Successors());
 
     // Drop Block
-    ControlFlowGraph().erase(BlockAddress);
+    Blocks().erase(BlockAddress);
   }
 }
 
-bool FunctionMetadata::verify(const model::Binary &Binary) const {
+bool ControlFlowGraph::verify(const model::Binary &Binary) const {
   return verify(Binary, false);
 }
 
-bool FunctionMetadata::verify(const model::Binary &Binary, bool Assert) const {
+bool ControlFlowGraph::verify(const model::Binary &Binary, bool Assert) const {
   model::VerifyHelper VH(Assert);
   return verify(Binary, VH);
 }
 
-bool FunctionMetadata::verify(const model::Binary &Binary,
+bool ControlFlowGraph::verify(const model::Binary &Binary,
                               model::VerifyHelper &VH) const {
   const auto &Function = Binary.Functions().at(Entry());
 
-  if (ControlFlowGraph().size() == 0)
+  if (Blocks().size() == 0)
     return VH.fail("The function has no CFG", *this);
 
   // Populate graph
@@ -238,9 +238,9 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
     return VH.fail("We have more than one invalid exit", *this);
 
   // Verify blocks
-  if (ControlFlowGraph().size() > 0) {
+  if (Blocks().size() > 0) {
     bool HasEntry = false;
-    for (const BasicBlock &Block : ControlFlowGraph()) {
+    for (const BasicBlock &Block : Blocks()) {
 
       if (Block.ID() == BasicBlockID(Entry())) {
         if (HasEntry)
@@ -266,7 +266,7 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
   }
 
   // Check function calls
-  for (const auto &Block : ControlFlowGraph()) {
+  for (const auto &Block : Blocks()) {
     for (const auto &Edge : Block.Successors()) {
       if (Edge->Type() == efa::FunctionEdgeType::FunctionCall) {
         // We're in a direct call, get the callee
@@ -291,14 +291,13 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
   return true;
 }
 
-void FunctionMetadata::dump() const {
+void ControlFlowGraph::dump() const {
   ::serialize(dbg, *this);
 }
 
-void FunctionMetadata::dumpCFG(const model::Binary &Binary) const {
-  auto [Graph, _] = buildControlFlowGraph<FunctionCFG>(ControlFlowGraph(),
-                                                       Entry(),
-                                                       Binary);
+void ControlFlowGraph::dumpCFG(const model::Binary &Binary) const {
+  auto [Graph,
+        _] = buildControlFlowGraph<FunctionCFG>(Blocks(), Entry(), Binary);
   WriteGraph(&Graph, "function-metadata");
 }
 

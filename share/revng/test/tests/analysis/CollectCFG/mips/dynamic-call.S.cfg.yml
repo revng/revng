@@ -4,17 +4,16 @@
 
 ---
 - OriginalName: __start
-  FunctionMetadata:
-    Entry: "1"
-    ControlFlowGraph:
-      - ID: "1"
-        End: "2"
-        Successors:
-          - Destination: ":Invalid"
-            Type: FunctionCall
-            DynamicFunction: strlen
-      - ID: "2"
-        End: "3"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
+  Entry: "1"
+  Blocks:
+    - ID: "1"
+      End: "2"
+      Successors:
+        - "-Destination": ""
+          Type: FunctionCall
+          DynamicFunction: strlen
+    - ID: "2"
+      End: "3"
+      Successors:
+        - "-Destination": ""
+          Type: Return

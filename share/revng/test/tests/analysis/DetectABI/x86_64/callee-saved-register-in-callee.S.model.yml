@@ -15,5 +15,5 @@ Types:
       - rbp_x86_64
   - ID: 1815
     Kind: RawFunctionType
-    $Arguments: []
-    $ReturnValues: []
+    "-Arguments": 0
+    "-ReturnValues": 0

@@ -7,6 +7,6 @@ from .definition import Definition
 
 class ReferenceDefinition(Definition):
     def __init__(self, pointee: Definition, root: Definition):
-        super().__init__()
+        super().__init__(True)
         self.pointee = pointee
         self.root = root

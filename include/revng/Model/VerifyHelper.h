@@ -27,7 +27,7 @@ private:
   class TrackingSuspender {
   private:
     VerifyHelper *TheContext;
-    std::optional<TrackGuard<TrackableTupleTree>> Guard;
+    std::optional<DisableTracking<TrackableTupleTree>> Guard;
 
   public:
     TrackingSuspender(TrackingSuspender &&Other) :
@@ -51,7 +51,7 @@ private:
       revng_assert(TheContext != nullptr);
       if (not Context.hasPushedTracking()) {
         Context.setPushedTracking();
-        Guard = TrackGuard<TrackableTupleTree>(Trackable);
+        Guard = DisableTracking<TrackableTupleTree>(Trackable);
       }
     }
 

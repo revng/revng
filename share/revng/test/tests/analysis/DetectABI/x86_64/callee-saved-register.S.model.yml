@@ -9,7 +9,7 @@ Functions:
 Types:
   - ID: 1814
     Kind: RawFunctionType
-    $Arguments: []
-    $ReturnValues: []
+    "-Arguments": 0
+    "-ReturnValues": 0
     PreservedRegisters:
       - rbp_x86_64

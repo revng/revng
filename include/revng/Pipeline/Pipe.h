@@ -28,6 +28,19 @@
 
 namespace pipeline {
 
+/// rappresents the requested (not expected, which means that it contains only
+/// the targets the user care about, not all those that will be generated as a
+/// side effect) input and output of a given invocation of a pipe.
+class PipeExecutionEntry {
+public:
+  ContainerToTargetsMap Output;
+  ContainerToTargetsMap Input;
+
+  PipeExecutionEntry(ContainerToTargetsMap Output,
+                     ContainerToTargetsMap Input) :
+    Output(std::move(Output)), Input(std::move(Input)) {}
+};
+
 namespace detail {
 
 template<typename T>
@@ -46,6 +59,27 @@ constexpr bool checkPipe(auto (C::*)(First, Rest...))
   return true;
 }
 
+template<typename C, typename First, typename... Rest>
+constexpr size_t countArgs(auto (C::*)(First, Rest...)) {
+  return sizeof...(Rest);
+}
+
+template<typename First, typename... Types>
+const char *getNameOfContainerImpl(size_t Index) {
+  if (Index == 0)
+    return std::decay_t<First>::Name;
+
+  if constexpr (sizeof...(Types) == 0)
+    return "";
+  else
+    return getNameOfContainerImpl<Types...>(Index - 1);
+}
+
+template<typename C, typename Context, typename... Rest>
+const char *getNameOfContainer(auto (C::*)(Context, Rest...), size_t Index) {
+  return getNameOfContainerImpl<Rest...>(Index);
+}
+
 template<typename PipeType>
 class PipeWrapperImpl;
 
@@ -57,16 +91,24 @@ public:
   using ImplType = PipeWrapperImpl<PipeType>;
 
 public:
-  virtual ContainerToTargetsMap
+  virtual PipeExecutionEntry
   getRequirements(const Context &Ctx,
                   const ContainerToTargetsMap &Target) const = 0;
+
   virtual ContainerToTargetsMap
   deduceResults(const Context &Ctx, ContainerToTargetsMap &Target) const = 0;
+
   virtual bool areRequirementsMet(const Context &Ctx,
                                   const ContainerToTargetsMap &Input) const = 0;
+
   virtual std::unique_ptr<PipeWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
+
   virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
+
+  virtual size_t getContainerArgumentsCount() const = 0;
+
+  virtual llvm::StringRef getContainerName(size_t Index) const = 0;
 
   virtual ~PipeWrapperBase() = default;
 };
@@ -119,17 +161,21 @@ public:
     return false;
   }
 
-  ContainerToTargetsMap
+  PipeExecutionEntry
   getRequirements(const Context &Ctx,
                   const ContainerToTargetsMap &Target) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
-    auto ToReturn = Target;
+    auto Requirements = Target;
     for (const auto &Contract : llvm::reverse(Contracts))
-      ToReturn = Contract
-                   .deduceRequirements(Ctx,
-                                       ToReturn,
-                                       Invokable.getRunningContainersNames());
-    return ToReturn;
+      Requirements = Contract
+                       .deduceRequirements(Ctx,
+                                           Requirements,
+                                           Invokable
+                                             .getRunningContainersNames());
+    auto TargetsProducedByMe = Target;
+    TargetsProducedByMe.erase(Requirements);
+
+    return PipeExecutionEntry(TargetsProducedByMe, Requirements);
   }
 
   ContainerToTargetsMap
@@ -155,22 +201,30 @@ public:
     return Invokable.getPipe().checkPrecondition(Ctx);
   }
 
+  size_t getContainerArgumentsCount() const override {
+    return countArgs(&PipeType::run);
+  }
+
+  llvm::StringRef getContainerName(size_t Index) const override {
+    return getNameOfContainer(&PipeType::run, Index);
+  }
+
 public:
   void dump(std::ostream &OS,
             size_t Indentation) const override debug_function {
     Invokable.dump(OS, Indentation);
   }
 
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             size_t Indentation) const override {
-    Invokable.print(Ctx, OS, Indentation);
-  }
-
   llvm::Error run(ExecutionContext &Ctx,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &ExtraArgs) override {
     return Invokable.run(Ctx, Containers, ExtraArgs);
+  }
+
+  void invalidate(const GlobalTupleTreeDiff &Diff,
+                  ContainerToTargetsMap &Map,
+                  const ContainerSet &Containers) const override {
+    return Invokable.invalidate(Diff, Map, Containers);
   }
 
   std::vector<std::string> getOptionsNames() const override {

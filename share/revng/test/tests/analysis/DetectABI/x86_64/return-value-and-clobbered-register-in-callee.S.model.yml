@@ -11,7 +11,7 @@ Functions:
 Types:
   - ID: 1814
     Kind: RawFunctionType
-    $PreservedRegisters: []
+    "-PreservedRegisters": 0
   - ID: 1815
     Kind: RawFunctionType
-    $ReturnValues: []
+    "-ReturnValues": 0

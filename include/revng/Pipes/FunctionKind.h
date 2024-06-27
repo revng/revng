@@ -19,6 +19,7 @@ public:
                         pipeline::TargetsList &Out) const override {
     using namespace pipeline;
     const auto &Model = getModelFromContext(Ctx);
+    DisableTracking Guard(*Model);
     for (const auto &Function : Model->Functions()) {
       Out.push_back(Target(Function.Entry().toString(), *this));
     }

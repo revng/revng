@@ -45,11 +45,13 @@ int main(int Argc, char *Argv[]) {
 
   ExitOnError ExitOnError;
 
-  auto LeftModel = ModelInModule::load(LeftModelPath);
+  using Model = TupleTree<model::Binary>;
+  auto
+    LeftModel = llvm::errorOrToExpected(Model::fromFileOrSTDIN(LeftModelPath));
   if (not LeftModel)
     ExitOnError(LeftModel.takeError());
 
-  auto RightModel = ModelInModule::load(RightModelPath);
+  auto RightModel = errorOrToExpected(Model::fromFileOrSTDIN(RightModelPath));
   if (not RightModel)
     ExitOnError(RightModel.takeError());
 
@@ -61,7 +63,7 @@ int main(int Argc, char *Argv[]) {
     ExitOnError(llvm::createStringError(EC, EC.message()));
   auto &Stream = OutputFile.os();
 
-  auto Diff = diff(*LeftModel->Model, *RightModel->Model);
+  auto Diff = diff(**LeftModel, **RightModel);
   Diff.dump(Stream);
   OutputFile.keep();
 

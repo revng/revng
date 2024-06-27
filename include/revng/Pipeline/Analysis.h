@@ -24,12 +24,21 @@ public:
 
 public:
   virtual ~AnalysisWrapperBase() override = default;
+
   virtual llvm::ArrayRef<Kind *>
   getAcceptedKinds(size_t ContainerIndex) const = 0;
 
   virtual std::unique_ptr<AnalysisWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
+
+  void invalidate(const GlobalTupleTreeDiff &Diff,
+                  ContainerToTargetsMap &Map,
+                  const ContainerSet &Containers) const override {
+    revng_abort();
+  }
+
   const std::string &getUserBoundName() const { return BoundName; }
+
   void setUserBoundName(std::string NewName) { BoundName = std::move(NewName); }
 };
 
@@ -68,16 +77,16 @@ public:
     Invokable.dump(OS, Indentation);
   }
 
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             size_t Indentation) const override {
-    Invokable.print(Ctx, OS, Indentation);
-  }
-
   llvm::Error run(ExecutionContext &Ctx,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &ExtraArgs) override {
     return Invokable.run(Ctx, Containers, ExtraArgs);
+  }
+
+  void invalidate(const GlobalTupleTreeDiff &Diff,
+                  ContainerToTargetsMap &Map,
+                  const ContainerSet &Containers) const override {
+    revng_abort();
   }
 
   std::vector<std::string> getOptionsNames() const override {

@@ -104,6 +104,7 @@ static std::string CName = "container-name";
 class MapContainer : public Container<MapContainer> {
 public:
   static inline const llvm::StringRef MIMEType = "application/x.test.map";
+  static inline const char *Name = "Name";
   MapContainer(std::map<Target, int> Map, llvm::StringRef Name) :
     Container<MapContainer>(Name), Map(std::move(Map)) {}
   MapContainer(llvm::StringRef Name) : Container<MapContainer>(Name), Map() {}
@@ -265,8 +266,7 @@ public:
 
 BOOST_AUTO_TEST_CASE(PipeCanBeWrapper) {
   Context Ctx;
-  Step FakeStep(Ctx, "dc", "", {});
-  ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
+  ExecutionContext ExecutionCtx(Ctx, nullptr);
   MapContainer Map("random-name");
   Map.get({ {}, RootKind }) = 1;
   TestPipe Enf;
@@ -473,7 +473,8 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
   auto Factory2 = getMapFactoryContainer();
   Containers.add(CName, Factory, Factory("dont-care"));
   cast<MapContainer>(Containers[CName]).get(Target({}, RootKind)) = 1;
-  auto Result = Step.run(std::move(Containers));
+  auto Result = Step.run(std::move(Containers),
+                         std::vector({ PipeExecutionEntry({}, {}) }));
 
   auto &Cont = cast<MapContainer>(Result.at(CName));
   BOOST_TEST(Cont.get(Target({}, RootKind2)) == 1);
@@ -495,7 +496,11 @@ BOOST_AUTO_TEST_CASE(PipelineCanBeManuallyExectued) {
   auto &C1 = Containers.getOrCreate<MapContainer>(CName);
   C1.get(Target(RootKind)) = 1;
 
-  auto Res = Pip["first-step"].run(std::move(Containers));
+  auto
+    Res = Pip["first-step"]
+            .run(std::move(Containers),
+                 std::vector<PipeExecutionEntry>({ PipeExecutionEntry({},
+                                                                      {}) }));
   BOOST_TEST(cast<MapContainer>(Res.at(CName)).get(Target(RootKind2)) == 1);
   const auto &StartingContainer = Pip["first-step"]
                                     .containers()
@@ -675,6 +680,10 @@ static void makeF(llvm::Module &M, llvm::StringRef FName) {
 struct FunctionInserterPass : public llvm::ModulePass {
   static char ID;
   FunctionInserterPass() : llvm::ModulePass(ID) {}
+
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<LoadExecutionContextPass>();
+  }
 
   bool runOnModule(llvm::Module &M) override {
     M.getFunction("root")->eraseFromParent();
@@ -1344,7 +1353,7 @@ public:
            uint64_t Third) {
     BOOST_TEST(First == 10);
     BOOST_TEST(Second == "something");
-    BOOST_TEST(Third == 32);
+    BOOST_TEST(Third == 32UL);
   }
 };
 
@@ -1352,8 +1361,7 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
   RegisterAnalysis<ArgumentTestAnalysis> Dummy;
   pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container-name" });
   Context Ctx;
-  Step FakeStep(Ctx, "dc", "", {});
-  ExecutionContext ExecutionCtx(Ctx, FakeStep, nullptr);
+  ExecutionContext ExecutionCtx(Ctx, nullptr);
   ContainerSet Set;
   auto Factory = ContainerFactory::create<MapContainer>();
   Set.add("container-name", Factory);

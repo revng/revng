@@ -28,6 +28,7 @@
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipeline/Target/YAMLTraits.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Pipes/ToolCLOptions.h"
@@ -58,6 +59,12 @@ static opt<bool> NoApplyModel("no-apply",
                                    "configurations)"),
                               cat(MainCategory),
                               init(false));
+
+static opt<std::string> InvalidationsPath("save-invalidations",
+                                          desc("path where to save the list of "
+                                               "invalidated targets"),
+                                          cat(MainCategory),
+                                          init(""));
 
 static ToolCLOptions BaseOptions(MainCategory);
 
@@ -164,6 +171,19 @@ int main(int argc, char *argv[]) {
 
   if (NoApplyModel)
     AbortOnError(overrideModel(Manager, OriginalModel.get()));
+
+  if (not InvalidationsPath.empty()) {
+    std::error_code EC;
+    ToolOutputFile InvalidationOutput(InvalidationsPath,
+                                      EC,
+                                      sys::fs::OpenFlags::OF_Text);
+    if (EC)
+      AbortOnError(llvm::createStringError(EC, EC.message()));
+
+    serialize(InvalidationOutput.os(), InvMap);
+
+    InvalidationOutput.keep();
+  }
 
   AbortOnError(Manager.store());
 

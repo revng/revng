@@ -9,6 +9,7 @@ USAGE: revng-artifact [options] <artifact> <binary>
   lift                        - text/x.llvm.ir
   isolate                     - text/x.llvm.ir
   enforce-abi                 - text/x.llvm.ir
+  emit-cfg                    - text/yaml+tar+gz
   hexdump                     - text/x.hexdump+ptml
   render-svg-call-graph       - image/svg
   render-svg-call-graph-slice - image/svg
@@ -16,7 +17,6 @@ USAGE: revng-artifact [options] <artifact> <binary>
   render-svg-cfg              - image/svg
   recompile                   - application/x-executable
   recompile-isolated          - application/x-executable
-  emit-cfg                    - text/x.yaml
   simplify-switch             - text/x.llvm.ir
   make-segment-ref            - text/x.llvm.ir
   decompile                   - text/x.c+ptml+tar+gz

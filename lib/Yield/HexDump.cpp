@@ -11,7 +11,8 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -33,7 +34,8 @@ static FormattedNumber formatNumber(uint64_t Number, unsigned Width = 8) {
 };
 
 static void outputHexDump(const TupleTree<model::Binary> &Binary,
-                          const pipeline::LLVMContainer &Module,
+                          const pipeline::LLVMContainer &ModuleContainer,
+                          const CFGMap &CFGMap,
                           const BinaryFileContainer &SourceBinary,
                           StringRef OutputPath) {
   auto BufferOrError = MemoryBuffer::getFileOrSTDIN(*SourceBinary.path());
@@ -45,7 +47,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 
   revng_assert(not ErrorCode, "Could not open file!");
 
-  FunctionMetadataCache FunctionMetadataCache;
+  ControlFlowGraphCache ControlFlowGraphCache(CFGMap);
 
   using boost::icl::discrete_interval;
   using boost::icl::inplace_plus;
@@ -70,9 +72,9 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
   };
 
   for (const Function &F :
-       FunctionTags::Isolated.functions(&Module.getModule())) {
-    const efa::FunctionMetadata &Metadata = FunctionMetadataCache
-                                              .getFunctionMetadata(&F);
+       FunctionTags::Isolated.functions(&ModuleContainer.getModule())) {
+    const efa::ControlFlowGraph &Metadata = ControlFlowGraphCache
+                                              .getControlFlowGraph(&F);
     MetaAddress EntryAddress = Metadata.Entry();
 
     for (const Instruction &I : llvm::instructions(F)) {
@@ -241,51 +243,54 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 class HexDumpPipe {
 public:
   static constexpr auto Name = "hex-dump";
-
-  std::array<pipeline::ContractGroup, 2> getContract() const {
-    const pipeline::Contract
-      FunctionsContract(kinds::Isolated,
-                        1,
-                        kinds::HexDump,
-                        2,
-                        pipeline::InputPreservation::Preserve);
-    const pipeline::Contract
-      BinaryContract(kinds::Binary,
-                     0,
-                     kinds::HexDump,
-                     2,
-                     pipeline::InputPreservation::Preserve);
-    return { pipeline::ContractGroup({ FunctionsContract, BinaryContract }) };
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    return { ContractGroup({ Contract(kinds::Binary,
+                                      0,
+                                      kinds::HexDump,
+                                      3,
+                                      InputPreservation::Preserve),
+                             Contract(kinds::Isolated,
+                                      1,
+                                      kinds::HexDump,
+                                      3,
+                                      InputPreservation::Preserve),
+                             Contract(kinds::CFG,
+                                      2,
+                                      kinds::HexDump,
+                                      3,
+                                      InputPreservation::Preserve) }) };
   }
 
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
-           const pipeline::LLVMContainer &Module,
+           const pipeline::LLVMContainer &ModuleContainer,
+           const CFGMap &CFGMap,
            HexDumpFileContainer &Output) {
-    pipeline::TargetsList Enumeration = Module.enumerate();
 
-    if (not Enumeration.contains(kinds::Isolated.allTargets(Ctx.getContext())))
+    // This pipe works only if we have all the targets
+    pipeline::TargetsList FunctionList = ModuleContainer.enumerate();
+    if (not FunctionList.contains(kinds::Isolated.allTargets(Ctx.getContext())))
       return;
 
     if (not SourceBinary.exists())
       return;
 
-    const TupleTree<model::Binary> &Binary = getModelFromContext(Ctx);
+    pipeline::TargetsList CFGList = CFGMap.enumerate();
+    if (not CFGList.contains(kinds::CFG.allTargets(Ctx.getContext())))
+      return;
 
-    StringRef OutputPath = Output.getOrCreatePath();
-    outputHexDump(Binary, Module, SourceBinary, OutputPath);
+    // Proceed with emission
+    outputHexDump(getModelFromContext(Ctx),
+                  ModuleContainer,
+                  CFGMap,
+                  SourceBinary,
+                  Output.getOrCreatePath());
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();
   }
-
-  void print(const pipeline::Context &Ctx,
-             raw_ostream &Os,
-             ArrayRef<std::string> ContainerNames) const {
-    Os << "revng artifact HexDump " << ContainerNames[0] << " -o "
-       << ContainerNames[2] << "-m ModelFile\n";
-  };
 };
 
 } // namespace revng::pipes

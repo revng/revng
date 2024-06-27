@@ -63,6 +63,7 @@ class PythonGenerator:
         elif isinstance(resolved_type, EnumDefinition):
             return resolved_type.name
         elif isinstance(resolved_type, ScalarDefinition):
+            assert resolved_type.name
             if resolved_type.name == "string":
                 return "str"
             elif int_re.match(resolved_type.name):

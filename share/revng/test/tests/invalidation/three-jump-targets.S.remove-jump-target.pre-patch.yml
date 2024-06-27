@@ -1,0 +1,13 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Add regular entry function and function which we know is a jump target, even if not marked as function
+---
+Changes:
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500000:Code_x86_64"
+  - Path: "/Functions"
+    Add:
+      Entry: "0x500001:Code_x86_64"

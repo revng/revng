@@ -3,29 +3,27 @@
 #
 
 ---
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "2"
-        ID: "1"
-        Successors:
-          - Destination: "3"
-            Type: FunctionCall
-      - End: "3"
-        ID: "2"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
-  OriginalName: _start
-- FunctionMetadata:
-    ControlFlowGraph:
-      - End: "4"
-        ID: "3"
-        Successors:
-          - Destination: ":Invalid"
-            Type: FunctionCall
-      - End: "5"
-        ID: "4"
-        Successors:
-          - Destination: ":Invalid"
-            Type: Return
-  OriginalName: indirectcall
+- OriginalName: _start
+  Blocks:
+    - End: "2"
+      ID: "1"
+      Successors:
+        - Destination: "3"
+          Type: FunctionCall
+    - End: "3"
+      ID: "2"
+      Successors:
+        - "-Destination": ""
+          Type: Return
+- OriginalName: indirectcall
+  Blocks:
+    - End: "4"
+      ID: "3"
+      Successors:
+        - "-Destination": ""
+          Type: FunctionCall
+    - End: "5"
+      ID: "4"
+      Successors:
+        - "-Destination": ""
+          Type: Return

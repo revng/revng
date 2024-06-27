@@ -67,7 +67,9 @@ int main(int Argc, char *Argv[]) {
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory, &ModelPassCategory });
 
   ExitOnError ExitOnError;
-  auto MaybeModel = ExitOnError(ModelInModule::load(InputFilename));
+  using Model = TupleTree<model::Binary>;
+  auto ParsedModel = errorOrToExpected(Model::fromFileOrSTDIN(InputFilename));
+  auto MaybeModel = ExitOnError(std::move(ParsedModel));
 
   for (const PassName &PassName : PassesList) {
     const RegisterModelPass::ModelPass *Pass = RegisterModelPass::get(PassName);
@@ -77,10 +79,9 @@ int main(int Argc, char *Argv[]) {
     }
 
     // Run pass
-    (*Pass)(MaybeModel.Model);
+    (*Pass)(MaybeModel);
   }
 
   // Serialize
-  auto OutputType = Options.getDesiredOutput(MaybeModel.hasModule());
-  ExitOnError(MaybeModel.save(Options.getPath(), OutputType));
+  ExitOnError(MaybeModel.toFile(Options.getPath()));
 }

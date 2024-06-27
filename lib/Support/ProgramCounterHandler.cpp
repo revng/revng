@@ -5,6 +5,7 @@
 //
 
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/ModRef.h"
 
 #include "revng/Support/Assert.h"
@@ -47,16 +48,17 @@ public:
   }
 
 public:
-  bool handleStoreInternal(IRBuilder<> &Builder, StoreInst *Store) const final {
+  bool handleStoreInternal(IRBuilderBase &Builder,
+                           StoreInst *Store) const final {
     revng_assert(Store->getPointerOperand() == AddressCSV);
     return false;
   }
 
-  Value *loadJumpablePC(IRBuilder<> &Builder) const final {
+  Value *loadJumpablePC(IRBuilderBase &Builder) const final {
     return createLoad(Builder, AddressCSV);
   }
 
-  std::array<Value *, 4> dissectJumpablePC(IRBuilder<> &Builder,
+  std::array<Value *, 4> dissectJumpablePC(IRBuilderBase &Builder,
                                            Value *ToDissect,
                                            Triple::ArchType Arch) const final {
     IntegerType *Ty = getCSVType(TypeCSV);
@@ -69,14 +71,14 @@ public:
     return { Address, Epoch, AddressSpace, Type };
   }
 
-  void deserializePCFromSignalContext(IRBuilder<> &Builder,
+  void deserializePCFromSignalContext(IRBuilderBase &Builder,
                                       Value *PCAddress,
                                       Value *SavedRegisters) const final {
     Builder.CreateStore(PCAddress, AddressCSV);
   }
 
 protected:
-  void initializePCInternal(IRBuilder<> &Builder,
+  void initializePCInternal(IRBuilderBase &Builder,
                             MetaAddress NewPC) const final {}
 };
 
@@ -125,7 +127,7 @@ public:
   }
 
 private:
-  bool handleStoreInternal(IRBuilder<> &B, StoreInst *Store) const final {
+  bool handleStoreInternal(IRBuilderBase &B, StoreInst *Store) const final {
     using namespace llvm;
     revng_assert(affectsPC(Store));
 
@@ -142,7 +144,7 @@ private:
     return false;
   }
 
-  Value *loadJumpablePC(IRBuilder<> &Builder) const final {
+  Value *loadJumpablePC(IRBuilderBase &Builder) const final {
     auto *Address = createLoad(Builder, AddressCSV);
     auto *AddressType = Address->getType();
     return Builder.CreateOr(Address,
@@ -150,7 +152,7 @@ private:
                                                AddressType));
   }
 
-  std::array<Value *, 4> dissectJumpablePC(IRBuilder<> &Builder,
+  std::array<Value *, 4> dissectJumpablePC(IRBuilderBase &Builder,
                                            Value *ToDissect,
                                            Triple::ArchType Arch) const final {
     constexpr uint32_t ThumbMask = 0x1;
@@ -166,7 +168,7 @@ private:
     return { Address, Epoch, AddressSpace, Type };
   }
 
-  void deserializePCFromSignalContext(IRBuilder<> &B,
+  void deserializePCFromSignalContext(IRBuilderBase &B,
                                       Value *PCAddress,
                                       Value *SavedRegisters) const final {
     using namespace llvm;
@@ -197,7 +199,7 @@ private:
     B.CreateStore(PCAddress, AddressCSV);
   }
 
-  Value *computeMetaAddressType(IRBuilder<> &B, Value *IsThumb) const {
+  Value *computeMetaAddressType(IRBuilderBase &B, Value *IsThumb) const {
     using CI = ConstantInt;
     using namespace MetaAddressType;
 
@@ -213,7 +215,7 @@ private:
   }
 
 protected:
-  void initializePCInternal(IRBuilder<> &Builder,
+  void initializePCInternal(IRBuilderBase &Builder,
                             MetaAddress NewPC) const final {
     using namespace MetaAddressType;
     store(Builder, IsThumb, NewPC.type() == Code_arm_thumb ? 1 : 0);
@@ -361,7 +363,7 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   return false;
 }
 
-static void setPlainMetaAddressImpl(IRBuilder<> &Builder,
+static void setPlainMetaAddressImpl(IRBuilderBase &Builder,
                                     StringRef GlobalName,
                                     Value *Epoch,
                                     Value *AddressSpace,
@@ -389,7 +391,7 @@ static void setPlainMetaAddressImpl(IRBuilder<> &Builder,
                        Builder.CreateZExt(Address, FT->getParamType(4)) });
 }
 
-void PCH::setCurrentPCPlainMetaAddress(IRBuilder<> &Builder) const {
+void PCH::setCurrentPCPlainMetaAddress(IRBuilderBase &Builder) const {
   setPlainMetaAddressImpl(Builder,
                           "current_pc",
                           createLoad(Builder, EpochCSV),
@@ -398,12 +400,12 @@ void PCH::setCurrentPCPlainMetaAddress(IRBuilder<> &Builder) const {
                           createLoad(Builder, AddressCSV));
 }
 
-void PCH::setLastPCPlainMetaAddress(IRBuilder<> &Builder,
+void PCH::setLastPCPlainMetaAddress(IRBuilderBase &Builder,
                                     const MetaAddress &Address) const {
   setPlainMetaAddress(Builder, "last_pc", Address);
 }
 
-void ProgramCounterHandler::setPlainMetaAddress(llvm::IRBuilder<> &Builder,
+void ProgramCounterHandler::setPlainMetaAddress(llvm::IRBuilderBase &Builder,
                                                 StringRef GlobalName,
                                                 const MetaAddress &Address)
   const {
@@ -662,7 +664,7 @@ public:
     eraseIfNoUse(AddressVH);
   }
 
-  SwitchInst *createSwitch(Value *V, IRBuilder<> &Builder) {
+  SwitchInst *createSwitch(Value *V, IRBuilderBase &Builder) {
     return Builder.CreateSwitch(V, Default, 0);
   }
 
@@ -785,7 +787,7 @@ void PCH::destroyDispatcher(SwitchInst *Root) const {
 
 PCH::DispatcherInfo
 PCH::buildDispatcher(DispatcherTargets &Targets,
-                     IRBuilder<> &Builder,
+                     IRBuilderBase &Builder,
                      BasicBlock *Default,
                      std::optional<BlockType::Values> SetBlockType) const {
   DispatcherInfo Result;
@@ -926,7 +928,7 @@ PCH::fromModule(Triple::ArchType Architecture, Module *M) {
   revng_abort();
 }
 
-void PCH::buildHotPath(IRBuilder<> &B,
+void PCH::buildHotPath(IRBuilderBase &B,
                        const DispatcherTarget &CandidateTarget,
                        BasicBlock *Default) const {
   auto &[Address, BB] = CandidateTarget;

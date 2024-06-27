@@ -32,28 +32,25 @@
 #include "revng/TupleTree/Visits.h"
 
 template<typename T>
-concept HasTracking = requires(T _) { T::HasTracking; };
-
-template<typename T>
-struct TrackGuard {
+struct DisableTracking {
   const T *TrackedObject;
 
 public:
-  TrackGuard(const T &TrackedObject) : TrackedObject(&TrackedObject) {
+  DisableTracking(const T &TrackedObject) : TrackedObject(&TrackedObject) {
     // Since the model classes may have been generated either with or without
-    // tracking, a trackguard should do nothing if the concept returns false.
-    if constexpr (HasTracking<T>)
+    // tracking, DisableTracking should do nothing if the concept returns false.
+    if constexpr (T::HasTracking)
       revng::Tracking::push(*this->TrackedObject);
   }
 
-  TrackGuard(const TrackGuard &Other) = delete;
-  TrackGuard &operator=(const TrackGuard &Other) = delete;
+  DisableTracking(const DisableTracking &Other) = delete;
+  DisableTracking &operator=(const DisableTracking &Other) = delete;
 
-  TrackGuard(TrackGuard &&Other) {
+  DisableTracking(DisableTracking &&Other) {
     TrackedObject = Other.TrackedObject;
     Other.TrackedObject = nullptr;
   }
-  TrackGuard &operator=(TrackGuard &&Other) {
+  DisableTracking &operator=(DisableTracking &&Other) {
     if (this == &Other) {
       return *this;
     }
@@ -65,11 +62,11 @@ public:
     return *this;
   }
 
-  ~TrackGuard() { onDestruction(); }
+  ~DisableTracking() { onDestruction(); }
 
 private:
   void onDestruction() {
-    if constexpr (HasTracking<T>) {
+    if constexpr (T::HasTracking) {
       if (TrackedObject != nullptr) {
         revng::Tracking::pop(*TrackedObject);
       }
@@ -167,6 +164,14 @@ public:
     return Result;
   }
 
+  static llvm::ErrorOr<TupleTree> fromFileOrSTDIN(const llvm::StringRef &Path) {
+    auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
+    if (not MaybeBuffer)
+      return MaybeBuffer.getError();
+
+    return deserialize((*MaybeBuffer)->getBuffer());
+  }
+
   static llvm::ErrorOr<TupleTree> fromFile(const llvm::StringRef &Path) {
     auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
     if (not MaybeBuffer)
@@ -217,7 +222,7 @@ public:
 
 private:
   void initializeUncachedReferences() {
-    TrackGuard Guard(*Root);
+    DisableTracking Guard(*Root);
     visitReferences([this](auto &Element) {
       Element.Root = Root.get();
       Element.evictCachedTarget();
@@ -227,20 +232,20 @@ private:
 
 public:
   void initializeReferences() {
-    TrackGuard Guard(*Root);
+    DisableTracking Guard(*Root);
     revng_assert(not AllReferencesAreCached);
     visitReferences([this](auto &Element) { Element.Root = Root.get(); });
   }
 
   void cacheReferences() {
-    TrackGuard Guard(*Root);
+    DisableTracking Guard(*Root);
     if (not AllReferencesAreCached)
       visitReferencesInternal([](auto &Element) { Element.cacheTarget(); });
     AllReferencesAreCached = true;
   }
 
   void evictCachedReferences() {
-    TrackGuard Guard(*Root);
+    DisableTracking Guard(*Root);
     if (AllReferencesAreCached)
       visitReferencesInternal([](auto &E) { E.evictCachedTarget(); });
     AllReferencesAreCached = false;

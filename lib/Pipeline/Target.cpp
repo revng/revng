@@ -30,6 +30,19 @@ void TargetsList::merge(const TargetsList &Source) {
   Contained.erase(unique(Contained.begin(), Contained.end()), Contained.end());
 }
 
+void ContainerToTargetsMap::erase(const ContainerToTargetsMap &Other) {
+  for (const auto &Container : Other.Status) {
+    const auto &ContainerName = Container.first();
+    const auto &ContainerSymbols = Container.second;
+    if (Status.find(ContainerName) == Status.end())
+      continue;
+    auto &ToRemoveFrom = Status[ContainerName];
+
+    for (auto &Symbol : ContainerSymbols)
+      ToRemoveFrom.erase(Symbol);
+  }
+}
+
 void ContainerToTargetsMap::merge(const ContainerToTargetsMap &Other) {
   for (const auto &Container : Other.Status) {
     const auto &ContainerName = Container.first();
@@ -103,25 +116,25 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
                                   const KindsRegistry &Dict,
                                   TargetsList &Out) {
 
-  llvm::SmallVector<llvm::StringRef, 2> Parts;
-  AsString.split(Parts, ':', 2);
+  size_t Pos = AsString.rfind(':');
 
-  if (Parts.size() != 2) {
+  if (Pos == llvm::StringRef::npos) {
     auto *Message = "String '%s' was not in expected form <path:kind>";
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    Message,
                                    AsString.str().c_str());
   }
 
+  llvm::StringRef Name(AsString.data(), Pos);
+  llvm::StringRef KindName = AsString.drop_front(Pos + 1);
   llvm::SmallVector<llvm::StringRef, 4> Path;
-  Parts[0].split(Path, '/');
+  Name.split(Path, '/');
 
-  auto It = llvm::find_if(Dict,
-                          [&Parts](Kind &K) { return Parts[1] == K.name(); });
+  auto It = llvm::find_if(Dict, [&](Kind &K) { return KindName == K.name(); });
   if (It == Dict.end())
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known Kind '%s' in dictionary",
-                                   Parts[1].str().c_str());
+                                   KindName.str().c_str());
 
   if (AsString[0] == ':') {
     Out.push_back(Target({}, *It));

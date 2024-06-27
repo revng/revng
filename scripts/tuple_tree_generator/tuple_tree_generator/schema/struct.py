@@ -132,7 +132,7 @@ class StructDefinition(Definition):
         abstract=False,
         _key=None,
     ):
-        super().__init__(name)
+        super().__init__(False, name)
 
         self.doc = doc
         self.namespace = namespace

@@ -3,24 +3,21 @@
 #
 
 ---
-- FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Destination: ":Invalid"
-            Type: FunctionCall
-            DynamicFunction: strlen
-            IsTailCall: true
+- Blocks:
+    - Successors:
+        - "-Destination": ""
+          Type: FunctionCall
+          DynamicFunction: strlen
+          IsTailCall: true
 - OriginalName: use_plt
-  FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Type: FunctionCall
-      - Successors:
-          - Type: FunctionCall
-      - Successors:
-          - Type: Return
+  Blocks:
+    - Successors:
+        - Type: FunctionCall
+    - Successors:
+        - Type: FunctionCall
+    - Successors:
+        - Type: Return
 - OriginalName: __x86.get_pc_thunk.bx
-  FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Type: Return
+  Blocks:
+    - Successors:
+        - Type: Return

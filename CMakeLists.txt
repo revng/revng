@@ -36,7 +36,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-set(TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG OFF)
+# set(TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG ON)
+
+if(${TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG})
+  set(CMAKE_CXX_FLAGS
+      "${CMAKE_CXX_FLAGS} -DTUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG")
+endif()
 
 # Uncomment the following line if errors like `Couldn't find method
 # SomeType::method` make debugging hard

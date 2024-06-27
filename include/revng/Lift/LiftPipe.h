@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/LegacyPassManager.h"
 
+#include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
@@ -38,17 +39,14 @@ public:
 
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
-           pipeline::LLVMContainer &Output);
+           pipeline::LLVMContainer &ModuleContainer);
+
+  std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
+  invalidate(const BinaryFileContainer &SourceBinary,
+             const pipeline::LLVMContainer &ModuleContainer,
+             const pipeline::GlobalTupleTreeDiff &Diff) const;
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-
-    OS << *ResourceFinder.findFile("bin/revng");
-    OS << " lift " << ContainerNames[0] << " " << ContainerNames[1] << "\n";
-  }
 };
 
 } // namespace revng::pipes

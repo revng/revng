@@ -343,7 +343,7 @@ Identifier model::Type::name() const {
 }
 
 void Qualifier::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -600,7 +600,7 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
 }
 
 void EnumEntry::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1347,7 +1347,7 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
 }
 
 void QualifiedType::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1450,7 +1450,7 @@ verifyTypedRegisterCommon(const T &TypedRegister, VerifyHelper &VH) {
 }
 
 void TypedRegister::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1469,7 +1469,7 @@ RecursiveCoroutine<bool> TypedRegister::verify(VerifyHelper &VH) const {
 }
 
 void NamedTypedRegister::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 
@@ -1539,7 +1539,7 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
 }
 
 void Argument::dump() const {
-  TrackGuard Guard(*this);
+  DisableTracking Guard(*this);
   serialize(dbg, *this);
 }
 

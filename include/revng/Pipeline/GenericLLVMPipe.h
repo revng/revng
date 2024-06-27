@@ -176,7 +176,7 @@ public:
     return Contract;
   }
 
-  void run(const ExecutionContext &, LLVMContainer &Container);
+  void run(ExecutionContext &, LLVMContainer &Container);
 
   void addPass(const PureLLVMPassWrapper &Pass) {
     Passes.emplace_back(Pass.clone());
@@ -202,19 +202,6 @@ public:
 
   void addPass(std::unique_ptr<LLVMPassWrapperBase> Impl) {
     Passes.emplace_back(std::move(Impl));
-  }
-
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    OS << *revng::ResourceFinder.findFile("bin/revng");
-    OS << " opt --model-path=model.yml " << ContainerNames[0] << " -o "
-       << ContainerNames[0];
-    for (const auto &Pass : Passes) {
-      Pass->print(OS);
-      OS << " ";
-    }
-    OS << "\n";
   }
 
 public:

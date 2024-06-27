@@ -1,0 +1,14 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Changes:
+  - Path: "/Segments/0x500000:Generic64-9/FileSize"
+    Remove: 9
+    Add: 8
+...
+
+# CHECK: lift:
+# CHECK:   module.ll:
+# CHECK:     - ":root"

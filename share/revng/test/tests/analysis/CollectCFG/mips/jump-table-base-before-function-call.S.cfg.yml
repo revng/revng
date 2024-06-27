@@ -4,32 +4,30 @@
 
 ---
 - OriginalName: __start
-  FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Type: DirectBranch
-          - Type: DirectBranch
-      - Successors:
-          - Type: FunctionCall
-      - Successors:
-          - Kind: FunctionEdge
-            Type: DirectBranch
-          - Type: DirectBranch
-      - Successors:
-          # TODO: we don't recognize this since we cannot track the jump table since
-          #       we cannot prove the value of the register containing it is
-          #       preserved across the function call
-          - Destination: :Invalid
-            Type: LongJmp
-      - Successors:
-          - Destination: :Invalid
-            Type: Return
-      - Successors:
-          - Destination: :Invalid
-            Type: LongJmp
+  Blocks:
+    - Successors:
+        - Type: DirectBranch
+        - Type: DirectBranch
+    - Successors:
+        - Type: FunctionCall
+    - Successors:
+        - Kind: FunctionEdge
+          Type: DirectBranch
+        - Type: DirectBranch
+    - Successors:
+        # TODO: we don't recognize this since we cannot track the jump table since
+        #       we cannot prove the value of the register containing it is
+        #       preserved across the function call
+        - "-Destination": ""
+          Type: LongJmp
+    - Successors:
+        - "-Destination": ""
+          Type: Return
+    - Successors:
+        - "-Destination": ""
+          Type: LongJmp
 - OriginalName: function
-  FunctionMetadata:
-    ControlFlowGraph:
-      - Successors:
-          - Destination: :Invalid
-            Type: Return
+  Blocks:
+    - Successors:
+        - "-Destination": ""
+          Type: Return

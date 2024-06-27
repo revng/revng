@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
 #include "revng/PTML/Constants.h"
@@ -26,7 +26,7 @@ namespace revng::pipes {
 
 void ProcessAssembly::run(pipeline::ExecutionContext &Context,
                           const BinaryFileContainer &SourceBinary,
-                          const pipeline::LLVMContainer &TargetList,
+                          const CFGMap &CFGMap,
                           FunctionAssemblyStringMap &Output) {
   if (not SourceBinary.exists())
     return;
@@ -40,29 +40,21 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
   revng_assert(MaybeBinary);
   const RawBinaryView &BinaryView = MaybeBinary->first;
 
-  // Access the llvm module
-  const llvm::Module &Module = TargetList.getModule();
-
   // Define the helper object to store the disassembly pipeline.
   // This allows it to only be created once.
   DissassemblyHelper Helper;
 
-  FunctionMetadataCache Cache;
-  for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
-    const auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model->Functions().find(Metadata.Entry());
+  ControlFlowGraphCache Cache(CFGMap);
+  for (const auto &[Key, _] : CFGMap) {
+    MetaAddress Address = std::get<0>(Key);
+    const auto &Metadata = Cache.getControlFlowGraph(Address);
+    auto ModelFunctionIterator = Model->Functions().find(Address);
     revng_assert(ModelFunctionIterator != Model->Functions().end());
 
     const auto &Func = *ModelFunctionIterator;
     auto Disassembled = Helper.disassemble(Func, Metadata, BinaryView, *Model);
     Output.insert_or_assign(Func.Entry(), serializeToString(Disassembled));
   }
-}
-
-void ProcessAssembly::print(const pipeline::Context &,
-                            llvm::raw_ostream &OS,
-                            llvm::ArrayRef<std::string> Files) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 void YieldAssembly::run(pipeline::ExecutionContext &Context,
@@ -91,12 +83,6 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
     R = ThePTMLBuilder.getTag(ptml::tags::Div, std::move(R)).serialize();
     Output.insert_or_assign((*MaybeFunction)->Entry(), std::move(R));
   }
-}
-
-void YieldAssembly::print(const pipeline::Context &,
-                          llvm::raw_ostream &OS,
-                          llvm::ArrayRef<std::string> Files) const {
-  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 } // end namespace revng::pipes

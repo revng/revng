@@ -9,6 +9,7 @@ revng_add_library_internal(
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
+  FunctionPass.cpp
   TaggedFunctionKind.cpp
   GlobalsAnalyses.cpp)
 

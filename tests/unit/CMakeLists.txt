@@ -180,7 +180,7 @@ target_compile_definitions(test_keyedobjectscontainers
 target_include_directories(test_keyedobjectscontainers
                            PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(
-  test_keyedobjectscontainers revngSupport revngUnitTestHelpers
+  test_keyedobjectscontainers revngSupport revngUnitTestHelpers revngModel
   Boost::unit_test_framework ${LLVM_LIBRARIES})
 revng_add_test(NAME test_keyedobjectscontainers COMMAND
                test_keyedobjectscontainers)

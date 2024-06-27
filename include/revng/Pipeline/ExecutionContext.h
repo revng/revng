@@ -5,6 +5,10 @@
 //
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Function.h"
+#include "llvm/Pass.h"
+
+#include "revng/Pipeline/Target.h"
 
 namespace pipeline {
 class Context;
@@ -61,32 +65,54 @@ struct PipeWrapper;
 class ExecutionContext {
 private:
   Context *TheContext = nullptr;
-  Step *CurrentStep = nullptr;
   PipeWrapper *Pipe = nullptr;
+  ContainerToTargetsMap Requested;
   // false when running on a analysis
   bool RunningOnPipe = true;
-
-  void commit(const Target &Target, llvm::StringRef ContainerName);
 
 public:
   ~ExecutionContext();
 
 public:
-  ExecutionContext(Context &TheContext, Step &Step, PipeWrapper *Pipe);
+  ExecutionContext(Context &TheContext,
+                   PipeWrapper *Pipe,
+                   const ContainerToTargetsMap &RequestedTargets = {});
 
 public:
-  void commit(const ContainerBase &Container, const Target &Target);
+  void commit(const Target &Target, llvm::StringRef ContainerName);
+  void commit(const Target &Target, const ContainerBase &Container);
   void commitUniqueTarget(const ContainerBase &Container);
 
-  void clearAndResumeTracking();
+  const ContainerToTargetsMap &getCurrentRequestedTargets() const {
+    return Requested;
+  }
+
+  ContainerToTargetsMap &getCurrentRequestedTargets() { return Requested; }
 
 public:
   const Context &getContext() const { return *TheContext; }
   Context &getContext() { return *TheContext; }
+};
+
+class LoadExecutionContextPass : public llvm::ImmutablePass {
+public:
+  static char ID;
+
+private:
+  ExecutionContext *Ctx;
+  llvm::StringRef ContainerName;
 
 public:
-  const Step &getStep() const { return *CurrentStep; }
-  Step &getStep() { return *CurrentStep; }
+  LoadExecutionContextPass(ExecutionContext *Ctx,
+                           llvm::StringRef ContainerName) :
+    llvm::ImmutablePass(ID), Ctx(Ctx), ContainerName(ContainerName) {}
+
+  bool doInitialization(llvm::Module &M) override { return false; }
+
+public:
+  llvm::StringRef getContainerName() const { return ContainerName; }
+  ExecutionContext *get() { return Ctx; }
+  const ExecutionContext *get() const { return Ctx; }
 };
 
 } // namespace pipeline

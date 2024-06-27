@@ -10,4 +10,4 @@ Functions:
 Types:
   - ID: 1815
     Kind: RawFunctionType
-    $Arguments: []
+    "-Arguments": 0

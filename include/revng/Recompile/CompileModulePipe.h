@@ -29,20 +29,12 @@ public:
     return { pipeline::ContractGroup(kinds::Root, 0, kinds::Object, 1) };
   }
   void run(const pipeline::ExecutionContext &,
-           pipeline::LLVMContainer &TargetsList,
+           pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();
   }
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    OS << "llc " << ContainerNames[0] << " -o " << ContainerNames[1]
-       << " --filetype=obj"
-       << "\n";
-  };
 };
 
 class CompileIsolatedModule {
@@ -59,20 +51,12 @@ public:
   }
 
   void run(const pipeline::ExecutionContext &,
-           pipeline::LLVMContainer &TargetsList,
+           pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();
   }
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    OS << "llc " << ContainerNames[0] << " -o " << ContainerNames[1]
-       << " --filetype=obj"
-       << "\n";
-  };
 };
 
 } // namespace revng::pipes

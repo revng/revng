@@ -16,7 +16,8 @@ StructInitializers::StructInitializers(llvm::Module *M) :
   Pool.setMemoryEffects(MemoryEffects::none());
   Pool.addFnAttribute(Attribute::NoUnwind);
   Pool.addFnAttribute(Attribute::WillReturn);
-  Pool.setTags({ &FunctionTags::StructInitializer });
+  Pool.setTags({ &FunctionTags::StructInitializer,
+                 &FunctionTags::UniquedByPrototype });
 
   // Record existing initializers
   Pool.initializeFromReturnType(FunctionTags::StructInitializer);

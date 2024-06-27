@@ -20,6 +20,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/ProgramCounterHandler.h"
 
 // TODO: including GeneratedCodeBasicInfo.h is not very nice
 
@@ -488,4 +489,41 @@ void collectTypes(Type *Root, std::set<Type *> &Set) {
       revng_abort();
     }
   }
+}
+
+void emitCall(llvm::IRBuilderBase &Builder,
+              Function *Callee,
+              const Twine &Reason,
+              const DebugLoc &DbgLocation,
+              const ProgramCounterHandler *PCH) {
+  revng_assert(Callee != nullptr);
+  llvm::Module *M = Callee->getParent();
+
+  SmallVector<llvm::Value *, 4> Arguments;
+
+  // Create the message string
+  Arguments.push_back(getUniqueString(M, Reason.str()));
+
+  // Populate the source PC
+  MetaAddress SourcePC = MetaAddress::invalid();
+
+  if (Instruction *T = Builder.GetInsertBlock()->getTerminator())
+    SourcePC = getPC(T).first;
+
+  if (PCH != nullptr) {
+    PCH->setLastPCPlainMetaAddress(Builder, SourcePC);
+    PCH->setCurrentPCPlainMetaAddress(Builder);
+  }
+
+  auto *NewCall = Builder.CreateCall(Callee, Arguments);
+  NewCall->setDebugLoc(DbgLocation);
+  Builder.CreateUnreachable();
+
+  // Assert there's one and only one terminator
+  auto *BB = Builder.GetInsertBlock();
+  unsigned Terminators = 0;
+  for (Instruction &I : *BB)
+    if (I.isTerminator())
+      ++Terminators;
+  revng_assert(Terminators == 1);
 }

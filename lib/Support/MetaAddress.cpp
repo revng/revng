@@ -23,7 +23,7 @@ MetaAddress MetaAddress::fromValue(Value *V) {
   return MetaAddress::fromString(extractFromConstantStringPtr(V));
 }
 
-Instruction *MetaAddress::composeIntegerPC(IRBuilder<> &B,
+Instruction *MetaAddress::composeIntegerPC(IRBuilderBase &B,
                                            Value *AddressValue,
                                            Value *EpochValue,
                                            Value *AddressSpaceValue,
