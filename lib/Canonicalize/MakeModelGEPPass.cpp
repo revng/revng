@@ -33,10 +33,10 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Generated/Early/TypeKind.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/Qualifier.h"
 #include "revng/Model/Type.h"
@@ -73,7 +73,6 @@ using llvm::Use;
 using llvm::User;
 using llvm::Value;
 using model::CABIFunctionType;
-using model::Qualifier;
 using model::RawFunctionType;
 
 static Logger<> ModelGEPLog{ "make-model-gep" };
@@ -1628,8 +1627,7 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
 using UseTypeMap = std::map<Use *, model::QualifiedType>;
 
 static std::optional<model::QualifiedType>
-getAccessedTypeOnIR(FunctionMetadataCache &Cache,
-                    const Use &U,
+getAccessedTypeOnIR(const Use &U,
                     const model::Binary &Model,
                     const ModelTypesMap &PointerTypes,
                     const UseTypeMap &GEPifiedUseTypes) {
@@ -1830,10 +1828,10 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
       }
 
     } else if (isCallToIsolatedFunction(Call)) {
-      auto Proto = Cache.getCallSitePrototype(Model, Call);
+      auto Proto = getCallSitePrototype(Model, Call);
       revng_assert(Proto.isValid());
 
-      if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.get())) {
+      if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.getConst())) {
 
         auto MoreIndent = LoggerIndent(ModelGEPLog);
         auto ModelArgSize = RFT->Arguments().size();
@@ -1875,7 +1873,8 @@ getAccessedTypeOnIR(FunctionMetadataCache &Cache,
           revng_log(ModelGEPLog, "IsCallee");
         }
 
-      } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto.get())) {
+      } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto
+                                                                .getConst())) {
 
         auto MoreIndent = LoggerIndent(ModelGEPLog);
         revng_assert(CFT->Arguments().size() == Call->arg_size());
@@ -1922,8 +1921,7 @@ struct UseReplacementWithModelGEP {
 static std::vector<UseReplacementWithModelGEP>
 makeGEPReplacements(llvm::Function &F,
                     const model::Binary &Model,
-                    model::VerifyHelper &VH,
-                    FunctionMetadataCache &Cache) {
+                    model::VerifyHelper &VH) {
 
   std::vector<UseReplacementWithModelGEP> Result;
 
@@ -1934,8 +1932,7 @@ makeGEPReplacements(llvm::Function &F,
   // that are reachable from F. If this fails, we just bail out because we
   // cannot infer any modelGEP in F, if we have no type information to rely
   // on.
-  ModelTypesMap PointerTypes = initModelTypes(Cache,
-                                              F,
+  ModelTypesMap PointerTypes = initModelTypes(F,
                                               ModelF,
                                               Model,
                                               /*PointersOnly=*/true);
@@ -2021,8 +2018,7 @@ makeGEPReplacements(llvm::Function &F,
 
         // Compute the type accessed by this use if any.
         std::optional<model::QualifiedType>
-          AccessedTypeOnIR = getAccessedTypeOnIR(Cache,
-                                                 U,
+          AccessedTypeOnIR = getAccessedTypeOnIR(U,
                                                  Model,
                                                  PointerTypes,
                                                  GEPifiedUsedTypes);
@@ -2160,7 +2156,6 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<LoadModelWrapperPass>();
-    AU.addRequired<FunctionMetadataCachePass>();
   }
 };
 
@@ -2171,10 +2166,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   auto Indent = LoggerIndent(ModelGEPLog);
 
   auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
   model::VerifyHelper VH;
-  auto GEPReplacements = makeGEPReplacements(F, *Model, VH, Cache);
+  auto GEPReplacements = makeGEPReplacements(F, *Model, VH);
 
   llvm::Module &M = *F.getParent();
   LLVMContext &Ctxt = M.getContext();

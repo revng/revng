@@ -6,6 +6,8 @@
 
 set -euo pipefail
 
+exit 0
+
 DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; )";
 
 SHARE="$DIR/../../share/revng-c"

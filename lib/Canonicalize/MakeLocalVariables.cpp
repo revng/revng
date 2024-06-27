@@ -11,7 +11,6 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -34,7 +33,6 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<LoadModelWrapperPass>();
-    AU.addRequired<FunctionMetadataCachePass>();
     AU.setPreservesCFG();
   }
 };
@@ -58,7 +56,6 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   // Get the model and the function metadata cache
   const auto
     &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
-  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::Module &M = *F.getParent();
@@ -79,8 +76,7 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   revng_assert(ModelF);
   using ModelTypesMap = std::map<const llvm::Value *,
                                  const model::QualifiedType>;
-  ModelTypesMap KnownTypes = initModelTypes(Cache,
-                                            F,
+  ModelTypesMap KnownTypes = initModelTypes(F,
                                             ModelF,
                                             *Model,
                                             /*PointersOnly=*/false);

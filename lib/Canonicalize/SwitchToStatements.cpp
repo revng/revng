@@ -26,10 +26,10 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/SmallMap.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -52,7 +52,6 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<LoadModelWrapperPass>();
-    AU.addRequired<FunctionMetadataCachePass>();
   }
 
   bool runOnFunction(Function &F) override;
@@ -847,17 +846,11 @@ using TypeMap = std::map<const Value *, const model::QualifiedType>;
 class VariableBuilder {
 public:
   VariableBuilder(Function &TheF,
-                  FunctionMetadataCache &TheCache,
                   const model::Binary &TheModel,
-                  const ResultMap &TheMFPMap,
-                  const ProgramPointsGraphWithInstructionMap &TheGraph,
                   TypeMap &&TMap) :
     Model(TheModel),
-    TheMFPResultMap(TheMFPMap),
-    Graph(TheGraph),
     TheTypeMap(std::move(TMap)),
     F(TheF),
-    Cache(TheCache),
     Builder(TheF.getContext()),
     LocalVarPool(TheF.getParent(), false),
     AssignPool(TheF.getParent(), false),
@@ -906,11 +899,8 @@ private:
 
 private:
   const model::Binary &Model;
-  const ResultMap &TheMFPResultMap;
-  const ProgramPointsGraphWithInstructionMap &Graph;
   const TypeMap TheTypeMap;
   Function &F;
-  FunctionMetadataCache &Cache;
   IRBuilder<> Builder;
   OpaqueFunctionsPool<Type *> LocalVarPool;
   OpaqueFunctionsPool<Type *> AssignPool;
@@ -923,9 +913,9 @@ bool VariableBuilder::usesNeedToBeReplacedWithCopiesFromLocal(const Instruction
   if (not Call)
     return true;
 
-  auto Prototype = Cache.getCallSitePrototype(Model, cast<CallInst>(I));
+  auto Prototype = getCallSitePrototype(Model, I);
   using namespace abi::FunctionType;
-  abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
+  abi::FunctionType::Layout Layout = Layout::make(*Prototype.getConst());
   // If the Isolated function doesn't return an aggregate, we have to
   // inject copies from local variables.
   if (Layout.returnMethod() != ReturnMethod::ModelAggregate)
@@ -980,9 +970,9 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
     auto PtrSize = getPointerSize(Model.Architecture());
     revng_assert(ModelSize == PtrSize);
   } else if (ModelSize > IRSize) {
-    auto Prototype = Cache.getCallSitePrototype(Model, cast<CallInst>(I));
+    auto Prototype = getCallSitePrototype(Model, I);
     using namespace abi::FunctionType;
-    abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
+    abi::FunctionType::Layout Layout = Layout::make(*Prototype.getConst());
     revng_assert(Layout.returnMethod() == ReturnMethod::ModelAggregate);
     if (Layout.hasSPTAR())
       revng_assert(0 == I->getNumUses());
@@ -1052,16 +1042,11 @@ bool SwitchToStatements::runOnFunction(Function &F) {
 
   auto ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
-  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
   InstructionToSerializePicker InstructionPicker{ F, Graph, Result };
   VariableBuilder VarBuilder{ F,
-                              Cache,
                               *Model,
-                              Result,
-                              Graph,
-                              initModelTypes(Cache,
-                                             F,
+                              initModelTypes(F,
                                              ModelFunction,
                                              *Model,
                                              /*PointerOnly*/ false) };

@@ -17,7 +17,6 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/PrimitiveTypeKind.h"
@@ -414,9 +413,7 @@ handleReturnValue(const model::TypePath &Prototype,
 }
 
 RecursiveCoroutine<llvm::SmallVector<QualifiedType>>
-getStrongModelInfo(FunctionMetadataCache &Cache,
-                   const llvm::Instruction *Inst,
-                   const model::Binary &Model) {
+getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
   llvm::SmallVector<QualifiedType> ReturnTypes;
 
   auto ParentFunc = [&Model, &Inst]() {
@@ -426,7 +423,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
   if (auto *Call = dyn_cast<llvm::CallInst>(Inst)) {
 
     if (isCallToIsolatedFunction(Call)) {
-      auto Prototype = Cache.getCallSitePrototype(Model, Call);
+      auto Prototype = getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid() and not Prototype.empty());
 
       // Isolated functions and dynamic functions have their prototype in the
@@ -482,13 +479,13 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       } else if (FTags.contains(FunctionTags::Parentheses)) {
         const llvm::Value *Op = Call->getArgOperand(0);
         if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(Op))
-          ReturnTypes = rc_recur getStrongModelInfo(Cache, OriginalInst, Model);
+          ReturnTypes = rc_recur getStrongModelInfo(OriginalInst, Model);
 
       } else if (FTags.contains(FunctionTags::OpaqueExtractValue)) {
         const llvm::Value *Op0 = Call->getArgOperand(0);
         if (auto *Aggregate = llvm::dyn_cast<llvm::Instruction>(Op0)) {
           llvm::SmallVector<QualifiedType> NestedReturnTypes = rc_recur
-            getStrongModelInfo(Cache, Aggregate, Model);
+            getStrongModelInfo(Aggregate, Model);
           const auto *Op1 = Call->getArgOperand(1);
           const auto *Index = llvm::cast<llvm::ConstantInt>(Op1);
           ReturnTypes.push_back(NestedReturnTypes[Index->getZExtValue()]);
@@ -510,9 +507,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
 }
 
 llvm::SmallVector<QualifiedType>
-getExpectedModelType(FunctionMetadataCache &Cache,
-                     const llvm::Use *U,
-                     const model::Binary &Model) {
+getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
   llvm::Instruction *User = dyn_cast<llvm::Instruction>(U->getUser());
 
   if (not User)
@@ -525,7 +520,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
   if (auto *Call = dyn_cast<llvm::CallInst>(User)) {
     if (isCallToIsolatedFunction(Call)) {
       // Isolated functions have their prototype in the model
-      auto Prototype = Cache.getCallSitePrototype(Model, Call);
+      auto Prototype = getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());
 
       // If we are inspecting the callee return the prototype

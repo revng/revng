@@ -11,6 +11,17 @@
 #include "revng-c/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
+static llvm::cl::opt<bool> InlineTypes("inline-types",
+                                       llvm::cl::desc("Enable printing struct, "
+                                                      "union and enum types "
+                                                      "inline in their parent "
+                                                      "types. This also "
+                                                      "enables printing stack "
+                                                      "types definitions "
+                                                      "inline in the function "
+                                                      "body."),
+                                       llvm::cl::init(false));
+
 namespace revng::pipes {
 
 static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
@@ -31,7 +42,10 @@ void ModelToHeader::run(const pipeline::ExecutionContext &Ctx,
     revng_abort(EC.message().c_str());
 
   const model::Binary &Model = *getModelFromContext(Ctx);
-  dumpModelToHeader(Model, Header, {});
+  dumpModelToHeader(Model,
+                    Header,
+                    ModelToHeaderOptions{
+                      .DisableTypeInlining = not InlineTypes });
 
   Header.flush();
   EC = Header.error();

@@ -8,7 +8,6 @@
 #include "llvm/IR/Type.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
@@ -81,9 +80,7 @@ dropPointer(const model::QualifiedType &QT);
 /// \return nothing if no information could be deduced locally on Inst
 /// \return one or more QualifiedTypes associated to Inst
 extern RecursiveCoroutine<llvm::SmallVector<model::QualifiedType>>
-getStrongModelInfo(FunctionMetadataCache &Cache,
-                   const llvm::Instruction *Inst,
-                   const model::Binary &Model);
+getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model);
 
 /// If possible, deduce the expected model type of an operand (e.g. the base
 /// operand of a ModelGEP) by looking only at the User. Note that, in the case
@@ -92,9 +89,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
 /// \return nothing if no information could be deduced locally on U
 /// \return one or more QualifiedTypes associated to U
 extern llvm::SmallVector<model::QualifiedType>
-getExpectedModelType(FunctionMetadataCache &Cache,
-                     const llvm::Use *U,
-                     const model::Binary &Model);
+getExpectedModelType(const llvm::Use *U, const model::Binary &Model);
 
 extern llvm::SmallVector<model::QualifiedType>
 flattenReturnTypes(const abi::FunctionType::Layout &Layout,

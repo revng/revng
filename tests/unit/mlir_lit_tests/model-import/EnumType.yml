@@ -6,22 +6,22 @@
 # input line. The angle brackets are matched separately in order to ignore
 # parameters other than those explicitly being checked for.
 #
-# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 Types:
-  - ID: 104
+  - ID: 1540
     Kind: PrimitiveType
     PrimitiveKind: Signed
     Size: 4
-  - ID: 108
+  - ID: 1544
     Kind: PrimitiveType
     PrimitiveKind: Signed
     Size: 8
-  - ID: 204
+  - ID: 1284
     Kind: PrimitiveType
     PrimitiveKind: Unsigned
     Size: 4
-  - ID: 208
+  - ID: 1288
     Kind: PrimitiveType
     PrimitiveKind: Unsigned
     Size: 8
@@ -52,7 +52,7 @@ Types:
     Kind: EnumType
     CustomName: "my_enum1"
     UnderlyingType:
-      UnqualifiedType: "/Types/104-PrimitiveType"
+      UnqualifiedType: "/Types/1540-PrimitiveType"
     Entries:
       - Value: 0
       - Value: 1
@@ -86,7 +86,7 @@ Types:
     Kind: EnumType
     CustomName: "my_enum2"
     UnderlyingType:
-      UnqualifiedType: "/Types/108-PrimitiveType"
+      UnqualifiedType: "/Types/1544-PrimitiveType"
     Entries:
       - Value: 0
       - Value: 1
@@ -114,7 +114,7 @@ Types:
     Kind: EnumType
     CustomName: "my_enum3"
     UnderlyingType:
-      UnqualifiedType: "/Types/204-PrimitiveType"
+      UnqualifiedType: "/Types/1284-PrimitiveType"
     Entries:
       - Value: 0
       - Value: 1
@@ -140,7 +140,7 @@ Types:
     Kind: EnumType
     CustomName: "my_enum4"
     UnderlyingType:
-      UnqualifiedType: "/Types/208-PrimitiveType"
+      UnqualifiedType: "/Types/1288-PrimitiveType"
     Entries:
       - Value: 0
       - Value: 1

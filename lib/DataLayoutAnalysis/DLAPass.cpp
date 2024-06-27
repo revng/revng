@@ -28,7 +28,6 @@ static ::Register X("dla", "Data Layout Analysis Pass", false, false);
 void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
-  AU.addRequired<FunctionMetadataCachePass>();
 
   AU.setPreservesAll();
 }
@@ -40,11 +39,10 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   T.advance("DLA Frontend");
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
   // Front-end: Create the LayoutTypeSystem graph from an LLVM module
   dla::LayoutTypeSystem TS;
-  dla::DLATypeSystemLLVMBuilder Builder{ TS, Cache };
+  dla::DLATypeSystemLLVMBuilder Builder{ TS };
   const model::Binary &Model = *ModelWrapper.getReadOnlyModel();
   Builder.buildFromLLVMModule(M, this, Model);
 
@@ -74,7 +72,8 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // Graph optimization phase
   //
   revng_check(SM.addStep<dla::CollapseSingleChild>());
-  revng_check(SM.addStep<dla::DeduplicateFields>());
+  // TODO: re-enable this when we fix bugs in it that cause verifyDAG to fail
+  // revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::MergePointeesOfPointerUnion>(PtrSize));
   revng_check(SM.addStep<dla::MergePointerNodes>());
   revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
@@ -90,7 +89,8 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // CompactCompatibleArrays and ArrangeAccessesHierarchically, to allow them to
   // produce better results
   revng_check(SM.addStep<dla::CollapseSingleChild>());
-  revng_check(SM.addStep<dla::DeduplicateFields>());
+  // TODO: re-enable this when we fix bugs in it that cause verifyDAG to fail
+  // revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::ArrangeAccessesHierarchically>());
   revng_check(SM.addStep<dla::CompactCompatibleArrays>());
   revng_check(SM.addStep<dla::PushDownPointers>());
@@ -102,7 +102,8 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // improve the results even further.
   revng_check(SM.addStep<dla::ResolveLeafUnions>());
   revng_check(SM.addStep<dla::CollapseSingleChild>());
-  revng_check(SM.addStep<dla::DeduplicateFields>());
+  // TODO: re-enable this when we fix bugs in it that cause verifyDAG to fail
+  // revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());
   SM.run(TS);
 
@@ -121,7 +122,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
   bool Changed = false;
 
-  Changed |= dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap, Cache);
+  Changed |= dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
   Changed |= dla::updateSegmentsTypes(M, WritableModel, ValueToTypeMap);
   revng_assert(WritableModel->verify(true));
 

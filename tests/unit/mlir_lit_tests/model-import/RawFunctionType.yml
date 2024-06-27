@@ -1,10 +1,11 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
+Architecture: x86_64
 Types:
-  - ID: 108
+  - ID: 1288
     Kind: PrimitiveType
     PrimitiveKind: Unsigned
     Size: 8
@@ -16,7 +17,7 @@ Types:
     Fields:
       - Offset: 0
         Type:
-          UnqualifiedType: "/Types/108-PrimitiveType"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
 
     # CHECK: #my_function1$def = #clift.function<
     # CHECK:   id = 1000
@@ -50,11 +51,11 @@ Types:
     Arguments:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/108-PrimitiveType"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
     ReturnValues:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/Types/108-PrimitiveType"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
     PreservedRegisters:
       - rdi_x86_64
     FinalStackOffset: 0
@@ -93,20 +94,20 @@ Types:
     Arguments:
       - Location: rax_x86_64
         Type:
-          UnqualifiedType: "/Types/108-PrimitiveType"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
       - Location: rbx_x86_64
         Type:
-          UnqualifiedType: "/Types/108-PrimitiveType"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8
     ReturnValues:
       - Location: rcx_x86_64
         Type:
-          UnqualifiedType: "/Types/108-PrimitiveType"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
       - Location: rdx_x86_64
         Type:
-          UnqualifiedType: "/Types/108-PrimitiveType"
+          UnqualifiedType: "/Types/1288-PrimitiveType"
           Qualifiers:
             - Kind: Pointer
               Size: 8

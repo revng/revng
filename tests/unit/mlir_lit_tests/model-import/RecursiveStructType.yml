@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %revngcliftopt /dev/null --import-model-types="import-all model=%s" | FileCheck %s
+# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 Types:
   # CHECK: #my_struct$def = #clift.struct<
