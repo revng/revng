@@ -40,9 +40,13 @@ void PTMLIndentedOstream::write_impl(const char *Ptr, size_t Size) {
 
 void PTMLIndentedOstream::writeIndent() {
   if (IndentDepth > 0) {
-    OS << B.getTag(tags::Span, std::string(IndentSize * IndentDepth, ' '))
-            .addAttribute(attributes::Token, ptml::tokens::Indentation)
-            .serialize();
+    Tag IndentTag = B.getTag(tags::Span,
+                             std::string(IndentSize * IndentDepth, ' '));
+
+    if (not B.isGenerateTagLessPTML())
+      IndentTag.addAttribute(attributes::Token, ptml::tokens::Indentation);
+
+    OS << IndentTag.serialize();
   }
   TrailingNewline = false;
 }

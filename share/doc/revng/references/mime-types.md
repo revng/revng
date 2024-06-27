@@ -21,9 +21,11 @@ USAGE: revng-artifact [options] <artifact> <binary>
   make-segment-ref            - text/x.llvm.ir
   decompile                   - text/x.c+ptml+tar+gz
   decompile-to-single-file    - text/x.c+ptml
+  emit-recompilable-archive   - application/x-tar
   emit-helpers-header         - text/x.c+ptml
   emit-model-header           - text/x.c+ptml
   emit-type-definitions       - text/x.c+tar+gz
+  cleanup-ir                  - text/x.llvm.ir
   convert-to-mlir             - application/x.mlir.bc
   import-clift-types          - application/x.mlir.bc
 ```
