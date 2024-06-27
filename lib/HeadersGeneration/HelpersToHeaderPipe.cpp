@@ -29,7 +29,9 @@ void HelpersToHeader::run(const pipeline::ExecutionContext &Ctx,
   if (EC)
     revng_abort(EC.message().c_str());
 
-  dumpHelpersToHeader(IRContainer.getModule(), Header);
+  dumpHelpersToHeader(IRContainer.getModule(),
+                      Header,
+                      /* GeneratePlainC = */ false);
 
   Header.flush();
   EC = Header.error();

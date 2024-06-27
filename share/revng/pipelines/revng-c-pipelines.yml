@@ -12,6 +12,8 @@ Containers:
     Type: decompiled-c-code
   - Name: decompiled.tar.gz
     Type: decompile
+  - Name: recompilable-archive.tar.gz
+    Type: recompilable-archive
   - Name: module.mlir
     Type: mlir-module
   - Name: type-targets.yml
@@ -190,6 +192,16 @@ Branches:
           SingleTargetFilename: binary_decompiled.c
   - From: canonicalize
     Steps:
+      - Name: emit-recompilable-archive
+        Pipes:
+          - Type: decompile-to-directory
+            UsedContainers: [module.ll, cfg.yml, recompilable-archive.tar.gz]
+        Artifacts:
+          Container: recompilable-archive.tar.gz
+          Kind: recompilable-archive
+          SingleTargetFilename: recompilable-archive.tar.gz
+  - From: canonicalize
+    Steps:
       - Name: emit-helpers-header
         Pipes:
           - Type: helpers-to-header
@@ -220,6 +232,20 @@ Branches:
           Container: model-type-definitions.tar.gz
           Kind: model-type-definition
           SingleTargetFilename: type.h
+  - From: make-segment-ref
+    Steps:
+      - Name: cleanup-ir
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes:
+              - instcombine
+              - cleanup-ir
+              - dce
+        Artifacts:
+          Container: module.ll
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: stack_access_segregate.ll
   - From: make-segment-ref
     Steps:
       - Name: convert-to-mlir

@@ -21,8 +21,7 @@ using namespace revng;
 
 static Logger<> Log("header-to-model");
 static constexpr std::string_view InputCFile = "revng-input.c";
-static constexpr std::string_view PrimitiveTypeHeader = "revng-primitive-"
-                                                        "types.h";
+static constexpr std::string_view PrimitiveTypeHeader = "primitive-types.h";
 static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
 static constexpr const char *ABIAnnotatePrefix = "abi:";
@@ -119,7 +118,7 @@ private:
   // This checks that the declaration is the one user provided as input.
   bool comesFromInternalFile(const clang::Decl *D);
 
-  // This checks that the declaration comes from revng-primitive-types header
+  // This checks that the declaration comes from primitive-types.header
   // file.
   bool comesFromPrimitiveTypesHeader(const clang::RecordDecl *RD);
 
