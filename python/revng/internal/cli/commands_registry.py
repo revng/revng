@@ -6,6 +6,7 @@ import argparse
 import dataclasses
 import sys
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
 from .support import Options, collect_files, executable_name, try_run
@@ -141,7 +142,11 @@ class CommandsRegistry:
                 options.command_prefix += ["heaptrack"]
 
         if args.version:
-            sys.stdout.write("rev.ng version @VERSION@\n")
+            hashes = collect_files(
+                options.search_prefixes, ["share", "revng", "component-hashes"], "*"
+            )
+            version = "-".join(Path(path).read_text().strip()[:7] for path in sorted(hashes))
+            sys.stdout.write(f"rev.ng version {version}\n")
             return 0
 
         if command_sorted in self.commands:
