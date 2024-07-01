@@ -21,6 +21,7 @@ revng_add_library_internal(
   OnQuit.cpp
   OriginalAssemblyAnnotationWriter.cpp
   PathList.cpp
+  PidFile.cpp
   Progress.cpp
   ProgramCounterHandler.cpp
   ResourceFinder.cpp
