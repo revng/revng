@@ -251,6 +251,21 @@ mlir::LogicalResult clift::ModuleOp::verify() {
 
 //===----------------------------- Statements -----------------------------===//
 
+//===-------------------------------- ForOp -------------------------------===//
+
+mlir::LogicalResult ForOp::verify() {
+  Region &Initializer = getInitializer();
+
+  if (not Initializer.empty()) {
+    // TODO: Decide what should be accepted in a for-loop init-statement and
+    //       Implement verification of it.
+    return emitOpError() << getOperationName()
+                         << " init statements are not yet supported.";
+  }
+
+  return mlir::success();
+}
+
 //===----------------------------- MakeLabelOp ----------------------------===//
 
 static std::pair<size_t, size_t> getNumLabelUsers(MakeLabelOp Op) {

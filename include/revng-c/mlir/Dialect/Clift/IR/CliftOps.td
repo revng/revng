@@ -173,6 +173,32 @@ def Clift_AssignLabelOp : Clift_Op<"assign_label",
   }];
 }
 
+def Clift_DoWhileOp : Clift_Op<"do_while",
+                               [Clift_StatementOpInterface,
+                                NoTerminator]> {
+  let regions = (region Clift_StatementRegion:$body,
+                        Clift_ExpressionRegion:$condition);
+
+  let assemblyFormat = [{
+    $body $condition attr-dict
+  }];
+}
+
+def Clift_ForOp : Clift_Op<"for",
+                           [Clift_StatementOpInterface,
+                            NoTerminator]> {
+  let regions = (region Clift_StatementRegion:$initializer,
+                        Clift_OptionalExpressionRegion:$condition,
+                        Clift_OptionalExpressionRegion:$expression,
+                        Clift_StatementRegion:$body);
+
+  let assemblyFormat = [{
+    $initializer $condition $expression $body attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
 def Clift_GoToOp : Clift_Op<"goto",
                             [Clift_StatementOpInterface,
                              Clift_NoFallthrough]> {
@@ -205,6 +231,22 @@ def Clift_LocalVariableOp : Clift_Op<"local",
 
   let assemblyFormat = [{
     $type $sym_name (`=` $initializer^)? attr-dict
+  }];
+}
+
+def Clift_LoopBreakOp : Clift_Op<"loop_break",
+                                 [Clift_StatementOpInterface,
+                                  Clift_NoFallthrough]> {
+  let assemblyFormat = [{
+    attr-dict
+  }];
+}
+
+def Clift_LoopContinueOp : Clift_Op<"loop_continue",
+                                    [Clift_StatementOpInterface,
+                                     Clift_NoFallthrough]> {
+  let assemblyFormat = [{
+    attr-dict
   }];
 }
 
@@ -269,6 +311,17 @@ def Clift_SwitchBreakOp : Clift_Op<"switch_break",
                                     Clift_NoFallthrough]> {
   let assemblyFormat = [{
     attr-dict
+  }];
+}
+
+def Clift_WhileOp : Clift_Op<"while",
+                             [Clift_StatementOpInterface,
+                              NoTerminator]> {
+  let regions = (region Clift_ExpressionRegion:$condition,
+                        Clift_StatementRegion:$body);
+
+  let assemblyFormat = [{
+    $condition $body attr-dict
   }];
 }
 
