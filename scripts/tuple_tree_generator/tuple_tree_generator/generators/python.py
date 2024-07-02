@@ -11,6 +11,8 @@ from ..schema.struct import ReferenceStructField, SequenceStructField, SimpleStr
 from .jinja_utils import int_re, is_reference_struct_field, is_sequence_struct_field
 from .jinja_utils import is_simple_struct_field, loader
 
+BUILTINS_CLASSES = {"string": "str", "boolean": "bool", "int": "int"}
+
 
 class PythonGenerator:
     def __init__(self, schema: Schema, root_type, string_types=None, external_types=None):
@@ -28,8 +30,11 @@ class PythonGenerator:
             loader=loader,
         )
         self.jinja_environment.filters["python_type"] = self.python_type
+        self.jinja_environment.filters["type_hint"] = self.type_hint
         self.jinja_environment.filters["docstring"] = self.render_docstring
         self.jinja_environment.filters["default_value"] = self.default_value
+        self.jinja_environment.filters["gen_key"] = self.gen_key
+        self.jinja_environment.filters["key_parser"] = self.key_parser
         self.jinja_environment.tests["simple_field"] = is_simple_struct_field
         self.jinja_environment.tests["sequence_field"] = is_sequence_struct_field
         self.jinja_environment.tests["reference_field"] = is_reference_struct_field
@@ -78,6 +83,87 @@ class PythonGenerator:
             return cls._python_type(resolved_type.base)
         else:
             assert False
+
+    def scalar_converter(self, type_name: str) -> str:
+        if type_name == "string":
+            return "string"
+        elif type_name == "bool":
+            return "boolean"
+        elif int_re.fullmatch(type_name):
+            return "int"
+        elif type_name in self.external_types + self.string_types:
+            return type_name
+        else:
+            raise Exception(f"Unexpected scalar: {type_name}")
+
+    def _real_type(self, field: StructField) -> str:
+        resolved_type = field.resolved_type
+
+        if isinstance(resolved_type, SequenceDefinition):
+            resolved_type = resolved_type.element_type
+
+        if isinstance(resolved_type, UpcastableDefinition):
+            resolved_type = resolved_type.base
+
+        real_type = resolved_type.name
+
+        if isinstance(resolved_type, ScalarDefinition):
+            real_type = self.scalar_converter(real_type)
+
+        return real_type
+
+    def type_hint(self, field: StructField) -> str:
+        real_type = self._real_type(field)
+        possible_values = None
+        if real_type in BUILTINS_CLASSES:
+            hint_type = BUILTINS_CLASSES[real_type]
+            ctor = "native"
+        elif real_type in [e.name for e in self.schema.enum_definitions()]:
+            hint_type = "str"
+            ctor = "enum"
+            possible_values = f"{real_type}"
+        elif isinstance(field.resolved_type, ReferenceDefinition):
+            hint_type = "Reference"
+            ctor = "parse"
+        elif real_type in [
+            *(s.name for s in self.schema.struct_definitions() if s.abstract),
+            *(self.string_types),
+        ]:
+            hint_type = real_type
+            ctor = "parse"
+        else:
+            hint_type = real_type
+            ctor = "class"
+
+        assert hint_type
+
+        is_sequence = isinstance(field.resolved_type, SequenceDefinition)
+        if isinstance(field.resolved_type, SequenceDefinition):
+            is_abstract = isinstance(field.resolved_type.element_type, UpcastableDefinition)
+        else:
+            is_abstract = isinstance(field.resolved_type, UpcastableDefinition)
+
+        return (
+            f'{{"type": {hint_type}, '
+            + (f'"possibleValues": {possible_values},' if possible_values is not None else "")
+            + f'"ctor": "{ctor}", '
+            + f'"optional": {self.to_bool(field.optional)}, '
+            + f'"isArray": {self.to_bool(is_sequence)}, '
+            + f'"isAbstract": {self.to_bool(is_abstract)}}}'
+        )
+
+    @staticmethod
+    def to_bool(_input: bool) -> str:
+        return "True" if _input else "False"
+
+    @staticmethod
+    def gen_key(struct: StructDefinition) -> str:
+        fields = [f"{{self.{f.name}}}" for f in struct.key_fields]
+        return f"f\"{'-'.join(fields)}\""
+
+    def key_parser(self, struct: StructDefinition) -> str:
+        fields = [f'"{f.name}": parts[{i}]' for i, f in enumerate(struct.key_fields)]
+        return ",".join(fields)
 
     @staticmethod
     def render_docstring(docstr: str, indent=1):

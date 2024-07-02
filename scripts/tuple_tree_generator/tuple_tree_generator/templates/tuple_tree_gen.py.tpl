@@ -106,6 +106,17 @@ class 'struct.name'(
     def __hash__(self):
         return id(self)
 
+    ## if struct.key_fields | length > 0 ##
+    @staticmethod
+    def parseKey(key):
+        parts = key.split("-")
+        return { ' struct | key_parser ' }
+
+    keyed = True
+    def key(self):
+        return ' struct | gen_key '
+    ## endif ##
+
 ## endfor ##
 
 ## for struct in structs ##
@@ -126,6 +137,20 @@ force_constructor_kwarg('child.name', "Kind", 'struct.name'Kind.'child.name')
 if sys.version_info < (3, 10, 0):
 ##- for struct in structs ##
     force_kw_only('struct.name')
+##- endfor ##
+
+TypeHints = {}
+##- for struct in structs ##
+TypeHints['-struct.name'] = {
+    ##- for field in struct.fields ##
+    "'-field.name'": 'field | type_hint',
+    ## endfor ##
+    ##- if struct.inherits ##
+    ##- for field in struct.inherits.fields ##
+    "'-field.name'": 'field | type_hint' ##-if not loop.last -##,##- endif -##
+    ##- endfor ##,
+    ##- endif ##
+}
 ##- endfor ##
 
 ## for enum in enums ##
