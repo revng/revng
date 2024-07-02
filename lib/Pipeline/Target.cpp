@@ -96,14 +96,14 @@ std::string Target::serialize() const {
 }
 
 llvm::Expected<Target> Target::deserialize(Context &Ctx,
-                                           const KindsRegistry &Dict,
                                            llvm::StringRef String) {
   if (String.contains('*'))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "String cannot contain *");
 
   TargetsList Out;
-  if (auto Error = parseTarget(Ctx, String, Dict, Out); Error) {
+  if (auto Error = parseTarget(Ctx, String, Ctx.getKindsRegistry(), Out);
+      Error) {
     return std::move(Error);
   }
 
