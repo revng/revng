@@ -2,22 +2,24 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import abc
 import sys
 from collections.abc import MutableSequence
+from copy import deepcopy
 from dataclasses import dataclass, fields
 from enum import Enum, EnumType
 from functools import lru_cache
-from typing import Any, Callable, Dict, Generic, List, Type, TypeVar, get_args, get_origin
-from typing import get_type_hints
+from typing import Any, Callable, Dict, Generic, List, NotRequired, Optional, Tuple, Type
+from typing import TypeAlias, TypedDict, TypeVar, Union, get_args, get_origin, get_type_hints
 
 import yaml
 
 try:
-    from yaml import CDumper as Dumper
+    from yaml import CSafeDumper as Dumper
     from yaml import CSafeLoader as Loader
 except ImportError:
     sys.stderr.write("Warning: using the slow pure-python YAML loader and dumper!\n")
-    from yaml import Dumper  # type: ignore
+    from yaml import SafeDumper as Dumper  # type: ignore
     from yaml import SafeLoader as Loader  # type: ignore
 
 no_default = object()
@@ -27,6 +29,23 @@ if sys.version_info >= (3, 10, 0):
     # Performance optimization available since python 3.10
     dataclass_kwargs["slots"] = True
     dataclass_kwargs["kw_only"] = True
+
+
+EnumT = TypeVar("EnumT", bound=Enum)
+T = TypeVar("T")
+
+
+class TypeMetadata(TypedDict):
+    type: Any  # noqa: A003
+    possible_values: NotRequired[EnumT]  # type: ignore
+    ctor: str
+    optional: bool
+    is_array: bool
+    is_abstract: bool
+
+
+TypesMetadata: TypeAlias = Dict[Type[Any], Dict[str, TypeMetadata]]
+GetTypeMetadata: TypeAlias = Callable[[str], TypeMetadata]
 
 
 def _create_instance(field_value, field_type):
@@ -128,7 +147,7 @@ class StructBase:
         for field in fields(cls):
             field_val = instance.__getattribute__(field.name)
             if _field_is_default(field, field_val) or (
-                isinstance(field, Reference) and not field.is_valid()
+                isinstance(field_val, Reference) and not field_val.is_valid()
             ):
                 continue
             mapping_to_dump[field.name] = field_val
@@ -153,9 +172,12 @@ class StructBase:
 
     def __setattr__(self, key, value):
         # Prevent setting undefined attributes
-        if self.__dataclass_fields__.get(key) is None:
+        if key not in [f.name for f in fields(self)]:
             raise AttributeError(f"Cannot set attribute {key} for class {type(self).__name__}")
         super().__setattr__(key, value)
+
+
+StructBaseT = TypeVar("StructBaseT", bound=StructBase)
 
 
 class AbstractStructBase(StructBase):
@@ -189,6 +211,9 @@ class EnumBase(Enum, metaclass=DefaultEnumType):
     @classmethod
     def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance: Enum):
         return dumper.represent_str(instance.name)
+
+    def __str__(self):
+        return str(self.value)
 
 
 _PointedType = TypeVar("_PointedType")  # noqa: N808
@@ -370,3 +395,414 @@ def force_kw_only(base_class: type):
         original_init(self, *args, **kwargs)
 
     base_class.__init__ = init_check_kw_only  # type: ignore
+
+
+def construct_type(type_metadata: TypeMetadata, data):
+    """
+    Build the type from the data.
+    """
+    # if data not `str` or `dict` then its already constructed so we just return it.
+    if not isinstance(data, (str, dict)):
+        return data
+
+    if type_metadata["ctor"] == "enum":
+        return type_metadata["possible_values"](data)  # type: ignore
+    elif type_metadata["ctor"] == "native":
+        return type_metadata["type"](data)
+    elif type_metadata["ctor"] == "parse":
+        # We need to check if dict, because otherwise it fails when parsing the
+        # composite types
+        if isinstance(data, dict):
+            return type_metadata["type"].from_dict(**data)
+        return type_metadata["type"](data)
+    elif type_metadata["ctor"] == "class":
+        return type_metadata["type"].from_dict(**data)
+    else:
+        raise RuntimeError(f"Unknown ctor: {type_metadata['ctor']}")
+
+
+class Diff:
+    def __init__(self, path: str, add, remove):
+        self.Path = path
+        self.Add = add
+        self.Remove = remove
+
+    @classmethod
+    def yaml_representer(cls, dumper: YamlDumper, instance):
+        return dumper.represent_dict(instance._to_dict())
+
+    def _to_dict(self):
+        d = {"Path": self.Path}
+        if self.Add is not None:
+            d["Add"] = self.Add
+        if self.Remove is not None:
+            d["Remove"] = self.Remove
+        return d
+
+    def __repr__(self):
+        return repr(self._to_dict())
+
+    def __str__(self):
+        return str(self._to_dict())
+
+    def is_valid(self):
+        return self.Add is not None or self.Remove is not None
+
+
+YamlDumper.add_representer(Diff, Diff.yaml_representer)
+
+
+class DiffSet(abc.ABC, Generic[StructBaseT]):
+    def __init__(self, changes: List[Diff]):
+        self.Changes: List[Diff] = changes
+
+    @staticmethod
+    @abc.abstractmethod
+    def _get_root() -> StructBase:
+        ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def _get_types_metadata() -> TypesMetadata:
+        ...
+
+    @classmethod
+    def make(cls, obj_old: StructBaseT, obj_new: StructBaseT) -> "DiffSet":
+        return cls(_make_diff(obj_old, obj_new, cls._get_types_metadata(), cls._get_root()))
+
+    @classmethod
+    def _get_type_info(cls, path: str) -> TypeMetadata:
+        return _get_type_info(path, cls._get_root(), cls._get_types_metadata())
+
+    def validate(self, obj: StructBaseT) -> bool:
+        return _validate_diff(obj, self, self._get_type_info)
+
+    def apply(self, obj: StructBaseT):
+        return _apply_diff(obj, self)
+
+    @classmethod
+    def from_dict(cls, dict_: dict) -> "DiffSet":
+        changes = []
+        for diff in dict_["Changes"]:
+            changes.append(Diff(diff["Path"], diff.get("Add"), diff.get("Remove")))
+        return cls(changes)
+
+    @classmethod
+    def yaml_constructor(cls, loader, node):
+        mapping = loader.construct_mapping(node, deep=True)
+        return cls.from_dict(**mapping)
+
+    @classmethod
+    def yaml_representer(cls, dumper: YamlDumper, instance) -> yaml.Node:
+        return dumper.represent_dict({"Changes": instance.Changes})
+
+    def __repr__(self):
+        return repr({"Changes": self.Changes})
+
+    def __str__(self):
+        return str({"Changes": self.Changes})
+
+
+def _parse_diff(diffs: DiffSet, get_type_metadata: GetTypeMetadata) -> DiffSet:
+    """
+    When we load the diff we also parse it so that we end up with objects. This comes in handy
+    when we work further with the diff (apply) and we don't have to parse the diff again.
+    """
+    new_changes = []
+    for diff in diffs.Changes:
+        info = get_type_metadata(diff.Path)
+        if diff.Add and diff.Remove:
+            new_changes.append(
+                Diff(diff.Path, construct_type(info, diff.Add), construct_type(info, diff.Remove))
+            )
+        elif diff.Remove:
+            new_changes.append(Diff(diff.Path, None, construct_type(info, diff.Remove)))
+        elif diff.Add:
+            new_changes.append(Diff(diff.Path, construct_type(info, diff.Add), None))
+    return diffs.__class__(new_changes)
+
+
+def _get_type_info(
+    path: Union[str, List[str]], root, types_metadata: TypesMetadata
+) -> TypeMetadata:
+    """
+    Descend into the root (starting from Binary) recursively until we reach the
+    the end node.
+    """
+    if isinstance(path, str):
+        path_parts = path.split("/")[1:]
+    else:
+        path_parts = path
+
+    root_hint = types_metadata.get(root)
+    if not root_hint:
+        raise RuntimeError(f"Couldn't find root hint for: {root}")
+
+    component = path_parts[0]
+    if "::" in component:
+        # We have an upcastable type, the root_hint needs to be merged with the
+        # actual subclass
+        subtype_name, component = component.split("::", 1)
+        subtype = root._children[subtype_name]
+        root_hint = {**root_hint, **types_metadata[subtype]}
+
+    type_info = root_hint[component]
+
+    if len(path_parts) == 1:
+        return type_info
+
+    # If component is composite we need to find the specialized type
+    if (
+        type_info["is_array"]
+        and type_info["ctor"] == "parse"
+        and "parse_key" in type_info["type"].__dict__
+    ):
+        key = path_parts[1]
+        key_parsed = type_info["type"].parse_key(key)
+        kind = key_parsed["Kind"]
+        specialized_type = type_info["type"]._children.get(kind)
+        return _get_type_info("/".join(path_parts[1:]), specialized_type, types_metadata)
+
+    part = 2 if type_info["is_array"] else 1
+    return _get_type_info(path_parts[part:], type_info["type"], types_metadata)
+
+
+def _get_element_by_path_array(path: list, obj: StructBase) -> StructBase:
+    """
+    Descend recursively into the path until we find the the `obj`.
+    """
+    component = path[0]
+    if isinstance(obj, TypedList):  # noqa: R506
+        for elem in obj:
+            obj_fields = fields(elem)
+            if hasattr(elem, "keyed") and elem.key() == component:
+                if len(path) == 1:
+                    return elem
+                else:
+                    return _get_element_by_path_array(path[1:], elem)
+        raise RuntimeError(f"Couldn't find element: {elem} in obj: {obj}")
+
+    else:
+        if "::" in component:
+            parts = component.split("::", 1)
+            component = parts[1]
+            kind = getattr(obj, "Kind", None)
+            if not kind or kind.name != parts[0]:
+                raise RuntimeError(f"Kind: {kind} doesn't exist or is not in {parts[0]}")
+        obj_fields = fields(obj)
+        for field in obj_fields:
+            if path[0] == field.name or component == field.name:
+                if len(path) == 1:
+                    return getattr(obj, field.name)
+                else:
+                    return _get_element_by_path_array(path[1:], getattr(obj, field.name))
+        else:
+            raise RuntimeError(f"Couldn't find field: {obj_fields} in obj: {obj}")
+
+
+def _get_element_by_path(path: str, obj: StructBase) -> StructBase:
+    """
+    A wrapper around `_get_element_by_path_array` that splits the path into
+    an array and returns the value from the recursive function.
+    """
+    if path == "/":
+        return obj
+    return _get_element_by_path_array(path.split("/")[1:], obj)
+
+
+def _get_parent_element_by_path(path: str, obj: StructBase) -> StructBase:
+    """
+    Call `_get_element_by_path`, but return the parent of the `obj`.
+    """
+    parent_path = path.split("/")[1:-1]
+    if not parent_path:
+        return obj
+    if len(parent_path) > 1:
+        return _get_element_by_path(f"/{'/'.join(parent_path)}", obj)
+    for f in fields(obj):
+        if f.name == parent_path[0]:
+            return getattr(obj, f.name)
+    return obj
+
+
+def _make_diff(
+    obj_old: StructBase, obj_new: StructBase, types_metadata: TypesMetadata, root_type: StructBase
+) -> List[Diff]:
+    """
+    A wrapper around `_make_diff_subtree` that returns a `DiffSet` object. This
+    function allows the wrapped function to be calling itself recursively.
+    """
+    root_type_info: TypeMetadata = {
+        "type": root_type,
+        "ctor": "class",
+        "is_array": False,
+        "optional": False,
+        "is_abstract": False,
+    }
+    return _make_diff_subtree(obj_old, obj_new, "", types_metadata, root_type_info, False)
+
+
+def _make_diff_subtree(
+    obj_old,
+    obj_new,
+    prefix: str,
+    type_metadata: TypesMetadata,
+    type_info: TypeMetadata,
+    in_array: bool,
+) -> List[Diff]:
+    """
+    Generate the list of `Diff`s by traversing the `type_info` which is
+    initially set to `Binary`. We explore all the nodes in the `Binary` and at
+    each step we compare the values from `obj_old` and `obj_new`, if they
+    differ we add to the `result`.
+    """
+    result = []
+    if type(obj_old) is not type(obj_new):
+        return []
+
+    # If we have an abstract class, we need the `_children` to fetch the type
+    # hints from and update the info object.
+    upcast = False
+    if type_info["is_abstract"]:
+        derived_type_children = type_info["type"]._children
+        derived_class = derived_type_children.get(type(obj_old).__name__)
+        base_info_object = type_metadata[type_info["type"]]
+
+        info_object = {}
+        if derived_class:
+            derived_class_object = type_metadata[derived_class]
+            info_object.update(base_info_object)
+            info_object.update(derived_class_object)
+            upcast = True
+        else:
+            info_object = base_info_object
+    else:
+        info_object = type_metadata.get(type_info["type"], {})
+
+    if type_info["is_array"] and not in_array:
+        # If we have `key` attribute we use that to compare the values
+        if getattr(type_info["type"], "keyed", False):
+            map_old = {e.key(): e for e in obj_old}
+            map_new = {e.key(): e for e in obj_new}
+            common_keys = set()
+            for key, value in map_old.items():
+                if map_new.get(key):
+                    common_keys.add(key)
+                    result.extend(
+                        _make_diff_subtree(
+                            value,
+                            map_new.get(key),
+                            f"{prefix}/{key}",
+                            type_metadata,
+                            type_info,
+                            True,
+                        )
+                    )
+                else:
+                    result.append(Diff(prefix, None, value))
+            for key, value in map_new.items():
+                if key not in common_keys:
+                    result.append(Diff(prefix, value, None))
+        else:
+            # Otherwise compare the items at indexes
+            array_old = list(obj_old)
+            array_new = list(obj_new)
+            while len(array_old) > 0:
+                head = array_old.pop(0)
+                if head in array_new:
+                    new_idx = array_new.index(head)
+                    del array_new[new_idx]
+                else:
+                    result.append(Diff(prefix, None, head))
+            for e in array_new:
+                result.append(Diff(prefix, e, None))
+
+    else:
+        # If we don't have an array then we loop over in attributes
+        for key in info_object:
+            new_key = f"{obj_old.Kind}::{key}" if upcast else key
+            key_prefix = f"{prefix}/{new_key}"
+            obj_old_key = getattr(obj_old, key)
+            obj_new_key = getattr(obj_new, key)
+
+            if obj_old_key is None and obj_new_key is not None:
+                result.append(Diff(f"{prefix}/{key}", obj_new_key, None))
+            elif obj_old_key is not None and obj_new_key is None:
+                result.append(Diff(f"{prefix}/{key}", None, obj_old_key))
+            elif obj_old_key is None and obj_new_key is None:
+                # No changes, do nothing
+                pass
+            elif not info_object[key]["is_array"]:
+                if obj_old_key != obj_new_key:
+                    result.append(Diff(key_prefix, obj_new_key, obj_old_key))
+            else:
+                result.extend(
+                    _make_diff_subtree(
+                        obj_old_key,
+                        obj_new_key,
+                        key_prefix,
+                        type_metadata,
+                        info_object[key],
+                        False,
+                    )
+                )
+    return result
+
+
+def _validate_diff(obj: StructBase, diffs: DiffSet, get_type_metadata: GetTypeMetadata) -> bool:
+    """
+    Check that the values from the `diffs` are present if we want to delete
+    them or if the are not present if we want to add them.
+    """
+    for diff in diffs.Changes:
+        target = _get_element_by_path(diff.Path, obj)
+        info = get_type_metadata(diff.Path)
+        if info["is_array"]:
+            if diff.Remove:
+                if isinstance(target, TypedList):
+                    array_target = [e for e in target if e == diff.Remove]
+                    if not array_target:
+                        return False
+                else:
+                    return False
+            if diff.Add and isinstance(target, TypedList):
+                array_target = [e for e in target if e == diff.Add]
+                if array_target:
+                    return False
+        else:
+            if diff.Remove and str(target) != str(diff.Remove):
+                return False
+            if diff.Add and diff.Remove and not target:
+                return False
+    return True
+
+
+def _apply_diff(obj: StructBase, diffs: DiffSet) -> Tuple[bool, Optional[StructBase]]:
+    """
+    Validate the diff and then proceed to remove/add from the `diffs`.
+    """
+    if not diffs.validate(obj):
+        return False, None
+    new_obj = deepcopy(obj)
+    for diff in diffs.Changes:
+        target = _get_element_by_path(diff.Path, new_obj)
+        if isinstance(target, TypedList):
+            if diff.Remove:
+                for i, t in enumerate(target):
+                    if t == diff.Remove:
+                        idx = i
+                        break
+                del target[idx]
+            if diff.Add:
+                target.append(diff.Add)
+        else:
+            parent = _get_parent_element_by_path(diff.Path, new_obj)
+            element = diff.Path.split("/")[::-1][0]
+            if "::" in element:
+                element = element.split("::", 1)[1]
+            if diff.Remove:
+                setattr(parent, element, None)
+            if diff.Add and diff.Add != "":
+                setattr(parent, element, diff.Add)
+
+    return True, new_obj

@@ -17,7 +17,9 @@ from revng.tupletree import (
     no_default,
     typedlist_factory,
     force_constructor_kwarg,
-    force_kw_only
+    force_kw_only,
+    TypesMetadata,
+    DiffSet,
 )
 from revng.tupletree import YamlLoader as _ExternalYamlLoader
 from revng.tupletree import YamlDumper as _ExternalYamlDumper
@@ -33,6 +35,14 @@ class YamlLoader(_ExternalYamlLoader):
 
 # Every subclass of YamlDumper can register its own independent dumpers
 class YamlDumper(_ExternalYamlDumper):
+    pass
+
+
+class DiffYamlLoader(YamlLoader):
+    pass
+
+
+class DiffYamlDumper(YamlDumper):
     pass
 
 
@@ -153,6 +163,20 @@ if sys.version_info < (3, 10, 0):
     force_kw_only(#{ struct.name }#)
 ##- endfor ##
 
+types_metadata: TypesMetadata = {}
+##- for struct in structs ##
+types_metadata[#{- struct.name }#] = {
+    ##- for field in struct.fields ##
+    "#{- field.name }#": #{ field | type_metadata }#,
+    ## endfor ##
+    ##- if struct.inherits ##
+    ##- for field in struct.inherits.fields ##
+    "#{- field.name }#": #{ field | type_metadata }# ##-if not loop.last -##,##- endif -##
+    ##- endfor ##,
+    ##- endif ##
+}
+##- endfor ##
+
 ## for enum in enums ##
 YamlDumper.add_representer(#{ enum.name }#, #{ enum.name }#.yaml_representer)
 ##- endfor ##
@@ -165,3 +189,5 @@ YamlDumper.add_representer(#{ struct.name }#, #{ struct.name }#.yaml_representer
 YamlLoader.add_constructor("!#{ generator.root_type }#", #{ generator.root_type }#.yaml_constructor)
 YamlLoader.add_path_resolver("!#{ generator.root_type }#", [])
 ## endif ##
+DiffYamlLoader.add_constructor("!DiffSet", DiffSet.yaml_constructor)
+DiffYamlLoader.add_path_resolver("!DiffSet", [])

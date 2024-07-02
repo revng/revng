@@ -31,6 +31,7 @@ class PythonGenerator:
             loader=loader,
         )
         self.jinja_environment.filters["python_type"] = self.python_type
+        self.jinja_environment.filters["type_metadata"] = self.type_metadata
         self.jinja_environment.filters["docstring"] = self.render_docstring
         self.jinja_environment.filters["default_value"] = self.default_value
         self.jinja_environment.filters["gen_key"] = self.gen_key
@@ -49,15 +50,15 @@ class PythonGenerator:
             root_type=self.schema.root_type,
             version=self.schema.version,
         )
-        formatted_rendered_template = black.format_str(
+        return black.format_str(
             rendered_template,
             mode=black.Mode(line_length=100),
         )
-        return formatted_rendered_template
 
     @classmethod
     def python_type(cls, field: StructField):
         resolved_type = field.resolved_type
+        assert resolved_type
         return cls._python_type(resolved_type)
 
     @classmethod
@@ -65,26 +66,96 @@ class PythonGenerator:
         assert isinstance(resolved_type, Definition)
         if isinstance(resolved_type, StructDefinition):
             return resolved_type.name
-        elif isinstance(resolved_type, SequenceDefinition):
+        if isinstance(resolved_type, SequenceDefinition):
             return f"List[{cls._python_type(resolved_type.element_type)}]"
-        elif isinstance(resolved_type, EnumDefinition):
+        if isinstance(resolved_type, EnumDefinition):
             return resolved_type.name
-        elif isinstance(resolved_type, ScalarDefinition):
+        if isinstance(resolved_type, ScalarDefinition):
             assert resolved_type.name
             if resolved_type.name == "string":
                 return "str"
-            elif int_re.match(resolved_type.name):
+            if int_re.match(resolved_type.name):
                 return "int"
-            else:
-                return resolved_type.name
-        elif isinstance(resolved_type, ReferenceDefinition):
+            return resolved_type.name
+        if isinstance(resolved_type, ReferenceDefinition):
             pointee = cls._python_type(resolved_type.pointee)
             root = cls._python_type(resolved_type.root)
             return f"Reference[{pointee}, {root}]"
-        elif isinstance(resolved_type, UpcastableDefinition):
+        if isinstance(resolved_type, UpcastableDefinition):
             return cls._python_type(resolved_type.base)
+        assert False
+
+    def scalar_converter(self, type_name: str) -> str:
+        if type_name == "string":
+            return "str"
+        if type_name == "bool":
+            return "bool"
+        if int_re.fullmatch(type_name):
+            return "int"
+        if type_name in self.external_types + self.string_types:
+            return type_name
+        raise Exception(f"Unexpected scalar: {type_name}")
+
+    def _real_type(self, field: StructField) -> str:
+        resolved_type = field.resolved_type
+
+        if isinstance(resolved_type, SequenceDefinition):
+            resolved_type = resolved_type.element_type
+
+        if isinstance(resolved_type, UpcastableDefinition):
+            resolved_type = resolved_type.base
+
+        assert resolved_type
+        real_type = resolved_type.name
+
+        if isinstance(resolved_type, ScalarDefinition):
+            return self.scalar_converter(real_type)
+
+        return real_type
+
+    def type_metadata(self, field: StructField) -> str:
+        real_type = self._real_type(field)
+        possible_values = None
+        if real_type in {"str", "bool", "int"}:
+            hint_type = real_type
+            ctor = "native"
+        elif real_type in [e.name for e in self.schema.enum_definitions()]:
+            hint_type = "str"
+            ctor = "enum"
+            possible_values = f"{real_type}"
+        elif isinstance(field.resolved_type, ReferenceDefinition):
+            hint_type = "Reference"
+            ctor = "parse"
+        elif real_type in [
+            *(s.name for s in self.schema.struct_definitions() if s.abstract),
+            *(self.string_types),
+        ]:
+            hint_type = real_type
+            ctor = "parse"
         else:
-            assert False
+            hint_type = real_type
+            ctor = "class"
+
+        assert hint_type
+
+        is_sequence = isinstance(field.resolved_type, SequenceDefinition)
+        if isinstance(field.resolved_type, SequenceDefinition):
+            is_abstract = isinstance(field.resolved_type.element_type, UpcastableDefinition)
+        else:
+            is_abstract = isinstance(field.resolved_type, UpcastableDefinition)
+
+        return (
+            f'{{"type": {hint_type}, '
+            + (f'"possible_values": {possible_values},' if possible_values is not None else "")
+            + f'"ctor": "{ctor}", '
+            + f'"optional": {self.to_bool(field.optional)}, '
+            + f'"is_array": {self.to_bool(is_sequence)}, '
+            + f'"is_abstract": {self.to_bool(is_abstract)}}}'
+        )
+
+    @staticmethod
+    def to_bool(_input: bool) -> str:
+        return "True" if _input else "False"
 
     @staticmethod
     def gen_key(struct: StructDefinition) -> str:
@@ -112,18 +183,16 @@ class PythonGenerator:
     def default_value(self, field: StructField):
         if isinstance(field, ReferenceStructField):
             return '""'
-        elif isinstance(field, SequenceStructField):
+        if isinstance(field, SequenceStructField):
             return "[]"
-        elif isinstance(field, SimpleStructField):
+        if isinstance(field, SimpleStructField):
             if field.type == "string" or field.type in self.string_types:
                 return '""'
-            elif field.type == "bool":
+            if field.type == "bool":
                 return "False"
-            elif int_re.match(field.type):
+            if int_re.match(field.type):
                 return "0"
-            elif field.upcastable:
+            if field.upcastable:
                 return "None"
-            else:
-                return f"{field.type}()"
-        else:
-            raise ValueError()
+            return f"{field.type}()"
+        raise ValueError()
