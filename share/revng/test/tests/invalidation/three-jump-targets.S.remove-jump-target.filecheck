@@ -9,4 +9,4 @@ Changes:
     Remove:
       Entry:           "0x500000:Code_x86_64"
 ...
-# CHECK: {}
+# CHECK-NOT: lift:

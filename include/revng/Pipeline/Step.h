@@ -181,7 +181,7 @@ public:
       size_t ArgumentsCount = Pipe.Pipe->getContainerArgumentsCount();
       for (size_t I = 0; I < ArgumentsCount; ++I) {
         if (not Pipe.Pipe->isContainerArgumentConst(I)) {
-          MutableContainers.insert(Pipe.Pipe->getContainerName(I));
+          MutableContainers.insert(Pipe.Pipe->getRunningContainersNames()[I]);
         }
       }
     }

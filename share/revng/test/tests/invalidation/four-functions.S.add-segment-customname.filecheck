@@ -9,4 +9,4 @@ Changes:
     Add: "mysegment"
 ...
 
-# CHECK: {}
+# CHECK-NOT: lift:
