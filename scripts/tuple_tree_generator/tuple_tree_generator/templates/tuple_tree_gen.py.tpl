@@ -17,11 +17,13 @@ from revng.tupletree import (
     no_default,
     typedlist_factory,
     force_constructor_kwarg,
-    force_kw_only
+    force_kw_only,
+    DiffSet
 )
 from revng.tupletree import YamlLoader as _ExternalYamlLoader
 from revng.tupletree import YamlDumper as _ExternalYamlDumper
-
+from revng.tupletree import DiffYamlLoader as _DiffExternalYamlLoader
+from revng.tupletree import DiffYamlDumper as _DiffExternalYamlDumper
 ##- for t in generator.external_types ##
 from .external import 't'
 ## endfor ##
@@ -33,6 +35,14 @@ class YamlLoader(_ExternalYamlLoader):
 
 # Every subclass of YamlDumper can register its own independent dumpers
 class YamlDumper(_ExternalYamlDumper):
+    pass
+
+
+class DiffYamlLoader(YamlLoader):
+    pass
+
+
+class DiffYamlDumper(YamlDumper):
     pass
 
 
@@ -165,3 +175,5 @@ YamlDumper.add_representer('struct.name', 'struct.name'.yaml_representer)
 YamlLoader.add_constructor("!'generator.root_type'", 'generator.root_type'.yaml_constructor)
 YamlLoader.add_path_resolver("!'generator.root_type'", [])
 ## endif ##
+DiffYamlLoader.add_constructor("!DiffSet", DiffSet.yaml_constructor)
+DiffYamlLoader.add_path_resolver("!DiffSet", [])
