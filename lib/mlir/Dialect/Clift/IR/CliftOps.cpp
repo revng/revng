@@ -11,6 +11,9 @@
 #define GET_OP_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOps.cpp.inc"
 
+using namespace mlir;
+using namespace mlir::clift;
+
 void mlir::clift::CliftDialect::registerOperations() {
   addOperations</* Include the auto-generated clift operations */
 #define GET_OP_LIST
@@ -84,6 +87,10 @@ mlir::LogicalResult mlir::clift::LoopOp::verifyRegions() {
 //===-----------------------------------------------------------------========//
 // Code for clift::ModuleOp.
 //===----------------------------------------------------------------------===//
+
+void clift::ModuleOp::build(OpBuilder &Builder, OperationState &State) {
+  State.addRegion()->emplaceBlock();
+}
 
 struct ModuleValidator {
   mlir::LogicalResult visitSingleType(mlir::Operation *ContainingOp,

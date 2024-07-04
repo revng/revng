@@ -89,6 +89,10 @@ def Clift_ConstantOp: Clift_Op<"constant", [Pure]> {
 
 def Clift_ModuleOp : Clift_Op<"module", [SymbolTable, HasOnlyGraphRegion, NoRegionArguments, NoTerminator, SingleBlock, RegionKindInterface]> {
   let regions = (region AnyRegion:$body);
+
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins)>];
+
   let assemblyFormat = [{
     $body attr-dict
   }];
