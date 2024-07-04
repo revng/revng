@@ -7,11 +7,13 @@
 #include <cstdint>
 #include <iterator>
 
+#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
 
 #include "revng/Support/Assert.h"
@@ -24,7 +26,8 @@
 using LTSN = dla::LayoutTypeSystemNode;
 using order = std::strong_ordering;
 using Link = dla::LayoutTypeSystemNode::Link;
-using EdgeList = std::vector<Link>;
+using NodeVec = llvm::SmallVector<LTSN *>;
+using EdgeVec = llvm::SmallVector<Link>;
 using Tag = dla::TypeLinkTag;
 using NonPointerFilterT = EdgeFilteredGraph<LTSN *, dla::isNotPointerEdge>;
 
@@ -35,27 +38,29 @@ static Logger<> CmpLog("dla-duf-comparisons");
 
 namespace dla {
 
-/// Strong ordering for nodes: order by size, then by number of successors
-static order cmpNodes(const LTSN *A, const LTSN *B) {
+/// Strong ordering for nodes: order by size, then by number of successors.
+static std::weak_ordering weakOrderNodes(const LTSN *A, const LTSN *B) {
   if (A == B)
-    return order::equal;
+    return std::weak_ordering::equivalent;
 
   if (not A)
-    return order::less;
+    return std::weak_ordering::less;
 
   if (not B)
-    return order::greater;
+    return std::weak_ordering::greater;
 
   const auto SizeCmp = A->Size <=> B->Size;
-  if (SizeCmp != order::equal) {
+  if (SizeCmp != std::weak_ordering::equivalent) {
     revng_log(CmpLog, "Different sizes");
     return SizeCmp;
   }
 
+  // If they have a different number of successors, order the one with less
+  // successor first;
   size_t NChild1 = A->Successors.size();
   size_t NChild2 = B->Successors.size();
   const auto NChildCmp = NChild1 <=> NChild2;
-  if (NChildCmp != order::equal) {
+  if (NChildCmp != std::weak_ordering::equivalent) {
     revng_log(CmpLog,
               "Different number of successors:  node "
                 << A->ID << " has " << NChild1 << " successors, node " << B->ID
@@ -63,203 +68,228 @@ static order cmpNodes(const LTSN *A, const LTSN *B) {
     return NChildCmp;
   }
 
-  return order::equal;
+  // If they have the same number of successors, consider them by kind.
+  size_t NInstanceChild1 = 0;
+  size_t NInstanceChild2 = 0;
+  size_t NPointerChild1 = 0;
+  size_t NPointerChild2 = 0;
+  for (const auto &[Child1, Child2] : llvm::zip(A->Successors, B->Successors)) {
+    if (isInstanceEdge(Child1))
+      ++NInstanceChild1;
+    else
+      ++NPointerChild1;
+
+    if (isInstanceEdge(Child2))
+      ++NInstanceChild2;
+    else
+      ++NPointerChild2;
+  }
+
+  if (auto Cmp = NInstanceChild1 <=> NInstanceChild2; Cmp != 0)
+    return Cmp;
+
+  if (auto Cmp = NPointerChild1 <=> NPointerChild2; Cmp != 0)
+    return Cmp;
+
+  // They are equivalent, but they are not equal, because they are actually 2
+  // different nodes with a different ID.
+  return std::weak_ordering::equivalent;
+}
+
+/// Strong ordering for nodes: order by size, then by number of successors, and
+/// only at the end for ID.
+static std::strong_ordering orderNodes(const LTSN *A, const LTSN *B) {
+  std::weak_ordering WeakNodeCmp = weakOrderNodes(A, B);
+  if (WeakNodeCmp != 0)
+    return (WeakNodeCmp < 0) ? std::strong_ordering::less :
+                               std::strong_ordering::greater;
+
+  if (not A and not B)
+    return std::strong_ordering::equal;
+
+  return A->ID <=> B->ID;
 }
 
 /// Strong ordering for edges: order by kind, then by offset expression
-static order cmpEdgeTags(const Tag *A, const Tag *B) {
+static std::strong_ordering orderEdgeTags(const Tag *A, const Tag *B) {
   if (A == B)
-    return order::equal;
+    return std::strong_ordering::equal;
+
   revng_assert(A != nullptr and B != nullptr);
 
   auto KindA = A->getKind();
   auto KindB = B->getKind();
 
-  // If at least one is a pointer, only look at the kind
-  if (KindA == TypeLinkTag::LK_Pointer or KindB == TypeLinkTag::LK_Pointer)
-    return KindA <=> KindB;
+  // If they have different kind, only look at the kind
+  const auto KindCmp = KindA <=> KindB;
+  if (KindCmp != std::strong_ordering::equal)
+    return KindCmp;
 
   OffsetExpression OffA = A->getOffsetExpr();
   OffsetExpression OffB = B->getOffsetExpr();
 
-  const auto KindCmp = KindA <=> KindB;
-  if (KindCmp != order::equal)
-    return KindCmp;
-
+  // Smaller offsets go first
   const auto OffsetCmp = OffA.Offset <=> OffB.Offset;
-  if (OffsetCmp != order::equal)
+  if (OffsetCmp != std::strong_ordering::equal)
     return OffsetCmp;
 
+  // Smaller number of nested strides go first
   const auto StrideSizeCmp = OffA.Strides.size() <=> OffB.Strides.size();
-  if (StrideSizeCmp != order::equal)
+  if (StrideSizeCmp != std::strong_ordering::equal)
     return StrideSizeCmp;
+
+  // Lexical comparison of strides
   for (const auto &[StrA, StrB] : llvm::zip(OffA.Strides, OffB.Strides)) {
     const auto StrideCmp = StrA <=> StrB;
-    if (StrideCmp != order::equal)
+    if (StrideCmp != std::strong_ordering::equal)
       return StrideCmp;
   }
 
+  // Smaller number of nested trip counts go first
   const auto TCSizeCmp = OffA.TripCounts.size() <=> OffB.TripCounts.size();
-  if (TCSizeCmp != order::equal)
+  if (TCSizeCmp != std::strong_ordering::equal)
     return TCSizeCmp;
+
+  // Lexical comparison of nested trip counts
   for (const auto &[TCA, TCB] : llvm::zip(OffA.TripCounts, OffB.TripCounts)) {
     if (not TCA and not TCB)
       continue;
     if (TCA and not TCB)
-      return order::less;
+      return std::strong_ordering::less;
     if (not TCA and TCB)
-      return order::greater;
+      return std::strong_ordering::greater;
 
     if (TCA and TCB) {
       const auto TCCmp = *TCA <=> *TCB;
-      if (TCCmp != order::equal)
+      if (TCCmp != std::strong_ordering::equal)
         return TCCmp;
     }
   }
 
-  return order::equal;
+  return std::strong_ordering::equal;
 }
 
 /// Strong ordering for links: compare edge tags and destination node
-static order cmpLinks(const Link &A, const Link &B) {
-  const order EdgeOrder = cmpEdgeTags(A.second, B.second);
-  if (EdgeOrder != order::equal)
-    return EdgeOrder;
+static bool orderLinks(const Link &A, const Link &B) {
+  if (std::strong_ordering EdgeOrder = orderEdgeTags(A.second, B.second);
+      EdgeOrder != order::equal)
+    return EdgeOrder < 0;
 
-  // Pointer edges are equivalent only if they correspond to the same node
-  if (isPointerEdge(A)) {
-    revng_assert(isPointerEdge(B));
-    return A.first->ID <=> B.first->ID;
-  }
-
-  const order NodeOrder = cmpNodes(A.first, B.first);
-  if (NodeOrder != order::equal)
-    return NodeOrder;
-
-  return order::equal;
+  return orderNodes(A.first, B.first) < 0;
 }
 
 /// Compare two subtrees, saving the visited nodes onto two stacks
-static std::tuple<order, EdgeList, EdgeList>
-exploreAndCompare(const Link &Child1, const Link &Child2);
-
-/// Recursively define an ordering between children of a node
-static bool linkOrderLess(const Link &A, const Link &B) {
-  if (A == B)
-    return false;
-
-  const order LinkOrder = cmpLinks(A, B);
-  if (LinkOrder != order::equal)
-    return LinkOrder < 0;
-
-  revng_log(CmpLog,
-            "No order between " << A.first->ID << " and " << B.first->ID
-                                << ", must recur");
-  // In case the two nodes are equivalent, explore the whole subtree
-  // TODO: cache the result of this comparison?
-  const auto [SubtreeOrder, _, __] = exploreAndCompare(A, B);
-  revng_assert(SubtreeOrder != order::equal);
-  return SubtreeOrder == order::less;
-}
-
-static std::tuple<order, EdgeList, EdgeList>
+static std::tuple<bool, NodeVec, NodeVec>
 exploreAndCompare(const Link &Child1, const Link &Child2) {
-  if (Child1.first->ID == Child2.first->ID)
-    return { order::equal, { Child1 }, { Child2 } };
 
-  EdgeList VisitStack1{ Child1 }, VisitStack2{ Child2 };
-  EdgeList NextToVisit1, NextToVisit2;
-  size_t CurIdx = 0;
-  do {
-    // Append the newly found nodes to the visit stack of each subtree
-    size_t NextSize = NextToVisit1.size();
-    revng_assert(NextSize == NextToVisit2.size());
+  if (orderEdgeTags(Child1.second, Child2.second) != 0) {
+    revng_log(CmpLog, "Different edges!");
+    return { false, {}, {} };
+  }
 
-    if (NextSize > 0) {
-      size_t PrevSize = VisitStack1.size();
-      VisitStack1.reserve(PrevSize + NextSize);
-      VisitStack2.reserve(PrevSize + NextSize);
-      VisitStack1.insert(VisitStack1.end(),
-                         std::make_move_iterator(NextToVisit1.begin()),
-                         std::make_move_iterator(NextToVisit1.end()));
-      VisitStack2.insert(VisitStack2.end(),
-                         std::make_move_iterator(NextToVisit2.begin()),
-                         std::make_move_iterator(NextToVisit2.end()));
-      NextToVisit1.clear();
-      NextToVisit2.clear();
+  NodeVec VisitStack1{ Child1.first }, VisitStack2{ Child2.first };
+
+  for (size_t CurIdx = 0; CurIdx < VisitStack1.size(); ++CurIdx) {
+    revng_assert(VisitStack1.size() == VisitStack2.size());
+
+    const LTSN *Node1 = VisitStack1[CurIdx];
+    const LTSN *Node2 = VisitStack2[CurIdx];
+
+    revng_log(CmpLog, "Comparing " << Node1->ID << " with " << Node2->ID);
+
+    // If they are the same there's no need to recur. From here downwards the 2
+    // visits are guaranteed to always be the same.
+    if (Node1 == Node2)
+      continue;
+
+    // If the nodes have different sizes, or different number of successors
+    // we can already say they're not equivalent and bail out.
+    if (auto WeakNodeCmp = weakOrderNodes(Node1, Node2); WeakNodeCmp != 0) {
+      revng_log(CmpLog, "Not equivalent");
+      return { false, {}, {} };
     }
 
-    // Perform bfs on new nodes
-    for (; CurIdx < VisitStack1.size(); ++CurIdx) {
-      const Link &L1 = VisitStack1[CurIdx];
-      const Link &L2 = VisitStack2[CurIdx];
-      const auto &[Node1, Edge1] = L1;
-      const auto &[Node2, Edge2] = L2;
-      revng_log(CmpLog, "Comparing " << Node1->ID << " with " << Node2->ID);
+    // Enqueue the successors of the current nodes
+    EdgeVec NextToVisit1, NextToVisit2;
+    revng_assert(Node1->Successors.size() == Node2->Successors.size());
+    size_t NChildren = Node1->Successors.size();
 
-      if (Node1->ID == Node2->ID)
-        continue;
+    NextToVisit1.reserve(NextToVisit1.size() + Node1->Successors.size());
+    NextToVisit2.reserve(NextToVisit2.size() + Node2->Successors.size());
+    llvm::copy(Node1->Successors, std::back_inserter(NextToVisit1));
+    llvm::copy(Node2->Successors, std::back_inserter(NextToVisit2));
 
-      // Return if the links are different
-      const order LinkOrder = cmpLinks(L1, L2);
-      if (LinkOrder != order::equal)
-        return { LinkOrder, VisitStack1, VisitStack2 };
+    // Sort the newly enqueued instance children
+    llvm::sort(NextToVisit1, orderLinks);
+    llvm::sort(NextToVisit2, orderLinks);
 
-      revng_log(CmpLog, "Could not tell the difference");
-
-      if (not isPointerEdge(L1)) {
-        // Enqueue the successors of the current nodes
-        revng_assert(not isPointerEdge(L2));
-        NextToVisit1.reserve(NextToVisit1.size() + Node1->Successors.size());
-        NextToVisit2.reserve(NextToVisit2.size() + Node2->Successors.size());
-        llvm::copy(Node1->Successors, std::back_inserter(NextToVisit1));
-        llvm::copy(Node2->Successors, std::back_inserter(NextToVisit2));
-
-        // Sort the newly enqueued nodes
-        size_t NChildren = Node1->Successors.size();
-        revng_assert(NChildren == Node2->Successors.size());
-
-        std::sort(NextToVisit1.end() - NChildren,
-                  NextToVisit1.end(),
-                  linkOrderLess);
-        std::sort(NextToVisit2.end() - NChildren,
-                  NextToVisit2.end(),
-                  linkOrderLess);
+    // Pointer edges could be traversed in principle, and make the
+    // tree-comparison even deeper. But for now we prevent that, otherwise
+    // the algorithm could end up running on very large parts of the graph,
+    // and we'll also have to detect loops to avoid infinite iterations.
+    // So for now we just compare pointers, that are always sorted at the
+    // back, and bail out if we find a pair of pointer edges that point to
+    // different nodes.
+    size_t FirstPointerIndex = NChildren;
+    size_t Index = 0;
+    for (const auto &[Link1, Link2] : llvm::zip(NextToVisit1, NextToVisit2)) {
+      if (isPointerEdge(Link1)) {
+        revng_assert(isPointerEdge(Link2));
+        if (Link1.first != Link2.first)
+          return { false, {}, {} };
+        if (FirstPointerIndex == NChildren)
+          FirstPointerIndex = Index;
       }
+      ++Index;
     }
-  } while (NextToVisit1.size() > 0);
 
-  return { order::equal, VisitStack1, VisitStack2 };
+    // Take note of the iterators pointing to the first pointer edge.
+    auto NextToVisit1End = std::next(NextToVisit1.begin(), FirstPointerIndex);
+    auto NextToVisit2End = std::next(NextToVisit2.begin(), FirstPointerIndex);
+
+    // Insert in the visit stack all the non-pointer edges.
+    // NOTE: if we ever want to make a deep traversal to compare pointers too,
+    // this should be the only place to change. Just allow the traversal to
+    // enqueue also all the pointer edges.
+    auto NonPointerRange1 = llvm::make_range(NextToVisit1.begin(),
+                                             NextToVisit1End);
+    auto NextNodeRange1 = llvm::make_first_range(NonPointerRange1);
+    VisitStack1.insert(VisitStack1.end(),
+                       NextNodeRange1.begin(),
+                       NextNodeRange1.end());
+
+    auto NonPointerRange2 = llvm::make_range(NextToVisit2.begin(),
+                                             NextToVisit2End);
+    auto NextNodeRange2 = llvm::make_first_range(NonPointerRange2);
+    VisitStack2.insert(VisitStack2.end(),
+                       NextNodeRange2.begin(),
+                       NextNodeRange2.end());
+  }
+
+  return { true, VisitStack1, VisitStack2 };
 }
 
 /// Check if two subtrees are equivalent, saving the visited nodes in the
 /// order in which they were compared.
-static std::tuple<bool, EdgeList, EdgeList>
-areEquivSubtrees(const Link &Child1, const Link &Child2) {
-  auto [Result, Visited1, Visited2] = exploreAndCompare(Child1, Child2);
-  bool AreSubtreesEqual = Result == order::equal;
-
-  return { AreSubtreesEqual, Visited1, Visited2 };
+static std::tuple<bool, NodeVec, NodeVec> areEquivSubtrees(const Link &Child1,
+                                                           const Link &Child2) {
+  return exploreAndCompare(Child1, Child2);
 }
 
-/// Visit the two subtrees of \a Child1 and \a Child2. If they are
+/// Visit the two subtrees of \a ToKeep and \a ToMerge. If they are
 /// equivalent, merge each node with the one it has been compared to.
 ///
 ///\return true if the two nodes were merged, and merged subtree
 ///\param TS the graph in which the comparison should be performed
-///\param Child1 the root of the first subtree
-///\param Child2 the root of the second subtree, will be collapsed if
-///           equivalent to the subtree of \a Child1
+///\param ToKeep the root of the first subtree
+///\param ToMerge the root of the second subtree, will be collapsed if
+///           equivalent to the subtree of \a ToKeep
 static std::tuple<bool, std::set<LTSN *>, std::set<LTSN *>>
 mergeIfTopologicallyEq(LayoutTypeSystem &TS,
-                       const Link &Child1,
-                       const Link &Child2) {
-  if (Child1.first == Child2.first) {
-    revng_log(CmpLog, "Same Node!");
-    return { false, {}, {} };
-  }
+                       const Link &ToKeep,
+                       const Link &ToMerge) {
 
-  auto [AreEquiv, Subtree1, Subtree2] = areEquivSubtrees(Child1, Child2);
+  auto [AreEquiv, Subtree1, Subtree2] = areEquivSubtrees(ToKeep, ToMerge);
   if (not AreEquiv) {
     revng_log(CmpLog, "Different!");
     return { false, {}, {} };
@@ -267,68 +297,48 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS,
 
   revng_log(CmpLog, "Equivalent!");
 
-  // Create a map between nodes to merge and the corresponding merge
-  // destination, in order to:
-  // 1. avoid duplicates in merging list
-  // 2. check that a node is never merged into two separate nodes
-  // 3. handle the case in which the merge destination has to be merged itself
-  std::map</*to merge*/ LTSN *, /*to keep*/ LTSN *> MergeMap;
-  for (const auto &[Link1, Link2] : llvm::zip(Subtree1, Subtree2)) {
-    auto *NodeToKeep = Link1.first;
-    auto *NodeToMerge = Link2.first;
+  // Compute equivalence classes of nodes that have to be merged together.
+  llvm::EquivalenceClasses<LTSN *> MergeClasses;
+  for (const auto &[N1, N2] : llvm::zip(Subtree1, Subtree2))
+    MergeClasses.unionSets(N1, N2);
 
-    const auto &[_, Inserted] = MergeMap.insert({ NodeToMerge, NodeToKeep });
-    revng_assert(Inserted or MergeMap.at(NodeToMerge) == NodeToKeep);
-  }
-
-  // Redirect chains of nodes that have to be merged together
-  llvm::SmallPtrSet<LTSN *, 8> Subtree1MergedNodes;
-  for (auto &[NodeToMerge, NodeToKeep] : MergeMap) {
-    if (NodeToKeep == NodeToMerge or Subtree1MergedNodes.contains(NodeToMerge))
-      continue;
-
-    auto MapEntry = MergeMap.find(NodeToKeep);
-    llvm::SmallPtrSet<LTSN *, 8> MergeChain;
-
-    // Find chains of nodes to merge
-    while (MapEntry != MergeMap.end()) {
-      Subtree1MergedNodes.insert(MapEntry->first);
-      const auto &[_, Inserted] = MergeChain.insert(NodeToKeep);
-      // Avoid loops
-      if (not Inserted)
-        break;
-
-      NodeToKeep = MapEntry->second;
-
-      // Go to next node of the chain
-      MapEntry = MergeMap.find(NodeToKeep);
-    }
-
-    // Update the merge destination of all the nodes of the chain
-    for (auto *N : MergeChain)
-      MergeMap.at(N) = NodeToKeep;
-  }
-
-  // Execute merge
+  LTSN *ChildToKeep = ToKeep.first;
   std::set<LTSN *> ErasedNodes;
-  for (auto &[NodeToMerge, NodeToKeep] : MergeMap) {
-    if (NodeToKeep == NodeToMerge)
-      continue;
+  std::set<LTSN *> PreservedNodes;
+  for (EquivalenceClasses<LTSN *>::iterator I = MergeClasses.begin(),
+                                            E = MergeClasses.end();
+       I != E;
+       ++I) {
 
-    TS.mergeNodes({ NodeToKeep, NodeToMerge });
-    ErasedNodes.insert(NodeToMerge);
+    if (!I->isLeader())
+      continue; // Ignore non-leader sets.
+
+    // Decide which node to keep for each equivalence class.
+    // This typically depends only on the order of insertions of stuff in the
+    // class, so it's deterministic. However, we want the NodeToKeep to always
+    // be preserved, so we have to enforce it manually.
+    LTSN *Keep = *MergeClasses.member_begin(I);
+    if (MergeClasses.isEquivalent(ChildToKeep, Keep))
+      Keep = ChildToKeep;
+
+    for (LTSN *Merge : llvm::make_range(MergeClasses.member_begin(I),
+                                        MergeClasses.member_end())) {
+      if (Keep == Merge) {
+        PreservedNodes.insert(Keep);
+        continue;
+      }
+      TS.mergeNodes({ Keep, Merge });
+      ErasedNodes.insert(Merge);
+    }
   }
 
-  // Build the set of preserved nodes
-  std::set<LTSN *> Preserved;
-  for (const auto &[Node, Tag] : Subtree1)
-    if (not Subtree1MergedNodes.contains(Node))
-      Preserved.insert(Node);
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG());
 
   // The root of Subtree1 should always be preserved
-  revng_assert(Preserved.contains(Child1.first));
+  revng_assert(PreservedNodes.contains(ToKeep.first));
 
-  return { true, Preserved, ErasedNodes };
+  return { true, PreservedNodes, ErasedNodes };
 }
 
 static auto getSuccEdgesToChild(LTSN *Parent, LTSN *Child) {
