@@ -105,58 +105,34 @@ static bool canBeCollapsed(ReachabilityCache Cache,
                            const LayoutTypeSystemNode *Node,
                            const LayoutTypeSystemNode *Child) {
   LoggerIndent Indent(Log);
-  // If Child has size or has an outgoing pointer edge, it can never be
-  // collapsed.
-  if (Child->Size) {
+
+  // If Child has Size and the size is different from its parent Node, it cannot
+  // be collapsed.
+  if (Child->Size and Child->Size != Node->Size) {
     revng_log(Log, "has Size");
     return false;
   }
 
+  // If Child has an outgoing pointer it cannot be collapsed.
   if (hasOutgoingPointer(Child)) {
     revng_log(Log, "has outgoing pointer");
     return false;
   }
 
-  // If we find a successor of Node (different from Child at offset 0) such that
-  // it can reach Child, then the instance-0 from Node to Child cannot be
-  // collapsed, because that would introduce a loop.
-
-  // First check the cheapest thing, i.e. if there is another edge to Child that
-  // is not at offset 0. That is cheap to check and would already mean that we
-  // cannot collapse, because collapsing the instance-0 edge would turn the
-  // other edge to Child into a self-loop.
-  for (const auto &Link : llvm::children_edges<CInstanceT>(Node)) {
-    const auto &[OtherChild, EdgeTag] = Link;
-    if (Child == OtherChild and not isInstanceOff0(Link)) {
-      revng_log(Log, "has another incoming edge");
-      return false;
-    }
+  // If the parent has other children, Child cannot be collapsed in it, because
+  // that would mean that all other types that contain an instance of Child
+  // would start also containing instances of subtypes of Node.
+  // The only case where it is allowed is when the only predecessor of Child is
+  // Node, because in that case we there is no risk of other predecessors of
+  // Child to see other nodes that were originally other children of Node.
+  if (Node->Successors.size() > 1 and Child->Predecessors.size() > 1) {
+    revng_log(Log, "parent has other children");
+    return false;
   }
 
-  // Then check if Child is actually reachable from any other instance children
-  // (OtherChildren) of Node.
-  // If that happens, collapsing Child into Node, would create a loop, so we
-  // have to bail out.
-  revng_log(Log, "check mutual reachability");
-  LoggerIndent MoreIndent(Log);
-  for (const LayoutTypeSystemNode *OtherChild :
-       llvm::children<CInstanceT>(Node)) {
-    // Ignore the edge that would be collapsed.
-    if (OtherChild == Child)
-      continue;
-
-    revng_log(Log, "OtherChild: " << OtherChild->ID);
-    LoggerIndent MoreMoreIndent(Log);
-
-    // We're using the cache here since otherwise we might end up exploring a
-    // big chunk of the graph very many times, as experiments on real-world
-    // examples have shown.
-    if (Cache.existsPath(OtherChild, Child)) {
-      revng_log(Log, "can reach: " << Child->ID);
-      return false;
-    }
-    revng_log(Log, "cannot reach: " << Child->ID << " BUT: ");
-  }
+  revng_assert(Node->Successors.size() > 1
+               or (isInstanceOff0(*Node->Successors.begin())
+                   and Node->Successors.begin()->first == Child));
 
   // In all the other cases we can collapse.
   return true;
