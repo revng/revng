@@ -110,27 +110,76 @@ BOOST_AUTO_TEST_CASE(LabelsWithAGoToWithoutAssignMustFail) {
   BOOST_TEST(mlir::verify(module).failed());
 }
 
-// TODO: this test has been temporarily disabled to work around a bug in the
-// parsing of union/struct recursive types.
-// That bug was causing crashes in tests, in workflows that are not used in
-// production for users yet, so we've disabled this to keep the CI working
-// smoothly and not stall other branches.
-// This test should be re-enabled as soon as a proper fix to the bug is
-// implemented.
-//
-// BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainThemself) {
-//   auto UnionAttrT = UnionTypeAttr::get(builder.getContext(), 0);
-//   using DefinedT = DefinedType;
-//   auto UnionT = DefinedT::get(builder.getContext(),
-//                               UnionAttrT,
-//                               mlir::BoolAttr::get(builder.getContext(),
-//                               false));
-//
-//   // Just check that you can't make a field out of a forward declared type, a
-//   // pointer to the type must be used instead.
-//   BOOST_TEST(FieldAttr::verify(getDiagnosticEmitter(), 0, UnionT, "field")
-//                .failed());
-// }
+BOOST_AUTO_TEST_CASE(UnionAndStructsCantDirectlyContainThemselves) {
+  auto UnionAttrT = UnionTypeAttr::get(builder.getContext(), 0);
+  auto UnionT = DefinedType::get(builder.getContext(),
+                                 UnionAttrT,
+                                 mlir::BoolAttr::get(builder.getContext(),
+                                                     false));
+
+  FieldAttr UnionFields[] = {
+    FieldAttr::get(builder.getContext(), 0, UnionT, "x")
+  };
+  (void) UnionTypeAttr::get(builder.getContext(), 0, "u", UnionFields);
+
+  auto CliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
+  mlir::OpBuilder CliftModuleBuilder(CliftModule.getBody());
+  CliftModuleBuilder.create<UndefOp>(builder.getUnknownLoc(), UnionT);
+  BOOST_TEST(mlir::verify(CliftModule).failed());
+}
+
+BOOST_AUTO_TEST_CASE(UnionAndStructsCantIndirectlyContainThemselves) {
+  auto UnionAttrT = UnionTypeAttr::get(builder.getContext(), 0);
+  auto UnionT = DefinedType::get(builder.getContext(),
+                                 UnionAttrT,
+                                 mlir::BoolAttr::get(builder.getContext(),
+                                                     false));
+
+  auto StructAttrT = StructTypeAttr::get(builder.getContext(), 1);
+  auto StructT = DefinedType::get(builder.getContext(),
+                                  StructAttrT,
+                                  mlir::BoolAttr::get(builder.getContext(),
+                                                      false));
+
+  FieldAttr UnionFields[] = {
+    FieldAttr::get(builder.getContext(), 0, StructT, "x")
+  };
+  (void) UnionTypeAttr::get(builder.getContext(), 0, "u", UnionFields);
+
+  FieldAttr StructFields[] = {
+    FieldAttr::get(builder.getContext(), 0, UnionT, "y")
+  };
+  (void) StructTypeAttr::get(builder.getContext(), 1, "s", 1, StructFields);
+
+  auto CliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
+  mlir::OpBuilder CliftModuleBuilder(CliftModule.getBody());
+  CliftModuleBuilder.create<UndefOp>(builder.getUnknownLoc(), StructT);
+  BOOST_TEST(mlir::verify(CliftModule).failed());
+}
+
+BOOST_AUTO_TEST_CASE(UnionAndStructsCanContainThemselvesViaIndirection) {
+  auto UnionAttrT = UnionTypeAttr::get(builder.getContext(), 0);
+  auto UnionT = DefinedType::get(builder.getContext(),
+                                 UnionAttrT,
+                                 mlir::BoolAttr::get(builder.getContext(),
+                                                     false));
+
+  auto UnionPtrT = PointerType::get(builder.getContext(),
+                                    UnionT,
+                                    8,
+                                    mlir::BoolAttr::get(builder.getContext(),
+                                                        false));
+
+  FieldAttr UnionFields[] = {
+    FieldAttr::get(builder.getContext(), 0, UnionPtrT, "p")
+  };
+  (void) UnionTypeAttr::get(builder.getContext(), 0, "u", UnionFields);
+
+  auto CliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
+  mlir::OpBuilder CliftModuleBuilder(CliftModule.getBody());
+  CliftModuleBuilder.create<UndefOp>(builder.getUnknownLoc(), UnionT);
+  BOOST_TEST(mlir::verify(CliftModule).succeeded());
+}
 
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainFunctions) {
   auto VoidT = PrimitiveType::getVoid(builder.getContext(), 0);
