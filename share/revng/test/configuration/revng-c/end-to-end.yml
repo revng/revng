@@ -16,6 +16,24 @@ commands:
       revng analyze --model "$INPUT2" revng-c-initial-auto-analysis "$INPUT1" -o "$OUTPUT";
 
   #
+  # Produce single decompiled file and headers from revng-c.analyzed-model
+  #
+  - type: revng-c.decompiled-c
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng-c.analyzed-model
+    suffix: /
+    command: |-
+      WORKDIR="$OUTPUT/check-decompiled-c";
+      mkdir -p "$$WORKDIR";
+      revng artifact --model "$INPUT2" --resume "$OUTPUT" decompile-to-single-file "$INPUT1" | revng ptml > "$$WORKDIR/decompiled.c";
+      revng artifact --resume "$OUTPUT" emit-model-header "$INPUT1" | revng ptml > "$$WORKDIR/types-and-globals.h";
+      revng artifact --resume "$OUTPUT" emit-helpers-header "$INPUT1" | revng ptml > "$$WORKDIR/helpers.h";
+      # TODO: re-enable the following after fixing the bug in ModelToHeader that caused it to fail
+      # revng check-decompiled-c "$$WORKDIR/decompiled.c" -I"$$WORKDIR" -m${POINTER_SIZE};
+
+  #
   # Produce convert-to-mlir from revng-c.analyzed-model
   #
   - type: revng-c.convert-to-mlir
