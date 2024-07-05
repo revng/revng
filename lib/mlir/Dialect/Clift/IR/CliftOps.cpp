@@ -26,6 +26,25 @@ void CliftDialect::registerOperations() {
                 /* End of operations list */>();
 }
 
+static YieldOp getExpressionYieldOp(Region &R) {
+  if (R.empty())
+    return {};
+
+  Block &B = R.front();
+
+  if (B.empty())
+    return {};
+
+  return mlir::dyn_cast<clift::YieldOp>(B.back());
+}
+
+static ValueType getExpressionType(Region &R) {
+  if (auto Yield = getExpressionYieldOp(R)) {
+    return Yield.getValue().getType();
+  }
+  return {};
+}
+
 //===---------------------------- Region types ----------------------------===//
 
 template<typename OpInterface>
@@ -52,14 +71,7 @@ bool clift::impl::verifyExpressionRegion(Region &R, const bool Required) {
   if (not verifyRegionContent<ExpressionOpInterface>(R, Required))
     return false;
 
-  if (not R.empty()) {
-    Block &B = R.front();
-
-    if (B.empty())
-      return false;
-  }
-
-  return true;
+  return R.empty() or static_cast<bool>(getExpressionYieldOp(R));
 }
 
 //===------------------------------ ModuleOp ------------------------------===//
@@ -249,7 +261,29 @@ mlir::LogicalResult clift::ModuleOp::verify() {
   return Validator.visitOp(*this);
 }
 
+//===-------------------------- GlobalVariableOp --------------------------===//
+
+mlir::LogicalResult GlobalVariableOp::verify() {
+  if (Region &R = getInitializer(); not R.empty()) {
+    if (getExpressionType(R) != getType())
+      return emitOpError() << getOperationName()
+                           << " initializer type must match the variable type";
+  }
+
+  return mlir::success();
+}
+
 //===----------------------------- Statements -----------------------------===//
+
+//===------------------------------ DoWhileOp -----------------------------===//
+
+mlir::LogicalResult DoWhileOp::verify() {
+  if (not isScalarType(getExpressionType(getCondition())))
+    return emitOpError() << getOperationName()
+                         << " condition requires a scalar type.";
+
+  return mlir::success();
+}
 
 //===-------------------------------- ForOp -------------------------------===//
 
@@ -261,6 +295,34 @@ mlir::LogicalResult ForOp::verify() {
     //       Implement verification of it.
     return emitOpError() << getOperationName()
                          << " init statements are not yet supported.";
+  }
+
+  if (auto ConditionType = getExpressionType(getCondition())) {
+    if (not isScalarType(ConditionType))
+      return emitOpError() << getOperationName()
+                           << " condition requires a scalar type.";
+  }
+
+  return mlir::success();
+}
+
+//===-------------------------------- IfOp --------------------------------===//
+
+mlir::LogicalResult IfOp::verify() {
+  if (not isScalarType(getExpressionType(getCondition())))
+    return emitOpError() << getOperationName()
+                         << " condition requires a scalar type.";
+
+  return mlir::success();
+}
+
+//===--------------------------- LocalVariableOp --------------------------===//
+
+mlir::LogicalResult LocalVariableOp::verify() {
+  if (Region &R = getInitializer(); not R.empty()) {
+    if (getExpressionType(R) != getType())
+      return emitOpError() << getOperationName()
+                           << " initializer type must match the variable type";
   }
 
   return mlir::success();
@@ -307,6 +369,16 @@ mlir::LogicalResult MakeLabelOp::verify() {
     return emitOpError() << getOperationName() << " with a use by "
                          << GoToOp::getOperationName()
                          << " must have an assignment.";
+
+  return mlir::success();
+}
+
+//===------------------------------ ReturnOp ------------------------------===//
+
+mlir::LogicalResult ReturnOp::verify() {
+  if (not verifyFunctionReturnType(getExpressionType(getResult())))
+    return emitOpError() << getOperationName()
+                         << " requires void or non-array object type.";
 
   return mlir::success();
 }
@@ -387,6 +459,10 @@ void SwitchOp::print(OpAsmPrinter &Printer) {
 }
 
 mlir::LogicalResult SwitchOp::verify() {
+  if (not isIntegerType(getExpressionType(getCondition())))
+    return emitOpError() << getOperationName()
+                         << " condition requires an integer type.";
+
   // One region for the condition, one for the default case and N for others.
   if (getNumRegions() != 2 + getCaseValues().size())
     return emitOpError() << getOperationName()
@@ -398,6 +474,30 @@ mlir::LogicalResult SwitchOp::verify() {
       return emitOpError() << getOperationName()
                            << " case values must be unique.";
   }
+
+  return mlir::success();
+}
+
+//===------------------------------- WhileOp ------------------------------===//
+
+mlir::LogicalResult WhileOp::verify() {
+  if (not isScalarType(getExpressionType(getCondition())))
+    return emitOpError() << getOperationName()
+                         << " condition requires a scalar type.";
+
+  return mlir::success();
+}
+
+//===----------------------------- Expressions ----------------------------===//
+
+//===------------------------------- YieldOp ------------------------------===//
+
+mlir::LogicalResult YieldOp::verify() {
+  auto T = getValue().getType();
+
+  if (not isObjectType(T) and not isVoid(T))
+    return emitOpError() << getOperationName()
+                         << " must yield a non-void object type.";
 
   return mlir::success();
 }

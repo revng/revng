@@ -64,6 +64,26 @@ inline bool isScalarType(ValueType Type) {
   return mlir::isa<PointerType>(Type);
 }
 
+inline bool isIntegerType(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
+    switch (T.getKind()) {
+    case PrimitiveKind::NumberKind:
+    case PrimitiveKind::UnsignedKind:
+    case PrimitiveKind::SignedKind:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type))
+    return mlir::isa<EnumTypeAttr>(T.getElementType());
+
+  return false;
+}
+
 inline bool isObjectType(ValueType Type) {
   Type = dealias(Type);
 
@@ -85,6 +105,15 @@ inline bool isObjectType(ValueType Type) {
 
 inline bool isArrayType(ValueType Type) {
   return mlir::isa<ArrayType>(dealias(Type));
+}
+
+inline bool verifyFunctionReturnType(ValueType ReturnType) {
+  ReturnType = dealias(ReturnType);
+
+  if (isObjectType(ReturnType))
+    return not isArrayType(ReturnType);
+
+  return isVoid(ReturnType) or mlir::isa<ScalarTupleType>(ReturnType);
 }
 
 } // namespace mlir::clift

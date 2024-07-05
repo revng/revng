@@ -19,6 +19,12 @@ include "CliftTypes.td"
 class Clift_Op<string mnemonic, list<Trait> traits = []> :
     Op<Clift_Dialect, mnemonic, traits>;
 
+//===-------------------------- Type constraints --------------------------===//
+
+def Clift_AnyValueType : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
+                              "Clift value type",
+                              "mlir::clift::ValueType">;
+
 //===---------------------------- Region types ----------------------------===//
 
 def Clift_StatementRegion : Region<CPred<"::mlir::clift::impl::verifyStatementRegion($_self)">,
@@ -131,14 +137,8 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
   let assemblyFormat = [{
     $type $sym_name (`=` $initializer^)? attr-dict
   }];
-}
 
-def Clift_UndefOp: Clift_Op<"undef"> {
-  let results = (outs Clift_AnyValueType:$result);
-
-  let assemblyFormat = [{
-    type($result) attr-dict
-  }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------- Statements -----------------------------===//
@@ -182,6 +182,17 @@ def Clift_DoWhileOp : Clift_Op<"do_while",
   let assemblyFormat = [{
     $body $condition attr-dict
   }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_ExpressionStatementOp : Clift_Op<"expr",
+                                  [Clift_StatementOpInterface]> {
+  let regions = (region Clift_OptionalExpressionRegion:$expression);
+
+  let assemblyFormat = [{
+    $expression attr-dict
+  }];
 }
 
 def Clift_ForOp : Clift_Op<"for",
@@ -219,6 +230,8 @@ def Clift_IfOp : Clift_Op<"if",
   let assemblyFormat = [{
     $condition $then (`else` $else^)? attr-dict
   }];
+
+  let hasVerifier = 1;
 }
 
 def Clift_LocalVariableOp : Clift_Op<"local",
@@ -232,6 +245,8 @@ def Clift_LocalVariableOp : Clift_Op<"local",
   let assemblyFormat = [{
     $type $sym_name (`=` $initializer^)? attr-dict
   }];
+
+  let hasVerifier = 1;
 }
 
 def Clift_LoopBreakOp : Clift_Op<"loop_break",
@@ -259,6 +274,8 @@ def Clift_ReturnOp : Clift_Op<"return",
   let assemblyFormat = [{
     $result attr-dict
   }];
+
+  let hasVerifier = 1;
 }
 
 def Clift_SwitchOp : Clift_Op<"switch",
@@ -322,6 +339,31 @@ def Clift_WhileOp : Clift_Op<"while",
 
   let assemblyFormat = [{
     $condition $body attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+//===----------------------------- Expressions ----------------------------===//
+
+def Clift_UndefOp : Clift_Op<"undef",
+                             [Clift_ExpressionOpInterface]> {
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    type($result) attr-dict
+  }];
+}
+
+def Clift_YieldOp : Clift_Op<"yield",
+                             [Clift_ExpressionOpInterface,
+                              Terminator]> {
+  let arguments = (ins Clift_AnyValueType:$value);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
   }];
 }
 
