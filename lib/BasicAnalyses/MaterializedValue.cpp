@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 
 #include "revng/BasicAnalyses/MaterializedValue.h"
@@ -13,6 +14,9 @@ MaterializedValue
 MaterializedValue::apply(llvm::Instruction *Operation,
                          llvm::ArrayRef<MaterializedValue> Operands) {
   using namespace llvm;
+
+  if (isa<AllocaInst>(Operation))
+    return MaterializedValue::invalid();
 
   if (isa<IntToPtrInst>(Operation)) {
     revng_assert(Operands.size() == 1);
