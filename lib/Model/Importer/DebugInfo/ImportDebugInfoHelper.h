@@ -7,7 +7,7 @@
 #include "revng/Support/ProgramRunner.h"
 
 namespace {
-int runFetchDebugInfoWithLevel(llvm::StringRef InputFileName) {
+inline int runFetchDebugInfoWithLevel(llvm::StringRef InputFileName) {
   return ::Runner.run("revng",
                       { "model", "fetch-debuginfo", InputFileName.str() });
 }
