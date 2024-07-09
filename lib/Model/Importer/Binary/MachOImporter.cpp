@@ -6,6 +6,7 @@
 
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
@@ -190,6 +191,23 @@ Error MachOImporter::import() {
   auto &MachO = cast<object::MachOObjectFile>(TheBinary);
 
   revng_assert(Model->Architecture() != Architecture::Invalid);
+
+  switch (Model->Architecture()) {
+  case Architecture::x86:
+    Model->DefaultABI() = model::ABI::SystemV_x86;
+    break;
+
+  case Architecture::x86_64:
+    Model->DefaultABI() = model::ABI::SystemV_x86_64;
+    break;
+
+  default:
+    auto ArchitectureName = Architecture::getName(Model->Architecture()).str();
+    return createStringError(llvm::inconvertibleErrorCode(),
+                             "Unsupported architecture for MachO: "
+                               + ArchitectureName);
+  }
+
   bool IsLittleEndian = Architecture::isLittleEndian(Model->Architecture());
   StringRef StringDataRef = TheBinary.getData();
   auto RawDataRef = ArrayRef<uint8_t>(StringDataRef.bytes_begin(),

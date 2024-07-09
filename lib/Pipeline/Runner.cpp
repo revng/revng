@@ -479,8 +479,12 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
       if (not Container.second)
         continue;
 
-      if (not Mutablecontainers.contains(Container.first()))
+      if (not Mutablecontainers.contains(Container.second->name())) {
+        revng_log(Log,
+                  Container.second->name()
+                    << " is not mutable in step " << Step.getName());
         continue;
+      }
 
       revng_log(Log,
                 "Computing invalidations in container " << Container.getKey());

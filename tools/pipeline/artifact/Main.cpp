@@ -18,6 +18,7 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/AnalysesList.h"
 #include "revng/Pipeline/ContainerSet.h"
+#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/CopyPipe.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
@@ -38,7 +39,8 @@ using namespace ::revng;
 
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
-                                  desc("<artifact> <binary>"),
+                                  desc("<artifact> <binary> [TARGET [TARGET "
+                                       "[...]]]"),
                                   cat(MainCategory));
 
 static OutputPathOpt Output("o",
@@ -192,10 +194,9 @@ int main(int argc, char *argv[]) {
     Map.add(ContainerName, Kind->allTargets(Manager.context()));
   } else {
     for (llvm::StringRef Argument : llvm::drop_begin(Arguments, 2)) {
-      auto SlashRemoved = Argument.drop_front();
-      llvm::SmallVector<StringRef, 2> Components;
-      SlashRemoved.split(Components, "/");
-      Map.add(ContainerName, Target(Components, *Kind));
+      auto RequestedTarget = AbortOnError(Target::deserialize(Manager.context(),
+                                                              Argument));
+      Map.add(ContainerName, RequestedTarget);
     }
   }
   AbortOnError(Manager.getRunner().run(Step.getName(), Map));

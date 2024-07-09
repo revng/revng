@@ -36,15 +36,18 @@ def cache_directory() -> Path:
 
 def download_file(url, local_filename):
     log(f"Downloading {local_filename}")
-    with requests.get(url, stream=True) as request:
-        if request.status_code == 200:
-            with open(local_filename, "wb") as debug_file:
-                for chunk in request.iter_content(chunk_size=64 * 1024):
-                    debug_file.write(chunk)
-            log("Downloaded")
-            return True
-        elif request.status_code == 404:
-            log("URL was not found")
-        else:
-            log(f"URL returned status code {request.status_code}")
+    try:
+        with requests.get(url, stream=True) as request:
+            if request.status_code == 200:
+                with open(local_filename, "wb") as debug_file:
+                    for chunk in request.iter_content(chunk_size=64 * 1024):
+                        debug_file.write(chunk)
+                log("Downloaded")
+                return True
+            elif request.status_code == 404:
+                log("URL was not found")
+            else:
+                log(f"URL returned status code {request.status_code}")
+    except requests.RequestException as e:
+        log(f"Exception while making request: {e}")
     return False

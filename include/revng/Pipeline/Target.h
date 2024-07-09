@@ -75,6 +75,10 @@ public:
   }
 
 public:
+  static llvm::Expected<Target> deserialize(Context &Ctx,
+                                            llvm::StringRef String);
+
+public:
   bool operator<(const Target &Other) const {
     auto Self = std::tie(K, Components);
     auto OtherSelf = std::tie(Other.K, Other.Components);
@@ -92,11 +96,16 @@ public:
 public:
   void setKind(const Kind &NewKind) { K = &NewKind; }
 
+public:
   llvm::Error verify(const ContainerBase &Container) const {
     return K->verify(Container, *this);
   }
 
 public:
+  std::string serialize() const;
+
+  void dump() const debug_function { dump(dbg); }
+
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const debug_function {
     indent(OS, Indentation);
@@ -112,10 +121,6 @@ public:
     OS << '\n';
   }
 
-  std::string serialize() const;
-  static llvm::Expected<Target>
-  deserialize(Context &Ctx, const KindsRegistry &Dict, llvm::StringRef String);
-
   template<typename OStream>
   void dumpPathComponents(OStream &OS) const debug_function {
     OS << "/";
@@ -126,8 +131,6 @@ public:
     }
     OS << ":" << K->name().str();
   }
-
-  void dump() const debug_function { dump(dbg); }
 };
 
 class KindsRegistry;
