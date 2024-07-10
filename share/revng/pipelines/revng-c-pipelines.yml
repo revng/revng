@@ -58,6 +58,7 @@ Branches:
               - remove-extractvalues
               - early-cse
               - simplify-cfg-with-hoist-and-sink
+              - early-type-shrinking
               - type-shrinking
               - early-cse
               - instsimplify
