@@ -18,6 +18,7 @@
 using namespace llvm;
 
 class AliasAnalysisAnnotatedWriter : public AssemblyAnnotationWriter {
+private:
   const bool StoresOnly;
 
 public:

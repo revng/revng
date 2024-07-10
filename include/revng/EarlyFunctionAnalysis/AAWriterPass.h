@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/PassManager.h"
 
 class AAWriterPass : public llvm::PassInfoMixin<AAWriterPass> {
