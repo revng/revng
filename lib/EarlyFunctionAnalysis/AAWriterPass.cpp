@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
