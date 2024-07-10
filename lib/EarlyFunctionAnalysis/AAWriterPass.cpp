@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
@@ -18,6 +19,7 @@
 using namespace llvm;
 
 class AliasAnalysisAnnotatedWriter : public AssemblyAnnotationWriter {
+private:
   const bool StoresOnly;
 
 public:

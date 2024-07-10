@@ -15,10 +15,12 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/FormattedStream.h"
 
 #include "revng/MFP/Graph.h"
 #include "revng/MFP/MFP.h"
@@ -27,6 +29,30 @@
 #include "revng/TypeShrinking/DataFlowGraph.h"
 
 namespace TypeShrinking {
+
+class BitLivenwssAnnotatedWriter : public llvm::AssemblyAnnotationWriter {
+private:
+  const BitLivenessAnalysisResults &Results;
+
+public:
+  BitLivenwssAnnotatedWriter(const BitLivenessAnalysisResults &Results) :
+    Results(Results) {}
+
+  void emitInstructionAnnot(const llvm::Instruction *I,
+                            llvm::formatted_raw_ostream &Stream) final {
+    auto It = Results.find(const_cast<llvm::Instruction *>(I));
+    if (It != Results.end()) {
+      Stream << "  ; Operands bitsize: " << It->second.Operands << "\n";
+      Stream << "  ; Result bitsize: " << It->second.Result << "\n";
+    }
+  }
+};
+
+void BitLivenessWrapperPass::dump(llvm::Function &F) const {
+  BitLivenwssAnnotatedWriter Annotator(Result);
+  llvm::raw_os_ostream Stream(dbg);
+  F.print(Stream, &Annotator);
+}
 
 /// This class is an instance of monotone framework
 /// the elements represent the index from which all bits are not alive

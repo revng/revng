@@ -52,7 +52,7 @@ void TypeShrinkingWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 /// Returns true if each bit B of the result of Ins depends only on the bits of
-/// the operands with an index lower than B
+/// the operands with an index equal to B
 static bool isBitwise(const Instruction *Ins) {
   switch (Ins->getOpcode()) {
   case llvm::Instruction::And:

@@ -37,6 +37,8 @@ public:
 
   BitLivenessAnalysisResults &getResult() { return Result; }
 
+  void dump(llvm::Function &F) const;
+
 private:
   BitLivenessAnalysisResults Result;
 };

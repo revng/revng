@@ -12,7 +12,7 @@
 static int fprint_metaaddress(FILE *stream, PlainMetaAddress *address) {
   return fprintf(stream,
                  "{ 0x%" PRIx32 ", 0x%" PRIx16 ", 0x%" PRIx16 ", 0x%" PRIx64
-                 " }\n",
+                 " }",
                  address->Epoch,
                  address->AddressSpace,
                  address->Type,
