@@ -96,6 +96,7 @@ def try_run(command, options: Options, environment: OptionalEnv = None) -> int:
             options,
             environment,
             preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
+            close_fds=False,
         )
         if isinstance(process, int):
             return process
