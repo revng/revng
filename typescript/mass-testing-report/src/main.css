@@ -1,0 +1,55 @@
+/*
+ * This file is distributed under the MIT License. See LICENSE.md for details.
+ */
+
+body {
+    margin-left: 1.5%;
+    margin-right: 1.5%;
+}
+
+div.stats {
+    display: flex;
+}
+
+div.stats div.pieChart {
+    display: block;
+    width: 25%;
+}
+
+div.stats pre {
+    margin-right: auto;
+}
+
+div#flamegraphs img {
+    width: 95%;
+}
+
+h2 {
+    text-align: center;
+}
+
+div#nav {
+    display: flex;
+    align-items: center;
+}
+
+div#nav > :first-child {
+    margin-left: auto;
+}
+
+div#nav > :last-child {
+    margin-right: auto;
+}
+
+td > div > button, td > div > a {
+    margin-right: 0.5%;
+}
+
+td > div > button:last-child, td > div > a:last-child {
+    margin-right: 0;
+}
+
+div#binary-detail table {
+    margin-right: auto;
+    margin-left: auto;
+}

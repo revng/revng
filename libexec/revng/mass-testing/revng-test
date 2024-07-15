@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+# This is a revng-specific script that simplifies using the `revng` together
+# with test-harness. In particular it does the following:
+# * Saves `sections.json` and adds `text_size` to meta.yml
+# * Saves the trace output as `trace.json.gz`
+# * Suppresses output from the `revng` command
+# * Detects if it's being used as a wrapper for `revng` and calls the real one
+#   properly
+# The last characteristic is needed as this script can be symlinked to be
+# `revng` to allow the command to be 1:1 with the reproducer command.
+
+SECTIONS_JSON="$TEST_OUTPUT_DIR/sections.json"
+
+dump-sections "$TEST_INPUT" > "$SECTIONS_JSON"
+echo "text_size: $(dump-sections --text-size "$TEST_INPUT")" >> "$TEST_OUTPUT_DIR/meta.yml"
+
+# Check if we're being used as `revng`, if so, find the next revng executable
+# to avoid an infinite loop.
+if [ "${BASH_SOURCE[0]}" = "$(command -v "revng")" ]; then
+    readarray -t REVNG_PATHS < <(which -a revng)
+    REVNG_PATH="${REVNG_PATHS[1]}"
+else
+    REVNG_PATH=revng
+fi
+
+exec "$REVNG_PATH" "$@" -o /dev/null --trace >(exec gzip -7 -c > "$TEST_OUTPUT_DIR/trace.json.gz")
