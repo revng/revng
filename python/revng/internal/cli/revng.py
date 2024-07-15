@@ -23,6 +23,9 @@ _commands_registry.define_namespace(
 _commands_registry.define_namespace(
     ("trace",), f"Trace-related tools, see {executable_name()} trace --help"
 )
+_commands_registry.define_namespace(
+    ("mass-testing",), f"Mass-testing CLI tools, see {executable_name()} mass-testing --help"
+)
 
 
 def extend_list(paths, new_items):

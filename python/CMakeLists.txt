@@ -201,6 +201,19 @@ python_module(
   TARGET_NAME revng-python-cli-commands-graphql WHEEL revng_internal
   MODULE_FILES ${REVNG_CLI_COMMANDS_GRAPHQL_MODULE_FILES})
 
+set(REVNG_CLI_COMMANDS_MASS_TESTING_MODULE_FILES
+    revng/internal/cli/_commands/mass_testing/__init__.py
+    revng/internal/cli/_commands/mass_testing/generate_report/db.py
+    revng/internal/cli/_commands/mass_testing/generate_report/meta.py
+    revng/internal/cli/_commands/mass_testing/generate_report/stacktrace.py
+    revng/internal/cli/_commands/mass_testing/generate_report/test_directory.py
+    revng/internal/cli/_commands/mass_testing/generate_report/__init__.py
+    revng/internal/cli/_commands/mass_testing/run.py
+    revng/internal/cli/_commands/mass_testing/configure.py)
+python_module(
+  TARGET_NAME revng-python-cli-commands-mass-testing WHEEL revng_internal
+  MODULE_FILES ${REVNG_CLI_COMMANDS_MASS_TESTING_MODULE_FILES})
+
 #
 # Install revng.api
 #

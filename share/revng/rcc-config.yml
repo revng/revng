@@ -162,5 +162,5 @@ read_passes:
       - codespell
       - -c
       - --ignore-regex
-      - '\b(ArchType|CreateOr|[Ii]nvokable|\w+I)\b'
+      - '\b(ArchType|CreateOr|[Ii]nvokable|\w+I|IIF)\b'
   - type: CheckCommitPass
