@@ -295,6 +295,25 @@ static void printDefinition(const model::EnumDefinition &E,
   Header << std::move(Suffix) << ";\n";
 }
 
+static void printPadding(ptml::PTMLIndentedOstream &Header,
+                         ptml::PTMLCBuilder &B,
+                         uint64_t FieldOffset,
+                         uint64_t NextOffset,
+                         bool ForEditing) {
+  revng_assert(FieldOffset <= NextOffset);
+  if (FieldOffset == NextOffset)
+    return; // No padding is needed
+
+  if (ForEditing) {
+    Header << B.getStartAtAnnotation(NextOffset) << "\n";
+  } else {
+    Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
+           << B.tokenTag(StructPaddingPrefix + std::to_string(FieldOffset),
+                         ptml::c::tokens::Field)
+           << "[" << B.getNumber(NextOffset - FieldOffset) << "];\n";
+  }
+}
+
 static void printDefinition(Logger<> &Log,
                             const model::StructDefinition &S,
                             ptml::PTMLIndentedOstream &Header,
@@ -302,6 +321,7 @@ static void printDefinition(Logger<> &Log,
                             const model::Binary &Model,
                             TypeNameMap &AdditionalNames,
                             const DefinitionSet &TypesToInline,
+                            bool ForEditing,
                             std::string &&Suffix = "") {
 
   Header << B.getModelComment(S)
@@ -311,14 +331,9 @@ static void printDefinition(Logger<> &Log,
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
 
-    size_t NextOffset = 0ULL;
+    size_t PreviousOffset = 0ULL;
     for (const auto &Field : S.Fields()) {
-      if (NextOffset < Field.Offset()) {
-        Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
-               << B.tokenTag(StructPaddingPrefix + std::to_string(NextOffset),
-                             ptml::c::tokens::Field)
-               << "[" << B.getNumber(Field.Offset() - NextOffset) << "];\n";
-      }
+      printPadding(Header, B, PreviousOffset, Field.Offset(), ForEditing);
 
       auto *MaybeDefinition = Field.Type()->skipToDefinition();
       if (not MaybeDefinition or not TypesToInline.contains(MaybeDefinition)) {
@@ -336,14 +351,11 @@ static void printDefinition(Logger<> &Log,
                               TypesToInline);
       }
 
-      NextOffset = Field.Offset() + Field.Type()->size().value();
+      PreviousOffset = Field.Offset() + Field.Type()->size().value();
     }
 
-    if (NextOffset < S.Size())
-      Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
-             << B.tokenTag(StructPaddingPrefix + std::to_string(NextOffset),
-                           ptml::c::tokens::Field)
-             << "[" << B.getNumber(S.Size() - NextOffset) << "];\n";
+    if (!ForEditing)
+      printPadding(Header, B, PreviousOffset, S.Size(), false);
   }
 
   Header << std::move(Suffix) << ";\n";
@@ -581,7 +593,8 @@ void printDefinition(Logger<> &Log,
                     B,
                     Model,
                     AdditionalNames,
-                    TypesToInline);
+                    TypesToInline,
+                    ForEditing);
   } else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(&T)) {
     printDefinition(Log,
                     *Union,
@@ -622,6 +635,7 @@ void printInlineDefinition(Logger<> &Log,
                     Model,
                     AdditionalNames,
                     TypesToInline,
+                    /* ForEditing = */ false,
                     std::move(Suffix));
 
   } else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(Definition)) {
@@ -657,5 +671,6 @@ void printInlineDefinition(Logger<> &Log,
                   Model,
                   AdditionalNames,
                   TypesToInline,
+                  /* ForEditing = */ false,
                   " " + std::move(Suffix));
 }
