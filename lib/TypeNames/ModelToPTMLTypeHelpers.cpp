@@ -251,7 +251,7 @@ void printForwardDeclaration(const model::TypeDefinition &T,
 
   auto TypeNameReference = B.getLocationReference(T);
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
-         << getTypeKeyword(T, B) << " " << B.getAttributePacked() << " "
+         << getTypeKeyword(T, B) << " " << B.getPackedAttribute() << " "
          << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
@@ -270,8 +270,8 @@ static void printDefinition(const model::EnumDefinition &E,
 
   Header << B.getModelComment(E)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
-         << B.getAnnotateEnum(E.underlyingType().getCName()) << " "
-         << B.getAttributePacked() << " " << B.getLocationDefinition(E) << " ";
+         << B.getEnumAnnotation(E.underlyingType().getCName()) << " "
+         << B.getPackedAttribute() << " " << B.getLocationDefinition(E) << " ";
 
   {
     Scope Scope(Header);
@@ -306,7 +306,7 @@ static void printDefinition(Logger<> &Log,
 
   Header << B.getModelComment(S)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << B.getPackedAttribute() << " ";
   Header << B.getLocationDefinition(S) << " ";
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
@@ -359,7 +359,7 @@ static void printDefinition(Logger<> &Log,
                             std::string &&Suffix = "") {
   Header << B.getModelComment(U)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Union) << " "
-         << B.getAttributePacked() << " ";
+         << B.getPackedAttribute() << " ";
   Header << B.getLocationDefinition(U) << " ";
 
   {
@@ -411,7 +411,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
 
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << B.getPackedAttribute() << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
@@ -481,7 +481,7 @@ static void generateArrayWrapper(const model::ArrayType &ArrayType,
 
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << B.getPackedAttribute() << " ";
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     Header << getNamedCInstance(ArrayType,

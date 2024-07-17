@@ -43,7 +43,7 @@ static void printDefinition(const llvm::StructType *S,
                             ptml::PTMLCBuilder &B) {
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << B.getPackedAttribute() << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);

@@ -383,9 +383,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   revng_assert(not Layout.hasSPTAR());
   revng_assert(Layout.returnMethod() != ReturnMethod::ModelAggregate);
 
-  Header << B.getAnnotateABI(("raw_"
-                              + model::Architecture::getName(RF.Architecture()))
-                               .str());
+  auto ABI = model::Architecture::getName(RF.Architecture());
+  Header << B.getABIAnnotation("raw_" + ABI.str());
   if (Function and not Function->Attributes().empty())
     Header << getFunctionAttributesString(Function->Attributes());
   Header << (SingleLine ? " " : "\n");
@@ -405,8 +404,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
       std::string
         MarkedType = getNamedCInstance(*Arg.Type(), ArgString, B).str().str();
-      std::string
-        MarkedReg = B.getAnnotateReg(model::Register::getName(Arg.Location()));
+      auto RegisterName = model::Register::getName(Arg.Location());
+      std::string MarkedReg = B.getRegisterAnnotation(RegisterName);
       Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + MarkedReg);
       ArgTag.addAttribute(attributes::ActionContextLocation,
                           serializedLocation(ranks::RawArgument,
@@ -426,7 +425,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                                      B);
       Header << Separator
              << getNamedCInstance(*RF.StackArgumentsType(), StackArgName, B);
-      Header << " " << B.getAnnotateStack();
+      Header << " " << B.getStackAnnotation();
     }
     Header << ")";
   }
@@ -440,7 +439,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        ptml::PTMLCBuilder &B,
                                        const model::Binary &Model,
                                        bool SingleLine) {
-  Header << B.getAnnotateABI(model::ABI::getName(CF.ABI()));
+  Header << B.getABIAnnotation(model::ABI::getName(CF.ABI()));
   if (Function and not Function->Attributes().empty())
     Header << getFunctionAttributesString(Function->Attributes());
   Header << (SingleLine ? " " : "\n");

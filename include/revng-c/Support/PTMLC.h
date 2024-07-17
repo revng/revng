@@ -419,24 +419,21 @@ public:
            + "\n";
   }
 
-  std::string getAnnotateEnum(const llvm::StringRef Annotate) const {
-    std::string AnnotateMacro = "_ENUM_UNDERLYING(" + Annotate.str() + ")";
-    return AnnotateMacro;
+  std::string getEnumAnnotation(const llvm::StringRef UnderlyingType) const {
+    return "_ENUM_UNDERLYING(" + UnderlyingType.str() + ")";
   }
 
-  std::string getAnnotateABI(const llvm::StringRef ABI) const {
-    std::string AnnotateMacro = "_ABI(" + ABI.str() + ")";
-    return AnnotateMacro;
+  std::string getABIAnnotation(const llvm::StringRef ABI) const {
+    return "_ABI(" + ABI.str() + ")";
   }
 
-  std::string getAnnotateReg(const llvm::StringRef RegName) const {
-    std::string AnnotateMacro = "_REG(" + RegName.str() + ")";
-    return AnnotateMacro;
+  std::string getRegisterAnnotation(const llvm::StringRef RegisterName) const {
+    return "_REG(" + RegisterName.str() + ")";
   }
 
-  std::string getAnnotateStack() const { return "_STACK"; }
+  std::string getStackAnnotation() const { return "_STACK"; }
 
-  std::string getAttributePacked() { return "_PACKED"; }
+  std::string getPackedAttribute() { return "_PACKED"; }
 
   Tag getNameTag(const model::TypeDefinition &T) const {
     return ptml::PTMLBuilder::tokenTag(T.name().str().str(),
