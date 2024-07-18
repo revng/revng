@@ -7,6 +7,7 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/Progress.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -14,7 +15,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/Lift/Lift.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
 
@@ -92,10 +93,12 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
   // Mark this call to exitTB as handled
   ExitTBCall->setArgOperand(0, ExitTBArg);
 
-  PCH->buildDispatcher(Destinations,
-                       BB,
-                       UnexpectedPC,
-                       BlockType::IndirectBranchDispatcherHelperBlock);
+  auto *XX = PCH
+               ->buildDispatcher(Destinations,
+                                 BB,
+                                 UnexpectedPC,
+                                 BlockType::IndirectBranchDispatcherHelperBlock)
+               .Switch;
 
   // Move all the markers right before the branch instruction
   Instruction *Last = BB->getTerminator();
@@ -115,8 +118,9 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
 
   // Notify new branches only if the amount of possible targets actually
   // increased
-  if (Destinations.size() > OldTargetsCount)
+  if (Destinations.size() > OldTargetsCount) {
     JTM->recordNewBranches(Source, Destinations.size() - OldTargetsCount);
+  }
 }
 
 bool TDBP::pinMaterializedValues(Function &F) {
@@ -277,20 +281,10 @@ bool TDBP::pinConstantStore(Function &F) {
 static bool isPossiblyReturningHelper(ProgramCounterHandler *PCH,
                                       const MetaAddress &PC,
                                       llvm::Instruction *I) {
-  // Is this a helper?
-  auto *Call = getCallToHelper(I);
-  if (Call == nullptr)
+  if (not PCH->isPCAffectingHelper(I))
     return false;
 
-  // Does this helper write something?
-  auto UsedCSV = getCSVUsedByHelperCallIfAvailable(Call);
-  if (not UsedCSV.has_value() or UsedCSV->Written.empty())
-    return false;
-
-  // Does this helper affect PC?
-  auto AffectsPC = [PCH](GlobalVariable *CSV) { return PCH->affectsPC(CSV); };
-  if (not llvm::any_of(UsedCSV->Written, AffectsPC))
-    return false;
+  auto *Call = cast<CallInst>(I);
 
   // Obtain the name of the helper
   StringRef CalleeName;
@@ -439,7 +433,12 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {
-          Result = MaterializedValue::fromConstant(NewAPInt(Address.address()));
+          if (Segment.IsWriteable())
+            Result = MaterializedValue::fromMutable(NewAPInt(Address
+                                                               .address()));
+          else
+            Result = MaterializedValue::fromConstant(NewAPInt(Address
+                                                                .address()));
           ++MatchCount;
         } else {
           // TODO: log message
@@ -455,19 +454,11 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
   }
 
   // No labels found, fall back to read the raw value, if available
-  auto MaybeValue = BinaryView.readInteger(LoadAddress,
-                                           LoadSize,
-                                           IsLittleEndian);
-
-  if (MaybeValue)
-    return MaterializedValue::fromConstant(NewAPInt(*MaybeValue));
-  else
-    return MaterializedValue::invalid();
+  return BinaryView.load(LoadAddress, LoadSize, IsLittleEndian);
 }
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      ProgramCounterHandler *PCH,
-                                     CSAAFactory CreateCSAA,
                                      const TupleTree<model::Binary> &Model,
                                      const RawBinaryView &BinaryView) :
   TheModule(*TheFunction->getParent()),
@@ -479,7 +470,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   CurrentCFGForm(CFGForm::UnknownForm),
-  CreateCSAA(CreateCSAA),
   PCH(PCH),
   Model(Model),
   BinaryView(BinaryView) {

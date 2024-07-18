@@ -52,6 +52,72 @@ public:
   }
 };
 
+#define VECTOR_BIMAP
+#ifdef VECTOR_BIMAP
+class PathTargetBimap {
+private:
+  // WIP: drop mutable
+  mutable std::vector<std::pair<TupleTreePath, TargetInContainer>> Map;
+  mutable bool Sorted = true;
+
+public:
+  explicit PathTargetBimap() {}
+
+public:
+  auto begin() { return Map.begin(); }
+  auto end() { return Map.end(); }
+  auto begin() const { return Map.begin(); }
+  auto end() const { return Map.end(); }
+
+  auto find(const TupleTreePath &Path) const {
+    sort();
+    auto StartIt = llvm::
+      lower_bound(Map,
+                  std::pair<TupleTreePath,
+                            TargetInContainer>(Path,
+                                               TargetInContainer(Target(),
+                                                                 "")));
+    auto EndIt = StartIt;
+    while (EndIt != Map.end() and EndIt->first == Path)
+      ++EndIt;
+    return llvm::make_range(StartIt, EndIt);
+  }
+
+public:
+  void merge(PathTargetBimap &&Other) {
+    Sorted = false;
+    for (auto &Entry : Other.Map)
+      Map.emplace_back(std::move(Entry));
+  }
+
+public:
+  void insert(const TargetInContainer &TargetInContainer,
+              TupleTreePath &&Path) {
+    Sorted = false;
+    Map.emplace_back(std::move(Path), TargetInContainer);
+  }
+
+  void remove(const TargetsList &List, llvm::StringRef ContainerName) {
+    // Note: erasing entries does not affect Sorted status
+    llvm::erase_if(Map,
+                   [&](const std::pair<TupleTreePath, TargetInContainer>
+                         &Entry) {
+                     return Entry.second.getContainerName() == ContainerName
+                            and List.contains(Entry.second.getTarget());
+                   });
+  }
+
+private:
+  void sort() const {
+    if (Sorted)
+      return;
+
+    Sorted = true;
+    llvm::sort(Map);
+  }
+};
+
+#else
 /// A PathTargetBimap is a many to many relationship between a TupleTreePaths
 /// and TargetInContainer. It can be queried both ways, so from a target and a
 /// container you can get the list of tuple tree paths that contribuited to that
@@ -71,7 +137,6 @@ public:
   auto begin() const { return Map.begin(); }
   auto end() const { return Map.end(); }
 
-public:
   auto find(const TupleTreePath &Path) const { return Map.find(Path); }
 
 public:
@@ -82,8 +147,6 @@ public:
   }
 
 public:
-  void clear() { Map = MapType(); }
-
   void insert(const TargetInContainer &TargetInContainer,
               const TupleTreePath &Path) {
     Map[Path].insert(TargetInContainer);
@@ -104,5 +167,6 @@ public:
     }
   }
 };
+#endif
 
 } // namespace pipeline

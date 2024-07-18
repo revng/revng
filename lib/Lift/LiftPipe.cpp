@@ -5,13 +5,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-extern "C" {
-#include "dlfcn.h"
-}
-
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Lift/IRAnnotators.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LiftPipe.h"
 #include "revng/Model/LoadModelPass.h"
@@ -20,13 +20,128 @@ extern "C" {
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
-#include "revng/Support/IRAnnotators.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
 
 using namespace llvm;
 using namespace pipeline;
 using namespace ::revng::pipes;
+
+class VerifyPass : public llvm::ModulePass {
+public:
+  static char ID;
+
+public:
+  VerifyPass() : llvm::ModulePass(ID) {}
+
+public:
+  bool runOnModule(Module &M) final {
+    Function *RootFunction = M.getFunction("root");
+    revng_assert(RootFunction != nullptr);
+
+    llvm::ModuleSlotTracker MST(&M, false);
+    std::string Buffer;
+    llvm::raw_string_ostream Stream(Buffer);
+
+    for (BasicBlock &BB : *RootFunction) {
+      // Ignore some special basic blocks
+      if (BB.getName() == "dispatcher.default"
+          or BB.getName() == "serialize_and_jump_out"
+          or BB.getName() == "return_from_external" or BB.getName() == "setjmp"
+          or BB.getName() == "dispatcher.external")
+        continue;
+
+      for (Instruction &I : BB) {
+        bool Good = false;
+
+        switch (I.getOpcode()) {
+        case Instruction::Store:
+        case Instruction::Load:
+          Good = true;
+          break;
+
+        case Instruction::IntToPtr:
+        case Instruction::Add:
+        case Instruction::Sub:
+        case Instruction::Mul:
+        case Instruction::UDiv:
+        case Instruction::SDiv:
+        case Instruction::URem:
+        case Instruction::SRem:
+        case Instruction::And:
+        case Instruction::Or:
+        case Instruction::Xor:
+        case Instruction::ZExt:
+        case Instruction::Trunc:
+        case Instruction::SExt:
+        case Instruction::ICmp:
+        case Instruction::LShr:
+        case Instruction::AShr:
+        case Instruction::Shl:
+        case Instruction::Select:
+          Good = true;
+          break;
+
+        case Instruction::Br:
+        case Instruction::Switch:
+        case Instruction::Unreachable:
+          Good = true;
+          break;
+
+        case Instruction::PHI:
+          Good = true;
+          break;
+
+        case Instruction::ExtractValue:
+          Good = true;
+          break;
+
+        case Instruction::Call:
+          // Make further checks
+          auto *Call = cast<CallInst>(&I);
+          Value *CalledOperand = Call->getCalledOperand();
+          Function *Callee = dyn_cast_or_null<Function>(CalledOperand);
+          StringRef CalleeName;
+          if (Callee != nullptr)
+            CalleeName = Callee->getName();
+
+          Good = (CalleeName == "newpc" or CalleeName == "jump_to_symbol"
+                  or CalleeName.startswith("helper_")
+                  or CalleeName == "function_call"
+                  or CalleeName == "helper_initialize_env"
+                  or CalleeName == "abort");
+
+          switch (Callee->getIntrinsicID()) {
+          case Intrinsic::fshl:
+          case Intrinsic::fshr:
+          case Intrinsic::bswap:
+          case Intrinsic::abs:
+          case Intrinsic::umin:
+          case Intrinsic::umax:
+          case Intrinsic::smin:
+          case Intrinsic::smax:
+          case Intrinsic::ctlz:
+            Good = true;
+          }
+
+          break;
+        }
+
+        if (not Good) {
+          Stream << "Unexpected instruction: ";
+          I.print(Stream, MST);
+          Stream << "\n";
+        }
+      }
+    }
+
+    dbg << Buffer;
+
+    return false;
+  }
+};
+
+char VerifyPass::ID;
 
 void Lift::run(ExecutionContext &EC,
                const BinaryFileContainer &SourceBinary,
@@ -46,6 +161,7 @@ void Lift::run(ExecutionContext &EC,
   PM.add(new LoadExecutionContextPass(&EC, Output.name()));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new LiftPass);
+  PM.add(new VerifyPass);
   PM.run(Output.getModule());
 
   EC.commitUniqueTarget(Output);

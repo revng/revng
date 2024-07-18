@@ -8,6 +8,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/IRBuilder.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 

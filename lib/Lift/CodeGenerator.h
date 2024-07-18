@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/Lift/LibTcg.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/RawBinaryView.h"
 
@@ -25,6 +26,8 @@ class StructDefinition;
 class DataLayout;
 
 }; // namespace llvm
+
+struct LibTcgInterface;
 
 /// Translator from binary code to LLVM IR.
 class CodeGenerator {
@@ -44,7 +47,7 @@ public:
   /// Creates an LLVM function for the code in the specified memory area.
   ///
   /// \param VirtualAddress the address from where the translation should start.
-  void translate(std::optional<uint64_t> RawVirtualAddress);
+  void translate(LibTcg &LibTcg, std::optional<uint64_t> RawVirtualAddress);
 
 private:
   const RawBinaryView &RawBinary;
@@ -54,8 +57,7 @@ private:
   std::unique_ptr<llvm::Module> EarlyLinkedModule;
   const TupleTree<model::Binary> &Model;
 
-  unsigned OriginalInstrMDKind;
-  unsigned PTCInstrMDKind;
+  unsigned LibTcgInstrMDKind;
 
   std::string FunctionListPath;
 

@@ -22,9 +22,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/StringOperations.h"
-#include "revng/Support/Tag.h"
 
 using namespace llvm;
 
@@ -529,7 +527,8 @@ bool deleteOnlyBody(llvm::Function &F) {
     // want them, we have to save them and re-add them after deleting the
     // body of the function.
     auto Attributes = F.getAttributes();
-    auto FTags = FunctionTags::TagsSet::from(&F);
+    // WIP
+    // auto FTags = FunctionTags::TagsSet::from(&F);
 
     MetadataBackup SavedMetadata(&F);
 
@@ -537,7 +536,7 @@ bool deleteOnlyBody(llvm::Function &F) {
     F.deleteBody();
 
     // Restore tags and attributes
-    FTags.set(&F);
+    // FTags.set(&F);
     F.setAttributes(Attributes);
 
     F.clearMetadata();

@@ -422,6 +422,8 @@ Branches:
             UsedContainers: [module.bc.zstd]
             Passes:
               - hoist-struct-phis
+              # WIP: ensure there are not single-incoming phis
+              - instsimplify
               - legacy-segregate-stack-accesses
               - cleanup-stack-size-markers
               - dce
@@ -648,6 +650,8 @@ Branches:
             UsedContainers: [module.bc.zstd]
             Passes:
               - hoist-struct-phis
+              # WIP: ensure there are not single-incoming phis
+              - instsimplify
               - segregate-stack-accesses
               - cleanup-stack-size-markers
               - dce

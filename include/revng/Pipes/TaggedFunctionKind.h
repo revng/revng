@@ -6,11 +6,11 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipes/ModelGlobal.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 
 namespace revng::kinds {

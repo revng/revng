@@ -20,15 +20,15 @@ BOOST_TEST_DONT_PRINT_LOG_VALUE(MetaAddressType::Values)
 using namespace llvm;
 
 static MetaAddress generic32(uint64_t Address) {
-  return MetaAddress::fromGeneric(Triple::x86, Address);
+  return MetaAddress::fromGeneric(model::Architecture::x86, Address);
 }
 
 static MetaAddress generic64(uint64_t Address) {
-  return MetaAddress::fromGeneric(Triple::x86_64, Address);
+  return MetaAddress::fromGeneric(model::Architecture::x86_64, Address);
 }
 
 static MetaAddress pc(uint64_t Address) {
-  return MetaAddress::fromPC(Triple::x86, Address);
+  return MetaAddress::fromPC(model::Architecture::x86, Address);
 }
 
 BOOST_AUTO_TEST_CASE(Constructor) {
@@ -51,11 +51,13 @@ BOOST_AUTO_TEST_CASE(Factory) {
 
   // Code
   BOOST_TEST(pc(0x1000).isCode());
-  BOOST_TEST(pc(0x1000).isCode(Triple::x86));
+  BOOST_TEST(pc(0x1000).isCode(model::Architecture::x86));
 
   // Regular ARM and Thumb are both ARM
-  BOOST_TEST(MetaAddress::fromPC(Triple::arm, 0x1000).isCode(Triple::arm));
-  BOOST_TEST(MetaAddress::fromPC(Triple::arm, 0x1001).isCode(Triple::arm));
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::arm, 0x1000)
+               .isCode(model::Architecture::arm));
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::arm, 0x1001)
+               .isCode(model::Architecture::arm));
 
   // Generic
   BOOST_TEST(generic64(0x1000).isGeneric());
@@ -64,8 +66,10 @@ BOOST_AUTO_TEST_CASE(Factory) {
   BOOST_TEST(pc(0x1000).toGeneric().isGeneric());
 
   // bitSize
-  BOOST_TEST(MetaAddress::fromPC(Triple::arm, 0).bitSize() == uint64_t(32));
-  BOOST_TEST(MetaAddress::fromPC(Triple::aarch64, 0).bitSize() == uint64_t(64));
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::arm, 0).bitSize()
+             == uint64_t(32));
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::aarch64, 0).bitSize()
+             == uint64_t(64));
 
   // Epoch
   BOOST_TEST(generic64(0).epoch() == uint64_t(0));
@@ -80,7 +84,8 @@ BOOST_AUTO_TEST_CASE(Accessors) {
   BOOST_TEST(MetaAddress::invalid().asPCOrZero() == uint64_t(0));
   BOOST_TEST(pc(0x1000).asPC() == uint64_t(0x1000));
   using MA = MetaAddress;
-  BOOST_TEST(MA::fromPC(Triple::arm, 0x1001).asPC() == uint64_t(0x1001));
+  BOOST_TEST(MA::fromPC(model::Architecture::arm, 0x1001).asPC()
+             == uint64_t(0x1001));
   BOOST_TEST(generic64(0x1000).address() == uint64_t(0x1000));
 }
 
@@ -106,12 +111,12 @@ BOOST_AUTO_TEST_CASE(Overflow) {
 }
 
 BOOST_AUTO_TEST_CASE(Thumb) {
-  auto NonThumb = MetaAddress::fromPC(Triple::arm, 0x1000);
+  auto NonThumb = MetaAddress::fromPC(model::Architecture::arm, 0x1000);
   BOOST_TEST(NonThumb.type() == MetaAddressType::Code_arm);
   BOOST_TEST(NonThumb.address() == uint64_t(0x1000));
   BOOST_TEST(NonThumb.asPC() == uint64_t(0x1000));
 
-  auto Thumb = MetaAddress::fromPC(Triple::arm, 0x1001);
+  auto Thumb = MetaAddress::fromPC(model::Architecture::arm, 0x1001);
   BOOST_TEST(Thumb.type() == MetaAddressType::Code_arm_thumb);
   BOOST_TEST(Thumb.address() == uint64_t(0x1000));
   BOOST_TEST(Thumb.asPC() == uint64_t(0x1001));
@@ -119,38 +124,44 @@ BOOST_AUTO_TEST_CASE(Thumb) {
 
 BOOST_AUTO_TEST_CASE(Alignment) {
   // Regular ARM
-  BOOST_TEST(MetaAddress::fromPC(Triple::arm, 0x1000).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::arm, 0x1000).isValid());
 
   // Thumb aligned at 4-bytes
-  BOOST_TEST(MetaAddress::fromPC(Triple::arm, 0x1001).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::arm, 0x1001).isValid());
 
   // Thumb aligned at 2-bytes
-  BOOST_TEST(MetaAddress::fromPC(Triple::arm, 0x1003).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::arm, 0x1003).isValid());
 
   // Misaligned regular ARM
-  BOOST_TEST(MetaAddress::fromPC(Triple::arm, 0x1002).isInvalid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::arm, 0x1002).isInvalid());
 
   // MIPS
-  BOOST_TEST(MetaAddress::fromPC(Triple::mips, 0x1000).isValid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::mips, 0x1001).isInvalid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::mips, 0x1002).isInvalid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::mips, 0x1003).isInvalid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::mips, 0x1000).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::mips, 0x1001)
+               .isInvalid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::mips, 0x1002)
+               .isInvalid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::mips, 0x1003)
+               .isInvalid());
 
   // x86
-  BOOST_TEST(MetaAddress::fromPC(Triple::x86, 0x1000).isValid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::x86, 0x1001).isValid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::x86, 0x1002).isValid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::x86, 0x1003).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::x86, 0x1000).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::x86, 0x1001).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::x86, 0x1002).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::x86, 0x1003).isValid());
 
   // SystemZ
-  BOOST_TEST(MetaAddress::fromPC(Triple::systemz, 0x1000).isValid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::systemz, 0x1001).isInvalid());
-  BOOST_TEST(MetaAddress::fromPC(Triple::systemz, 0x1002).isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::systemz, 0x1000)
+               .isValid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::systemz, 0x1001)
+               .isInvalid());
+  BOOST_TEST(MetaAddress::fromPC(model::Architecture::systemz, 0x1002)
+               .isValid());
 }
 
 BOOST_AUTO_TEST_CASE(Comparison) {
-  auto A = MetaAddress::fromGeneric(Triple::x86, 0x1000);
-  auto B = MetaAddress::fromGeneric(Triple::x86, 0x1001);
+  auto A = MetaAddress::fromGeneric(model::Architecture::x86, 0x1000);
+  auto B = MetaAddress::fromGeneric(model::Architecture::x86, 0x1001);
 
   BOOST_TEST(A.addressLowerThan(B));
   BOOST_TEST(A != B);
@@ -178,8 +189,8 @@ BOOST_AUTO_TEST_CASE(Map) {
   Map[generic64(0)] = 1;
   Map[MetaAddress::invalid()] = 1;
   Map[pc(0)] = 1;
-  Map[MetaAddress::fromPC(Triple::arm, 0)] = 1;
-  Map[MetaAddress::fromPC(Triple::arm, 1)] = 1;
+  Map[MetaAddress::fromPC(model::Architecture::arm, 0)] = 1;
+  Map[MetaAddress::fromPC(model::Architecture::arm, 1)] = 1;
 
   BOOST_TEST(Map.size() == size_t(5));
 }

@@ -20,11 +20,11 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using llvm::dyn_cast;
@@ -338,6 +338,21 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         revng_assert(not ParentFunc()->StackFrameType().isEmpty());
         rc_return{ ParentFunc()->StackFrameType() };
 
+      } else if (FTags.contains(FunctionTags::QEMU)
+                 and Call->getType()->isStructTy()) {
+        auto *ReturnedStruct = cast<llvm::StructType>(Call->getType());
+        revng_assert(llvm::all_of(ReturnedStruct->elements(),
+                                  [](llvm::Type *T) {
+                                    return isa<llvm::IntegerType>(T);
+                                  }));
+
+        llvm::SmallVector<model::UpcastableType, 8> Result;
+        for (llvm::Type *ElementType : ReturnedStruct->elements()) {
+          auto ByteSize = ElementType->getIntegerBitWidth() / 8;
+          Result.push_back(model::PrimitiveType::makeGeneric(ByteSize));
+        }
+
+        return Result;
       } else {
         revng_assert(not FuncName.startswith("revng_call_stack_arguments"));
       }

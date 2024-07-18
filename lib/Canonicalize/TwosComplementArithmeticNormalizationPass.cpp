@@ -13,7 +13,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct TwosComplementArithmeticNormalizationPass : public llvm::FunctionPass {

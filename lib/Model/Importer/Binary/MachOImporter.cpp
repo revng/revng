@@ -9,6 +9,7 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
@@ -16,7 +17,6 @@
 #include "revng/Model/Pass/FlattenPrimitiveTypedefs.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 #include "ELFImporter.h"
@@ -75,15 +75,16 @@ public:
   }
 };
 
-static MetaAddress
-getInitialPC(Architecture::Values Arch, bool Swap, ArrayRef<uint8_t> Command) {
+static MetaAddress getInitialPC(Architecture::Values Architecture,
+                                bool Swap,
+                                ArrayRef<uint8_t> Command) {
 
   ArrayRefReader<uint8_t> Reader(Command, Swap);
   uint32_t Flavor = Reader.read<uint32_t>();
   uint32_t Count = Reader.read<uint32_t>();
   std::optional<uint64_t> PC;
 
-  switch (Arch) {
+  switch (Architecture) {
   case Architecture::x86: {
 
     switch (Flavor) {
@@ -160,7 +161,7 @@ getInitialPC(Architecture::Values Arch, bool Swap, ArrayRef<uint8_t> Command) {
   }
 
   if (Reader.eof() and PC)
-    return MetaAddress::fromPC(Architecture::toLLVMArchitecture(Arch), *PC);
+    return MetaAddress::fromPC(Architecture, *PC);
   else
     return MetaAddress::invalid();
 }
@@ -274,10 +275,8 @@ Error MachOImporter::import() {
   }
 
   if (EntryPointOffset) {
-    using namespace model::Architecture;
-    auto LLVMArchitecture = toLLVMArchitecture(Model->Architecture());
     auto EntryPoint = File.offsetToAddress(*EntryPointOffset)
-                        .toPC(LLVMArchitecture);
+                        .toPC(Model->Architecture());
     setEntryPoint(EntryPoint);
   }
 

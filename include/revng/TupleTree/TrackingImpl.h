@@ -10,6 +10,8 @@
 #include "revng/TupleTree/Tracking.h"
 #include "revng/TupleTree/Visits.h"
 
+// #define RECURSIVE
+
 namespace revng {
 
 struct TrackingImpl {
@@ -61,6 +63,7 @@ struct TrackingImpl {
     }
   };
 
+#ifdef RECURSIVE
   template<typename M, size_t I = 0, typename T>
   static void
   collectTuple(const T &LHS, TupleTreePath &Stack, ReadFields &Info) {
@@ -77,6 +80,7 @@ struct TrackingImpl {
       collectTuple<M, I + 1>(LHS, Stack, Info);
     }
   }
+#endif
 
   template<typename M, StrictSpecializationOf<UpcastablePointer> T>
   static void collectImpl(const T &UP, TupleTreePath &Stack, ReadFields &Info) {
@@ -90,11 +94,47 @@ struct TrackingImpl {
     }
   }
 
+#ifdef RECURSIVE
   template<typename M, TupleSizeCompatible T>
   static void
   collectImpl(const T &LHS, TupleTreePath &Stack, ReadFields &Info) {
     collectTuple<M>(LHS, Stack, Info);
   }
+
+#else
+  // collectImpl remains unchanged
+  template<typename M, TupleSizeCompatible T>
+  static void
+  collectImpl(const T &LHS, TupleTreePath &Stack, ReadFields &Info) {
+    collectTuple<M>(LHS, Stack, Info);
+  }
+
+  // Helper function with index sequence
+  template<typename M, typename T, size_t... Is>
+  static void collectTupleImpl(const T &LHS,
+                               TupleTreePath &Stack,
+                               ReadFields &Info,
+                               std::index_sequence<Is...>) {
+    // Use a fold expression to process each index
+    (...,
+     (Stack.push_back(Is),
+      (LHS.template getTracker<Is>().isSet() ?
+         (Info.Read.insert(Stack), void()) :
+         void()),
+      collectImpl<M>(LHS.template untrackedGet<Is>(), Stack, Info),
+      Stack.pop_back()));
+  }
+
+  // Main function using index sequence
+  template<typename M, typename T>
+  static void
+  collectTuple(const T &LHS, TupleTreePath &Stack, ReadFields &Info) {
+    collectTupleImpl<M>(LHS,
+                        Stack,
+                        Info,
+                        std::make_index_sequence<std::tuple_size_v<T>>{});
+  }
+#endif
 
   template<typename M, revng::SetOrKOC T>
   static void

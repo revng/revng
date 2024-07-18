@@ -37,10 +37,10 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
-#include "revng/EarlyFunctionAnalysis/Generated/ForwardDecls.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
@@ -51,7 +51,6 @@
 #include "revng/Pipes/StringMap.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -631,10 +630,19 @@ void IsolateFunctionsImpl::handleUnexpectedPCCloned(efa::OutlinedFunction
 
 void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
                                             const efa::ControlFlowGraph &FM) {
+
+#if 0
+  if (Outlined.Address == MetaAddress::fromString("0x2214c:Code_arm")) {
+    dbg << "IsolateFunctionsImpl::handleAnyPCJumps\n";
+    Outlined.Function->dump();
+    FM.dump();
+  }
+#endif
+
   if (BasicBlock *AnyPC = Outlined.AnyPCCloned) {
     for (BasicBlock *AnyPCPredecessor : toVector(predecessors(AnyPC))) {
       // First of all, identify the basic block
-      const efa::BasicBlock *Block = FM.findBlock(GCBI, AnyPCPredecessor);
+      const efa::BasicBlock *JumpBlock = FM.findBlock(GCBI, AnyPCPredecessor);
 
       Instruction *T = AnyPCPredecessor->getTerminator();
       revng_assert(not cast<BranchInst>(T)->isConditional());
@@ -642,20 +650,22 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
       IRBuilder<> Builder(AnyPCPredecessor);
 
       // Get the only outgoing edge jumping to anypc
-      if (Block == nullptr) {
+      if (JumpBlock == nullptr) {
         emitAbort(Builder, "Unexpected jump", DebugLoc());
         continue;
       }
 
       bool AtLeastAMatch = false;
-      for (auto &Edge : Block->Successors()) {
+      for (auto &Edge : JumpBlock->Successors()) {
         if (Edge->Type() == efa::FunctionEdgeType::DirectBranch)
           continue;
 
-        revng_assert(not AtLeastAMatch);
-        AtLeastAMatch = true;
-
         switch (Edge->Type()) {
+        case efa::FunctionEdgeType::Unexpected:
+          // emitAbort(Builder, "A unexpected jump was taken", DebugLoc());
+
+          // Ignore
+          continue;
         case efa::FunctionEdgeType::Return:
           Builder.CreateRetVoid();
           break;
@@ -687,6 +697,9 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
           revng_abort();
           break;
         }
+
+        revng_assert(not AtLeastAMatch);
+        AtLeastAMatch = true;
       }
 
       if (not AtLeastAMatch) {

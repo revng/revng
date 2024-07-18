@@ -52,13 +52,13 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
   auto &&[ArgumentRegisters,
           ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
   for (Register ArgumentRegister : ArgumentRegisters) {
-    llvm::StringRef Name = model::Register::getCSVName(ArgumentRegister);
+    auto Name = model::Register::getCSVName(ArgumentRegister);
     if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
       Summary.ABIResults.ArgumentsRegisters.insert(CSV);
   }
 
   for (Register ReturnValueRegister : ReturnValueRegisters) {
-    llvm::StringRef Name = model::Register::getCSVName(ReturnValueRegister);
+    auto Name = model::Register::getCSVName(ReturnValueRegister);
     if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
       Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
   }

@@ -11,11 +11,11 @@
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Segment.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "../FuncOrCallInst.h"

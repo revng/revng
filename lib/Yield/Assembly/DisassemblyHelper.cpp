@@ -13,6 +13,8 @@
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
 #include "revng/Yield/Assembly/LLVMDisassemblerInterface.h"
 
+static Logger<> Log("disassemble");
+
 namespace detail {
 
 class DissassemblyHelperImpl
@@ -111,10 +113,18 @@ yield::Function DH::disassemble(const model::Function &Function,
                                 const RawBinaryView &BinaryView,
                                 const model::Binary &Binary,
                                 const model::AssemblyNameBuilder &NameBuilder) {
+  revng_log(Log, "Disassembling function at " << Function.Entry().toString());
+  LoggerIndent<> Indent(Log);
+
   yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
   for (auto BasicBlockInserter = ResultFunction.Blocks().batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
+    revng_log(Log,
+              "Disassembling block " << BasicBlock.ID().toString() << "-"
+                                     << BasicBlock.End().toString());
+    LoggerIndent<> Indent2(Log);
+
     auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type(),
                                       Binary.Configuration().Disassembly());
 
@@ -143,6 +153,9 @@ yield::Function DH::disassemble(const model::Function &Function,
     MetaAddress InstructionWithTheDelaySlot = MetaAddress::invalid();
     for (auto InstrInserter = ResultBasicBlock.Instructions().batch_insert();
          CurrentAddress < BasicBlock.End();) {
+      revng_log(Log,
+                "Disassembling instruction at " << CurrentAddress.toString());
+
       auto MaybeInstructionOffset = CurrentAddress - StartAddress;
       revng_assert(MaybeInstructionOffset.has_value());
       auto InstructionBytes = RawBytes->drop_front(*MaybeInstructionOffset);
@@ -156,12 +169,8 @@ yield::Function DH::disassemble(const model::Function &Function,
       Result.Comment() = std::move(Disassembled.Comment);
       Result.Error() = std::move(Disassembled.Error);
 
-      if (Disassembled.HasDelaySlot) {
-        revng_assert(InstructionWithTheDelaySlot.isInvalid(),
-                     "Multiple instructions with delay slots are not allowed "
-                     "in the same basic block.");
+      if (Disassembled.HasDelaySlot)
         InstructionWithTheDelaySlot = Disassembled.Address;
-      }
 
       auto Bytes = BinaryView.getByAddress(CurrentAddress, Disassembled.Size);
       revng_assert(Bytes.has_value());
@@ -181,8 +190,6 @@ yield::Function DH::disassemble(const model::Function &Function,
     if (InstructionWithTheDelaySlot.isValid()) {
       revng_assert(ResultBasicBlock.Instructions().size() > 1);
       auto Last = std::prev(ResultBasicBlock.Instructions().end());
-      revng_assert(InstructionWithTheDelaySlot == std::prev(Last)->Address());
-
       ResultBasicBlock.HasDelaySlot() = true;
     }
 

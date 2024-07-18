@@ -20,11 +20,13 @@
 #include "revng/Lift/Lift.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/ProgramCounterHandler.h"
+
+#include "revng/Model/Generated/Early/Architecture.h"
 
 // Forward declarations
 namespace llvm {
@@ -163,9 +165,7 @@ public:
   const ProgramCounterHandler *programCounterHandler() {
     if (not PCH) {
       llvm::Module *M = RootFunction->getParent();
-      using namespace model::Architecture;
-      auto Architecture = toLLVMArchitecture(Binary->Architecture());
-      PCH = ProgramCounterHandler::fromModule(Architecture, M);
+      PCH = ProgramCounterHandler::fromModule(Binary->Architecture(), M);
     }
 
     return PCH.get();
@@ -300,9 +300,7 @@ public:
   }
 
   MetaAddress fromPC(uint64_t PC) const {
-    using namespace model::Architecture;
-    auto Architecture = toLLVMArchitecture(Binary->Architecture());
-    return MetaAddress::fromPC(Architecture, PC);
+    return MetaAddress::fromPC(Binary->Architecture(), PC);
   }
 
   llvm::Function *root() {
@@ -312,6 +310,10 @@ public:
 
   llvm::SmallVector<std::pair<llvm::BasicBlock *, bool>, 4>
   blocksByPCRange(MetaAddress Start, MetaAddress End);
+
+  bool hasDelaySlot() const {
+    return model::Architecture::hasDelaySlot(Binary->Architecture());
+  }
 
 private:
   void parseRoot();

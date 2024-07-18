@@ -18,6 +18,7 @@
 
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"
@@ -25,7 +26,6 @@
 #include "revng/Support/Annotations.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 
 using llvm::dyn_cast;
@@ -122,9 +122,11 @@ bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
     // These should never happen in revng-generated IR anyway, except for some
     // leftover unused declarations of custom helpers that are never used
     // (such as unknownPC)
+    // WIP FINAL: try drop
     if (hasUnprintableArgsOrRetTypes(F))
       continue;
 
+    // WIP FINAL: wrong
     if (Log.isEnabled()) {
       auto CommentScope = B.getLineCommentScope();
       std::string Serialized{};

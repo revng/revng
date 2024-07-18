@@ -31,6 +31,7 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -39,7 +40,6 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
 
 using namespace llvm;

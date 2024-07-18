@@ -5,7 +5,7 @@
 //
 
 #include "revng/FunctionIsolation/StructInitializers.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 
 using namespace llvm;
 

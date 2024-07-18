@@ -99,6 +99,10 @@ MaterializedValue::apply(llvm::Instruction *Operation,
   return Result;
 }
 
+MaterializedValue MaterializedValue::fromMutable(llvm::ConstantInt *CI) {
+  return MaterializedValue::fromMutable(CI->getValue());
+}
+
 MaterializedValue MaterializedValue::fromConstant(llvm::ConstantInt *CI) {
   return MaterializedValue::fromConstant(CI->getValue());
 }

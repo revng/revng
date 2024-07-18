@@ -4,8 +4,8 @@
 
 #include "llvm/Passes/PassBuilder.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -23,7 +23,6 @@ public:
   HoistStructPhis() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override {
-
     llvm::SmallVector<PHINode *, 16> ToFix;
 
     // Collect phis that need fixing
@@ -44,6 +43,11 @@ public:
 
   void handlePhi(PHINode *Phi) {
     auto PhiSize = Phi->getNumIncomingValues();
+
+    if (PhiSize == 1) {
+      Phi->replaceAllUsesWith(Phi->getIncomingValue(0));
+      return;
+    }
 
     // Create all the phis
     CallInst *FirstCall = nullptr;

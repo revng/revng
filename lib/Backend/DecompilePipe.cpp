@@ -142,7 +142,6 @@ void Decompile::run(pipeline::ExecutionContext &EC,
                     pipeline::LLVMContainer &IRContainer,
                     const revng::pipes::CFGMap &CFGMap,
                     DecompileStringMap &DecompiledFunctions) {
-
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(EC);
   ControlFlowGraphCache Cache(CFGMap);
@@ -164,7 +163,7 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   reportProblemNames(Model);
 
   if (std::optional Names = gatherNonReservedHelperNames(Module, B.NameBuilder))
-    revng_abort(("Function names should be forbidden:\n" + *Names).c_str());
+    revng_abort(("Forbidden function name found:\n" + *Names).c_str());
 }
 
 } // end namespace revng::pipes

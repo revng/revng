@@ -10,12 +10,12 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/TupleTree/Visits.h"
 
 using namespace pipeline;

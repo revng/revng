@@ -4,8 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Module.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 
+#include "revng/ADT/ConstantRangeSet.h"
 #include "revng/Support/Debug.h"
 #include "revng/ValueMaterializer/ValueMaterializer.h"
 
@@ -13,6 +15,7 @@ void ValueMaterializer::run() {
   revng_log(ValueMaterializerLogger,
             "Evaluating " << getName(V) << " using " << getName(Context)
                           << " as context");
+  LoggerIndent<> Indent(ValueMaterializerLogger);
 
   DataFlowGraph = DataFlowGraph::fromValue(V, TheLimits);
 
@@ -61,7 +64,7 @@ void ValueMaterializer::computeOracleConstraints() {
   case Oracle::AdvancedValueInfo:
     std::tie(OracleConstraints,
              CFEG,
-             MFIResults) = runAVI(DataFlowGraph, Context, DT, LVI, true);
+             MFIResults) = runAVI(DataFlowGraph, Context, DT, LVI, DFRA, true);
     break;
 
   default:
@@ -181,10 +184,12 @@ void ValueMaterializer::electMaterializationStartingPoints() {
 
       if (N->SizeLowerBound == OracleRangeSize) {
         revng_log(ValueMaterializerLogger,
-                  "Setting UseOracle for " << N->valueToString()
-                                           << " since SizeLowerBound == "
-                                              "OracleRangeSize ("
-                                           << N->SizeLowerBound << ")");
+                  "Setting UseOracle for "
+                    << N->valueToString()
+                    << " since SizeLowerBound == "
+                       "OracleRangeSize ("
+                    << N->SizeLowerBound << "). The range is "
+                    << N->OracleRange.value_or(ConstantRangeSet()).toString());
         N->UseOracle = true;
       }
     }

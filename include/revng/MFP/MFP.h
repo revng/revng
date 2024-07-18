@@ -83,7 +83,7 @@ getMaximalFixedPoint(const MFI &Instance,
     size_t Priority;
     Label Item;
 
-    std::strong_ordering operator<=>(const WorklistItem &) const = default;
+    std::weak_ordering operator<=>(const WorklistItem &) const = default;
   };
   std::set<WorklistItem> Worklist;
 
@@ -93,9 +93,8 @@ getMaximalFixedPoint(const MFI &Instance,
   //
   // Initialize the worklist and extremal labels
   //
-  for (Label ExtremalLabel : ExtremalLabels) {
+  for (Label ExtremalLabel : ExtremalLabels)
     AnalysisResult[ExtremalLabel].InValue = ExtremalValue;
-  }
 
   for (Label Start : InitialNodes) {
     if (!Visited.contains(Start)) {
@@ -148,7 +147,7 @@ getMaximalFixedPoint(const MFI &Instance,
   std::vector<Label> InitialNodes(ExtremalLabels);
 
   // Handle the special case that the graph has a single entry node
-  if (GT::getEntryNode(Flow) != nullptr) {
+  if (GT::getEntryNode(Flow) != typename GT::NodeRef{}) {
     InitialNodes.push_back(GT::getEntryNode(Flow));
   }
   // Start visits for nodes that we still haven't visited

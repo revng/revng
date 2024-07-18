@@ -10,7 +10,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/FunctionIsolation/RemoveExceptionalCalls.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

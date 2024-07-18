@@ -4,9 +4,9 @@
 
 #include "llvm/IR/Instructions.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/PromoteStackPointer/CleanupStackSizeMarkersPass.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

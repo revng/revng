@@ -7,6 +7,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#pragma clang optimize off
+
 #include <memory>
 
 #include "llvm/ADT/StringRef.h"
@@ -24,15 +26,61 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMKind.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ModuleStatistics.h"
 #include "revng/Support/ZstdStream.h"
 
 const char pipeline::LLVMContainer::ID = '0';
 using namespace pipeline;
+
+auto Check = [](llvm::Module *M) {
+  auto ExtractCSVs =
+    [](llvm::Function *F,
+       unsigned MDKindID) -> std::vector<llvm::GlobalVariable *> {
+    using namespace llvm;
+
+    std::vector<GlobalVariable *> Result;
+    auto *Tuple = cast_or_null<MDTuple>(F->getMetadata(MDKindID));
+    if (Tuple == nullptr)
+      return Result;
+
+    QuickMetadata QMD(F->getContext());
+
+    auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
+    for (const MDOperand &Operand : OperandsRange) {
+      if (Metadata *MD = Operand.get()) {
+        auto *CSV = QMD.extract<Constant *>(MD);
+        Result.push_back(cast<GlobalVariable>(CSV));
+      }
+    }
+
+    return Result;
+  };
+
+#if 0
+  for (llvm::Function &F : M->functions()) {
+    if (auto *MD = F.getMetadata("revng.csvaccess.offsets.load")) {
+      for (llvm::GlobalVariable *CSV :
+           ExtractCSVs(&F,
+                       F.getParent()->getMDKindID("revng.csvaccess.offsets."
+                                                  "load"))) {
+        revng_assert(CSV->getParent() == M);
+      }
+    }
+    if (auto *MD = F.getMetadata("revng.csvaccess.offsets.store")) {
+      for (llvm::GlobalVariable *CSV :
+           ExtractCSVs(&F,
+                       F.getParent()->getMDKindID("revng.csvaccess.offsets."
+                                                  "store"))) {
+        revng_assert(CSV->getParent() == M);
+      }
+    }
+  }
+#endif
+};
 
 void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
                                       llvm::StringRef GlobalArrayName) {
@@ -61,6 +109,92 @@ void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
                            GlobalArrayName);
 }
 
+struct FunctionsMetadata {
+  static inline const char *MetadataName = "revng.functions-metatadata-backup";
+
+  static void dropBackup(llvm::Module &M) {
+    M.eraseNamedMetadata(M.getNamedMetadata(MetadataName));
+  }
+
+  static void backup(llvm::Module &M) {
+    using namespace llvm;
+
+    LLVMContext &Context = M.getContext();
+
+    // Create the named metadata
+    NamedMDNode *BackupNMD = M.getOrInsertNamedMetadata(MetadataName);
+    BackupNMD->clearOperands();
+
+    // Backup saving names, the metadata kind IDs might change
+    SmallVector<StringRef> MDKindNames;
+    M.getMDKindNames(MDKindNames);
+
+    for (Function &F : M) {
+      // Ignore unnamed functions
+      if (F.getName().empty())
+        continue;
+
+      // Collect metadata for the function
+      SmallVector<std::pair<unsigned, MDNode *>, 8> MDs;
+      F.getAllMetadata(MDs);
+
+      // Skip if no metadata
+      if (MDs.empty())
+        continue;
+
+      // Create an MDNode for the function's metadata
+      // Format: [FunctionName, MDKind1, MDNode1, MDKind2, MDNode2, ...]
+      SmallVector<Metadata *, 8> BackupEntry;
+      BackupEntry.push_back(MDString::get(Context, F.getName()));
+
+      for (const auto &MD : MDs) {
+        BackupEntry.push_back(MDString::get(Context, MDKindNames[MD.first]));
+        BackupEntry.push_back(MD.second);
+      }
+
+      // Append entry
+      BackupNMD->addOperand(MDNode::get(Context, BackupEntry));
+    }
+  }
+
+  static void restore(llvm::Module &M) {
+    using namespace llvm;
+
+    NamedMDNode *BackupNMD = M.getNamedMetadata(MetadataName);
+    if (!BackupNMD)
+      return;
+
+    // dumpModule(&M, "/tmp/asd3.ll");
+
+    // Iterate over all operands in the backup NamedMDNode
+    for (MDNode *N : BackupNMD->operands()) {
+      if (N->getNumOperands() == 0)
+        continue;
+
+      // Get the function name
+      StringRef FuncName = cast<MDString>(N->getOperand(0))->getString();
+
+      // Find the function by name
+      Function *F = M.getFunction(FuncName);
+      if (F == nullptr)
+        continue;
+
+      // Clear existing metadata
+      F->clearMetadata();
+
+      auto OperandCount = N->getNumOperands();
+      revng_assert(OperandCount >= 3 and OperandCount % 2 == 1);
+
+      // Restore metadata (operands come in pairs: kind name, MDNode)
+      for (unsigned I = 1; I < OperandCount; I += 2) {
+        auto *KindMD = cast<MDString>(N->getOperand(I).get());
+        MDNode *MD = cast<MDNode>(N->getOperand(I + 1));
+        F->setMetadata(KindMD->getString(), MD);
+      }
+    }
+  }
+};
+
 std::unique_ptr<ContainerBase>
 LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
   using InspectorT = LLVMKind;
@@ -77,19 +211,63 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
 
   llvm::ValueToValueMapTy Map;
 
+  Check(&*Module);
+
+  FunctionsMetadata::backup(*Module.get());
+
   revng::verify(Module.get());
   auto Cloned = llvm::CloneModule(*Module, Map, Filter);
+
+  Check(&*Cloned);
+
+  FunctionsMetadata::restore(*Cloned.get());
+  FunctionsMetadata::dropBackup(*Module.get());
+  FunctionsMetadata::dropBackup(*Cloned.get());
+
+  // WIP: drop these checks
+  llvm::SmallVector<llvm::StringRef> OldMDKindNames;
+  Module->getMDKindNames(OldMDKindNames);
+  llvm::SmallVector<llvm::StringRef> NewMDKindNames;
+  Cloned->getMDKindNames(NewMDKindNames);
 
   for (auto &Function : Module->functions()) {
     auto *Other = Cloned->getFunction(Function.getName());
     if (not Other)
       continue;
 
+    llvm::SmallVector<std::pair<unsigned int, llvm::MDNode *>> OldMDs;
+    Function.getAllMetadata(OldMDs);
+    llvm::SmallVector<std::pair<unsigned int, llvm::MDNode *>> NewMDs;
+    Other->getAllMetadata(NewMDs);
+    revng_assert(OldMDs.size() == NewMDs.size()
+                 or OldMDs.size() == NewMDs.size() + 1);
+
+    for (unsigned I = 0; I < OldMDs.size(); ++I) {
+      bool Found = false;
+      for (unsigned J = 0; J < NewMDs.size(); ++J) {
+        if (NewMDKindNames[NewMDs[J].first]
+            == OldMDKindNames[OldMDs[I].first]) {
+          Found = true;
+          break;
+        }
+      }
+
+      if (not Found) {
+        dbg << OldMDKindNames[OldMDs[I].first].str() << "\n";
+        OldMDs[I].second->dump();
+      }
+      revng_assert(Found);
+    }
+
+#if 0
     Other->clearMetadata();
 
     MetadataBackup SavedMetadata(&Function);
     SavedMetadata.restoreIn(Other);
+#endif
   }
+
+  Check(&*Cloned);
 
   return std::make_unique<ThisType>(this->name(),
                                     this->TheContext,
@@ -104,9 +282,9 @@ static void fixGlobals(llvm::Module &Module,
   using namespace llvm;
 
   for (auto &Global : Module.global_objects()) {
-    // Turn globals with local linkage and external declarations into the
-    // equivalent of inline and record their original linking for it be
-    // restored later
+    // Turn globals with local linkage and external declarations
+    // into the equivalent of inline and record their original
+    // linking for it be restored later
     if (Global.getLinkage() == GlobalValue::InternalLinkage
         or Global.getLinkage() == GlobalValue::PrivateLinkage
         or Global.getLinkage() == GlobalValue::AppendingLinkage
@@ -142,13 +320,14 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
 
   LinkageRestoreMap LinkageRestore;
 
-  // All symbols internal and external symbols myst be transformed into weak
-  // symbols, so that when multiple with the same name exists, one is
-  // dropped.
+  // All symbols internal and external symbols myst be transformed
+  // into weak symbols, so that when multiple with the same name
+  // exists, one is dropped.
   fixGlobals(*ToMerge, LinkageRestore);
   fixGlobals(*Module, LinkageRestore);
 
-  // Make a global array of all global objects so that they don't get dropped
+  // Make a global array of all global objects so that they don't
+  // get dropped
   std::string GlobalArray1 = "revng.AllSymbolsArrayLeft";
   makeGlobalObjectsArray(*Module, GlobalArray1);
 
@@ -171,12 +350,17 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   if (Module->getDataLayout().isDefault())
     Module->setDataLayout(ToMerge->getDataLayout());
 
+  Check(&*ToMerge);
+  Check(&*Module);
+
   llvm::Linker TheLinker(*ToMerge);
 
   // Actually link
   bool Failure = TheLinker.linkInModule(std::move(Module));
 
   revng_assert(not Failure, "Linker failed");
+
+  Check(&*ToMerge);
 
   // Restores the initial linkage for local functions
   for (auto &Global : ToMerge->global_objects()) {
@@ -187,8 +371,8 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
 
   Module = std::move(OtherContainer.Module);
 
-  // Checks that module merging commutes w.r.t. enumeration, as specified in
-  // the first comment.
+  // Checks that module merging commutes w.r.t. enumeration, as
+  // specified in the first comment.
   auto ActualEnumeration = this->enumerate();
   revng_assert(ExpectedEnumeration.contains(ActualEnumeration));
   revng_assert(ActualEnumeration.contains(ExpectedEnumeration));
@@ -258,13 +442,16 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   for (llvm::Function *F : ToErase)
     F->eraseFromParent();
 
-  // Prune llvm.dbg.cu so that they grow exponentially due to multiple cloning
+  // Prune llvm.dbg.cu so that they grow exponentially due to
+  // multiple cloning
   // + linking.
   // Note: an alternative approach would be to pre-populate the
-  //       ValueToValueMap used when we clone in a way that avoids cloning the
-  //       metadata altogether. However, this would lead two distinct modules
-  //       to share debug metadata, which are not always immutable.
-  auto *NamedMDNode = Module->getOrInsertNamedMetadata("llvm.dbg.cu");
+  //       ValueToValueMap used when we clone in a way that avoids
+  //       cloning the metadata altogether. However, this would lead
+  //       two distinct modules to share debug metadata, which are
+  //       not always immutable.
+  auto *NamedMDNode = Module->getOrInsertNamedMetadata("llvm.dbg."
+                                                       "cu");
   pruneDICompileUnits(*Module);
 
   revng::verify(ToMerge);
@@ -295,7 +482,7 @@ llvm::Error LLVMContainer::extractOne(llvm::raw_ostream &OS,
 
 llvm::Error LLVMContainer::serialize(llvm::raw_ostream &OS) const {
   ZstdCompressedOstream CompressedOS(OS, 3);
-  llvm::WriteBitcodeToFile(getModule(), CompressedOS);
+  llvm::WriteBitcodeToFile(getModule(), CompressedOS, true);
   CompressedOS.flush();
   return llvm::Error::success();
 }

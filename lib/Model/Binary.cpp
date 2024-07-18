@@ -404,3 +404,90 @@ void model::TypeDefinition::dumpTypeGraph(const char *Path,
   TypeSystemPrinter TSPrinter(Out, Binary);
   TSPrinter.print(*this);
 }
+
+llvm::StringRef model::Architecture::getPCCSVName(Values V) {
+  switch (V) {
+  case model::Architecture::x86_64:
+    return "_rip";
+
+  case model::Architecture::x86:
+    return "_eip";
+
+  case model::Architecture::systemz:
+    return "_psw_addr";
+
+  case model::Architecture::arm:
+  case model::Architecture::aarch64:
+    return "_pc";
+
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+    return "_PC";
+
+  default:
+    revng_abort();
+  }
+}
+
+#define UnknownCSVPrefix "state_0x"
+
+std::string model::Register::getCSVName(Values V) {
+  // WIP FINAL: these have changed
+  // TODO: handle xmm0_x86
+  switch (V) {
+  case st0_x86:
+    return "_" UnknownCSVPrefix "0x83c0";
+  case xmm0_x86_64:
+    return "_" UnknownCSVPrefix "0x8558";
+  case xmm1_x86_64:
+    return "_" UnknownCSVPrefix "0x8598";
+  case xmm2_x86_64:
+    return "_" UnknownCSVPrefix "0x85d8";
+  case xmm3_x86_64:
+    return "_" UnknownCSVPrefix "0x8618";
+  case xmm4_x86_64:
+    return "_" UnknownCSVPrefix "0x8658";
+  case xmm5_x86_64:
+    return "_" UnknownCSVPrefix "0x8698";
+  case xmm6_x86_64:
+    return "_" UnknownCSVPrefix "0x86d8";
+  case xmm7_x86_64:
+    return "_" UnknownCSVPrefix "0x8718";
+  default:
+    return "_" + model::Register::getRegisterName(V).str();
+  }
+}
+
+model::Register::Values
+model::Register::fromCSVName(llvm::StringRef Name,
+                             model::Architecture::Values Architecture) {
+  if (not Name.starts_with("_"))
+    return model::Register::Invalid;
+
+  Name = Name.substr(1);
+
+  if (Architecture == model::Architecture::x86_64) {
+    // TODO: handle xmm0_x86
+    if (Name == UnknownCSVPrefix "83c0") {
+      return st0_x86;
+    } else if (Name == UnknownCSVPrefix "0x8558") {
+      return xmm0_x86_64;
+    } else if (Name == UnknownCSVPrefix "0x8598") {
+      return xmm1_x86_64;
+    } else if (Name == UnknownCSVPrefix "0x85d8") {
+      return xmm2_x86_64;
+    } else if (Name == UnknownCSVPrefix "0x8618") {
+      return xmm3_x86_64;
+    } else if (Name == UnknownCSVPrefix "0x8658") {
+      return xmm4_x86_64;
+    } else if (Name == UnknownCSVPrefix "0x8698") {
+      return xmm5_x86_64;
+    } else if (Name == UnknownCSVPrefix "0x86d8") {
+      return xmm6_x86_64;
+    } else if (Name == UnknownCSVPrefix "0x8718") {
+      return xmm7_x86_64;
+    }
+  }
+
+  return model::Register::fromRegisterName(Name, Architecture);
+}

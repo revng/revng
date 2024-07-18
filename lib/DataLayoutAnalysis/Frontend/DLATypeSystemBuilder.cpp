@@ -7,8 +7,8 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Value.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "DLATypeSystemBuilder.h"

@@ -108,9 +108,7 @@ private:
   }
 
   MetaAddress getCodePointer(Pointer Ptr) const {
-    using namespace model::Architecture;
-    auto Architecture = Model->Architecture();
-    return this->getGenericPointer(Ptr).toPC(toLLVMArchitecture(Architecture));
+    return this->getGenericPointer(Ptr).toPC(Model->Architecture());
   }
 
   /// Parse the .eh_frame_hdr section to obtain the address and the number of

@@ -18,7 +18,6 @@ namespace FunctionTags {
 
 extern Tag QEMU;
 extern Tag Helper;
-extern Tag Isolated;
 extern Tag ABIEnforced;
 extern Tag CSVsPromoted;
 extern Tag Exceptional;
@@ -35,9 +34,7 @@ extern Tag WriterFunction;
 extern Tag ReaderFunction;
 extern Tag OpaqueReturnAddressFunction;
 extern Tag CSV;
-extern Tag UniquedByPrototype;
 inline const char *UniqueIDMDName = "revng.unique_id";
-extern Tag UniquedByMetadata;
 extern Tag AllocatesLocalVariable;
 extern Tag ReturnsPolymorphic;
 extern Tag IsRef;
@@ -127,27 +124,10 @@ inline bool isCallToHelper(const llvm::Instruction *I) {
   return getCallToHelper(I) != nullptr;
 }
 
-inline std::optional<CSVsUsage>
-getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
-  revng_assert(isCallToHelper(Call));
-
-  const llvm::Module *M = getModule(Call);
-  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
-  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
-
-  if (Call->getMetadata(LoadMDKind) == nullptr
-      and Call->getMetadata(StoreMDKind) == nullptr) {
-    return {};
-  }
-
-  CSVsUsage Result;
-  Result.Read = extractCSVs(Call, LoadMDKind);
-  Result.Written = extractCSVs(Call, StoreMDKind);
-  return Result;
-}
+std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call);
 
 inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
-  return getCSVUsedByHelperCallIfAvailable(Call).value();
+  return tryGetCSVUsedByHelperCall(Call).value();
 }
 
 /// Checks if \p I is a marker
@@ -365,3 +345,13 @@ llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
 /// operand is a reference.
 llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
                                 llvm::Type *VariableReferenceType);
+//
+// {is,get}CallToIsolatedFunction
+//
+const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V);
+
+llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V);
+
+inline bool isCallToIsolatedFunction(const llvm::Value *V) {
+  return getCallToIsolatedFunction(V) != nullptr;
+}

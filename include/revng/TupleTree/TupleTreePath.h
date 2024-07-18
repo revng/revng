@@ -9,7 +9,108 @@
 #include "llvm/ADT/Twine.h"
 
 #include "revng/ADT/STLExtras.h"
+#include "revng/ADT/TraitfulAny.h"
 #include "revng/Support/Debug.h"
+
+#define NEW_TUPLETREEPATH
+
+#ifdef NEW_TUPLETREEPATH
+
+template<typename T>
+concept CheckLastFieldIsKind = requires {
+  { T::LastFieldIsKind };
+  requires T::LastFieldIsKind == true;
+};
+
+// WIP: rename
+struct MyTrait2 {
+  enum class TraitAction {
+    Compare,
+    Matches
+  };
+  template<typename T>
+  static intptr_t handle(TraitAction Action,
+                         revng::TraitfulAny<MyTrait2> *First,
+                         revng::TraitfulAny<MyTrait2> *Second) {
+    switch (Action) {
+    case TraitAction::Compare: {
+      intptr_t Result = 0;
+      if (First->type_id() == Second->type_id()) {
+        *reinterpret_cast<
+          std::strong_ordering *>(&Result) = *revng::any_cast<T>(First)
+                                             <=> *revng::any_cast<T>(Second);
+      } else {
+        *reinterpret_cast<std::strong_ordering *>(&Result) = First->type_id()
+                                                             <=> Second
+                                                                   ->type_id();
+      }
+      return Result;
+    }
+    case TraitAction::Matches: {
+      if (First->type_id() != Second->type_id())
+        return false;
+
+      if constexpr (CheckLastFieldIsKind<T>) {
+        constexpr auto Index = std::tuple_size_v<T> - 1;
+        return std::get<Index>(*revng::any_cast<T>(First))
+               == std::get<Index>(*revng::any_cast<T>(Second));
+      }
+
+      revng_assert(*revng::any_cast<T>(First) == T());
+      return true;
+    }
+    default:
+      abort();
+    }
+  }
+};
+
+static_assert(sizeof(std::strong_ordering) <= sizeof(intptr_t));
+
+class TupleTreeKeyWrapper : public revng::TraitfulAny<MyTrait2> {
+public:
+  std::strong_ordering operator<=>(const TupleTreeKeyWrapper &Other) const {
+    void *Result = const_cast<TupleTreeKeyWrapper *>(this)
+                     ->call(MyTrait2::TraitAction::Compare,
+                            const_cast<TupleTreeKeyWrapper *>(&Other));
+    return *reinterpret_cast<std::strong_ordering *>(&Result);
+  }
+
+  bool matches(const TupleTreeKeyWrapper &Other) const {
+    if (not this->has_value())
+      return true;
+    void *Result = const_cast<TupleTreeKeyWrapper *>(this)
+                     ->call(MyTrait2::TraitAction::Matches,
+                            const_cast<TupleTreeKeyWrapper *>(&Other));
+    return *reinterpret_cast<bool *>(&Result);
+  }
+
+  template<typename T>
+  const T &get() const {
+    return *revng::any_cast<const T>(this);
+  }
+
+  template<typename T>
+  T &get() {
+    return *revng::any_cast<T>(this);
+  }
+
+  template<typename T>
+  const T *tryGet() const {
+    return revng::any_cast<const T>(this);
+  }
+
+  template<typename T>
+  T *tryGet() {
+    return revng::any_cast<T>(this);
+  }
+
+  bool operator==(const TupleTreeKeyWrapper &Other) const {
+    return (*this <=> Other) == std::strong_ordering::equal;
+  }
+};
+
+#else
 
 template<typename T>
 char *typeID() {
@@ -159,9 +260,12 @@ public:
   }
 };
 
+#endif
+
 class TupleTreePath {
 private:
-  std::vector<TupleTreeKeyWrapper> Storage;
+  // WIP: SmallVector
+  llvm::SmallVector<TupleTreeKeyWrapper, 0> Storage;
 
 public:
   TupleTreePath() = default;
@@ -175,7 +279,11 @@ public:
       for (auto &&[ThisElement, OtherElement] :
            llvm::zip(Storage, Other.Storage)) {
         static_assert(std::is_reference_v<decltype(ThisElement)>);
+#ifdef NEW_TUPLETREEPATH
+        ThisElement = OtherElement;
+#else
         OtherElement.clone(&ThisElement);
+#endif
       }
     }
 
@@ -185,6 +293,12 @@ public:
   TupleTreePath(const TupleTreePath &Other) { *this = Other; }
 
 public:
+#ifdef NEW_TUPLETREEPATH
+  template<typename T, typename... Args>
+  void emplace_back(Args... A) {
+    Storage.emplace_back(std::forward<Args>(A)...);
+  }
+#else
   template<typename T, bool FirstIsKind = false, typename... Args>
   void emplace_back(Args... A) {
     using ConcreteWrapper = ConcreteTupleTreeKeyWrapper<T, FirstIsKind>;
@@ -192,6 +306,7 @@ public:
     Storage.resize(Storage.size() + 1);
     new (&Storage.back()) ConcreteWrapper(A...);
   }
+#endif
 
   template<typename T>
   void push_back(const T &Obj) {

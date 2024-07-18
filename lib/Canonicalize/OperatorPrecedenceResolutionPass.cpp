@@ -14,8 +14,8 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 

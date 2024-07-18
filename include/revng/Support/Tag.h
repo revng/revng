@@ -189,8 +189,6 @@ inline void TagsSet::insert(const Tag &Target) {
   Tags.insert(&Target);
 }
 
-} // namespace FunctionTags
-
 //
 // {is,get}CallToTagged
 //
@@ -203,13 +201,8 @@ inline bool isCallToTagged(const llvm::Value *V, const FunctionTags::Tag &T) {
   return getCallToTagged(V, T) != nullptr;
 }
 
-//
-// {is,get}CallToIsolatedFunction
-//
-const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V);
+extern Tag UniquedByMetadata;
+extern Tag UniquedByPrototype;
+extern Tag Isolated;
 
-llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V);
-
-inline bool isCallToIsolatedFunction(const llvm::Value *V) {
-  return getCallToIsolatedFunction(V) != nullptr;
-}
+} // namespace FunctionTags

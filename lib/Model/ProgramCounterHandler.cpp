@@ -8,9 +8,10 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/ModRef.h"
 
+#include "revng/Model/Architecture.h"
+#include "revng/Model/FunctionTags.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/ProgramCounterHandler.h"
 
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress");
@@ -29,8 +30,9 @@ public:
     auto Result = std::make_unique<PCOnlyProgramCounterHandler>(Alignment);
 
     // Create and register the pc CSV
-    Result->AddressCSV = Factory(PCAffectingCSV::PC, AddressName);
+    Result->AddressCSV = Factory(PCAffectingCSV::PC);
     Result->CSVsAffectingPC.insert(Result->AddressCSV);
+    revng_assert(Result->AddressCSV != nullptr);
 
     // Create the other variables (non-CSV)
     Result->createMissingVariables(M);
@@ -38,12 +40,15 @@ public:
     return Result;
   }
 
-  static std::unique_ptr<ProgramCounterHandler> fromModule(Module *M,
-                                                           unsigned Alignment) {
+  static std::unique_ptr<ProgramCounterHandler>
+  fromModule(model::Architecture::Values Architecture,
+             Module *M,
+             unsigned Alignment) {
     auto Result = std::make_unique<PCOnlyProgramCounterHandler>(Alignment);
 
     // Initialize the standard variables
-    Result->setMissingVariables(M);
+    Result
+      ->setMissingVariables(M, model::Architecture::getPCCSVName(Architecture));
 
     // Register pc as a CSV affecting the program counter
     Result->CSVsAffectingPC.insert(Result->AddressCSV);
@@ -62,16 +67,17 @@ public:
     return createLoad(Builder, AddressCSV);
   }
 
-  std::array<Value *, 4> dissectJumpablePC(IRBuilderBase &Builder,
-                                           Value *ToDissect,
-                                           Triple::ArchType Arch) const final {
+  std::array<Value *, 4>
+  dissectJumpablePC(IRBuilderBase &Builder,
+                    Value *ToDissect,
+                    model::Architecture::Values Architcture) const final {
     IntegerType *Ty = getCSVType(TypeCSV);
 
     Value *Address = align(Builder, ToDissect);
     Value *Epoch = ConstantInt::get(Ty, 0);
     Value *AddressSpace = ConstantInt::get(Ty, 0);
-    Value *Type = ConstantInt::get(Ty,
-                                   MetaAddressType::defaultCodeFromArch(Arch));
+    Value *Type = ConstantInt::
+      get(Ty, MetaAddressType::defaultCodeFromArch(Architcture));
     return { Address, Epoch, AddressSpace, Type };
   }
 
@@ -88,7 +94,7 @@ protected:
 
 class ARMProgramCounterHandler : public ProgramCounterHandler {
 private:
-  static constexpr const char *IsThumbName = "is_thumb";
+  static constexpr const char *IsThumbName = "_thumb";
 
 private:
   GlobalVariable *IsThumb = nullptr;
@@ -102,10 +108,10 @@ public:
     auto Result = std::make_unique<ARMProgramCounterHandler>();
 
     // Create and register the pc and is_thumb CSV
-    Result->AddressCSV = Factory(PCAffectingCSV::PC, AddressName);
+    Result->AddressCSV = Factory(PCAffectingCSV::PC);
     Result->CSVsAffectingPC.insert(Result->AddressCSV);
 
-    Result->IsThumb = Factory(PCAffectingCSV::IsThumb, IsThumbName);
+    Result->IsThumb = Factory(PCAffectingCSV::IsThumb);
     Result->CSVsAffectingPC.insert(Result->IsThumb);
 
     Result->createMissingVariables(M);
@@ -117,7 +123,9 @@ public:
     auto Result = std::make_unique<ARMProgramCounterHandler>();
 
     // Initialize the standard variablesx
-    Result->setMissingVariables(M);
+    Result->setMissingVariables(M,
+                                model::Architecture::
+                                  getPCCSVName(model::Architecture::arm));
 
     // Get is_thumb
     Result->IsThumb = M->getGlobalVariable(IsThumbName, true);
@@ -156,9 +164,10 @@ private:
                                                AddressType));
   }
 
-  std::array<Value *, 4> dissectJumpablePC(IRBuilderBase &Builder,
-                                           Value *ToDissect,
-                                           Triple::ArchType Arch) const final {
+  std::array<Value *, 4>
+  dissectJumpablePC(IRBuilderBase &Builder,
+                    Value *ToDissect,
+                    model::Architecture::Values Architecture) const final {
     constexpr uint32_t ThumbMask = 0x1;
     constexpr uint32_t AddressMask = 0xFFFFFFFE;
     IntegerType *Ty = getCSVType(TypeCSV);
@@ -212,8 +221,13 @@ private:
     auto *ThumbCode = CI::get(TypeType, Code_arm_thumb);
     // We don't use select here, SCEV can't handle it
     // NewType = ARM + IsThumb * (Thumb - ARM)
+    unsigned ThumbSize = cast<IntegerType>(IsThumb->getType())->getBitWidth();
+    unsigned TypeSize = cast<IntegerType>(TypeType)->getBitWidth();
+    auto *CastedThumb = (ThumbSize < TypeSize) ?
+                          B.CreateZExt(IsThumb, TypeType) :
+                          B.CreateTrunc(IsThumb, TypeType);
     auto *NewType = B.CreateAdd(ArmCode,
-                                B.CreateMul(B.CreateTrunc(IsThumb, TypeType),
+                                B.CreateMul(CastedThumb,
                                             B.CreateSub(ThumbCode, ArmCode)));
     return NewType;
   }
@@ -354,7 +368,7 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   if (HelperCall == nullptr)
     return false;
 
-  auto MaybeUsedCSVs = getCSVUsedByHelperCallIfAvailable(HelperCall);
+  auto MaybeUsedCSVs = tryGetCSVUsedByHelperCall(HelperCall);
 
   // If CSAA didn't consider this helper, be conservative
   if (not MaybeUsedCSVs)
@@ -867,17 +881,18 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
   return Result;
 }
 
-static unsigned getMinimumPCAlignment(Triple::ArchType Architecture) {
+static unsigned
+getMinimumPCAlignment(model::Architecture::Values Architecture) {
   switch (Architecture) {
-  case Triple::x86:
-  case Triple::x86_64:
+  case model::Architecture::x86:
+  case model::Architecture::x86_64:
     return 1;
-  case Triple::arm:
-  case Triple::systemz:
+  case model::Architecture::arm:
+  case model::Architecture::systemz:
     return 2;
-  case Triple::mips:
-  case Triple::mipsel:
-  case Triple::aarch64:
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+  case model::Architecture::aarch64:
     return 4;
   default:
     revng_abort();
@@ -885,21 +900,21 @@ static unsigned getMinimumPCAlignment(Triple::ArchType Architecture) {
 }
 
 std::unique_ptr<ProgramCounterHandler>
-PCH::create(Triple::ArchType Architecture,
+PCH::create(model::Architecture::Values Architecture,
             Module *M,
             const CSVFactory &Factory) {
   auto Alignment = getMinimumPCAlignment(Architecture);
 
   switch (Architecture) {
-  case Triple::arm:
+  case model::Architecture::arm:
     return ARMProgramCounterHandler::create(M, Factory);
 
-  case Triple::x86_64:
-  case Triple::mips:
-  case Triple::mipsel:
-  case Triple::aarch64:
-  case Triple::systemz:
-  case Triple::x86:
+  case model::Architecture::x86_64:
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+  case model::Architecture::aarch64:
+  case model::Architecture::systemz:
+  case model::Architecture::x86:
     return PCOnlyProgramCounterHandler::create(M, Factory, Alignment);
 
   default:
@@ -910,20 +925,20 @@ PCH::create(Triple::ArchType Architecture,
 }
 
 std::unique_ptr<ProgramCounterHandler>
-PCH::fromModule(Triple::ArchType Architecture, Module *M) {
+PCH::fromModule(model::Architecture::Values Architecture, Module *M) {
   auto Alignment = getMinimumPCAlignment(Architecture);
 
   switch (Architecture) {
-  case Triple::arm:
+  case model::Architecture::arm:
     return ARMProgramCounterHandler::fromModule(M);
 
-  case Triple::x86_64:
-  case Triple::mips:
-  case Triple::mipsel:
-  case Triple::aarch64:
-  case Triple::systemz:
-  case Triple::x86:
-    return PCOnlyProgramCounterHandler::fromModule(M, Alignment);
+  case model::Architecture::x86_64:
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+  case model::Architecture::aarch64:
+  case model::Architecture::systemz:
+  case model::Architecture::x86:
+    return PCOnlyProgramCounterHandler::fromModule(Architecture, M, Alignment);
 
   default:
     revng_abort("Unsupported architecture");

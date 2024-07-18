@@ -12,13 +12,19 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/ManagedStatic.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 
 namespace FunctionTags {
+
+// These are here because they are needed by Pipeline, LLVMContainer
+// specifically
+Tag UniquedByMetadata("uniqued-by-metadata");
+Tag UniquedByPrototype("uniqued-by-prototype");
+Tag Isolated("isolated");
 
 Tag::Tag(llvm::StringRef Name) : DynamicHierarchy(Name) {
 }
@@ -48,8 +54,6 @@ TagsSet TagsSet::from(const MDNode *MD) {
   return Result;
 }
 
-} // namespace FunctionTags
-
 const llvm::CallInst *getCallToTagged(const llvm::Value *V,
                                       const FunctionTags::Tag &T) {
   if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
@@ -69,34 +73,4 @@ llvm::CallInst *getCallToTagged(llvm::Value *V, const FunctionTags::Tag &T) {
   return nullptr;
 }
 
-const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V) {
-  if (const llvm::CallInst *Call = getCallToTagged(V, FunctionTags::Isolated)) {
-    // The callee is an isolated function
-    return Call;
-  } else if (const llvm::CallInst
-               *Call = getCallToTagged(V, FunctionTags::DynamicFunction)) {
-    // The callee is a dynamic function
-    return Call;
-  } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
-    // It's a call to an isolated function if it's indirect
-    return getCalledFunction(Call) == nullptr ? Call : nullptr;
-  } else {
-    return nullptr;
-  }
-}
-
-llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V) {
-  if (llvm::CallInst *Call = getCallToTagged(V, FunctionTags::Isolated)) {
-    // The callee is an isolated function
-    return Call;
-  } else if (llvm::CallInst
-               *Call = getCallToTagged(V, FunctionTags::DynamicFunction)) {
-    // The callee is a dynamic function
-    return Call;
-  } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
-    // It's a call to an isolated function if it's indirect
-    return getCalledFunction(Call) == nullptr ? Call : nullptr;
-  } else {
-    return nullptr;
-  }
-}
+} // namespace FunctionTags

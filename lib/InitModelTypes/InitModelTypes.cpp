@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#pragma clang optimize off
+
 #include <cstddef>
 #include <optional>
 
@@ -30,13 +32,13 @@
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/CommonTypeMethods.h"
 #include "revng/Model/DefinedType.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypedefDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/DecompilationHelpers.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 
@@ -948,15 +950,15 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
 
   // Refine the Result map, trying to upgrade types by looking at their uses and
   // see if they provide more accurate types.
-  for (const auto &[V, UT] : llvm::make_early_inc_range(Result)) {
-    if (not isa<Instruction>(V))
-      continue;
+  std::vector<ModelTypesMap::value_type> Upgraded;
 
-    if (V->getNumUses() == 0)
-      continue;
+  for (auto It = Result.begin(); It != Result.end();) {
+    const auto &[V, UT] = *It;
 
-    if (not isUpgradable(UT))
+    if (not isa<Instruction>(V) or V->getNumUses() == 0 or not isUpgradable(UT)) {
+      ++It;
       continue;
+    }
 
     revng_log(Log, "try to upgrade the type of: " << dumpToString(*V, MST));
     revng_log(Log, "initial type: " << UT->toString());
@@ -1012,6 +1014,7 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
 
     if (not UpgradedType.has_value()) {
       revng_log(Log, "Upgraded type cannot be computed. Next value.");
+      ++It;
       continue;
     }
 
@@ -1020,10 +1023,15 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
         and isValidScalarUpgrade(UT, *UpgradedType)) { // the upgrade is valid
 
       revng_log(Log, "Upgraded to: " << (*UpgradedType)->toString());
-      Result.erase(V);
-      Result.insert({ V, UpgradedType->copy() });
+      Upgraded.emplace_back(V, UpgradedType->copy());
+      It = Result.erase(It);
+    } else {
+      ++It;
     }
   }
+
+  for (auto &Pair : Upgraded)
+    Result.insert({ Pair.first, Pair.second.copy() });
 
   revng_log(Log, "==== END initModelTypesConsideringUses on " << F.getName());
   return Result;

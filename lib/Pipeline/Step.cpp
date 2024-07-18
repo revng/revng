@@ -162,15 +162,14 @@ ContainerInvalidationMetadata::serialize(const PathTargetBimap &Map,
   std::map<pipeline::TargetInPipe, std::vector<std::string>> TemporaryMap;
 
   for (const auto &Content : Map) {
-    for (const TargetInContainer &Entry : Content.second) {
-      if (Entry.getContainerName() != ContainerName)
-        continue;
+    const TargetInContainer &Entry = Content.second;
+    if (Entry.getContainerName() != ContainerName)
+      continue;
 
-      std::optional<std::string> AsString = Global.serializePath(Content.first);
-      revng_check(AsString.has_value());
-      TemporaryMap[TargetInPipe::fromTargetInContainer(Entry, PipeName)]
-        .push_back(*AsString);
-    }
+    std::optional<std::string> AsString = Global.serializePath(Content.first);
+    revng_check(AsString.has_value());
+    TemporaryMap[TargetInPipe::fromTargetInContainer(Entry, PipeName)]
+      .push_back(*AsString);
   }
 
   for (const auto &Content : TemporaryMap) {

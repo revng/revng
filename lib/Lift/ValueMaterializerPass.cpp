@@ -12,6 +12,8 @@
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelperRegistry.h"
+#include "revng/Support/IRHelpers.h"
+#include "revng/ValueMaterializer/DataFlowRangeAnalysis.h"
 #include "revng/ValueMaterializer/ValueMaterializer.h"
 
 #include "JumpTargetManager.h"
@@ -79,6 +81,8 @@ PreservedAnalyses ValueMaterializerPass::run(Function &F,
                                              FunctionAnalysisManager &FAM) {
   using namespace llvm;
 
+  DataFlowRangeAnalysis DFRA(*F.getParent());
+
   llvm::EliminateUnreachableBlocks(F, nullptr, false);
 
   demoteOrToAdd(F);
@@ -92,9 +96,6 @@ PreservedAnalyses ValueMaterializerPass::run(Function &F,
   auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
 
   BasicBlock *Entry = &F.getEntryBlock();
-  SwitchInst *Terminator = cast<SwitchInst>(Entry->getTerminator());
-  BasicBlock *Dispatcher = Terminator->getDefaultDest();
-
   auto GetConstantArgument = [](CallBase *Call, unsigned Index) {
     return cast<ConstantInt>(Call->getArgOperand(Index))->getLimitedValue();
   };
@@ -120,6 +121,7 @@ PreservedAnalyses ValueMaterializerPass::run(Function &F,
                                                    ToTrack,
                                                    MO,
                                                    LVI,
+                                                   DFRA,
                                                    DT,
                                                    Limits,
                                                    Oracle);

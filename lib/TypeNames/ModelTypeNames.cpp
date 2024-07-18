@@ -18,6 +18,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/PointerType.h"
 #include "revng/Model/RawFunctionDefinition.h"
@@ -28,7 +29,6 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Annotations.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/ModelCBuilder.h"
 

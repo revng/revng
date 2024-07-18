@@ -289,6 +289,39 @@ inline uint64_t getSize(Values V) {
   switch (V) {
   case st0_x86:
     return 10;
+  case f0_mips:
+  case f1_mips:
+  case f2_mips:
+  case f3_mips:
+  case f4_mips:
+  case f5_mips:
+  case f6_mips:
+  case f7_mips:
+  case f8_mips:
+  case f9_mips:
+  case f10_mips:
+  case f11_mips:
+  case f12_mips:
+  case f13_mips:
+  case f14_mips:
+  case f15_mips:
+  case f16_mips:
+  case f17_mips:
+  case f18_mips:
+  case f19_mips:
+  case f20_mips:
+  case f21_mips:
+  case f22_mips:
+  case f23_mips:
+  case f24_mips:
+  case f25_mips:
+  case f26_mips:
+  case f27_mips:
+  case f28_mips:
+  case f29_mips:
+  case f30_mips:
+  case f31_mips:
+    return 8;
   default:
     break;
   }
@@ -437,59 +470,10 @@ inline std::optional<unsigned> getMContextIndex(Values V) {
     revng_abort("Not supported for this architecture");
 }
 
-inline llvm::StringRef getCSVName(Values V) {
-  // TODO: handle xmm0_x86
-  switch (V) {
-  case st0_x86:
-    return "state_0x83c0";
-  case xmm0_x86_64:
-    return "state_0x8558";
-  case xmm1_x86_64:
-    return "state_0x8598";
-  case xmm2_x86_64:
-    return "state_0x85d8";
-  case xmm3_x86_64:
-    return "state_0x8618";
-  case xmm4_x86_64:
-    return "state_0x8658";
-  case xmm5_x86_64:
-    return "state_0x8698";
-  case xmm6_x86_64:
-    return "state_0x86d8";
-  case xmm7_x86_64:
-    return "state_0x8718";
-  default:
-    return model::Register::getRegisterName(V);
-  }
-}
+std::string getCSVName(Values V);
 
-inline Values fromCSVName(llvm::StringRef Name,
-                          model::Architecture::Values Architecture) {
-  if (Architecture == model::Architecture::x86_64) {
-    // TODO: handle xmm0_x86
-    if (Name == "state_0x83c0") {
-      return st0_x86;
-    } else if (Name == "state_0x8558") {
-      return xmm0_x86_64;
-    } else if (Name == "state_0x8598") {
-      return xmm1_x86_64;
-    } else if (Name == "state_0x85d8") {
-      return xmm2_x86_64;
-    } else if (Name == "state_0x8618") {
-      return xmm3_x86_64;
-    } else if (Name == "state_0x8658") {
-      return xmm4_x86_64;
-    } else if (Name == "state_0x8698") {
-      return xmm5_x86_64;
-    } else if (Name == "state_0x86d8") {
-      return xmm6_x86_64;
-    } else if (Name == "state_0x8718") {
-      return xmm7_x86_64;
-    }
-  }
-
-  return model::Register::fromRegisterName(Name, Architecture);
-}
+Values fromCSVName(llvm::StringRef Name,
+                   model::Architecture::Values Architecture);
 
 constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
   switch (V) {

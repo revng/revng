@@ -7,13 +7,13 @@
 
 #include "llvm/Support/Progress.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
-#include "revng/Support/FunctionTags.h"
 
 bool pipeline::detail::runOnModule(llvm::Module &Module,
                                    FunctionPassImpl &Pipe) {

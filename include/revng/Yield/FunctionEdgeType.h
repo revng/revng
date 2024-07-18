@@ -27,6 +27,7 @@ inline bool isCall(Values V) {
   case BrokenReturn:
   case LongJmp:
   case Killer:
+  case Unexpected:
   case Unreachable:
     return false;
   }
@@ -50,6 +51,8 @@ inline Values from(efa::FunctionEdgeType::Values V) {
     return LongJmp;
   case efa::FunctionEdgeType::Killer:
     return Killer;
+  case efa::FunctionEdgeType::Unexpected:
+    return Unexpected;
   case efa::FunctionEdgeType::Unreachable:
     return Unreachable;
   }

@@ -7,10 +7,10 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/Register.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

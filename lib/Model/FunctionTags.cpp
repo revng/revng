@@ -2,15 +2,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/ProgramCounterHandler.h"
+#include "revng/Model/FunctionTags.h"
+#include "revng/Model/ProgramCounterHandler.h"
+#include "revng/Support/IRHelpers.h"
 
 namespace FunctionTags {
 
 Tag QEMU("qemu");
 Tag Helper("helper");
 
-Tag Isolated("isolated");
 Tag ABIEnforced("abi-enforced", Isolated);
 Tag CSVsPromoted("csvs-promoted", ABIEnforced);
 
@@ -29,10 +29,6 @@ Tag ReaderFunction("reader-function");
 Tag OpaqueReturnAddressFunction("opaque-return-address");
 
 Tag CSV("csv");
-
-Tag UniquedByPrototype("uniqued-by-prototype");
-
-Tag UniquedByMetadata("uniqued-by-metadata");
 
 Tag AllocatesLocalVariable("allocates-local-variable");
 Tag ReturnsPolymorphic("returns-polymorphic");
@@ -104,13 +100,11 @@ Tag ModelGEPRef("model-gep-ref");
 
 FunctionPoolTag<TypePair>
   OpaqueExtractValue("opaque-extract-value",
-                     { llvm::Attribute::OptimizeNone,
-                       llvm::Attribute::NoInline,
+                     { llvm::Attribute::NoInline,
                        llvm::Attribute::NoMerge,
                        llvm::Attribute::NoUnwind,
                        llvm::Attribute::WillReturn },
-                     llvm::MemoryEffects::inaccessibleMemOnly()
-                       | llvm::MemoryEffects::readOnly(),
+                     llvm::MemoryEffects::none(),
                      { &FunctionTags::UniquedByPrototype },
                      [](OpaqueFunctionsPool<TypePair> &Pool,
                         llvm::Module &M,
@@ -715,4 +709,81 @@ llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
   // pipeline, so it's temporary.
   SmallVector<llvm::Type *, 1> FixedArgs = { VariableReferenceType };
   return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
+}
+
+static std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Function *F,
+                                                       unsigned MDKindID) {
+  using namespace llvm;
+
+  std::vector<GlobalVariable *> Result;
+  auto *Tuple = cast_or_null<MDTuple>(F->getMetadata(MDKindID));
+  if (Tuple == nullptr)
+    return Result;
+
+  QuickMetadata QMD(getContext(F));
+
+  auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
+  for (const MDOperand &Operand : OperandsRange) {
+    if (Metadata *MD = Operand.get()) {
+      auto CSVName = QMD.extract<StringRef>(MD);
+      // WIP: factor out module
+      // WIP: explain why we use names instead of globals (linker is bad)
+      if (auto *CSV = F->getParent()->getGlobalVariable(CSVName, true))
+        Result.push_back(CSV);
+    }
+  }
+
+  return Result;
+}
+
+std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call) {
+  revng_assert(isCallToHelper(Call));
+
+  auto *Callee = getCalledFunction(cast<llvm::CallBase>(Call));
+
+  const llvm::Module *M = getModule(Call);
+  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
+  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
+
+  if (Callee->getMetadata(LoadMDKind) == nullptr
+      and Callee->getMetadata(StoreMDKind) == nullptr) {
+    return {};
+  }
+
+  CSVsUsage Result;
+  Result.Read = extractCSVs(Callee, LoadMDKind);
+  Result.Written = extractCSVs(Callee, StoreMDKind);
+  return Result;
+}
+
+const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V) {
+  if (const llvm::CallInst *Call = getCallToTagged(V, FunctionTags::Isolated)) {
+    // The callee is an isolated function
+    return Call;
+  } else if (const llvm::CallInst
+               *Call = getCallToTagged(V, FunctionTags::DynamicFunction)) {
+    // The callee is a dynamic function
+    return Call;
+  } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
+    // It's a call to an isolated function if it's indirect
+    return getCalledFunction(Call) == nullptr ? Call : nullptr;
+  } else {
+    return nullptr;
+  }
+}
+
+llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V) {
+  if (llvm::CallInst *Call = getCallToTagged(V, FunctionTags::Isolated)) {
+    // The callee is an isolated function
+    return Call;
+  } else if (llvm::CallInst
+               *Call = getCallToTagged(V, FunctionTags::DynamicFunction)) {
+    // The callee is a dynamic function
+    return Call;
+  } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
+    // It's a call to an isolated function if it's indirect
+    return getCalledFunction(Call) == nullptr ? Call : nullptr;
+  } else {
+    return nullptr;
+  }
 }

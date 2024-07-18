@@ -20,6 +20,7 @@
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/RawBinaryView.h"
@@ -32,7 +33,6 @@
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -75,10 +75,10 @@ void MakeSegmentRefPassImpl::getAnalysisUsage(llvm::AnalysisUsage &AU) {
 static std::optional<std::pair<MetaAddress, uint64_t>>
 findLiteralInSegments(const model::Binary &Binary, uint64_t Literal) {
   std::optional<std::pair<MetaAddress, uint64_t>> Result = std::nullopt;
-  auto Arch = toLLVMArchitecture(Binary.Architecture());
+  auto Architecture = Binary.Architecture();
 
   for (const auto &Segment : Binary.Segments()) {
-    if (Segment.contains(MetaAddress::fromGeneric(Arch, Literal))) {
+    if (Segment.contains(MetaAddress::fromGeneric(Architecture, Literal))) {
       revng_assert(not Result.has_value());
       Result = { { Segment.StartAddress(), Segment.VirtualSize() } };
     }

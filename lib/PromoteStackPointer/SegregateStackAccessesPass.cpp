@@ -17,6 +17,7 @@
 #include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/NameBuilder.h"
@@ -25,7 +26,6 @@
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OverflowSafeInt.h"
@@ -36,26 +36,26 @@ using namespace llvm;
 
 static Logger<> Log("segregate-stack-accesses");
 
-static Value *createAdd(IRBuilder<> &B, Value *V, uint64_t Addend) {
+inline Value *createAdd(IRBuilder<> &B, Value *V, uint64_t Addend) {
   return B.CreateAdd(V, ConstantInt::get(V->getType(), Addend));
 }
 
-static StringRef stripPrefix(StringRef Prefix, StringRef String) {
+inline StringRef stripPrefix(StringRef Prefix, StringRef String) {
   revng_assert(String.startswith(Prefix));
   return String.substr(Prefix.size());
 }
 
-static unsigned getCallPushSize(const model::Binary &Binary) {
+inline unsigned getCallPushSize(const model::Binary &Binary) {
   return model::Architecture::getCallPushSize(Binary.Architecture());
 }
 
-static auto snapshot(auto &&Range) {
+inline auto snapshot(auto &&Range) {
   SmallVector<std::decay_t<decltype(*Range.begin())>, 16> Result;
   llvm::copy(Range, std::back_inserter(Result));
   return Result;
 }
 
-static unsigned getBitOffsetAt(StructType *Struct, unsigned TargetFieldIndex) {
+inline unsigned getBitOffsetAt(StructType *Struct, unsigned TargetFieldIndex) {
   unsigned Result = 0;
   for (unsigned FieldIndex = 0; FieldIndex < TargetFieldIndex; ++FieldIndex) {
     Result += Struct->getTypeAtIndex(FieldIndex)->getIntegerBitWidth();
@@ -63,7 +63,7 @@ static unsigned getBitOffsetAt(StructType *Struct, unsigned TargetFieldIndex) {
   return Result;
 }
 
-static CallInst *findCallTo(Function *F, Function *ToSearch) {
+inline CallInst *findCallTo(Function *F, Function *ToSearch) {
   CallInst *Call = nullptr;
   for (BasicBlock &BB : *F)
     for (Instruction &I : BB)
@@ -252,7 +252,7 @@ struct SortByFunction {
   }
 };
 
-static CallInst *
+inline CallInst *
 getAsModelGEP(IRBuilder<> &B, Value *Pointer, const model::Type &ModelType) {
   Module &M = *B.GetInsertBlock()->getModule();
   llvm::Type *T = Pointer->getType();

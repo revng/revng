@@ -11,9 +11,9 @@
 #include "llvm/Support/FormattedStream.h"
 
 #include "revng/ADT/STLExtras.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
+#include "revng/Recompile/OriginalAssemblyAnnotationWriter.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/OriginalAssemblyAnnotationWriter.h"
 
 using namespace llvm;
 
@@ -51,8 +51,7 @@ void OAAW::emitInstructionAnnot(const Instruction *I,
                                 formatted_raw_ostream &Output) {
 
   // Ignore whatever is outside the root and the isolated functions
+  writeMetadataIfNew(I, PTCInstrMDKind, Output, "\n  ; ");
   if (isRootOrLifted(I->getParent()->getParent())) {
-    writeMetadataIfNew(I, OriginalInstrMDKind, Output, "\n  ; ");
-    writeMetadataIfNew(I, PTCInstrMDKind, Output, "\n  ; ");
   }
 }

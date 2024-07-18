@@ -18,9 +18,9 @@
 
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
@@ -72,8 +72,8 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
 
   for (llvm::Instruction &I : llvm::instructions(F)) {
     for (llvm::Use &U : I.operands()) {
-      if (auto formatting = getIntFormat(I, U, Model); formatting) {
-        IntsToBeFormatted.push_back(*formatting);
+      if (auto Formatting = getIntFormat(I, U, Model); Formatting) {
+        IntsToBeFormatted.push_back(*Formatting);
       }
     }
   }
@@ -122,8 +122,10 @@ getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model) {
 
   // Some intrinsic calls require ConstantInt as an argument so we are not able
   // to pass there any decorated value.
-  if (auto *Intrinsic = llvm::dyn_cast<llvm::IntrinsicInst>(&I)) {
-    if (Intrinsic->getIntrinsicID() == llvm::Intrinsic::abs) {
+  if (auto *Call = llvm::dyn_cast<llvm::CallBase>(&I)) {
+    if (Call->isArgOperand(&U)
+        and Call->paramHasAttr(Call->getArgOperandNo(&U),
+                               llvm::Attribute::ImmArg)) {
       return std::nullopt;
     }
   }

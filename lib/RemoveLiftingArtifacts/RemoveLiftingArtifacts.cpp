@@ -8,11 +8,11 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -51,7 +51,9 @@ static bool removeCallsToArtifacts(Function &F) {
 static bool removeStoresToCPULoopExiting(Function &F) {
   // Retrieve the global variable `cpu_loop_exiting`
   Module *M = F.getParent();
-  GlobalVariable *CpuLoop = M->getGlobalVariable("cpu_loop_exiting");
+  GlobalVariable *CpuLoop = M->getGlobalVariable("cpu_loop_exiting", true);
+  if (CpuLoop == nullptr)
+    return false;
 
   // Remove in bulk all the users of the global variable.
   SmallVector<LoadInst *, 8> Loads;

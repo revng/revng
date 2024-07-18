@@ -38,8 +38,8 @@ BasicBlockID BasicBlockID::fromString(llvm::StringRef Text) {
 }
 
 std::string
-BasicBlockID::toString(std::optional<llvm::Triple::ArchType> Arch) const {
-  std::string Result = Start.toString(Arch);
+BasicBlockID::toString(model::Architecture::Values Architecture) const {
+  std::string Result = Start.toString(Architecture);
 
   if (isInlined()) {
     Result += "-" + llvm::Twine(InliningIndex).str();

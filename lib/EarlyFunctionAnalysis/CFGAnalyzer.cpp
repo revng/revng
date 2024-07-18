@@ -36,9 +36,10 @@
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/BasicBlockID.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 // This name is not present after `lift`.
@@ -262,9 +263,15 @@ SortedVector<efa::BasicBlock>
 CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
   using namespace llvm;
   using llvm::BasicBlock;
-
   revng_log(Log, "collectDirectCFG(" << OF->Function->getName().str() << ")");
   LoggerIndent<> Indent(Log);
+
+#if 0
+  if (OF->Address == MetaAddress::fromString("0x2214c:Code_arm")) {
+    dbg << "CFGAnalyzer::collectDirectCFG\n";
+    OF->Function->dump();
+  }
+#endif
 
   SortedVector<efa::BasicBlock> CFG;
 
@@ -364,9 +371,9 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
           // successor of the current basic block.
           revng_log(Log,
                     "No other successors other than UnexpectedPC, emitting "
-                    "LongJmp");
+                    "Unexpected");
           auto Edge = makeEdge(BasicBlockID::invalid(),
-                               efa::FunctionEdgeType::LongJmp);
+                               efa::FunctionEdgeType::Unexpected);
           Block.Successors().insert(Edge);
         }
       }
@@ -398,10 +405,9 @@ CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
   }
 
   // Load the PC
-  auto LLVMArchitecture = toLLVMArchitecture(Binary->Architecture());
   auto DissectedPC = PCH->dissectJumpablePC(Builder,
                                             ReturnAddress,
-                                            LLVMArchitecture);
+                                            Binary->Architecture());
   Value *IntegerPC = MetaAddress::composeIntegerPC(Builder,
                                                    DissectedPC[0],
                                                    DissectedPC[1],
@@ -740,14 +746,23 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   using namespace model::Architecture;
   int64_t CallPushSize = getCallPushSize(Binary->Architecture());
 
-  if (Log.isEnabled()) {
-    Log << "Milking info for " << OutlinedFunction->Address.toString();
-    Log << DoLog;
+#if 0
+  if (OutlinedFunction->Address == MetaAddress::fromString("0x2214c:Code_arm")) {
+    dbg << "CFGAnalyzer::milkInfo\n";
+    OutlinedFunction->Function->dump();
+  }
+#endif
 
-    Log << "CFG:\n";
-    for (const efa::BasicBlock &Block : CFG)
+  revng_log(Log, "Milking info for " << OutlinedFunction->Address.toString());
+  LoggerIndent<> Ident(Log);
+
+  revng_log(Log, "Initial CFG:\n");
+  if (Log.isEnabled()) {
+    LoggerIndent<> Ident(Log);
+    for (const efa::BasicBlock &Block : CFG) {
       serialize(Log, Block);
-    Log << DoLog;
+      Log << DoLog;
+    }
   }
 
   using EdgeType = UpcastablePointer<efa::FunctionEdgeBase>;
@@ -776,7 +791,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
         JumpsToReturnAddress = ConstantOffset->getSExtValue() == 0;
     }
 
-    efa::BasicBlock Block = blockFromIndirectBranchInfo(CI, CFG);
+    const efa::BasicBlock &Block = blockFromIndirectBranchInfo(CI, CFG);
 
     // Is this a tail call? If so, we are very interested in the FSO since
     // it's useful to determine the FSO of the caller
@@ -1016,6 +1031,15 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   for (efa::BasicBlock &Block : CFG)
     revng_assert(Block.Successors().size() > 0);
 
+  revng_log(Log, "Final CFG:\n");
+  if (Log.isEnabled()) {
+    LoggerIndent<> Ident(Log);
+    for (const efa::BasicBlock &Block : CFG) {
+      serialize(Log, Block);
+      Log << DoLog;
+    }
+  }
+
   FunctionSummary Result(Attributes,
                          ClobberedRegisters.getClobberedRegisters(),
                          {},
@@ -1087,6 +1111,13 @@ FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
   // Store the values that build up the program counter in order to have them
   // constant-folded away by the optimization pipeline.
   materializePCValues(F, Builder);
+
+#if 0
+  if (OutlinedFunction.Address == MetaAddress::fromString("0x2214c:Code_arm")) {
+    dbg << "pre runOptimizationPipeline\n";
+    OutlinedFunction.Function->dump();
+  }
+#endif
 
   // Execute the optimization pipeline over the outlined function
   runOptimizationPipeline(F);

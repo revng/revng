@@ -15,8 +15,8 @@
 
 #include "revng/ADT/Concepts.h"
 #include "revng/ADT/EagerMaterializationRangeIterator.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Tag.h"
 #include "revng/Yield/FunctionEdgeType.h"
 

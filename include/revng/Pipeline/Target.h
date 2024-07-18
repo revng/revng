@@ -50,6 +50,8 @@ private:
   const Kind *K = nullptr;
 
 public:
+  Target() {}
+
   Target(PathComponents Components, const Kind &K) :
     Components(std::move(Components)), K(&K) {
     revng_assert(this->Components.size() == getKind().depth());

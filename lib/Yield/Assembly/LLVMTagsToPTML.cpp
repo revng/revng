@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/ArrayType.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -17,13 +18,12 @@ template<yield::MetaAddressOrBasicBlockID T>
 std::string
 yield::sanitizedAddress(const T &Target, const model::Binary &Binary) {
   const auto &Configuration = Binary.Configuration().Disassembly();
-  std::optional<llvm::Triple::ArchType> SerializationStyle = std::nullopt;
+  auto SerializationStyle = model::Architecture::Invalid;
   if (!Configuration.PrintFullMetaAddress()) {
-    namespace Arch = model::Architecture;
-    SerializationStyle = Arch::toLLVMArchitecture(Binary.Architecture());
+    SerializationStyle = Binary.Architecture();
   }
 
-  std::string Result = Target.toString(std::move(SerializationStyle));
+  std::string Result = Target.toString(SerializationStyle);
 
   constexpr std::array ForbiddenCharacters = { ' ', ':', '!', '#',  '?',
                                                '<', '>', '/', '\\', '{',

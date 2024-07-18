@@ -8,7 +8,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Passes/PassBuilder.h"
 
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

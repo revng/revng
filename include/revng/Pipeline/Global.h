@@ -1,4 +1,5 @@
 #pragma once
+
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
@@ -192,10 +193,10 @@ public:
                          PathTargetBimap &Out) override {
     const TupleTree<Object> &AsConst = Value;
     ReadFields Results = revng::Tracking::collect(*AsConst);
-    for (const TupleTreePath &Result : Results.Read)
-      Out.insert(Target, Result);
-    for (const TupleTreePath &Result : Results.ExactVectors)
-      Out.insert(Target, Result);
+    for (TupleTreePath &Result : Results.Read)
+      Out.insert(Target, std::move(Result));
+    for (TupleTreePath &Result : Results.ExactVectors)
+      Out.insert(Target, std::move(Result));
   }
 
   void clearAndResume() const override {

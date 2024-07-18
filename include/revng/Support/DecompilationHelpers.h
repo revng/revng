@@ -13,8 +13,8 @@
 
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Support/FunctionTags.h"
 
 inline bool hasSideEffects(const llvm::Instruction &I) {
   if (llvm::isa<llvm::StoreInst>(I))
