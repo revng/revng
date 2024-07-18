@@ -757,20 +757,20 @@ public:
           revng_log(CSVAccessLog,
                     "CallInst: " << FCall << " : " << dumpToString(FCall));
 
-          // If this call has already been decorated with LoadMDKind or
-          // StoreMDKind metadata it means that it has already been processed by
-          // a previous run of CPUStateAccessAnalysis.
-          // If we're running in lazy mode, we can skip calls that have already
-          // been decorated.
-          if (IsLazy) {
-            if (FCall->getMetadata(LoadMDKind) != nullptr
-                or FCall->getMetadata(StoreMDKind) != nullptr) {
-              revng_log(CSVAccessLog, "Already marked");
-              continue;
-            }
-          }
-
           if (FCall) {
+            // If this call has already been decorated with LoadMDKind or
+            // StoreMDKind metadata it means that it has already been processed by
+            // a previous run of CPUStateAccessAnalysis.
+            // If we're running in lazy mode, we can skip calls that have already
+            // been decorated.
+            if (IsLazy) {
+              if (FCall->getMetadata(LoadMDKind) != nullptr
+                  or FCall->getMetadata(StoreMDKind) != nullptr) {
+                revng_log(CSVAccessLog, "Already marked");
+                continue;
+              }
+            }
+
             const Function *Caller = FCall->getFunction();
             revng_log(CSVAccessLog, "Caller: " << Caller);
             if (ReachableFunctions.contains(Caller)) {
