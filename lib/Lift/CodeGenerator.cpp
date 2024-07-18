@@ -609,6 +609,18 @@ void CodeGenerator::translate(const LibTcgInterface &LibTcg,
     FunctionTags::Exceptional.addTo(Abort);
   }
 
+  // tcg_allowed is a global in qemu defined in accel/tcg/... indicating
+  // wheter or not TCG is used as a backend or not. Some helpers/code may
+  // branch on this global. As we do not include accel/tcg/... code in the
+  // helpers module we get an undefined reference during linking.
+  //
+  // Here we set the constant to 1 to avoid undefined refnerences but also
+  // ensure all code correctly assumes we are using TCG.
+  if (auto *TcgAllowed = HelpersModule->getGlobalVariable("tcg_allowed")) {
+      auto *Uint8Ty = Type::getInt8Ty(Context);
+      TcgAllowed->setInitializer(ConstantInt::get(Uint8Ty, 1));
+  }
+
   // Prepare the helper modules by transforming the cpu_loop function and
   // running SROA
   T.advance("Prepare helpers module", true);
