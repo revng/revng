@@ -660,6 +660,11 @@ void CodeGenerator::translate(const LibTcgInterface &LibTcg,
                                                     "process_pending_signals",
                                                     "qemu_log_mask",
                                                     "qemu_thread_atexit_init",
+                                                    "qemu_log",
+                                                    "qemu_loglevel_mask",
+                                                    "qemu_thread_atexit_init",
+                                                    "_nocheck__trace_user_do_sigreturn",
+                                                    "_nocheck__trace_user_do_rt_sigreturn",
                                                     "start_exclusive");
   for (auto Name : NoOpFunctionNames)
     replaceFunctionWithRet(HelpersModule->getFunction(Name), 0);
