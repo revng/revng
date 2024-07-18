@@ -78,9 +78,10 @@ private:
   std::vector<OffsetValuePair> Stack;
 };
 
+static Logger<> Log("type-at-offset");
+
 static std::pair<IntegerType *, unsigned>
 getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
-  static Logger<> Log("type-at-offset");
 
   unsigned Depth = 0;
   while (1) {
@@ -411,7 +412,7 @@ void VariableManager::finalize() {
 
       // Add the case to the switch
       // TODO(anjo): TMP
-      Switch->addCase(Builder.getInt32(0), SetRegisterBB);
+      Switch->addCase(Builder.getInt32(P.first), SetRegisterBB);
     }
   }
 
@@ -420,12 +421,10 @@ void VariableManager::finalize() {
   Builder.CreateRetVoid();
 }
 
-// TODO: `newFunction` reflects the tcg terminology but in this context is
-//       highly misleading
-void VariableManager::newFunction(LibTcgInstructionList *Instructions) {
-  LocalTemporaries.clear();
+void VariableManager::newTranslationBlock(LibTcgInstructionList *Instructions) {
+  TBTemporaries.clear();
   this->Instructions = Instructions;
-  newBasicBlock();
+  newExtendedBasicBlock();
 }
 
 bool VariableManager::isEnv(Value *TheValue) {
@@ -471,6 +470,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
           && It->second->getName().startswith(UnknownCSVPref))) {
     Type *VariableType;
     unsigned Remaining;
+    // TODO(anjo): Rename CPUStateType -> ArchCPUType
     std::tie(VariableType,
              Remaining) = getTypeAtOffset(ModuleLayout, CPUStateType, Offset);
 
@@ -531,9 +531,11 @@ VariableManager::getOrCreate(LibTcgArgument *Arg, bool Reading) {
   switch (Arg->kind) {
   case LIBTCG_ARG_TEMP:
     switch (Arg->temp->kind) {
-    case LIBTCG_TEMP_NORMAL: {
-      auto It = Temporaries.find(Arg->temp);
-      if (It != Temporaries.end()) {
+    case LIBTCG_TEMP_EBB: {
+      // Temporary is dead at the end of the Extended Basic Block (EBB), the single entry,
+      // multiple exit region that falls through basic blocks.
+      auto It = EBBTemporaries.find(Arg->temp);
+      if (It != EBBTemporaries.end()) {
         return { false, It->second };
       } else {
         // Can't read a temporary if it has never been written, we're probably
@@ -542,24 +544,24 @@ VariableManager::getOrCreate(LibTcgArgument *Arg, bool Reading) {
           return { false, nullptr };
 
         AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
-        Temporaries[Arg->temp] = NewTemporary;
+        EBBTemporaries[Arg->temp] = NewTemporary;
         return { true, NewTemporary };
       }
     };
-    case LIBTCG_TEMP_LOCAL: {
-      // TODO(anjo): CONTHERE We want to map tempraries to LLVM values,
-      // make sure temporaries are pointer stable and unique or whatever
-      // We are currently translating this code and InstructionTranslator!
-      auto It = LocalTemporaries.find(Arg->temp);
-      if (It != LocalTemporaries.end()) {
+    case LIBTCG_TEMP_TB: {
+      // Temporary is dead at the end of the Translation Block (TB)
+      auto It = TBTemporaries.find(Arg->temp);
+      if (It != TBTemporaries.end()) {
         return { false, It->second };
       } else {
         AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
-        LocalTemporaries[Arg->temp] = NewTemporary;
+        TBTemporaries[Arg->temp] = NewTemporary;
         return { true, NewTemporary };
       }
     };
     case LIBTCG_TEMP_GLOBAL: {
+      // Temporary is alive at the end of a Translation Block (TB), and inbetween
+      // TBs
       Value *Result = getByCPUStateOffset(LibTcgEnvOffset + Arg->temp->mem_offset,
                                           Arg->temp->name);
       revng_assert(Result != nullptr);
@@ -567,8 +569,21 @@ VariableManager::getOrCreate(LibTcgArgument *Arg, bool Reading) {
     };
     case LIBTCG_TEMP_FIXED: {
       // TODO(anjo): Is this path actually taken? When is env used as an arg?
-      revng_unreachable("unhandled libtcg fixed kind");
-    } break;
+      revng_assert(std::string(Arg->temp->name) == "env");
+      revng_assert(Env != nullptr);
+      return { false, Env };
+    };
+    case LIBTCG_TEMP_CONST: {
+      return { true, ConstantInt::get(VariableType, Arg->temp->val) };
+      //auto It = TBTemporaries.find(Arg->temp);
+      //if (It != TBTemporaries.end()) {
+      //  return { false, It->second };
+      //} else {
+      //  AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
+      //  TBTemporaries[Arg->temp] = NewTemporary;
+      //  return { true, NewTemporary };
+      //}
+    };
     default:
         revng_unreachable("unhandled libtcg temp kind");
     }

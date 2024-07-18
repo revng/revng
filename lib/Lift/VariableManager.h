@@ -54,18 +54,21 @@ public:
     AllocaBuilder.SetInsertPoint(I);
   }
 
-  llvm::Instruction *load(llvm::IRBuilder<> &Builder, LibTcgArgument *Arg) {
+  llvm::Value *load(llvm::IRBuilder<> &Builder, LibTcgArgument *Arg) {
     auto [IsNew, V] = getOrCreate(Arg, true);
 
     if (V == nullptr)
       return nullptr;
 
+    if (llvm::isa<llvm::ConstantInt>(V))
+      return V;
+
     if (IsNew) {
-      auto *Undef = llvm::UndefValue::get(V->getType()->getPointerElementType());
+      auto *Undef = llvm::UndefValue::get(getVariableType(V));
       Builder.CreateStore(Undef, V);
     }
 
-    return Builder.CreateLoad(V);
+    return createLoadVariable(Builder, V);
   }
 
   /// Get or create the LLVM value associated to a PTC temporary
@@ -93,21 +96,19 @@ public:
     return getByCPUStateOffsetInternal(LibTcgEnvOffset + Offset, Name);
   }
 
-  /// Notify VariableManager to reset all the "function"-specific information
+  /// Notify VariableManager to reset all the Translation Block (TB) specific
+  /// information
   ///
-  /// Informs the VariableManager that a new function has begun, so it can
-  /// discard function- and basic block-level variables.
+  /// Note: A TB refers to a set of instructions that could be translated by
+  ///       QEMU in one shot, and might encompass multiple LLVM basic blocks.
   ///
-  /// Note: by "function" here we mean a function in PTC terms, i.e. a run of
-  ///       code translated in a single shot by the TCG. Do not confuse this
-  ///       function concept with other meanings.
-  ///
-  /// \param Instructions the new PTCInstructionList to use from now on.
-  void newFunction(LibTcgInstructionList *Instructions);
+  /// \param Instructions list of instructions returned by qemu for this TB
+  void newTranslationBlock(LibTcgInstructionList *Instructions);
 
-  /// Informs the VariableManager that a new basic block has begun, so it can
-  /// discard basic block-level variables.
-  void newBasicBlock() { Temporaries.clear(); }
+  /// Informs the VariableManager that a new Extended Basic Block (EBB) has
+  /// begun. An EBB is a single entry, multiple exit region that fallst through
+  /// conditional branches.
+  void newExtendedBasicBlock() { EBBTemporaries.clear(); }
 
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
@@ -120,11 +121,13 @@ public:
     ModuleLayout = NewLayout;
   }
 
-  std::vector<llvm::AllocaInst *> locals() {
-    std::vector<llvm::AllocaInst *> Locals;
-    for (auto Pair : LocalTemporaries)
-      Locals.push_back(Pair.second);
-    return Locals;
+  std::vector<llvm::AllocaInst *> getLiveVariables() {
+    std::vector<llvm::AllocaInst *> LiveVariables;
+    for (auto Pair : TBTemporaries)
+      LiveVariables.push_back(Pair.second);
+    for (auto Pair : EBBTemporaries)
+      LiveVariables.push_back(Pair.second);
+    return LiveVariables;
   }
 
   llvm::Value *loadFromEnvOffset(llvm::IRBuilder<> &Builder,
@@ -186,8 +189,13 @@ private:
   using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
   GlobalsMap CPUStateGlobals;
   GlobalsMap OtherGlobals;
-  TemporariesMap Temporaries;
-  TemporariesMap LocalTemporaries;
+  // QEMU terminology
+  // - Translation Block (TB): All instructions that could be translated in one
+  //   shot, might encompass multiple LLVM basic blocks.
+  // - Extended Basic Block (EBB): Single entry, multiple exit region that falls
+  //   through condtitional branches, smaller than a TB. 
+  TemporariesMap TBTemporaries;
+  TemporariesMap EBBTemporaries;
   LibTcgInstructionList *Instructions;
 
   llvm::StructType *CPUStateType;
