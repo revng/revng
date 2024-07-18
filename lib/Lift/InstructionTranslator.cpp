@@ -493,11 +493,12 @@ CallInst *IT::emitNewPCCall(IRBuilder<> &Builder,
                                 String != nullptr ? String : Int8NullPtr,
                                 Int8NullPtr };
 
-  // Insert a call to NewPCMarker capturing all the local temporaries
-  // This prevents SROA from transforming them in SSA values, which is bad
-  // in case we have to split a basic block
-  for (AllocaInst *Local : Variables.locals())
-    Args.push_back(Local);
+  // Insert a call to NewPCMarker capturing all the currently live temporaries
+  // which might be alive across an instruction boundary. This prevents SROA
+  // from transforming them in SSA values, which is bad in case we have to
+  // split a basic block
+  for (AllocaInst *V : Variables.getLiveVariables())
+    Args.push_back(V);
 
   return Builder.CreateCall(NewPCMarker, Args);
 }
@@ -569,7 +570,7 @@ IT::newInstruction(LibTcgInstruction *Instr,
     }
   }
 
-  Variables.newBasicBlock();
+  //Variables.newBasicBlock();
 
   revng_assert(NextPC - PC);
   auto *Call = emitNewPCCall(Builder, PC, *(NextPC - PC), String);
@@ -1251,7 +1252,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
 
     Blocks.push_back(Fallthrough);
     Builder.SetInsertPoint(Fallthrough);
-    Variables.newBasicBlock();
+    Variables.newExtendedBasicBlock();
 
     return v{};
   }
@@ -1301,7 +1302,10 @@ IT::translateOpcode(LibTcgOpcode Opcode,
 
     Blocks.push_back(Fallthrough);
     Builder.SetInsertPoint(Fallthrough);
-    Variables.newBasicBlock();
+
+    if (Opcode == LIBTCG_op_br) {
+      Variables.newExtendedBasicBlock();
+    }
 
     return v{};
   }
@@ -1315,7 +1319,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
     Blocks.push_back(NextBB);
     Builder.SetInsertPoint(NextBB);
-    Variables.newBasicBlock();
+    Variables.newExtendedBasicBlock();
 
     return v{};
   }
@@ -1468,5 +1472,5 @@ void IT::handleExitTB() {
   auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
   Blocks.push_back(NextBB);
   Builder.SetInsertPoint(NextBB);
-  Variables.newBasicBlock();
+  Variables.newExtendedBasicBlock();
 }
