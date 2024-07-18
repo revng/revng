@@ -179,6 +179,8 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_ext16u_i32:
   case LIBTCG_op_ext8s_i32:
   case LIBTCG_op_ext8u_i32:
+  case LIBTCG_op_extrl_i64_i32:
+  case LIBTCG_op_extrh_i64_i32:
   case LIBTCG_op_ld16s_i32:
   case LIBTCG_op_ld16u_i32:
   case LIBTCG_op_ld8s_i32:
@@ -581,8 +583,13 @@ IT::TranslationResult IT::translateCall(LibTcgInstruction *Instr) {
 
   CallInst *Result = Builder.CreateCall(FDecl, InArgs);
 
-  if (Instr->nb_oargs != 0)
+  if (Instr->nb_oargs != 0) {
     Builder.CreateStore(Result, ResultDestination);
+  }
+
+  if (Info.func_flags & LIBTCG_CALL_NO_RETURN) {
+    handleExitTB();
+  }
 
   return Success;
 }
@@ -1102,6 +1109,13 @@ IT::translateOpcode(LibTcgOpcode Opcode,
       revng_unreachable("Unexpected opcode");
     }
   }
+  case LIBTCG_op_extrl_i64_i32: {
+      return v{ Builder.CreateTrunc(InArguments[0], Builder.getInt32Ty()) };
+  }
+  case LIBTCG_op_extrh_i64_i32: {
+      Value *Shifted = Builder.CreateAShr(InArguments[0], ConstantInt::get(Builder.getInt64Ty(), 32));
+      return v{ Builder.CreateTrunc(Shifted, Builder.getInt32Ty()) };
+  }
   case LIBTCG_op_not_i32:
   case LIBTCG_op_not_i64:
     return v{ Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
@@ -1354,4 +1368,18 @@ IT::translateOpcode(LibTcgOpcode Opcode,
   default:
     revng_unreachable("Unknown opcode");
   }
+}
+
+void IT::handleExitTB() {
+  auto &Context = TheModule.getContext();
+  auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
+  Builder.CreateCall(JumpTargets.exitTB(), { Zero });
+  Builder.CreateUnreachable();
+
+  ExitBlocks.push_back(Builder.GetInsertBlock());
+
+  auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
+  Blocks.push_back(NextBB);
+  Builder.SetInsertPoint(NextBB);
+  Variables.newBasicBlock();
 }

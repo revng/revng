@@ -115,7 +115,7 @@ public:
   /// Preprocess the translated instructions
   ///
   /// Check if the translated code contains a delay slot and return a blacklist
-  /// of the PTC_INSTRUCTION_op_debug_insn_start instructions that have to be
+  /// of the LIBTCG_op_insn_start instructions that have to be
   /// ignored to merge the delay slot into the branch instruction.
   llvm::SmallSet<unsigned, 1> preprocess(LibTcgInstructionList Instructions);
 
@@ -126,6 +126,8 @@ private:
   translateOpcode(LibTcgOpcode Opcode,
                   std::vector<LibTcgArgument> ConstArguments,
                   std::vector<llvm::Value *> InArguments);
+
+  void handleExitTB();
 
 private:
   const LibTcgInterface &LibTcg;
