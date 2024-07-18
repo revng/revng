@@ -423,11 +423,22 @@ static ReturnInst *createRet(Instruction *Position) {
   } else if (ReturnType->isIntegerTy() or ReturnType->isPointerTy()) {
     auto *Null = Constant::getNullValue(ReturnType);
     return ReturnInst::Create(F->getParent()->getContext(), Null, Position);
-  } else {
-    revng_abort("Return type not supported");
+  } else if (ReturnType->isStructTy()) {
+    auto *StructTy = cast<StructType>(ReturnType);
+    if (StructTy->getNumElements() == 2) {
+      bool Valid = true;
+      for (auto *Ty : StructTy->elements())
+        if (!Ty->isIntegerTy(64))
+          Valid = false;
+
+      if (Valid) {
+        auto *Null = ConstantAggregateZero::get(StructTy);
+        return ReturnInst::Create(F->getParent()->getContext(), Null, Position);
+      }
+    }
   }
 
-  return nullptr;
+  revng_abort("Return type not supported");
 }
 
 /// Find all calls to cpu_loop_exit and replace them with:
