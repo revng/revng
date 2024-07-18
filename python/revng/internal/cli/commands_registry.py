@@ -209,16 +209,3 @@ class CommandsRegistry:
         if namespace not in self.namespaces:
             self.define_namespace(namespace)
         return self.namespaces[namespace]
-
-
-commands_registry = CommandsRegistry()
-commands_registry.define_namespace(
-    ("model",), f"Model manipulation helpers, see {executable_name()} model --help"
-)
-commands_registry.define_namespace(("tar",), "Manipulate tar archives")
-commands_registry.define_namespace(
-    ("model", "import"), f"Model import helpers, see {executable_name()} model import --help"
-)
-commands_registry.define_namespace(
-    ("trace",), f"Trace-related tools, see {executable_name()} trace --help"
-)
