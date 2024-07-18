@@ -443,8 +443,29 @@ static ReturnInst *createRet(Instruction *Position) {
 /// the call.
 bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   LLVMContext &Context = M.getContext();
-  Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
+  Function *CpuLoopExitRestore = M.getFunction("cpu_loop_exit_restore");
 
+
+  // Replace uses of cpu_loop_exit_restore with cpu_loop_exit, some targets
+  // e.g. mips only use cpu_loop_exit_restore
+  if (CpuLoopExitRestore != nullptr) {
+    Function *CpuLoopExit = cast<Function>(M.getOrInsertFunction("cpu_loop_exit", Type::getVoidTy(Context), CpuLoopExitRestore->getArg(0)->getType()).getCallee());
+    SmallVector<Value *, 8> ToErase;
+    for (User *U : CpuLoopExitRestore->users()) {
+      auto *Call = cast<CallInst>(U);
+      Value *CpuStateArg = Call->getArgOperand(0);
+      IRBuilder<> Builder(Call);
+      Value *NewCall = Builder.CreateCall(CpuLoopExit, {CpuStateArg});
+      Call->replaceAllUsesWith(NewCall);
+      ToErase.push_back(Call);
+    }
+
+    for (auto &V : ToErase) {
+      eraseFromParent(V);
+    }
+  }
+
+  Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
   // Nothing to do here
   if (CpuLoopExit == nullptr)
     return false;
