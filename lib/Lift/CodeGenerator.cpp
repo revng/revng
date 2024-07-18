@@ -681,6 +681,7 @@ void CodeGenerator::translate(const LibTcgInterface &LibTcg,
                                                      "do_ioctl_dm",
                                                      "print_syscall",
                                                      "print_syscall_ret",
+                                                     "safe_syscall_base",
                                                      // ARM cpu_loop
                                                      "cpu_abort",
                                                      "do_arm_semihosting",
