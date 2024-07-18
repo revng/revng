@@ -15,7 +15,7 @@ revng_add_library_internal(
   LinkSupportPipe.cpp
   LoadBinaryPass.cpp
   JumpTargetManager.cpp
-  PTCDump.cpp
+  # PTCDump.cpp
   RootAnalyzer.cpp
   ValueMaterializerPass.cpp
   VariableManager.cpp)
