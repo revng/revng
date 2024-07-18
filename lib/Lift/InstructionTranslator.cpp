@@ -738,16 +738,12 @@ IT::translateOpcode(LibTcgOpcode Opcode,
 
   using v = std::vector<Value *>;
   switch (Opcode) {
-  // TODO(anjo): movi are now just normal mov
-  //case LIBTCG_op_movi_i32:
-  //case LIBTCG_op_movi_i64:
-  //  return v{ ConstantInt::get(RegisterType, ConstArguments[0]) };
   case LIBTCG_op_discard:
     // Let's overwrite the discarded temporary with a 0
     return v{ ConstantInt::get(RegisterType, 0) };
   case LIBTCG_op_mov_i32:
   case LIBTCG_op_mov_i64:
-    if (auto Constant = dyn_cast<ConstantInt>(InArguments[0])) {
+    if (auto *Constant = dyn_cast<ConstantInt>(InArguments[0])) {
       return v{ Constant };
     } else {
       return v{ Builder.CreateTrunc(InArguments[0], RegisterType) };
