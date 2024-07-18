@@ -286,6 +286,8 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_xor_i64:
   case LIBTCG_op_clz_i64:
   case LIBTCG_op_extract2_i64:
+  case LIBTCG_op_extract_i64:
+  case LIBTCG_op_sextract_i64:
     return 64;
   case LIBTCG_op_br:
   case LIBTCG_op_call:
@@ -1408,6 +1410,26 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                          Builder.CreateAdd(Offset, Length));
     Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
     Value *AShr = Builder.CreateAShr(Shl, Builder.CreateSub(Const32, Length));
+    return v{ AShr };
+  }
+  case LIBTCG_op_extract_i64: {
+    auto *Const64 = ConstantInt::get(Type::getInt64Ty(Context), 64);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const64,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *LShr = Builder.CreateLShr(Shl, Builder.CreateSub(Const64, Length));
+    return v{ LShr };
+  }
+  case LIBTCG_op_sextract_i64: {
+    auto *Const64 = ConstantInt::get(Type::getInt64Ty(Context), 64);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const64,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *AShr = Builder.CreateAShr(Shl, Builder.CreateSub(Const64, Length));
     return v{ AShr };
   }
   case LIBTCG_op_extract2_i32:
