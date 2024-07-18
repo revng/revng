@@ -148,6 +148,10 @@ members:
       The s390x ABI for SystemZ processor architecture.
       The latest version of the documentation can be found
       \sa https://github.com/IBM/s390x-abi
+
+  - name: SystemV_hexagon
+    doc: |
+      TODO(anjo)
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/ABI.h"
@@ -191,6 +195,9 @@ getArchitecture(model::ABI::Values V) {
   case model::ABI::SystemZ_s390x:
     return model::Architecture::systemz;
 
+  case model::ABI::SystemV_hexagon:
+    return model::Architecture::hexagon;
+
   case model::ABI::Count:
   case model::ABI::Invalid:
   default:
@@ -231,6 +238,8 @@ inline constexpr model::ABI::Values getDefault(model::Architecture::Values V) {
     return model::ABI::AAPCS64;
   case model::Architecture::systemz:
     return model::ABI::SystemZ_s390x;
+  case model::Architecture::hexagon:
+    return model::ABI::SystemV_hexagon;
 
   case model::Architecture::Invalid:
   case model::Architecture::Count:
@@ -255,6 +264,8 @@ getDefaultMicrosoftABI(model::Architecture::Values V) {
     return model::ABI::AAPCS;
   case model::Architecture::aarch64:
     return model::ABI::AAPCS64;
+  case model::Architecture::hexagon:
+    return model::ABI::SystemV_hexagon;
   default:
     revng_abort();
   }
@@ -332,6 +343,9 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
 
   case model::ABI::SystemZ_s390x:
     return "The s390x SystemZ ABI";
+
+  case model::ABI::SystemV_hexagon:
+    return "TODO(anjo)";
 
   case model::ABI::Count:
   case model::ABI::Invalid:

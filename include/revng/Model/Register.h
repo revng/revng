@@ -247,6 +247,71 @@ members:
   - name: f13_systemz
   - name: f14_systemz
   - name: f15_systemz
+  # Hexagon registers
+  - name: r0_hexagon
+  - name: r1_hexagon
+  - name: r2_hexagon
+  - name: r3_hexagon
+  - name: r4_hexagon
+  - name: r5_hexagon
+  - name: r6_hexagon
+  - name: r7_hexagon
+  - name: r8_hexagon
+  - name: r9_hexagon
+  - name: r10_hexagon
+  - name: r11_hexagon
+  - name: r12_hexagon
+  - name: r13_hexagon
+  - name: r14_hexagon
+  - name: r15_hexagon
+  - name: r16_hexagon
+  - name: r17_hexagon
+  - name: r18_hexagon
+  - name: r19_hexagon
+  - name: r20_hexagon
+  - name: r21_hexagon
+  - name: r22_hexagon
+  - name: r23_hexagon
+  - name: r24_hexagon
+  - name: r25_hexagon
+  - name: r26_hexagon
+  - name: r27_hexagon
+  - name: r28_hexagon
+  - name: r29_hexagon
+  - name: r30_hexagon
+  - name: r31_hexagon
+  - name: sa0_hexagon
+  - name: lc0_hexagon
+  - name: sa1_hexagon
+  - name: lc1_hexagon
+  - name: p3_0_hexagon
+  - name: c5_hexagon
+  - name: m0_hexagon
+  - name: m1_hexagon
+  - name: usr_hexagon
+  - name: pc_hexagon
+  - name: ugp_hexagon
+  - name: gp_hexagon
+  - name: cs0_hexagon
+  - name: cs1_hexagon
+  - name: c14_hexagon
+  - name: c15_hexagon
+  - name: c16_hexagon
+  - name: c17_hexagon
+  - name: c18_hexagon
+  - name: c19_hexagon
+  - name: pkt_cnt_hexagon
+  - name: insn_cnt_hexagon
+  - name: hvx_cnt_hexagon
+  - name: c23_hexagon
+  - name: c24_hexagon
+  - name: c25_hexagon
+  - name: c26_hexagon
+  - name: c27_hexagon
+  - name: c28_hexagon
+  - name: c29_hexagon
+  - name: c30_hexagon
+  - name: c31_hexagon
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Register.h"
@@ -484,6 +549,71 @@ getReferenceArchitecture(Values V) {
   case f14_systemz:
   case f15_systemz:
     return model::Architecture::systemz;
+  case r0_hexagon:
+  case r1_hexagon:
+  case r2_hexagon:
+  case r3_hexagon:
+  case r4_hexagon:
+  case r5_hexagon:
+  case r6_hexagon:
+  case r7_hexagon:
+  case r8_hexagon:
+  case r9_hexagon:
+  case r10_hexagon:
+  case r11_hexagon:
+  case r12_hexagon:
+  case r13_hexagon:
+  case r14_hexagon:
+  case r15_hexagon:
+  case r16_hexagon:
+  case r17_hexagon:
+  case r18_hexagon:
+  case r19_hexagon:
+  case r20_hexagon:
+  case r21_hexagon:
+  case r22_hexagon:
+  case r23_hexagon:
+  case r24_hexagon:
+  case r25_hexagon:
+  case r26_hexagon:
+  case r27_hexagon:
+  case r28_hexagon:
+  case r29_hexagon:
+  case r30_hexagon:
+  case r31_hexagon:
+  case sa0_hexagon:
+  case lc0_hexagon:
+  case sa1_hexagon:
+  case lc1_hexagon:
+  case p3_0_hexagon:
+  case c5_hexagon:
+  case m0_hexagon:
+  case m1_hexagon:
+  case usr_hexagon:
+  case pc_hexagon:
+  case ugp_hexagon:
+  case gp_hexagon:
+  case cs0_hexagon:
+  case cs1_hexagon:
+  case c14_hexagon:
+  case c15_hexagon:
+  case c16_hexagon:
+  case c17_hexagon:
+  case c18_hexagon:
+  case c19_hexagon:
+  case pkt_cnt_hexagon:
+  case insn_cnt_hexagon:
+  case hvx_cnt_hexagon:
+  case c23_hexagon:
+  case c24_hexagon:
+  case c25_hexagon:
+  case c26_hexagon:
+  case c27_hexagon:
+  case c28_hexagon:
+  case c29_hexagon:
+  case c30_hexagon:
+  case c31_hexagon:
+    return model::Architecture::hexagon;
   case Count:
   case Invalid:
   default:
@@ -532,6 +662,7 @@ inline uint64_t getSize(Values V) {
   case model::Architecture::x86:
   case model::Architecture::arm:
   case model::Architecture::mips:
+  case model::Architecture::hexagon:
     return 4;
   case model::Architecture::x86_64:
   case model::Architecture::aarch64:
@@ -558,6 +689,8 @@ constexpr model::Register::Values getFirst() {
     return model::Register::x0_aarch64;
   else if constexpr (Architecture == model::Architecture::systemz)
     return model::Register::r0_systemz;
+  else if constexpr (Architecture == model::Architecture::hexagon)
+    return model::Register::r0_hexagon;
   else
     static_assert(value_always_false<Architecture>::value,
                   "Unsupported architecture");
@@ -579,6 +712,8 @@ constexpr model::Register::Values getLast() {
     return model::Register::v31_aarch64;
   else if constexpr (Architecture == model::Architecture::systemz)
     return model::Register::f15_systemz;
+  else if constexpr (Architecture == model::Architecture::hexagon)
+    return model::Register::c31_hexagon;
   else
     static_assert(value_always_false<Architecture>::value,
                   "Unsupported architecture");
@@ -834,6 +969,70 @@ constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
   case r13_systemz:
   case r14_systemz:
   case r15_systemz:
+  case r0_hexagon:
+  case r1_hexagon:
+  case r2_hexagon:
+  case r3_hexagon:
+  case r4_hexagon:
+  case r5_hexagon:
+  case r6_hexagon:
+  case r7_hexagon:
+  case r8_hexagon:
+  case r9_hexagon:
+  case r10_hexagon:
+  case r11_hexagon:
+  case r12_hexagon:
+  case r13_hexagon:
+  case r14_hexagon:
+  case r15_hexagon:
+  case r16_hexagon:
+  case r17_hexagon:
+  case r18_hexagon:
+  case r19_hexagon:
+  case r20_hexagon:
+  case r21_hexagon:
+  case r22_hexagon:
+  case r23_hexagon:
+  case r24_hexagon:
+  case r25_hexagon:
+  case r26_hexagon:
+  case r27_hexagon:
+  case r28_hexagon:
+  case r29_hexagon:
+  case r30_hexagon:
+  case r31_hexagon:
+  case sa0_hexagon:
+  case lc0_hexagon:
+  case sa1_hexagon:
+  case lc1_hexagon:
+  case p3_0_hexagon:
+  case c5_hexagon:
+  case m0_hexagon:
+  case m1_hexagon:
+  case usr_hexagon:
+  case pc_hexagon:
+  case ugp_hexagon:
+  case gp_hexagon:
+  case cs0_hexagon:
+  case cs1_hexagon:
+  case c14_hexagon:
+  case c15_hexagon:
+  case c16_hexagon:
+  case c17_hexagon:
+  case c18_hexagon:
+  case c19_hexagon:
+  case pkt_cnt_hexagon:
+  case insn_cnt_hexagon:
+  case hvx_cnt_hexagon:
+  case c23_hexagon:
+  case c24_hexagon:
+  case c25_hexagon:
+  case c26_hexagon:
+  case c27_hexagon:
+  case c28_hexagon:
+  case c29_hexagon:
+  case c30_hexagon:
+  case c31_hexagon:
     return model::PrimitiveKind::PointerOrNumber;
 
   case st0_x86:
@@ -986,6 +1185,9 @@ constexpr inline model::Register::Values getStackPointer(Values V) {
   case systemz:
     return r15_systemz;
 
+  case hexagon:
+    return r29_hexagon;
+
   default:
     revng_abort();
   }
@@ -1014,6 +1216,9 @@ constexpr inline model::Register::Values getSyscallNumberRegister(Values V) {
   case systemz:
     return r1_systemz;
 
+  case hexagon:
+    return r6_hexagon;
+
   default:
     revng_abort();
   }
@@ -1039,6 +1244,9 @@ constexpr inline model::Register::Values getReturnAddressRegister(Values V) {
 
   case systemz:
     return r14_systemz;
+
+  case hexagon:
+    return r0_hexagon;
 
   default:
     revng_abort();
