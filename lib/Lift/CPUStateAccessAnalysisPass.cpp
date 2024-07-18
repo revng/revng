@@ -690,8 +690,16 @@ public:
 
   explicit WorkItem(Instruction *I) :
     CurrentValue(I), Sources(), SourceIndex(0) {
-    if (not isa<StoreInst>(I)) {
+    if (isa<SelectInst>(I)) {
+      Sources.push_back(&I->getOperandUse(1));
+      Sources.push_back(&I->getOperandUse(2));
+    } else if (not isa<StoreInst>(I)) {
       for (const Use &OpUse : I->operands()) {
+        // NOTE(anjo): We ignore undef values here to not
+        // crash on switch statements with unreachable
+        // branches.
+        if (isa<UndefValue>(OpUse))
+          continue;
         Sources.push_back(&OpUse);
       }
     } else {
@@ -1400,10 +1408,11 @@ private:
     revng_assert(OffsetTuple.size() == 2);
 
     auto OpCode = I->getOpcode();
-    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
-                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
-                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
-                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
+    revng_assert(OpCode == Instruction::Xor or OpCode == Instruction::Shl or
+                 OpCode == Instruction::AShr or OpCode == Instruction::LShr or
+                 OpCode == Instruction::Mul or OpCode == Instruction::URem or
+                 OpCode == Instruction::SRem or OpCode == Instruction::SDiv or
+                 OpCode == Instruction::UDiv);
 
     const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
     revng_assert(not O0->isPtr() and not O1->isPtr());
@@ -1420,10 +1429,11 @@ private:
                          const SmallVector<offset_iterator, 4> &OffsetsIt) {
 
     auto OpCode = I->getOpcode();
-    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
-                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
-                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
-                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
+    revng_assert(OpCode == Instruction::Xor or OpCode == Instruction::Shl or
+                 OpCode == Instruction::AShr or OpCode == Instruction::LShr or
+                 OpCode == Instruction::Mul or OpCode == Instruction::URem or
+                 OpCode == Instruction::SRem or OpCode == Instruction::SDiv or
+                 OpCode == Instruction::UDiv);
 
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
     // Setup operands
@@ -1745,6 +1755,7 @@ private:
   }
 
   void pop() {
+    revng_assert(not WorkList.empty());
     InExploration.erase(WorkList.back().val());
     WorkList.pop_back();
     CSVAccessLog.unindent(2);
@@ -1765,7 +1776,7 @@ using CPUSAOA = CPUStateAccessOffsetAnalysis;
 void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
   Value *ItemVal = Item.val();
   if (isa<PHINode>(ItemVal) or isa<Argument>(ItemVal)
-      or isa<CallInst>(ItemVal)) {
+      or isa<CallInst>(ItemVal) or isa<SelectInst>(ItemVal)) {
 
     // These three cases represent points of convergence of information coming
     // from different origins.
@@ -1922,6 +1933,7 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       revng_log(CSVAccessLog, "Add/Sub");
       AddSubFolder.fold(Item, ValueCallSiteOffsets);
     } break;
+    case Instruction::Xor:
     case Instruction::Shl:
     case Instruction::AShr:
     case Instruction::LShr:
@@ -2161,7 +2173,6 @@ static bool callsBuiltinMemcpy(const Instruction *TheCall) {
 }
 
 void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
-
   // This analysis starts from the Instruction LoadOrStore and works in two
   // alternate steps:
   // 1) it iterates backward, looking for all the values that generate their
