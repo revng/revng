@@ -129,7 +129,3 @@ static void createDebugInfoFromMetadata(Module *M,
 void createPTCDebugInfo(Module *M, StringRef SourcePath) {
   createDebugInfoFromMetadata(M, SourcePath, "pi");
 }
-
-void createOriginalAssemblyDebugInfo(Module *M, StringRef SourcePath) {
-  createDebugInfoFromMetadata(M, SourcePath, "oi");
-}

@@ -149,8 +149,6 @@ inline const char *getName(Values V) {
 
 } // namespace CFGForm
 
-class CPUStateAccessAnalysisPass;
-
 class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<MetaAddress, CompareAddress>;
@@ -214,16 +212,12 @@ public:
 
 public:
   using BlockMap = std::map<MetaAddress, JumpTarget>;
-  using CSAAFactory = std::function<CPUStateAccessAnalysisPass *(void)>;
 
 public:
   /// \param TheFunction the translated function.
   /// \param PCH ProgramCounterHandler instance.
-  /// \param CreateCSAA a factory function able to create
-  ///        CPUStateAccessAnalysisPass.
   JumpTargetManager(llvm::Function *TheFunction,
                     ProgramCounterHandler *PCH,
-                    CSAAFactory CreateCSAA,
                     const TupleTree<model::Binary> &Model,
                     const RawBinaryView &BinaryView);
 
@@ -235,8 +229,6 @@ public:
 
   /// Collect jump targets from the program's segments
   void harvestGlobalData();
-
-  auto createCSAA() { return CreateCSAA(); }
 
   /// Handle a new program counter. We might already have a basic block for that
   /// program counter, or we could even have a translation for it. Return one
@@ -607,7 +599,6 @@ private:
   CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;
   std::set<MetaAddress> SimpleLiterals;
-  CSAAFactory CreateCSAA;
 
   ProgramCounterHandler *PCH = nullptr;
 

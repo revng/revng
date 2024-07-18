@@ -127,7 +127,6 @@ void Decompile::run(pipeline::ExecutionContext &EC,
                     pipeline::LLVMContainer &IRContainer,
                     const revng::pipes::CFGMap &CFGMap,
                     DecompileStringMap &DecompiledFunctions) {
-
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(EC);
   ControlFlowGraphCache Cache(CFGMap);

@@ -5,17 +5,21 @@
 //
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
@@ -30,7 +34,6 @@
 #include "revng/TypeShrinking/TypeShrinking.h"
 #include "revng/ValueMaterializer/DataFlowGraph.h"
 
-#include "CPUStateAccessAnalysisPass.h"
 #include "JumpTargetManager.h"
 #include "RootAnalyzer.h"
 #include "ValueMaterializerPass.h"
@@ -108,6 +111,17 @@ public:
 
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
+    // TODO: we shouldn't create new functions in a function pass
+    auto *BoolType = llvm::IntegerType::getInt1Ty(F.getContext());
+    auto *RandomBoolType = FunctionType::get(BoolType, {});
+    FunctionCallee RandomBoolCallee = F.getParent()
+                                        ->getOrInsertFunction("random_bool",
+                                                              RandomBoolType);
+    Function *RandomBool = cast<Function>(RandomBoolCallee.getCallee());
+    RandomBool->setMemoryEffects(MemoryEffects::inaccessibleMemOnly());
+    RandomBool->addFnAttr(Attribute::NoUnwind);
+    RandomBool->addFnAttr(Attribute::WillReturn);
+
     for (Instruction &I : llvm::instructions(F)) {
       auto *Load = dyn_cast<LoadInst>(&I);
       if (Load == nullptr)
@@ -128,7 +142,21 @@ public:
       if (not Loaded.isValid() or Loaded.hasSymbol())
         continue;
 
-      Load->replaceAllUsesWith(ConstantInt::get(LoadType, Loaded.value()));
+      auto *ConstantValue = ConstantInt::get(LoadType, Loaded.value());
+
+      if (Loaded.isMutable()) {
+        IRBuilder<> Builder(Load->getNextNode());
+        auto *ReplaceWith = Builder.CreateSelect(Builder.CreateCall(RandomBool),
+                                                 Load,
+                                                 ConstantValue);
+        Load->replaceAllUsesWith(ReplaceWith);
+
+        // Fix the second operand of the select
+        cast<SelectInst>(ReplaceWith)->setOperand(1, Load);
+
+      } else {
+        Load->replaceAllUsesWith(ConstantValue);
+      }
     }
     return PreservedAnalyses::none();
   }
@@ -308,15 +336,6 @@ RootAnalyzer::MetaAddressSet RootAnalyzer::inflateValueMaterializerWhitelist() {
   return Result;
 }
 
-// Update CPUStateAccessAnalysisPass
-void RootAnalyzer::updateCSAA() {
-  legacy::PassManager PM;
-  PM.add(new LoadModelWrapperPass(ModelWrapper::createConst(Model)));
-  PM.add(JTM.createCSAA());
-  PM.add(new FunctionCallIdentification);
-  PM.run(TheModule);
-}
-
 static llvm::SmallSet<model::Register::Values, 16>
 getPreservedRegisters(const model::TypeDefinition &Prototype) {
   llvm::SmallSet<model::Register::Values, 16> Result;
@@ -336,22 +355,23 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   llvm::DenseSet<BasicBlock *> Callees;
   llvm::DenseMap<Use *, BasicBlock *> Undo;
   auto *FunctionCall = getIRHelper("function_call", TheModule);
-  revng_assert(FunctionCall != nullptr);
-  for (CallBase *Call : callers(FunctionCall)) {
-    auto *T = Call->getParent()->getTerminator();
+  if (FunctionCall) {
+    for (CallBase *Call : callers(FunctionCall)) {
+      auto *T = Call->getParent()->getTerminator();
 
-    Callees.insert(getFunctionCallCallee(Call->getParent()));
+      Callees.insert(getFunctionCallCallee(Call->getParent()));
 
-    if (auto *Branch = dyn_cast<BranchInst>(T)) {
-      revng_assert(Branch->isUnconditional());
-      BasicBlock *Target = Branch->getSuccessor(0);
-      Use *U = &Branch->getOperandUse(0);
+      if (auto *Branch = dyn_cast<BranchInst>(T)) {
+        revng_assert(Branch->isUnconditional());
+        BasicBlock *Target = Branch->getSuccessor(0);
+        Use *U = &Branch->getOperandUse(0);
 
-      // We're after a function call: pretend we're jumping to anypc
-      U->set(JTM.anyPC());
+        // We're after a function call: pretend we're jumping to anypc
+        U->set(JTM.anyPC());
 
-      // Record Use for later undoing
-      Undo[U] = Target;
+        // Record Use for later undoing
+        Undo[U] = Target;
+      }
     }
   }
 
@@ -424,8 +444,12 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
 
     OpaqueRegisterUser Clobberer(M);
     SmallVector<CallBase *, 16> FunctionCallCalls;
-    llvm::copy(callersIn(FunctionCall, OptimizedFunction),
-               std::back_inserter(FunctionCallCalls));
+
+    if (FunctionCall != nullptr) {
+      llvm::copy(callersIn(FunctionCall, OptimizedFunction),
+                 std::back_inserter(FunctionCallCalls));
+    }
+
     for (CallBase *Call : FunctionCallCalls) {
       Builder.SetInsertPoint(Call);
 
@@ -503,17 +527,16 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   GlobalToAllocaTy CSVMap;
 
   // Collect all the non-PC affecting CSVs
-  DenseSet<GlobalVariable *> NonPCCSVs;
+  DenseSet<GlobalVariable *> CSVs;
   for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
-    if (not JTM.programCounterHandler()->affectsPC(&CSV))
-      NonPCCSVs.insert(&CSV);
+    CSVs.insert(&CSV);
 
   // Create and initialize an alloca per CSV (except for the PC-affecting ones)
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
   IRBuilder<> AllocaBuilder(&*EntryBB->begin());
   IRBuilder<> InitializeBuilder(EntryBB->getTerminator());
 
-  for (GlobalVariable *CSV : toSortedByName(NonPCCSVs)) {
+  for (GlobalVariable *CSV : toSortedByName(CSVs)) {
     Type *CSVType = CSV->getValueType();
     auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
     CSVMap[CSV] = Alloca;
@@ -617,6 +640,8 @@ SummaryCallsBuilder RootAnalyzer::optimize(llvm::Function *OptimizedFunction,
     // It is also important to run EarlyCSE after TypeShrinking to factor trunc
     // instructions and have more accurate constraints.
     FPM.addPass(EarlyCSEPass(true));
+
+    FPM.addPass(SimplifyCFGPass());
 
     // Drop range metadata
     FPM.addPass(DropRangeMetadataPass());
@@ -818,7 +843,11 @@ static MetaAddress::Features findCommonFeatures(Function *F) {
 }
 
 void RootAnalyzer::cloneOptimizeAndHarvest(Function *TheFunction) {
-  updateCSAA();
+  // Re-run the identification of function calls
+  legacy::PassManager PM;
+  PM.add(new LoadModelWrapperPass(ModelWrapper::createConst(Model)));
+  PM.add(new FunctionCallIdentification);
+  PM.run(TheModule);
 
   ValueToValueMapTy OldToNew;
   Function *OptimizedFunction = createTemporaryRoot(TheFunction, OldToNew);

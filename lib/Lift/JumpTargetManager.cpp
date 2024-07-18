@@ -7,6 +7,7 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/Progress.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
@@ -274,20 +275,10 @@ bool TDBP::pinConstantStore(Function &F) {
 static bool isPossiblyReturningHelper(ProgramCounterHandler *PCH,
                                       const MetaAddress &PC,
                                       llvm::Instruction *I) {
-  // Is this a helper?
-  auto *Call = getCallToHelper(I);
-  if (Call == nullptr)
+  if (not PCH->isPCAffectingHelper(I))
     return false;
 
-  // Does this helper write something?
-  auto UsedCSV = getCSVUsedByHelperCallIfAvailable(Call);
-  if (not UsedCSV.has_value() or UsedCSV->Written.empty())
-    return false;
-
-  // Does this helper affect PC?
-  auto AffectsPC = [PCH](GlobalVariable *CSV) { return PCH->affectsPC(CSV); };
-  if (not llvm::any_of(UsedCSV->Written, AffectsPC))
-    return false;
+  auto *Call = cast<CallInst>(I);
 
   // Obtain the name of the helper
   StringRef CalleeName;
@@ -436,7 +427,12 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {
-          Result = MaterializedValue::fromConstant(NewAPInt(Address.address()));
+          if (Segment.IsWriteable())
+            Result = MaterializedValue::fromMutable(NewAPInt(Address
+                                                               .address()));
+          else
+            Result = MaterializedValue::fromConstant(NewAPInt(Address
+                                                                .address()));
           ++MatchCount;
         } else {
           // TODO: log message
@@ -452,19 +448,11 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
   }
 
   // No labels found, fall back to read the raw value, if available
-  auto MaybeValue = BinaryView.readInteger(LoadAddress,
-                                           LoadSize,
-                                           IsLittleEndian);
-
-  if (MaybeValue)
-    return MaterializedValue::fromConstant(NewAPInt(*MaybeValue));
-  else
-    return MaterializedValue::invalid();
+  return BinaryView.load(LoadAddress, LoadSize, IsLittleEndian);
 }
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      ProgramCounterHandler *PCH,
-                                     CSAAFactory CreateCSAA,
                                      const TupleTree<model::Binary> &Model,
                                      const RawBinaryView &BinaryView) :
   TheModule(*TheFunction->getParent()),
@@ -476,7 +464,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   CurrentCFGForm(CFGForm::UnknownForm),
-  CreateCSAA(CreateCSAA),
   PCH(PCH),
   Model(Model),
   BinaryView(BinaryView) {

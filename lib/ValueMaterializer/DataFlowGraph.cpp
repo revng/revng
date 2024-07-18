@@ -10,13 +10,14 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/GraphWriter.h"
 
+#include "revng/ADT/ConstantRangeSet.h"
 #include "revng/ValueMaterializer/DataFlowGraph.h"
 
 using namespace llvm;
 
 using range_size_t = uint64_t;
 
-Logger<> &Log = ValueMaterializerLogger;
+static Logger<> &Log = ValueMaterializerLogger;
 
 const range_size_t MaxMaterializedValues = (1 << 16);
 
@@ -301,8 +302,14 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
     rc_return std::nullopt;
   }
 
-  if (N->UseOracle)
+  revng_log(Log,
+            "Range provided by oracle: "
+              << N->OracleRange.value_or(ConstantRangeSet()).toString());
+
+  if (N->UseOracle) {
+    revng_log(Log, "Using the range provided by oracle");
     rc_return{ { ::materialize(*N->OracleRange), {} } };
+  }
 
   MaterializedValues Result;
 
@@ -323,6 +330,8 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
   } else {
     // Regular instruction: constant fold with all the possible operands
     // combinations
+
+    revng_log(Log, "It's a regular instruction, fold");
 
     SmallVector<MaterializedValues, 2> MaterializedValuesVector;
     SmallVector<iterator_range<MaterializedValues::iterator>, 2> Ranges;

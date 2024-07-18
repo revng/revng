@@ -4,6 +4,7 @@
 
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
+#include "revng/Support/IRHelpers.h"
 
 namespace FunctionTags {
 
@@ -714,4 +715,44 @@ llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
   // pipeline, so it's temporary.
   SmallVector<llvm::Type *, 1> FixedArgs = { VariableReferenceType };
   return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
+}
+
+static std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Function *F,
+                                                       unsigned MDKindID) {
+  using namespace llvm;
+
+  std::vector<GlobalVariable *> Result;
+  auto *Tuple = cast_or_null<MDTuple>(F->getMetadata(MDKindID));
+  if (Tuple == nullptr)
+    return Result;
+
+  QuickMetadata QMD(getContext(F));
+
+  auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
+  for (const MDOperand &Operand : OperandsRange) {
+    auto *CSV = QMD.extract<Constant *>(Operand.get());
+    Result.push_back(cast<GlobalVariable>(CSV));
+  }
+
+  return Result;
+}
+
+std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call) {
+  revng_assert(isCallToHelper(Call));
+
+  auto *Callee = getCalledFunction(cast<llvm::CallBase>(Call));
+
+  const llvm::Module *M = getModule(Call);
+  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
+  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
+
+  if (Callee->getMetadata(LoadMDKind) == nullptr
+      and Callee->getMetadata(StoreMDKind) == nullptr) {
+    return {};
+  }
+
+  CSVsUsage Result;
+  Result.Read = extractCSVs(Callee, LoadMDKind);
+  Result.Written = extractCSVs(Callee, StoreMDKind);
+  return Result;
 }

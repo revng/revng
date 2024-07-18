@@ -10,8 +10,12 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 
 inline const char *ModuleBegin = R"LLVM(
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -88,6 +92,15 @@ inline std::unique_ptr<llvm::Module> loadModule(llvm::LLVMContext &C,
   std::unique_ptr<Module> M = parseIR(Buffer.get()->getMemBufferRef(),
                                       Diagnostic,
                                       C);
+
+  if (M.get() == nullptr) {
+    {
+      llvm::raw_os_ostream Wrapper(dbg);
+      Diagnostic.print("", Wrapper);
+    }
+    revng_abort();
+  }
+
   revng::forceVerify(M.get());
 
   if (M.get() == nullptr) {

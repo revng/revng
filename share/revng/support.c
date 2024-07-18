@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <elf.h>
 #include <endian.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -213,12 +214,6 @@ uintptr_t qemu_real_host_page_mask = ~((1 << 12) - 1);
 uintptr_t qemu_host_page_size = 1 << 12;
 uintptr_t qemu_host_page_mask = ~((1 << 12) - 1);
 
-void page_set_flags(target_reg start, target_reg end, int flags) {
-}
-
-void tb_invalidate_phys_range(target_reg start, target_reg end) {
-}
-
 const char *path(const char *name) {
   return name;
 }
@@ -227,7 +222,23 @@ void *g_realloc(void *mem, size_t size) {
   return realloc(mem, size);
 }
 
+void *g_realloc_n(void *mem, size_t n, size_t size) {
+  return realloc(mem, n * size);
+}
+
 void *g_malloc0_n(size_t n, size_t size) {
+  return calloc(n, size);
+}
+
+void *g_malloc0(size_t n) {
+  return calloc(n, 1);
+}
+
+void *g_malloc_n(size_t n, size_t size) {
+  return calloc(n, size);
+}
+
+void *g_try_malloc0_n(size_t n, size_t size) {
   return calloc(n, size);
 }
 
@@ -238,6 +249,20 @@ void *g_malloc(size_t n_bytes) {
     return malloc(n_bytes);
 }
 
+void *g_try_malloc(size_t n_bytes) {
+  if (n_bytes == 0)
+    return NULL;
+  else
+    return malloc(n_bytes);
+}
+
+void *g_try_malloc_n(size_t n, size_t size) {
+  if (n == 0 || size == 0)
+    return NULL;
+  else
+    return calloc(n, size);
+}
+
 void g_free(void *memory) {
   if (memory == NULL)
     return;
@@ -245,16 +270,41 @@ void g_free(void *memory) {
     return free(memory);
 }
 
-void g_assertion_message_expr(const char *domain,
-                              const char *file,
-                              int line,
-                              const char *func,
-                              const char *expr) {
+size_t g_strlcpy(char *dest, const char *src, size_t dest_size) {
+  char *d = dest;
+  const char *s = src;
+  size_t n = dest_size;
+
+  /* Copy as many bytes as will fit */
+  if (n != 0 && --n != 0)
+    do {
+      char c = *s++;
+
+      *d++ = c;
+      if (c == 0)
+        break;
+    } while (--n != 0);
+
+  /* If not enough room in dest, add NUL and traverse rest of src */
+  if (n == 0) {
+    if (dest_size != 0)
+      *d = 0;
+    while (*s++)
+      ;
+  }
+
+  /* Count does not include NUL */
+  return s - src - 1;
+}
+
+int memfd_create(const char *name, unsigned int flags) {
+  errno = ENOSYS;
+  return -1;
 }
 
 void unknown_pc() {
   int arg;
-  fprintf(stderr, "Unknown PC:");
+  fprintf(stderr, "Unknown PC: ");
   fprint_metaaddress(stderr, &current_pc);
   fprintf(stderr, "\n");
 
@@ -365,14 +415,12 @@ void newpc(uint64_t pc,
 void init_tracing(void) {
 }
 
-void on_exit_syscall(void) {
-}
-
-void newpc(uint64_t pc,
+void newpc(const char *pc,
            uint64_t instruction_size,
            uint32_t is_first,
            uint8_t *vars,
            ...) {
+  // fprintf(stderr, "%s\n", pc);
 }
 
 #endif
@@ -452,13 +500,6 @@ int main(int argc, char *argv[]) {
 
   // Implant custom SIGSEGV handler
   install_sigsegv_handler();
-
-#ifdef TARGET_x86_64
-  unsigned long fs_value;
-  int result = arch_prctl(ARCH_GET_FS, &fs_value);
-  assert(result == 0);
-  set_register(REGISTER_FS, fs_value);
-#endif
 
   // Run the translated program
   SAFE_CAST(stack);

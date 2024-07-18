@@ -15,10 +15,12 @@ bool init_unit_test();
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Scalar.h"
 
+#include "revng/ADT/Queue.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/UnitTestHelpers/LLVMTestHelpers.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
+#include "revng/ValueMaterializer/DataFlowRangeAnalysis.h"
 #include "revng/ValueMaterializer/ValueMaterializer.h"
 
 using namespace llvm;
@@ -81,20 +83,22 @@ bool TestAdvancedValueInfoPass::runOnModule(llvm::Module &M) {
   auto &DT = getAnalysis<DominatorTreeWrapperPass>(Root).getDomTree();
 
   MockupMemoryOracle MO(M.getDataLayout());
+  DataFlowRangeAnalysis DFRA(M);
 
   for (User *U : M.getGlobalVariable("pc", true)->users()) {
     if (auto *Store = dyn_cast<StoreInst>(U)) {
       Value *V = Store->getValueOperand();
 
-      auto
-        MaybeValues = ValueMaterializer::getValuesFor(Store,
-                                                      V,
-                                                      MO,
-                                                      LVI,
-                                                      DT,
-                                                      {},
-                                                      Oracle::AdvancedValueInfo)
-                        .values();
+      auto AVIOracle = Oracle::AdvancedValueInfo;
+      auto MaybeValues = ValueMaterializer::getValuesFor(Store,
+                                                         V,
+                                                         MO,
+                                                         LVI,
+                                                         DFRA,
+                                                         DT,
+                                                         {},
+                                                         AVIOracle)
+                           .values();
       if (MaybeValues) {
         (*Results)[V] = *MaybeValues;
       }
@@ -511,4 +515,151 @@ end:
                                aI64(32),
                                aI64(33),
                                aI64(34) } } });
+}
+
+static void testVisit(const char *Body,
+                      std::optional<ConstantRangeSet> Expected) {
+  LLVMContext C;
+  std::unique_ptr<llvm::Module> Module = loadModule(C, Body);
+  Function *Main = Module->getFunction("main");
+  BasicBlock &BB = Main->getEntryBlock();
+  llvm::Instruction *Variable = &*BB.begin();
+  revng_assert(isa<LoadInst>(Variable));
+  auto *Condition = cast<BranchInst>(*BB.rbegin()).getCondition();
+  llvm::Instruction *Constraint = cast<Instruction>(Condition);
+
+  DataFlowRangeAnalysis Context(*Module);
+  auto Result = Context.visit(*Constraint, *Variable);
+
+  if (Result != Expected) {
+    Main->dump();
+
+    dbg << "Result: ";
+    if (Result.has_value())
+      Result->dump();
+    else
+      dbg << "nullopt";
+    dbg << "\n";
+    dbg << "Expected: ";
+    if (Expected.has_value())
+      Expected->dump();
+    else
+      dbg << "nullopt";
+    dbg << "\n";
+  }
+
+  revng_check(Result == Expected);
+}
+
+BOOST_AUTO_TEST_CASE(TestDataFlowRangeAnalysis) {
+  auto Range = [](uint64_t Lower, uint64_t Upper) {
+    return ConstantRange(APInt(64, Lower), APInt(64, Upper));
+  };
+
+  const char *Body = nullptr;
+
+  // Test x - 4 < 5
+  Body = R"LLVM(
+    %rdi = load i64, i64* @rdi
+    %add = add i64 %rdi, -4
+    %cmp = icmp ult i64 %add, 5
+    br i1 %cmp, label %a, label %b
+  a:
+    unreachable
+  b:
+    unreachable
+  )LLVM";
+  testVisit(Body, ConstantRangeSet(Range(4, 9)));
+
+  // Test x - 4 != 0
+  Body = R"LLVM(
+    %rdi = load i64, i64* @rdi
+    %add = add i64 %rdi, -4
+    %cmp = icmp ne i64 %add, 0
+    br i1 %cmp, label %a, label %b
+  a:
+    unreachable
+  b:
+    unreachable
+  )LLVM";
+  testVisit(Body, ConstantRangeSet(Range(5, 4)));
+
+  // Test and with bitmask
+  Body = R"LLVM(
+    %rdi = load i64, i64* @rdi
+    %and = and i64 %rdi, -4
+    %cmp = icmp eq i64 %and, 12
+    br i1 %cmp, label %a, label %b
+  a:
+    unreachable
+  b:
+    unreachable
+  )LLVM";
+  testVisit(Body, ConstantRangeSet(Range(12, 16)));
+
+  // Test or
+  Body = R"LLVM(
+    %rdi = load i64, i64* @rdi
+
+    %add1 = add i64 %rdi, -4
+    %cmp1 = icmp ult i64 %add1, 5
+
+    %add2 = add i64 %rdi, -20
+    %cmp2 = icmp ult i64 %add2, 10
+
+    %or = or i1 %cmp1, %cmp2
+
+    br i1 %or, label %a, label %b
+  a:
+    unreachable
+  b:
+    unreachable
+  )LLVM";
+  testVisit(Body,
+            ConstantRangeSet(Range(4, 9)) | ConstantRangeSet(Range(20, 30)));
+
+  // Test and
+  Body = R"LLVM(
+    %rdi = load i64, i64* @rdi
+
+    %add1 = add i64 %rdi, -10
+    %cmp1 = icmp ult i64 %add1, 20
+
+    %add2 = add i64 %rdi, -20
+    %cmp2 = icmp ult i64 %add2, 20
+
+    %or = and i1 %cmp1, %cmp2
+
+    br i1 %or, label %a, label %b
+  a:
+    unreachable
+  b:
+    unreachable
+  )LLVM";
+  testVisit(Body, ConstantRangeSet(Range(20, 30)));
+
+  // Test select
+  // [30, 60] ? [20, 40] : [50, 70]
+  Body = R"LLVM(
+    %rdi = load i64, i64* @rdi
+
+    %add1 = add i64 %rdi, -30
+    %cmp1 = icmp ult i64 %add1, 30
+
+    %add2 = add i64 %rdi, -20
+    %cmp2 = icmp ult i64 %add2, 20
+
+    %add3 = add i64 %rdi, -50
+    %cmp3 = icmp ult i64 %add3, 20
+
+    %select = select i1 %cmp1, i1 %cmp2, i1 %cmp3
+
+    br i1 %select, label %a, label %b
+  a:
+    unreachable
+  b:
+    unreachable
+  )LLVM";
+  testVisit(Body,
+            ConstantRangeSet(Range(30, 40)) | ConstantRangeSet(Range(60, 70)));
 }

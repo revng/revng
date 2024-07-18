@@ -37,8 +37,6 @@ public:
   void cloneOptimizeAndHarvest(llvm::Function *TheFunction);
 
 private:
-  void updateCSAA();
-
   llvm::Function *createTemporaryRoot(llvm::Function *TheFunction,
                                       llvm::ValueToValueMapTy &OldToNew);
 

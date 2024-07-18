@@ -146,6 +146,8 @@ public:
       return false;
   }
 
+  bool isPCAffectingHelper(llvm::Instruction *I) const;
+
   /// \return an empty optional if the PC has not changed on at least one path,
   ///         an invalid MetaAddress in case there isn't a single next PC, or,
   ///         finally, a valid MetaAddress representing the only possible next
@@ -267,8 +269,6 @@ public:
   }
 
 private:
-  bool isPCAffectingHelper(llvm::Instruction *I) const;
-
   static llvm::GlobalVariable *createAddress(llvm::Module *M) {
     return createVariable(M, AddressName, sizeof(MetaAddress::Address));
   }

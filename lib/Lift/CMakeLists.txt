@@ -6,16 +6,15 @@ revng_add_library_internal(
   revngLift
   SHARED
   CodeGenerator.cpp
-  CPUStateAccessAnalysisPass.cpp
   CSVOffsets.cpp
   ExternalJumpsHandler.cpp
+  FixHelpers.cpp
   InstructionTranslator.cpp
   Lift.cpp
   LiftPipe.cpp
   LinkSupportPipe.cpp
   LoadBinaryPass.cpp
   JumpTargetManager.cpp
-  PTCDump.cpp
   RootAnalyzer.cpp
   ValueMaterializerPass.cpp
   VariableManager.cpp)
@@ -28,6 +27,7 @@ target_link_libraries(
          revngBasicAnalyses
          revngModelImporterDebugInfo
          revngFunctionCallIdentification
+         revngHelperArgumentsAnalysis
          revngModel
          revngPipes
          revngSupport

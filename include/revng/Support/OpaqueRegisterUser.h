@@ -9,6 +9,7 @@
 #include "llvm/IR/IRBuilder.h"
 
 #include "revng/Model/Register.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 class OpaqueRegisterUser {

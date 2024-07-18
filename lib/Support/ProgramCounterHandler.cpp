@@ -212,8 +212,13 @@ private:
     auto *ThumbCode = CI::get(TypeType, Code_arm_thumb);
     // We don't use select here, SCEV can't handle it
     // NewType = ARM + IsThumb * (Thumb - ARM)
+    unsigned ThumbSize = cast<IntegerType>(IsThumb->getType())->getBitWidth();
+    unsigned TypeSize = cast<IntegerType>(TypeType)->getBitWidth();
+    auto *CastedThumb = (ThumbSize < TypeSize) ?
+                          B.CreateZExt(IsThumb, TypeType) :
+                          B.CreateTrunc(IsThumb, TypeType);
     auto *NewType = B.CreateAdd(ArmCode,
-                                B.CreateMul(B.CreateTrunc(IsThumb, TypeType),
+                                B.CreateMul(CastedThumb,
                                             B.CreateSub(ThumbCode, ArmCode)));
     return NewType;
   }
@@ -354,7 +359,7 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   if (HelperCall == nullptr)
     return false;
 
-  auto MaybeUsedCSVs = getCSVUsedByHelperCallIfAvailable(HelperCall);
+  auto MaybeUsedCSVs = tryGetCSVUsedByHelperCall(HelperCall);
 
   // If CSAA didn't consider this helper, be conservative
   if (not MaybeUsedCSVs)
@@ -878,6 +883,7 @@ static unsigned getMinimumPCAlignment(Triple::ArchType Architecture) {
   case Triple::mips:
   case Triple::mipsel:
   case Triple::aarch64:
+  case Triple::hexagon:
     return 4;
   default:
     revng_abort();
@@ -900,6 +906,7 @@ PCH::create(Triple::ArchType Architecture,
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
+  case Triple::hexagon:
     return PCOnlyProgramCounterHandler::create(M, Factory, Alignment);
 
   default:
@@ -923,6 +930,7 @@ PCH::fromModule(Triple::ArchType Architecture, Module *M) {
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
+  case Triple::hexagon:
     return PCOnlyProgramCounterHandler::fromModule(M, Alignment);
 
   default:

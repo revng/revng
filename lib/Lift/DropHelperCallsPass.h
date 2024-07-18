@@ -11,6 +11,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using CSVToAllocaMap = llvm::DenseMap<llvm::GlobalVariable *,

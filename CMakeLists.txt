@@ -21,7 +21,7 @@ include_directories("${CMAKE_BINARY_DIR}/include")
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 
 # Uncomment the following line if recursive coroutines make debugging hard
-# add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
+add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
@@ -99,6 +99,7 @@ llvm_map_components_to_libnames(
   core
   support
   irreader
+  irprinter
   ScalarOpts
   linker
   Analysis
@@ -219,8 +220,21 @@ foreach(
     list(APPEND HELPER_MODULE_LIST "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
   endforeach()
 
-  list(APPEND HELPER_MODULE_LIST
-       "${CMAKE_INSTALL_PREFIX}/lib/libtinycode-helpers-${ARCH}.bc")
+  # Annotate libtcg-helpers-*.bc
+
+  set(LIBTCG_HELPERS
+      "${CMAKE_INSTALL_PREFIX}/share/libtcg/libtcg-helpers-${ARCH}.bc")
+  set(LIBTCG_HELPERS_ANNOTATED
+      "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-annotated-${ARCH}.bc")
+  add_custom_command(
+    OUTPUT "${LIBTCG_HELPERS_ANNOTATED}"
+    DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries
+    COMMAND
+      ./bin/revng opt -sroa -instsimplify -cpu-loop-exit
+      -analyze-helper-arguments "${LIBTCG_HELPERS}" -o
+      "${LIBTCG_HELPERS_ANNOTATED}")
+  add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
+                    DEPENDS "${LIBTCG_HELPERS_ANNOTATED}")
 endforeach()
 
 # Produce well-known-models

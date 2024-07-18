@@ -20,6 +20,7 @@
 #include "revng/Lift/Lift.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Generated/Early/Architecture.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/FunctionTags.h"
@@ -312,6 +313,10 @@ public:
 
   llvm::SmallVector<std::pair<llvm::BasicBlock *, bool>, 4>
   blocksByPCRange(MetaAddress Start, MetaAddress End);
+
+  bool hasDelaySlot() const {
+    return model::Architecture::hasDelaySlot(Binary->Architecture());
+  }
 
 private:
   void parseRoot();
