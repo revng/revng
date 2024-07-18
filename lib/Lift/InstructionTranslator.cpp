@@ -218,6 +218,10 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_sub2_i32:
   case LIBTCG_op_sub_i32:
   case LIBTCG_op_xor_i32:
+  case LIBTCG_op_extract_i32:
+  case LIBTCG_op_sextract_i32:
+  case LIBTCG_op_extract2_i32:
+  case LIBTCG_op_clz_i32:
     return 32;
   case LIBTCG_op_add2_i64:
   case LIBTCG_op_add_i64:
@@ -280,6 +284,8 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_sub2_i64:
   case LIBTCG_op_sub_i64:
   case LIBTCG_op_xor_i64:
+  case LIBTCG_op_clz_i64:
+  case LIBTCG_op_extract2_i64:
     return 64;
   case LIBTCG_op_br:
   case LIBTCG_op_call:
@@ -290,10 +296,48 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_goto_ptr:
   case LIBTCG_op_set_label:
     return 0;
-  default:
-    revng_unreachable("Unexpected libtcg opcode");
+  default: {
+    // For debugging purposes printing the actual opcode
+    // really helps.
+    std::stringstream ErrSS;
+    ErrSS << "Unexpected libtcg opcode ["
+          << Opcode
+          << "]: "
+          << LibTcg.get_instruction_name(Opcode);
+    revng_unreachable(ErrSS.str().c_str());
+  }
   }
 }
+
+static Value *genDeposit(IRBuilder<> &Builder,
+                         unsigned RegisterSize,
+                         Value *Into, Value *From,
+                         Value *Offset, Value *Length) {
+    revng_assert(isa<ConstantInt>(Offset));
+    uint64_t ConstOffset = cast<ConstantInt>(Offset)->getLimitedValue();
+    if (ConstOffset == RegisterSize)
+      return Into;
+
+    revng_assert(isa<ConstantInt>(Length));
+    uint64_t ConstLength = cast<ConstantInt>(Length)->getLimitedValue();
+
+    uint64_t Bits = 0;
+    // Thou shall not << 32
+    if (ConstLength == RegisterSize)
+      Bits = getMaxValue(RegisterSize);
+    else
+      Bits = (1 << ConstLength) - 1;
+
+    // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
+    uint64_t BaseMask = ~(Bits << ConstOffset);
+    Value *MaskedBase = Builder.CreateAnd(Into, BaseMask);
+    Value *Deposit = Builder.CreateAnd(From, Bits);
+    Value *ShiftedDeposit = Builder.CreateShl(Deposit, ConstOffset);
+    Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
+
+    return Result;
+}
+
 
 /// Create a compare instruction given a comparison operator and the operands
 ///
@@ -1028,28 +1072,9 @@ IT::translateOpcode(LibTcgOpcode Opcode,
   }
   case LIBTCG_op_deposit_i32:
   case LIBTCG_op_deposit_i64: {
-    revng_assert(isa<ConstantInt>(InArguments[2]));
-    auto Position = cast<ConstantInt>(InArguments[2])->getLimitedValue();
-    if (Position == RegisterSize)
-      return v{ InArguments[0] };
-
-    revng_assert(isa<ConstantInt>(InArguments[3]));
-    auto Length = cast<ConstantInt>(InArguments[3])->getLimitedValue();
-    uint64_t Bits = 0;
-
-    // Thou shall not << 32
-    if (Length == RegisterSize)
-      Bits = getMaxValue(RegisterSize);
-    else
-      Bits = (1 << Length) - 1;
-
-    // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
-    uint64_t BaseMask = ~(Bits << Position);
-    Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
-    Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
-    Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
-    Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
-
+    Value *Result = genDeposit(Builder, RegisterSize,
+                               InArguments[0], InArguments[1],
+                               InArguments[2], InArguments[3]);
     return v{ Result };
   }
   case LIBTCG_op_ext8s_i32:
@@ -1365,8 +1390,70 @@ IT::translateOpcode(LibTcgOpcode Opcode,
   case LIBTCG_op_mulsh_i64:
   case LIBTCG_op_setcond2_i32:
     revng_unreachable("Instruction not implemented");
+  case LIBTCG_op_extract_i32: {
+    auto *Const32 = ConstantInt::get(Type::getInt32Ty(Context), 32);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const32,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *LShr = Builder.CreateLShr(Shl, Builder.CreateSub(Const32, Length));
+    return v{ LShr };
+  }
+  case LIBTCG_op_sextract_i32: {
+    auto *Const32 = ConstantInt::get(Type::getInt32Ty(Context), 32);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const32,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *AShr = Builder.CreateAShr(Shl, Builder.CreateSub(Const32, Length));
+    return v{ AShr };
+  }
+  case LIBTCG_op_extract2_i32:
+  case LIBTCG_op_extract2_i64: {
+    Value *Low    = InArguments[0];
+    Value *High   = InArguments[1];
+    Value *Offset = InArguments[2];
+
+    auto *ConstSize = ConstantInt::get(RegisterType, RegisterSize);
+    Value *Shift = Builder.CreateLShr(Low, Offset);
+    Value *Result = genDeposit(Builder, RegisterSize, Shift, High,
+                               Builder.CreateSub(ConstSize, Offset), Offset);
+
+    return v{ Result };
+  }
+  case LIBTCG_op_clz_i32: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Ctlz = Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Ctlz);
+    return v{ Select };
+  }
+  case LIBTCG_op_clz_i64: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Ctlz = Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Ctlz);
+    return v{ Select };
+  }
   default:
-    revng_unreachable("Unknown opcode");
+    // For debugging purposes printing the actual opcode
+    // really helps.
+    std::stringstream ErrSS;
+    ErrSS << "Unknown libtcg opcode ["
+          << Opcode
+          << "]: "
+          << LibTcg.get_instruction_name(Opcode);
+    revng_unreachable(ErrSS.str().c_str());
   }
 }
 
