@@ -352,6 +352,23 @@ forwardTaintAnalysis(const Module *M,
             TaintLog << dumpToString(TheUser) << DoLog;
           }
           Results.TaintedStores.insert(TheUser);
+        } else {
+          // If the value being stored is tainted, then taint
+          // the pointer being stored to.
+          //
+          // Consider
+          //    %a = ptr ...
+          //    %b = load i32, ptr @env
+          //    %c = add %b, 1234
+          //    store i32 %c, ptr %a
+          // then %a gets tainted.
+          for (const Use &U : S->getPointerOperand()->uses()) {
+            if (&U != TheUse and !isa<AllocaInst>(&U)) {
+              ToTaintWorkList.push(&U);
+              TaintLog.indent();
+              break;
+            }
+          }
         }
       } break;
       case Instruction::Trunc:
