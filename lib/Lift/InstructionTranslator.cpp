@@ -210,6 +210,7 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_sar_i32:
   case LIBTCG_op_setcond2_i32:
   case LIBTCG_op_setcond_i32:
+  case LIBTCG_op_negsetcond_i32:
   case LIBTCG_op_shl_i32:
   case LIBTCG_op_shr_i32:
   case LIBTCG_op_st16_i32:
@@ -222,6 +223,7 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_sextract_i32:
   case LIBTCG_op_extract2_i32:
   case LIBTCG_op_clz_i32:
+  case LIBTCG_op_ctz_i32:
     return 32;
   case LIBTCG_op_add2_i64:
   case LIBTCG_op_add_i64:
@@ -275,6 +277,7 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_rotr_i64:
   case LIBTCG_op_sar_i64:
   case LIBTCG_op_setcond_i64:
+  case LIBTCG_op_negsetcond_i64:
   case LIBTCG_op_shl_i64:
   case LIBTCG_op_shr_i64:
   case LIBTCG_op_st16_i64:
@@ -285,6 +288,7 @@ static unsigned getRegisterSize(const LibTcgInterface &LibTcg, LibTcgOpcode Opco
   case LIBTCG_op_sub_i64:
   case LIBTCG_op_xor_i64:
   case LIBTCG_op_clz_i64:
+  case LIBTCG_op_ctz_i64:
   case LIBTCG_op_extract2_i64:
   case LIBTCG_op_extract_i64:
   case LIBTCG_op_sextract_i64:
@@ -752,13 +756,28 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     }
   case LIBTCG_op_setcond_i32:
   case LIBTCG_op_setcond_i64: {
-    revng_assert(ConstArguments[0].kind == LIBTCG_ARG_COND);
+    revng_assert(ConstArguments.size() > 0 and
+                 ConstArguments[0].kind == LIBTCG_ARG_COND);
     Value *Compare = createICmp(Builder,
                                 ConstArguments[0].cond,
                                 InArguments[0],
                                 InArguments[1]);
     // TODO: convert single-bit registers to i1
+    // NOTE(anjo) I don't think this is a good idea, semantics of QEMU require
+    // these to be full size, this is especially true for negsetcond
     return v{ Builder.CreateZExt(Compare, RegisterType) };
+  }
+  case LIBTCG_op_negsetcond_i32:
+  case LIBTCG_op_negsetcond_i64: {
+    revng_assert(ConstArguments.size() > 0 and
+                 ConstArguments[0].kind == LIBTCG_ARG_COND);
+    Value *Compare = createICmp(Builder,
+                                ConstArguments[0].cond,
+                                InArguments[0],
+                                InArguments[1]);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Result = Builder.CreateZExt(Compare, RegisterType);
+    return v{ Builder.CreateSub(Zero, Result) };
   }
   case LIBTCG_op_movcond_i32: // Resist the fallthrough temptation
   case LIBTCG_op_movcond_i64: {
@@ -1465,6 +1484,28 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     CallInst *Ctlz = Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, Arg, One);
     Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
     Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Ctlz);
+    return v{ Select };
+  }
+  case LIBTCG_op_ctz_i32: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Cttz = Builder.CreateBinaryIntrinsic(Intrinsic::cttz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Cttz);
+    return v{ Select };
+  }
+  case LIBTCG_op_ctz_i64: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Cttz = Builder.CreateBinaryIntrinsic(Intrinsic::cttz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Cttz);
     return v{ Select };
   }
   default:
