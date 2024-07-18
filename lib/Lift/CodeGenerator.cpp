@@ -693,6 +693,7 @@ void CodeGenerator::translate(const LibTcgInterface &LibTcg,
                                                      "print_syscall",
                                                      "print_syscall_ret",
                                                      "safe_syscall_base",
+                                                     "do_prctl_set_fp_mode",
                                                      // ARM cpu_loop
                                                      "cpu_abort",
                                                      "do_arm_semihosting",
