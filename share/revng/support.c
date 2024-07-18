@@ -231,7 +231,18 @@ void *g_malloc0_n(size_t n, size_t size) {
   return calloc(n, size);
 }
 
+void *g_try_malloc0_n(size_t n, size_t size) {
+  return calloc(n, size);
+}
+
 void *g_malloc(size_t n_bytes) {
+  if (n_bytes == 0)
+    return NULL;
+  else
+    return malloc(n_bytes);
+}
+
+void *g_try_malloc(size_t n_bytes) {
   if (n_bytes == 0)
     return NULL;
   else
