@@ -2141,8 +2141,14 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
       revng_assert(FoundRecursion);
     } else {
       revng_assert(!Tainted.contains(NewItemV));
-      for (const Use *U : NewItem.sources())
-        insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
+      for (const Use *U : NewItem.sources()) {
+        auto TheCSVOffset = CSVOffsets(CSVOffsets::Kind::Unknown);
+        if (auto *ConstSource = dyn_cast<ConstantInt>(U->get())) {
+          int64_t Offset = ConstSource->getSExtValue();
+          TheCSVOffset = CSVOffsets(CSVOffsets::Kind::Numeric, Offset);
+        }
+        insertCallSiteOffset(U->get(), std::move(TheCSVOffset));
+      }
     }
 
   } else {
