@@ -549,13 +549,6 @@ export function _applyDiff<T>(
             }
 
             if (diff.Add !== undefined) {
-                if (target === undefined) {
-                    const parentPath = diff.Path.split("/").slice(1);
-                    const element = parentPath.pop();
-                    const parent = _getElementByPath(parentPath.join("/"), new_obj)!;
-                    parent[element!] = [];
-                    target = parent[element!];
-                }
                 (target as any).push(constructType(info, diff.Add));
             }
         } else {
