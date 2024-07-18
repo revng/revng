@@ -4,6 +4,7 @@
 
 import argparse
 import dataclasses
+import os
 import shlex
 import sys
 from abc import ABC, abstractmethod
@@ -177,9 +178,15 @@ class CommandsRegistry:
         return result
 
     def _parse_command(self, command: str):
-        parts = command.split("-")
-        total = len(parts)
+        name = command
         current_namespace: Tuple[str, ...] = ()
+        if "/" in command:
+            path_parts = os.path.split(command)
+            name = path_parts[-1]
+            current_namespace = tuple(path_parts[:-1])
+
+        parts = name.split("-")
+        total = len(parts)
 
         start_index = 0
         found = True
