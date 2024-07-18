@@ -208,8 +208,13 @@ private:
     auto *ThumbCode = CI::get(TypeType, Code_arm_thumb);
     // We don't use select here, SCEV can't handle it
     // NewType = ARM + IsThumb * (Thumb - ARM)
+    unsigned ThumbSize = cast<IntegerType>(IsThumb->getType())->getBitWidth();
+    unsigned TypeSize = cast<IntegerType>(TypeType)->getBitWidth();
+    auto *CastedThumb = (ThumbSize < TypeSize)
+                        ? B.CreateZExt(IsThumb, TypeType)
+                        : B.CreateTrunc(IsThumb, TypeType);
     auto *NewType = B.CreateAdd(ArmCode,
-                                B.CreateMul(B.CreateTrunc(IsThumb, TypeType),
+                                B.CreateMul(CastedThumb,
                                             B.CreateSub(ThumbCode, ArmCode)));
     return NewType;
   }
