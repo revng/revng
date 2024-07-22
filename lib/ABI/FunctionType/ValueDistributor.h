@@ -81,6 +81,8 @@ public:
   uint64_t UsedGeneralPurposeRegisterCount = 0;
   uint64_t UsedVectorRegisterCount = 0;
   uint64_t UsedStackOffset = 0;
+  uint64_t CurrentStackAlignment = 0;
+  uint64_t LastAddedStackPadding = 0;
   uint64_t ArgumentIndex = 0;
 
 protected:
