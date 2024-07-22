@@ -155,6 +155,13 @@ fields:
       this is apple flavor of the aarch64.
     type: bool
 
+  - name: UseStrictAggregateAlignmentRules
+    doc: |
+      Treat all the structs passed using the stack as if they were aligned
+      unnaturally.
+    type: bool
+    optional: true
+
   - name: StackAlignment
     doc: |
       States the required alignment of the stack at the point of a function

@@ -13,6 +13,7 @@ AllowUnnaturallyAlignedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
 StackArgumentsUseRegularStructAlignmentRules: false
+UseStrictAggregateAlignmentRules: false
 
 StackAlignment: 16
 MinimumStackArgumentSize: 4

@@ -13,6 +13,7 @@ AllowUnnaturallyAlignedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: true
 FloatsUseGPRs: false
 StackArgumentsUseRegularStructAlignmentRules: false
+UseStrictAggregateAlignmentRules: false
 
 # This might need to be set to 16 depending on the OS.
 # TODO: investigate.
