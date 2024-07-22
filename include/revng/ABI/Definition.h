@@ -147,6 +147,14 @@ fields:
       Setting this to true disables usage of vector registers entirely.
     type: bool
 
+  - name: StackArgumentsUseRegularStructAlignmentRules
+    doc: |
+      Setting this to true allows stack arguments to use slots smaller than
+      a word (makes them behave like a single struct instead of a bunch of
+      arguments): so they don't get extended unnecessarily. A notable ABI using
+      this is apple flavor of the aarch64.
+    type: bool
+
   - name: StackAlignment
     doc: |
       States the required alignment of the stack at the point of a function
