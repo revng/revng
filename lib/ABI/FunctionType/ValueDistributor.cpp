@@ -128,7 +128,18 @@ ValueDistributor::distribute(uint64_t Size,
     DA.OffsetOnStack = UsedStackOffset;
   } else {
     // This is a stack-only argument.
-    uint64_t PrePaddedOffset = ABI.alignedOffset(UsedStackOffset, Alignment);
+    if (not HasNaturalAlignment) {
+      Alignment = ABI.MinimumStackArgumentSize();
+    }
+
+    if (ABI.StackArgumentsUseRegularStructAlignmentRules()
+        && HasNaturalAlignment) {
+      UsedStackOffset -= std::min(UsedStackOffset, LastAddedStackPadding);
+    }
+
+    uint64_t AdjustedAlignment = std::max(CurrentStackAlignment, Alignment);
+    uint64_t PrePaddedOffset = ABI.alignedOffset(UsedStackOffset,
+                                                 AdjustedAlignment);
     revng_assert(PrePaddedOffset >= UsedStackOffset);
     DA.PrePaddingSize = PrePaddedOffset - UsedStackOffset;
     DA.OffsetOnStack = UsedStackOffset = PrePaddedOffset;
@@ -146,6 +157,8 @@ ValueDistributor::distribute(uint64_t Size,
   }
 
   UsedStackOffset += DA.SizeOnStack;
+  CurrentStackAlignment = Alignment;
+  LastAddedStackPadding = DA.PostPaddingSize;
 
   revng_log(Log, "Value successfully distributed.");
   LoggerIndent FurtherIndentation(Log);
@@ -230,6 +243,14 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
       HasNaturalAlignment = true;
       UsesPointerToCopy = true;
     }
+  }
+
+  if (ABI.UseStrictAggregateAlignmentRules() && !IsScalar) {
+    // This is a bit of trick: manually setting the alignment to unnatural
+    // forces the underlying distribution to be _extra_ careful about how it
+    // handles the type. Which just happened to be exactly what we want in
+    // some other, unrelated to unnatural alignment, cases.
+    HasNaturalAlignment = false;
   }
 
   auto [Result, NextRegisterIndex] = distribute(Size,
