@@ -12,6 +12,7 @@ NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowUnnaturallyAlignedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
+StackArgumentsUseRegularStructAlignmentRules: true
 
 StackAlignment: 16
 MinimumStackArgumentSize: 8

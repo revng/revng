@@ -355,6 +355,29 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
   for (const model::Argument &Argument : Arguments)
     std::ranges::move(Distributor.nextArgument(*Argument.Type()),
                       std::back_inserter(Result));
+
+  if (ABI.StackArgumentsUseRegularStructAlignmentRules()) {
+    for (auto [Current, Next] : zip_pairs(Result)) {
+      if (Current.SizeOnStack && Next.SizeOnStack) {
+        if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
+          Current.SizeOnStack -= Current.PostPaddingSize;
+          Current.PostPaddingSize = 0;
+
+          uint64_t NewOffset = Current.OffsetOnStack + Current.SizeOnStack;
+          revng_assert(NewOffset <= Next.OffsetOnStack);
+        }
+      }
+    }
+
+    if (not Result.empty()) {
+      if (auto &LastArgument = *std::prev(Result.end());
+          LastArgument.SizeOnStack) {
+        LastArgument.SizeOnStack -= LastArgument.PostPaddingSize;
+        LastArgument.PostPaddingSize = 0;
+      }
+    }
+  }
+
   return Result;
 }
 
