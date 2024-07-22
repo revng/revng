@@ -22,7 +22,15 @@ public:
   llvm::StringRef FunctionName = "";
   abi::FunctionType::Layout FunctionLayout = {};
 
+private:
+  mutable uint64_t PotentialPadding = 0;
+
 public:
+  VerificationHelper(model::Architecture::Values Architecture,
+                     const abi::Definition &ABI,
+                     const bool IsLittleEndian) :
+    Architecture(Architecture), ABI(ABI), IsLittleEndian(IsLittleEndian) {}
+
   void arguments(const abi::runtime_test::ArgumentTest &Test) const;
   void returnValue(const abi::runtime_test::ReturnValueTest &Test) const;
 
@@ -165,11 +173,17 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
 bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
                           llvm::ArrayRef<std::byte> ExpectedBytes) const {
   if (Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes)) {
-    uint64_t BytesToDrop = ABI.paddedSizeOnStack(ExpectedBytes.size());
+    uint64_t PaddedSize = ABI.paddedSizeOnStack(ExpectedBytes.size());
+
+    uint64_t BytesToDrop = PaddedSize;
+    if (ABI.StackArgumentsUseRegularStructAlignmentRules())
+      BytesToDrop = ExpectedBytes.size();
     if (Bytes.size() >= BytesToDrop)
       Bytes = Bytes.drop_front(BytesToDrop);
     else
       Bytes = {};
+
+    PotentialPadding = PaddedSize - BytesToDrop;
 
     return true;
   }
@@ -237,33 +251,40 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
       // This verifies whether that's the case here.
       revng_assert(ArgumentBytes.equals(Argument.FoundBytes),
                    "Only a part of the argument got consumed? That's weird.");
-      if (tryToVerifyStack(Remaining.Stack, Argument.AddressBytes)) {
-        // Stack matches the pointer to the argument: mark the entire argument
-        // as found.
-        ArgumentBytes = {};
-        break;
-      }
-    } else {
-      if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
-        // Stack matches, go to the next argument.
-        break;
-      }
 
-      revng_assert(!ABI.ScalarTypes().empty());
-      auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
-      if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
-        // If the ABI supports unusual alignment, try to account for it,
-        // by dropping an conflicting part of the stack data.
-        if (Remaining.Stack.size() < ABI.getPointerSize())
-          Remaining.Stack = {};
-        else
-          Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
-      }
+      // Use the address instead of the bytes.
+      ArgumentBytes = Argument.AddressBytes;
+    }
 
-      if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
-        // Stack matches after accounting for alignment.
-        break;
+    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+      // Stack matches, go to the next argument.
+      break;
+    }
+
+    if (ABI.StackArgumentsUseRegularStructAlignmentRules()) {
+      if (PotentialPadding) {
+        Remaining.Stack = Remaining.Stack.drop_front(PotentialPadding);
+        if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+          // Stack matches after accounting for extra padding.
+          break;
+        }
       }
+    }
+
+    revng_assert(!ABI.ScalarTypes().empty());
+    auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
+    if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
+      // If the ABI supports unusual alignment, try to account for it,
+      // by dropping an conflicting part of the stack data.
+      if (Remaining.Stack.size() < ABI.getPointerSize())
+        Remaining.Stack = {};
+      else
+        Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
+    }
+
+    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+      // Stack matches after accounting for alignment.
+      break;
     }
 
     fail("Argument #" + std::to_string(Index)
