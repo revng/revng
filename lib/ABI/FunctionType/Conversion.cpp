@@ -259,6 +259,7 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   return Result;
 }
 
+/// \note: `NextAlignment` of 0 means that there is no next argument.
 static bool verifyAlignment(const abi::Definition &ABI,
                             uint64_t CurrentOffset,
                             uint64_t CurrentSize,
@@ -276,8 +277,13 @@ static bool verifyAlignment(const abi::Definition &ABI,
         << CurrentSize << " (" << PaddedSize << " when padded) at offset "
         << CurrentOffset << ". ";
 
-    Log << "The next argument is at offset " << NextOffset
-        << " and is aligned at " << NextAlignment << ".";
+    if (NextAlignment == 0) {
+      Log << "There's no next argument, but the total stack size is "
+          << NextOffset << ".";
+    } else {
+      Log << "The next argument is at offset " << NextOffset
+          << " and is aligned at " << NextAlignment << ".";
+    }
 
     Log << DoLog;
   }
@@ -293,6 +299,14 @@ static bool verifyAlignment(const abi::Definition &ABI,
   if (*Offset == NextOffset) {
     revng_log(Log, "Argument slots in perfectly.");
     return true;
+  } else if (NextAlignment == 0) {
+    // This is the last argument.
+    //
+    // Since we often find trailing padding to be inconsistent, it would be
+    // hard to enforce it, as such, just assume that if we know this argument
+    // is the last one, it's always right.
+    return true;
+
   } else if (*Offset < NextOffset) {
     // Offsets are different, there's most likely padding between the arguments.
     if (NextOffset % NextAlignment != 0) {
@@ -410,8 +424,6 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     return llvm::SmallVector<model::Argument, 8>{};
   }
   auto &Stack = StackStruct->toStruct();
-  uint64_t StackAlignment = *ABI.alignment(Stack);
-  revng_assert(llvm::isPowerOf2_64(StackAlignment));
   uint64_t AdjustedAlignment = std::max(*ABI.alignment(Stack),
                                         ABI.StackAlignment());
   uint64_t StackSize = paddedSizeOnStack(Stack.Size(), AdjustedAlignment);
@@ -541,7 +553,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       }
 
       auto &RA = RemainingArguments;
-      if (canBeNext(Distributor, RA, Offset, Stack.Size(), StackAlignment)) {
+      if (canBeNext(Distributor, RA, Offset, Stack.Size(), 0)) {
         revng_log(Log, "Struct for the remaining argument worked.");
         model::Argument &New = Result.emplace_back();
         New.Index() = Stack.Fields().size() - CurrentRange.size();
@@ -559,7 +571,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
   // it apart.
   // Let's try and see if it would make sense to add the whole "stack" struct
   // as one argument.
-  if (!canBeNext(Distributor, *StackStruct, 0, StackSize, StackAlignment)) {
+  if (!canBeNext(Distributor, *StackStruct, 0, StackSize, 0)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;
