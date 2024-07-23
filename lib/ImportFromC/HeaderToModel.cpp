@@ -836,7 +836,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     NewType->ID() = ID;
 
   setCustomName(*NewType, RD->getName());
-  auto Struct = cast<model::StructDefinition>(NewType.get());
+  auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
 
   //
