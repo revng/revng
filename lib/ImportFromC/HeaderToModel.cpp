@@ -28,6 +28,7 @@ static constexpr llvm::StringRef ABIAnnotation = "abi:";
 static constexpr llvm::StringRef RegAnnotation = "reg:";
 static constexpr llvm::StringRef StackAnnotation = "stack";
 static constexpr llvm::StringRef EnumAnnotation = "enum_underlying_type:";
+static constexpr llvm::StringRef FieldAnnotation = "field_start_offset:";
 
 template<typename T>
 concept HasCustomName = requires(const T &Element) {
@@ -861,7 +862,25 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       Size = *ModelField->size();
     }
 
-    if (not Field->getName().starts_with(StructPaddingPrefix)) {
+    bool IsPadding = Field->getName().starts_with(StructPaddingPrefix);
+    auto ExplicitOffset = parseIntegerAnnotation(*Field, FieldAnnotation);
+    if (ExplicitOffset.has_value()) {
+      if (IsPadding) {
+        revng_log(Log,
+                  "Padding fields with explicit offset are not supported.");
+        return false;
+      }
+
+      if (not Struct->Fields().empty() and CurrentOffset > *ExplicitOffset) {
+        revng_log(Log,
+                  "Explicit offset cannot be used to make fields overlap.");
+        return false;
+      }
+
+      CurrentOffset = *ExplicitOffset;
+    }
+
+    if (not IsPadding) {
       auto &FieldModelType = Struct->Fields()[CurrentOffset];
       setCustomName(FieldModelType, Field->getName());
       FieldModelType.Type() = std::move(ModelField);
