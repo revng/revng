@@ -20,21 +20,13 @@ using namespace model;
 using namespace revng;
 
 static Logger<> Log("header-to-model");
-static constexpr std::string_view InputCFile = "revng-input.c";
-static constexpr std::string_view PrimitiveTypeHeader = "primitive-types.h";
+static constexpr llvm::StringRef InputCFile = "revng-input.c";
+static constexpr llvm::StringRef PrimitiveTypeHeader = "primitive-types.h";
 static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
-static constexpr const char *ABIAnnotatePrefix = "abi:";
-static constexpr size_t
-  ABIAnnotatePrefixLength = std::char_traits<char>::length(ABIAnnotatePrefix);
-
-static constexpr const char *RegAnnotatePrefix = "reg:";
-static constexpr size_t
-  RegAnnotatePrefixLength = std::char_traits<char>::length(RegAnnotatePrefix);
-
-static constexpr const char *EnumAnnotatePrefix = "enum_underlying_type:";
-static constexpr size_t
-  EnumAnnotatePrefixLength = std::char_traits<char>::length(EnumAnnotatePrefix);
+static constexpr llvm::StringRef ABIAnnotation = "abi:";
+static constexpr llvm::StringRef RegAnnotation = "reg:";
+static constexpr llvm::StringRef EnumAnnotation = "enum_underlying_type:";
 
 template<typename T>
 concept HasCustomName = requires(const T &Element) {
@@ -167,9 +159,10 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
 
 // Parse ABI from the annotate attribute content.
 static std::optional<std::string> getABI(llvm::StringRef ABIAnnotate) {
-  if (not ABIAnnotate.startswith(ABIAnnotatePrefix))
+  if (not ABIAnnotate.startswith(ABIAnnotation))
     return std::nullopt;
-  return std::string(ABIAnnotate.substr(ABIAnnotatePrefixLength));
+
+  return std::string(ABIAnnotate.substr(ABIAnnotation.size()));
 }
 
 static model::Architecture::Values getRawABIArchitecture(llvm::StringRef ABI) {
@@ -178,21 +171,23 @@ static model::Architecture::Values getRawABIArchitecture(llvm::StringRef ABI) {
 }
 
 // Parse location of parameter (`reg:` or `stack`).
-static std::optional<std::string> getLoc(llvm::StringRef Annotate) {
-  if (Annotate == "stack")
-    return Annotate.str();
+static std::optional<std::string> getLoc(llvm::StringRef Annotation) {
+  if (Annotation == "stack")
+    return Annotation.str();
 
-  if (not Annotate.startswith(RegAnnotatePrefix))
+  if (not Annotation.startswith(RegAnnotation))
     return std::nullopt;
-  return std::string(Annotate.substr(RegAnnotatePrefixLength));
+
+  return std::string(Annotation.substr(RegAnnotation.size()));
 }
 
-// Parse enum's underlying type from the annotate attribute content.
+// Parse enum's underlying type from the annotation attribute.
 static std::optional<std::string>
-parseEnumUnderlyingType(llvm::StringRef Annotate) {
-  if (not Annotate.startswith(EnumAnnotatePrefix))
+parseEnumUnderlyingType(llvm::StringRef Annotation) {
+  if (not Annotation.startswith(EnumAnnotation))
     return std::nullopt;
-  return std::string(Annotate.substr(EnumAnnotatePrefixLength));
+
+  return std::string(Annotation.substr(EnumAnnotation.size()));
 }
 
 model::UpcastableType
