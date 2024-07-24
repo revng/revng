@@ -689,24 +689,20 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     return false;
   }
   auto [ID, Kind] = *Type;
-  auto TypeTypedef = model::makeTypeDefinition<model::TypedefDefinition>();
+  auto NewTypedef = model::makeTypeDefinition<model::TypedefDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
-    TypeTypedef->ID() = ID;
+    NewTypedef->ID() = ID;
 
-  auto TheTypeTypeDef = cast<model::TypedefDefinition>(TypeTypedef.get());
+  auto TheTypeTypeDef = cast<model::TypedefDefinition>(NewTypedef.get());
   TheTypeTypeDef->UnderlyingType() = std::move(ModelTypedefType);
   setCustomName(*TheTypeTypeDef, D->getName());
 
   if (AnalysisOption == ImportFromCOption::EditType) {
-    // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->TypeDefinitions(),
-                   [&ID](model::UpcastableTypeDefinition &P) {
-                     return P.get()->ID() == ID;
-                   });
-
-    Model->TypeDefinitions().insert(std::move(TypeTypedef));
+    revng_assert(*Type == NewTypedef->key());
+    Model->TypeDefinitions().erase(*Type);
+    Model->TypeDefinitions().insert(std::move(NewTypedef));
   } else {
-    Model->recordNewType(std::move(TypeTypedef));
+    Model->recordNewType(std::move(NewTypedef));
   }
 
   return true;
@@ -778,12 +774,8 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
   }
 
   if (AnalysisOption == ImportFromCOption::EditType) {
-    // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->TypeDefinitions(),
-                   [&ID](model::UpcastableTypeDefinition &P) {
-                     return P.get()->ID() == ID;
-                   });
-
+    revng_assert(*Type == NewType->key());
+    Model->TypeDefinitions().erase(*Type);
     Model->TypeDefinitions().insert(std::move(NewType));
   } else {
     Model->recordNewType(std::move(NewType));
@@ -886,11 +878,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
   switch (AnalysisOption) {
   case ImportFromCOption::EditType:
-    // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->TypeDefinitions(),
-                   [&ID](model::UpcastableTypeDefinition &P) {
-                     return P.get()->ID() == ID;
-                   });
+    revng_assert(*Type == NewType->key());
+    Model->TypeDefinitions().erase(*Type);
     Model->TypeDefinitions().insert(std::move(NewType));
     break;
 
@@ -941,11 +930,8 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   }
 
   if (AnalysisOption == ImportFromCOption::EditType) {
-    // Remove old and add new type with the same ID.
-    llvm::erase_if(Model->TypeDefinitions(),
-                   [&ID](model::UpcastableTypeDefinition &P) {
-                     return P.get()->ID() == ID;
-                   });
+    revng_assert(*Type == NewType->key());
+    Model->TypeDefinitions().erase(*Type);
     Model->TypeDefinitions().insert(std::move(NewType));
   } else {
     Model->recordNewType(std::move(NewType));
