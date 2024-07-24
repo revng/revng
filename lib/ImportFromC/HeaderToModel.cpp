@@ -29,6 +29,7 @@ static constexpr llvm::StringRef RegAnnotation = "reg:";
 static constexpr llvm::StringRef StackAnnotation = "stack";
 static constexpr llvm::StringRef EnumAnnotation = "enum_underlying_type:";
 static constexpr llvm::StringRef FieldAnnotation = "field_start_offset:";
+static constexpr llvm::StringRef SizeAnnotation = "struct_size:";
 
 template<typename T>
 concept HasCustomName = requires(const T &Element) {
@@ -892,8 +893,22 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     CurrentOffset += *Size;
   }
 
-  // TODO: Can this be calculated/fetched automatically?
-  Struct->Size() = CurrentOffset;
+  if (std::optional ExplicitSize = parseIntegerAnnotation(*Definition,
+                                                          SizeAnnotation)) {
+    // Prefer explicit size if it's available.
+    Struct->Size() = *ExplicitSize;
+
+  } else {
+    // If not, just use final offset,
+    Struct->Size() = CurrentOffset;
+
+    // Unless we're editing a type and have access to the previous size.
+    if (Type.has_value())
+      if (auto *MaybeType = Model->TypeDefinitions().tryGet(*Type))
+        if ((*MaybeType)->isObject())
+          if (auto OldSize = *(*MaybeType)->size(); Struct->Size() < OldSize)
+            Struct->Size() = OldSize;
+  }
 
   switch (AnalysisOption) {
   case ImportFromCOption::EditType:
