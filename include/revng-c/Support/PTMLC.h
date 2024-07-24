@@ -435,6 +435,10 @@ public:
     return "_START_AT(" + std::to_string(Size) + ")";
   }
 
+  std::string getSizeAnnotation(const uint64_t Size) const {
+    return "_SIZE(" + std::to_string(Size) + ")";
+  }
+
   std::string getStackAnnotation() const { return "_STACK"; }
 
   std::string getPackedAttribute() { return "_PACKED"; }

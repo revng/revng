@@ -327,7 +327,12 @@ static void printDefinition(Logger<> &Log,
   Header << B.getModelComment(S)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
          << B.getPackedAttribute() << " ";
+
+  if (ForEditing)
+    Header << B.getSizeAnnotation(S.Size()) << " ";
+
   Header << B.getLocationDefinition(S) << " ";
+
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
 

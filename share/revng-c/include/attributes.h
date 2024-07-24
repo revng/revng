@@ -11,6 +11,7 @@
 #define ABI_ATTRIBUTE_STRING(abi_name) STR(abi:abi_name)
 #define ENUM_ATTRIBUTE_STRING(type_name) STR(enum_underlying_type:type_name)
 #define FIELD_START_ATTRIBUTE_STRING(offset) STR(field_start_offset:offset)
+#define STRUCT_SIZE_ATTRIBUTE_STRING(size) STR(struct_size:size)
 // NOLINTNEXTLINE
 // clang-format on
 
@@ -21,3 +22,4 @@
 #define _ENUM_UNDERLYING(x) __attribute__((annotate(ENUM_ATTRIBUTE_STRING(x))))
 #define _PACKED __attribute__((packed))
 #define _START_AT(x) __attribute__((annotate(FIELD_START_ATTRIBUTE_STRING(x))))
+#define _SIZE(x) __attribute__((annotate(STRUCT_SIZE_ATTRIBUTE_STRING(x))))
