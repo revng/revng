@@ -443,6 +443,8 @@ public:
 
   std::string getPackedAttribute() { return "_PACKED"; }
 
+  std::string getCanContainCodeAttribute() { return "_CAN_CONTAIN_CODE"; }
+
   Tag getNameTag(const model::TypeDefinition &T) const {
     return ptml::PTMLBuilder::tokenTag(T.name().str().str(),
                                        ptml::c::tokens::Type);

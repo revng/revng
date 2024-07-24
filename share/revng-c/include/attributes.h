@@ -21,5 +21,6 @@
 
 #define _ENUM_UNDERLYING(x) __attribute__((annotate(ENUM_ATTRIBUTE_STRING(x))))
 #define _PACKED __attribute__((packed))
+#define _CAN_CONTAIN_CODE __attribute__((annotate("can_contain_code")))
 #define _START_AT(x) __attribute__((annotate(FIELD_START_ATTRIBUTE_STRING(x))))
 #define _SIZE(x) __attribute__((annotate(STRUCT_SIZE_ATTRIBUTE_STRING(x))))

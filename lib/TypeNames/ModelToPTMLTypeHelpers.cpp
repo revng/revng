@@ -328,6 +328,9 @@ static void printDefinition(Logger<> &Log,
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
          << B.getPackedAttribute() << " ";
 
+  if (S.CanContainCode())
+    Header << B.getCanContainCodeAttribute() << " ";
+
   if (ForEditing)
     Header << B.getSizeAnnotation(S.Size()) << " ";
 
