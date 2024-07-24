@@ -26,6 +26,7 @@ static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
 static constexpr llvm::StringRef ABIAnnotation = "abi:";
 static constexpr llvm::StringRef RegAnnotation = "reg:";
+static constexpr llvm::StringRef StackAnnotation = "stack";
 static constexpr llvm::StringRef EnumAnnotation = "enum_underlying_type:";
 
 template<typename T>
@@ -104,7 +105,7 @@ public:
   bool VisitEnumDecl(const EnumDecl *D);
   bool VisitTypedefDecl(const TypedefDecl *D);
   bool VisitFunctionPrototype(const FunctionProtoType *FP,
-                              std::optional<llvm::StringRef> TheABI);
+                              llvm::StringRef TheABI);
 
 private:
   // This checks that the declaration is the one user provided as input.
@@ -140,7 +141,7 @@ private:
   RecursiveCoroutine<model::UpcastableType>
   getModelTypeForClangType(const QualType &QT);
 
-  model::UpcastableType getEnumUnderlyingType(const std::string &TypeName);
+  model::UpcastableType getEnumUnderlyingType(llvm::StringRef TypeName);
 };
 
 DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
@@ -157,12 +158,52 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
   AnalysisOption(AnalysisOption) {
 }
 
-// Parse ABI from the annotate attribute content.
-static std::optional<std::string> getABI(llvm::StringRef ABIAnnotate) {
-  if (not ABIAnnotate.startswith(ABIAnnotation))
+template<typename Type>
+static std::optional<llvm::StringRef>
+parseStringAnnotation(const Type &Declaration, llvm::StringRef Prefix) {
+  std::optional<llvm::StringRef> Result;
+  if (Declaration.template hasAttr<clang::AnnotateAttr>()) {
+    for (auto &Attribute : Declaration.getAttrs()) {
+      if (auto *Cast = llvm::dyn_cast<clang::AnnotateAttr>(Attribute)) {
+        llvm::StringRef Annotation = Cast->getAnnotation();
+        if (not Annotation.startswith(Prefix))
+          continue;
+
+        llvm::StringRef Value = Annotation.substr(Prefix.size());
+        if (Result.has_value() && Result.value() != Value) {
+          std::string Error = "Multiple conflicting annotation values found: '"
+                              + Result.value().str() + "' and '" + Value.str()
+                              + "'";
+          revng_log(Log, Error.c_str());
+          return std::nullopt;
+        }
+
+        Result = Value;
+      }
+    }
+  }
+
+  return Result;
+}
+
+template<typename Type>
+static std::optional<uint64_t>
+parseIntegerAnnotation(const Type &Declaration, llvm::StringRef Prefix) {
+  std::optional<llvm::StringRef> Result = parseStringAnnotation(Declaration,
+                                                                Prefix);
+  if (not Result.has_value())
     return std::nullopt;
 
-  return std::string(ABIAnnotate.substr(ABIAnnotation.size()));
+  uint64_t IntegerResult;
+  if (Result->getAsInteger(0, IntegerResult)) {
+    std::string Error = "Ignoring non-integer value of an integer "
+                        "annotation: '"
+                        + Result->str() + "'";
+    revng_log(Log, Error.c_str());
+    return std::nullopt;
+  }
+
+  return IntegerResult;
 }
 
 static model::Architecture::Values getRawABIArchitecture(llvm::StringRef ABI) {
@@ -170,28 +211,8 @@ static model::Architecture::Values getRawABIArchitecture(llvm::StringRef ABI) {
   return model::Architecture::fromName(ABI.substr(RawABIPrefix.size()));
 }
 
-// Parse location of parameter (`reg:` or `stack`).
-static std::optional<std::string> getLoc(llvm::StringRef Annotation) {
-  if (Annotation == "stack")
-    return Annotation.str();
-
-  if (not Annotation.startswith(RegAnnotation))
-    return std::nullopt;
-
-  return std::string(Annotation.substr(RegAnnotation.size()));
-}
-
-// Parse enum's underlying type from the annotation attribute.
-static std::optional<std::string>
-parseEnumUnderlyingType(llvm::StringRef Annotation) {
-  if (not Annotation.startswith(EnumAnnotation))
-    return std::nullopt;
-
-  return std::string(Annotation.substr(EnumAnnotation.size()));
-}
-
 model::UpcastableType
-DeclVisitor::getEnumUnderlyingType(const std::string &TypeName) {
+DeclVisitor::getEnumUnderlyingType(llvm::StringRef TypeName) {
   auto R = model::PrimitiveType::fromCName(TypeName);
   if (R.isEmpty())
     revng_log(Log, "An enum with a non-primitive underlying type.");
@@ -483,40 +504,20 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   revng_assert(FD);
   revng_assert(AnalysisOption == ImportFromCOption::EditFunctionPrototype);
-  std::optional<std::string> MaybeABI;
-  std::vector<AnnotateAttr *> AnnotateAttrs;
 
-  {
-    // May be multiple Annotate attributes. One for ABI, one for return value.
-    std::for_each(begin(FD->getAttrs()),
-                  end(FD->getAttrs()),
-                  [&](Attr *Attribute) {
-                    if (auto *Annotation = dyn_cast<AnnotateAttr>(Attribute))
-                      AnnotateAttrs.push_back(Annotation);
-                  });
-
-    for (auto *Annotate : AnnotateAttrs) {
-      MaybeABI = getABI(Annotate->getAnnotation());
-      if (MaybeABI)
-        break;
-    }
-
-    if (not MaybeABI or MaybeABI->empty()) {
-      revng_log(Log,
-                "Functions should have attribute annotate with abi: "
-                "specification");
-      return false;
-    }
+  std::optional ABI = parseStringAnnotation(*FD, ABIAnnotation);
+  if (not ABI.has_value() or ABI->empty()) {
+    revng_log(Log, "Functions must have an abi annotation.");
+    return false;
   }
 
-  revng_assert(MaybeABI.has_value());
-  bool IsRawFunctionType = MaybeABI->starts_with(RawABIPrefix);
+  bool IsRawFunctionType = ABI->starts_with(RawABIPrefix);
   auto NewType = IsRawFunctionType ?
                    makeTypeDefinition<RawFunctionDefinition>() :
                    makeTypeDefinition<CABIFunctionDefinition>();
 
   if (not IsRawFunctionType) {
-    auto TheModelABI = model::ABI::fromName(*MaybeABI);
+    auto TheModelABI = model::ABI::fromName(*ABI);
     if (TheModelABI == model::ABI::Invalid) {
       revng_log(Log, "Invalid ABI provided");
       return false;
@@ -552,7 +553,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     auto TheRetClangType = FD->getReturnType();
     auto &TheRawFunctionType = llvm::cast<RawFunctionDefinition>(*NewType);
 
-    auto Architecture = getRawABIArchitecture(*MaybeABI);
+    auto Architecture = getRawABIArchitecture(*ABI);
     if (Architecture == model::Architecture::Invalid) {
       revng_log(Log, "Invalid raw abi architecture");
       return false;
@@ -574,32 +575,20 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         NTR.Type() = Type;
       }
     } else {
-      // Return value as single register.
-      std::for_each(begin(FD->getAttrs()),
-                    end(FD->getAttrs()),
-                    [&](Attr *Attribute) {
-                      if (auto *Annotation = dyn_cast<AnnotateAttr>(Attribute))
-                        AnnotateAttrs.push_back(Annotation);
-                    });
-
-      std::optional<std::string> ReturnValue;
-      for (auto *Annotate : AnnotateAttrs) {
-        ReturnValue = getLoc(Annotate->getAnnotation());
-        if (ReturnValue)
-          break;
-      }
-
-      if (not ReturnValue or ReturnValue->empty()) {
-        revng_log(Log,
-                  "Return value should have attribute annotate with reg or "
-                  "stack");
-        return false;
-      }
-
-      // TODO: Handle stack location.
-      if (*ReturnValue == "stack") {
-        revng_log(Log, "We don't support Return value on stack for now");
-        return false;
+      std::optional Register = parseStringAnnotation(*FD, RegAnnotation);
+      if (not Register.has_value()) {
+        std::optional Stack = parseStringAnnotation(*FD, StackAnnotation);
+        if (Stack.has_value()) {
+          // TODO: Handle stack location.
+          revng_log(Log,
+                    "We don't support stack return values in RFTs for now");
+          return false;
+        } else {
+          revng_log(Log,
+                    "Parameters must have either a register or a stack "
+                    "annotation.");
+          return false;
+        }
       }
 
       model::UpcastableType RetType = getModelTypeForClangType(TheRetClangType);
@@ -608,57 +597,52 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         return false;
       }
 
-      auto RegisterID = model::Register::fromCSVName(*ReturnValue,
-                                                     Model->Architecture());
-      if (RegisterID == model::Register::Invalid) {
+      auto Location = model::Register::fromCSVName(*Register,
+                                                   Model->Architecture());
+      if (Location == model::Register::Invalid) {
         revng_log(Log, "Unsupported register location");
         return false;
       }
 
-      auto &ReturnValueReg = ReturnValuesInserter.emplace(RegisterID);
+      auto &ReturnValueReg = ReturnValuesInserter.emplace(Location);
       ReturnValueReg.Type() = std::move(RetType);
     }
 
     auto ArgumentsInserter = TheRawFunctionType.Arguments().batch_insert();
     for (unsigned I = 0, N = FD->getNumParams(); I != N; ++I) {
       auto ParamDecl = FD->getParamDecl(I);
-      if (ParamDecl->hasAttr<AnnotateAttr>()) {
-        auto Annotate = std::find_if(begin(ParamDecl->getAttrs()),
-                                     end(ParamDecl->getAttrs()),
-                                     [&](Attr *Attribute) {
-                                       return isa<AnnotateAttr>(Attribute);
-                                     });
-        auto Loc = getLoc(cast<AnnotateAttr>(*Annotate)->getAnnotation());
-        if (not Loc or Loc->empty()) {
+      std::optional Register = parseStringAnnotation(*ParamDecl, RegAnnotation);
+      if (not Register.has_value()) {
+        std::optional Stack = parseStringAnnotation(*ParamDecl,
+                                                    StackAnnotation);
+        if (Stack.has_value()) {
+          // TODO: Handle stack location.
+          revng_log(Log, "We don't support stack parameters in RFTs for now");
+          return false;
+        } else {
           revng_log(Log,
-                    "Parameters should have attribute annotate with reg or "
-                    "stack");
+                    "Parameters must have either a register or a stack "
+                    "annotation.");
           return false;
         }
-
-        // TODO: Handle stack location.
-        if (*Loc == "stack") {
-          revng_log(Log, "We don't support parameters on stack for now");
-          return false;
-        }
-
-        auto LocationID = model::Register::fromCSVName(*Loc,
-                                                       Model->Architecture());
-        if (LocationID == model::Register::Invalid) {
-          revng_log(Log, "Unsupported register location");
-          return false;
-        }
-
-        auto QT = ParamDecl->getType();
-        model::UpcastableType ParamType = getModelTypeForClangType(QT);
-        if (not ParamType) {
-          revng_log(Log, "Unsupported type for raw function parameter");
-          return false;
-        }
-
-        NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(LocationID);
-        ParamReg.Type() = std::move(ParamType);
       }
+
+      auto Location = model::Register::fromCSVName(*Register,
+                                                   Model->Architecture());
+      if (Location == model::Register::Invalid) {
+        revng_log(Log, "Unsupported register location");
+        return false;
+      }
+
+      auto QT = ParamDecl->getType();
+      model::UpcastableType ParamType = getModelTypeForClangType(QT);
+      if (not ParamType) {
+        revng_log(Log, "Unsupported type for raw function parameter");
+        return false;
+      }
+
+      NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(Location);
+      ParamReg.Type() = std::move(ParamType);
     }
   }
 
@@ -689,23 +673,13 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     // TODO: Should we change the annotate attached to function types to have
     // info about parameters in the toplevel annotate attribute attached to
     // the typedef itself?
-    std::optional<std::string> TheABI;
-    if (D->hasAttr<AnnotateAttr>()) {
-      auto TheAnnotateAttr = std::find_if(begin(D->getAttrs()),
-                                          end(D->getAttrs()),
-                                          [&](Attr *Attribute) {
-                                            return isa<AnnotateAttr>(Attribute);
-                                          });
-
-      TheABI = getABI(cast<AnnotateAttr>(*TheAnnotateAttr)->getAnnotation());
-    }
-
-    if (not TheABI or TheABI->empty()) {
-      revng_log(Log, "Unable to parse `abi:` from the annotate attribute");
+    std::optional ABI = parseStringAnnotation(*D, ABIAnnotation);
+    if (not ABI.has_value() or ABI->empty()) {
+      revng_log(Log, "Unable to parse the abi annotation.");
       return false;
     }
 
-    return VisitFunctionPrototype(Fn, TheABI);
+    return VisitFunctionPrototype(Fn, *ABI);
   }
 
   // Regular, non-function, typedef.
@@ -739,15 +713,11 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 }
 
 bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
-                                         std::optional<llvm::StringRef> ABI) {
+                                         llvm::StringRef ABI) {
   revng_assert(AnalysisOption != ImportFromCOption::EditFunctionPrototype);
+  revng_assert(ABI != "");
 
-  if (not ABI) {
-    revng_log(Log, "No annotate attribute found with `abi:` information");
-    return false;
-  }
-
-  bool IsRawFunctionType = ABI->starts_with(RawABIPrefix);
+  bool IsRawFunctionType = ABI.starts_with(RawABIPrefix);
   auto NewType = IsRawFunctionType ?
                    makeTypeDefinition<RawFunctionDefinition>() :
                    makeTypeDefinition<CABIFunctionDefinition>();
@@ -758,7 +728,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
 
   if (not IsRawFunctionType) {
     auto &FunctionType = llvm::cast<CABIFunctionDefinition>(*NewType);
-    auto TheModelABI = model::ABI::fromName(*ABI);
+    auto TheModelABI = model::ABI::fromName(ABI);
     if (TheModelABI == model::ABI::Invalid) {
       revng_log(Log, "An invalid ABI found as an input");
       return false;
@@ -789,7 +759,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
       ++Index;
     }
   } else {
-    auto Architecture = getRawABIArchitecture(*ABI);
+    auto Architecture = getRawABIArchitecture(ABI);
     if (Architecture == model::Architecture::Invalid) {
       revng_log(Log, "Invalid raw abi architecture");
       return false;
@@ -844,37 +814,25 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       return false;
     }
 
-    std::optional<model::Register::Values> LocationID;
+    model::Register::Values Location;
     if (AnalysisOption == ImportFromCOption::EditFunctionPrototype) {
-      if (not Field->hasAttr<AnnotateAttr>()) {
-        revng_log(Log,
-                  "Struct field representing return value should have annotate "
-                  "attribute describing location");
-        return false;
+      std::optional Register = parseStringAnnotation(*Field, RegAnnotation);
+      if (not Register.has_value()) {
+        std::optional Stack = parseStringAnnotation(*Field, StackAnnotation);
+        if (Stack.has_value()) {
+          // TODO: Handle stack location.
+          revng_log(Log, "We don't support stack parameters in RFTs for now");
+          return false;
+        } else {
+          revng_log(Log,
+                    "Parameters must have either a register or a stack "
+                    "annotation.");
+          return false;
+        }
       }
 
-      auto Annotate = std::find_if(begin(Field->getAttrs()),
-                                   end(Field->getAttrs()),
-                                   [&](Attr *Attribute) {
-                                     return isa<AnnotateAttr>(Attribute);
-                                   });
-
-      auto Loc = getLoc(cast<AnnotateAttr>(*Annotate)->getAnnotation());
-      if (not Loc or Loc->empty()) {
-        revng_log(Log,
-                  "Return value should have attribute annotate with reg or "
-                  "stack");
-        return false;
-      }
-
-      // TODO: Handle stack location.
-      if (*Loc == "stack") {
-        revng_log(Log, "We don't support Return value on stack for now");
-        return false;
-      }
-
-      LocationID = model::Register::fromCSVName(*Loc, Model->Architecture());
-      if (*LocationID == model::Register::Invalid) {
+      Location = model::Register::fromCSVName(*Register, Model->Architecture());
+      if (Location == model::Register::Invalid) {
         revng_log(Log, "Unsupported register location");
         return false;
       }
@@ -889,10 +847,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       return false;
     }
 
-    if (AnalysisOption == ImportFromCOption::EditFunctionPrototype) {
-      revng_assert(LocationID);
-      ReturnValues.emplace_back(*LocationID, ModelField);
-    }
+    if (AnalysisOption == ImportFromCOption::EditFunctionPrototype)
+      ReturnValues.emplace_back(Location, ModelField);
 
     if (ClangFieldType->isPointerType()) {
       Size = model::Architecture::getPointerSize(Model->Architecture());
@@ -1033,22 +989,10 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   }
 
   // Parse annotate attribute used for specifying underlying type.
-  std::optional<std::string> UnderlyingType;
-  if (D->hasAttr<AnnotateAttr>()) {
-    auto Annotate = std::find_if(begin(D->getAttrs()),
-                                 end(D->getAttrs()),
-                                 [&](Attr *Attribute) {
-                                   return isa<AnnotateAttr>(Attribute);
-                                 });
-
-    llvm::StringRef Annotation = cast<AnnotateAttr>(*Annotate)->getAnnotation();
-    UnderlyingType = parseEnumUnderlyingType(Annotation);
-    if (not UnderlyingType or UnderlyingType->empty()) {
-      revng_log(Log,
-                "Unable to parse `enum_underlying_type:` from the annotate "
-                "attribute");
-      return false;
-    }
+  std::optional UnderlyingType = parseStringAnnotation(*D, EnumAnnotation);
+  if (not UnderlyingType.has_value() or UnderlyingType->empty()) {
+    revng_log(Log, "Unable to parse the enum annotation.");
+    return false;
   }
 
   revng_assert(UnderlyingType.has_value());
