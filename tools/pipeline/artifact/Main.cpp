@@ -107,6 +107,14 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
+  if (not Manager.getRunner().containsStep(Arguments[0])) {
+    AbortOnError(createStringError(inconvertibleErrorCode(),
+                                   "No known artifact named %s.\nUse `revng "
+                                   "artifact` with no arguments to list "
+                                   "available artifacts",
+                                   Arguments[0].c_str()));
+  }
+
   if (Analyze && AnalysesLists.getNumOccurrences() > 0) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
                                    "Cannot use --analyze and --analyses-lists "
@@ -165,13 +173,6 @@ int main(int argc, char *argv[]) {
   }
 
   T.advance("Produce artifact", true);
-  if (not Manager.getRunner().containsStep(Arguments[0])) {
-    AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "No known artifact named %s.\n Use `revng "
-                                   "artifact` with no arguments to list "
-                                   "available artifacts",
-                                   Arguments[0].c_str()));
-  }
   auto &Step = Manager.getRunner().getStep(Arguments[0]);
   auto &Container = *Step.getArtifactsContainer();
   auto ContainerName = Container.first();
