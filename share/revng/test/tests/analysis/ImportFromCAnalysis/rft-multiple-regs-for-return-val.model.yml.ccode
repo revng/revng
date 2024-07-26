@@ -3,7 +3,7 @@
 //
 
 _ABI(raw_x86_64)
-struct return_value {
+struct _PACKED _SIZE(8) return_value {
   int32_t x _REG(rax);
   int32_t y _REG(rbx);
 } new_function_name(int64_t _REG(rcx) fd33);
