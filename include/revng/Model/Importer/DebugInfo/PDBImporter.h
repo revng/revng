@@ -34,9 +34,9 @@ public:
 
   void import(const llvm::object::COFFObjectFile &TheBinary,
               const ImporterOptions &Options);
+
   void loadDataFromPDB(std::string PDBFileName);
-  std::optional<std::string>
-  getCachedPDBFilePath(std::string PDBFileID,
-                       llvm::StringRef PDBFilePath,
-                       llvm::StringRef InputFileName);
+
+  std::optional<std::string> getPDBFilePath(std::string PDBFileID,
+                                            llvm::StringRef PDBFilePath);
 };

@@ -9,5 +9,6 @@
 #include "llvm/Support/CommandLine.h"
 
 extern llvm::cl::OptionCategory MainCategory;
+extern std::string InputPath;
 
 std::ostream &pathToStream(const std::string &Path, std::ofstream &File);

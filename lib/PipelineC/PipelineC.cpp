@@ -394,6 +394,8 @@ static bool _rp_manager_container_deserialize(rp_manager *manager,
   revng_check(container_name != nullptr);
   revng_check(content != nullptr);
 
+  // TODO: we should set InputPath if the container_name is input
+
   llvm::StringRef String(content, size);
   auto Buffer = llvm::MemoryBuffer::getMemBuffer(String, "", false);
   auto MaybeInvalidations = manager->deserializeContainer(*step,

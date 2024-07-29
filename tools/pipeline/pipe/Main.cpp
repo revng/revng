@@ -89,6 +89,7 @@ int main(int argc, char *argv[]) {
 
   const auto &Name = ModelGlobalName;
   auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
+  InputPath = Arguments[1];
   AbortOnError(Model->load(FilePath::fromLocalStorage(Arguments[1])));
 
   const auto &Pipe = PipesMap.find(Arguments[0])->second.Pipe;

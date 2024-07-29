@@ -64,6 +64,8 @@ class FetchDebugInfoCommand(Command):
                     return 1
             else:
                 # Should be a PE/COFF otherwise.
+                # TODO: handle _NT_SYMBOL_PATH and _NT_ALT_SYMBOL_PATH
+                # https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path
                 if not args.urls:
                     args.urls.append(microsoft_symbol_server_url)
                 result = fetch_pdb(path, args.urls)

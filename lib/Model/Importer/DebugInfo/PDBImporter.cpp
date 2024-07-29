@@ -291,67 +291,42 @@ static bool fileExists(const Twine &Path) {
   bool Result = sys::fs::exists(Path);
 
   if (Result) {
-    revng_log(DILogger, "The following path does not exist: " << Path.str());
-  } else {
     revng_log(DILogger, "Found: " << Path.str());
+  } else {
+    revng_log(DILogger, "The following path does not exist: " << Path.str());
   }
 
   return Result;
 }
 
-// At first, check if we can find the file path on this device as is.
-// If the XDG_CACHE_HOME was set, we will find there, if not, try finding it in
-// the `~/.cache/revng/debug-symbols/pe/`.
-std::optional<std::string>
-PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
-                                  StringRef PDBFilePath,
-                                  StringRef InputFileName) {
+std::optional<std::string> PDBImporter::getPDBFilePath(std::string PDBFileID,
+                                                       StringRef PDBFilePath) {
   llvm::SmallString<128> ResultPath;
-  if (fileExists(ResultPath.str()))
-    return std::string(ResultPath.str());
 
-  ResultPath.clear();
-  // Check in the same directory as InputFileName.
-  if (sys::path::is_absolute(InputFileName)) {
-    llvm::sys::path::append(ResultPath,
-                            llvm::sys::path::parent_path(InputFileName),
-                            PDBFilePath);
+  // Try in the current directory
+  if (auto ErrorCode = llvm::sys::fs::current_path(ResultPath)) {
+    revng_log(DILogger, "Can't get current working path.");
   } else {
-    // Relative path.
-    llvm::SmallString<64> CurrentDirectory;
-    auto ErrorCode = llvm::sys::fs::current_path(CurrentDirectory);
-    if (!ErrorCode) {
-      llvm::sys::path::append(ResultPath,
-                              CurrentDirectory,
-                              llvm::sys::path::parent_path(InputFileName),
-                              PDBFilePath);
-    } else {
-      revng_log(DILogger, "Can't get current working path.");
-    }
+    llvm::sys::path::append(ResultPath, PDBFilePath);
+    if (fileExists(ResultPath.str()))
+      return std::string(ResultPath.str());
   }
 
-  if (fileExists(ResultPath.str()))
-    return std::string(ResultPath.str());
-
+  // Try main input path
   ResultPath.clear();
-  auto XDGCacheHome = llvm::sys::Process::GetEnv("XDG_CACHE_HOME");
-  if (!XDGCacheHome) {
-    SmallString<64> PathHome;
-    sys::path::home_directory(PathHome);
-    // Default debug directory.
+  if (not InputPath.empty()) {
     llvm::sys::path::append(ResultPath,
-                            PathHome.str(),
-                            ".cache/revng/debug-symbols/pe/",
-                            PDBFileID,
+                            llvm::sys::path::parent_path(InputPath),
                             PDBFilePath);
-  } else {
-    llvm::sys::path::append(ResultPath,
-                            *XDGCacheHome,
-                            ".cache/revng/debug-symbols/pe/",
-                            PDBFileID,
-                            PDBFilePath);
+    if (fileExists(ResultPath.str()))
+      return std::string(ResultPath.str());
   }
 
+  // Try in ~/.cache
+  ResultPath.clear();
+  setXDG(ResultPath, "XDG_CACHE_HOME", ".cache");
+  llvm::sys::path::append(ResultPath, "revng", "debug-symbols", "pe");
+  llvm::sys::path::append(ResultPath, PDBFileID, PDBFilePath);
   if (fileExists(ResultPath.str()))
     return std::string(ResultPath.str());
 
@@ -402,74 +377,68 @@ void PDBImporter::import(const COFFObjectFile &TheBinary,
   const codeview::DebugInfo *DebugInfo;
   StringRef PDBFilePath;
 
-  auto EC = TheBinary.getDebugPDBInfo(DebugInfo, PDBFilePath);
-  if (not EC and DebugInfo != nullptr and not PDBFilePath.empty()) {
-    if (not UsePDB.empty()) {
-      // Sometimes we may rename a PDB file, so we can force using that one.
-      loadDataFromPDB(UsePDB);
-    } else if (fileExists(PDBFilePath)) {
-      // Use the path of the PDB file if it exists on the device.
-      loadDataFromPDB(PDBFilePath.str());
-    } else {
-      if (Options.DebugInfo != DebugInfoLevel::No) {
-        // Usually the PDB files will be generated on a different machine,
-        // so the location read from the debug directory won't be up to date.
-
-        auto PositionOfLastDirectoryChar = PDBFilePath.rfind("\\");
-        if (PositionOfLastDirectoryChar != llvm::StringRef::npos) {
-          PDBFilePath = PDBFilePath.slice(PositionOfLastDirectoryChar + 1,
-                                          PDBFilePath.size());
-        }
-
-        // TODO: Handle PDB signature types other then PDB70, e.g. PDB20.
-        if (DebugInfo->Signature.CVSignature == OMF::Signature::PDB70) {
-          // Get debug info from canonical places.
-          auto PDBFileID = formatPDBFileID(DebugInfo->PDB70.Signature,
-                                           DebugInfo->PDB70.Age);
-
-          auto DebugInfoPath = getCachedPDBFilePath(PDBFileID,
-                                                    PDBFilePath,
-                                                    TheBinary.getFileName());
-          if (DebugInfoPath) {
-            loadDataFromPDB(*DebugInfoPath);
-          } else {
-            // Let's try finding it on web with the `fetch-debuginfo` tool.
-            // If the `revng` cannot be found, avoid finding debug info.
-            if (!::Runner.isProgramAvailable("revng")) {
-              revng_log(DILogger,
-                        "Can't find `revng` binary to run `fetch-debuginfo`.");
-              return;
-            }
-            int ExitCode = runFetchDebugInfoWithLevel(TheBinary.getFileName());
-            if (ExitCode != 0) {
-              revng_log(DILogger,
-                        "Failed to find debug info with `revng model "
-                        "fetch-debuginfo`.");
-              return;
-            }
-
-            DebugInfoPath = getCachedPDBFilePath(PDBFileID,
-                                                 PDBFilePath,
-                                                 TheBinary.getFileName());
-            if (!DebugInfoPath) {
-              revng_log(DILogger, "Unable to find PDB file.");
-              return;
-            }
-            loadDataFromPDB(*DebugInfoPath);
-          }
-        } else {
-          revng_log(DILogger, "Handle signatures other than PDB70.");
-          return;
-        }
-      }
-    }
-  } else {
-    revng_log(DILogger, "Unable to find PDB path in the binary.");
-    if (EC) {
-      revng_log(DILogger, "Unexpected debug directory: " << EC);
-      consumeError(std::move(EC));
-    }
+  if (Options.DebugInfo == DebugInfoLevel::No)
     return;
+
+  auto EC = TheBinary.getDebugPDBInfo(DebugInfo, PDBFilePath);
+  if (EC) {
+    revng_log(DILogger, "getDebugPDBInfo failed: " << EC);
+    consumeError(std::move(EC));
+  }
+
+  if (not UsePDB.empty()) {
+    // Sometimes we may rename a PDB file, so we can force using that one.
+    loadDataFromPDB(UsePDB);
+  } else if (DebugInfo != nullptr and not PDBFilePath.empty()
+             and fileExists(PDBFilePath)) {
+    // Use the path of the PDB file if it exists on the device.
+    loadDataFromPDB(PDBFilePath.str());
+  } else {
+    // Usually the PDB files will be generated on a different machine,
+    // so the location read from the debug directory won't be up to date.
+
+    auto PositionOfLastDirectoryChar = PDBFilePath.rfind("\\");
+    if (PositionOfLastDirectoryChar != llvm::StringRef::npos) {
+      PDBFilePath = PDBFilePath.slice(PositionOfLastDirectoryChar + 1,
+                                      PDBFilePath.size());
+    }
+
+    // TODO: Handle PDB signature types other then PDB70, e.g. PDB20.
+    if (DebugInfo->Signature.CVSignature != OMF::Signature::PDB70) {
+      revng_log(DILogger, "A non-PDB70 signature was find, ignore.");
+      return;
+    }
+
+    // Get debug info from canonical places.
+    auto PDBFileID = formatPDBFileID(DebugInfo->PDB70.Signature,
+                                     DebugInfo->PDB70.Age);
+
+    auto DebugInfoPath = getPDBFilePath(PDBFileID, PDBFilePath);
+    if (DebugInfoPath) {
+      loadDataFromPDB(*DebugInfoPath);
+    } else {
+      // Let's try finding it on web with the `fetch-debuginfo` tool.
+      // If the `revng` cannot be found, avoid finding debug info.
+      if (!::Runner.isProgramAvailable("revng")) {
+        revng_log(DILogger,
+                  "Can't find `revng` binary to run `fetch-debuginfo`.");
+        return;
+      }
+      int ExitCode = runFetchDebugInfoWithLevel(TheBinary.getFileName());
+      if (ExitCode != 0) {
+        revng_log(DILogger,
+                  "Failed to find debug info with `revng model "
+                  "fetch-debuginfo`.");
+        return;
+      }
+
+      DebugInfoPath = getPDBFilePath(PDBFileID, PDBFilePath);
+      if (!DebugInfoPath) {
+        revng_log(DILogger, "Unable to find PDB file.");
+        return;
+      }
+      loadDataFromPDB(*DebugInfoPath);
+    }
   }
 
   if (not ThePDBFile) {

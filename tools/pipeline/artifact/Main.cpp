@@ -128,6 +128,7 @@ int main(int argc, char *argv[]) {
   }
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
+  InputPath = Arguments[1];
   AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
 
   TargetInStepSet InvMap;

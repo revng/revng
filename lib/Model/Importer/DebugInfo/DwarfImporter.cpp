@@ -1123,23 +1123,12 @@ findDebugInfoFileByName(StringRef FileName,
           } else {
             // Try in XDG_CACHE_HOME at the end.
             ResultPath.clear();
-            auto XDGCacheHome = llvm::sys::Process::GetEnv("XDG_CACHE_HOME");
-            SmallString<64> PathHome;
-            sys::path::home_directory(PathHome);
-            // Default debug directory.
-            if (!XDGCacheHome) {
-              llvm::sys::path::append(ResultPath,
-                                      PathHome,
-                                      ".cache/revng/debug-symbols/elf/",
-                                      BuildID,
-                                      "debug");
-            } else {
-              llvm::sys::path::append(ResultPath,
-                                      *XDGCacheHome,
-                                      "revng/debug-symbols/elf/",
-                                      BuildID,
-                                      "debug");
-            }
+            setXDG(ResultPath, "XDG_CACHE_HOME", ".cache");
+            llvm::sys::path::append(ResultPath,
+                                    "revng",
+                                    "debug-symbols",
+                                    "elf");
+            llvm::sys::path::append(ResultPath, BuildID, "debug");
 
             if (fileExists(ResultPath.str())) {
               return std::string(ResultPath.str());

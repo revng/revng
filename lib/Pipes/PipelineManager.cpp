@@ -93,6 +93,7 @@ static Loader setupLoader(pipeline::Context &PipelineContext,
 
 llvm::Error
 PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
+  // TODO: we should set InputPath if the container is input
   auto MaybeMapping = PipelineFileMapping::parse(PipelineFileMapping);
   if (not MaybeMapping)
     return MaybeMapping.takeError();
