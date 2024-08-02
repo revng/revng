@@ -24,12 +24,21 @@ def generate_jsonschema(
     return generator.emit_jsonschema()
 
 
-def generate_python(schema: Schema, root_type: str, string_types=None, external_types=None) -> str:
+def generate_python(
+    schema: Schema,
+    root_type: str,
+    output: str,
+    string_types=None,
+    external_types=None,
+    mixins_paths=[],
+) -> str:
     generator = PythonGenerator(
         schema,
         root_type,
+        output=output,
         string_types=string_types,
         external_types=external_types,
+        mixins_paths=mixins_paths,
     )
     return generator.emit_python()
 

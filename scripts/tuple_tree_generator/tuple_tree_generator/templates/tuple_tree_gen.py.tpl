@@ -28,6 +28,11 @@ from revng.tupletree import DiffYamlDumper as _DiffExternalYamlDumper
 from .external import 't'
 ## endfor ##
 
+##- if schema.base_namespace == 'model' -##
+##- for import in get_mixins_imports() ##
+'import'
+##- endfor -##
+##- endif ##
 
 # Every subclass of YamlLoader can register its own independent loaders
 class YamlLoader(_ExternalYamlLoader):
@@ -72,9 +77,12 @@ class 'struct.name'(
     'struct.inherits.name',
     ##- endif -##
     ##- if struct.abstract -##
-    AbstractStructBase
+    AbstractStructBase,
     ##- else -##
-    StructBase
+    StructBase,
+    ##- endif -##
+    ##- if schema.base_namespace == 'model' -##
+    '- struct.name | get_mixins'
     ##- endif -##
 ):
     'struct.doc | docstring'

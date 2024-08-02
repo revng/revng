@@ -2,6 +2,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import ast
+import os
+from pathlib import Path
+from typing import List
+
 import black
 from jinja2 import Environment
 
@@ -15,11 +20,21 @@ BUILTINS_CLASSES = {"string": "str", "boolean": "bool", "int": "int"}
 
 
 class PythonGenerator:
-    def __init__(self, schema: Schema, root_type, string_types=None, external_types=None):
+    def __init__(
+        self,
+        schema: Schema,
+        root_type,
+        output,
+        string_types=None,
+        external_types=None,
+        mixins_paths=[],
+    ):
         self.schema = schema
         self.root_type = root_type
+        self.output = output
         self.string_types = string_types or []
         self.external_types = external_types or []
+        self.mixins_paths = mixins_paths
         self.jinja_environment = Environment(
             block_start_string="##",
             block_end_string="##",
@@ -35,10 +50,13 @@ class PythonGenerator:
         self.jinja_environment.filters["default_value"] = self.default_value
         self.jinja_environment.filters["gen_key"] = self.gen_key
         self.jinja_environment.filters["key_parser"] = self.key_parser
+        self.jinja_environment.filters["get_mixins"] = self.get_mixins
+        self.jinja_environment.globals["get_mixins_imports"] = self.get_mixins_imports
         self.jinja_environment.tests["simple_field"] = is_simple_struct_field
         self.jinja_environment.tests["sequence_field"] = is_sequence_struct_field
         self.jinja_environment.tests["reference_field"] = is_reference_struct_field
         self.template = self.jinja_environment.get_template("tuple_tree_gen.py.tpl")
+        self.mixins: dict[str, List[str]] = self._parse_mixins()
 
     def emit_python(self) -> str:
         rendered_template = self.template.render(
@@ -51,6 +69,7 @@ class PythonGenerator:
             rendered_template,
             mode=black.Mode(line_length=100),
         )
+
         return formatted_rendered_template
 
     @classmethod
@@ -156,12 +175,58 @@ class PythonGenerator:
     def to_bool(_input: bool) -> str:
         return "True" if _input else "False"
 
+    def _parse_mixins(self) -> dict[str, List[str]]:
+        mixins: dict[str, List[str]] = {}
+        for mixins_path in self.mixins_paths:
+            with open(Path(mixins_path), "r") as mixin_file:
+                mixins_parsed = ast.parse(mixin_file.read())
+                mixin_classes = [
+                    node.name for node in mixins_parsed.body if isinstance(node, ast.ClassDef)
+                ]
+                mixins[mixins_path] = mixin_classes
+        return mixins
+
+    def get_mixins(self, struct_name: str) -> str:
+        for mixin_classes in self.mixins.values():
+            for mc in mixin_classes:
+                if struct_name == mc.removesuffix("Mixin"):
+                    return mc
+
+            if "AllMixin" in mixin_classes:
+                return "AllMixin"
+        raise RuntimeError("Couldn't find matching Mixin class")
+
+    def get_mixins_imports(self) -> List[str]:
+        """
+        This method supports mixin imports from the `model` dir level or from subdirs
+        """
+        imports: List[str] = []
+        for mixin_path, mixin_classes in self.mixins.items():
+            path_distance = os.path.relpath(
+                os.path.dirname(mixin_path), os.path.dirname(self.output)
+            )
+            file_name = os.path.basename(mixin_path).removesuffix(".py")
+
+            if path_distance == ".":
+                path = file_name
+            elif path_distance == "..":
+                path = f"..{file_name}"
+            else:
+                # Transform from unix path to python import
+                path_distance = path_distance.replace("/", "", 1)
+                path_distance = path_distance.replace("/", ".")
+                path = f"{path_distance}.{file_name}"
+
+            imports.append(f"from {path} import {', '.join(mixin_classes)}")  # noqa: E501
+        return imports
+
     @staticmethod
     def gen_key(struct: StructDefinition) -> str:
         fields = [f"{{self.{f.name}}}" for f in struct.key_fields]
         return f"f\"{'-'.join(fields)}\""
 
-    def key_parser(self, struct: StructDefinition) -> str:
+    @staticmethod
+    def key_parser(struct: StructDefinition) -> str:
         fields = [f'"{f.name}": parts[{i}]' for i, f in enumerate(struct.key_fields)]
         return ",".join(fields)
 
