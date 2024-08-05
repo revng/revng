@@ -561,6 +561,14 @@ public:
     return Result;
   }
 
+  constexpr MetaAddress toGeneric64() const {
+    revng_check(isValid());
+
+    MetaAddress Result = *this;
+    Result.Type = MetaAddressType::Generic64;
+    return Result;
+  }
+
   constexpr MetaAddress toPC(llvm::Triple::ArchType Arch) const {
     return fromPC(Arch, Address, Epoch, AddressSpace);
   }
@@ -596,49 +604,51 @@ public:
 
   /// \name Address comparisons
   ///
-  /// Comparison operators are defined only if
-  /// this->addressIsComparableWith(Other)
+  /// Comparison operators ignoring the MetaAddress type
   ///
   /// @{
 
-  /// Is this address comparable with \p Other
-  ///
-  /// Two MetaAddresses are comparable if they are both valid, they refer to the
-  /// same address space and they have the same size in bits.
-  constexpr bool addressIsComparableWith(const MetaAddress &Other) const {
-    return (isValid() and Other.isValid() and AddressSpace == Other.AddressSpace
-            and bitSize() == Other.bitSize());
-  }
-
   constexpr bool addressEquals(const MetaAddress &Other) const {
-    revng_check(addressIsComparableWith(Other));
-    return Address == Other.Address;
+    revng_assert(isValid());
+    revng_assert(Other.isValid());
+    return toGeneric64() == Other.toGeneric64();
   }
 
   constexpr bool addressDiffers(const MetaAddress &Other) const {
+    revng_assert(isValid());
+    revng_assert(Other.isValid());
     return !addressEquals(Other);
   }
 
   constexpr bool addressLowerThan(const MetaAddress &Other) const {
-    revng_check(addressIsComparableWith(Other));
-    return Address < Other.Address;
+    revng_assert(isValid());
+    revng_assert(Other.isValid());
+    return toGeneric64() < Other.toGeneric64();
   }
 
   constexpr bool addressLowerThanOrEqual(const MetaAddress &Other) const {
-    revng_check(addressIsComparableWith(Other));
-    return Address <= Other.Address;
+    revng_assert(isValid());
+    revng_assert(Other.isValid());
+    return toGeneric64() <= Other.toGeneric64();
   }
 
   constexpr bool addressGreaterThanOrEqual(const MetaAddress &Other) const {
+    revng_assert(isValid());
+    revng_assert(Other.isValid());
     return not(addressLowerThan(Other));
   }
 
   constexpr bool addressGreaterThan(const MetaAddress &Other) const {
+    revng_assert(isValid());
+    revng_assert(Other.isValid());
     return not(addressLowerThanOrEqual(Other));
   }
 
   std::optional<uint64_t> operator-(const MetaAddress &Other) const {
-    revng_check(addressIsComparableWith(Other));
+    revng_assert(isValid());
+    revng_assert(Other.isValid());
+    revng_assert(Epoch == Other.Epoch);
+    revng_assert(AddressSpace == Other.AddressSpace);
     return (OverflowSafeInt(Address) - Other.Address).value();
   }
   /// @}
