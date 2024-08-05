@@ -198,10 +198,13 @@ public:
     if (auto *F = TheModule->getFunction(Name))
       return F;
 
-    return Function::Create(IsolatedFunctionType,
-                            GlobalValue::ExternalLinkage,
-                            Name,
-                            TheModule);
+    auto *F = Function::Create(IsolatedFunctionType,
+                               GlobalValue::ExternalLinkage,
+                               Name,
+                               TheModule);
+    FunctionTags::Isolated.addTo(F);
+    setMetaAddressMetadata(F, FunctionEntryMDName, Entry);
+    return F;
   }
 
   Function *getDynamicFunction(llvm::StringRef SymbolName) const {
@@ -579,9 +582,7 @@ void IsolateFunctionsImpl::run() {
     F->addFnAttr(Attribute::NullPointerIsValid);
     F->addFnAttr(Attribute::NoMerge);
     IsolatedFunctionsMap[Entry] = F;
-    FunctionTags::Isolated.addTo(F);
     revng_assert(F != nullptr);
-    setMetaAddressMetadata(F, FunctionEntryMDName, Entry);
 
     // Outline the function (later on we'll steal its body and move it into F)
     CallIsolatedFunction CallHandler(*this, FM);
