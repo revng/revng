@@ -4,11 +4,70 @@
 
 import argparse
 import sys
-from typing import Optional
+from contextlib import suppress
+from io import TextIOWrapper
+from typing import Callable, Optional, ParamSpec, TypeVar
 
-from ...commands_registry import Command, CommandsRegistry, Options
-from .common import suppress_brokenpipe
-from .text import cmd_text
+from revng.ptml import PlainConsole, parse
+from revng.ptml.common import log, normalize_filter_extract
+
+from ..commands_registry import Command, CommandsRegistry, Options
+
+T = TypeVar("T")
+P = ParamSpec("P")
+
+
+def suppress_brokenpipe(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
+    """When running a program with a pipe, BrokenPipeError might be raised. This signals that the
+    output pipe was closed, which we expect. Suppressing the exception is not enough since it can
+    also happen at shutdown, which will trigger python's unraisable hook, to remedy this we
+    overwrite the default hook to ignore BrokenPipeError."""
+
+    def new_unraisablehook(arg):
+        if arg.exc_type != BrokenPipeError:
+            sys.__unraisablehook__(arg)
+
+    sys.unraisablehook = new_unraisablehook
+
+    with suppress(BrokenPipeError):
+        return func(*args)
+    return None
+
+
+def cmd_text(args):
+    if args.inplace and args.input == sys.stdin.buffer:
+        log("Cannot strip inplace while reading from stdin")
+        return 1
+
+    filters = normalize_filter_extract(args.filter, args.extract)
+    content = args.input.read()
+
+    if args.inplace:
+        args.input.seek(0)
+        args.input.truncate(0)
+        output = TextIOWrapper(args.input, "utf-8")
+    else:
+        output = args.output
+
+    if not args.color:
+        console = PlainConsole(output)
+    else:
+        try:
+            # rich takes a while to import, do it if needed
+            from rich.console import Console
+
+            console = Console(markup=False, highlight=False, force_terminal=True, file=output)
+            console.options.no_wrap = True
+            color = True
+        except ImportError:
+            console = PlainConsole(output)
+            color = False
+
+    if args.color and not color:
+        log("Module 'rich' not found, please install it to use color mode")
+        return 1
+
+    return parse(content, console, filters)
 
 
 class PTMLCommand(Command):

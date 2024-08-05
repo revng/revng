@@ -3,13 +3,9 @@
 #
 
 import re
-import sys
-from io import TextIOWrapper
 from typing import Dict
 from xml.dom import Node
 from xml.dom.minidom import Document, parseString
-
-from .common import handle_file, log, normalize_filter_extract
 
 COLOR_CONVERSION = {
     "asm.label": "bright_red",
@@ -37,17 +33,6 @@ COLOR_CONVERSION = {
     "c.keyword": "dodger_blue1",
     "c.directive": "dodger_blue1",
 }
-
-
-class PlainConsole:
-    def __init__(self, file: TextIOWrapper):
-        self.file = file
-
-    def print(self, text: str, *, end: str = "\n", **kwargs):  # noqa: A003
-        self.file.write(f"{text}{end}")
-
-    def __del__(self):
-        self.file.flush()
 
 
 def parse_ptml_plain(content: str, console):
@@ -81,44 +66,3 @@ def _parse_ptml_node(node: Document, console, indent: str, metadata: Dict[str, s
             for key, value in node.attributes.items():
                 new_metadata[key] = value
             _parse_ptml_node(node, console, indent, new_metadata)
-
-
-def cmd_text(args):
-    if args.inplace and args.input == sys.stdin.buffer:
-        log("Cannot strip inplace while reading from stdin")
-        return 1
-
-    filters = normalize_filter_extract(args.filter, args.extract)
-    content = args.input.read()
-
-    if args.inplace:
-        args.input.seek(0)
-        args.input.truncate(0)
-        output = TextIOWrapper(args.input, "utf-8")
-    else:
-        output = args.output
-
-    if not args.color:
-        console = PlainConsole(output)
-    else:
-        try:
-            # rich takes a while to import, do it if needed
-            from rich.console import Console
-
-            console = Console(markup=False, highlight=False, force_terminal=True, file=output)
-            console.options.no_wrap = True
-            color = True
-        except ImportError:
-            console = PlainConsole(output)
-            color = False
-
-    if args.color and not color:
-        log("Module 'rich' not found, please install it to use color mode")
-        return 1
-
-    return handle_file(
-        content,
-        lambda x: parse_ptml_plain(x, console),
-        lambda x: parse_ptml_yaml(x, console),
-        filters,
-    )

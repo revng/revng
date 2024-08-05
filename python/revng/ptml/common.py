@@ -4,12 +4,13 @@
 
 import re
 import sys
-from contextlib import suppress
-from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Union, overload
 
 import yaml
 
-from ...support import extract_tar, is_tar
+from revng.internal.cli.support import extract_tar, is_tar
+from revng.ptml.console import Console, StringConsole
+from revng.ptml.text import parse_ptml_plain, parse_ptml_yaml
 
 
 def log(msg: str):
@@ -19,11 +20,6 @@ def log(msg: str):
 def yaml_load(content: str) -> Dict[str, Any]:
     loader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
     return yaml.load(content, loader)
-
-
-def yaml_dump(obj: Any) -> str:
-    dumper = getattr(yaml, "CDumper", yaml.Dumper)
-    return yaml.dump(obj, Dumper=dumper)
 
 
 def normalize_filter_extract(filters: List[str], extract: Optional[str]) -> Union[str, List[str]]:
@@ -78,22 +74,26 @@ def handle_file(
         return handle_multiple(parsed_yaml, func_one, func_many, filters)
 
 
-T = TypeVar("T")
-P = ParamSpec("P")
+@overload
+def parse(raw: bytes, console: Console, filters: List[str] = []) -> None:
+    ...
 
 
-def suppress_brokenpipe(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
-    """When running a program with a pipe, BrokenPipeError might be raised. This signals that the
-    output pipe was closed, which we expect. Suppressing the exception is not enough since it can
-    also happen at shutdown, which will trigger python's unraisable hook, to remedy this we
-    overwrite the default hook to ignore BrokenPipeError."""
+@overload
+def parse(raw: bytes, console: None = None, filters: List[str] = []) -> str:
+    ...
 
-    def new_unraisablehook(arg):
-        if arg.exc_type != BrokenPipeError:
-            sys.__unraisablehook__(arg)
 
-    sys.unraisablehook = new_unraisablehook
+def parse(raw: bytes, console: Console | None = None, filters: List[str] = []) -> str | None:
+    _console: Console | StringConsole = console if console else StringConsole()
 
-    with suppress(BrokenPipeError):
-        return func(*args)
+    handle_file(
+        raw,
+        lambda x: parse_ptml_plain(x, _console),
+        lambda x: parse_ptml_yaml(x, _console),
+        filters,
+    )
+
+    if isinstance(_console, StringConsole):
+        return _console.string
     return None

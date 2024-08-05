@@ -141,6 +141,14 @@ python_module(TARGET_NAME revng-merge-dynamic WHEEL revng_internal MODULE_FILES
               ${MERGE_DYNAMIC_MODULE_FILES})
 
 #
+# Install revng.ptml
+#
+set(REVNG_PTML_MODULE_FILES revng/ptml/__init__.py revng/ptml/common.py
+                            revng/ptml/text.py revng/ptml/console.py)
+python_module(TARGET_NAME revng-ptml WHEEL revng MODULE_FILES
+              ${REVNG_PTML_MODULE_FILES})
+
+#
 # Install revng.model_dump
 #
 set(DUMP_MODEL_MODULE_FILES
@@ -173,16 +181,10 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs.py
     revng/internal/cli/_commands/trace_run.py
-    revng/internal/cli/_commands/model_compare.py)
+    revng/internal/cli/_commands/model_compare.py
+    revng/internal/cli/_commands/ptml.py)
 python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
               MODULE_FILES ${REVNG_CLI_COMMANDS_MODULE_FILES})
-
-set(REVNG_CLI_COMMANDS_PTML_MODULE_FILES
-    revng/internal/cli/_commands/ptml/text.py
-    revng/internal/cli/_commands/ptml/common.py
-    revng/internal/cli/_commands/ptml/__init__.py)
-python_module(TARGET_NAME revng-python-cli-commands-ptml WHEEL revng_internal
-              MODULE_FILES ${REVNG_CLI_COMMANDS_PTML_MODULE_FILES})
 
 set(REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES
     revng/internal/cli/_commands/fetch_debuginfo/pe.py
