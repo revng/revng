@@ -129,6 +129,9 @@ bool Segment::verify(VerifyHelper &VH) const {
 
   using OverflowSafeInt = OverflowSafeInt<uint64_t>;
 
+  if (not StartAddress().isGeneric())
+    return VH.fail("StartAddress is not Generic32 or Generic64", *this);
+
   if (FileSize() > VirtualSize())
     return VH.fail("FileSize cannot be larger than VirtualSize", *this);
 
