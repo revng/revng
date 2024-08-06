@@ -6,12 +6,16 @@
 
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
+#include "revng/ADT/UpcastablePointer.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
+#include "revng/Model/RawFunctionDefinition.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Analysis.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/TupleTree/TupleTree.h"
 
 // TODO: Stop using VerifyHelper for this verification.
@@ -235,10 +239,25 @@ public:
     // verification routine or things are going to break down.
     model::VerifyHelper VectorVH;
 
-    // Choose the applicable functions and run the conversion for them.
-    using abi::FunctionType::filterTypes;
-    using RawFD = model::RawFunctionDefinition;
-    auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions());
+    // Convert all the RawFunctionDefinitions
+    using llvm::dyn_cast;
+    using model::RawFunctionDefinition;
+    llvm::DenseSet<model::RawFunctionDefinition *> ToConvert;
+    for (UpcastablePointer<model::TypeDefinition> &Definition :
+         Model->TypeDefinitions()) {
+      if (auto *Raw = dyn_cast<RawFunctionDefinition>(Definition.get())) {
+        ToConvert.insert(Raw);
+      }
+    }
+
+    // Leave DefaultPrototype alone (in order to avoid invalidation)
+    auto &DefaultPrototype = Model->DefaultPrototype();
+    if (auto *DefaultDefinition = DefaultPrototype->tryGetAsDefinition()) {
+      if (auto *Raw = dyn_cast<RawFunctionDefinition>(DefaultDefinition)) {
+        ToConvert.erase(Raw);
+      }
+    }
+
     for (model::RawFunctionDefinition *Old : ToConvert) {
       auto &DT = llvm::cast<model::DefinedType>(*Model->makeType(Old->key()));
       if (!checkVectorRegisterSupport(VectorVH, *Old)) {
