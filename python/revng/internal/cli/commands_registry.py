@@ -4,6 +4,7 @@
 
 import argparse
 import dataclasses
+import shlex
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -67,6 +68,7 @@ class CommandsRegistry:
             "--callgrind", action="store_true", help="Run programs under callgrind."
         )
         parser.add_argument("--rr", action="store_true", help="Run programs under rr.")
+        parser.add_argument("--wrapper", help="Run programs with the specified wrapper")
         parser.add_argument(
             "--prefix", action="append", metavar="PREFIX", help="Additional search prefix."
         )
@@ -111,7 +113,7 @@ class CommandsRegistry:
             assert (
                 sum(
                     (args.perf, args.heaptrack, args.gdb, args.lldb, args.valgrind, args.callgrind)
-                    + (args.rr,)
+                    + (args.rr, args.wrapper is not None)
                 )
                 <= 1
             )
@@ -146,6 +148,9 @@ class CommandsRegistry:
 
             if args.heaptrack:
                 options.command_prefix += ["heaptrack"]
+
+            if args.wrapper:
+                options.command_prefix += shlex.split(args.wrapper)
 
         if args.version:
             hashes = collect_files(
