@@ -284,12 +284,14 @@ static bool verifyAlignment(const abi::Definition &ABI,
     return true;
   } else if (*Offset < NextOffset) {
     // Offsets are different, there's most likely padding between the arguments.
-    revng_assert(NextOffset % NextAlignment == 0,
-                 "Type's alignment doesn't make sense.");
-    uint64_t AdjustedAlignment = NextAlignment;
+    if (NextOffset % NextAlignment != 0) {
+      revng_log(Log, "Error: Next offset is not aligned as expected.");
+      return false;
+    }
 
     // Round all the alignment up to the register size - to avoid sub-word
     // offsets on the stack.
+    uint64_t AdjustedAlignment = NextAlignment;
     if (AdjustedAlignment < ABI.getPointerSize())
       AdjustedAlignment = ABI.getPointerSize();
     if (NextOffset % AdjustedAlignment != 0) {
