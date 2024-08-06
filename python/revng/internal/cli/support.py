@@ -58,7 +58,7 @@ def _run_common(
     command, options: Options, environment: OptionalEnv = None
 ) -> Tuple[List[str], Dict[str, str]]:
     if not os.path.isfile(command[0]):
-        command[0] = get_command(command[0], options.search_prefixes)
+        command = [get_command(command[0], options.search_prefixes), *command[1:]]
 
     if len(options.command_prefix) > 0:
         if is_executable(command[0]):
