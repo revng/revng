@@ -53,6 +53,8 @@ static llvm::StringRef getSupportName(model::Architecture::Values V) {
     return "mipsel";
   case systemz:
     return "s390x";
+  case hexagon:
+    return "hexagon";
   }
   revng_abort();
   return "Invalid";

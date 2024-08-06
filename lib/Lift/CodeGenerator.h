@@ -26,6 +26,8 @@ class DataLayout;
 
 }; // namespace llvm
 
+struct LibTcgInterface;
+
 /// Translator from binary code to LLVM IR.
 class CodeGenerator {
 public:
@@ -44,7 +46,7 @@ public:
   /// Creates an LLVM function for the code in the specified memory area.
   ///
   /// \param VirtualAddress the address from where the translation should start.
-  void translate(std::optional<uint64_t> RawVirtualAddress);
+  void translate(const LibTcgInterface &LibTcg, std::optional<uint64_t> RawVirtualAddress);
 
 private:
   const RawBinaryView &RawBinary;
@@ -55,7 +57,7 @@ private:
   const TupleTree<model::Binary> &Model;
 
   unsigned OriginalInstrMDKind;
-  unsigned PTCInstrMDKind;
+  unsigned LibTcgInstrMDKind;
 
   std::string FunctionListPath;
 

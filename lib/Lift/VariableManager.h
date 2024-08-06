@@ -15,7 +15,8 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "CPUStateAccessAnalysisPass.h"
-#include "PTCDump.h"
+
+#include "qemu/libtcg/libtcg.h"
 
 namespace llvm {
 class AllocaInst;
@@ -26,6 +27,11 @@ class Module;
 class StructType;
 class Value;
 } // namespace llvm
+
+struct LibTcgInstructionList;
+struct LibTcgInstruction;
+struct LibTcgArgument;
+struct LibTcgTemp;
 
 class VariableManager;
 
@@ -41,22 +47,24 @@ public:
   VariableManager(llvm::Module &M,
                   bool TargetIsLittleEndian,
                   llvm::StructType *CPUStruct,
-                  unsigned EnvOffset);
+                  unsigned LibTcgEnvOffset,
+                  uint8_t *LibTcgEnvPtr);
 
   void setAllocaInsertPoint(llvm::Instruction *I) {
     AllocaBuilder.SetInsertPoint(I);
   }
 
-  llvm::Instruction *load(llvm::IRBuilder<> &Builder, unsigned TemporaryId) {
-    using namespace llvm;
-
-    auto [IsNew, V] = getOrCreate(TemporaryId, true);
+  llvm::Value *load(llvm::IRBuilder<> &Builder, LibTcgArgument *Arg) {
+    auto [IsNew, V] = getOrCreate(Arg, true);
 
     if (V == nullptr)
       return nullptr;
 
+    if (llvm::isa<llvm::ConstantInt>(V))
+      return V;
+
     if (IsNew) {
-      auto *Undef = UndefValue::get(getVariableType(V));
+      auto *Undef = llvm::UndefValue::get(getVariableType(V));
       Builder.CreateStore(Undef, V);
     }
 
@@ -71,8 +79,8 @@ public:
   /// \param TemporaryId the PTC temporary identifier.
   ///
   /// \return a `Value` wrapping the requested global or local variable.
-  llvm::Value *getOrCreate(unsigned TemporaryId) {
-    return getOrCreate(TemporaryId, false).second;
+  llvm::Value *getOrCreate(LibTcgArgument *Arg) {
+    return getOrCreate(Arg, false).second;
   }
 
   /// Return the global variable corresponding to \p Offset in the CPU state.
@@ -85,24 +93,22 @@ public:
   ///         the third byte of a 32-bit integer it will 2.
   std::pair<llvm::GlobalVariable *, unsigned>
   getByEnvOffset(intptr_t Offset, std::string Name = "") {
-    return getByCPUStateOffsetInternal(EnvOffset + Offset, Name);
+    return getByCPUStateOffsetInternal(LibTcgEnvOffset + Offset, Name);
   }
 
-  /// Notify VariableManager to reset all the "function"-specific information
+  /// Notify VariableManager to reset all the Translation Block (TB) specific
+  /// information
   ///
-  /// Informs the VariableManager that a new function has begun, so it can
-  /// discard function- and basic block-level variables.
+  /// Note: A TB refers to a set of instructions that could be translated by
+  ///       QEMU in one shot, and might encompass multiple LLVM basic blocks.
   ///
-  /// Note: by "function" here we mean a function in PTC terms, i.e. a run of
-  ///       code translated in a single shot by the TCG. Do not confuse this
-  ///       function concept with other meanings.
-  ///
-  /// \param Instructions the new PTCInstructionList to use from now on.
-  void newFunction(PTCInstructionList *Instructions);
+  /// \param Instructions list of instructions returned by qemu for this TB
+  void newTranslationBlock(LibTcgInstructionList *Instructions);
 
-  /// Informs the VariableManager that a new basic block has begun, so it can
-  /// discard basic block-level variables.
-  void newBasicBlock() { Temporaries.clear(); }
+  /// Informs the VariableManager that a new Extended Basic Block (EBB) has
+  /// begun. An EBB is a single entry, multiple exit region that fallst through
+  /// conditional branches.
+  void newExtendedBasicBlock() { EBBTemporaries.clear(); }
 
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
@@ -115,24 +121,26 @@ public:
     ModuleLayout = NewLayout;
   }
 
-  std::vector<llvm::AllocaInst *> locals() {
-    std::vector<llvm::AllocaInst *> Locals;
-    for (auto Pair : LocalTemporaries)
-      Locals.push_back(Pair.second);
-    return Locals;
+  std::vector<llvm::AllocaInst *> getLiveVariables() {
+    std::vector<llvm::AllocaInst *> LiveVariables;
+    for (auto Pair : TBTemporaries)
+      LiveVariables.push_back(Pair.second);
+    for (auto Pair : EBBTemporaries)
+      LiveVariables.push_back(Pair.second);
+    return LiveVariables;
   }
 
   llvm::Value *loadFromEnvOffset(llvm::IRBuilder<> &Builder,
                                  unsigned LoadSize,
                                  unsigned Offset) {
-    return loadFromCPUStateOffset(Builder, LoadSize, EnvOffset + Offset);
+    return loadFromCPUStateOffset(Builder, LoadSize, LibTcgEnvOffset + Offset);
   }
 
   std::optional<llvm::StoreInst *> storeToEnvOffset(llvm::IRBuilder<> &Builder,
                                                     unsigned StoreSize,
                                                     unsigned Offset,
                                                     llvm::Value *ToStore) {
-    unsigned ActualOffset = EnvOffset + Offset;
+    unsigned ActualOffset = LibTcgEnvOffset + Offset;
     return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
   }
 
@@ -155,8 +163,8 @@ public:
                              llvm::Instruction *InsertBefore) const;
 
 private:
-  std::pair<bool, llvm::Value *> getOrCreate(unsigned TemporaryId,
-                                             bool Reading);
+  std::pair<bool, llvm::Value *>
+  getOrCreate(LibTcgArgument *Arg, bool Reading);
 
   llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
                                       unsigned LoadSize,
@@ -177,17 +185,23 @@ private:
 private:
   llvm::Module &TheModule;
   llvm::IRBuilder<> AllocaBuilder;
-  using TemporariesMap = std::map<unsigned int, llvm::AllocaInst *>;
+  using TemporariesMap = std::map<LibTcgTemp *, llvm::AllocaInst *>;
   using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
   GlobalsMap CPUStateGlobals;
   GlobalsMap OtherGlobals;
-  TemporariesMap Temporaries;
-  TemporariesMap LocalTemporaries;
-  PTCInstructionList *Instructions;
+  // QEMU terminology
+  // - Translation Block (TB): All instructions that could be translated in one
+  //   shot, might encompass multiple LLVM basic blocks.
+  // - Extended Basic Block (EBB): Single entry, multiple exit region that falls
+  //   through condtitional branches, smaller than a TB. 
+  TemporariesMap TBTemporaries;
+  TemporariesMap EBBTemporaries;
+  LibTcgInstructionList *Instructions;
 
   llvm::StructType *CPUStateType;
   const llvm::DataLayout *ModuleLayout;
-  unsigned EnvOffset;
+  unsigned LibTcgEnvOffset;
+  uint8_t *LibTcgEnvPtr;
 
   llvm::GlobalVariable *Env;
   bool TargetIsLittleEndian;

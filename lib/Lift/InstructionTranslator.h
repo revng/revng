@@ -16,7 +16,8 @@
 #include "revng/Support/ProgramCounterHandler.h"
 
 #include "JumpTargetManager.h"
-#include "PTCDump.h"
+
+#include "qemu/libtcg/libtcg.h"
 
 // Forward declarations
 namespace llvm {
@@ -42,7 +43,8 @@ public:
   /// \param Blocks reference to a `vector` of `BasicBlock`s used to keep track
   ///        on which `BasicBlock`s the InstructionTranslator worked on, for
   ///        further processing.
-  InstructionTranslator(llvm::IRBuilder<> &Builder,
+  InstructionTranslator(const LibTcgInterface &LibTcg,
+                        llvm::IRBuilder<> &Builder,
                         VariableManager &Variables,
                         JumpTargetManager &JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
@@ -81,12 +83,11 @@ public:
   // TODO: rename to newPC
   // TODO: the signature of this function is ugly
   std::tuple<TranslationResult, llvm::MDNode *, MetaAddress, MetaAddress>
-  newInstruction(PTCInstruction *Instr,
-                 PTCInstruction *Next,
+  newInstruction(LibTcgInstruction *Instr,
+                 LibTcgInstruction *Next,
                  MetaAddress StartPC,
                  MetaAddress EndPC,
-                 bool IsFirst,
-                 MetaAddress AbortAt);
+                 bool IsFirst);
 
   /// Translate an ordinary instruction
   ///
@@ -96,14 +97,14 @@ public:
   ///
   /// \return see InstructionTranslator::TranslationResult.
   TranslationResult
-  translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC);
+  translate(LibTcgInstruction *Instr, MetaAddress PC, MetaAddress NextPC);
 
   /// Translate a call to an helper
   ///
   /// \param Instr the PTCInstruction of the call to the helper.
   ///
   /// \return see InstructionTranslator::TranslationResult.
-  TranslationResult translateCall(PTCInstruction *Instr);
+  TranslationResult translateCall(LibTcgInstruction *Instr);
 
   /// Handle calls to `newPC` marker and emit coverage information
   void finalizeNewPCMarkers();
@@ -114,19 +115,22 @@ public:
   /// Preprocess the translated instructions
   ///
   /// Check if the translated code contains a delay slot and return a blacklist
-  /// of the PTC_INSTRUCTION_op_debug_insn_start instructions that have to be
+  /// of the LIBTCG_op_insn_start instructions that have to be
   /// ignored to merge the delay slot into the branch instruction.
-  llvm::SmallSet<unsigned, 1> preprocess(PTCInstructionList *Instructions);
+  llvm::SmallSet<unsigned, 1> preprocess(LibTcgInstructionList Instructions);
 
   void registerDirectJumps();
 
 private:
   llvm::ErrorOr<std::vector<llvm::Value *>>
-  translateOpcode(PTCOpcode Opcode,
-                  std::vector<uint64_t> ConstArguments,
+  translateOpcode(LibTcgOpcode Opcode,
+                  std::vector<LibTcgArgument> ConstArguments,
                   std::vector<llvm::Value *> InArguments);
 
+  void handleExitTB();
+
 private:
+  const LibTcgInterface &LibTcg;
   llvm::IRBuilder<> &Builder;
   VariableManager &Variables;
   JumpTargetManager &JumpTargets;

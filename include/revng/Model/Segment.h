@@ -107,6 +107,8 @@ public:
 
   /// \return a valid MetaAddress.
   auto endAddress() const { return StartAddress() + VirtualSize(); }
+  auto startAddress() const { return StartAddress(); } // TODO(anjo): TMP
+  auto size() const { return VirtualSize(); } // TODO(anjo): TMP
 
   std::pair<MetaAddress, MetaAddress> pagesRange() const {
     MetaAddress Start = StartAddress();

@@ -352,6 +352,23 @@ forwardTaintAnalysis(const Module *M,
             TaintLog << dumpToString(TheUser) << DoLog;
           }
           Results.TaintedStores.insert(TheUser);
+        } else {
+          // If the value being stored is tainted, then taint
+          // the pointer being stored to.
+          //
+          // Consider
+          //    %a = ptr ...
+          //    %b = load i32, ptr @env
+          //    %c = add %b, 1234
+          //    store i32 %c, ptr %a
+          // then %a gets tainted.
+          for (const Use &U : S->getPointerOperand()->uses()) {
+            if (&U != TheUse and !isa<AllocaInst>(&U)) {
+              ToTaintWorkList.push(&U);
+              TaintLog.indent();
+              break;
+            }
+          }
         }
       } break;
       case Instruction::Trunc:
@@ -690,8 +707,16 @@ public:
 
   explicit WorkItem(Instruction *I) :
     CurrentValue(I), Sources(), SourceIndex(0) {
-    if (not isa<StoreInst>(I)) {
+    if (isa<SelectInst>(I)) {
+      Sources.push_back(&I->getOperandUse(1));
+      Sources.push_back(&I->getOperandUse(2));
+    } else if (not isa<StoreInst>(I)) {
       for (const Use &OpUse : I->operands()) {
+        // NOTE(anjo): We ignore undef values here to not
+        // crash on switch statements with unreachable
+        // branches.
+        if (isa<UndefValue>(OpUse))
+          continue;
         Sources.push_back(&OpUse);
       }
     } else {
@@ -757,20 +782,20 @@ public:
           revng_log(CSVAccessLog,
                     "CallInst: " << FCall << " : " << dumpToString(FCall));
 
-          // If this call has already been decorated with LoadMDKind or
-          // StoreMDKind metadata it means that it has already been processed by
-          // a previous run of CPUStateAccessAnalysis.
-          // If we're running in lazy mode, we can skip calls that have already
-          // been decorated.
-          if (IsLazy) {
-            if (FCall->getMetadata(LoadMDKind) != nullptr
-                or FCall->getMetadata(StoreMDKind) != nullptr) {
-              revng_log(CSVAccessLog, "Already marked");
-              continue;
-            }
-          }
-
           if (FCall) {
+            // If this call has already been decorated with LoadMDKind or
+            // StoreMDKind metadata it means that it has already been processed by
+            // a previous run of CPUStateAccessAnalysis.
+            // If we're running in lazy mode, we can skip calls that have already
+            // been decorated.
+            if (IsLazy) {
+              if (FCall->getMetadata(LoadMDKind) != nullptr
+                  or FCall->getMetadata(StoreMDKind) != nullptr) {
+                revng_log(CSVAccessLog, "Already marked");
+                continue;
+              }
+            }
+
             const Function *Caller = FCall->getFunction();
             revng_log(CSVAccessLog, "Caller: " << Caller);
             if (ReachableFunctions.contains(Caller)) {
@@ -1400,10 +1425,11 @@ private:
     revng_assert(OffsetTuple.size() == 2);
 
     auto OpCode = I->getOpcode();
-    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
-                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
-                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
-                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
+    revng_assert(OpCode == Instruction::Xor or OpCode == Instruction::Shl or
+                 OpCode == Instruction::AShr or OpCode == Instruction::LShr or
+                 OpCode == Instruction::Mul or OpCode == Instruction::URem or
+                 OpCode == Instruction::SRem or OpCode == Instruction::SDiv or
+                 OpCode == Instruction::UDiv);
 
     const auto O0 = OffsetTuple[0], O1 = OffsetTuple[1];
     revng_assert(not O0->isPtr() and not O1->isPtr());
@@ -1420,10 +1446,11 @@ private:
                          const SmallVector<offset_iterator, 4> &OffsetsIt) {
 
     auto OpCode = I->getOpcode();
-    revng_assert(OpCode == Instruction::Shl or OpCode == Instruction::AShr
-                 or OpCode == Instruction::LShr or OpCode == Instruction::Mul
-                 or OpCode == Instruction::URem or OpCode == Instruction::SRem
-                 or OpCode == Instruction::SDiv or OpCode == Instruction::UDiv);
+    revng_assert(OpCode == Instruction::Xor or OpCode == Instruction::Shl or
+                 OpCode == Instruction::AShr or OpCode == Instruction::LShr or
+                 OpCode == Instruction::Mul or OpCode == Instruction::URem or
+                 OpCode == Instruction::SRem or OpCode == Instruction::SDiv or
+                 OpCode == Instruction::UDiv);
 
     SmallVector<Constant *, 4> Operands(NumSrcs, nullptr);
     // Setup operands
@@ -1745,6 +1772,7 @@ private:
   }
 
   void pop() {
+    revng_assert(not WorkList.empty());
     InExploration.erase(WorkList.back().val());
     WorkList.pop_back();
     CSVAccessLog.unindent(2);
@@ -1765,7 +1793,7 @@ using CPUSAOA = CPUStateAccessOffsetAnalysis;
 void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
   Value *ItemVal = Item.val();
   if (isa<PHINode>(ItemVal) or isa<Argument>(ItemVal)
-      or isa<CallInst>(ItemVal)) {
+      or isa<CallInst>(ItemVal) or isa<SelectInst>(ItemVal)) {
 
     // These three cases represent points of convergence of information coming
     // from different origins.
@@ -1922,6 +1950,7 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       revng_log(CSVAccessLog, "Add/Sub");
       AddSubFolder.fold(Item, ValueCallSiteOffsets);
     } break;
+    case Instruction::Xor:
     case Instruction::Shl:
     case Instruction::AShr:
     case Instruction::LShr:
@@ -2129,8 +2158,14 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
       revng_assert(FoundRecursion);
     } else {
       revng_assert(!Tainted.contains(NewItemV));
-      for (const Use *U : NewItem.sources())
-        insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
+      for (const Use *U : NewItem.sources()) {
+        auto TheCSVOffset = CSVOffsets(CSVOffsets::Kind::Unknown);
+        if (auto *ConstSource = dyn_cast<ConstantInt>(U->get())) {
+          int64_t Offset = ConstSource->getSExtValue();
+          TheCSVOffset = CSVOffsets(CSVOffsets::Kind::Numeric, Offset);
+        }
+        insertCallSiteOffset(U->get(), std::move(TheCSVOffset));
+      }
     }
 
   } else {
@@ -2161,7 +2196,6 @@ static bool callsBuiltinMemcpy(const Instruction *TheCall) {
 }
 
 void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
-
   // This analysis starts from the Instruction LoadOrStore and works in two
   // alternate steps:
   // 1) it iterates backward, looking for all the values that generate their
