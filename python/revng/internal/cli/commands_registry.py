@@ -108,7 +108,13 @@ class CommandsRegistry:
             options.keep_temporaries = args.keep_temporaries
 
         if len(options.command_prefix) == 0:
-            assert (args.gdb + args.lldb + args.valgrind + args.callgrind) <= 1
+            assert (
+                sum(
+                    (args.perf, args.heaptrack, args.gdb, args.lldb, args.valgrind, args.callgrind)
+                    + (args.rr,)
+                )
+                <= 1
+            )
 
             if args.gdb:
                 options.command_prefix += ["gdb", "-q", "--args"]
