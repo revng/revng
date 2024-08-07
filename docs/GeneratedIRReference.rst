@@ -1,3 +1,9 @@
+.. warning::
+    This document is significantly outdated and is preserved for historical
+    purpose until a more modern version of this content is added to the official
+    documentation.
+    For the latest documentation go to `docs.rev.ng <https://docs.rev.ng/>`_.
+
 ***********************
 rev.ng Output Reference
 ***********************
