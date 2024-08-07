@@ -1437,8 +1437,8 @@ MetaAddress getMetaAddressMetadata(const T *U, llvm::StringRef Name) {
   using namespace llvm;
 
   if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
-    if (auto *VAM = dyn_cast<ValueAsMetadata>(MD->getOperand(0)))
-      return MetaAddress::fromValue(VAM->getValue());
+    if (auto *String = dyn_cast<MDString>(MD->getOperand(0)))
+      return MetaAddress::fromString(String->getString());
 
   return MetaAddress::invalid();
 }
@@ -1446,8 +1446,8 @@ MetaAddress getMetaAddressMetadata(const T *U, llvm::StringRef Name) {
 template<HasMetadata T>
 void setMetaAddressMetadata(T *U, llvm::StringRef Name, const MetaAddress &MA) {
   using namespace llvm;
-  auto *VAM = ValueAsMetadata::get(MA.toValue(getModule(U)));
-  auto *MD = MDTuple::get(getContext(U), VAM);
+  auto &Context = getContext(U);
+  auto *MD = MDTuple::get(Context, MDString::get(Context, MA.toString()));
   U->setMetadata(Name, MD);
 }
 
