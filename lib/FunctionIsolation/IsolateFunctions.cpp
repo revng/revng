@@ -505,6 +505,8 @@ public:
 };
 
 void IsolateFunctionsImpl::run() {
+  Task T(6, "IsolateFunctions");
+
   AbortFunction = TheModule->getFunction("_abort");
   revng_assert(AbortFunction != nullptr);
 
@@ -523,9 +525,13 @@ void IsolateFunctionsImpl::run() {
   //
   // TODO: we can (and should) push processing of dynamic functions into the
   //       loop emitting individual local functions, and make it lazy
+  T.advance("Create dynamic functions", true);
+  Task DynamicFunctionsTask(Binary.ImportedDynamicFunctions().size(),
+                            "Dynamic functions creation");
   for (const model::DynamicFunction &Function :
        Binary.ImportedDynamicFunctions()) {
     StringRef Name = Function.OriginalName();
+    DynamicFunctionsTask.advance(Name, true);
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
                                          "dynamic_" + Function.OriginalName(),
@@ -560,16 +566,18 @@ void IsolateFunctionsImpl::run() {
   using namespace efa;
   using llvm::BasicBlock;
 
+  T.advance("Create dynamic functions", true);
+
   // Obtain the set of requested targets
   auto ContainerName = LECP.getContainerName();
   pipeline::ExecutionContext &Context = *LECP.get();
   pipeline::TargetsList
-    RequestedTargets = Context.getCurrentRequestedTargets()[ContainerName];
+    RequestedTargets = Context.getCurrentRequestedTargets()[ContainerName]
+                         .filter(revng::kinds::Isolated);
 
+  Task IsolateTask(RequestedTargets.size(), "Isolating functions");
   for (const pipeline::Target &Target : RequestedTargets) {
-    if (&Target.getKind() != &revng::kinds::Isolated)
-      continue;
-
+    IsolateTask.advance(Target.serialize(), true);
     Context.getContext().pushReadFields();
 
     auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
@@ -606,18 +614,22 @@ void IsolateFunctionsImpl::run() {
     Context.getContext().popReadFields();
   }
 
+  T.advance("Verify module", true);
   revng::verify(TheModule);
 
   // Create the functions and basic blocks needed for the correct execution of
   // the exception handling mechanism
 
   // Populate the function_dispatcher
+  T.advance("Populate function_dispatcher", true);
   populateFunctionDispatcher();
 
   // Cleanup root
+  T.advance("Cleanup", true);
   EliminateUnreachableBlocks(*RootFunction, nullptr, false);
 
   // Before emitting it in output, verify the module
+  T.advance("Verify module", true);
   revng::verify(TheModule);
 }
 
