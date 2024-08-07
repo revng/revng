@@ -6,6 +6,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Progress.h"
+
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/ExecutionContext.h"
@@ -28,11 +30,13 @@ bool pipeline::detail::runOnModule(llvm::Module &Module,
 
   // Run on individual functions
   using Type = revng::kinds::TaggedFunctionKind;
-  auto ToIterOn = Type::getFunctionsAndCommit(*Ctx,
-                                              Module,
-                                              Analysis.getContainerName());
-  for (const auto &[First, Second] : ToIterOn) {
-    Result = Pipe.runOnFunction(*First, *Second) or Result;
+  auto ContainerName = Analysis.getContainerName();
+  auto ToIterOn = Type::getFunctionsAndCommit(*Ctx, Module, ContainerName);
+  llvm::Task T(Ctx->getCurrentRequestedTargets()[ContainerName].size(),
+               "Running FunctionPass");
+  for (const auto &[ModelFunction, LLVMFunction] : ToIterOn) {
+    T.advance(ModelFunction->Entry().toString(), true);
+    Result = Pipe.runOnFunction(*ModelFunction, *LLVMFunction) or Result;
   }
 
   Result = Pipe.epilogue() or Result;
