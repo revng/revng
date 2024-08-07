@@ -258,13 +258,23 @@ struct PipeWrapper {
     void registerTargetsDependingOn(const Context &Ctx,
                                     llvm::StringRef GlobalName,
                                     const TupleTreePath &Path,
-                                    ContainerToTargetsMap &Out) const {
+                                    ContainerToTargetsMap &Out,
+                                    Logger<> &Log) const {
       if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
 
         auto &Bimap = Iter->second;
         auto It = Bimap.find(Path);
         if (It == Bimap.end())
           return;
+
+        if (Log.isEnabled()) {
+          Log << "Registering: ";
+          for (const auto &Entry : It->second) {
+            Log << Entry.getTarget().serialize() << " in "
+                << Entry.getContainerName() << "\n";
+          }
+          Log << DoLog;
+        }
 
         for (const auto &Entry : It->second)
           Out.add(Entry.getContainerName(), Entry.getTarget());

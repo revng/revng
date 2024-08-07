@@ -104,14 +104,20 @@ public:
   // codebase.
   void registerTargetsDependingOn(llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
-                                  TargetInStepSet &Out) const {
+                                  TargetInStepSet &Out,
+                                  Logger<> &Log) const {
     ContainerToTargetsMap OutMap;
+
     for (const PipeWrapper &Pipe : Pipes) {
+      revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " Pipe");
+      LoggerIndent<> Indent(Log);
       Pipe.InvalidationMetadata.registerTargetsDependingOn(*Ctx,
                                                            GlobalName,
                                                            Path,
-                                                           OutMap);
+                                                           OutMap,
+                                                           Log);
     }
+
     for (auto &Container : OutMap) {
       if (Containers.contains(Container.first()))
         Container.second = Container.second.intersect(Containers

@@ -18,6 +18,7 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
+#include "revng/TupleTree/TupleTreeReference.h"
 
 using namespace std;
 using namespace llvm;
@@ -510,7 +511,9 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
     // targets depending on stuff that's already in Map.
     revng_log(Log, Diff.getPaths().size() << " paths have changed");
     for (const TupleTreePath *Path : Diff.getPaths()) {
-      Step.registerTargetsDependingOn(Diff.getGlobalName(), *Path, Map);
+      revng_log(Log, "Processing " << *Diff.pathAsString(*Path));
+      LoggerIndent<> Indent(Log);
+      Step.registerTargetsDependingOn(Diff.getGlobalName(), *Path, Map, Log);
     }
   }
 }

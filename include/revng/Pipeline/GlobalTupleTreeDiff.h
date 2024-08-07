@@ -22,6 +22,9 @@ public:
 public:
   virtual void serialize(llvm::raw_ostream &OS) const = 0;
 
+  virtual std::optional<std::string>
+  pathAsString(const TupleTreePath &) const = 0;
+
 public:
   virtual std::unique_ptr<GlobalTupleTreeDiffBase> clone() const = 0;
 
@@ -52,6 +55,11 @@ public:
 
   void serialize(llvm::raw_ostream &OS) const override {
     ::serialize(OS, Diff);
+  }
+
+  std::optional<std::string>
+  pathAsString(const TupleTreePath &Path) const override {
+    return pathAsString<T>(Path);
   }
 
   std::unique_ptr<GlobalTupleTreeDiffBase> clone() const override {
@@ -102,6 +110,11 @@ public:
   ~GlobalTupleTreeDiff() = default;
 
   void serialize(llvm::raw_ostream &OS) const { Diff->serialize(OS); }
+
+  std::optional<std::string> pathAsString(const TupleTreePath &Path) const {
+    return Diff->pathAsString(Path);
+  }
+
   void dump() const debug_function { serialize(llvm::dbgs()); }
 
   template<TupleTreeCompatible T>
