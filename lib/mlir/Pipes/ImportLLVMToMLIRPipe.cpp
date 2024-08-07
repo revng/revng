@@ -65,9 +65,9 @@ public:
     // metadata attributes into named MLIR string attributes on the matching
     // functions.
     for (const llvm::Function &F : OldModule.functions()) {
-      const llvm::MDNode *const Entry = F.getMetadata(FunctionEntryMDName);
+      MetaAddress Entry = getMetaAddressMetadata(&F, FunctionEntryMDName);
 
-      if (Entry == nullptr)
+      if (not Entry.isValid())
         continue;
 
       // Find the matching function in the new MLIR module.
@@ -75,17 +75,9 @@ public:
         *const NewF = mlir::SymbolTable::lookupSymbolIn(*Module, F.getName());
       revng_assert(NewF != nullptr);
 
-      const auto getMDMetaAddress =
-        [](const llvm::MDNode *const MD) -> MetaAddress {
-        const auto &MDT = llvm::cast<llvm::MDTuple>(MD)->getOperand(0);
-        auto *const VAM = llvm::cast<llvm::ValueAsMetadata>(MDT);
-        return MetaAddress::fromValue(VAM->getValue());
-      };
-
       // Store the entry and metadata in named attributes on the new function.
       NewF->setAttr(FunctionEntryMDName,
-                    mlir::StringAttr::get(&Context,
-                                          getMDMetaAddress(Entry).toString()));
+                    mlir::StringAttr::get(&Context, Entry.toString()));
     }
 
     MLIRContainer.setModule(std::move(Module));
