@@ -96,7 +96,7 @@ bool OutlinedFunctionsMap::banRecursiveFunctions() {
     BasicBlockNode *Caller = ReverseMap.at(Function.get());
     for (Instruction &I : instructions(Function.get())) {
       if (auto *Call = dyn_cast<CallInst>(&I)) {
-        auto It = ReverseMap.find(Call->getCalledFunction());
+        auto It = ReverseMap.find(getCalledFunction(Call));
         if (It != ReverseMap.end()) {
           Caller->addSuccessor(It->second);
         }
@@ -506,7 +506,7 @@ public:
 
 public:
   void fix(const MetaAddress &CalleeAddress, llvm::CallBase *Caller) {
-    Function *Callee = Caller->getCalledFunction();
+    Function *Callee = getCalledFunction(Caller);
     revng_assert(Callee != nullptr);
     setNewPCInlineIndex(CalleeAddress, Callee, ++InliningIndex);
     InlinedFunctionsByIndex.push_back(CalleeAddress);

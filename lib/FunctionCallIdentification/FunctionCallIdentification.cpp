@@ -182,7 +182,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
               }
             }
           } else if (auto *Call = dyn_cast<CallInst>(&I)) {
-            auto *Callee = Call->getCalledFunction();
+            auto *Callee = getCalledFunction(Call);
             if (Callee != nullptr && Callee->getName() == "newpc") {
               revng_assert(NewPCLeft > 0);
 

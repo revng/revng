@@ -377,7 +377,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   });
 
   auto *Call = cast<CallInst>(CallUser);
-  revng_assert(Call->getCalledFunction() == &CpuExec);
+  revng_assert(getCalledFunction(Call) == &CpuExec);
   Value *CPUState = Call->getArgOperand(0);
   Type *TargetType = CpuExec.getReturnType();
 
@@ -489,7 +489,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   while (!CpuLoopExitUsers.empty()) {
     auto *Call = cast<CallInst>(CpuLoopExitUsers.front());
     CpuLoopExitUsers.pop();
-    revng_assert(Call->getCalledFunction() == CpuLoopExit);
+    revng_assert(getCalledFunction(Call) == CpuLoopExit);
 
     // Call cpu_loop
     auto *FirstArgTy = CpuLoop->getFunctionType()->getParamType(0);

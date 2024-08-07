@@ -62,7 +62,7 @@ bool InlineHelpers::shouldInline(Function *F) const {
 
 CallInst *InlineHelpers::getCallToInline(Instruction *I) const {
   if (auto *Call = dyn_cast<CallInst>(I)) {
-    if (shouldInline(Call->getCalledFunction())) {
+    if (shouldInline(getCalledFunction(Call))) {
       return Call;
     }
   }

@@ -88,7 +88,7 @@ static rua::Function::Node *findUnrechableNode(rua::Function::Node *Start) {
 static rua::OperationType::Values storeType(Value *V) {
   Function *Callee = nullptr;
   if (auto *Call = dyn_cast<CallInst>(V))
-    Callee = Call->getCalledFunction();
+    Callee = getCalledFunction(Call);
 
   if (Callee != nullptr and FunctionTags::ClobbererFunction.isTagOf(Callee)) {
     return rua::OperationType::Clobber;

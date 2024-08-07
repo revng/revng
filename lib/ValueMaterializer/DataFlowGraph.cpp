@@ -182,7 +182,7 @@ DataFlowGraph::processValue(Value *V, Limits Limits) {
     // Ignore operands
   } else if (auto *Call = dyn_cast<CallBase>(V)) {
     // Stop at calls, except for bswap
-    if (auto *Callee = Call->getCalledFunction()) {
+    if (auto *Callee = getCalledFunction(Call)) {
       if (Callee->getIntrinsicID() == Intrinsic::bswap
           or Callee->getIntrinsicID() == Intrinsic::fshl) {
         auto *Operand = Call->getArgOperand(0);
@@ -237,7 +237,7 @@ materialize(MemoryOracle &MO,
   if (isa<GlobalVariable>(Operation)) {
     revng_assert(Operands.size() == 0);
   } else if (auto *Call = dyn_cast<CallBase>(Operation)) {
-    auto *Callee = Call->getCalledFunction();
+    auto *Callee = getCalledFunction(Call);
     revng_assert(Callee != nullptr);
     revng_assert(Callee->getIntrinsicID() == Intrinsic::bswap
                  or Callee->getIntrinsicID() == Intrinsic::fshl);
@@ -263,7 +263,7 @@ materialize(MemoryOracle &MO,
     return Operands[0].load(MO, LoadSize);
   } else if (auto *Call = dyn_cast<CallInst>(Operation)) {
     // Handle bswap and fshl.
-    Function *Callee = Call->getCalledFunction();
+    Function *Callee = getCalledFunction(Call);
     revng_assert(Callee != nullptr
                  and (Callee->getIntrinsicID() == Intrinsic::bswap
                       or Callee->getIntrinsicID() == Intrinsic::fshl));

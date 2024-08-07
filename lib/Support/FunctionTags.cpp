@@ -53,7 +53,7 @@ TagsSet TagsSet::from(const MDNode *MD) {
 const llvm::CallInst *getCallToTagged(const llvm::Value *V,
                                       const FunctionTags::Tag &T) {
   if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
-    if (auto *CalledFunc = Call->getCalledFunction())
+    if (auto *CalledFunc = getCalledFunction(Call))
       if (T.isTagOf(CalledFunc))
         return Call;
 
@@ -62,7 +62,7 @@ const llvm::CallInst *getCallToTagged(const llvm::Value *V,
 
 llvm::CallInst *getCallToTagged(llvm::Value *V, const FunctionTags::Tag &T) {
   if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
-    if (auto *CalledFunc = Call->getCalledFunction())
+    if (auto *CalledFunc = getCalledFunction(Call))
       if (T.isTagOf(CalledFunc))
         return Call;
 
@@ -79,7 +79,7 @@ const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V) {
     return Call;
   } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
     // It's a call to an isolated function if it's indirect
-    return Call->getCalledFunction() == nullptr ? Call : nullptr;
+    return getCalledFunction(Call) == nullptr ? Call : nullptr;
   } else {
     return nullptr;
   }
@@ -95,7 +95,7 @@ llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V) {
     return Call;
   } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
     // It's a call to an isolated function if it's indirect
-    return Call->getCalledFunction() == nullptr ? Call : nullptr;
+    return getCalledFunction(Call) == nullptr ? Call : nullptr;
   } else {
     return nullptr;
   }

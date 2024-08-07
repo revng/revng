@@ -171,7 +171,7 @@ bool TDBP::pinMaterializedValues(Function &F) {
           // Jump to a symbol
 
           auto *T = Call->getParent()->getTerminator();
-          revng_assert(hasMarker(T, Call->getCalledFunction()));
+          revng_assert(hasMarker(T, getCalledFunction(Call)));
 
           // Purge existing marker, if any
           if (CallInst *Marker = getMarker(T, JumpToSymbolMarker))
@@ -238,7 +238,7 @@ bool TDBP::pinConstantStore(Function &F) {
     // us to erase the call to exit_tb without unexpected behaviors
     Use &ExitTBUse = *ExitTBIt++;
     auto *Call = cast<CallInst>(ExitTBUse.getUser());
-    revng_assert(Call->getCalledFunction() == ExitTB);
+    revng_assert(getCalledFunction(Call) == ExitTB);
 
     // Look for the last write to the PC
     auto [Result, NextPC] = PCH->getUniqueJumpTarget(Call->getParent());
@@ -621,7 +621,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
     for (; I != End; I++) {
       if (auto Marker = dyn_cast<CallInst>(&*I)) {
         // TODO: comparing strings is not very elegant
-        auto *Callee = Marker->getCalledFunction();
+        auto *Callee = getCalledFunction(Marker);
         if (Callee != nullptr && Callee->getName() == "newpc") {
 
           // We found two distinct newpc leading to the requested instruction
@@ -748,7 +748,7 @@ void JumpTargetManager::translateIndirectJumps() {
   while (I != ExitTB->use_end()) {
     Use &ExitTBUse = *I++;
     if (auto *Call = dyn_cast<CallInst>(ExitTBUse.getUser())) {
-      if (Call->getCalledFunction() == ExitTB) {
+      if (getCalledFunction(Call) == ExitTB) {
 
         // Look for the last write to the PC
         BasicBlock *CallBB = Call->getParent();

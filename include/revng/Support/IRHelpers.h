@@ -47,6 +47,11 @@ enum {
 };
 } // namespace NewPCArguments
 
+inline llvm::Function *getCalledFunction(const llvm::CallBase *Call) {
+  using namespace llvm;
+  return dyn_cast<Function>(Call->getCalledOperand());
+}
+
 /// Given \p V, checks if there are uses left and then calls eraseFromParent.
 /// In case of leftover uses, they are pretty printed.
 ///

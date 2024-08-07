@@ -90,7 +90,7 @@ void GeneratedCodeBasicInfo::parseRoot() {
 
       case BlockType::JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
-        revng_assert(Call->getCalledFunction() == NewPC);
+        revng_assert(getCalledFunction(Call) == NewPC);
         JumpTargets[addressFromNewPC(Call)] = &BB;
         break;
       }

@@ -166,7 +166,7 @@ bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
   for (Instruction &I : llvm::instructions(NewFunction)) {
     if (auto *Call = dyn_cast<CallInst>(&I)) {
       // All the calls are still calling the old function
-      Function *Callee = Call->getCalledFunction();
+      Function *Callee = getCalledFunction(Call);
 
       // Mainly for dynamic functions
       bool Recreated = OldToNew.contains(Callee);
