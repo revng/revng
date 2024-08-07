@@ -111,7 +111,16 @@ int main(int argc, char *argv[]) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
                                    "No known artifact named %s.\nUse `revng "
                                    "artifact` with no arguments to list "
-                                   "available artifacts",
+                                   "available artifacts.",
+                                   Arguments[0].c_str()));
+  }
+
+  auto &Step = Manager.getRunner().getStep(Arguments[0]);
+  auto MaybeContainer = Step.getArtifactsContainer();
+  if (not MaybeContainer) {
+    AbortOnError(createStringError(inconvertibleErrorCode(),
+                                   "The step %s is not associated to an "
+                                   "artifact.",
                                    Arguments[0].c_str()));
   }
 
@@ -124,7 +133,7 @@ int main(int argc, char *argv[]) {
   if (Arguments.size() == 1) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
                                    "Expected any number of positional "
-                                   "arguments different from 1"));
+                                   "arguments different from 1."));
   }
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
@@ -136,7 +145,7 @@ int main(int argc, char *argv[]) {
     if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
       AbortOnError(createStringError(inconvertibleErrorCode(),
                                      "No known analyses list named "
-                                       + AnalysesListName));
+                                       + AnalysesListName + "."));
     }
   }
 
@@ -174,9 +183,8 @@ int main(int argc, char *argv[]) {
   }
 
   T.advance("Produce artifact", true);
-  auto &Step = Manager.getRunner().getStep(Arguments[0]);
-  auto &Container = *Step.getArtifactsContainer();
-  auto ContainerName = Container.first();
+
+  auto ContainerName = MaybeContainer->first();
   auto *Kind = Step.getArtifactsKind();
 
   if (ListArtifacts) {
@@ -208,7 +216,7 @@ int main(int argc, char *argv[]) {
   const TargetsList &Targets = Map.contains(ContainerName) ?
                                  Map.at(ContainerName) :
                                  TargetsList();
-  auto Produced = Container.second->cloneFiltered(Targets);
+  auto Produced = MaybeContainer->second->cloneFiltered(Targets);
   AbortOnError(Produced->store(*Output));
 
   if (SaveModel.hasValue()) {
