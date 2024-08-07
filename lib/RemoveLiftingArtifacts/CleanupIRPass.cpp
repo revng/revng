@@ -84,7 +84,7 @@ bool CleanupIRPass::Impl::replaceInstructions(Function &F) {
       IRBuilder<> Builder(Context);
       Builder.SetInsertPointPastAllocas(Call->getFunction());
       Value *AllocatedSize = nullptr;
-      if (auto *Callee = Call->getCalledFunction();
+      if (auto *Callee = getCalledFunction(Call);
           Callee and Callee->getName().startswith("revng_stack_frame")) {
         AllocatedSize = Call->getArgOperand(0);
       } else {

@@ -31,7 +31,7 @@ undefPreservedRegistersInitialization(Function &F,
       auto Next = std::next(It);
 
       if (auto *Call = dyn_cast<CallInst>(&*It)) {
-        auto *Callee = Call->getCalledFunction();
+        auto *Callee = getCalledFunction(Call);
 
         const char *MDName = "revng.abi_register";
 

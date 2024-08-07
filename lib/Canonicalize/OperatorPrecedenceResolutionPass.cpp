@@ -146,7 +146,7 @@ static bool isCustomOpcode(const Value *I) {
   if (nullptr == Call)
     return false;
 
-  const auto *CalledFunc = Call->getCalledFunction();
+  const auto *CalledFunc = getCalledFunction(Call);
   if (nullptr == CalledFunc)
     return false;
 
@@ -170,7 +170,7 @@ static bool isCustomOpcode(const Value *I) {
 static unsigned getCustomOpcode(const Instruction *I) {
   revng_assert(isCustomOpcode(I));
 
-  auto *CalledFunc = cast<CallInst>(I)->getCalledFunction();
+  auto *CalledFunc = getCalledFunction(cast<CallInst>(I));
   revng_assert(CalledFunc);
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc))

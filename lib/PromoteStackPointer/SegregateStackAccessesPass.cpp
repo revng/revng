@@ -526,7 +526,7 @@ private:
         for (BasicBlock &BB : *NewFunction) {
           if (auto *Ret = dyn_cast<ReturnInst>(BB.getTerminator())) {
             auto *Call = cast<CallInst>(Ret->getReturnValue());
-            auto *Callee = Call->getCalledFunction();
+            auto *Callee = getCalledFunction(Call);
             revng_assert(Call != nullptr);
             revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
           }
@@ -713,7 +713,7 @@ private:
               ReturnValues.push_back(RetValue);
             } else {
               auto *Call = cast<CallInst>(Ret->getReturnValue());
-              auto *Callee = Call->getCalledFunction();
+              auto *Callee = getCalledFunction(Call);
               revng_assert(Call != nullptr);
               revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
               llvm::copy(Call->args(), std::back_inserter(ReturnValues));
@@ -751,7 +751,7 @@ private:
             // Turn struct_initializer into a an integer
             for (ReturnInst *Ret : Returns) {
               auto *Call = cast<CallInst>(Ret->getReturnValue());
-              auto *Callee = Call->getCalledFunction();
+              auto *Callee = getCalledFunction(Call);
               revng_assert(Call != nullptr);
               revng_assert(FunctionTags::StructInitializer.isTagOf(Callee));
 

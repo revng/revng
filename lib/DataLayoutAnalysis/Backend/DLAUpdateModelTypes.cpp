@@ -658,7 +658,7 @@ static bool updateStackFrameType(model::Function &ModelFunc,
     if (not Call)
       continue;
 
-    auto *Callee = Call->getCalledFunction();
+    auto *Callee = getCalledFunction(Call);
     if (not Callee or Callee->getName() != "revng_stack_frame")
       continue;
 

@@ -110,7 +110,7 @@ static bool isStackFrameDecl(const llvm::Value *I) {
   if (not Call)
     return false;
 
-  auto *Callee = Call->getCalledFunction();
+  auto *Callee = getCalledFunction(Call);
   if (not Callee)
     return false;
 
@@ -824,7 +824,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     const auto *I = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
 
     const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
-    const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
+    const llvm::Function *Callee = getCalledFunction(CallReturnsStruct);
     const auto &CalleePrototype = getCallSitePrototype(Model,
                                                        CallReturnsStruct);
 
@@ -846,7 +846,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   }
 
   if (isCallToTagged(Call, FunctionTags::SegmentRef)) {
-    auto *Callee = Call->getCalledFunction();
+    auto *Callee = getCalledFunction(Call);
     const auto &[StartAddress,
                  VirtualSize] = extractSegmentKeyFromMetadata(*Callee);
     model::Segment Segment = Model.Segments().at({ StartAddress, VirtualSize });
@@ -859,7 +859,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     rc_return rc_recur getToken(Call->getArgOperand(0));
 
   if (isCallToTagged(Call, FunctionTags::OpaqueCSVValue)) {
-    auto *Callee = Call->getCalledFunction();
+    auto *Callee = getCalledFunction(Call);
     std::string HelperRef = getHelperFunctionLocationReference(Callee, B);
     rc_return rc_recur getCallToken(Call, HelperRef, /*prototype=*/nullptr);
   }
@@ -925,7 +925,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
                       .serialize();
     } else {
       // Isolated function
-      llvm::Function *CalledFunc = Call->getCalledFunction();
+      llvm::Function *CalledFunc = getCalledFunction(Call);
       revng_assert(CalledFunc);
       const model::Function *ModelFunc = llvmToModelFunction(Model,
                                                              *CalledFunc);
@@ -949,7 +949,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
 RecursiveCoroutine<std::string>
 CCodeGenerator::getNonIsolatedCallToken(const llvm::CallInst *Call) const {
 
-  auto *CalledFunc = Call->getCalledFunction();
+  auto *CalledFunc = getCalledFunction(Call);
   revng_assert(CalledFunc and CalledFunc->hasName(),
                "Special functions should all have a name");
 
@@ -2021,7 +2021,7 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
       }
 
       revng_assert(not isCallToNonIsolated(Call)
-                   or not Call->getCalledFunction()->isTargetIntrinsic());
+                   or not getCalledFunction(Call)->isTargetIntrinsic());
     }
   }
 

@@ -162,7 +162,7 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
   if (not ReturnTypes.empty())
     return ReturnTypes;
 
-  auto *CalledFunc = Call->getCalledFunction();
+  auto *CalledFunc = getCalledFunction(Call);
   revng_assert(CalledFunc);
 
   if (FunctionTags::Parentheses.isTagOf(CalledFunc)

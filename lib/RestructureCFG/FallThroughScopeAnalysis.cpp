@@ -194,7 +194,7 @@ fallThroughScopeImpl(const model::Binary &Model,
           // use the `llvmToModelFunction` helper in order to retrieve the
           // corresponding `model::Function` to check for the `NoReturn`
           // attribute.
-          const Function *CalleeFunction = Call->getCalledFunction();
+          const Function *CalleeFunction = getCalledFunction(Call);
           const model::Function
             *CalleeFunctionModel = llvmToModelFunction(Model, *CalleeFunction);
           if (isNoReturn(*CalleeFunctionModel)) {
@@ -208,7 +208,7 @@ fallThroughScopeImpl(const model::Binary &Model,
           // The called function may be a dynamic function. In this case, we use
           // the name of the dynamic symbol in order to retrieve the
           // `model::DynamicFunction` and check for the `NoReturn` attribute.
-          const Function *CalleeFunction = Call->getCalledFunction();
+          const Function *CalleeFunction = getCalledFunction(Call);
           llvm::StringRef SymbolName = CalleeFunction->getName()
                                          .drop_front(strlen("dynamic_"));
           const model::DynamicFunction

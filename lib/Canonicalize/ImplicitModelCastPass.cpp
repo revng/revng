@@ -424,7 +424,7 @@ bool IMCP::collectTypeInfoForTypePromotion(llvm::Instruction *I,
   };
 
   if (auto *Call = dyn_cast<llvm::CallInst>(I)) {
-    auto *Callee = Call->getCalledFunction();
+    auto *Callee = getCalledFunction(Call);
     if (isCallToIsolatedFunction(Call)) {
       if (not Callee)
         CheckTypeFor(Call->getCalledOperandUse());

@@ -97,7 +97,7 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
 
   if (auto *Call = dyn_cast<CallInst>(I)) {
     // Lifted functions have their prototype on the model
-    auto *Callee = Call->getCalledFunction();
+    auto *Callee = getCalledFunction(Call);
 
     if (isCallToIsolatedFunction(Call)) {
       // For indirect calls, cast the callee to the right function type

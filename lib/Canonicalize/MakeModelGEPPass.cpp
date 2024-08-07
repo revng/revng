@@ -1698,7 +1698,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
 
       // Assert that we're returning a proper struct, initialized with
       // struct initializers, but don't do anything here.
-      const auto *Returned = cast<llvm::CallInst>(RetVal)->getCalledFunction();
+      const auto *Returned = getCalledFunction(cast<llvm::CallInst>(RetVal));
       revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
     } break;
 
@@ -1736,7 +1736,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
 
     if (isCallToTagged(Call, FunctionTags::StructInitializer)) {
 
-      const llvm::Function &CalledF = *Call->getCalledFunction();
+      const llvm::Function &CalledF = *getCalledFunction(Call);
 
       // Special case for struct initializers
       unsigned ArgNum = Call->getArgOperandNo(&U);

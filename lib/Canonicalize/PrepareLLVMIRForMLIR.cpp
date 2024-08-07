@@ -119,7 +119,7 @@ static void adjustRevngMetadata(Module &M) {
           // artificial one - DILocation(line: 0)), since calls to inlinable
           // functions must have a !dbg attachment.
           if (Call->getFunction()->getSubprogram()
-              and Call->getCalledFunction()) {
+              and getCalledFunction(Call)) {
             auto Location = DILocation::get(M.getContext(),
                                             0,
                                             0,

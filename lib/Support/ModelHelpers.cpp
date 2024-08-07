@@ -276,7 +276,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
     } else {
       // Non-isolated functions do not have a Prototype in the model, but we can
       // infer their returned type(s) in other ways
-      auto *CalledFunc = Call->getCalledFunction();
+      auto *CalledFunc = getCalledFunction(Call);
       const auto &FuncName = CalledFunc->getName();
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
@@ -401,7 +401,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
       revng_assert(not Call->isIndirectCall());
       unsigned int ArgOperandIdx = Call->getArgOperandNo(U);
 
-      auto *CalledFunc = Call->getCalledFunction();
+      auto *CalledFunc = getCalledFunction(Call);
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
       if (FTags.contains(FunctionTags::AddressOf)

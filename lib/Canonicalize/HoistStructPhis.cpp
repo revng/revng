@@ -6,6 +6,7 @@
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 
@@ -57,7 +58,7 @@ public:
           CalledValue = Call->getCalledOperand();
           FirstCall = Call;
 
-          Function *Callee = Call->getCalledFunction();
+          Function *Callee = getCalledFunction(Call);
           revng_assert(Callee != nullptr);
 
           revng_assert(isLastBeforeTerminator(Call)

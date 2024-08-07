@@ -36,7 +36,7 @@ inline bool mayReadMemory(const llvm::Instruction &I) {
   // We have to hardcode revng_call_stack_arguments and revng_stack_frame
   // because SegregateStackAccesses has to mark them as functions that read
   // inaccessible memory, in order to prevent some LLVM optimizations.
-  if (llvm::Function *Callee = Call->getCalledFunction()) {
+  if (llvm::Function *Callee = getCalledFunction(Call)) {
     llvm::StringRef Name = Callee->getName();
     if (Name.startswith("revng_call_stack_arguments")
         or Name.startswith("revng_stack_frame"))
@@ -95,7 +95,7 @@ inline bool isCallStackArgumentDecl(const llvm::Value *I) {
   if (not Call)
     return false;
 
-  auto *Callee = Call->getCalledFunction();
+  auto *Callee = getCalledFunction(Call);
   if (not Callee)
     return false;
 
