@@ -18,10 +18,9 @@
 #include "revng/Support/Debug.h"
 
 #include "revng-c/Support/ModelHelpers.h"
+#include "revng-c/TypeNames/DependencyGraph.h"
 
-#include "DependencyGraph.h"
-
-static Logger<> Log{ "model-to-header-dependencies" };
+static Logger<> Log{ "type-dependency-graph" };
 
 using namespace llvm;
 

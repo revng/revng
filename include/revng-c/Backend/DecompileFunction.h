@@ -12,12 +12,11 @@
 
 #include "revng-c/Backend/DecompilePipe.h"
 
-using TypeDefinitionSet = std::set<const model::TypeDefinition *>;
-using InlineableTypesMap = std::unordered_map<const model::Function *,
-                                              TypeDefinitionSet>;
+namespace ptml {
+class CTypeBuilder;
+}
 
 std::string decompile(ControlFlowGraphCache &Cache,
                       llvm::Function &F,
                       const model::Binary &Model,
-                      const InlineableTypesMap &StackTypes,
-                      bool GeneratePlainC);
+                      ptml::CTypeBuilder &B);

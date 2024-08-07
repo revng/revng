@@ -24,7 +24,6 @@
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
-#include "revng-c/TypeNames/ModelTypeNames.h"
 
 using namespace llvm;
 namespace ranks = revng::ranks;
@@ -134,9 +133,6 @@ static void adjustRevngMetadata(Module &M) {
 /// Give a name to all anonymous structs, because LLVM MLIR dialect does not
 /// expect nameless structs. Only literals can be anonymous.
 static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
-  using CBuilder = ptml::CBuilder;
-  CBuilder B(/*GeneratePlainC*/ true);
-
   unsigned Index = 0;
   auto setStructNameIfNeeded = [&Index](llvm::Type *T) {
     if (llvm::StructType *ST = llvm::dyn_cast<llvm::StructType>(T)) {

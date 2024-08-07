@@ -33,7 +33,7 @@
 #include "revng/TupleTree/TupleTreeDiff.h"
 
 #include "revng-c/Backend/DecompiledCCodeIndentation.h"
-#include "revng-c/HeadersGeneration/ModelToHeader.h"
+#include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 
 #include "HeaderToModel.h"
 #include "ImportFromCAnalysis.h"
@@ -143,7 +143,7 @@ struct ImportFromCAnalysis {
 
     TemporaryFile &FilterModelPath = MaybeFilterModelPath.get();
     std::error_code ErrorCode;
-    llvm::raw_fd_ostream Header(FilterModelPath.path(), ErrorCode);
+    llvm::raw_fd_ostream Out(FilterModelPath.path(), ErrorCode);
     if (ErrorCode) {
       return llvm::createStringError(ErrorCode,
                                      "Couldn't open file for "
@@ -151,38 +151,44 @@ struct ImportFromCAnalysis {
                                        + ErrorCode.message());
     }
 
-    ModelToHeaderOptions Options = {
-      .GeneratePlainC = true,
-      .DisableTypeInlining = true,
+    ptml::CTypeBuilder::ConfigurationOptions Configuration = {
+      .EnableTypeInlining = false, .EnableStackFrameInlining = false
     };
-
+    ptml::HeaderBuilder::ConfigurationOptions HeaderConfiguration = {};
     if (TheOption == ImportFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward
       // declarations.
-      if (not declarationIsDefinition(*TypeToEdit)) {
-        llvm::raw_string_ostream Stream(Options.PostIncludes);
-        ptml::CBuilder B(true);
-        ptml::IndentedOstream ThePTMLStream(Stream,
-                                            DecompiledCCodeIndentation,
-                                            true);
-        Stream << B.getLineComment("The type we are editing");
-        // The definition of this type will be at the end of the file.
-        printForwardDeclaration(*TypeToEdit, ThePTMLStream, B);
-        Stream << '\n';
+      if (!ptml::CTypeBuilder::isDeclarationTheSameAsDefinition(*TypeToEdit)) {
+        llvm::raw_string_ostream Stream(HeaderConfiguration.PostIncludeSnippet);
+        ptml::CTypeBuilder PI(Stream, /* GenerateTaglessPTML = */ true);
+        PI.appendLineComment("The type we are editing");
+        // The declaration of this type will be near the top of the file.
+        PI.printForwardTypeDeclaration(*TypeToEdit);
+        PI.append("\n");
       }
 
       // Find all types whose definition depends on the type we are editing.
-      Options.TypesToOmit = populateDependencies(*TypeToEdit, Model);
+      Configuration.TypesToOmit = collectDependentTypes(*TypeToEdit, Model);
+
     } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
-      Options.FunctionsToOmit.insert(FunctionToEdit->Entry());
+      HeaderConfiguration.FunctionsToOmit.insert(FunctionToEdit->Entry());
+
+    } else if (TheOption == ImportFromCOption::AddType) {
+      // Nothing special to do when adding types
+
     } else {
-      revng_assert(TheOption == ImportFromCOption::AddType);
-      // We have nothing to ignore
+      revng_abort("Unknown action requested.");
     }
 
-    dumpModelToHeader(*Model, Header, Options);
+    {
+      ptml::CTypeBuilder B(Out,
+                           /* EnableTaglessMode = */ true,
+                           std::move(Configuration));
+      ptml::HeaderBuilder(B, std::move(HeaderConfiguration))
+        .printModelHeader(*Model);
+    }
 
-    Header.close();
+    Out.close();
 
     std::string FilteredHeader = std::string("#include \"")
                                  + FilterModelPath.path().str()

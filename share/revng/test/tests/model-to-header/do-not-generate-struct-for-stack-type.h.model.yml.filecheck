@@ -2,5 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# Stack types will be generated inline in the decompiled functions.
+# The definition will be generated inline in the decompiled functions.
+CHECK: typedef struct _PACKED _struct_3001 _struct_3001;
 CHECK-NOT: struct_3001

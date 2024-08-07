@@ -24,7 +24,7 @@
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
-#include "revng-c/TypeNames/ModelTypeNames.h"
+#include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 static Logger<> Log{ "implicit-model-cast" };
 

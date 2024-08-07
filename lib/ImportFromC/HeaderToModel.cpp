@@ -13,7 +13,7 @@
 #include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
-#include "revng-c/TypeNames/ModelTypeNames.h"
+#include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 #include "HeaderToModel.h"
 
@@ -953,7 +953,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       Size = *ModelField->size();
     }
 
-    bool IsPadding = Field->getName().starts_with(StructPaddingPrefix);
+    constexpr auto PaddingPre = ptml::CTypeBuilder::structPaddingPrefix();
+    bool IsPadding = Field->getName().starts_with(PaddingPre);
     auto ExplicitOffset = parseIntegerAnnotation<"_START_AT">(*Field, Errors);
     if (ExplicitOffset.has_value()) {
       if (IsPadding) {

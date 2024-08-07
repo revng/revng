@@ -65,8 +65,7 @@
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
-#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
-#include "revng-c/TypeNames/ModelTypeNames.h"
+#include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 #include "ALAPVariableDeclaration.h"
 
@@ -84,6 +83,7 @@ using model::Binary;
 using model::CABIFunctionDefinition;
 using model::RawFunctionDefinition;
 
+using pipeline::locationString;
 using ptml::Tag;
 namespace ranks = revng::ranks;
 namespace attributes = ptml::attributes;
@@ -140,14 +140,14 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
 }
 
 static std::string get128BitIntegerHexConstant(llvm::APInt Value,
-                                               const ptml::CBuilder &B,
+                                               const ptml::CTypeBuilder &B,
                                                const model::Binary &Model) {
   revng_assert(Value.getBitWidth() > 64);
   revng_assert(Value.getBitWidth() <= 128);
   using PTMLOperator = ptml::CBuilder::Operator;
 
   auto U128 = model::PrimitiveType::makeUnsigned(16);
-  std::string Cast = addAlwaysParentheses(getTypeName(*U128, B));
+  std::string Cast = addAlwaysParentheses(B.getTypeName(*U128));
 
   if (Value.isZero())
     return addAlwaysParentheses(Cast + " " + B.getNumber(0));
@@ -190,7 +190,7 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
 }
 
 static std::string hexLiteral(const llvm::ConstantInt *Int,
-                              const ptml::CBuilder &B,
+                              const ptml::CTypeBuilder &B,
                               const model::Binary &Model) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
@@ -249,10 +249,8 @@ private:
   /// A map containing a model type for each LLVM value in the function
   const ModelTypesMap TypeMap;
 
-  /// Where to output the decompiled C code
-  ptml::IndentedOstream Out;
-
-  ptml::CBuilder B;
+  /// Helper for outputting the decompiled C code
+  ptml::CTypeBuilder &B;
 
   /// Name of the local variable used to break out of loops from within nested
   /// switches
@@ -308,8 +306,7 @@ public:
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
                  const ASTVarDeclMap &VarToDeclare,
-                 raw_ostream &Out,
-                 ptml::CBuilder &B) :
+                 ptml::CTypeBuilder &B) :
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
@@ -320,25 +317,21 @@ public:
                            &ModelFunction,
                            Model,
                            /* PointersOnly = */ false)),
-    Out(Out, DecompiledCCodeIndentation, B.isGenerateTagLessPTML()),
     B(B),
     SwitchStateVars(),
     Cache(Cache) {
     // TODO: don't use a global loop state variable
     static const char *LoopStateVarName = "_loop_state_var";
-    LoopStateVar = getVariableLocationReference(LoopStateVarName,
-                                                ModelFunction,
-                                                B);
-    LoopStateVarDeclaration = getVariableLocationDefinition(LoopStateVarName,
-                                                            ModelFunction,
-                                                            B);
+    LoopStateVar = B.getVariableLocationReference(LoopStateVarName,
+                                                  ModelFunction);
+    LoopStateVarDeclaration = B.getVariableLocationDefinition(LoopStateVarName,
+                                                              ModelFunction);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
       IsOperatorPrecedenceResolutionPassEnabled = true;
   }
 
-  void emitFunction(bool NeedsLocalStateVar,
-                    const InlineableTypesMap &StackTypes);
+  void emitFunction(bool NeedsLocalStateVar);
 
 private:
   /// Visit a GHAST node and all its children recursively, emitting BBs
@@ -411,8 +404,8 @@ private:
     revng_assert(not TokenMap.contains(I));
 
     std::string VarName = StackFrameVarName;
-    TokenMap[I] = getVariableLocationReference(VarName, ModelFunction, B);
-    return getVariableLocationDefinition(VarName, ModelFunction, B);
+    TokenMap[I] = B.getVariableLocationReference(VarName, ModelFunction);
+    return B.getVariableLocationDefinition(VarName, ModelFunction);
   }
 
   std::string createLocalVarDeclName(const llvm::Instruction *I) {
@@ -421,8 +414,8 @@ private:
     std::string VarName = NameGenerator.nextVarName();
     // This may override the entry for I, if I belongs to a "duplicated"
     // BasicBlock that is reachable from many paths on the GHAST.
-    TokenMap[I] = getVariableLocationReference(VarName, ModelFunction, B);
-    return getVariableLocationDefinition(VarName, ModelFunction, B);
+    TokenMap[I] = B.getVariableLocationReference(VarName, ModelFunction);
+    return B.getVariableLocationDefinition(VarName, ModelFunction);
   }
 
   std::string getVarName(const llvm::Instruction *I) const {
@@ -459,7 +452,7 @@ std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
   revng_assert(*SrcType.skipTypedefs() == *DestType.skipTypedefs()
                or (SrcType.isScalar() and DestType.isScalar()));
 
-  return addAlwaysParentheses(getTypeName(DestType, B)) + " "
+  return addAlwaysParentheses(B.getTypeName(DestType)) + " "
          + addParentheses(ExprToCast);
 }
 
@@ -469,7 +462,7 @@ static std::string getUndefToken(const model::Type &UndefType,
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
-                                            const ptml::CBuilder &B,
+                                            const ptml::CTypeBuilder &B,
                                             const model::Binary &Model) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
@@ -806,7 +799,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     auto *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
     revng_assert(LLVMFunction.getReturnType() == StructTy);
-    auto StrucTypeName = getNamedInstanceOfReturnType(Prototype, "", B, false);
+    auto StrucTypeName = B.getNamedInstanceOfReturnType(Prototype, "", false);
     std::string StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
@@ -1304,9 +1297,9 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
 
       // Handle the implicit `return` emission. If the correct parameter is set,
       // avoid the emission of the `Instruction` token.
-      if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn)) {
-        Out << std::string(getToken(&I)) << ";\n";
-      }
+      if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn))
+        B.append(std::string(getToken(&I)) + ";\n");
+
     } else if (isHelperAggregateLocalVarDecl(Call)
                or isArtificialAggregateLocalVarDecl(Call)) {
       // This is a call but it actually needs an assignment to the associated
@@ -1327,8 +1320,8 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
                                     getToken(Call);
 
       // Assign to the local variable
-      Out << VarName << " " << B.getOperator(ptml::CBuilder::Operator::Assign)
-          << " " << std::move(RHSExpression) << ";\n";
+      B.append(VarName + " " + B.getOperator(ptml::CBuilder::Operator::Assign)
+               + " " + std::move(RHSExpression) + ";\n");
     } else {
       std::string Error = "Cannot emit statement: ";
       Error += dumpToString(Call).c_str();
@@ -1338,7 +1331,7 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
     if (Call != nullptr and isCallToIsolatedFunction(Call)) {
       const auto &[CallEdge, _] = Cache.getCallEdge(Model, Call);
       if (CallEdge->hasAttribute(Model, model::FunctionAttribute::NoReturn))
-        Out << "// The previous function call does not return\n";
+        B.append("// The previous function call does not return\n");
     }
   }
 }
@@ -1548,7 +1541,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         // constness.
         auto NonConst = model::getNonConst(*TypeMap.at(VarDeclCall));
 
-        Out << getNamedCInstance(*NonConst, VarName, B) << ";\n";
+        B.append(B.getNamedCInstance(*NonConst, VarName).str().str() + ";\n");
       } else if (isHelperAggregateLocalVarDecl(VarDeclCall)
                  or isArtificialAggregateLocalVarDecl(VarDeclCall)) {
         // Create missing local variable declarations
@@ -1556,8 +1549,9 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         revng_assert(not VarName.empty());
         const auto *Prototype = getCallSitePrototype(Model, VarDeclCall);
         revng_assert(Prototype != nullptr);
-        Out << getNamedInstanceOfReturnType(*Prototype, VarName, B, false)
-            << ";\n";
+
+        auto Named = B.getNamedInstanceOfReturnType(*Prototype, VarName, false);
+        B.append(Named.str().str() + ";\n");
       } else {
         revng_assert(not VarDeclCall->getType()->isAggregateType());
       }
@@ -1578,17 +1572,17 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Break->breaksFromWithinSwitch()) {
       revng_assert(not SwitchStateVars.empty()
                    and not SwitchStateVars.back().empty());
-      Out << SwitchStateVars.back()
-          << " " + B.getOperator(PTMLOperator::Assign) + " " + B.getTrueTag()
-               + ";\n";
+      B.append(SwitchStateVars.back() + " "
+               + B.getOperator(PTMLOperator::Assign) + " " + B.getTrueTag()
+               + ";\n");
     }
-  };
+  }
     [[fallthrough]];
 
   case ASTNode::NodeKind::NK_SwitchBreak: {
     revng_log(VisitLog, "(NK_SwitchBreak)");
 
-    Out << B.getKeyword(ptml::CBuilder::Keyword::Break) << ";\n";
+    B.append(B.getKeyword(ptml::CBuilder::Keyword::Break) + ";\n");
   } break;
 
   case ASTNode::NodeKind::NK_Continue: {
@@ -1606,7 +1600,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // Actually print the continue statement only if the continue is not
     // implicit (i.e. it is not the last statement of the loop).
     if (not Continue->isImplicit())
-      Out << B.getKeyword(ptml::CBuilder::Keyword::Continue) << ";\n";
+      B.append(B.getKeyword(ptml::CBuilder::Keyword::Continue) + ";\n");
   } break;
 
   case ASTNode::NodeKind::NK_Code: {
@@ -1638,23 +1632,24 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // "If" expression
     // TODO: possibly cast the CondExpr if it's not convertible to boolean?
     revng_assert(not CondExpr.empty());
-    Out << B.getKeyword(ptml::CBuilder::Keyword::If) << " (" + CondExpr + ") ";
+    B.append(B.getKeyword(ptml::CBuilder::Keyword::If) + " (" + CondExpr
+             + ") ");
     {
-      Scope TheScope(Out);
+      Scope TheScope = B.getCurvedBracketScope();
       // "Then" expression (always emitted)
       if (nullptr == If->getThen())
-        Out << B.getLineComment("Empty");
+        B.appendLineComment("Empty");
       else
         rc_recur emitGHASTNode(If->getThen());
     }
 
     // "Else" expression (optional)
     if (If->hasElse()) {
-      Out << " " + B.getKeyword(ptml::CBuilder::Keyword::Else) + " ";
-      Scope TheScope(Out);
+      B.append(" " + B.getKeyword(ptml::CBuilder::Keyword::Else) + " ");
+      Scope TheScope = B.getCurvedBracketScope();
       rc_recur emitGHASTNode(If->getElse());
     }
-    Out << "\n";
+    B.append("\n");
   } break;
 
   case ASTNode::NodeKind::NK_Scs: {
@@ -1666,7 +1661,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     // Emit loop entry
     if (Loop->isDoWhile()) {
-      Out << B.getKeyword(ptml::CBuilder::Keyword::Do) << " ";
+      B.append(B.getKeyword(ptml::CBuilder::Keyword::Do) + " ");
     } else {
       if (Loop->isWhileTrue()) {
         CondExpr = B.getTrueTag().toString();
@@ -1674,11 +1669,11 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         revng_assert(Loop->isWhile());
         CondExpr = rc_recur makeLoopCondition(Loop->getRelatedCondition());
       }
-      Out << makeWhile(B, CondExpr) << " ";
+      B.append(makeWhile(B, CondExpr) + " ");
     }
 
     {
-      Scope TheScope(Out);
+      Scope TheScope = B.getCurvedBracketScope();
       revng_assert(Loop->hasBody() or Loop->isDoWhile());
       if (Loop->hasBody())
         rc_recur emitGHASTNode(Loop->getBody());
@@ -1694,9 +1689,9 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     // Emit loop exit
     if (Loop->isDoWhile()) {
-      Out << " " << makeWhile(B, CondExpr) << ";";
+      B.append(" " + makeWhile(B, CondExpr) + ";");
     }
-    Out << "\n";
+    B.append("\n");
 
   } break;
 
@@ -1719,15 +1714,15 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
       StringToken NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string SwitchStateVar = getVariableLocationReference(NewVarName,
-                                                                ModelFunction,
-                                                                B);
+      std::string
+        SwitchStateVar = B.getVariableLocationReference(NewVarName,
+                                                        ModelFunction);
       SwitchStateVars.push_back(std::move(SwitchStateVar));
-      using PTMLOperator = ptml::CBuilder::Operator;
-      Out << B.tokenTag("bool", ptml::c::tokens::Type) << " "
-          << getVariableLocationDefinition(NewVarName, ModelFunction, B)
-          << " " + B.getOperator(PTMLOperator::Assign) + " " + B.getFalseTag()
-               + ";\n";
+      using COperator = ptml::CBuilder::Operator;
+      B.append(B.tokenTag("bool", ptml::c::tokens::Type) + " "
+               + B.getVariableLocationDefinition(NewVarName, ModelFunction)
+               + " " + B.getOperator(COperator::Assign) + " " + B.getFalseTag()
+               + ";\n");
     }
 
     // Generate the condition of the switch
@@ -1758,10 +1753,10 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     revng_assert(not SwitchVarToken.empty());
 
     // Generate the switch statement
-    Out << B.getKeyword(ptml::CBuilder::Keyword::Switch) + " ("
-        << SwitchVarToken << ") ";
+    B.append(B.getKeyword(ptml::CBuilder::Keyword::Switch).toString() + " ("
+             + SwitchVarToken.str().str() + ") ");
     {
-      Scope TheScope(Out);
+      Scope TheScope = B.getCurvedBracketScope();
       using PTMLKeyword = ptml::CBuilder::Keyword;
 
       // Generate the body of the switch (except for the default)
@@ -1775,53 +1770,56 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         // Generate the case label(s) (multiple case labels might share the
         // same body)
         for (uint64_t CaseVal : Labels) {
-          Out << B.getKeyword(ptml::CBuilder::Keyword::Case) + " ";
+          B.append(B.getKeyword(ptml::CBuilder::Keyword::Case) + " ");
           if (SwitchVar) {
             llvm::Type *SwitchVarT = SwitchVar->getType();
             auto *IntType = cast<llvm::IntegerType>(SwitchVarT);
             auto *CaseConst = llvm::ConstantInt::get(IntType, CaseVal);
             // TODO: assigned the signedness based on the signedness of the
             // condition
-            Out << B.getNumber(CaseConst->getValue());
+            B.append(B.getNumber(CaseConst->getValue()).toString());
           } else {
-            Out << B.getNumber(CaseVal);
+            B.append(B.getNumber(CaseVal).toString());
           }
-          Out << ":\n";
+          B.append(":\n");
         }
 
         {
-          Scope InnerScope(Out);
+          Scope InnerScope = B.getCurvedBracketScope();
           // Generate the case body
           rc_recur emitGHASTNode(CaseNode);
         }
-        Out << " " + B.getKeyword(PTMLKeyword::Break) + ";\n";
+        B.append(" " + B.getKeyword(PTMLKeyword::Break) + ";\n");
       }
 
       // Generate the default case if it exists
       if (auto *Default = Switch->getDefault()) {
-        Out << B.getKeyword(ptml::CBuilder::Keyword::Default) << ":\n";
+        B.append(B.getKeyword(ptml::CBuilder::Keyword::Default) + ":\n");
         {
-          Scope TheScope(Out);
+          Scope TheScope = B.getCurvedBracketScope();
           rc_recur emitGHASTNode(Default);
         }
-        Out << " " + B.getKeyword(PTMLKeyword::Break) + ";\n";
+        B.append(" " + B.getKeyword(PTMLKeyword::Break) + ";\n");
       }
     }
-    Out << "\n";
+    B.append("\n");
 
     // If the switch needs a loop break dispatcher, reset the associated
     // state variable before emitting the switch statement.
     if (Switch->needsLoopBreakDispatcher()) {
       revng_assert(not SwitchStateVars.empty()
                    and not SwitchStateVars.back().empty());
-      Out << B.getKeyword(ptml::CBuilder::Keyword::If) + " ("
-               + SwitchStateVars.back() + ")";
+      B.append(B.getKeyword(ptml::CBuilder::Keyword::If) + " ("
+               + SwitchStateVars.back() + ")");
       {
-        auto Scope = B.getScope(ptml::CBuilder::Scopes::Scope).scope(Out, true);
-        auto IndentScope = Out.scope();
-        Out << B.getKeyword(ptml::CBuilder::Keyword::Break) + ";";
+        // Double scope is necessary, otherwise the `break` gets printed at the
+        // `if`'s offset.
+        auto Scope = B.getIndentedScope(ptml::CBuilder::Scopes::Scope,
+                                        /* NewLine = */ true);
+        auto IndentScope = B.getSimpleScope();
+        B.append(B.getKeyword(ptml::CBuilder::Keyword::Break) + ";");
       }
-      Out << "\n";
+      B.append("\n");
     }
 
     // If we're done with a switch that generates a state variable to break
@@ -1845,9 +1843,9 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // of code based on which control-flow branch was taken. This, for
     // example, can be used to jump to the middle of a loop
     // instead of at the start, without emitting gotos.
-    Out << LoopStateVar << " "
-        << B.getOperator(ptml::CBuilder::Operator::Assign) << " " << StateValue
-        << ";\n";
+    B.append(LoopStateVar + " "
+             + B.getOperator(ptml::CBuilder::Operator::Assign) + " "
+             + std::to_string(StateValue) + ";\n");
   } break;
   }
 
@@ -1880,32 +1878,30 @@ static std::string getModelArgIdentifier(const model::TypeDefinition *ModelFT,
   return "";
 }
 
-void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
-                                  const InlineableTypesMap &StackTypes) {
+void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   revng_log(Log, "========= Emitting Function " << LLVMFunction.getName());
   revng_log(VisitLog, "========= Function " << LLVMFunction.getName());
   LoggerIndent Indent{ VisitLog };
 
-  auto FunctionTagScope = B.getScope(ptml::CBuilder::Scopes::FunctionBody)
-                            .scope(Out);
+  auto FTagScope = B.getIndentedScope(ptml::CBuilder::Scopes::FunctionBody);
 
   // Extract user comments from the model and emit them as PTML just before
   // the prototype.
-  Out << B.getFunctionComment(ModelFunction, Model);
+  B.append(B.getFunctionComment(ModelFunction, Model));
 
   // Print function's prototype
-  printFunctionPrototype(Prototype, ModelFunction, Out, B, Model, false);
+  B.printFunctionPrototype(Prototype, ModelFunction, false);
 
   // Set up the argument identifiers to be used in the function's body.
   for (const auto &Arg : LLVMFunction.args()) {
     std::string ArgString = getModelArgIdentifier(&Prototype, Arg);
-    TokenMap[&Arg] = getArgumentLocationReference(ArgString, ModelFunction, B);
+    TokenMap[&Arg] = B.getArgumentLocationReference(ArgString, ModelFunction);
   }
 
   // Print the function body
-  Out << " ";
+  B.append(" ");
   {
-    Scope BraceScope(Out, ptml::c::scopes::FunctionBody);
+    Scope BodyScope = B.getCurvedBracketScope(ptml::c::scopes::FunctionBody);
 
     // We expect just one stack type definition.
     bool IsStackDefined = false;
@@ -1922,35 +1918,20 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
         const auto *Call = &cast<llvm::CallInst>(*It);
         std::string VarName = createStackFrameVarDeclName(Call);
         revng_assert(not VarName.empty());
-        const model::StructDefinition &Struct = *ModelFunction.stackFrameType();
-        // This will contain the stack types that we can inline, since
-        // there could be a stack type that is being used somewhere else,
-        // so we do not want to inline it.
-        auto StackTypesIt = StackTypes.find(&ModelFunction);
-        if (StackTypesIt != StackTypes.end() and not IsStackDefined
-            and StackTypesIt->second.contains(&Struct)) {
-          auto &TheStackTypes = StackTypesIt->second;
-          IsStackDefined = true;
-          std::map<model::UpcastableType, std::string> AdditionalTypeNames;
-          // For all nested types within stack definition we print forward
-          // declarations.
-          for (auto *Type : TheStackTypes) {
-            revng_assert(not declarationIsDefinition(*Type));
-            printForwardDeclaration(*Type, Out, B);
-          }
-          printInlineDefinition(Log,
-                                Struct,
-                                Out,
-                                B,
-                                Model,
-                                AdditionalTypeNames,
-                                TheStackTypes,
-                                std::move(VarName));
-        } else {
-          Out << getNamedCInstance(*TypeMap.at(Call), VarName, B) << ";\n";
-        }
-      } else {
 
+        revng_assert(not IsStackDefined, "Multiple stack variables?");
+        const model::StructDefinition &Struct = *ModelFunction.stackFrameType();
+        if (B.shouldInline(Struct.key())) {
+          B.printTypeDefinition(Struct, " " + std::move(VarName));
+        } else {
+          auto Named = B.getNamedCInstance(*ModelFunction.StackFrameType(),
+                                           std::move(VarName));
+          B.append(Named.str().str() + ";\n");
+        }
+
+        IsStackDefined = true;
+
+      } else {
         revng_log(Log,
                   "WARNING: function with valid stack type has no stack "
                   "declaration: "
@@ -1962,14 +1943,14 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
     // redirect control flow inside loops (e.g. if we want to jump in the
     // middle of a loop during a certain iteration)
     if (NeedsLocalStateVar)
-      Out << B.tokenTag("uint64_t", ptml::c::tokens::Type) << " "
-          << LoopStateVarDeclaration << ";\n";
+      B.append(B.tokenTag("uint64_t", ptml::c::tokens::Type) + " "
+               + LoopStateVarDeclaration + ";\n");
 
     // Recursively print the body of this function
     emitGHASTNode(GHAST.getRoot());
   }
 
-  Out << "\n";
+  B.append("\n");
 }
 
 static std::string decompileFunction(ControlFlowGraphCache &Cache,
@@ -1978,16 +1959,14 @@ static std::string decompileFunction(ControlFlowGraphCache &Cache,
                                      const Binary &Model,
                                      const ASTVarDeclMap &VarToDeclare,
                                      bool NeedsLocalStateVar,
-                                     const InlineableTypesMap &StackTypes,
-                                     bool GeneratePlainC) {
+                                     ptml::CTypeBuilder &B) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
-  ptml::CBuilder B{ GeneratePlainC };
+  B.setOutputStream(Out);
 
-  CCodeGenerator
-    Backend(Cache, Model, LLVMFunc, CombedAST, VarToDeclare, Out, B);
-  Backend.emitFunction(NeedsLocalStateVar, StackTypes);
+  CCodeGenerator Backend(Cache, Model, LLVMFunc, CombedAST, VarToDeclare, B);
+  Backend.emitFunction(NeedsLocalStateVar);
   Out.flush();
 
   return Result;
@@ -2029,8 +2008,7 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
 std::string decompile(ControlFlowGraphCache &Cache,
                       llvm::Function &F,
                       const model::Binary &Model,
-                      const InlineableTypesMap &StackTypes,
-                      bool GeneratePlainC) {
+                      ptml::CTypeBuilder &B) {
   using namespace llvm;
   Task T2(3, Twine("decompile Function: ") + Twine(F.getName()));
 
@@ -2064,6 +2042,5 @@ std::string decompile(ControlFlowGraphCache &Cache,
                            Model,
                            VariablesToDeclare,
                            NeedsLoopStateVar,
-                           StackTypes,
-                           GeneratePlainC);
+                           B);
 }
