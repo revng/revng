@@ -181,8 +181,8 @@ public:
   const ContainerSet &containers() const { return Containers; }
   ContainerSet &containers() { return Containers; }
 
-  std::set<llvm::StringRef> mutableContainers() const {
-    std::set<llvm::StringRef> MutableContainers;
+  std::set<std::string> mutableContainers() const {
+    std::set<std::string> MutableContainers;
     for (const auto &Pipe : Pipes) {
       size_t ArgumentsCount = Pipe.Pipe->getContainerArgumentsCount();
       for (size_t I = 0; I < ArgumentsCount; ++I) {

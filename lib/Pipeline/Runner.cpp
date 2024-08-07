@@ -473,7 +473,7 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
     //       we're looking for might no longer be there!
     Step.pipeInvalidate(Diff, StepInvalidations);
 
-    std::set<StringRef> Mutablecontainers = Step.mutableContainers();
+    std::set<std::string> Mutablecontainers = Step.mutableContainers();
 
     for (const auto &Container : Step.containers()) {
 
