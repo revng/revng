@@ -163,7 +163,6 @@ python_module(TARGET_NAME revng-python-cli WHEEL revng_internal MODULE_FILES
 #
 set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/translate.py
-    revng/internal/cli/_commands/lift.py
     revng/internal/cli/_commands/idb_converter.py
     revng/internal/cli/_commands/opt.py
     revng/internal/cli/_commands/pipeline_tools.py
