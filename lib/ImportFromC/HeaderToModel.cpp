@@ -30,6 +30,7 @@ static constexpr llvm::StringRef StackAnnotation = "stack";
 static constexpr llvm::StringRef EnumAnnotation = "enum_underlying_type:";
 static constexpr llvm::StringRef FieldAnnotation = "field_start_offset:";
 static constexpr llvm::StringRef SizeAnnotation = "struct_size:";
+static constexpr llvm::StringRef CodeAnnotation = "can_contain_code";
 
 template<typename T>
 concept HasCustomName = requires(const T &Element) {
@@ -909,6 +910,10 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
           if (auto OldSize = *(*MaybeType)->size(); Struct->Size() < OldSize)
             Struct->Size() = OldSize;
   }
+
+  std::optional CanContainCode = parseStringAnnotation(*RD, CodeAnnotation);
+  if (CanContainCode)
+    Struct->CanContainCode() = true;
 
   switch (AnalysisOption) {
   case ImportFromCOption::EditType:
