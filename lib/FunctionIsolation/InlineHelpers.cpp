@@ -113,12 +113,16 @@ void InlineHelpers::run(Function *F) {
 }
 
 bool InlineHelpersPass::runOnModule(llvm::Module &M) {
-  for (Function &F : M) {
-    if (not FunctionTags::Isolated.isTagOf(&F))
-      continue;
+  SmallVector<Function *, 32> Isolated;
+  for (Function &F : M)
+    if (FunctionTags::Isolated.isTagOf(&F))
+      Isolated.push_back(&F);
 
-    InlineHelpers IH(*F.getParent());
-    IH.run(&F);
+  llvm::Task T(Isolated.size(), "Inline helpers");
+  for (Function *F : Isolated) {
+    T.advance(F->getName());
+    InlineHelpers IH(*F->getParent());
+    IH.run(F);
   }
 
   return true;
