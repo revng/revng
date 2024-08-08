@@ -45,6 +45,11 @@ static ValueType getExpressionType(Region &R) {
   return {};
 }
 
+static FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
+  auto T = mlir::cast<DefinedType>(dealias(Type));
+  return mlir::cast<FunctionTypeAttr>(T.getElementType());
+}
+
 //===---------------------------- Region types ----------------------------===//
 
 template<typename OpInterface>
@@ -94,6 +99,11 @@ static bool isModuleLevelOperation(Operation *Op) {
 
 struct ModuleValidator {
   explicit ModuleValidator(clift::ModuleOp Module) : Module(Module) {}
+
+  enum class LoopOrSwitch : uint8_t {
+    Loop,
+    Switch,
+  };
 
   template<typename SubElementInterface>
   mlir::LogicalResult visitSubElements(mlir::Operation *ContainingOp,
@@ -261,6 +271,41 @@ struct ModuleValidator {
                                << " must be directly nested within a "
                                   "ModuleOp.";
 
+    if (auto Return = mlir::dyn_cast<ReturnOp>(Op)) {
+      ValueType ReturnType = {};
+
+      if (Region &R = Return.getResult(); not R.empty())
+        ReturnType = getExpressionType(R);
+
+      if (ReturnType and isVoid(FunctionReturnType))
+        return Op->emitOpError() << Op->getName()
+                                 << " cannot return expression in function "
+                                    "returning void.";
+
+      if (ReturnType != FunctionReturnType)
+        return Op->emitOpError() << Op->getName()
+                                 << " type does not match the function return "
+                                    "type";
+    } else if (mlir::isa<SwitchBreakOp>(Op)) {
+      if (not hasLoopOrSwitchParent(Op,
+                                    LoopOrSwitch::Switch,
+                                    /*DirectlyNested=*/true))
+        return Op->emitOpError()
+               << Op->getName() << " must be nested within a switch operation.";
+    } else if (mlir::isa<LoopBreakOp>(Op)) {
+      if (not hasLoopOrSwitchParent(Op,
+                                    LoopOrSwitch::Loop,
+                                    /*DirectlyNested=*/true))
+        return Op->emitOpError()
+               << Op->getName() << " must be nested within a loop operation.";
+    } else if (mlir::isa<LoopContinueOp>(Op)) {
+      if (not hasLoopOrSwitchParent(Op,
+                                    LoopOrSwitch::Loop,
+                                    /*DirectlyNested=*/false))
+        return Op->emitOpError()
+               << Op->getName() << " must be nested within a loop operation.";
+    }
+
     return visitOp(Op);
   }
 
@@ -273,15 +318,50 @@ struct ModuleValidator {
                                   "ModuleOp.";
     }
 
+    if (auto F = mlir::dyn_cast<FunctionOp>(Op)) {
+      auto TypeAttr = getFunctionTypeAttr(F.getFunctionType());
+      FunctionReturnType = mlir::cast<ValueType>(TypeAttr.getReturnType());
+    }
+
     return visitOp(Op);
   }
 
 private:
   clift::ModuleOp Module;
   Operation *ModuleLevelOp;
+  clift::ValueType FunctionReturnType;
   llvm::SmallPtrSet<mlir::Type, 32> VisitedTypes;
   llvm::SmallPtrSet<mlir::Attribute, 32> VisitedAttrs;
   llvm::DenseMap<uint64_t, TypeDefinitionAttr> Definitions;
+
+  static std::optional<LoopOrSwitch> isLoopOrSwitch(Operation *Op) {
+    if (mlir::isa<ForOp, DoWhileOp, WhileOp>(Op))
+      return LoopOrSwitch::Loop;
+
+    if (mlir::isa<SwitchOp>(Op))
+      return LoopOrSwitch::Switch;
+
+    return std::nullopt;
+  }
+
+  // Finds a loop or switch operation ancestor of the specified op. If
+  // DirectlyNested is true, stops at the first such parent found, regardless of
+  // its kind. Does not consider other statements, such as if-statements at all.
+  bool
+  hasLoopOrSwitchParent(Operation *Op, LoopOrSwitch Kind, bool DirectlyNested) {
+    while (Op != Module.getOperation()) {
+      Op = Op->getParentOp();
+
+      if (auto OpKind = isLoopOrSwitch(Op)) {
+        if (*OpKind == Kind)
+          return true;
+
+        if (DirectlyNested)
+          return false;
+      }
+    }
+    return false;
+  }
 };
 
 } // namespace
