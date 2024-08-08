@@ -98,7 +98,9 @@ BOOST_AUTO_TEST_CASE(UnionAndStructsCantDirectlyContainThemselves) {
 
   auto CliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
   mlir::OpBuilder CliftModuleBuilder(CliftModule.getBody());
-  CliftModuleBuilder.create<UndefOp>(builder.getUnknownLoc(), UnionT);
+  CliftModuleBuilder.create<GlobalVariableOp>(builder.getUnknownLoc(),
+                                              "v",
+                                              UnionT);
   BOOST_TEST(mlir::verify(CliftModule).failed());
 }
 
@@ -127,7 +129,9 @@ BOOST_AUTO_TEST_CASE(UnionAndStructsCantIndirectlyContainThemselves) {
 
   auto CliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
   mlir::OpBuilder CliftModuleBuilder(CliftModule.getBody());
-  CliftModuleBuilder.create<UndefOp>(builder.getUnknownLoc(), StructT);
+  CliftModuleBuilder.create<GlobalVariableOp>(builder.getUnknownLoc(),
+                                              "v",
+                                              StructT);
   BOOST_TEST(mlir::verify(CliftModule).failed());
 }
 
@@ -151,7 +155,9 @@ BOOST_AUTO_TEST_CASE(UnionAndStructsCanContainThemselvesViaIndirection) {
 
   auto CliftModule = builder.create<ModuleOp>(builder.getUnknownLoc());
   mlir::OpBuilder CliftModuleBuilder(CliftModule.getBody());
-  CliftModuleBuilder.create<UndefOp>(builder.getUnknownLoc(), UnionT);
+  CliftModuleBuilder.create<GlobalVariableOp>(builder.getUnknownLoc(),
+                                              "v",
+                                              UnionT);
   BOOST_TEST(mlir::verify(CliftModule).succeeded());
 }
 

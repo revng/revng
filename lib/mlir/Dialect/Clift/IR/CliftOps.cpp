@@ -82,7 +82,19 @@ void clift::ModuleOp::build(OpBuilder &Builder, OperationState &State) {
 
 namespace {
 
+static bool isModuleLevelOperation(Operation *Op) {
+  if (mlir::isa<clift::FunctionOp>(Op))
+    return true;
+
+  if (mlir::isa<clift::GlobalVariableOp>(Op))
+    return true;
+
+  return false;
+}
+
 struct ModuleValidator {
+  explicit ModuleValidator(clift::ModuleOp Module) : Module(Module) {}
+
   template<typename SubElementInterface>
   mlir::LogicalResult visitSubElements(mlir::Operation *ContainingOp,
                                        SubElementInterface Interface) {
@@ -240,7 +252,33 @@ struct ModuleValidator {
     return mlir::success();
   }
 
+  mlir::LogicalResult visitNestedOp(mlir::Operation *Op) {
+    if (Op == ModuleLevelOp)
+      return mlir::success();
+
+    if (isModuleLevelOperation(Op))
+      return Op->emitOpError() << Op->getName()
+                               << " must be directly nested within a "
+                                  "ModuleOp.";
+
+    return visitOp(Op);
+  }
+
+  mlir::LogicalResult visitModuleLevelOp(mlir::Operation *Op) {
+    ModuleLevelOp = Op;
+
+    if (not isModuleLevelOperation(Op)) {
+      return Op->emitOpError() << Op->getName()
+                               << " cannot be directly nested within a "
+                                  "ModuleOp.";
+    }
+
+    return visitOp(Op);
+  }
+
 private:
+  clift::ModuleOp Module;
+  Operation *ModuleLevelOp;
   llvm::SmallPtrSet<mlir::Type, 32> VisitedTypes;
   llvm::SmallPtrSet<mlir::Attribute, 32> VisitedAttrs;
   llvm::DenseMap<uint64_t, TypeDefinitionAttr> Definitions;
@@ -249,16 +287,30 @@ private:
 } // namespace
 
 mlir::LogicalResult clift::ModuleOp::verify() {
-  ModuleValidator Validator;
+  ModuleValidator Validator(*this);
 
-  const auto Visitor = [&](Operation *Op) -> mlir::WalkResult {
-    return Validator.visitOp(Op);
-  };
+  Region &R = getRegion();
 
-  if (walk(Visitor).wasInterrupted())
+  if (not R.hasOneBlock())
+    return emitOpError() << getOperationName()
+                         << " must contain exactly one block.";
+
+  for (Operation &Op : R.front()) {
+    if (mlir::failed(Validator.visitModuleLevelOp(&Op)))
+      return mlir::failure();
+
+    const auto Visitor = [&](Operation *NestedOp) -> mlir::WalkResult {
+      return Validator.visitNestedOp(NestedOp);
+    };
+
+    if (Op.walk(Visitor).wasInterrupted())
+      return mlir::failure();
+  }
+
+  if (mlir::failed(Validator.visitOp(getOperation())))
     return mlir::failure();
 
-  return Validator.visitOp(*this);
+  return mlir::success();
 }
 
 //===-------------------------- GlobalVariableOp --------------------------===//
