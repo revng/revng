@@ -416,7 +416,7 @@ class MyPyPass(SingleCommandPass):
         runs = []
         for file_group in sorted_files:
             if len(file_group) > 0:
-                runs.append(await super().process({f: "" for f in file_group}, args))
+                runs.append(await super().process(dict.fromkeys(file_group, ""), args))
 
         return PassResult.combine(*runs)
 
