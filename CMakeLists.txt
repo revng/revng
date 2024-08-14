@@ -237,11 +237,11 @@ endforeach()
 # Custom command to create .clang-format file from revng-check-conventions
 add_custom_command(
   OUTPUT "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
-  DEPENDS "${CMAKE_SOURCE_DIR}/libexec/revng/revng-check-conventions"
+  DEPENDS "${CMAKE_SOURCE_DIR}/libexec/revng/check-conventions"
           "${CMAKE_SOURCE_DIR}/share/revng/clang-format-style-file.yml"
           copy_share copy_libexec
   COMMAND
-    "${CMAKE_BINARY_DIR}/libexec/revng/revng-check-conventions" ARGS
+    "${CMAKE_BINARY_DIR}/libexec/revng/check-conventions" ARGS
     --print-clang-format-config >
     "${CMAKE_BINARY_DIR}/share/revng/.clang-format")
 

@@ -18,7 +18,7 @@ class PipelineToolCommand(Command):
         pipelines = collect_pipelines(options.search_prefixes)
         pipelines_args = interleave(pipelines, "-P")
         command = build_command_with_loads(
-            f"revng-{self.name}", pipelines_args + options.remaining_args, options
+            self.name, pipelines_args + options.remaining_args, options
         )
 
         return run(command, options)

@@ -9,7 +9,7 @@ from inspect import isfunction
 from pathlib import Path
 
 from .commands_registry import CommandsRegistry, Options
-from .support import collect_files, executable_name, get_root, read_lines
+from .support import collect_files, executable_name, get_root, read_lines, is_file_executable
 
 _commands_registry = CommandsRegistry()
 _commands_registry.define_namespace(
@@ -64,9 +64,11 @@ def revng_driver_init(arguments) -> Options:
     options.search_prefixes = extend_list(options.search_prefixes, prefixes)
 
     # Register external commands
-    prefix = "revng-"
-    for executable in collect_files(options.search_prefixes, ["libexec", "revng"], f"{prefix}*"):
-        name = os.path.basename(executable)[len(prefix) :]
+    for executable in collect_files(options.search_prefixes, ["libexec", "revng"], "*"):
+        if not (is_file_executable(executable) and os.path.splitext(executable)[1] == ""):
+            continue
+
+        name = os.path.basename(executable)
         if not _commands_registry.has_command(name):
             _commands_registry.register_external_command(name, executable)
 
