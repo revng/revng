@@ -13,7 +13,7 @@ WORKING_DIRECTORY="$PWD/MultiStepPipelineTestDir/"
 REFERENCE_OUTPUT="$SCRIPT_DIR/MultiStepPipelineOutput.txt"
 
 function run() {
-  "$PWD/libexec/revng/revng-pipeline" \
+  "$PWD/libexec/revng/pipeline" \
     -P="$SCRIPT_DIR/MultiStepPipeline.yml" \
     --produce=second-step/strings-3/root:string-kind\
     -i "$SCRIPT_DIR/MultiStepPipelineInput.txt:begin/strings-1" \

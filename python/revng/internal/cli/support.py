@@ -204,3 +204,8 @@ def extract_tar(raw: bytes, process: Callable[[str, bytes], Any] = to_string) ->
 
 def to_yaml(filename: str, raw: bytes) -> str:
     return yaml.safe_load(raw)
+
+
+def is_file_executable(filename: str) -> bool:
+    stat = os.stat(filename)
+    return stat.st_mode & 0o111 == 0o111

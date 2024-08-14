@@ -32,7 +32,7 @@ macro(
     bash
     -c
     "rm -rf ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
-      ${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline \
+      ${CMAKE_BINARY_DIR}/libexec/revng/pipeline \
       -P ${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE} \
       ${TARGETS} \
       -i ${INPUTS_LIST} \
@@ -50,7 +50,7 @@ macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
     NAME
     "${TEST_NAME}"
     COMMAND
-    "${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline"
+    "${CMAKE_BINARY_DIR}/libexec/revng/pipeline"
     -P
     "${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE}"
     --produce=first-step:dc:dc:string-kind
@@ -192,13 +192,13 @@ function(add_invalidation_test TEST_NAME)
     -c
     "rm -rf ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
       mkdir ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
-      ${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline \
+      ${CMAKE_BINARY_DIR}/libexec/revng/pipeline \
       -P ${OPT_PIPELINE} \
       ${OPT_TARGETS} \
       -i ${OPT_INPUT}:begin/strings-1 \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
       --resume ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
-      ${CMAKE_BINARY_DIR}/libexec/revng/revng-invalidate \
+      ${CMAKE_BINARY_DIR}/libexec/revng/invalidate \
       -P ${OPT_PIPELINE} \
       ${OPT_INVALIDATIONS} \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \

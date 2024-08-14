@@ -9,13 +9,13 @@ from revng.internal.support.collect import collect_libraries, collect_pipelines
 
 class TraceRunCommand(Command):
     def __init__(self):
-        super().__init__(("trace", "run"), "revng-trace-run wrapper", False)
+        super().__init__(("trace", "run"), "revng trace-run wrapper", False)
 
     def register_arguments(self, parser):
         pass
 
     def run(self, options: Options):
-        cmd = get_command("revng-trace-run", options.search_prefixes)
+        cmd = get_command("trace-run", options.search_prefixes)
         libraries, dependencies = collect_libraries(options.search_prefixes)
         asan_prefix = handle_asan(dependencies, options.search_prefixes)
         pipelines = collect_pipelines(options.search_prefixes)

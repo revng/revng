@@ -10,7 +10,7 @@ CMAKE_BINARY_DIR="$1"
 EXPECTED_STATUS="$2"
 export REVNG_CRASH_SIGNAL="$3"
 
-"${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline" --load "${CMAKE_BINARY_DIR}/lib/librevngBadBehaviorLibrary.so" 2>&1 \
+"${CMAKE_BINARY_DIR}/libexec/revng/pipeline" --load "${CMAKE_BINARY_DIR}/lib/librevngBadBehaviorLibrary.so" 2>&1 \
     | tee -ip /dev/stderr \
     | grep -q 'doCrash()\|WillCrash::WillCrash()\|librevngBadBehaviorLibrary.so'
 STATUS=("${PIPESTATUS[@]}")
