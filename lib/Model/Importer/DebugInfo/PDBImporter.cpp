@@ -49,7 +49,7 @@ using namespace llvm::codeview;
 using namespace llvm::object;
 using namespace llvm::pdb;
 
-static Logger<> DILogger("pdb-importer");
+static Logger<> Log("pdb-importer");
 
 // Force using a specific PDB.
 static llvm::cl::opt<std::string> UsePDB("use-pdb",
@@ -170,14 +170,14 @@ public:
 void PDBImporterImpl::populateTypes() {
   auto InputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not InputFile) {
-    revng_log(DILogger, "Unable to open PDB file " << InputFile.takeError());
+    revng_log(Log, "Unable to open PDB file " << InputFile.takeError());
     consumeError(InputFile.takeError());
     return;
   }
 
   auto StreamTpiOrErr = Importer.getPDBFile()->getPDBTpiStream();
   if (not StreamTpiOrErr) {
-    revng_log(DILogger,
+    revng_log(Log,
               "Unable to find TPI in PDB file: " << StreamTpiOrErr.takeError());
     consumeError(StreamTpiOrErr.takeError());
     return;
@@ -191,7 +191,7 @@ void PDBImporterImpl::populateTypes() {
                                      ForwardReferencedTypes,
                                      *StreamTpiOrErr);
   if (auto Err = visitTypeStream(InputFile->types(), TypeVisitor)) {
-    revng_log(DILogger, "Error during visiting types: " << Err);
+    revng_log(Log, "Error during visiting types: " << Err);
     consumeError(std::move(Err));
   }
 }
@@ -246,7 +246,7 @@ public:
 void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
   auto InputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not InputFile) {
-    revng_log(DILogger, "Unable to open PDB file: " << InputFile.takeError());
+    revng_log(Log, "Unable to open PDB file: " << InputFile.takeError());
     consumeError(InputFile.takeError());
     return;
   }
@@ -256,7 +256,7 @@ void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
   const PrintScope HeaderScope(Printer, /*IndentLevel=*/2);
   PDBSymbolHandler SymbolHandler(Importer, ProcessedTypes, Session, *InputFile);
   if (auto Err = iterateSymbolGroups(*InputFile, HeaderScope, SymbolHandler)) {
-    revng_log(DILogger, "Unable to parse symbols: " << Err);
+    revng_log(Log, "Unable to parse symbols: " << Err);
     consumeError(std::move(Err));
     return;
   }
@@ -276,7 +276,7 @@ void PDBImporterImpl::run(NativeSession &Session) {
 bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
   auto Err = loadDataForPDB(PDB_ReaderType::Native, PDBFileName, Session);
   if (Err) {
-    revng_log(DILogger, "Unable to read PDB file: " << Err);
+    revng_log(Log, "Unable to read PDB file: " << Err);
     consumeError(std::move(Err));
     return false;
   }
@@ -294,7 +294,7 @@ bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
     if (auto PDBInfoStrm = ThePDBFile->getPDBInfoStream()) {
       codeview::GUID GUIDFromPDBFile = PDBInfoStrm->getGuid();
       if (ExpectedGUID != GUIDFromPDBFile) {
-        revng_log(DILogger, "Signatures from exe and PDB file mismatch");
+        revng_log(Log, "Signatures from exe and PDB file mismatch");
         return false;
       }
     }
@@ -307,9 +307,9 @@ static bool fileExists(const Twine &Path) {
   bool Result = sys::fs::exists(Path);
 
   if (Result) {
-    revng_log(DILogger, "Found: " << Path.str());
+    revng_log(Log, "Found: " << Path.str());
   } else {
-    revng_log(DILogger, "The following path does not exist: " << Path.str());
+    revng_log(Log, "The following path does not exist: " << Path.str());
   }
 
   return Result;
@@ -396,7 +396,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
   // Consider the --use-pdb argument
   if (not UsePDB.empty()) {
     if (not fileExists(UsePDB)) {
-      revng_log(DILogger, "Argument --use-pdb does not exist, ignoring.");
+      revng_log(Log, "Argument --use-pdb does not exist, ignoring.");
     } else {
       return UsePDB;
     }
@@ -409,11 +409,11 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
     StringRef InternalPDBStringReference;
     auto EC = TheBinary.getDebugPDBInfo(DebugInfo, InternalPDBStringReference);
     if (EC) {
-      revng_log(DILogger, "getDebugPDBInfo failed: " << EC);
+      revng_log(Log, "getDebugPDBInfo failed: " << EC);
       consumeError(std::move(EC));
       return std::nullopt;
     } else if (DebugInfo == nullptr) {
-      revng_log(DILogger, "Couldn't get codeview::DebugInfo");
+      revng_log(Log, "Couldn't get codeview::DebugInfo");
       return std::nullopt;
     } else {
       InternalPDBPath = InternalPDBStringReference.str();
@@ -422,7 +422,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
 
   // TODO: Handle PDB signature types other then PDB70, e.g. PDB20.
   if (DebugInfo->Signature.CVSignature != OMF::Signature::PDB70) {
-    revng_log(DILogger, "A non-PDB70 signature was find, ignore.");
+    revng_log(Log, "A non-PDB70 signature was find, ignore.");
     return std::nullopt;
   }
 
@@ -434,7 +434,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
   llvm::copy(DebugInfo->PDB70.Signature, std::begin(ExpectedGUID->Guid));
 
   if (InternalPDBPath.empty()) {
-    revng_log(DILogger, "The internal PDB path is empty");
+    revng_log(Log, "The internal PDB path is empty");
     return std::nullopt;
   }
 
@@ -451,7 +451,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
   // Try in the current directory
   llvm::SmallString<128> ResultPath;
   if (auto ErrorCode = llvm::sys::fs::current_path(ResultPath)) {
-    revng_log(DILogger, "Can't get current working path.");
+    revng_log(Log, "Can't get current working path.");
   } else {
     llvm::sys::path::append(ResultPath, PDBBaseName);
     if (fileExists(ResultPath.str()))
@@ -480,7 +480,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
   // If the `revng` cannot be found, avoid finding debug info.
   int ExitCode = runFetchDebugInfo(TheBinary.getFileName());
   if (ExitCode != 0) {
-    revng_log(DILogger,
+    revng_log(Log,
               "Failed to find debug info with `revng model "
               "fetch-debuginfo`.");
     return std::nullopt;
@@ -527,7 +527,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex ReferencedType = Ptr.getReferentType();
   auto ReferencedTypeFromModel = makeModelTypeForIndex(ReferencedType);
   if (ReferencedTypeFromModel.isEmpty()) {
-    revng_log(DILogger,
+    revng_log(Log,
               "LF_POINTER: Unknown referenced type "
                 << ReferencedType.getIndex());
     return Error::success();
@@ -549,12 +549,11 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex ElementType = Array.getElementType();
   auto ElementTypeFromModel = makeModelTypeForIndex(ElementType);
   if (ElementTypeFromModel.isEmpty()) {
-    revng_log(DILogger,
-              "LF_ARRAY: Unknown element type " << ElementType.getIndex());
+    revng_log(Log, "LF_ARRAY: Unknown element type " << ElementType.getIndex());
   } else {
     auto MaybeSize = ElementTypeFromModel->size();
     if (not MaybeSize or *MaybeSize == 0 or Array.getSize() == 0) {
-      revng_log(DILogger, "Skipping 0-sized array.");
+      revng_log(Log, "Skipping 0-sized array.");
       return Error::success();
     }
 
@@ -575,7 +574,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
   auto ModelType = makeModelTypeForIndex(ReferencedType);
   if (ModelType.isEmpty()) {
-    revng_log(DILogger,
+    revng_log(Log,
               "LF_MODIFIER: Unknown referenced type "
                 << ReferencedType.getIndex());
   } else {
@@ -629,7 +628,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     Expected<TypeIndex> EFD = Tpi.findFullDeclForForwardRef(CurrentTypeIndex);
     if (!EFD) {
       consumeError(EFD.takeError());
-      revng_log(DILogger,
+      revng_log(Log,
                 "LF_STRUCTURE: Cannot resolve fwd ref for the: "
                   << CurrentTypeIndex.getIndex());
       return Error::success();
@@ -680,7 +679,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       uint64_t Offset = Field.getFieldOffset();
       auto FieldModelType = makeModelTypeForIndex(Field.getType());
       if (FieldModelType.isEmpty()) {
-        revng_log(DILogger,
+        revng_log(Log,
                   "LF_STRUCTURE: Unknown field type "
                     << Field.getType().getIndex());
         // Avoid incomplete struct types.
@@ -690,7 +689,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         uint64_t Size = MaybeSize.value_or(0);
         if (Size == 0) {
           // Skip 0-sized field.
-          revng_log(DILogger, "Skipping 0-sized struct field.");
+          revng_log(Log, "Skipping 0-sized struct field.");
           continue;
         }
 
@@ -712,8 +711,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         // Triggers:
         // `Last field ends outside the struct`.
         if (CurrFieldOffset > Struct->Size()) {
-          revng_log(DILogger,
-                    "Skipping struct field that is outside the struct.");
+          revng_log(Log, "Skipping struct field that is outside the struct.");
           continue;
         }
 
@@ -745,7 +743,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       TypeIndex ReturnTypeIndex = MemberFunction.ReturnType;
       auto ModelReturnType = makeModelTypeForIndex(ReturnTypeIndex);
       if (ModelReturnType.isEmpty()) {
-        revng_log(DILogger,
+        revng_log(Log,
                   "LF_MFUNCTION: Unknown return type "
                     << ReturnTypeIndex.getIndex());
         // Avoid function types that have incomplete type.
@@ -779,7 +777,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
           Prototype.addArgument(model::PointerType::make(std::move(T),
                                                          Architecture));
         } else {
-          revng_log(DILogger, "Skipping 0-sized argument.");
+          revng_log(Log, "Skipping 0-sized argument.");
         }
       }
 
@@ -787,7 +785,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         TypeIndex ArgumentTypeIndex = Indices[I];
         auto ArgumentTypeFromModel = makeModelTypeForIndex(ArgumentTypeIndex);
         if (not ArgumentTypeFromModel) {
-          revng_log(DILogger,
+          revng_log(Log,
                     "LF_MFUNCTION: Unknown arg type "
                       << ArgumentTypeIndex.getIndex());
           // Avoid function types that have incomplete type.
@@ -797,7 +795,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
           uint64_t Size = MaybeSize.value_or(0);
           if (Size == 0) {
             // Skip 0-sized type.
-            revng_log(DILogger, "Skipping 0-sized argument.");
+            revng_log(Log, "Skipping 0-sized argument.");
             continue;
           }
 
@@ -824,7 +822,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex UnderlyingTypeIndex = Enum.getUnderlyingType();
   auto UnderlyingModelType = makeModelTypeForIndex(UnderlyingTypeIndex);
   if (not UnderlyingModelType) {
-    revng_log(DILogger,
+    revng_log(Log,
               "LF_ENUM: Unknown underlying type "
                 << UnderlyingTypeIndex.getIndex());
     return Error::success();
@@ -909,7 +907,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex ReturnTypeIndex = Proc.ReturnType;
   auto ModelReturnType = makeModelTypeForIndex(ReturnTypeIndex);
   if (not ModelReturnType) {
-    revng_log(DILogger,
+    revng_log(Log,
               "LF_PROCEDURE: Unknown return type "
                 << ReturnTypeIndex.getIndex());
   } else {
@@ -929,7 +927,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     for (uint32_t I = 0; I < Size; ++I) {
       TypeIndex ArgumentTypeIndex = Indices[I];
       if (ArgumentTypeIndex.isNoneType()) {
-        revng_log(DILogger,
+        revng_log(Log,
                   "LF_PROCEDURE: A NoneType argument type "
                     << ArgumentTypeIndex.getIndex());
         continue;
@@ -937,7 +935,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
       auto ArgumentTypeFromModel = makeModelTypeForIndex(ArgumentTypeIndex);
       if (not ArgumentTypeFromModel) {
-        revng_log(DILogger,
+        revng_log(Log,
                   "LF_PROCEDURE: Unknown argument type "
                     << ArgumentTypeIndex.getIndex());
         // Avoid incomplete function types.
@@ -948,7 +946,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         // Forward references are processed later.
         if (Size == 0 and !isUdtForwardRef(Tpi.getType(ArgumentTypeIndex))) {
           // Skip 0-sized type.
-          revng_log(DILogger, "Skipping 0-sized argument.");
+          revng_log(Log, "Skipping 0-sized argument.");
           continue;
         }
 
@@ -988,7 +986,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     // Create new field.
     auto FieldModelType = makeModelTypeForIndex(Field.getType());
     if (FieldModelType.isEmpty()) {
-      revng_log(DILogger,
+      revng_log(Log,
                 "LF_UNION: Unknown field type " << Field.getType().getIndex());
       // Avoid incomplete unions.
       return Error::success();
@@ -996,7 +994,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       uint64_t Size = FieldModelType->size().value_or(0);
       if (Size == 0) {
         // Skip 0-sized field.
-        revng_log(DILogger, "Skipping 0-sized union field.");
+        revng_log(Log, "Skipping 0-sized union field.");
         continue;
       }
 
@@ -1230,7 +1228,7 @@ PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
       if (isPointer(SimpleType)) {
         auto PointerSize = getPointerSizeFromPDB(SimpleType);
         if (!PointerSize) {
-          revng_log(DILogger, "Invalid pointer size " << SimpleType.getIndex());
+          revng_log(Log, "Invalid pointer size " << SimpleType.getIndex());
           return model::UpcastableType::empty();
         }
 
@@ -1244,7 +1242,7 @@ PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
         return ProcessedTypes[SimpleType] = std::move(Primitive);
       }
     } else {
-      revng_log(DILogger, "Invalid simple type " << SimpleType.getIndex());
+      revng_log(Log, "Invalid simple type " << SimpleType.getIndex());
       return model::UpcastableType::empty();
     }
   }
@@ -1274,7 +1272,7 @@ Error PDBImporterSymbolVisitor::visitSymbolBegin(CVSymbol &Record,
 
 Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
                                                  ProcSym &Proc) {
-  revng_log(DILogger, "Importing " << Proc.Name);
+  revng_log(Log, "Importing " << Proc.Name);
 
   // If it is not in the .idata already, we assume it is a static symbol.
   if (not Model->ImportedDynamicFunctions().contains(Proc.Name.str())) {
