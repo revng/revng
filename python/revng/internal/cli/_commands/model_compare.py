@@ -287,8 +287,8 @@ class YAMLGraph:
         if not success and best_match[0] is not None:
             result = best_match
             log(
-                f"No matched found, the best match covers {len(best_match[0])}"
-                + " nodes out of {min(len(self.graph), len(other.graph))}."
+                f"No match found, the best match covers {len(best_match[0])}"
+                + f" nodes out of {min(len(self.graph), len(other.graph))}."
             )
 
             if not color:
