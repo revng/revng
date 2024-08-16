@@ -28,6 +28,10 @@ args = None
 fragile_keys = {"ID"}
 
 
+def log(message: str) -> None:
+    sys.stderr.write(f"{message}\n")
+
+
 def is_reference(string):
     return string.startswith("/TypeDefinitions/")
 
@@ -268,6 +272,7 @@ class YAMLGraph:
         for node_id in interestingness:
             interestingness[node_id] = interestingness[node_id] / max_value
 
+        best_match = [None]
         result = find_motifs(
             self.graph,
             other.graph,
@@ -275,12 +280,24 @@ class YAMLGraph:
             interestingness=interestingness,
             isomorphisms_only=exact,
             is_node_attr_match=attr_match,
+            best_match=best_match,
         )
+
+        success = len(result) > 0
+        if not success and best_match[0] is not None:
+            result = best_match
+            log(
+                f"No matched found, the best match covers {len(best_match[0])}"
+                + " nodes out of {min(len(self.graph), len(other.graph))}."
+            )
+
+            if not color:
+                log("Re-run with --dump-graphs to see matched nodes.")
 
         if result and color:
             self.color_match(other, result[0])
 
-        return len(result) > 0
+        return success
 
 
 def selftest():
