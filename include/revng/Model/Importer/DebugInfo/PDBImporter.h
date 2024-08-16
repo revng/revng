@@ -23,6 +23,7 @@ private:
   llvm::pdb::PDBFile *ThePDBFile = nullptr;
   llvm::pdb::NativeSession *TheNativeSession = nullptr;
   std::unique_ptr<llvm::pdb::IPDBSession> Session;
+  std::optional<llvm::codeview::GUID> ExpectedGUID;
 
 public:
   PDBImporter(TupleTree<model::Binary> &Model, MetaAddress ImageBase) :
@@ -35,8 +36,11 @@ public:
   void import(const llvm::object::COFFObjectFile &TheBinary,
               const ImporterOptions &Options);
 
-  void loadDataFromPDB(std::string PDBFileName);
+  bool loadDataFromPDB(llvm::StringRef PDBFileName);
 
-  std::optional<std::string> getPDBFilePath(std::string PDBFileID,
-                                            llvm::StringRef PDBFilePath);
+  std::optional<std::string>
+  getPDBFilePath(const llvm::object::COFFObjectFile &TheBinary);
+
+  std::optional<std::string> getCachedPDBFilePath(std::string PDBFileID,
+                                                  llvm::StringRef PDBFilePath);
 };
