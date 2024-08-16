@@ -12,7 +12,8 @@
 
 namespace {
 
-inline int runFetchDebugInfoWithLevel(llvm::StringRef InputFileName) {
+inline int runFetchDebugInfo(llvm::StringRef InputFileName) {
+  revng_assert(::Runner.isProgramAvailable("revng"));
   return ::Runner.run("revng",
                       { "model", "fetch-debuginfo", InputFileName.str() });
 }

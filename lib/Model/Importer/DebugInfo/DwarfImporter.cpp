@@ -1218,7 +1218,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
           return;
         }
 
-        int ExitCode = runFetchDebugInfoWithLevel(FileName);
+        int ExitCode = runFetchDebugInfo(FileName);
         if (ExitCode != 0) {
           revng_log(DILogger,
                     "Failed to find debug info with `revng model "

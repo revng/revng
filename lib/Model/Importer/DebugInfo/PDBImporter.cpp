@@ -4,8 +4,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "llvm/DebugInfo/CodeView/CVSymbolVisitor.h"
 #include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
+#include "llvm/DebugInfo/CodeView/GUID.h"
 #include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
 #include "llvm/DebugInfo/CodeView/SymbolDeserializer.h"
 #include "llvm/DebugInfo/CodeView/SymbolRecord.h"
@@ -46,6 +49,7 @@ using namespace llvm::codeview;
 using namespace llvm::object;
 using namespace llvm::pdb;
 
+// WIP: rename to Log
 static Logger<> DILogger("pdb-importer");
 
 // Force using a specific PDB.
@@ -270,21 +274,34 @@ void PDBImporterImpl::run(NativeSession &Session) {
   revng_assert(Model->verify(true));
 }
 
-void PDBImporter::loadDataFromPDB(std::string PDBFileName) {
+bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
   auto Err = loadDataForPDB(PDB_ReaderType::Native, PDBFileName, Session);
-  if (not Err) {
-    TheNativeSession = static_cast<NativeSession *>(Session.get());
-    // TODO: We are using the static_cast due to lack of an LLVM RTTI
-    // support for this. Once it is improved in LLVM, we should avoid this.
-    auto SessionLoadAddress = Session->getLoadAddress();
-    auto NativeSessionLoadAddress = TheNativeSession->getLoadAddress();
-    revng_assert(SessionLoadAddress == NativeSessionLoadAddress);
-
-    ThePDBFile = &TheNativeSession->getPDBFile();
-  } else {
+  if (Err) {
     revng_log(DILogger, "Unable to read PDB file: " << Err);
     consumeError(std::move(Err));
+    return false;
   }
+
+  TheNativeSession = static_cast<NativeSession *>(Session.get());
+  // TODO: We are using the static_cast due to lack of an LLVM RTTI
+  // support for this. Once it is improved in LLVM, we should avoid this.
+  auto SessionLoadAddress = Session->getLoadAddress();
+  auto NativeSessionLoadAddress = TheNativeSession->getLoadAddress();
+  revng_assert(SessionLoadAddress == NativeSessionLoadAddress);
+
+  ThePDBFile = &TheNativeSession->getPDBFile();
+
+  if (ExpectedGUID) {
+    if (auto PDBInfoStrm = ThePDBFile->getPDBInfoStream()) {
+      codeview::GUID GUIDFromPDBFile = PDBInfoStrm->getGuid();
+      if (ExpectedGUID != GUIDFromPDBFile) {
+        revng_log(DILogger, "Signatures from exe and PDB file mismatch");
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 static bool fileExists(const Twine &Path) {
@@ -299,34 +316,14 @@ static bool fileExists(const Twine &Path) {
   return Result;
 }
 
-std::optional<std::string> PDBImporter::getPDBFilePath(std::string PDBFileID,
-                                                       StringRef PDBFilePath) {
+std::optional<std::string>
+PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
+                                  StringRef PDBBaseName) {
   llvm::SmallString<128> ResultPath;
-
-  // Try in the current directory
-  if (auto ErrorCode = llvm::sys::fs::current_path(ResultPath)) {
-    revng_log(DILogger, "Can't get current working path.");
-  } else {
-    llvm::sys::path::append(ResultPath, PDBFilePath);
-    if (fileExists(ResultPath.str()))
-      return std::string(ResultPath.str());
-  }
-
-  // Try main input path
-  ResultPath.clear();
-  if (not InputPath.empty()) {
-    llvm::sys::path::append(ResultPath,
-                            llvm::sys::path::parent_path(InputPath),
-                            PDBFilePath);
-    if (fileExists(ResultPath.str()))
-      return std::string(ResultPath.str());
-  }
-
-  // Try in ~/.cache
   ResultPath.clear();
   setXDG(ResultPath, "XDG_CACHE_HOME", ".cache");
   llvm::sys::path::append(ResultPath, "revng", "debug-symbols", "pe");
-  llvm::sys::path::append(ResultPath, PDBFileID, PDBFilePath);
+  llvm::sys::path::append(ResultPath, PDBFileID, PDBBaseName);
   if (fileExists(ResultPath.str()))
     return std::string(ResultPath.str());
 
@@ -373,101 +370,125 @@ static std::string formatPDBFileID(ArrayRef<uint8_t> Bytes, uint16_t Age) {
 
 void PDBImporter::import(const COFFObjectFile &TheBinary,
                          const ImporterOptions &Options) {
-  // Parse debug info and populate types to Model.
-  const codeview::DebugInfo *DebugInfo;
-  StringRef PDBFilePath;
-
   if (Options.DebugInfo == DebugInfoLevel::No)
     return;
 
-  auto EC = TheBinary.getDebugPDBInfo(DebugInfo, PDBFilePath);
-  if (EC) {
-    revng_log(DILogger, "getDebugPDBInfo failed: " << EC);
-    consumeError(std::move(EC));
-  }
-
-  if (not UsePDB.empty()) {
-    // Sometimes we may rename a PDB file, so we can force using that one.
-    loadDataFromPDB(UsePDB);
-  } else if (DebugInfo != nullptr and not PDBFilePath.empty()
-             and fileExists(PDBFilePath)) {
-    // Use the path of the PDB file if it exists on the device.
-    loadDataFromPDB(PDBFilePath.str());
-  } else {
-    // Usually the PDB files will be generated on a different machine,
-    // so the location read from the debug directory won't be up to date.
-
-    auto PositionOfLastDirectoryChar = PDBFilePath.rfind("\\");
-    if (PositionOfLastDirectoryChar != llvm::StringRef::npos) {
-      PDBFilePath = PDBFilePath.slice(PositionOfLastDirectoryChar + 1,
-                                      PDBFilePath.size());
-    }
-
-    // TODO: Handle PDB signature types other then PDB70, e.g. PDB20.
-    if (DebugInfo->Signature.CVSignature != OMF::Signature::PDB70) {
-      revng_log(DILogger, "A non-PDB70 signature was find, ignore.");
-      return;
-    }
-
-    // Get debug info from canonical places.
-    auto PDBFileID = formatPDBFileID(DebugInfo->PDB70.Signature,
-                                     DebugInfo->PDB70.Age);
-
-    auto DebugInfoPath = getPDBFilePath(PDBFileID, PDBFilePath);
-    if (DebugInfoPath) {
-      loadDataFromPDB(*DebugInfoPath);
-    } else {
-      // Let's try finding it on web with the `fetch-debuginfo` tool.
-      // If the `revng` cannot be found, avoid finding debug info.
-      if (!::Runner.isProgramAvailable("revng")) {
-        revng_log(DILogger,
-                  "Can't find `revng` binary to run `fetch-debuginfo`.");
-        return;
-      }
-      int ExitCode = runFetchDebugInfoWithLevel(TheBinary.getFileName());
-      if (ExitCode != 0) {
-        revng_log(DILogger,
-                  "Failed to find debug info with `revng model "
-                  "fetch-debuginfo`.");
-        return;
-      }
-
-      DebugInfoPath = getPDBFilePath(PDBFileID, PDBFilePath);
-      if (!DebugInfoPath) {
-        revng_log(DILogger, "Unable to find PDB file.");
-        return;
-      }
-      loadDataFromPDB(*DebugInfoPath);
-    }
-  }
-
-  if (not ThePDBFile) {
-    revng_log(DILogger, "Unable to find PDB file.");
+  auto MaybePDBPath = getPDBFilePath(TheBinary);
+  if (not MaybePDBPath)
     return;
-  } else {
-    // TODO: Handle PDB signature types other then PDB70, e.g. PDB20.
-    if (DebugInfo->Signature.CVSignature == OMF::Signature::PDB70) {
-      // According to llvm/docs/PDB/PdbStream.rst, the `Signature` was never
-      // used the way as it was the initial idea. Instead, GUID is a 128-bit
-      // identifier guaranteed to be unique ID for both executable and
-      // corresponding PDB.
-      codeview::GUID GUIDFromExe;
-      llvm::copy(DebugInfo->PDB70.Signature, std::begin(GUIDFromExe.Guid));
-      auto PDBInfoStrm = ThePDBFile->getPDBInfoStream();
-      if (!PDBInfoStrm)
-        revng_log(DILogger, "No PDB Info stream found.");
-      else {
-        codeview::GUID GUIDFromPDBFIle = PDBInfoStrm->getGuid();
-        if (GUIDFromExe != GUIDFromPDBFIle)
-          revng_log(DILogger, "Signatures from exe and PDB file mismatch.");
-      }
-    } else {
-      revng_log(DILogger, "Handle signatures other than PDB70.");
-    }
-  }
+
+  if (not loadDataFromPDB(*MaybePDBPath))
+    return;
 
   PDBImporterImpl ModelCreator(*this);
   ModelCreator.run(*TheNativeSession);
+}
+
+static StringRef getBaseName(StringRef Path) {
+  auto PositionOfLastDirectoryChar = Path.rfind("\\");
+  if (PositionOfLastDirectoryChar != llvm::StringRef::npos) {
+    return Path.slice(PositionOfLastDirectoryChar + 1, Path.size());
+  }
+  return Path;
+}
+
+std::optional<std::string>
+PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
+  // Consider the --use-pdb argument
+  if (not UsePDB.empty()) {
+    if (not fileExists(UsePDB)) {
+      revng_log(DILogger, "Argument --use-pdb does not exist, ignoring.");
+    } else {
+      return UsePDB;
+    }
+  }
+
+  // Parse debug info in TheBinary
+  const codeview::DebugInfo *DebugInfo = nullptr;
+  std::string InternalPDBPath;
+  {
+    StringRef InternalPDBStringReference;
+    auto EC = TheBinary.getDebugPDBInfo(DebugInfo, InternalPDBStringReference);
+    if (EC) {
+      revng_log(DILogger, "getDebugPDBInfo failed: " << EC);
+      consumeError(std::move(EC));
+      return std::nullopt;
+    } else if (DebugInfo == nullptr) {
+      revng_log(DILogger, "Couldn't get codeview::DebugInfo");
+      return std::nullopt;
+    } else {
+      InternalPDBPath = InternalPDBStringReference.str();
+    }
+  }
+
+  // TODO: Handle PDB signature types other then PDB70, e.g. PDB20.
+  if (DebugInfo->Signature.CVSignature != OMF::Signature::PDB70) {
+    revng_log(DILogger, "A non-PDB70 signature was find, ignore.");
+    return std::nullopt;
+  }
+
+  // According to llvm/docs/PDB/PdbStream.rst, the `Signature` was never
+  // used the way as it was the initial idea. Instead, GUID is a 128-bit
+  // identifier guaranteed to be unique ID for both executable and
+  // corresponding PDB. Save the GUID for later to check the match.
+  ExpectedGUID = llvm::codeview::GUID();
+  llvm::copy(DebugInfo->PDB70.Signature, std::begin(ExpectedGUID->Guid));
+
+  if (InternalPDBPath.empty()) {
+    revng_log(DILogger, "The internal PDB path is empty");
+    return std::nullopt;
+  }
+
+  // If the internal PDB path exists, use that
+  if (fileExists(InternalPDBPath)) {
+    return InternalPDBPath;
+  }
+
+  // The path specified in the binary does not exist: extract the file name and
+  // look for it in other (canonical) places
+
+  StringRef PDBBaseName = getBaseName(InternalPDBPath);
+
+  // Try in the current directory
+  llvm::SmallString<128> ResultPath;
+  if (auto ErrorCode = llvm::sys::fs::current_path(ResultPath)) {
+    revng_log(DILogger, "Can't get current working path.");
+  } else {
+    llvm::sys::path::append(ResultPath, PDBBaseName);
+    if (fileExists(ResultPath.str()))
+      return ResultPath.str().str();
+  }
+
+  // Try main input path
+  ResultPath.clear();
+  if (not InputPath.empty()) {
+    llvm::sys::path::append(ResultPath,
+                            llvm::sys::path::parent_path(InputPath),
+                            PDBBaseName);
+    if (fileExists(ResultPath.str()))
+      return ResultPath.str().str();
+  }
+
+  // Compute the PDB file ID
+  auto PDBFileID = formatPDBFileID(DebugInfo->PDB70.Signature,
+                                   DebugInfo->PDB70.Age);
+
+  // Check if we already fetched it from PDB servers in the past
+  if (auto MaybeCachedPDBPath = getCachedPDBFilePath(PDBFileID, PDBBaseName))
+    return MaybeCachedPDBPath;
+
+  // Let's try finding it on web with the `fetch-debuginfo` tool.
+  // If the `revng` cannot be found, avoid finding debug info.
+  int ExitCode = runFetchDebugInfo(TheBinary.getFileName());
+  if (ExitCode != 0) {
+    revng_log(DILogger,
+              "Failed to find debug info with `revng model "
+              "fetch-debuginfo`.");
+    return std::nullopt;
+  }
+
+  // Try again to find the file
+  return getCachedPDBFilePath(PDBFileID, PDBBaseName);
 }
 
 // ==== Implementation of the Model type recordings. ==== //
