@@ -135,7 +135,7 @@ int main(int Argc, char *Argv[]) {
     std::optional<model::TypeDefinition::Key> Left = std::nullopt;
     std::optional<model::TypeDefinition::Key> Right = std::nullopt;
     bool operator<(const KeyPair &Another) const {
-      return Left < Another.Left && Right < Another.Right;
+      return std::tie(Left, Right) < std::tie(Another.Left, Another.Right);
     }
   };
   struct TransparentComparator {

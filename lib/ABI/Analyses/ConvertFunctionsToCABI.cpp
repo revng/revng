@@ -6,12 +6,16 @@
 
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
+#include "revng/ADT/UpcastablePointer.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
+#include "revng/Model/RawFunctionDefinition.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Analysis.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/TupleTree/TupleTree.h"
 
 // TODO: Stop using VerifyHelper for this verification.
@@ -235,10 +239,19 @@ public:
     // verification routine or things are going to break down.
     model::VerifyHelper VectorVH;
 
-    // Choose the applicable functions and run the conversion for them.
+    // Choose functions for the conversion, but leave DefaultPrototype alone
+    // (in order to avoid invalidation),
     using abi::FunctionType::filterTypes;
     using RawFD = model::RawFunctionDefinition;
-    auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions());
+    // TODO: Switch to std::optional after C++26 support arrives.
+    llvm::SmallVector<model::TypeDefinition *, 1> TypesToIgnore = {};
+    if (auto &DefaultPrototype = Model->DefaultPrototype())
+      if (auto *Definition = DefaultPrototype->tryGetAsDefinition())
+        TypesToIgnore.push_back(Definition);
+    auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
+                                        TypesToIgnore);
+
+    // And convert them.
     for (model::RawFunctionDefinition *Old : ToConvert) {
       auto &DT = llvm::cast<model::DefinedType>(*Model->makeType(Old->key()));
       if (!checkVectorRegisterSupport(VectorVH, *Old)) {

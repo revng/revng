@@ -70,14 +70,17 @@ inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
 /// \tparam DerivedType The desired type to filter based on
 /// \param Types The list of types to filter
 /// \return filtered list
-template<derived_from<model::TypeDefinition> DerivedType>
+template<derived_from<model::TypeDefinition> DerivedType,
+         range_with_value_type<model::UpcastableTypeDefinition> OwningRange,
+         range_with_value_type<model::TypeDefinition *> ViewRange =
+           std::vector<model::TypeDefinition *>>
 std::vector<DerivedType *>
-filterTypes(TrackingSortedVector<model::UpcastableTypeDefinition>
-              &Definitions) {
+filterTypes(OwningRange &FilterFrom, const ViewRange &Ignored = {}) {
   std::vector<DerivedType *> Result;
-  for (model::UpcastableTypeDefinition &Type : Definitions)
-    if (auto *Upscaled = llvm::dyn_cast<DerivedType>(Type.get()))
-      Result.emplace_back(Upscaled);
+  for (model::UpcastableTypeDefinition &Type : FilterFrom)
+    if (Type && !llvm::is_contained(Ignored, &*Type))
+      if (auto *Cast = llvm::dyn_cast<DerivedType>(Type.get()))
+        Result.emplace_back(Cast);
   return Result;
 }
 
