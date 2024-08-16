@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 Architecture: x86_64
 TypeDefinitions:
@@ -15,51 +15,6 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned
           Size: 8
-
-    # CHECK: #my_function1$def = #clift.function<
-    # CHECK:   id = 1000
-    # CHECK:   name = "my_function1"
-    # CHECK:   return_type = !void
-    # CHECK:   argument_types = []
-    # CHECK: >
-    # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
-  - ID: 1000
-    Kind: RawFunctionDefinition
-    CustomName: "my_function1"
-    Architecture: x86_64
-    Arguments: []
-    ReturnValues: []
-    PreservedRegisters: []
-    FinalStackOffset: 0
-
-    # CHECK: #my_function2$def = #clift.function<
-    # CHECK:   id = 1001
-    # CHECK:   name = "my_function2"
-    # CHECK:   return_type = !uint64_t
-    # CHECK:   argument_types = [
-    # CHECK:     !uint64_t
-    # CHECK:   ]
-    # CHECK: >
-    # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
-  - ID: 1001
-    Kind: RawFunctionDefinition
-    CustomName: "my_function2"
-    Architecture: x86_64
-    Arguments:
-      - Location: rax_x86_64
-        Type:
-          Kind: PrimitiveType
-          PrimitiveKind: Unsigned
-          Size: 8
-    ReturnValues:
-      - Location: rcx_x86_64
-        Type:
-          Kind: PrimitiveType
-          PrimitiveKind: Unsigned
-          Size: 8
-    PreservedRegisters:
-      - rdi_x86_64
-    FinalStackOffset: 0
 
     # CHECK: #my_function3$def = #clift.function<
     # CHECK:   id = 1002
@@ -76,15 +31,9 @@ TypeDefinitions:
     # CHECK:     ]
     # CHECK:   >
     # CHECK:   argument_types = [
-    # CHECK:     <
-    # CHECK:       type = !uint64_t
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       type = !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       type = !clift.pointer<pointee_type = !my_struct, pointer_size = 8>
-    # CHECK:     >
+    # CHECK:     !uint64_t
+    # CHECK:     !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
+    # CHECK:     !clift.pointer<pointee_type = !my_struct, pointer_size = 8>
     # CHECK:   ]
     # CHECK: >
     # CHECK: !my_function3_ = !clift.defined<#my_function3$def>

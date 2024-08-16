@@ -1,0 +1,19 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+
+Architecture: x86_64
+TypeDefinitions:
+  # CHECK: #my_function1$def = #clift.function<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_function1"
+  # CHECK:   return_type = !void
+  # CHECK:   argument_types = []
+  # CHECK: >
+  # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
+  - ID: 1001
+    Kind: CABIFunctionDefinition
+    CustomName: "my_function1"
+    ABI: SystemV_x86_64
+    Arguments: []

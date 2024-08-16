@@ -13,7 +13,7 @@
 #dc1 = #clift.union<id = 4, name = "dc", fields = [<offset = 10, name = "dc1", type = !clift.primitive<is_const = true, SignedKind 4>>, <offset = 20, name = "dc2", type = !clift.primitive<SignedKind 4>>]>
 !const_dc = !clift.defined<is_const = true, #dc>
 !const_dc1 = !clift.defined<is_const = true, #dc1>
-#dc2_2 = #clift.function<id = 40, name = "dc2", return_type = !const_dc, argument_types = [#clift.farg<type = !const_int32_t, name = "dc">]>
+#dc2_2 = #clift.function<id = 40, name = "dc2", return_type = !const_dc, argument_types = [!const_int32_t]>
 !dc2_3 = !clift.defined<#dc2_2>
 module {
   %0 = clift.undef !const_int32_t

@@ -1,0 +1,36 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+
+Architecture: x86_64
+TypeDefinitions:
+  # CHECK: #my_function2$def = #clift.function<
+  # CHECK:   id = 1002
+  # CHECK:   name = "my_function2"
+  # CHECK:   return_type = !uint8_t
+  # CHECK:   argument_types = [
+  # CHECK:     !uint16_t
+  # CHECK:     !uint32_t
+  # CHECK:   ]
+  # CHECK: >
+  # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
+  - ID: 1002
+    Kind: CABIFunctionDefinition
+    CustomName: "my_function2"
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 1
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
+      - Index: 1
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4
