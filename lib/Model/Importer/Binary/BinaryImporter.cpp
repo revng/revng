@@ -35,14 +35,25 @@ Error importBinary(TupleTree<model::Binary> &Model,
   if (Model->Architecture() == model::Architecture::Invalid)
     return createError("Invalid architecture");
 
+  llvm::Error Result = Error::success();
+  revng_check(not Result);
   if (auto *TheBinary = dyn_cast<ELFObjectFileBase>(&ObjectFile))
-    return importELF(Model, *TheBinary, Options);
+    Result = importELF(Model, *TheBinary, Options);
   else if (auto *TheBinary = dyn_cast<COFFObjectFile>(&ObjectFile))
-    return importPECOFF(Model, *TheBinary, Options);
+    Result = importPECOFF(Model, *TheBinary, Options);
   else if (auto *TheBinary = dyn_cast<MachOObjectFile>(&ObjectFile))
-    return importMachO(Model, *TheBinary, Options);
+    Result = importMachO(Model, *TheBinary, Options);
   else
     return createError("Unsupported binary format");
+
+  if (not Result.success())
+    return Result;
+
+  // If we got an EntryPoint, ensure we also have Function for it
+  if (Model->EntryPoint().isValid())
+    Model->Functions()[Model->EntryPoint()];
+
+  return Result;
 }
 
 Error importBinary(TupleTree<model::Binary> &Model,
