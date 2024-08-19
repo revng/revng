@@ -50,6 +50,13 @@ static FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
   return mlir::cast<FunctionTypeAttr>(T.getElementType());
 }
 
+//===-------------------------- Type constraints --------------------------===//
+
+bool clift::impl::verifyFunctionType(ValueType Type) {
+  auto T = mlir::dyn_cast<DefinedType>(dealias(Type));
+  return T and mlir::isa<FunctionTypeAttr>(T.getElementType());
+}
+
 //===---------------------------- Region types ----------------------------===//
 
 template<typename OpInterface>
@@ -391,6 +398,46 @@ mlir::LogicalResult clift::ModuleOp::verify() {
     return mlir::failure();
 
   return mlir::success();
+}
+
+//===----------------------------- FunctionOp -----------------------------===//
+
+ArrayRef<Type> FunctionOp::getArgumentTypes() {
+  return ::getFunctionTypeAttr(getFunctionType()).getArgumentTypes();
+}
+
+ArrayRef<Type> FunctionOp::getResultTypes() {
+  return ::getFunctionTypeAttr(getFunctionType()).getResultTypes();
+}
+
+mlir::ArrayAttr FunctionOp::getArgAttrsAttr() {
+  return {};
+}
+
+mlir::ArrayAttr FunctionOp::getResAttrsAttr() {
+  return {};
+}
+
+void FunctionOp::setArgAttrsAttr(mlir::ArrayAttr Attrs) {
+  if (Attrs)
+    revng_abort("Operation not supported");
+}
+
+void FunctionOp::setResAttrsAttr(mlir::ArrayAttr Attrs) {
+  if (Attrs)
+    revng_abort("Operation not supported");
+}
+
+mlir::Attribute FunctionOp::removeArgAttrsAttr() {
+  return {};
+}
+
+mlir::Attribute FunctionOp::removeResAttrsAttr() {
+  return {};
+}
+
+Type FunctionOp::cloneTypeWith(TypeRange inputs, TypeRange results) {
+  revng_abort("Operation not supported");
 }
 
 //===-------------------------- GlobalVariableOp --------------------------===//

@@ -25,6 +25,10 @@ def Clift_AnyValueType : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">
                               "Clift value type",
                               "mlir::clift::ValueType">;
 
+def Clift_FunctionType : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
+                              "Clift function type",
+                              "mlir::clift::ValueType">;
+
 //===---------------------------- Region types ----------------------------===//
 
 def Clift_StatementRegion : Region<CPred<"::mlir::clift::impl::verifyStatementRegion($_self)">,
@@ -65,9 +69,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                                  IsolatedFromAbove,
                                  NoTerminator]> {
   let arguments = (ins StrAttr:$sym_name,
-                       TypeAttrOf<FunctionType>:$function_type,
-                       OptionalAttr<DictArrayAttr>:$arg_attrs,
-                       OptionalAttr<DictArrayAttr>:$res_attrs);
+                       TypeAttrOf<Clift_FunctionType>:$function_type);
 
   let description = [{
     expression.
@@ -80,35 +82,8 @@ def Clift_FunctionOp : Clift_Op<"func",
   }];
 
   code extraClassDeclaration = [{
-    Region *getCallableRegion() {
-        return isExternal() ? nullptr : &getBody();
-    }
-
     mlir::Region::BlockListType& getBlocks() {
         return getBody().getBlocks();
-    }
-
-    /// Returns the result types of this function.
-    /// Part of CallableOpInterface.
-    ArrayRef<Type> getCallableResults() {
-        return getFunctionType().getResults();
-    }
-
-    /// Returns the argument types of this function.
-    /// Part of FunctionOpInterface.
-    ArrayRef<Type> getArgumentTypes() {
-        return getFunctionType().getInputs();
-    }
-
-    /// Returns the result types of this function.
-    /// Part of FunctionOpInterface.
-    ArrayRef<Type> getResultTypes() {
-        return getFunctionType().getResults();
-    }
-
-    /// Part of FunctionOpInterface.
-    bool isExternal() {
-        return getBody().empty();
     }
 
     Block::args_iterator args_begin() {
@@ -118,6 +93,35 @@ def Clift_FunctionOp : Clift_Op<"func",
     Block::args_iterator args_end() {
         return getBody().front().args_end();
     }
+
+
+    // Implementation of CallableOpInterface
+
+    Region *getCallableRegion() {
+        return isExternal() ? nullptr : &getBody();
+    }
+
+    /// Returns the result types of this function.
+    ArrayRef<Type> getCallableResults() {
+      return getResultTypes();
+    }
+
+
+    // Implementation of FunctionOpInterface
+
+    ArrayRef<Type> getArgumentTypes();
+    ArrayRef<Type> getResultTypes();
+
+    mlir::ArrayAttr getArgAttrsAttr();
+    mlir::ArrayAttr getResAttrsAttr();
+
+    void setArgAttrsAttr(mlir::ArrayAttr attrs);
+    void setResAttrsAttr(mlir::ArrayAttr attrs);
+
+    mlir::Attribute removeArgAttrsAttr();
+    mlir::Attribute removeResAttrsAttr();
+
+    Type cloneTypeWith(TypeRange inputs, TypeRange results);
   }];
 }
 

@@ -216,33 +216,44 @@ bool TypedefTypeAttr::getAlias(llvm::raw_ostream &OS) const {
   return true;
 }
 
-//===------------------------ FunctionArgumentAttr ------------------------===//
+//===-------------------------- FunctionTypeAttr --------------------------===//
 
-mlir::LogicalResult FunctionArgumentAttr::verify(EmitErrorType EmitError,
-                                                 clift::ValueType Underlying,
-                                                 llvm::StringRef Name) {
-  if (not isObjectType(Underlying))
-    return EmitError() << "Function parameter type must be an object type";
-  if (isArrayType(Underlying))
-    return EmitError() << "Function parameter type may not be an array type";
+mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
+                                             uint64_t ID,
+                                             llvm::StringRef Name,
+                                             mlir::Type ReturnType,
+                                             llvm::ArrayRef<mlir::Type> Args) {
+  auto R = mlir::dyn_cast<clift::ValueType>(ReturnType);
+  if (not R)
+    return EmitError() << "Function return type must be a ValueType";
+
+  for (mlir::Type ArgumentType : Args) {
+    auto T = mlir::dyn_cast<clift::ValueType>(ArgumentType);
+    if (not T)
+      return EmitError() << "Function argument types must be ValueTypes";
+
+    if (not isObjectType(T))
+      return EmitError() << "Function parameter type must be an object type";
+    if (isArrayType(T))
+      return EmitError() << "Function parameter type may not be an array type";
+  }
+
+  if (not verifyFunctionReturnType(R))
+    return EmitError() << "Function return type must be void or a non-array "
+                          "object type.";
 
   return mlir::success();
 }
-
-//===-------------------------- FunctionTypeAttr --------------------------===//
 
 mlir::LogicalResult
 FunctionTypeAttr::verify(EmitErrorType EmitError,
                          uint64_t ID,
                          llvm::StringRef Name,
                          clift::ValueType ReturnType,
-                         llvm::ArrayRef<FunctionArgumentAttr> Args) {
-  if (not isVoid(ReturnType) and not isObjectType(ReturnType)
-      and not mlir::isa<ScalarTupleType>(ReturnType))
-    return EmitError() << "Function return type must be void or an object type "
-                          "or a scalar tuple type.";
-  if (isArrayType(ReturnType))
-    return EmitError() << "Function return type may not be an array type.";
+                         llvm::ArrayRef<clift::ValueType> Args) {
+  if (not verifyFunctionReturnType(ReturnType))
+    return EmitError() << "Function return type must be void or a non-array "
+                          "object type.";
 
   return mlir::success();
 }
@@ -256,6 +267,13 @@ bool FunctionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
     return false;
   OS << getName() << "$def";
   return true;
+}
+
+llvm::ArrayRef<mlir::Type> FunctionTypeAttr::getResultTypes() {
+  if (isVoid(dealias(getImpl()->return_type)))
+    return {};
+
+  return ArrayRef<Type>(getImpl()->return_type);
 }
 
 //===----------------------- ScalarTupleElementAttr -----------------------===//
