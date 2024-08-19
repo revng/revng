@@ -228,10 +228,7 @@ def Clift_SwitchOp : Clift_Op<"switch",
                         Clift_StatementRegion:$default,
                         VariadicRegion<Clift_StatementRegion>:$cases);
 
-  let assemblyFormat = [{
-    $condition $cases (`default` $default^)? attr-dict
-  }];
-
+  let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 
   let builders = [

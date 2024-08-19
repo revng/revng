@@ -307,6 +307,70 @@ void SwitchOp::build(OpBuilder &OdsBuilder,
   build(OdsBuilder, OdsState, SignedCaseValues, CaseValues.size());
 }
 
+mlir::ParseResult SwitchOp::parse(OpAsmParser &Parser, OperationState &Result) {
+  // Condition region:
+  Result.addRegion(std::make_unique<Region>());
+
+  // Default case region:
+  Result.addRegion(std::make_unique<Region>());
+
+  if (Parser.parseRegion(*Result.regions[0]).failed())
+    return Parser.emitError(Parser.getCurrentLocation(),
+                            "Expected switch condition region");
+
+  llvm::SmallVector<int64_t, 16> CaseValues;
+  while (Parser.parseOptionalKeyword("case").succeeded()) {
+    uint64_t CaseValue;
+    if (Parser.parseInteger(CaseValue).failed())
+      return Parser.emitError(Parser.getCurrentLocation(),
+                              "Expected switch case value");
+
+    auto R = std::make_unique<Region>();
+    if (Parser.parseRegion(*R).failed())
+      return Parser.emitError(Parser.getCurrentLocation(),
+                              "Expected switch case region");
+
+    CaseValues.push_back(static_cast<uint64_t>(CaseValue));
+    Result.addRegion(std::move(R));
+  }
+
+  if (Parser.parseOptionalKeyword("default").succeeded()) {
+    if (Parser.parseRegion(*Result.regions[1]).failed())
+      return Parser.emitError(Parser.getCurrentLocation(),
+                              "Expected switch default region");
+  }
+
+  Result.attributes.set("case_values",
+                        DenseI64ArrayAttr::get(Parser.getContext(),
+                                               CaseValues));
+
+  if (Parser.parseOptionalAttrDict(Result.attributes).failed())
+    return mlir::failure();
+
+  return mlir::success();
+}
+
+void SwitchOp::print(OpAsmPrinter &Printer) {
+  Printer << ' ';
+  Printer.printRegion(getConditionRegion());
+
+  for (unsigned I = 0, C = getNumCases(); I < C; ++I) {
+    Printer << " case " << getCaseValue(I) << ' ';
+    Printer.printRegion(getCaseRegion(I));
+  }
+
+  if (hasDefaultCase()) {
+    Printer << " default ";
+    Printer.printRegion(getDefaultCaseRegion());
+  }
+
+  static constexpr llvm::StringRef Elided[] = {
+    "case_values",
+  };
+
+  Printer.printOptionalAttrDict(getOperation()->getAttrs(), Elided);
+}
+
 mlir::LogicalResult SwitchOp::verify() {
   // One region for the condition, one for the default case and N for others.
   if (getNumRegions() != 2 + getCaseValues().size())
