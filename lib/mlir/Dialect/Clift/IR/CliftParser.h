@@ -154,6 +154,7 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
                          + ": failed to parse class type parameter 'fields' "
                            "which is to be a "
                            "`llvm::ArrayRef<mlir::clift::FieldAttr>`");
+      return {};
     }
 
     if (Subobjects->size() < MinSubobjects) {
