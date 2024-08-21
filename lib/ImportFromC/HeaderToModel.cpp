@@ -314,6 +314,13 @@ DeclVisitor::makePrimitive(const BuiltinType *UnderlyingBuiltin,
   return model::UpcastableType::empty();
 }
 
+static bool onlyContainsNumbers(llvm::StringRef Name) {
+  for (char Character : Name)
+    if (not std::isdigit(Character))
+      return false;
+  return true;
+}
+
 template<NonBaseDerived<model::TypeDefinition> T>
 model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
   // Try to find by name first.
@@ -324,10 +331,10 @@ model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
 
   // Getting here means we didn't manage to find it,
   // let's try parsing the name.
-  size_t LocationOfID = Name.rfind("_");
+  size_t Tail = Name.rfind("_");
 
-  if (LocationOfID != std::string::npos) {
-    std::string ID = std::string(Name.substr(LocationOfID + 1));
+  if (Tail != std::string::npos && onlyContainsNumbers(Name.substr(Tail + 1))) {
+    std::string ID = std::string(Name.substr(Tail + 1));
     llvm::Expected<uint64_t> DeserializedID = deserialize<uint64_t>(ID);
     if (DeserializedID) {
       return Model->makeType(model::TypeDefinition::Key{ *DeserializedID,
