@@ -12,9 +12,9 @@
   return_type = !void,
   argument_types = []>>
 
-// CHECK: return type must be void or a non-array object type
-!g = !clift.defined<#clift.function<
-  id = 1001,
-  name = "g",
-  return_type = !f,
-  argument_types = []>>
+// CHECK: must be nested within a loop operation
+clift.module {
+  clift.func "f" !f {
+    clift.loop_continue
+  }
+}

@@ -12,9 +12,8 @@
   return_type = !void,
   argument_types = []>>
 
-// CHECK: return type must be void or a non-array object type
-!g = !clift.defined<#clift.function<
-  id = 1001,
-  name = "g",
-  return_type = !f,
-  argument_types = []>>
+// CHECK: requires void or non-array object type
+clift.return {
+  %0 = clift.undef !f
+  clift.yield %0 : !f
+}

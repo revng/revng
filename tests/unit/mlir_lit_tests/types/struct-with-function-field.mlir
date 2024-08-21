@@ -12,9 +12,16 @@
   return_type = !void,
   argument_types = []>>
 
-// CHECK: return type must be void or a non-array object type
-!g = !clift.defined<#clift.function<
-  id = 1001,
-  name = "g",
-  return_type = !f,
-  argument_types = []>>
+// CHECK: field types must be object types
+!s = !clift.defined<#clift.struct<
+  id = 1,
+  name = "",
+  size = 1,
+  fields = [
+    <
+      offset = 0,
+      name = "",
+      type = !f
+    >
+  ]
+>>
