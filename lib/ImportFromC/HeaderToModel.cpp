@@ -593,13 +593,13 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
                                                     StackAnnotation,
                                                     Errors);
         if (Stack.has_value()) {
-          // TODO: Handle stack location.
-          revng_log(Log,
-                    "We don't support stack return values in RFTs for now");
+          Errors.emplace_back("import-from-c: Cannot attach _STACK to return "
+                              "values in a RawFunctionDefinition.\n");
           return false;
+
         } else {
-          Errors.emplace_back("import-from-c: Arguments must have either a "
-                              "register or a stack annotation.\n");
+          Errors.emplace_back("import-from-c: Return values must have a "
+                              "register annotation.\n");
           return false;
         }
       }
