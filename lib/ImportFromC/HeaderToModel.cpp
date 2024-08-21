@@ -625,40 +625,6 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     auto ArgumentsInserter = TheRawFunctionType.Arguments().batch_insert();
     for (unsigned I = 0, N = FD->getNumParams(); I != N; ++I) {
       auto ParamDecl = FD->getParamDecl(I);
-      std::optional Register = parseStringAnnotation(*ParamDecl,
-                                                     RegAnnotation,
-                                                     Errors);
-      if (not Register.has_value()) {
-        std::optional Stack = parseStringAnnotation(*ParamDecl,
-                                                    StackAnnotation,
-                                                    Errors);
-        if (I != N - 1) {
-          Errors.emplace_back("import-from-c: Only the very last RFT argument "
-                              "is allowed to represent stack.\n");
-          return false;
-        }
-
-        if (Stack.has_value()) {
-          // TODO: Handle stack location.
-          //
-          // TODO: Don't forget to assert that it is always a pointer.
-          Errors.emplace_back("import-from-c: We don't support stack "
-                              "parameters in RFTs for now.\n");
-          return false;
-        } else {
-          Errors.emplace_back("import-from-c: Arguments must have either a "
-                              "register or a stack annotation.\n");
-          return false;
-        }
-      }
-
-      auto Location = model::Register::fromCSVName(*Register,
-                                                   Model->Architecture());
-      if (Location == model::Register::Invalid) {
-        Errors.emplace_back("import-from-c: Unsupported register location.\n");
-        return false;
-      }
-
       auto QT = ParamDecl->getType();
       model::UpcastableType ParamType = getModelTypeForClangType(QT);
       if (not ParamType) {
@@ -667,8 +633,59 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         return false;
       }
 
-      NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(Location);
-      ParamReg.Type() = std::move(ParamType);
+      std::optional Register = parseStringAnnotation(*ParamDecl,
+                                                     RegAnnotation,
+                                                     Errors);
+      std::optional Stack = parseStringAnnotation(*ParamDecl,
+                                                  StackAnnotation,
+                                                  Errors);
+      if (not Register.has_value()) {
+        if (not Stack.has_value()) {
+          Errors.emplace_back("import-from-c: Arguments must have either a "
+                              "register or a stack annotation.\n");
+          return false;
+        } else {
+          if (I != N - 1) {
+            Errors.emplace_back("import-from-c: Only the very last RFT "
+                                "argument is allowed to represent stack, which "
+                                "also means there can only be one.\n");
+            return false;
+          }
+
+          if (not ParamType->isStruct()) {
+            Errors.emplace_back("import-from-c: RFT stack argument must be a "
+                                "struct.\n");
+            return false;
+          }
+
+          revng_assert(TheRawFunctionType.StackArgumentsType().isEmpty());
+
+          TheRawFunctionType.StackArgumentsType() = std::move(ParamType);
+          if (ParamDecl->getName() != "stack") {
+            Errors.emplace_back("import-from-c: WARNING: stack argument name ('"
+                                + ParamDecl->getName().str()
+                                + "') was ignored.\n");
+          }
+        }
+      } else {
+        if (Stack.has_value()) {
+          Errors.emplace_back("import-from-c: WARNING: _STACK annotation "
+                              "ignored because _REG takes precedence.\n");
+        }
+
+        auto Location = model::Register::fromCSVName(*Register,
+                                                     Model->Architecture());
+        if (Location == model::Register::Invalid) {
+          Errors.emplace_back("import-from-c: Unsupported register "
+                              "location.\n");
+          return false;
+        }
+
+        NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(Location);
+        ParamReg.Type() = std::move(ParamType);
+        if (not ParamDecl->getName().empty())
+          ParamReg.CustomName() = ParamDecl->getName();
+      }
     }
   }
 
