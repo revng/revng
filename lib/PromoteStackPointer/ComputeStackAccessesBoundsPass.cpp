@@ -26,6 +26,8 @@
 
 using namespace llvm;
 
+static Logger<> Log("compute-stack-accesses-bounds");
+
 template<typename T, std::ranges::range R>
 bool areAll(const R &Range) {
   return llvm::all_of(Range, [](auto *Object) { return isa<T>(Object); });
@@ -35,6 +37,9 @@ static ConstantRange
 getSCEVBoundaries(ScalarEvolution &SE, PostDominatorTree &PDT, Instruction *I) {
   const auto *SCEV = SE.getSCEV(I);
   auto FullSet = ConstantRange::getFull(SCEV->getType()->getIntegerBitWidth());
+
+  revng_log(Log, "getSCEVBoundaries on " << dumpToString(*SCEV));
+  LoggerIndent<> Indent(Log);
 
   auto *AddRec = dyn_cast<SCEVAddRecExpr>(SCEV);
   if (AddRec == nullptr)
@@ -63,6 +68,7 @@ getSCEVBoundaries(ScalarEvolution &SE, PostDominatorTree &PDT, Instruction *I) {
     return FullSet;
   }
   bool Increasing = cast<SCEVConstant>(Stride)->getAPInt().isStrictlyPositive();
+  revng_log(Log, "Increasing: " << Increasing);
 
   if (Increasing) {
     // Compute end value
@@ -77,6 +83,8 @@ getSCEVBoundaries(ScalarEvolution &SE, PostDominatorTree &PDT, Instruction *I) {
     Start = SE.getAddExpr(Start, SE.getMulExpr(Stride, BackedgeTakenCount));
   }
 
+  revng_log(Log,
+            "Start:" << dumpToString(*Start) << " End: " << dumpToString(*End));
 
   // Ensure bounds could be computed and are constant
   if (not areAll<SCEVConstant>(std::vector{ Start, End }))
@@ -85,14 +93,20 @@ getSCEVBoundaries(ScalarEvolution &SE, PostDominatorTree &PDT, Instruction *I) {
   APInt StartValue = cast<SCEVConstant>(Start)->getAPInt();
   APInt EndValue = cast<SCEVConstant>(End)->getAPInt();
 
-  // TODO: handle backward loops
+  ConstantRange Result(StartValue, EndValue);
+
   if (EndValue.slt(StartValue))
     return FullSet;
 
-  return ConstantRange(StartValue, EndValue);
+  revng_log(Log, "Result: " << dumpToString(Result));
+
+  return Result;
 }
 
 bool ComputeStackAccessesBoundsPass::runOnFunction(Function &F) {
+  revng_log(Log, "Running on " << F.getName().str());
+  LoggerIndent<> Indent(Log);
+
   ScalarEvolution &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
   PostDominatorTree &PDT = getAnalysis<PostDominatorTreeWrapperPass>()
                              .getPostDomTree();
@@ -111,6 +125,10 @@ bool ComputeStackAccessesBoundsPass::runOnFunction(Function &F) {
       auto *Undef = UndefValue::get(DifferenceType);
 
       auto ReplaceUseWithBound = [&](Use &Operand, bool Lower) {
+        revng_log(Log,
+                  "ReplaceUseWithBound on: " << getName(Operand.get())
+                                             << " (Lower: <<" << Lower << ")");
+
         auto *User = Operand.getUser();
         auto *V = Operand.get();
         const APInt *Bound = nullptr;
@@ -123,6 +141,8 @@ bool ComputeStackAccessesBoundsPass::runOnFunction(Function &F) {
         //       Eventually we'll need to deal with this incoherence and either
         //       restrict the usage of LVI or drop it entirely.
         const auto &BoundRange = LVI.getConstantRange(V, cast<CallInst>(User));
+        revng_log(Log, "LazyValueInfo says " << dumpToString(BoundRange));
+
         if (not BoundRange.isFullSet() and not BoundRange.isWrappedSet()) {
           Bound = Lower ? &BoundRange.getLower() : &BoundRange.getUpper();
         }
