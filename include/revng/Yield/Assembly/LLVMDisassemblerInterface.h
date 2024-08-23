@@ -45,8 +45,8 @@ public:
     std::string Comment;
     std::string Error;
 
-    bool HasDelaySlot;
-    uint64_t Size;
+    bool HasDelaySlot = false;
+    uint64_t Size = 0;
   };
   Disassembled instruction(const MetaAddress &Where,
                            llvm::ArrayRef<uint8_t> RawBytes);
