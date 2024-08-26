@@ -1,0 +1,31 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - OriginalName: memcpy_from_stack_arguments
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/38-RawFunctionDefinition"
+  - OriginalName: backward_memcpy_from_stack_arguments
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100-RawFunctionDefinition"
+TypeDefinitions:
+  - ID: 38
+    Kind: RawFunctionDefinition
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/53-StructDefinition"
+  - ID: 53
+    Kind: StructDefinition
+    Size: 512
+  - ID: 100
+    Kind: RawFunctionDefinition
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/101-StructDefinition"
+  - ID: 101
+    Kind: StructDefinition
+    Size: 512

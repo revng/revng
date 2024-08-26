@@ -7,13 +7,13 @@
 #include "llvm/Pass.h"
 
 /// Enrich StackOffsetMarker-tagged calls with LazyValueInfo boundaries info
-struct ComputeStackAccessesBoundsPass : public llvm::ModulePass {
+struct ComputeStackAccessesBoundsPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  ComputeStackAccessesBoundsPass() : llvm::ModulePass(ID) {}
+  ComputeStackAccessesBoundsPass() : llvm::FunctionPass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
-  bool runOnModule(llvm::Module &M) override;
+  bool runOnFunction(llvm::Function &F) override;
 };

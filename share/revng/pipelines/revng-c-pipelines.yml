@@ -90,6 +90,8 @@ Branches:
               - instrument-stack-accesses
               - instcombine
               - remove-extractvalues
+              - loop-rotate
+              - loop-simplify
               - compute-stack-accesses-bounds
         Analyses:
           - Name: detect-stack-size
