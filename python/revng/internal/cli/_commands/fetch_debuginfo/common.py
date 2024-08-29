@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import os
 import sys
 
 import requests
@@ -29,10 +30,12 @@ def download_file(url, local_filename):
     try:
         with requests.get(url, stream=True) as request:
             if request.status_code == 200:
-                with open(local_filename, "wb") as debug_file:
+                download_name = local_filename + ".tmp"
+                with open(download_name, "wb") as debug_file:
                     for chunk in request.iter_content(chunk_size=64 * 1024):
                         debug_file.write(chunk)
                 log("Downloaded")
+                os.replace(download_name, local_filename)
                 return True
             elif request.status_code == 404:
                 log("URL was not found")
