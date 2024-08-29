@@ -5,7 +5,9 @@
 from elftools.elf.elffile import ELFFile
 from elftools.elf.sections import NoteSection
 
-from .common import cache_directory, download_file, log
+from revng.internal.support import cache_directory
+
+from .common import download_file, log
 
 
 def parse_build_id(file):

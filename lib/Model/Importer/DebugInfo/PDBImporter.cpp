@@ -40,6 +40,7 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
 
 #include "ImportDebugInfoHelper.h"
@@ -318,13 +319,14 @@ static bool fileExists(const Twine &Path) {
 std::optional<std::string>
 PDBImporter::getCachedPDBFilePath(std::string PDBFileID,
                                   StringRef PDBBaseName) {
-  llvm::SmallString<128> ResultPath;
-  ResultPath.clear();
-  setXDG(ResultPath, "XDG_CACHE_HOME", ".cache");
-  llvm::sys::path::append(ResultPath, "revng", "debug-symbols", "pe");
-  llvm::sys::path::append(ResultPath, PDBFileID, PDBBaseName);
-  if (fileExists(ResultPath.str()))
-    return std::string(ResultPath.str());
+  std::string CacheDir = getCacheDirectory();
+  std::string ResultPath = joinPath(CacheDir,
+                                    "debug-symbols",
+                                    "pe",
+                                    PDBFileID,
+                                    PDBBaseName);
+  if (fileExists(ResultPath))
+    return ResultPath;
 
   return std::nullopt;
 }

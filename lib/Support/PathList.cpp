@@ -16,6 +16,7 @@ extern "C" {
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -68,6 +69,22 @@ static void initialize() {
 llvm::StringRef getCurrentRoot() {
   initialize();
   return Resources->CurrentRoot;
+}
+
+std::string getCacheDirectory() {
+  if (auto CacheEnv = llvm::sys::Process::GetEnv("REVNG_CACHE_DIR")) {
+    return *CacheEnv;
+  }
+
+  std::string BaseDir;
+  if (auto XDGDir = llvm::sys::Process::GetEnv("XDG_CACHE_HOME")) {
+    BaseDir = *XDGDir;
+  } else {
+    llvm::SmallString<64> PathHome;
+    llvm::sys::path::home_directory(PathHome);
+    BaseDir = joinPath(PathHome.str(), ".cache");
+  }
+  return joinPath(BaseDir, "revng");
 }
 
 const std::map<std::string, std::string> &getLibrariesFullPath() {
