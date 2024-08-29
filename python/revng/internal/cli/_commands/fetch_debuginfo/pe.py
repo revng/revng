@@ -7,8 +7,9 @@ from pathlib import PureWindowsPath
 import pefile
 
 from revng.internal.cli.support import log_error
+from revng.internal.support import cache_directory
 
-from .common import cache_directory, download_file, log
+from .common import download_file, log
 
 
 def fetch_pdb(file_path, urls):
