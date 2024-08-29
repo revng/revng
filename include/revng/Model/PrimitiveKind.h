@@ -59,6 +59,8 @@ tryConsumeCPrefix(llvm::StringRef Name) {
     return { PrimitiveKind::Signed, Name };
   else if (Name.consume_front("float"))
     return { PrimitiveKind::Float, Name };
+  else if (Name.consume_front("void"))
+    return { PrimitiveKind::Void, Name };
   else
     return { PrimitiveKind::Invalid, Name };
 }

@@ -118,6 +118,10 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   revng_check(not PrimitiveType::fromCName("foalt32_t"));
   revng_check(not PrimitiveType::fromCName("generic7_t"));
   revng_check(not PrimitiveType::fromCName("generic8"));
+  revng_check(not PrimitiveType::fromCName("void1"));
+  revng_check(not PrimitiveType::fromCName("void_"));
+  revng_check(not PrimitiveType::fromCName("void_t"));
+  revng_check(not PrimitiveType::fromCName("void8_t"));
 
   model::UpcastableType Primitive = PrimitiveType::fromCName("generic8_t");
 
@@ -126,6 +130,8 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   revng_check(Primitive->toPrimitive().getCName() == "float64_t");
   Primitive = PrimitiveType::fromCName("number128_t");
   revng_check(Primitive->toPrimitive().getCName() == "number128_t");
+  Primitive = PrimitiveType::fromCName("void");
+  revng_check(Primitive->toPrimitive().getCName() == "void");
 }
 
 BOOST_AUTO_TEST_CASE(EnumTypes) {

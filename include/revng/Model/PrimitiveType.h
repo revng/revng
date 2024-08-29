@@ -145,7 +145,7 @@ public:
       return UpcastableType::empty();
 
     if (Kind == PrimitiveKind::Void)
-      return makeVoid();
+      return RemainingName.empty() ? makeVoid() : UpcastableType::empty();
 
     // Ensure the name ends with _t
     if (not RemainingName.consume_back("_t"))
