@@ -9,6 +9,8 @@
 #include <string_view>
 #include <type_traits>
 
+#include "revng/ADT/ConstexprString.h"
+
 namespace compile_time {
 
 namespace detail {
@@ -130,6 +132,34 @@ split(std::string_view Separator, std::string_view Input) {
     return Result;
   else
     return std::nullopt;
+}
+
+/// Concatenates a bunch of string-like things at compilation time and returns
+/// the result (with a /param Separator inserted in-between) as an array.
+template<ConstexprString Separator, ConstexprString... Strings>
+inline constexpr auto concatenateWithSeparator() {
+  std::array<char,
+             (std::size(Strings) + ...)
+               + std::size(Separator) * (sizeof...(Strings) - 1)>
+    Result;
+  std::size_t CurrentIndex = 0;
+
+  auto Impl = [&](auto const &String) {
+    std::ranges::copy(String, Result.begin() + CurrentIndex);
+    CurrentIndex += String.size();
+    if (CurrentIndex < Result.size()) {
+      std::ranges::copy(Separator, Result.begin() + CurrentIndex);
+      CurrentIndex += Separator.size();
+    }
+  };
+
+  (Impl(Strings), ...);
+
+  return Result;
+}
+template<typename... StringLikeTypes>
+inline constexpr auto concatenate(StringLikeTypes &&...Strs) {
+  return concatenateWithSeparator("", std::forward<StringLikeTypes>(Strs)...);
 }
 
 } // namespace compile_time
