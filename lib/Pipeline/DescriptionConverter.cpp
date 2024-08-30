@@ -73,6 +73,7 @@ static pipeline::description::Rank describe(const pipeline::Rank &Rank) {
     Result.Parent() = Parent->name();
 
   Result.Depth() = Rank.depth();
+  Result.ModelPath() = Rank.modelPath();
 
   return Result;
 }

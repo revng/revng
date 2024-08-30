@@ -25,34 +25,55 @@ using NRK = model::NamedTypedRegister::Key;
 static_assert(HasScalarOrEnumTraits<MetaAddress>);
 static_assert(HasScalarOrEnumTraits<BasicBlockID>);
 
-inline auto Binary = pipeline::defineRootRank<"binary">();
+inline auto Binary = pipeline::defineRootRank<"binary", "/">();
 
 using pipeline::defineRank;
-inline auto Function = defineRank<"function", model::Function::Key>(Binary);
+inline auto
+  Function = defineRank<"function", model::Function::Key, "Functions">(Binary);
 inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
 inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 
-inline auto TypeDefinition = defineRank<"type-definition", detail::TDK>(Binary);
+inline auto TypeDefinition = defineRank<"type-definition",
+                                        detail::TDK,
+                                        "TypeDefinitions">(Binary);
 inline auto
-  StructField = defineRank<"struct-field", detail::SFK>(TypeDefinition);
-inline auto UnionField = defineRank<"union-field", detail::UFK>(TypeDefinition);
+  StructField = defineRank<"struct-field",
+                           detail::SFK,
+                           "*/StructDefinition::Fields">(TypeDefinition);
 inline auto
-  EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(TypeDefinition);
-inline auto
-  CABIArgument = defineRank<"cabi-argument", detail::CAK>(TypeDefinition);
-inline auto
-  RawArgument = defineRank<"raw-argument", detail::NRK>(TypeDefinition);
-inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
-inline auto
-  ReturnRegister = defineRank<"return-register", detail::NRK>(TypeDefinition);
+  UnionField = defineRank<"union-field",
+                          detail::UFK,
+                          "*/UnionDefinition::Fields">(TypeDefinition);
+inline auto EnumEntry = defineRank<"enum-entry",
+                                   model::EnumEntry::Key,
+                                   "*/EnumDefinition::Entries">(TypeDefinition);
+inline auto CABIArgument = defineRank<"cabi-argument",
+                                      detail::CAK,
+                                      "*/CABIFunctionDefinition"
+                                      "::Arguments">(TypeDefinition);
+inline auto RawArgument = defineRank<"raw-argument",
+                                     detail::NRK,
+                                     "*/RawFunctionDefinition"
+                                     "::Arguments">(TypeDefinition);
+inline auto ReturnValue = defineRank<"return-value",
+                                     detail::TDK,
+                                     "*/RawFunctionDefinition"
+                                     "::ReturnValues">(Binary);
+inline auto ReturnRegister = defineRank<"return-register",
+                                        detail::NRK,
+                                        "*/RawFunctionDefinition"
+                                        "::ReturnValues/"
+                                        "Location">(TypeDefinition);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
 
-inline auto Segment = defineRank<"segment", model::Segment::Key>(Binary);
+inline auto
+  Segment = defineRank<"segment", model::Segment::Key, "Segments">(Binary);
 
 inline auto DynamicFunction = defineRank<"dynamic-function",
-                                         model::DynamicFunction::Key>(Binary);
+                                         model::DynamicFunction::Key,
+                                         "DynamicFunctions">(Binary);
 
 inline auto PrimitiveType = defineRank<"primitive", std::string>(Binary);
 
