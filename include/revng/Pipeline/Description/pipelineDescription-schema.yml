@@ -77,6 +77,10 @@ definitions:
         doc: The Rank's parent (if present)
         type: string
         optional: true
+      - name: TupleTreePath
+        doc: The model path corresponding to this rank.
+        type: string
+        optional: true
     key:
       - Name
   - name: Kind

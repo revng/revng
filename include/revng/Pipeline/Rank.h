@@ -16,9 +16,18 @@ namespace pipeline {
 /// The rank tree is a tree used by targets to find out how many names
 /// are required to name a target
 class Rank : public DynamicHierarchy<Rank> {
+private:
+  std::string TupleTreePath;
+
 public:
   Rank(llvm::StringRef Name) : DynamicHierarchy(Name) {}
+  Rank(llvm::StringRef Name, std::string_view TupleTreePath) :
+    DynamicHierarchy(Name), TupleTreePath(TupleTreePath) {}
   Rank(llvm::StringRef Name, Rank &Parent) : DynamicHierarchy(Name, Parent) {}
+  Rank(llvm::StringRef Name, Rank &Parent, std::string_view TupleTreePath) :
+    DynamicHierarchy(Name, Parent), TupleTreePath(TupleTreePath) {}
+
+  std::string_view tupleTreePath() const { return TupleTreePath; }
 };
 
 // Root rank specialization
@@ -34,14 +43,16 @@ public:
   static constexpr size_t Depth = 0;
   using Tuple = std::tuple<>;
 
+  consteval static std::string_view buildTupleTreePath() { return ""; }
+
 public:
-  explicit RootRank() : Rank(RankName) {}
+  explicit RootRank() : Rank(RankName, "/") {}
 };
 
 /// A helper function used for defining a root rank.
 ///
 /// Root rank doesn't have corresponding storage location and is only
-/// used to defining a single logical starting point in the rank hierarhy.
+/// used to defining a single logical starting point in the rank hierarchy.
 template<ConstexprString Name>
 pipeline::RootRank<Name> defineRootRank() {
   return pipeline::RootRank<Name>();
@@ -53,6 +64,7 @@ concept RankSpecialization = requires(RankType &&Rank) {
 
   { RankType::RankName } -> std::convertible_to<llvm::StringRef>;
   { RankType::Depth } -> std::convertible_to<size_t>;
+  { RankType::buildTupleTreePath() } -> std::convertible_to<std::string_view>;
 
   typename RankType::Type;
   typename RankType::Parent;
@@ -76,11 +88,13 @@ struct AppendToTupleHelper {
 
 template<ConstexprString String,
          HasScalarOrEnumTraits Key,
-         RankSpecialization ParentRank>
+         RankSpecialization ParentRank,
+         ConstexprString TupleTreePathComponent>
 class TypedRank : public Rank {
 public:
   static constexpr bool RankTag = true;
-  static constexpr llvm::StringRef RankName = String;
+  static constexpr std::string_view RankName = String;
+  static constexpr std::string_view TTPathComponent = TupleTreePathComponent;
   using Type = Key;
   using Parent = ParentRank;
 
@@ -90,8 +104,17 @@ public:
   using Tuple = typename detail::AppendToTupleHelper<typename Parent::Tuple,
                                                      Type>::type;
 
+  static std::string buildTupleTreePath() {
+    if (TTPathComponent.empty())
+      return "";
+
+    return std::string(Parent::buildTupleTreePath()) + "/"
+           + std::string(TTPathComponent) + "/$" + std::to_string(Depth);
+  }
+
 public:
-  explicit TypedRank(Parent &ParentObj) : Rank(RankName, ParentObj) {}
+  explicit TypedRank(Parent &ParentObj) :
+    Rank(RankName, ParentObj, buildTupleTreePath()) {}
 };
 
 /// A helper function for defining a new rank.
@@ -103,9 +126,15 @@ public:
 /// \arg ParentObject is the rank this rank extends.
 template<ConstexprString Name,
          HasScalarOrEnumTraits Type,
-         RankSpecialization Parent>
-pipeline::TypedRank<Name, Type, Parent> defineRank(Parent &ParentObject) {
-  return pipeline::TypedRank<Name, Type, Parent>(ParentObject);
+         ConstexprString TupleTreePathComponentWithoutKeys = ConstexprString{},
+         RankSpecialization Parent = void>
+pipeline::TypedRank<Name, Type, Parent, TupleTreePathComponentWithoutKeys>
+defineRank(Parent &ParentObject) {
+  static_assert(not std::same_as<Parent, void>);
+  return pipeline::TypedRank<Name,
+                             Type,
+                             Parent,
+                             TupleTreePathComponentWithoutKeys>(ParentObject);
 }
 
 namespace detail {

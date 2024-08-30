@@ -74,6 +74,7 @@ static pipeline::description::Rank describe(const pipeline::Rank &Rank) {
     Result.Parent() = Parent->name();
 
   Result.Depth() = Rank.depth();
+  Result.TupleTreePath() = Rank.tupleTreePath();
 
   return Result;
 }
