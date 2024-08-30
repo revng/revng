@@ -19,6 +19,11 @@ fields:
     doc: The Rank's parent (if present)
     type: string
     optional: true
+  - name: ModelPath
+    doc: The model path corresponding to this rank.
+    type: string
+    optional: true
+
 key:
   - Name
 TUPLE-TREE-YAML */
