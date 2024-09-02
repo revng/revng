@@ -12,7 +12,8 @@ namespace ptml {
 
 class IndentedOstream : public llvm::raw_ostream {
 private:
-  MarkupBuilder B;
+  const MarkupBuilder &B;
+
   int IndentSize;
   int IndentDepth;
   // If the buffer ends with a newline, we want to delay emitting indentation on
@@ -23,9 +24,9 @@ private:
 
 public:
   explicit IndentedOstream(llvm::raw_ostream &OS,
-                           int IndentSize = 2,
-                           bool GenerateTagLessPTML = false) :
-    B(GenerateTagLessPTML),
+                           const MarkupBuilder &B,
+                           int IndentSize = 2) :
+    B(B),
     IndentSize(IndentSize),
     IndentDepth(0),
     TrailingNewline(false),
