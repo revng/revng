@@ -23,8 +23,6 @@
 #include "revng/Yield/Pipes/YieldCallGraphSlice.h"
 #include "revng/Yield/SVG.h"
 
-using ptml::PTMLBuilder;
-
 namespace revng::pipes {
 
 void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
@@ -57,7 +55,7 @@ void YieldCallGraph::run(pipeline::ExecutionContext &Context,
                          CallGraphSVGFileContainer &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
-  PTMLBuilder B;
+  ptml::MarkupBuilder B;
 
   // Convert the graph to SVG.
   auto Result = yield::svg::callGraph(B, *Relations.get(), *Model);
@@ -76,7 +74,7 @@ void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
   const auto &Model = revng::getModelFromContext(Context);
 
   // Access the llvm module
-  PTMLBuilder B;
+  ptml::MarkupBuilder B;
 
   ControlFlowGraphCache Cache(CFGMap);
 

@@ -9,8 +9,6 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Yield/Function.h"
 
-using ptml::PTMLBuilder;
-
 //
 // Address serialization helper
 //

@@ -63,10 +63,10 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
                            inter_section,
                            IntervalType>;
   Map Instructions;
-  ptml::PTMLBuilder PTMLBuilder;
+  ptml::MarkupBuilder B;
 
-  auto CreateTag = [&PTMLBuilder](const std::string &Location) -> ptml::Tag {
-    auto Tag = PTMLBuilder.getTag("span");
+  auto CreateTag = [&B](const std::string &Location) -> ptml::Tag {
+    auto Tag = B.getTag("span");
     Tag.addAttribute("data-location-definition", Location);
     return Tag;
   };
@@ -103,7 +103,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
     }
   }
 
-  ptml::Tag DivTag = PTMLBuilder.getTag("div");
+  ptml::Tag DivTag = B.getTag("div");
 
   Output << DivTag.open();
 

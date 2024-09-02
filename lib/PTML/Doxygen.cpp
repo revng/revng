@@ -46,7 +46,7 @@ struct DoxygenToken {
 
 public:
   /// \note Consumes the value: must only be used once per object.
-  std::string emit(const ptml::PTMLBuilder &B) {
+  std::string emit(const ptml::MarkupBuilder &B) {
     auto Result = B.getTag(ptml::tags::Span, std::move(Value));
 
     switch (Type) {
@@ -82,7 +82,7 @@ struct DoxygenLine {
 };
 
 struct CommentBuilder {
-  const ptml::PTMLBuilder &PTML;
+  const ptml::MarkupBuilder &PTML;
   llvm::StringRef Indicator;
   size_t Indentation;
   size_t WrapAt;
@@ -242,7 +242,7 @@ private:
   }
 };
 
-std::string ptml::freeFormComment(const ::ptml::PTMLBuilder &PTML,
+std::string ptml::freeFormComment(const ::ptml::MarkupBuilder &PTML,
                                   llvm::StringRef Text,
                                   llvm::StringRef CommentIndicator,
                                   size_t Indentation,
@@ -531,7 +531,7 @@ gatherReturnValueComments(const model::Binary &Binary,
   return Result;
 }
 
-std::string ptml::functionComment(const ::ptml::PTMLBuilder &PTML,
+std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
                                   const model::Function &Function,
                                   const model::Binary &Binary,
                                   llvm::StringRef CommentIndicator,

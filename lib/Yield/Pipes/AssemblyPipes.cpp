@@ -23,8 +23,6 @@
 #include "revng/Yield/Pipes/ProcessAssembly.h"
 #include "revng/Yield/Pipes/YieldAssembly.h"
 
-using ptml::PTMLBuilder;
-
 namespace revng::pipes {
 
 void ProcessAssembly::run(pipeline::ExecutionContext &Context,
@@ -67,8 +65,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
-  PTMLBuilder B;
-
+  ptml::MarkupBuilder B;
   for (const model::Function &Function :
        getFunctionsAndCommit(Context, Output.name())) {
     MetaAddress Address = Function.Entry();

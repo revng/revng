@@ -7,15 +7,16 @@
 #include "revng/PTML/Tag.h"
 
 namespace ptml {
-PTMLBuilder::PTMLBuilder(bool GenerateTagLessPTML) :
+
+MarkupBuilder::MarkupBuilder(bool GenerateTagLessPTML) :
   GenerateTagLessPTML(GenerateTagLessPTML) {
 }
 
-bool PTMLBuilder::isGenerateTagLessPTML() const {
+bool MarkupBuilder::isGenerateTagLessPTML() const {
   return GenerateTagLessPTML;
 }
 
-ptml::Tag PTMLBuilder::getTag(llvm::StringRef Tag) const {
+ptml::Tag MarkupBuilder::getTag(llvm::StringRef Tag) const {
   if (!GenerateTagLessPTML)
     return ptml::Tag(Tag);
 
@@ -23,8 +24,8 @@ ptml::Tag PTMLBuilder::getTag(llvm::StringRef Tag) const {
   return EmptyTag;
 }
 
-ptml::Tag PTMLBuilder::getTag(llvm::StringRef Tag,
-                              llvm::StringRef Content) const {
+ptml::Tag MarkupBuilder::getTag(llvm::StringRef Tag,
+                                llvm::StringRef Content) const {
   if (!GenerateTagLessPTML)
     return ptml::Tag(Tag, Content);
 
@@ -33,7 +34,7 @@ ptml::Tag PTMLBuilder::getTag(llvm::StringRef Tag,
   return EmptyTagWithContent;
 }
 
-ptml::Tag PTMLBuilder::scopeTag(const llvm::StringRef AttributeName) const {
+ptml::Tag MarkupBuilder::scopeTag(const llvm::StringRef AttributeName) const {
   if (!GenerateTagLessPTML)
     return ptml::Tag(ptml::tags::Div)
       .addAttribute(ptml::attributes::Scope, AttributeName);
@@ -42,8 +43,8 @@ ptml::Tag PTMLBuilder::scopeTag(const llvm::StringRef AttributeName) const {
   return EmptyTag;
 }
 
-ptml::Tag PTMLBuilder::tokenTag(const llvm::StringRef Str,
-                                const llvm::StringRef Token) const {
+ptml::Tag MarkupBuilder::tokenTag(const llvm::StringRef Str,
+                                  const llvm::StringRef Token) const {
   if (!GenerateTagLessPTML)
     return ptml::Tag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::Token, Token);
@@ -52,4 +53,5 @@ ptml::Tag PTMLBuilder::tokenTag(const llvm::StringRef Str,
   EmptyTagWithContent.setContent(Str);
   return EmptyTagWithContent;
 }
+
 } // namespace ptml

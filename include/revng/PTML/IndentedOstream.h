@@ -12,13 +12,12 @@ namespace ptml {
 
 class PTMLIndentedOstream : public llvm::raw_ostream {
 private:
-  PTMLBuilder B;
+  MarkupBuilder B;
   int IndentSize;
   int IndentDepth;
   // If the buffer ends with a newline, we want to delay emitting indentation on
   // the next character, so that we can account for (de)indentations that could
-  // happen in the meantime. This boolean tracks if we last read a newline
-  // character.
+  // happen in the meantime. This boolean tracks that.
   bool TrailingNewline;
   raw_ostream &OS;
 
@@ -49,7 +48,7 @@ public:
   void indent() { IndentDepth = std::min(INT_MAX, IndentDepth + 1); }
   void unindent() { IndentDepth = std::max(0, IndentDepth - 1); }
 
-  const PTMLBuilder &getPTMLBuilder() const { return B; }
+  const MarkupBuilder &getMarkupBuilder() const { return B; }
 
 private:
   void write_impl(const char *Ptr, size_t Size) override;
