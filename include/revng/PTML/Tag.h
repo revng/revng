@@ -152,14 +152,8 @@ inline ScopeTag Tag::scope(llvm::raw_ostream &OS, bool Newline) const {
 }
 
 class MarkupBuilder {
-private:
-  const bool GenerateTagLessPTML;
-
 public:
-  MarkupBuilder(bool GenerateTagLessPTML = false);
-
-public:
-  bool isGenerateTagLessPTML() const;
+  const bool IsInTaglessMode = false;
 
 public:
   ptml::Tag getTag(llvm::StringRef Tag) const;

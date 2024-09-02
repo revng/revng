@@ -8,16 +8,8 @@
 
 namespace ptml {
 
-MarkupBuilder::MarkupBuilder(bool GenerateTagLessPTML) :
-  GenerateTagLessPTML(GenerateTagLessPTML) {
-}
-
-bool MarkupBuilder::isGenerateTagLessPTML() const {
-  return GenerateTagLessPTML;
-}
-
 ptml::Tag MarkupBuilder::getTag(llvm::StringRef Tag) const {
-  if (!GenerateTagLessPTML)
+  if (not IsInTaglessMode)
     return ptml::Tag(Tag);
 
   ptml::Tag EmptyTag;
@@ -26,7 +18,7 @@ ptml::Tag MarkupBuilder::getTag(llvm::StringRef Tag) const {
 
 ptml::Tag MarkupBuilder::getTag(llvm::StringRef Tag,
                                 llvm::StringRef Content) const {
-  if (!GenerateTagLessPTML)
+  if (not IsInTaglessMode)
     return ptml::Tag(Tag, Content);
 
   ptml::Tag EmptyTagWithContent;
@@ -35,7 +27,7 @@ ptml::Tag MarkupBuilder::getTag(llvm::StringRef Tag,
 }
 
 ptml::Tag MarkupBuilder::scopeTag(const llvm::StringRef AttributeName) const {
-  if (!GenerateTagLessPTML)
+  if (not IsInTaglessMode)
     return ptml::Tag(ptml::tags::Div)
       .addAttribute(ptml::attributes::Scope, AttributeName);
 
@@ -45,7 +37,7 @@ ptml::Tag MarkupBuilder::scopeTag(const llvm::StringRef AttributeName) const {
 
 ptml::Tag MarkupBuilder::tokenTag(const llvm::StringRef Str,
                                   const llvm::StringRef Token) const {
-  if (!GenerateTagLessPTML)
+  if (not IsInTaglessMode)
     return ptml::Tag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::Token, Token);
 

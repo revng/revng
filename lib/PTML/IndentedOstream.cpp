@@ -43,7 +43,7 @@ void IndentedOstream::writeIndent() {
     Tag IndentTag = B.getTag(tags::Span,
                              std::string(IndentSize * IndentDepth, ' '));
 
-    if (not B.isGenerateTagLessPTML())
+    if (not B.IsInTaglessMode)
       IndentTag.addAttribute(attributes::Token, ptml::tokens::Indentation);
 
     OS << IndentTag.toString();
