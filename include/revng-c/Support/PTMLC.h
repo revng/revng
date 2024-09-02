@@ -600,9 +600,9 @@ public:
 };
 } // namespace ptml
 
-/// Simple RAII object for create a pair of string, this will
-/// , given a raw_ostream, print the \p Open when the object is
-/// created and the \p Close when the object goes out of scope
+/// Simple RAII object for create a pair of string, this will, given
+/// a raw_ostream, print the \p Open when the object is created and
+/// the \p Close when the object goes out of scope.
 template<ConstexprString Open, ConstexprString Close>
 struct PairedScope {
 private:

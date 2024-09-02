@@ -12,10 +12,6 @@
 
 #include "revng-c/Backend/DecompilePipe.h"
 
-namespace detail {
-using Container = revng::pipes::DecompileStringMap;
-}
-
 using TypeDefinitionSet = std::set<const model::TypeDefinition *>;
 using InlineableTypesMap = std::unordered_map<const model::Function *,
                                               TypeDefinitionSet>;
