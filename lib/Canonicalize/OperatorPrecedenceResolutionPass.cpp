@@ -72,32 +72,32 @@ struct OperatorInfo {
 static constexpr std::array<const OperatorInfo, 37>
   LLVMOpcodeToCOpPrecedenceArray{
     // OperatorInfo{ OpCode, Precedence, Associativity, Arity },
-    OperatorInfo{ Instruction::Select, 1, RightToLeft, Ternary },
-    OperatorInfo{ Instruction::Or, 2, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Xor, 3, LeftToRight, Binary },
-    OperatorInfo{ Instruction::And, 4, LeftToRight, Binary },
-    OperatorInfo{ Instruction::ICmp, 5, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Shl, 6, LeftToRight, Binary },
-    OperatorInfo{ Instruction::LShr, 6, LeftToRight, Binary },
-    OperatorInfo{ Instruction::AShr, 6, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Add, 7, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Sub, 7, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Mul, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::UDiv, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SDiv, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::URem, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SRem, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SExt, 9, RightToLeft, Unary },
-    OperatorInfo{ Instruction::Trunc, 9, RightToLeft, Unary },
-    OperatorInfo{ Instruction::ZExt, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::AddressOf, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::Indirection, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::Cast, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::UnaryMinus, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::BinaryNot, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::BooleanNot, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::MemberAccess, 10, LeftToRight, Unary },
-    OperatorInfo{ Instruction::Call, 10, LeftToRight, NAry },
+    OperatorInfo{ Instruction::Select, 13, RightToLeft, Ternary },
+    OperatorInfo{ Instruction::Or, 10, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Xor, 9, LeftToRight, Binary },
+    OperatorInfo{ Instruction::And, 8, LeftToRight, Binary },
+    OperatorInfo{ Instruction::ICmp, 6, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Shl, 5, LeftToRight, Binary },
+    OperatorInfo{ Instruction::LShr, 5, LeftToRight, Binary },
+    OperatorInfo{ Instruction::AShr, 5, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Add, 4, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Sub, 4, LeftToRight, Binary },
+    OperatorInfo{ Instruction::Mul, 3, LeftToRight, Binary },
+    OperatorInfo{ Instruction::UDiv, 3, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SDiv, 3, LeftToRight, Binary },
+    OperatorInfo{ Instruction::URem, 3, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SRem, 3, LeftToRight, Binary },
+    OperatorInfo{ Instruction::SExt, 2, RightToLeft, Unary },
+    OperatorInfo{ Instruction::Trunc, 2, RightToLeft, Unary },
+    OperatorInfo{ Instruction::ZExt, 2, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::AddressOf, 2, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::Indirection, 2, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::Cast, 2, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::UnaryMinus, 2, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::BinaryNot, 2, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::BooleanNot, 2, RightToLeft, Unary },
+    OperatorInfo{ CustomInstruction::MemberAccess, 1, LeftToRight, Unary },
+    OperatorInfo{ Instruction::Call, 1, LeftToRight, NAry },
   };
 
 static constexpr std::array<const OperatorInfo, 37>
@@ -474,7 +474,7 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   // If the precedence of the instruction is different, we only need parentheses
   // when the precedence of the instruction is higher than the precedence of the
   // operand. In this case we never need to check associativity.
-  return Cmp > 0;
+  return Cmp < 0;
 }
 
 bool OPRP::runOnFunction(Function &F) {
