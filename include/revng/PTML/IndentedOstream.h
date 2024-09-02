@@ -10,7 +10,7 @@
 
 namespace ptml {
 
-class PTMLIndentedOstream : public llvm::raw_ostream {
+class IndentedOstream : public llvm::raw_ostream {
 private:
   MarkupBuilder B;
   int IndentSize;
@@ -22,9 +22,9 @@ private:
   raw_ostream &OS;
 
 public:
-  explicit PTMLIndentedOstream(llvm::raw_ostream &OS,
-                               int IndentSize = 2,
-                               bool GenerateTagLessPTML = false) :
+  explicit IndentedOstream(llvm::raw_ostream &OS,
+                           int IndentSize = 2,
+                           bool GenerateTagLessPTML = false) :
     B(GenerateTagLessPTML),
     IndentSize(IndentSize),
     IndentDepth(0),
@@ -35,10 +35,10 @@ public:
 
   struct Scope {
   private:
-    PTMLIndentedOstream &OS;
+    IndentedOstream &OS;
 
   public:
-    Scope(PTMLIndentedOstream &OS) : OS(OS) { OS.indent(); }
+    Scope(IndentedOstream &OS) : OS(OS) { OS.indent(); }
 
     ~Scope() { OS.unindent(); }
   };
