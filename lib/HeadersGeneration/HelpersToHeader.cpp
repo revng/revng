@@ -40,7 +40,7 @@ static Logger<> Log{ "helpers-to-header" };
 /// type.
 static void printDefinition(const llvm::StructType *S,
                             const llvm::Function &F,
-                            ptml::PTMLIndentedOstream &Header,
+                            ptml::IndentedOstream &Header,
                             ptml::CBuilder &B) {
   Header << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::CBuilder::Keyword::Struct) << " "
@@ -61,7 +61,7 @@ static void printDefinition(const llvm::StructType *S,
 
 /// Print the prototype of a helper .
 static void printHelperPrototype(const llvm::Function *Func,
-                                 ptml::PTMLIndentedOstream &Header,
+                                 ptml::IndentedOstream &Header,
                                  ptml::CBuilder &B) {
   Header << getReturnTypeLocationReference(Func, B) << " "
          << getHelperFunctionLocationDefinition(Func, B);
@@ -98,7 +98,7 @@ bool dumpHelpersToHeader(const llvm::Module &M,
                          bool GeneratePlainC) {
   using CBuilder = ptml::CBuilder;
   CBuilder B{ GeneratePlainC };
-  auto Header = ptml::PTMLIndentedOstream(Out, DecompiledCCodeIndentation);
+  auto Header = ptml::IndentedOstream(Out, DecompiledCCodeIndentation);
   {
     auto Scope = B.getTag(ptml::tags::Div).scope(Header);
     Header << B.getPragmaOnce();

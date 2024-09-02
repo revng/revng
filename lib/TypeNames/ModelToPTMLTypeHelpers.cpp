@@ -245,7 +245,7 @@ static ptml::Tag getTypeKeyword(const model::TypeDefinition &T,
 }
 
 void printForwardDeclaration(const model::TypeDefinition &T,
-                             ptml::PTMLIndentedOstream &Header,
+                             ptml::IndentedOstream &Header,
                              ptml::CBuilder &B) {
   revng_assert(not declarationIsDefinition(T));
 
@@ -257,7 +257,7 @@ void printForwardDeclaration(const model::TypeDefinition &T,
 }
 
 static void printDefinition(const model::EnumDefinition &E,
-                            ptml::PTMLIndentedOstream &Header,
+                            ptml::IndentedOstream &Header,
                             ptml::CBuilder &B,
                             bool ForEditing,
                             std::string &&Suffix = "") {
@@ -299,7 +299,7 @@ static void printDefinition(const model::EnumDefinition &E,
   Header << std::move(Suffix) << ";\n";
 }
 
-static void printPadding(ptml::PTMLIndentedOstream &Header,
+static void printPadding(ptml::IndentedOstream &Header,
                          ptml::CBuilder &B,
                          uint64_t FieldOffset,
                          uint64_t NextOffset,
@@ -321,7 +321,7 @@ static void printPadding(ptml::PTMLIndentedOstream &Header,
 
 static void printDefinition(Logger<> &Log,
                             const model::StructDefinition &S,
-                            ptml::PTMLIndentedOstream &Header,
+                            ptml::IndentedOstream &Header,
                             ptml::CBuilder &B,
                             const model::Binary &Model,
                             TypeNameMap &AdditionalNames,
@@ -377,7 +377,7 @@ static void printDefinition(Logger<> &Log,
 
 static void printDefinition(Logger<> &Log,
                             const model::UnionDefinition &U,
-                            ptml::PTMLIndentedOstream &Header,
+                            ptml::IndentedOstream &Header,
                             ptml::CBuilder &B,
                             const model::Binary &Model,
                             TypeNameMap &AdditionalTypeNames,
@@ -412,7 +412,7 @@ static void printDefinition(Logger<> &Log,
 }
 
 void printDeclaration(const model::TypedefDefinition &TD,
-                      ptml::PTMLIndentedOstream &Header,
+                      ptml::IndentedOstream &Header,
                       ptml::CBuilder &B) {
   if (declarationIsDefinition(TD))
     Header << B.getModelComment(TD);
@@ -426,7 +426,7 @@ void printDeclaration(const model::TypedefDefinition &TD,
 /// values of \a F. The name of the struct type is provided by the caller.
 static void generateReturnValueWrapper(Logger<> &Log,
                                        const model::RawFunctionDefinition &F,
-                                       ptml::PTMLIndentedOstream &Header,
+                                       ptml::IndentedOstream &Header,
                                        ptml::CBuilder &B,
                                        const model::Binary &Model) {
   revng_assert(F.ReturnValues().size() > 1);
@@ -461,7 +461,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
 /// that contains them.
 static void printRawFunctionWrappers(Logger<> &Log,
                                      const model::RawFunctionDefinition *F,
-                                     ptml::PTMLIndentedOstream &Header,
+                                     ptml::IndentedOstream &Header,
                                      ptml::CBuilder &B,
                                      const model::Binary &Model) {
   if (F->ReturnValues().size() > 1)
@@ -475,7 +475,7 @@ static void printRawFunctionWrappers(Logger<> &Log,
 /// a variable that is a pointer to a function.
 static void printDeclaration(Logger<> &Log,
                              const model::RawFunctionDefinition &F,
-                             ptml::PTMLIndentedOstream &Header,
+                             ptml::IndentedOstream &Header,
                              ptml::CBuilder &B,
                              const model::Binary &Model) {
   printRawFunctionWrappers(Log, &F, Header, B, Model);
@@ -492,7 +492,7 @@ static void printDeclaration(Logger<> &Log,
 /// This is used to wrap array arguments or array return values of
 /// CABI functions.
 static void generateArrayWrapper(const model::ArrayType &ArrayType,
-                                 ptml::PTMLIndentedOstream &Header,
+                                 ptml::IndentedOstream &Header,
                                  ptml::CBuilder &B,
                                  TypeNameMap &NamesCache) {
   auto WrapperName = getArrayWrapper(ArrayType, B);
@@ -518,7 +518,7 @@ static void generateArrayWrapper(const model::ArrayType &ArrayType,
 /// If the return value or any of the arguments is an array, generate a wrapper
 /// struct for each of them, if it's not already in the cache.
 static void printCABIFunctionWrappers(const model::CABIFunctionDefinition *F,
-                                      ptml::PTMLIndentedOstream &Header,
+                                      ptml::IndentedOstream &Header,
                                       ptml::CBuilder &B,
                                       TypeNameMap &NamesCache) {
   if (not F->ReturnType().isEmpty())
@@ -533,7 +533,7 @@ static void printCABIFunctionWrappers(const model::CABIFunctionDefinition *F,
 /// Print a typedef for a CABI function, that can be used when you have
 /// a variable that is a pointer to a function.
 static void printDeclaration(const model::CABIFunctionDefinition &F,
-                             ptml::PTMLIndentedOstream &Header,
+                             ptml::IndentedOstream &Header,
                              ptml::CBuilder &B,
                              TypeNameMap &NamesCache,
                              const model::Binary &Model) {
@@ -549,7 +549,7 @@ static void printDeclaration(const model::CABIFunctionDefinition &F,
 
 void printDeclaration(Logger<> &Log,
                       const model::TypeDefinition &T,
-                      ptml::PTMLIndentedOstream &Header,
+                      ptml::IndentedOstream &Header,
                       ptml::CBuilder &B,
                       const model::Binary &Model,
                       TypeNameMap &AdditionalNames) {
@@ -584,7 +584,7 @@ void printDeclaration(Logger<> &Log,
 
 void printDefinition(Logger<> &Log,
                      const model::TypeDefinition &T,
-                     ptml::PTMLIndentedOstream &Header,
+                     ptml::IndentedOstream &Header,
                      ptml::CBuilder &B,
                      const model::Binary &Model,
                      TypeNameMap &AdditionalNames,
@@ -627,7 +627,7 @@ void printDefinition(Logger<> &Log,
 void printInlineDefinition(Logger<> &Log,
                            llvm::StringRef Name,
                            const model::Type &T,
-                           ptml::PTMLIndentedOstream &Header,
+                           ptml::IndentedOstream &Header,
                            ptml::CBuilder &B,
                            const model::Binary &Model,
                            std::map<model::UpcastableType, std::string>
@@ -669,7 +669,7 @@ void printInlineDefinition(Logger<> &Log,
 
 void printInlineDefinition(Logger<> &Log,
                            const model::StructDefinition &Struct,
-                           ptml::PTMLIndentedOstream &Header,
+                           ptml::IndentedOstream &Header,
                            ptml::CBuilder &B,
                            const model::Binary &Model,
                            TypeNameMap &AdditionalNames,

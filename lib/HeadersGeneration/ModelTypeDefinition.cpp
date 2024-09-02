@@ -14,7 +14,7 @@ std::string dumpModelTypeDefinition(const model::Binary &Model,
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
-  ptml::PTMLIndentedOstream PTMLOut(Out, DecompiledCCodeIndentation, true);
+  ptml::IndentedOstream PTMLOut(Out, DecompiledCCodeIndentation, true);
   ptml::CBuilder B(true);
 
   std::map<model::UpcastableType, std::string> AdditionalNames;

@@ -162,9 +162,9 @@ struct ImportFromCAnalysis {
       if (not declarationIsDefinition(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(Options.PostIncludes);
         ptml::CBuilder B(true);
-        ptml::PTMLIndentedOstream ThePTMLStream(Stream,
-                                                DecompiledCCodeIndentation,
-                                                true);
+        ptml::IndentedOstream ThePTMLStream(Stream,
+                                            DecompiledCCodeIndentation,
+                                            true);
         Stream << B.getLineComment("The type we are editing");
         // The definition of this type will be at the end of the file.
         printForwardDeclaration(*TypeToEdit, ThePTMLStream, B);

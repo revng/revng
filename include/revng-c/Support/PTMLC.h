@@ -610,17 +610,17 @@ public:
 
 /// RAII object for handling c style braced scopes. This will,
 /// in order, open a brace pair, apply the Scope (think scopes, function body,
-/// struct definition etc.) and indent the PTMLIndentedOstream, allowing a
+/// struct definition etc.) and indent the IndentedOstream, allowing a
 /// egyptian-style c for most braced constructs
 struct Scope {
 private:
   using Braces = PairedScope<"{", "}">;
   Braces BraceScope;
   ptml::ScopeTag ScopeTag;
-  ptml::PTMLIndentedOstream::Scope IndentScope;
+  ptml::IndentedOstream::Scope IndentScope;
 
 public:
-  Scope(ptml::PTMLIndentedOstream &Out,
+  Scope(ptml::IndentedOstream &Out,
         const llvm::StringRef Attribute = ptml::c::scopes::Scope) :
     BraceScope(Out),
     ScopeTag(Out.getMarkupBuilder()

@@ -42,7 +42,7 @@ using GraphInfo = TypeInlineHelper::GraphInfo;
 static Logger<> Log{ "model-to-header" };
 
 static void printSegmentsTypes(const model::Segment &Segment,
-                               ptml::PTMLIndentedOstream &Header,
+                               ptml::IndentedOstream &Header,
                                const ptml::CBuilder &B) {
   auto Location = B.getLocationDefinition(Segment);
 
@@ -58,7 +58,7 @@ static void printSegmentsTypes(const model::Segment &Segment,
 
 /// Print all type definitions for the types in the model
 static void printTypeDefinitions(const model::Binary &Model,
-                                 ptml::PTMLIndentedOstream &Header,
+                                 ptml::IndentedOstream &Header,
                                  ptml::CBuilder &B,
                                  TypeNameMap &AdditionalTypeNames,
                                  const ModelToHeaderOptions &Options) {
@@ -157,7 +157,7 @@ bool dumpModelToHeader(const model::Binary &Model,
   using Scopes = ptml::CBuilder::Scopes;
 
   CBuilder B(Options.GeneratePlainC);
-  ptml::PTMLIndentedOstream Header(Out, DecompiledCCodeIndentation, true);
+  ptml::IndentedOstream Header(Out, DecompiledCCodeIndentation, true);
   {
     auto Scope = B.getTag(ptml::tags::Div).scope(Header);
 

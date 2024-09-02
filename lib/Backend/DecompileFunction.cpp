@@ -250,7 +250,7 @@ private:
   const ModelTypesMap TypeMap;
 
   /// Where to output the decompiled C code
-  ptml::PTMLIndentedOstream Out;
+  ptml::IndentedOstream Out;
 
   ptml::CBuilder B;
 
