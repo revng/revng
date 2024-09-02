@@ -24,7 +24,7 @@
 
 namespace ptml {
 
-class PTMLCBuilder : public ptml::PTMLBuilder {
+class PTMLCBuilder : public ptml::MarkupBuilder {
   using Tag = ptml::Tag;
 
 public:
@@ -101,7 +101,7 @@ public:
 
 public:
   PTMLCBuilder(bool GeneratePlainC = false) :
-    ptml::PTMLBuilder(GeneratePlainC) {}
+    ptml::MarkupBuilder(GeneratePlainC) {}
 
 private:
   llvm::StringRef toString(Keyword TheKeyword) const {
@@ -292,7 +292,7 @@ private:
   }
 
   Tag keywordTagHelper(const llvm::StringRef Str) const {
-    return ptml::PTMLBuilder::getTag(ptml::tags::Span, Str)
+    return ptml::MarkupBuilder::getTag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
   }
 
@@ -308,7 +308,7 @@ public:
 
   // Constants.
   Tag getConstantTag(const llvm::StringRef Str) const {
-    return ptml::PTMLBuilder::tokenTag(Str, ptml::c::tokens::Constant);
+    return tokenTag(Str, ptml::c::tokens::Constant);
   }
 
   Tag getZeroTag() const { return getConstantTag("0"); }
@@ -342,14 +342,14 @@ public:
   // String literal.
   Tag getStringLiteral(const llvm::StringRef Str) const {
     if (isGenerateTagLessPTML())
-      return ptml::PTMLBuilder::tokenTag(Str, ptml::c::tokens::StringLiteral);
+      return tokenTag(Str, ptml::c::tokens::StringLiteral);
 
     std::string Escaped;
     {
       llvm::raw_string_ostream EscapeHTMLStream(Escaped);
       llvm::printHTMLEscaped(Str, EscapeHTMLStream);
     }
-    return ptml::PTMLBuilder::tokenTag(Escaped, ptml::c::tokens::StringLiteral);
+    return tokenTag(Escaped, ptml::c::tokens::StringLiteral);
   }
 
   // Keywords.
@@ -408,20 +408,17 @@ public:
 
   std::string getBlockComment(const llvm::StringRef Str,
                               bool Newline = true) const {
-    return ptml::PTMLBuilder::tokenTag("/* " + Str.str() + " */",
-                                       ptml::tokens::Comment)
+    return tokenTag("/* " + Str.str() + " */", ptml::tokens::Comment)
            + (Newline ? "\n" : "");
   }
 
   std::string getLineComment(const llvm::StringRef Str) {
     revng_check(!Str.contains('\n'));
-    return ptml::PTMLBuilder::tokenTag("// " + Str.str(), ptml::tokens::Comment)
-           + "\n";
+    return tokenTag("// " + Str.str(), ptml::tokens::Comment) + "\n";
   }
 
   Tag getNameTag(const model::TypeDefinition &T) const {
-    return ptml::PTMLBuilder::tokenTag(T.name().str().str(),
-                                       ptml::c::tokens::Type);
+    return tokenTag(T.name().str().str(), ptml::c::tokens::Type);
   }
 
   // Locations.
@@ -467,7 +464,7 @@ public:
 
   std::string getLocationDefinition(const model::PrimitiveType &P) const {
     std::string CName = P.getCName();
-    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
+    auto Result = tokenTag(CName, ptml::c::tokens::Type);
     if (isGenerateTagLessPTML())
       return Result.toString();
 
@@ -481,7 +478,7 @@ public:
 
   std::string getLocationReference(const model::PrimitiveType &P) const {
     std::string CName = P.getCName();
-    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
+    auto Result = tokenTag(CName, ptml::c::tokens::Type);
     if (isGenerateTagLessPTML())
       return Result.toString();
 
@@ -500,7 +497,7 @@ public:
   }
 
   Tag getNameTag(const model::Segment &S) const {
-    return ptml::PTMLBuilder::tokenTag(S.name(), ptml::c::tokens::Variable);
+    return tokenTag(S.name(), ptml::c::tokens::Variable);
   }
 
   std::string getLocation(bool IsDefinition, const model::Segment &S) const {
@@ -549,8 +546,7 @@ public:
 
   Tag getNameTag(const model::EnumDefinition &Enum,
                  const model::EnumEntry &Entry) const {
-    return ptml::PTMLBuilder::tokenTag(Enum.entryName(Entry),
-                                       ptml::c::tokens::Field);
+    return tokenTag(Enum.entryName(Entry), ptml::c::tokens::Field);
   }
 
   std::string getLocation(bool IsDefinition,
@@ -565,7 +561,7 @@ public:
 
   template<class Aggregate, class Field>
   Tag getNameTag(const Aggregate &, const Field &F) const {
-    return ptml::PTMLBuilder::tokenTag(F.name(), c::tokens::Field);
+    return tokenTag(F.name(), c::tokens::Field);
   }
 
   template<typename Aggregate, typename Field>
@@ -628,7 +624,7 @@ public:
   Scope(ptml::PTMLIndentedOstream &Out,
         const llvm::StringRef Attribute = ptml::c::scopes::Scope) :
     BraceScope(Out),
-    ScopeTag(Out.getPTMLBuilder()
+    ScopeTag(Out.getMarkupBuilder()
                .getTag(ptml::tags::Div)
                .addAttribute(ptml::attributes::Scope, Attribute)
                .scope(Out, true)),
@@ -641,7 +637,7 @@ public:
 template<ConstexprString Open, ConstexprString Close>
 struct CommentScope {
 private:
-  ptml::PTMLBuilder Builder;
+  ptml::MarkupBuilder Builder;
   ptml::ScopeTag ScopeTag;
   PairedScope<Open, Close> PairScope;
 
