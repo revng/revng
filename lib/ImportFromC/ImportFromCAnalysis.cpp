@@ -161,7 +161,7 @@ struct ImportFromCAnalysis {
       // declarations.
       if (not declarationIsDefinition(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(Options.PostIncludes);
-        ptml::PTMLCBuilder B(true);
+        ptml::CBuilder B(true);
         ptml::PTMLIndentedOstream ThePTMLStream(Stream,
                                                 DecompiledCCodeIndentation,
                                                 true);

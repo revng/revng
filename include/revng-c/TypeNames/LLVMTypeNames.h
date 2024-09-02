@@ -17,42 +17,40 @@ extern bool isScalarCType(const llvm::Type *LLVMType);
 
 /// Get the C name of an LLVM Scalar type, in PTML.
 extern std::string getScalarCType(const llvm::Type *LLVMType,
-                                  const ptml::PTMLCBuilder &B);
+                                  const ptml::CBuilder &B);
 
 /// Get the PTML definition of the C name of the type returned by F.
 extern std::string getReturnTypeLocationDefinition(const llvm::Function *F,
-                                                   const ptml::PTMLCBuilder &B);
+                                                   const ptml::CBuilder &B);
 
 /// Get the PTML reference to the C name of the type returned by F.
 extern std::string getReturnTypeLocationReference(const llvm::Function *F,
-                                                  const ptml::PTMLCBuilder &B);
+                                                  const ptml::CBuilder &B);
 
 /// Get PTML tag of the C name of the type of Index-th fields of the struct type
 /// returned by F.
 extern std::string getReturnStructFieldType(const llvm::Function *F,
                                             size_t Index,
-                                            const ptml::PTMLCBuilder &B);
+                                            const ptml::CBuilder &B);
 
 /// Get the PTML definition of the C name of the Index-th field of the struct
 /// returned by F.
 extern std::string
 getReturnStructFieldLocationDefinition(const llvm::Function *F,
                                        size_t Index,
-                                       const ptml::PTMLCBuilder &);
+                                       const ptml::CBuilder &);
 
 /// Get the PTML reference to the C name of the Index-th field of the struct
 /// returned by F.
 extern std::string
 getReturnStructFieldLocationReference(const llvm::Function *F,
                                       size_t Index,
-                                      const ptml::PTMLCBuilder &);
+                                      const ptml::CBuilder &);
 
 /// Get the PTML definition of the C name of the helper function F.
-extern std::string
-getHelperFunctionLocationDefinition(const llvm::Function *F,
-                                    const ptml::PTMLCBuilder &B);
+extern std::string getHelperFunctionLocationDefinition(const llvm::Function *F,
+                                                       const ptml::CBuilder &B);
 
 /// Get the PTML reference to the C name of the helper function F.
-extern std::string
-getHelperFunctionLocationReference(const llvm::Function *F,
-                                   const ptml::PTMLCBuilder &B);
+extern std::string getHelperFunctionLocationReference(const llvm::Function *F,
+                                                      const ptml::CBuilder &B);

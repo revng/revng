@@ -223,20 +223,20 @@ TI::getTypesToInlineInTypeTy(const model::TypeDefinition &RootType) const {
 }
 
 static ptml::Tag getTypeKeyword(const model::TypeDefinition &T,
-                                const ptml::PTMLCBuilder &B) {
+                                const ptml::CBuilder &B) {
 
   switch (T.Kind()) {
 
   case model::TypeDefinitionKind::EnumDefinition: {
-    return B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum);
+    return B.getKeyword(ptml::CBuilder::Keyword::Enum);
   }
 
   case model::TypeDefinitionKind::StructDefinition: {
-    return B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct);
+    return B.getKeyword(ptml::CBuilder::Keyword::Struct);
   }
 
   case model::TypeDefinitionKind::UnionDefinition: {
-    return B.getKeyword(ptml::PTMLCBuilder::Keyword::Union);
+    return B.getKeyword(ptml::CBuilder::Keyword::Union);
   }
 
   default:
@@ -246,11 +246,11 @@ static ptml::Tag getTypeKeyword(const model::TypeDefinition &T,
 
 void printForwardDeclaration(const model::TypeDefinition &T,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &B) {
+                             ptml::CBuilder &B) {
   revng_assert(not declarationIsDefinition(T));
 
   auto TypeNameReference = B.getLocationReference(T);
-  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
+  Header << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
          << getTypeKeyword(T, B) << " "
          << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
          << TypeNameReference << " " << TypeNameReference << ";\n";
@@ -258,7 +258,7 @@ void printForwardDeclaration(const model::TypeDefinition &T,
 
 static void printDefinition(const model::EnumDefinition &E,
                             ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &B,
+                            ptml::CBuilder &B,
                             bool ForEditing,
                             std::string &&Suffix = "") {
   // We have to make the enum of the correct size of the underlying type
@@ -271,7 +271,7 @@ static void printDefinition(const model::EnumDefinition &E,
 
   std::string Underlying = E.underlyingType().getCName();
   Header
-    << B.getModelComment(E) << B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum)
+    << B.getModelComment(E) << B.getKeyword(ptml::CBuilder::Keyword::Enum)
     << " "
     << ptml::AttributeRegistry::getAnnotation<"_ENUM_UNDERLYING">(Underlying)
     << " " << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
@@ -280,7 +280,7 @@ static void printDefinition(const model::EnumDefinition &E,
   {
     Scope Scope(Header);
 
-    using PTMLOperator = ptml::PTMLCBuilder::Operator;
+    using PTMLOperator = ptml::CBuilder::Operator;
     for (const auto &Entry : E.Entries()) {
       Header << B.getModelComment(Entry) << B.getLocationDefinition(E, Entry)
              << " " << B.getOperator(PTMLOperator::Assign) << " "
@@ -300,7 +300,7 @@ static void printDefinition(const model::EnumDefinition &E,
 }
 
 static void printPadding(ptml::PTMLIndentedOstream &Header,
-                         ptml::PTMLCBuilder &B,
+                         ptml::CBuilder &B,
                          uint64_t FieldOffset,
                          uint64_t NextOffset,
                          bool ForEditing) {
@@ -322,7 +322,7 @@ static void printPadding(ptml::PTMLIndentedOstream &Header,
 static void printDefinition(Logger<> &Log,
                             const model::StructDefinition &S,
                             ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &B,
+                            ptml::CBuilder &B,
                             const model::Binary &Model,
                             TypeNameMap &AdditionalNames,
                             const DefinitionSet &TypesToInline,
@@ -330,7 +330,7 @@ static void printDefinition(Logger<> &Log,
                             std::string &&Suffix = "") {
 
   Header << B.getModelComment(S)
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+         << B.getKeyword(ptml::CBuilder::Keyword::Struct) << " "
          << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
 
   if (S.CanContainCode())
@@ -378,14 +378,13 @@ static void printDefinition(Logger<> &Log,
 static void printDefinition(Logger<> &Log,
                             const model::UnionDefinition &U,
                             ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &B,
+                            ptml::CBuilder &B,
                             const model::Binary &Model,
                             TypeNameMap &AdditionalTypeNames,
                             const DefinitionSet &TypesToInline,
                             std::string &&Suffix = "") {
-  Header << B.getModelComment(U)
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Union) << " "
-         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
+  Header << B.getModelComment(U) << B.getKeyword(ptml::CBuilder::Keyword::Union)
+         << " " << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
   Header << B.getLocationDefinition(U) << " ";
 
   {
@@ -414,12 +413,12 @@ static void printDefinition(Logger<> &Log,
 
 void printDeclaration(const model::TypedefDefinition &TD,
                       ptml::PTMLIndentedOstream &Header,
-                      ptml::PTMLCBuilder &B) {
+                      ptml::CBuilder &B) {
   if (declarationIsDefinition(TD))
     Header << B.getModelComment(TD);
 
   auto Type = B.getLocationDefinition(TD);
-  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
+  Header << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
          << getNamedCInstance(*TD.UnderlyingType(), Type, B) << ";\n";
 }
 
@@ -428,15 +427,15 @@ void printDeclaration(const model::TypedefDefinition &TD,
 static void generateReturnValueWrapper(Logger<> &Log,
                                        const model::RawFunctionDefinition &F,
                                        ptml::PTMLIndentedOstream &Header,
-                                       ptml::PTMLCBuilder &B,
+                                       ptml::CBuilder &B,
                                        const model::Binary &Model) {
   revng_assert(F.ReturnValues().size() > 1);
   if (Log.isEnabled())
     Header << B.getLineComment("definition the of return type "
                                "needed");
 
-  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+  Header << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
+         << B.getKeyword(ptml::CBuilder::Keyword::Struct) << " "
          << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
 
   {
@@ -463,7 +462,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
 static void printRawFunctionWrappers(Logger<> &Log,
                                      const model::RawFunctionDefinition *F,
                                      ptml::PTMLIndentedOstream &Header,
-                                     ptml::PTMLCBuilder &B,
+                                     ptml::CBuilder &B,
                                      const model::Binary &Model) {
   if (F->ReturnValues().size() > 1)
     generateReturnValueWrapper(Log, *F, Header, B, Model);
@@ -477,12 +476,12 @@ static void printRawFunctionWrappers(Logger<> &Log,
 static void printDeclaration(Logger<> &Log,
                              const model::RawFunctionDefinition &F,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &B,
+                             ptml::CBuilder &B,
                              const model::Binary &Model) {
   printRawFunctionWrappers(Log, &F, Header, B, Model);
 
   Header << B.getModelComment(F)
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " ";
+         << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
   printFunctionTypeDeclaration(F, Header, B, Model);
@@ -494,7 +493,7 @@ static void printDeclaration(Logger<> &Log,
 /// CABI functions.
 static void generateArrayWrapper(const model::ArrayType &ArrayType,
                                  ptml::PTMLIndentedOstream &Header,
-                                 ptml::PTMLCBuilder &B,
+                                 ptml::CBuilder &B,
                                  TypeNameMap &NamesCache) {
   auto WrapperName = getArrayWrapper(ArrayType, B);
 
@@ -503,8 +502,8 @@ static void generateArrayWrapper(const model::ArrayType &ArrayType,
   if (not IsNew)
     return;
 
-  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+  Header << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
+         << B.getKeyword(ptml::CBuilder::Keyword::Struct) << " "
          << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
@@ -520,7 +519,7 @@ static void generateArrayWrapper(const model::ArrayType &ArrayType,
 /// struct for each of them, if it's not already in the cache.
 static void printCABIFunctionWrappers(const model::CABIFunctionDefinition *F,
                                       ptml::PTMLIndentedOstream &Header,
-                                      ptml::PTMLCBuilder &B,
+                                      ptml::CBuilder &B,
                                       TypeNameMap &NamesCache) {
   if (not F->ReturnType().isEmpty())
     if (auto *Array = F->ReturnType()->getArray())
@@ -535,13 +534,13 @@ static void printCABIFunctionWrappers(const model::CABIFunctionDefinition *F,
 /// a variable that is a pointer to a function.
 static void printDeclaration(const model::CABIFunctionDefinition &F,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &B,
+                             ptml::CBuilder &B,
                              TypeNameMap &NamesCache,
                              const model::Binary &Model) {
   printCABIFunctionWrappers(&F, Header, B, NamesCache);
 
   Header << B.getModelComment(F)
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " ";
+         << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
   printFunctionTypeDeclaration(F, Header, B, Model);
@@ -551,7 +550,7 @@ static void printDeclaration(const model::CABIFunctionDefinition &F,
 void printDeclaration(Logger<> &Log,
                       const model::TypeDefinition &T,
                       ptml::PTMLIndentedOstream &Header,
-                      ptml::PTMLCBuilder &B,
+                      ptml::CBuilder &B,
                       const model::Binary &Model,
                       TypeNameMap &AdditionalNames) {
   if (Log.isEnabled()) {
@@ -586,7 +585,7 @@ void printDeclaration(Logger<> &Log,
 void printDefinition(Logger<> &Log,
                      const model::TypeDefinition &T,
                      ptml::PTMLIndentedOstream &Header,
-                     ptml::PTMLCBuilder &B,
+                     ptml::CBuilder &B,
                      const model::Binary &Model,
                      TypeNameMap &AdditionalNames,
                      const DefinitionSet &TypesToInline,
@@ -629,7 +628,7 @@ void printInlineDefinition(Logger<> &Log,
                            llvm::StringRef Name,
                            const model::Type &T,
                            ptml::PTMLIndentedOstream &Header,
-                           ptml::PTMLCBuilder &B,
+                           ptml::CBuilder &B,
                            const model::Binary &Model,
                            std::map<model::UpcastableType, std::string>
                              &AdditionalNames,
@@ -671,7 +670,7 @@ void printInlineDefinition(Logger<> &Log,
 void printInlineDefinition(Logger<> &Log,
                            const model::StructDefinition &Struct,
                            ptml::PTMLIndentedOstream &Header,
-                           ptml::PTMLCBuilder &B,
+                           ptml::CBuilder &B,
                            const model::Binary &Model,
                            TypeNameMap &AdditionalNames,
                            const DefinitionSet &TypesToInline,

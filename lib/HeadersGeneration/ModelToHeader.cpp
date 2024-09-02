@@ -43,7 +43,7 @@ static Logger<> Log{ "model-to-header" };
 
 static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header,
-                               const ptml::PTMLCBuilder &B) {
+                               const ptml::CBuilder &B) {
   auto Location = B.getLocationDefinition(Segment);
 
   if (Segment.Type().isEmpty()) {
@@ -59,7 +59,7 @@ static void printSegmentsTypes(const model::Segment &Segment,
 /// Print all type definitions for the types in the model
 static void printTypeDefinitions(const model::Binary &Model,
                                  ptml::PTMLIndentedOstream &Header,
-                                 ptml::PTMLCBuilder &B,
+                                 ptml::CBuilder &B,
                                  TypeNameMap &AdditionalTypeNames,
                                  const ModelToHeaderOptions &Options) {
 
@@ -153,10 +153,10 @@ static void printTypeDefinitions(const model::Binary &Model,
 bool dumpModelToHeader(const model::Binary &Model,
                        llvm::raw_ostream &Out,
                        const ModelToHeaderOptions &Options) {
-  using PTMLCBuilder = ptml::PTMLCBuilder;
-  using Scopes = ptml::PTMLCBuilder::Scopes;
+  using CBuilder = ptml::CBuilder;
+  using Scopes = ptml::CBuilder::Scopes;
 
-  PTMLCBuilder B(Options.GeneratePlainC);
+  CBuilder B(Options.GeneratePlainC);
   ptml::PTMLIndentedOstream Header(Out, DecompiledCCodeIndentation, true);
   {
     auto Scope = B.getTag(ptml::tags::Div).scope(Header);
@@ -172,11 +172,11 @@ bool dumpModelToHeader(const model::Binary &Model,
     if (Options.PostIncludes.size())
       Header << Options.PostIncludes << "\n";
 
-    Header << B.getDirective(PTMLCBuilder::Directive::IfNotDef) << " "
+    Header << B.getDirective(CBuilder::Directive::IfNotDef) << " "
            << B.getNullTag() << "\n"
-           << B.getDirective(PTMLCBuilder::Directive::Define) << " "
+           << B.getDirective(CBuilder::Directive::Define) << " "
            << B.getNullTag() << " (" << B.getZeroTag() << ")\n"
-           << B.getDirective(PTMLCBuilder::Directive::EndIf) << "\n";
+           << B.getDirective(CBuilder::Directive::EndIf) << "\n";
 
     if (not Model.TypeDefinitions().empty()) {
       auto Foldable = B.getScope(Scopes::TypeDeclarations)

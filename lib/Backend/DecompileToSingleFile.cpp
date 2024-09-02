@@ -9,7 +9,7 @@
 using namespace revng::pipes;
 
 void printSingleCFile(llvm::raw_ostream &Out,
-                      ptml::PTMLCBuilder &B,
+                      ptml::CBuilder &B,
                       const DecompileStringMap &Functions,
                       const std::set<MetaAddress> &Targets) {
   auto Scope = B.getTag(ptml::tags::Div).scope(Out);

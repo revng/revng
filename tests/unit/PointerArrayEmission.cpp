@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
                      "(*(*const *const ****const test)[4])[39][18]");
 
   std::string FailureLog;
-  ptml::PTMLCBuilder B(/* GeneratePlainC = */ true);
+  ptml::CBuilder B(/* GeneratePlainC = */ true);
   for (auto [Type, ExpectedOutput] : Tests) {
     std::string ActualOutput = getNamedCInstance(*Type, "test", B).str().str();
     if (ActualOutput != ExpectedOutput) {

@@ -24,7 +24,7 @@
 
 namespace ptml {
 
-class PTMLCBuilder : public ptml::MarkupBuilder {
+class CBuilder : public ptml::MarkupBuilder {
   using Tag = ptml::Tag;
 
 public:
@@ -100,8 +100,7 @@ public:
   };
 
 public:
-  PTMLCBuilder(bool GeneratePlainC = false) :
-    ptml::MarkupBuilder(GeneratePlainC) {}
+  CBuilder(bool GeneratePlainC = false) : ptml::MarkupBuilder(GeneratePlainC) {}
 
 private:
   llvm::StringRef toString(Keyword TheKeyword) const {

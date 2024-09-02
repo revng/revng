@@ -69,7 +69,7 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &Ctx,
       DecompiledFunctions.insert_or_assign(Entry, std::move(CCode));
     }
 
-    ptml::PTMLCBuilder B{ /* GeneratePlainC = */ true };
+    ptml::CBuilder B{ /* GeneratePlainC = */ true };
     printSingleCFile(Out, B, DecompiledFunctions, {} /* Targets */);
 
     Out.flush();

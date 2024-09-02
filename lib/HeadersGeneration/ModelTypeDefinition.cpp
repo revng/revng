@@ -15,7 +15,7 @@ std::string dumpModelTypeDefinition(const model::Binary &Model,
 
   llvm::raw_string_ostream Out(Result);
   ptml::PTMLIndentedOstream PTMLOut(Out, DecompiledCCodeIndentation, true);
-  ptml::PTMLCBuilder B(true);
+  ptml::CBuilder B(true);
 
   std::map<model::UpcastableType, std::string> AdditionalNames;
   const std::set<const model::TypeDefinition *> TypesToInline;

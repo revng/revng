@@ -21,7 +21,7 @@
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 
 using llvm::Twine;
-using PTMLCBuilder = ptml::PTMLCBuilder;
+using CBuilder = ptml::CBuilder;
 
 constexpr const char *const StructWrapperPrefix = "_artificial_struct_returned_"
                                                   "by_";
@@ -64,9 +64,9 @@ bool isScalarCType(const llvm::Type *LLVMType) {
   return false;
 }
 
-std::string getScalarCType(const llvm::Type *LLVMType, const PTMLCBuilder &B) {
+std::string getScalarCType(const llvm::Type *LLVMType, const CBuilder &B) {
   revng_assert(isScalarCType(LLVMType));
-  using Operator = PTMLCBuilder::Operator;
+  using Operator = CBuilder::Operator;
   switch (LLVMType->getTypeID()) {
   case llvm::Type::HalfTyID:
   case llvm::Type::BFloatTyID:
@@ -145,7 +145,7 @@ static std::string serializeHelperStructLocation(const std::string &Name) {
 
 template<bool IsDefinition>
 static std::string
-getReturnTypeLocation(const llvm::Function *F, const PTMLCBuilder &B) {
+getReturnTypeLocation(const llvm::Function *F, const CBuilder &B) {
   auto *RetType = F->getReturnType();
   // Isolated functions' return types must be converted using model types
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
@@ -162,18 +162,18 @@ getReturnTypeLocation(const llvm::Function *F, const PTMLCBuilder &B) {
 }
 
 std::string getReturnTypeLocationDefinition(const llvm::Function *F,
-                                            const PTMLCBuilder &B) {
+                                            const CBuilder &B) {
   return getReturnTypeLocation<false>(F, B);
 }
 
 std::string getReturnTypeLocationReference(const llvm::Function *F,
-                                           const PTMLCBuilder &B) {
+                                           const CBuilder &B) {
   return getReturnTypeLocation<true>(F, B);
 }
 
 std::string getReturnStructFieldType(const llvm::Function *F,
                                      size_t Index,
-                                     const PTMLCBuilder &B) {
+                                     const CBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   auto *StructTy = llvm::cast<llvm::StructType>(F->getReturnType());
   return getScalarCType(StructTy->getTypeAtIndex(Index), B);
@@ -191,7 +191,7 @@ serializeHelperStructFieldLocation(const std::string &StructName,
 template<bool IsDefinition>
 static std::string getReturnStructFieldLocation(const llvm::Function *F,
                                                 size_t Index,
-                                                const PTMLCBuilder &B) {
+                                                const CBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(F->getReturnType()->isStructTy());
 
@@ -206,13 +206,13 @@ static std::string getReturnStructFieldLocation(const llvm::Function *F,
 
 std::string getReturnStructFieldLocationDefinition(const llvm::Function *F,
                                                    size_t Index,
-                                                   const PTMLCBuilder &B) {
+                                                   const CBuilder &B) {
   return getReturnStructFieldLocation<true>(F, Index, B);
 }
 
 std::string getReturnStructFieldLocationReference(const llvm::Function *F,
                                                   size_t Index,
-                                                  const PTMLCBuilder &B) {
+                                                  const CBuilder &B) {
   return getReturnStructFieldLocation<false>(F, Index, B);
 }
 
@@ -222,7 +222,7 @@ static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
 
 template<bool IsDefinition>
 static std::string
-getHelperFunctionLocation(const llvm::Function *F, const PTMLCBuilder &B) {
+getHelperFunctionLocation(const llvm::Function *F, const CBuilder &B) {
   return B.tokenTag(getHelperFunctionIdentifier(F), ptml::c::tokens::Function)
     .addAttribute(B.getLocationAttribute(IsDefinition),
                   serializeHelperFunctionLocation(F))
@@ -230,11 +230,11 @@ getHelperFunctionLocation(const llvm::Function *F, const PTMLCBuilder &B) {
 }
 
 std::string getHelperFunctionLocationDefinition(const llvm::Function *F,
-                                                const PTMLCBuilder &B) {
+                                                const CBuilder &B) {
   return getHelperFunctionLocation<true>(F, B);
 }
 
 std::string getHelperFunctionLocationReference(const llvm::Function *F,
-                                               const PTMLCBuilder &B) {
+                                               const CBuilder &B) {
   return getHelperFunctionLocation<false>(F, B);
 }

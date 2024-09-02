@@ -31,23 +31,23 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 extern tokenDefinition::types::TypeString
 getNamedCInstance(const model::Type &Type,
                   llvm::StringRef InstanceName,
-                  const ptml::PTMLCBuilder &B,
+                  const ptml::CBuilder &B,
                   llvm::ArrayRef<std::string> AllowedActions = {},
                   bool OmitInnerTypeName = false);
 
-inline tokenDefinition::types::TypeString
-getTypeName(const model::Type &Type, const ptml::PTMLCBuilder &B) {
+inline tokenDefinition::types::TypeString getTypeName(const model::Type &Type,
+                                                      const ptml::CBuilder &B) {
   return getNamedCInstance(Type, "", B);
 }
 
 inline std::string getPlainTypeName(const model::Type &Type) {
-  ptml::PTMLCBuilder B(/* GeneratePlainC = */ true);
+  ptml::CBuilder B(/* GeneratePlainC = */ true);
   return getTypeName(Type, B).str().str();
 }
 
 /// Return the name of the array wrapper that wraps \a ArrayType
 extern tokenDefinition::types::TypeString
-getArrayWrapper(const model::ArrayType &ArrayType, const ptml::PTMLCBuilder &B);
+getArrayWrapper(const model::ArrayType &ArrayType, const ptml::CBuilder &B);
 
 /// Return a string containing the C Type name of the return type of \a
 /// FunctionType, and a (possibly empty) \a InstanceName.
@@ -56,12 +56,12 @@ getArrayWrapper(const model::ArrayType &ArrayType, const ptml::PTMLCBuilder &B);
 extern tokenDefinition::types::TypeString
 getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
                              llvm::StringRef InstanceName,
-                             const ptml::PTMLCBuilder &B,
+                             const ptml::CBuilder &B,
                              bool IsDefinition);
 
 inline tokenDefinition::types::TypeString
 getReturnTypeName(const model::TypeDefinition &FunctionType,
-                  const ptml::PTMLCBuilder &B,
+                  const ptml::CBuilder &B,
                   bool IsDefinition) {
   return getNamedInstanceOfReturnType(FunctionType, "", B, IsDefinition);
 }
@@ -74,26 +74,26 @@ getReturnTypeName(const model::TypeDefinition &FunctionType,
 extern void printFunctionPrototype(const model::TypeDefinition &FT,
                                    const model::Function &Function,
                                    llvm::raw_ostream &Header,
-                                   ptml::PTMLCBuilder &B,
+                                   ptml::CBuilder &B,
                                    const model::Binary &Model,
                                    bool SingleLine);
 extern void printFunctionPrototype(const model::TypeDefinition &FT,
                                    const model::DynamicFunction &Function,
                                    llvm::raw_ostream &Header,
-                                   ptml::PTMLCBuilder &B,
+                                   ptml::CBuilder &B,
                                    const model::Binary &Model,
                                    bool SingleLine);
 extern void printFunctionTypeDeclaration(const model::TypeDefinition &FT,
                                          llvm::raw_ostream &Header,
-                                         ptml::PTMLCBuilder &B,
+                                         ptml::CBuilder &B,
                                          const model::Binary &Model);
 
 extern std::string getArgumentLocationReference(llvm::StringRef ArgumentName,
                                                 const model::Function &F,
-                                                ptml::PTMLCBuilder &B);
+                                                ptml::CBuilder &B);
 extern std::string getVariableLocationDefinition(llvm::StringRef VariableName,
                                                  const model::Function &F,
-                                                 ptml::PTMLCBuilder &B);
+                                                 ptml::CBuilder &B);
 extern std::string getVariableLocationReference(llvm::StringRef VariableName,
                                                 const model::Function &F,
-                                                ptml::PTMLCBuilder &B);
+                                                ptml::CBuilder &B);

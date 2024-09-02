@@ -41,9 +41,9 @@ static Logger<> Log{ "helpers-to-header" };
 static void printDefinition(const llvm::StructType *S,
                             const llvm::Function &F,
                             ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &B) {
-  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
+                            ptml::CBuilder &B) {
+  Header << B.getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
+         << B.getKeyword(ptml::CBuilder::Keyword::Struct) << " "
          << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
 
   {
@@ -62,7 +62,7 @@ static void printDefinition(const llvm::StructType *S,
 /// Print the prototype of a helper .
 static void printHelperPrototype(const llvm::Function *Func,
                                  ptml::PTMLIndentedOstream &Header,
-                                 ptml::PTMLCBuilder &B) {
+                                 ptml::CBuilder &B) {
   Header << getReturnTypeLocationReference(Func, B) << " "
          << getHelperFunctionLocationDefinition(Func, B);
 
@@ -96,8 +96,8 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
 bool dumpHelpersToHeader(const llvm::Module &M,
                          llvm::raw_ostream &Out,
                          bool GeneratePlainC) {
-  using PTMLCBuilder = ptml::PTMLCBuilder;
-  PTMLCBuilder B{ GeneratePlainC };
+  using CBuilder = ptml::CBuilder;
+  CBuilder B{ GeneratePlainC };
   auto Header = ptml::PTMLIndentedOstream(Out, DecompiledCCodeIndentation);
   {
     auto Scope = B.getTag(ptml::tags::Div).scope(Header);

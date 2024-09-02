@@ -25,7 +25,7 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
 
   auto Out = OutCFile.asStream();
 
-  ptml::PTMLCBuilder B;
+  ptml::CBuilder B;
 
   // Make a single C file with an empty set of targets, which means all the
   // functions in DecompiledFunctions

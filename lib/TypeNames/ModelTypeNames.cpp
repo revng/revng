@@ -64,7 +64,7 @@ static std::string toStringVariableLocation(llvm::StringRef VariableName,
 template<bool IsDefinition, ModelFunction FunctionType>
 static std::string getArgumentLocation(llvm::StringRef ArgumentName,
                                        const FunctionType &F,
-                                       ptml::PTMLCBuilder &B) {
+                                       ptml::CBuilder &B) {
   return B.getTag(ptml::tags::Span, ArgumentName)
     .addAttribute(attributes::Token, tokens::FunctionParameter)
     .addAttribute(B.getLocationAttribute(IsDefinition),
@@ -75,26 +75,26 @@ static std::string getArgumentLocation(llvm::StringRef ArgumentName,
 static std::string
 getArgumentLocationDefinition(llvm::StringRef ArgumentName,
                               const model::DynamicFunction &F,
-                              ptml::PTMLCBuilder &B) {
+                              ptml::CBuilder &B) {
   return getArgumentLocation<true>(ArgumentName, F, B);
 }
 
 static std::string getArgumentLocationDefinition(llvm::StringRef ArgumentName,
                                                  const model::Function &F,
-                                                 ptml::PTMLCBuilder &B) {
+                                                 ptml::CBuilder &B) {
   return getArgumentLocation<true>(ArgumentName, F, B);
 }
 
 std::string getArgumentLocationReference(llvm::StringRef ArgumentName,
                                          const model::Function &F,
-                                         ptml::PTMLCBuilder &B) {
+                                         ptml::CBuilder &B) {
   return getArgumentLocation<false>(ArgumentName, F, B);
 }
 
 template<bool IsDefinition>
 static std::string getVariableLocation(llvm::StringRef VariableName,
                                        const model::Function &F,
-                                       ptml::PTMLCBuilder &B) {
+                                       ptml::CBuilder &B) {
   return B.getTag(ptml::tags::Span, VariableName)
     .addAttribute(attributes::Token, tokens::Variable)
     .addAttribute(B.getLocationAttribute(IsDefinition),
@@ -104,18 +104,18 @@ static std::string getVariableLocation(llvm::StringRef VariableName,
 
 std::string getVariableLocationDefinition(llvm::StringRef VariableName,
                                           const model::Function &F,
-                                          ptml::PTMLCBuilder &B) {
+                                          ptml::CBuilder &B) {
   return getVariableLocation<true>(VariableName, F, B);
 }
 
 std::string getVariableLocationReference(llvm::StringRef VariableName,
                                          const model::Function &F,
-                                         ptml::PTMLCBuilder &B) {
+                                         ptml::CBuilder &B) {
   return getVariableLocation<false>(VariableName, F, B);
 }
 
 struct NamedCInstanceImpl {
-  const ptml::PTMLCBuilder &B;
+  const ptml::CBuilder &B;
   llvm::ArrayRef<std::string> AllowedActions;
   bool OmitInnerTypeName;
 
@@ -214,14 +214,13 @@ private:
   }
 
   std::string constKeyword() {
-    using PTMLKW = ptml::PTMLCBuilder::Keyword;
-    return B.getKeyword(PTMLKW::Const).toString();
+    return B.getKeyword(ptml::CBuilder::Keyword::Const).toString();
   }
 };
 
 TypeString getNamedCInstance(const model::Type &Type,
                              StringRef InstanceName,
-                             const ptml::PTMLCBuilder &B,
+                             const ptml::CBuilder &B,
                              llvm::ArrayRef<std::string> AllowedActions,
                              bool OmitInnerTypeName) {
   NamedCInstanceImpl Helper(B, AllowedActions, OmitInnerTypeName);
@@ -233,7 +232,7 @@ TypeString getNamedCInstance(const model::Type &Type,
 }
 
 static RecursiveCoroutine<std::string>
-getArrayWrapperImpl(const model::Type &Type, const ptml::PTMLCBuilder &B) {
+getArrayWrapperImpl(const model::Type &Type, const ptml::CBuilder &B) {
   if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
     std::string Result = "array_" + std::to_string(Array->ElementCount())
                          + "_of_";
@@ -259,7 +258,7 @@ getArrayWrapperImpl(const model::Type &Type, const ptml::PTMLCBuilder &B) {
 }
 
 TypeString getArrayWrapper(const model::ArrayType &ArrayType,
-                           const ptml::PTMLCBuilder &B) {
+                           const ptml::CBuilder &B) {
   std::string Result = ArrayWrapperPrefix;
 
   Result += getArrayWrapperImpl(ArrayType, B);
@@ -269,7 +268,7 @@ TypeString getArrayWrapper(const model::ArrayType &ArrayType,
 
 TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
                                         llvm::StringRef InstanceName,
-                                        const ptml::PTMLCBuilder &B,
+                                        const ptml::CBuilder &B,
                                         bool IsDefinition) {
   TypeString Result;
   std::vector<std::string> AllowedActions = { ptml::actions::Rename };
@@ -373,7 +372,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::RawFunctionDefinition &RF,
                                        const llvm::StringRef &FunctionName,
                                        llvm::raw_ostream &Header,
-                                       ptml::PTMLCBuilder &B,
+                                       ptml::CBuilder &B,
                                        const model::Binary &Model,
                                        bool SingleLine) {
   using namespace abi::FunctionType;
@@ -432,7 +431,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::CABIFunctionDefinition &CF,
                                        const llvm::StringRef &FunctionName,
                                        llvm::raw_ostream &Header,
-                                       ptml::PTMLCBuilder &B,
+                                       ptml::CBuilder &B,
                                        const model::Binary &Model,
                                        bool SingleLine) {
   std::string_view ABIName = model::ABI::getName(CF.ABI());
@@ -479,7 +478,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 void printFunctionPrototype(const model::TypeDefinition &FT,
                             const model::Function &Function,
                             llvm::raw_ostream &Header,
-                            ptml::PTMLCBuilder &B,
+                            ptml::CBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
   std::string Location = toString(ranks::Function, Function.key());
@@ -510,7 +509,7 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
 void printFunctionPrototype(const model::TypeDefinition &FT,
                             const model::DynamicFunction &Function,
                             llvm::raw_ostream &Header,
-                            ptml::PTMLCBuilder &B,
+                            ptml::CBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
   std::string Location = toString(ranks::DynamicFunction, Function.key());
@@ -540,7 +539,7 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
 
 void printFunctionTypeDeclaration(const model::TypeDefinition &FT,
                                   llvm::raw_ostream &Header,
-                                  ptml::PTMLCBuilder &B,
+                                  ptml::CBuilder &B,
                                   const model::Binary &Model) {
 
   auto TypeName = B.getLocationDefinition(FT);

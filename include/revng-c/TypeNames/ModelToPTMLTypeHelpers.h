@@ -88,7 +88,7 @@ inline bool declarationIsDefinition(const model::TypeDefinition &T) {
 /// \param B the ptml tagging helper.
 extern void printForwardDeclaration(const model::TypeDefinition &T,
                                     ptml::PTMLIndentedOstream &Header,
-                                    ptml::PTMLCBuilder &B);
+                                    ptml::CBuilder &B);
 
 /// Print a declaration corresponding to a given `model::TypeDefinition`.
 ///
@@ -103,7 +103,7 @@ extern void
 printDeclaration(Logger<> &Log,
                  const model::TypeDefinition &T,
                  ptml::PTMLIndentedOstream &Header,
-                 ptml::PTMLCBuilder &B,
+                 ptml::CBuilder &B,
                  const model::Binary &Model,
                  std::map<model::UpcastableType, std::string> &AdditionalNames);
 
@@ -129,7 +129,7 @@ extern void
 printDefinition(Logger<> &Log,
                 const model::TypeDefinition &T,
                 ptml::PTMLIndentedOstream &Header,
-                ptml::PTMLCBuilder &B,
+                ptml::CBuilder &B,
                 const model::Binary &Model,
                 std::map<model::UpcastableType, std::string> &AdditionalNames,
                 const std::set<const model::TypeDefinition *>
@@ -152,7 +152,7 @@ extern void printInlineDefinition(Logger<> &Log,
                                   llvm::StringRef Name,
                                   const model::Type &T,
                                   ptml::PTMLIndentedOstream &Header,
-                                  ptml::PTMLCBuilder &B,
+                                  ptml::CBuilder &B,
                                   const model::Binary &Model,
                                   std::map<model::UpcastableType, std::string>
                                     &AdditionalNames,
@@ -175,7 +175,7 @@ extern void printInlineDefinition(Logger<> &Log,
 extern void printInlineDefinition(Logger<> &Log,
                                   const model::StructDefinition &Struct,
                                   ptml::PTMLIndentedOstream &Header,
-                                  ptml::PTMLCBuilder &B,
+                                  ptml::CBuilder &B,
                                   const model::Binary &Model,
                                   std::map<model::UpcastableType, std::string>
                                     &AdditionalNames,
@@ -190,4 +190,4 @@ extern void printInlineDefinition(Logger<> &Log,
 /// \param B the ptml tagging helper.
 extern void printDeclaration(const model::TypedefDefinition &TD,
                              ptml::PTMLIndentedOstream &Header,
-                             ptml::PTMLCBuilder &B);
+                             ptml::CBuilder &B);
