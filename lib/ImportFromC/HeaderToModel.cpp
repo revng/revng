@@ -10,6 +10,7 @@
 #include "revng/Support/Debug.h"
 
 #include "revng-c/Pipes/Ranks.h"
+#include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
@@ -24,14 +25,6 @@ using namespace revng;
 static constexpr llvm::StringRef InputCFile = "revng-input.c";
 static constexpr llvm::StringRef PrimitiveTypeHeader = "primitive-types.h";
 static constexpr llvm::StringRef RawABIPrefix = "raw_";
-
-static constexpr llvm::StringRef ABIAnnotation = "abi:";
-static constexpr llvm::StringRef RegAnnotation = "reg:";
-static constexpr llvm::StringRef StackAnnotation = "stack";
-static constexpr llvm::StringRef EnumAnnotation = "enum_underlying_type:";
-static constexpr llvm::StringRef FieldAnnotation = "field_start_offset:";
-static constexpr llvm::StringRef SizeAnnotation = "struct_size:";
-static constexpr llvm::StringRef CodeAnnotation = "can_contain_code";
 
 template<typename T>
 concept HasCustomName = requires(const T &Element) {
@@ -145,15 +138,13 @@ private:
   RecursiveCoroutine<model::UpcastableType>
   getModelTypeForClangType(const QualType &QT);
 
-  template<typename Type>
+  template<ConstexprString Macro, typename Type>
   std::optional<llvm::StringRef>
-  parseStringAnnotation(const Type &Declaration,
-                        llvm::StringRef Prefix,
-                        ImportingErrorList &Errors);
-  template<typename Type>
-  std::optional<uint64_t> parseIntegerAnnotation(const Type &Declaration,
-                                                 llvm::StringRef Prefix,
-                                                 ImportingErrorList &Errors);
+  parseStringAnnotation(const Type &Declaration, ImportingErrorList &Errors);
+
+  template<ConstexprString Macro, typename Type>
+  std::optional<uint64_t>
+  parseIntegerAnnotation(const Type &Declaration, ImportingErrorList &Errors);
 };
 
 DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
@@ -170,11 +161,12 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
   AnalysisOption(AnalysisOption) {
 }
 
-template<typename Type>
+template<ConstexprString Macro, typename Type>
 std::optional<llvm::StringRef>
 DeclVisitor::parseStringAnnotation(const Type &Declaration,
-                                   llvm::StringRef Prefix,
                                    ImportingErrorList &Errors) {
+  static constexpr auto Prefix = ptml::AttributeRegistry::getPrefix<Macro>();
+
   std::optional<llvm::StringRef> Result;
   if (Declaration.template hasAttr<clang::AnnotateAttr>()) {
     for (auto &Attribute : Declaration.getAttrs()) {
@@ -195,7 +187,7 @@ DeclVisitor::parseStringAnnotation(const Type &Declaration,
 
           Errors.emplace_back(ErrorPrefix + " Multiple conflicting values ('"
                               + Result.value().str() + "' and '" + Value.str()
-                              + "') were found for the '" + Prefix.str()
+                              + "') were found for the '" + std::string(Macro)
                               + "' annotation.\n");
           return std::nullopt;
         }
@@ -208,14 +200,11 @@ DeclVisitor::parseStringAnnotation(const Type &Declaration,
   return Result;
 }
 
-template<typename Type>
+template<ConstexprString Macro, typename Type>
 std::optional<uint64_t>
 DeclVisitor::parseIntegerAnnotation(const Type &Declaration,
-                                    llvm::StringRef Prefix,
                                     ImportingErrorList &Errors) {
-  std::optional<llvm::StringRef> Result = parseStringAnnotation(Declaration,
-                                                                Prefix,
-                                                                Errors);
+  std::optional Result = parseStringAnnotation<Macro>(Declaration, Errors);
   if (not Result.has_value())
     return std::nullopt;
 
@@ -223,7 +212,7 @@ DeclVisitor::parseIntegerAnnotation(const Type &Declaration,
   if (Result->getAsInteger(0, IntegerResult)) {
     Errors.emplace_back("import-from-c: Ignoring a non-integer value ('"
                         + Result->str() + "') of an integer annotation: '"
-                        + Prefix.str() + "'.\n");
+                        + std::string(Macro) + "'.\n");
     return std::nullopt;
   }
 
@@ -535,7 +524,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   revng_assert(FD);
   revng_assert(AnalysisOption == ImportFromCOption::EditFunctionPrototype);
 
-  std::optional ABI = parseStringAnnotation(*FD, ABIAnnotation, Errors);
+  std::optional ABI = parseStringAnnotation<"_ABI">(*FD, Errors);
   if (not ABI.has_value() or ABI->empty()) {
     Errors.emplace_back("import-from-c failed: Functions without an "
                         "`_ABI($name)` or `_ABI(raw_$arch)` annotation are not "
@@ -613,13 +602,9 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         NTR.Type() = Type;
       }
     } else {
-      std::optional Register = parseStringAnnotation(*FD,
-                                                     RegAnnotation,
-                                                     Errors);
+      std::optional Register = parseStringAnnotation<"_REG">(*FD, Errors);
       if (not Register.has_value()) {
-        std::optional Stack = parseStringAnnotation(*FD,
-                                                    StackAnnotation,
-                                                    Errors);
+        std::optional Stack = parseStringAnnotation<"_STACK">(*FD, Errors);
         if (Stack.has_value()) {
           Errors.emplace_back("import-from-c failed: Only register values are "
                               "allowed as a part of a raw function's return "
@@ -666,12 +651,9 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         return false;
       }
 
-      std::optional Register = parseStringAnnotation(*ParamDecl,
-                                                     RegAnnotation,
-                                                     Errors);
-      std::optional Stack = parseStringAnnotation(*ParamDecl,
-                                                  StackAnnotation,
-                                                  Errors);
+      std::optional Register = parseStringAnnotation<"_REG">(*ParamDecl,
+                                                             Errors);
+      std::optional Stack = parseStringAnnotation<"_STACK">(*ParamDecl, Errors);
       if (not Register.has_value()) {
         if (not Stack.has_value()) {
           Errors.emplace_back("import-from-c failed: Argument #"
@@ -765,7 +747,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
     // TODO: Should we change the annotate attached to function types to have
     // info about parameters in the toplevel annotate attribute attached to
     // the typedef itself?
-    std::optional ABI = parseStringAnnotation(*D, ABIAnnotation, Errors);
+    std::optional ABI = parseStringAnnotation<"_ABI">(*D, Errors);
     if (not ABI.has_value()) {
       Errors.emplace_back("import-from-c failed: a function typedef must "
                           "either have `_ABI($name)` or `_ABI(raw_$arch)` "
@@ -922,9 +904,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
     model::Register::Values Location;
     if (AnalysisOption == ImportFromCOption::EditFunctionPrototype) {
-      std::optional Stack = parseStringAnnotation(*Field,
-                                                  StackAnnotation,
-                                                  Errors);
+      std::optional Stack = parseStringAnnotation<"_STACK">(*Field, Errors);
       if (Stack.has_value()) {
         Errors.emplace_back("import-from-c failed: Only register values are "
                             "allowed as a part of a raw function's return "
@@ -933,9 +913,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
         return false;
       }
 
-      std::optional Register = parseStringAnnotation(*Field,
-                                                     RegAnnotation,
-                                                     Errors);
+      std::optional Register = parseStringAnnotation<"_REG">(*Field, Errors);
       if (not Register.has_value()) {
         Errors.emplace_back("import-from-c failed: Return values of a raw "
                             "function must have a _REG($name) annotation.\n");
@@ -986,9 +964,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     }
 
     bool IsPadding = Field->getName().starts_with(StructPaddingPrefix);
-    auto ExplicitOffset = parseIntegerAnnotation(*Field,
-                                                 FieldAnnotation,
-                                                 Errors);
+    auto ExplicitOffset = parseIntegerAnnotation<"_START_AT">(*Field, Errors);
     if (ExplicitOffset.has_value()) {
       if (IsPadding) {
         Errors.emplace_back("import-from-c: While parsing field #"
@@ -1022,9 +998,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     CurrentOffset += *Size;
   }
 
-  if (std::optional ExplicitSize = parseIntegerAnnotation(*Definition,
-                                                          SizeAnnotation,
-                                                          Errors)) {
+  if (std::optional ExplicitSize = parseIntegerAnnotation<"_SIZE">(*Definition,
+                                                                   Errors)) {
     // Prefer explicit size if it's available.
     Struct->Size() = *ExplicitSize;
 
@@ -1040,10 +1015,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
             Struct->Size() = OldSize;
   }
 
-  std::optional CanContainCode = parseStringAnnotation(*RD,
-                                                       CodeAnnotation,
-                                                       Errors);
-  if (CanContainCode)
+  if (parseStringAnnotation<"_CAN_CONTAIN_CODE">(*RD, Errors))
     Struct->CanContainCode() = true;
 
   switch (AnalysisOption) {
@@ -1159,9 +1131,8 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   }
 
   // Parse annotate attribute used for specifying underlying type.
-  std::optional UnderlyingTypeName = parseStringAnnotation(*D,
-                                                           EnumAnnotation,
-                                                           Errors);
+  auto UnderlyingTypeName = parseStringAnnotation<"_ENUM_UNDERLYING">(*D,
+                                                                      Errors);
   if (not UnderlyingTypeName.has_value()) {
     Errors.emplace_back("import-from-c failed: Enums without an "
                         "`_ENUM_UNDERLYING($type)` annotation are not "
