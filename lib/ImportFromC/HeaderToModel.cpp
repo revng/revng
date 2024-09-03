@@ -502,11 +502,8 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
     }
 
   } else {
-    Errors.emplace_back("import-from-c: Unsupported type.\n");
-    Errors.emplace_back("import-from-c: This error indicates that the type "
-                        "system clang emitted contains something we either "
-                        "decided not to allow in the model OR do not support "
-                        "yet.\n");
+    Errors.emplace_back("import-from-c: The type cannot be represented in the "
+                        "model.\n");
   }
 
   if (not R.isEmpty() and QT.isConstQualified())

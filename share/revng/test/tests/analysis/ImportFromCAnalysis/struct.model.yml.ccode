@@ -1,8 +1,0 @@
-//
-// This file is distributed under the MIT License. See LICENSE.md for details.
-//
-
-struct _PACKED my_struct {
-    _struct_3004 *first_field;
-    uint8_t _padding_at_8[32];
-};

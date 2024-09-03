@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c: Builtin type `int` not allowed, please use a revng model::PrimitiveType instead.
+import-from-c failed: Unable to parse the type of struct field #0.
+

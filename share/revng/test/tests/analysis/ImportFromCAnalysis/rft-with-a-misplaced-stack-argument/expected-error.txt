@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c failed: Only the very last RFT argument is allowed to represent stack, which also means there can only be one.
+                      Please either remove `_STACK` annotation from the argument #0 or move it into the stack argument struct.
+

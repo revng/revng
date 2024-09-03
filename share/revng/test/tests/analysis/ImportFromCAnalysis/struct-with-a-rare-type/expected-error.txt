@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c: The type cannot be represented in the model.
+import-from-c failed: Unable to parse the type of struct field #0.
+

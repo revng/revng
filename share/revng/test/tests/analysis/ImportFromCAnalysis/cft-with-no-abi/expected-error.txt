@@ -1,0 +1,6 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c failed: a function typedef must either have `_ABI($name)` or `_ABI(raw_$arch)` annotation attached.
+
