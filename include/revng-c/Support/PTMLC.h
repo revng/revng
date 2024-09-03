@@ -419,32 +419,6 @@ public:
            + "\n";
   }
 
-  std::string getEnumAnnotation(const llvm::StringRef UnderlyingType) const {
-    return "_ENUM_UNDERLYING(" + UnderlyingType.str() + ")";
-  }
-
-  std::string getABIAnnotation(const llvm::StringRef ABI) const {
-    return "_ABI(" + ABI.str() + ")";
-  }
-
-  std::string getRegisterAnnotation(const llvm::StringRef RegisterName) const {
-    return "_REG(" + RegisterName.str() + ")";
-  }
-
-  std::string getStartAtAnnotation(const uint64_t Size) const {
-    return "_START_AT(" + std::to_string(Size) + ")";
-  }
-
-  std::string getSizeAnnotation(const uint64_t Size) const {
-    return "_SIZE(" + std::to_string(Size) + ")";
-  }
-
-  std::string getStackAnnotation() const { return "_STACK"; }
-
-  std::string getPackedAttribute() { return "_PACKED"; }
-
-  std::string getCanContainCodeAttribute() { return "_CAN_CONTAIN_CODE"; }
-
   Tag getNameTag(const model::TypeDefinition &T) const {
     return ptml::PTMLBuilder::tokenTag(T.name().str().str(),
                                        ptml::c::tokens::Type);

@@ -27,6 +27,7 @@
 
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 #include "revng-c/Pipes/Ranks.h"
+#include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
@@ -251,7 +252,8 @@ void printForwardDeclaration(const model::TypeDefinition &T,
 
   auto TypeNameReference = B.getLocationReference(T);
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
-         << getTypeKeyword(T, B) << " " << B.getPackedAttribute() << " "
+         << getTypeKeyword(T, B) << " "
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
          << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
@@ -268,10 +270,13 @@ static void printDefinition(const model::EnumDefinition &E,
                                  FullMask :
                                  ((FullMask) xor (FullMask << (8 * ByteSize)));
 
-  Header << B.getModelComment(E)
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
-         << B.getEnumAnnotation(E.underlyingType().getCName()) << " "
-         << B.getPackedAttribute() << " " << B.getLocationDefinition(E) << " ";
+  std::string Underlying = E.underlyingType().getCName();
+  Header
+    << B.getModelComment(E) << B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum)
+    << " "
+    << ptml::AttributeRegistry::getAnnotation<"_ENUM_UNDERLYING">(Underlying)
+    << " " << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
+    << B.getLocationDefinition(E) << " ";
 
   {
     Scope Scope(Header);
@@ -305,7 +310,8 @@ static void printPadding(ptml::PTMLIndentedOstream &Header,
     return; // No padding is needed
 
   if (ForEditing) {
-    Header << B.getStartAtAnnotation(NextOffset) << "\n";
+    Header << ptml::AttributeRegistry::getAnnotation<"_START_AT">(NextOffset)
+           << "\n";
   } else {
     Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
            << B.tokenTag(StructPaddingPrefix + std::to_string(FieldOffset),
@@ -326,13 +332,14 @@ static void printDefinition(Logger<> &Log,
 
   Header << B.getModelComment(S)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getPackedAttribute() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
 
   if (S.CanContainCode())
-    Header << B.getCanContainCodeAttribute() << " ";
+    Header << ptml::AttributeRegistry::getAttribute<"_CAN_CONTAIN_CODE">()
+           << " ";
 
   if (ForEditing)
-    Header << B.getSizeAnnotation(S.Size()) << " ";
+    Header << ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size()) << " ";
 
   Header << B.getLocationDefinition(S) << " ";
 
@@ -379,7 +386,7 @@ static void printDefinition(Logger<> &Log,
                             std::string &&Suffix = "") {
   Header << B.getModelComment(U)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Union) << " "
-         << B.getPackedAttribute() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
   Header << B.getLocationDefinition(U) << " ";
 
   {
@@ -431,7 +438,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
 
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getPackedAttribute() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
@@ -501,7 +508,7 @@ static void generateArrayWrapper(const model::ArrayType &ArrayType,
 
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getPackedAttribute() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     Header << getNamedCInstance(ArrayType,
