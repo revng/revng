@@ -8,15 +8,45 @@ sources:
   - tags: [import-from-c]
     prefix: share/revng/test/tests/analysis/ImportFromCAnalysis/
     members:
-      - struct.model.yml
-      - union.model.yml
-      - cabifunctiontype.model.yml
-      - cabifunctiontype-with-complex-args.model.yml
-      - enumtype.model.yml
-      - typedef.model.yml
-      - primitive-types.model.yml
-      - rft-multiple-regs-for-return-val.model.yml
-      - rft-single-reg-for-return-val.model.yml
+      - cft
+      - cft-with-an-unknown-abi
+      - cft-with-complex-arguments
+      - cft-with-no-abi
+      - enum
+      - enum-with-a-broken-annotation
+      - enum-with-a-non-primitive-underlying-type
+      - enum-with-a-void-underlying-type
+      - enum-without-an-annotation
+      - primitives
+      - rft
+      - rft-with-a-misplaced-stack-argument
+      - rft-with-a-non-struct-stack-argument
+      - rft-with-an-unannotated-argument
+      - rft-with-an-unannotated-return-value
+      - rft-with-an-unknown-architecture
+      - rft-with-an-unknown-argument-register
+      - rft-with-an-unknown-return-value-register
+      - rft-with-a-register-stack-argument
+      - rft-with-a-stack
+      - rft-with-a-stack-return-value
+      - rft-with-multiple-return-values
+      - struct
+      - struct-with-a-broken-annotation
+      - struct-with-a-broken-field
+      - struct-with-a-forbidden-type
+      - struct-with-an-unsupported-field
+      - struct-with-a-rare-type
+      - struct-with-a-typo
+      - struct-with-code
+      - struct-with-conflicting-annotations
+      - struct-with-conflicting-padding
+      - struct-with-conflicting-padding-information
+      - struct-with-explicit-padding
+      - struct-without-the-packed-attribute
+      - struct-with-overlapping-fields
+      - typedef
+      - union
+
 commands:
   - type: revng-c.import-from-c
     from:
@@ -25,9 +55,12 @@ commands:
     suffix: /
     command: |-
       revng analyze
-        --model "$INPUT"
+        --model "${INPUT}/input-model.yml"
         import-from-c
-        --import-from-c-location-to-edit="$$(grep -vE '^(#|$$)' ${SOURCE}.location)"
-        --import-from-c-ccode="$$(cat ${SOURCE}.ccode)"
+        --import-from-c-location-to-edit="$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location")"
+        --import-from-c-ccode="$$(cat "${INPUT}/edit.c")"
         /dev/null
-        | revng model compare "${SOURCE}.reference.yml"
+        1> "${OUTPUT}/model.yml"
+        2> "${OUTPUT}/error.txt"
+      && revng model compare "${INPUT}/check-against.yml" "${OUTPUT}/model.yml"
+      || [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" == "$$(cat "${OUTPUT}/error.txt")" ]]

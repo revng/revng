@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c: While parsing field #1:
+import-from-c failed: `_START_AT` must not be used to make fields overlap.
+

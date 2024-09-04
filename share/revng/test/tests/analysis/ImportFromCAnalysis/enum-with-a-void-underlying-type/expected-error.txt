@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c failed: Underlying type of an enum can only be signed or unsigned.
+                      'void' was found instead.
+

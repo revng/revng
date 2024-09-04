@@ -27,6 +27,7 @@
 
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 #include "revng-c/Pipes/Ranks.h"
+#include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
@@ -251,7 +252,8 @@ void printForwardDeclaration(const model::TypeDefinition &T,
 
   auto TypeNameReference = B.getLocationReference(T);
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
-         << getTypeKeyword(T, B) << " " << B.getAttributePacked() << " "
+         << getTypeKeyword(T, B) << " "
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
          << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
@@ -268,10 +270,13 @@ static void printDefinition(const model::EnumDefinition &E,
                                  FullMask :
                                  ((FullMask) xor (FullMask << (8 * ByteSize)));
 
-  Header << B.getModelComment(E)
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum) << " "
-         << B.getAnnotateEnum(E.underlyingType().getCName()) << " "
-         << B.getAttributePacked() << " " << B.getLocationDefinition(E) << " ";
+  std::string Underlying = E.underlyingType().getCName();
+  Header
+    << B.getModelComment(E) << B.getKeyword(ptml::PTMLCBuilder::Keyword::Enum)
+    << " "
+    << ptml::AttributeRegistry::getAnnotation<"_ENUM_UNDERLYING">(Underlying)
+    << " " << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
+    << B.getLocationDefinition(E) << " ";
 
   {
     Scope Scope(Header);
@@ -295,6 +300,26 @@ static void printDefinition(const model::EnumDefinition &E,
   Header << std::move(Suffix) << ";\n";
 }
 
+static void printPadding(ptml::PTMLIndentedOstream &Header,
+                         ptml::PTMLCBuilder &B,
+                         uint64_t FieldOffset,
+                         uint64_t NextOffset,
+                         bool ForEditing) {
+  revng_assert(FieldOffset <= NextOffset);
+  if (FieldOffset == NextOffset)
+    return; // No padding is needed
+
+  if (ForEditing) {
+    Header << ptml::AttributeRegistry::getAnnotation<"_START_AT">(NextOffset)
+           << "\n";
+  } else {
+    Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
+           << B.tokenTag(StructPaddingPrefix + std::to_string(FieldOffset),
+                         ptml::c::tokens::Field)
+           << "[" << B.getNumber(NextOffset - FieldOffset) << "];\n";
+  }
+}
+
 static void printDefinition(Logger<> &Log,
                             const model::StructDefinition &S,
                             ptml::PTMLIndentedOstream &Header,
@@ -302,23 +327,28 @@ static void printDefinition(Logger<> &Log,
                             const model::Binary &Model,
                             TypeNameMap &AdditionalNames,
                             const DefinitionSet &TypesToInline,
+                            bool ForEditing,
                             std::string &&Suffix = "") {
 
   Header << B.getModelComment(S)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
+
+  if (S.CanContainCode())
+    Header << ptml::AttributeRegistry::getAttribute<"_CAN_CONTAIN_CODE">()
+           << " ";
+
+  if (ForEditing)
+    Header << ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size()) << " ";
+
   Header << B.getLocationDefinition(S) << " ";
+
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
 
-    size_t NextOffset = 0ULL;
+    size_t PreviousOffset = 0ULL;
     for (const auto &Field : S.Fields()) {
-      if (NextOffset < Field.Offset()) {
-        Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
-               << B.tokenTag(StructPaddingPrefix + std::to_string(NextOffset),
-                             ptml::c::tokens::Field)
-               << "[" << B.getNumber(Field.Offset() - NextOffset) << "];\n";
-      }
+      printPadding(Header, B, PreviousOffset, Field.Offset(), ForEditing);
 
       auto *MaybeDefinition = Field.Type()->skipToDefinition();
       if (not MaybeDefinition or not TypesToInline.contains(MaybeDefinition)) {
@@ -336,14 +366,11 @@ static void printDefinition(Logger<> &Log,
                               TypesToInline);
       }
 
-      NextOffset = Field.Offset() + Field.Type()->size().value();
+      PreviousOffset = Field.Offset() + Field.Type()->size().value();
     }
 
-    if (NextOffset < S.Size())
-      Header << B.tokenTag("uint8_t", ptml::c::tokens::Type) << " "
-             << B.tokenTag(StructPaddingPrefix + std::to_string(NextOffset),
-                           ptml::c::tokens::Field)
-             << "[" << B.getNumber(S.Size() - NextOffset) << "];\n";
+    if (!ForEditing)
+      printPadding(Header, B, PreviousOffset, S.Size(), false);
   }
 
   Header << std::move(Suffix) << ";\n";
@@ -359,7 +386,7 @@ static void printDefinition(Logger<> &Log,
                             std::string &&Suffix = "") {
   Header << B.getModelComment(U)
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Union) << " "
-         << B.getAttributePacked() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
   Header << B.getLocationDefinition(U) << " ";
 
   {
@@ -411,7 +438,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
 
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
@@ -481,7 +508,7 @@ static void generateArrayWrapper(const model::ArrayType &ArrayType,
 
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     Header << getNamedCInstance(ArrayType,
@@ -581,7 +608,8 @@ void printDefinition(Logger<> &Log,
                     B,
                     Model,
                     AdditionalNames,
-                    TypesToInline);
+                    TypesToInline,
+                    ForEditing);
   } else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(&T)) {
     printDefinition(Log,
                     *Union,
@@ -622,6 +650,7 @@ void printInlineDefinition(Logger<> &Log,
                     Model,
                     AdditionalNames,
                     TypesToInline,
+                    /* ForEditing = */ false,
                     std::move(Suffix));
 
   } else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(Definition)) {
@@ -657,5 +686,6 @@ void printInlineDefinition(Logger<> &Log,
                   Model,
                   AdditionalNames,
                   TypesToInline,
+                  /* ForEditing = */ false,
                   " " + std::move(Suffix));
 }

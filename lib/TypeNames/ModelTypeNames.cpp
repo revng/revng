@@ -26,6 +26,7 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Pipes/Ranks.h"
+#include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
@@ -383,9 +384,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   revng_assert(not Layout.hasSPTAR());
   revng_assert(Layout.returnMethod() != ReturnMethod::ModelAggregate);
 
-  Header << B.getAnnotateABI(("raw_"
-                              + model::Architecture::getName(RF.Architecture()))
-                               .str());
+  auto ABI = model::Architecture::getName(RF.Architecture());
+  Header << ptml::AttributeRegistry::getAnnotation<"_ABI">("raw_" + ABI.str());
   if (Function and not Function->Attributes().empty())
     Header << getFunctionAttributesString(Function->Attributes());
   Header << (SingleLine ? " " : "\n");
@@ -405,9 +405,9 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
       std::string
         MarkedType = getNamedCInstance(*Arg.Type(), ArgString, B).str().str();
-      std::string
-        MarkedReg = B.getAnnotateReg(model::Register::getName(Arg.Location()));
-      Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + MarkedReg);
+      auto Name = model::Register::getName(Arg.Location());
+      std::string Reg = ptml::AttributeRegistry::getAnnotation<"_REG">(Name);
+      Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + Reg);
       ArgTag.addAttribute(attributes::ActionContextLocation,
                           serializedLocation(ranks::RawArgument,
                                              RF.key(),
@@ -426,7 +426,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                                      B);
       Header << Separator
              << getNamedCInstance(*RF.StackArgumentsType(), StackArgName, B);
-      Header << " " << B.getAnnotateStack();
+      Header << " " << ptml::AttributeRegistry::getAttribute<"_STACK">();
     }
     Header << ")";
   }
@@ -440,7 +440,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        ptml::PTMLCBuilder &B,
                                        const model::Binary &Model,
                                        bool SingleLine) {
-  Header << B.getAnnotateABI(model::ABI::getName(CF.ABI()));
+  std::string_view ABIName = model::ABI::getName(CF.ABI());
+  Header << ptml::AttributeRegistry::getAnnotation<"_ABI">(ABIName);
   if (Function and not Function->Attributes().empty())
     Header << getFunctionAttributesString(Function->Attributes());
   Header << (SingleLine ? " " : "\n");

@@ -73,6 +73,8 @@ static std::optional<std::string> findHeaderFile(const std::string &File) {
   return (*MaybeHeaderPath).substr(0, Index);
 }
 
+static Logger<> Log("header-to-model-errors");
+
 struct ImportFromCAnalysis {
   static constexpr auto Name = "import-from-c";
 
@@ -187,22 +189,22 @@ struct ImportFromCAnalysis {
                                  + std::string("\"");
     TupleTree<model::Binary> OutModel(Model);
 
-    std::optional<revng::ParseCCodeError> Error;
+    ImportingErrorList Errors;
     std::unique_ptr<HeaderToModelAction> Action;
 
     if (TheOption == ImportFromCOption::EditType) {
       revng_assert(TypeToEdit != nullptr);
       Action = std::make_unique<HeaderToModelEditTypeAction>(OutModel,
-                                                             Error,
+                                                             Errors,
                                                              TypeToEdit->key());
     } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
       revng_assert(FunctionToEdit != nullptr);
       using EditFunctionPrototype = HeaderToModelEditFunctionAction;
       Action = std::make_unique<EditFunctionPrototype>(OutModel,
-                                                       Error,
+                                                       Errors,
                                                        FunctionToEdit->Entry());
     } else {
-      Action = std::make_unique<HeaderToModelAddTypeAction>(OutModel, Error);
+      Action = std::make_unique<HeaderToModelAddTypeAction>(OutModel, Errors);
     }
 
     // Find compile flags to be applied to clang.
@@ -255,9 +257,14 @@ struct ImportFromCAnalysis {
 
     // Check if an error was reported by clang or revng during parsing of C
     // code.
-    if (Error) {
+    if (not Errors.empty()) {
+      std::string Result;
+      for (auto &Error : Errors)
+        Result += std::move(Error);
+
+      revng_log(Log, Result.c_str());
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     (*Error).ErrorMessage);
+                                     std::move(Result));
     }
 
     model::VerifyHelper VH(false);

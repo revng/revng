@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c failed: Argument #0 is missing it's location annotation.
+                      Please add either `_REG($name)` or `_STACK`.
+

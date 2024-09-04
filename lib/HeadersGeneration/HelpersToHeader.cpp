@@ -27,6 +27,7 @@
 #include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/HelpersToHeader.h"
 #include "revng-c/Pipes/Ranks.h"
+#include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
@@ -43,7 +44,7 @@ static void printDefinition(const llvm::StructType *S,
                             ptml::PTMLCBuilder &B) {
   Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
          << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << B.getAttributePacked() << " ";
+         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
 
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
