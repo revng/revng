@@ -17,8 +17,6 @@
 
 #include "HeaderToModel.h"
 
-static Logger<> Log("header-to-model");
-
 using namespace model;
 using namespace revng;
 
