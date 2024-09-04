@@ -1201,9 +1201,6 @@ bool DeclVisitor::TraverseDecl(clang::Decl *D) {
 
   setupLineAndColumn(D);
 
-  if (isa<EnumDecl>(D))
-    VisitEnumDecl(cast<EnumDecl>(D));
-
   clang::RecursiveASTVisitor<DeclVisitor>::TraverseDecl(D);
   return true;
 }
