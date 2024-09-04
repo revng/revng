@@ -5,159 +5,371 @@
 #ifndef MLIR_CLIFT_OPS
 #define MLIR_CLIFT_OPS
 
-include "CliftTypes.td"
-include "mlir/IR/SymbolInterfaces.td"
-include "mlir/IR/RegionKindInterface.td"
-include "mlir/IR/BuiltinAttributes.td"
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/BuiltinAttributes.td"
+include "mlir/IR/FunctionInterfaces.td"
+include "mlir/IR/RegionKindInterface.td"
+include "mlir/IR/SymbolInterfaces.td"
 
-class OneUseOfType<string op>
-    : ParamNativeOpTrait<"OneUseOfType", op>, StructuralOpTrait;
+include "CliftOpInterfaces.td"
+include "CliftOpTraits.td"
+include "CliftTypes.td"
 
 class Clift_Op<string mnemonic, list<Trait> traits = []> :
     Op<Clift_Dialect, mnemonic, traits>;
 
-def Clift_LoopOp : Clift_Op<"loop", [Terminator]> {
+//===-------------------------- Type constraints --------------------------===//
+
+def Clift_AnyValueType : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
+                              "Clift value type",
+                              "mlir::clift::ValueType">;
+
+def Clift_FunctionType : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
+                              "Clift function type",
+                              "mlir::clift::ValueType">;
+
+//===---------------------------- Region types ----------------------------===//
+
+def Clift_StatementRegion : Region<CPred<"::mlir::clift::impl::verifyStatementRegion($_self)">,
+                                   "Region containing statements">;
+
+def Clift_ExpressionRegion : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, true)">,
+                                    "Region representing an expression">;
+
+def Clift_OptionalExpressionRegion : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, false)">,
+                                            "Optional region representing an expression">;
+
+//===------------------------ Top level operations ------------------------===//
+
+def Clift_ModuleOp : Clift_Op<"module",
+                              [SymbolTable,
+                               HasOnlyGraphRegion,
+                               NoRegionArguments,
+                               NoTerminator,
+                               SingleBlock,
+                               RegionKindInterface]> {
   let regions = (region AnyRegion:$body);
-  let successors = (successor
-    VariadicSuccessor<AnySuccessor>:$LoopDestinations);
 
-  let assemblyFormat = [{
-    $body $LoopDestinations attr-dict
-  }];
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins)>];
 
-  let hasRegionVerifier = 1;
-}
-
-def Clift_ContinueOp : Clift_Op<"continue", [HasParent<"LoopOp">, Terminator]> {}
-
-def Clift_LabelResource : Resource<"LabelResource">;
-
-def Clift_AssignLabelOp : Clift_Op<"assign_label"> {
-  let arguments = (ins Arg<Clift_LabelType, "", [MemFree]>:$label);
-
-  let assemblyFormat = [{
-    $label type($label) attr-dict
-  }];
-
-  let hasCanonicalizeMethod = 1;
-}
-
-def Clift_GoToOp : Clift_Op<"goto", [Terminator]> {
-  let arguments = (ins Arg<Clift_LabelType, "", [MemRead]>:$label);
-
-  let assemblyFormat = [{
-    $label type($label) attr-dict
-  }];
-}
-
-def Clift_MakeLabelOp : Clift_Op<"make_label", [OneUseOfType<"AssignLabelOp">] > {
-  let results = (outs Res<Clift_LabelType, "", [MemAlloc, MemWrite] >:$result);
-
-  let assemblyFormat = [{
-    type($result) attr-dict
-  }];
-  let hasVerifier = 1;
-
-  let builders = [
-     OpBuilder<(ins), [{
-       build($_builder, $_state, mlir::clift::LabelType::get($_builder.getContext()));
-   }]>
-   ];
-}
-
-def Clift_ConstantOp: Clift_Op<"constant", [Pure]> {
-  let arguments = (ins AnyAttrOf<[I64Attr, F64Attr, BoolAttr]>:$value);
-
-  let results = (outs Clift_PrimitiveType:$result);
-
-  let assemblyFormat = [{
-    $value type($result) attr-dict
-  }];
-
-   let builders = [
-        OpBuilder<(ins "mlir::Type":$type, "double":$value), [{
-            build($_builder, $_state, type, $_builder.getF64FloatAttr(value));
-    }]>,OpBuilder<(ins "mlir::Type":$type, "bool":$value), [{
-            build($_builder, $_state, type, $_builder.getBoolAttr(value));
-    }]>,OpBuilder<(ins "mlir::Type":$type, "std::int64_t":$value), [{
-            build($_builder, $_state, type, $_builder.getI64IntegerAttr(value));
-    }]>
-    ];
-}
-
-def Clift_ModuleOp : Clift_Op<"module", [SymbolTable, HasOnlyGraphRegion, NoRegionArguments, NoTerminator, SingleBlock, RegionKindInterface]> {
-  let regions = (region AnyRegion:$body);
   let assemblyFormat = [{
     $body attr-dict
   }];
+
   let hasVerifier = 1;
 }
 
-class Clift_FunctionBase<string mnemonic> :
-Clift_Op<mnemonic, [Symbol, CallableOpInterface, AutomaticAllocationScope, IsolatedFromAbove, HasParent<"ModuleOp">]> {
+def Clift_FunctionOp : Clift_Op<"func",
+                                [Symbol,
+                                 CallableOpInterface,
+                                 FunctionOpInterface,
+                                 AutomaticAllocationScope,
+                                 IsolatedFromAbove,
+                                 NoTerminator]> {
+  let arguments = (ins StrAttr:$sym_name,
+                       TypeAttrOf<Clift_FunctionType>:$function_type,
+                       DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
 
-  let arguments = (ins StrAttr:$sym_name, TypeAttrOf<FunctionType>:$function_type);
   let description = [{
     expression.
   }];
 
-  let regions = (region AnyRegion:$body);
+  let regions = (region Clift_StatementRegion:$body);
 
   let assemblyFormat = [{
     $sym_name $function_type $body attr-dict
   }];
 
-    code extraBaseClassDeclaration = [{
-        Region *getCallableRegion() {
-            return isDeclaration() ? nullptr : &getBody();
-        }
+  code extraClassDeclaration = [{
+    mlir::Region::BlockListType& getBlocks() {
+        return getBody().getBlocks();
+    }
 
-        mlir::Region::BlockListType& getBlocks() {
-            return getBody().getBlocks();
-        }
+    Block::args_iterator args_begin() {
+        return getBody().front().args_begin();
+    }
 
-        ArrayRef<Type> getCallableResults() {
-            return getFunctionType().getResults();
-        }
+    Block::args_iterator args_end() {
+        return getBody().front().args_end();
+    }
 
-        ArrayRef<Type> getArgumentTypes() {
-            return getFunctionType().getInputs();
-        }
 
-        /// Returns the result types of this function.
-        ArrayRef<Type> getResultTypes() {
-            return getFunctionType().getResults();
-        }
+    // Implementation of CallableOpInterface
 
-        bool isDeclaration() {
-            return getBody().empty();
-        }
+    Region *getCallableRegion() {
+        return isExternal() ? nullptr : &getBody();
+    }
 
-        Block::args_iterator args_begin() {
-            return getBody().front().args_begin();
-        }
+    /// Returns the result types of this function.
+    ArrayRef<Type> getCallableResults() {
+      return getResultTypes();
+    }
 
-        Block::args_iterator args_end() {
-            return getBody().front().args_end();
-        }
 
-    }];
+    // Implementation of FunctionOpInterface
+
+    ArrayRef<Type> getArgumentTypes();
+    ArrayRef<Type> getResultTypes();
+
+    mlir::ArrayAttr getArgAttrsAttr();
+    mlir::ArrayAttr getResAttrsAttr();
+
+    void setArgAttrsAttr(mlir::ArrayAttr attrs);
+    void setResAttrsAttr(mlir::ArrayAttr attrs);
+
+    mlir::Attribute removeArgAttrsAttr();
+    mlir::Attribute removeResAttrsAttr();
+
+    Type cloneTypeWith(TypeRange inputs, TypeRange results);
+  }];
 }
 
+def Clift_GlobalVariableOp : Clift_Op<"global",
+                                      [Symbol,
+                                       IsolatedFromAbove,
+                                       NoTerminator]> {
+  let arguments = (ins StrAttr:$sym_name,
+                       TypeAttrOf<Clift_ValueType>:$type,
+                       DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
 
-def Clift_FunctionOp :
-Clift_FunctionBase<"function"> {
-    let extraClassDeclaration = extraBaseClassDeclaration;
+  let description = [{
+    global variable
+  }];
 
+  let regions = (region Clift_OptionalExpressionRegion:$initializer);
+
+  let assemblyFormat = [{
+    $type $sym_name (`=` $initializer^)? attr-dict
+  }];
+
+  let hasVerifier = 1;
 }
 
-def Clift_UndefOp: Clift_Op<"undef"> {
+//===----------------------------- Statements -----------------------------===//
+
+def Clift_MakeLabelOp : Clift_Op<"make_label",
+                                 [Clift_StatementOpInterface,
+                                  Clift_OneUseOfType<"mlir::clift::AssignLabelOp">] > {
+  let results = (outs Clift_LabelType:$result);
+
+  let assemblyFormat = [{
+    type($result) attr-dict
+  }];
+
+  let hasCanonicalizeMethod = 1;
+  let hasVerifier = 1;
+
+  let builders = [
+    OpBuilder<(ins), [{
+      build($_builder,
+            $_state,
+            mlir::clift::LabelType::get($_builder.getContext()));
+    }]>
+  ];
+}
+
+def Clift_AssignLabelOp : Clift_Op<"assign_label",
+                                   [Clift_StatementOpInterface]> {
+  let arguments = (ins Clift_LabelType:$label);
+
+  let assemblyFormat = [{
+    $label type($label) attr-dict
+  }];
+}
+
+def Clift_DoWhileOp : Clift_Op<"do_while",
+                               [Clift_StatementOpInterface,
+                                NoTerminator]> {
+  let regions = (region Clift_StatementRegion:$body,
+                        Clift_ExpressionRegion:$condition);
+
+  let assemblyFormat = [{
+    $body $condition attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_ExpressionStatementOp : Clift_Op<"expr",
+                                  [Clift_StatementOpInterface]> {
+  let regions = (region Clift_OptionalExpressionRegion:$expression);
+
+  let assemblyFormat = [{
+    $expression attr-dict
+  }];
+}
+
+def Clift_ForOp : Clift_Op<"for",
+                           [Clift_StatementOpInterface,
+                            NoTerminator]> {
+  let regions = (region Clift_StatementRegion:$initializer,
+                        Clift_OptionalExpressionRegion:$condition,
+                        Clift_OptionalExpressionRegion:$expression,
+                        Clift_StatementRegion:$body);
+
+  let assemblyFormat = [{
+    $initializer $condition $expression $body attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_GoToOp : Clift_Op<"goto",
+                            [Clift_StatementOpInterface,
+                             Clift_NoFallthrough]> {
+  let arguments = (ins Clift_LabelType:$label);
+
+  let assemblyFormat = [{
+    $label type($label) attr-dict
+  }];
+}
+
+def Clift_IfOp : Clift_Op<"if",
+                          [Clift_StatementOpInterface,
+                           NoTerminator]> {
+  let regions = (region Clift_ExpressionRegion:$condition,
+                        Clift_StatementRegion:$then,
+                        Clift_StatementRegion:$else);
+
+  let assemblyFormat = [{
+    $condition $then (`else` $else^)? attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_LocalVariableOp : Clift_Op<"local",
+                                     [Clift_StatementOpInterface,
+                                      NoTerminator]> {
+  let arguments = (ins StrAttr:$sym_name,
+                       TypeAttrOf<Clift_ValueType>:$type);
+
+  let regions = (region Clift_OptionalExpressionRegion:$initializer);
+
+  let assemblyFormat = [{
+    $type $sym_name (`=` $initializer^)? attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_LoopBreakOp : Clift_Op<"loop_break",
+                                 [Clift_StatementOpInterface,
+                                  Clift_NoFallthrough]> {
+  let assemblyFormat = [{
+    attr-dict
+  }];
+}
+
+def Clift_LoopContinueOp : Clift_Op<"loop_continue",
+                                    [Clift_StatementOpInterface,
+                                     Clift_NoFallthrough]> {
+  let assemblyFormat = [{
+    attr-dict
+  }];
+}
+
+def Clift_ReturnOp : Clift_Op<"return",
+                              [Clift_StatementOpInterface,
+                               Clift_NoFallthrough,
+                               NoTerminator]> {
+  let regions = (region Clift_OptionalExpressionRegion:$result);
+
+  let assemblyFormat = [{
+    $result attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_SwitchOp : Clift_Op<"switch",
+                              [Clift_StatementOpInterface,
+                               NoTerminator]> {
+  let arguments = (ins DenseI64ArrayAttr:$case_values);
+
+  let regions = (region Clift_ExpressionRegion:$condition,
+                        Clift_StatementRegion:$default,
+                        VariadicRegion<Clift_StatementRegion>:$cases);
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+
+  let builders = [
+    OpBuilder<(ins "llvm::ArrayRef<uint64_t>":$case_values)>
+  ];
+
+  code extraClassDeclaration = [{
+    [[nodiscard]] Region &getConditionRegion() {
+      return getRegion(0);
+    }
+
+    [[nodiscard]] bool hasDefaultCase() {
+      return not getDefaultCaseRegion().empty();
+    }
+
+    [[nodiscard]] Region &getDefaultCaseRegion() {
+      return getRegion(1);
+    }
+
+    [[nodiscard]] unsigned getNumCases() {
+      return getNumRegions() - 2;
+    }
+
+    [[nodiscard]] uint64_t getCaseValue(const unsigned index) {
+      return static_cast<uint64_t>(getCaseValues()[index]);
+    }
+
+    [[nodiscard]] Region &getCaseRegion(const unsigned index) {
+      return getRegion(index + 2u);
+    }
+
+    [[nodiscard]] Region *findCaseRegion(const uint64_t value);
+  }];
+}
+
+def Clift_SwitchBreakOp : Clift_Op<"switch_break",
+                                   [Clift_StatementOpInterface,
+                                    Clift_NoFallthrough]> {
+  let assemblyFormat = [{
+    attr-dict
+  }];
+}
+
+def Clift_WhileOp : Clift_Op<"while",
+                             [Clift_StatementOpInterface,
+                              NoTerminator]> {
+  let regions = (region Clift_ExpressionRegion:$condition,
+                        Clift_StatementRegion:$body);
+
+  let assemblyFormat = [{
+    $condition $body attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+//===----------------------------- Expressions ----------------------------===//
+
+def Clift_UndefOp : Clift_Op<"undef",
+                             [Clift_ExpressionOpInterface]> {
   let results = (outs Clift_AnyValueType:$result);
 
   let assemblyFormat = [{
     type($result) attr-dict
+  }];
+}
+
+def Clift_YieldOp : Clift_Op<"yield",
+                             [Clift_ExpressionOpInterface,
+                              Terminator]> {
+  let arguments = (ins Clift_AnyValueType:$value);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $value `:` type($value) attr-dict
   }];
 }
 

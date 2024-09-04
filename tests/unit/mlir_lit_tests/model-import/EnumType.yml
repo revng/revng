@@ -6,7 +6,7 @@
 # input line. The angle brackets are matched separately in order to ignore
 # parameters other than those explicitly being checked for.
 #
-# RUN: TEMP=(mktemp -p .); %revngpipe import-all-clift-TypeDefinitions %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(cat /dev/null | gzip) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
 TypeDefinitions:
   # CHECK: #my_enum1$def = #clift.enum<

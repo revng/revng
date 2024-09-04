@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -15,8 +16,17 @@
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftEnums.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftInterfaces.h"
-#include "revng-c/mlir/Dialect/Clift/IR/CliftTraits.h"
+#include "revng-c/mlir/Dialect/Clift/IR/CliftOpTraits.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftTypes.h"
+
+namespace mlir::clift::impl {
+
+bool verifyFunctionType(ValueType Type);
+
+bool verifyStatementRegion(Region &R);
+bool verifyExpressionRegion(Region &R, bool Required);
+
+} // namespace mlir::clift::impl
 
 // This include should stay here for correct build procedure
 #define GET_OP_CLASSES

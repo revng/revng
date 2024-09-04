@@ -6,15 +6,23 @@
 
 #include "mlir/IR/OpDefinition.h"
 
+#include "revng-c/mlir/Dialect/Clift/IR/CliftOpInterfaces.h"
+
 namespace mlir {
 namespace OpTrait {
+namespace clift {
+namespace impl {
+
+LogicalResult verifyNoFallthroughTrait(Operation *Op);
+
+} // namespace impl
 
 template<typename UseType>
 struct OneUseOfType {
   template<typename ConcreteType>
-  class Impl : public TraitBase<ConcreteType, Impl> {
+  class Impl : public OpTrait::TraitBase<ConcreteType, Impl> {
   private:
-    using Base = TraitBase<ConcreteType, Impl>;
+    using Base = OpTrait::TraitBase<ConcreteType, Impl>;
 
   public:
     static LogicalResult verifyTrait(Operation *Op) {
@@ -37,5 +45,16 @@ struct OneUseOfType {
   };
 };
 
+template<typename ConcreteType>
+class NoFallthrough : public OpTrait::TraitBase<ConcreteType, NoFallthrough> {
+  using Base = OpTrait::TraitBase<ConcreteType, NoFallthrough>;
+
+public:
+  static LogicalResult verifyTrait(Operation *const Op) {
+    return impl::verifyNoFallthroughTrait(Op);
+  }
+};
+
+} // namespace clift
 } // namespace OpTrait
 } // namespace mlir

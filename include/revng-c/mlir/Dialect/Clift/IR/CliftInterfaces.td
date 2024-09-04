@@ -101,9 +101,7 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
               return $_attr.getName();
         }]>,
     ];
-
 }
 
-def Clift_AnyValueType: Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">, "cliftValue", "mlir::clift::ValueType">;
 #endif
 

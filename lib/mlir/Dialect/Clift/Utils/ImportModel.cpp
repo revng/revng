@@ -130,21 +130,17 @@ private:
       rc_return nullptr;
     }
 
-    AttributeVector<clift::FunctionArgumentAttr> Args;
-    Args.reserve(ModelType.Arguments().size());
+    AttributeVector<mlir::Type> ArgumentTypes;
+    ArgumentTypes.reserve(ModelType.Arguments().size());
 
     for (const model::Argument &Argument : ModelType.Arguments()) {
       const auto Type = rc_recur fromType(*Argument.Type());
       if (not Type)
         rc_return nullptr;
-      const llvm::StringRef Name = Argument.name();
-      const auto Attribute = make<clift::FunctionArgumentAttr>(Type, Name);
-      if (not Attribute)
-        rc_return nullptr;
-      Args.push_back(Attribute);
+      ArgumentTypes.push_back(Type);
     }
 
-    clift::ValueType ReturnType = nullptr;
+    mlir::Type ReturnType = nullptr;
     if (ModelType.ReturnType().isEmpty())
       ReturnType = rc_recur fromType(*model::PrimitiveType::makeVoid());
     else
@@ -155,7 +151,7 @@ private:
     rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
                                             ModelType.name(),
                                             ReturnType,
-                                            Args);
+                                            ArgumentTypes);
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
@@ -222,7 +218,7 @@ private:
       rc_return nullptr;
     }
 
-    clift::FunctionArgumentAttr StackArgument;
+    mlir::Type StackArgumentType;
     size_t ArgumentsCount = 0;
 
     if (not ModelType.StackArgumentsType().isEmpty()) {
@@ -231,36 +227,28 @@ private:
         rc_return nullptr;
 
       const uint64_t PointerSize = getPointerSize(ModelType.Architecture());
-      const auto PointerType = make<clift::PointerType>(Type,
-                                                        PointerSize,
-                                                        getFalse());
-      if (not PointerType)
-        rc_return nullptr;
-
-      StackArgument = make<clift::FunctionArgumentAttr>(PointerType, "");
-      if (not StackArgument)
+      StackArgumentType = make<clift::PointerType>(Type,
+                                                   PointerSize,
+                                                   getFalse());
+      if (not StackArgumentType)
         rc_return nullptr;
 
       ++ArgumentsCount;
     }
 
     ArgumentsCount += ModelType.Arguments().size();
-    AttributeVector<clift::FunctionArgumentAttr> Args;
-    Args.reserve(ArgumentsCount);
+    AttributeVector<mlir::Type> ArgumentTypes;
+    ArgumentTypes.reserve(ArgumentsCount);
 
     for (const model::NamedTypedRegister &Register : ModelType.Arguments()) {
       const auto Type = rc_recur fromType(*Register.Type());
       if (not Type)
         rc_return nullptr;
-      const llvm::StringRef Name = Register.name();
-      const auto Argument = make<clift::FunctionArgumentAttr>(Type, Name);
-      if (not Argument)
-        rc_return nullptr;
-      Args.push_back(Argument);
+      ArgumentTypes.push_back(Type);
     }
 
-    if (StackArgument)
-      Args.push_back(StackArgument);
+    if (StackArgumentType)
+      ArgumentTypes.push_back(StackArgumentType);
 
     clift::ValueType ReturnType;
     switch (ModelType.ReturnValues().size()) {
@@ -288,7 +276,7 @@ private:
     rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
                                             ModelType.name(),
                                             ReturnType,
-                                            Args);
+                                            ArgumentTypes);
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
