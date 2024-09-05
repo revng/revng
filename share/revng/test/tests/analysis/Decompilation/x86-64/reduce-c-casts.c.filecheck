@@ -3,22 +3,22 @@
 #
 
 CHECK-LABEL: generic64_t add_uint_uchar
-CHECK:     return ({{[^()]+}}) + {{[^()]+}}
+CHECK:     return (({{[^()]+}}) + {{[^()]+}})
 
 CHECK-LABEL: generic64_t add_uchar_uint
-CHECK:     return {{[^()]+}} + {{[^()]+}}
+CHECK:     return ({{[^()]+}} + {{[^()]+}})
 
 CHECK-LABEL: generic64_t sub_uint_uchar
-CHECK:     return {{[^()]+}} - ({{[^()]+}})
+CHECK:     return ({{[^()]+}} - ({{[^()]+}}))
 
 CHECK-LABEL: generic64_t sub_uchar_uint
-CHECK:     return {{[^()]+}} - {{[^()]+}}
+CHECK:     return ({{[^()]+}} - {{[^()]+}})
 
 CHECK-LABEL: generic64_t mul_uint_uchar
-CHECK:     return ({{[^()]+}}) * {{[^()]+}}
+CHECK:     return (({{[^()]+}}) * {{[^()]+}})
 
 CHECK-LABEL: generic64_t mul_uchar_uint
-CHECK:     return {{[^()]+}} * {{[^()]+}}
+CHECK:     return ({{[^()]+}} * {{[^()]+}})
 
 CHECK-LABEL: generic64_t and_uint_uchar
 CHECK:     return {{[^()]+}} & {{[^()]+}}
@@ -27,22 +27,22 @@ CHECK-LABEL: generic64_t and_uchar_uint
 CHECK:     return {{[^()]+}} & {{[^()]+}}
 
 CHECK-LABEL: generic64_t or_uint_uchar
-CHECK:     return {{[^()]+}} | {{[^()]+}}
+CHECK:     return ({{[^()]+}}) | ({{[^()]+}})
 
 CHECK-LABEL: generic64_t or_uchar_uint
 CHECK:     return ({{[^()]+}} | {{[^()]+}})
 
 CHECK-LABEL: generic64_t xor_uint_uchar
-CHECK:     return {{[^()]+}} ^ {{[^()]+}}
+CHECK:     return ({{[^()]+}}) ^ ({{[^()]+}})
 
 CHECK-LABEL: generic64_t xor_uchar_uint
 CHECK:     return ({{[^()]+}} ^ {{[^()]+}})
 
 CHECK-LABEL: generic64_t lshift_uint_uchar
-CHECK:     return {{[^()]+}} << ({{[^()]+}})
+CHECK:     return ({{[^()]+}} << ({{[^()]+}}))
 
 CHECK-LABEL: generic64_t lshift_uchar_uint
-CHECK:     return ({{[^()]+}}) << ({{[^()]+}})
+CHECK:     return (({{[^()]+}}) << ({{[^()]+}}))
 
 CHECK-LABEL: generic64_t rshift_uint_uchar
 CHECK:     return ({{[^()]+}}) >> ({{[^()]+}})
@@ -51,13 +51,13 @@ CHECK-LABEL: generic64_t rshift_uchar_uint
 CHECK:     return ({{[^()]+}}) >> ({{[^()]+}})
 
 CHECK-LABEL: generic64_t add_char_int
-CHECK:     return {{[^()]+}} + {{[^()]+}}
+CHECK:     return ({{[^()]+}} + {{[^()]+}})
 
 CHECK-LABEL: generic64_t sub_char_int
-CHECK:     return {{[^()]+}} - {{[^()]+}}
+CHECK:     return ({{[^()]+}} - {{[^()]+}})
 
 CHECK-LABEL: generic64_t mul_char_int
-CHECK:     return {{[^()]+}} * {{[^()]+}}
+CHECK:     return ({{[^()]+}} * {{[^()]+}})
 
 CHECK-LABEL: generic64_t and_char_int
 CHECK:     return {{[^()]+}} & {{[^()]+}}
@@ -69,7 +69,7 @@ CHECK-LABEL: generic64_t xor_char_int
 CHECK:     return ({{[^()]+}} ^ {{[^()]+}})
 
 CHECK-LABEL: generic64_t lshift_int_char
-CHECK:     return {{[^()]+}} << ({{[^()]+}})
+CHECK:     return ({{[^()]+}} << ({{[^()]+}}))
 
 CHECK-LABEL: generic64_t return_value
 CHECK:     return {{[^()]+}}

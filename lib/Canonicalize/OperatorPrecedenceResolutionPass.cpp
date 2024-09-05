@@ -63,6 +63,17 @@ enum class Arity : unsigned {
 
 struct OperatorInfo {
   uint64_t Precedence;
+
+  // Because people are not especially good when dealing with implicit
+  // precedence, it's sometimes better to emit extra parentheses. This is what
+  // this value is for. As long as the difference between classes is below this
+  // value, the parentheses are going to be emitted even if they are not
+  // necessary.
+  //
+  // TODO: even thought, this simplistic approach is enough for now, we might
+  //       want to switch to something more expressive at some point.
+  uint64_t NumberOfClassesToForceParenthesesFor;
+
   Associativity Associativity;
   Arity Arity;
 };
@@ -74,112 +85,112 @@ static OperatorInfo getPrecedenceImpl(const Instruction &I) {
 
       // AddressOf
       if (FunctionTags::AddressOf.isTagOf(CalledFunc))
-        return { 2, Associativity::RightToLeft, Arity::Unary };
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
       // Cast
       else if (FunctionTags::ModelCast.isTagOf(CalledFunc))
-        return { 2, Associativity::RightToLeft, Arity::Unary };
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
       else if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
         // Indirection
         if (auto *ArrayIndex = dyn_cast<ConstantInt>(Call->getArgOperand(2)))
           if (Call->arg_size() < 3 and ArrayIndex->isZero())
-            return { 2, Associativity::RightToLeft, Arity::Unary };
+            return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
         // MemberAccess
-        return { 1, Associativity::LeftToRight, Arity::Unary };
+        return { 1, 0, Associativity::LeftToRight, Arity::Unary };
 
       } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
         if (Call->arg_size() > 2) {
           // MemberAccess
-          return { 1, Associativity::LeftToRight, Arity::Unary };
+          return { 1, 0, Associativity::LeftToRight, Arity::Unary };
         } else {
           revng_abort("How did a transparent instruction got here?");
         }
 
       } else if (FunctionTags::OpaqueExtractValue.isTagOf(CalledFunc)) {
         // MemberAccess
-        return { 1, Associativity::LeftToRight, Arity::Unary };
+        return { 1, 0, Associativity::LeftToRight, Arity::Unary };
 
         // UnaryMinus
       } else if (FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
-        return { 2, Associativity::RightToLeft, Arity::Unary };
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
         // BinaryNot
       } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
-        return { 2, Associativity::RightToLeft, Arity::Unary };
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
         // BooleanNot
       } else if (FunctionTags::BooleanNot.isTagOf(CalledFunc)) {
-        return { 2, Associativity::RightToLeft, Arity::Unary };
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
       }
     }
 
     // Catch all the other calls
-    return { 0, Associativity::LeftToRight, Arity::NAry };
+    return { 0, 0, Associativity::LeftToRight, Arity::NAry };
   }
 
   // It's not a call: map it normally
   switch (I.getOpcode()) {
   // Ternary operator (?:)
   case Instruction::Select:
-    return { 13, Associativity::RightToLeft, Arity::Ternary };
+    return { 13, 0, Associativity::RightToLeft, Arity::Ternary };
 
   // Or (|| and |)
   case Instruction::Or:
     if (I.getType()->isIntegerTy(1))
-      return { 12, Associativity::LeftToRight, Arity::Binary };
+      return { 12, 0, Associativity::LeftToRight, Arity::Binary };
     else
-      return { 10, Associativity::LeftToRight, Arity::Binary };
+      return { 10, 7, Associativity::LeftToRight, Arity::Binary };
 
   // Xor (^)
   case Instruction::Xor:
-    return { 9, Associativity::LeftToRight, Arity::Binary };
+    return { 9, 6, Associativity::LeftToRight, Arity::Binary };
 
   // And (&& and &)
   case Instruction::And:
     if (I.getType()->isIntegerTy(1))
-      return { 11, Associativity::LeftToRight, Arity::Binary };
+      return { 11, 0, Associativity::LeftToRight, Arity::Binary };
     else
-      return { 8, Associativity::LeftToRight, Arity::Binary };
+      return { 8, 5, Associativity::LeftToRight, Arity::Binary };
 
   // All the comparisons
   case Instruction::ICmp:
-    return { 6, Associativity::LeftToRight, Arity::Binary };
+    return { 6, 0, Associativity::LeftToRight, Arity::Binary };
 
   // Byte-wise shifts
   case Instruction::Shl:
-    return { 5, Associativity::LeftToRight, Arity::Binary };
+    return { 5, 2, Associativity::LeftToRight, Arity::Binary };
   case Instruction::LShr:
-    return { 5, Associativity::LeftToRight, Arity::Binary };
+    return { 5, 2, Associativity::LeftToRight, Arity::Binary };
   case Instruction::AShr:
-    return { 5, Associativity::LeftToRight, Arity::Binary };
+    return { 5, 2, Associativity::LeftToRight, Arity::Binary };
 
   // Addition and subtraction
   case Instruction::Add:
-    return { 4, Associativity::LeftToRight, Arity::Binary };
+    return { 4, 0, Associativity::LeftToRight, Arity::Binary };
   case Instruction::Sub:
-    return { 4, Associativity::LeftToRight, Arity::Binary };
+    return { 4, 0, Associativity::LeftToRight, Arity::Binary };
 
   // Multiplication, division and remainder
   case Instruction::Mul:
-    return { 3, Associativity::LeftToRight, Arity::Binary };
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
   case Instruction::UDiv:
-    return { 3, Associativity::LeftToRight, Arity::Binary };
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
   case Instruction::SDiv:
-    return { 3, Associativity::LeftToRight, Arity::Binary };
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
   case Instruction::URem:
-    return { 3, Associativity::LeftToRight, Arity::Binary };
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
   case Instruction::SRem:
-    return { 3, Associativity::LeftToRight, Arity::Binary };
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
 
   // Casts
   case Instruction::SExt:
-    return { 2, Associativity::RightToLeft, Arity::Unary };
+    return { 2, 0, Associativity::RightToLeft, Arity::Unary };
   case Instruction::Trunc:
-    return { 2, Associativity::RightToLeft, Arity::Unary };
+    return { 2, 0, Associativity::RightToLeft, Arity::Unary };
   case Instruction::ZExt:
-    return { 2, Associativity::RightToLeft, Arity::Unary };
+    return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
   default:
     revng_abort("unsupported opcode");
@@ -438,17 +449,18 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
       return false;
 
   auto [InstructionPrecedence,
+        NumberOfClassesToForceParenthesesFor,
         InstructionAssociativity,
         InstructionArity] = getPrecedence(*I);
 
   auto [OperandPrecedence,
+        _,
         OperandAssociativity,
         OperandArity] = getPrecedence(*Op);
 
-  auto Cmp = InstructionPrecedence <=> OperandPrecedence;
   // If the precedence of the instruction and the operand is the same, we have
   // to discriminate by Associativity and by Arity
-  if (Cmp == 0) {
+  if (InstructionPrecedence == OperandPrecedence) {
 
     revng_assert(InstructionAssociativity == OperandAssociativity);
 
@@ -502,12 +514,19 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
     default:
       revng_abort("unexpected arity");
     }
-  }
 
-  // If the precedence of the instruction is different, we only need parentheses
-  // when the precedence of the instruction is higher than the precedence of the
-  // operand. In this case we never need to check associativity.
-  return Cmp < 0;
+  } else if (InstructionPrecedence < OperandPrecedence) {
+    // If the instruction takes precedence over the operand, we always need
+    // to emit the parentheses: otherwise the expression is not going to be
+    // semantically correct.
+    return true;
+
+  } else {
+    // If the operand takes precedence over the instruction, we only emit
+    // parentheses if they help readability.
+    uint64_t PrecedenceDifference = InstructionPrecedence - OperandPrecedence;
+    return PrecedenceDifference <= NumberOfClassesToForceParenthesesFor;
+  }
 }
 
 bool OPRP::runOnFunction(Function &F) {

@@ -59,7 +59,7 @@ CHECK:       return _argument2 != _argument1 || _argument0 != 0;
 
 CHECK-LABEL: from_class_11_to_class_8(generic64_t
 //           a & b || c
-CHECK:       return (_argument2 & _argument1 | _argument0) != 0;
+CHECK:       return ((_argument2 & _argument1) | _argument0) != 0;
 
 CHECK-LABEL: from_class_11_to_class_7(generic64_t
 //           a == b || c
@@ -71,15 +71,15 @@ CHECK:       return _argument2 < _argument1 || _argument0 != 0;
 
 CHECK-LABEL: from_class_11_to_class_5(generic64_t
 //           a << b || c
-CHECK:       return (_argument2 << (_argument1 & 0x3F) | _argument0) != 0;
+CHECK:       return ((_argument2 << (_argument1 & 0x3F)) | _argument0) != 0;
 
 CHECK-LABEL: from_class_11_to_class_4(generic64_t
 //           a + b || c
-CHECK:       return (_argument2 + _argument1 | _argument0) != 0;
+CHECK:       return ((_argument2 + _argument1) | _argument0) != 0;
 
 CHECK-LABEL: from_class_11_to_class_3(generic64_t
 //           a * b || c
-CHECK:       return (_argument1 * _argument2 | _argument0) != 0;
+CHECK:       return ((_argument1 * _argument2) | _argument0) != 0;
 
 CHECK-LABEL: from_class_11_to_class_2(generic64_t
 //           -a || c
@@ -93,35 +93,35 @@ CHECK:       return (_argument2 | _argument0) != 0;
 // Class 10 (|)
 CHECK-LABEL: from_class_10_to_class_9(generic64_t
 //           a ^ b | c
-CHECK:       return _argument2 ^ _argument1 | _argument0;
+CHECK:       return (_argument2 ^ _argument1) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_8(generic64_t
 //           a & b | c
-CHECK:       return _argument2 & _argument1 | _argument0;
+CHECK:       return (_argument2 & _argument1) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_7(generic64_t
 //           a == b | c
-CHECK:       return _argument2 == _argument1 | _argument0;
+CHECK:       return (_argument2 == _argument1) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_6(generic64_t
 //           a < b | c
-CHECK:       return _argument2 < _argument1 | _argument0;
+CHECK:       return (_argument2 < _argument1) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_5(generic64_t
 //           a << b | c
-CHECK:       return _argument2 << (_argument1 & 0x3F) | _argument0;
+CHECK:       return (_argument2 << (_argument1 & 0x3F)) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_4(generic64_t
 //           a + b | c
-CHECK:       return _argument1 + _argument2 | _argument0;
+CHECK:       return (_argument1 + _argument2) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_3(generic64_t
 //           a * b | c
-CHECK:       return _argument1 * _argument2 | _argument0;
+CHECK:       return (_argument1 * _argument2) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_2(generic64_t
 //           -a | c
-CHECK:       return 0 - _argument2 | _argument0;
+CHECK:       return (0 - _argument2) | _argument0;
 
 CHECK-LABEL: from_class_10_to_class_1(generic64_t
 //           a-- | c
@@ -131,31 +131,31 @@ CHECK:       return _argument2 | _argument0;
 // Class 9 (^)
 CHECK-LABEL: from_class_9_to_class_8(generic64_t
 //           a & b ^ c
-CHECK:       return _argument2 & _argument1 ^ _argument0;
+CHECK:       return (_argument2 & _argument1) ^ _argument0;
 
 CHECK-LABEL: from_class_9_to_class_7(generic64_t
 //           a == b ^ c
-CHECK:       return _argument2 == _argument1 ^ _argument0;
+CHECK:       return (_argument2 == _argument1) ^ _argument0;
 
 CHECK-LABEL: from_class_9_to_class_6(generic64_t
 //           a < b ^ c
-CHECK:       return _argument2 < _argument1 ^ _argument0;
+CHECK:       return (_argument2 < _argument1) ^ _argument0;
 
 CHECK-LABEL: from_class_9_to_class_5(generic64_t
 //           a << b ^ c
-CHECK:       return _argument2 << (_argument1 & 0x3F) ^ _argument0;
+CHECK:       return (_argument2 << (_argument1 & 0x3F)) ^ _argument0;
 
 CHECK-LABEL: from_class_9_to_class_4(generic64_t
 //           a + b ^ c
-CHECK:       return _argument1 + _argument2 ^ _argument0;
+CHECK:       return (_argument1 + _argument2) ^ _argument0;
 
 CHECK-LABEL: from_class_9_to_class_3(generic64_t
 //           a * b ^ c
-CHECK:       return _argument1 * _argument2 ^ _argument0;
+CHECK:       return (_argument1 * _argument2) ^ _argument0;
 
 CHECK-LABEL: from_class_9_to_class_2(generic64_t
 //           -a ^ c
-CHECK:       return 0 - _argument2 ^ _argument0;
+CHECK:       return (0 - _argument2) ^ _argument0;
 
 CHECK-LABEL: from_class_9_to_class_1(generic64_t
 //           a-- ^ c
@@ -165,27 +165,27 @@ CHECK:       return _argument2 ^ _argument0;
 // Class 8 (&)
 CHECK-LABEL: from_class_8_to_class_7(generic64_t
 //           a == b & c
-CHECK:       return _argument2 == _argument1 & _argument0;
+CHECK:       return (_argument2 == _argument1) & _argument0;
 
 CHECK-LABEL: from_class_8_to_class_6(generic64_t
 //           a < b & c
-CHECK:       return _argument2 < _argument1 & _argument0;
+CHECK:       return (_argument2 < _argument1) & _argument0;
 
 CHECK-LABEL: from_class_8_to_class_5(generic64_t
 //           a << b & c
-CHECK:       return _argument2 << (_argument1 & 0x3F) & _argument0;
+CHECK:       return (_argument2 << (_argument1 & 0x3F)) & _argument0;
 
 CHECK-LABEL: from_class_8_to_class_4(generic64_t
 //           a + b & c
-CHECK:       return _argument1 + _argument2 & _argument0;
+CHECK:       return (_argument1 + _argument2) & _argument0;
 
 CHECK-LABEL: from_class_8_to_class_3(generic64_t
 //           a * b & c
-CHECK:       return _argument1 * _argument2 & _argument0;
+CHECK:       return (_argument1 * _argument2) & _argument0;
 
 CHECK-LABEL: from_class_8_to_class_2(generic64_t
 //           -a & c
-CHECK:       return 0 - _argument2 & _argument0;
+CHECK:       return (0 - _argument2) & _argument0;
 
 CHECK-LABEL: from_class_8_to_class_1(generic64_t
 //           a-- & c
@@ -244,15 +244,15 @@ CHECK:       return _argument2 < _argument0;
 // Class 5 (<<)
 CHECK-LABEL: from_class_5_to_class_4(generic64_t
 //           a + b << c
-CHECK:       return _argument1 + _argument2 << (_argument0 & 0x3F);
+CHECK:       return (_argument1 + _argument2) << (_argument0 & 0x3F);
 
 CHECK-LABEL: from_class_5_to_class_3(generic64_t
 //           a * b << c
-CHECK:       return _argument1 * _argument2 << (_argument0 & 0x3F);
+CHECK:       return (_argument1 * _argument2) << (_argument0 & 0x3F);
 
 CHECK-LABEL: from_class_5_to_class_2(generic64_t
 //           -a << c
-CHECK:       return 0 - _argument2 << (_argument0 & 0x3F);
+CHECK:       return (0 - _argument2) << (_argument0 & 0x3F);
 
 CHECK-LABEL: from_class_5_to_class_1(generic64_t
 //           a-- << c
