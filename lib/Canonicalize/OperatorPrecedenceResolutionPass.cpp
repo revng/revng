@@ -127,7 +127,10 @@ static OperatorInfo getPrecedenceImpl(const Instruction &I) {
 
   // Or (|| and |)
   case Instruction::Or:
-    return { 10, Associativity::LeftToRight, Arity::Binary };
+    if (I.getType()->isIntegerTy(1))
+      return { 12, Associativity::LeftToRight, Arity::Binary };
+    else
+      return { 10, Associativity::LeftToRight, Arity::Binary };
 
   // Xor (^)
   case Instruction::Xor:
@@ -135,7 +138,10 @@ static OperatorInfo getPrecedenceImpl(const Instruction &I) {
 
   // And (&& and &)
   case Instruction::And:
-    return { 8, Associativity::LeftToRight, Arity::Binary };
+    if (I.getType()->isIntegerTy(1))
+      return { 11, Associativity::LeftToRight, Arity::Binary };
+    else
+      return { 8, Associativity::LeftToRight, Arity::Binary };
 
   // All the comparisons
   case Instruction::ICmp:
