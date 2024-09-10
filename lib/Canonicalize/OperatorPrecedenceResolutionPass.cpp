@@ -49,12 +49,12 @@ enum CustomInstruction : unsigned {
   BooleanNot = getInstructionLLVMOpcodeCount() + 11
 };
 
-enum Associativity {
+enum class Associativity {
   LeftToRight,
   RightToLeft
 };
 
-enum Arity : unsigned {
+enum class Arity : unsigned {
   Unary,
   Binary,
   Ternary,
@@ -62,83 +62,149 @@ enum Arity : unsigned {
 };
 
 struct OperatorInfo {
-  unsigned Opcode;
-  int Precedence;
+  uint64_t Precedence;
+
+  // Because people are not especially good when dealing with implicit
+  // precedence, it's sometimes better to emit extra parentheses. This is what
+  // this value is for. As long as the difference between classes is below this
+  // value, the parentheses are going to be emitted even if they are not
+  // necessary.
+  //
+  // TODO: even thought, this simplistic approach is enough for now, we might
+  //       want to switch to something more expressive at some point.
+  uint64_t NumberOfClassesToForceParenthesesFor;
+
   Associativity Associativity;
   Arity Arity;
 };
 
-// Table that maps LLVM opcodes to the equivalent C operator precedence priority
-static constexpr std::array<const OperatorInfo, 37>
-  LLVMOpcodeToCOpPrecedenceArray{
-    // OperatorInfo{ OpCode, Precedence, Associativity, Arity },
-    OperatorInfo{ Instruction::Select, 1, RightToLeft, Ternary },
-    OperatorInfo{ Instruction::Or, 2, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Xor, 3, LeftToRight, Binary },
-    OperatorInfo{ Instruction::And, 4, LeftToRight, Binary },
-    OperatorInfo{ Instruction::ICmp, 5, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Shl, 6, LeftToRight, Binary },
-    OperatorInfo{ Instruction::LShr, 6, LeftToRight, Binary },
-    OperatorInfo{ Instruction::AShr, 6, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Add, 7, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Sub, 7, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Mul, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::UDiv, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SDiv, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::URem, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SRem, 8, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SExt, 9, RightToLeft, Unary },
-    OperatorInfo{ Instruction::Trunc, 9, RightToLeft, Unary },
-    OperatorInfo{ Instruction::ZExt, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::AddressOf, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::Indirection, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::Cast, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::UnaryMinus, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::BinaryNot, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::BooleanNot, 9, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::MemberAccess, 10, LeftToRight, Unary },
-    OperatorInfo{ Instruction::Call, 10, LeftToRight, NAry },
-  };
+static OperatorInfo getPrecedenceImpl(const Instruction &I) {
+  // Custom instructions first
+  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+    if (auto *CalledFunc = getCalledFunction(Call)) {
 
-static constexpr std::array<const OperatorInfo, 37>
-  LLVMOpcodeToNopOpPrecedenceArray{
-    // OperatorInfo{ OpCode, Precedence, Associativity, Arity },
-    OperatorInfo{ Instruction::Select, 0, RightToLeft, Ternary },
-    OperatorInfo{ Instruction::Or, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Xor, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::And, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::ICmp, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Shl, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::LShr, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::AShr, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Add, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Sub, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::Mul, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::UDiv, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SDiv, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::URem, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SRem, 0, LeftToRight, Binary },
-    OperatorInfo{ Instruction::SExt, 0, RightToLeft, Unary },
-    OperatorInfo{ Instruction::Trunc, 0, RightToLeft, Unary },
-    OperatorInfo{ Instruction::ZExt, 0, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::AddressOf, 0, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::Indirection, 0, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::Cast, 0, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::UnaryMinus, 0, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::BinaryNot, 0, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::BooleanNot, 0, RightToLeft, Unary },
-    OperatorInfo{ CustomInstruction::MemberAccess, 0, LeftToRight, Unary },
-    OperatorInfo{ Instruction::Call, 0, LeftToRight, NAry },
-  };
+      // AddressOf
+      if (FunctionTags::AddressOf.isTagOf(CalledFunc))
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
-static OperatorInfo
-getPrecedence(const std::array<const OperatorInfo, 37> *Table,
-              unsigned Opcode) {
-  auto It = llvm::find_if(*Table, [&](const auto &Elem) {
-    return Elem.Opcode == Opcode;
-  });
-  revng_assert(It != Table->end());
-  return *It;
+      // Cast
+      else if (FunctionTags::ModelCast.isTagOf(CalledFunc))
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+
+      else if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
+        // Indirection
+        if (auto *ArrayIndex = dyn_cast<ConstantInt>(Call->getArgOperand(2)))
+          if (Call->arg_size() < 3 and ArrayIndex->isZero())
+            return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+
+        // MemberAccess
+        return { 1, 0, Associativity::LeftToRight, Arity::Unary };
+
+      } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
+        if (Call->arg_size() > 2) {
+          // MemberAccess
+          return { 1, 0, Associativity::LeftToRight, Arity::Unary };
+        } else {
+          revng_abort("How did a transparent instruction got here?");
+        }
+
+      } else if (FunctionTags::OpaqueExtractValue.isTagOf(CalledFunc)) {
+        // MemberAccess
+        return { 1, 0, Associativity::LeftToRight, Arity::Unary };
+
+        // UnaryMinus
+      } else if (FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+
+        // BinaryNot
+      } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+
+        // BooleanNot
+      } else if (FunctionTags::BooleanNot.isTagOf(CalledFunc)) {
+        return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+      }
+    }
+
+    // Catch all the other calls
+    return { 0, 0, Associativity::LeftToRight, Arity::NAry };
+  }
+
+  // It's not a call: map it normally
+  switch (I.getOpcode()) {
+  // Ternary operator (?:)
+  case Instruction::Select:
+    return { 13, 0, Associativity::RightToLeft, Arity::Ternary };
+
+  // Or (|| and |)
+  case Instruction::Or:
+    if (I.getType()->isIntegerTy(1))
+      return { 12, 0, Associativity::LeftToRight, Arity::Binary };
+    else
+      return { 10, 7, Associativity::LeftToRight, Arity::Binary };
+
+  // Xor (^)
+  case Instruction::Xor:
+    return { 9, 6, Associativity::LeftToRight, Arity::Binary };
+
+  // And (&& and &)
+  case Instruction::And:
+    if (I.getType()->isIntegerTy(1))
+      return { 11, 0, Associativity::LeftToRight, Arity::Binary };
+    else
+      return { 8, 5, Associativity::LeftToRight, Arity::Binary };
+
+  // All the comparisons
+  case Instruction::ICmp:
+    return { 6, 0, Associativity::LeftToRight, Arity::Binary };
+
+  // Byte-wise shifts
+  case Instruction::Shl:
+    return { 5, 2, Associativity::LeftToRight, Arity::Binary };
+  case Instruction::LShr:
+    return { 5, 2, Associativity::LeftToRight, Arity::Binary };
+  case Instruction::AShr:
+    return { 5, 2, Associativity::LeftToRight, Arity::Binary };
+
+  // Addition and subtraction
+  case Instruction::Add:
+    return { 4, 0, Associativity::LeftToRight, Arity::Binary };
+  case Instruction::Sub:
+    return { 4, 0, Associativity::LeftToRight, Arity::Binary };
+
+  // Multiplication, division and remainder
+  case Instruction::Mul:
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
+  case Instruction::UDiv:
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
+  case Instruction::SDiv:
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
+  case Instruction::URem:
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
+  case Instruction::SRem:
+    return { 3, 0, Associativity::LeftToRight, Arity::Binary };
+
+  // Casts
+  case Instruction::SExt:
+    return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+  case Instruction::Trunc:
+    return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+  case Instruction::ZExt:
+    return { 2, 0, Associativity::RightToLeft, Arity::Unary };
+
+  default:
+    revng_abort("unsupported opcode");
+  }
+}
+
+static OperatorInfo getPrecedence(const Instruction &I) {
+  OperatorInfo Result = getPrecedenceImpl(I);
+  if (LanguageName == "NOP" || LanguageName == "nop")
+    Result.Precedence = 0;
+  else
+    revng_assert(LanguageName == "C" || LanguageName == "c");
+
+  return Result;
 }
 
 static bool isCustomOpcode(const Value *I) {
@@ -210,14 +276,6 @@ static unsigned getCustomOpcode(const Instruction *I) {
   revng_abort("unhandled custom opcode");
 }
 
-static unsigned getOpcode(const Instruction *I) {
-  if (isa<CallInst>(I))
-    if (isCustomOpcode(I))
-      return getCustomOpcode(I);
-
-  return I->getOpcode();
-}
-
 static bool isImplicitCast(const Value *V) {
   if (not isCallToTagged(V, FunctionTags::ModelCast))
     return false;
@@ -261,20 +319,10 @@ static Value *traverseTransparentOpcodes(Value *I) {
 }
 
 struct OperatorPrecedenceResolutionPass : public FunctionPass {
-private:
-  const std::array<const OperatorInfo, 37>
-    *LLVMOpcodeToLangOpPrecedenceArray = nullptr;
-
 public:
   static char ID;
 
-  OperatorPrecedenceResolutionPass() : FunctionPass(ID) {
-    if (LanguageName == "C" || LanguageName == "c")
-      LLVMOpcodeToLangOpPrecedenceArray = &LLVMOpcodeToCOpPrecedenceArray;
-    else if (LanguageName == "NOP" || LanguageName == "nop")
-      LLVMOpcodeToLangOpPrecedenceArray = &LLVMOpcodeToNopOpPrecedenceArray;
-    revng_assert(LLVMOpcodeToLangOpPrecedenceArray);
-  }
+  OperatorPrecedenceResolutionPass() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override;
 
@@ -400,43 +448,39 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
     if (&U != &Call->getCalledOperandUse())
       return false;
 
-  auto [InstructionOpcode,
-        InstructionPrecedence,
+  auto [InstructionPrecedence,
+        NumberOfClassesToForceParenthesesFor,
         InstructionAssociativity,
-        InstructionArity] = getPrecedence(LLVMOpcodeToLangOpPrecedenceArray,
-                                          getOpcode(I));
+        InstructionArity] = getPrecedence(*I);
 
-  auto [OperandOpcode,
-        OperandPrecedence,
+  auto [OperandPrecedence,
+        _,
         OperandAssociativity,
-        OperandArity] = getPrecedence(LLVMOpcodeToLangOpPrecedenceArray,
-                                      getOpcode(Op));
+        OperandArity] = getPrecedence(*Op);
 
-  auto Cmp = InstructionPrecedence <=> OperandPrecedence;
   // If the precedence of the instruction and the operand is the same, we have
   // to discriminate by Associativity and by Arity
-  if (Cmp == 0) {
+  if (InstructionPrecedence == OperandPrecedence) {
 
     revng_assert(InstructionAssociativity == OperandAssociativity);
 
     switch (InstructionArity) {
-    case NAry: {
-      revng_assert(InstructionOpcode == Instruction::Call);
+    case Arity::NAry:
+      revng_assert(llvm::isa<CallInst>(I));
       // Basically this is a call, and we're analyzing the called operand, which
       // has the same precedence (the highest) and associativity of the call.
       // So we can just never emit the parenthesis because associativity will do
       // the work for us.
-    } break;
+      return false;
 
-    case Unary: {
+    case Arity::Unary:
       // If the instruction operator is unary, and the precedence is
       // the same, no parentheses are needed, and there's no need to check
       // associativity, since all the operators with the same precedence have
       // the same associativity.
       return false;
-    } break;
 
-    case Binary: {
+    case Arity::Binary: {
       revng_assert(I->getNumOperands() == 2);
       revng_assert(isa<BinaryOperator>(I) or isa<CmpInst>(I));
       // If there are 2 operands, Instruction can only be a binary operator
@@ -448,33 +492,41 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
       Side OpSide = U.getOperandNo() == 0 ? LHS : RHS;
       // If the Instruction associativity leads to preserving semantics we don't
       // need parentheses, otherwise we do.
-      if (InstructionAssociativity == LeftToRight and OpSide != RHS)
+      if (InstructionAssociativity == Associativity::LeftToRight
+          and OpSide != RHS)
         return false;
 
-      if (InstructionAssociativity == RightToLeft and OpSide != LHS)
+      if (InstructionAssociativity == Associativity::RightToLeft
+          and OpSide != LHS)
         return false;
 
       return true;
-    } break;
+    }
 
-    case Ternary: {
+    case Arity::Ternary:
       revng_assert(I->getNumOperands() == 3);
       revng_assert(isa<SelectInst>(I));
       // This is basically a ternary with an operand that is another ternary, so
       // we always emit parentheses to avoid nasty nested things that are hard
       // to read and understand.
       return true;
-    } break;
 
     default:
       revng_abort("unexpected arity");
     }
-  }
 
-  // If the precedence of the instruction is different, we only need parentheses
-  // when the precedence of the instruction is higher than the precedence of the
-  // operand. In this case we never need to check associativity.
-  return Cmp > 0;
+  } else if (InstructionPrecedence < OperandPrecedence) {
+    // If the instruction takes precedence over the operand, we always need
+    // to emit the parentheses: otherwise the expression is not going to be
+    // semantically correct.
+    return true;
+
+  } else {
+    // If the operand takes precedence over the instruction, we only emit
+    // parentheses if they help readability.
+    uint64_t PrecedenceDifference = InstructionPrecedence - OperandPrecedence;
+    return PrecedenceDifference <= NumberOfClassesToForceParenthesesFor;
+  }
 }
 
 bool OPRP::runOnFunction(Function &F) {
