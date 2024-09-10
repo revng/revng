@@ -281,7 +281,8 @@ file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}"
 find_program(MKDOCS NAMES mkdocs)
 add_custom_command(
   OUTPUT share/doc/revng/html/404.html
-  DEPENDS share/doc/revng/references/mime-types.md
+  DEPENDS share/doc/revng/references/abi-definition.md
+          share/doc/revng/references/mime-types.md
           share/doc/revng/references/ptml.md
           share/doc/revng/user-manual/analyses.md
           share/doc/revng/user-manual/index.md
