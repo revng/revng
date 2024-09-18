@@ -21,6 +21,8 @@ private:
 
 public:
   Rank(llvm::StringRef Name) : DynamicHierarchy(Name) {}
+  Rank(llvm::StringRef Name, std::string_view ModelPath) :
+    DynamicHierarchy(Name), ModelPath(ModelPath) {}
   Rank(llvm::StringRef Name, Rank &Parent) : DynamicHierarchy(Name, Parent) {}
   Rank(llvm::StringRef Name, Rank &Parent, std::string_view ModelPath) :
     DynamicHierarchy(Name, Parent), ModelPath(ModelPath) {}
@@ -44,7 +46,7 @@ public:
   using Tuple = std::tuple<>;
 
 public:
-  explicit RootRank() : Rank(RankName) {}
+  explicit RootRank() : Rank(RankName, ModelPathSeparator) {}
 };
 
 /// A helper function used for defining a root rank.
