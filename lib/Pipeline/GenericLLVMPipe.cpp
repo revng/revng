@@ -33,24 +33,27 @@ class UpdateContract : public llvm::ModulePass {
 public:
   static char ID;
 
+public:
+  Context &TheContext;
   llvm::ArrayRef<ContractGroup> Contract;
-  ContainerToTargetsMap *Requested = nullptr;
-  Context *TheContext = nullptr;
+  ContainerToTargetsMap &Requested;
   llvm::ArrayRef<std::string> ContainersName;
 
 public:
-  UpdateContract(llvm::ArrayRef<ContractGroup> Contract,
+  UpdateContract(Context &TheContext,
+                 llvm::ArrayRef<ContractGroup> Contract,
                  ContainerToTargetsMap &Requested,
-                 llvm::ArrayRef<std::string> ContainersName) :
+                 const std::string &ContainersName) :
     llvm::ModulePass(ID),
+    TheContext(TheContext),
     Contract(Contract),
-    Requested(&Requested),
+    Requested(Requested),
     ContainersName(ContainersName) {}
 
 public:
   bool runOnModule(llvm::Module &Module) override {
     for (auto &Entry : Contract)
-      Entry.deduceResults(*TheContext, *Requested, ContainersName);
+      Entry.deduceResults(TheContext, Requested, { ContainersName });
     return false;
   }
 };
@@ -69,9 +72,10 @@ void GenericLLVMPipe::run(ExecutionContext &EC, LLVMContainer &Container) {
   using ElementType = std::unique_ptr<LLVMPassWrapperBase>;
   for (const ElementType &Element : Passes) {
     Element->registerPasses(Manager);
-    Manager.add(new UpdateContract(Element->getContract(),
+    Manager.add(new UpdateContract(EC.getContext(),
+                                   Element->getContract(),
                                    EC.getCurrentRequestedTargets(),
-                                   { Container.name() }));
+                                   Container.name()));
   }
   Manager.run(Container.getModule());
 }
