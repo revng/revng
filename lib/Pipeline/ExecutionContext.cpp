@@ -36,7 +36,7 @@ void ExecutionContext::commit(const Target &Target,
   revng_assert(Pipe != nullptr);
 
   revng_log(InvalidationLog,
-            "Committing " << Target.serialize() << " into "
+            "Committing " << Target.toString() << " into "
                           << ContainerName.str());
 
   // TODO: this triggers a sort at every invocation, which is bad for

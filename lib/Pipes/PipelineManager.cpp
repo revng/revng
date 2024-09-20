@@ -549,7 +549,7 @@ PipelineManager::materializeTargets(const llvm::StringRef StepName,
       if (!CurrentContainerState.contains(Target))
         return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                        "Target %s cannot be produced",
-                                       Target.serialize().c_str());
+                                       Target.toString().c_str());
     }
   }
 

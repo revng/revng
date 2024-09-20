@@ -90,30 +90,30 @@ public:
     return "</" + TheTag + ">";
   }
 
-  std::string serialize() const { return open() + Content + close(); }
+  std::string toString() const { return open() + Content + close(); }
 
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>
   void dump(T &Output) const {
-    Output << serialize();
+    Output << toString();
   }
 };
 
 inline std::string operator+(const Tag &LHS, const llvm::StringRef RHS) {
-  return LHS.serialize() + RHS.str();
+  return LHS.toString() + RHS.str();
 }
 
 inline std::string operator+(const llvm::StringRef LHS, const Tag &RHS) {
-  return LHS.str() + RHS.serialize();
+  return LHS.str() + RHS.toString();
 }
 
 inline std::string operator+(const Tag &LHS, const Tag &RHS) {
-  return LHS.serialize() + RHS.serialize();
+  return LHS.toString() + RHS.toString();
 }
 
 inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Tag &TheTag) {
-  OS << TheTag.serialize();
+  OS << TheTag.toString();
   return OS;
 }
 

@@ -82,8 +82,8 @@ void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
     auto &Metadata = Cache.getControlFlowGraph(Function.Entry());
 
     // Slice the graph for the current function and convert it to SVG
-    auto SlicePoint = pipeline::serializedLocation(revng::ranks::Function,
-                                                   Metadata.Entry());
+    auto SlicePoint = pipeline::toString(revng::ranks::Function,
+                                         Metadata.Entry());
     Output.insert_or_assign(Function.Entry(),
                             yield::svg::callGraphSlice(B,
                                                        SlicePoint,

@@ -260,13 +260,11 @@ public:
         revng_log(Log,
                   "Skip a function conversion because it requires vector type "
                   "support: "
-                    << serializeToString(DT.Definition()));
+                    << toString(DT.Definition()));
         continue;
       }
 
-      revng_log(Log,
-                "Converting a function: "
-                  << serializeToString(DT.Definition()));
+      revng_log(Log, "Converting a function: " << toString(DT.Definition()));
       if (Log.isEnabled()) {
         std::string Message = "";
         for (model::Function &Function : Model->Functions())
@@ -288,9 +286,7 @@ public:
         if (VerifyLog.isEnabled())
           New->get()->verify(true);
 
-        revng_log(Log,
-                  "Function Conversion Successful: "
-                    << serializeToString(*New));
+        revng_log(Log, "Function Conversion Successful: " << toString(*New));
       } else {
         // Do nothing if the conversion failed (the model is not modified).
         // `RawFunctionDefinition` is still used for those functions.

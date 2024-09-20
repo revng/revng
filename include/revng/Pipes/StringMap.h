@@ -59,7 +59,7 @@ struct CustomMappingTraits<::detail::OffsetMap<T>> {
 
   static void output(IO &IO, ::detail::OffsetMap<T> &Value) {
     for (auto &[Key, Offset] : Value) {
-      std::string StringKey = serializeToString(Key);
+      std::string StringKey = ::toString(Key);
       IO.mapRequired(StringKey.c_str(), Offset);
     }
   }
@@ -332,9 +332,7 @@ private:
   }
 
 public:
-  static std::string keyToString(const KeyType &Key) {
-    return serializeToString(Key);
-  }
+  static std::string keyToString(const KeyType &Key) { return toString(Key); }
 
   static KeyType keyFromString(llvm::StringRef StringKey) {
     return getValueFromYAMLScalar<KeyType>(StringKey);

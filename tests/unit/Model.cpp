@@ -76,12 +76,12 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
   Typedef.UnderlyingType() = model::PrimitiveType::make(PrimitiveKind::Unsigned,
                                                         8);
 
-  std::string Path = "/TypeDefinitions/" + serializeToString(Typedef.key())
+  std::string Path = "/TypeDefinitions/" + toString(Typedef.key())
                      + "/TypedefDefinition::OriginalName";
   auto *OriginalNamePointer = getByPath<std::string>(Path, Binary);
   revng_check(OriginalNamePointer == &Typedef.OriginalName());
 
-  Path = "/TypeDefinitions/" + serializeToString(Typedef.key());
+  Path = "/TypeDefinitions/" + toString(Typedef.key());
   revng_check(getByPath<model::TypeDefinition>(Path, Binary) == &Typedef);
 }
 
@@ -273,10 +273,10 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   New.ExtraCodeAddresses().insert(Address);
 
   auto Diff = diff(Empty, New);
-  std::string S = serializeToString(Diff);
+  std::string S = toString(Diff);
 
   auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
-  std::string S2 = serializeToString(Diff2);
+  std::string S2 = toString(Diff2);
 
   BOOST_TEST(S == S2);
 }

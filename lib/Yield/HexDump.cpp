@@ -92,10 +92,10 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
         MetaAddress End = Begin + Size;
         auto Interval = IntervalType::right_open(Begin, End);
 
-        std::string Str = serializedLocation(ranks::Instruction,
-                                             EntryAddress,
-                                             BasicBlockID,
-                                             Address);
+        std::string Str = toString(ranks::Instruction,
+                                   EntryAddress,
+                                   BasicBlockID,
+                                   Address);
 
         std::set<std::string> Set{ Str };
         Instructions.add(std::make_pair(Interval, Set));

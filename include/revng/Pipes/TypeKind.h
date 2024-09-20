@@ -20,7 +20,7 @@ public:
     using namespace pipeline;
     const auto &Model = getModelFromContext(Context);
     for (const auto &Type : Model->TypeDefinitions()) {
-      Out.push_back(Target(serializeToString(Type->key()), *this));
+      Out.push_back(Target(toString(Type->key()), *this));
     }
   }
 };

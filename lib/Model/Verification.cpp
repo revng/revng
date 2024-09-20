@@ -810,8 +810,8 @@ bool Binary::verify(VerifyHelper &VH) const {
   for (const auto &[LHS, RHS] : zip_pairs(Segments())) {
     revng_assert(LHS.StartAddress() <= RHS.StartAddress());
     if (LHS.endAddress() > RHS.StartAddress()) {
-      std::string Error = "Overlapping segments:\n" + serializeToString(LHS)
-                          + "and\n" + serializeToString(RHS);
+      std::string Error = "Overlapping segments:\n" + ::toString(LHS) + "and\n"
+                          + ::toString(RHS);
       return VH.fail(Error);
     }
   }

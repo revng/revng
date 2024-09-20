@@ -112,7 +112,7 @@ public:
     Result += Rank::RankName;
     compile_time::repeat<Size>([&Result, this]<size_t Index> {
       Result += Separator;
-      Result += serializeToString(std::get<Index>(tuple()));
+      Result += ::toString(std::get<Index>(tuple()));
     });
 
     return Result;
@@ -166,7 +166,7 @@ inline constexpr Location<Rank> location(const Rank &, Args &&...As) {
 /// it into its string representation.
 template<RankSpecialization Rank, typename... Args>
   requires std::is_convertible_v<std::tuple<Args...>, typename Rank::Tuple>
-inline std::string serializedLocation(const Rank &R, Args &&...As) {
+inline std::string toString(const Rank &R, Args &&...As) {
   return location(R, std::forward<Args>(As)...).toString();
 }
 

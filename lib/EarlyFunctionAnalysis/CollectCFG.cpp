@@ -77,7 +77,7 @@ public:
       revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
 
       // TODO: we'd need a function-wise TupleTreeContainer
-      CFGs[EntryAddress] = serializeToString(New);
+      CFGs[EntryAddress] = toString(New);
     }
   }
 
