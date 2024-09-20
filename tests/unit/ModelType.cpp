@@ -23,7 +23,7 @@ serializeDeserialize(const TupleTree<model::Binary> &T) {
   std::string Buffer;
   T.serialize(Buffer);
 
-  auto Deserialized = TupleTree<model::Binary>::deserialize(Buffer);
+  auto Deserialized = TupleTree<model::Binary>::fromString(Buffer);
 
   std::string OtherBuffer;
   Deserialized->serialize(OtherBuffer);

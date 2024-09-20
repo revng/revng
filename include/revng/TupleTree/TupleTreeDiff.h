@@ -151,8 +151,8 @@ public:
 template<TupleTreeRootLike T>
 struct TupleTreeDiff {
 public:
-  static llvm::Expected<TupleTreeDiff<T>> deserialize(llvm::StringRef Input) {
-    return ::deserialize<TupleTreeDiff<T>>(Input);
+  static llvm::Expected<TupleTreeDiff<T>> fromString(llvm::StringRef Input) {
+    return ::fromString<TupleTreeDiff<T>>(Input);
   }
 
 public:

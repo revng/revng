@@ -44,7 +44,7 @@ int main(int Argc, char *Argv[]) {
     ExitOnError(Model.takeError());
 
   using TypeDiff = TupleTreeDiff<model::Binary>;
-  auto Diff = ExitOnError(deserializeFileOrSTDIN<TypeDiff>(DiffPath));
+  auto Diff = ExitOnError(fromFileOrSTDIN<TypeDiff>(DiffPath));
 
   ExitOnError(Diff.apply(*Model));
 

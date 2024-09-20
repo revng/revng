@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
 
   if (not ApplyModelDiff.empty()) {
     using Type = TupleTreeDiff<model::Binary>;
-    auto Diff = AbortOnError(deserializeFileOrSTDIN<Type>(ApplyModelDiff));
+    auto Diff = AbortOnError(fromFileOrSTDIN<Type>(ApplyModelDiff));
 
     auto &Runner = Manager.getRunner();
     TargetInStepSet Map;

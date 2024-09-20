@@ -80,7 +80,7 @@ public:
       return *It->second.get();
 
     TupleTree<efa::ControlFlowGraph> &Result = Deserialized[Address];
-    Result = TupleTree<efa::ControlFlowGraph>::deserialize(CFGs.at(Address))
+    Result = TupleTree<efa::ControlFlowGraph>::fromString(CFGs.at(Address))
                .get();
     return *Result.get();
   }

@@ -137,8 +137,8 @@ public:
 
     auto Success = compile_time::repeatAnd<Size>([&]<size_t Idx> {
       using T = typename std::tuple_element<Idx, Tuple>::type;
-      using revng::detail::deserializeImpl;
-      auto MaybeValue = deserializeImpl<T>(MaybeSteps->at(Idx + 2));
+      using revng::detail::fromStringImpl;
+      auto MaybeValue = fromStringImpl<T>(MaybeSteps->at(Idx + 2));
       if (!MaybeValue)
         return false;
 

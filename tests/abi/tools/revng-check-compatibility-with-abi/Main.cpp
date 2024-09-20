@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     revng_abort(Error.c_str());
   }
 
-  auto Deserialized = TupleTree<model::Binary>::deserialize(InputText);
+  auto Deserialized = TupleTree<model::Binary>::fromString(InputText);
   if (!Deserialized) {
     std::string Error = "Unable to deserialize the model: '" + Options::Filename
                         + "'.";

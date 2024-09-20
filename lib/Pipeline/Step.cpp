@@ -420,7 +420,7 @@ Step::loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
     return File.takeError();
 
   using Type = llvm::SmallVector<NamedPathTargetBimapVector, 2>;
-  auto Parsed = ::deserialize<Type>(File.get()->buffer().getBuffer());
+  auto Parsed = ::fromString<Type>(File.get()->buffer().getBuffer());
   if (not Parsed)
     return Parsed.takeError();
 

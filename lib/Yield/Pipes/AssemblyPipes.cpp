@@ -72,7 +72,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
        getFunctionsAndCommit(Context, Output.name())) {
     MetaAddress Address = Function.Entry();
     llvm::StringRef YamlText = Input.at(Address);
-    auto MaybeFunction = TupleTree<yield::Function>::deserialize(YamlText);
+    auto MaybeFunction = TupleTree<yield::Function>::fromString(YamlText);
 
     revng_assert(MaybeFunction && MaybeFunction->verify());
     revng_assert((*MaybeFunction)->Entry() == Address);

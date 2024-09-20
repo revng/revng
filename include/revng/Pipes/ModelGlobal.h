@@ -74,7 +74,7 @@ getTypeDefinitionsAndCommit(pipeline::ExecutionContext &EC,
   auto Extractor =
     [&](const pipeline::Target &Target) -> const TypeDefinition & {
     using KeyTuple = TypeDefinition::Key;
-    auto Key = cantFail(deserialize<KeyTuple>(Target.getPathComponents()[0]));
+    auto Key = cantFail(fromString<KeyTuple>(Target.getPathComponents()[0]));
     return *Binary->TypeDefinitions().at(Key);
   };
   for (const auto &T :

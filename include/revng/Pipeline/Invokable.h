@@ -98,7 +98,7 @@ auto &getContainer(const ContainerSet &Containers, llvm::StringRef Name) {
 
 template<typename T, size_t I>
   requires PipelineOptionType<OptionType<T, I>>
-OptionType<T, I> deserializeImpl(llvm::StringRef Value) {
+OptionType<T, I> fromStringImpl(llvm::StringRef Value) {
   using ReturnType = OptionType<T, I>;
 
   if constexpr (std::is_same_v<std::string, ReturnType>) {
@@ -117,7 +117,7 @@ OptionType<T, I> getOption(const llvm::StringMap<std::string> &Map) {
   std::string Name = (StringRef(T::Name) + "-" + getOptionName<T, I>()).str();
 
   if (auto Iter = Map.find(Name); Iter != Map.end()) {
-    return deserializeImpl<T, I>(Iter->second);
+    return fromStringImpl<T, I>(Iter->second);
   }
 
   // Handle --$OPTION-path flag

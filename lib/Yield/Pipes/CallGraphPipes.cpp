@@ -38,7 +38,7 @@ void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
   SortedVector<efa::ControlFlowGraph> Metadata;
   for (const auto &[Address, CFGString] : CFGMap)
     Metadata
-      .insert(*TupleTree<efa::ControlFlowGraph>::deserialize(CFGString)->get());
+      .insert(*TupleTree<efa::ControlFlowGraph>::fromString(CFGString)->get());
 
   // If some functions are missing, do not output anything
   if (Metadata.size() != Model->Functions().size())

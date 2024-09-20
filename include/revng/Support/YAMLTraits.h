@@ -241,7 +241,7 @@ std::string toString(const T &ToDump) {
 namespace revng::detail {
 template<typename T>
 llvm::Expected<T>
-deserializeImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
+fromStringImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
   if constexpr (HasScalarOrEnumTraits<T>) {
     return getValueFromYAMLScalar<T>(YAMLString);
   } else {
@@ -272,18 +272,18 @@ concept NotTupleTreeRoot = !requires(T &&) {
 
 template<NotTupleTreeRoot T>
 llvm::Expected<T>
-deserialize(llvm::StringRef YAMLString, void *Context = nullptr) {
-  return revng::detail::deserializeImpl<T>(YAMLString, Context);
+fromString(llvm::StringRef YAMLString, void *Context = nullptr) {
+  return revng::detail::fromStringImpl<T>(YAMLString, Context);
 }
 
 template<NotTupleTreeRoot T>
 llvm::Expected<T>
-deserializeFileOrSTDIN(const llvm::StringRef &Path, void *Context = nullptr) {
+fromFileOrSTDIN(const llvm::StringRef &Path, void *Context = nullptr) {
   auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
   if (not MaybeBuffer)
     return llvm::errorCodeToError(MaybeBuffer.getError());
 
-  return deserialize<T>((*MaybeBuffer)->getBuffer(), Context);
+  return fromString<T>((*MaybeBuffer)->getBuffer(), Context);
 }
 
 template<HasScalarTraits T>
