@@ -29,7 +29,6 @@
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
-using llvm::cast;
 using llvm::dyn_cast;
 
 constexpr const size_t ModelGEPBaseArgIndex = 1;

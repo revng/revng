@@ -30,7 +30,7 @@ inline void pushInstructionALAP(llvm::DominatorTree &DT,
                                 llvm::Instruction *ToMove) {
   using namespace llvm;
 
-  std::set<Instruction *> Users;
+  llvm::DenseSet<Instruction *> Users;
   BasicBlock *CommonDominator = nullptr;
   for (User *U : ToMove->users()) {
     if (auto *I = dyn_cast<Instruction>(U)) {

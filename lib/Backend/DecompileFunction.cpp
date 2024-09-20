@@ -263,6 +263,15 @@ private:
   /// switches
   std::vector<std::string> SwitchStateVars;
 
+  /// \note This class handles an individual function, but still needs a
+  ///       reference to all of ControlFlowGraphCache, so we can call
+  ///       getCallEdge. This is not nice, since, if we look into stuff
+  ///       concerning other functions, we can create serious invalidation
+  ///       issues.
+  ///       However, right now we just call getCallEdge which is safe.
+  ///       A better approach would be to have a ControlFlowGraphCache provide
+  ///       us with a function-specific subject that enables us to use
+  ///       getCallEdge.
   ControlFlowGraphCache &Cache;
 
 private:
