@@ -41,9 +41,9 @@ public:
   virtual bool epilogue() { return false; }
 
 public:
-  template<typename T>
-  T &getAnalysis() {
-    return Pass->getAnalysis<T>();
+  template<typename T, typename... ArgType>
+  T &getAnalysis(ArgType &&...Arg) {
+    return Pass->getAnalysis<T>(std::forward<ArgType>(Arg)...);
   }
 };
 
