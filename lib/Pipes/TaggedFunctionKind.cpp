@@ -48,7 +48,7 @@ void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Ctx,
 }
 
 cppcoro::generator<std::pair<const model::Function *, llvm::Function *>>
-TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
+TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &EC,
                                           llvm::Module &Module,
                                           llvm::StringRef ContainerName) {
   std::map<MetaAddress, llvm::Function *> AddressToFunction;
@@ -61,10 +61,10 @@ TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
     AddressToFunction.emplace(getMetaAddressOfIsolatedFunction(Function),
                               &Function);
   }
-  auto &Binary = getModelFromContext(Context);
+  auto &Binary = getModelFromContext(EC);
 
   for (const model::Function &Function :
-       revng::getFunctionsAndCommit(Context, ContainerName)) {
+       revng::getFunctionsAndCommit(EC, ContainerName)) {
     auto Iter = AddressToFunction.find(Function.Entry());
     using ResultPair = std::pair<const model::Function *, llvm::Function *>;
     if (Iter == AddressToFunction.end()) {

@@ -88,15 +88,15 @@ struct IsolatePipe {
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            pipeline::LLVMContainer &ModuleContainer) {
     using namespace revng;
     llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx,
+    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
                                                        ModuleContainer.name()));
     Manager
-      .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(Ctx))));
+      .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(EC))));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new IsolateFunctions());
     Manager.run(ModuleContainer.getModule());

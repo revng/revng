@@ -63,14 +63,14 @@ char UpdateContract::ID = '_';
 static RP<UpdateContract>
   X("advance-contract", "Advance pipeline contracts", true, false);
 
-void GenericLLVMPipe::run(ExecutionContext &Ctx, LLVMContainer &Container) {
+void GenericLLVMPipe::run(ExecutionContext &EC, LLVMContainer &Container) {
   llvm::legacy::PassManager Manager;
-  Manager.add(new LoadExecutionContextPass(&Ctx, Container.name()));
+  Manager.add(new LoadExecutionContextPass(&EC, Container.name()));
   using ElementType = std::unique_ptr<LLVMPassWrapperBase>;
   for (const ElementType &Element : Passes) {
     Element->registerPasses(Manager);
     Manager.add(new UpdateContract(Element->getContract(),
-                                   Ctx.getCurrentRequestedTargets(),
+                                   EC.getCurrentRequestedTargets(),
                                    { Container.name() }));
   }
   Manager.run(Container.getModule());

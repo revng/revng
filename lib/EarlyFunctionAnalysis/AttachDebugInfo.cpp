@@ -225,13 +225,13 @@ struct AttachDebugInfoToIsolatedPipe {
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx,
+    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
                                                        ModuleContainer.name()));
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
     Manager.run(ModuleContainer.getModule());
@@ -262,13 +262,13 @@ struct AttachDebugInfoToABIEnforcedPipe {
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx,
+    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
                                                        ModuleContainer.name()));
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
     Manager.run(ModuleContainer.getModule());

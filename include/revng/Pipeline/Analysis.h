@@ -77,10 +77,10 @@ public:
     Invokable.dump(OS, Indentation);
   }
 
-  llvm::Error run(ExecutionContext &Ctx,
+  llvm::Error run(ExecutionContext &Context,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &ExtraArgs) override {
-    return Invokable.run(Ctx, Containers, ExtraArgs);
+    return Invokable.run(Context, Containers, ExtraArgs);
   }
 
   void invalidate(const GlobalTupleTreeDiff &Diff,

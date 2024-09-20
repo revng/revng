@@ -97,12 +97,12 @@ public:
     { &revng::kinds::Root }
   };
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(const pipeline::ExecutionContext &EC,
            pipeline::LLVMContainer &ModuleContainer) {
     revng::pipes::CFGMap CFGs("");
     llvm::legacy::PassManager Manager;
     using namespace revng;
-    auto Global = cantFail(Ctx.getContext()
+    auto Global = cantFail(EC.getContext()
                              .getGlobal<ModelGlobal>(ModelGlobalName));
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
     Manager.add(new CollectFunctionsFromCalleesWrapperPass());

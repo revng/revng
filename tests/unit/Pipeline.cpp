@@ -1357,7 +1357,7 @@ public:
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = { { &RootKind } };
 
-  void run(const ExecutionContext &Ctx,
+  void run(const ExecutionContext &EC,
            const MapContainer &Cont,
            int First,
            std::string Second,
