@@ -216,7 +216,7 @@ public:
 template<typename L>
 class ConstVisitor : public ConstVisitorBase {
 private:
-  L *Callable;
+  L *Callable = nullptr;
 
 public:
   ConstVisitor(L &Callable) : Callable(&Callable) {}
@@ -242,7 +242,7 @@ public:
 template<typename L>
 class Visitor : public VisitorBase {
 private:
-  L *Callable;
+  L *Callable = nullptr;
 
 public:
   Visitor(L &Callable) : Callable(&Callable) {}

@@ -43,7 +43,7 @@ struct CSVsUsageMap {
 
 struct WrapperKey {
 public:
-  Function *Helper;
+  Function *Helper = nullptr;
 
   /// GlobalVariables representing read CPU State Variables sorted by name.
   std::vector<GlobalVariable *> Read;
@@ -364,7 +364,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
 }
 
 struct FunctionNodeData {
-  Function *F;
+  Function *F = nullptr;
   using UsedCSVSet = std::set<std::pair<bool, GlobalVariable *>>;
   UsedCSVSet UsedCSVs;
 };

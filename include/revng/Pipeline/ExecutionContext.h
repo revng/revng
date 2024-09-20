@@ -160,7 +160,7 @@ public:
   static char ID;
 
 private:
-  ExecutionContext *EC;
+  ExecutionContext *EC = nullptr;
   llvm::StringRef ContainerName;
 
 public:

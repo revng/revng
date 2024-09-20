@@ -40,7 +40,7 @@ public:
 
 private:
   llvm::SmallString<8> Name;
-  DotGraph *Parent;
+  DotGraph *Parent = nullptr;
 
   // Actual container for the pointers to the successors nodes.
   child_container Successors;
@@ -117,7 +117,7 @@ public:
 
 private:
   node_container Nodes;
-  DotNode *EntryNode;
+  DotNode *EntryNode = nullptr;
 
 public:
   DotGraph() {}

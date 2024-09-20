@@ -26,7 +26,7 @@ private:
   template<typename TrackableTupleTree>
   class TrackingSuspender {
   private:
-    VerifyHelper *TheContext;
+    VerifyHelper *TheContext = nullptr;
     std::optional<DisableTracking<TrackableTupleTree>> Guard;
 
   public:

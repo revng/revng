@@ -107,7 +107,7 @@ private:
 
   std::set<std::string> EnabledFlags;
   std::optional<LoaderCallback> OnLLVMContainerCreationAction = std::nullopt;
-  Context *PipelineContext;
+  Context *PipelineContext = nullptr;
 
 public:
   explicit Loader(Context &C) : PipelineContext(&C) {}

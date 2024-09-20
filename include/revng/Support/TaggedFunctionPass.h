@@ -11,8 +11,8 @@
 
 struct TaggedFunctionPass : public llvm::ModulePass {
 private:
-  FunctionTags::Tag *InputTag;
-  FunctionTags::Tag *OutputTag;
+  FunctionTags::Tag *InputTag = nullptr;
+  FunctionTags::Tag *OutputTag = nullptr;
 
 public:
   TaggedFunctionPass(char &ID,

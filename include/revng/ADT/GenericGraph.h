@@ -91,7 +91,7 @@ public:
   Parent(Parent &&) = default;
 
 private:
-  T *TheParent;
+  T *TheParent = nullptr;
 
 public:
   T *getParent() const { return TheParent; }
@@ -594,20 +594,20 @@ struct MutableEdgeNodeBaseTCalc {
 
 template<typename NodeType, typename LabelType>
 struct OwningEdge {
-  NodeType *Neighbor;
+  NodeType *Neighbor = nullptr;
   std::unique_ptr<LabelType> Label;
 };
 
 template<typename NodeType, typename LabelType>
 struct NonOwningEdge {
-  NodeType *Neighbor;
-  LabelType *Label;
+  NodeType *Neighbor = nullptr;
+  LabelType *Label = nullptr;
 };
 
 template<typename NodeType, typename LabelType>
 struct EdgeView {
-  NodeType *Neighbor;
-  LabelType *Label;
+  NodeType *Neighbor = nullptr;
+  LabelType *Label = nullptr;
 
   explicit EdgeView(OwningEdge<NodeType, LabelType> &E) :
     Neighbor(E.Neighbor), Label(E.Label.get()) {}

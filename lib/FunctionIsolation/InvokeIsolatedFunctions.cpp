@@ -65,8 +65,8 @@ private:
 
 private:
   const model::Binary &Binary;
-  Function *RootFunction;
-  Module *M;
+  Function *RootFunction = nullptr;
+  Module *M = nullptr;
   LLVMContext &Context;
   GeneratedCodeBasicInfo &GCBI;
   FunctionMap Map;

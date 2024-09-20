@@ -183,7 +183,7 @@ private:
   GlobalsMap OtherGlobals;
   TemporariesMap Temporaries;
   TemporariesMap LocalTemporaries;
-  PTCInstructionList *Instructions;
+  PTCInstructionList *Instructions = nullptr;
 
   llvm::StructType *CPUStateType;
   const llvm::DataLayout *ModuleLayout;

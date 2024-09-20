@@ -301,9 +301,9 @@ void dumpUsers(llvm::Value *V) {
   using namespace llvm;
 
   struct InstructionUser {
-    Function *F;
-    BasicBlock *BB;
-    Instruction *I;
+    Function *F = nullptr;
+    BasicBlock *BB = nullptr;
+    Instruction *I = nullptr;
     bool operator<(const InstructionUser &Other) const {
       return std::tie(F, BB, I) < std::tie(Other.F, Other.BB, Other.I);
     }

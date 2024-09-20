@@ -26,7 +26,7 @@ using namespace pipeline;
 
 class PipelineExecutionEntry {
 public:
-  Step *ToExecute;
+  Step *ToExecute = nullptr;
   ContainerToTargetsMap Output;
   ContainerToTargetsMap Input;
   std::vector<PipeExecutionEntry> PipesExecuteEntries;

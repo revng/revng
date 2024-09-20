@@ -142,6 +142,6 @@ private:
 
   MetaAddress LastPC;
 
-  ProgramCounterHandler *PCH;
+  ProgramCounterHandler *PCH = nullptr;
   llvm::SmallVector<llvm::BasicBlock *, 4> ExitBlocks;
 };

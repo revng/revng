@@ -31,7 +31,7 @@ namespace pipeline {
 template<typename Container>
 class ContainerEnumerator {
 private:
-  Kind *K;
+  Kind *K = nullptr;
 
 public:
   ContainerEnumerator(Kind &K) : K(&K) {
@@ -82,7 +82,7 @@ private:
   }
 
 protected:
-  Context *TheContext;
+  Context *TheContext = nullptr;
 
 public:
   EnumerableContainer(Context &Context, llvm::StringRef Name) :

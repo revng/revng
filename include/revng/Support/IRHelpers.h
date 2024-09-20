@@ -331,7 +331,7 @@ public:
       WorkItem(BasicBlock *BB) :
         BB(BB), Range(make_range(ID::begin(BB), ID::end(BB))) {}
 
-      BasicBlock *BB;
+      BasicBlock *BB = nullptr;
       instruction_range Range;
     };
 

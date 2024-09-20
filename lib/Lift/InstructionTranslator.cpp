@@ -86,7 +86,7 @@ public:
   uint64_t get(unsigned Index) const;
 
 private:
-  PTCInstruction *TheInstruction;
+  PTCInstruction *TheInstruction = nullptr;
 };
 
 template<>
@@ -159,7 +159,7 @@ public:
   }
 
 private:
-  PTCInstruction *TheInstruction;
+  PTCInstruction *TheInstruction = nullptr;
 
 public:
   const Range<InstructionArgumentsIterator<In, IsCall>> InArguments;

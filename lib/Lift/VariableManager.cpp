@@ -468,7 +468,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
   if (It == CPUStateGlobals.end()
       || (Name.size() != 0
           && It->second->getName().startswith(UnknownCSVPref))) {
-    Type *VariableType;
+    Type *VariableType = nullptr;
     unsigned Remaining;
     std::tie(VariableType,
              Remaining) = getTypeAtOffset(ModuleLayout, CPUStateType, Offset);

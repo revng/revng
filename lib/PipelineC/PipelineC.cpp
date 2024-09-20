@@ -44,7 +44,7 @@ concept default_constructible = std::is_default_constructible<T>::value;
 template<default_constructible T>
 class ExistingOrNew {
 private:
-  T *Pointer;
+  T *Pointer = nullptr;
   std::optional<T> Default;
 
 public:

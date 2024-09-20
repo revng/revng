@@ -84,18 +84,18 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       using SuccessorsType = SmallVector<BasicBlock *, 4>;
 
     public:
-      BasicBlock *BB;
+      BasicBlock *BB = nullptr;
       const GeneratedCodeBasicInfo &GCBI;
       bool SaveRAFound;
       bool StorePCFound;
-      Constant *LinkRegister;
+      Constant *LinkRegister = nullptr;
       const MetaAddress ReturnPC;
       MetaAddress LastPC;
 
       // We can meet calls up to newpc up to (1 + "size of the delay slot")
       // times
       uint64_t NewPCLeft;
-      PointerType *PCPtrTy;
+      PointerType *PCPtrTy = nullptr;
 
     public:
       Visitor(BasicBlock *BB,

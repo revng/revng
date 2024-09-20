@@ -31,7 +31,7 @@ private:
 
 private:
   std::vector<DynamicHierarchy *> Children;
-  DynamicHierarchy *Parent;
+  DynamicHierarchy *Parent = nullptr;
   entry_t Start;
   entry_t End;
   std::string Name;

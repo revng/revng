@@ -61,7 +61,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
 private:
-  ResultsMap *Results;
+  ResultsMap *Results = nullptr;
 };
 
 char TestAdvancedValueInfoPass::ID = 0;

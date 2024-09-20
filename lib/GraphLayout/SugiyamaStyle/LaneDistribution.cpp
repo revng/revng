@@ -54,7 +54,7 @@ public:
 
 struct EdgeDestination {
   NodeView Neighbor;
-  InternalEdge *Label;
+  InternalEdge *Label = nullptr;
 
   EdgeDestination(NodeView Neighbor, InternalEdge &Label) :
     Neighbor(Neighbor), Label(&Label) {}

@@ -50,7 +50,7 @@ public:
   }
 
 private:
-  InternalNode *Pointer;
+  InternalNode *Pointer = nullptr;
 };
 
 namespace std {
@@ -166,7 +166,7 @@ using CornerContainer = std::map<NodePair, Corner>;
 /// for an edge to be routed. This data is usable even after the internal graph
 /// was destroyed.
 struct RoutableEdge {
-  InternalEdge *Label;
+  InternalEdge *Label = nullptr;
   Point FromCenter, ToCenter;
   Size FromSize, ToSize;
   Rank LaneIndex, ExitCount, EntryCount;

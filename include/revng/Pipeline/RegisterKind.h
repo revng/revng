@@ -20,7 +20,7 @@ class Kind;
 /// register
 class RegisterKind : Registry {
 private:
-  Kind *K;
+  Kind *K = nullptr;
 
 public:
   RegisterKind(Kind &K) : K(&K) {}
