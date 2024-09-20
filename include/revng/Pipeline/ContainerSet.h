@@ -170,7 +170,7 @@ public:
       indent(OS, Indentation);
       OS << Entry.first().str() << "\n";
       if (Entry.second != nullptr)
-        Entry.second->enumerate().dump(OS, Indentation);
+        Entry.second->enumerate().dump(OS, Indentation + 1);
     }
   }
 

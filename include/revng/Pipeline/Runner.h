@@ -269,7 +269,7 @@ public:
     for (const auto &Step : Steps) {
       indent(OS, Indentation);
       OS << Step.first().str() << "\n";
-      Step.second.dump(OS, Indentation);
+      Step.second.dump(OS, Indentation + 1);
     }
   }
 
