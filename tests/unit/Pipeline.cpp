@@ -1135,8 +1135,7 @@ public:
   ExampleContainerInpsector() :
     ContainerEnumerator<EnumerableContainerExample>(RootKind) {}
   TargetsList
-  enumerate(const Context &Context,
-            const EnumerableContainerExample &Container) const final {
+  enumerate(const EnumerableContainerExample &Container) const final {
     TargetsList ToReturn;
 
     llvm::copy(Container.Targets, back_inserter(ToReturn));
@@ -1148,8 +1147,7 @@ public:
     return Container.Targets.contains(Target);
   }
 
-  bool remove(const Context &Context,
-              const TargetsList &Targets,
+  bool remove(const TargetsList &Targets,
               EnumerableContainerExample &Container) const {
 
     bool ErasedAll = true;

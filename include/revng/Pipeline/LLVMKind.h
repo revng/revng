@@ -101,11 +101,10 @@ public:
   }
 
 public:
-  bool remove(const Context &Context,
-              const TargetsList &Targets,
+  bool remove(const TargetsList &Targets,
               LLVMContainer &Container) const final {
 
-    const bool AllContained = enumerate(Context, Container).contains(Targets);
+    const bool AllContained = enumerate(Container).contains(Targets);
 
     for (auto &GL : targetsIntersection(Targets, Container))
       GL->deleteBody();
@@ -113,8 +112,7 @@ public:
     return AllContained;
   }
 
-  TargetsList enumerate(const Context &Context,
-                        const LLVMContainer &Container) const final {
+  TargetsList enumerate(const LLVMContainer &Container) const final {
     TargetsList::List L;
     for (auto &GL : Container.getModule().functions()) {
       auto MaybeTarget = symbolToTarget(GL);
