@@ -153,7 +153,6 @@ bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
                                llvm::Function &OldFunction) {
   revng_assert(not FunctionModel.name().empty());
   auto OldFunctionName = getLLVMFunctionName(FunctionModel);
-  OldFunctions.push_back(&OldFunction);
 
   // Recreate the function with the right prototype and the function prologue
   const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
@@ -237,6 +236,8 @@ EnforceABI::getOrCreateNewFunction(Function &OldFunction,
   auto It = OldToNew.find(&OldFunction);
   if (It != OldToNew.end())
     return It->second;
+
+  OldFunctions.push_back(&OldFunction);
 
   Function *NewFunction = recreateFunction(OldFunction, UsedRegisters);
   FunctionTags::ABIEnforced.addTo(NewFunction);
