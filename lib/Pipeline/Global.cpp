@@ -45,6 +45,7 @@ Error Global::load(const revng::FilePath &Path) {
     return MaybeBuffer.takeError();
   }
 
-  llvm::Error DeserializeError = deserialize(MaybeBuffer.get()->buffer());
+  llvm::StringRef String = MaybeBuffer.get()->buffer().getBuffer();
+  llvm::Error DeserializeError = fromString(String);
   return DeserializeError;
 }

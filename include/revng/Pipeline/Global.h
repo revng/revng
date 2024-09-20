@@ -46,9 +46,9 @@ public:
   virtual llvm::Error applyDiff(const GlobalTupleTreeDiff &Diff) = 0;
 
   virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
-  virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
+  virtual llvm::Error fromString(llvm::StringRef String) = 0;
   virtual llvm::Expected<GlobalTupleTreeDiff>
-  deserializeDiff(const llvm::MemoryBuffer &Diff) = 0;
+  diffFromString(llvm::StringRef String) = 0;
 
   virtual bool verify() const = 0;
   virtual void clear() = 0;
@@ -102,7 +102,7 @@ public:
   llvm::Expected<std::unique_ptr<Global>>
   createNew(llvm::StringRef Name,
             const llvm::MemoryBuffer &Buffer) const override {
-    auto MaybeTree = TupleTree<Object>::deserialize(Buffer.getBuffer());
+    auto MaybeTree = TupleTree<Object>::fromString(Buffer.getBuffer());
     if (!MaybeTree)
       return llvm::errorCodeToError(MaybeTree.getError());
     return std::make_unique<TupleTreeGlobal>(Name, MaybeTree.get());
@@ -123,8 +123,8 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
-    auto MaybeTupleTree = TupleTree<Object>::deserialize(Buffer.getBuffer());
+  llvm::Error fromString(llvm::StringRef String) override {
+    auto MaybeTupleTree = TupleTree<Object>::fromString(String);
     if (!MaybeTupleTree)
       return llvm::errorCodeToError(MaybeTupleTree.getError());
 
@@ -139,8 +139,8 @@ public:
   }
 
   llvm::Expected<GlobalTupleTreeDiff>
-  deserializeDiff(const llvm::MemoryBuffer &Buffer) override {
-    auto MaybeDiff = ::deserialize<TupleTreeDiff<Object>>(Buffer.getBuffer());
+  diffFromString(llvm::StringRef String) override {
+    auto MaybeDiff = ::fromString<TupleTreeDiff<Object>>(String);
     if (not MaybeDiff)
       return MaybeDiff.takeError();
     return GlobalTupleTreeDiff(std::move(*MaybeDiff), getName());
@@ -155,7 +155,7 @@ public:
   }
 
   llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) override {
-    auto MaybeDiff = TupleTreeDiff<Object>::deserialize(Diff.getBuffer());
+    auto MaybeDiff = TupleTreeDiff<Object>::fromString(Diff.getBuffer());
     if (not MaybeDiff) {
       return MaybeDiff.takeError();
     }

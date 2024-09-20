@@ -32,7 +32,7 @@ static llvm::Error applyDiffImpl(pipeline::ExecutionContext &EC,
     return GlobalOrError.takeError();
 
   auto &Global = GlobalOrError.get();
-  auto MaybeDiff = Global->deserializeDiff(*Buffer);
+  auto MaybeDiff = Global->diffFromString(Buffer->getBuffer());
   if (not MaybeDiff)
     return MaybeDiff.takeError();
 

@@ -275,7 +275,7 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   auto Diff = diff(Empty, New);
   std::string S = toString(Diff);
 
-  auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
+  auto Diff2 = llvm::cantFail(fromString<TupleTreeDiff<model::Binary>>(S));
   std::string S2 = toString(Diff2);
 
   BOOST_TEST(S == S2);
