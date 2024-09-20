@@ -145,8 +145,7 @@ void Contract::deduceRequirements(const Context &Context,
   }
 }
 
-bool Contract::forwardMatches(const Context &Context,
-                              const TargetsList &In) const {
+bool Contract::forwardMatches(const TargetsList &In) const {
   if (Source == nullptr)
     return true;
 
@@ -198,18 +197,16 @@ TargetsList Contract::backward(const Context &Context,
 }
 
 using BCS = ContainerToTargetsMap;
-bool Contract::forwardMatches(const Context &Context,
-                              const BCS &StepStatus,
+bool Contract::forwardMatches(const BCS &StepStatus,
                               ArrayRef<string> Names) const {
   auto It = StepStatus.find(Names[PipeArgumentSourceIndex]);
   if (It == StepStatus.end())
     return false;
   const auto &SourceContainerTargets = It->second;
-  return forwardMatches(Context, SourceContainerTargets);
+  return forwardMatches(SourceContainerTargets);
 }
 
-bool Contract::backwardMatchesImpl(const Context &Context,
-                                   const TargetsList &List) const {
+bool Contract::backwardMatchesImpl(const TargetsList &List) const {
   if (Source == nullptr)
     return true;
 
@@ -224,8 +221,7 @@ bool Contract::backwardMatchesImpl(const Context &Context,
   return true;
 }
 
-bool Contract::backwardMatches(const Context &Context,
-                               const BCS &StepStatus,
+bool Contract::backwardMatches(const BCS &StepStatus,
                                ArrayRef<string> Names) const {
   auto It = StepStatus.find(Names[PipeArgumentTargetIndex]);
   if (It == StepStatus.end())
@@ -233,8 +229,8 @@ bool Contract::backwardMatches(const Context &Context,
   const auto &OutputContainerTarget = It->second;
 
   bool PreservedInput = Preservation == pipeline::InputPreservation::Preserve;
-  return backwardMatchesImpl(Context, OutputContainerTarget)
-         or (PreservedInput and forwardMatches(Context, OutputContainerTarget));
+  return backwardMatchesImpl(OutputContainerTarget)
+         or (PreservedInput and forwardMatches(OutputContainerTarget));
 }
 
 void Contract::insertDefaultInput(const Context &Context,
@@ -246,19 +242,16 @@ void Contract::insertDefaultInput(const Context &Context,
   Source->appendAllTargets(Context, SourceContainerTargets);
 }
 
-bool ContractGroup::forwardMatches(const Context &Context,
-                                   const BCS &Status,
+bool ContractGroup::forwardMatches(const BCS &Status,
                                    llvm::ArrayRef<std::string> Names) const {
-  return all_of(Content, [&](const auto &C) {
-    return C.forwardMatches(Context, Status, Names);
-  });
+  return all_of(Content,
+                [&](const auto &C) { return C.forwardMatches(Status, Names); });
 }
 
-bool ContractGroup::backwardMatches(const Context &Context,
-                                    const BCS &Status,
+bool ContractGroup::backwardMatches(const BCS &Status,
                                     llvm::ArrayRef<std::string> Names) const {
   return any_of(Content, [&](const auto &C) {
-    return C.backwardMatches(Context, Status, Names);
+    return C.backwardMatches(Status, Names);
   });
 }
 
@@ -279,13 +272,13 @@ ContainerToTargetsMap
 ContractGroup::deduceRequirements(const Context &Context,
                                   const ContainerToTargetsMap &StepStatus,
                                   ArrayRef<string> Names) const {
-  if (not backwardMatches(Context, StepStatus, Names)) {
+  if (not backwardMatches(StepStatus, Names)) {
     return StepStatus;
   }
 
   ContainerToTargetsMap Results;
   for (const auto &C : llvm::reverse(Content)) {
-    if (C.backwardMatches(Context, StepStatus, Names)) {
+    if (C.backwardMatches(StepStatus, Names)) {
 
       Results.merge(C.deduceRequirements(Context, StepStatus, Names));
     } else {
@@ -300,7 +293,7 @@ ContractGroup::deduceRequirements(const Context &Context,
 void ContractGroup::deduceResults(const Context &Context,
                                   ContainerToTargetsMap &StepStatus,
                                   ArrayRef<string> Names) const {
-  if (not forwardMatches(Context, StepStatus, Names))
+  if (not forwardMatches(StepStatus, Names))
     return;
 
   ContainerToTargetsMap Results;

@@ -44,12 +44,10 @@ public:
 public:
   virtual ~ContainerEnumerator() = default;
 
-  virtual TargetsList enumerate(const Context &Context,
-                                const Container &ToInspect) const = 0;
+  virtual TargetsList enumerate(const Container &ToInspect) const = 0;
 
   /// \return must return true if it was possible to remove the provided target
-  virtual bool remove(const Context &Context,
-                      const TargetsList &Targets,
+  virtual bool remove(const TargetsList &Targets,
                       Container &ToInspect) const = 0;
 };
 
@@ -105,7 +103,7 @@ public:
   TargetsList enumerate() const override {
     TargetsList ToReturn;
     for (const auto *Inspector : getRegisteredInspectors())
-      ToReturn.merge(Inspector->enumerate(*TheContext, *this->self()));
+      ToReturn.merge(Inspector->enumerate(*this->self()));
 
     return ToReturn;
   }
@@ -114,8 +112,7 @@ public:
   bool remove(const TargetsList &Targets) override {
     bool RemovedAll = true;
     for (const auto *Inspector : getRegisteredInspectors()) {
-      RemovedAll = Inspector->remove(*TheContext,
-                                     Targets.filter(Inspector->getKind()),
+      RemovedAll = Inspector->remove(Targets.filter(Inspector->getKind()),
                                      *this->self())
                    and RemovedAll;
     }

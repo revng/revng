@@ -161,8 +161,7 @@ public:
 
     ContainerToTargetsMap ToCheck = Input;
     for (const auto &Contract : Contracts) {
-      if (Contract.forwardMatches(Context,
-                                  ToCheck,
+      if (Contract.forwardMatches(ToCheck,
                                   Invokable.getRunningContainersNames()))
         return true;
 

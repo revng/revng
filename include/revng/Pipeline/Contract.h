@@ -119,11 +119,9 @@ public:
                      const ContainerToTargetsMap &PipeOutput,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  bool forwardMatches(const Context &Context,
-                      const ContainerToTargetsMap &Status,
+  bool forwardMatches(const ContainerToTargetsMap &Status,
                       llvm::ArrayRef<std::string> ContainerNames) const;
-  bool backwardMatches(const Context &Context,
-                       const ContainerToTargetsMap &Status,
+  bool backwardMatches(const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
 
   void insertDefaultInput(const Context &Context,
@@ -135,9 +133,9 @@ public:
 private:
   TargetsList forward(const Context &Context, TargetsList Input) const;
   TargetsList backward(const Context &Context, TargetsList Output) const;
-  bool forwardMatches(const Context &Context, const TargetsList &Input) const;
+  bool forwardMatches(const TargetsList &Input) const;
 
-  bool backwardMatchesImpl(const Context &Ct, const TargetsList &List) const;
+  bool backwardMatchesImpl(const TargetsList &List) const;
 
   /// Target is the container in which the Pipe would write when used to produce
   /// the targets.
@@ -201,11 +199,9 @@ public:
                      ContainerToTargetsMap &StepStatus,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  bool forwardMatches(const Context &Context,
-                      const ContainerToTargetsMap &Status,
+  bool forwardMatches(const ContainerToTargetsMap &Status,
                       llvm::ArrayRef<std::string> ContainerNames) const;
-  bool backwardMatches(const Context &Context,
-                       const ContainerToTargetsMap &Status,
+  bool backwardMatches(const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
 
   llvm::SmallVector<std::pair<size_t, const Kind *>, 4> getOutputs() const;
