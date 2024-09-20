@@ -54,7 +54,7 @@ public:
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
 
-  void appendAllTargets(const pipeline::Context &Ctx,
+  void appendAllTargets(const pipeline::Context &Context,
                         pipeline::TargetsList &Out) const override;
 
   static cppcoro::generator<

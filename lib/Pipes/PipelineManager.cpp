@@ -61,11 +61,10 @@ public:
 
 static Context setUpContext(LLVMContext &Context) {
   const auto &ModelName = revng::ModelGlobalName;
-  class Context Ctx;
-
-  Ctx.addGlobal<revng::ModelGlobal>(ModelName);
-  Ctx.addExternalContext("LLVMContext", Context);
-  return Ctx;
+  pipeline::Context TheContext;
+  TheContext.addGlobal<revng::ModelGlobal>(ModelName);
+  TheContext.addExternalContext("LLVMContext", Context);
+  return TheContext;
 }
 
 static llvm::Error pipelineConfigurationCallback(const Loader &Loader,
@@ -210,9 +209,9 @@ PipelineManager::PipelineManager(llvm::ArrayRef<std::string> EnablingFlags,
                                    &&Client) :
   StorageClient(std::move(Client)),
   ExecutionDirectory(StorageClient.get(), "") {
-  Context = std::make_unique<llvm::LLVMContext>();
-  auto Ctx = setUpContext(*Context);
-  PipelineContext = make_unique<pipeline::Context>(std::move(Ctx));
+  LLVMContext = std::make_unique<llvm::LLVMContext>();
+  auto Context = setUpContext(*LLVMContext);
+  PipelineContext = make_unique<pipeline::Context>(std::move(Context));
 
   auto Loader = setupLoader(*PipelineContext, EnablingFlags);
   this->Loader = make_unique<pipeline::Loader>(std::move(Loader));

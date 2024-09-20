@@ -11,11 +11,11 @@
 
 using namespace pipeline;
 
-ExecutionContext::ExecutionContext(Context &Ctx,
+ExecutionContext::ExecutionContext(Context &Context,
                                    PipeWrapper *Pipe,
                                    const ContainerToTargetsMap
                                      &RequestedTargets) :
-  TheContext(&Ctx),
+  TheContext(&Context),
   Pipe(Pipe),
   Requested(RequestedTargets),
   RunningOnPipe(Pipe != nullptr) {

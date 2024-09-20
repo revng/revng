@@ -56,8 +56,9 @@ class LLVMPipelineRegistry : public Registry {
 public:
   void registerContainersAndPipes(Loader &Loader) override {
     using namespace llvm;
-    auto &Ctx = Loader.getContext();
-    auto MaybeLLVMContext = Ctx.getExternalContext<LLVMContext>("LLVMContext");
+    auto &Context = Loader.getContext();
+    auto MaybeLLVMContext = Context.getExternalContext<LLVMContext>("LLVMContex"
+                                                                    "t");
 
     if (!MaybeLLVMContext)
       return;

@@ -69,11 +69,11 @@ private:
   Step *PreviousStep;
   ArtifactsInfo Artifacts;
   AnalysisMapType AnalysisMap;
-  Context *Ctx;
+  Context *TheContext;
 
 public:
   template<typename... PipeWrapperTypes>
-  Step(Context &Ctx,
+  Step(Context &Context,
        std::string Name,
        std::string Component,
        ContainerSet Containers,
@@ -83,10 +83,10 @@ public:
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
     PreviousStep(nullptr),
-    Ctx(&Ctx) {}
+    TheContext(&Context) {}
 
   template<typename... PipeWrapperTypes>
-  Step(Context &Ctx,
+  Step(Context &Context,
        std::string Name,
        std::string Component,
        ContainerSet Containers,
@@ -97,7 +97,7 @@ public:
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
     PreviousStep(&PreviousStep),
-    Ctx(&Ctx) {}
+    TheContext(&Context) {}
 
 public:
   // TODO: drop the Out parameter pattern if favour of coroutines in the whole
@@ -111,7 +111,7 @@ public:
     for (const PipeWrapper &Pipe : Pipes) {
       revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " Pipe");
       LoggerIndent<> Indent(Log);
-      Pipe.InvalidationMetadata.registerTargetsDependingOn(*Ctx,
+      Pipe.InvalidationMetadata.registerTargetsDependingOn(*TheContext,
                                                            GlobalName,
                                                            Path,
                                                            OutMap,
@@ -311,7 +311,7 @@ public:
     OS << "Pipes:\n";
     for (const PipeWrapper &Pipe : Pipes) {
       Pipe.Pipe.dump(OS, Indentation + 1);
-      Pipe.InvalidationMetadata.dump(*Ctx, Indentation + 2);
+      Pipe.InvalidationMetadata.dump(*TheContext, Indentation + 2);
     }
 
     indent(OS, Indentation + 1);

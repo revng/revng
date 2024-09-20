@@ -39,9 +39,9 @@ TaggedFunctionKind::symbolToTarget(const llvm::Function &Symbol) const {
   return pipeline::Target({ Address.toString() }, *this);
 }
 
-void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Ctx,
+void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Context,
                                           pipeline::TargetsList &Out) const {
-  const auto &Model = getModelFromContext(Ctx);
+  const auto &Model = getModelFromContext(Context);
   for (const auto &Function : Model->Functions()) {
     Out.push_back(Target(Function.Entry().toString(), *this));
   }

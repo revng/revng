@@ -96,7 +96,9 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
     }
   }
 
-  return std::make_unique<ThisType>(this->name(), this->Ctx, std::move(Cloned));
+  return std::make_unique<ThisType>(this->name(),
+                                    this->TheContext,
+                                    std::move(Cloned));
 }
 
 using LinkageRestoreMap = std::map<std::string,

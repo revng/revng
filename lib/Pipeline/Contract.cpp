@@ -19,24 +19,24 @@ using namespace pipeline;
 using namespace llvm;
 using namespace std;
 
-void Contract::deduceResults(const Context &Ctx,
+void Contract::deduceResults(const Context &Context,
                              ContainerToTargetsMap &StepStatus,
                              ArrayRef<string> Names) const {
   auto &OutputContainerTarget = StepStatus[Names[PipeArgumentTargetIndex]];
 
   TargetsList Tmp;
-  deduceResults(Ctx, StepStatus, Tmp, Names);
+  deduceResults(Context, StepStatus, Tmp, Names);
 
   copy(Tmp, back_inserter(OutputContainerTarget));
 }
 
-void Contract::deduceResults(const Context &Ctx,
+void Contract::deduceResults(const Context &Context,
                              ContainerToTargetsMap &StepStatus,
                              ContainerToTargetsMap &Results,
                              ArrayRef<string> Names) const {
   auto &OutputContainerTarget = Results[Names[PipeArgumentTargetIndex]];
 
-  deduceResults(Ctx, StepStatus, OutputContainerTarget, Names);
+  deduceResults(Context, StepStatus, OutputContainerTarget, Names);
 }
 
 static TargetsList copyEntriesOfKind(const TargetsList &List, const Kind &K) {
@@ -54,12 +54,12 @@ static TargetsList extracEntriesOfKind(TargetsList &List, const Kind &K) {
   return ToReturn;
 }
 
-void Contract::deduceResults(const Context &Ctx,
+void Contract::deduceResults(const Context &Context,
                              ContainerToTargetsMap &StepStatus,
                              TargetsList &Results,
                              ArrayRef<string> Names) const {
   if (Source == nullptr) {
-    TargetKind->appendAllTargets(Ctx, Results);
+    TargetKind->appendAllTargets(Context, Results);
     return;
   }
 
@@ -71,12 +71,12 @@ void Contract::deduceResults(const Context &Ctx,
     auto Targets = Preservation == pipeline::InputPreservation::Erase ?
                      extracEntriesOfKind(SourceContainerTargets, *Kind) :
                      copyEntriesOfKind(SourceContainerTargets, *Kind);
-    Targets = forward(Ctx, std::move(Targets));
+    Targets = forward(Context, std::move(Targets));
     copy(Targets, back_inserter(Results));
   }
 }
 
-TargetsList Contract::forward(const Context &Ctx, TargetsList Input) const {
+TargetsList Contract::forward(const Context &Context, TargetsList Input) const {
   if (Input.empty())
     return {};
 
@@ -92,23 +92,23 @@ TargetsList Contract::forward(const Context &Ctx, TargetsList Input) const {
 
   if (Source->depth() > TargetKind->depth()) {
     TargetsList All;
-    TargetKind->appendAllTargets(Ctx, All);
+    TargetKind->appendAllTargets(Context, All);
     return All;
   }
 
   TargetsList All;
-  Source->appendAllTargets(Ctx, All);
+  Source->appendAllTargets(Context, All);
   if (All != Input) {
     return Input;
   }
 
   TargetsList AllDestination;
-  TargetKind->appendAllTargets(Ctx, AllDestination);
+  TargetKind->appendAllTargets(Context, AllDestination);
   return AllDestination;
 }
 
 ContainerToTargetsMap
-Contract::deduceRequirements(const Context &Ctx,
+Contract::deduceRequirements(const Context &Context,
                              const ContainerToTargetsMap &Output,
                              ArrayRef<string> Names) const {
 
@@ -116,12 +116,12 @@ Contract::deduceRequirements(const Context &Ctx,
   TargetsList &SourceContainer = Requirements[Names[PipeArgumentSourceIndex]];
   TargetsList &TargetContainer = Requirements[Names[PipeArgumentTargetIndex]];
 
-  deduceRequirements(Ctx, SourceContainer, TargetContainer);
+  deduceRequirements(Context, SourceContainer, TargetContainer);
 
   return Requirements;
 }
 
-void Contract::deduceRequirements(const Context &Ctx,
+void Contract::deduceRequirements(const Context &Context,
                                   TargetsList &Source,
                                   TargetsList &Target) const {
   if (this->Source == nullptr) {
@@ -139,13 +139,14 @@ void Contract::deduceRequirements(const Context &Ctx,
 
     // Transform the forward inputs/backward outputs that match,
     // they are transformed by the current Pipe
-    Targets = backward(Ctx, std::move(Targets));
+    Targets = backward(Context, std::move(Targets));
 
     copy(Targets, back_inserter(Source));
   }
 }
 
-bool Contract::forwardMatches(const Context &Ctx, const TargetsList &In) const {
+bool Contract::forwardMatches(const Context &Context,
+                              const TargetsList &In) const {
   if (Source == nullptr)
     return true;
 
@@ -162,7 +163,8 @@ bool Contract::forwardMatches(const Context &Ctx, const TargetsList &In) const {
   return Res;
 }
 
-TargetsList Contract::backward(const Context &Ctx, TargetsList Output) const {
+TargetsList Contract::backward(const Context &Context,
+                               TargetsList Output) const {
   if (Output.empty())
     return {};
 
@@ -176,19 +178,19 @@ TargetsList Contract::backward(const Context &Ctx, TargetsList Output) const {
 
   if (Source->depth() < TargetKind->depth()) {
     TargetsList All;
-    Source->appendAllTargets(Ctx, All);
+    Source->appendAllTargets(Context, All);
     return All;
   }
 
   if (Source->depth() > TargetKind->depth()) {
     TargetsList All;
-    TargetKind->appendAllTargets(Ctx, All);
+    TargetKind->appendAllTargets(Context, All);
     if (All != Output) {
       return Output;
     }
 
     TargetsList AllDestination;
-    Source->appendAllTargets(Ctx, AllDestination);
+    Source->appendAllTargets(Context, AllDestination);
     return AllDestination;
   }
 
@@ -196,17 +198,17 @@ TargetsList Contract::backward(const Context &Ctx, TargetsList Output) const {
 }
 
 using BCS = ContainerToTargetsMap;
-bool Contract::forwardMatches(const Context &Ctx,
+bool Contract::forwardMatches(const Context &Context,
                               const BCS &StepStatus,
                               ArrayRef<string> Names) const {
   auto It = StepStatus.find(Names[PipeArgumentSourceIndex]);
   if (It == StepStatus.end())
     return false;
   const auto &SourceContainerTargets = It->second;
-  return forwardMatches(Ctx, SourceContainerTargets);
+  return forwardMatches(Context, SourceContainerTargets);
 }
 
-bool Contract::backwardMatchesImpl(const Context &Ctx,
+bool Contract::backwardMatchesImpl(const Context &Context,
                                    const TargetsList &List) const {
   if (Source == nullptr)
     return true;
@@ -222,7 +224,7 @@ bool Contract::backwardMatchesImpl(const Context &Ctx,
   return true;
 }
 
-bool Contract::backwardMatches(const Context &Ctx,
+bool Contract::backwardMatches(const Context &Context,
                                const BCS &StepStatus,
                                ArrayRef<string> Names) const {
   auto It = StepStatus.find(Names[PipeArgumentTargetIndex]);
@@ -231,32 +233,32 @@ bool Contract::backwardMatches(const Context &Ctx,
   const auto &OutputContainerTarget = It->second;
 
   bool PreservedInput = Preservation == pipeline::InputPreservation::Preserve;
-  return backwardMatchesImpl(Ctx, OutputContainerTarget)
-         or (PreservedInput and forwardMatches(Ctx, OutputContainerTarget));
+  return backwardMatchesImpl(Context, OutputContainerTarget)
+         or (PreservedInput and forwardMatches(Context, OutputContainerTarget));
 }
 
-void Contract::insertDefaultInput(const Context &Ctx,
+void Contract::insertDefaultInput(const Context &Context,
                                   BCS &Status,
                                   ArrayRef<string> Names) const {
   if (Source == nullptr)
     return;
   auto &SourceContainerTargets = Status[Names[PipeArgumentSourceIndex]];
-  Source->appendAllTargets(Ctx, SourceContainerTargets);
+  Source->appendAllTargets(Context, SourceContainerTargets);
 }
 
-bool ContractGroup::forwardMatches(const Context &Ctx,
+bool ContractGroup::forwardMatches(const Context &Context,
                                    const BCS &Status,
                                    llvm::ArrayRef<std::string> Names) const {
   return all_of(Content, [&](const auto &C) {
-    return C.forwardMatches(Ctx, Status, Names);
+    return C.forwardMatches(Context, Status, Names);
   });
 }
 
-bool ContractGroup::backwardMatches(const Context &Ctx,
+bool ContractGroup::backwardMatches(const Context &Context,
                                     const BCS &Status,
                                     llvm::ArrayRef<std::string> Names) const {
   return any_of(Content, [&](const auto &C) {
-    return C.backwardMatches(Ctx, Status, Names);
+    return C.backwardMatches(Context, Status, Names);
   });
 }
 
@@ -274,36 +276,36 @@ ContractGroup::getOutputs() const {
 }
 
 ContainerToTargetsMap
-ContractGroup::deduceRequirements(const Context &Ctx,
+ContractGroup::deduceRequirements(const Context &Context,
                                   const ContainerToTargetsMap &StepStatus,
                                   ArrayRef<string> Names) const {
-  if (not backwardMatches(Ctx, StepStatus, Names)) {
+  if (not backwardMatches(Context, StepStatus, Names)) {
     return StepStatus;
   }
 
   ContainerToTargetsMap Results;
   for (const auto &C : llvm::reverse(Content)) {
-    if (C.backwardMatches(Ctx, StepStatus, Names)) {
+    if (C.backwardMatches(Context, StepStatus, Names)) {
 
-      Results.merge(C.deduceRequirements(Ctx, StepStatus, Names));
+      Results.merge(C.deduceRequirements(Context, StepStatus, Names));
     } else {
 
-      C.insertDefaultInput(Ctx, Results, Names);
+      C.insertDefaultInput(Context, Results, Names);
     }
   }
 
   return Results;
 }
 
-void ContractGroup::deduceResults(const Context &Ctx,
+void ContractGroup::deduceResults(const Context &Context,
                                   ContainerToTargetsMap &StepStatus,
                                   ArrayRef<string> Names) const {
-  if (not forwardMatches(Ctx, StepStatus, Names))
+  if (not forwardMatches(Context, StepStatus, Names))
     return;
 
   ContainerToTargetsMap Results;
   for (const auto &C : Content)
-    C.deduceResults(Ctx, StepStatus, Results, Names);
+    C.deduceResults(Context, StepStatus, Results, Names);
 
   StepStatus.merge(Results);
 }

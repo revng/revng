@@ -164,14 +164,14 @@ private:
   size_t Index;
   size_t AltIndex;
   size_t TypesWithIdentityCount;
-  DWARFContext &DICtx;
+  DWARFContext &Context;
   std::map<size_t, const model::TypeDefinition *> Placeholders;
   std::set<const model::TypeDefinition *> InvalidPrimitives;
   std::set<const DWARFDie *> InProgressDies;
 
 public:
   DwarfToModelConverter(DwarfImporter &Importer,
-                        DWARFContext &DICtx,
+                        DWARFContext &Context,
                         size_t Index,
                         size_t AltIndex,
                         uint64_t PreferredBaseAddress) :
@@ -181,13 +181,13 @@ public:
     Model(Importer.getModel()),
     Index(Index),
     AltIndex(AltIndex),
-    DICtx(DICtx) {
+    Context(Context) {
 
     Architecture = Model->Architecture();
     BaseAddress = PreferredBaseAddress;
 
     // Ensure the architecture is consistent.
-    auto Arch = model::Architecture::fromLLVMArchitecture(DICtx.getArch());
+    auto Arch = model::Architecture::fromLLVMArchitecture(Context.getArch());
     if (Model->Architecture() == model::Architecture::Invalid)
       Model->Architecture() = Arch;
 
@@ -369,7 +369,7 @@ private:
 
   void materializeTypesWithIdentity() {
     SmallVector<llvm::DWARFUnit *, 16> CompileUnits;
-    for (const auto &CU : DICtx.compile_units())
+    for (const auto &CU : Context.compile_units())
       CompileUnits.push_back(CU.get());
 
     Task T(CompileUnits.size(), "Compile units");
@@ -408,7 +408,7 @@ private:
         return *MaybeString;
       }
     } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
-      DWARFDie Origin = DICtx.getDIEForOffset(*MaybeOrigin->getAsReference());
+      DWARFDie Origin = Context.getDIEForOffset(*MaybeOrigin->getAsReference());
       return getName(Origin);
     } else {
       return {};
@@ -441,11 +441,11 @@ private:
       if (Type->getForm() == llvm::dwarf::DW_FORM_GNU_ref_alt) {
         rc_return Importer.findType({ AltIndex, Type->getRawUValue() }).copy();
       } else {
-        DWARFDie InnerDie = DICtx.getDIEForOffset(*Type->getAsReference());
+        DWARFDie InnerDie = Context.getDIEForOffset(*Type->getAsReference());
         rc_return rc_recur resolveType(InnerDie, false);
       }
     } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
-      DWARFDie Origin = DICtx.getDIEForOffset(*MaybeOrigin->getAsReference());
+      DWARFDie Origin = Context.getDIEForOffset(*MaybeOrigin->getAsReference());
       rc_return rc_recur makeType(Origin);
     } else {
       rc_return model::UpcastableType::empty();
@@ -771,7 +771,7 @@ private:
   }
 
   void resolveAllTypes() {
-    for (const auto &CU : DICtx.compile_units()) {
+    for (const auto &CU : Context.compile_units()) {
       for (const auto &Entry : CU->dies()) {
         DWARFDie Die = { CU.get(), &Entry };
         if (not isType(Die.getTag()))
@@ -824,7 +824,7 @@ private:
 
   void createFunctions() {
     revng_log(DILogger, "Creating functions");
-    for (const auto &CU : DICtx.compile_units()) {
+    for (const auto &CU : Context.compile_units()) {
       for (const auto &Entry : CU->dies()) {
         DWARFDie Die = { CU.get(), &Entry };
 

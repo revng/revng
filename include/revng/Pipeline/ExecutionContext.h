@@ -58,15 +58,15 @@ concept IsTargetToGlobal = requires {
 //
 // Example:
 //
-// void SomePipeProducingFunctions(const ExecutionContext& Ctx, SomeContainer&
-// Container) {
+// void SomePipeProducingFunctions(const ExecutionContext& EC,
+//                                 SomeContainer &Container) {
 //   ...
 //   for (auto& Function : Container)
 //   {
+//     EC.getContext().pushReadFields();
 //     ...
-//     Ctx.getContext().pushReadFields();
-//     Ctx.commit(Container, Target(Function.metaadress()));
-//     Ctx.getContext().popReadFields();
+//     EC.commit(Container, Target(Function.metaadress()));
+//     EC.getContext().popReadFields();
 //   }
 // }
 //
@@ -160,23 +160,23 @@ public:
   static char ID;
 
 private:
-  ExecutionContext *Ctx;
+  ExecutionContext *EC;
   llvm::StringRef ContainerName;
 
 public:
-  LoadExecutionContextPass(ExecutionContext *Ctx,
+  LoadExecutionContextPass(ExecutionContext *EC,
                            llvm::StringRef ContainerName) :
-    llvm::ImmutablePass(ID), Ctx(Ctx), ContainerName(ContainerName) {}
+    llvm::ImmutablePass(ID), EC(EC), ContainerName(ContainerName) {}
 
   bool doInitialization(llvm::Module &M) override { return false; }
 
 public:
   const TargetsList &getRequestedTargets() const {
-    return Ctx->getRequestedTargetsFor(ContainerName);
+    return EC->getRequestedTargetsFor(ContainerName);
   }
   llvm::StringRef getContainerName() const { return ContainerName; }
-  ExecutionContext *get() { return Ctx; }
-  const ExecutionContext *get() const { return Ctx; }
+  ExecutionContext *get() { return EC; }
+  const ExecutionContext *get() const { return EC; }
 };
 
 } // namespace pipeline

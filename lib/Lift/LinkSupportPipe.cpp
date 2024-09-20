@@ -59,8 +59,8 @@ static llvm::StringRef getSupportName(model::Architecture::Values V) {
   return "Invalid";
 }
 
-static std::string getSupportPath(const Context &Ctx) {
-  const auto &Model = getModelFromContext(Ctx);
+static std::string getSupportPath(const Context &Context) {
+  const auto &Model = getModelFromContext(Context);
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
   auto ArchName = getSupportName(Model->Architecture()).str();

@@ -35,7 +35,7 @@ public:
 
   llvm::ArrayRef<ContractGroup> Contract;
   ContainerToTargetsMap *Requested = nullptr;
-  Context *Ctx = nullptr;
+  Context *TheContext = nullptr;
   llvm::ArrayRef<std::string> ContainersName;
 
 public:
@@ -50,7 +50,7 @@ public:
 public:
   bool runOnModule(llvm::Module &Module) override {
     for (auto &Entry : Contract)
-      Entry.deduceResults(*Ctx, *Requested, ContainersName);
+      Entry.deduceResults(*TheContext, *Requested, ContainersName);
     return false;
   }
 };

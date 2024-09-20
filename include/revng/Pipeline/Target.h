@@ -76,7 +76,7 @@ public:
   }
 
 public:
-  static llvm::Expected<Target> deserialize(Context &Ctx,
+  static llvm::Expected<Target> deserialize(Context &Context,
                                             llvm::StringRef String);
 
 public:
@@ -136,7 +136,7 @@ public:
 
 class KindsRegistry;
 
-llvm::Error parseTarget(const Context &Ctx,
+llvm::Error parseTarget(const Context &Context,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict,
                         TargetsList &Out);
@@ -158,9 +158,9 @@ private:
 public:
   TargetsList() = default;
   TargetsList(List C) : Contained(std::move(C)) {}
-  static TargetsList allTargets(const Context &Ctx, const Kind &K) {
+  static TargetsList allTargets(const Context &Context, const Kind &K) {
     TargetsList ToReturn;
-    K.appendAllTargets(Ctx, ToReturn);
+    K.appendAllTargets(Context, ToReturn);
     return ToReturn;
   }
 
@@ -430,7 +430,7 @@ private:
 
 using TargetInStepSet = llvm::StringMap<ContainerToTargetsMap>;
 
-llvm::Error parseTarget(const Context &Ctx,
+llvm::Error parseTarget(const Context &Context,
                         ContainerToTargetsMap &CurrentStatus,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict);

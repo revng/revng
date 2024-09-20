@@ -516,8 +516,8 @@ struct EnforceABIPipe {
     Manager.run(ModuleContainer.getModule());
   }
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    const auto &Model = *revng::getModelFromContext(Ctx);
+  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
+    const auto &Model = *revng::getModelFromContext(Context);
 
     if (!Model.DefaultPrototype().isEmpty())
       return llvm::Error::success();

@@ -95,14 +95,17 @@ std::string Target::serialize() const {
   return ToReturn;
 }
 
-llvm::Expected<Target> Target::deserialize(Context &Ctx,
+llvm::Expected<Target> Target::deserialize(Context &Context,
                                            llvm::StringRef String) {
   if (String.contains('*'))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "String cannot contain *");
 
   TargetsList Out;
-  if (auto Error = parseTarget(Ctx, String, Ctx.getKindsRegistry(), Out);
+  if (auto Error = parseTarget(Context,
+                               String,
+                               Context.getKindsRegistry(),
+                               Out);
       Error) {
     return std::move(Error);
   }
@@ -111,7 +114,7 @@ llvm::Expected<Target> Target::deserialize(Context &Ctx,
   return Out.front();
 }
 
-llvm::Error pipeline::parseTarget(const Context &Ctx,
+llvm::Error pipeline::parseTarget(const Context &Context,
                                   llvm::StringRef AsString,
                                   const KindsRegistry &Dict,
                                   TargetsList &Out) {
@@ -142,7 +145,7 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
   }
 
   if (find(AsString, '*') != AsString.end()) {
-    It->appendAllTargets(Ctx, Out);
+    It->appendAllTargets(Context, Out);
     return llvm::Error::success();
   }
 
@@ -150,7 +153,7 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
   return llvm::Error::success();
 }
 
-llvm::Error pipeline::parseTarget(const Context &Ctx,
+llvm::Error pipeline::parseTarget(const Context &Context,
                                   ContainerToTargetsMap &CurrentStatus,
                                   llvm::StringRef AsString,
                                   const KindsRegistry &Dict) {
@@ -167,5 +170,5 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
                                    AsString.str().c_str());
   }
 
-  return parseTarget(Ctx, Parts[1], Dict, CurrentStatus[Parts[0]]);
+  return parseTarget(Context, Parts[1], Dict, CurrentStatus[Parts[0]]);
 }

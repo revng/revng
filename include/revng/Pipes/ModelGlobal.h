@@ -25,9 +25,10 @@ constexpr static const char *ModelGlobalName = "model.yml";
 using ModelGlobal = pipeline::TupleTreeGlobal<model::Binary>;
 
 inline const TupleTree<model::Binary> &
-getModelFromContext(const pipeline::Context &Ctx) {
+getModelFromContext(const pipeline::Context &Context) {
   using Wrapper = ModelGlobal;
-  const auto &Model = llvm::cantFail(Ctx.getGlobal<Wrapper>(ModelGlobalName));
+  const auto &Model = llvm::cantFail(Context
+                                       .getGlobal<Wrapper>(ModelGlobalName));
   Model->get().cacheReferences();
   return Model->get();
 }
@@ -38,9 +39,10 @@ getModelFromContext(const pipeline::ExecutionContext &EC) {
 }
 
 inline TupleTree<model::Binary> &
-getWritableModelFromContext(pipeline::Context &Ctx) {
+getWritableModelFromContext(pipeline::Context &Context) {
   using Wrapper = ModelGlobal;
-  const auto &Model = llvm::cantFail(Ctx.getGlobal<Wrapper>(ModelGlobalName));
+  const auto &Model = llvm::cantFail(Context
+                                       .getGlobal<Wrapper>(ModelGlobalName));
   Model->get().evictCachedReferences();
   return Model->get();
 }

@@ -34,7 +34,7 @@ public:
            const FunctionAssemblyStringMap &Input,
            FunctionAssemblyPTMLStringMap &Output);
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
     return llvm::Error::success();
   }
 };

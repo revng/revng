@@ -36,7 +36,7 @@ private:
   /// pointer that go from one to the other are stable, Since there a create
   /// method that returns a expected<PipelineManager>, this is the only way to
   /// ensure this is correct.
-  std::unique_ptr<llvm::LLVMContext> Context;
+  std::unique_ptr<llvm::LLVMContext> LLVMContext;
   std::unique_ptr<pipeline::Context> PipelineContext;
   std::unique_ptr<pipeline::Loader> Loader;
   std::unique_ptr<pipeline::Runner> Runner;
