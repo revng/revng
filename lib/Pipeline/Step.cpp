@@ -286,13 +286,13 @@ ContainerSet Step::run(ContainerSet &&Input,
     T.advance(Pipe.Pipe->getName(), false);
     explainExecutedPipe(*Pipe.Pipe);
 
-    ExecutionContext Context(*Ctx, &Pipe, Info.Output);
+    ExecutionContext EC(*Ctx, &Pipe, Info.Output);
 
-    Pipe.Pipe->deduceResults(*Ctx, Context.getCurrentRequestedTargets());
+    Pipe.Pipe->deduceResults(*Ctx, EC.getCurrentRequestedTargets());
 
-    cantFail(Pipe.Pipe->run(Context, Input));
+    cantFail(Pipe.Pipe->run(EC, Input));
     llvm::cantFail(Input.verify());
-    Context.verify();
+    EC.verify();
   }
 
   T.advance("Merging back", true);

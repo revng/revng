@@ -27,7 +27,7 @@ public:
                                      pipeline::InputPreservation::Preserve) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            pipeline::LLVMContainer &ModuleContainer);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

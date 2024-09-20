@@ -33,8 +33,8 @@ getModelFromContext(const pipeline::Context &Ctx) {
 }
 
 inline const TupleTree<model::Binary> &
-getModelFromContext(const pipeline::ExecutionContext &Ctx) {
-  return getModelFromContext(Ctx.getContext());
+getModelFromContext(const pipeline::ExecutionContext &EC) {
+  return getModelFromContext(EC.getContext());
 }
 
 inline TupleTree<model::Binary> &
@@ -46,8 +46,8 @@ getWritableModelFromContext(pipeline::Context &Ctx) {
 }
 
 inline TupleTree<model::Binary> &
-getWritableModelFromContext(pipeline::ExecutionContext &Ctx) {
-  return getWritableModelFromContext(Ctx.getContext());
+getWritableModelFromContext(pipeline::ExecutionContext &EC) {
+  return getWritableModelFromContext(EC.getContext());
 }
 
 inline cppcoro::generator<const model::Function &>

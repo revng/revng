@@ -263,7 +263,7 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const BinaryFileContainer &SourceBinary,
            const pipeline::LLVMContainer &ModuleContainer,
            const CFGMap &CFGMap,
@@ -271,24 +271,24 @@ public:
 
     // This pipe works only if we have all the targets
     pipeline::TargetsList FunctionList = ModuleContainer.enumerate();
-    if (not FunctionList.contains(kinds::Isolated.allTargets(Ctx.getContext())))
+    if (not FunctionList.contains(kinds::Isolated.allTargets(EC.getContext())))
       return;
 
     if (not SourceBinary.exists())
       return;
 
     pipeline::TargetsList CFGList = CFGMap.enumerate();
-    if (not CFGList.contains(kinds::CFG.allTargets(Ctx.getContext())))
+    if (not CFGList.contains(kinds::CFG.allTargets(EC.getContext())))
       return;
 
     // Proceed with emission
-    outputHexDump(getModelFromContext(Ctx),
+    outputHexDump(getModelFromContext(EC),
                   ModuleContainer,
                   CFGMap,
                   SourceBinary,
                   Output.getOrCreatePath());
 
-    Ctx.commitUniqueTarget(Output);
+    EC.commitUniqueTarget(Output);
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

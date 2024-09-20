@@ -37,10 +37,10 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(const pipeline::ExecutionContext &EC,
            const BinaryFileContainer &,
            ContainerType &Container) {
-    Container.fill(Ctx.getContext());
+    Container.fill(EC.getContext());
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
