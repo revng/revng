@@ -207,6 +207,17 @@ public:
   }
 
 public:
+  std::string getName() const {
+    std::string Result = std::string(Name) + "(";
+    const char *Prefix = "";
+    for (const auto &Pass : Passes) {
+      Result += Prefix + Pass->getName().str();
+      Prefix = ", ";
+    }
+    Result += ")";
+    return Result;
+  }
+
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const {
     for (const auto &Pass : Passes) {
