@@ -80,6 +80,16 @@ keyFromValue(const typename T::value_type &Value) {
   return Value.first;
 }
 
+template<typename T>
+concept HasFirstMethod = requires(const T::value_type &V) {
+  { V.first() };
+};
+
+template<HasFirstMethod T>
+auto keyFromValue(const typename T::value_type &Value) {
+  return Value.first();
+}
+
 template<typename LeftMap, typename RightMap>
 struct DefaultComparator {
   template<typename T, typename Q>
