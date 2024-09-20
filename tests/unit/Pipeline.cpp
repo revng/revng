@@ -259,10 +259,6 @@ public:
       }
     Target.enumerate().dump();
   }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 BOOST_AUTO_TEST_CASE(PipeCanBeWrapper) {
@@ -571,10 +567,6 @@ public:
       EC.commitAllFor(Target);
     }
   }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 class CopyPipe {
@@ -597,10 +589,6 @@ public:
         Target.get(Element.first) = Element.second;
 
     EC.commitAllFor(Target);
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
   }
 };
 

@@ -184,10 +184,6 @@ public:
     Passes.emplace_back(Pass.clone());
   }
 
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
-
   template<LLVMPass T>
   void addPass(T Pass) {
     using Type = LLVMPassWrapper<T>;

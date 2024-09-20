@@ -41,10 +41,6 @@ public:
            const BinaryFileContainer &SourceBinary,
            const CFGMap &CFGMap,
            FunctionAssemblyStringMap &OutputAssembly);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes

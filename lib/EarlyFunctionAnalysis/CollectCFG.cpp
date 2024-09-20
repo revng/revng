@@ -80,10 +80,6 @@ public:
       CFGs[EntryAddress] = toString(New);
     }
   }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 static pipeline::RegisterPipe<CollectCFGPipe> X;

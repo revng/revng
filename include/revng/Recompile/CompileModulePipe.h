@@ -32,10 +32,6 @@ public:
   void run(pipeline::ExecutionContext &,
            pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 class CompileIsolatedModule {
@@ -55,10 +51,6 @@ public:
   void run(pipeline::ExecutionContext &,
            pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes

@@ -41,10 +41,6 @@ public:
            BinaryFileContainer &InputBinary,
            ObjectFileContainer &ObjectFile,
            TranslatedFileContainer &OutputBinary);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes
