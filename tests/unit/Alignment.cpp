@@ -30,9 +30,8 @@ void testAlignment(model::UpcastableType &&Type, const Types &...TestCases) {
   for (auto [ABI, Expected] : std::array{ TestCases... }) {
     std::optional<uint64_t> TestResult = ABI.alignment(*Type);
     if (TestResult.value_or(0) != Expected) {
-      std::string Error = "Alignment run failed for type:\n"
-                          + serializeToString(Type) + "ABI ('"
-                          + serializeToString(ABI.ABI())
+      std::string Error = "Alignment run failed for type:\n" + toString(Type)
+                          + "ABI ('" + toString(ABI.ABI())
                           + "') reports the alignment of '"
                           + printAlignment(TestResult.value_or(0)) + "', "
                           + "while the expected value is '"
@@ -134,10 +133,8 @@ static void compareTypeAlignments(const abi::Definition &ABI,
   std::optional<uint64_t> Right = ABI.alignment(*RHS);
   if (Left != Right) {
     std::string Error = "Alignment comparison run failed for types:\n"
-                        + serializeToString(LHS) + "and\n"
-                        + serializeToString(RHS) + "ABI ('"
-                        + serializeToString(ABI.ABI())
-                        + "') reports the alignment of '"
+                        + toString(LHS) + "and\n" + toString(RHS) + "ABI ('"
+                        + toString(ABI.ABI()) + "') reports the alignment of '"
                         + printAlignment(Left.value_or(0))
                         + "' for the first one, and '"
                         + printAlignment(Right.value_or(0))

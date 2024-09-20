@@ -20,7 +20,7 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
 
-using pipeline::serializedLocation;
+using pipeline::toString;
 using ptml::PTMLBuilder;
 using ptml::Tag;
 namespace attributes = ptml::attributes;
@@ -49,26 +49,24 @@ static std::string targetPath(const BasicBlockID &Target,
                               const model::Binary &Binary) {
   if (const auto *F = yield::tryGetFunction(Binary, Target)) {
     // The target is a function
-    return serializedLocation(ranks::Function, F->Entry());
+    return toString(ranks::Function, F->Entry());
   } else if (auto Iterator = Function.Blocks().find(Target);
              Iterator != Function.Blocks().end()) {
     // The target is a basic block
-    return serializedLocation(ranks::BasicBlock,
-                              Function.Entry(),
-                              Iterator->ID());
+    return toString(ranks::BasicBlock, Function.Entry(), Iterator->ID());
   } else if (Target.isValid()) {
     for (const auto &Block : Function.Blocks()) {
       if (Block.Instructions().contains(Target.start())) {
         // The target is an instruction
-        return serializedLocation(ranks::Instruction,
-                                  Function.Entry(),
-                                  Block.ID(),
-                                  Target.start());
+        return toString(ranks::Instruction,
+                        Function.Entry(),
+                        Block.ID(),
+                        Target.start());
       }
     }
   }
 
-  revng_abort(("Unknown target:\n" + serializeToString(Target)).c_str());
+  revng_abort(("Unknown target:\n" + toString(Target)).c_str());
 }
 
 static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
@@ -110,7 +108,7 @@ static std::string emitTagged(const PTMLBuilder &B,
   for (const yield::TagAttribute &Attribute : String.Attributes())
     Result.addAttribute(Attribute.Name(), Attribute.Value());
 
-  return Result.serialize();
+  return Result.toString();
 }
 
 static std::string taggedLine(const PTMLBuilder &B,
@@ -190,7 +188,7 @@ public:
     if (!LongestAddressString && !LongestByteString)
       return B.getTag(tags::Span, "  ")
         .addAttribute(attributes::Token, ptml::tokens::Indentation)
-        .serialize();
+        .toString();
 
     InstructionPrefix &Data = Prefixes.at(BasicBlock).at(Instruction);
 
@@ -199,7 +197,7 @@ public:
       Result = B.getTag(tags::Span, std::move(Data.Address))
                  .addAttribute(attributes::Token,
                                tokenTypes::InstructionAddress)
-                 .serialize();
+                 .toString();
 
       revng_assert(Data.Address.size() != 0);
       revng_assert(Data.Address.size() <= LongestAddressString);
@@ -208,7 +206,7 @@ public:
                                 ' ');
         Result = B.getTag(tags::Span, std::move(Indentation))
                    .addAttribute(attributes::Token, ptml::tokens::Indentation)
-                   .serialize()
+                   .toString()
                  + std::move(Result);
       }
 
@@ -217,28 +215,28 @@ public:
       Result += B.getTag(tags::Span, std::move(Indicator))
                   .addAttribute(attributes::Token,
                                 tokenTypes::InstructionAddress)
-                  .serialize();
+                  .toString();
       Result += B.getTag(tags::Span, std::string(4, ' '))
                   .addAttribute(attributes::Token, ptml::tokens::Indentation)
-                  .serialize();
+                  .toString();
     }
 
     if (LongestByteString != 0) {
       Result += B.getTag(tags::Span, std::move(Data.Bytes))
                   .addAttribute(attributes::Token, tokenTypes::RawBytes)
-                  .serialize();
+                  .toString();
 
       revng_assert(Data.Bytes.size() != 0);
       revng_assert(Data.Bytes.size() <= LongestByteString);
       std::string Indentation(LongestByteString + 3 - Data.Bytes.size(), ' ');
       Result += B.getTag(tags::Span, std::move(Indentation))
                   .addAttribute(attributes::Token, ptml::tokens::Indentation)
-                  .serialize();
+                  .toString();
     }
 
     return B.getTag(tags::Span, "  ")
              .addAttribute(attributes::Token, ptml::tokens::Indentation)
-             .serialize()
+             .toString()
            + std::move(Result);
   }
 
@@ -258,7 +256,7 @@ public:
 
     return B.getTag(tags::Span, std::string(TotalPrefixSize, ' '))
       .addAttribute(attributes::Token, ptml::tokens::Indentation)
-      .serialize();
+      .toString();
   }
 };
 
@@ -281,28 +279,28 @@ static std::string instruction(const PTMLBuilder &B,
   for (const auto &Directive : Instruction.PrecedingDirectives()) {
     Result += B.getTag(tags::Div,
                        std::move(Prefix) + taggedLine(B, Directive.Tags()))
-                .serialize();
+                .toString();
     Prefix = Prefixes.emitEmpty(B, Binary);
   }
 
   Result += B.getTag(tags::Div,
                      std::move(Prefix)
                        + taggedLine(B, Instruction.Disassembled()))
-              .serialize();
+              .toString();
   Prefix = Prefixes.emitEmpty(B, Binary);
 
   for (const auto &Directive : Instruction.FollowingDirectives()) {
     Result += B.getTag(tags::Div,
                        std::move(Prefix) + taggedLine(B, Directive.Tags()))
-                .serialize();
+                .toString();
     Prefix = Prefixes.emitEmpty(B, Binary);
   }
 
   // Tag it with appropriate location data.
-  std::string InstructionLocation = serializedLocation(ranks::Instruction,
-                                                       Function.Entry(),
-                                                       BasicBlock.ID(),
-                                                       Instruction.Address());
+  std::string InstructionLocation = toString(ranks::Instruction,
+                                             Function.Entry(),
+                                             BasicBlock.ID(),
+                                             Instruction.Address());
   Tag Location = B.getTag(tags::Span)
                    .addAttribute(attributes::LocationDefinition,
                                  InstructionLocation);
@@ -350,18 +348,17 @@ static std::string basicBlock(const PTMLBuilder &B,
   if (!Label.empty()) {
     LabelString = Label + "\n";
   } else {
-    std::string Location = serializedLocation(ranks::BasicBlock,
-                                              model::Function(Function.Entry())
-                                                .key(),
-                                              BasicBlock.ID());
+    std::string Location = toString(ranks::BasicBlock,
+                                    model::Function(Function.Entry()).key(),
+                                    BasicBlock.ID());
     LabelString = B.getTag(tags::Span)
                     .addAttribute(attributes::LocationDefinition, Location)
-                    .serialize();
+                    .toString();
   }
 
   return B.getTag(tags::Div, LabelString + Result)
     .addAttribute(attributes::Scope, scopes::BasicBlock)
-    .serialize();
+    .toString();
 }
 
 template<bool ShouldMergeFallthroughTargets>
@@ -377,7 +374,7 @@ static std::string labeledBlock(const PTMLBuilder &B,
   std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
   Label += B.getTag(tags::Span, std::move(Indicator))
              .addAttribute(attributes::Token, tokenTypes::LabelIndicator)
-             .serialize();
+             .toString();
 
   if constexpr (ShouldMergeFallthroughTargets == false) {
     Result = basicBlock(B,
@@ -419,7 +416,7 @@ std::string yield::ptml::functionAssembly(const PTMLBuilder &B,
 
   return B.getTag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
-    .serialize();
+    .toString();
 }
 
 std::string yield::ptml::controlFlowNode(const PTMLBuilder &B,
@@ -471,7 +468,7 @@ std::string yield::ptml::functionNameDefinition(const PTMLBuilder &B,
                                 functionNameHelper(Location, Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationDefinition, Location);
-  return Result.serialize();
+  return Result.toString();
 }
 
 std::string yield::ptml::functionLink(const PTMLBuilder &B,
@@ -484,7 +481,7 @@ std::string yield::ptml::functionLink(const PTMLBuilder &B,
                                 functionNameHelper(Location, Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
-  return Result.serialize();
+  return Result.toString();
 }
 
 std::string yield::ptml::shallowFunctionLink(const PTMLBuilder &B,
@@ -497,5 +494,5 @@ std::string yield::ptml::shallowFunctionLink(const PTMLBuilder &B,
                                 functionNameHelper(Location, Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::ShallowNodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
-  return Result.serialize();
+  return Result.toString();
 }

@@ -115,7 +115,7 @@ static std::string edge(const PTMLBuilder &B,
     .addAttribute("d", std::move(Points))
     .addAttribute("marker-end", std::move(Marker))
     .addAttribute("fill", "none")
-    .serialize();
+    .toString();
 }
 
 template<typename NodeData, typename EdgeData = Empty>
@@ -130,7 +130,7 @@ std::string node(const PTMLBuilder &B,
   Tag Body = B.getTag("body", std::move(Content));
   Body.addAttribute("xmlns", R"(http://www.w3.org/1999/xhtml)");
 
-  Tag Text = B.getTag("foreignObject", Body.serialize());
+  Tag Text = B.getTag("foreignObject", Body.toString());
   Text.addAttribute("class", ::tags::NodeContents)
     .addAttribute("x", std::to_string(TopLeft.X))
     .addAttribute("y", std::to_string(TopLeft.Y))
@@ -146,7 +146,7 @@ std::string node(const PTMLBuilder &B,
     .addAttribute("width", std::to_string(Node->Size.W))
     .addAttribute("height", std::to_string(Node->Size.H));
 
-  return Text.serialize() + Border.serialize();
+  return Text.toString() + Border.toString();
 }
 
 struct Viewbox {
@@ -238,7 +238,7 @@ static std::string arrowHead(const ::ptml::PTMLBuilder &B,
     .getTag("marker",
             B.getTag("polygon")
               .addAttribute("points", std::move(Points))
-              .serialize())
+              .toString())
     .addAttribute("id", Name)
     .addAttribute("markerWidth", std::to_string(Size))
     .addAttribute("markerHeight", std::to_string(Size))
@@ -246,7 +246,7 @@ static std::string arrowHead(const ::ptml::PTMLBuilder &B,
     .addAttribute("refY", std::to_string(Size / 2))
     .addAttribute("refY", std::to_string(Size / 2))
     .addAttribute("orient", "auto")
-    .serialize();
+    .toString();
 }
 
 static std::string duplicateArrowHeadsImpl(const ::ptml::PTMLBuilder &B,
@@ -321,12 +321,12 @@ static std::string exportGraph(const PTMLBuilder &B,
                                             Box.BottomRight.Y - Box.TopLeft.Y);
 
   Tag ArrowHeads = B.getTag("defs", defaultArrowHeads(B, Configuration));
-  return B.getTag("svg", ArrowHeads.serialize() + std::move(Result))
+  return B.getTag("svg", ArrowHeads.toString() + std::move(Result))
     .addAttribute("xmlns", R"(http://www.w3.org/2000/svg)")
     .addAttribute("viewbox", std::move(SerializedBox))
     .addAttribute("width", std::to_string(Box.BottomRight.X - Box.TopLeft.X))
     .addAttribute("height", std::to_string(Box.BottomRight.Y - Box.TopLeft.Y))
-    .serialize();
+    .toString();
 }
 
 namespace yield::layout::sugiyama {

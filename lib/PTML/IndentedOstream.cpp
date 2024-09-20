@@ -46,7 +46,7 @@ void PTMLIndentedOstream::writeIndent() {
     if (not B.isGenerateTagLessPTML())
       IndentTag.addAttribute(attributes::Token, ptml::tokens::Indentation);
 
-    OS << IndentTag.serialize();
+    OS << IndentTag.toString();
   }
   TrailingNewline = false;
 }

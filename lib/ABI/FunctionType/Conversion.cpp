@@ -148,9 +148,9 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
             "Converting a `RawFunctionDefinition` to "
             "`CABIFunctionDefinition`.");
   revng_log(Log, "ABI: " << model::ABI::getName(MaybeABI.value()).str());
-  revng_log(Log, "Original Type:\n" << serializeToString(FunctionType));
+  revng_log(Log, "Original Type:\n" << toString(FunctionType));
   if (auto *StackType = FunctionType.stackArgumentsType())
-    revng_log(Log, "Stack is:\n" << serializeToString(*StackType));
+    revng_log(Log, "Stack is:\n" << toString(*StackType));
   LoggerIndent Indentation(Log);
 
   const abi::Definition &ABI = abi::Definition::get(*MaybeABI);
@@ -180,7 +180,7 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
     Definition.Arguments().insert(std::move(Argument));
   Definition.ReturnType() = Converted->ReturnValueType;
 
-  revng_log(Log, "Conversion successful:\n" << serializeToString(Definition));
+  revng_log(Log, "Conversion successful:\n" << toString(Definition));
 
   // Since CABI-FT only have one field for return value comments - we have no
   // choice but to resort to concatenation in order to preserve as much

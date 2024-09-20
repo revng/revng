@@ -574,7 +574,7 @@ void IsolateFunctionsImpl::run() {
 
   Task IsolateTask(RequestedTargets.size(), "Isolating functions");
   for (const pipeline::Target &Target : RequestedTargets) {
-    IsolateTask.advance(Target.serialize(), true);
+    IsolateTask.advance(Target.toString(), true);
     Context.getContext().pushReadFields();
 
     auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);

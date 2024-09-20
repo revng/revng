@@ -465,10 +465,9 @@ getPrototypeLayout(const model::Function &Function,
     if (ABI != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
                           "the intended ABI is '"
-                          + serializeToString(ABI.ABI())
-                          + "' but the function is\n"
-                          + serializeToString(Function) + "\nWith prototype:\n"
-                          + serializeToString(*CABI);
+                          + toString(ABI.ABI()) + "' but the function is\n"
+                          + toString(Function) + "\nWith prototype:\n"
+                          + toString(*CABI);
       revng_abort(Error.c_str());
     }
 

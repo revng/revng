@@ -100,7 +100,7 @@ struct CompositeScalar {
   static_assert(std::tuple_size_v<T> >= 0);
 
   template<size_t I = 0>
-  static void output(const T &Value, void *Ctx, llvm::raw_ostream &Output) {
+  static void output(const T &Value, void *Context, llvm::raw_ostream &Output) {
     if constexpr (I < std::tuple_size_v<T>) {
 
       if constexpr (I != 0) {
@@ -110,19 +110,20 @@ struct CompositeScalar {
       using element = std::tuple_element_t<I, T>;
       Output << getNameFromYAMLScalar<element>(get<I>(Value));
 
-      CompositeScalar::output<I + 1>(Value, Ctx, Output);
+      CompositeScalar::output<I + 1>(Value, Context, Output);
     }
   }
 
   template<size_t I = 0>
-  static llvm::StringRef input(llvm::StringRef Scalar, void *Ctx, T &Value) {
+  static llvm::StringRef
+  input(llvm::StringRef Scalar, void *Context, T &Value) {
     if constexpr (I < std::tuple_size_v<T>) {
       auto [Before, After] = Scalar.split(Separator);
 
       using element = std::tuple_element_t<I, T>;
       get<I>(Value) = getValueFromYAMLScalar<element>(Before);
 
-      return CompositeScalar::input<I + 1>(After, Ctx, Value);
+      return CompositeScalar::input<I + 1>(After, Context, Value);
     } else {
       revng_assert(Scalar.size() == 0);
       return Scalar;
@@ -228,7 +229,7 @@ llvm::Error serializeToFile(const T &ToWrite, const llvm::StringRef &Path) {
 }
 
 template<Yamlizable T>
-std::string serializeToString(const T &ToDump) {
+std::string toString(const T &ToDump) {
   std::string Buffer;
   {
     llvm::raw_string_ostream StringStream(Buffer);
@@ -291,13 +292,13 @@ struct llvm::yaml::ScalarTraits<std::tuple<T>> {
   using ValueTrait = llvm::yaml::ScalarTraits<T>;
 
   static void
-  output(const ValueType &Value, void *Ctx, llvm::raw_ostream &Output) {
-    ValueTrait().output(std::get<0>(Value), Ctx, Output);
+  output(const ValueType &Value, void *Context, llvm::raw_ostream &Output) {
+    ValueTrait().output(std::get<0>(Value), Context, Output);
   }
 
   static llvm::StringRef
-  input(llvm::StringRef Scalar, void *Ctx, ValueType &Value) {
-    return ValueTrait().input(Scalar, Ctx, std::get<0>(Value));
+  input(llvm::StringRef Scalar, void *Context, ValueType &Value) {
+    return ValueTrait().input(Scalar, Context, std::get<0>(Value));
   }
 
   static llvm::yaml::QuotingType mustQuote(llvm::StringRef String) {

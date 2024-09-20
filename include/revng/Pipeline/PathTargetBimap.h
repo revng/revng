@@ -47,7 +47,7 @@ public:
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const debug_function {
     indent(OS, Indentation);
-    OS << Content.serialize() << " in " << ContainerName << "\n";
+    OS << Content.toString() << " in " << ContainerName << "\n";
   }
 };
 

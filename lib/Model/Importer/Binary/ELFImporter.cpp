@@ -496,7 +496,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
       revng_log(ELFImporterLog,
                 "Found type for " << Fn.OriginalName() << " in "
                                   << Found->ModuleName << ": "
-                                  << serializeToString(SerializablePrototype));
+                                  << toString(SerializablePrototype));
       TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
       Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
 

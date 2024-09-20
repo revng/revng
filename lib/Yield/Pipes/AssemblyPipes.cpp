@@ -56,7 +56,7 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
                                            Metadata,
                                            BinaryView,
                                            *Model);
-    Output.insert_or_assign(Function.Entry(), serializeToString(Disassembled));
+    Output.insert_or_assign(Function.Entry(), toString(Disassembled));
   }
 }
 
@@ -86,7 +86,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
                                           0,
                                           80);
     R += yield::ptml::functionAssembly(B, **MaybeFunction, *Model);
-    R = B.getTag(ptml::tags::Div, std::move(R)).serialize();
+    R = B.getTag(ptml::tags::Div, std::move(R)).toString();
     Output.insert_or_assign((*MaybeFunction)->Entry(), std::move(R));
   }
 }

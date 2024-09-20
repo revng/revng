@@ -85,7 +85,7 @@ model::Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
   // Assign progressive ID
   if (T->ID() != 0) {
     std::string Error = "Newly recorded types must not have an ID.\n"
-                        + serializeToString(T);
+                        + ::toString(T);
     revng_abort(Error.c_str());
   }
 

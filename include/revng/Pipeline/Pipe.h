@@ -330,7 +330,7 @@ struct PipeWrapper {
         if (Log.isEnabled()) {
           Log << "Registering: ";
           for (const auto &Entry : It->second) {
-            Log << Entry.getTarget().serialize() << " in "
+            Log << Entry.getTarget().toString() << " in "
                 << Entry.getContainerName() << "\n";
           }
           Log << DoLog;

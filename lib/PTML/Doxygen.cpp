@@ -70,7 +70,7 @@ public:
     for (const auto &Attribute : ExtraAttributes)
       Result.addAttribute(Attribute.Name, Attribute.Value);
 
-    return Result.serialize();
+    return Result.toString();
   }
 };
 
@@ -95,7 +95,7 @@ public:
       auto [ResultLine, CurrentSize] = line();
 
       if (Line.Tags.empty())
-        Result += serialize(std::move(ResultLine));
+        Result += toString(std::move(ResultLine));
 
       bool WereTagsEmittedSinceLastBreak = false;
       for (auto Iterator = Line->begin(); Iterator != Line->end(); ++Iterator) {
@@ -107,7 +107,7 @@ public:
       }
 
       if (WereTagsEmittedSinceLastBreak)
-        Result += serialize(std::move(ResultLine));
+        Result += toString(std::move(ResultLine));
     }
 
     return Result;
@@ -147,7 +147,7 @@ private:
         auto NextCharacter = std::min(NewLinePosition + 1, TagText.size());
         TagText = TagText.drop_front(NextCharacter);
 
-        Result += serialize(std::move(ResultLine));
+        Result += toString(std::move(ResultLine));
         std::tie(ResultLine, CurrentSize) = line(InternalIndentation);
         WereTagsEmittedSinceLastBreak = false;
       } else if (TagText.size() + CurrentSize < WrapAt) {
@@ -165,7 +165,7 @@ private:
                           .Value = TagText.substr(0, LastSpace).str(),
                           .ExtraAttributes = Token.ExtraAttributes };
         ResultLine->emplace_back(std::move(Tag));
-        Result += serialize(std::move(ResultLine));
+        Result += toString(std::move(ResultLine));
         std::tie(ResultLine, CurrentSize) = line(InternalIndentation);
         WereTagsEmittedSinceLastBreak = false;
 
@@ -176,7 +176,7 @@ private:
       } else if (WereTagsEmittedSinceLastBreak) {
         // Tag doesn't fit and there's no good breaking point, but there
         // are already tags on this line: insert a break and try again.
-        Result += serialize(std::move(ResultLine));
+        Result += toString(std::move(ResultLine));
         std::tie(ResultLine, CurrentSize) = line(InternalIndentation);
         WereTagsEmittedSinceLastBreak = false;
       } else {
@@ -188,7 +188,7 @@ private:
                           .Value = TagText.substr(0, FirstSpace).str(),
                           .ExtraAttributes = Token.ExtraAttributes };
         ResultLine->emplace_back(std::move(Tag));
-        Result += serialize(std::move(ResultLine));
+        Result += toString(std::move(ResultLine));
         std::tie(ResultLine, CurrentSize) = line(InternalIndentation);
         WereTagsEmittedSinceLastBreak = false;
 
@@ -231,14 +231,14 @@ private:
     return Result;
   }
 
-  std::string serialize(DoxygenLine &&Line) {
+  std::string toString(DoxygenLine &&Line) {
     std::string Result;
 
     revng_assert(!Line.Tags.empty());
     for (DoxygenToken &Tag : Line.Tags)
       Result += Tag.emit(PTML);
 
-    return PTML.getTag(ptml::tags::Div, std::move(Result)).serialize() += '\n';
+    return PTML.getTag(ptml::tags::Div, std::move(Result)).toString() += '\n';
   }
 };
 
@@ -252,7 +252,7 @@ std::string ptml::freeFormComment(const ::ptml::PTMLBuilder &PTML,
   return Result.empty() ? Result : '\n' + Result;
 }
 
-using pipeline::serializedLocation;
+using pipeline::toString;
 namespace ranks = revng::ranks;
 
 static llvm::SmallVector<DoxygenLine, 16>
@@ -308,9 +308,9 @@ gatherArgumentComments(const model::Binary &Binary,
         const model::Argument &Argument = FT->Arguments().at(Index);
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
                                      Argument.name().str().str());
-        std::string Location = serializedLocation(ranks::CABIArgument,
-                                                  FT->key(),
-                                                  Argument.key());
+        std::string Location = toString(ranks::CABIArgument,
+                                        FT->key(),
+                                        Argument.key());
         N.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
                                        Location);
         N.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
@@ -351,9 +351,9 @@ gatherArgumentComments(const model::Binary &Binary,
         auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged, Comment);
         Tag.ExtraAttributes
           .emplace_back(ptml::attributes::ActionContextLocation,
-                        serializedLocation(ranks::CABIArgument,
-                                           FT->key(),
-                                           Argument.key()));
+                        toString(ranks::CABIArgument,
+                                 FT->key(),
+                                 Argument.key()));
         Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                          ptml::actions::Comment);
       }
@@ -369,9 +369,9 @@ gatherArgumentComments(const model::Binary &Binary,
 
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
                                      Argument.name().str().str());
-        std::string Location = serializedLocation(ranks::RawArgument,
-                                                  FT->key(),
-                                                  Argument.key());
+        std::string Location = toString(ranks::RawArgument,
+                                        FT->key(),
+                                        Argument.key());
         N.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
                                        Location);
         N.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
@@ -386,9 +386,9 @@ gatherArgumentComments(const model::Binary &Binary,
                                        Argument.Comment());
         Tag.ExtraAttributes
           .emplace_back(ptml::attributes::ActionContextLocation,
-                        serializedLocation(ranks::RawArgument,
-                                           FT->key(),
-                                           Argument.key()));
+                        toString(ranks::RawArgument,
+                                 FT->key(),
+                                 Argument.key()));
         Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                          ptml::actions::Comment);
       }
@@ -430,9 +430,9 @@ gatherArgumentComments(const model::Binary &Binary,
           }
 
           auto &L = Line->emplace_back(DoxygenToken::Types::Identifier, Name);
-          std::string Location = serializedLocation(ranks::StructField,
-                                                    Stack->key(),
-                                                    Field.key());
+          std::string Location = toString(ranks::StructField,
+                                          Stack->key(),
+                                          Field.key());
           L.ExtraAttributes
             .emplace_back(ptml::attributes::ActionContextLocation, Location);
           L.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
@@ -474,8 +474,7 @@ gatherReturnValueComments(const model::Binary &Binary,
       DoxygenToken &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
                                              FT->ReturnValueComment());
       Tag.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
-                                       serializedLocation(ranks::ReturnValue,
-                                                          FT->key()));
+                                       toString(ranks::ReturnValue, FT->key()));
       Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                        ptml::actions::Comment);
     }
@@ -488,8 +487,7 @@ gatherReturnValueComments(const model::Binary &Binary,
       DoxygenToken &T = Line->emplace_back(DoxygenToken::Types::Untagged,
                                            FT->ReturnValueComment());
       T.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
-                                     serializedLocation(ranks::ReturnValue,
-                                                        FT->key()));
+                                     toString(ranks::ReturnValue, FT->key()));
       T.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                      ptml::actions::Comment);
     }
@@ -518,9 +516,9 @@ gatherReturnValueComments(const model::Binary &Binary,
                                        ": " + ReturnValue.Comment());
         Tag.ExtraAttributes
           .emplace_back(ptml::attributes::ActionContextLocation,
-                        serializedLocation(ranks::ReturnRegister,
-                                           FT->key(),
-                                           ReturnValue.key()));
+                        toString(ranks::ReturnRegister,
+                                 FT->key(),
+                                 ReturnValue.key()));
         Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                          ptml::actions::Comment);
       }
@@ -544,8 +542,7 @@ std::string ptml::functionComment(const ::ptml::PTMLBuilder &PTML,
     DoxygenToken Tag{ .Type = DoxygenToken::Types::Untagged,
                       .Value = Function.Comment() };
     Tag.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
-                                     serializedLocation(ranks::Function,
-                                                        Function.key()));
+                                     toString(ranks::Function, Function.key()));
     Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
                                      ptml::actions::Comment);
     Result.emplace_back(DoxygenLine{ .Tags = { std::move(Tag) } });

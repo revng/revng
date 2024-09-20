@@ -78,7 +78,7 @@ int Target::operator<=>(const Target &Other) const {
   return 0;
 }
 
-std::string Target::serialize() const {
+std::string Target::toString() const {
   std::string ToReturn;
 
   if (Components.size() == 0) {

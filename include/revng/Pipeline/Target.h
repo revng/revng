@@ -103,7 +103,7 @@ public:
   }
 
 public:
-  std::string serialize() const;
+  std::string toString() const;
 
   void dump() const debug_function { dump(dbg); }
 

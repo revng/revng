@@ -464,7 +464,7 @@ _rp_manager_get_container_identifier_from_name(const rp_manager *manager,
 
 static char *_rp_target_create_serialized_string(rp_target *target) {
   revng_check(target != nullptr);
-  return copyString(target->serialize());
+  return copyString(target->toString());
 }
 
 static bool _rp_target_is_ready(const rp_target *target,
@@ -661,7 +661,7 @@ _rp_invalidations_serialize(const rp_invalidations *invalidations) {
         Out += llvm::join_items('/',
                                 StepPair.first(),
                                 ContainerPair.first(),
-                                Target.serialize())
+                                Target.toString())
                + '\n';
       }
     }

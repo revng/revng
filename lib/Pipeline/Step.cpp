@@ -147,7 +147,7 @@ TargetInPipe::fromTargetInContainer(const TargetInContainer &Target,
                                     llvm::StringRef PipeName) {
   TargetInPipe ToReturn;
   ToReturn.PipeName = PipeName;
-  ToReturn.SerializedTarget = Target.getTarget().serialize();
+  ToReturn.SerializedTarget = Target.getTarget().toString();
 
   return ToReturn;
 }
