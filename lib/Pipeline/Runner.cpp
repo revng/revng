@@ -365,8 +365,9 @@ Error Runner::run(llvm::StringRef EndingStepName,
   revng_log(ExplanationLogger, "Running until step " << EndingStepName);
 
   if (llvm::Error Error = getObjectives(*this, EndingStepName, Targets, ToExec);
-      Error)
+      Error) {
     return Error;
+  }
 
   explainPipeline(Targets, ToExec);
 
@@ -375,10 +376,11 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
   for (PipelineExecutionEntry &StepGoalsPairs : llvm::drop_begin(ToExec)) {
     Step &Step = *StepGoalsPairs.ToExecute;
-    if (llvm::Error Error = Step.checkPrecondition(); Error)
+    if (llvm::Error Error = Step.checkPrecondition(); Error) {
       return llvm::make_error<AnnotatedError>(std::move(Error),
                                               "While scheduling step "
                                                 + Step.getName() + ":");
+    }
   }
 
   Task T(ToExec.size() - 1, "Produce steps required up to " + EndingStepName);

@@ -55,6 +55,7 @@ public:
 
   virtual llvm::Expected<std::unique_ptr<Global>>
   createNew(llvm::StringRef Name, const llvm::MemoryBuffer &Buffer) const = 0;
+
   virtual std::unique_ptr<Global> clone() const = 0;
 
   virtual llvm::Error store(const revng::FilePath &Path) const;
@@ -62,6 +63,7 @@ public:
 
   virtual std::optional<TupleTreePath>
   deserializePath(llvm::StringRef Serialized) const = 0;
+
   virtual std::optional<std::string>
   serializePath(const TupleTreePath &Path) const = 0;
 

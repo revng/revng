@@ -545,6 +545,7 @@ class FineGrainPipe {
 
 public:
   static constexpr auto Name = "fine-grain";
+
   std::vector<ContractGroup> getContract() const {
     return {
       ContractGroup(RootKind, 0, FunctionKind, 1, InputPreservation::Preserve)
@@ -577,6 +578,7 @@ class CopyPipe {
 
 public:
   static constexpr auto Name = "copy";
+
   std::vector<ContractGroup> getContract() const {
     return { ContractGroup(FunctionKind,
                            0,

@@ -28,7 +28,7 @@
 
 namespace pipeline {
 
-/// rappresents the requested (not expected, which means that it contains only
+/// Represents the requested (not expected, which means that it contains only
 /// the targets the user care about, not all those that will be generated as a
 /// side effect) input and output of a given invocation of a pipe.
 class PipeExecutionEntry {
@@ -301,12 +301,14 @@ struct PipeWrapper {
     const llvm::StringMap<PathTargetBimap> &getPathCache() const {
       return PathCache;
     }
+
     llvm::StringMap<PathTargetBimap> &getPathCache() { return PathCache; }
 
     const PathTargetBimap &getPathCache(llvm::StringRef GlobalName) const {
       revng_assert(PathCache.find(GlobalName) != PathCache.end());
       return PathCache.find(GlobalName)->second;
     }
+
     PathTargetBimap &getPathCache(llvm::StringRef GlobalName) {
       return PathCache[GlobalName];
     }
@@ -317,6 +319,7 @@ public:
   WrapperType Pipe;
   InvalidationMetadata InvalidationMetadata;
 
+public:
   template<typename PipeType>
   static PipeWrapper
   make(PipeType Pipe, std::vector<std::string> RunningContainersNames) {
