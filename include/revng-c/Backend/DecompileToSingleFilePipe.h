@@ -44,7 +44,7 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            const DecompileStringMap &DecompiledFunctionsContainer,
            DecompiledFileContainer &OutCFile);
 

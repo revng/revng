@@ -34,11 +34,9 @@
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using TypeNameMap = std::map<model::UpcastableType, std::string>;
-using DefinitionSet = std::set<const model::TypeDefinition *>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 using Node = TypeInlineHelper::Node;
-using StackTypesMap = std::unordered_map<const model::Function *,
-                                         DefinitionSet>;
+using DefinitionSet = TypeInlineHelper::DefinitionSet;
 
 /// Collect candidates for emitting inline types.
 static DefinitionSet findTypesToInline(const model::Binary &Model) {
@@ -141,7 +139,8 @@ static DefinitionSet getCrossReferencedTypes(const model::Binary &Model) {
   return Result;
 }
 
-StackTypesMap TypeInlineHelper::findTypesToInlineInStacks() const {
+TypeInlineHelper::StackTypesMap
+TypeInlineHelper::findTypesToInlineInStacks() const {
   StackTypesMap Result;
 
   DefinitionSet CrossReferencedTypes = getCrossReferencedTypes(Model);

@@ -36,7 +36,7 @@ public:
     return llvm::Error::success();
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            const pipeline::LLVMContainer &LLVMContainer,
            revng::pipes::MLIRContainer &MLIRContainer) {
     auto &Context = *MLIRContainer.getContext();
@@ -81,14 +81,11 @@ public:
     }
 
     MLIRContainer.setModule(std::move(Module));
-  }
 
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    OS << Name;
+    EC.commitAllFor(MLIRContainer);
   }
 };
 
 static pipeline::RegisterPipe<ImportLLVMToMLIRPipe> X;
+
 } // namespace

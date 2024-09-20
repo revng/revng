@@ -32,9 +32,11 @@ static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
 // At the moment revng-pipeline does not support pipes with no inputs, so we
 // had to resort to this trick. Whenever pipes with no inputs are supported
 // BinaryFile can be dropped.
-void ModelToHeader::run(const pipeline::ExecutionContext &Ctx,
+void ModelToHeader::run(pipeline::ExecutionContext &Ctx,
                         const BinaryFileContainer &BinaryFile,
                         ModelHeaderFileContainer &HeaderFile) {
+  if (Ctx.getRequestedTargetsFor(HeaderFile).empty())
+    return;
 
   std::error_code EC;
   llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), EC);
@@ -51,6 +53,8 @@ void ModelToHeader::run(const pipeline::ExecutionContext &Ctx,
   EC = Header.error();
   if (EC)
     revng_abort(EC.message().c_str());
+
+  Ctx.commitUniqueTarget(HeaderFile);
 }
 
 void ModelToHeader::print(const pipeline::Context &Ctx,

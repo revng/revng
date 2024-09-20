@@ -16,8 +16,12 @@ namespace detail {
 using Container = revng::pipes::DecompileStringMap;
 }
 
-void decompile(ControlFlowGraphCache &Cache,
-               llvm::Module &M,
-               const model::Binary &Model,
-               detail::Container &DecompiledFunctions,
-               bool GeneratePlainC);
+using TypeDefinitionSet = std::set<const model::TypeDefinition *>;
+using InlineableTypesMap = std::unordered_map<const model::Function *,
+                                              TypeDefinitionSet>;
+
+std::string decompile(ControlFlowGraphCache &Cache,
+                      llvm::Function &F,
+                      const model::Binary &Model,
+                      const InlineableTypesMap &StackTypes,
+                      bool GeneratePlainC);

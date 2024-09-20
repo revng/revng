@@ -96,9 +96,6 @@ using tokenDefinition::types::StringToken;
 using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
-using TypeDefinitionSet = std::set<const model::TypeDefinition *>;
-using InlineableTypesMap = std::unordered_map<const model::Function *,
-                                              TypeDefinitionSet>;
 
 static constexpr const char *StackFrameVarName = "_stack";
 
@@ -2037,75 +2034,44 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
   return computeVarDeclMap(GHAST, PendingVariables);
 }
 
-using Container = revng::pipes::DecompileStringMap;
-void decompile(ControlFlowGraphCache &Cache,
-               llvm::Module &Module,
-               const model::Binary &Model,
-               Container &DecompiledFunctions,
-               bool GeneratePlainC) {
+std::string decompile(ControlFlowGraphCache &Cache,
+                      llvm::Function &F,
+                      const model::Binary &Model,
+                      const InlineableTypesMap &StackTypes,
+                      bool GeneratePlainC) {
+  using namespace llvm;
+  Task T2(3, Twine("decompile Function: ") + Twine(F.getName()));
 
-  // Get all Stack types and all the inlinable types reachable from it,
-  // since we want to emit forward declarations for all of them.
-  // TODO: we have temporarily disabled stack-types inlining due to the fact
-  // that type inlining is broken on rare cases involving recursive types (do to
-  // the fact that it uses a different logic than ModelToHeader).
-  // For this reason this is always the empty set for now. When type inlining
-  // will be fixed this can be re-enabled.
-  const InlineableTypesMap StackTypes = {};
-  // const auto StackTypes =
-  // TypeInlineHelper(Model).findTypesToInlineInStacks();
+  // TODO: this will eventually become a GHASTContainer for revng pipeline
+  ASTTree GHAST;
 
-  auto
-    T = llvm::make_task_on_set(llvm::make_address_range(FunctionTags::Isolated
-                                                          .functions(&Module)),
-                               "decompile");
-
-  for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
-    T.advance(&F,
-              llvm::Twine("decompile Function: ") + llvm::Twine(F.getName()));
-
-    if (F.empty())
-      continue;
-
-    llvm::Task T2(3,
-                  llvm::Twine("decompile Function: ")
-                    + llvm::Twine(F.getName()));
-
-    // TODO: this will eventually become a GHASTContainer for revng pipeline
-    ASTTree GHAST;
-
-    // Generate the GHAST and beautify it.
-    {
-      T2.advance("restructureCFG");
-      restructureCFG(F, GHAST);
-      // TODO: beautification should be optional, but at the moment it's not
-      // truly so (if disabled, things crash). We should strive to make it
-      // optional for real.
-      T2.advance("beautifyAST");
-      beautifyAST(Model, F, GHAST);
-    }
-
-    T2.advance("decompileFunction");
-    if (Log.isEnabled()) {
-      GHAST.dumpASTOnFile(F.getName().str(),
-                          "ast-backend",
-                          "AST-during-c-codegen.dot");
-    }
-
-    // Generated C code for F
-    auto VariablesToDeclare = computeVariableDeclarationScope(F, GHAST);
-    auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
-    std::string CCode = decompileFunction(Cache,
-                                          F,
-                                          GHAST,
-                                          Model,
-                                          VariablesToDeclare,
-                                          NeedsLoopStateVar,
-                                          StackTypes,
-                                          GeneratePlainC);
-
-    // Push the C code into
-    MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");
-    DecompiledFunctions.insert_or_assign(Key, std::move(CCode));
+  // Generate the GHAST and beautify it.
+  {
+    T2.advance("restructureCFG");
+    restructureCFG(F, GHAST);
+    // TODO: beautification should be optional, but at the moment it's not
+    // truly so (if disabled, things crash). We should strive to make it
+    // optional for real.
+    T2.advance("beautifyAST");
+    beautifyAST(Model, F, GHAST);
   }
+
+  T2.advance("decompileFunction");
+  if (Log.isEnabled()) {
+    GHAST.dumpASTOnFile(F.getName().str(),
+                        "ast-backend",
+                        "AST-during-c-codegen.dot");
+  }
+
+  // Generated C code for F
+  auto VariablesToDeclare = computeVariableDeclarationScope(F, GHAST);
+  auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
+  return decompileFunction(Cache,
+                           F,
+                           GHAST,
+                           Model,
+                           VariablesToDeclare,
+                           NeedsLoopStateVar,
+                           StackTypes,
+                           GeneratePlainC);
 }

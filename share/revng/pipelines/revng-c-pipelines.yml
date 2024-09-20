@@ -16,8 +16,6 @@ Containers:
     Type: recompilable-archive
   - Name: module.mlir
     Type: mlir-module
-  - Name: type-targets.yml
-    Type: type-kind-target-container
   - Name: model-type-definitions.tar.gz
     Type: model-type-definitions
 Branches:
@@ -227,10 +225,8 @@ Branches:
     Steps:
       - Name: emit-type-definitions
         Pipes:
-          - Type: populate-type-kind-target-container
-            UsedContainers: [input, type-targets.yml]
           - Type: generate-model-type-definition
-            UsedContainers: [type-targets.yml, model-type-definitions.tar.gz]
+            UsedContainers: [input, model-type-definitions.tar.gz]
         Artifacts:
           Container: model-type-definitions.tar.gz
           Kind: model-type-definition

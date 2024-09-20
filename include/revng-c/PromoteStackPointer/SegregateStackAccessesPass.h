@@ -20,13 +20,3 @@
 ///
 /// After this pass, all stack accesses have positive offsets and
 /// `_init_local_sp` is dropped entirely.
-struct SegregateStackAccessesPass : public llvm::ModulePass {
-public:
-  static char ID;
-
-  SegregateStackAccessesPass() : llvm::ModulePass(ID) {}
-
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-
-  bool runOnModule(llvm::Module &M) override;
-};

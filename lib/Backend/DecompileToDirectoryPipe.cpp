@@ -16,6 +16,7 @@
 #include "revng-c/HeadersGeneration/HelpersToHeader.h"
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 #include "revng-c/Support/PTMLC.h"
+#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
 
 namespace revng::pipes {
 
@@ -23,7 +24,7 @@ using namespace pipeline;
 
 static RegisterDefaultConstructibleContainer<RecompilableArchiveContainer> Reg;
 
-void DecompileToDirectory::run(const pipeline::ExecutionContext &Ctx,
+void DecompileToDirectory::run(pipeline::ExecutionContext &Ctx,
                                pipeline::LLVMContainer &IRContainer,
                                const revng::pipes::CFGMap &CFGMap,
                                RecompilableArchiveContainer &OutTarFile) {
@@ -45,12 +46,28 @@ void DecompileToDirectory::run(const pipeline::ExecutionContext &Ctx,
 
     llvm::raw_string_ostream Out{ DecompiledC };
 
+    // Get all Stack types and all the inlinable types reachable from it,
+    // since we want to emit forward declarations for all of them.
+
+    // TODO: use TypeInlineHelper(Model).findTypesToInlineInStacks().
+    //       We have temporarily disabled stack-types inlining due to the fact
+    //       that type inlining is broken on rare cases involving recursive
+    //       types (do to the fact that it uses a different logic than
+    //       ModelToHeader). For this reason this is always the empty set for
+    //       now. When type inlining will be fixed this can be re-enabled.
+    // TODO: once we re-enable this, we need to do disable model tracking and
+    //       manually implement invalidation tracking in the appropriate pipes.
+    const TypeInlineHelper::StackTypesMap StackTypes;
+
     DecompileStringMap DecompiledFunctions("tmp");
-    decompile(Cache,
-              Module,
-              Model,
-              DecompiledFunctions,
-              /* GeneratePlainC = */ true);
+    for (pipeline::Target &Target : CFGMap.enumerate()) {
+      auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
+      llvm::Function *F = Module.getFunction(getLLVMFunctionName(Model
+                                                                   .Functions()
+                                                                   .at(Entry)));
+      std::string CCode = decompile(Cache, *F, Model, StackTypes, false);
+      DecompiledFunctions.insert_or_assign(Entry, std::move(CCode));
+    }
 
     ptml::PTMLCBuilder B{ /* GeneratePlainC = */ true };
     printSingleCFile(Out, B, DecompiledFunctions, {} /* Targets */);
@@ -121,6 +138,8 @@ void DecompileToDirectory::run(const pipeline::ExecutionContext &Ctx,
   }
 
   TarWriter.close();
+
+  Ctx.commitUniqueTarget(OutTarFile);
 }
 
 } // end namespace revng::pipes

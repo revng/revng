@@ -49,7 +49,7 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            pipeline::LLVMContainer &IRContainer,
            const revng::pipes::CFGMap &CFGMap,
            DecompileStringMap &DecompiledFunctionsContainer);

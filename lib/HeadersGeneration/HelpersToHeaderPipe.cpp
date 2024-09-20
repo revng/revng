@@ -15,13 +15,10 @@ namespace revng::pipes {
 using namespace pipeline;
 static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer> Reg;
 
-void HelpersToHeader::run(const pipeline::ExecutionContext &Ctx,
+void HelpersToHeader::run(pipeline::ExecutionContext &Ctx,
                           pipeline::LLVMContainer &IRContainer,
                           HelpersHeaderFileContainer &HeaderFile) {
-
-  auto Enumeration = IRContainer.enumerate();
-  auto Targets = kinds::StackAccessesSegregated.allTargets(Ctx.getContext());
-  if (not Enumeration.contains(Targets))
+  if (Ctx.getRequestedTargetsFor(HeaderFile).empty())
     return;
 
   std::error_code EC;
@@ -37,6 +34,8 @@ void HelpersToHeader::run(const pipeline::ExecutionContext &Ctx,
   EC = Header.error();
   if (EC)
     revng_abort(EC.message().c_str());
+
+  Ctx.commitUniqueTarget(HeaderFile);
 }
 
 void HelpersToHeader::print(const pipeline::Context &Ctx,

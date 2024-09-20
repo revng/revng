@@ -42,15 +42,16 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(ModelTypeDefinition,
+    return { ContractGroup({ Contract(kinds::Binary,
                                       0,
                                       ModelTypeDefinition,
                                       1,
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
-           TypeTargetList &TargetList,
+  // Note: SourceBinary is not really needed, just a workaround.
+  void run(pipeline::ExecutionContext &Ctx,
+           const BinaryFileContainer &SourceBinary,
            ModelTypeDefinitionStringMap &ModelTypesContainer);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {

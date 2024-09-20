@@ -3,6 +3,8 @@
 //
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/FunctionInterfaces.h"
 
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
@@ -74,38 +76,37 @@ using MLIRControlFlowGraphCache = BasicControlFlowGraphCache<MetadataTraits>;
 
 static void importReachableModelTypes(const model::Binary &Model,
                                       const revng::pipes::CFGMap &CFGMap,
-                                      mlir::ModuleOp Module) {
+                                      mlir::ModuleOp Module,
+                                      mlir::FunctionOpInterface F) {
   llvm::DenseSet<const model::TypeDefinition *> ImportedTypes;
 
   MLIRControlFlowGraphCache Cache(CFGMap);
 
-  // Walk all module functions, inserting their prototypes and the prototypes of
-  // their callees into the set of imported types.
-  Module->walk([&](mlir::FunctionOpInterface F) {
-    const MetaAddress MA = getMetaAddress(F);
-    if (MA.isInvalid())
-      return;
+  // Walk the requested function, inserting their prototypes and the prototypes
+  // of their callees into the set of imported types.
+  const MetaAddress MA = getMetaAddress(F);
+  if (MA.isInvalid())
+    return;
 
-    const auto &ModelFunctions = Model.Functions();
-    const auto It = ModelFunctions.find(MA);
-    revng_assert(It != ModelFunctions.end());
-    const model::Function &ModelFunction = *It;
-    revng_assert(ModelFunction.prototype() != nullptr);
+  const auto &ModelFunctions = Model.Functions();
+  const auto It = ModelFunctions.find(MA);
+  revng_assert(It != ModelFunctions.end());
+  const model::Function &ModelFunction = *It;
+  revng_assert(ModelFunction.prototype() != nullptr);
 
-    // Insert the prototype of this function.
-    ImportedTypes.insert(ModelFunction.prototype());
+  // Insert the prototype of this function.
+  ImportedTypes.insert(ModelFunction.prototype());
 
-    if (F.isExternal())
-      return;
+  if (F.isExternal())
+    return;
 
-    F->walk([&](LLVMCallOp Call) {
-      const auto *CalleePrototype = Cache.getCallSitePrototype(Model,
-                                                               Call,
-                                                               &ModelFunction);
+  F->walk([&](LLVMCallOp Call) {
+    const auto *CalleePrototype = Cache.getCallSitePrototype(Model,
+                                                             Call,
+                                                             &ModelFunction);
 
-      if (CalleePrototype != nullptr)
-        ImportedTypes.insert(CalleePrototype);
-    });
+    if (CalleePrototype != nullptr)
+      ImportedTypes.insert(CalleePrototype);
   });
 
   if (ImportedTypes.empty())
@@ -155,12 +156,28 @@ public:
     return llvm::Error::success();
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            const revng::pipes::CFGMap &CFGMap,
            revng::pipes::MLIRContainer &MLIRContainer) {
-    importReachableModelTypes(*revng::getModelFromContext(Ctx),
-                              CFGMap,
-                              MLIRContainer.getModule());
+    mlir::ModuleOp Module = MLIRContainer.getModule();
+    std::map<MetaAddress, mlir::FunctionOpInterface> FunctionMap;
+    Module->walk([&](mlir::FunctionOpInterface F) {
+      const MetaAddress MA = getMetaAddress(F);
+      if (MA.isInvalid())
+        return;
+
+      FunctionMap[MA] = F;
+    });
+
+    const model::Binary &Model = *revng::getModelFromContext(EC);
+    for (const model::Function &Function :
+         revng::getFunctionsAndCommit(EC, MLIRContainer.name())) {
+
+      importReachableModelTypes(Model,
+                                CFGMap,
+                                Module,
+                                FunctionMap.at(Function.Entry()));
+    }
   }
 };
 
@@ -207,11 +224,13 @@ public:
     return llvm::Error::success();
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            const revng::pipes::CFGMap &CFGMap,
            revng::pipes::MLIRContainer &MLIRContainer) {
     importAllModelTypes(*revng::getModelFromContext(Ctx),
                         MLIRContainer.getModule());
+
+    EC.commitAllFor(MLIRContainer);
   }
 };
 

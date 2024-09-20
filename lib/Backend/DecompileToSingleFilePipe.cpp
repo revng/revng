@@ -19,7 +19,7 @@ static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
   Reg;
 
 using Container = DecompileStringMap;
-void DecompileToSingleFile::run(const pipeline::ExecutionContext &Ctx,
+void DecompileToSingleFile::run(pipeline::ExecutionContext &Ctx,
                                 const Container &DecompiledFunctions,
                                 DecompiledFileContainer &OutCFile) {
 
@@ -31,6 +31,8 @@ void DecompileToSingleFile::run(const pipeline::ExecutionContext &Ctx,
   // functions in DecompiledFunctions
   printSingleCFile(Out, B, DecompiledFunctions, {} /* Targets */);
   Out.flush();
+
+  Ctx.commitUniqueTarget(OutCFile);
 }
 
 void DecompileToSingleFile::print(const pipeline::Context &Ctx,
