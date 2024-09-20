@@ -53,10 +53,6 @@ public:
   void registerPasses(llvm::legacy::PassManager &Manager) {
     Manager.add(new LoadModelWrapperPass(Wrapper));
   }
-
-  // there is no need to print anything because the LoadModelPipePass is
-  // implicitly added by revng opt.
-  void print(llvm::raw_ostream &OS) const { OS << ""; }
 };
 
 static Context setUpContext(LLVMContext &Context) {
