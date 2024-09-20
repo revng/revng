@@ -80,7 +80,7 @@ inline std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
 class OpaqueIdentity {
 private:
   std::map<Type *, Function *> Map;
-  Module *M;
+  Module *M = nullptr;
 
 public:
   OpaqueIdentity(Module *M) : M(M) {}
@@ -262,7 +262,7 @@ static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
     return;
 
   BasicBlock *Body = replaceFunction(ToReplace);
-  Value *ResultValue;
+  Value *ResultValue = nullptr;
 
   if (ToReplace->getReturnType()->isVoidTy()) {
     revng_assert(Result == 0);
@@ -406,7 +406,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
 private:
-  VariableManager *VM;
+  VariableManager *VM = nullptr;
 };
 
 char CpuLoopExitPass::ID = 0;

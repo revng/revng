@@ -45,7 +45,7 @@ class Target {
 private:
   using PathComponents = std::vector<std::string>;
   PathComponents Components;
-  const Kind *K;
+  const Kind *K = nullptr;
 
 public:
   Target(PathComponents Components, const Kind &K) :

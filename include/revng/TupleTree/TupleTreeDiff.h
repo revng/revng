@@ -65,7 +65,7 @@ concept TupleTreeRootLike = StrictSpecializationOf<AllowedTupleTreeTypes<T>,
 namespace detail {
 template<TupleTreeRootLike Model>
 struct CheckTypeIsCorrect {
-  const AllowedTupleTreeTypes<Model> *Alternatives;
+  const AllowedTupleTreeTypes<Model> *Alternatives = nullptr;
   bool IsCorrect = false;
 
   template<typename T, int I>
@@ -213,7 +213,7 @@ namespace detail {
 template<TupleTreeRootLike Model>
 struct MapDiffVisitor {
   llvm::yaml::IO *Io;
-  AllowedTupleTreeTypes<Model> *Change;
+  AllowedTupleTreeTypes<Model> *Change = nullptr;
   const char *MappingName;
 
   template<typename T, int I>
@@ -422,7 +422,7 @@ template<TupleTreeRootLike T>
 struct ApplyDiffVisitor {
 public:
   using Change = typename TupleTreeDiff<T>::Change;
-  const Change *C;
+  const Change *C = nullptr;
   size_t ChangeIndex;
   revng::DiffError *EL;
 

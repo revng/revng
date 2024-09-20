@@ -45,7 +45,7 @@ public:
 private:
   struct ArtifactsInfo {
     std::string Container;
-    const Kind *Kind;
+    const Kind *Kind = nullptr;
     std::string SingleTargetFilename;
 
     ArtifactsInfo() : Container(), Kind(nullptr), SingleTargetFilename() {}
@@ -66,10 +66,10 @@ private:
   std::string Component;
   ContainerSet Containers;
   std::vector<PipeWrapper> Pipes;
-  Step *PreviousStep;
+  Step *PreviousStep = nullptr;
   ArtifactsInfo Artifacts;
   AnalysisMapType AnalysisMap;
-  Context *TheContext;
+  Context *TheContext = nullptr;
 
 public:
   template<typename... PipeWrapperTypes>

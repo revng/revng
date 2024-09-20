@@ -52,7 +52,7 @@ locationsToRanks(std::tuple<const T &...> Locations) {
 class Kind : public DynamicHierarchy<Kind> {
 private:
   RegisterKind Register;
-  const Rank *TheRank;
+  const Rank *TheRank = nullptr;
   std::vector<const Rank *> DefinedLocations;
   std::vector<const Kind *> PreferredKinds;
 

@@ -103,8 +103,8 @@ public:
   static char ID;
 
 private:
-  JumpTargetManager *JTM;
-  ProgramCounterHandler *PCH;
+  JumpTargetManager *JTM = nullptr;
+  ProgramCounterHandler *PCH = nullptr;
 };
 
 namespace CFGForm {
@@ -609,7 +609,7 @@ private:
   std::set<MetaAddress> SimpleLiterals;
   CSAAFactory CreateCSAA;
 
-  ProgramCounterHandler *PCH;
+  ProgramCounterHandler *PCH = nullptr;
 
   MetaAddressSet ValueMaterializerPCWhiteList;
   const TupleTree<model::Binary> &Model;

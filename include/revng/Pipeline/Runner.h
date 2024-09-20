@@ -35,7 +35,7 @@ private:
   using Vector = std::vector<Step *>;
 
 private:
-  Context *TheContext;
+  Context *TheContext = nullptr;
   ContainerFactorySet ContainerFactoriesRegistry;
   bool IsContainerFactoriesRegistryFinalized = false;
 

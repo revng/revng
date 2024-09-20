@@ -20,7 +20,7 @@ namespace revng::kinds {
 /// with that tag.
 class TaggedFunctionKind : public pipeline::LLVMKind {
 private:
-  const FunctionTags::Tag *Tag;
+  const FunctionTags::Tag *Tag = nullptr;
 
   // It is on the heap to avoid Initialization Order Fiasco
   std::unique_ptr<llvm::SmallVector<TaggedFunctionKind *>> Children = nullptr;

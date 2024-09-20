@@ -39,7 +39,7 @@ public:
 class Graph {
 private:
   std::deque<Node> Nodes;
-  Node *Root;
+  Node *Root = nullptr;
 
 public:
   Graph() : Nodes(), Root(newNode()) {}

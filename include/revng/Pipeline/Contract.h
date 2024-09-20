@@ -72,8 +72,8 @@ public:
   static constexpr auto Erase = InputPreservation::Erase;
 
 private:
-  const Kind *Source;
-  const Kind *TargetKind;
+  const Kind *Source = nullptr;
+  const Kind *TargetKind = nullptr;
   size_t PipeArgumentSourceIndex;
   size_t PipeArgumentTargetIndex;
   InputPreservation::Values Preservation;

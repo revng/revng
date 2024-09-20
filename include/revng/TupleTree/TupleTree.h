@@ -33,7 +33,7 @@
 
 template<typename T>
 struct DisableTracking {
-  const T *TrackedObject;
+  const T *TrackedObject = nullptr;
 
 public:
   DisableTracking(const T &TrackedObject) : TrackedObject(&TrackedObject) {

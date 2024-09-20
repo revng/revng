@@ -89,7 +89,7 @@ private:
 private:
   friend class boost::iterator_core_access;
 
-  LSBV *BitVector;
+  LSBV *BitVector = nullptr;
   unsigned NextBitIndex;
 };
 

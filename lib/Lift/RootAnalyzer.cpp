@@ -184,7 +184,7 @@ public:
   struct TrackedValue {
     MetaAddress Address;
     TrackedValueType Type;
-    Instruction *I;
+    Instruction *I = nullptr;
   };
 
 private:
