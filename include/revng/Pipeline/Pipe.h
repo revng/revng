@@ -306,95 +306,93 @@ public:
 
 } // namespace detail
 
+class InvalidationMetadata {
+private:
+  llvm::StringMap<PathTargetBimap> PathCache;
+
+public:
+  void registerTargetsDependingOn(const Context &Context,
+                                  llvm::StringRef GlobalName,
+                                  const TupleTreePath &Path,
+                                  ContainerToTargetsMap &Out,
+                                  Logger<> &Log) const {
+    if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
+
+      auto &Bimap = Iter->second;
+      auto It = Bimap.find(Path);
+      if (It == Bimap.end())
+        return;
+
+      if (Log.isEnabled()) {
+        Log << "Registering: ";
+        for (const auto &Entry : It->second) {
+          Log << Entry.getTarget().toString() << " in "
+              << Entry.getContainerName() << "\n";
+        }
+        Log << DoLog;
+      }
+
+      for (const auto &Entry : It->second)
+        Out.add(Entry.getContainerName(), Entry.getTarget());
+    }
+  }
+
+  void remove(const ContainerToTargetsMap &Map) {
+    for (auto &Pair : Map) {
+      auto Iter = PathCache.find(Pair.first());
+      if (Iter == PathCache.end())
+        continue;
+
+      Iter->second.remove(Pair.second, Pair.first());
+    }
+  }
+
+  bool contains(llvm::StringRef GlobalName,
+                const TargetInContainer &Target) const {
+    if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end())
+      return Iter->second.contains(Target);
+    return false;
+  }
+
+  const llvm::StringMap<PathTargetBimap> &getPathCache() const {
+    return PathCache;
+  }
+
+  llvm::StringMap<PathTargetBimap> &getPathCache() { return PathCache; }
+
+  const PathTargetBimap &getPathCache(llvm::StringRef GlobalName) const {
+    revng_assert(PathCache.find(GlobalName) != PathCache.end());
+    return PathCache.find(GlobalName)->second;
+  }
+
+  PathTargetBimap &getPathCache(llvm::StringRef GlobalName) {
+    return PathCache[GlobalName];
+  }
+
+  void dump(const pipeline::Context &Context, unsigned Indentation = 0) const {
+    for (const auto &[GlobalName, InvalidationData] : PathCache) {
+      indent(dbg, Indentation);
+      dbg << "Global " << GlobalName.str() << ":\n";
+
+      for (const auto &[Path, Targets] : PathCache.find(GlobalName)->second) {
+        indent(dbg, Indentation + 1);
+
+        dbg << llvm::cantFail(Context.getGlobals().get(GlobalName))
+                 ->serializePath(Path)
+                 .value_or("(unavailable)")
+            << ":\n";
+
+        for (const TargetInContainer &Target : Targets) {
+          Target.dump(dbg, Indentation + 2);
+        }
+      }
+    }
+  }
+};
+
 // Due to invokable wrapper not being controllable by this file we need to have
 // a extra wrapper that carries along the invalidation metadata too.
 struct PipeWrapper {
-
-  class InvalidationMetadata {
-  private:
-    llvm::StringMap<PathTargetBimap> PathCache;
-
-  public:
-    void registerTargetsDependingOn(const Context &Context,
-                                    llvm::StringRef GlobalName,
-                                    const TupleTreePath &Path,
-                                    ContainerToTargetsMap &Out,
-                                    Logger<> &Log) const {
-      if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
-
-        auto &Bimap = Iter->second;
-        auto It = Bimap.find(Path);
-        if (It == Bimap.end())
-          return;
-
-        if (Log.isEnabled()) {
-          Log << "Registering: ";
-          for (const auto &Entry : It->second) {
-            Log << Entry.getTarget().toString() << " in "
-                << Entry.getContainerName() << "\n";
-          }
-          Log << DoLog;
-        }
-
-        for (const auto &Entry : It->second)
-          Out.add(Entry.getContainerName(), Entry.getTarget());
-      }
-    }
-
-    void remove(const ContainerToTargetsMap &Map) {
-      for (auto &Pair : Map) {
-        auto Iter = PathCache.find(Pair.first());
-        if (Iter == PathCache.end())
-          continue;
-
-        Iter->second.remove(Pair.second, Pair.first());
-      }
-    }
-
-    bool contains(llvm::StringRef GlobalName,
-                  const TargetInContainer &Target) const {
-      if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end())
-        return Iter->second.contains(Target);
-      return false;
-    }
-
-    const llvm::StringMap<PathTargetBimap> &getPathCache() const {
-      return PathCache;
-    }
-
-    llvm::StringMap<PathTargetBimap> &getPathCache() { return PathCache; }
-
-    const PathTargetBimap &getPathCache(llvm::StringRef GlobalName) const {
-      revng_assert(PathCache.find(GlobalName) != PathCache.end());
-      return PathCache.find(GlobalName)->second;
-    }
-
-    PathTargetBimap &getPathCache(llvm::StringRef GlobalName) {
-      return PathCache[GlobalName];
-    }
-
-    void dump(const pipeline::Context &Context,
-              unsigned Indentation = 0) const {
-      for (const auto &[GlobalName, InvalidationData] : PathCache) {
-        indent(dbg, Indentation);
-        dbg << "Global " << GlobalName.str() << ":\n";
-
-        for (const auto &[Path, Targets] : PathCache.find(GlobalName)->second) {
-          indent(dbg, Indentation + 1);
-
-          dbg << llvm::cantFail(Context.getGlobals().get(GlobalName))
-                   ->serializePath(Path)
-                   .value_or("(unavailable)")
-              << ":\n";
-
-          for (const TargetInContainer &Target : Targets) {
-            Target.dump(dbg, Indentation + 2);
-          }
-        }
-      }
-    }
-  };
-
 public:
   using WrapperType = InvokableWrapper<detail::PipeWrapperBase>;
   WrapperType Pipe;
