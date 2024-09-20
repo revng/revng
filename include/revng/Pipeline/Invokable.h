@@ -443,6 +443,11 @@ public:
   virtual std::vector<std::string> getOptionsTypes() const = 0;
 };
 
+template<typename T>
+concept HasGetName = requires(const T &V) {
+  { V.getName() };
+};
+
 /// A pipe must be type erased somehow to become compatible with a pipeline,
 /// a PipeWrapperImpl takes care of this issue, it can be constructed from
 /// any pipeline type, and it will expose the contract and run method of that
@@ -467,7 +472,12 @@ public:
   ~InvokableWrapperImpl() override = default;
 
 public:
-  std::string getName() const override { return InvokableType::Name; }
+  std::string getName() const override {
+    if constexpr (HasGetName<InvokableType>)
+      return ActualPipe.getName();
+    else
+      return InvokableType::Name;
+  }
 
 public:
   llvm::Error run(ExecutionContext &Ctx,
