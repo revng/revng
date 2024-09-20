@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -19,9 +21,11 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Pipeline/Container.h"
+#include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/ExecutionContext.h"
+#include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/Invokable.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
@@ -311,6 +315,27 @@ struct PipeWrapper {
 
     PathTargetBimap &getPathCache(llvm::StringRef GlobalName) {
       return PathCache[GlobalName];
+    }
+
+    void dump(const pipeline::Context &Context,
+              unsigned Indentation = 0) const {
+      for (const auto &[GlobalName, InvalidationData] : PathCache) {
+        indent(dbg, Indentation);
+        dbg << "Global " << GlobalName.str() << ":\n";
+
+        for (const auto &[Path, Targets] : PathCache.find(GlobalName)->second) {
+          indent(dbg, Indentation + 1);
+
+          dbg << llvm::cantFail(Context.getGlobals().get(GlobalName))
+                   ->serializePath(Path)
+                   .value_or("(unavailable)")
+              << ":\n";
+
+          for (const TargetInContainer &Target : Targets) {
+            Target.dump(dbg, Indentation + 2);
+          }
+        }
+      }
     }
   };
 

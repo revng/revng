@@ -308,12 +308,14 @@ public:
     OS << "Step " << Name << ":\n";
 
     indent(OS, Indentation + 1);
-    OS << "Pipes: \n";
-    for (const PipeWrapper &Pipe : Pipes)
-      Pipe.Pipe.dump(OS, Indentation + 2);
+    OS << "Pipes:\n";
+    for (const PipeWrapper &Pipe : Pipes) {
+      Pipe.Pipe.dump(OS, Indentation + 1);
+      Pipe.InvalidationMetadata.dump(*Ctx, Indentation + 2);
+    }
 
     indent(OS, Indentation + 1);
-    OS << " containers: \n";
+    OS << "Containers:\n";
     Containers.dump(OS, Indentation + 2);
   }
 
