@@ -96,16 +96,6 @@ private:
   std::vector<std::unique_ptr<TemporaryFile>> Temporaries;
 
 public:
-  void print(llvm::raw_ostream &OS) const {
-    for (const Command &C : Commands) {
-      OS << shellEscape(C.CommandName);
-      for (const std::string &Argument : C.Arguments) {
-        OS << " " << shellEscape(Argument);
-      }
-      OS << "\n";
-    }
-  }
-
   void run() const {
     for (const Command &C : Commands) {
       auto ExitCode = ::Runner.run(C.CommandName, C.Arguments);
@@ -323,16 +313,4 @@ void linkForTranslation(const model::Binary &Model,
                                      ObjectFile,
                                      OutputBinary);
   Commands.run();
-}
-
-void printLinkForTranslationCommands(llvm::raw_ostream &OS,
-                                     const model::Binary &Model,
-                                     llvm::StringRef InputBinary,
-                                     llvm::StringRef ObjectFile,
-                                     llvm::StringRef OutputBinary) {
-  CommandList Commands = linkingArgs(Model,
-                                     InputBinary,
-                                     ObjectFile,
-                                     OutputBinary);
-  Commands.print(OS);
 }
