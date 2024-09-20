@@ -15,7 +15,6 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/Undirected.h"
 
 /// GenericGraph is our implementation of a universal graph architecture.
 /// First and foremost, it's tailored for the revng codebase, but maybe you
@@ -997,46 +996,6 @@ public:
     return llvm::make_range(predecessors_begin(), predecessors_end());
   }
 
-public:
-  // TODO: The following methods could, in principle, be implemented using just
-  //       the `GraphTraits`, and become available for any implementer of
-  //       `GraphTraits` and not just for `GenericGraph`
-  auto undirected_children() {
-    using ResultIterator = UndirectedChildIterator<SuccessorIterator,
-                                                   PredecessorIterator,
-                                                   EdgeView>;
-    return llvm::make_range(ResultIterator::begin(successors(), predecessors()),
-                            ResultIterator::end(successors(), predecessors()));
-  }
-
-  auto undirected_children() const {
-    using ResultIterator = UndirectedChildIterator<ConstSuccessorIterator,
-                                                   ConstPredecessorIterator,
-                                                   EdgeView>;
-    return llvm::make_range(ResultIterator::begin(successors(), predecessors()),
-                            ResultIterator::end(successors(), predecessors()));
-  }
-
-  auto undirected_child_edges() {
-    using ResultIterator = UndirectedChildIterator<SuccessorEdgeIterator,
-                                                   PredecessorEdgeIterator,
-                                                   EdgeView>;
-    return llvm::make_range(ResultIterator::begin(successor_edges(),
-                                                  predecessor_edges()),
-                            ResultIterator::end(successor_edges(),
-                                                predecessor_edges()));
-  }
-
-  auto undirected_child_edges() const {
-    using ResultIterator = UndirectedChildIterator<ConstSuccessorEdgeIterator,
-                                                   ConstPredecessorEdgeIterator,
-                                                   EdgeView>;
-    return llvm::make_range(ResultIterator::begin(successor_edges(),
-                                                  predecessor_edges()),
-                            ResultIterator::end(successor_edges(),
-                                                predecessor_edges()));
-  }
-
 private:
   template<typename IteratorType>
   static auto findImpl(DerivedType const *N,
@@ -1618,41 +1577,6 @@ public:
 
   static T *edge_dest(EdgeRef Edge) { return &Edge.Neighbor; }
   static T *getEntryNode(llvm::Inverse<T *> N) { return N.Graph; };
-};
-
-/// Specializes GraphTraits<llvm::Undirected<MutableEdgeNode<...> *>>
-template<StrictSpecializationOfMutableEdgeNode T>
-struct GraphTraits<llvm::Undirected<T *>> {
-public:
-  using NodeRef = T *;
-  using EdgeRef = typename T::EdgeView;
-
-public:
-  static auto child_begin(NodeRef N) {
-    return N->undirected_children().begin();
-  }
-
-  static auto child_end(NodeRef N) { return N->undirected_children().end(); }
-
-  static auto child_edge_begin(NodeRef N) {
-    return N->undirected_child_edges().begin();
-  }
-
-  static auto child_edge_end(NodeRef N) {
-    return N->undirected_child_edges().end();
-  }
-
-  static NodeRef edge_dest(EdgeRef Edge) { return Edge.Neighbor; }
-
-  static NodeRef getEntryNode(llvm::Undirected<NodeRef> N) { return N.Graph; }
-
-public:
-  // We infer the `ChildIteratorType` directly from the `child_begin` method
-  using ChildIteratorType = decltype(child_begin(NodeRef{ nullptr }));
-
-  // We infer the `ChildEdgeIteratorType` directly from the `child_edge_begin`
-  // method
-  using ChildEdgeIteratorType = decltype(child_edge_begin(NodeRef{ nullptr }));
 };
 
 /// Specializes GraphTraits<GenericGraph<...> *>>
