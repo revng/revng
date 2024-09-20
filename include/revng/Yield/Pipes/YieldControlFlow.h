@@ -63,10 +63,6 @@ public:
   void run(pipeline::ExecutionContext &Context,
            const FunctionAssemblyStringMap &Input,
            FunctionControlFlowStringMap &Output);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes

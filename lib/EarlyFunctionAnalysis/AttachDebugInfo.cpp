@@ -236,10 +236,6 @@ struct AttachDebugInfoToIsolatedPipe {
     Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
     Manager.run(ModuleContainer.getModule());
   }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 static pipeline::RegisterPipe<AttachDebugInfoToIsolatedPipe> Y1;
@@ -272,10 +268,6 @@ struct AttachDebugInfoToABIEnforcedPipe {
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
     Manager.run(ModuleContainer.getModule());
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
   }
 };
 

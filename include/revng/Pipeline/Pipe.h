@@ -34,6 +34,12 @@ inline Logger<> InvalidationLog("invalidation");
 
 namespace pipeline {
 
+template<typename T>
+concept HasCheckPrecondition = requires(T &V,
+                                        const pipeline::Context &Context) {
+  { V.checkPrecondition(Context) };
+};
+
 /// Represents the requested (not expected, which means that it contains only
 /// the targets the user care about, not all those that will be generated as a
 /// side effect) input and output of a given invocation of a pipe.
@@ -258,7 +264,11 @@ public:
   }
 
   llvm::Error checkPrecondition(const Context &Context) const override {
-    return Invokable.getPipe().checkPrecondition(Context);
+    if constexpr (HasCheckPrecondition<PipeType>) {
+      return Invokable.getPipe().checkPrecondition(Context);
+    } else {
+      return llvm::Error::success();
+    }
   }
 
   size_t getContainerArgumentsCount() const override {

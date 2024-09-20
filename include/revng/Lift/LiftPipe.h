@@ -18,6 +18,7 @@
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMKind.h"
+#include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
@@ -49,5 +50,7 @@ public:
 
   llvm::Error checkPrecondition(const pipeline::Context &Context) const;
 };
+
+static_assert(pipeline::HasCheckPrecondition<Lift>);
 
 } // namespace revng::pipes

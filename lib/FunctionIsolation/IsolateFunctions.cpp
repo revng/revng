@@ -101,10 +101,6 @@ struct IsolatePipe {
     Manager.add(new IsolateFunctions());
     Manager.run(ModuleContainer.getModule());
   }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
-    return llvm::Error::success();
-  }
 };
 
 static pipeline::RegisterPipe<IsolatePipe> Y;
