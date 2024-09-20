@@ -28,6 +28,9 @@ namespace revng::pipes {
 void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
                            const CFGMap &CFGMap,
                            CrossRelationsFileContainer &OutputFile) {
+  if (Context.getRequestedTargetsFor(OutputFile).empty())
+    return;
+
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
@@ -42,6 +45,8 @@ void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
     return;
 
   OutputFile.emplace(Metadata, *Model);
+
+  Context.commitUniqueTarget(OutputFile);
 }
 
 void YieldCallGraph::run(pipeline::ExecutionContext &Context,
@@ -56,6 +61,8 @@ void YieldCallGraph::run(pipeline::ExecutionContext &Context,
 
   // Print the result.
   Output.setContent(std::move(Result));
+
+  Context.commitUniqueTarget(Output);
 }
 
 void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
@@ -69,15 +76,15 @@ void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
   PTMLBuilder B;
 
   ControlFlowGraphCache Cache(CFGMap);
-  for (const auto &[Key, _] : CFGMap) {
-    MetaAddress Address = std::get<0>(Key);
-    auto &Metadata = Cache.getControlFlowGraph(Address);
-    revng_assert(llvm::is_contained(Model->Functions(), Metadata.Entry()));
+
+  for (const model::Function &Function :
+       getFunctionsAndCommit(Context, Output.name())) {
+    auto &Metadata = Cache.getControlFlowGraph(Function.Entry());
 
     // Slice the graph for the current function and convert it to SVG
     auto SlicePoint = pipeline::serializedLocation(revng::ranks::Function,
                                                    Metadata.Entry());
-    Output.insert_or_assign(Address,
+    Output.insert_or_assign(Function.Entry(),
                             yield::svg::callGraphSlice(B,
                                                        SlicePoint,
                                                        *Relations.get(),

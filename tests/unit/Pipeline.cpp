@@ -30,6 +30,7 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Errors.h"
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/Invokable.h"
 #include "revng/Pipeline/Kind.h"
@@ -553,7 +554,7 @@ public:
   }
 
   void
-  run(ExecutionContext &, const MapContainer &Source, MapContainer &Target) {
+  run(ExecutionContext &EC, const MapContainer &Source, MapContainer &Target) {
     for (const auto &Element : Source.getMap()) {
 
       if (&Element.first.getKind() != &RootKind)
@@ -566,6 +567,8 @@ public:
       PathComponents = Element.first.getPathComponents();
       PathComponents.emplace_back("f2");
       Target.get({ std::move(PathComponents), FunctionKind }) = Element.second;
+
+      EC.commitAllFor(Target);
     }
   }
 
@@ -588,10 +591,12 @@ public:
   }
 
   void
-  run(ExecutionContext &, const MapContainer &Source, MapContainer &Target) {
+  run(ExecutionContext &EC, const MapContainer &Source, MapContainer &Target) {
     for (const auto &Element : Source.getMap())
       if (&Element.first.getKind() == &FunctionKind)
         Target.get(Element.first) = Element.second;
+
+    EC.commitAllFor(Target);
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
@@ -690,6 +695,10 @@ struct FunctionInserterPass : public llvm::ModulePass {
   bool runOnModule(llvm::Module &M) override {
     M.getFunction("root")->eraseFromParent();
     makeF(M, "f1");
+
+    auto &LECP = getAnalysis<LoadExecutionContextPass>();
+    LECP.get()->commitAllFor(LECP.getContainerName());
+
     return true;
   }
 };

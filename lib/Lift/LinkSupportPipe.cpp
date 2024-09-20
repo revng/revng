@@ -18,6 +18,7 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/RootKind.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/ResourceFinder.h"
@@ -74,7 +75,7 @@ static std::string getSupportPath(const Context &Ctx) {
   return SupportPath;
 }
 
-void revng::pipes::LinkSupport::run(const ExecutionContext &Ctx,
+void revng::pipes::LinkSupport::run(ExecutionContext &Ctx,
                                     LLVMContainer &TargetsList) {
   if (TargetsList.enumerate().empty())
     return;
@@ -89,6 +90,8 @@ void revng::pipes::LinkSupport::run(const ExecutionContext &Ctx,
 
   auto Failed = llvm::Linker::linkModules(TargetsList.getModule(),
                                           std::move(Module));
+
+  Ctx.commitAllFor(TargetsList);
 
   revng_assert(not Failed);
 }

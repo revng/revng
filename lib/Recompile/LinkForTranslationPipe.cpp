@@ -17,7 +17,7 @@ using namespace llvm::sys;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void LinkForTranslation::run(const ExecutionContext &Ctx,
+void LinkForTranslation::run(ExecutionContext &Ctx,
                              BinaryFileContainer &InputBinary,
                              ObjectFileContainer &ObjectFile,
                              TranslatedFileContainer &OutputBinary) {
@@ -29,6 +29,8 @@ void LinkForTranslation::run(const ExecutionContext &Ctx,
                      *InputBinary.path(),
                      *ObjectFile.path(),
                      OutputBinary.getOrCreatePath());
+
+  Ctx.commitUniqueTarget(OutputBinary);
 }
 
 static RegisterPipe<LinkForTranslation> E5;

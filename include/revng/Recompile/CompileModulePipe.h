@@ -25,10 +25,11 @@ namespace revng::pipes {
 class CompileModule {
 public:
   static constexpr auto Name = "compile";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Root, 0, kinds::Object, 1) };
   }
-  void run(const pipeline::ExecutionContext &,
+  void run(pipeline::ExecutionContext &,
            pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
 
@@ -40,6 +41,7 @@ public:
 class CompileIsolatedModule {
 public:
   static constexpr auto Name = "compile-isolated";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     pipeline::Contract RootPart(kinds::IsolatedRoot,
                                 0,
@@ -50,7 +52,7 @@ public:
     return { pipeline::ContractGroup({ RootPart, IsolatedPart }) };
   }
 
-  void run(const pipeline::ExecutionContext &,
+  void run(pipeline::ExecutionContext &,
            pipeline::LLVMContainer &ModuleContainer,
            ObjectFileContainer &TargetBinary);
 

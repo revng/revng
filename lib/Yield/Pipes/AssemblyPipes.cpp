@@ -14,6 +14,7 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
@@ -45,15 +46,17 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
   DissassemblyHelper Helper;
 
   ControlFlowGraphCache Cache(CFGMap);
-  for (const auto &[Key, _] : CFGMap) {
-    MetaAddress Address = std::get<0>(Key);
-    const auto &Metadata = Cache.getControlFlowGraph(Address);
-    auto ModelFunctionIterator = Model->Functions().find(Address);
-    revng_assert(ModelFunctionIterator != Model->Functions().end());
 
-    const auto &Func = *ModelFunctionIterator;
-    auto Disassembled = Helper.disassemble(Func, Metadata, BinaryView, *Model);
-    Output.insert_or_assign(Func.Entry(), serializeToString(Disassembled));
+  for (const model::Function &Function :
+       getFunctionsAndCommit(Context, Output.name())) {
+
+    const auto &Metadata = Cache.getControlFlowGraph(Function.Entry());
+
+    auto Disassembled = Helper.disassemble(Function,
+                                           Metadata,
+                                           BinaryView,
+                                           *Model);
+    Output.insert_or_assign(Function.Entry(), serializeToString(Disassembled));
   }
 }
 
@@ -64,17 +67,20 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
   const auto &Model = getModelFromContext(Context);
 
   PTMLBuilder B;
-  for (auto [Address, S] : Input) {
-    auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
-    revng_assert(MaybeFunction && MaybeFunction->verify());
-    revng_assert((*MaybeFunction)->Entry() == std::get<0>(Address));
 
-    const model::Function &ModelFunction = Model->Functions()
-                                             .at(std::get<0>(Address));
+  for (const model::Function &Function :
+       getFunctionsAndCommit(Context, Output.name())) {
+    MetaAddress Address = Function.Entry();
+    llvm::StringRef YamlText = Input.at(Address);
+    auto MaybeFunction = TupleTree<yield::Function>::deserialize(YamlText);
+
+    revng_assert(MaybeFunction && MaybeFunction->verify());
+    revng_assert((*MaybeFunction)->Entry() == Address);
+
     const model::Architecture::Values A = Model->Architecture();
     auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
     std::string R = ptml::functionComment(B,
-                                          ModelFunction,
+                                          Function,
                                           *Model,
                                           CommentIndicator,
                                           0,

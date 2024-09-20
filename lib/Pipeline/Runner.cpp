@@ -24,8 +24,6 @@ using namespace std;
 using namespace llvm;
 using namespace pipeline;
 
-static Logger<> Log("invalidation");
-
 class PipelineExecutionEntry {
 public:
   Step *ToExecute;
@@ -464,8 +462,9 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
 
   // Iterate over each step, skipping the begin step
   for (const Step &Step : llvm::drop_begin(*this)) {
-    revng_log(Log, "Computing invalidations in step " << Step.getName());
-    LoggerIndent<> I(Log);
+    revng_log(InvalidationLog,
+              "Computing invalidations in step " << Step.getName());
+    LoggerIndent<> I(InvalidationLog);
 
     ContainerToTargetsMap &StepInvalidations = Map[Step.getName()];
 
@@ -475,47 +474,18 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
     //       we're looking for might no longer be there!
     Step.pipeInvalidate(Diff, StepInvalidations);
 
-    std::set<std::string> Mutablecontainers = Step.mutableContainers();
-
-    for (const auto &Container : Step.containers()) {
-
-      if (not Container.second)
-        continue;
-
-      if (not Mutablecontainers.contains(Container.second->name())) {
-        revng_log(Log,
-                  Container.second->name()
-                    << " is not mutable in step " << Step.getName());
-        continue;
-      }
-
-      revng_log(Log,
-                "Computing invalidations in container " << Container.getKey());
-      LoggerIndent<> II(Log);
-
-      // Look for targets that are not recorded in the invalidation map and mark
-      // them to be deleted
-      const TargetsList &ExistingTargets = Container.second->enumerate();
-      for (const Target &Target : ExistingTargets) {
-
-        TargetInContainer ToFind(Target, Container.first().str());
-        if (Step.invalidationMetadataContains(Diff.getGlobalName(), ToFind))
-          continue;
-
-        revng_log(Log, "Invalidating " << Target.serialize());
-        StepInvalidations[Container.first()].push_back(Target);
-      }
-    }
-
     // Compute the set of things we need to invalidate by looking at all the
     // paths changed by Diff.
     // Also, this will invalidate all the targets depending on them and all the
     // targets depending on stuff that's already in Map.
-    revng_log(Log, Diff.getPaths().size() << " paths have changed");
+    revng_log(InvalidationLog, Diff.getPaths().size() << " paths have changed");
     for (const TupleTreePath *Path : Diff.getPaths()) {
-      revng_log(Log, "Processing " << *Diff.pathAsString(*Path));
-      LoggerIndent<> Indent(Log);
-      Step.registerTargetsDependingOn(Diff.getGlobalName(), *Path, Map, Log);
+      revng_log(InvalidationLog, "Processing " << *Diff.pathAsString(*Path));
+      LoggerIndent<> Indent(InvalidationLog);
+      Step.registerTargetsDependingOn(Diff.getGlobalName(),
+                                      *Path,
+                                      Map,
+                                      InvalidationLog);
     }
   }
 }

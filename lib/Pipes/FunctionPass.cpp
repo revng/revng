@@ -32,8 +32,7 @@ bool pipeline::detail::runOnModule(llvm::Module &Module,
   using Type = revng::kinds::TaggedFunctionKind;
   auto ContainerName = Analysis.getContainerName();
   auto ToIterOn = Type::getFunctionsAndCommit(*Ctx, Module, ContainerName);
-  llvm::Task T(Ctx->getCurrentRequestedTargets()[ContainerName].size(),
-               "Running FunctionPass");
+  llvm::Task T(Analysis.getRequestedTargets().size(), "Running FunctionPass");
   for (const auto &[ModelFunction, LLVMFunction] : ToIterOn) {
     T.advance(ModelFunction->Entry().toString(), true);
     Result = Pipe.runOnFunction(*ModelFunction, *LLVMFunction) or Result;

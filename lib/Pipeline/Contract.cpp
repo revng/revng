@@ -6,6 +6,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <iterator>
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -256,6 +258,19 @@ bool ContractGroup::backwardMatches(const Context &Ctx,
   return any_of(Content, [&](const auto &C) {
     return C.backwardMatches(Ctx, Status, Names);
   });
+}
+
+std::pair<size_t, const Kind *> Contract::getOutput() const {
+  return { this->PipeArgumentTargetIndex, this->TargetKind };
+}
+
+llvm::SmallVector<std::pair<size_t, const Kind *>, 4>
+ContractGroup::getOutputs() const {
+  llvm::SmallVector<std::pair<size_t, const Kind *>, 4> Result;
+  for (const Contract &C : Content) {
+    Result.push_back(C.getOutput());
+  }
+  return Result;
 }
 
 ContainerToTargetsMap

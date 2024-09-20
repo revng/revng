@@ -30,6 +30,8 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
 
+inline Logger<> InvalidationLog("invalidation");
+
 namespace pipeline {
 
 /// Represents the requested (not expected, which means that it contains only
@@ -168,28 +170,81 @@ public:
   PipeExecutionEntry
   getRequirements(const Context &Ctx,
                   const ContainerToTargetsMap &Target) const override {
-    const auto &Contracts = Invokable.getPipe().getContract();
-    auto Requirements = Target;
-    for (const auto &Contract : llvm::reverse(Contracts))
-      Requirements = Contract
-                       .deduceRequirements(Ctx,
-                                           Requirements,
-                                           Invokable
-                                             .getRunningContainersNames());
-    auto TargetsProducedByMe = Target;
-    TargetsProducedByMe.erase(Requirements);
+    revng_log(InvalidationLog,
+              "Computing requirements for " << this->Invokable.getName());
+    LoggerIndent<> Imdent(InvalidationLog);
 
-    return PipeExecutionEntry(TargetsProducedByMe, Requirements);
+    const auto &Contracts = Invokable.getPipe().getContract();
+    ContainerToTargetsMap Input = Target;
+
+    std::set<std::pair<std::string, unsigned>> ThisPipeOutputs;
+    for (const auto &Contract : llvm::reverse(Contracts)) {
+      Input = Contract
+                .deduceRequirements(Ctx,
+                                    Input,
+                                    Invokable.getRunningContainersNames());
+
+      for (const auto &[ContainerIndex, Kind] : Contract.getOutputs()) {
+        auto RunningContainersNames = Invokable.getRunningContainersNames();
+        if (not Invokable.isContainerArgumentConst(ContainerIndex)) {
+          revng_log(InvalidationLog,
+                    RunningContainersNames[ContainerIndex]
+                      << " " << Kind->name().str() << " allowed");
+          ThisPipeOutputs.insert({ RunningContainersNames[ContainerIndex],
+                                   Kind->id() });
+        }
+      }
+    }
+
+    if (InvalidationLog.isEnabled()) {
+      InvalidationLog << "Input:\n";
+      Input.dump(InvalidationLog);
+
+      InvalidationLog << DoLog;
+
+      InvalidationLog << "Output (pre-filter):\n";
+      Target.dump(InvalidationLog);
+    }
+
+    ContainerToTargetsMap Output = Target;
+    // NOTE: do not iterate over the StringMap, the second entry of the pair is
+    //       a copy (somehow)
+    std::vector<std::string> Keys;
+    for (llvm::StringRef Key : Output.keys())
+      Keys.push_back(Key.str());
+
+    for (const std::string &ContainerName : Keys) {
+      auto &TargetList = Output.at(ContainerName);
+
+      TargetList.erase_if([&](const class Target &T) -> bool {
+        return not ThisPipeOutputs.contains({ ContainerName,
+                                              T.getKind().id() });
+      });
+
+      if (TargetList.empty())
+        Output.erase(ContainerName);
+    }
+
+    if (InvalidationLog.isEnabled()) {
+      InvalidationLog << "Output:\n";
+      Output.dump(InvalidationLog);
+      InvalidationLog << DoLog;
+    }
+
+    return PipeExecutionEntry(Output, Input);
   }
 
   ContainerToTargetsMap
   deduceResults(const Context &Ctx,
                 ContainerToTargetsMap &Target) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
-    for (const auto &Contract : Contracts)
+
+    for (const auto &Contract : Contracts) {
       Contract.deduceResults(Ctx,
                              Target,
                              Invokable.getRunningContainersNames());
+    }
+
     return Target;
   }
 

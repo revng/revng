@@ -63,41 +63,14 @@ TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
   }
   auto &Binary = getModelFromContext(Context);
 
-  for (const Target &Target :
-       Context.getCurrentRequestedTargets()[ContainerName]) {
-    auto MetaAddress = MetaAddress::fromString(Target.getPathComponents()[0]);
-
-    Context.getContext().pushReadFields();
-
-    auto &ModelFunction = Binary->Functions().at(MetaAddress);
-    auto Iter = AddressToFunction.find(MetaAddress);
-    if (Iter == AddressToFunction.end())
-      co_yield std::pair<const model::Function *,
-                         llvm::Function *>(&ModelFunction, nullptr);
-    else
-      co_yield std::pair<const model::Function *,
-                         llvm::Function *>(&ModelFunction, Iter->second);
-    Context.commit(Target, ContainerName);
-
-    Context.getContext().popReadFields();
-  }
-}
-
-cppcoro::generator<const model::Function *>
-TaggedFunctionKind::getFunctionsAndCommit(pipeline::ExecutionContext &Context,
-                                          const pipeline::ContainerBase
-                                            &Container) {
-  auto &Binary = getModelFromContext(Context);
-  for (const Target &Target :
-       Context.getCurrentRequestedTargets()[Container.name()]) {
-
-    Context.getContext().pushReadFields();
-
-    auto MetaAddress = MetaAddress::fromString(Target.getPathComponents()[0]);
-    co_yield &Binary->Functions().at(MetaAddress);
-
-    Context.commit(Target, Container);
-
-    Context.getContext().popReadFields();
+  for (const model::Function &Function :
+       revng::getFunctionsAndCommit(Context, ContainerName)) {
+    auto Iter = AddressToFunction.find(Function.Entry());
+    using ResultPair = std::pair<const model::Function *, llvm::Function *>;
+    if (Iter == AddressToFunction.end()) {
+      co_yield ResultPair(&Function, nullptr);
+    } else {
+      co_yield ResultPair(&Function, Iter->second);
+    }
   }
 }

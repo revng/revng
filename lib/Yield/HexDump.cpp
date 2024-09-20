@@ -287,6 +287,8 @@ public:
                   CFGMap,
                   SourceBinary,
                   Output.getOrCreatePath());
+
+    Ctx.commitUniqueTarget(Output);
   }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
