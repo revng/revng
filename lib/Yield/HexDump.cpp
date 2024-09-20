@@ -243,6 +243,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 class HexDumpPipe {
 public:
   static constexpr auto Name = "hex-dump";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
     return { ContractGroup({ Contract(kinds::Binary,

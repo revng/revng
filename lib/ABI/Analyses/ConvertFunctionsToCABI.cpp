@@ -144,6 +144,7 @@ static Logger Log("function-type-conversion-to-cabi-analysis");
 class ConvertFunctionsToCABI {
 public:
   static constexpr auto Name = "convert-functions-to-cabi";
+
   inline static const std::tuple Options = {
     // Allows overriding the default ABI with a specific value when invoking
     // the analysis.

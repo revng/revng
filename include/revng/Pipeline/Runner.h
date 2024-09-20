@@ -141,19 +141,20 @@ public:
                     llvm::StringRef Component,
                     PipeWrappers &&...Wrappers) {
     IsContainerFactoriesRegistryFinalized = true;
-    if (PreviousStepName.empty())
+    if (PreviousStepName.empty()) {
       return addStep(Step(*TheContext,
                           StepName.str(),
                           Component.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           std::forward<PipeWrappers>(Wrappers)...));
-    else
+    } else {
       return addStep(Step(*TheContext,
                           StepName.str(),
                           Component.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           operator[](PreviousStepName),
                           std::forward<PipeWrappers>(Wrappers)...));
+    }
   }
 
   Step &addStep(Step &&NewStep);

@@ -141,6 +141,7 @@ private:
 
 public:
   static constexpr auto Name = "generic-llvm-pipe";
+
   template<typename... T>
   explicit GenericLLVMPipe(T... Pass) {
     (addPass(std::move(Pass)), ...);
@@ -163,6 +164,7 @@ public:
     for (const auto &P : Other.Passes)
       Passes.push_back(P->clone());
   }
+
   GenericLLVMPipe &operator=(GenericLLVMPipe &&Other) = default;
   GenericLLVMPipe(GenericLLVMPipe &&Other) = default;
   ~GenericLLVMPipe() = default;
@@ -219,6 +221,7 @@ public:
 class O2Pipe {
 public:
   static constexpr auto Name = "o2";
+
   std::vector<ContractGroup> getContract() const { return {}; }
 
   void registerPasses(llvm::legacy::PassManager &Manager);
