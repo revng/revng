@@ -34,7 +34,7 @@ public:
            const CrossRelationsFileContainer &InputFile,
            CallGraphSVGFileContainer &OutputFile);
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
     return llvm::Error::success();
   }
 };

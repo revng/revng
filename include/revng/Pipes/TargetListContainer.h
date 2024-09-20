@@ -93,11 +93,11 @@ public:
 public:
   void clear() override { Targets.clear(); }
 
-  void fill(const pipeline::Context &Ctx) {
+  void fill(const pipeline::Context &Context) {
     clear();
 
     pipeline::TargetsList List;
-    Kind->appendAllTargets(Ctx, List);
+    Kind->appendAllTargets(Context, List);
 
     for (pipeline::Target &Target : List) {
       Targets.insert(Target);

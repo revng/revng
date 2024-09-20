@@ -42,11 +42,12 @@ IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
   return std::nullopt;
 }
 
-void RootKind::appendAllTargets(const Context &Ctx, TargetsList &Out) const {
+void RootKind::appendAllTargets(const Context &Context,
+                                TargetsList &Out) const {
   Out.push_back(Target(*this));
 }
 
-void IsolatedRootKind::appendAllTargets(const Context &Ctx,
+void IsolatedRootKind::appendAllTargets(const Context &Context,
                                         TargetsList &Out) const {
   Out.push_back(Target(*this));
 }

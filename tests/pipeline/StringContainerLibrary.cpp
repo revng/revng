@@ -21,7 +21,7 @@ using namespace ::revng::kinds;
 
 class StringKindType : public Kind {
   using Kind::Kind;
-  void appendAllTargets(const pipeline::Context &Ctx,
+  void appendAllTargets(const pipeline::Context &Context,
                         pipeline::TargetsList &Out) const override {
     Out.push_back(Target("f1", *this));
   }

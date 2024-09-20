@@ -44,7 +44,7 @@ static cl::opt<char> OptLevel("compile-opt-level",
                               cl::ZeroOrMore,
                               cl::init(' '));
 
-static void compileModuleRunImpl(const Context &Ctx,
+static void compileModuleRunImpl(const Context &Context,
                                  LLVMContainer &Module,
                                  ObjectFileContainer &TargetBinary) {
   using namespace revng;
@@ -55,7 +55,7 @@ static void compileModuleRunImpl(const Context &Ctx,
     return;
 
   if (Enumeration.contains(pipeline::Target(kinds::IsolatedRoot))
-      and not Enumeration.contains(kinds::Isolated.allTargets(Ctx)))
+      and not Enumeration.contains(kinds::Isolated.allTargets(Context)))
     return;
 
   StringMap<llvm::cl::Option *> &RegOptions(getRegisteredOptions());

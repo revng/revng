@@ -47,7 +47,7 @@ public:
              const pipeline::LLVMContainer &ModuleContainer,
              const pipeline::GlobalTupleTreeDiff &Diff) const;
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
+  llvm::Error checkPrecondition(const pipeline::Context &Context) const;
 };
 
 } // namespace revng::pipes

@@ -56,8 +56,8 @@ static TargetInStepSet getTargetInStepSet(Runner &Pipeline) {
   for (llvm::StringRef Target : Targets) {
     auto [StepName, Rest] = Target.split("/");
     auto &ToInvalidate = Invalidations[StepName];
-    auto &Ctx = Pipeline.getContext();
-    AbortOnError(parseTarget(Ctx, ToInvalidate, Rest, Registry));
+    auto &Context = Pipeline.getContext();
+    AbortOnError(parseTarget(Context, ToInvalidate, Rest, Registry));
   }
 
   return Invalidations;

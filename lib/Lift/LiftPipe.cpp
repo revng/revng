@@ -133,8 +133,8 @@ Lift::invalidate(const BinaryFileContainer &SourceBinary,
   return {};
 }
 
-llvm::Error Lift::checkPrecondition(const pipeline::Context &Ctx) const {
-  const auto &Model = *getModelFromContext(Ctx);
+llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
+  const auto &Model = *getModelFromContext(Context);
 
   if (Model.Architecture() == model::Architecture::Invalid) {
     return llvm::createStringError(inconvertibleErrorCode(),

@@ -98,19 +98,20 @@ public:
 
 public:
   virtual PipeExecutionEntry
-  getRequirements(const Context &Ctx,
+  getRequirements(const Context &Context,
                   const ContainerToTargetsMap &Target) const = 0;
 
   virtual ContainerToTargetsMap
-  deduceResults(const Context &Ctx, ContainerToTargetsMap &Target) const = 0;
+  deduceResults(const Context &Context,
+                ContainerToTargetsMap &Target) const = 0;
 
-  virtual bool areRequirementsMet(const Context &Ctx,
+  virtual bool areRequirementsMet(const Context &Context,
                                   const ContainerToTargetsMap &Input) const = 0;
 
   virtual std::unique_ptr<PipeWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
 
-  virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
+  virtual llvm::Error checkPrecondition(const Context &Context) const = 0;
 
   virtual size_t getContainerArgumentsCount() const = 0;
 
@@ -146,7 +147,7 @@ public:
               std::move(RunningContainersNames)) {}
 
 public:
-  bool areRequirementsMet(const Context &Ctx,
+  bool areRequirementsMet(const Context &Context,
                           const ContainerToTargetsMap &Input) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
     if (Contracts.size() == 0)
@@ -154,12 +155,12 @@ public:
 
     ContainerToTargetsMap ToCheck = Input;
     for (const auto &Contract : Contracts) {
-      if (Contract.forwardMatches(Ctx,
+      if (Contract.forwardMatches(Context,
                                   ToCheck,
                                   Invokable.getRunningContainersNames()))
         return true;
 
-      Contract.deduceResults(Ctx,
+      Contract.deduceResults(Context,
                              ToCheck,
                              Invokable.getRunningContainersNames());
     }
@@ -168,7 +169,7 @@ public:
   }
 
   PipeExecutionEntry
-  getRequirements(const Context &Ctx,
+  getRequirements(const Context &Context,
                   const ContainerToTargetsMap &Target) const override {
     revng_log(InvalidationLog,
               "Computing requirements for " << this->Invokable.getName());
@@ -180,7 +181,7 @@ public:
     std::set<std::pair<std::string, unsigned>> ThisPipeOutputs;
     for (const auto &Contract : llvm::reverse(Contracts)) {
       Input = Contract
-                .deduceRequirements(Ctx,
+                .deduceRequirements(Context,
                                     Input,
                                     Invokable.getRunningContainersNames());
 
@@ -235,12 +236,12 @@ public:
   }
 
   ContainerToTargetsMap
-  deduceResults(const Context &Ctx,
+  deduceResults(const Context &Context,
                 ContainerToTargetsMap &Target) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
 
     for (const auto &Contract : Contracts) {
-      Contract.deduceResults(Ctx,
+      Contract.deduceResults(Context,
                              Target,
                              Invokable.getRunningContainersNames());
     }
@@ -256,8 +257,8 @@ public:
                                              std::move(NewContainersNames));
   }
 
-  llvm::Error checkPrecondition(const Context &Ctx) const override {
-    return Invokable.getPipe().checkPrecondition(Ctx);
+  llvm::Error checkPrecondition(const Context &Context) const override {
+    return Invokable.getPipe().checkPrecondition(Context);
   }
 
   size_t getContainerArgumentsCount() const override {
@@ -314,7 +315,7 @@ struct PipeWrapper {
     llvm::StringMap<PathTargetBimap> PathCache;
 
   public:
-    void registerTargetsDependingOn(const Context &Ctx,
+    void registerTargetsDependingOn(const Context &Context,
                                     llvm::StringRef GlobalName,
                                     const TupleTreePath &Path,
                                     ContainerToTargetsMap &Out,

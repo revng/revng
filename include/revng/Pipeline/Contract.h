@@ -100,48 +100,48 @@ public:
     Preservation(Preserve) {}
 
 public:
-  void deduceResults(const Context &Ctx,
+  void deduceResults(const Context &Context,
                      ContainerToTargetsMap &StepStatus,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  void deduceResults(const Context &Ctx,
+  void deduceResults(const Context &Context,
                      ContainerToTargetsMap &StepStatus,
                      TargetsList &Results,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  void deduceResults(const Context &Ctx,
+  void deduceResults(const Context &Context,
                      ContainerToTargetsMap &StepStatus,
                      ContainerToTargetsMap &Results,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
   ContainerToTargetsMap
-  deduceRequirements(const Context &Ctx,
+  deduceRequirements(const Context &Context,
                      const ContainerToTargetsMap &PipeOutput,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  bool forwardMatches(const Context &Ctx,
+  bool forwardMatches(const Context &Context,
                       const ContainerToTargetsMap &Status,
                       llvm::ArrayRef<std::string> ContainerNames) const;
-  bool backwardMatches(const Context &Ctx,
+  bool backwardMatches(const Context &Context,
                        const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
 
-  void insertDefaultInput(const Context &Ctx,
+  void insertDefaultInput(const Context &Context,
                           ContainerToTargetsMap &Status,
                           llvm::ArrayRef<std::string> ContainerNames) const;
 
   std::pair<size_t, const Kind *> getOutput() const;
 
 private:
-  TargetsList forward(const Context &Ctx, TargetsList Input) const;
-  TargetsList backward(const Context &Ctx, TargetsList Output) const;
-  bool forwardMatches(const Context &Ctx, const TargetsList &Input) const;
+  TargetsList forward(const Context &Context, TargetsList Input) const;
+  TargetsList backward(const Context &Context, TargetsList Output) const;
+  bool forwardMatches(const Context &Context, const TargetsList &Input) const;
 
   bool backwardMatchesImpl(const Context &Ct, const TargetsList &List) const;
 
   /// Target is the container in which the Pipe would write when used to produce
   /// the targets.
-  void deduceRequirements(const Context &Ctx,
+  void deduceRequirements(const Context &Context,
                           TargetsList &SourceContainer,
                           TargetsList &TargetContainer) const;
 };
@@ -194,17 +194,17 @@ public:
 
 public:
   [[nodiscard]] ContainerToTargetsMap
-  deduceRequirements(const Context &Ctx,
+  deduceRequirements(const Context &Context,
                      const ContainerToTargetsMap &StepStatus,
                      llvm::ArrayRef<std::string> ContainerNames) const;
-  void deduceResults(const Context &Ctx,
+  void deduceResults(const Context &Context,
                      ContainerToTargetsMap &StepStatus,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  bool forwardMatches(const Context &Ctx,
+  bool forwardMatches(const Context &Context,
                       const ContainerToTargetsMap &Status,
                       llvm::ArrayRef<std::string> ContainerNames) const;
-  bool backwardMatches(const Context &Ctx,
+  bool backwardMatches(const Context &Context,
                        const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
 

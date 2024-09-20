@@ -15,10 +15,10 @@ namespace revng::kinds {
 class FunctionKind : public pipeline::Kind {
 public:
   using pipeline::Kind::Kind;
-  void appendAllTargets(const pipeline::Context &Ctx,
+  void appendAllTargets(const pipeline::Context &Context,
                         pipeline::TargetsList &Out) const override {
     using namespace pipeline;
-    const auto &Model = getModelFromContext(Ctx);
+    const auto &Model = getModelFromContext(Context);
     DisableTracking Guard(*Model);
     for (const auto &Function : Model->Functions()) {
       Out.push_back(Target(Function.Entry().toString(), *this));

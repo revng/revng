@@ -30,7 +30,7 @@ public:
   void run(pipeline::ExecutionContext &EC,
            pipeline::LLVMContainer &ModuleContainer);
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
+  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
     return llvm::Error::success();
   }
 };
