@@ -110,16 +110,7 @@ public:
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const debug_function {
     indent(OS, Indentation);
-    OS << '/';
-
-    const auto ComponentToString = [](const std::string &Component) {
-      return Component;
-    };
-
-    auto Path = llvm::join(llvm::map_range(Components, ComponentToString), "/");
-    OS << Path;
-    OS << ':' << K->name().str();
-    OS << '\n';
+    OS << toString() << '\n';
   }
 
   template<typename OStream>
