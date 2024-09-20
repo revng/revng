@@ -21,7 +21,13 @@ public:
   }
 
 public:
-  void run(const ExecutionContext &, const Source &S, Destination &T) { T = S; }
+  void run(ExecutionContext &EC, const Source &S, Destination &T) {
+    // Copy
+    T.mergeBack(std::move(*S.cloneFiltered(S.enumerate())));
+
+    // Commit
+    EC.commitAllFor(T);
+  }
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
     return llvm::Error::success();

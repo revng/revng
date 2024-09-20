@@ -14,6 +14,8 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/Kind.h"
+#include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
@@ -211,14 +213,26 @@ public:
 };
 
 bool InvokeIsolatedFunctionsPass::runOnModule(Module &M) {
-  if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
+  using namespace pipeline;
+  auto &Analysis = getAnalysis<LoadExecutionContextPass>();
+  auto &RequestedTargets = Analysis.getRequestedTargets();
+
+  if (RequestedTargets.empty())
     return false;
+
+  revng_assert(M.getFunction("root")
+               and not M.getFunction("root")->isDeclaration());
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
   InvokeIsolatedFunctions TheFunction(Binary, M.getFunction("root"), GCBI);
   TheFunction.run();
+
+  // Commit
+  ExecutionContext *ExecutionContext = Analysis.get();
+  ExecutionContext->commit(Target(revng::kinds::IsolatedRoot),
+                           Analysis.getContainerName());
 
   return true;
 }

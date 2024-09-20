@@ -569,11 +569,8 @@ void IsolateFunctionsImpl::run() {
   T.advance("Create dynamic functions", true);
 
   // Obtain the set of requested targets
-  auto ContainerName = LECP.getContainerName();
   pipeline::ExecutionContext &Context = *LECP.get();
-  pipeline::TargetsList
-    RequestedTargets = Context.getCurrentRequestedTargets()[ContainerName]
-                         .filter(revng::kinds::Isolated);
+  const pipeline::TargetsList &RequestedTargets = LECP.getRequestedTargets();
 
   Task IsolateTask(RequestedTargets.size(), "Isolating functions");
   for (const pipeline::Target &Target : RequestedTargets) {
@@ -609,7 +606,7 @@ void IsolateFunctionsImpl::run() {
     moveBlocksInto(*Outlined.Function, *F);
 
     // Commit the produced target
-    Context.commit(Target, ContainerName);
+    Context.commit(Target, LECP.getContainerName());
 
     Context.getContext().popReadFields();
   }

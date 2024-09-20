@@ -130,6 +130,8 @@ public:
                           ContainerToTargetsMap &Status,
                           llvm::ArrayRef<std::string> ContainerNames) const;
 
+  std::pair<size_t, const Kind *> getOutput() const;
+
 private:
   TargetsList forward(const Context &Ctx, TargetsList Input) const;
   TargetsList backward(const Context &Ctx, TargetsList Output) const;
@@ -205,6 +207,8 @@ public:
   bool backwardMatches(const Context &Ctx,
                        const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
+
+  llvm::SmallVector<std::pair<size_t, const Kind *>, 4> getOutputs() const;
 };
 
 } // namespace pipeline

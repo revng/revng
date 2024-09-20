@@ -285,12 +285,14 @@ ContainerSet Step::run(ContainerSet &&Input,
   for (const auto &[Pipe, Info] : llvm::zip(Pipes, ExecutionInfos)) {
     T.advance(Pipe.Pipe->getName(), false);
     explainExecutedPipe(*Pipe.Pipe);
+
     ExecutionContext Context(*Ctx, &Pipe, Info.Output);
 
     Pipe.Pipe->deduceResults(*Ctx, Context.getCurrentRequestedTargets());
 
     cantFail(Pipe.Pipe->run(Context, Input));
     llvm::cantFail(Input.verify());
+    Context.verify();
   }
 
   T.advance("Merging back", true);

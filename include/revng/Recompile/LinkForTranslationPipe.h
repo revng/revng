@@ -37,7 +37,7 @@ public:
     return { pipeline::ContractGroup({ BinaryPart, ObjectPart }) };
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &Ctx,
            BinaryFileContainer &InputBinary,
            ObjectFileContainer &ObjectFile,
            TranslatedFileContainer &OutputBinary);

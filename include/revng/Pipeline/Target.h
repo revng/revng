@@ -23,6 +23,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/ZipMapIterator.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -223,6 +224,11 @@ public:
   }
 
   template<typename... Args>
+  auto erase_if(Args &&...A) {
+    llvm::erase_if(Contained, std::forward<Args>(A)...);
+  }
+
+  template<typename... Args>
   auto erase(Args &&...A) {
     return Contained.erase(std::forward<Args>(A)...);
   }
@@ -303,6 +309,23 @@ private:
   Map Status;
 
 public:
+  bool operator==(const ContainerToTargetsMap &) const = default;
+
+  bool sameTargets(const ContainerToTargetsMap &Other) const {
+    for (auto [ThisPair, OtherPair] : zipmap_range(Status, Other.Status)) {
+      if (ThisPair == nullptr and not OtherPair->second.empty()) {
+        return false;
+      } else if (OtherPair == nullptr and not ThisPair->second.empty()) {
+        return false;
+      } else if (ThisPair != nullptr and OtherPair != nullptr
+                 and ThisPair->second != OtherPair->second) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   iterator begin() { return Status.begin(); }
   iterator end() { return Status.end(); }
   const_iterator begin() const { return Status.begin(); }
@@ -356,6 +379,8 @@ public:
 public:
   void merge(const ContainerToTargetsMap &Other);
   void erase(const ContainerToTargetsMap &Other);
+
+  auto erase(llvm::StringRef Name) { return Status.erase(Name); }
 
   void add(llvm::StringRef Name,
            std::initializer_list<std::string> Names,
