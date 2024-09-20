@@ -10,8 +10,6 @@ revng_add_analyses_library(
   ASTTree.cpp
   BasicBlockNode.cpp
   BeautifyGHAST.cpp
-  CycleEquivalenceAnalysis.cpp
-  CycleEquivalencePass.cpp
   ExprNode.cpp
   FallThroughScopeAnalysis.cpp
   GenericRegionInfo.cpp
