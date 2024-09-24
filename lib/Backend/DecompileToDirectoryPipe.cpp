@@ -13,6 +13,7 @@
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/DecompileToDirectoryPipe.h"
 #include "revng-c/Backend/DecompileToSingleFile.h"
+#include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Support/PTMLC.h"
 
@@ -37,10 +38,12 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(EC);
 
-  ptml::CTypeBuilder B(llvm::nulls(),
-                       /* EnableTaglessMode = */ true,
-                       { .EnableTypeInlining = false,
-                         .EnableStackFrameInlining = false });
+  namespace options = revng::options;
+  ptml::CTypeBuilder
+    B(llvm::nulls(),
+      /* EnableTaglessMode = */ false,
+      { .EnableTypeInlining = options::EnableTypeInlining,
+        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
   B.collectInlinableTypes(Model);
 
   {

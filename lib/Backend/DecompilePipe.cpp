@@ -10,6 +10,7 @@
 
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/DecompilePipe.h"
+#include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
@@ -27,10 +28,12 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   const model::Binary &Model = *getModelFromContext(EC);
   ControlFlowGraphCache Cache(CFGMap);
 
-  ptml::CTypeBuilder B(llvm::nulls(),
-                       /* EnableTaglessMode = */ false,
-                       { .EnableTypeInlining = false,
-                         .EnableStackFrameInlining = false });
+  namespace options = revng::options;
+  ptml::CTypeBuilder
+    B(llvm::nulls(),
+      /* EnableTaglessMode = */ false,
+      { .EnableTypeInlining = options::EnableTypeInlining,
+        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
   B.collectInlinableTypes(Model);
 
   for (const model::Function &Function :

@@ -9,6 +9,7 @@
 
 #include "revng-c/Backend/DecompileToSingleFile.h"
 #include "revng-c/Backend/DecompileToSingleFilePipe.h"
+#include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
@@ -26,10 +27,12 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
 
   llvm::raw_string_ostream Out = OutCFile.asStream();
 
-  ptml::CTypeBuilder B(Out,
-                       /* EnableTaglessMode = */ true,
-                       { .EnableTypeInlining = false,
-                         .EnableStackFrameInlining = false });
+  namespace options = revng::options;
+  ptml::CTypeBuilder
+    B(Out,
+      /* EnableTaglessMode = */ false,
+      { .EnableTypeInlining = options::EnableTypeInlining,
+        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
   B.collectInlinableTypes(*getModelFromContext(EC));
 
   // Make a single C file with an empty set of targets, which means all the

@@ -52,6 +52,7 @@
 
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/DecompiledCCodeIndentation.h"
+#include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/RestructureCFG/ASTNode.h"
