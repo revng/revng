@@ -151,7 +151,7 @@ bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
 
   // Create function for initializing local stack pointer.
   Module *M = F.getParent();
-  LLVMContext &Ctx = F.getContext();
+  LLVMContext &Context = F.getContext();
   Type *SPType = GlobalSP->getValueType();
   auto InitFunction = M->getOrInsertFunction("_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
@@ -163,7 +163,7 @@ bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
   // Create an alloca to represent the local value of the stack pointer.
   // This should be inserted at the beginning of the entry block.
   BasicBlock &EntryBlock = F.getEntryBlock();
-  IRBuilder<> Builder(Ctx);
+  IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(&EntryBlock, EntryBlock.begin());
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 

@@ -2091,8 +2091,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   auto GEPReplacements = makeGEPReplacements(F, *Model, VH);
 
   llvm::Module &M = *F.getParent();
-  LLVMContext &Ctxt = M.getContext();
-  IRBuilder<> Builder(Ctxt);
+  LLVMContext &Context = M.getContext();
+  IRBuilder<> Builder(Context);
   ModelGEPArgCache TypeArgCache;
 
   // Create a function pool for AddressOf calls
@@ -2101,7 +2101,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   if (not GEPReplacements.empty())
     initAddressOfPool(AddressOfPool, &M);
 
-  llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Ctxt, *Model);
+  llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Context, *Model);
 
   std::map<std::pair<Instruction *, Value *>, Value *> PhiIncomingsMaps;
 
@@ -2186,7 +2186,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
       Value *IndexValue = nullptr;
       if (InductionVariables.empty() or not ConstantIndex.isNullValue()) {
-        auto *Int64Type = llvm::IntegerType::get(Ctxt, 64 /*NumBits*/);
+        auto *Int64Type = llvm::IntegerType::get(Context, 64 /*NumBits*/);
         IndexValue = ConstantInt::get(Int64Type, ConstantIndex);
       }
 
@@ -2247,7 +2247,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       APInt OffsetToAdd = MismatchedOffset.zextOrTrunc(GEPResultBitWidth);
       if (not OffsetToAdd.isNullValue())
         ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
-                                        ConstantInt::get(Ctxt, OffsetToAdd));
+                                        ConstantInt::get(Context, OffsetToAdd));
       for (const auto &[Coefficient, Index] : MismatchedIndices) {
         ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
                                         Builder.CreateMul(Index, Coefficient));
