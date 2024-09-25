@@ -301,7 +301,7 @@ public:
 
 void MakeSegmentRef::run(pipeline::ExecutionContext &EC,
                          const BinaryFileContainer &SourceBinary,
-                         pipeline::LLVMContainer &TargetsList) {
+                         pipeline::LLVMContainer &ModuleContainer) {
   if (not SourceBinary.exists())
     return;
 
@@ -311,11 +311,11 @@ void MakeSegmentRef::run(pipeline::ExecutionContext &EC,
   RawBinaryView RawBinary(*Model, Buffer->getBuffer());
 
   llvm::legacy::PassManager PM;
-  PM.add(new pipeline::LoadExecutionContextPass(&EC, TargetsList.name()));
+  PM.add(new pipeline::LoadExecutionContextPass(&EC, ModuleContainer.name()));
   PM.add(new LoadModelWrapperPass(Model));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new pipeline::FunctionPass<MakeSegmentRefPassImpl>);
-  PM.run(TargetsList.getModule());
+  PM.run(ModuleContainer.getModule());
 }
 
 } // namespace revng::pipes
