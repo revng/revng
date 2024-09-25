@@ -47,10 +47,6 @@ public:
   void run(pipeline::ExecutionContext &Ctx,
            const DecompileStringMap &DecompiledFunctionsContainer,
            DecompiledFileContainer &OutCFile);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // end namespace revng::pipes

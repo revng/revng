@@ -251,10 +251,6 @@ public:
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
-
-  Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return Error::success();
-  }
 };
 
 void SimplifySwitch::run(pipeline::ExecutionContext &Ctx,

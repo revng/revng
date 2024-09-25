@@ -32,10 +32,6 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
-
   void run(pipeline::ExecutionContext &Ctx,
            const pipeline::LLVMContainer &LLVMContainer,
            revng::pipes::MLIRContainer &MLIRContainer) {

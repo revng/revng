@@ -297,8 +297,6 @@ public:
   void run(pipeline::ExecutionContext &Ctx,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
 };
 
 void MakeSegmentRef::run(pipeline::ExecutionContext &Ctx,
@@ -318,11 +316,6 @@ void MakeSegmentRef::run(pipeline::ExecutionContext &Ctx,
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new pipeline::FunctionPass<MakeSegmentRefPassImpl>);
   PM.run(TargetsList.getModule());
-}
-
-llvm::Error
-MakeSegmentRef::checkPrecondition(const pipeline::Context &Ctx) const {
-  return llvm::Error::success();
 }
 
 } // namespace revng::pipes

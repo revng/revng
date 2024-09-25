@@ -52,10 +52,6 @@ public:
            pipeline::LLVMContainer &IRContainer,
            const revng::pipes::CFGMap &CFGMap,
            RecompilableArchiveContainer &OutTarFile);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // end namespace revng::pipes

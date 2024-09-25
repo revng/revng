@@ -279,10 +279,6 @@ struct ImportFromCAnalysis {
 
     return llvm::Error::success();
   }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 pipeline::RegisterAnalysis<ImportFromCAnalysis> ImportFromCReg;
