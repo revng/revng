@@ -299,15 +299,6 @@ public:
            pipeline::LLVMContainer &Output);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    revng_check(ContainerNames.size() == 2);
-    OS << *ResourceFinder.findFile("bin/revng");
-    OS << " opt MakeSegmentRef " << ContainerNames[0] << " "
-       << ContainerNames[1] << "\n";
-  }
 };
 
 void MakeSegmentRef::run(pipeline::ExecutionContext &Ctx,

@@ -38,13 +38,6 @@ void HelpersToHeader::run(pipeline::ExecutionContext &Ctx,
   Ctx.commitUniqueTarget(HeaderFile);
 }
 
-void HelpersToHeader::print(const pipeline::Context &Ctx,
-                            llvm::raw_ostream &OS,
-                            llvm::ArrayRef<std::string> Names) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " helpers-to-header -i=" << Names[0] << " -o=" << Names[1] << "\n";
-}
-
 } // end namespace revng::pipes
 
 static pipeline::RegisterPipe<revng::pipes::HelpersToHeader> Y;

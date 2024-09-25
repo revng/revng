@@ -35,13 +35,6 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &Ctx,
   Ctx.commitUniqueTarget(OutCFile);
 }
 
-void DecompileToSingleFile::print(const pipeline::Context &Ctx,
-                                  llvm::raw_ostream &OS,
-                                  llvm::ArrayRef<std::string> Names) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " decompiled-yaml-to-c -i " << Names[0] << " -o " << Names[1];
-}
-
 } // end namespace revng::pipes
 
 static pipeline::RegisterPipe<revng::pipes::DecompileToSingleFile> Y;

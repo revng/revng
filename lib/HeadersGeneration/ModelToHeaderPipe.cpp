@@ -57,13 +57,6 @@ void ModelToHeader::run(pipeline::ExecutionContext &Ctx,
   Ctx.commitUniqueTarget(HeaderFile);
 }
 
-void ModelToHeader::print(const pipeline::Context &Ctx,
-                          llvm::raw_ostream &OS,
-                          llvm::ArrayRef<std::string> Names) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " model to-header -yaml -i=model.yml -o=" << Names[1] << "\n";
-}
-
 } // end namespace revng::pipes
 
 static pipeline::RegisterPipe<revng::pipes::ModelToHeader> Y;
