@@ -178,8 +178,8 @@ static ConstantInt *getOneWithSameType(const Value *IntOrPtr) {
 class IRAddend {
 
 private:
-  ConstantInt *Coefficient;
-  Value *Index;
+  ConstantInt *Coefficient = nullptr;
+  Value *Index = nullptr;
 
 public:
   // Delete default constructor to forbid creation of invalid IRAddend.
@@ -1844,8 +1844,8 @@ getAccessedTypeOnIR(const llvm::Use &U,
 }
 
 struct UseReplacementWithModelGEP {
-  Use *U;
-  Value *BaseAddress;
+  Use *U = nullptr;
+  Value *BaseAddress = nullptr;
   ModelGEPReplacementInfo ReplacementInfo;
 };
 

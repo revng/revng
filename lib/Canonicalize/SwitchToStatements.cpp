@@ -59,7 +59,7 @@ public:
 
 struct AvailableExpression {
   // The expression that is available
-  Instruction *Expression;
+  Instruction *Expression = nullptr;
 
   // The Assign call that has assigned the Expression to some location.
   // It can be used to retrieve the address of the location itself.
@@ -68,7 +68,7 @@ struct AvailableExpression {
   // semantics.
   // We need to assign a semantic to nullptr for CallInst and Copy, which are
   // note necessarily assigned to any location by an Assign call.
-  CallInst *Assign;
+  CallInst *Assign = nullptr;
 
   bool operator==(const AvailableExpression &) const = default;
   std::strong_ordering operator<=>(const AvailableExpression &) const = default;
@@ -81,7 +81,7 @@ using InstructionVector = SmallVector<Instruction *, SmallSize>;
 using InstructionSetVector = SmallSetVector<Instruction *, SmallSize>;
 
 struct ProgramPointData {
-  Instruction *TheInstruction;
+  Instruction *TheInstruction = nullptr;
   ProgramPointData(Instruction *I) : TheInstruction(I){};
 };
 

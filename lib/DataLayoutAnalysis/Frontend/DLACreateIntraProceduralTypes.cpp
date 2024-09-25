@@ -51,8 +51,8 @@ public:
 
 private:
   const model::Binary &Model;
-  Function *F;
-  ScalarEvolution *SE;
+  Function *F = nullptr;
+  ScalarEvolution *SE = nullptr;
   llvm::DominatorTree DT;
   llvm::PostDominatorTree PDT;
 

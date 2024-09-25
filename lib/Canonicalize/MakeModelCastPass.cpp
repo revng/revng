@@ -30,7 +30,7 @@ using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
 
 struct SerializedType {
-  Constant *StringType;
+  Constant *StringType = nullptr;
   uint64_t OperandId;
 
   SerializedType(Constant *StringType, uint64_t OperandId = 0) :

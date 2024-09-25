@@ -96,13 +96,13 @@ protected:
   unsigned ID;
 
   /// Pointer to the parent RegionCFG<NodeT>
-  RegionCFGT *Parent;
+  RegionCFGT *Parent = nullptr;
 
   /// Reference to the corresponding collapsed region
   //
   // This is nullptr unless the BasicBlockNode represents a collapsed
   // RegionCFG<NodeT>
-  RegionCFGT *CollapsedRegion;
+  RegionCFGT *CollapsedRegion = nullptr;
 
   /// Flag to identify the exit type of a block
   Type NodeType;

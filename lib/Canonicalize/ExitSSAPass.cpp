@@ -49,9 +49,9 @@ public:
 };
 
 struct IncomingInfo {
-  BasicBlock *PHIBlock;
-  BasicBlock *IncomingBlock;
-  Value *IncomingValue;
+  BasicBlock *PHIBlock = nullptr;
+  BasicBlock *IncomingBlock = nullptr;
+  Value *IncomingValue = nullptr;
   bool operator==(const IncomingInfo &) const = default;
   std::strong_ordering operator<=>(const IncomingInfo &) const = default;
 };

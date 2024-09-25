@@ -335,7 +335,7 @@ struct ModuleValidator {
 
 private:
   clift::ModuleOp Module;
-  Operation *ModuleLevelOp;
+  Operation *ModuleLevelOp = nullptr;
   clift::ValueType FunctionReturnType;
   llvm::SmallPtrSet<mlir::Type, 32> VisitedTypes;
   llvm::SmallPtrSet<mlir::Attribute, 32> VisitedAttrs;

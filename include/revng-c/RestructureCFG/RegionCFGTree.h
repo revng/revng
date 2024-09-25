@@ -128,7 +128,7 @@ private:
   links_container DeadNodesQuarantine;
 
   /// Pointer to the entry basic block of this function
-  BasicBlockNodeT *EntryNode;
+  BasicBlockNodeT *EntryNode = nullptr;
   unsigned IDCounter = 0;
   std::string FunctionName;
   std::string RegionName;
