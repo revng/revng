@@ -984,8 +984,8 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
   // would assign them and fail to compile.
   // For this reason if at this point we're trying to declare a constant
   // local variable, we're forced to throw away the constness information.
-  Constant *TString = serializeToLLVMString(model::getNonConst(*VariableType),
-                                            *F.getParent());
+  Constant *TString = toLLVMString(model::getNonConst(*VariableType),
+                                   *F.getParent());
 
   // Inject call to LocalVariable
   CallInst *LocalVarCall = Builder.CreateCall(LocalVarFunction, { TString });

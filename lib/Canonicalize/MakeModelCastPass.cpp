@@ -88,7 +88,7 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
         revng_assert(ExpectedType->isScalar() and OperandType.isScalar());
         // Create a cast only if the expected type is different from the
         // actual type propagated until here
-        auto Type = SerializedType(serializeToLLVMString(ExpectedType, *M),
+        auto Type = SerializedType(toLLVMString(ExpectedType, *M),
                                    Op.getOperandNo());
         Result.emplace_back(std::move(Type));
       }
@@ -238,8 +238,7 @@ bool MMCP::runOnFunction(Function &F) {
 
         // Create a string constant to pass as first argument of the call to
         // ModelCast, to represent the target model type.
-        Constant *TargetModelTypeString = serializeToLLVMString(ResultModelType,
-                                                                *M);
+        Constant *TargetModelTypeString = toLLVMString(ResultModelType, *M);
         revng_assert(TargetModelTypeString);
 
         Value *CallToModelCast = createCallToModelCast(Builder,

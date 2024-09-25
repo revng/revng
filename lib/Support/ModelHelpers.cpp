@@ -103,8 +103,8 @@ model::UpcastableType llvmIntToModelType(const llvm::Type *TypeToConvert,
   return Result;
 }
 
-model::UpcastableType deserializeFromLLVMString(llvm::Value *V,
-                                                const model::Binary &Model) {
+model::UpcastableType fromLLVMString(llvm::Value *V,
+                                     const model::Binary &Model) {
   // Try to get a string out of the llvm::Value
   llvm::StringRef BaseTypeString = extractFromConstantStringPtr(V);
   auto ParsedType = fromString<model::UpcastableType>(BaseTypeString);
@@ -134,8 +134,8 @@ model::UpcastableType deserializeFromLLVMString(llvm::Value *V,
   return *ParsedType;
 }
 
-llvm::Constant *serializeToLLVMString(const model::UpcastableType &Type,
-                                      llvm::Module &M) {
+llvm::Constant *toLLVMString(const model::UpcastableType &Type,
+                             llvm::Module &M) {
   return getUniqueString(&M, toString(Type));
 }
 
@@ -181,7 +181,7 @@ static const model::Type &getFieldType(const model::Type &Parent,
 static model::UpcastableType traverseModelGEP(const model::Binary &Model,
                                               const llvm::CallInst *Call) {
   // Deduce the base type from the first argument
-  auto Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+  auto Type = fromLLVMString(Call->getArgOperand(0), Model);
 
   // Compute the first index of variadic arguments that represent the traversal
   // starting from the CurType.
@@ -285,8 +285,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
 
       if (FuncName.startswith("revng_call_stack_arguments")) {
         auto *Arg0Operand = Call->getArgOperand(0);
-        auto CallStackArgumentType = deserializeFromLLVMString(Arg0Operand,
-                                                               Model);
+        auto CallStackArgumentType = fromLLVMString(Arg0Operand, Model);
         revng_assert(not CallStackArgumentType->isVoidPrimitive());
 
         rc_return{ CallStackArgumentType };
@@ -296,14 +295,14 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
 
       } else if (FTags.contains(FunctionTags::AddressOf)) {
         // The first argument is the base type (not the pointer's type)
-        auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+        auto Base = fromLLVMString(Call->getArgOperand(0), Model);
         rc_return{ model::PointerType::make(std::move(Base),
                                             Model.Architecture()) };
 
       } else if (FTags.contains(FunctionTags::ModelCast)
                  or FTags.contains(FunctionTags::LocalVariable)) {
         // The first argument is the returned type
-        auto Type = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+        auto Type = fromLLVMString(Call->getArgOperand(0), Model);
         rc_return{ std::move(Type) };
 
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
@@ -411,7 +410,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
           return {};
 
         // The type of the base value is contained in the first operand
-        auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+        auto Base = fromLLVMString(Call->getArgOperand(0), Model);
         if (FTags.contains(FunctionTags::ModelGEP))
           Base = model::PointerType::make(std::move(Base),
                                           Model.Architecture());
@@ -419,8 +418,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
 
       } else if (isCallTo(Call, "revng_call_stack_arguments")) {
         auto *Arg0Operand = Call->getArgOperand(0);
-        auto CallStackArgumentType = deserializeFromLLVMString(Arg0Operand,
-                                                               Model);
+        auto CallStackArgumentType = fromLLVMString(Arg0Operand, Model);
         revng_assert(not CallStackArgumentType.isEmpty());
 
         return { std::move(CallStackArgumentType) };

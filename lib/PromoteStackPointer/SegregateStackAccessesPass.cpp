@@ -383,7 +383,7 @@ private:
                                               "LocalVariable");
 
     // Allocate variable for return value
-    Constant *ReferenceString = serializeToLLVMString(VariableType, M);
+    Constant *ReferenceString = toLLVMString(VariableType, M);
     Instruction *Reference = B.CreateCall(LocalVarFunction,
                                           { ReferenceString });
 
@@ -433,7 +433,7 @@ private:
     auto CallType = Call->getType();
 
     // Inject a call to AddressOf
-    llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
+    llvm::Constant *ModelTypeString = toLLVMString(AllocatedType, M);
     auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger, CallType);
     auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger, CallType },
                                                 AddressOfFunctionType,
@@ -597,8 +597,7 @@ private:
         auto PointerSize = model::Architecture::getPointerSize(Architecture);
         revng_assert(ModelArgument.Type->size() > PointerSize);
 
-        llvm::Constant
-          *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
+        llvm::Constant *ModelTypeString = toLLVMString(ModelArgument.Type, M);
         auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
                                                        NewArgumentType);
         auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
@@ -661,8 +660,7 @@ private:
       } else if (ModelArgument.Kind == ReferenceToAggregate) {
 
         // Handle non-scalar argument (passed by pointer)
-        llvm::Constant
-          *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
+        llvm::Constant *ModelTypeString = toLLVMString(ModelArgument.Type, M);
         auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
                                                        NewArgumentType);
         auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
@@ -994,7 +992,7 @@ private:
         // Pass as argument the pointer compute above, dereferenced
         Type *T = Pointer->getType();
         Function *GetModelGEPFunction = getModelGEP(M, T, T);
-        auto *TypeString = serializeToLLVMString(ModelArgument.Type, M);
+        auto *TypeString = toLLVMString(ModelArgument.Type, M);
         auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
         auto *Zero = ConstantInt::get(Int64Type, 0);
         Arguments.push_back(B.CreateCall(GetModelGEPFunction,
@@ -1072,8 +1070,7 @@ private:
 
       case ArgumentKind::ReferenceToAggregate: {
         // Allocate memory for stack arguments
-        llvm::Constant *ArgumentType = serializeToLLVMString(ModelArgument.Type,
-                                                             M);
+        llvm::Constant *ArgumentType = toLLVMString(ModelArgument.Type, M);
         auto [StackArgsCall,
               AddrOfCall] = createCallWithAddressOf(SABuilder,
                                                     ModelArgument.Type,
@@ -1162,8 +1159,7 @@ private:
         auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
         auto *Zero = ConstantInt::get(Int64Type, 0);
         B.CreateCall(GetModelGEPFunction,
-                     { serializeToLLVMString(Layout.returnValueAggregateType(),
-                                             M),
+                     { toLLVMString(Layout.returnValueAggregateType(), M),
                        ReturnValuePointer,
                        Zero });
       } else {
@@ -1174,7 +1170,7 @@ private:
                                                     AddressOfFunctionType,
                                                     "AddressOf");
         const auto &ReturnValue = Layout.returnValueAggregateType();
-        Constant *ReferenceString = serializeToLLVMString(ReturnValue, M);
+        Constant *ReferenceString = toLLVMString(ReturnValue, M);
         ReturnValuePointer = B.CreateCall(AddressOfFunction,
                                           { ReferenceString, NewCall });
       }

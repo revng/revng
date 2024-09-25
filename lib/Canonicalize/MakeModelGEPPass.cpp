@@ -2038,7 +2038,7 @@ public:
   Constant *get(const model::UpcastableType &Type, llvm::Module &M) {
     auto [It, Success] = GlobalModelGEPTypeArgs.try_emplace(Type, nullptr);
     if (Success)
-      It->second = serializeToLLVMString(Type, M);
+      It->second = toLLVMString(Type, M);
 
     return It->second;
   }

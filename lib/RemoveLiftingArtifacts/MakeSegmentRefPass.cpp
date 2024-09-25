@@ -242,11 +242,11 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
             if (const auto &SegmentType = Binary.Segments()
                                             .at({ StartAddress, VirtualSize })
                                             .Type()) {
-              ModelTypeString = serializeToLLVMString(SegmentType, M);
+              ModelTypeString = toLLVMString(SegmentType, M);
             } else {
               auto Byte = model::PrimitiveType::makeGeneric(1);
               auto Arr = model::ArrayType::make(std::move(Byte), VirtualSize);
-              ModelTypeString = serializeToLLVMString(Arr, M);
+              ModelTypeString = toLLVMString(Arr, M);
             }
             Value *AddressOfCall = IRB.CreateCall(AddressOfFunction,
                                                   { ModelTypeString,

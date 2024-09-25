@@ -596,8 +596,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
   // First argument is a string containing the base type
   auto *CurArg = Call->arg_begin();
-  model::UpcastableType CurType = deserializeFromLLVMString(CurArg->get(),
-                                                            Model);
+  model::UpcastableType CurType = fromLLVMString(CurArg->get(), Model);
 
   // Second argument is the base llvm::Value
   ++CurArg;
@@ -765,8 +764,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::ModelCast)) {
     // First argument is a string containing the base type
     auto *CurArg = Call->arg_begin();
-    model::UpcastableType CurType = deserializeFromLLVMString(CurArg->get(),
-                                                              Model);
+    model::UpcastableType CurType = fromLLVMString(CurArg->get(), Model);
 
     // Second argument is the base llvm::Value
     ++CurArg;
@@ -785,8 +783,8 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::AddressOf)) {
     // First operand is the type of the value being addressed (should not
     // introduce casts)
-    const model::UpcastableType
-      ArgType = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+    const model::UpcastableType ArgType = fromLLVMString(Call->getArgOperand(0),
+                                                         Model);
 
     // Second argument is the value being addressed
     llvm::Value *Arg = Call->getArgOperand(1);
