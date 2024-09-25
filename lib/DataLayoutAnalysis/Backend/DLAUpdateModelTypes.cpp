@@ -121,7 +121,7 @@ static bool updateArgumentTypes(model::Binary &Model,
           ModelStackStruct->Fields()[0].Type() = DLAStackType;
           revng_log(Log,
                     "Updated: inserted fields at offset 0: "
-                      << serializeToString(DLAStackType));
+                      << toString(DLAStackType));
         } else {
           revng_log(Log, "Couldn't import the type into the model");
         }
@@ -162,7 +162,7 @@ static bool updateArgumentTypes(model::Binary &Model,
         ModelArg.Type() = model::PointerType::make(NewTypeIt->second.copy(),
                                                    Model.Architecture());
         revng_assert(*ModelArg.Type()->size() == OldSize);
-        revng_log(Log, "Updated to " << serializeToString(ModelArg.Type()));
+        revng_log(Log, "Updated to " << toString(ModelArg.Type()));
         Updated = true;
       }
     }
@@ -221,7 +221,7 @@ static bool updateReturnType(model::Binary &Model,
         ModelReturnType = model::PointerType::make(NewTypeIt->second.copy(),
                                                    Model.Architecture());
         revng_assert(*ModelReturnType->size() == OldSize);
-        revng_log(Log, "Updated to " << serializeToString(ModelReturnType));
+        revng_log(Log, "Updated to " << toString(ModelReturnType));
         Updated = true;
       }
     }
@@ -270,7 +270,7 @@ static bool updateArgumentTypes(model::Binary &Model,
         ModelArg.Type() = model::PointerType::make(NewTypeIt->second.copy(),
                                                    Model.Architecture());
         revng_assert(*ModelArg.Type()->size() == OldSize);
-        revng_log(Log, "Updated to " << serializeToString(ModelArg.Type()));
+        revng_log(Log, "Updated to " << toString(ModelArg.Type()));
         Updated = true;
       }
     }
@@ -330,7 +330,7 @@ static bool updateReturnType(model::Binary &Model,
         ModelReturnType = model::PointerType::make(NewTypeIt->second.copy(),
                                                    Model.Architecture());
         revng_assert(*ModelReturnType->size() == OldSize);
-        revng_log(Log, "Updated to " << serializeToString(ModelReturnType));
+        revng_log(Log, "Updated to " << toString(ModelReturnType));
         return true;
       }
     }
@@ -394,9 +394,9 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
                                        model::UpcastableType &&RecoveredType,
                                        uint64_t Offset = 0ULL) {
   revng_log(Log,
-            "Filling a struct " << serializeToString(OriginalStruct)
-                                << "\nwith a recovered type: "
-                                << serializeToString(RecoveredType));
+            "Filling a struct "
+              << toString(OriginalStruct)
+              << "\nwith a recovered type: " << toString(RecoveredType));
 
   uint64_t RecoveredSize = RecoveredType->size().value_or(0ULL);
   revng_assert(RecoveredSize > 0);

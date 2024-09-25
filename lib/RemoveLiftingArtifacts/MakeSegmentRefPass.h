@@ -8,4 +8,3 @@
 
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/LoadModelPass.h"
-

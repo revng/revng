@@ -340,14 +340,14 @@ model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
 
   if (Tail != std::string::npos && onlyContainsNumbers(Name.substr(Tail + 1))) {
     std::string ID = std::string(Name.substr(Tail + 1));
-    llvm::Expected<uint64_t> DeserializedID = deserialize<uint64_t>(ID);
-    if (DeserializedID) {
-      return Model->makeType(model::TypeDefinition::Key{ *DeserializedID,
+    llvm::Expected<uint64_t> MaybeID = fromString<uint64_t>(ID);
+    if (MaybeID) {
+      return Model->makeType(model::TypeDefinition::Key{ *MaybeID,
                                                          T::AssociatedKind });
     } else {
       std::string ErrorMessage;
       llvm::raw_string_ostream Stream(ErrorMessage);
-      llvm::logAllUnhandledErrors(DeserializedID.takeError(), Stream);
+      llvm::logAllUnhandledErrors(MaybeID.takeError(), Stream);
       Stream.flush();
 
       Errors.emplace_back(std::move(ErrorMessage));

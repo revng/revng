@@ -99,7 +99,7 @@ model::UpcastableType llvmIntToModelType(const llvm::Type *TypeToConvert,
   }
 
   revng_assert(Result->verify(true),
-               ("Unsupported llvm type: " + serializeToString(Result)).c_str());
+               ("Unsupported llvm type: " + toString(Result)).c_str());
   return Result;
 }
 
@@ -107,7 +107,7 @@ model::UpcastableType deserializeFromLLVMString(llvm::Value *V,
                                                 const model::Binary &Model) {
   // Try to get a string out of the llvm::Value
   llvm::StringRef BaseTypeString = extractFromConstantStringPtr(V);
-  auto ParsedType = deserialize<model::UpcastableType>(BaseTypeString);
+  auto ParsedType = fromString<model::UpcastableType>(BaseTypeString);
   if (not ParsedType) {
     std::string Error = "Could not deserialize the model type from LLVM "
                         "constant string: '"
@@ -136,7 +136,7 @@ model::UpcastableType deserializeFromLLVMString(llvm::Value *V,
 
 llvm::Constant *serializeToLLVMString(const model::UpcastableType &Type,
                                       llvm::Module &M) {
-  return getUniqueString(&M, serializeToString(Type));
+  return getUniqueString(&M, toString(Type));
 }
 
 static const model::Type &getFieldType(const model::Type &Parent,

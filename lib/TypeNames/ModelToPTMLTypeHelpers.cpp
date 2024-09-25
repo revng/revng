@@ -442,9 +442,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     for (auto &[Index, ReturnValue] : llvm::enumerate(F.ReturnValues())) {
-      using pipeline::serializedLocation;
-      std::string
-        ActionLocation = serializedLocation(revng::ranks::ReturnRegister,
+      std::string ActionLocation = toString(revng::ranks::ReturnRegister,
                                             F.key(),
                                             ReturnValue.key());
 
@@ -452,7 +450,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
         FieldString = B.tokenTag(ReturnValue.name(), ptml::c::tokens::Field)
                         .addAttribute(ptml::attributes::ActionContextLocation,
                                       ActionLocation)
-                        .serialize();
+                        .toString();
       Header << getNamedCInstance(*ReturnValue.Type(), FieldString, B) << ";\n";
     }
   }

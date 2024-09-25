@@ -83,9 +83,7 @@ using llvm::StringRef;
 using model::Binary;
 using model::CABIFunctionDefinition;
 using model::RawFunctionDefinition;
-using model::TypedefDefinition;
 
-using pipeline::serializedLocation;
 using ptml::Tag;
 namespace ranks = revng::ranks;
 namespace attributes = ptml::attributes;
@@ -186,7 +184,7 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
                      /*radix=*/16,
                      /*signed=*/false,
                      /*formatAsCLiteral=*/true);
-    CompositeConstant += B.getConstantTag(LowBitsString).serialize();
+    CompositeConstant += B.getConstantTag(LowBitsString).toString();
   }
   return addAlwaysParentheses(CompositeConstant);
 }
@@ -477,26 +475,26 @@ static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(hexLiteral(Value, B, Model)).serialize();
+    return B.getConstantTag(hexLiteral(Value, B, Model)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::CharInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(charLiteral(Value)).serialize();
+    return B.getConstantTag(charLiteral(Value)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::BoolInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(boolLiteral(Value)).serialize();
+    return B.getConstantTag(boolLiteral(Value)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::NullPtr)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
     revng_assert(Value->isZero());
-    return B.getNullTag().serialize();
+    return B.getNullTag().toString();
   }
   std::string Error = "Cannot get token for custom opcode: "
                       + dumpToString(Call);
@@ -512,12 +510,12 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
     rc_return getUndefToken(*TypeMap.at(Undef), B);
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
-    rc_return B.getNullTag().serialize();
+    rc_return B.getNullTag().toString();
 
   if (auto *Const = dyn_cast<llvm::ConstantInt>(C)) {
     llvm::APInt Value = Const->getValue();
     if (Value.isIntN(64))
-      rc_return B.getNumber(Value).serialize();
+      rc_return B.getNumber(Value).toString();
     else
       rc_return get128BitIntegerHexConstant(Value, B, Model);
   }
@@ -649,7 +647,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       // index.
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(ThirdArgument)) {
-        IndexExpr = B.getNumber(Const->getValue()).serialize();
+        IndexExpr = B.getNumber(Const->getValue()).toString();
       } else {
         IndexExpr = rc_recur getToken(ThirdArgument);
       }
@@ -704,7 +702,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       auto *FieldIdxConst = cast<llvm::ConstantInt>(CurArg->get());
       uint64_t FieldIdx = FieldIdxConst->getValue().getLimitedValue();
 
-      CurExpr += Deref.serialize();
+      CurExpr += Deref.toString();
 
       // Find the field name
       const model::TypeDefinition &Definition = D->unwrap();
@@ -726,7 +724,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
     } else if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Unwrapped)) {
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
-        IndexExpr = B.getNumber(Const->getValue()).serialize();
+        IndexExpr = B.getNumber(Const->getValue()).toString();
       } else {
         IndexExpr = rc_recur getToken(CurArg->get());
       }
@@ -895,7 +893,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
     const auto Operand = Call->getArgOperand(0);
     std::string StringLiteral = rc_recur getToken(Operand);
-    rc_return B.getStringLiteral(StringLiteral).serialize();
+    rc_return B.getStringLiteral(StringLiteral).toString();
   }
 
   std::string Error = "Cannot get token for custom opcode: "
@@ -922,13 +920,13 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       // Dynamic Function
       auto &DynFuncID = CallEdge->DynamicFunction();
       auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
-      std::string Location = serializedLocation(ranks::DynamicFunction,
-                                                DynamicFunc.key());
+      std::string Location = toString(ranks::DynamicFunction,
+                                      DynamicFunc.key());
       CalleeToken = B.getTag(ptml::tags::Span, DynamicFunc.name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
-                      .serialize();
+                      .toString();
     } else {
       // Isolated function
       llvm::Function *CalledFunc = getCalledFunction(Call);
@@ -936,13 +934,12 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       const model::Function *ModelFunc = llvmToModelFunction(Model,
                                                              *CalledFunc);
       revng_assert(ModelFunc);
-      std::string Location = serializedLocation(ranks::Function,
-                                                ModelFunc->key());
+      std::string Location = toString(ranks::Function, ModelFunc->key());
       CalleeToken = B.getTag(ptml::tags::Span, ModelFunc->name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
-                      .serialize();
+                      .toString();
     }
   }
 
@@ -984,7 +981,7 @@ static std::string addDebugInfo(const llvm::Instruction *I,
     return B.getTag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::LocationReferences, Location)
       .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .serialize();
+      .toString();
   }
   return Str;
 }
@@ -1152,7 +1149,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
   case llvm::Instruction::Ret: {
 
     std::string Result = B.getKeyword(ptml::PTMLCBuilder::Keyword::Return)
-                           .serialize();
+                           .toString();
     if (auto *Ret = llvm::cast<llvm::ReturnInst>(I);
         llvm::Value *ReturnedVal = Ret->getReturnValue())
       Result += " " + rc_recur getToken(ReturnedVal);
@@ -1512,8 +1509,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
     const Tag &OpToken = E->getKind() == NodeKind::NK_And ?
                            B.getOperator(PTMLOperator::BoolAnd) :
                            B.getOperator(PTMLOperator::BoolOr);
-    rc_return addAlwaysParentheses(Child1Token) + " " + OpToken.serialize()
-      + " " + addAlwaysParentheses(Child2Token);
+    rc_return addAlwaysParentheses(Child1Token) + " " + OpToken.toString() + " "
+      + addAlwaysParentheses(Child2Token);
   } break;
 
   default:
@@ -1524,7 +1521,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
 static std::string makeWhile(const ptml::PTMLCBuilder &B,
                              const std::string &CondExpr) {
   revng_assert(not CondExpr.empty());
-  return B.getKeyword(ptml::PTMLCBuilder::Keyword::While).serialize() + " ("
+  return B.getKeyword(ptml::PTMLCBuilder::Keyword::While).toString() + " ("
          + CondExpr + ")";
 }
 
@@ -1676,7 +1673,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       Out << B.getKeyword(ptml::PTMLCBuilder::Keyword::Do) << " ";
     } else {
       if (Loop->isWhileTrue()) {
-        CondExpr = B.getTrueTag().serialize();
+        CondExpr = B.getTrueTag().toString();
       } else {
         revng_assert(Loop->isWhile());
         CondExpr = rc_recur makeLoopCondition(Loop->getRelatedCondition());

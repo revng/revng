@@ -27,7 +27,6 @@
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using namespace llvm;
-using pipeline::serializedLocation;
 namespace ranks = revng::ranks;
 
 static Logger<> Log{ "prepare-llvmir-for-mlir" };
@@ -38,8 +37,7 @@ static void saveFunctionEntryPointInDISubprogram(llvm::Function &F) {
   std::string FunctionEntryLocation;
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDName);
   if (MaybeMetaAddress != MetaAddress::invalid()) {
-    FunctionEntryLocation = serializedLocation(ranks::Function,
-                                               MaybeMetaAddress);
+    FunctionEntryLocation = toString(ranks::Function, MaybeMetaAddress);
     revng_log(Log, "Function entry: " << FunctionEntryLocation);
     // For the purpose of preserving `!revng.function.entry`, let's map it in
     // DISubprogram's `linkageName;` field.

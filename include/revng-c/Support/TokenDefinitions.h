@@ -39,7 +39,7 @@ public:
 public:
   VariableTokens() : Declaration(), Use() {}
   VariableTokens(const ptml::Tag &Declaration, const ptml::Tag &Use) :
-    Declaration(Declaration.serialize()), Use(Use.serialize()) {}
+    Declaration(Declaration.toString()), Use(Use.toString()) {}
   VariableTokens(const llvm::StringRef Declaration, const llvm::StringRef Use) :
     Declaration(Declaration), Use(Use) {}
   VariableTokens(const llvm::StringRef Use) : Use(Use) {}

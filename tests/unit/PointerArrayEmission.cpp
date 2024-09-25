@@ -139,7 +139,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
                     + "\")\n";
       FailureLog += "didn't match the expectations (\"" + ExpectedOutput
                     + "\")\n";
-      FailureLog += "for\n" + serializeToString(Type) + "\n\n";
+      FailureLog += "for\n" + toString(Type) + "\n\n";
     }
   }
 

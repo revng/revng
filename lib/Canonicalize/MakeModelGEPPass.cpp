@@ -1620,7 +1620,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
       Result = model::PrimitiveType::makeGeneric(PointeeSize);
     }
 
-    revng_log(ModelGEPLog, "AccessedTypeOnIR: " << serializeToString(Result));
+    revng_log(ModelGEPLog, "AccessedTypeOnIR: " << toString(Result));
     return Result;
   } break;
 
@@ -1653,7 +1653,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
         Result = model::PrimitiveType::makeGeneric(PointeeSize);
       }
 
-      revng_log(ModelGEPLog, "AccessedTypeOnIR: " << serializeToString(Result));
+      revng_log(ModelGEPLog, "AccessedTypeOnIR: " << toString(Result));
       return Result;
     } else {
       revng_log(ModelGEPLog, "Use is pointer operand");
@@ -1719,7 +1719,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
       if (const auto *Pointer = SingleReturnType->getPointer()) {
         auto _ = LoggerIndent(ModelGEPLog);
         revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
-        revng_log(ModelGEPLog, "Pointee: " << serializeToString(*Pointer));
+        revng_log(ModelGEPLog, "Pointee: " << toString(*Pointer));
         return SingleReturnType->getPointee();
       }
     }
@@ -1754,7 +1754,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
         auto RetTy = std::next(RFT->ReturnValues().begin(), ArgNum)->Type();
         if (const model::PointerType *Pointer = RetTy->getPointer()) {
           revng_log(ModelGEPLog,
-                    "Pointee: " << serializeToString(Pointer->PointeeType()));
+                    "Pointee: " << toString(Pointer->PointeeType()));
           return Pointer->PointeeType();
         }
       } else if (CalledFType.cabiPrototype() != nullptr) {
@@ -1796,10 +1796,10 @@ getAccessedTypeOnIR(const llvm::Use &U,
                                 RFT->StackArgumentsType() :
                                 std::next(RFT->Arguments().begin(), N)->Type();
 
-          revng_log(ModelGEPLog, "Type: " << serializeToString(ArgTy));
+          revng_log(ModelGEPLog, "Type: " << toString(ArgTy));
           if (const model::PointerType *Pointer = ArgTy->getPointer()) {
             revng_log(ModelGEPLog,
-                      "Pointee: " << serializeToString(Pointer->PointeeType()));
+                      "Pointee: " << toString(Pointer->PointeeType()));
             return Pointer->PointeeType();
           }
         } else {
@@ -1818,10 +1818,10 @@ getAccessedTypeOnIR(const llvm::Use &U,
           revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
           const auto &ArgTy = CFT->Arguments().at(ArgOpNum).Type();
-          revng_log(ModelGEPLog, "Type: " << serializeToString(ArgTy));
+          revng_log(ModelGEPLog, "Type: " << toString(ArgTy));
           if (const model::PointerType *Pointer = ArgTy->getPointer()) {
             revng_log(ModelGEPLog,
-                      "Pointee: " << serializeToString(Pointer->PointeeType()));
+                      "Pointee: " << toString(Pointer->PointeeType()));
             return Pointer->PointeeType();
           }
         } else {
