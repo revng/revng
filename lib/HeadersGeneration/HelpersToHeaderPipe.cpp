@@ -15,27 +15,27 @@ namespace revng::pipes {
 using namespace pipeline;
 static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer> Reg;
 
-void HelpersToHeader::run(pipeline::ExecutionContext &Ctx,
+void HelpersToHeader::run(pipeline::ExecutionContext &EC,
                           pipeline::LLVMContainer &IRContainer,
                           HelpersHeaderFileContainer &HeaderFile) {
-  if (Ctx.getRequestedTargetsFor(HeaderFile).empty())
+  if (EC.getRequestedTargetsFor(HeaderFile).empty())
     return;
 
-  std::error_code EC;
-  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), EC);
-  if (EC)
-    revng_abort(EC.message().c_str());
+  std::error_code ErrorCode;
+  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), ErrorCode);
+  if (ErrorCode)
+    revng_abort(ErrorCode.message().c_str());
 
   dumpHelpersToHeader(IRContainer.getModule(),
                       Header,
                       /* GeneratePlainC = */ false);
 
   Header.flush();
-  EC = Header.error();
-  if (EC)
-    revng_abort(EC.message().c_str());
+  ErrorCode = Header.error();
+  if (ErrorCode)
+    revng_abort(ErrorCode.message().c_str());
 
-  Ctx.commitUniqueTarget(HeaderFile);
+  EC.commitUniqueTarget(HeaderFile);
 }
 
 } // end namespace revng::pipes

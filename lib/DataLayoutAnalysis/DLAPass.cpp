@@ -134,11 +134,11 @@ public:
     { &revng::kinds::StackAccessesSegregated }
   };
 
-  void run(pipeline::ExecutionContext &Ctx, pipeline::LLVMContainer &Module) {
+  void run(pipeline::ExecutionContext &EC, pipeline::LLVMContainer &Module) {
     using namespace revng;
 
     llvm::legacy::PassManager Manager;
-    auto &Global = getWritableModelFromContext(Ctx);
+    auto &Global = getWritableModelFromContext(EC);
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));
     Manager.add(new DLAPass());
     Manager.run(Module.getModule());

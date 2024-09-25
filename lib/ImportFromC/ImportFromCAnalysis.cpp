@@ -84,11 +84,11 @@ struct ImportFromCAnalysis {
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  llvm::Error run(pipeline::ExecutionContext &Ctx,
+  llvm::Error run(pipeline::ExecutionContext &EC,
                   std::string LocationToEdit,
                   std::string CCode) {
     enum ImportFromCOption TheOption;
-    auto &Model = revng::getWritableModelFromContext(Ctx);
+    auto &Model = revng::getWritableModelFromContext(EC);
 
     // This will be used iff {Edit|Add}TypeFeature is used.
     model::TypeDefinition *TypeToEdit = nullptr;
@@ -142,13 +142,13 @@ struct ImportFromCAnalysis {
     }
 
     TemporaryFile &FilterModelPath = MaybeFilterModelPath.get();
-    std::error_code EC;
-    llvm::raw_fd_ostream Header(FilterModelPath.path(), EC);
-    if (EC) {
-      return llvm::createStringError(EC,
+    std::error_code ErrorCode;
+    llvm::raw_fd_ostream Header(FilterModelPath.path(), ErrorCode);
+    if (ErrorCode) {
+      return llvm::createStringError(ErrorCode,
                                      "Couldn't open file for "
                                      "filtered-model-header-ptml.h: "
-                                       + EC.message());
+                                       + ErrorCode.message());
     }
 
     ModelToHeaderOptions Options = {

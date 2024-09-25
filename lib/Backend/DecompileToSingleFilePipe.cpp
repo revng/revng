@@ -19,7 +19,7 @@ static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
   Reg;
 
 using Container = DecompileStringMap;
-void DecompileToSingleFile::run(pipeline::ExecutionContext &Ctx,
+void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
                                 const Container &DecompiledFunctions,
                                 DecompiledFileContainer &OutCFile) {
 
@@ -32,7 +32,7 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &Ctx,
   printSingleCFile(Out, B, DecompiledFunctions, {} /* Targets */);
   Out.flush();
 
-  Ctx.commitUniqueTarget(OutCFile);
+  EC.commitUniqueTarget(OutCFile);
 }
 
 } // end namespace revng::pipes

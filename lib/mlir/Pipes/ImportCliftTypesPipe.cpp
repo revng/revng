@@ -152,7 +152,7 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            revng::pipes::MLIRContainer &MLIRContainer) {
     mlir::ModuleOp Module = MLIRContainer.getModule();
@@ -216,10 +216,10 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            revng::pipes::MLIRContainer &MLIRContainer) {
-    importAllModelTypes(*revng::getModelFromContext(Ctx),
+    importAllModelTypes(*revng::getModelFromContext(EC),
                         MLIRContainer.getModule());
 
     EC.commitAllFor(MLIRContainer);

@@ -50,7 +50,7 @@ public:
   }
 
   // Note: SourceBinary is not really needed, just a workaround.
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const BinaryFileContainer &SourceBinary,
            ModelTypeDefinitionStringMap &ModelTypesContainer);
 };

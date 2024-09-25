@@ -28,33 +28,33 @@ static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
   Reg;
 
 // TODO: BinaryFile here is a placeholder. In principle this pipe has no real
-// input container. It just juses the model in Ctx to generated HeaderFile.
+// input container. It just juses the model in EC to generated HeaderFile.
 // At the moment revng-pipeline does not support pipes with no inputs, so we
 // had to resort to this trick. Whenever pipes with no inputs are supported
 // BinaryFile can be dropped.
-void ModelToHeader::run(pipeline::ExecutionContext &Ctx,
+void ModelToHeader::run(pipeline::ExecutionContext &EC,
                         const BinaryFileContainer &BinaryFile,
                         ModelHeaderFileContainer &HeaderFile) {
-  if (Ctx.getRequestedTargetsFor(HeaderFile).empty())
+  if (EC.getRequestedTargetsFor(HeaderFile).empty())
     return;
 
-  std::error_code EC;
-  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), EC);
-  if (EC)
-    revng_abort(EC.message().c_str());
+  std::error_code ErrorCode;
+  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), ErrorCode);
+  if (ErrorCode)
+    revng_abort(ErrorCode.message().c_str());
 
-  const model::Binary &Model = *getModelFromContext(Ctx);
+  const model::Binary &Model = *getModelFromContext(EC);
   dumpModelToHeader(Model,
                     Header,
                     ModelToHeaderOptions{
                       .DisableTypeInlining = not InlineTypes });
 
   Header.flush();
-  EC = Header.error();
-  if (EC)
-    revng_abort(EC.message().c_str());
+  ErrorCode = Header.error();
+  if (ErrorCode)
+    revng_abort(ErrorCode.message().c_str());
 
-  Ctx.commitUniqueTarget(HeaderFile);
+  EC.commitUniqueTarget(HeaderFile);
 }
 
 } // end namespace revng::pipes

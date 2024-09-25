@@ -352,12 +352,12 @@ public:
     { &revng::kinds::StackPointerPromoted }
   };
 
-  llvm::Error run(pipeline::ExecutionContext &Ctx,
+  llvm::Error run(pipeline::ExecutionContext &EC,
                   pipeline::LLVMContainer &Module) {
     using namespace revng;
 
     llvm::legacy::PassManager Manager;
-    auto &Global = getWritableModelFromContext(Ctx);
+    auto &Global = getWritableModelFromContext(EC);
 
     if (Global->Architecture() == model::Architecture::Invalid) {
       return createStringError(inconvertibleErrorCode(),

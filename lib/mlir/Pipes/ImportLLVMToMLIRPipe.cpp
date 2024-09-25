@@ -32,7 +32,7 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const pipeline::LLVMContainer &LLVMContainer,
            revng::pipes::MLIRContainer &MLIRContainer) {
     auto &Context = *MLIRContainer.getContext();

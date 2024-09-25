@@ -294,24 +294,24 @@ public:
     return { pipeline::ContractGroup({ BinaryPart, FunctionsPart }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
 };
 
-void MakeSegmentRef::run(pipeline::ExecutionContext &Ctx,
+void MakeSegmentRef::run(pipeline::ExecutionContext &EC,
                          const BinaryFileContainer &SourceBinary,
                          pipeline::LLVMContainer &TargetsList) {
   if (not SourceBinary.exists())
     return;
 
-  const TupleTree<model::Binary> &Model = getModelFromContext(Ctx);
+  const TupleTree<model::Binary> &Model = getModelFromContext(EC);
   auto BufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(*SourceBinary.path());
   auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
   RawBinaryView RawBinary(*Model, Buffer->getBuffer());
 
   llvm::legacy::PassManager PM;
-  PM.add(new pipeline::LoadExecutionContextPass(&Ctx, TargetsList.name()));
+  PM.add(new pipeline::LoadExecutionContextPass(&EC, TargetsList.name()));
   PM.add(new LoadModelWrapperPass(Model));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new pipeline::FunctionPass<MakeSegmentRefPassImpl>);
