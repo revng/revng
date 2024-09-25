@@ -15,15 +15,10 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringMap.h"
-#include "revng/Pipes/TargetListContainer.h"
 
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
-
-inline constexpr char TypeContainerName[] = "type-kind-target-container";
-using TypeTargetList = TargetListContainer<&kinds::ModelTypeDefinition,
-                                           TypeContainerName>;
 
 inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+tar+gz";
 inline constexpr char ModelTypeDefinitionName[] = "model-type-definitions";

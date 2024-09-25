@@ -6,7 +6,6 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/PopulateTargetListContainer.h"
 #include "revng/Pipes/StringMap.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
@@ -17,11 +16,7 @@
 namespace revng::pipes {
 
 using namespace pipeline;
-static RegisterDefaultConstructibleContainer<TypeTargetList> F1;
 static RegisterDefaultConstructibleContainer<ModelTypeDefinitionStringMap> F2;
-
-inline constexpr char PipeName[] = "populate-type-kind-target-container";
-using PopulateTypeKind = PopulateTargetListContainer<TypeTargetList, PipeName>;
 
 using Container = ModelTypeDefinitionStringMap;
 void GenerateModelTypeDefinition::run(ExecutionContext &EC,
