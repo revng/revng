@@ -76,8 +76,8 @@ static std::string getSupportPath(const Context &Context) {
 }
 
 void revng::pipes::LinkSupport::run(ExecutionContext &EC,
-                                    LLVMContainer &TargetsList) {
-  if (TargetsList.enumerate().empty())
+                                    LLVMContainer &ModuleContainer) {
+  if (ModuleContainer.enumerate().empty())
     return;
 
   std::string SupportPath = getSupportPath(EC.getContext());
@@ -85,13 +85,13 @@ void revng::pipes::LinkSupport::run(ExecutionContext &EC,
   llvm::SMDiagnostic Err;
   auto Module = llvm::parseIRFile(SupportPath,
                                   Err,
-                                  TargetsList.getModule().getContext());
+                                  ModuleContainer.getModule().getContext());
   revng_assert(Module != nullptr);
 
-  auto Failed = llvm::Linker::linkModules(TargetsList.getModule(),
+  auto Failed = llvm::Linker::linkModules(ModuleContainer.getModule(),
                                           std::move(Module));
 
-  EC.commitAllFor(TargetsList);
+  EC.commitAllFor(ModuleContainer);
 
   revng_assert(not Failed);
 }
