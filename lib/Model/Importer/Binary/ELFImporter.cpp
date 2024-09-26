@@ -857,7 +857,12 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
   EHFrameHdrReader.readNextU8();
 
   Pointer EHFramePointer = EHFrameHdrReader.readPointer(ExceptionFrameEncoding);
-  uint64_t FDEsCount = EHFrameHdrReader.readUnsignedValue(FDEsCountEncoding);
+  auto MaybeFDEsCount = EHFrameHdrReader.readUnsignedValue(FDEsCountEncoding);
+
+  if (not MaybeFDEsCount) {
+    revng_log(ELFImporterLog, "FDE count unavailable in .eh_frame_hdr");
+    return { MetaAddress::invalid(), 0 };
+  }
 
   MetaAddress Address = getGenericPointer(EHFramePointer);
   if (Address.isInvalid()) {
@@ -865,7 +870,7 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
     return { MetaAddress::invalid(), 0 };
   }
 
-  return { Address, FDEsCount };
+  return { Address, *MaybeFDEsCount };
 }
 
 template<typename T, bool HasAddend>

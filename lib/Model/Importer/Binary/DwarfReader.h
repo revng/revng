@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <type_traits>
 
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -138,12 +139,15 @@ public:
     return Result;
   }
 
-  int64_t readSignedValue(unsigned Encoding) {
-    return static_cast<int64_t>(readValue(Encoding));
+  std::optional<int64_t> readSignedValue(unsigned Encoding) {
+    auto MaybeResult = readValue(Encoding);
+    if (not MaybeResult)
+      return std::nullopt;
+    return static_cast<int64_t>(*MaybeResult);
   }
 
-  uint64_t readUnsignedValue(unsigned Encoding) {
-    return static_cast<uint64_t>(readValue(Encoding));
+  std::optional<uint64_t> readUnsignedValue(unsigned Encoding) {
+    return readValue(Encoding);
   }
 
   Pointer readPointer(unsigned Encoding,
@@ -208,8 +212,11 @@ private:
     }
   }
 
-  uint64_t readValue(unsigned Encoding) {
+  std::optional<uint64_t> readValue(unsigned Encoding) {
     using namespace llvm;
+
+    if (Encoding == dwarf::DW_EH_PE_omit)
+      return std::nullopt;
 
     revng_assert((Encoding & ~(0x70 | 0x0F | dwarf::DW_EH_PE_indirect)) == 0);
 
@@ -243,15 +250,22 @@ private:
     case dwarf::DW_EH_PE_sdata8:
       return readNext<int64_t>();
     default:
-      revng_unreachable("Unknown Encoding");
+      revng_abort(("Unknown encoding " + std::to_string(Encoding)).c_str());
     }
   }
 
   template<typename T>
-  Pointer readPointerInternal(T Value, unsigned Encoding, MetaAddress Base) {
+  Pointer readPointerInternal(std::optional<T> MaybeValue,
+                              unsigned Encoding,
+                              MetaAddress Base) {
     using namespace llvm;
 
     bool IsIndirect = Encoding & dwarf::DW_EH_PE_indirect;
+
+    if (not MaybeValue)
+      return Pointer(IsIndirect, MetaAddress::invalid());
+
+    auto Value = *MaybeValue;
 
     if (Base.isInvalid()) {
       return Pointer(IsIndirect, MetaAddress::fromGeneric(Architecture, Value));
