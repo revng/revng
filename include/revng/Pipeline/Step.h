@@ -101,7 +101,7 @@ public:
 
 public:
   // TODO: drop the Out parameter pattern if favour of coroutines in the whole
-  // codebase.
+  //       codebase.
   void registerTargetsDependingOn(llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
                                   TargetInStepSet &Out,
@@ -109,7 +109,7 @@ public:
     ContainerToTargetsMap OutMap;
 
     for (const PipeWrapper &Pipe : Pipes) {
-      revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " Pipe");
+      revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " pipe");
       LoggerIndent<> Indent(Log);
       Pipe.InvalidationMetadata.registerTargetsDependingOn(*TheContext,
                                                            GlobalName,

@@ -5,6 +5,7 @@
 //
 
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/Target.h"
 
 namespace pipeline {
