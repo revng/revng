@@ -106,7 +106,7 @@ public:
                                   const TupleTreePath &Path,
                                   TargetInStepSet &Out,
                                   Logger<> &Log) const {
-    ContainerToTargetsMap OutMap;
+    ContainerToTargetsMap ToInvalidateMap;
 
     for (const PipeWrapper &Pipe : Pipes) {
       revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " pipe");
@@ -114,18 +114,20 @@ public:
       Pipe.InvalidationMetadata.registerTargetsDependingOn(*TheContext,
                                                            GlobalName,
                                                            Path,
-                                                           OutMap,
+                                                           ToInvalidateMap,
                                                            Log);
+      Pipe.Pipe->deduceResults(*TheContext, ToInvalidateMap);
     }
 
-    for (auto &Container : OutMap) {
-      if (Containers.contains(Container.first()))
+    for (auto &Container : ToInvalidateMap) {
+      if (Containers.contains(Container.first())) {
         Container.second = Container.second.intersect(Containers
                                                         .at(Container.first())
                                                         .enumerate());
+      }
     }
 
-    Out[getName()].merge(OutMap);
+    Out[getName()].merge(ToInvalidateMap);
   }
 
   bool invalidationMetadataContains(llvm::StringRef GlobalName,
