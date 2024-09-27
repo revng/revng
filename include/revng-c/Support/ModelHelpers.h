@@ -34,13 +34,13 @@ extern model::UpcastableType llvmIntToModelType(const llvm::Type *LLVMType,
 /// Try to extract a model type from an llvm::Value. V must be a pointer to
 /// a string which contains a valid serialization of the type, otherwise
 /// this function will abort.
-extern model::UpcastableType
-deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model);
+extern model::UpcastableType fromLLVMString(llvm::Value *V,
+                                            const model::Binary &Model);
 
 /// Create a global string in the given LLVM module that contains a
 /// serialization of \a Type.
-llvm::Constant *serializeToLLVMString(const model::UpcastableType &Type,
-                                      llvm::Module &M);
+llvm::Constant *toLLVMString(const model::UpcastableType &Type,
+                             llvm::Module &M);
 
 /// Return an LLVM IntegerType that has the size of a pointer in the given
 /// architecture.

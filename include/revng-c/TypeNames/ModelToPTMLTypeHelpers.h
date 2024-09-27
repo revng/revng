@@ -22,6 +22,9 @@ public:
 
   using Node = BidirectionalNode<NodeData>;
   using Graph = GenericGraph<Node>;
+  using DefinitionSet = std::set<const model::TypeDefinition *>;
+  using StackTypesMap = std::unordered_map<const model::Function *,
+                                           DefinitionSet>;
 
   /// This Graph is being used for the purpose of inlining types only.
   // TODO: this should be refactored to used the same DependencyGraph used in
@@ -39,32 +42,30 @@ public:
 private:
   const model::Binary &Model;
   GraphInfo TypeGraph;
-  std::set<const model::TypeDefinition *> TypesToInline;
+  DefinitionSet TypesToInline;
 
 public:
   TypeInlineHelper(const model::Binary &Model);
 
 public:
-  const std::set<const model::TypeDefinition *> &getTypesToInline() const;
+  const DefinitionSet &getTypesToInline() const;
 
 public:
   /// Collect stack frame types per model::Function.
-  std::unordered_map<const model::Function *,
-                     std::set<const model::TypeDefinition *>>
-  findTypesToInlineInStacks() const;
+  StackTypesMap findTypesToInlineInStacks() const;
 
   /// Collect all stack frame types, since we want to print them inline in
   /// the function body.
-  std::set<const model::TypeDefinition *> collectTypesInlinableInStacks() const;
+  DefinitionSet collectTypesInlinableInStacks() const;
 
   /// Find all nested types of the `RootType` that should be inlined into it.
-  std::set<const model::TypeDefinition *>
+  DefinitionSet
   getTypesToInlineInTypeTy(const model::TypeDefinition &RootType) const;
 
 private:
   // Helper function used for finding all nested (into `RootType`) inlinable
   // types.
-  std::set<const model::TypeDefinition *>
+  DefinitionSet
   getNestedTypesToInline(const model::TypeDefinition &RootType,
                          const model::TypeDefinition &NestedTy) const;
 };

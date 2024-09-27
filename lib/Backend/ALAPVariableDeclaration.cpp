@@ -173,7 +173,7 @@ public:
 
 struct ASTForwardNode {
   ASTForwardNode(const ASTNode *Node) : Node(Node) {}
-  const ASTNode *Node;
+  const ASTNode *Node = nullptr;
   const ASTNode *getASTNode() { return Node; }
 };
 

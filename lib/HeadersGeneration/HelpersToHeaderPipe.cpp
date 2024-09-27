@@ -15,35 +15,27 @@ namespace revng::pipes {
 using namespace pipeline;
 static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer> Reg;
 
-void HelpersToHeader::run(const pipeline::ExecutionContext &Ctx,
+void HelpersToHeader::run(pipeline::ExecutionContext &EC,
                           pipeline::LLVMContainer &IRContainer,
                           HelpersHeaderFileContainer &HeaderFile) {
-
-  auto Enumeration = IRContainer.enumerate();
-  auto Targets = kinds::StackAccessesSegregated.allTargets(Ctx.getContext());
-  if (not Enumeration.contains(Targets))
+  if (EC.getRequestedTargetsFor(HeaderFile).empty())
     return;
 
-  std::error_code EC;
-  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), EC);
-  if (EC)
-    revng_abort(EC.message().c_str());
+  std::error_code ErrorCode;
+  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), ErrorCode);
+  if (ErrorCode)
+    revng_abort(ErrorCode.message().c_str());
 
   dumpHelpersToHeader(IRContainer.getModule(),
                       Header,
                       /* GeneratePlainC = */ false);
 
   Header.flush();
-  EC = Header.error();
-  if (EC)
-    revng_abort(EC.message().c_str());
-}
+  ErrorCode = Header.error();
+  if (ErrorCode)
+    revng_abort(ErrorCode.message().c_str());
 
-void HelpersToHeader::print(const pipeline::Context &Ctx,
-                            llvm::raw_ostream &OS,
-                            llvm::ArrayRef<std::string> Names) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " helpers-to-header -i=" << Names[0] << " -o=" << Names[1] << "\n";
+  EC.commitUniqueTarget(HeaderFile);
 }
 
 } // end namespace revng::pipes

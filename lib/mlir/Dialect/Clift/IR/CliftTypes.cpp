@@ -119,8 +119,8 @@ mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
 }
 
 bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
-  OS << serializeToString(model::PrimitiveType::getCName(kindToKind(getKind()),
-                                                         getByteSize()));
+  OS << toString(model::PrimitiveType::getCName(kindToKind(getKind()),
+                                                getByteSize()));
   if (isConst())
     OS << "$const";
   return true;

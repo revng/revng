@@ -15,15 +15,10 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringMap.h"
-#include "revng/Pipes/TargetListContainer.h"
 
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
-
-inline constexpr char TypeContainerName[] = "type-kind-target-container";
-using TypeTargetList = TargetListContainer<&kinds::ModelTypeDefinition,
-                                           TypeContainerName>;
 
 inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+tar+gz";
 inline constexpr char ModelTypeDefinitionName[] = "model-type-definitions";
@@ -42,24 +37,17 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(ModelTypeDefinition,
+    return { ContractGroup({ Contract(kinds::Binary,
                                       0,
                                       ModelTypeDefinition,
                                       1,
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
-           TypeTargetList &TargetList,
+  // Note: SourceBinary is not really needed, just a workaround.
+  void run(pipeline::ExecutionContext &EC,
+           const BinaryFileContainer &SourceBinary,
            ModelTypeDefinitionStringMap &ModelTypesContainer);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const;
 };
 
 } // end namespace revng::pipes

@@ -154,9 +154,9 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
     revng_log(Log, "# Looking for mixed loops from: " << Root->ID);
 
     struct EdgeInfo {
-      LTSN *Src;
-      LTSN *Tgt;
-      const TypeLinkTag *Tag;
+      LTSN *Src = nullptr;
+      LTSN *Tgt = nullptr;
+      const TypeLinkTag *Tag = nullptr;
       // Comparison operators to use in set
       std::strong_ordering operator<=>(const EdgeInfo &) const = default;
     };
@@ -165,8 +165,8 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
     llvm::SmallPtrSet<const LTSN *, 16> InStack;
 
     struct StackEntry {
-      LTSN *Node;
-      const LTSN *ComponentLeader;
+      LTSN *Node = nullptr;
+      const LTSN *ComponentLeader = nullptr;
       typename MixedNodeT::ChildEdgeIteratorType NextToVisitIt;
     };
     std::vector<StackEntry> VisitStack;

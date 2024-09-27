@@ -38,7 +38,6 @@ using llvm::StringRef;
 using llvm::Twine;
 using tokenDefinition::types::TypeString;
 
-using pipeline::serializedLocation;
 using ptml::Tag;
 namespace attributes = ptml::attributes;
 namespace tokens = ptml::c::tokens;
@@ -50,18 +49,16 @@ template<typename FT>
 concept ModelFunction = std::same_as<FT, model::Function>
                         or std::same_as<FT, model::DynamicFunction>;
 
-static std::string serializeVariableLocation(llvm::StringRef VariableName,
-                                             const model::DynamicFunction &F) {
-  return pipeline::serializedLocation(ranks::DynamicFunctionArgument,
-                                      F.key(),
-                                      VariableName.str());
+static std::string toStringVariableLocation(llvm::StringRef VariableName,
+                                            const model::DynamicFunction &F) {
+  return pipeline::toString(ranks::DynamicFunctionArgument,
+                            F.key(),
+                            VariableName.str());
 }
 
-static std::string serializeVariableLocation(llvm::StringRef VariableName,
-                                             const model::Function &F) {
-  return pipeline::serializedLocation(ranks::LocalVariable,
-                                      F.key(),
-                                      VariableName.str());
+static std::string toStringVariableLocation(llvm::StringRef VariableName,
+                                            const model::Function &F) {
+  return pipeline::toString(ranks::LocalVariable, F.key(), VariableName.str());
 }
 
 template<bool IsDefinition, ModelFunction FunctionType>
@@ -71,8 +68,8 @@ static std::string getArgumentLocation(llvm::StringRef ArgumentName,
   return B.getTag(ptml::tags::Span, ArgumentName)
     .addAttribute(attributes::Token, tokens::FunctionParameter)
     .addAttribute(B.getLocationAttribute(IsDefinition),
-                  serializeVariableLocation(ArgumentName, F))
-    .serialize();
+                  toStringVariableLocation(ArgumentName, F))
+    .toString();
 }
 
 static std::string
@@ -101,8 +98,8 @@ static std::string getVariableLocation(llvm::StringRef VariableName,
   return B.getTag(ptml::tags::Span, VariableName)
     .addAttribute(attributes::Token, tokens::Variable)
     .addAttribute(B.getLocationAttribute(IsDefinition),
-                  serializeVariableLocation(VariableName, F))
-    .serialize();
+                  toStringVariableLocation(VariableName, F))
+    .toString();
 }
 
 std::string getVariableLocationDefinition(llvm::StringRef VariableName,
@@ -176,7 +173,7 @@ private:
                                        bool PreviousWasAPointer) {
     std::string Current = B.getTag(ptml::tags::Span, "*")
                             .addAttribute(attributes::Token, tokens::Operator)
-                            .serialize();
+                            .toString();
     if (Pointer.IsConst())
       Current += constKeyword();
     Current += std::move(Emitted);
@@ -218,7 +215,7 @@ private:
 
   std::string constKeyword() {
     using PTMLKW = ptml::PTMLCBuilder::Keyword;
-    return B.getKeyword(PTMLKW::Const).serialize();
+    return B.getKeyword(PTMLKW::Const).toString();
   }
 };
 
@@ -267,7 +264,7 @@ TypeString getArrayWrapper(const model::ArrayType &ArrayType,
 
   Result += getArrayWrapperImpl(ArrayType, B);
 
-  return TypeString(B.getTag(ptml::tags::Span, std::move(Result)).serialize());
+  return TypeString(B.getTag(ptml::tags::Span, std::move(Result)).toString());
 }
 
 TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
@@ -286,7 +283,7 @@ TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
   case abi::FunctionType::ReturnMethod::Void:
     Result = B.getTag(ptml::tags::Span, "void")
                .addAttribute(attributes::Token, tokens::Type)
-               .serialize();
+               .toString();
     if (not InstanceName.empty())
       Result.append((Twine(" ") + Twine(InstanceName)).str());
     break;
@@ -320,11 +317,11 @@ TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
     // in a struct
     revng_assert(llvm::isa<model::RawFunctionDefinition>(Function));
     std::string Name = (Twine(RetStructPrefix) + Function.name()).str();
-    std::string Location = pipeline::serializedLocation(ranks::ArtificialStruct,
-                                                        Function.key());
+    std::string Location = pipeline::toString(ranks::ArtificialStruct,
+                                              Function.key());
     Result = B.tokenTag(Name, ptml::c::tokens::Type)
                .addAttribute(B.getLocationAttribute(IsDefinition), Location)
-               .serialize();
+               .toString();
     if (not InstanceName.empty())
       Result.append((Twine(" ") + Twine(InstanceName)).str());
   } break;
@@ -336,9 +333,9 @@ TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
   revng_assert(not llvm::StringRef(Result).trim().empty());
   return TypeString(B.getTag(ptml::tags::Span, Result)
                       .addAttribute(attributes::ActionContextLocation,
-                                    serializedLocation(ranks::ReturnValue,
-                                                       Function.key()))
-                      .serialize());
+                                    toString(ranks::ReturnValue,
+                                             Function.key()))
+                      .toString());
 }
 
 static std::string
@@ -409,11 +406,9 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
       std::string Reg = ptml::AttributeRegistry::getAnnotation<"_REG">(Name);
       Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + Reg);
       ArgTag.addAttribute(attributes::ActionContextLocation,
-                          serializedLocation(ranks::RawArgument,
-                                             RF.key(),
-                                             Arg.key()));
+                          toString(ranks::RawArgument, RF.key(), Arg.key()));
 
-      Header << Separator << ArgTag.serialize();
+      Header << Separator << ArgTag.toString();
       Separator = Comma;
     }
 
@@ -473,10 +468,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
       Tag ArgTag = B.getTag(ptml::tags::Span, ArgDeclaration);
       ArgTag.addAttribute(attributes::ActionContextLocation,
-                          serializedLocation(ranks::CABIArgument,
-                                             CF.key(),
-                                             Arg.key()));
-      Header << Separator << ArgTag.serialize();
+                          toString(ranks::CABIArgument, CF.key(), Arg.key()));
+      Header << Separator << ArgTag.toString();
       Separator = Comma;
     }
     Header << ")";
@@ -489,14 +482,14 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
-  std::string Location = serializedLocation(ranks::Function, Function.key());
+  std::string Location = toString(ranks::Function, Function.key());
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationDefinition, Location);
   if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *RF,
-                               FunctionTag.serialize(),
+                               FunctionTag.toString(),
                                Header,
                                B,
                                Model,
@@ -504,7 +497,7 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
   } else if (auto *CF = dyn_cast<model::CABIFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *CF,
-                               FunctionTag.serialize(),
+                               FunctionTag.toString(),
                                Header,
                                B,
                                Model,
@@ -520,15 +513,14 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
                             ptml::PTMLCBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
-  std::string Location = serializedLocation(ranks::DynamicFunction,
-                                            Function.key());
+  std::string Location = toString(ranks::DynamicFunction, Function.key());
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationDefinition, Location);
   if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *RF,
-                               FunctionTag.serialize(),
+                               FunctionTag.toString(),
                                Header,
                                B,
                                Model,
@@ -536,7 +528,7 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
   } else if (auto *CF = dyn_cast<model::CABIFunctionDefinition>(&FT)) {
     printFunctionPrototypeImpl(&Function,
                                *CF,
-                               FunctionTag.serialize(),
+                               FunctionTag.toString(),
                                Header,
                                B,
                                Model,

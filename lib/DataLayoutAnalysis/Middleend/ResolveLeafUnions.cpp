@@ -20,7 +20,7 @@ namespace dla {
 
 struct ChildrenKey {
   uint64_t Size;
-  const TypeLinkTag *Tag;
+  const TypeLinkTag *Tag = nullptr;
   bool operator==(const ChildrenKey &) const noexcept = default;
   std::strong_ordering
   operator<=>(const ChildrenKey &) const noexcept = default;
@@ -108,7 +108,7 @@ struct LeafType {
     Pointer
   } Kind;
   // The following should be nullptr if Kind is not Pointer
-  const LayoutTypeSystemNode *Pointee;
+  const LayoutTypeSystemNode *Pointee = nullptr;
 };
 
 static LeafType getType(const LayoutTypeSystemNode *N) {

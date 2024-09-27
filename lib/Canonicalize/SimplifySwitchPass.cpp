@@ -14,11 +14,14 @@
 // them to a more human-readable format. This enhancement is crucial for
 // improving code comprehension.
 
+#include "llvm/IR/Dominators.h"
 #include "llvm/Passes/PassBuilder.h"
 
 #include "revng/Lift/LoadBinaryPass.h"
+#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/FileContainer.h"
+#include "revng/Pipes/FunctionPass.h"
 #include "revng/ValueMaterializer/ValueMaterializer.h"
 
 #include "revng-c/Pipes/Kinds.h"
@@ -173,10 +176,10 @@ static bool handleSwitch(SwitchInst *Switch,
   return true;
 }
 
-static bool runSimplifySwitch(Function &F,
-                              LazyValueInfo &LVI,
-                              DominatorTree &DT,
-                              RawBinaryMemoryOracle &MO) {
+static bool simplifySwitch(Function &F,
+                           LazyValueInfo &LVI,
+                           DominatorTree &DT,
+                           RawBinaryMemoryOracle &MO) {
   bool Result = false;
   for (BasicBlock &BB : F) {
     for (Instruction &I : make_early_inc_range(BB)) {
@@ -194,47 +197,41 @@ static bool runSimplifySwitch(Function &F,
   return Result;
 }
 
-struct SimplifySwitchPass : public FunctionPass {
+struct SimplifySwitchPassImpl : public pipeline::FunctionPassImpl {
+private:
+  const model::Binary &Binary;
+
 public:
-  static char ID;
+  SimplifySwitchPassImpl(llvm::ModulePass &Pass,
+                         const model::Binary &Binary,
+                         llvm::Module &M) :
+    pipeline::FunctionPassImpl(Pass), Binary(Binary) {}
 
-  SimplifySwitchPass();
+  bool runOnFunction(const model::Function &ModelFunction,
+                     llvm::Function &Function) override;
 
-  bool runOnFunction(Function &F) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
+public:
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU);
 };
 
-SimplifySwitchPass::SimplifySwitchPass() : FunctionPass(ID) {
-}
-
-bool SimplifySwitchPass::runOnFunction(Function &F) {
-  bool Changed = false;
-
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto &LVI = getAnalysis<LazyValueInfoWrapperPass>().getLVI();
-
+bool SimplifySwitchPassImpl::runOnFunction(const model::Function &ModelFunction,
+                                           llvm::Function &Function) {
+  auto &LVI = getAnalysis<LazyValueInfoWrapperPass>(Function).getLVI();
+  auto &DT = getAnalysis<DominatorTreeWrapperPass>(Function).getDomTree();
   RawBinaryView &BinaryView = getAnalysis<LoadBinaryWrapperPass>().get();
-  const model::Binary
-    &Model = *getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-
-  RawBinaryMemoryOracle MO(BinaryView, Model.Architecture());
-  Changed |= runSimplifySwitch(F, LVI, DT, MO);
-
-  return Changed;
+  RawBinaryMemoryOracle MO(BinaryView, Binary.Architecture());
+  return simplifySwitch(Function, LVI, DT, MO);
 }
 
-void SimplifySwitchPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void SimplifySwitchPassImpl::getAnalysisUsage(AnalysisUsage &AU) {
   AU.addRequired<DominatorTreeWrapperPass>();
   AU.addRequired<LazyValueInfoWrapperPass>();
   AU.addRequired<LoadBinaryWrapperPass>();
   AU.addRequired<LoadModelWrapperPass>();
 }
 
-char SimplifySwitchPass::ID = 0;
-static constexpr const char *Flag = "simplify-switch";
-using Register = RegisterPass<SimplifySwitchPass>;
-static Register X(Flag, "Pass that simplifies switch statement.", false, false);
+template<>
+char pipeline::FunctionPass<SimplifySwitchPassImpl>::ID = 0;
 
 namespace revng::pipes {
 
@@ -251,31 +248,28 @@ public:
     return { pipeline::ContractGroup({ BinaryPart, FunctionsPart }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
-
-  Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return Error::success();
-  }
 };
 
-void SimplifySwitch::run(pipeline::ExecutionContext &Ctx,
+void SimplifySwitch::run(pipeline::ExecutionContext &EC,
                          const BinaryFileContainer &SourceBinary,
                          pipeline::LLVMContainer &TargetsList) {
   if (not SourceBinary.exists())
     return;
 
-  const TupleTree<model::Binary> &Model = getModelFromContext(Ctx);
+  const TupleTree<model::Binary> &Model = getModelFromContext(EC);
   auto BufferOrError = MemoryBuffer::getFileOrSTDIN(*SourceBinary.path());
   auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
   RawBinaryView RawBinary(*Model, Buffer->getBuffer());
 
   legacy::PassManager PM;
   PM.add(new LoadModelWrapperPass(Model));
+  PM.add(new pipeline::LoadExecutionContextPass(&EC, TargetsList.name()));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
-  PM.add(new SimplifySwitchPass);
-
+  PM.add(new DominatorTreeWrapperPass);
+  PM.add(new pipeline::FunctionPass<SimplifySwitchPassImpl>);
   PM.run(TargetsList.getModule());
 }
 

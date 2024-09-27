@@ -19,7 +19,7 @@ static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
   Reg;
 
 using Container = DecompileStringMap;
-void DecompileToSingleFile::run(const pipeline::ExecutionContext &Ctx,
+void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
                                 const Container &DecompiledFunctions,
                                 DecompiledFileContainer &OutCFile) {
 
@@ -31,13 +31,8 @@ void DecompileToSingleFile::run(const pipeline::ExecutionContext &Ctx,
   // functions in DecompiledFunctions
   printSingleCFile(Out, B, DecompiledFunctions, {} /* Targets */);
   Out.flush();
-}
 
-void DecompileToSingleFile::print(const pipeline::Context &Ctx,
-                                  llvm::raw_ostream &OS,
-                                  llvm::ArrayRef<std::string> Names) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " decompiled-yaml-to-c -i " << Names[0] << " -o " << Names[1];
+  EC.commitUniqueTarget(OutCFile);
 }
 
 } // end namespace revng::pipes

@@ -34,11 +34,9 @@
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using TypeNameMap = std::map<model::UpcastableType, std::string>;
-using DefinitionSet = std::set<const model::TypeDefinition *>;
 using GraphInfo = TypeInlineHelper::GraphInfo;
 using Node = TypeInlineHelper::Node;
-using StackTypesMap = std::unordered_map<const model::Function *,
-                                         DefinitionSet>;
+using DefinitionSet = TypeInlineHelper::DefinitionSet;
 
 /// Collect candidates for emitting inline types.
 static DefinitionSet findTypesToInline(const model::Binary &Model) {
@@ -141,7 +139,8 @@ static DefinitionSet getCrossReferencedTypes(const model::Binary &Model) {
   return Result;
 }
 
-StackTypesMap TypeInlineHelper::findTypesToInlineInStacks() const {
+TypeInlineHelper::StackTypesMap
+TypeInlineHelper::findTypesToInlineInStacks() const {
   StackTypesMap Result;
 
   DefinitionSet CrossReferencedTypes = getCrossReferencedTypes(Model);
@@ -443,9 +442,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     for (auto &[Index, ReturnValue] : llvm::enumerate(F.ReturnValues())) {
-      using pipeline::serializedLocation;
-      std::string
-        ActionLocation = serializedLocation(revng::ranks::ReturnRegister,
+      std::string ActionLocation = toString(revng::ranks::ReturnRegister,
                                             F.key(),
                                             ReturnValue.key());
 
@@ -453,7 +450,7 @@ static void generateReturnValueWrapper(Logger<> &Log,
         FieldString = B.tokenTag(ReturnValue.name(), ptml::c::tokens::Field)
                         .addAttribute(ptml::attributes::ActionContextLocation,
                                       ActionLocation)
-                        .serialize();
+                        .toString();
       Header << getNamedCInstance(*ReturnValue.Type(), FieldString, B) << ";\n";
     }
   }

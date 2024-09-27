@@ -89,8 +89,7 @@ bool CleanupIRPass::Impl::replaceInstructions(Function &F) {
         AllocatedSize = Call->getArgOperand(0);
       } else {
         model::UpcastableType
-          AllocatedType = deserializeFromLLVMString(Call->getArgOperand(0),
-                                                    Model);
+          AllocatedType = fromLLVMString(Call->getArgOperand(0), Model);
         AllocatedSize = ConstantInt::get(Context,
                                          APInt(/*NumBits*/ 64,
                                                AllocatedType->size().value()));

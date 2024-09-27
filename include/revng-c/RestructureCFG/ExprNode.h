@@ -190,7 +190,7 @@ public:
 
 class NotNode : public ExprNode {
 protected:
-  ExprNode *Child;
+  ExprNode *Child = nullptr;
 
 public:
   friend ExprNode;
@@ -216,8 +216,8 @@ public:
 
 class BinaryNode : public ExprNode {
 protected:
-  ExprNode *LeftChild;
-  ExprNode *RightChild;
+  ExprNode *LeftChild = nullptr;
+  ExprNode *RightChild = nullptr;
 
 public:
   friend ExprNode;

@@ -28,7 +28,6 @@ constexpr const char *const StructWrapperPrefix = "_artificial_struct_returned_"
 constexpr const char *const StructFieldPrefix = "field_";
 
 namespace tokens = ptml::c::tokens;
-namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
 
 bool isScalarCType(const llvm::Type *LLVMType) {
@@ -71,45 +70,45 @@ std::string getScalarCType(const llvm::Type *LLVMType, const PTMLCBuilder &B) {
   switch (LLVMType->getTypeID()) {
   case llvm::Type::HalfTyID:
   case llvm::Type::BFloatTyID:
-    return B.tokenTag("float16_t", ptml::c::tokens::Type).serialize();
+    return B.tokenTag("float16_t", ptml::c::tokens::Type).toString();
     break;
   case llvm::Type::FloatTyID:
-    return B.tokenTag("float32_t", ptml::c::tokens::Type).serialize();
+    return B.tokenTag("float32_t", ptml::c::tokens::Type).toString();
     break;
   case llvm::Type::DoubleTyID:
-    return B.tokenTag("float64_t", ptml::c::tokens::Type).serialize();
+    return B.tokenTag("float64_t", ptml::c::tokens::Type).toString();
     break;
   case llvm::Type::X86_FP80TyID:
     // TODO: 80-bit float have 96 bit storage, how should we call them?
-    return B.tokenTag("float96_t", ptml::c::tokens::Type).serialize();
+    return B.tokenTag("float96_t", ptml::c::tokens::Type).toString();
     break;
   case llvm::Type::FP128TyID:
   case llvm::Type::PPC_FP128TyID:
-    return B.tokenTag("float128_t", ptml::c::tokens::Type).serialize();
+    return B.tokenTag("float128_t", ptml::c::tokens::Type).toString();
     break;
 
   case llvm::Type::VoidTyID: {
-    return B.tokenTag("void", ptml::c::tokens::Type).serialize();
+    return B.tokenTag("void", ptml::c::tokens::Type).toString();
     break;
 
   case llvm::Type::IntegerTyID: {
     auto *IntType = cast<llvm::IntegerType>(LLVMType);
     switch (IntType->getIntegerBitWidth()) {
     case 1:
-      return B.tokenTag("bool", ptml::c::tokens::Type).serialize();
+      return B.tokenTag("bool", ptml::c::tokens::Type).toString();
     case 8:
-      return B.tokenTag("uint8_t", ptml::c::tokens::Type).serialize();
+      return B.tokenTag("uint8_t", ptml::c::tokens::Type).toString();
     case 16:
-      return B.tokenTag("uint16_t", ptml::c::tokens::Type).serialize();
+      return B.tokenTag("uint16_t", ptml::c::tokens::Type).toString();
       break;
     case 32:
-      return B.tokenTag("uint32_t", ptml::c::tokens::Type).serialize();
+      return B.tokenTag("uint32_t", ptml::c::tokens::Type).toString();
       break;
     case 64:
-      return B.tokenTag("uint64_t", ptml::c::tokens::Type).serialize();
+      return B.tokenTag("uint64_t", ptml::c::tokens::Type).toString();
       break;
     case 128:
-      return B.tokenTag("uint128_t", ptml::c::tokens::Type).serialize();
+      return B.tokenTag("uint128_t", ptml::c::tokens::Type).toString();
       break;
     default:
       revng_abort("Found an LLVM integer with a size that is not a power of "
@@ -141,7 +140,7 @@ static std::string getReturnedStructIdentifier(const llvm::Function *F) {
 }
 
 static std::string serializeHelperStructLocation(const std::string &Name) {
-  return pipeline::serializedLocation(revng::ranks::HelperStructType, Name);
+  return toString(revng::ranks::HelperStructType, Name);
 }
 
 template<bool IsDefinition>
@@ -156,7 +155,7 @@ getReturnTypeLocation(const llvm::Function *F, const PTMLCBuilder &B) {
     return B.tokenTag(StructName, ptml::c::tokens::Type)
       .addAttribute(B.getLocationAttribute(IsDefinition),
                     serializeHelperStructLocation(StructName))
-      .serialize();
+      .toString();
   } else {
     return getScalarCType(RetType, B);
   }
@@ -184,9 +183,9 @@ static std::string
 serializeHelperStructFieldLocation(const std::string &StructName,
                                    const std::string &FieldName) {
   revng_assert(not StructName.empty() and not FieldName.empty());
-  return pipeline::serializedLocation(revng::ranks::HelperStructField,
-                                      StructName,
-                                      FieldName);
+  return pipeline::toString(revng::ranks::HelperStructField,
+                            StructName,
+                            FieldName);
 }
 
 template<bool IsDefinition>
@@ -202,7 +201,7 @@ static std::string getReturnStructFieldLocation(const llvm::Function *F,
     .addAttribute(attributes::Token, tokens::Field)
     .addAttribute(B.getLocationAttribute(IsDefinition),
                   serializeHelperStructFieldLocation(StructName, FieldName))
-    .serialize();
+    .toString();
 }
 
 std::string getReturnStructFieldLocationDefinition(const llvm::Function *F,
@@ -218,8 +217,7 @@ std::string getReturnStructFieldLocationReference(const llvm::Function *F,
 }
 
 static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
-  return pipeline::serializedLocation(revng::ranks::HelperFunction,
-                                      F->getName().str());
+  return pipeline::toString(revng::ranks::HelperFunction, F->getName().str());
 }
 
 template<bool IsDefinition>
@@ -228,7 +226,7 @@ getHelperFunctionLocation(const llvm::Function *F, const PTMLCBuilder &B) {
   return B.tokenTag(getHelperFunctionIdentifier(F), ptml::c::tokens::Function)
     .addAttribute(B.getLocationAttribute(IsDefinition),
                   serializeHelperFunctionLocation(F))
-    .serialize();
+    .toString();
 }
 
 std::string getHelperFunctionLocationDefinition(const llvm::Function *F,

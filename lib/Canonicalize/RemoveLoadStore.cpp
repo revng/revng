@@ -49,7 +49,7 @@ static llvm::CallInst *buildDerefCall(llvm::Module &M,
   // The first argument is always a pointer to a constant global variable
   // that holds the string representing the yaml serialization of the base type
   // of the modelGEP
-  auto *BaseTypeConstantStrPtr = serializeToLLVMString(PointedType, M);
+  auto *BaseTypeConstantStrPtr = toLLVMString(PointedType, M);
 
   // The second argument is the base address, and the third (representing the
   // array access) is defaulted to 0, representing regular pointer access (not

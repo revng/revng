@@ -44,7 +44,7 @@ static std::weak_ordering operator<=>(const NeighborIterator &LHS,
 
 struct InstanceEdge {
   OffsetExpression OE;
-  LayoutTypeSystemNode *Target;
+  LayoutTypeSystemNode *Target = nullptr;
 
   InstanceEdge() = default;
 

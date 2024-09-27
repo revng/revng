@@ -66,7 +66,7 @@ static llvm::Value *getValueToSubstitute(llvm::Instruction &I,
 
     // First argument is the model type of the base pointer
     llvm::Value *GEPFirstArg = Call->getArgOperand(0);
-    auto GEPBaseType = deserializeFromLLVMString(GEPFirstArg, Model);
+    auto GEPBaseType = fromLLVMString(GEPFirstArg, Model);
 
     // Second argument is the base pointer
     llvm::Value *SecondArg = Call->getArgOperand(1);
@@ -93,7 +93,7 @@ static llvm::Value *getValueToSubstitute(llvm::Instruction &I,
 
     // First argument of the AddressOf is the pointer's base type
     llvm::Value *AddrOfFirstArg = AddrOfCall->getArgOperand(0);
-    auto AddrOfBaseType = deserializeFromLLVMString(AddrOfFirstArg, Model);
+    auto AddrOfBaseType = fromLLVMString(AddrOfFirstArg, Model);
 
     // Skip if the ModelGEP is dereferencing the AddressOf with a
     // different type

@@ -83,9 +83,7 @@ using llvm::StringRef;
 using model::Binary;
 using model::CABIFunctionDefinition;
 using model::RawFunctionDefinition;
-using model::TypedefDefinition;
 
-using pipeline::serializedLocation;
 using ptml::Tag;
 namespace ranks = revng::ranks;
 namespace attributes = ptml::attributes;
@@ -96,9 +94,6 @@ using tokenDefinition::types::StringToken;
 using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
-using TypeDefinitionSet = std::set<const model::TypeDefinition *>;
-using InlineableTypesMap = std::unordered_map<const model::Function *,
-                                              TypeDefinitionSet>;
 
 static constexpr const char *StackFrameVarName = "_stack";
 
@@ -189,7 +184,7 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
                      /*radix=*/16,
                      /*signed=*/false,
                      /*formatAsCLiteral=*/true);
-    CompositeConstant += B.getConstantTag(LowBitsString).serialize();
+    CompositeConstant += B.getConstantTag(LowBitsString).toString();
   }
   return addAlwaysParentheses(CompositeConstant);
 }
@@ -263,6 +258,15 @@ private:
   /// switches
   std::vector<std::string> SwitchStateVars;
 
+  /// \note This class handles an individual function, but still needs a
+  ///       reference to all of ControlFlowGraphCache, so we can call
+  ///       getCallEdge. This is not nice, since, if we look into stuff
+  ///       concerning other functions, we can create serious invalidation
+  ///       issues.
+  ///       However, right now we just call getCallEdge which is safe.
+  ///       A better approach would be to have a ControlFlowGraphCache provide
+  ///       us with a function-specific subject that enables us to use
+  ///       getCallEdge.
   ControlFlowGraphCache &Cache;
 
 private:
@@ -471,26 +475,26 @@ static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(hexLiteral(Value, B, Model)).serialize();
+    return B.getConstantTag(hexLiteral(Value, B, Model)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::CharInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(charLiteral(Value)).serialize();
+    return B.getConstantTag(charLiteral(Value)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::BoolInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(boolLiteral(Value)).serialize();
+    return B.getConstantTag(boolLiteral(Value)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::NullPtr)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
     revng_assert(Value->isZero());
-    return B.getNullTag().serialize();
+    return B.getNullTag().toString();
   }
   std::string Error = "Cannot get token for custom opcode: "
                       + dumpToString(Call);
@@ -506,12 +510,12 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
     rc_return getUndefToken(*TypeMap.at(Undef), B);
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
-    rc_return B.getNullTag().serialize();
+    rc_return B.getNullTag().toString();
 
   if (auto *Const = dyn_cast<llvm::ConstantInt>(C)) {
     llvm::APInt Value = Const->getValue();
     if (Value.isIntN(64))
-      rc_return B.getNumber(Value).serialize();
+      rc_return B.getNumber(Value).toString();
     else
       rc_return get128BitIntegerHexConstant(Value, B, Model);
   }
@@ -592,8 +596,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
   // First argument is a string containing the base type
   auto *CurArg = Call->arg_begin();
-  model::UpcastableType CurType = deserializeFromLLVMString(CurArg->get(),
-                                                            Model);
+  model::UpcastableType CurType = fromLLVMString(CurArg->get(), Model);
 
   // Second argument is the base llvm::Value
   ++CurArg;
@@ -643,7 +646,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       // index.
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(ThirdArgument)) {
-        IndexExpr = B.getNumber(Const->getValue()).serialize();
+        IndexExpr = B.getNumber(Const->getValue()).toString();
       } else {
         IndexExpr = rc_recur getToken(ThirdArgument);
       }
@@ -698,7 +701,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       auto *FieldIdxConst = cast<llvm::ConstantInt>(CurArg->get());
       uint64_t FieldIdx = FieldIdxConst->getValue().getLimitedValue();
 
-      CurExpr += Deref.serialize();
+      CurExpr += Deref.toString();
 
       // Find the field name
       const model::TypeDefinition &Definition = D->unwrap();
@@ -720,7 +723,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
     } else if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Unwrapped)) {
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
-        IndexExpr = B.getNumber(Const->getValue()).serialize();
+        IndexExpr = B.getNumber(Const->getValue()).toString();
       } else {
         IndexExpr = rc_recur getToken(CurArg->get());
       }
@@ -761,8 +764,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::ModelCast)) {
     // First argument is a string containing the base type
     auto *CurArg = Call->arg_begin();
-    model::UpcastableType CurType = deserializeFromLLVMString(CurArg->get(),
-                                                              Model);
+    model::UpcastableType CurType = fromLLVMString(CurArg->get(), Model);
 
     // Second argument is the base llvm::Value
     ++CurArg;
@@ -781,8 +783,8 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::AddressOf)) {
     // First operand is the type of the value being addressed (should not
     // introduce casts)
-    const model::UpcastableType
-      ArgType = deserializeFromLLVMString(Call->getArgOperand(0), Model);
+    const model::UpcastableType ArgType = fromLLVMString(Call->getArgOperand(0),
+                                                         Model);
 
     // Second argument is the value being addressed
     llvm::Value *Arg = Call->getArgOperand(1);
@@ -889,7 +891,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
     const auto Operand = Call->getArgOperand(0);
     std::string StringLiteral = rc_recur getToken(Operand);
-    rc_return B.getStringLiteral(StringLiteral).serialize();
+    rc_return B.getStringLiteral(StringLiteral).toString();
   }
 
   std::string Error = "Cannot get token for custom opcode: "
@@ -916,13 +918,13 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       // Dynamic Function
       auto &DynFuncID = CallEdge->DynamicFunction();
       auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
-      std::string Location = serializedLocation(ranks::DynamicFunction,
-                                                DynamicFunc.key());
+      std::string Location = toString(ranks::DynamicFunction,
+                                      DynamicFunc.key());
       CalleeToken = B.getTag(ptml::tags::Span, DynamicFunc.name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
-                      .serialize();
+                      .toString();
     } else {
       // Isolated function
       llvm::Function *CalledFunc = getCalledFunction(Call);
@@ -930,13 +932,12 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       const model::Function *ModelFunc = llvmToModelFunction(Model,
                                                              *CalledFunc);
       revng_assert(ModelFunc);
-      std::string Location = serializedLocation(ranks::Function,
-                                                ModelFunc->key());
+      std::string Location = toString(ranks::Function, ModelFunc->key());
       CalleeToken = B.getTag(ptml::tags::Span, ModelFunc->name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
-                      .serialize();
+                      .toString();
     }
   }
 
@@ -978,7 +979,7 @@ static std::string addDebugInfo(const llvm::Instruction *I,
     return B.getTag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::LocationReferences, Location)
       .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .serialize();
+      .toString();
   }
   return Str;
 }
@@ -1146,7 +1147,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
   case llvm::Instruction::Ret: {
 
     std::string Result = B.getKeyword(ptml::PTMLCBuilder::Keyword::Return)
-                           .serialize();
+                           .toString();
     if (auto *Ret = llvm::cast<llvm::ReturnInst>(I);
         llvm::Value *ReturnedVal = Ret->getReturnValue())
       Result += " " + rc_recur getToken(ReturnedVal);
@@ -1506,8 +1507,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
     const Tag &OpToken = E->getKind() == NodeKind::NK_And ?
                            B.getOperator(PTMLOperator::BoolAnd) :
                            B.getOperator(PTMLOperator::BoolOr);
-    rc_return addAlwaysParentheses(Child1Token) + " " + OpToken.serialize()
-      + " " + addAlwaysParentheses(Child2Token);
+    rc_return addAlwaysParentheses(Child1Token) + " " + OpToken.toString() + " "
+      + addAlwaysParentheses(Child2Token);
   } break;
 
   default:
@@ -1518,7 +1519,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
 static std::string makeWhile(const ptml::PTMLCBuilder &B,
                              const std::string &CondExpr) {
   revng_assert(not CondExpr.empty());
-  return B.getKeyword(ptml::PTMLCBuilder::Keyword::While).serialize() + " ("
+  return B.getKeyword(ptml::PTMLCBuilder::Keyword::While).toString() + " ("
          + CondExpr + ")";
 }
 
@@ -1670,7 +1671,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       Out << B.getKeyword(ptml::PTMLCBuilder::Keyword::Do) << " ";
     } else {
       if (Loop->isWhileTrue()) {
-        CondExpr = B.getTrueTag().serialize();
+        CondExpr = B.getTrueTag().toString();
       } else {
         revng_assert(Loop->isWhile());
         CondExpr = rc_recur makeLoopCondition(Loop->getRelatedCondition());
@@ -2028,75 +2029,44 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
   return computeVarDeclMap(GHAST, PendingVariables);
 }
 
-using Container = revng::pipes::DecompileStringMap;
-void decompile(ControlFlowGraphCache &Cache,
-               llvm::Module &Module,
-               const model::Binary &Model,
-               Container &DecompiledFunctions,
-               bool GeneratePlainC) {
+std::string decompile(ControlFlowGraphCache &Cache,
+                      llvm::Function &F,
+                      const model::Binary &Model,
+                      const InlineableTypesMap &StackTypes,
+                      bool GeneratePlainC) {
+  using namespace llvm;
+  Task T2(3, Twine("decompile Function: ") + Twine(F.getName()));
 
-  // Get all Stack types and all the inlinable types reachable from it,
-  // since we want to emit forward declarations for all of them.
-  // TODO: we have temporarily disabled stack-types inlining due to the fact
-  // that type inlining is broken on rare cases involving recursive types (do to
-  // the fact that it uses a different logic than ModelToHeader).
-  // For this reason this is always the empty set for now. When type inlining
-  // will be fixed this can be re-enabled.
-  const InlineableTypesMap StackTypes = {};
-  // const auto StackTypes =
-  // TypeInlineHelper(Model).findTypesToInlineInStacks();
+  // TODO: this will eventually become a GHASTContainer for revng pipeline
+  ASTTree GHAST;
 
-  auto
-    T = llvm::make_task_on_set(llvm::make_address_range(FunctionTags::Isolated
-                                                          .functions(&Module)),
-                               "decompile");
-
-  for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
-    T.advance(&F,
-              llvm::Twine("decompile Function: ") + llvm::Twine(F.getName()));
-
-    if (F.empty())
-      continue;
-
-    llvm::Task T2(3,
-                  llvm::Twine("decompile Function: ")
-                    + llvm::Twine(F.getName()));
-
-    // TODO: this will eventually become a GHASTContainer for revng pipeline
-    ASTTree GHAST;
-
-    // Generate the GHAST and beautify it.
-    {
-      T2.advance("restructureCFG");
-      restructureCFG(F, GHAST);
-      // TODO: beautification should be optional, but at the moment it's not
-      // truly so (if disabled, things crash). We should strive to make it
-      // optional for real.
-      T2.advance("beautifyAST");
-      beautifyAST(Model, F, GHAST);
-    }
-
-    T2.advance("decompileFunction");
-    if (Log.isEnabled()) {
-      GHAST.dumpASTOnFile(F.getName().str(),
-                          "ast-backend",
-                          "AST-during-c-codegen.dot");
-    }
-
-    // Generated C code for F
-    auto VariablesToDeclare = computeVariableDeclarationScope(F, GHAST);
-    auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
-    std::string CCode = decompileFunction(Cache,
-                                          F,
-                                          GHAST,
-                                          Model,
-                                          VariablesToDeclare,
-                                          NeedsLoopStateVar,
-                                          StackTypes,
-                                          GeneratePlainC);
-
-    // Push the C code into
-    MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");
-    DecompiledFunctions.insert_or_assign(Key, std::move(CCode));
+  // Generate the GHAST and beautify it.
+  {
+    T2.advance("restructureCFG");
+    restructureCFG(F, GHAST);
+    // TODO: beautification should be optional, but at the moment it's not
+    // truly so (if disabled, things crash). We should strive to make it
+    // optional for real.
+    T2.advance("beautifyAST");
+    beautifyAST(Model, F, GHAST);
   }
+
+  T2.advance("decompileFunction");
+  if (Log.isEnabled()) {
+    GHAST.dumpASTOnFile(F.getName().str(),
+                        "ast-backend",
+                        "AST-during-c-codegen.dot");
+  }
+
+  // Generated C code for F
+  auto VariablesToDeclare = computeVariableDeclarationScope(F, GHAST);
+  auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
+  return decompileFunction(Cache,
+                           F,
+                           GHAST,
+                           Model,
+                           VariablesToDeclare,
+                           NeedsLoopStateVar,
+                           StackTypes,
+                           GeneratePlainC);
 }

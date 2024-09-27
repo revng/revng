@@ -44,7 +44,7 @@ public:
 private:
   int Index;
   links_container Nodes;
-  MetaRegion<NodeT> *ParentRegion;
+  MetaRegion<NodeT> *ParentRegion = nullptr;
   bool IsSCS;
 
 public:

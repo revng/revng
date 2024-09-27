@@ -31,8 +31,8 @@ def Clift_PrimitiveType : Clift_Type<"Primitive", "primitive", [Clift_ValueType,
   let genVerifyDecl = 1;
 
   let extraClassDeclaration = [{
-    static mlir::clift::PrimitiveType getVoid(mlir::MLIRContext* Ctx, uint64_t Size, bool IsConst = false) {
-      return get(Ctx, PrimitiveKind::VoidKind, Size, BoolAttr::get(Ctx, IsConst));
+    static mlir::clift::PrimitiveType getVoid(mlir::MLIRContext* Context, uint64_t Size, bool IsConst = false) {
+      return get(Context, PrimitiveKind::VoidKind, Size, BoolAttr::get(Context, IsConst));
     }
   }];
 

@@ -109,7 +109,7 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
       AllocatedType = llvmIntToModelType(Alloca->getAllocatedType(), *Model);
     revng_assert(!AllocatedType.isEmpty() && AllocatedType->verify());
 
-    llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
+    llvm::Constant *ModelTypeString = toLLVMString(AllocatedType, M);
     auto LocalVarLLVMType = llvm::IntegerType::get(LLVMCtx,
                                                    *AllocatedType->size() * 8);
 

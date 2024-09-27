@@ -169,9 +169,9 @@ public:
   using links_range = llvm::iterator_range<links_iterator>;
 
 protected:
-  ASTNode *Then;
-  ASTNode *Else;
-  ExprNode *ConditionExpression;
+  ASTNode *Then = nullptr;
+  ASTNode *Else = nullptr;
+  ExprNode *ConditionExpression = nullptr;
 
   // Field that represents if the enclosing node needs the emission of the
   // associated basic block instructions. This is currently used to prevent the
@@ -292,7 +292,7 @@ public:
   };
 
 private:
-  ASTNode *Body;
+  ASTNode *Body = nullptr;
   Type LoopType = Type::WhileTrue;
   IfNode *RelatedCondition = nullptr;
 

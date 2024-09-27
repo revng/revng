@@ -10,6 +10,7 @@
 
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
+#include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Pipes/Kinds.h"
@@ -143,58 +144,68 @@ static bool removeLiftingArtifacts(Function &F) {
   return Changed;
 }
 
-struct RemoveLiftingArtifacts : public ModulePass {
+struct RemoveLiftingArtifacts : public pipeline::FunctionPassImpl {
+private:
+  llvm::Module &M;
+
 public:
-  static char ID;
+  RemoveLiftingArtifacts(llvm::ModulePass &Pass,
+                         const model::Binary &Binary,
+                         llvm::Module &M) :
+    pipeline::FunctionPassImpl(Pass), M(M) {}
 
-  RemoveLiftingArtifacts() : ModulePass(ID) {}
+  bool runOnFunction(const model::Function &ModelFunction,
+                     llvm::Function &Function) override;
 
-  bool runOnModule(Module &M) override {
-    bool Changed = false;
-    for (Function &F : M) {
-      if (FunctionTags::Isolated.isTagOf(&F)) {
-        Changed |= removeLiftingArtifacts(F);
-        FunctionTags::LiftingArtifactsRemoved.addTo(&F);
-      } else {
+  bool prologue() override;
 
-        // If we find a non-isolated function with body, we want to remove it.
-        Changed |= deleteOnlyBody(F);
-
-        // Mark non-isolated functions as OptimizeNone (optnone).
-        // We want all future passes in the decompilation pipeline not to look
-        // at non-isolated functions, because it would just be a waste of time,
-        // and they might also not respect some of the assumptions the
-        // decompilation pipeline makes, causing crashes.
-        if (not F.hasFnAttribute(Attribute::AttrKind::OptimizeNone)) {
-          F.addFnAttr(Attribute::AttrKind::OptimizeNone);
-          Changed = true;
-        }
-
-        // Mark non-isolated functions as NoInline (noinline), since we don't
-        // want them to be inlined into isolated functions for some reason.
-        if (not F.hasFnAttribute(Attribute::AttrKind::NoInline)) {
-          F.addFnAttr(Attribute::AttrKind::NoInline);
-          Changed = true;
-        }
-      }
-    }
-
-    return Changed;
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<LoadModelWrapperPass>();
-  }
+public:
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU) {}
 };
 
-char RemoveLiftingArtifacts::ID = 0;
+bool RemoveLiftingArtifacts::prologue() {
+  bool Changed = false;
+  for (llvm::Function &F : M) {
+    if (FunctionTags::Isolated.isTagOf(&F))
+      continue;
+
+    // If we find a non-isolated function with body, we want to remove it.
+    Changed |= deleteOnlyBody(F);
+
+    // Mark non-isolated functions as OptimizeNone (optnone).
+    // We want all future passes in the decompilation pipeline not to look
+    // at non-isolated functions, because it would just be a waste of time,
+    // and they might also not respect some of the assumptions the
+    // decompilation pipeline makes, causing crashes.
+    if (not F.hasFnAttribute(Attribute::AttrKind::OptimizeNone)) {
+      F.addFnAttr(Attribute::AttrKind::OptimizeNone);
+      Changed = true;
+    }
+
+    // Mark non-isolated functions as NoInline (noinline), since we don't
+    // want them to be inlined into isolated functions for some reason.
+    if (not F.hasFnAttribute(Attribute::AttrKind::NoInline)) {
+      F.addFnAttr(Attribute::AttrKind::NoInline);
+      Changed = true;
+    }
+  }
+  return Changed;
+}
+
+bool RemoveLiftingArtifacts::runOnFunction(const model::Function &ModelFunction,
+                                           llvm::Function &F) {
+  bool Changed = false;
+  revng_assert(FunctionTags::Isolated.isTagOf(&F));
+  Changed |= removeLiftingArtifacts(F);
+  FunctionTags::LiftingArtifactsRemoved.addTo(&F);
+
+  return Changed;
+}
+
+template<>
+char pipeline::FunctionPass<RemoveLiftingArtifacts>::ID = 0;
 
 static constexpr const char *Flag = "remove-lifting-artifacts";
-
-using Reg = RegisterPass<RemoveLiftingArtifacts>;
-static Reg X(Flag,
-             "Delete the body of all non-isolated functions, and remove all "
-             "lifting artifacts from isolated functions");
 
 struct RemoveLiftingArtifactsPipe {
   static constexpr auto Name = Flag;
@@ -209,7 +220,7 @@ struct RemoveLiftingArtifactsPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new RemoveLiftingArtifacts());
+    Manager.add(new pipeline::FunctionPass<RemoveLiftingArtifacts>());
   }
 };
 

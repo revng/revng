@@ -430,10 +430,10 @@ public:
                           ptml::attributes::LocationReferences;
   }
 
-  std::string serializeLocation(const model::TypeDefinition &T) const {
+  std::string toString(const model::TypeDefinition &T) const {
     if (isGenerateTagLessPTML())
       return "";
-    return pipeline::serializedLocation(revng::ranks::TypeDefinition, T.key());
+    return pipeline::toString(revng::ranks::TypeDefinition, T.key());
   }
 
   std::string getLocation(bool IsDefinition,
@@ -441,16 +441,16 @@ public:
                           llvm::ArrayRef<std::string> AllowedActions) const {
     auto Result = getNameTag(T);
     if (isGenerateTagLessPTML())
-      return Result.serialize();
+      return Result.toString();
 
-    std::string Location = serializeLocation(T);
+    std::string Location = toString(T);
     Result.addAttribute(getLocationAttribute(IsDefinition), Location);
     Result.addAttribute(attributes::ActionContextLocation, Location);
 
     if (not AllowedActions.empty())
       Result.addListAttribute(attributes::AllowedActions, AllowedActions);
 
-    return Result.serialize();
+    return Result.toString();
   }
 
   std::string
@@ -469,34 +469,34 @@ public:
     std::string CName = P.getCName();
     auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
     if (isGenerateTagLessPTML())
-      return Result.serialize();
+      return Result.toString();
 
-    std::string L = pipeline::serializedLocation(revng::ranks::PrimitiveType,
-                                                 P.getCName());
+    std::string L = pipeline::toString(revng::ranks::PrimitiveType,
+                                       P.getCName());
     Result.addAttribute(getLocationAttribute(true), L);
     Result.addAttribute(attributes::ActionContextLocation, L);
 
-    return Result.serialize();
+    return Result.toString();
   }
 
   std::string getLocationReference(const model::PrimitiveType &P) const {
     std::string CName = P.getCName();
     auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
     if (isGenerateTagLessPTML())
-      return Result.serialize();
+      return Result.toString();
 
-    std::string L = pipeline::serializedLocation(revng::ranks::PrimitiveType,
-                                                 P.getCName());
+    std::string L = pipeline::toString(revng::ranks::PrimitiveType,
+                                       P.getCName());
     Result.addAttribute(getLocationAttribute(false), L);
     Result.addAttribute(attributes::ActionContextLocation, L);
 
-    return Result.serialize();
+    return Result.toString();
   }
 
-  std::string serializeLocation(const model::Segment &T) const {
+  std::string toString(const model::Segment &T) const {
     if (isGenerateTagLessPTML())
       return "";
-    return pipeline::serializedLocation(revng::ranks::Segment, T.key());
+    return pipeline::toString(revng::ranks::Segment, T.key());
   }
 
   Tag getNameTag(const model::Segment &S) const {
@@ -504,11 +504,11 @@ public:
   }
 
   std::string getLocation(bool IsDefinition, const model::Segment &S) const {
-    std::string Location = serializeLocation(S);
+    std::string Location = toString(S);
     return getNameTag(S)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
       .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .serialize();
+      .toString();
   }
 
   std::string getLocationDefinition(const model::Segment &S) const {
@@ -519,34 +519,32 @@ public:
     return getLocation(false, S);
   }
 
-  std::string serializeLocation(const model::EnumDefinition &Enum,
-                                const model::EnumEntry &Entry) const {
+  std::string toString(const model::EnumDefinition &Enum,
+                       const model::EnumEntry &Entry) const {
     if (isGenerateTagLessPTML())
       return "";
 
-    return pipeline::serializedLocation(revng::ranks::EnumEntry,
-                                        Enum.key(),
-                                        Entry.key());
+    return pipeline::toString(revng::ranks::EnumEntry, Enum.key(), Entry.key());
   }
 
-  std::string serializeLocation(const model::StructDefinition &Struct,
-                                const model::StructField &Field) const {
+  std::string toString(const model::StructDefinition &Struct,
+                       const model::StructField &Field) const {
     if (isGenerateTagLessPTML())
       return "";
 
-    return pipeline::serializedLocation(revng::ranks::StructField,
-                                        Struct.key(),
-                                        Field.key());
+    return pipeline::toString(revng::ranks::StructField,
+                              Struct.key(),
+                              Field.key());
   }
 
-  std::string serializeLocation(const model::UnionDefinition &Union,
-                                const model::UnionField &Field) const {
+  std::string toString(const model::UnionDefinition &Union,
+                       const model::UnionField &Field) const {
     if (isGenerateTagLessPTML())
       return "";
 
-    return pipeline::serializedLocation(revng::ranks::UnionField,
-                                        Union.key(),
-                                        Field.key());
+    return pipeline::toString(revng::ranks::UnionField,
+                              Union.key(),
+                              Field.key());
   }
 
   Tag getNameTag(const model::EnumDefinition &Enum,
@@ -558,11 +556,11 @@ public:
   std::string getLocation(bool IsDefinition,
                           const model::EnumDefinition &Enum,
                           const model::EnumEntry &Entry) const {
-    std::string Location = serializeLocation(Enum, Entry);
+    std::string Location = toString(Enum, Entry);
     return getNameTag(Enum, Entry)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
       .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .serialize();
+      .toString();
   }
 
   template<class Aggregate, class Field>
@@ -573,11 +571,11 @@ public:
   template<typename Aggregate, typename Field>
   std::string
   getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
-    std::string Location = serializeLocation(A, F);
+    std::string Location = toString(A, F);
     return getNameTag(A, F)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
       .addAttribute(attributes::ActionContextLocation, Location)
-      .serialize();
+      .toString();
   }
 
   template<typename Aggregate, typename Field>

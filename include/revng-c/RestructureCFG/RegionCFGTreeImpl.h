@@ -175,7 +175,7 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
   for (EdgeDescriptor Edge : Out) {
 
     // Check if we already have a break for each outgoing edge, or create it.
-    BasicBlockNodeT *Break;
+    BasicBlockNodeT *Break = nullptr;
     auto It = BreakMap.find(Edge.second);
     if (It != BreakMap.end()) {
       Break = It->second;

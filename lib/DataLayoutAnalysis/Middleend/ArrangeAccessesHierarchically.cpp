@@ -332,7 +332,7 @@ absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
 
     struct InstanceEdge {
       OffsetExpression OE;
-      LayoutTypeSystemNode *Target;
+      LayoutTypeSystemNode *Target = nullptr;
 
       // Ordering and comparison
       std::strong_ordering operator<=>(const InstanceEdge &) const = default;

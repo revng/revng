@@ -26,6 +26,7 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
+#include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -37,6 +38,23 @@
 using namespace llvm;
 
 static Logger<> Log("promote-stack-pointer");
+
+struct PromoteStackPointerPassImpl : public pipeline::FunctionPassImpl {
+private:
+  const model::Binary &Binary;
+
+public:
+  PromoteStackPointerPassImpl(llvm::ModulePass &Pass,
+                              const model::Binary &Binary,
+                              llvm::Module &M) :
+    pipeline::FunctionPassImpl(Pass), Binary(Binary) {}
+
+  bool runOnFunction(const model::Function &ModelFunction,
+                     llvm::Function &Function) override;
+
+public:
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU);
+};
 
 static bool adjustStackAfterCalls(const model::Binary &Binary,
                                   Function &F,
@@ -66,7 +84,9 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
   return Changed;
 }
 
-bool PromoteStackPointerPass::runOnFunction(Function &F) {
+bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
+                                                  &ModelFunction,
+                                                llvm::Function &F) {
   bool Changed = false;
 
   {
@@ -84,9 +104,6 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
     revng_log(Log, "WARNING: cannot find global variable for stack pointer");
     return Changed;
   }
-
-  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
   Changed = adjustStackAfterCalls(Binary, F, GlobalSP) or Changed;
 
@@ -134,7 +151,7 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
 
   // Create function for initializing local stack pointer.
   Module *M = F.getParent();
-  LLVMContext &Ctx = F.getContext();
+  LLVMContext &Context = F.getContext();
   Type *SPType = GlobalSP->getValueType();
   auto InitFunction = M->getOrInsertFunction("_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
@@ -146,7 +163,7 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   // Create an alloca to represent the local value of the stack pointer.
   // This should be inserted at the beginning of the entry block.
   BasicBlock &EntryBlock = F.getEntryBlock();
-  IRBuilder<> Builder(Ctx);
+  IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(&EntryBlock, EntryBlock.begin());
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
@@ -163,21 +180,21 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
     I->replaceUsesOfWith(GlobalSP, LocalSP);
   }
 
+  FunctionTags::StackPointerPromoted.addTo(&F);
+
   return true;
 }
 
-void PromoteStackPointerPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void PromoteStackPointerPassImpl::getAnalysisUsage(AnalysisUsage &AU) {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   AU.setPreservesCFG();
 }
 
-char PromoteStackPointerPass::ID = 0;
+template<>
+char pipeline::FunctionPass<PromoteStackPointerPassImpl>::ID = 0;
 
 static constexpr const char *Flag = "promote-stack-pointer";
-
-using Reg = RegisterPass<PromoteStackPointerPass>;
-static Reg Register(Flag, "Promote Stack Pointer Pass");
 
 struct PromoteStackPointerPipe {
   static constexpr auto Name = Flag;
@@ -191,7 +208,7 @@ struct PromoteStackPointerPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new PromoteStackPointerPass());
+    Manager.add(new pipeline::FunctionPass<PromoteStackPointerPassImpl>);
   }
 };
 

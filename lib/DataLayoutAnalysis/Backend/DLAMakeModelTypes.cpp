@@ -62,7 +62,7 @@ createStructWrapper(const LTSN *N,
     revng_log(Log,
               "Wrapped pointer node "
                 << N->ID << " inside wrapper struct (ID: " << Struct.ID()
-                << "):" << serializeToString(Field.Type()));
+                << "):" << toString(Field.Type()));
   }
 
   Struct.Size() = Offset + *Field.Type()->size();
@@ -305,7 +305,7 @@ makeUnionFromNode(const LTSN *N,
       revng_log(Log,
                 "Pointer node " << SuccNode->ID
                                 << " inside union (ID: " << Union.ID()
-                                << "): " << serializeToString(NewF->Type()));
+                                << "): " << toString(NewF->Type()));
     }
   }
 
@@ -447,7 +447,7 @@ static TypeMapT mapLLVMValuesToModelTypes(const LayoutTypeSystem &TS,
     revng_assert(TypeIdx.has_value());
 
     const model::UpcastableType &T = Types[TypeIdx.value()];
-    revng_log(TypeMapLog, Val.toString() << ";" << serializeToString(T));
+    revng_log(TypeMapLog, Val.toString() << ";" << toString(T));
 
     bool New = ValMap.emplace(Val, T.copy()).second;
     revng_assert(New);
@@ -485,7 +485,7 @@ TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
                               PointerFieldsToUpdate);
 
       revng_log(Log,
-                "Assigned type " << serializeToString(T) << " to index "
+                "Assigned type " << toString(T) << " to index "
                                  << EqClasses.getEqClassID(N->ID).value());
     }
   }
@@ -511,20 +511,18 @@ TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
     revng_assert(llvm::isa<model::DefinedType>(FinalPointeeType.get())
                  || llvm::isa<model::PrimitiveType>(FinalPointeeType.get()));
 
-    revng_log(Log,
-              "Final pointee type: " << serializeToString(FinalPointeeType));
+    revng_log(Log, "Final pointee type: " << toString(FinalPointeeType));
 
     LoggerIndent EvenMoreIndent{ Log };
     for (model::Type *PointerToUpdate : PointerTypes) {
       revng_log(Log,
                 "Updating pointer type at address "
                   << PointerToUpdate << ": "
-                  << serializeToString(PointerToUpdate->toPointer()));
+                  << toString(PointerToUpdate->toPointer()));
 
       // Fix the pointee type
       PointerToUpdate->toPointer().PointeeType() = FinalPointeeType.copy();
-      revng_log(Log,
-                "NEW: " << serializeToString(PointerToUpdate->toPointer()));
+      revng_log(Log, "NEW: " << toString(PointerToUpdate->toPointer()));
     }
   }
 

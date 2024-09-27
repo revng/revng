@@ -178,8 +178,8 @@ static ConstantInt *getOneWithSameType(const Value *IntOrPtr) {
 class IRAddend {
 
 private:
-  ConstantInt *Coefficient;
-  Value *Index;
+  ConstantInt *Coefficient = nullptr;
+  Value *Index = nullptr;
 
 public:
   // Delete default constructor to forbid creation of invalid IRAddend.
@@ -1620,7 +1620,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
       Result = model::PrimitiveType::makeGeneric(PointeeSize);
     }
 
-    revng_log(ModelGEPLog, "AccessedTypeOnIR: " << serializeToString(Result));
+    revng_log(ModelGEPLog, "AccessedTypeOnIR: " << toString(Result));
     return Result;
   } break;
 
@@ -1653,7 +1653,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
         Result = model::PrimitiveType::makeGeneric(PointeeSize);
       }
 
-      revng_log(ModelGEPLog, "AccessedTypeOnIR: " << serializeToString(Result));
+      revng_log(ModelGEPLog, "AccessedTypeOnIR: " << toString(Result));
       return Result;
     } else {
       revng_log(ModelGEPLog, "Use is pointer operand");
@@ -1719,7 +1719,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
       if (const auto *Pointer = SingleReturnType->getPointer()) {
         auto _ = LoggerIndent(ModelGEPLog);
         revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
-        revng_log(ModelGEPLog, "Pointee: " << serializeToString(*Pointer));
+        revng_log(ModelGEPLog, "Pointee: " << toString(*Pointer));
         return SingleReturnType->getPointee();
       }
     }
@@ -1754,7 +1754,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
         auto RetTy = std::next(RFT->ReturnValues().begin(), ArgNum)->Type();
         if (const model::PointerType *Pointer = RetTy->getPointer()) {
           revng_log(ModelGEPLog,
-                    "Pointee: " << serializeToString(Pointer->PointeeType()));
+                    "Pointee: " << toString(Pointer->PointeeType()));
           return Pointer->PointeeType();
         }
       } else if (CalledFType.cabiPrototype() != nullptr) {
@@ -1796,10 +1796,10 @@ getAccessedTypeOnIR(const llvm::Use &U,
                                 RFT->StackArgumentsType() :
                                 std::next(RFT->Arguments().begin(), N)->Type();
 
-          revng_log(ModelGEPLog, "Type: " << serializeToString(ArgTy));
+          revng_log(ModelGEPLog, "Type: " << toString(ArgTy));
           if (const model::PointerType *Pointer = ArgTy->getPointer()) {
             revng_log(ModelGEPLog,
-                      "Pointee: " << serializeToString(Pointer->PointeeType()));
+                      "Pointee: " << toString(Pointer->PointeeType()));
             return Pointer->PointeeType();
           }
         } else {
@@ -1818,10 +1818,10 @@ getAccessedTypeOnIR(const llvm::Use &U,
           revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
           const auto &ArgTy = CFT->Arguments().at(ArgOpNum).Type();
-          revng_log(ModelGEPLog, "Type: " << serializeToString(ArgTy));
+          revng_log(ModelGEPLog, "Type: " << toString(ArgTy));
           if (const model::PointerType *Pointer = ArgTy->getPointer()) {
             revng_log(ModelGEPLog,
-                      "Pointee: " << serializeToString(Pointer->PointeeType()));
+                      "Pointee: " << toString(Pointer->PointeeType()));
             return Pointer->PointeeType();
           }
         } else {
@@ -1844,8 +1844,8 @@ getAccessedTypeOnIR(const llvm::Use &U,
 }
 
 struct UseReplacementWithModelGEP {
-  Use *U;
-  Value *BaseAddress;
+  Use *U = nullptr;
+  Value *BaseAddress = nullptr;
   ModelGEPReplacementInfo ReplacementInfo;
 };
 
@@ -2038,7 +2038,7 @@ public:
   Constant *get(const model::UpcastableType &Type, llvm::Module &M) {
     auto [It, Success] = GlobalModelGEPTypeArgs.try_emplace(Type, nullptr);
     if (Success)
-      It->second = serializeToLLVMString(Type, M);
+      It->second = toLLVMString(Type, M);
 
     return It->second;
   }
@@ -2091,8 +2091,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   auto GEPReplacements = makeGEPReplacements(F, *Model, VH);
 
   llvm::Module &M = *F.getParent();
-  LLVMContext &Ctxt = M.getContext();
-  IRBuilder<> Builder(Ctxt);
+  LLVMContext &Context = M.getContext();
+  IRBuilder<> Builder(Context);
   ModelGEPArgCache TypeArgCache;
 
   // Create a function pool for AddressOf calls
@@ -2101,7 +2101,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   if (not GEPReplacements.empty())
     initAddressOfPool(AddressOfPool, &M);
 
-  llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Ctxt, *Model);
+  llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Context, *Model);
 
   std::map<std::pair<Instruction *, Value *>, Value *> PhiIncomingsMaps;
 
@@ -2186,7 +2186,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
       Value *IndexValue = nullptr;
       if (InductionVariables.empty() or not ConstantIndex.isNullValue()) {
-        auto *Int64Type = llvm::IntegerType::get(Ctxt, 64 /*NumBits*/);
+        auto *Int64Type = llvm::IntegerType::get(Context, 64 /*NumBits*/);
         IndexValue = ConstantInt::get(Int64Type, ConstantIndex);
       }
 
@@ -2247,7 +2247,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       APInt OffsetToAdd = MismatchedOffset.zextOrTrunc(GEPResultBitWidth);
       if (not OffsetToAdd.isNullValue())
         ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
-                                        ConstantInt::get(Ctxt, OffsetToAdd));
+                                        ConstantInt::get(Context, OffsetToAdd));
       for (const auto &[Coefficient, Index] : MismatchedIndices) {
         ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
                                         Builder.CreateMul(Index, Coefficient));
