@@ -27,7 +27,7 @@ Containers:
     Type: call-graph-slice-svg
   - Name: cfg.svg.tar.gz
     Type: function-control-flow-graph-svg
-  - Name: cfg.yml
+  - Name: cfg.yml.tar.gz
     Type: cfg
 Branches:
   - Steps:
@@ -72,13 +72,13 @@ Branches:
       - Name: isolate
         Pipes:
           - Type: collect-cfg
-            UsedContainers: [module.ll, cfg.yml]
+            UsedContainers: [module.ll, cfg.yml.tar.gz]
           - Type: isolate
-            UsedContainers: [cfg.yml, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.ll]
           - Type: attach-debug-info-to-isolated
-            UsedContainers: [cfg.yml, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.ll]
           - Type: process-call-graph
-            UsedContainers: [cfg.yml, cross-relations.yml]
+            UsedContainers: [cfg.yml.tar.gz, cross-relations.yml]
         Artifacts:
           Container: module.ll
           Kind: isolated
@@ -90,7 +90,7 @@ Branches:
             Passes:
               - drop-root
           - Type: enforce-abi
-            UsedContainers: [cfg.yml, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.ll]
           - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
@@ -104,7 +104,7 @@ Branches:
               - mem2reg
               - inline-helpers
           - Type: attach-debug-info-to-abi-enforced
-            UsedContainers: [cfg.yml, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.ll]
           - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
@@ -120,15 +120,15 @@ Branches:
       - Name: emit-cfg
         Pipes: []
         Artifacts:
-          Container: cfg.yml
+          Container: cfg.yml.tar.gz
           Kind: cfg
-          SingleTargetFilename: cfg.yml
+          SingleTargetFilename: cfg.yml.tar.gz
   - From: isolate
     Steps:
       - Name: hexdump
         Pipes:
           - Type: hex-dump
-            UsedContainers: [input, module.ll, cfg.yml, hex.dump]
+            UsedContainers: [input, module.ll, cfg.yml.tar.gz, hex.dump]
         Artifacts:
           Container: hex.dump
           Kind: hex-dump
@@ -148,7 +148,7 @@ Branches:
       - Name: render-svg-call-graph-slice
         Pipes:
           - Type: yield-call-graph-slice
-            UsedContainers: [cfg.yml, cross-relations.yml, call-graph-slice.svg.tar.gz]
+            UsedContainers: [cfg.yml.tar.gz, cross-relations.yml, call-graph-slice.svg.tar.gz]
         Artifacts:
           Container: call-graph-slice.svg.tar.gz
           Kind: call-graph-slice-svg
@@ -158,7 +158,7 @@ Branches:
       - Name: process-assembly
         Pipes:
           - Type: process-assembly
-            UsedContainers: [input, cfg.yml, assembly-internal.yml.tar.gz]
+            UsedContainers: [input, cfg.yml.tar.gz, assembly-internal.yml.tar.gz]
       - Name: disassemble
         Pipes:
           - Type: yield-assembly
