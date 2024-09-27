@@ -98,7 +98,7 @@ auto &getContainer(const ContainerSet &Containers, llvm::StringRef Name) {
 
 template<typename T, size_t I>
   requires PipelineOptionType<OptionType<T, I>>
-OptionType<T, I> deserializeImpl(llvm::StringRef Value) {
+OptionType<T, I> fromStringImpl(llvm::StringRef Value) {
   using ReturnType = OptionType<T, I>;
 
   if constexpr (std::is_same_v<std::string, ReturnType>) {
@@ -117,7 +117,7 @@ OptionType<T, I> getOption(const llvm::StringMap<std::string> &Map) {
   std::string Name = (StringRef(T::Name) + "-" + getOptionName<T, I>()).str();
 
   if (auto Iter = Map.find(Name); Iter != Map.end()) {
-    return deserializeImpl<T, I>(Iter->second);
+    return fromStringImpl<T, I>(Iter->second);
   }
 
   // Handle --$OPTION-path flag
@@ -147,7 +147,7 @@ template<typename DeducedContextType,
          IsNotContainer... OptionArgsTypes,
          size_t... S,
          size_t... OptionArgsIndexes>
-auto invokeImpl(DeducedContextType &Ctx,
+auto invokeImpl(DeducedContextType &Context,
                 InvokableType &Pipe,
                 auto (InvokableType::*F)(DeducedContextType &, AllArgs...),
                 ContainerSet &Containers,
@@ -159,7 +159,7 @@ auto invokeImpl(DeducedContextType &Ctx,
                 const std::integer_sequence<size_t, OptionArgsIndexes...> &) {
 
   using namespace std;
-  return (Pipe.*F)(Ctx,
+  return (Pipe.*F)(Context,
                    getContainer<decay_t<Args>>(Containers, ArgsNames[S])...,
                    getOption<InvokableType, OptionArgsIndexes>(OptionArgs)...);
 }
@@ -280,8 +280,9 @@ void getOptionNamesFromIndexes(std::vector<std::string> &Out,
   (Out.push_back(getOptionName<T, S>().str()), ...);
 }
 
-template<typename T, typename CtxT, typename... Args>
-std::vector<std::string> getOptionsNamesImpl(auto (T::*F)(CtxT &, Args...)) {
+template<typename T, typename ContextT, typename... Args>
+std::vector<std::string>
+getOptionsNamesImpl(auto (T::*F)(ContextT &, Args...)) {
 
   using OptionArgsTypes = detail::FilterNonContainers<Args...>;
   constexpr size_t OptionArgsCount = std::tuple_size<OptionArgsTypes>::value;
@@ -305,8 +306,9 @@ void getOptionTypeFromIndexes(std::vector<std::string> &Out,
   (Out.push_back(getTypeName<T, S>().str()), ...);
 }
 
-template<typename T, typename CtxT, typename... Args>
-std::vector<std::string> getOptionsTypesImpl(auto (T::*F)(CtxT &, Args...)) {
+template<typename T, typename ContextT, typename... Args>
+std::vector<std::string>
+getOptionsTypesImpl(auto (T::*F)(ContextT &, Args...)) {
 
   using OptionArgsTypes = detail::FilterNonContainers<Args...>;
   constexpr size_t OptionArgsCount = std::tuple_size<OptionArgsTypes>::value;
@@ -356,7 +358,7 @@ createCLOptions(llvm::cl::OptionCategory *Category = nullptr) {
 /// Invokes the F member function on the Pipe Pipe passing as nth argument the
 /// container with the name equal to the nth element of ArgsNames.
 template<typename InvokableType, typename ContextT, typename... Args>
-auto invokePipeFunction(ExecutionContext &Ctx,
+auto invokePipeFunction(ExecutionContext &EC,
                         InvokableType &Pipe,
                         auto (InvokableType::*F)(ContextT &, Args...),
                         ContainerSet &Containers,
@@ -374,7 +376,7 @@ auto invokePipeFunction(ExecutionContext &Ctx,
   constexpr auto
     OptionArgsIndexes = std::make_integer_sequence<size_t, OptionArgsCount>();
 
-  return detail::invokeImpl<ContextT>(Ctx,
+  return detail::invokeImpl<ContextT>(EC,
                                       Pipe,
                                       F,
                                       Containers,
@@ -426,7 +428,7 @@ concept Printable = requires(InvokableType Pipe) {
 
 class InvokableWrapperBase {
 public:
-  virtual llvm::Error run(ExecutionContext &Ctx,
+  virtual llvm::Error run(ExecutionContext &EC,
                           ContainerSet &Containers,
                           const llvm::StringMap<std::string> &Options = {}) = 0;
 
@@ -441,6 +443,11 @@ public:
   virtual bool isContainerArgumentConst(size_t ArgumentIndex) const = 0;
   virtual std::vector<std::string> getOptionsNames() const = 0;
   virtual std::vector<std::string> getOptionsTypes() const = 0;
+};
+
+template<typename T>
+concept HasGetName = requires(const T &V) {
+  { V.getName() };
 };
 
 /// A pipe must be type erased somehow to become compatible with a pipeline,
@@ -467,21 +474,26 @@ public:
   ~InvokableWrapperImpl() override = default;
 
 public:
-  std::string getName() const override { return InvokableType::Name; }
+  std::string getName() const override {
+    if constexpr (HasGetName<InvokableType>)
+      return ActualPipe.getName();
+    else
+      return InvokableType::Name;
+  }
 
 public:
-  llvm::Error run(ExecutionContext &Ctx,
+  llvm::Error run(ExecutionContext &EC,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &OptionArgs) override {
     if constexpr (invokableTypeReturnsError<InvokableType>()) {
-      return invokePipeFunction(Ctx,
+      return invokePipeFunction(EC,
                                 ActualPipe,
                                 &InvokableType::run,
                                 Containers,
                                 RunningContainersNames,
                                 OptionArgs);
     } else {
-      invokePipeFunction(Ctx,
+      invokePipeFunction(EC,
                          ActualPipe,
                          &InvokableType::run,
                          Containers,

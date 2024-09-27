@@ -107,7 +107,7 @@ private:
   // We define a custom comparator so that Node still preserves the default
   // comparison operators
   std::set<Node, CompareNodes> Nodes;
-  Node *EntryNode;
+  Node *EntryNode = nullptr;
 };
 
 namespace llvm {

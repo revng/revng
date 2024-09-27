@@ -35,7 +35,7 @@ private:
   using Vector = std::vector<Step *>;
 
 private:
-  Context *TheContext;
+  Context *TheContext = nullptr;
   ContainerFactorySet ContainerFactoriesRegistry;
   bool IsContainerFactoriesRegistryFinalized = false;
 
@@ -141,19 +141,20 @@ public:
                     llvm::StringRef Component,
                     PipeWrappers &&...Wrappers) {
     IsContainerFactoriesRegistryFinalized = true;
-    if (PreviousStepName.empty())
+    if (PreviousStepName.empty()) {
       return addStep(Step(*TheContext,
                           StepName.str(),
                           Component.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           std::forward<PipeWrappers>(Wrappers)...));
-    else
+    } else {
       return addStep(Step(*TheContext,
                           StepName.str(),
                           Component.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           operator[](PreviousStepName),
                           std::forward<PipeWrappers>(Wrappers)...));
+    }
   }
 
   Step &addStep(Step &&NewStep);
@@ -268,7 +269,7 @@ public:
     for (const auto &Step : Steps) {
       indent(OS, Indentation);
       OS << Step.first().str() << "\n";
-      Step.second.dump(OS, Indentation);
+      Step.second.dump(OS, Indentation + 1);
     }
   }
 

@@ -32,7 +32,7 @@ public:
   std::string PipeName;
 
   llvm::Expected<llvm::SmallVector<TargetInContainer, 2>>
-  deserialize(const Context &Ctx, llvm::StringRef ContainerName) const;
+  deserialize(const Context &Context, llvm::StringRef ContainerName) const;
 
   static TargetInPipe fromTargetInContainer(const TargetInContainer &Target,
                                             llvm::StringRef PipeName);
@@ -55,7 +55,7 @@ public:
 
 public:
   llvm::Expected<PathTargetBimap>
-  deserialize(const Context &Ctx,
+  deserialize(const Context &Context,
               const Global &Primitives,
               llvm::StringRef PipeName,
               llvm::StringRef ContainerName) const;
@@ -125,12 +125,12 @@ struct MappingTraits<pipeline::NamedPathTargetBimapVector> {
 } // namespace llvm
 
 llvm::Expected<llvm::SmallVector<TargetInContainer, 2>>
-TargetInPipe::deserialize(const Context &Ctx,
+TargetInPipe::deserialize(const Context &Context,
                           llvm::StringRef ContainerName) const {
   TargetsList Targets;
-  llvm::Error Error = parseTarget(Ctx,
+  llvm::Error Error = parseTarget(Context,
                                   SerializedTarget,
-                                  Ctx.getKindsRegistry(),
+                                  Context.getKindsRegistry(),
                                   Targets);
   if (Error)
     return std::move(Error);
@@ -147,7 +147,7 @@ TargetInPipe::fromTargetInContainer(const TargetInContainer &Target,
                                     llvm::StringRef PipeName) {
   TargetInPipe ToReturn;
   ToReturn.PipeName = PipeName;
-  ToReturn.SerializedTarget = Target.getTarget().serialize();
+  ToReturn.SerializedTarget = Target.getTarget().toString();
 
   return ToReturn;
 }
@@ -181,7 +181,7 @@ ContainerInvalidationMetadata::serialize(const PathTargetBimap &Map,
 }
 
 llvm::Expected<PathTargetBimap>
-ContainerInvalidationMetadata::deserialize(const Context &Ctx,
+ContainerInvalidationMetadata::deserialize(const Context &Context,
                                            const Global &Global,
                                            llvm::StringRef PipeName,
                                            llvm::StringRef ContainerName)
@@ -194,7 +194,7 @@ ContainerInvalidationMetadata::deserialize(const Context &Ctx,
     }
 
     llvm::Expected<SmallVector<TargetInContainer>>
-      MaybeTarget = Entry.first.deserialize(Ctx, ContainerName);
+      MaybeTarget = Entry.first.deserialize(Context, ContainerName);
 
     if (not MaybeTarget) {
       return MaybeTarget.takeError();
@@ -228,7 +228,8 @@ Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const {
   std::vector<PipeExecutionEntry> PipesExecutionEntries;
   for (const PipeWrapper &Pipe :
        llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
-    PipesExecutionEntries.push_back(Pipe.Pipe->getRequirements(*Ctx, Targets));
+    PipesExecutionEntries.push_back(Pipe.Pipe->getRequirements(*TheContext,
+                                                               Targets));
     Targets = PipesExecutionEntries.back().Input;
   }
   std::reverse(PipesExecutionEntries.begin(), PipesExecutionEntries.end());
@@ -285,12 +286,14 @@ ContainerSet Step::run(ContainerSet &&Input,
   for (const auto &[Pipe, Info] : llvm::zip(Pipes, ExecutionInfos)) {
     T.advance(Pipe.Pipe->getName(), false);
     explainExecutedPipe(*Pipe.Pipe);
-    ExecutionContext Context(*Ctx, &Pipe, Info.Output);
 
-    Pipe.Pipe->deduceResults(*Ctx, Context.getCurrentRequestedTargets());
+    ExecutionContext EC(*TheContext, &Pipe, Info.Output);
 
-    cantFail(Pipe.Pipe->run(Context, Input));
+    Pipe.Pipe->deduceResults(*TheContext, EC.getCurrentRequestedTargets());
+
+    cantFail(Pipe.Pipe->run(EC, Input));
     llvm::cantFail(Input.verify());
+    EC.verify();
   }
 
   T.advance("Merging back", true);
@@ -324,8 +327,8 @@ llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
   explainExecutedPipe(*TheAnalysis);
 
   ContainerSet Cloned = Containers.cloneFiltered(Targets);
-  ExecutionContext ExecutionCtx(*Ctx, nullptr);
-  return TheAnalysis->run(ExecutionCtx, Cloned, ExtraArgs);
+  ExecutionContext EC(*TheContext, nullptr);
+  return TheAnalysis->run(EC, Cloned, ExtraArgs);
 }
 
 void Step::removeSatisfiedGoals(TargetsList &RequiredInputs,
@@ -358,7 +361,7 @@ void Step::removeSatisfiedGoals(ContainerToTargetsMap &Targets,
 
 ContainerToTargetsMap Step::deduceResults(ContainerToTargetsMap Input) const {
   for (const PipeWrapper &Pipe : Pipes)
-    Input = Pipe.Pipe->deduceResults(*Ctx, Input);
+    Input = Pipe.Pipe->deduceResults(*TheContext, Input);
   return Input;
 }
 
@@ -378,7 +381,7 @@ Error Step::store(const revng::DirectoryPath &DirPath) const {
 
 Error Step::checkPrecondition() const {
   for (const PipeWrapper &Pipe : Pipes) {
-    if (llvm::Error Error = Pipe.Pipe->checkPrecondition(*Ctx); Error) {
+    if (llvm::Error Error = Pipe.Pipe->checkPrecondition(*TheContext); Error) {
       std::string Message = "The precondition for pipe " + Pipe.Pipe->getName()
                             + " failed:";
       return llvm::make_error<AnnotatedError>(std::move(Error), Message);
@@ -417,14 +420,15 @@ Step::loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
     return File.takeError();
 
   using Type = llvm::SmallVector<NamedPathTargetBimapVector, 2>;
-  auto Parsed = ::deserialize<Type>(File.get()->buffer().getBuffer());
+  auto Parsed = ::fromString<Type>(File.get()->buffer().getBuffer());
   if (not Parsed)
     return Parsed.takeError();
 
   for (PipeWrapper &Pipe : Pipes) {
     for (NamedPathTargetBimapVector &Entry : *Parsed) {
-      Global *Global = llvm::cantFail(Ctx->getGlobals().get(Entry.GlobalName));
-      auto Parsed(Entry.Map.deserialize(*Ctx,
+      Global *Global = llvm::cantFail(TheContext->getGlobals()
+                                        .get(Entry.GlobalName));
+      auto Parsed(Entry.Map.deserialize(*TheContext,
                                         *Global,
                                         Pipe.Pipe->getName(),
                                         Container.first()));
@@ -459,7 +463,7 @@ Step::storeInvalidationMetadata(const revng::DirectoryPath &Path) const {
     using Type = llvm::SmallVector<NamedPathTargetBimapVector, 2>;
     Type ToStore = {};
 
-    for (const Global *Global : Ctx->getGlobals()) {
+    for (const Global *Global : TheContext->getGlobals()) {
       NamedPathTargetBimapVector Entry;
       Entry.GlobalName = Global->getName();
 

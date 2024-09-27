@@ -33,24 +33,27 @@ class UpdateContract : public llvm::ModulePass {
 public:
   static char ID;
 
+public:
+  Context &TheContext;
   llvm::ArrayRef<ContractGroup> Contract;
-  ContainerToTargetsMap *Requested;
-  Context *Ctx;
+  ContainerToTargetsMap &Requested;
   llvm::ArrayRef<std::string> ContainersName;
 
 public:
-  UpdateContract(llvm::ArrayRef<ContractGroup> Contract,
+  UpdateContract(Context &TheContext,
+                 llvm::ArrayRef<ContractGroup> Contract,
                  ContainerToTargetsMap &Requested,
-                 llvm::ArrayRef<std::string> ContainersName) :
+                 const std::string &ContainersName) :
     llvm::ModulePass(ID),
+    TheContext(TheContext),
     Contract(Contract),
-    Requested(&Requested),
+    Requested(Requested),
     ContainersName(ContainersName) {}
 
 public:
   bool runOnModule(llvm::Module &Module) override {
     for (auto &Entry : Contract)
-      Entry.deduceResults(*Ctx, *Requested, ContainersName);
+      Entry.deduceResults(TheContext, Requested, { ContainersName });
     return false;
   }
 };
@@ -61,17 +64,18 @@ using RP = RegisterPass<T>;
 char UpdateContract::ID = '_';
 
 static RP<UpdateContract>
-  X("advance-contract", "Advances pipeline contracts", true, false);
+  X("advance-contract", "Advance pipeline contracts", true, false);
 
-void GenericLLVMPipe::run(ExecutionContext &Ctx, LLVMContainer &Container) {
+void GenericLLVMPipe::run(ExecutionContext &EC, LLVMContainer &Container) {
   llvm::legacy::PassManager Manager;
-  Manager.add(new LoadExecutionContextPass(&Ctx, Container.name()));
+  Manager.add(new LoadExecutionContextPass(&EC, Container.name()));
   using ElementType = std::unique_ptr<LLVMPassWrapperBase>;
   for (const ElementType &Element : Passes) {
     Element->registerPasses(Manager);
-    Manager.add(new UpdateContract(Element->getContract(),
-                                   Ctx.getCurrentRequestedTargets(),
-                                   { Container.name() }));
+    Manager.add(new UpdateContract(EC.getContext(),
+                                   Element->getContract(),
+                                   EC.getCurrentRequestedTargets(),
+                                   Container.name()));
   }
   Manager.run(Container.getModule());
 }

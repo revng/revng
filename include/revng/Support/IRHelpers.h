@@ -331,7 +331,7 @@ public:
       WorkItem(BasicBlock *BB) :
         BB(BB), Range(make_range(ID::begin(BB), ID::end(BB))) {}
 
-      BasicBlock *BB;
+      BasicBlock *BB = nullptr;
       instruction_range Range;
     };
 
@@ -1494,6 +1494,11 @@ inline llvm::Value *getPointer(llvm::User *U) {
 
 /// Steal the body of \p OldFunction and move it into \p NewFunction
 void moveBlocksInto(llvm::Function &OldFunction, llvm::Function &NewFunction);
+
+/// Create a new function similar to \p OldFunction and steals its name (but not
+/// the body)
+llvm::Function &recreateWithoutBody(llvm::Function &OldFunction,
+                                    llvm::FunctionType &NewType);
 
 /// Create a function identical to \p OldFunction but use \p NewType as type
 llvm::Function &moveToNewFunctionType(llvm::Function &OldFunction,

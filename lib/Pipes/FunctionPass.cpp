@@ -21,8 +21,8 @@ bool pipeline::detail::runOnModule(llvm::Module &Module,
   auto &Analysis = Pipe.getAnalysis<pipeline::LoadExecutionContextPass>();
 
   // Obtain the context
-  ExecutionContext *Ctx = Analysis.get();
-  revng_assert(Ctx != nullptr);
+  ExecutionContext *EC = Analysis.get();
+  revng_assert(EC != nullptr);
 
   // Run the prologue
   auto &ModelWrapper = Pipe.getAnalysis<LoadModelWrapperPass>().get();
@@ -31,9 +31,8 @@ bool pipeline::detail::runOnModule(llvm::Module &Module,
   // Run on individual functions
   using Type = revng::kinds::TaggedFunctionKind;
   auto ContainerName = Analysis.getContainerName();
-  auto ToIterOn = Type::getFunctionsAndCommit(*Ctx, Module, ContainerName);
-  llvm::Task T(Ctx->getCurrentRequestedTargets()[ContainerName].size(),
-               "Running FunctionPass");
+  auto ToIterOn = Type::getFunctionsAndCommit(*EC, Module, ContainerName);
+  llvm::Task T(Analysis.getRequestedTargets().size(), "Running FunctionPass");
   for (const auto &[ModelFunction, LLVMFunction] : ToIterOn) {
     T.advance(ModelFunction->Entry().toString(), true);
     Result = Pipe.runOnFunction(*ModelFunction, *LLVMFunction) or Result;

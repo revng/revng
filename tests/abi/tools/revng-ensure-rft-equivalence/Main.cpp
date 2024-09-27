@@ -78,7 +78,7 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
       }
 
       std::string Error = "Key in use already: "
-                          + serializeToString(LeftIterator->get()->key())
+                          + toString(LeftIterator->get()->key())
                           + "\nLHS name is '" + ExpectedName.str()
                           + "' while RHS name is '"
                           + LeftIterator->get()->OriginalName() + "'.";

@@ -46,7 +46,7 @@ template<typename T>
 class ArrayRefReader {
 private:
   ArrayRef<T> Array;
-  const T *Cursor;
+  const T *Cursor = nullptr;
   bool Swap;
 
 public:

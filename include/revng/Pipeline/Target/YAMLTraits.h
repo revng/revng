@@ -13,7 +13,7 @@ template<>
 struct llvm::yaml::ScalarTraits<const pipeline::Target> {
   static void
   output(const pipeline::Target &Value, void *, llvm::raw_ostream &Output) {
-    Output << Value.serialize();
+    Output << Value.toString();
   }
 
   static StringRef

@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -19,16 +21,26 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Pipeline/Container.h"
+#include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/ExecutionContext.h"
+#include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/Invokable.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
 
+inline Logger<> InvalidationLog("invalidation");
+
 namespace pipeline {
 
-/// rappresents the requested (not expected, which means that it contains only
+template<typename T>
+concept HasCheckPrecondition = requires(T &V,
+                                        const pipeline::Context &Context) {
+  { V.checkPrecondition(Context) };
+};
+
+/// Represents the requested (not expected, which means that it contains only
 /// the targets the user care about, not all those that will be generated as a
 /// side effect) input and output of a given invocation of a pipe.
 class PipeExecutionEntry {
@@ -92,19 +104,20 @@ public:
 
 public:
   virtual PipeExecutionEntry
-  getRequirements(const Context &Ctx,
+  getRequirements(const Context &Context,
                   const ContainerToTargetsMap &Target) const = 0;
 
   virtual ContainerToTargetsMap
-  deduceResults(const Context &Ctx, ContainerToTargetsMap &Target) const = 0;
+  deduceResults(const Context &Context,
+                ContainerToTargetsMap &Target) const = 0;
 
-  virtual bool areRequirementsMet(const Context &Ctx,
+  virtual bool areRequirementsMet(const Context &Context,
                                   const ContainerToTargetsMap &Input) const = 0;
 
   virtual std::unique_ptr<PipeWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
 
-  virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
+  virtual llvm::Error checkPrecondition(const Context &Context) const = 0;
 
   virtual size_t getContainerArgumentsCount() const = 0;
 
@@ -140,7 +153,7 @@ public:
               std::move(RunningContainersNames)) {}
 
 public:
-  bool areRequirementsMet(const Context &Ctx,
+  bool areRequirementsMet(const Context &Context,
                           const ContainerToTargetsMap &Input) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
     if (Contracts.size() == 0)
@@ -148,12 +161,11 @@ public:
 
     ContainerToTargetsMap ToCheck = Input;
     for (const auto &Contract : Contracts) {
-      if (Contract.forwardMatches(Ctx,
-                                  ToCheck,
+      if (Contract.forwardMatches(ToCheck,
                                   Invokable.getRunningContainersNames()))
         return true;
 
-      Contract.deduceResults(Ctx,
+      Contract.deduceResults(Context,
                              ToCheck,
                              Invokable.getRunningContainersNames());
     }
@@ -162,30 +174,83 @@ public:
   }
 
   PipeExecutionEntry
-  getRequirements(const Context &Ctx,
+  getRequirements(const Context &Context,
                   const ContainerToTargetsMap &Target) const override {
-    const auto &Contracts = Invokable.getPipe().getContract();
-    auto Requirements = Target;
-    for (const auto &Contract : llvm::reverse(Contracts))
-      Requirements = Contract
-                       .deduceRequirements(Ctx,
-                                           Requirements,
-                                           Invokable
-                                             .getRunningContainersNames());
-    auto TargetsProducedByMe = Target;
-    TargetsProducedByMe.erase(Requirements);
+    revng_log(InvalidationLog,
+              "Computing requirements for " << this->Invokable.getName());
+    LoggerIndent<> Imdent(InvalidationLog);
 
-    return PipeExecutionEntry(TargetsProducedByMe, Requirements);
+    const auto &Contracts = Invokable.getPipe().getContract();
+    ContainerToTargetsMap Input = Target;
+
+    std::set<std::pair<std::string, unsigned>> ThisPipeOutputs;
+    for (const auto &Contract : llvm::reverse(Contracts)) {
+      Input = Contract
+                .deduceRequirements(Context,
+                                    Input,
+                                    Invokable.getRunningContainersNames());
+
+      for (const auto &[ContainerIndex, Kind] : Contract.getOutputs()) {
+        auto RunningContainersNames = Invokable.getRunningContainersNames();
+        if (not Invokable.isContainerArgumentConst(ContainerIndex)) {
+          revng_log(InvalidationLog,
+                    RunningContainersNames[ContainerIndex]
+                      << " " << Kind->name().str() << " allowed");
+          ThisPipeOutputs.insert({ RunningContainersNames[ContainerIndex],
+                                   Kind->id() });
+        }
+      }
+    }
+
+    if (InvalidationLog.isEnabled()) {
+      InvalidationLog << "Input:\n";
+      Input.dump(InvalidationLog);
+
+      InvalidationLog << DoLog;
+
+      InvalidationLog << "Output (pre-filter):\n";
+      Target.dump(InvalidationLog);
+    }
+
+    ContainerToTargetsMap Output = Target;
+    // NOTE: do not iterate over the StringMap, the second entry of the pair is
+    //       a copy (somehow)
+    std::vector<std::string> Keys;
+    for (llvm::StringRef Key : Output.keys())
+      Keys.push_back(Key.str());
+
+    for (const std::string &ContainerName : Keys) {
+      auto &TargetList = Output.at(ContainerName);
+
+      TargetList.erase_if([&](const class Target &T) -> bool {
+        return not ThisPipeOutputs.contains({ ContainerName,
+                                              T.getKind().id() });
+      });
+
+      if (TargetList.empty())
+        Output.erase(ContainerName);
+    }
+
+    if (InvalidationLog.isEnabled()) {
+      InvalidationLog << "Output:\n";
+      Output.dump(InvalidationLog);
+      InvalidationLog << DoLog;
+    }
+
+    return PipeExecutionEntry(Output, Input);
   }
 
   ContainerToTargetsMap
-  deduceResults(const Context &Ctx,
+  deduceResults(const Context &Context,
                 ContainerToTargetsMap &Target) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
-    for (const auto &Contract : Contracts)
-      Contract.deduceResults(Ctx,
+
+    for (const auto &Contract : Contracts) {
+      Contract.deduceResults(Context,
                              Target,
                              Invokable.getRunningContainersNames());
+    }
+
     return Target;
   }
 
@@ -197,8 +262,12 @@ public:
                                              std::move(NewContainersNames));
   }
 
-  llvm::Error checkPrecondition(const Context &Ctx) const override {
-    return Invokable.getPipe().checkPrecondition(Ctx);
+  llvm::Error checkPrecondition(const Context &Context) const override {
+    if constexpr (HasCheckPrecondition<PipeType>) {
+      return Invokable.getPipe().checkPrecondition(Context);
+    } else {
+      return llvm::Error::success();
+    }
   }
 
   size_t getContainerArgumentsCount() const override {
@@ -215,10 +284,10 @@ public:
     Invokable.dump(OS, Indentation);
   }
 
-  llvm::Error run(ExecutionContext &Ctx,
+  llvm::Error run(ExecutionContext &Context,
                   ContainerSet &Containers,
                   const llvm::StringMap<std::string> &ExtraArgs) override {
-    return Invokable.run(Ctx, Containers, ExtraArgs);
+    return Invokable.run(Context, Containers, ExtraArgs);
   }
 
   void invalidate(const GlobalTupleTreeDiff &Diff,
@@ -246,77 +315,99 @@ public:
 
 } // namespace detail
 
+class InvalidationMetadata {
+private:
+  llvm::StringMap<PathTargetBimap> PathCache;
+
+public:
+  void registerTargetsDependingOn(const Context &Context,
+                                  llvm::StringRef GlobalName,
+                                  const TupleTreePath &Path,
+                                  ContainerToTargetsMap &Out,
+                                  Logger<> &Log) const {
+    if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
+
+      auto &Bimap = Iter->second;
+      auto It = Bimap.find(Path);
+      if (It == Bimap.end())
+        return;
+
+      if (Log.isEnabled()) {
+        Log << "Registering: ";
+        for (const auto &Entry : It->second) {
+          Log << Entry.getTarget().toString() << " in "
+              << Entry.getContainerName() << "\n";
+        }
+        Log << DoLog;
+      }
+
+      for (const auto &Entry : It->second)
+        Out.add(Entry.getContainerName(), Entry.getTarget());
+    }
+  }
+
+  void remove(const ContainerToTargetsMap &Map) {
+    for (auto &Pair : Map) {
+      auto Iter = PathCache.find(Pair.first());
+      if (Iter == PathCache.end())
+        continue;
+
+      Iter->second.remove(Pair.second, Pair.first());
+    }
+  }
+
+  bool contains(llvm::StringRef GlobalName,
+                const TargetInContainer &Target) const {
+    if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end())
+      return Iter->second.contains(Target);
+    return false;
+  }
+
+  const llvm::StringMap<PathTargetBimap> &getPathCache() const {
+    return PathCache;
+  }
+
+  llvm::StringMap<PathTargetBimap> &getPathCache() { return PathCache; }
+
+  const PathTargetBimap &getPathCache(llvm::StringRef GlobalName) const {
+    revng_assert(PathCache.find(GlobalName) != PathCache.end());
+    return PathCache.find(GlobalName)->second;
+  }
+
+  PathTargetBimap &getPathCache(llvm::StringRef GlobalName) {
+    return PathCache[GlobalName];
+  }
+
+  void dump(const pipeline::Context &Context, unsigned Indentation = 0) const {
+    for (const auto &[GlobalName, InvalidationData] : PathCache) {
+      indent(dbg, Indentation);
+      dbg << "Global " << GlobalName.str() << ":\n";
+
+      for (const auto &[Path, Targets] : PathCache.find(GlobalName)->second) {
+        indent(dbg, Indentation + 1);
+
+        dbg << llvm::cantFail(Context.getGlobals().get(GlobalName))
+                 ->serializePath(Path)
+                 .value_or("(unavailable)")
+            << ":\n";
+
+        for (const TargetInContainer &Target : Targets) {
+          Target.dump(dbg, Indentation + 2);
+        }
+      }
+    }
+  }
+};
+
 // Due to invokable wrapper not being controllable by this file we need to have
 // a extra wrapper that carries along the invalidation metadata too.
 struct PipeWrapper {
-
-  class InvalidationMetadata {
-  private:
-    llvm::StringMap<PathTargetBimap> PathCache;
-
-  public:
-    void registerTargetsDependingOn(const Context &Ctx,
-                                    llvm::StringRef GlobalName,
-                                    const TupleTreePath &Path,
-                                    ContainerToTargetsMap &Out,
-                                    Logger<> &Log) const {
-      if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
-
-        auto &Bimap = Iter->second;
-        auto It = Bimap.find(Path);
-        if (It == Bimap.end())
-          return;
-
-        if (Log.isEnabled()) {
-          Log << "Registering: ";
-          for (const auto &Entry : It->second) {
-            Log << Entry.getTarget().serialize() << " in "
-                << Entry.getContainerName() << "\n";
-          }
-          Log << DoLog;
-        }
-
-        for (const auto &Entry : It->second)
-          Out.add(Entry.getContainerName(), Entry.getTarget());
-      }
-    }
-
-    void remove(const ContainerToTargetsMap &Map) {
-      for (auto &Pair : Map) {
-        auto Iter = PathCache.find(Pair.first());
-        if (Iter == PathCache.end())
-          continue;
-
-        Iter->second.remove(Pair.second, Pair.first());
-      }
-    }
-
-    bool contains(llvm::StringRef GlobalName,
-                  const TargetInContainer &Target) const {
-      if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end())
-        return Iter->second.contains(Target);
-      return false;
-    }
-
-    const llvm::StringMap<PathTargetBimap> &getPathCache() const {
-      return PathCache;
-    }
-    llvm::StringMap<PathTargetBimap> &getPathCache() { return PathCache; }
-
-    const PathTargetBimap &getPathCache(llvm::StringRef GlobalName) const {
-      revng_assert(PathCache.find(GlobalName) != PathCache.end());
-      return PathCache.find(GlobalName)->second;
-    }
-    PathTargetBimap &getPathCache(llvm::StringRef GlobalName) {
-      return PathCache[GlobalName];
-    }
-  };
-
 public:
   using WrapperType = InvokableWrapper<detail::PipeWrapperBase>;
   WrapperType Pipe;
   InvalidationMetadata InvalidationMetadata;
 
+public:
   template<typename PipeType>
   static PipeWrapper
   make(PipeType Pipe, std::vector<std::string> RunningContainersNames) {

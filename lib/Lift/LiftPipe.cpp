@@ -28,13 +28,13 @@ using namespace llvm;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void Lift::run(ExecutionContext &Ctx,
+void Lift::run(ExecutionContext &EC,
                const BinaryFileContainer &SourceBinary,
                LLVMContainer &Output) {
   if (not SourceBinary.exists())
     return;
 
-  const TupleTree<model::Binary> &Model = getModelFromContext(Ctx);
+  const TupleTree<model::Binary> &Model = getModelFromContext(EC);
 
   auto BufferOrError = MemoryBuffer::getFileOrSTDIN(*SourceBinary.path());
   auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
@@ -43,12 +43,12 @@ void Lift::run(ExecutionContext &Ctx,
   // Perform lifting
   llvm::legacy::PassManager PM;
   PM.add(new LoadModelWrapperPass(Model));
-  PM.add(new LoadExecutionContextPass(&Ctx, Output.name()));
+  PM.add(new LoadExecutionContextPass(&EC, Output.name()));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new LiftPass);
   PM.run(Output.getModule());
 
-  Ctx.commitUniqueTarget(Output);
+  EC.commitUniqueTarget(Output);
 }
 
 std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
@@ -133,8 +133,8 @@ Lift::invalidate(const BinaryFileContainer &SourceBinary,
   return {};
 }
 
-llvm::Error Lift::checkPrecondition(const pipeline::Context &Ctx) const {
-  const auto &Model = *getModelFromContext(Ctx);
+llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
+  const auto &Model = *getModelFromContext(Context);
 
   if (Model.Architecture() == model::Architecture::Invalid) {
     return llvm::createStringError(inconvertibleErrorCode(),

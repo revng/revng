@@ -37,14 +37,10 @@ public:
     return { pipeline::ContractGroup({ BinaryPart, ObjectPart }) };
   }
 
-  void run(const pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            BinaryFileContainer &InputBinary,
            ObjectFileContainer &ObjectFile,
            TranslatedFileContainer &OutputBinary);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes

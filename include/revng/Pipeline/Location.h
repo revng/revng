@@ -112,7 +112,7 @@ public:
     Result += Rank::RankName;
     compile_time::repeat<Size>([&Result, this]<size_t Index> {
       Result += Separator;
-      Result += serializeToString(std::get<Index>(tuple()));
+      Result += ::toString(std::get<Index>(tuple()));
     });
 
     return Result;
@@ -137,8 +137,8 @@ public:
 
     auto Success = compile_time::repeatAnd<Size>([&]<size_t Idx> {
       using T = typename std::tuple_element<Idx, Tuple>::type;
-      using revng::detail::deserializeImpl;
-      auto MaybeValue = deserializeImpl<T>(MaybeSteps->at(Idx + 2));
+      using revng::detail::fromStringImpl;
+      auto MaybeValue = fromStringImpl<T>(MaybeSteps->at(Idx + 2));
       if (!MaybeValue)
         return false;
 
@@ -166,7 +166,7 @@ inline constexpr Location<Rank> location(const Rank &, Args &&...As) {
 /// it into its string representation.
 template<RankSpecialization Rank, typename... Args>
   requires std::is_convertible_v<std::tuple<Args...>, typename Rank::Tuple>
-inline std::string serializedLocation(const Rank &R, Args &&...As) {
+inline std::string toString(const Rank &R, Args &&...As) {
   return location(R, std::forward<Args>(As)...).toString();
 }
 

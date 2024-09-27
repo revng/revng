@@ -231,10 +231,8 @@ void moveBlocksInto(Function &OldFunction, Function &NewFunction) {
   }
 }
 
-Function &moveToNewFunctionType(Function &OldFunction, FunctionType &NewType) {
-  //
+Function &recreateWithoutBody(Function &OldFunction, FunctionType &NewType) {
   // Recreate the function as similar as possible
-  //
   auto *NewFunction = Function::Create(&NewType,
                                        GlobalValue::ExternalLinkage,
                                        "",
@@ -243,11 +241,17 @@ Function &moveToNewFunctionType(Function &OldFunction, FunctionType &NewType) {
   NewFunction->copyAttributesFrom(&OldFunction);
   NewFunction->copyMetadata(&OldFunction, 0);
 
+  return *NewFunction;
+}
+
+Function &moveToNewFunctionType(Function &OldFunction, FunctionType &NewType) {
+  Function &NewFunction = recreateWithoutBody(OldFunction, NewType);
+
   // Steal body
   if (not OldFunction.isDeclaration())
-    moveBlocksInto(OldFunction, *NewFunction);
+    moveBlocksInto(OldFunction, NewFunction);
 
-  return *NewFunction;
+  return NewFunction;
 }
 
 Function *changeFunctionType(Function &OldFunction,
@@ -297,9 +301,9 @@ void dumpUsers(llvm::Value *V) {
   using namespace llvm;
 
   struct InstructionUser {
-    Function *F;
-    BasicBlock *BB;
-    Instruction *I;
+    Function *F = nullptr;
+    BasicBlock *BB = nullptr;
+    Instruction *I = nullptr;
     bool operator<(const InstructionUser &Other) const {
       return std::tie(F, BB, I) < std::tie(Other.F, Other.BB, Other.I);
     }

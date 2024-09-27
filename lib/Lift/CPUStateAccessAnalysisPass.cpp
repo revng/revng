@@ -245,8 +245,8 @@ forwardTaintAnalysis(const Module *M,
   revng_assert(CPUStatePtr->getType()->isPointerTy());
 
   struct CallSiteInfo {
-    const CallInst *CallSite;
-    const Argument *Arg;
+    const CallInst *CallSite = nullptr;
+    const Argument *Arg = nullptr;
     const unsigned ArgNo;
     CallSiteInfo(const CallInst *C, const Argument *A, const unsigned N) :
       CallSite(C), Arg(A), ArgNo(N) {}
@@ -675,7 +675,7 @@ public:
 
 private:
   // The value whose sources we're analyzing
-  Value *CurrentValue;
+  Value *CurrentValue = nullptr;
 
   // Sources are kind of the opposite of `Use`s. Every pointer in this vector
   // points to a `Use` whose `User` is the `Value` pointed by the `CurrentValue`
@@ -947,8 +947,8 @@ protected:
   // static ConstantInt *get(IntegerType *Ty, uint64_t V, bool isSigned=false)
   // However, it does not really change Ty, because it only call const
   // methods on it, so it should be safe.
-  IntegerType *Int64Ty;
-  IntegerType *Int32Ty;
+  IntegerType *Int64Ty = nullptr;
+  IntegerType *Int32Ty = nullptr;
   const DataLayout &DL;
 
 public:
@@ -1449,11 +1449,11 @@ private:
   const unsigned LoadMDKind;
   const unsigned StoreMDKind;
   const Module &M;
-  const Value *CPUStatePtr;
-  const Function *RootFunction;
+  const Value *CPUStatePtr = nullptr;
+  const Function *RootFunction = nullptr;
   const ConstFunctionPtrSet &ReachableFunctions;
   const TaintResults &TaintedAccesses;
-  VariableManager *Variables;
+  VariableManager *Variables = nullptr;
 
   AccessOffsetMap &LoadOffsets; // result, maps load or load-memcpy to offsets
   AccessOffsetMap &StoreOffsets; // result, maps store or store-memcpy to
@@ -1487,7 +1487,7 @@ private:
   NumericOffsetFolder NumericFolder;
   GEPOffsetFolder GEPFolder;
 
-  const Function *CpuLoop;
+  const Function *CpuLoop = nullptr;
 
 public:
   CPUStateAccessOffsetAnalysis(const Module &Mod,
@@ -2312,7 +2312,7 @@ void CPUSAOA::computeAggregatedOffsets() {
             int64_t End = Coarse + AccessSize;
             while (Refined < End) {
               unsigned InternalOffset = 0;
-              GlobalVariable *AccessedVar;
+              GlobalVariable *AccessedVar = nullptr;
               std::tie(AccessedVar,
                        InternalOffset) = Variables->getByEnvOffset(Refined);
               int64_t SizeAtOffset = 0;
@@ -2412,7 +2412,7 @@ private:
   // A reference to the analyzed Module
   const Module &M;
 
-  VariableManager *Variables;
+  VariableManager *Variables = nullptr;
 
   // References to the maps that were filled by CPUStateAccessAnalysis.
   // Every map maps an Instruction to the CSVOffset representing all the
@@ -2471,10 +2471,10 @@ private:
   const DataLayout &DL;
   int64_t EnvStructSize;
   IRBuilder<> Builder;
-  Type *Int64Ty;
-  Constant *SizeOfEnv;
-  Constant *Zero;
-  Value *CPUStatePtr;
+  Type *Int64Ty = nullptr;
+  Constant *SizeOfEnv = nullptr;
+  Constant *Zero = nullptr;
+  Value *CPUStatePtr = nullptr;
 };
 
 static Value *getLoadAddressValue(Instruction *I) {
@@ -3059,7 +3059,7 @@ private:
   const Module &M;
 
   // A reference to the associated VariableManager
-  VariableManager *Variables;
+  VariableManager *Variables = nullptr;
 
   // References to the maps that will be filled by this analysis.
   // Every map maps an Instruction to the CSVOffset representing all the
@@ -3075,8 +3075,8 @@ private:
 
   // Helpers
   const DataLayout &DL;
-  Type *Int64Ty;
-  Value *CPUStatePtr;
+  Type *Int64Ty = nullptr;
+  Value *CPUStatePtr = nullptr;
 
 public:
   CPUStateAccessAnalysis(const Module &Mod,

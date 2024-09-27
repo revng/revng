@@ -106,8 +106,9 @@ int main(int argc, char *argv[]) {
   Registry::runAllInitializationRoutines();
 
   auto Manager = AbortOnError(BaseOptions.makeManager());
-  const auto &Ctx = Manager.context();
-  auto OriginalModel = *AbortOnError(Ctx.getGlobal<BinaryRef>(ModelGlobalName));
+  const auto &Context = Manager.context();
+  auto OriginalModel = *AbortOnError(Context
+                                       .getGlobal<BinaryRef>(ModelGlobalName));
 
   if (Arguments.size() == 0) {
     std::cout << "USAGE: revng-analyze [options] <analysis> <binary>\n\n";

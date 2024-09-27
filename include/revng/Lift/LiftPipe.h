@@ -18,6 +18,7 @@
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMKind.h"
+#include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
@@ -29,6 +30,7 @@ namespace revng::pipes {
 class Lift {
 public:
   static constexpr auto Name = "lift";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Binary,
                                      0,
@@ -37,7 +39,7 @@ public:
                                      pipeline::InputPreservation::Preserve) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &ModuleContainer);
 
@@ -46,7 +48,9 @@ public:
              const pipeline::LLVMContainer &ModuleContainer,
              const pipeline::GlobalTupleTreeDiff &Diff) const;
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
+  llvm::Error checkPrecondition(const pipeline::Context &Context) const;
 };
+
+static_assert(pipeline::HasCheckPrecondition<Lift>);
 
 } // namespace revng::pipes

@@ -23,10 +23,14 @@ void YieldControlFlow::run(pipeline::ExecutionContext &Context,
   const auto &Model = revng::getModelFromContext(Context);
   ptml::PTMLBuilder B;
 
-  for (auto [Address, S] : Input) {
-    auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
+  for (const model::Function &Function :
+       getFunctionsAndCommit(Context, Output.name())) {
+    MetaAddress Address = Function.Entry();
+    llvm::StringRef YamlText = Input.at(Address);
+    auto MaybeFunction = TupleTree<yield::Function>::fromString(YamlText);
+
     revng_assert(MaybeFunction && MaybeFunction->verify());
-    revng_assert((*MaybeFunction)->Entry() == std::get<0>(Address));
+    revng_assert((*MaybeFunction)->Entry() == Address);
 
     Output.insert_or_assign((*MaybeFunction)->Entry(),
                             yield::svg::controlFlowGraph(B,

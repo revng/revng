@@ -8,6 +8,7 @@
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
@@ -19,7 +20,7 @@ namespace revng::kinds {
 /// with that tag.
 class TaggedFunctionKind : public pipeline::LLVMKind {
 private:
-  const FunctionTags::Tag *Tag;
+  const FunctionTags::Tag *Tag = nullptr;
 
   // It is on the heap to avoid Initialization Order Fiasco
   std::unique_ptr<llvm::SmallVector<TaggedFunctionKind *>> Children = nullptr;
@@ -53,7 +54,7 @@ public:
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
 
-  void appendAllTargets(const pipeline::Context &Ctx,
+  void appendAllTargets(const pipeline::Context &Context,
                         pipeline::TargetsList &Out) const override;
 
   static cppcoro::generator<

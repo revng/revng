@@ -88,22 +88,18 @@ struct IsolatePipe {
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            pipeline::LLVMContainer &ModuleContainer) {
     using namespace revng;
     llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx,
+    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
                                                        ModuleContainer.name()));
     Manager
-      .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(Ctx))));
+      .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(EC))));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new IsolateFunctions());
     Manager.run(ModuleContainer.getModule());
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
   }
 };
 
@@ -569,15 +565,12 @@ void IsolateFunctionsImpl::run() {
   T.advance("Create dynamic functions", true);
 
   // Obtain the set of requested targets
-  auto ContainerName = LECP.getContainerName();
   pipeline::ExecutionContext &Context = *LECP.get();
-  pipeline::TargetsList
-    RequestedTargets = Context.getCurrentRequestedTargets()[ContainerName]
-                         .filter(revng::kinds::Isolated);
+  const pipeline::TargetsList &RequestedTargets = LECP.getRequestedTargets();
 
   Task IsolateTask(RequestedTargets.size(), "Isolating functions");
   for (const pipeline::Target &Target : RequestedTargets) {
-    IsolateTask.advance(Target.serialize(), true);
+    IsolateTask.advance(Target.toString(), true);
     Context.getContext().pushReadFields();
 
     auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
@@ -609,7 +602,7 @@ void IsolateFunctionsImpl::run() {
     moveBlocksInto(*Outlined.Function, *F);
 
     // Commit the produced target
-    Context.commit(Target, ContainerName);
+    Context.commit(Target, LECP.getContainerName());
 
     Context.getContext().popReadFields();
   }

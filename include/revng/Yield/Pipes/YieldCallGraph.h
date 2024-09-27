@@ -33,10 +33,6 @@ public:
   void run(pipeline::ExecutionContext &Context,
            const CrossRelationsFileContainer &InputFile,
            CallGraphSVGFileContainer &OutputFile);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes

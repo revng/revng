@@ -80,10 +80,11 @@ public:
   std::error_code convertToErrorCode() const final {
     return llvm::inconvertibleErrorCode();
   }
+
   void log(llvm::raw_ostream &OS) const final {
-    OS << "Diff Errors\n";
+    OS << "The diff contains the following errors:\n";
     for (auto &Reason : Entries) {
-      OS << "\t" << Reason.Reason << "\n";
+      OS << "  " << Reason.Reason << "\n";
     }
   }
 };

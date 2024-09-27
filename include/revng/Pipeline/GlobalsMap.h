@@ -97,7 +97,7 @@ public:
     auto MaybeGlobal = get(GlobalName);
     if (!MaybeGlobal)
       return MaybeGlobal.takeError();
-    return MaybeGlobal.get()->deserialize(Buffer);
+    return MaybeGlobal.get()->fromString(Buffer.getBuffer());
   }
 
   llvm::Error verify(llvm::StringRef GlobalName) const {

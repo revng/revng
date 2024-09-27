@@ -33,7 +33,7 @@
 
 template<typename T>
 struct DisableTracking {
-  const T *TrackedObject;
+  const T *TrackedObject = nullptr;
 
 public:
   DisableTracking(const T &TrackedObject) : TrackedObject(&TrackedObject) {
@@ -149,10 +149,10 @@ public:
   }
 
 public:
-  static llvm::ErrorOr<TupleTree> deserialize(llvm::StringRef YAMLString) {
+  static llvm::ErrorOr<TupleTree> fromString(llvm::StringRef YAMLString) {
     TupleTree Result{};
 
-    auto MaybeRoot = revng::detail::deserializeImpl<T>(YAMLString);
+    auto MaybeRoot = revng::detail::fromStringImpl<T>(YAMLString);
     if (not MaybeRoot)
       return llvm::errorToErrorCode(MaybeRoot.takeError());
 
@@ -169,7 +169,7 @@ public:
     if (not MaybeBuffer)
       return MaybeBuffer.getError();
 
-    return deserialize((*MaybeBuffer)->getBuffer());
+    return fromString((*MaybeBuffer)->getBuffer());
   }
 
   static llvm::ErrorOr<TupleTree> fromFile(const llvm::StringRef &Path) {
@@ -177,7 +177,7 @@ public:
     if (not MaybeBuffer)
       return MaybeBuffer.getError();
 
-    return deserialize((*MaybeBuffer)->getBuffer());
+    return fromString((*MaybeBuffer)->getBuffer());
   }
 
   llvm::Error toFile(const llvm::StringRef &Path) const {

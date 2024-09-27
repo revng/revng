@@ -15,12 +15,12 @@ namespace revng::kinds {
 class TypeKind : public pipeline::Kind {
 public:
   using pipeline::Kind::Kind;
-  void appendAllTargets(const pipeline::Context &Ctx,
+  void appendAllTargets(const pipeline::Context &Context,
                         pipeline::TargetsList &Out) const override {
     using namespace pipeline;
-    const auto &Model = getModelFromContext(Ctx);
+    const auto &Model = getModelFromContext(Context);
     for (const auto &Type : Model->TypeDefinitions()) {
-      Out.push_back(Target(serializeToString(Type->key()), *this));
+      Out.push_back(Target(toString(Type->key()), *this));
     }
   }
 };

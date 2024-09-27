@@ -52,7 +52,7 @@ locationsToRanks(std::tuple<const T &...> Locations) {
 class Kind : public DynamicHierarchy<Kind> {
 private:
   RegisterKind Register;
-  const Rank *TheRank;
+  const Rank *TheRank = nullptr;
   std::vector<const Rank *> DefinedLocations;
   std::vector<const Kind *> PreferredKinds;
 
@@ -108,8 +108,9 @@ public:
 public:
   virtual ~Kind() = default;
 
-  virtual void appendAllTargets(const Context &Ctx, TargetsList &Out) const = 0;
-  TargetsList allTargets(const Context &Ctx) const;
+  virtual void appendAllTargets(const Context &Context,
+                                TargetsList &Out) const = 0;
+  TargetsList allTargets(const Context &Context) const;
 
 public:
   template<RankSpecialization RankDefinitionType>
@@ -118,7 +119,8 @@ public:
 
 class SingleElementKind : public Kind {
   using Kind::Kind;
-  void appendAllTargets(const Context &Ctx, TargetsList &Out) const override;
+  void appendAllTargets(const Context &Context,
+                        TargetsList &Out) const override;
 };
 
 class DeadKind : public Kind {
@@ -127,7 +129,8 @@ public:
   template<RankSpecialization BaseRank>
   DeadKind(const BaseRank &R) : Kind("Dead", R, {}, {}) {}
 
-  void appendAllTargets(const Context &Ctx, TargetsList &Out) const override {
+  void appendAllTargets(const Context &Context,
+                        TargetsList &Out) const override {
     revng_abort();
   }
 };

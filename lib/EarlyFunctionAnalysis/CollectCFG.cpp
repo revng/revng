@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Error.h"
+
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
@@ -25,7 +27,7 @@ namespace revng::pipes {
 
 class CollectCFGPipe {
 public:
-  static constexpr const auto Name = "collect-cfg";
+  static constexpr auto Name = "collect-cfg";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const {
@@ -53,16 +55,9 @@ public:
     FSOracle Oracle = FSOracle::importBasicPrototypeData(M, GCBI, *Binary);
     efa::CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
 
-    pipeline::TargetsList
-      RequestedTargets = Context.getCurrentRequestedTargets()[CFGs.name()];
-
-    for (const pipeline::Target &Target : RequestedTargets) {
-      if (&Target.getKind() != &revng::kinds::CFG)
-        continue;
-      Context.getContext().pushReadFields();
-
-      auto EntryAddress = MetaAddress::fromString(Target
-                                                    .getPathComponents()[0]);
+    for (const model::Function &Function :
+         getFunctionsAndCommit(Context, CFGs.name())) {
+      MetaAddress EntryAddress = Function.Entry();
 
       // Recover the control-flow graph of the function
       efa::ControlFlowGraph New;
@@ -82,17 +77,8 @@ public:
       revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
 
       // TODO: we'd need a function-wise TupleTreeContainer
-      CFGs[EntryAddress] = serializeToString(New);
-
-      // Commit the produced target
-      Context.commit(Target, CFGs.name());
-
-      Context.getContext().popReadFields();
+      CFGs[EntryAddress] = toString(New);
     }
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
   }
 };
 

@@ -24,6 +24,7 @@
 #include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 #include "revng/TupleTree/TupleTreePath.h"
+#include "revng/TupleTree/Visits.h"
 
 template<typename T>
 concept HasValueType = requires(T &&) { typename T::value_type; };
@@ -64,7 +65,7 @@ concept TupleTreeRootLike = StrictSpecializationOf<AllowedTupleTreeTypes<T>,
 namespace detail {
 template<TupleTreeRootLike Model>
 struct CheckTypeIsCorrect {
-  const AllowedTupleTreeTypes<Model> *Alternatives;
+  const AllowedTupleTreeTypes<Model> *Alternatives = nullptr;
   bool IsCorrect = false;
 
   template<typename T, int I>
@@ -150,8 +151,8 @@ public:
 template<TupleTreeRootLike T>
 struct TupleTreeDiff {
 public:
-  static llvm::Expected<TupleTreeDiff<T>> deserialize(llvm::StringRef Input) {
-    return ::deserialize<TupleTreeDiff<T>>(Input);
+  static llvm::Expected<TupleTreeDiff<T>> fromString(llvm::StringRef Input) {
+    return ::fromString<TupleTreeDiff<T>>(Input);
   }
 
 public:
@@ -212,7 +213,7 @@ namespace detail {
 template<TupleTreeRootLike Model>
 struct MapDiffVisitor {
   llvm::yaml::IO *Io;
-  AllowedTupleTreeTypes<Model> *Change;
+  AllowedTupleTreeTypes<Model> *Change = nullptr;
   const char *MappingName;
 
   template<typename T, int I>
@@ -421,7 +422,7 @@ template<TupleTreeRootLike T>
 struct ApplyDiffVisitor {
 public:
   using Change = typename TupleTreeDiff<T>::Change;
-  const Change *C;
+  const Change *C = nullptr;
   size_t ChangeIndex;
   revng::DiffError *EL;
 
@@ -537,24 +538,25 @@ public:
 
 template<TupleTreeRootLike T>
 inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
+  using namespace revng;
+
   auto Error = std::make_unique<revng::DiffError>();
   size_t Index = 0;
   for (const Change &C : Changes) {
 
     if (C.Path.size() == 0) {
-      Error
-        ->addReason("Could not deserialize path",
-                    revng::DiffLocation(Index,
-                                        revng::DiffLocation::KindType::Path));
+      Error->addReason("Could not deserialize path",
+                       DiffLocation(Index, DiffLocation::KindType::Path));
       continue;
     }
     tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C, Index, Error.get() };
 
-    if (not callByPath(ADV, C.Path, *M))
-      Error
-        ->addReason("Path not present",
-                    revng::DiffLocation(Index,
-                                        revng::DiffLocation::KindType::Path));
+    if (not callByPath(ADV, C.Path, *M)) {
+      Error->addReason("Path not present: "
+                         + pathAsString<T>(C.Path).value_or("(unavailable)"),
+                       DiffLocation(Index, DiffLocation::KindType::Path));
+    }
+
     Index++;
   }
 

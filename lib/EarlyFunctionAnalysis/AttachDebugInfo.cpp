@@ -39,27 +39,36 @@
 
 using namespace llvm;
 
-class AttachDebugInfo : public llvm::ModulePass {
-public:
-  static char ID;
+static Logger<> Log("attach-debug-info");
+
+class AttachDebugInfo : public pipeline::FunctionPassImpl {
+private:
+  llvm::Module &M;
+  DIBuilder DIB;
+  DICompileUnit *CU = nullptr;
 
 public:
-  AttachDebugInfo() : llvm::ModulePass(ID) {}
+  AttachDebugInfo(llvm::ModulePass &Pass,
+                  const model::Binary &Binary,
+                  llvm::Module &M) :
+    pipeline::FunctionPassImpl(Pass), M(M), DIB(M) {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+  static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
     AU.setPreservesAll();
     AU.addRequired<ControlFlowGraphCachePass>();
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   }
 
-  bool runOnModule(llvm::Module &M) override;
+  bool prologue() final;
+
+  bool runOnFunction(const model::Function &ModelFunction,
+                     llvm::Function &Function) final;
+
+  bool epilogue() final { return false; }
 };
 
-char AttachDebugInfo::ID = 0;
-
-using Register = RegisterPass<AttachDebugInfo>;
-static Register X("attach-debug-info", "Attach debug info metadata.");
-static Logger<> Log("attach-debug-info");
+template<>
+char pipeline::FunctionPass<AttachDebugInfo>::ID = 0;
 
 static bool isTrue(const llvm::Value *V) {
   return getLimitedValue(V) != 0;
@@ -101,10 +110,10 @@ static void handleFunction(DIBuilder &DIB,
         auto Type = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
 
         // Let's make the debug location that points back to the binary.
-        std::string NewDebugLocation = serializedLocation(ranks::Instruction,
-                                                          FM.Entry(),
-                                                          LastJumpTarget,
-                                                          Address.start());
+        std::string NewDebugLocation = toString(ranks::Instruction,
+                                                FM.Entry(),
+                                                LastJumpTarget,
+                                                Address.start());
         auto Subprogram = DIB.createFunction(TheSubprogram->getFile(), // Scope
                                              NewDebugLocation, // Name
                                              StringRef(), // LinkageName
@@ -138,63 +147,60 @@ static void handleFunction(DIBuilder &DIB,
   }
 }
 
-bool AttachDebugInfo::runOnModule(llvm::Module &M) {
-  DIBuilder DIB(M);
-  ControlFlowGraphCache *Cache = &getAnalysis<ControlFlowGraphCachePass>()
-                                    .get();
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-
+bool AttachDebugInfo::prologue() {
   // This will be used for attaching the !dbg to instructions.
   // TODO: Document how are we going to abuse DILocation fields.
   DIFile *File = DIB.createFile(M.getSourceFileName(), "./");
   // Also add dummy CU.
-  DICompileUnit *CU = DIB.createCompileUnit(dwarf::DW_LANG_C,
-                                            File,
-                                            "revng", // Producer
-                                            true, // isOptimized
-                                            "", // Flags
-                                            0 // RV
+  CU = DIB.createCompileUnit(dwarf::DW_LANG_C,
+                             File,
+                             "revng", // Producer
+                             true, // isOptimized
+                             "", // Flags
+                             0 // RV
   );
 
-  for (auto &F : M) {
-    // Skip non-isolated functions (e.g. helpers from QEMU).
-    if (not FunctionTags::Isolated.isTagOf(&F))
-      continue;
+  return true;
+}
 
-    // Skip functions with debug-info.
-    if (F.getSubprogram())
-      continue;
+bool AttachDebugInfo::runOnFunction(const model::Function &ModelFunction,
+                                    llvm::Function &F) {
+  ControlFlowGraphCache *Cache = &getAnalysis<ControlFlowGraphCachePass>()
+                                    .get();
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
-    // Skip declarations
-    if (F.isDeclaration())
-      continue;
+  // Skip functions with debug-info.
+  if (F.getSubprogram())
+    return true;
 
-    auto FM = Cache->getControlFlowGraph(&F);
-    revng_log(Log,
-              "Metadata for Function " << F.getName() << ":"
-                                       << FM.Entry().toString());
+  // Skip declarations
+  revng_assert(not F.isDeclaration());
 
-    // Create debug info for the function.
-    auto SPFlags = DISubprogram::toSPFlags(false, // isLocalToUnit
-                                           true, // isDefinition
-                                           false // isOptimized
-    );
-    auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
+  auto FM = Cache->getControlFlowGraph(&F);
+  revng_log(Log,
+            "Metadata for Function " << F.getName() << ":"
+                                     << FM.Entry().toString());
 
-    DISubprogram
-      *TheSubprogram = DIB.createFunction(CU->getFile(), // Scope
-                                          F.getName(), // Name
-                                          StringRef(), // LinkageName
-                                          CU->getFile(), // File
-                                          1, // LineNo
-                                          SPType, // Ty (subroutine type)
-                                          1, // ScopeLine
-                                          DINode::FlagPrototyped, // Flags
-                                          SPFlags);
-    DIB.finalizeSubprogram(TheSubprogram);
+  // Create debug info for the function.
+  auto SPFlags = DISubprogram::toSPFlags(false, // isLocalToUnit
+                                         true, // isDefinition
+                                         false // isOptimized
+  );
+  auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
 
-    handleFunction(DIB, F, TheSubprogram, FM, GCBI);
-  }
+  DISubprogram
+    *TheSubprogram = DIB.createFunction(CU->getFile(), // Scope
+                                        F.getName(), // Name
+                                        StringRef(), // LinkageName
+                                        CU->getFile(), // File
+                                        1, // LineNo
+                                        SPType, // Ty (subroutine type)
+                                        1, // ScopeLine
+                                        DINode::FlagPrototyped, // Flags
+                                        SPFlags);
+  DIB.finalizeSubprogram(TheSubprogram);
+
+  handleFunction(DIB, F, TheSubprogram, FM, GCBI);
 
   return true;
 }
@@ -219,18 +225,16 @@ struct AttachDebugInfoToIsolatedPipe {
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
+                                                       ModuleContainer.name()));
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
-    Manager.add(new AttachDebugInfo());
+    Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
     Manager.run(ModuleContainer.getModule());
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
   }
 };
 
@@ -254,18 +258,16 @@ struct AttachDebugInfoToABIEnforcedPipe {
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
+                                                       ModuleContainer.name()));
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
-    Manager.add(new AttachDebugInfo());
+    Manager.add(new pipeline::FunctionPass<AttachDebugInfo>());
     Manager.run(ModuleContainer.getModule());
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
   }
 };
 

@@ -44,7 +44,7 @@ static cl::opt<char> OptLevel("compile-opt-level",
                               cl::ZeroOrMore,
                               cl::init(' '));
 
-static void compileModuleRunImpl(const Context &Ctx,
+static void compileModuleRunImpl(const Context &Context,
                                  LLVMContainer &Module,
                                  ObjectFileContainer &TargetBinary) {
   using namespace revng;
@@ -55,7 +55,7 @@ static void compileModuleRunImpl(const Context &Ctx,
     return;
 
   if (Enumeration.contains(pipeline::Target(kinds::IsolatedRoot))
-      and not Enumeration.contains(kinds::Isolated.allTargets(Ctx)))
+      and not Enumeration.contains(kinds::Isolated.allTargets(Context)))
     return;
 
   StringMap<llvm::cl::Option *> &RegOptions(getRegisteredOptions());
@@ -143,16 +143,18 @@ static void compileModuleRunImpl(const Context &Ctx,
   fs::setPermissions(*TargetBinary.path(), Permissions);
 }
 
-void CompileModule::run(const ExecutionContext &Ctx,
+void CompileModule::run(ExecutionContext &EC,
                         LLVMContainer &Module,
                         ObjectFileContainer &TargetBinary) {
-  compileModuleRunImpl(Ctx.getContext(), Module, TargetBinary);
+  compileModuleRunImpl(EC.getContext(), Module, TargetBinary);
+  EC.commitUniqueTarget(TargetBinary);
 }
 
-void CompileIsolatedModule::run(const ExecutionContext &Ctx,
+void CompileIsolatedModule::run(ExecutionContext &EC,
                                 LLVMContainer &Module,
                                 ObjectFileContainer &TargetBinary) {
-  compileModuleRunImpl(Ctx.getContext(), Module, TargetBinary);
+  compileModuleRunImpl(EC.getContext(), Module, TargetBinary);
+  EC.commitUniqueTarget(TargetBinary);
 }
 
 static RegisterPipe<CompileModule> E2;

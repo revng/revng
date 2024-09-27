@@ -153,7 +153,6 @@ bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
                                llvm::Function &OldFunction) {
   revng_assert(not FunctionModel.name().empty());
   auto OldFunctionName = getLLVMFunctionName(FunctionModel);
-  OldFunctions.push_back(&OldFunction);
 
   // Recreate the function with the right prototype and the function prologue
   const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
@@ -237,6 +236,8 @@ EnforceABI::getOrCreateNewFunction(Function &OldFunction,
   auto It = OldToNew.find(&OldFunction);
   if (It != OldToNew.end())
     return It->second;
+
+  OldFunctions.push_back(&OldFunction);
 
   Function *NewFunction = recreateFunction(OldFunction, UsedRegisters);
   FunctionTags::ABIEnforced.addTo(NewFunction);
@@ -503,20 +504,20 @@ struct EnforceABIPipe {
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&Ctx,
+    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
                                                        ModuleContainer.name()));
-    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(Ctx)));
+    Manager.add(new LoadModelWrapperPass(revng::getModelFromContext(EC)));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new pipeline::FunctionPass<EnforceABI>());
     Manager.run(ModuleContainer.getModule());
   }
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    const auto &Model = *revng::getModelFromContext(Ctx);
+  llvm::Error checkPrecondition(const pipeline::Context &Context) const {
+    const auto &Model = *revng::getModelFromContext(Context);
 
     if (!Model.DefaultPrototype().isEmpty())
       return llvm::Error::success();

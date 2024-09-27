@@ -282,10 +282,10 @@ struct DiamondGraph {
   using Node = NodeType;
 
   GenericGraph<Node> Graph;
-  Node *Root;
-  Node *Then;
-  Node *Else;
-  Node *Final;
+  Node *Root = nullptr;
+  Node *Then = nullptr;
+  Node *Else = nullptr;
+  Node *Final = nullptr;
 };
 
 template<typename NodeType, bool UseRefs = false>

@@ -80,7 +80,7 @@ inline std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
 class OpaqueIdentity {
 private:
   std::map<Type *, Function *> Map;
-  Module *M;
+  Module *M = nullptr;
 
 public:
   OpaqueIdentity(Module *M) : M(M) {}
@@ -203,15 +203,16 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
     if (Segment.IsExecutable()) {
       // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
       // useful code anyway
-      uint64_t Size = Segment.FileSize();
+      uint64_t Size = Segment.VirtualSize();
+      revng_log(Log,
+                "mmap'ing segment starting at "
+                  << Segment.StartAddress().toString() << " with size 0x"
+                  << Size);
       bool Success = ptc.mmap(Segment.StartAddress().address(),
                               static_cast<const void *>(Data.data()),
                               Size);
       if (not Success) {
-        revng_log(Log,
-                  "Couldn't mmap segment starting at "
-                    << Segment.StartAddress().toString() << " with size 0x"
-                    << Size);
+        revng_log(Log, "Couldn't mmap segment!");
         continue;
       }
 
@@ -262,7 +263,7 @@ static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
     return;
 
   BasicBlock *Body = replaceFunction(ToReplace);
-  Value *ResultValue;
+  Value *ResultValue = nullptr;
 
   if (ToReplace->getReturnType()->isVoidTy()) {
     revng_assert(Result == 0);
@@ -406,7 +407,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
 private:
-  VariableManager *VM;
+  VariableManager *VM = nullptr;
 };
 
 char CpuLoopExitPass::ID = 0;
@@ -901,6 +902,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
       break;
     }
 
+    revng_log(Log, "Translating " << VirtualAddress.toString());
     ConsumedSize = ptc.translate(VirtualAddress.address(),
                                  Type,
                                  InstructionList.get());

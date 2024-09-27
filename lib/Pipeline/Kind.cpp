@@ -18,13 +18,13 @@ llvm::Error Kind::verify(const ContainerBase &Container,
   return llvm::Error::success();
 }
 
-void SingleElementKind::appendAllTargets(const Context &Ctx,
+void SingleElementKind::appendAllTargets(const Context &Context,
                                          TargetsList &Out) const {
   Out.push_back(Target(*this));
 }
 
-TargetsList Kind::allTargets(const Context &Ctx) const {
+TargetsList Kind::allTargets(const Context &Context) const {
   TargetsList Out;
-  appendAllTargets(Ctx, Out);
+  appendAllTargets(Context, Out);
   return Out;
 }

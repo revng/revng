@@ -32,18 +32,12 @@ public:
   virtual const std::vector<ContractGroup> &getContract() const = 0;
   virtual std::unique_ptr<LLVMPassWrapperBase> clone() const = 0;
   virtual llvm::StringRef getName() const = 0;
-  virtual void print(llvm::raw_ostream &OS) const = 0;
 };
 
 template<typename T>
 concept LLVMPass = requires(T P) {
   { T::Name } -> convertible_to<const char *>;
   { P.registerPasses(std::declval<llvm::legacy::PassManager &>()) };
-};
-
-template<typename T>
-concept LLVMPrintablePass = requires(T P) {
-  { P.print(llvm::outs()) };
 };
 
 class PureLLVMPassWrapper : public LLVMPassWrapperBase {
@@ -56,8 +50,6 @@ public:
   static bool passExists(llvm::StringRef PassName) {
     return llvm::PassRegistry::getPassRegistry()->getPassInfo(PassName);
   }
-
-  void print(llvm::raw_ostream &OS) const override { OS << "-" << PassName; }
 
   static llvm::Expected<std::unique_ptr<PureLLVMPassWrapper>>
   create(llvm::StringRef PassName) {
@@ -124,13 +116,6 @@ public:
   std::unique_ptr<LLVMPassWrapperBase> clone() const override {
     return std::make_unique<LLVMPassWrapper>(*this);
   }
-
-  void print(llvm::raw_ostream &OS) const override {
-    if constexpr (LLVMPrintablePass<T>)
-      PipePass.print(OS);
-    else
-      OS << "-" << T::Name;
-  }
 };
 
 /// Implementation of the LLVM pipes to be instantiated for a particular LLVM
@@ -141,6 +126,7 @@ private:
 
 public:
   static constexpr auto Name = "generic-llvm-pipe";
+
   template<typename... T>
   explicit GenericLLVMPipe(T... Pass) {
     (addPass(std::move(Pass)), ...);
@@ -163,6 +149,7 @@ public:
     for (const auto &P : Other.Passes)
       Passes.push_back(P->clone());
   }
+
   GenericLLVMPipe &operator=(GenericLLVMPipe &&Other) = default;
   GenericLLVMPipe(GenericLLVMPipe &&Other) = default;
   ~GenericLLVMPipe() = default;
@@ -180,10 +167,6 @@ public:
 
   void addPass(const PureLLVMPassWrapper &Pass) {
     Passes.emplace_back(Pass.clone());
-  }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
   }
 
   template<LLVMPass T>
@@ -205,6 +188,17 @@ public:
   }
 
 public:
+  std::string getName() const {
+    std::string Result = std::string(Name) + "(";
+    const char *Prefix = "";
+    for (const auto &Pass : Passes) {
+      Result += Prefix + Pass->getName().str();
+      Prefix = ", ";
+    }
+    Result += ")";
+    return Result;
+  }
+
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const {
     for (const auto &Pass : Passes) {
@@ -219,6 +213,7 @@ public:
 class O2Pipe {
 public:
   static constexpr auto Name = "o2";
+
   std::vector<ContractGroup> getContract() const { return {}; }
 
   void registerPasses(llvm::legacy::PassManager &Manager);

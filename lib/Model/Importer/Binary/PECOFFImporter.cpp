@@ -458,7 +458,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
       revng_log(Log,
                 "Found type for " << Fn.OriginalName() << " in "
                                   << Found->ModuleName << ": "
-                                  << serializeToString(SerializablePrototype));
+                                  << toString(SerializablePrototype));
       TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
       Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
 

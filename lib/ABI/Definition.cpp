@@ -179,21 +179,20 @@ const Definition &Definition::get(model::ABI::Values ABI) {
 
   auto MaybePath = revng::ResourceFinder.findFile(translateABIName(ABI));
   if (!MaybePath.has_value()) {
-    std::string Error = "The ABI definition is missing for: "
-                        + serializeToString(ABI);
+    std::string Error = "The ABI definition is missing for: " + ::toString(ABI);
     revng_abort(Error.c_str());
   }
 
   auto Parsed = TupleTree<Definition>::fromFile(MaybePath.value());
   if (!Parsed) {
     std::string Error = "Unable to deserialize the definition for: "
-                        + serializeToString(ABI);
+                        + ::toString(ABI);
     revng_abort(Error.c_str());
   }
 
   if (!Parsed->verify()) {
     std::string Error = "Deserialized ABI definition is not valid: "
-                        + serializeToString(ABI);
+                        + ::toString(ABI);
     revng_abort(Error.c_str());
   }
 
@@ -357,7 +356,7 @@ assertOnFailure(std::optional<AlignmentInfo> &&ComputationResult,
                 const T &ThingToDumpOnFailure) {
   if (!ComputationResult) {
     std::string Error = "Unable to compute the alignment of "
-                        + serializeToString(ThingToDumpOnFailure);
+                        + toString(ThingToDumpOnFailure);
     revng_abort(Error.c_str());
   }
 

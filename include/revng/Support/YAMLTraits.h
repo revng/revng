@@ -100,7 +100,7 @@ struct CompositeScalar {
   static_assert(std::tuple_size_v<T> >= 0);
 
   template<size_t I = 0>
-  static void output(const T &Value, void *Ctx, llvm::raw_ostream &Output) {
+  static void output(const T &Value, void *Context, llvm::raw_ostream &Output) {
     if constexpr (I < std::tuple_size_v<T>) {
 
       if constexpr (I != 0) {
@@ -110,19 +110,20 @@ struct CompositeScalar {
       using element = std::tuple_element_t<I, T>;
       Output << getNameFromYAMLScalar<element>(get<I>(Value));
 
-      CompositeScalar::output<I + 1>(Value, Ctx, Output);
+      CompositeScalar::output<I + 1>(Value, Context, Output);
     }
   }
 
   template<size_t I = 0>
-  static llvm::StringRef input(llvm::StringRef Scalar, void *Ctx, T &Value) {
+  static llvm::StringRef
+  input(llvm::StringRef Scalar, void *Context, T &Value) {
     if constexpr (I < std::tuple_size_v<T>) {
       auto [Before, After] = Scalar.split(Separator);
 
       using element = std::tuple_element_t<I, T>;
       get<I>(Value) = getValueFromYAMLScalar<element>(Before);
 
-      return CompositeScalar::input<I + 1>(After, Ctx, Value);
+      return CompositeScalar::input<I + 1>(After, Context, Value);
     } else {
       revng_assert(Scalar.size() == 0);
       return Scalar;
@@ -228,7 +229,7 @@ llvm::Error serializeToFile(const T &ToWrite, const llvm::StringRef &Path) {
 }
 
 template<Yamlizable T>
-std::string serializeToString(const T &ToDump) {
+std::string toString(const T &ToDump) {
   std::string Buffer;
   {
     llvm::raw_string_ostream StringStream(Buffer);
@@ -240,7 +241,7 @@ std::string serializeToString(const T &ToDump) {
 namespace revng::detail {
 template<typename T>
 llvm::Expected<T>
-deserializeImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
+fromStringImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
   if constexpr (HasScalarOrEnumTraits<T>) {
     return getValueFromYAMLScalar<T>(YAMLString);
   } else {
@@ -271,18 +272,18 @@ concept NotTupleTreeRoot = !requires(T &&) {
 
 template<NotTupleTreeRoot T>
 llvm::Expected<T>
-deserialize(llvm::StringRef YAMLString, void *Context = nullptr) {
-  return revng::detail::deserializeImpl<T>(YAMLString, Context);
+fromString(llvm::StringRef YAMLString, void *Context = nullptr) {
+  return revng::detail::fromStringImpl<T>(YAMLString, Context);
 }
 
 template<NotTupleTreeRoot T>
 llvm::Expected<T>
-deserializeFileOrSTDIN(const llvm::StringRef &Path, void *Context = nullptr) {
+fromFileOrSTDIN(const llvm::StringRef &Path, void *Context = nullptr) {
   auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
   if (not MaybeBuffer)
     return llvm::errorCodeToError(MaybeBuffer.getError());
 
-  return deserialize<T>((*MaybeBuffer)->getBuffer(), Context);
+  return fromString<T>((*MaybeBuffer)->getBuffer(), Context);
 }
 
 template<HasScalarTraits T>
@@ -291,13 +292,13 @@ struct llvm::yaml::ScalarTraits<std::tuple<T>> {
   using ValueTrait = llvm::yaml::ScalarTraits<T>;
 
   static void
-  output(const ValueType &Value, void *Ctx, llvm::raw_ostream &Output) {
-    ValueTrait().output(std::get<0>(Value), Ctx, Output);
+  output(const ValueType &Value, void *Context, llvm::raw_ostream &Output) {
+    ValueTrait().output(std::get<0>(Value), Context, Output);
   }
 
   static llvm::StringRef
-  input(llvm::StringRef Scalar, void *Ctx, ValueType &Value) {
-    return ValueTrait().input(Scalar, Ctx, std::get<0>(Value));
+  input(llvm::StringRef Scalar, void *Context, ValueType &Value) {
+    return ValueTrait().input(Scalar, Context, std::get<0>(Value));
   }
 
   static llvm::yaml::QuotingType mustQuote(llvm::StringRef String) {

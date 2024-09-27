@@ -23,6 +23,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/ZipMapIterator.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -44,7 +45,7 @@ class Target {
 private:
   using PathComponents = std::vector<std::string>;
   PathComponents Components;
-  const Kind *K;
+  const Kind *K = nullptr;
 
 public:
   Target(PathComponents Components, const Kind &K) :
@@ -75,7 +76,7 @@ public:
   }
 
 public:
-  static llvm::Expected<Target> deserialize(Context &Ctx,
+  static llvm::Expected<Target> deserialize(Context &Context,
                                             llvm::StringRef String);
 
 public:
@@ -102,23 +103,14 @@ public:
   }
 
 public:
-  std::string serialize() const;
+  std::string toString() const;
 
   void dump() const debug_function { dump(dbg); }
 
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const debug_function {
     indent(OS, Indentation);
-    OS << '/';
-
-    const auto ComponentToString = [](const std::string &Component) {
-      return Component;
-    };
-
-    auto Path = llvm::join(llvm::map_range(Components, ComponentToString), "/");
-    OS << Path;
-    OS << ':' << K->name().str();
-    OS << '\n';
+    OS << toString() << '\n';
   }
 
   template<typename OStream>
@@ -135,7 +127,7 @@ public:
 
 class KindsRegistry;
 
-llvm::Error parseTarget(const Context &Ctx,
+llvm::Error parseTarget(const Context &Context,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict,
                         TargetsList &Out);
@@ -157,9 +149,9 @@ private:
 public:
   TargetsList() = default;
   TargetsList(List C) : Contained(std::move(C)) {}
-  static TargetsList allTargets(const Context &Ctx, const Kind &K) {
+  static TargetsList allTargets(const Context &Context, const Kind &K) {
     TargetsList ToReturn;
-    K.appendAllTargets(Ctx, ToReturn);
+    K.appendAllTargets(Context, ToReturn);
     return ToReturn;
   }
 
@@ -220,6 +212,11 @@ public:
     llvm::sort(Contained);
     Contained.erase(unique(Contained.begin(), Contained.end()),
                     Contained.end());
+  }
+
+  template<typename... Args>
+  auto erase_if(Args &&...A) {
+    llvm::erase_if(Contained, std::forward<Args>(A)...);
   }
 
   template<typename... Args>
@@ -303,6 +300,23 @@ private:
   Map Status;
 
 public:
+  bool operator==(const ContainerToTargetsMap &) const = default;
+
+  bool sameTargets(const ContainerToTargetsMap &Other) const {
+    for (auto [ThisPair, OtherPair] : zipmap_range(Status, Other.Status)) {
+      if (ThisPair == nullptr and not OtherPair->second.empty()) {
+        return false;
+      } else if (OtherPair == nullptr and not ThisPair->second.empty()) {
+        return false;
+      } else if (ThisPair != nullptr and OtherPair != nullptr
+                 and ThisPair->second != OtherPair->second) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   iterator begin() { return Status.begin(); }
   iterator end() { return Status.end(); }
   const_iterator begin() const { return Status.begin(); }
@@ -357,6 +371,8 @@ public:
   void merge(const ContainerToTargetsMap &Other);
   void erase(const ContainerToTargetsMap &Other);
 
+  auto erase(llvm::StringRef Name) { return Status.erase(Name); }
+
   void add(llvm::StringRef Name,
            std::initializer_list<std::string> Names,
            const Kind &K) {
@@ -405,7 +421,7 @@ private:
 
 using TargetInStepSet = llvm::StringMap<ContainerToTargetsMap>;
 
-llvm::Error parseTarget(const Context &Ctx,
+llvm::Error parseTarget(const Context &Context,
                         ContainerToTargetsMap &CurrentStatus,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict);

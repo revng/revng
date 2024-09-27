@@ -713,7 +713,7 @@ private:
   }
 
 private:
-  const SwitchInst *Dispatcher;
+  const SwitchInst *Dispatcher = nullptr;
   unsigned JumpTargetIndex;
   unsigned JumpTargetsCount;
   const DataLayout &DL;

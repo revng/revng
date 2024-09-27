@@ -14,7 +14,7 @@
 
 // A simple container that's used to indicate a self-loop.
 struct SelfLoop {
-  InternalNode *Node;
+  InternalNode *Node = nullptr;
   InternalEdge Edge;
 
   SelfLoop(InternalNode *Node, InternalEdge &&Edge) :

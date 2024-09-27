@@ -416,7 +416,7 @@ public:
   template<TraitedTupleLike T, int I, typename KindType>
     requires(std::is_enum_v<KindType>)
   void visitPolymorphicElement(KindType Kind) {
-    Stream << "/" << serializeToString(Kind)
+    Stream << "/" << toString(Kind)
            << "::" << TupleLikeTraits<T>::FieldNames[I];
   }
 

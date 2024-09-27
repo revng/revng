@@ -53,19 +53,14 @@ public:
   void registerPasses(llvm::legacy::PassManager &Manager) {
     Manager.add(new LoadModelWrapperPass(Wrapper));
   }
-
-  // there is no need to print anything because the LoadModelPipePass is
-  // implicitly added by revng opt.
-  void print(llvm::raw_ostream &OS) const { OS << ""; }
 };
 
 static Context setUpContext(LLVMContext &Context) {
   const auto &ModelName = revng::ModelGlobalName;
-  class Context Ctx;
-
-  Ctx.addGlobal<revng::ModelGlobal>(ModelName);
-  Ctx.addExternalContext("LLVMContext", Context);
-  return Ctx;
+  pipeline::Context TheContext;
+  TheContext.addGlobal<revng::ModelGlobal>(ModelName);
+  TheContext.addExternalContext("LLVMContext", Context);
+  return TheContext;
 }
 
 static llvm::Error pipelineConfigurationCallback(const Loader &Loader,
@@ -210,9 +205,9 @@ PipelineManager::PipelineManager(llvm::ArrayRef<std::string> EnablingFlags,
                                    &&Client) :
   StorageClient(std::move(Client)),
   ExecutionDirectory(StorageClient.get(), "") {
-  Context = std::make_unique<llvm::LLVMContext>();
-  auto Ctx = setUpContext(*Context);
-  PipelineContext = make_unique<pipeline::Context>(std::move(Ctx));
+  LLVMContext = std::make_unique<llvm::LLVMContext>();
+  auto Context = setUpContext(*LLVMContext);
+  PipelineContext = make_unique<pipeline::Context>(std::move(Context));
 
   auto Loader = setupLoader(*PipelineContext, EnablingFlags);
   this->Loader = make_unique<pipeline::Loader>(std::move(Loader));
@@ -550,7 +545,7 @@ PipelineManager::materializeTargets(const llvm::StringRef StepName,
       if (!CurrentContainerState.contains(Target))
         return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                        "Target %s cannot be produced",
-                                       Target.serialize().c_str());
+                                       Target.toString().c_str());
     }
   }
 

@@ -18,6 +18,7 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/RootKind.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/ResourceFinder.h"
@@ -58,8 +59,8 @@ static llvm::StringRef getSupportName(model::Architecture::Values V) {
   return "Invalid";
 }
 
-static std::string getSupportPath(const Context &Ctx) {
-  const auto &Model = getModelFromContext(Ctx);
+static std::string getSupportPath(const Context &Context) {
+  const auto &Model = getModelFromContext(Context);
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
   auto ArchName = getSupportName(Model->Architecture()).str();
@@ -74,21 +75,23 @@ static std::string getSupportPath(const Context &Ctx) {
   return SupportPath;
 }
 
-void revng::pipes::LinkSupport::run(const ExecutionContext &Ctx,
-                                    LLVMContainer &TargetsList) {
-  if (TargetsList.enumerate().empty())
+void revng::pipes::LinkSupport::run(ExecutionContext &EC,
+                                    LLVMContainer &ModuleContainer) {
+  if (ModuleContainer.enumerate().empty())
     return;
 
-  std::string SupportPath = getSupportPath(Ctx.getContext());
+  std::string SupportPath = getSupportPath(EC.getContext());
 
   llvm::SMDiagnostic Err;
   auto Module = llvm::parseIRFile(SupportPath,
                                   Err,
-                                  TargetsList.getModule().getContext());
+                                  ModuleContainer.getModule().getContext());
   revng_assert(Module != nullptr);
 
-  auto Failed = llvm::Linker::linkModules(TargetsList.getModule(),
+  auto Failed = llvm::Linker::linkModules(ModuleContainer.getModule(),
                                           std::move(Module));
+
+  EC.commitAllFor(ModuleContainer);
 
   revng_assert(not Failed);
 }

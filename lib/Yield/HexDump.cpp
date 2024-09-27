@@ -92,10 +92,10 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
         MetaAddress End = Begin + Size;
         auto Interval = IntervalType::right_open(Begin, End);
 
-        std::string Str = serializedLocation(ranks::Instruction,
-                                             EntryAddress,
-                                             BasicBlockID,
-                                             Address);
+        std::string Str = toString(ranks::Instruction,
+                                   EntryAddress,
+                                   BasicBlockID,
+                                   Address);
 
         std::set<std::string> Set{ Str };
         Instructions.add(std::make_pair(Interval, Set));
@@ -243,6 +243,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
 class HexDumpPipe {
 public:
   static constexpr auto Name = "hex-dump";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
     return { ContractGroup({ Contract(kinds::Binary,
@@ -262,7 +263,7 @@ public:
                                       InputPreservation::Preserve) }) };
   }
 
-  void run(pipeline::ExecutionContext &Ctx,
+  void run(pipeline::ExecutionContext &EC,
            const BinaryFileContainer &SourceBinary,
            const pipeline::LLVMContainer &ModuleContainer,
            const CFGMap &CFGMap,
@@ -270,26 +271,24 @@ public:
 
     // This pipe works only if we have all the targets
     pipeline::TargetsList FunctionList = ModuleContainer.enumerate();
-    if (not FunctionList.contains(kinds::Isolated.allTargets(Ctx.getContext())))
+    if (not FunctionList.contains(kinds::Isolated.allTargets(EC.getContext())))
       return;
 
     if (not SourceBinary.exists())
       return;
 
     pipeline::TargetsList CFGList = CFGMap.enumerate();
-    if (not CFGList.contains(kinds::CFG.allTargets(Ctx.getContext())))
+    if (not CFGList.contains(kinds::CFG.allTargets(EC.getContext())))
       return;
 
     // Proceed with emission
-    outputHexDump(getModelFromContext(Ctx),
+    outputHexDump(getModelFromContext(EC),
                   ModuleContainer,
                   CFGMap,
                   SourceBinary,
                   Output.getOrCreatePath());
-  }
 
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
+    EC.commitUniqueTarget(Output);
   }
 };
 

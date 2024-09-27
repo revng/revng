@@ -78,7 +78,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
   revng_log(Log,
             "Converting a `CABIFunctionDefinition` to "
             "`RawFunctionDefinition`.");
-  revng_log(Log, "Original type:\n" << serializeToString(FunctionType));
+  revng_log(Log, "Original type:\n" << toString(FunctionType));
   LoggerIndent Indentation(Log);
 
   // Since this conversion cannot fail, nothing prevents us from creating
@@ -120,7 +120,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
         revng_log(Log,
                   "Adding a return value register:\n"
-                    << serializeToString(Register));
+                    << toString(Register));
 
         NewPrototype.ReturnValues().emplace(Converted);
       }
@@ -143,7 +143,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
         revng_log(Log,
                   "Adding a register argument to represent the return value "
                   "location:\n"
-                    << serializeToString(InputPointer));
+                    << toString(InputPointer));
         NewPrototype.Arguments().emplace(std::move(InputPointer));
       } else if (ABI.ReturnValueLocationOnStack()) {
         model::StructField InputPointer(0);
@@ -152,7 +152,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
         revng_log(Log,
                   "Adding a stack argument to represent the return value "
                   "location:\n"
-                    << serializeToString(InputPointer));
+                    << toString(InputPointer));
         StackArguments.Fields().emplace(std::move(InputPointer));
         StackStructSize = ABI.getPointerSize();
       } else {
@@ -161,7 +161,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
       revng_log(Log,
                 "Return value is returned through a shadow-argument-pointer:\n"
-                  << serializeToString(ReturnType));
+                  << toString(ReturnType));
 
       revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
       auto FirstRegister = ABI.GeneralPurposeReturnValueRegisters()[0];
@@ -197,9 +197,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
           Argument.Type() = model::PrimitiveType::make(Register);
         }
 
-        revng_log(Log,
-                  "Adding an argument register:\n"
-                    << serializeToString(Register));
+        revng_log(Log, "Adding an argument register:\n" << toString(Register));
         NewPrototype.Arguments().emplace(Argument);
       }
 
@@ -219,9 +217,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
             Field.Type() = model::PointerType::make(std::move(Field.Type()),
                                                     ABI.getArchitecture());
 
-          revng_log(Log,
-                    "Adding a stack argument:\n"
-                      << serializeToString(Field));
+          revng_log(Log, "Adding a stack argument:\n" << toString(Field));
           StackArguments.Fields().emplace(std::move(Field));
         } else {
           // A piece of the argument is in registers, the rest is on the stack.
@@ -259,9 +255,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
         model::NamedTypedRegister Argument(Register);
         Argument.Type() = model::PrimitiveType::makeGeneric(Register);
 
-        revng_log(Log,
-                  "Adding a padding argument:\n"
-                    << serializeToString(Argument));
+        revng_log(Log, "Adding a padding argument:\n" << toString(Argument));
         NewPrototype.Arguments().emplace(std::move(Argument));
       }
     }
@@ -299,7 +293,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
   revng_assert(NewPrototype.verify(true));
 
-  revng_log(Log, "Conversion successful:\n" << serializeToString(NewPrototype));
+  revng_log(Log, "Conversion successful:\n" << toString(NewPrototype));
 
   // To finish up the conversion, remove all the references to the old type
   // by carefully replacing them with references to the new one.

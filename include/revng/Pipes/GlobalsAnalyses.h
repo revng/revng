@@ -33,7 +33,7 @@ struct ApplyDiffAnalysis {
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  llvm::Error run(pipeline::ExecutionContext &Ctx,
+  llvm::Error run(pipeline::ExecutionContext &EC,
                   std::string DiffGlobalName,
                   std::string DiffContent);
 };
@@ -47,7 +47,7 @@ struct VerifyDiffAnalysis {
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  llvm::Error run(pipeline::ExecutionContext &Ctx,
+  llvm::Error run(pipeline::ExecutionContext &EC,
                   std::string DiffGlobalNane,
                   std::string DiffContent);
 };
@@ -62,7 +62,7 @@ struct SetGlobalAnalysis {
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  llvm::Error run(pipeline::ExecutionContext &Ctx,
+  llvm::Error run(pipeline::ExecutionContext &EC,
                   std::string SetGlobalName,
                   std::string GlobalContent);
 };
@@ -76,7 +76,7 @@ struct VerifyGlobalAnalysis {
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  llvm::Error run(pipeline::ExecutionContext &Ctx,
+  llvm::Error run(pipeline::ExecutionContext &EC,
                   std::string SetGlobalNane,
                   std::string GlobalContent);
 };

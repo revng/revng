@@ -68,7 +68,7 @@ class CFGAnalyzer {
 private:
   llvm::Module &M;
   GeneratedCodeBasicInfo &GCBI;
-  const ProgramCounterHandler *PCH;
+  const ProgramCounterHandler *PCH = nullptr;
   FunctionSummaryOracle &Oracle;
   const TupleTree<model::Binary> &Binary;
 

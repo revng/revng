@@ -87,7 +87,7 @@ private:
   static constexpr const char *IsThumbName = "is_thumb";
 
 private:
-  GlobalVariable *IsThumb;
+  GlobalVariable *IsThumb = nullptr;
 
 public:
   ARMProgramCounterHandler() : ProgramCounterHandler(2), IsThumb(nullptr) {}
@@ -557,13 +557,13 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
 class SwitchManager {
 private:
   LLVMContext &Context;
-  Function *F;
-  BasicBlock *Default;
+  Function *F = nullptr;
+  BasicBlock *Default = nullptr;
 
-  Value *CurrentEpoch;
-  Value *CurrentAddressSpace;
-  Value *CurrentType;
-  Value *CurrentAddress;
+  Value *CurrentEpoch = nullptr;
+  Value *CurrentAddressSpace = nullptr;
+  Value *CurrentType = nullptr;
+  Value *CurrentAddress = nullptr;
 
   std::optional<BlockType::Values> SetBlockType;
 

@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
   constexpr auto Expected = "/instruction/0x123:Generic64/"
                             "0x456:Generic64/0x789:Generic64";
   revng_check(Location.toString() == Expected);
-  revng_check(Location.toString() == serializeToString(Location));
+  revng_check(Location.toString() == toString(Location));
 }
 
 BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
@@ -71,9 +71,9 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   revng_check(Type->tryGetAsDefinition()->name() == "my_cool_union");
 
   // Ensure the key is encoded in the serialized form of the location.
-  std::string Key = serializeToString(Definition.key());
+  std::string Key = toString(Definition.key());
   revng_check(FieldLocation.toString() == "/union-field/" + Key + "/2");
-  revng_check(FieldLocation.toString() == serializeToString(FieldLocation));
+  revng_check(FieldLocation.toString() == toString(FieldLocation));
 }
 
 BOOST_AUTO_TEST_CASE(Serialization) {

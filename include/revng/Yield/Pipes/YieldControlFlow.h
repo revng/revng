@@ -48,7 +48,7 @@ using FunctionControlFlowStringMap = FunctionStringMap<
 
 class YieldControlFlow {
 public:
-  static constexpr const auto Name = "yield-cfg";
+  static constexpr auto Name = "yield-cfg";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
@@ -63,10 +63,6 @@ public:
   void run(pipeline::ExecutionContext &Context,
            const FunctionAssemblyStringMap &Input,
            FunctionControlFlowStringMap &Output);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes

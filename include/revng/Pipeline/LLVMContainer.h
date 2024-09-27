@@ -36,15 +36,15 @@ public:
   inline static const char *Name = "llvm-container";
 
   LLVMContainer(llvm::StringRef Name,
-                Context *Ctx,
-                llvm::LLVMContext *LLVMCtx) :
-    EnumerableContainer<ThisType>(*Ctx, Name),
-    Module(std::make_unique<llvm::Module>("revng.module", *LLVMCtx)) {}
+                Context *Context,
+                llvm::LLVMContext *LLVMContext) :
+    EnumerableContainer<ThisType>(*Context, Name),
+    Module(std::make_unique<llvm::Module>("revng.module", *LLVMContext)) {}
 
   LLVMContainer(llvm::StringRef Name,
-                Context *Ctx,
+                Context *Context,
                 std::unique_ptr<llvm::Module> M) :
-    EnumerableContainer<ThisType>(*Ctx, Name), Module(std::move(M)) {}
+    EnumerableContainer<ThisType>(*Context, Name), Module(std::move(M)) {}
 
 public:
   template<typename... LLVMPasses>

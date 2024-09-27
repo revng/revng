@@ -16,7 +16,7 @@
 namespace revng::pipes {
 
 template<bool commit>
-static llvm::Error applyDiffImpl(pipeline::ExecutionContext &Ctx,
+static llvm::Error applyDiffImpl(pipeline::ExecutionContext &EC,
                                  std::string DiffGlobalName,
                                  std::string DiffContent) {
   if (DiffGlobalName.empty()) {
@@ -27,12 +27,12 @@ static llvm::Error applyDiffImpl(pipeline::ExecutionContext &Ctx,
   std::unique_ptr<llvm::MemoryBuffer>
     Buffer = llvm::MemoryBuffer::getMemBuffer(DiffContent);
 
-  auto GlobalOrError = Ctx.getContext().getGlobals().get(DiffGlobalName);
+  auto GlobalOrError = EC.getContext().getGlobals().get(DiffGlobalName);
   if (not GlobalOrError)
     return GlobalOrError.takeError();
 
   auto &Global = GlobalOrError.get();
-  auto MaybeDiff = Global->deserializeDiff(*Buffer);
+  auto MaybeDiff = Global->diffFromString(Buffer->getBuffer());
   if (not MaybeDiff)
     return MaybeDiff.takeError();
 
@@ -54,20 +54,20 @@ static llvm::Error applyDiffImpl(pipeline::ExecutionContext &Ctx,
   return llvm::Error::success();
 }
 
-llvm::Error ApplyDiffAnalysis::run(pipeline::ExecutionContext &Ctx,
+llvm::Error ApplyDiffAnalysis::run(pipeline::ExecutionContext &EC,
                                    std::string DiffGlobalName,
                                    std::string DiffContent) {
-  return applyDiffImpl<true>(Ctx, DiffGlobalName, DiffContent);
+  return applyDiffImpl<true>(EC, DiffGlobalName, DiffContent);
 }
 
-llvm::Error VerifyDiffAnalysis::run(pipeline::ExecutionContext &Ctx,
+llvm::Error VerifyDiffAnalysis::run(pipeline::ExecutionContext &EC,
                                     std::string DiffGlobalName,
                                     std::string DiffContent) {
-  return applyDiffImpl<false>(Ctx, DiffGlobalName, DiffContent);
+  return applyDiffImpl<false>(EC, DiffGlobalName, DiffContent);
 }
 
 template<bool commit>
-inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &Ctx,
+inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &EC,
                                  std::string SetGlobalName,
                                  std::string GlobalContent) {
   if (SetGlobalName.empty()) {
@@ -78,8 +78,8 @@ inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &Ctx,
   std::unique_ptr<llvm::MemoryBuffer>
     Buffer = llvm::MemoryBuffer::getMemBuffer(GlobalContent);
 
-  auto MaybeNewGlobal = Ctx.getContext().getGlobals().createNew(SetGlobalName,
-                                                                *Buffer);
+  auto MaybeNewGlobal = EC.getContext().getGlobals().createNew(SetGlobalName,
+                                                               *Buffer);
   if (not MaybeNewGlobal)
     return MaybeNewGlobal.takeError();
 
@@ -90,7 +90,7 @@ inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &Ctx,
   }
 
   if constexpr (commit) {
-    auto GlobalOrError = Ctx.getContext().getGlobals().get(SetGlobalName);
+    auto GlobalOrError = EC.getContext().getGlobals().get(SetGlobalName);
     if (not GlobalOrError)
       return GlobalOrError.takeError();
 
@@ -100,16 +100,16 @@ inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &Ctx,
   return llvm::Error::success();
 }
 
-llvm::Error SetGlobalAnalysis::run(pipeline::ExecutionContext &Ctx,
+llvm::Error SetGlobalAnalysis::run(pipeline::ExecutionContext &EC,
                                    std::string SetGlobalName,
                                    std::string GlobalContent) {
-  return setGlobalImpl<true>(Ctx, SetGlobalName, GlobalContent);
+  return setGlobalImpl<true>(EC, SetGlobalName, GlobalContent);
 }
 
-llvm::Error VerifyGlobalAnalysis::run(pipeline::ExecutionContext &Ctx,
+llvm::Error VerifyGlobalAnalysis::run(pipeline::ExecutionContext &EC,
                                       std::string SetGlobalName,
                                       std::string GlobalContent) {
-  return setGlobalImpl<false>(Ctx, SetGlobalName, GlobalContent);
+  return setGlobalImpl<false>(EC, SetGlobalName, GlobalContent);
 }
 
 static pipeline::RegisterAnalysis<ApplyDiffAnalysis> X1;

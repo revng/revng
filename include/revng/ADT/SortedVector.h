@@ -320,7 +320,7 @@ public:
   template<bool EnsureUnique = false>
   class BatchInserterBase {
   private:
-    SortedVector *SV;
+    SortedVector *SV = nullptr;
 
   public:
     BatchInserterBase(SortedVector &SV) : SV(&SV) {

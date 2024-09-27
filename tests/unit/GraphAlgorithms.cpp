@@ -27,9 +27,9 @@ template<typename NodeType>
 struct LoopGraph {
   using Node = NodeType;
   GenericGraph<Node> Graph;
-  Node *Entry;
-  Node *LoopLatch;
-  Node *Exit;
+  Node *Entry = nullptr;
+  Node *LoopLatch = nullptr;
+  Node *Exit = nullptr;
 };
 
 template<typename NodeType>
@@ -57,12 +57,12 @@ template<typename NodeType>
 struct NestedLoopGraph {
   using Node = NodeType;
   GenericGraph<Node> Graph;
-  Node *Entry;
-  Node *LoopHeader;
-  Node *SecondLoopHeader;
-  Node *LoopLatch;
-  Node *SecondLoopLatch;
-  Node *Exit;
+  Node *Entry = nullptr;
+  Node *LoopHeader = nullptr;
+  Node *SecondLoopHeader = nullptr;
+  Node *LoopLatch = nullptr;
+  Node *SecondLoopLatch = nullptr;
+  Node *Exit = nullptr;
 };
 
 template<typename NodeType>
@@ -94,12 +94,12 @@ template<typename NodeType>
 struct NonCanonicalLoopGraph {
   using Node = NodeType;
   GenericGraph<Node> Graph;
-  Node *LoopHeader;
-  Node *SecondLoopHeader;
-  Node *LoopLatch;
-  Node *LoopSuccessor;
-  Node *SecondLoopSuccessor;
-  Node *SecondLoopLatch;
+  Node *LoopHeader = nullptr;
+  Node *SecondLoopHeader = nullptr;
+  Node *LoopLatch = nullptr;
+  Node *LoopSuccessor = nullptr;
+  Node *SecondLoopSuccessor = nullptr;
+  Node *SecondLoopLatch = nullptr;
 };
 
 template<typename NodeType>
@@ -132,12 +132,12 @@ template<typename NodeType>
 struct NonCanonicalAlternateLoopGraph {
   using Node = NodeType;
   GenericGraph<Node> Graph;
-  Node *LoopHeader;
-  Node *SecondLoopHeader;
-  Node *LoopLatch;
-  Node *LoopSuccessor;
-  Node *SecondLoopSuccessor;
-  Node *SecondLoopLatch;
+  Node *LoopHeader = nullptr;
+  Node *SecondLoopHeader = nullptr;
+  Node *LoopLatch = nullptr;
+  Node *LoopSuccessor = nullptr;
+  Node *SecondLoopSuccessor = nullptr;
+  Node *SecondLoopLatch = nullptr;
 };
 
 template<typename NodeType>
@@ -164,9 +164,9 @@ template<typename NodeType>
 struct ReverseGraph {
   using Node = NodeType;
   GenericGraph<Node> Graph;
-  Node *InitialBlock;
-  Node *SmallerBlock;
-  Node *EndBlock;
+  Node *InitialBlock = nullptr;
+  Node *SmallerBlock = nullptr;
+  Node *EndBlock = nullptr;
 };
 
 template<typename NodeType>

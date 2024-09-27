@@ -27,7 +27,7 @@ public:
 
 private:
   const bool Lazy;
-  VariableManager *Variables;
+  VariableManager *Variables = nullptr;
 
 public:
   static char ID;

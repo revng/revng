@@ -40,10 +40,6 @@ public:
            const CFGMap &CFGMap,
            const CrossRelationsFileContainer &InputFile,
            CallGraphSliceSVGStringMap &Output);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes

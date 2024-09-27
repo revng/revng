@@ -12,5 +12,5 @@ revng_add_analyses_library_internal(
   RemoveHelperCalls.cpp
   ShrinkInstructionOperandsPass.cpp)
 
-target_link_libraries(revngBasicAnalyses revngModel revngSupport
+target_link_libraries(revngBasicAnalyses revngModel revngSupport revngPipeline
                       ${LLVM_LIBRARIES})

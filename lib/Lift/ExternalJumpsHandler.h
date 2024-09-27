@@ -39,7 +39,7 @@ private:
   llvm::Function &TheFunction;
 
   llvm::BasicBlock *Dispatcher;
-  ProgramCounterHandler *PCH;
+  ProgramCounterHandler *PCH = nullptr;
 
 public:
   /// \param TheFunction the root function.

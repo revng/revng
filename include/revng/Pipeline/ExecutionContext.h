@@ -8,7 +8,10 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
+#include "revng/Pipeline/Container.h"
+#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Support/Generator.h"
 
 namespace pipeline {
 class Context;
@@ -16,6 +19,11 @@ class Target;
 class ContainerBase;
 class Step;
 struct PipeWrapper;
+
+template<typename F, typename T>
+concept IsTargetToGlobal = requires {
+  { std::is_same_v<F, const T &(const Target &)> };
+};
 
 // A execution context is created and passed to each invocation of a pipe. It
 // provides a reference to the pipeline::Context, as well as carrying around
@@ -50,15 +58,15 @@ struct PipeWrapper;
 //
 // Example:
 //
-// void SomePipeProducingFunctions(const ExecutionContext& Ctx, SomeContainer&
-// Container) {
+// void SomePipeProducingFunctions(const ExecutionContext& EC,
+//                                 SomeContainer &Container) {
 //   ...
 //   for (auto& Function : Container)
 //   {
+//     EC.getContext().pushReadFields();
 //     ...
-//     Ctx.getContext().pushReadFields();
-//     Ctx.commit(Container, Target(Function.metaadress()));
-//     Ctx.getContext().popReadFields();
+//     EC.commit(Container, Target(Function.metaadress()));
+//     EC.getContext().popReadFields();
 //   }
 // }
 //
@@ -67,6 +75,7 @@ private:
   Context *TheContext = nullptr;
   PipeWrapper *Pipe = nullptr;
   ContainerToTargetsMap Requested;
+  ContainerToTargetsMap Committed;
   // false when running on a analysis
   bool RunningOnPipe = true;
 
@@ -80,14 +89,66 @@ public:
 
 public:
   void commit(const Target &Target, llvm::StringRef ContainerName);
-  void commit(const Target &Target, const ContainerBase &Container);
-  void commitUniqueTarget(const ContainerBase &Container);
-
-  const ContainerToTargetsMap &getCurrentRequestedTargets() const {
-    return Requested;
+  void commit(const Target &Target, const ContainerBase &Container) {
+    commit(Target, Container.name());
   }
 
+  void commitAllFor(llvm::StringRef ContainerName);
+  void commitAllFor(const ContainerBase &Container) {
+    commitAllFor(Container.name());
+  }
+
+  void commitUniqueTarget(llvm::StringRef ContainerName);
+  void commitUniqueTarget(const ContainerBase &Container) {
+    commitUniqueTarget(Container.name());
+  }
+
+  /// \note We do not provide a const version of this method so it doesn't get
+  //        used accidentally in pipes.
   ContainerToTargetsMap &getCurrentRequestedTargets() { return Requested; }
+
+  TargetsList &getRequestedTargetsFor(const ContainerBase &Container) {
+    return getRequestedTargetsFor(Container.name());
+  }
+
+  TargetsList &getRequestedTargetsFor(llvm::StringRef ContainerName) {
+    static TargetsList Empty;
+    auto It = Requested.find(ContainerName);
+    if (It == Requested.end())
+      return Empty;
+    else
+      return It->second;
+  }
+
+  const TargetsList &
+  getRequestedTargetsFor(const ContainerBase &Container) const {
+    return getRequestedTargetsFor(Container.name());
+  }
+
+  const TargetsList &
+  getRequestedTargetsFor(llvm::StringRef ContainerName) const {
+    static TargetsList Empty;
+    auto It = Requested.find(ContainerName);
+    if (It == Requested.end())
+      return Empty;
+    else
+      return It->second;
+  }
+
+  template<typename T, IsTargetToGlobal<T> F>
+  cppcoro::generator<const T &>
+  getAndCommit(const F &Extractor, llvm::StringRef ContainerName) {
+    for (const Target &Target : getRequestedTargetsFor(ContainerName)) {
+      getContext().pushReadFields();
+      co_yield Extractor(Target);
+      commit(Target, ContainerName);
+      getContext().popReadFields();
+    }
+  }
+
+public:
+  /// Verifies all the requested targets have been committed
+  void verify() const;
 
 public:
   const Context &getContext() const { return *TheContext; }
@@ -99,20 +160,23 @@ public:
   static char ID;
 
 private:
-  ExecutionContext *Ctx;
+  ExecutionContext *EC = nullptr;
   llvm::StringRef ContainerName;
 
 public:
-  LoadExecutionContextPass(ExecutionContext *Ctx,
+  LoadExecutionContextPass(ExecutionContext *EC,
                            llvm::StringRef ContainerName) :
-    llvm::ImmutablePass(ID), Ctx(Ctx), ContainerName(ContainerName) {}
+    llvm::ImmutablePass(ID), EC(EC), ContainerName(ContainerName) {}
 
   bool doInitialization(llvm::Module &M) override { return false; }
 
 public:
+  const TargetsList &getRequestedTargets() const {
+    return EC->getRequestedTargetsFor(ContainerName);
+  }
   llvm::StringRef getContainerName() const { return ContainerName; }
-  ExecutionContext *get() { return Ctx; }
-  const ExecutionContext *get() const { return Ctx; }
+  ExecutionContext *get() { return EC; }
+  const ExecutionContext *get() const { return EC; }
 };
 
 } // namespace pipeline

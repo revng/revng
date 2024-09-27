@@ -11,11 +11,11 @@
 
 using namespace pipeline;
 
-ExecutionContext::ExecutionContext(Context &Ctx,
+ExecutionContext::ExecutionContext(Context &Context,
                                    PipeWrapper *Pipe,
                                    const ContainerToTargetsMap
                                      &RequestedTargets) :
-  TheContext(&Ctx),
+  TheContext(&Context),
   Pipe(Pipe),
   Requested(RequestedTargets),
   RunningOnPipe(Pipe != nullptr) {
@@ -34,20 +34,41 @@ pipeline::ExecutionContext::~ExecutionContext() {
 void ExecutionContext::commit(const Target &Target,
                               llvm::StringRef ContainerName) {
   revng_assert(Pipe != nullptr);
+
+  revng_log(InvalidationLog,
+            "Committing " << Target.toString() << " into "
+                          << ContainerName.str());
+
+  // TODO: this triggers a sort at every invocation, which is bad for
+  //       performance
+  Committed.add(ContainerName.str(), Target);
+
   TargetInContainer ToCollect(Target, ContainerName.str());
   getContext().collectReadFields(ToCollect,
                                  Pipe->InvalidationMetadata.getPathCache());
 }
 
-void ExecutionContext::commitUniqueTarget(const ContainerBase &Container) {
-  auto Enumeration = Container.enumerate();
-  revng_check(Enumeration.size() == 1);
-  commit(Enumeration[0], Container.name());
+void ExecutionContext::commitUniqueTarget(llvm::StringRef ContainerName) {
+  revng_assert(getRequestedTargetsFor(ContainerName).size() == 1);
+  commitAllFor(ContainerName);
 }
 
-void ExecutionContext::commit(const Target &Target,
-                              const ContainerBase &Container) {
-  commit(Target, Container.name());
+void ExecutionContext::commitAllFor(llvm::StringRef ContainerName) {
+  for (const pipeline::Target &Target : getRequestedTargetsFor(ContainerName))
+    commit(Target, ContainerName);
+}
+
+void ExecutionContext::verify() const {
+  if (not Requested.sameTargets(Committed)) {
+    dbg << "After running the " << Pipe->Pipe->getName() << " pipe, ";
+    dbg << "the list of requested targets is different from the committed "
+           "ones.\n";
+    dbg << "Requested:\n";
+    Requested.dump();
+    dbg << "Committed:\n";
+    Committed.dump();
+    revng_abort();
+  }
 }
 
 char LoadExecutionContextPass::ID = '_';

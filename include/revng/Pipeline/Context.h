@@ -17,7 +17,6 @@
 
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
-#include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/GlobalsMap.h"
 #include "revng/Pipeline/KindsRegistry.h"

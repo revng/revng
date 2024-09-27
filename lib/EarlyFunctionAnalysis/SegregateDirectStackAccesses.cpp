@@ -120,7 +120,7 @@ void SDSAPI::segregateAccesses(Function &F) {
         // of the current instruction, where LoadPtr is SP? Change it with the
         // newly-created bitcasted load in order to prevent from using inttoptr.
         if (Pointer == LoadSP) {
-          Type *DestTy;
+          Type *DestTy = nullptr;
           if (isa<LoadInst>(&I))
             DestTy = I.getOperand(0)->getType();
           else
@@ -138,7 +138,7 @@ void SDSAPI::segregateAccesses(Function &F) {
           // to the original type of SP.
           auto *GEP = Builder.CreateGEP(Builder.getInt8Ty(), SPI8Ptr, Offset);
 
-          Type *DestTy;
+          Type *DestTy = nullptr;
           if (isa<LoadInst>(&I))
             DestTy = I.getOperand(0)->getType();
           else

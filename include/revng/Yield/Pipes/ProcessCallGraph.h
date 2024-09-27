@@ -68,10 +68,6 @@ public:
   void run(pipeline::ExecutionContext &Context,
            const CFGMap &CFGMap,
            CrossRelationsFileContainer &OutputFile);
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace revng::pipes
