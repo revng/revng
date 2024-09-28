@@ -215,9 +215,6 @@ public:
         // model::ABI::SystemV_MIPS_o32,
         // model::ABI::SystemV_MIPSEL_o32
 
-        // Unable to reliably test: no easy access to a compiler
-        // model::ABI::Pascal_x86,
-
         // Unable to reliably test: QEMU aborts
         // model::ABI::SystemZ_s390x,
       };
