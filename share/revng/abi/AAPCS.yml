@@ -15,7 +15,7 @@ FloatsUseGPRs: false
 StackArgumentsUseRegularStructAlignmentRules: false
 UseStrictAggregateAlignmentRules: false
 
-StackAlignment: 4
+StackAlignment: 8
 MinimumStackArgumentSize: 4
 
 MaximumGPRsPerAggregateArgument: 4

@@ -137,7 +137,7 @@ Practically this option is mostly used to conditionally ensure [`StackArgumentsU
 
 States the required alignment of the stack at the point of a function call in bytes.
 
-> **_Note:_** states minimum value for ABIs supporting multiple different stack alignment values, for example, if the ABI requires the stack to be aligned on 4 bytes for internal calls but on 8 bytes for interfaces (like 32-bit ARM ABI), the value of `StackAlignment` should be equal to 4.
+> **_Note:_** As of now, this value only affects `FinalStackOffset` of the functions in ABIs where callee is responsible for the stack clean up.  That being said, it's still specified for all the ABIs in case we need in the future.
 
 ## `MinimumStackArgumentSize` (`unsigned`)
 

@@ -425,7 +425,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
   }
   auto &Stack = StackStruct->toStruct();
   uint64_t AdjustedAlignment = std::max(*ABI.alignment(Stack),
-                                        ABI.StackAlignment());
+                                        ABI.MinimumStackArgumentSize());
   uint64_t StackSize = paddedSizeOnStack(Stack.Size(), AdjustedAlignment);
 
   // If the struct is empty, it indicates that there are no stack arguments.
