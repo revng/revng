@@ -110,13 +110,6 @@ members:
       arguments. The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/vectorcall
 
-  - name: Pascal_x86
-    doc: |
-      An abi similar to 32-bit `__stdcall` Microsoft ABI for x86 processor
-      architecture. The main difference is the fact that the stack parameters
-      are placed left-to-right instead of right-to-left
-      \sa Trustworthy documentation is hard to find.
-
   - name: AAPCS64
     doc: |
       Stands for `Arm Architecture Procedure Call Standard (64-bit)`.
@@ -188,7 +181,6 @@ getArchitecture(model::ABI::Values V) {
   case model::ABI::Microsoft_x86_fastcall:
   case model::ABI::Microsoft_x86_fastcall_gcc:
   case model::ABI::Microsoft_x86_thiscall:
-  case model::ABI::Pascal_x86:
     return model::Architecture::x86;
 
   case model::ABI::AAPCS64:
@@ -336,10 +328,6 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
            "allowing `this` pointer in method-style calls to "
            "be passed using a register. It is never used for "
            "'free' functions";
-  case model::ABI::Pascal_x86:
-    return "An abi similar to 32-bit `stdcall` Microsoft ABI for x86 "
-           "processor architecture. The main difference is the fact that the "
-           "stack parameters are placed left-to-right instead of right-to-left";
 
   case model::ABI::AAPCS64:
     return "64-bit ARM abi";
