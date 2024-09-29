@@ -174,7 +174,7 @@ Branches:
           - Type: model-to-header
             UsedContainers: [input, types-and-globals.h]
           - Type: decompile
-            UsedContainers: [module.ll, cfg.yml, decompiled.tar.gz]
+            UsedContainers: [module.ll, cfg.yml.tar.gz, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
           Kind: decompiled
@@ -196,7 +196,7 @@ Branches:
       - Name: emit-recompilable-archive
         Pipes:
           - Type: decompile-to-directory
-            UsedContainers: [module.ll, cfg.yml, recompilable-archive.tar.gz]
+            UsedContainers: [module.ll, cfg.yml.tar.gz, recompilable-archive.tar.gz]
         Artifacts:
           Container: recompilable-archive.tar.gz
           Kind: recompilable-archive
@@ -262,7 +262,7 @@ Branches:
       - Name: import-clift-types
         Pipes:
           - Type: import-clift-types
-            UsedContainers: [cfg.yml, module.mlir]
+            UsedContainers: [cfg.yml.tar.gz, module.mlir]
         Artifacts:
           Container: module.mlir
           Kind: mlir-module
