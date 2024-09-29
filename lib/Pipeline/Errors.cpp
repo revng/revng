@@ -31,13 +31,11 @@ std::error_code UnsatisfiableRequestError::convertToErrorCode() const {
 char UnknownTargetError::ID;
 
 void UnknownTargetError::log(raw_ostream &OS) const {
-  OS << "Could not erase\n";
-  for (const auto &Name : Unknown) {
-    Name.dump(OS);
-    OS << "\n";
-  }
-  OS << "from: " << ContainerName << "\n";
-  OS << "Because the queried backing container did not had it";
+  OS << "Could not erase the following targets, since they are not available "
+        "in "
+     << ContainerName << ":";
+  for (const Target &Target : Unknown)
+    OS << "  " << Target.toString() << "\n";
 }
 
 std::error_code UnknownTargetError::convertToErrorCode() const {

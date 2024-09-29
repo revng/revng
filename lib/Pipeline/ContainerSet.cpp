@@ -46,8 +46,10 @@ Error ContainerSet::remove(const ContainerToTargetsMap &ToRemove) {
   for (const auto &Target : ToRemove) {
     const auto &ContainerName = Target.first();
     const auto &NamesToRemove = Target.second;
+
     if (not contains(ContainerName))
       continue;
+
     if (NamesToRemove.size() == 0)
       continue;
     if (auto Ok = at(ContainerName).remove(NamesToRemove); not Ok)
