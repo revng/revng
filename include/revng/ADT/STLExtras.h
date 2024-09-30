@@ -281,6 +281,15 @@ inline llvm::ArrayRef<uint8_t> toArrayRef(llvm::StringRef Data) {
   return llvm::ArrayRef<uint8_t>(Pointer, Data.size());
 }
 
+template<typename T, typename ValueType>
+concept ArrayLike = requires(T &&V) {
+  { V.data() } -> std::convertible_to<const ValueType *>;
+  { V.size() } -> std::same_as<size_t>;
+};
+
+template<typename T>
+concept DataBuffer = ArrayLike<T, char> || ArrayLike<T, uint8_t>;
+
 //
 // append
 //
