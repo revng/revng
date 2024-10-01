@@ -9,6 +9,6 @@
 
 // CHECK: initializer type must match the variable type
 clift.global !int32_t "x" = {
-  %0 = clift.undef !int64_t
+  %0 = clift.undef : !int64_t
   clift.yield %0 : !int64_t
 }

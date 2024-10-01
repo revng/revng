@@ -9,6 +9,6 @@
 clift.local !int32_t "x"
 
 clift.local !int32_t "y" = {
-  %0 = clift.undef !int32_t
+  %0 = clift.undef : !int32_t
   clift.yield %0 : !int32_t
 }

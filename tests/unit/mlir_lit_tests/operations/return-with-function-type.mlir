@@ -14,6 +14,6 @@
 
 // CHECK: requires void or non-array object type
 clift.return {
-  %0 = clift.undef !f
+  %0 = clift.undef : !f
   clift.yield %0 : !f
 }

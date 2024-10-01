@@ -9,6 +9,6 @@
 
 // CHECK: requires void or non-array object type
 clift.return {
-  %0 = clift.undef !array
+  %0 = clift.undef : !array
   clift.yield %0 : !array
 }

@@ -357,7 +357,7 @@ def Clift_UndefOp : Clift_Op<"undef",
   let results = (outs Clift_AnyValueType:$result);
 
   let assemblyFormat = [{
-    type($result) attr-dict
+    `:` type($result) attr-dict
   }];
 }
 

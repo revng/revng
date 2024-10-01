@@ -16,11 +16,11 @@
 clift.module {
   clift.func "f" !f {
     clift.while {
-      %0 = clift.undef !int32_t
+      %0 = clift.undef : !int32_t
       clift.yield %0 : !int32_t
     } {
       clift.switch {
-        %0 = clift.undef !int32_t
+        %0 = clift.undef : !int32_t
         clift.yield %0 : !int32_t
       } default {
         clift.loop_continue
