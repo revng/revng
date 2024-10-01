@@ -1,0 +1,27 @@
+{
+    "license": "MIT",
+    "__license": "See LICENSE.md for details.",
+    "scripts": {
+        "build": "webpack build"
+    },
+    "dependencies": {
+        "@obsidize/tar-browserify": "^4",
+        "@sqlite.org/sqlite-wasm": "*",
+        "@types/file-saver": "^2",
+        "@types/jquery": "^3",
+        "@types/node": ">=17",
+        "apexcharts": "^3",
+        "bootstrap": "^5",
+        "copy-webpack-plugin": "^12",
+        "css-loader": "^7",
+        "datatables.net-dt": "^2",
+        "file-saver": "^2",
+        "filesize": "^10",
+        "jquery": "^3",
+        "path-browserify": "^1",
+        "style-loader": "^4",
+        "ts-loader": "^9",
+        "webpack-cli": "^5",
+        "yaml": "^2"
+    }
+}

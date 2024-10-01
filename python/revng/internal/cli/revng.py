@@ -8,8 +8,24 @@ from importlib import import_module
 from inspect import isfunction
 from pathlib import Path
 
-from .commands_registry import Options, commands_registry
-from .support import collect_files, get_root, read_lines
+from ..support.collect import collect_files_recursive
+from .commands_registry import CommandsRegistry, Options
+from .support import executable_name, get_root, is_file_executable, read_lines
+
+_commands_registry = CommandsRegistry()
+_commands_registry.define_namespace(
+    ("model",), f"Model manipulation helpers, see {executable_name()} model --help"
+)
+_commands_registry.define_namespace(("tar",), "Manipulate tar archives")
+_commands_registry.define_namespace(
+    ("model", "import"), f"Model import helpers, see {executable_name()} model import --help"
+)
+_commands_registry.define_namespace(
+    ("trace",), f"Trace-related tools, see {executable_name()} trace --help"
+)
+_commands_registry.define_namespace(
+    ("mass-testing",), f"Mass-testing CLI tools, see {executable_name()} mass-testing --help"
+)
 
 
 def extend_list(paths, new_items):
@@ -32,7 +48,7 @@ def revng_driver_init(arguments) -> Options:
     for module in modules:
         setup = getattr(module, "setup", None)
         if setup is not None and isfunction(setup):
-            setup(commands_registry)
+            setup(_commands_registry)
 
     # Add forced search prefixes
     options.search_prefixes = extend_list(
@@ -52,13 +68,16 @@ def revng_driver_init(arguments) -> Options:
     options.search_prefixes = extend_list(options.search_prefixes, prefixes)
 
     # Register external commands
-    prefix = "revng-"
-    for executable in collect_files(options.search_prefixes, ["libexec", "revng"], f"{prefix}*"):
-        name = os.path.basename(executable)[len(prefix) :]
-        if not commands_registry.has_command(name):
-            commands_registry.register_external_command(name, executable)
+    for executable, path in collect_files_recursive(
+        options.search_prefixes, ["libexec", "revng"], "*"
+    ):
+        if not (is_file_executable(path) and os.path.splitext(path)[1] == ""):
+            continue
 
-    commands_registry.post_init()
+        if not _commands_registry.has_command(executable):
+            _commands_registry.register_external_command(executable, path)
+
+    _commands_registry.post_init()
     return options
 
 
@@ -69,10 +88,10 @@ def run_revng_command(arguments, options: Options):
     if options.dry_run:
         return 0
 
-    return commands_registry.run(arguments, options)
+    return _commands_registry.run(arguments, options)
 
 
 def main():
     arguments = sys.argv[1:]
     options = revng_driver_init(arguments)
-    return run_revng_command(sys.argv[1:], options)
+    return run_revng_command(arguments, options)

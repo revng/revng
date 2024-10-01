@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# This script is a wrapper around `llvm-symbolizer`, which allows providing
+# a JSON stack trace (easy to parse) together with a traditional stacktrace
+# (easier to read for programmers).
+# The JSON stack trace is saved to the path specified by
+# `SYMBOLIZER_WRAPPER_OUTPUT` whereas the traditional stacktrace is written to
+# stdout, as the unwrapped symbolizer would do.
+
+import os
+import sys
+from subprocess import PIPE, Popen
+
+
+def main():
+    args = sys.argv[1:]
+    json_args = [*args, "--output-style=JSON", "--relativenames"]
+
+    symbolizer_bin = os.environ["SYMBOLIZER_WRAPPER_SYMBOLIZER_PATH"]
+    output_path = os.environ["SYMBOLIZER_WRAPPER_OUTPUT"]
+
+    with open(output_path, "wb") as json_file:
+        json_symbolizer = Popen(
+            ("llvm-symbolizer", *json_args),
+            executable=symbolizer_bin,
+            stdin=PIPE,
+            stdout=json_file,
+            text=False,
+        )
+        regular_symbolizer = Popen(
+            ("llvm-symbolizer", *args),
+            executable=symbolizer_bin,
+            stdin=PIPE,
+            stdout=sys.stdout,
+            text=False,
+        )
+
+        for line in sys.stdin.buffer:
+            json_symbolizer.stdin.write(line)
+            regular_symbolizer.stdin.write(line)
+
+        json_symbolizer.stdin.close()
+        regular_symbolizer.stdin.close()
+
+        json_symbolizer.wait()
+        regular_symbolizer.wait()
+
+        return regular_symbolizer.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

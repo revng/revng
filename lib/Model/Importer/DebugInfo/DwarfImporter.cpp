@@ -31,6 +31,7 @@
 #include "revng/Model/Processing.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
 
 #include "ImportDebugInfoHelper.h"
@@ -1120,22 +1121,21 @@ findDebugInfoFileByName(StringRef FileName,
 
           if (fileExists(ResultPath.str())) {
             return std::string(ResultPath.str());
-          } else {
-            // Try in XDG_CACHE_HOME at the end.
-            ResultPath.clear();
-            setXDG(ResultPath, "XDG_CACHE_HOME", ".cache");
-            llvm::sys::path::append(ResultPath,
-                                    "revng",
-                                    "debug-symbols",
-                                    "elf");
-            llvm::sys::path::append(ResultPath, BuildID, "debug");
-
-            if (fileExists(ResultPath.str())) {
-              return std::string(ResultPath.str());
-            } else {
-              revng_log(DILogger, "Can't find " << DebugFileName);
-            }
           }
+
+          // Try in CacheDirectory at the end.
+          ResultPath.clear();
+          std::string CacheDir = getCacheDirectory();
+          ResultPath = joinPath(CacheDir,
+                                "debug-symbols",
+                                "elf",
+                                BuildID,
+                                "debug");
+
+          if (fileExists(ResultPath.str())) {
+            return ResultPath.str().str();
+          }
+          revng_log(DILogger, "Can't find " << DebugFileName);
         } else {
           revng_log(DILogger, "Can't parse build-id.");
         }

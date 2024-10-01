@@ -1,0 +1,12 @@
+{
+    "__license": "See LICENSE.md for details.",
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es2021",
+        "outDir": "dist",
+        "lib": ["es2021", "WebWorker", "dom"],
+        "sourceMap": true,
+        "rootDir": "src",
+        "strict": true
+    }
+}

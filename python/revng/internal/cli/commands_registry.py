@@ -4,6 +4,7 @@
 
 import argparse
 import dataclasses
+import os
 import shlex
 import sys
 from abc import ABC, abstractmethod
@@ -177,9 +178,15 @@ class CommandsRegistry:
         return result
 
     def _parse_command(self, command: str):
-        parts = command.split("-")
-        total = len(parts)
+        name = command
         current_namespace: Tuple[str, ...] = ()
+        if "/" in command:
+            path_parts = os.path.split(command)
+            name = path_parts[-1]
+            current_namespace = tuple(path_parts[:-1])
+
+        parts = name.split("-")
+        total = len(parts)
 
         start_index = 0
         found = True
@@ -209,16 +216,3 @@ class CommandsRegistry:
         if namespace not in self.namespaces:
             self.define_namespace(namespace)
         return self.namespaces[namespace]
-
-
-commands_registry = CommandsRegistry()
-commands_registry.define_namespace(
-    ("model",), f"Model manipulation helpers, see {executable_name()} model --help"
-)
-commands_registry.define_namespace(("tar",), "Manipulate tar archives")
-commands_registry.define_namespace(
-    ("model", "import"), f"Model import helpers, see {executable_name()} model import --help"
-)
-commands_registry.define_namespace(
-    ("trace",), f"Trace-related tools, see {executable_name()} trace --help"
-)

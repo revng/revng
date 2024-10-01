@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# This script handles running a test command in a controlled fashion, in
+# particular:
+# * Handles a timeout via the `--timeout` parameter; killing processes in a
+#   "smart" way that makes it the most likely to get a stack trace.
+# * Overrides LLVM_SYMBOLIZER_PATH so that `symbolizer-wrapper` is used
+#   instead, which allows producing `<output dir>/stacktrace.json`
+# * Registers itself as a subchild reaper to avoid processes escaping. Also
+#   handles killing and reaping them as needed.
+# * Captures the program output as `<output dir>/output.log`
+# * Collects some runtime information (exit code, memory usage, etc.) and
+#   stores it in `<output dir>/test-harness.json`
+# * Handles wrapping the test command in `pre` and `post` hooks specified in
+#   meta.yml
+
+import argparse
+import json
+import os
+import signal
+import sys
+from contextlib import suppress
+from ctypes import cdll
+from ctypes.util import find_library
+from hashlib import file_digest
+from pathlib import Path
+from shutil import which
+from subprocess import STDOUT, Popen, TimeoutExpired
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from time import sleep
+from typing import Collection, Generator
+
+import psutil
+import yaml
+
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
+_time_json_format = (
+    '{"user_time": %U, "system_time": %S, "percent_cpu": "%P", "elapsed_time": %e, '
+    '"avg_shared_text_size": %X, "avg_unshared_data_size": %D, "avg_stack_size": %p, '
+    '"avg_total_size": %K, "max_resident_set_size": %M, "avg_resident_set_size": %t, '
+    '"major_io_page_faults": %F, "minor_reclaim_page_faults": %R, '
+    '"voluntary_context_switches": %w, "involuntary_context_switches": %c, "swaps": %W, '
+    '"fs_inputs": %I, "fs_outputs": %O, "socket_msgs_sent": %s, "socket_msgs_recvd": %r, '
+    '"signals_delivered": %k, "page_size": %Z, "exit_code": %x}'
+)
+
+
+def set_child_subreaper():
+    # This functions calls 'prctl(PR_SET_CHILD_SUBREAPER)' in C. This allows
+    # the process to be registered as a child subreaper, so it will inherit
+    # orphaned grandchildren.
+    libc_name = find_library("c")
+    assert libc_name is not None
+    libc = cdll.LoadLibrary(libc_name)
+    # 36 is a magic number constant, copied from `linux/prctl.h`
+    libc.prctl(PR_SET_CHILD_SUBREAPER := 36, 1)  # noqa: F841,N806
+
+
+def kill(pid: int, signal: int):
+    with suppress(ProcessLookupError, PermissionError):
+        os.kill(pid, signal)
+
+
+def walk_process_tree(pid: int, include_root=True) -> Generator[psutil.Process, None, None]:
+    # Walk the process tree starting from pid, with a breadth-first search.
+    # If include_root=False, the process with 'pid' is not returned.
+    root_process = psutil.Process(pid)
+    if include_root:
+        pool = [root_process]
+    else:
+        pool = [*root_process.children()]
+
+    while len(pool) > 0:
+        new_pool = []
+        for element in pool:
+            yield element
+            new_pool.extend(element.children())
+        pool = new_pool
+
+
+def kill_and_reap_children(exclude_pids: Collection[int]):
+    # Kill all child processes and reap them. Returns True if any process was
+    # forcefully killed.
+    #
+    # NOTE: this creates a race, as new processes might be spawned in the
+    # meantime. An alternative might be to stuff the processes in a cgroupv2
+    # and use the 'cgroup.kill' special file
+    process_killed = False
+    while True:
+        children = [
+            p
+            for p in reversed(list(walk_process_tree(os.getpid(), False)))
+            if p.pid not in exclude_pids
+        ]
+        if len(children) == 0:
+            break
+
+        for process in children:
+            status = None
+            ppid = None
+            with suppress(psutil.NoSuchProcess):
+                status = process.status()
+            with suppress(psutil.NoSuchProcess):
+                ppid = process.ppid()
+
+            if status is None or ppid is None:
+                continue
+
+            if status not in (psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD):
+                kill(process.pid, signal.SIGABRT)
+                process_killed = True
+                # Wait a bit between kills to allow for things to settle
+                sleep(2)
+            elif ppid == os.getpid():
+                os.waitpid(process.pid, 0)
+    return process_killed
+
+
+def pid_has_signal(pid: int, signalno: int) -> bool:
+    # This checks that the specified process has registered a handler for the
+    # specified signal. It uses the `SigCgt` field of `/proc/<pid>/status`.
+    signal_bits = 0
+    with open(f"/proc/{pid}/status") as file:
+        for line in file:
+            if line.startswith("SigCgt:"):
+                signal_bits = int(line.removeprefix("SigCgt:"), 16)
+    return signal_bits & (2 ** (signalno - 1)) > 0
+
+
+def handle_timeout(root_process):
+    main_pid = None
+    for process in walk_process_tree(root_process.pid):
+        if pid_has_signal(process.pid, signal.SIGABRT):
+            main_pid = process.pid
+            break
+
+    if main_pid is None:
+        # Bail
+        root_process.send_signal(signal.SIGINT)
+        return
+
+    kill(main_pid, signal.SIGABRT)
+    try:
+        process.wait(30)
+    except psutil.TimeoutExpired:
+        kill(main_pid, signal.SIGKILL)
+        process.wait()
+    except psutil.ChildProcessError:
+        # Process died before we could `wait`
+        pass
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--timeout", default=300, type=int, help="Time to timeout, in seconds (default: 300)"
+    )
+    parser.add_argument(
+        "--memory-limit",
+        type=int,
+        help="Limit memory usage to the specified bytes with ulimit"
+        " (default: autodetect, 0 to disable)",
+    )
+    parser.add_argument("input", help="Input binary")
+    parser.add_argument("output", help="Output directory")
+
+    args, rest = parser.parse_known_args()
+    if rest[0] == "--":
+        rest.pop(0)
+    return (args, rest)
+
+
+def main():
+    args, cmd = parse_args()
+    output_dir = Path.cwd() / args.output
+
+    time_file = NamedTemporaryFile()
+    time_cmd = [
+        "env",
+        "time",
+        "--quiet",
+        f"--format={_time_json_format}",
+        f"--output={time_file.name}",
+        "--",
+    ]
+
+    base_env = os.environ.copy()
+
+    if "LLVM_SYMBOLIZER_PATH" in os.environ:
+        base_env["SYMBOLIZER_WRAPPER_SYMBOLIZER_PATH"] = base_env["LLVM_SYMBOLIZER_PATH"]
+    else:
+        symbolizer_path = which("llvm-symbolizer")
+        assert symbolizer_path is not None
+        base_env["SYMBOLIZER_WRAPPER_SYMBOLIZER_PATH"] = symbolizer_path
+
+    base_env["SYMBOLIZER_WRAPPER_OUTPUT"] = str(output_dir / "stacktrace.json")
+    base_env["LLVM_SYMBOLIZER_PATH"] = str((SCRIPT_DIR / "symbolizer-wrapper").resolve())
+    base_env["TEST_OUTPUT_DIR"] = args.output
+
+    os.symlink(os.path.relpath(args.input, output_dir), output_dir / "input")
+    with open(args.input, "rb") as f:
+        digest = file_digest(f, "sha256").hexdigest()
+        (output_dir / "input.sha256sum").write_text(digest)
+
+    base_env["TEST_INPUT"] = args.input
+
+    # The tested program might crash and not delete temporary files, override
+    # the TMPDIR variable which controls where 'mktemp' and friends create
+    # their files
+    test_tmp_dir = TemporaryDirectory(ignore_cleanup_errors=True)
+    base_env["TMPDIR"] = test_tmp_dir.name
+
+    # Setup as child subreaper, this avoids processes "escaping"
+    # the test harness
+    set_child_subreaper()
+
+    final_cmd = [*time_cmd, *[p if p != "%INPUT%" else args.input for p in cmd]]
+    if args.memory_limit is None:
+        # Limit memory to 80% of total memory split by cpu count
+        mem_bytes = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+        memory_limit = (mem_bytes * 0.8) / os.cpu_count()
+    elif args.memory_limit > 0:
+        memory_limit = args.memory_limit
+    else:
+        memory_limit = None
+
+    with open(Path.cwd() / "meta.yml") as f:
+        global_meta: dict = yaml.safe_load(f)
+    # meta.yml can specify the `hooks.pre` and `hooks.post` entries,
+    # these are bash snippets that are run before/after the actual
+    # command. In order to implement this the test-harness creates a
+    # temporary file with the concatenated bash script and runs it.
+    script_file = NamedTemporaryFile("w", suffix=".sh")
+    script_file.write("set -euo pipefail\n")
+    script_file.write(global_meta.get("hooks", {}).get("pre", ""))
+    script_file.write("CMD=(\n")
+    for elem in final_cmd:
+        script_file.write(f"  '{elem}'\n")
+    script_file.write(")\n")
+    if memory_limit is not None:
+        script_file.write(f"ulimit -v {int(memory_limit / 1024)}\n")
+    script_file.write('RC=0\n"${CMD[@]}" || RC=$?\n')
+    script_file.write(global_meta.get("hooks", {}).get("post", ""))
+    script_file.write('\nexit "$RC"')
+    script_file.flush()
+
+    with open(output_dir / "output.log", "wb") as log:
+        process = Popen(["bash", script_file.name], stdout=log, stderr=STDOUT, env=base_env)
+
+    try:
+        process.wait(args.timeout)
+        timed_out = False
+    except TimeoutExpired:
+        handle_timeout(process)
+        timed_out = True
+
+    # Wait for things to settle and then take care of children
+    with suppress(TimeoutExpired):
+        process.wait(10)
+
+    knr_result = kill_and_reap_children([process.pid])
+    return_code = process.wait()
+
+    # If we had to kill children, return with exit code 1 even if the actual
+    # process did not return with an error
+    if return_code == 0 and knr_result:
+        return_code = 1
+
+    output_data = {
+        "command": cmd,
+        "exit_code": return_code,
+        "timeout": timed_out,
+        "time": json.load(time_file),
+    }
+
+    with open(output_dir / "test-harness.json", "w") as f:
+        json.dump(output_data, f)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

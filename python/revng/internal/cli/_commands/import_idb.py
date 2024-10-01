@@ -8,7 +8,7 @@ from tempfile import NamedTemporaryFile
 import idb
 import yaml
 
-from revng.internal.cli.commands_registry import Command, Options, commands_registry
+from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.internal.cli.revng import run_revng_command
 from revng.model import YamlDumper  # type: ignore
 
@@ -110,4 +110,5 @@ class ImportIDBCommand(Command):
         return 0
 
 
-commands_registry.register_command(ImportIDBCommand())
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(ImportIDBCommand())

@@ -58,7 +58,7 @@ def _run_common(
     command, options: Options, environment: OptionalEnv = None
 ) -> Tuple[List[str], Dict[str, str]]:
     if not os.path.isfile(command[0]):
-        command[0] = get_command(command[0], options.search_prefixes)
+        command = [get_command(command[0], options.search_prefixes), *command[1:]]
 
     if len(options.command_prefix) > 0:
         if is_executable(command[0]):
@@ -96,6 +96,7 @@ def try_run(command, options: Options, environment: OptionalEnv = None) -> int:
             options,
             environment,
             preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
+            close_fds=False,
         )
         if isinstance(process, int):
             return process
@@ -203,3 +204,8 @@ def extract_tar(raw: bytes, process: Callable[[str, bytes], Any] = to_string) ->
 
 def to_yaml(filename: str, raw: bytes) -> str:
     return yaml.safe_load(raw)
+
+
+def is_file_executable(filename: str) -> bool:
+    stat = os.stat(filename)
+    return stat.st_mode & 0o111 == 0o111

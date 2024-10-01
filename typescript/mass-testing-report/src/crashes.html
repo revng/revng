@@ -1,0 +1,26 @@
+<!-- This file is distributed under the MIT License. See LICENSE.md for details. -->
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+        <title>Mass Testing - Crashes</title>
+    </head>
+    <body>
+        <div id="nav"></div>
+        <div class="crash-stats" data-category="CRASHED"></div>
+        <div id="flamegraphs">
+            <h3>Flamegraphs</h3>
+            <div>
+                <a href="failures_bottomup.svg" target="_blank">
+                    <img src="failures_bottomup.png" />
+                </a>
+                <a href="failures_topdown.svg" target="_blank">
+                    <img src="failures_topdown.png" />
+                </a>
+            </div>
+        </div>
+        <table id="data-table" data-filter="status = 'CRASHED'" class="compact"></table>
+    </body>
+    <script src="main.js"></script>
+</html>

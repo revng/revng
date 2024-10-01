@@ -1,0 +1,45 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+extra_columns:
+  - name: text_size
+    label: .text size
+    type: int
+    renderer: filesize
+    align: right
+  - name: text_speed
+    label: .text/s
+    type: float
+    generator: text_size / elapsed_time
+    renderer: filesize
+    align: right
+
+ordering:
+  - name: text_size
+    dir: asc
+
+hooks:
+  pre: |
+    REVNG_TEST_PATH=$(command -v revng-test)
+    TEMP_DIR=$(mktemp -d)
+    ln -s "$REVNG_TEST_PATH" "$TEMP_DIR/revng"
+    export PATH="$TEMP_DIR:$PATH"
+  post: |
+    rm -rf "$TEMP_DIR"
+    if [[ "$RC" -eq 0 && ! -f "$TEST_OUTPUT_DIR/stacktrace.json" ]]; then
+      rm "$TEST_OUTPUT_DIR/trace.json.gz"
+    fi
+
+stacktrace_aggregation:
+  exclude_paths:
+    - /llvm/include/
+    - /llvm/lib/
+    - /clang-release/include/
+  exclude_libs:
+    - ADT.*
+    - Pipeline.*
+    - Support.*
+    - TupleTree.*
+    - Model
+    - Pipes
