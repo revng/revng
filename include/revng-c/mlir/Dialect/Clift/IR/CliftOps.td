@@ -235,13 +235,20 @@ def Clift_IfOp : Clift_StatementOp<"if", [NoTerminator]> {
 }
 
 def Clift_LocalVariableOp : Clift_StatementOp<"local", [NoTerminator]> {
-  let arguments = (ins StrAttr:$sym_name,
-                       TypeAttrOf<Clift_ValueType>:$type);
+  let arguments = (ins StrAttr:$sym_name);
+
+  let results = (outs Clift_AnyValueType:$result);
 
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
   let assemblyFormat = [{
-    $type $sym_name (`=` $initializer^)? attr-dict
+    type($result) $sym_name (`=` $initializer^)? attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    mlir::clift::ValueType getType() {
+      return getResult().getType();
+    }
   }];
 
   let hasVerifier = 1;
