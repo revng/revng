@@ -150,8 +150,7 @@ uint64_t PointerType::getByteSize() const {
 
 mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
                                       ValueType ElementType,
-                                      uint64_t ElementCount,
-                                      BoolAttr IsConst) {
+                                      uint64_t ElementCount) {
   if (not isObjectType(ElementType))
     return EmitError() << "Array type element type must be an object type.";
   if (ElementCount == 0)

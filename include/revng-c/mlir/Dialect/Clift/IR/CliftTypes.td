@@ -82,12 +82,18 @@ def Clift_DefinedType : Clift_Type<"Defined", "defined", [DeclareTypeInterfaceMe
 def Clift_ArrayType : Clift_Type<"Array", "array", [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>, SubElementTypeInterface]> {
   let summary = "Clift Array type";
 
-  let parameters = (ins "mlir::clift::ValueType":$element_type, "uint64_t":$elements_count, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
+  let parameters = (ins "mlir::clift::ValueType":$element_type, "uint64_t":$elements_count);
 
   let description = [{
     ArrayType type.
   }];
   let genVerifyDecl = 1;
 
-  let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? struct($element_type, $elements_count) `>` ";
+  let extraClassDeclaration = [{
+    BoolAttr getIsConst() const {
+      return BoolAttr::get(getContext(), false);
+    }
+  }];
+
+  let assemblyFormat = "`<` struct($element_type, $elements_count) `>` ";
 }

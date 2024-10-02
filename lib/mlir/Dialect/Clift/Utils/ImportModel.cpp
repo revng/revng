@@ -451,8 +451,7 @@ private:
     } else if (const auto &A = llvm::dyn_cast<model::ArrayType>(&ModelType)) {
       rc_return make<clift::ArrayType>(rc_recur fromType(*A->ElementType(),
                                                          RequireComplete),
-                                       A->ElementCount(),
-                                       getFalse());
+                                       A->ElementCount());
 
     } else if (const auto &P = llvm::dyn_cast<model::PointerType>(&ModelType)) {
       // If there's a pointer in the way, the base type does not have to be
