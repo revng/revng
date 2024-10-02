@@ -32,7 +32,9 @@ def Clift_PrimitiveType
                                                               "removeConst"]>]> {
   let summary = "Clift primitive type";
 
-  let parameters = (ins "PrimitiveKind":$kind, "uint64_t":$size, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
+  let parameters = (ins "PrimitiveKind":$kind,
+                        "uint64_t":$size,
+                        DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
 
   let genVerifyDecl = 1;
 
@@ -46,7 +48,9 @@ def Clift_PrimitiveType
     Primitive type.
   }];
 
-  let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` `)? $kind $size `>` ";
+  let assemblyFormat = [{
+    `<`( `is_const` `=` $is_const^ `,` ` `)? $kind $size `>`
+  }];
 }
 
 
@@ -59,7 +63,9 @@ def Clift_PointerType
                 SubElementTypeInterface]> {
   let summary = "Clift pointer type";
 
-  let parameters = (ins "mlir::clift::ValueType":$pointee_type, "uint64_t":$pointer_size, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
+  let parameters = (ins "mlir::clift::ValueType":$pointee_type,
+                        "uint64_t":$pointer_size,
+                        DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
 
 
   let description = [{
@@ -67,7 +73,9 @@ def Clift_PointerType
   }];
   let genVerifyDecl = 1;
 
-  let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? struct($pointee_type, $pointer_size) `>` ";
+  let assemblyFormat = [{
+    `<` ( `is_const` `=` $is_const^ `,` ` ` )? struct($pointee_type, $pointer_size) `>`
+  }];
 }
 
 def Clift_DefinedType
@@ -81,7 +89,8 @@ def Clift_DefinedType
                 SubElementTypeInterface]> {
   let summary = "Clift nominal type";
 
-  let parameters = (ins "mlir::clift::TypeDefinitionAttr":$element_type, DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
+  let parameters = (ins "mlir::clift::TypeDefinitionAttr":$element_type,
+                        DefaultValuedParameter<"BoolAttr", "BoolAttr::get($_ctxt, false)">:$is_const);
 
   let description = [{
      A defined type wraps a TypeDefinitionAttr attribute so that it can be attached
@@ -90,13 +99,18 @@ def Clift_DefinedType
      to prevent them from being attached to values without being wrapped into
      a defined type.
   }];
+
   let extraClassDeclaration = [{
     uint64_t id() const;
     llvm::StringRef name() const;
   }];
+
   let genVerifyDecl = 1;
 
-  let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? $element_type `>` ";
+
+  let assemblyFormat = [{
+    `<` ( `is_const` `=` $is_const^ `,` ` ` )? $element_type `>`
+  }];
 }
 
 def Clift_ArrayType
@@ -109,7 +123,8 @@ def Clift_ArrayType
                 SubElementTypeInterface]> {
   let summary = "Clift Array type";
 
-  let parameters = (ins "mlir::clift::ValueType":$element_type, "uint64_t":$elements_count);
+  let parameters = (ins "mlir::clift::ValueType":$element_type,
+                        "uint64_t":$elements_count);
 
   let description = [{
     ArrayType type.
@@ -122,5 +137,7 @@ def Clift_ArrayType
     }
   }];
 
-  let assemblyFormat = "`<` struct($element_type, $elements_count) `>` ";
+  let assemblyFormat = [{
+    `<` struct($element_type, $elements_count) `>`
+  }];
 }
