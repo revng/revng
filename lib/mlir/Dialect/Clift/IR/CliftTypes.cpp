@@ -126,6 +126,26 @@ bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
   return true;
 }
 
+ValueType PrimitiveType::addConst() const {
+  if (isConst())
+    return *this;
+
+  return get(getContext(),
+             getKind(),
+             getSize(),
+             BoolAttr::get(getContext(), true));
+}
+
+ValueType PrimitiveType::removeConst() const {
+  if (not isConst())
+    return *this;
+
+  return get(getContext(),
+             getKind(),
+             getSize(),
+             BoolAttr::get(getContext(), false));
+}
+
 //===----------------------------- PointerType ----------------------------===//
 
 mlir::LogicalResult PointerType::verify(EmitErrorType EmitError,
@@ -146,6 +166,26 @@ uint64_t PointerType::getByteSize() const {
   return getPointerSize();
 }
 
+ValueType PointerType::addConst() const {
+  if (isConst())
+    return *this;
+
+  return get(getContext(),
+             getPointeeType(),
+             getPointerSize(),
+             BoolAttr::get(getContext(), true));
+}
+
+ValueType PointerType::removeConst() const {
+  if (not isConst())
+    return *this;
+
+  return get(getContext(),
+             getPointeeType(),
+             getPointerSize(),
+             BoolAttr::get(getContext(), false));
+}
+
 //===------------------------------ ArrayType -----------------------------===//
 
 mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
@@ -161,6 +201,30 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
 
 uint64_t ArrayType::getByteSize() const {
   return getElementType().getByteSize() * getElementsCount();
+}
+
+bool ArrayType::isConst() const {
+  return getElementType().isConst();
+}
+
+ValueType ArrayType::addConst() const {
+  auto ElementT = getElementType();
+  auto NewElementT = ElementT.addConst();
+
+  if (ElementT == NewElementT)
+    return *this;
+
+  return get(getContext(), NewElementT, getElementsCount());
+}
+
+ValueType ArrayType::removeConst() const {
+  auto ElementT = getElementType();
+  auto NewElementT = ElementT.removeConst();
+
+  if (ElementT == NewElementT)
+    return *this;
+
+  return get(getContext(), NewElementT, getElementsCount());
 }
 
 //===----------------------------- DefinedType ----------------------------===//
@@ -193,6 +257,22 @@ bool DefinedType::getAlias(llvm::raw_ostream &OS) const {
   if (isConst())
     OS << "$const";
   return true;
+}
+
+ValueType DefinedType::addConst() const {
+  if (getIsConst())
+    return *this;
+
+  return get(getContext(), getElementType(), BoolAttr::get(getContext(), true));
+}
+
+ValueType DefinedType::removeConst() const {
+  if (not getIsConst())
+    return *this;
+
+  return get(getContext(),
+             getElementType(),
+             BoolAttr::get(getContext(), false));
 }
 
 //===--------------------------- ScalarTupleType --------------------------===//

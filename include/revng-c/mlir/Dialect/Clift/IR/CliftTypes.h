@@ -83,6 +83,11 @@ public:
   [[nodiscard]] bool getAlias(llvm::raw_ostream &OS) const;
   [[nodiscard]] BoolAttr getIsConst() const;
 
+  // ScalarTupleType does not support const. That is because it is only used as
+  // a return type, and const return types do not make sense.
+  [[nodiscard]] clift::ValueType addConst() const { return *this; }
+  [[nodiscard]] clift::ValueType removeConst() const { return *this; }
+
   static Type parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 

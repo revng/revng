@@ -78,6 +78,18 @@ def Clift_ValueType : Clift_TypeInterface<"ValueType"> {
              /*methodBody=*/[{}], /*defaultImplemetation=*/[{
               return $_type.getIsConst().getValue();
         }]>,
+        InterfaceMethod<
+            "Returns the unqualified base type of the type.",
+            "mlir::clift::ValueType", "addConst", (ins),
+            /*methodBody=*/[{}],
+            /*defaultImplementation=*/[{}]
+        >,
+        InterfaceMethod<
+            "Returns the unqualified base type of the type.",
+            "mlir::clift::ValueType", "removeConst", (ins),
+            /*methodBody=*/[{}],
+            /*defaultImplementation=*/[{}]
+        >,
     ];
 }
 
