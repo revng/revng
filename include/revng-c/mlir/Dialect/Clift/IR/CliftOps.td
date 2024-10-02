@@ -23,24 +23,29 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 //===-------------------------- Type constraints --------------------------===//
 
-def Clift_AnyValueType : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
-                              "Clift value type",
-                              "mlir::clift::ValueType">;
+def Clift_AnyValueType
+  : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
+         "a Clift value type",
+         "mlir::clift::ValueType">;
 
-def Clift_AnyFunctionType : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
-                                 "Clift function type",
-                                 "mlir::clift::ValueType">;
+def Clift_AnyFunctionType
+  : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
+         "a Clift function type",
+         "mlir::clift::ValueType">;
 
 //===---------------------------- Region types ----------------------------===//
 
-def Clift_StatementRegion : Region<CPred<"::mlir::clift::impl::verifyStatementRegion($_self)">,
-                                   "Region containing statements">;
+def Clift_StatementRegion
+  : Region<CPred<"::mlir::clift::impl::verifyStatementRegion($_self)">,
+           "Region containing statements">;
 
-def Clift_ExpressionRegion : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, true)">,
-                                    "Region representing an expression">;
+def Clift_ExpressionRegion
+  : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, true)">,
+           "Region representing an expression">;
 
-def Clift_OptionalExpressionRegion : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, false)">,
-                                            "Optional region representing an expression">;
+def Clift_OptionalExpressionRegion
+  : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, false)">,
+           "Optional region representing an expression">;
 
 //===------------------------ Top level operations ------------------------===//
 
