@@ -337,24 +337,24 @@ def Clift_WhileOp : Clift_StatementOp<"while"> {
 
 //===----------------------------- Expressions ----------------------------===//
 
-def Clift_UndefOp : Clift_Op<"undef",
-                             [Clift_ExpressionOpInterface]> {
+class Clift_ExpressionOp<string mnemonic, list<Trait> traits = []>
+  : Clift_Op<mnemonic, !listconcat([Clift_ExpressionOpInterface], traits)>;
+
+def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
   let results = (outs Clift_AnyValueType:$result);
 
   let assemblyFormat = [{
-    `:` type($result) attr-dict
+    attr-dict `:` type($result)
   }];
 }
 
-def Clift_YieldOp : Clift_Op<"yield",
-                             [Clift_ExpressionOpInterface,
-                              Terminator]> {
+def Clift_YieldOp : Clift_ExpressionOp<"yield", [Terminator]> {
   let arguments = (ins Clift_AnyValueType:$value);
 
   let hasVerifier = 1;
 
   let assemblyFormat = [{
-    $value `:` type($value) attr-dict
+    $value attr-dict `:` type($value)
   }];
 }
 
