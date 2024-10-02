@@ -269,7 +269,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
   uint64_t Alignment = std::max(ABI.MinimumStackArgumentSize(),
                                 CurrentAlignment);
   uint64_t PaddedSize = paddedSizeOnStack(CurrentSize, Alignment);
-  if (ABI.StackArgumentsUseRegularStructAlignmentRules())
+  if (ABI.PackStackArguments())
     PaddedSize = CurrentSize;
 
   if (Log.isEnabled()) {
@@ -317,7 +317,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
     // Round all the alignment up to the register size - to avoid sub-word
     // offsets on the stack.
     uint64_t AdjustedAlignment = NextAlignment;
-    if (!ABI.StackArgumentsUseRegularStructAlignmentRules()) {
+    if (!ABI.PackStackArguments()) {
       if (AdjustedAlignment < ABI.MinimumStackArgumentSize())
         AdjustedAlignment = ABI.MinimumStackArgumentSize();
     }
@@ -537,8 +537,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       uint64_t NextAlignment = *ABI.alignment(*CurrentRange.begin()->Type());
 
       uint64_t Offset = LastSuccess.Offset();
-      if (ABI.StackArgumentsUseRegularStructAlignmentRules()
-          && !NextAlignment) {
+      if (ABI.PackStackArguments() && !NextAlignment) {
         // No extra offset is needed.
       } else {
         Offset += ABI.paddedSizeOnStack(*LastSuccess.Type()->size());

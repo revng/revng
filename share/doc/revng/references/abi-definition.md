@@ -84,20 +84,9 @@ void function(Big, uint32_t);
 
 if this value is set to true, both argument will be passed on stack, otherwise, only the struct will.
 
-## `AllowUnnaturallyAlignedTypesInRegisters` (`bool`)
+## `AllowPackedTypesInRegisters` (`bool`)
 
-States whether ABI allows unnaturally aligned types[^1] to be passed in registers. When set to false, all the unnatural types will only be put on stack.
-
-For example,
-
-```cpp
-struct unnatural __attribute__((packed)) {
-  uint8_t first;
-  uint16_t second;
-};
-```
-
-is unnaturally aligned because the second field (the type of which is practically always aligned at two bytes) starts at offset of one byte.
+States whether ABI allows packed types[^1] to be passed in registers.
 
 When this option is set to true, such a struct would still be allowed to use register, otherwise it will always use stack.
 
@@ -109,7 +98,7 @@ Specifies who is responsible for cleaning the stack after the function call. If 
 
 Setting this to true disables usage of vector registers entirely, think "soft" float architectures.
 
-## `StackArgumentsUseRegularStructAlignmentRules` (`bool`)
+## `PackStackArguments` (`bool`)
 
 Most ABIs extend each stack argument to a GPR-sized slot. Setting this option to true, allows them occupy less space by behaving more like fields in a regular struct would.
 
@@ -123,13 +112,15 @@ void function(/* enough arguments of all the registers */, uint8_t, uint8_t);
 
 When this is set to true, both `uint8_t` will get placed as if they were a struct, that is without any padding in-between. When this is false, both of them will get extended to register size before getting placed, leading to padding.
 
-## `UseStrictAggregateAlignmentRules` (`bool`)
+> **_NOTE:_** This option does not affect types that are packed[^1].
 
-Treat all the structs passed using the stack as if they were aligned unnaturally[^1].
+## `TreatAllAggregatesAsPacked` (`bool`)
 
-This means that options that assume regular alignment rules (like `StackArgumentsUseRegularStructAlignmentRules`) stop applying to them, while others (such as `AllowUnnaturallyAlignedTypesInRegisters`) start.
+Treat all the structs as if they were packed[^1].
 
-Practically this option is mostly used to conditionally ensure [`StackArgumentsUseRegularStructAlignmentRules`](#stackargumentsuseregularstructalignmentrules-bool) does not apply to structs (see Apple AArch64 ABI for the reference).
+This means that options that assume regular alignment rules (like `PackStackArguments`) stop applying to them, while others (such as `AllowPackedTypesInRegisters`) start.
+
+Practically this option is mostly used to conditionally ensure [`PackStackArguments`](#stackargumentsuseregularstructalignmentrules-bool) does not apply to structs (see Apple AArch64 ABI for the reference).
 
 # Stack and register limits
 
@@ -239,6 +230,15 @@ For each type there are two fields:
 
 # Glossary
 
-[^1]: _unnatural alignment_ - the alignment of a struct in which at least one of
-the fields does not start at a multiple of its own alignment, as well as of all
-the types that contain such a struct
+[^1]: by a _packed_ type we explicitly mean such packing that causes a (potentially nested) struct field to start at an offset that is not a multiple of its alignment. You can also think about these as unnaturally aligned types.
+
+For example,
+
+```cpp
+struct unnatural __attribute__((packed)) {
+  uint8_t first;
+  uint16_t second;
+};
+```
+
+is packed because the second field (the type of which is aligned at two bytes) starts at offset of one byte.

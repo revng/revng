@@ -36,15 +36,15 @@ fields:
     type: bool
   - name: NoRegisterArgumentsCanComeAfterStackOnes
     type: bool
-  - name: AllowUnnaturallyAlignedTypesInRegisters
+  - name: AllowPackedTypesInRegisters
     type: bool
   - name: CalleeIsResponsibleForStackCleanup
     type: bool
   - name: FloatsUseGPRs
     type: bool
-  - name: StackArgumentsUseRegularStructAlignmentRules
+  - name: PackStackArguments
     type: bool
-  - name: UseStrictAggregateAlignmentRules
+  - name: TreatAllAggregatesAsPacked
     type: bool
 
   - name: StackAlignment
