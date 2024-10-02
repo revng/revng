@@ -149,9 +149,13 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
 
 //===----------------------------- Statements -----------------------------===//
 
-def Clift_MakeLabelOp : Clift_Op<"make_label",
-                                 [Clift_StatementOpInterface,
-                                  Clift_OneUseOfType<"mlir::clift::AssignLabelOp">] > {
+class Clift_StatementOp<string mnemonic, list<Trait> traits = []>
+  : Clift_Op<mnemonic, !listconcat([Clift_StatementOpInterface], traits)>;
+
+def Clift_MakeLabelOp
+  : Clift_StatementOp<"make_label",
+                      [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
+
   let results = (outs Clift_LabelType:$result);
 
   let assemblyFormat = [{
@@ -170,8 +174,7 @@ def Clift_MakeLabelOp : Clift_Op<"make_label",
   ];
 }
 
-def Clift_AssignLabelOp : Clift_Op<"assign_label",
-                                   [Clift_StatementOpInterface]> {
+def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
@@ -179,9 +182,7 @@ def Clift_AssignLabelOp : Clift_Op<"assign_label",
   }];
 }
 
-def Clift_DoWhileOp : Clift_Op<"do_while",
-                               [Clift_StatementOpInterface,
-                                NoTerminator]> {
+def Clift_DoWhileOp : Clift_StatementOp<"do_while", [NoTerminator]> {
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ExpressionRegion:$condition);
 
@@ -192,8 +193,7 @@ def Clift_DoWhileOp : Clift_Op<"do_while",
   let hasVerifier = 1;
 }
 
-def Clift_ExpressionStatementOp : Clift_Op<"expr",
-                                  [Clift_StatementOpInterface]> {
+def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
   let regions = (region Clift_OptionalExpressionRegion:$expression);
 
   let assemblyFormat = [{
@@ -201,9 +201,7 @@ def Clift_ExpressionStatementOp : Clift_Op<"expr",
   }];
 }
 
-def Clift_ForOp : Clift_Op<"for",
-                           [Clift_StatementOpInterface,
-                            NoTerminator]> {
+def Clift_ForOp : Clift_StatementOp<"for", [NoTerminator]> {
   let regions = (region Clift_StatementRegion:$initializer,
                         Clift_OptionalExpressionRegion:$condition,
                         Clift_OptionalExpressionRegion:$expression,
@@ -216,9 +214,7 @@ def Clift_ForOp : Clift_Op<"for",
   let hasVerifier = 1;
 }
 
-def Clift_GoToOp : Clift_Op<"goto",
-                            [Clift_StatementOpInterface,
-                             Clift_NoFallthrough]> {
+def Clift_GoToOp : Clift_StatementOp<"goto", [Clift_NoFallthrough]> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
@@ -226,9 +222,7 @@ def Clift_GoToOp : Clift_Op<"goto",
   }];
 }
 
-def Clift_IfOp : Clift_Op<"if",
-                          [Clift_StatementOpInterface,
-                           NoTerminator]> {
+def Clift_IfOp : Clift_StatementOp<"if", [NoTerminator]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$then,
                         Clift_StatementRegion:$else);
@@ -240,9 +234,7 @@ def Clift_IfOp : Clift_Op<"if",
   let hasVerifier = 1;
 }
 
-def Clift_LocalVariableOp : Clift_Op<"local",
-                                     [Clift_StatementOpInterface,
-                                      NoTerminator]> {
+def Clift_LocalVariableOp : Clift_StatementOp<"local", [NoTerminator]> {
   let arguments = (ins StrAttr:$sym_name,
                        TypeAttrOf<Clift_ValueType>:$type);
 
@@ -255,26 +247,23 @@ def Clift_LocalVariableOp : Clift_Op<"local",
   let hasVerifier = 1;
 }
 
-def Clift_LoopBreakOp : Clift_Op<"loop_break",
-                                 [Clift_StatementOpInterface,
-                                  Clift_NoFallthrough]> {
+def Clift_LoopBreakOp : Clift_StatementOp<"loop_break", [Clift_NoFallthrough]> {
   let assemblyFormat = [{
     attr-dict
   }];
 }
 
-def Clift_LoopContinueOp : Clift_Op<"loop_continue",
-                                    [Clift_StatementOpInterface,
-                                     Clift_NoFallthrough]> {
+def Clift_LoopContinueOp : Clift_StatementOp<"loop_continue",
+                                             [Clift_NoFallthrough]> {
+
   let assemblyFormat = [{
     attr-dict
   }];
 }
 
-def Clift_ReturnOp : Clift_Op<"return",
-                              [Clift_StatementOpInterface,
-                               Clift_NoFallthrough,
-                               NoTerminator]> {
+def Clift_ReturnOp : Clift_StatementOp<"return",
+                                       [Clift_NoFallthrough, NoTerminator]> {
+
   let regions = (region Clift_OptionalExpressionRegion:$result);
 
   let assemblyFormat = [{
@@ -284,9 +273,7 @@ def Clift_ReturnOp : Clift_Op<"return",
   let hasVerifier = 1;
 }
 
-def Clift_SwitchOp : Clift_Op<"switch",
-                              [Clift_StatementOpInterface,
-                               NoTerminator]> {
+def Clift_SwitchOp : Clift_StatementOp<"switch", [NoTerminator]> {
   let arguments = (ins DenseI64ArrayAttr:$case_values);
 
   let regions = (region Clift_ExpressionRegion:$condition,
@@ -329,17 +316,15 @@ def Clift_SwitchOp : Clift_Op<"switch",
   }];
 }
 
-def Clift_SwitchBreakOp : Clift_Op<"switch_break",
-                                   [Clift_StatementOpInterface,
-                                    Clift_NoFallthrough]> {
+def Clift_SwitchBreakOp : Clift_StatementOp<"switch_break",
+                                            [Clift_NoFallthrough]> {
+
   let assemblyFormat = [{
     attr-dict
   }];
 }
 
-def Clift_WhileOp : Clift_Op<"while",
-                             [Clift_StatementOpInterface,
-                              NoTerminator]> {
+def Clift_WhileOp : Clift_StatementOp<"while", [NoTerminator]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$body);
 
