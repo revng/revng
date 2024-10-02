@@ -1,5 +1,26 @@
 We support adding new ABIs declaratively, available options are explained here.
 
+# Basic explanation
+
+This is a basic explanation as to how `ValueDistributor` works. For extra details, please consult the source code (`lib/ABI/FunctionType/ValueDistributor`).
+
+> **_NOTE:_** The following only applies to ABI with [`ArgumentsArePositionBased`](#argumentsarepositionbased-bool) set to `false`. The selection process for position based ABIs is a lot simpler and is explained in the description of the [option](#argumentsarepositionbased-bool).
+
+First it attempts to allocate a register (or multiple) for a given argument. For packed types[^1] this is only allowed if [`AllowPackedTypesInRegisters`](#allowpackedtypesinregisters-bool) is true.
+
+Also note that sometimes (see [`BigArgumentsUsePointersToCopy`](#bigargumentsusepointerstocopy-bool)) the argument that would not normally be allowed to use registers get transparently replaced by a pointer to a copy of it.
+
+It's important to check whether the type can actually fit, which takes into account [`MaximumGPRsPerAggregateArgument`](#maximumgprsperaggregateargument-unsigned) and friends as well as which arguments from the relevant register list (like [`GeneralPurposeArgumentRegisters`](#generalpurposeargumentregisters-list-of-registers) are still unused.
+
+Next, special consideration are given to "padding" registers in ABIs that require it. This is controlled by [`OnlyStartDoubleArgumentsFromAnEvenRegister`](#onlystartdoubleargumentsfromanevenregister-bool).
+
+Based on all of the previous checks, one of three possible outcomes is selected:
+1. The argument is allowed to use and fits into the registers - the "used register" counter advances and the distribution ends.
+2. [`ArgumentsCanBeSplitBetweenRegistersAndStack`](#argumentscanbesplitbetweenregistersandstack-bool) is set to true and the argument does not fully fit into the registers - all the remaining registers are marked as used and the left over peace of the argument advances used stack offset. Then some padding is inserted if necessary.
+3. The argument uses the stack, with trailing padding inserted if necessary.
+
+The amount of stack padding is determined by [`MinimumStackArgumentSize`](#minimumstackargumentsize-unsigned), but note that it's not always present. For example, [`PackStackArguments`](#packstackarguments-bool) disables such behavior for non-packed[^1] types.
+
 # General options
 
 ## `ABI` (`string`)
