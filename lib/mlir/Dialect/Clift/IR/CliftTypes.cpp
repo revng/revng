@@ -172,11 +172,11 @@ mlir::LogicalResult DefinedType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-uint64_t DefinedType::id() {
+uint64_t DefinedType::id() const {
   return getElementType().id();
 }
 
-llvm::StringRef DefinedType::name() {
+llvm::StringRef DefinedType::name() const {
   return getElementType().name();
 }
 

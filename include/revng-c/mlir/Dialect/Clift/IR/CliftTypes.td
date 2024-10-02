@@ -71,8 +71,8 @@ def Clift_DefinedType : Clift_Type<"Defined", "defined", [DeclareTypeInterfaceMe
      a defined type.
   }];
   let extraClassDeclaration = [{
-    uint64_t id();
-    llvm::StringRef name();
+    uint64_t id() const;
+    llvm::StringRef name() const;
   }];
   let genVerifyDecl = 1;
 
