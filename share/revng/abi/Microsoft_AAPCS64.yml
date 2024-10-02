@@ -9,11 +9,11 @@ OnlyStartDoubleArgumentsFromAnEvenRegister: true
 ArgumentsCanBeSplitBetweenRegistersAndStack: true
 BigArgumentsUsePointersToCopy: true
 NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: true
+AllowPackedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
-StackArgumentsUseRegularStructAlignmentRules: false
-UseStrictAggregateAlignmentRules: false
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
 StackAlignment: 16
 MinimumStackArgumentSize: 8

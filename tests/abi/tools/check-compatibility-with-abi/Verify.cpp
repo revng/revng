@@ -176,7 +176,7 @@ bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
     uint64_t PaddedSize = ABI.paddedSizeOnStack(ExpectedBytes.size());
 
     uint64_t BytesToDrop = PaddedSize;
-    if (ABI.StackArgumentsUseRegularStructAlignmentRules())
+    if (ABI.PackStackArguments())
       BytesToDrop = ExpectedBytes.size();
     if (Bytes.size() >= BytesToDrop)
       Bytes = Bytes.drop_front(BytesToDrop);
@@ -261,7 +261,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
       break;
     }
 
-    if (ABI.StackArgumentsUseRegularStructAlignmentRules()) {
+    if (ABI.PackStackArguments()) {
       if (PotentialPadding) {
         Remaining.Stack = Remaining.Stack.drop_front(PotentialPadding);
         if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {

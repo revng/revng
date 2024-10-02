@@ -356,7 +356,7 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
     std::ranges::move(Distributor.nextArgument(*Argument.Type()),
                       std::back_inserter(Result));
 
-  if (ABI.StackArgumentsUseRegularStructAlignmentRules()) {
+  if (ABI.PackStackArguments()) {
     for (auto [Current, Next] : zip_pairs(Result)) {
       if (Current.SizeOnStack && Next.SizeOnStack) {
         if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
