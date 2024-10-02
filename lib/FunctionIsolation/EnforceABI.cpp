@@ -152,7 +152,6 @@ bool EnforceABI::prologue() {
 bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
                                llvm::Function &OldFunction) {
   revng_assert(not FunctionModel.name().empty());
-  auto OldFunctionName = getLLVMFunctionName(FunctionModel);
 
   // Recreate the function with the right prototype and the function prologue
   const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
