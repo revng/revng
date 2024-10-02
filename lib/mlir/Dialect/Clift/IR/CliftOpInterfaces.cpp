@@ -1,0 +1,33 @@
+/// \file CliftOpInterfaces.cpp
+/// Tests for the Clift Dialect
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+//
+#include "revng-c/mlir/Dialect/Clift/IR/CliftOpInterfaces.h"
+#include "revng-c/mlir/Dialect/Clift/IR/CliftOps.h"
+//
+#include "revng-c/mlir/Dialect/Clift/IR/CliftOpInterfaces.cpp.inc"
+
+bool mlir::clift::isLvalueExpression(mlir::Value Value) {
+  if (auto Argument = mlir::dyn_cast<mlir::BlockArgument>(Value)) {
+    Block *B = Argument.getOwner();
+    if (B == nullptr)
+      return false;
+
+    mlir::Operation *Op = B->getParentOp();
+    if (Op == nullptr)
+      return false;
+
+    return mlir::isa<FunctionOp>(Op);
+  } else {
+    mlir::Operation *Op = Value.getDefiningOp();
+
+    if (auto ExprOp = mlir::dyn_cast<ExpressionOpInterface>(Value
+                                                              .getDefiningOp()))
+      return ExprOp.isLvalueExpression();
+
+    return mlir::isa<LocalVariableOp, GlobalVariableOp>(Op);
+  }
+}

@@ -15,6 +15,18 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
 }
 
 def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns true if the operation represents an lvalue expression.",
+      /*retTy=*/"bool",
+      /*methodName=*/"isLvalueExpression",
+      /*args=*/(ins),
+      /*methodBody*/[{}],
+      /*defaultImplementation=*/ [{
+        return false;
+      }]
+    >,
+  ];
 }
 
 #endif
