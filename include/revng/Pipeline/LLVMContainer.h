@@ -32,7 +32,7 @@ private:
   std::unique_ptr<llvm::Module> Module;
 
 public:
-  inline static const llvm::StringRef MIMEType = "text/x.llvm.ir";
+  inline static const llvm::StringRef MIMEType = "application/x.llvm.bc+zstd";
   inline static const char *Name = "llvm-container";
 
   LLVMContainer(llvm::StringRef Name,

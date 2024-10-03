@@ -103,6 +103,7 @@ llvm_map_components_to_libnames(
   object
   transformutils
   BitWriter
+  BitReader
   InstCombine
   CodeGen
   Passes

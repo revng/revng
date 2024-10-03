@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -28,6 +29,7 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ModuleStatistics.h"
+#include "revng/Support/ZstdStream.h"
 
 const char pipeline::LLVMContainer::ID = '0';
 using namespace pipeline;
@@ -299,33 +301,34 @@ llvm::Error LLVMContainer::extractOne(llvm::raw_ostream &OS,
 }
 
 llvm::Error LLVMContainer::serialize(llvm::raw_ostream &OS) const {
-  getModule().print(OS, nullptr);
-  OS.flush();
+  ZstdCompressedOstream CompressedOS(OS, 3);
+  llvm::WriteBitcodeToFile(getModule(), CompressedOS);
+  CompressedOS.flush();
   return llvm::Error::success();
 }
 
 llvm::Error LLVMContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
-  llvm::SMDiagnostic Error;
-  auto M = llvm::parseIR(Buffer, Error, Module->getContext());
-  std::string ErrorMessage;
-  llvm::raw_string_ostream Stream(ErrorMessage);
-  if (not M) {
-    Stream << "Cannot load LLVM IR module.\n";
-    Error.print("revng", Stream);
-    Stream.flush();
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   ErrorMessage);
+  llvm::SmallVector<char> DecompressedData = zstdDecompress(Buffer.getBuffer());
+  llvm::MemoryBufferRef Ref{
+    { DecompressedData.data(), DecompressedData.size() }, "input"
+  };
+
+  auto MaybeModule = llvm::parseBitcodeFile(Ref, Module->getContext());
+  if (not MaybeModule) {
+    return MaybeModule.takeError();
   }
 
+  std::string ErrorMessage;
+  llvm::raw_string_ostream Stream(ErrorMessage);
   // NOLINTNEXTLINE
-  bool Failed = llvm::verifyModule(*M.get(), &Stream);
+  bool Failed = llvm::verifyModule(*MaybeModule.get(), &Stream);
   if (Failed) {
     Stream.flush();
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    ErrorMessage);
   }
 
-  Module = std::move(M);
+  Module = std::move(MaybeModule.get());
 
   return llvm::Error::success();
 }
