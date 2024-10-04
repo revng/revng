@@ -23,6 +23,7 @@ commands:
 
       revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" -o /dev/null;
 
-      revng artifact --resume "$OUTPUT" make-segment-ref "$INPUT" | FileCheck ${SOURCE}.filecheck.ll;
+      revng artifact --resume "$OUTPUT" make-segment-ref "$INPUT" |
+        revng opt -S | FileCheck ${SOURCE}.filecheck.ll;
 
       revng artifact --resume "$OUTPUT" decompile "$INPUT" -o /dev/null;
