@@ -344,10 +344,13 @@ void lddtreeResolve(LDDTree &Dependencies,
   const auto &TheELF = ELFObjectFile.getELFFile();
 
   auto MaybeDynamicEntries = TheELF.dynamicEntries();
-  if (not MaybeDynamicEntries) {
-    revng_log(Log, "No dynamic entries");
+
+  if (auto Error = MaybeDynamicEntries.takeError()) {
+    revng_log(Log, "Cannot access dynamic entries: " << Error);
+    consumeError(std::move(Error));
     return;
   }
+
   using Elf_Dyn_Range = ELFT::Elf_Dyn_Range;
   Elf_Dyn_Range DynamicEntries = *MaybeDynamicEntries;
 
