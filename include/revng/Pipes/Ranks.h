@@ -38,13 +38,16 @@ inline auto TypeDefinition = defineRank<"type-definition",
                                         "TypeDefinitions">(Binary);
 inline auto
   StructField = defineRank<"struct-field", detail::SFK>(TypeDefinition);
+inline auto UnionField = defineRank<"union-field", detail::UFK>(TypeDefinition);
 inline auto
-  UnionField = defineRank<"union-field", detail::UFK>(TypeDefinition);
-inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(TypeDefinition);
-inline auto CABIArgument = defineRank<"cabi-argument", detail::CAK>(TypeDefinition);
-inline auto RawArgument = defineRank<"raw-argument", detail::NRK>(TypeDefinition);
+  EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(TypeDefinition);
+inline auto
+  CABIArgument = defineRank<"cabi-argument", detail::CAK>(TypeDefinition);
+inline auto
+  RawArgument = defineRank<"raw-argument", detail::NRK>(TypeDefinition);
 inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
-inline auto ReturnRegister = defineRank<"return-register", detail::NRK>(TypeDefinition);
+inline auto
+  ReturnRegister = defineRank<"return-register", detail::NRK>(TypeDefinition);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
