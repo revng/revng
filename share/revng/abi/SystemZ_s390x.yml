@@ -7,12 +7,16 @@ ABI: SystemZ_s390x
 ArgumentsArePositionBased: true
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: false
+AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
 StackAlignment: 8
+MinimumStackArgumentSize: 8
 
 MaximumGPRsPerAggregateArgument: 1
 MaximumGPRsPerAggregateReturnValue: 1
@@ -65,6 +69,7 @@ CalleeSavedRegisters:
   - f13_systemz
 
 ReturnValueLocationRegister: r2_systemz
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

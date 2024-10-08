@@ -22,7 +22,15 @@ public:
   llvm::StringRef FunctionName = "";
   abi::FunctionType::Layout FunctionLayout = {};
 
+private:
+  mutable uint64_t PotentialPadding = 0;
+
 public:
+  VerificationHelper(model::Architecture::Values Architecture,
+                     const abi::Definition &ABI,
+                     const bool IsLittleEndian) :
+    Architecture(Architecture), ABI(ABI), IsLittleEndian(IsLittleEndian) {}
+
   void arguments(const abi::runtime_test::ArgumentTest &Test) const;
   void returnValue(const abi::runtime_test::ReturnValueTest &Test) const;
 
@@ -165,11 +173,17 @@ VH::LeftToVerify VH::adjustForSPTAR(LeftToVerify Remaining) const {
 bool VH::tryToVerifyStack(llvm::ArrayRef<std::byte> &Bytes,
                           llvm::ArrayRef<std::byte> ExpectedBytes) const {
   if (Bytes.take_front(ExpectedBytes.size()).equals(ExpectedBytes)) {
-    uint64_t BytesToDrop = ABI.paddedSizeOnStack(ExpectedBytes.size());
+    uint64_t PaddedSize = ABI.paddedSizeOnStack(ExpectedBytes.size());
+
+    uint64_t BytesToDrop = PaddedSize;
+    if (ABI.PackStackArguments())
+      BytesToDrop = ExpectedBytes.size();
     if (Bytes.size() >= BytesToDrop)
       Bytes = Bytes.drop_front(BytesToDrop);
     else
       Bytes = {};
+
+    PotentialPadding = PaddedSize - BytesToDrop;
 
     return true;
   }
@@ -201,8 +215,14 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
   // Make sure the value is the same both before and after the call.
   verifyValuePreservation(Argument.ExpectedBytes, Argument.FoundBytes);
 
-  // Check for the "pointer-to-copy" style arguments first.
-  if (!Remaining.Registers.empty()) {
+  // Check for the "pointer-to-copy" style register arguments first.
+  bool UsesPointerToCopy = false;
+  if (ABI.ArgumentsArePositionBased() || ABI.BigArgumentsUsePointersToCopy()) {
+    auto MinSize = ABI.getPointerSize() * ABI.MaximumGPRsPerScalarArgument();
+    if (Argument.FoundBytes.size() > MinSize)
+      UsesPointerToCopy = true;
+  }
+  if (UsesPointerToCopy && !Remaining.Registers.empty()) {
     llvm::ArrayRef Bytes = State.Registers.at(Remaining.Registers[0]).Bytes;
     if (Bytes.equals(Argument.AddressBytes)) {
       Remaining.Registers = Remaining.Registers.drop_front();
@@ -226,39 +246,45 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
     }
 
     // We're out of registers, turn to the stack next.
-    if (ABI.ArgumentsArePositionBased()
-        && Argument.FoundBytes.size() > ABI.getPointerSize()) {
+    if (UsesPointerToCopy) {
       // Position based ABIs use pointer-to-copy semantics for stack too.
       // This verifies whether that's the case here.
       revng_assert(ArgumentBytes.equals(Argument.FoundBytes),
                    "Only a part of the argument got consumed? That's weird.");
-      if (tryToVerifyStack(Remaining.Stack, Argument.AddressBytes)) {
-        // Stack matches the pointer to the argument: mark the entire argument
-        // as found.
-        ArgumentBytes = {};
-        break;
-      }
-    } else {
-      if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
-        // Stack matches, go to the next argument.
-        break;
-      }
 
-      revng_assert(!ABI.ScalarTypes().empty());
-      auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
-      if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
-        // If the ABI supports unusual alignment, try to account for it,
-        // by dropping an conflicting part of the stack data.
-        if (Remaining.Stack.size() < ABI.getPointerSize())
-          Remaining.Stack = {};
-        else
-          Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
-      }
+      // Use the address instead of the bytes.
+      ArgumentBytes = Argument.AddressBytes;
+    }
 
-      if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
-        // Stack matches after accounting for alignment.
-        break;
+    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+      // Stack matches, go to the next argument.
+      break;
+    }
+
+    if (ABI.PackStackArguments()) {
+      if (PotentialPadding) {
+        Remaining.Stack = Remaining.Stack.drop_front(PotentialPadding);
+        if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+          // Stack matches after accounting for extra padding.
+          break;
+        }
       }
+    }
+
+    revng_assert(!ABI.ScalarTypes().empty());
+    auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
+    if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
+      // If the ABI supports unusual alignment, try to account for it,
+      // by dropping an conflicting part of the stack data.
+      if (Remaining.Stack.size() < ABI.getPointerSize())
+        Remaining.Stack = {};
+      else
+        Remaining.Stack = Remaining.Stack.drop_front(ABI.getPointerSize());
+    }
+
+    if (tryToVerifyStack(Remaining.Stack, ArgumentBytes)) {
+      // Stack matches after accounting for alignment.
+      break;
     }
 
     fail("Argument #" + std::to_string(Index)
@@ -339,21 +365,31 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
   bool UsesSPTAR = FunctionLayout.hasSPTAR();
   if (!UsesSPTAR) {
     bool SingleArgument = FunctionLayout.Arguments.size() == 1;
-    bool SingleReturnValue = FunctionLayout.ReturnValues.size() == 1;
-    if (SingleArgument && SingleReturnValue) {
+    bool ExpectedReturnValue = ABI.ReturnValueLocationIsReturned() ?
+                                 FunctionLayout.ReturnValues.size() == 1 :
+                                 FunctionLayout.ReturnValues.empty();
+    if (SingleArgument && ExpectedReturnValue) {
       const auto &ArgumentType = FunctionLayout.Arguments[0].Type;
-      const auto &ReturnValueType = FunctionLayout.ReturnValues[0].Type;
-      bool TypesMatch = ArgumentType == ReturnValueType;
-      bool ReturnValueIsAPointer = ReturnValueType->isPointer();
+      if (ABI.ReturnValueLocationIsReturned()) {
+        const auto &ReturnValueType = FunctionLayout.ReturnValues[0].Type;
+        bool TypesMatch = ArgumentType == ReturnValueType;
+        bool ReturnValueIsAPointer = ReturnValueType->isPointer();
 
-      // Case for a register SPTAR - types must match.
-      if (TypesMatch && ReturnValueIsAPointer)
-        UsesSPTAR = true;
+        // Case for a register SPTAR - types must match.
+        if (TypesMatch && ReturnValueIsAPointer)
+          UsesSPTAR = true;
 
-      // Case for a stack SPTAR - allow any type as the argument as long as
-      // it's pointer-sized.
-      if (*ArgumentType->size() == PointerSize && ReturnValueIsAPointer)
-        UsesSPTAR = true;
+        // Case for a stack SPTAR - allow any type as the argument as long as
+        // it's pointer-sized.
+        if (*ArgumentType->size() == PointerSize && ReturnValueIsAPointer)
+          UsesSPTAR = true;
+      } else {
+        // Only support register SPTARs for ABI that do not return the pointer
+        // back (AArch64). This is a safe assumption to make because non-SPTAR
+        // return value tests never have arguments in the first place.
+        if (ArgumentType->isPointer())
+          UsesSPTAR = true;
+      }
     }
   }
 

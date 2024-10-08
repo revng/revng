@@ -37,7 +37,7 @@ ValueDistributor::distribute(uint64_t Size,
                            << "natural alignment is " << Alignment << ".");
 
   bool CanUseRegisters = HasNaturalAlignment;
-  if (ABI.AllowUnnaturallyAlignedTypesInRegisters())
+  if (ABI.AllowPackedTypesInRegisters())
     CanUseRegisters = true;
 
   // Precompute the last register allowed to be used.
@@ -77,7 +77,9 @@ ValueDistributor::distribute(uint64_t Size,
   // padding to be inserted even for arguments passed in registers.
   if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
     const uint64_t PointerSize = ABI.getPointerSize();
-    bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize);
+    bool MultiAligned = (Size >= PointerSize && Alignment > PointerSize)
+                        || (Size > PointerSize
+                            && ABI.BigArgumentsUsePointersToCopy());
     bool LastRegisterUsed = ConsideredRegisterCounter == OccupiedRegisterCount;
     bool FirstRegisterOdd = (OccupiedRegisterCount & 1) != 0;
     if (MultiAligned && !LastRegisterUsed && FirstRegisterOdd) {
@@ -87,14 +89,19 @@ ValueDistributor::distribute(uint64_t Size,
                 "registers to also be aligned, an extra register needs "
                 "to be used to hold the padding.");
 
-      // Add an extra "padding" argument to represent this.
-      DistributedValue &Padding = Result.emplace_back();
-      Padding.Registers = { Registers[OccupiedRegisterCount++] };
-      Padding.Size = model::Register::getSize(Padding.Registers[0]);
-      Padding.RepresentsPadding = true;
+      if (OccupiedRegisterCount + 1 == Registers.size()) {
+        // Omit marking the very last register as padding since the argument
+        // is going to end up on the stack anyway.
+      } else {
+        // Add an extra "padding" argument to represent this.
+        DistributedValue &Padding = Result.emplace_back();
+        Padding.Registers = { Registers[OccupiedRegisterCount++] };
+        Padding.Size = PointerSize;
+        Padding.RepresentsPadding = true;
+      }
 
-      revng_assert(SizeCounter >= Padding.Size);
-      SizeCounter -= Padding.Size;
+      revng_assert(SizeCounter >= PointerSize);
+      SizeCounter -= PointerSize;
       if (ConsideredRegisterCounter < LastRegister)
         ++ConsideredRegisterCounter;
     }
@@ -103,7 +110,8 @@ ValueDistributor::distribute(uint64_t Size,
   DistributedValue &DA = Result.emplace_back();
   DA.Size = Size;
 
-  bool AllowSplitting = !ForbidSplittingBetweenRegistersAndStack
+  bool AllowSplitting = CanUseRegisters
+                        && !ForbidSplittingBetweenRegistersAndStack
                         && ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
   bool AllTheRegistersAreInUse = ConsideredRegisterCounter == LastRegister;
   if (SizeCounter >= Size && CanUseRegisters) {
@@ -120,7 +128,17 @@ ValueDistributor::distribute(uint64_t Size,
     DA.OffsetOnStack = UsedStackOffset;
   } else {
     // This is a stack-only argument.
-    uint64_t PrePaddedOffset = ABI.alignedOffset(UsedStackOffset, Alignment);
+    if (not HasNaturalAlignment) {
+      Alignment = ABI.MinimumStackArgumentSize();
+    }
+
+    if (ABI.PackStackArguments() && HasNaturalAlignment) {
+      UsedStackOffset -= std::min(UsedStackOffset, LastAddedStackPadding);
+    }
+
+    uint64_t AdjustedAlignment = std::max(CurrentStackAlignment, Alignment);
+    uint64_t PrePaddedOffset = ABI.alignedOffset(UsedStackOffset,
+                                                 AdjustedAlignment);
     revng_assert(PrePaddedOffset >= UsedStackOffset);
     DA.PrePaddingSize = PrePaddedOffset - UsedStackOffset;
     DA.OffsetOnStack = UsedStackOffset = PrePaddedOffset;
@@ -138,6 +156,8 @@ ValueDistributor::distribute(uint64_t Size,
   }
 
   UsedStackOffset += DA.SizeOnStack;
+  CurrentStackAlignment = Alignment;
+  LastAddedStackPadding = DA.PostPaddingSize;
 
   revng_log(Log, "Value successfully distributed.");
   LoggerIndent FurtherIndentation(Log);
@@ -178,6 +198,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
                                       bool HasNaturalAlignment) {
   uint64_t RegisterLimit = 0;
   bool ForbidSplitting = false;
+  bool UsesPointerToCopy = false;
   uint64_t *RegisterCounter = nullptr;
   std::span<const model::Register::Values> RegisterList;
   if (IsFloat && !ABI.FloatsUseGPRs()) {
@@ -212,6 +233,23 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     RegisterCounter = &UsedGeneralPurposeRegisterCount;
     RegisterLimit = IsScalar ? ABI.MaximumGPRsPerScalarArgument() :
                                ABI.MaximumGPRsPerAggregateArgument();
+
+    // Allow positional-ABI-like pointer-to-copy substitution if ABI requires it
+    if (ABI.BigArgumentsUsePointersToCopy()
+        && Size > ABI.getPointerSize() * RegisterLimit) {
+      Size = ABI.getPointerSize();
+      Alignment = ABI.getPointerSize();
+      HasNaturalAlignment = true;
+      UsesPointerToCopy = true;
+    }
+  }
+
+  if (ABI.TreatAllAggregatesAsPacked() && !IsScalar) {
+    // This is a bit of trick: manually setting the alignment to unnatural
+    // forces the underlying distribution to be _extra_ careful about how it
+    // handles the type. Which just happened to be exactly what we want in
+    // some other, unrelated to unnatural alignment, cases.
+    HasNaturalAlignment = false;
   }
 
   auto [Result, NextRegisterIndex] = distribute(Size,
@@ -221,6 +259,10 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
                                                 *RegisterCounter,
                                                 RegisterLimit,
                                                 ForbidSplitting);
+  if (UsesPointerToCopy) {
+    revng_assert(Result.size() == 1);
+    Result[0].UsesPointerToCopy = UsesPointerToCopy;
+  }
 
   // Verify that the next register makes sense.
   auto VerifyNextRegisterIndex = [&](uint64_t Current, uint64_t Next) {

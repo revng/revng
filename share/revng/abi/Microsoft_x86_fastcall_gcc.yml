@@ -7,12 +7,16 @@ ABI: Microsoft_x86_fastcall_gcc
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
-AllowUnnaturallyAlignedTypesInRegisters: false
+AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: true
 FloatsUseGPRs: false
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
 StackAlignment: 4
+MinimumStackArgumentSize: 4
 
 MaximumGPRsPerAggregateArgument: 0
 MaximumGPRsPerAggregateReturnValue: 0
@@ -32,6 +36,7 @@ CalleeSavedRegisters:
   - esi_x86
 
 ReturnValueLocationRegister: ecx_x86
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

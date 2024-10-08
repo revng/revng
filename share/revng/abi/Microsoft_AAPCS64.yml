@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: AAPCS64
+ABI: Microsoft_AAPCS64
 
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
@@ -21,7 +21,7 @@ MinimumStackArgumentSize: 8
 MaximumGPRsPerAggregateArgument: 2
 MaximumGPRsPerAggregateReturnValue: 2
 MaximumGPRsPerScalarArgument: 2
-MaximumGPRsPerScalarReturnValue: 2
+MaximumGPRsPerScalarReturnValue: 1
 
 GeneralPurposeArgumentRegisters:
   - x0_aarch64

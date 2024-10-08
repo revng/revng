@@ -107,8 +107,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     }
     const object::coff_section *CoffRef = *SecOrErr;
 
-    MetaAddress Start = ImageBase.toGeneric() + u64(CoffRef->VirtualAddress);
-    Segment Segment({ Start, u64(CoffRef->VirtualSize) });
+    MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
+    Segment Segment({ Start.toGeneric(), u64(CoffRef->VirtualSize) });
 
     Segment.StartOffset() = CoffRef->PointerToRawData;
 
@@ -495,9 +495,17 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
   // linking).
   parseDelayImportedSymbols();
 
+  // Set default ABI
   if (Model->DefaultABI() == model::ABI::Invalid) {
-    auto &Architecture = Model->Architecture();
-    Model->DefaultABI() = model::ABI::getDefaultMicrosoftABI(Architecture);
+    revng_assert(Model->Architecture() != model::Architecture::Invalid);
+    if (auto ABI = model::ABI::getDefaultForPECOFF(Model->Architecture())) {
+      Model->DefaultABI() = ABI.value();
+    } else {
+      auto ArchName = model::Architecture::getName(Model->Architecture()).str();
+      return createStringError(llvm::inconvertibleErrorCode(),
+                               "Unsupported architecture for PECOFF: "
+                                 + ArchName);
+    }
   }
 
   // Create a default prototype.

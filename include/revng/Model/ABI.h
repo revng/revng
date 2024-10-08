@@ -110,19 +110,26 @@ members:
       arguments. The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/vectorcall
 
-  - name: Pascal_x86
-    doc: |
-      An abi similar to 32-bit `__stdcall` Microsoft ABI for x86 processor
-      architecture. The main difference is the fact that the stack parameters
-      are placed left-to-right instead of right-to-left
-      \sa Trustworthy documentation is hard to find.
-
   - name: AAPCS64
     doc: |
       Stands for `Arm Architecture Procedure Call Standard (64-bit)`.
       The official ABI for AArch64 (ARM64) processor architecture.
       The latest version of the documentation can be found
       \sa https://github.com/ARM-software/abi-aa/releases
+
+  - name: Microsoft_AAPCS64
+    doc: "Stands for `Arm Architecture Procedure Call Standard (64-bit)`.\n
+          This represents the version of the ABI used by windows-on-arm.\n
+          For differences from the original ABI see\n
+          \\sa https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-\
+          conventions\n"
+
+  - name: Apple_AAPCS64
+    doc: "Stands for `Arm Architecture Procedure Call Standard (64-bit)`.\n
+          This represents the version of the ABI used by the apple products.\n
+          For differences from the original ABI see\n
+          \\sa https://developer.apple.com/documentation/xcode/writing-arm64-\
+          code-for-apple-platforms\n"
 
   - name: AAPCS
     doc: |
@@ -174,10 +181,11 @@ getArchitecture(model::ABI::Values V) {
   case model::ABI::Microsoft_x86_fastcall:
   case model::ABI::Microsoft_x86_fastcall_gcc:
   case model::ABI::Microsoft_x86_thiscall:
-  case model::ABI::Pascal_x86:
     return model::Architecture::x86;
 
   case model::ABI::AAPCS64:
+  case model::ABI::Microsoft_AAPCS64:
+  case model::ABI::Apple_AAPCS64:
     return model::Architecture::aarch64;
   case model::ABI::AAPCS:
     return model::Architecture::arm;
@@ -215,48 +223,54 @@ inline constexpr uint64_t getPointerSize(model::ABI::Values V) {
   return model::Architecture::getPointerSize(getArchitecture(V));
 }
 
-inline constexpr model::ABI::Values getDefault(model::Architecture::Values V) {
+// TODO: move binary specific information away from a major header
+inline constexpr std::optional<model::ABI::Values>
+getDefaultForELF(model::Architecture::Values V) {
   switch (V) {
+  case model::Architecture::x86_64:
+    return model::ABI::SystemV_x86_64;
   case model::Architecture::x86:
     return model::ABI::SystemV_x86;
+  case model::Architecture::aarch64:
+    return model::ABI::AAPCS64;
   case model::Architecture::arm:
     return model::ABI::AAPCS;
   case model::Architecture::mips:
     return model::ABI::SystemV_MIPS_o32;
   case model::Architecture::mipsel:
     return model::ABI::SystemV_MIPSEL_o32;
-  case model::Architecture::x86_64:
-    return model::ABI::SystemV_x86_64;
-  case model::Architecture::aarch64:
-    return model::ABI::AAPCS64;
   case model::Architecture::systemz:
     return model::ABI::SystemZ_s390x;
-
-  case model::Architecture::Invalid:
-  case model::Architecture::Count:
   default:
-    revng_abort();
+    return std::nullopt;
   }
 }
 
-// TODO: Consider factoring these binary specific things into a ELF/PEModel.h.
-inline constexpr model::ABI::Values
-getDefaultMicrosoftABI(model::Architecture::Values V) {
+inline constexpr std::optional<model::ABI::Values>
+getDefaultForPECOFF(model::Architecture::Values V) {
   switch (V) {
   case model::Architecture::x86_64:
     return model::ABI::Microsoft_x86_64;
   case model::Architecture::x86:
     return model::ABI::Microsoft_x86_cdecl;
-  case model::Architecture::mips:
-    return model::ABI::SystemV_MIPS_o32;
-  case model::Architecture::mipsel:
-    return model::ABI::SystemV_MIPSEL_o32;
-  case model::Architecture::arm:
-    return model::ABI::AAPCS;
   case model::Architecture::aarch64:
-    return model::ABI::AAPCS64;
+    return model::ABI::Microsoft_AAPCS64;
   default:
-    revng_abort();
+    return std::nullopt;
+  }
+}
+
+inline constexpr std::optional<model::ABI::Values>
+getDefaultForMachO(model::Architecture::Values V) {
+  switch (V) {
+  case model::Architecture::x86_64:
+    return model::ABI::SystemV_x86_64;
+  case model::Architecture::x86:
+    return model::ABI::SystemV_x86;
+  case model::Architecture::aarch64:
+    return model::ABI::Apple_AAPCS64;
+  default:
+    return std::nullopt;
   }
 }
 
@@ -314,13 +328,13 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
            "allowing `this` pointer in method-style calls to "
            "be passed using a register. It is never used for "
            "'free' functions";
-  case model::ABI::Pascal_x86:
-    return "An abi similar to 32-bit `stdcall` Microsoft ABI for x86 "
-           "processor architecture. The main difference is the fact that the "
-           "stack parameters are placed left-to-right instead of right-to-left";
 
   case model::ABI::AAPCS64:
     return "64-bit ARM abi";
+  case model::ABI::Microsoft_AAPCS64:
+    return "Microsoft version of 64-bit ARM abi";
+  case model::ABI::Apple_AAPCS64:
+    return "Apple version of 64-bit ARM abi";
   case model::ABI::AAPCS:
     return "32-bit ARM abi";
 

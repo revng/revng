@@ -7,12 +7,16 @@ ABI: SystemV_MIPS_o32
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
 ArgumentsCanBeSplitBetweenRegistersAndStack: true
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: false
+AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: true
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
 StackAlignment: 4
+MinimumStackArgumentSize: 4
 StackBytesAllocatedForRegisterArguments: 16
 
 MaximumGPRsPerAggregateArgument: 4
@@ -63,6 +67,7 @@ CalleeSavedRegisters:
   - f31_mips
 
 ReturnValueLocationRegister: v0_mips
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

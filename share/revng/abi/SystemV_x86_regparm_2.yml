@@ -7,12 +7,16 @@ ABI: SystemV_x86_regparm_2
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
-AllowUnnaturallyAlignedTypesInRegisters: true
+AllowPackedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
 StackAlignment: 16
+MinimumStackArgumentSize: 4
 
 MaximumGPRsPerAggregateArgument: 2
 MaximumGPRsPerAggregateReturnValue: 0
@@ -36,6 +40,7 @@ CalleeSavedRegisters:
   - esi_x86
 
 ReturnValueLocationRegister: eax_x86
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

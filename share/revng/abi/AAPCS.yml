@@ -7,12 +7,16 @@ ABI: AAPCS
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: true
 ArgumentsCanBeSplitBetweenRegistersAndStack: true
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: true
-AllowUnnaturallyAlignedTypesInRegisters: true
+AllowPackedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
-StackAlignment: 4
+StackAlignment: 8
+MinimumStackArgumentSize: 4
 
 MaximumGPRsPerAggregateArgument: 4
 MaximumGPRsPerAggregateReturnValue: 1
@@ -54,6 +58,7 @@ CalleeSavedRegisters:
   - q7_arm
 
 ReturnValueLocationRegister: r0_arm
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

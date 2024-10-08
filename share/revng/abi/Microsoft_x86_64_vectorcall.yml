@@ -7,12 +7,16 @@ ABI: Microsoft_x86_64_vectorcall
 ArgumentsArePositionBased: true
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: true
+AllowPackedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
 StackAlignment: 16
+MinimumStackArgumentSize: 8
 StackBytesAllocatedForRegisterArguments: 32
 
 MaximumGPRsPerAggregateArgument: 0
@@ -49,6 +53,7 @@ CalleeSavedRegisters:
   - xmm7_x86_64
 
 ReturnValueLocationRegister: rcx_x86_64
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1

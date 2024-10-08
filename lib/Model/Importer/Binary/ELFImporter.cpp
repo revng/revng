@@ -174,11 +174,17 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     return TheELFOrErr.takeError();
   object::ELFFile<T> &TheELF = *TheELFOrErr;
 
-  revng_assert(Model->Architecture() != model::Architecture::Invalid);
-  Architecture = Model->Architecture();
-
   // Set default ABI
-  Model->DefaultABI() = model::ABI::getDefault(Model->Architecture());
+  if (Model->DefaultABI() == model::ABI::Invalid) {
+    revng_assert(Model->Architecture() != model::Architecture::Invalid);
+    if (auto ABI = model::ABI::getDefaultForELF(Model->Architecture())) {
+      Model->DefaultABI() = ABI.value();
+    } else {
+      auto ArchName = model::Architecture::getName(Model->Architecture()).str();
+      return createStringError(llvm::inconvertibleErrorCode(),
+                               "Unsupported architecture for ELF: " + ArchName);
+    }
+  }
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   auto Type = TheELF.getHeader().e_type;

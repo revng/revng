@@ -2,18 +2,18 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-ABI: AAPCS64
+ABI: Apple_AAPCS64
 
 ArgumentsArePositionBased: false
-OnlyStartDoubleArgumentsFromAnEvenRegister: true
-ArgumentsCanBeSplitBetweenRegistersAndStack: true
+OnlyStartDoubleArgumentsFromAnEvenRegister: false
+ArgumentsCanBeSplitBetweenRegistersAndStack: false
 BigArgumentsUsePointersToCopy: true
 NoRegisterArgumentsCanComeAfterStackOnes: false
 AllowPackedTypesInRegisters: true
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
-PackStackArguments: false
-TreatAllAggregatesAsPacked: false
+PackStackArguments: true
+TreatAllAggregatesAsPacked: true
 
 StackAlignment: 16
 MinimumStackArgumentSize: 8

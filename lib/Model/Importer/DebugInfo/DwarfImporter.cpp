@@ -192,9 +192,15 @@ public:
     if (Model->Architecture() == model::Architecture::Invalid)
       Model->Architecture() = Arch;
 
-    // Detect default ABI from the architecture.
-    if (Model->DefaultABI() == model::ABI::Invalid)
-      Model->DefaultABI() = model::ABI::getDefault(Model->Architecture());
+    // Set default ABI
+    if (Model->DefaultABI() == model::ABI::Invalid) {
+      if (auto ABI = model::ABI::getDefaultForELF(Model->Architecture())) {
+        Model->DefaultABI() = ABI.value();
+      } else {
+        auto AName = model::Architecture::getName(Model->Architecture()).str();
+        revng_abort(("Unsupported architecture for ELF: " + AName).c_str());
+      }
+    }
   }
 
 private:

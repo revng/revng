@@ -259,17 +259,34 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   return Result;
 }
 
+/// \note: `NextAlignment` of 0 means that there is no next argument.
 static bool verifyAlignment(const abi::Definition &ABI,
                             uint64_t CurrentOffset,
                             uint64_t CurrentSize,
+                            uint64_t CurrentAlignment,
                             uint64_t NextOffset,
                             uint64_t NextAlignment) {
-  uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
-  revng_log(Log,
-            "Attempting to verify alignment for an argument with size "
-              << CurrentSize << " (" << PaddedSize << " when padded) at offset "
-              << CurrentOffset << ". The next argument is at offset "
-              << NextOffset << " and is aligned at " << NextAlignment << ".");
+  uint64_t Alignment = std::max(ABI.MinimumStackArgumentSize(),
+                                CurrentAlignment);
+  uint64_t PaddedSize = paddedSizeOnStack(CurrentSize, Alignment);
+  if (ABI.PackStackArguments())
+    PaddedSize = CurrentSize;
+
+  if (Log.isEnabled()) {
+    Log << "Attempting to verify alignment for an argument with size "
+        << CurrentSize << " (" << PaddedSize << " when padded) at offset "
+        << CurrentOffset << ". ";
+
+    if (NextAlignment == 0) {
+      Log << "There's no next argument, but the total stack size is "
+          << NextOffset << ".";
+    } else {
+      Log << "The next argument is at offset " << NextOffset
+          << " and is aligned at " << NextAlignment << ".";
+    }
+
+    Log << DoLog;
+  }
 
   OverflowSafeInt Offset = CurrentOffset;
   Offset += PaddedSize;
@@ -282,6 +299,14 @@ static bool verifyAlignment(const abi::Definition &ABI,
   if (*Offset == NextOffset) {
     revng_log(Log, "Argument slots in perfectly.");
     return true;
+  } else if (NextAlignment == 0) {
+    // This is the last argument.
+    //
+    // Since we often find trailing padding to be inconsistent, it would be
+    // hard to enforce it, as such, just assume that if we know this argument
+    // is the last one, it's always right.
+    return true;
+
   } else if (*Offset < NextOffset) {
     // Offsets are different, there's most likely padding between the arguments.
     if (NextOffset % NextAlignment != 0) {
@@ -292,16 +317,9 @@ static bool verifyAlignment(const abi::Definition &ABI,
     // Round all the alignment up to the register size - to avoid sub-word
     // offsets on the stack.
     uint64_t AdjustedAlignment = NextAlignment;
-    if (AdjustedAlignment < ABI.getPointerSize())
-      AdjustedAlignment = ABI.getPointerSize();
-    if (NextOffset % AdjustedAlignment != 0) {
-      std::string Error = "Adjusted alignment of "
-                          + std::to_string(AdjustedAlignment)
-                          + " (next alignment is "
-                          + std::to_string(NextAlignment)
-                          + ") doesn't make any sense for an offset of "
-                          + std::to_string(NextOffset) + ".";
-      revng_abort(Error.c_str());
+    if (!ABI.PackStackArguments()) {
+      if (AdjustedAlignment < ABI.MinimumStackArgumentSize())
+        AdjustedAlignment = ABI.MinimumStackArgumentSize();
     }
 
     // Check whether the next argument's position makes sense.
@@ -349,8 +367,16 @@ bool canBeNext(ArgumentDistributor &Distributor,
   std::optional<uint64_t> Size = CurrentType.size();
   revng_assert(Size.has_value() && Size.value() != 0);
 
-  if (!verifyAlignment(ABI, CurrentOffset, *Size, NextOffset, NextAlignment))
+  uint64_t Alignment = *ABI.alignment(CurrentType);
+  revng_assert(llvm::isPowerOf2_64(Alignment));
+  if (!verifyAlignment(ABI,
+                       CurrentOffset,
+                       *Size,
+                       Alignment,
+                       NextOffset,
+                       NextAlignment)) {
     return false;
+  }
 
   for (const auto &Distributed : Distributor.nextArgument(CurrentType)) {
     if (Distributed.RepresentsPadding)
@@ -397,16 +423,10 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     // a new empty type.
     return llvm::SmallVector<model::Argument, 8>{};
   }
-
-  // As a workaround for the cases where expected alignment is missing at
-  // the very end of the RFT-style stack argument struct, use adjusted
-  // size and alignment values instead of the real ones.
   auto &Stack = StackStruct->toStruct();
-  uint64_t StackAlignment = *ABI.alignment(Stack);
-  revng_assert(llvm::isPowerOf2_64(StackAlignment));
-  uint64_t AdjustedAlignment = std::max(StackAlignment, ABI.getPointerSize());
-  uint64_t StackSize = abi::FunctionType::paddedSizeOnStack(Stack.Size(),
-                                                            AdjustedAlignment);
+  uint64_t AdjustedAlignment = std::max(*ABI.alignment(Stack),
+                                        ABI.MinimumStackArgumentSize());
+  uint64_t StackSize = paddedSizeOnStack(Stack.Size(), AdjustedAlignment);
 
   // If the struct is empty, it indicates that there are no stack arguments.
   if (Stack.Size() == 0) {
@@ -443,6 +463,11 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       uint64_t NextAlignment = *ABI.alignment(*TheNextOne.Type());
       revng_assert(llvm::isPowerOf2_64(NextAlignment));
 
+      if (!*ABI.hasNaturalAlignment(*TheNextOne.Type())) {
+        revng_assert(NextAlignment == 1);
+        NextAlignment = ABI.MinimumStackArgumentSize();
+      }
+
       if (!canBeNext(Distributor,
                      *CurrentArgument.Type(),
                      CurrentArgument.Offset(),
@@ -478,7 +503,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                     *LastArgument.Type(),
                     LastArgument.Offset(),
                     StackSize,
-                    StackAlignment)) {
+                    0)) {
         model::Argument &New = Result.emplace_back();
         model::copyMetadata(New, LastArgument);
         New.Type() = LastArgument.Type();
@@ -508,19 +533,26 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                 "Some fields were converted successfully, try to slot in the "
                 "rest as a struct.");
       const model::StructField &LastSuccess = *std::prev(CurrentRange.begin());
-      std::uint64_t Offset = LastSuccess.Offset();
-      Offset += ABI.paddedSizeOnStack(*LastSuccess.Type()->size());
+      uint64_t CurrentAlignment = *ABI.alignment(*LastSuccess.Type());
+      uint64_t NextAlignment = *ABI.alignment(*CurrentRange.begin()->Type());
+
+      uint64_t Offset = LastSuccess.Offset();
+      if (ABI.PackStackArguments() && !NextAlignment) {
+        // No extra offset is needed.
+      } else {
+        Offset += ABI.paddedSizeOnStack(*LastSuccess.Type()->size());
+      }
 
       model::StructDefinition RemainingArguments;
       RemainingArguments.Size() = Stack.Size() - Offset;
       for (const auto &Field : CurrentRange) {
         model::StructField Copy = Field;
-        Copy.Offset() -= Offset;
+        Copy.Offset() -= std::min(Copy.Offset(), Offset);
         RemainingArguments.Fields().emplace(std::move(Copy));
       }
 
       auto &RA = RemainingArguments;
-      if (canBeNext(Distributor, RA, Offset, Stack.Size(), StackAlignment)) {
+      if (canBeNext(Distributor, RA, Offset, Stack.Size(), 0)) {
         revng_log(Log, "Struct for the remaining argument worked.");
         model::Argument &New = Result.emplace_back();
         New.Index() = Stack.Fields().size() - CurrentRange.size();
@@ -538,7 +570,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
   // it apart.
   // Let's try and see if it would make sense to add the whole "stack" struct
   // as one argument.
-  if (!canBeNext(Distributor, *StackStruct, 0, StackSize, StackAlignment)) {
+  if (!canBeNext(Distributor, *StackStruct, 0, StackSize, 0)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;
@@ -649,8 +681,8 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         Definition.Fields().insert(std::move(Field));
 
         // Update the total struct size: insert some padding if necessary.
-        uint64_t RegisterSize = model::ABI::getPointerSize(ABI.ABI());
-        Definition.Size() += paddedSizeOnStack(FieldSize.value(), RegisterSize);
+        Definition.Size() += paddedSizeOnStack(FieldSize.value(),
+                                               ABI.MinimumStackArgumentSize());
       }
 
       revng_assert(Definition.Size() != 0 && !Definition.Fields().empty());

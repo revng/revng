@@ -7,12 +7,16 @@ ABI: SystemV_x86_64
 ArgumentsArePositionBased: false
 OnlyStartDoubleArgumentsFromAnEvenRegister: false
 ArgumentsCanBeSplitBetweenRegistersAndStack: false
+BigArgumentsUsePointersToCopy: false
 NoRegisterArgumentsCanComeAfterStackOnes: false
-AllowUnnaturallyAlignedTypesInRegisters: false
+AllowPackedTypesInRegisters: false
 CalleeIsResponsibleForStackCleanup: false
 FloatsUseGPRs: false
+PackStackArguments: false
+TreatAllAggregatesAsPacked: false
 
 StackAlignment: 16
+MinimumStackArgumentSize: 8
 
 # \note: if an aggregate argument contains SSE-fields, this doesn't apply.
 MaximumGPRsPerAggregateArgument: 2
@@ -51,6 +55,7 @@ CalleeSavedRegisters:
   - r15_x86_64
 
 ReturnValueLocationRegister: rdi_x86_64
+ReturnValueLocationIsReturned: true
 
 ScalarTypes:
   - Size: 1
