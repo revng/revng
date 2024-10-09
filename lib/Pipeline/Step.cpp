@@ -381,7 +381,7 @@ Error Step::store(const revng::DirectoryPath &DirPath) const {
 
 Error Step::checkPrecondition() const {
   for (const PipeWrapper &Pipe : Pipes) {
-    if (llvm::Error Error = Pipe.Pipe->checkPrecondition(*TheContext); Error) {
+    if (llvm::Error Error = Pipe.Pipe->checkPrecondition(*TheContext)) {
       std::string Message = "The precondition for pipe " + Pipe.Pipe->getName()
                             + " failed:";
       return llvm::make_error<AnnotatedError>(std::move(Error), Message);

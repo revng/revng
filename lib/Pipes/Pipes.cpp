@@ -60,8 +60,10 @@ public:
     auto MaybeLLVMContext = Context.getExternalContext<LLVMContext>("LLVMContex"
                                                                     "t");
 
-    if (!MaybeLLVMContext)
+    if (auto Error = MaybeLLVMContext.takeError()) {
+      consumeError(std::move(Error));
       return;
+    }
 
     auto &PipeContext = Loader.getContext();
     auto &LLVMContext = **MaybeLLVMContext;

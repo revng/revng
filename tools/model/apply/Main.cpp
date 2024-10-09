@@ -39,7 +39,7 @@ int main(int Argc, char *Argv[]) {
   ExitOnError ExitOnError;
 
   using Type = TupleTree<model::Binary>;
-  auto Model = llvm::errorOrToExpected(Type::fromFileOrSTDIN(PathModel));
+  auto Model = Type::fromFileOrSTDIN(PathModel);
   if (not Model)
     ExitOnError(Model.takeError());
 

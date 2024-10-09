@@ -62,8 +62,8 @@ public:
       return Manager;
 
     if (ModelOverride.hasValue())
-      if (auto Err = overrideModel(*ModelOverride, *Manager); Err)
-        return std::move(Err);
+      if (auto Error = overrideModel(*ModelOverride, *Manager))
+        return Error;
 
     return Manager;
   }

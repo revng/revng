@@ -201,7 +201,7 @@ Error PipelineFileMapping::store(Runner &LoadInto) const {
 }
 
 Error Runner::store(const revng::DirectoryPath &DirPath) const {
-  if (auto Error = DirPath.create(); Error)
+  if (auto Error = DirPath.create())
     return Error;
 
   for (const auto &StepName : Steps.keys()) {
@@ -211,7 +211,7 @@ Error Runner::store(const revng::DirectoryPath &DirPath) const {
   }
 
   revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
-  if (auto Error = ContextDir.create(); Error)
+  if (auto Error = ContextDir.create())
     return Error;
 
   return TheContext->store(ContextDir);
@@ -226,7 +226,7 @@ Error Runner::storeStepToDisk(llvm::StringRef StepName,
                              StepName.str().c_str());
 
   revng::DirectoryPath StepDir = DirPath.getDirectory(Step->first());
-  if (auto Error = StepDir.create(); Error)
+  if (auto Error = StepDir.create())
     return Error;
 
   if (auto Error = Step->second.store(StepDir); !!Error)
@@ -374,7 +374,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
 
   for (PipelineExecutionEntry &StepGoalsPairs : llvm::drop_begin(ToExec)) {
     Step &Step = *StepGoalsPairs.ToExecute;
-    if (llvm::Error Error = Step.checkPrecondition(); Error) {
+    if (llvm::Error Error = Step.checkPrecondition()) {
       return llvm::make_error<AnnotatedError>(std::move(Error),
                                               "While scheduling step "
                                                 + Step.getName() + ":");
@@ -428,7 +428,7 @@ Error Runner::invalidate(const TargetInStepSet &Invalidations) {
   for (const auto &Step : Invalidations) {
     llvm::StringRef StepName = Step.first();
     const ContainerToTargetsMap &ToRemove = Step.second;
-    if (llvm::Error Error = operator[](StepName).invalidate(ToRemove); Error)
+    if (llvm::Error Error = operator[](StepName).invalidate(ToRemove))
       return Error;
   }
   return Error::success();
@@ -493,7 +493,7 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
 llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff,
                           TargetInStepSet &Map) {
   getDiffInvalidations(Diff, Map);
-  if (auto Error = getInvalidations(Map); Error)
+  if (auto Error = getInvalidations(Map))
     return Error;
 
   return invalidate(Map);

@@ -217,17 +217,16 @@ findLibrary(StringRef ToImport,
     }
 
     // Parse the binary
-    auto BinaryOrErr = object::createBinary(Candidate);
-    if (not BinaryOrErr) {
-      revng_log(Log,
-                "Can't create binary: " << toString(BinaryOrErr.takeError()));
-      llvm::consumeError(BinaryOrErr.takeError());
+    auto MaybeBinary = object::createBinary(Candidate);
+    if (auto Error = MaybeBinary.takeError()) {
+      revng_log(Log, "Can't create binary: " << Error);
+      llvm::consumeError(std::move(Error));
       continue;
     }
 
     // Ensure it's an ELF
     using namespace object;
-    auto *Elf = dyn_cast<ELFObjectFileBase>(BinaryOrErr->getBinary());
+    auto *Elf = dyn_cast<ELFObjectFileBase>(MaybeBinary->getBinary());
     if (Elf == nullptr) {
       revng_log(Log, "Found " << Candidate.str() << " but it's not an ELF.");
       continue;
@@ -299,16 +298,16 @@ getDynamicStringTable(const ELFT &ELFObjectFile,
   //
 
   // Collect program headers
-  auto ProgramHeadersOrError = ELFObjectFile.getELFFile().program_headers();
-  if (not ProgramHeadersOrError) {
-    revng_log(Log, "No valid program headers available");
-    llvm::consumeError(ProgramHeadersOrError.takeError());
+  auto MaybeProgramHeaders = ELFObjectFile.getELFFile().program_headers();
+  if (auto Error = MaybeProgramHeaders.takeError()) {
+    revng_log(Log, "No valid program headers available: " << Error);
+    llvm::consumeError(std::move(Error));
     return {};
   }
 
   // Find the correct program header
   using Elf_Phdr = ELFT::Elf_Phdr;
-  for (const Elf_Phdr &Phdr : *ProgramHeadersOrError) {
+  for (const Elf_Phdr &Phdr : *MaybeProgramHeaders) {
     if (Phdr.p_type != llvm::ELF::PT_LOAD)
       continue;
 
@@ -416,15 +415,14 @@ static RecursiveCoroutine<void> lddtreeHelper(LDDTree &Dependencies,
   LoggerIndent<> Ident(Log);
 
   using namespace object;
-  auto BinaryOrErr = createBinary(Path);
-  if (not BinaryOrErr) {
-    revng_log(Log,
-              "Can't create binary: " << toString(BinaryOrErr.takeError()));
-    llvm::consumeError(BinaryOrErr.takeError());
+  auto MaybeBinary = createBinary(Path);
+  if (auto Error = MaybeBinary.takeError()) {
+    revng_log(Log, "Can't create binary: " << Error);
+    llvm::consumeError(std::move(Error));
     rc_return;
   }
 
-  auto *Binary = BinaryOrErr->getBinary();
+  auto *Binary = MaybeBinary->getBinary();
   if (auto *ELFObjectFile = dyn_cast<ELF32LEObjectFile>(Binary))
     lddtreeResolve(Dependencies, Path, *ELFObjectFile);
   else if (auto *ELFObjectFile = dyn_cast<ELF32BEObjectFile>(Binary))

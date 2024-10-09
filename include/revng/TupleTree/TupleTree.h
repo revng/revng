@@ -149,12 +149,12 @@ public:
   }
 
 public:
-  static llvm::ErrorOr<TupleTree> fromString(llvm::StringRef YAMLString) {
+  static llvm::Expected<TupleTree> fromString(llvm::StringRef YAMLString) {
     TupleTree Result{};
 
     auto MaybeRoot = revng::detail::fromStringImpl<T>(YAMLString);
     if (not MaybeRoot)
-      return llvm::errorToErrorCode(MaybeRoot.takeError());
+      return MaybeRoot.takeError();
 
     *Result.Root = std::move(*MaybeRoot);
 
@@ -164,18 +164,19 @@ public:
     return Result;
   }
 
-  static llvm::ErrorOr<TupleTree> fromFileOrSTDIN(const llvm::StringRef &Path) {
+  static llvm::Expected<TupleTree>
+  fromFileOrSTDIN(const llvm::StringRef &Path) {
     auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
     if (not MaybeBuffer)
-      return MaybeBuffer.getError();
+      return llvm::errorCodeToError(MaybeBuffer.getError());
 
     return fromString((*MaybeBuffer)->getBuffer());
   }
 
-  static llvm::ErrorOr<TupleTree> fromFile(const llvm::StringRef &Path) {
+  static llvm::Expected<TupleTree> fromFile(const llvm::StringRef &Path) {
     auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
     if (not MaybeBuffer)
-      return MaybeBuffer.getError();
+      return llvm::errorCodeToError(MaybeBuffer.getError());
 
     return fromString((*MaybeBuffer)->getBuffer());
   }

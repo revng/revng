@@ -22,7 +22,7 @@ Context::Context() : TheKindRegistry(Registry::registerAllKinds()) {
 }
 
 llvm::Error Context::store(const revng::DirectoryPath &Path) const {
-  if (auto Error = Globals.store(Path); Error)
+  if (auto Error = Globals.store(Path))
     return Error;
 
   revng::FilePath IndexPath = Path.getFile("index");
@@ -35,7 +35,7 @@ llvm::Error Context::store(const revng::DirectoryPath &Path) const {
 }
 
 llvm::Error Context::load(const revng::DirectoryPath &Path) {
-  if (auto Error = Globals.load(Path); Error)
+  if (auto Error = Globals.load(Path))
     return Error;
 
   revng::FilePath IndexPath = Path.getFile("index");

@@ -129,7 +129,7 @@ public:
     }
 
     const auto &Serialized = Buffer.getBuffer();
-    auto Result(llvm::errorOrToExpected(TupleTree<T>::fromString(Serialized)));
+    auto Result = TupleTree<T>::fromString(Serialized);
     if (not Result)
       return Result.takeError();
 
@@ -147,7 +147,7 @@ public:
         return MaybeExists.takeError();
 
       if (MaybeExists.get())
-        if (auto Error = Path.remove(); Error)
+        if (auto Error = Path.remove())
           return Error;
 
       return llvm::Error::success();

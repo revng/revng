@@ -302,7 +302,6 @@ struct llvm::yaml::MappingTraits<T> {
       IO.mapRequired("Path", SerializedPath);
       auto MaybePath = stringAsPath<Model>(SerializedPath);
       if (!MaybePath.has_value()) {
-        auto *EL = static_cast<revng::DiffError *>(IO.getContext());
         Info.Path = TupleTreePath();
       } else {
         Info.Path = std::move(*MaybePath);

@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Error.h"
+
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Lift/LoadBinaryPass.h"
@@ -37,9 +39,8 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
 
   // Access the binary
   revng_assert(SourceBinary.path().has_value());
-  auto MaybeBinary = loadBinary(*Model, *SourceBinary.path());
-  revng_assert(MaybeBinary);
-  const RawBinaryView &BinaryView = MaybeBinary->first;
+  auto MaybeBinary = cantFail(loadBinary(*Model, *SourceBinary.path()));
+  const RawBinaryView &BinaryView = MaybeBinary.first;
 
   // Define the helper object to store the disassembly pipeline.
   // This allows it to only be created once.

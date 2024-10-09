@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Error.h"
+
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/Binary.h"
@@ -36,9 +38,10 @@ void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
 
   // Gather function metadata
   SortedVector<efa::ControlFlowGraph> Metadata;
-  for (const auto &[Address, CFGString] : CFGMap)
-    Metadata
-      .insert(*TupleTree<efa::ControlFlowGraph>::fromString(CFGString)->get());
+  for (const auto &[Address, CFGString] : CFGMap) {
+    auto MaybeCFG = TupleTree<efa::ControlFlowGraph>::fromString(CFGString);
+    Metadata.insert(*llvm::cantFail(std::move(MaybeCFG)));
+  }
 
   // If some functions are missing, do not output anything
   if (Metadata.size() != Model->Functions().size())

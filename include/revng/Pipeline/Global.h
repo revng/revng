@@ -104,7 +104,7 @@ public:
             const llvm::MemoryBuffer &Buffer) const override {
     auto MaybeTree = TupleTree<Object>::fromString(Buffer.getBuffer());
     if (!MaybeTree)
-      return llvm::errorCodeToError(MaybeTree.getError());
+      return MaybeTree.takeError();
     return std::make_unique<TupleTreeGlobal>(Name, MaybeTree.get());
   }
 
@@ -126,7 +126,7 @@ public:
   llvm::Error fromString(llvm::StringRef String) override {
     auto MaybeTupleTree = TupleTree<Object>::fromString(String);
     if (!MaybeTupleTree)
-      return llvm::errorCodeToError(MaybeTupleTree.getError());
+      return MaybeTupleTree.takeError();
 
     if (not(*MaybeTupleTree)->verify()) {
       using llvm::Twine;

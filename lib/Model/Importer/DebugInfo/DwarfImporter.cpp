@@ -120,13 +120,16 @@ static std::optional<uint64_t> getAddress(const DWARFDie &Die) {
       return {};
 
     auto Offset = *Ranges->getAsSectionOffset();
-    auto Range = Die.getDwarfUnit()->findRnglistFromOffset(Offset);
-    if (!Range)
+    auto MaybeRange = Die.getDwarfUnit()->findRnglistFromOffset(Offset);
+    if (auto Error = MaybeRange.takeError()) {
+      revng_log(DILogger, "findRnglistFromOffset failed: " << Error);
+      consumeError(std::move(Error));
       return {};
+    }
 
     // TODO: This is a vector, so we may want to return LowPC from every range
     // we found.
-    return Range->begin()->LowPC;
+    return MaybeRange->begin()->LowPC;
   } else {
     return getAddress(*Value);
   }
@@ -407,9 +410,9 @@ private:
   std::string getName(const DWARFDie &Die) const {
     if (auto MaybeName = Die.find(DW_AT_name)) {
       auto MaybeString = MaybeName->getAsCString();
-      if (auto E = MaybeString.takeError()) {
-        auto Message = toString(std::move(E));
-        revng_log(DILogger, "Can't get DIE name: " << Message);
+      if (auto Error = MaybeString.takeError()) {
+        revng_log(DILogger, "Can't get DIE name: " << Error);
+        consumeError(std::move(Error));
         return {};
       } else {
         return *MaybeString;
@@ -941,13 +944,16 @@ public:
 template<typename T>
 ArrayRef<uint8_t> getSectionsContents(StringRef Name, T &ELF) {
   auto MaybeSections = ELF.sections();
-  if (not MaybeSections)
+  if (auto Error = MaybeSections.takeError()) {
+    revng_log(DILogger, "Failed to get sections: " << Error);
+    consumeError(std::move(Error));
     return {};
+  }
 
   for (const auto &Section : *MaybeSections) {
-    auto MaybeName = ELF.getSectionName(Section);
+    auto MaybeName = expectedToOptional(ELF.getSectionName(Section));
     if (MaybeName and *MaybeName == Name) {
-      auto MaybeContents = ELF.getSectionContents(Section);
+      auto MaybeContents = expectedToOptional(ELF.getSectionContents(Section));
       if (MaybeContents)
         return *MaybeContents;
     }
@@ -1029,14 +1035,6 @@ static StringRef getDebugFileName(const object::Binary *B) {
   }
 
   return llvm::sys::path::filename(AltDebugLinkPath);
-}
-
-static void error(StringRef Prefix, std::error_code EC) {
-  if (!EC)
-    return;
-  std::string Str = Prefix.str();
-  Str += ": " + EC.message();
-  revng_abort(Str.c_str());
 }
 
 static bool fileExists(const Twine &Path) {
@@ -1162,11 +1160,23 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
 
   using namespace llvm::object;
   ErrorOr<std::unique_ptr<MemoryBuffer>>
-    BuffOrErr = MemoryBuffer::getFileOrSTDIN(FileName);
-  error(FileName, BuffOrErr.getError());
-  std::unique_ptr<MemoryBuffer> Buffer = std::move(BuffOrErr.get());
-  Expected<std::unique_ptr<Binary>> BinOrErr = object::createBinary(*Buffer);
-  error(FileName, errorToErrorCode(BinOrErr.takeError()));
+    MaybeBuffer = MemoryBuffer::getFileOrSTDIN(FileName);
+
+  if (not MaybeBuffer) {
+    revng_log(DILogger,
+              "Couldn't open file " << FileName << " "
+                                    << MaybeBuffer.getError().message());
+    return;
+  }
+
+  std::unique_ptr<MemoryBuffer> Buffer = std::move(MaybeBuffer.get());
+  Expected<std::unique_ptr<Binary>> MaybeBinary = object::createBinary(*Buffer);
+
+  if (auto Error = MaybeBinary.takeError()) {
+    revng_log(DILogger, "Couldn't load binary: " << Error);
+    consumeError(std::move(Error));
+    return;
+  }
 
   // Find Debugging Information.
   // If the file has debug info sections within itself, no need for finding
@@ -1206,12 +1216,12 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
     }
   };
 
-  if (auto *ELF = dyn_cast<ObjectFile>(BinOrErr->get())) {
+  if (auto *ELF = dyn_cast<ObjectFile>(MaybeBinary->get())) {
     if (Options.DebugInfo != DebugInfoLevel::No && !HasDebugInfo(ELF)) {
       // There are no .debug_* sections in the file itself, let's try to find it
       // on the device, otherwise find it on web by using the `fetch-debuginfo`
       // tool.
-      auto DebugFile = getDebugFileName(BinOrErr->get());
+      auto DebugFile = getDebugFileName(MaybeBinary->get());
       if (!DebugFile.size()) {
         revng_log(DILogger, "Can't find file name of the debug file.");
         return;
@@ -1241,7 +1251,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   }
 
   T.advance("Parsing debug info in the binary itself", true);
-  import(*BinOrErr->get(), FileName, Options.BaseAddress);
+  import(*MaybeBinary->get(), FileName, Options.BaseAddress);
 }
 
 auto zipPairs(auto &&R) {
@@ -1297,8 +1307,20 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
     auto MaybeAddress = Symbol.getAddress();
     auto MaybeName = Symbol.getName();
     auto MaybeFlags = Symbol.getFlags();
-    if (not MaybeType or not MaybeAddress or not MaybeName or not MaybeFlags)
+
+    if (auto Error = MaybeType.takeError()) {
+      consumeError(std::move(Error));
       continue;
+    } else if (auto Error = MaybeAddress.takeError()) {
+      consumeError(std::move(Error));
+      continue;
+    } else if (auto Error = MaybeName.takeError()) {
+      consumeError(std::move(Error));
+      continue;
+    } else if (auto Error = MaybeFlags.takeError()) {
+      consumeError(std::move(Error));
+      continue;
+    }
 
     // Ignore unnamed and nullptr symbols
     if (MaybeName->size() == 0 or *MaybeAddress == 0)

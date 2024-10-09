@@ -52,13 +52,14 @@ Error Loader::parseStepDeclaration(Runner &Runner,
     if (not isInvocationUsed(Invocation.EnabledWhen))
       continue;
 
-    if (auto MaybeInvocation = parseInvocation(JustAdded,
-                                               Invocation,
-                                               ReadOnlyNames);
-        !MaybeInvocation)
+    auto MaybeInvocation = parseInvocation(JustAdded,
+                                           Invocation,
+                                           ReadOnlyNames);
+
+    if (not MaybeInvocation)
       return MaybeInvocation.takeError();
-    else
-      JustAdded.addPipe(std::move(*MaybeInvocation));
+
+    JustAdded.addPipe(std::move(*MaybeInvocation));
   }
 
   for (const auto &SingleAnalysis : Declaration.Analyses) {
@@ -307,7 +308,7 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
     }
   }
 
-  if (auto Error = sortPipeline(ToSort); Error)
+  if (auto Error = sortPipeline(ToSort))
     return std::move(Error);
 
   llvm::StringMap<std::string> ReadOnlyNames;

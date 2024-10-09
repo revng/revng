@@ -112,12 +112,12 @@ int main(int Argc, char *Argv[]) {
   ExitOnError ExitOnError;
 
   using Model = TupleTree<model::Binary>;
-  auto LeftModule = llvm::errorOrToExpected(Model::fromFile(LeftModelPath));
+  auto LeftModule = Model::fromFile(LeftModelPath);
   if (not LeftModule)
     ExitOnError(LeftModule.takeError());
   TupleTree<model::Binary> &LeftModel = *LeftModule;
 
-  auto RightModule = llvm::errorOrToExpected(Model::fromFile(RightModelPath));
+  auto RightModule = Model::fromFile(RightModelPath);
   if (not RightModule)
     ExitOnError(RightModule.takeError());
   TupleTree<model::Binary> &RightModel = *RightModule;

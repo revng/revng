@@ -165,7 +165,7 @@ public:
 public:
   llvm::Error verify(const ContainerBase &Container) const {
     for (const Target &T : *this)
-      if (auto Error = T.verify(Container); Error)
+      if (auto Error = T.verify(Container))
         return Error;
     return llvm::Error::success();
   }

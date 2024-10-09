@@ -23,12 +23,12 @@ serializeDeserialize(const TupleTree<model::Binary> &T) {
   std::string Buffer;
   T.serialize(Buffer);
 
-  auto Deserialized = TupleTree<model::Binary>::fromString(Buffer);
+  auto Deserialized = cantFail(TupleTree<model::Binary>::fromString(Buffer));
 
   std::string OtherBuffer;
-  Deserialized->serialize(OtherBuffer);
+  Deserialized.serialize(OtherBuffer);
 
-  return std::move(Deserialized.get());
+  return Deserialized;
 }
 
 static bool checkSerialization(const TupleTree<model::Binary> &T) {

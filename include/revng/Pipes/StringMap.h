@@ -196,16 +196,16 @@ public:
 
     OffsetMap Offsets = serializeWithOffsets(MaybeWritableFile.get()->os());
 
-    if (auto Error = MaybeWritableFile.get()->commit(); Error)
+    if (auto Error = MaybeWritableFile.get()->commit())
       return Error;
 
     revng::FilePath IndexPath = Path.addExtension("idx");
     auto MaybeWritableIndexFile = IndexPath.getWritableFile();
-    if (!!MaybeWritableIndexFile) {
+    if (MaybeWritableIndexFile) {
       llvm::yaml::Output IndexOutput(MaybeWritableIndexFile.get()->os());
       IndexOutput << Offsets;
 
-      if (auto Error = MaybeWritableIndexFile.get()->commit(); Error)
+      if (auto Error = MaybeWritableIndexFile.get()->commit())
         return Error;
     } else {
       llvm::consumeError(MaybeWritableIndexFile.takeError());

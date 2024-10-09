@@ -68,7 +68,7 @@ int main(int Argc, char *Argv[]) {
 
   ExitOnError ExitOnError;
   using Model = TupleTree<model::Binary>;
-  auto ParsedModel = errorOrToExpected(Model::fromFileOrSTDIN(InputFilename));
+  auto ParsedModel = Model::fromFileOrSTDIN(InputFilename);
   auto MaybeModel = ExitOnError(std::move(ParsedModel));
 
   for (const PassName &PassName : PassesList) {

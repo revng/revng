@@ -114,7 +114,7 @@ checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory,
   std::string SavedHash;
 
   if (HashFileExists) {
-    // read the saved hash file
+    // Read the saved hash file
     auto MaybeReadableFile = HashFile.getReadableFile();
     if (not MaybeReadableFile)
       return MaybeReadableFile.takeError();
@@ -129,7 +129,7 @@ checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory,
   // First thing, remove the hash file, to guarantee that at worst then next
   // time we run we still trigger cleanup
   if (HashFileExists) {
-    if (llvm::Error Error = HashFile.remove(); Error)
+    if (llvm::Error Error = HashFile.remove())
       return Error;
   }
 
@@ -142,7 +142,7 @@ checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory,
       return MaybeExists.takeError();
 
     if (MaybeExists.get()) {
-      if (llvm::Error Error = Path.remove(); Error)
+      if (llvm::Error Error = Path.remove())
         return Error;
     }
   }
@@ -172,7 +172,7 @@ setUpPipeline(pipeline::Context &PipelineContext,
     if (Error)
       return std::move(Error);
 
-    if (auto Error = MaybePipeline->load(ExecutionDirectory); Error)
+    if (auto Error = MaybePipeline->load(ExecutionDirectory))
       return std::move(Error);
   }
 
@@ -234,22 +234,23 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
                                   std::unique_ptr<revng::StorageClient>
                                     &&Client) {
   PipelineManager Manager(EnablingFlags, std::move(Client));
-  if (auto MaybePipeline = setUpPipeline(*Manager.PipelineContext,
-                                         *Manager.Loader,
-                                         PipelineContent,
-                                         Manager.executionDirectory());
-      MaybePipeline)
-    Manager.Runner = make_unique<pipeline::Runner>(std::move(*MaybePipeline));
-  else
-    return MaybePipeline.takeError();
+
+  auto MaybePipeline = setUpPipeline(*Manager.PipelineContext,
+                                     *Manager.Loader,
+                                     PipelineContent,
+                                     Manager.executionDirectory());
+  if (auto Error = MaybePipeline.takeError())
+    return Error;
+
+  Manager.Runner = make_unique<pipeline::Runner>(std::move(*MaybePipeline));
 
   Manager.recalculateAllPossibleTargets();
 
-  if (auto Error = Manager.computeDescription(); Error)
+  if (auto Error = Manager.computeDescription())
     return Error;
 
   if (Manager.ExecutionDirectory.isValid()) {
-    if (auto Error = Manager.StorageClient->commit(); Error)
+    if (auto Error = Manager.StorageClient->commit())
       return Error;
   }
 
@@ -331,7 +332,7 @@ llvm::Error PipelineManager::store() {
 
   // Run store on the runner, this will serialize all step/containers
   // inside the resume directory
-  if (auto Error = Runner->store(ExecutionDirectory); Error)
+  if (auto Error = Runner->store(ExecutionDirectory))
     return Error;
 
   // Commit all the changes to storage
@@ -343,7 +344,7 @@ llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName) {
     return llvm::Error::success();
 
   auto &Step = Runner->getStep(StepName);
-  if (auto Error = Runner->storeStepToDisk(StepName, ExecutionDirectory); Error)
+  if (auto Error = Runner->storeStepToDisk(StepName, ExecutionDirectory))
     return Error;
   return StorageClient->commit();
 }
@@ -424,9 +425,9 @@ PipelineManager::invalidateAllPossibleTargets() {
 
         TargetInStepSet Map;
         Map[Step.first()][Container.first()].push_back(Target);
-        if (auto Error = Runner->getInvalidations(Map); Error)
+        if (auto Error = Runner->getInvalidations(Map))
           return std::move(Error);
-        if (auto Error = Runner->invalidate(Map); Error)
+        if (auto Error = Runner->invalidate(Map))
           return std::move(Error);
 
         for (const auto &First : Map) {
@@ -457,7 +458,7 @@ llvm::Error PipelineManager::produceAllPossibleTargets(bool ExpandTargets) {
         Target.dump(*Logger);
         ExplanationLogger << DoLog;
 
-        if (auto Error = Runner->run(Step.first(), ToProduce); Error)
+        if (auto Error = Runner->run(Step.first(), ToProduce))
           return Error;
       }
     }
@@ -549,7 +550,7 @@ PipelineManager::materializeTargets(const llvm::StringRef StepName,
     }
   }
 
-  if (auto Error = getRunner().run(StepName, Map); Error)
+  if (auto Error = getRunner().run(StepName, Map))
     return Error;
 
   return Error::success();
@@ -563,7 +564,7 @@ PipelineManager::produceTargets(const llvm::StringRef StepName,
   for (const pipeline::Target &Target : List)
     Targets[TheContainer.second->name()].push_back(Target);
 
-  if (auto Error = materializeTargets(StepName, Targets); Error)
+  if (auto Error = materializeTargets(StepName, Targets))
     return Error;
 
   const auto &ToFilter = Targets.at(TheContainer.second->name());
@@ -583,7 +584,7 @@ llvm::Error PipelineManager::computeDescription() {
   if (StorageClient == nullptr)
     return llvm::Error::success();
 
-  if (auto Error = ExecutionDirectory.create(); Error)
+  if (auto Error = ExecutionDirectory.create())
     return Error;
 
   constexpr auto DescriptionName = "pipeline-description.yml";

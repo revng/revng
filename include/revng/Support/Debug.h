@@ -11,6 +11,8 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Support/Assert.h"
+
 // TODO: use a dedicated namespace
 extern std::ostream &dbg;
 extern size_t MaxLoggerNameLength;
@@ -151,7 +153,7 @@ inline void writeToLog(Logger<X> &This, const llvm::StringRef &S, int Ign) {
   writeToLog(This, S.str(), Ign);
 }
 
-/// Specialization for llvm::StringRef
+/// Specialization for llvm::Error
 template<bool X>
 inline void writeToLog(Logger<X> &This, const llvm::Error &Error, int Ign) {
   std::string Message;
@@ -160,6 +162,24 @@ inline void writeToLog(Logger<X> &This, const llvm::Error &Error, int Ign) {
     Stream << Error;
   }
   writeToLog(This, Message, Ign);
+}
+
+inline std::string consumeToString(llvm::Error &&Error) {
+  revng_assert(not Error.success());
+
+  std::string Message;
+  {
+    llvm::raw_string_ostream Stream(Message);
+    Stream << Error;
+  }
+  llvm::consumeError(std::move(Error));
+  return Message;
+}
+
+template<typename T>
+inline std::string consumeToString(llvm::Expected<T> &Expected) {
+  revng_assert(not Expected);
+  return consumeToString(Expected.takeError());
 }
 
 /// Enables a debug feature and disables it when goes out of scope

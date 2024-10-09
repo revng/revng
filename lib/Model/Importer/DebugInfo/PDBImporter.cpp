@@ -26,6 +26,7 @@
 #include "llvm/DebugInfo/PDB/Native/SymbolStream.h"
 #include "llvm/DebugInfo/PDB/Native/TpiStream.h"
 #include "llvm/DebugInfo/PDB/PDB.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
@@ -169,31 +170,31 @@ public:
 } // namespace
 
 void PDBImporterImpl::populateTypes() {
-  auto InputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
-  if (not InputFile) {
-    revng_log(Log, "Unable to open PDB file " << InputFile.takeError());
-    consumeError(InputFile.takeError());
+  auto MaybeInputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
+  if (not MaybeInputFile) {
+    revng_log(Log, "Unable to open PDB file " << MaybeInputFile.takeError());
+    consumeError(MaybeInputFile.takeError());
     return;
   }
 
-  auto StreamTpiOrErr = Importer.getPDBFile()->getPDBTpiStream();
-  if (not StreamTpiOrErr) {
+  auto MaybeTpiStream = Importer.getPDBFile()->getPDBTpiStream();
+  if (not MaybeTpiStream) {
     revng_log(Log,
-              "Unable to find TPI in PDB file: " << StreamTpiOrErr.takeError());
-    consumeError(StreamTpiOrErr.takeError());
+              "Unable to find TPI in PDB file: " << MaybeTpiStream.takeError());
+    consumeError(MaybeTpiStream.takeError());
     return;
   }
 
   // Those will be processed after all the types are visited.
   DenseMap<TypeIndex, TypeIndex> ForwardReferencedTypes;
   PDBImporterTypeVisitor TypeVisitor(Importer.getModel(),
-                                     InputFile->types(),
+                                     MaybeInputFile->types(),
                                      ProcessedTypes,
                                      ForwardReferencedTypes,
-                                     *StreamTpiOrErr);
-  if (auto Err = visitTypeStream(InputFile->types(), TypeVisitor)) {
-    revng_log(Log, "Error during visiting types: " << Err);
-    consumeError(std::move(Err));
+                                     *MaybeTpiStream);
+  if (auto Error = visitTypeStream(MaybeInputFile->types(), TypeVisitor)) {
+    revng_log(Log, "Error during visiting types: " << Error);
+    consumeError(std::move(Error));
   }
 }
 
@@ -215,9 +216,9 @@ public:
     Input(Input) {}
 
   Error operator()(uint32_t Modi, const SymbolGroup &SG) {
-    auto ExpectedModS = getModuleDebugStream(*Importer.getPDBFile(), Modi);
-    if (ExpectedModS) {
-      ModuleDebugStreamRef &ModS = *ExpectedModS;
+    auto MaybeDebugStream = getModuleDebugStream(*Importer.getPDBFile(), Modi);
+    if (MaybeDebugStream) {
+      ModuleDebugStreamRef &ModS = *MaybeDebugStream;
 
       SymbolVisitorCallbackPipeline Pipeline;
       SymbolDeserializer Deserializer(nullptr, CodeViewContainer::Pdb);
@@ -237,7 +238,7 @@ public:
     } else {
       // If the module stream does not exist, it is not an
       // error condition.
-      consumeError(ExpectedModS.takeError());
+      consumeError(MaybeDebugStream.takeError());
     }
 
     return Error::success();
@@ -245,20 +246,25 @@ public:
 };
 
 void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
-  auto InputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
-  if (not InputFile) {
-    revng_log(Log, "Unable to open PDB file: " << InputFile.takeError());
-    consumeError(InputFile.takeError());
+  auto MaybeInputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
+  if (not MaybeInputFile) {
+    revng_log(Log, "Unable to open PDB file: " << MaybeInputFile.takeError());
+    consumeError(MaybeInputFile.takeError());
     return;
   }
 
   FilterOptions Filters{};
   LinePrinter Printer(/*Indent=*/2, false, nulls(), Filters);
   const PrintScope HeaderScope(Printer, /*IndentLevel=*/2);
-  PDBSymbolHandler SymbolHandler(Importer, ProcessedTypes, Session, *InputFile);
-  if (auto Err = iterateSymbolGroups(*InputFile, HeaderScope, SymbolHandler)) {
-    revng_log(Log, "Unable to parse symbols: " << Err);
-    consumeError(std::move(Err));
+  PDBSymbolHandler SymbolHandler(Importer,
+                                 ProcessedTypes,
+                                 Session,
+                                 *MaybeInputFile);
+  if (auto Error = iterateSymbolGroups(*MaybeInputFile,
+                                       HeaderScope,
+                                       SymbolHandler)) {
+    revng_log(Log, "Unable to parse symbols: " << Error);
+    consumeError(std::move(Error));
     return;
   }
 }
@@ -292,12 +298,17 @@ bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
   ThePDBFile = &TheNativeSession->getPDBFile();
 
   if (ExpectedGUID) {
-    if (auto PDBInfoStrm = ThePDBFile->getPDBInfoStream()) {
-      codeview::GUID GUIDFromPDBFile = PDBInfoStrm->getGuid();
-      if (ExpectedGUID != GUIDFromPDBFile) {
-        revng_log(Log, "Signatures from exe and PDB file mismatch");
-        return false;
-      }
+    auto MaybePDBInfoStream = ThePDBFile->getPDBInfoStream();
+    if (auto Error = MaybePDBInfoStream.takeError()) {
+      consumeError(std::move(Error));
+      // TODO: is it correct to ignore this error?
+      return true;
+    }
+
+    codeview::GUID GUIDFromPDBFile = MaybePDBInfoStream->getGuid();
+    if (ExpectedGUID != GUIDFromPDBFile) {
+      revng_log(Log, "Signatures from exe and PDB file mismatch");
+      return false;
     }
   }
 
@@ -627,18 +638,18 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   using namespace model;
 
   if (isUdtForwardRef(Record)) {
-    Expected<TypeIndex> EFD = Tpi.findFullDeclForForwardRef(CurrentTypeIndex);
-    if (!EFD) {
-      consumeError(EFD.takeError());
+    Expected<TypeIndex> FD = Tpi.findFullDeclForForwardRef(CurrentTypeIndex);
+    if (auto Error = FD.takeError()) {
       revng_log(Log,
-                "LF_STRUCTURE: Cannot resolve fwd ref for the: "
-                  << CurrentTypeIndex.getIndex());
+                "LF_STRUCTURE: Cannot resolve forward reference for index "
+                  << CurrentTypeIndex.getIndex() << ": " << Error);
+      consumeError(std::move(Error));
       return Error::success();
     }
 
     // Remember forward reference, so we can process it later.
-    ForwardReferencedTypes[*EFD] = CurrentTypeIndex;
-    uint64_t ForwardTypeSize = getSizeInBytesForTypeRecord(Tpi.getType(*EFD));
+    ForwardReferencedTypes[*FD] = CurrentTypeIndex;
+    uint64_t ForwardTypeSize = getSizeInBytesForTypeRecord(Tpi.getType(*FD));
 
     if (ForwardTypeSize == 0) {
       // 0-sized structs are typedef'ed to void. It can happen that there is

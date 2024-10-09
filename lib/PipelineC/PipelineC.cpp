@@ -185,21 +185,20 @@ static rp_manager *rp_manager_create_impl(llvm::ArrayRef<std::string> Pipelines,
   for (size_t I = 0; I < pipeline_flags_count; I++)
     FlagsVector.push_back(pipeline_flags[I]);
 
-  auto Pipeline = is_path ?
-                    PipelineManager::create(Pipelines,
+  using PM = PipelineManager;
+  auto MaybePipeline = is_path ? PM::create(Pipelines,
                                             FlagsVector,
                                             execution_directory) :
-                    PipelineManager::createFromMemory(Pipelines,
+                                 PM::createFromMemory(Pipelines,
                                                       FlagsVector,
                                                       execution_directory);
-  if (not Pipeline) {
-    auto Error = Pipeline.takeError();
-    llvm::errs() << Error;
+  if (auto Error = MaybePipeline.takeError()) {
+    llvm::errs() << "Pipeline creation failed: " << Error << "\n";
     llvm::consumeError(std::move(Error));
     return nullptr;
   }
 
-  auto manager = new PipelineManager(std::move(*Pipeline));
+  auto manager = new PipelineManager(std::move(*MaybePipeline));
   return manager;
 }
 
@@ -484,7 +483,7 @@ static char *_rp_manager_create_global_copy(const rp_manager *manager,
   std::string Out;
   llvm::raw_string_ostream Serialized(Out);
   auto &GlobalsMap = manager->context().getGlobals();
-  if (auto Error = GlobalsMap.serialize(global_name, Serialized); Error) {
+  if (auto Error = GlobalsMap.serialize(global_name, Serialized)) {
     llvm::consumeError(std::move(Error));
     return nullptr;
   }
@@ -711,7 +710,7 @@ static const char *_rp_manager_get_pipeline_description(rp_manager *manager) {
 static bool _rp_manager_set_storage_credentials(rp_manager *manager,
                                                 const char *credentials) {
   revng_check(manager != nullptr);
-  if (auto Error = manager->setStorageCredentials(credentials); Error) {
+  if (auto Error = manager->setStorageCredentials(credentials)) {
     llvm::consumeError(std::move(Error));
     return false;
   }

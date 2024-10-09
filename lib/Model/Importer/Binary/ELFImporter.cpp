@@ -11,6 +11,7 @@
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/Progress.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
@@ -215,8 +216,13 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     for (ConstElf_Shdr &SectionHeader : *ELFSections) {
       // Obtain the section name
       StringRef SectionName;
-      if (auto NameOrErr = TheELF.getSectionName(SectionHeader))
-        SectionName = *NameOrErr;
+
+      auto MaybeSectionName = TheELF.getSectionName(SectionHeader);
+      if (auto Error = MaybeSectionName.takeError()) {
+        consumeError(std::move(Error));
+      } else {
+        SectionName = *MaybeSectionName;
+      }
 
       // Collect section names
       if (hasFlag(SectionHeader.sh_flags, ELF::SHF_ALLOC)) {
@@ -1188,8 +1194,13 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
       }
       const Elf_Sym &Symbol = Symbols[SymbolIndex];
       auto MaybeName = Symbol.getName(Dynstr.extractString());
-      if (MaybeName)
+
+      if (auto Error = MaybeName.takeError()) {
+        consumeError(std::move(Error));
+      } else {
         SymbolName = *MaybeName;
+      }
+
       SymbolType = Symbol.getType();
     }
 

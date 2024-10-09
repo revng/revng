@@ -22,6 +22,7 @@
 #include "llvm/Support/Signals.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
 
 #include "ABIRuntimeTestResultParser.h"
@@ -85,11 +86,13 @@ int main(int argc, char *argv[]) {
   }
 
   auto Deserialized = TupleTree<model::Binary>::fromString(InputText);
-  if (!Deserialized) {
-    std::string Error = "Unable to deserialize the model: '" + Options::Filename
-                        + "'.";
+  if (not Deserialized) {
+    std::string Error = "Unable to deserialize the model in \""
+                        + Options::Filename
+                        + "\": " + consumeToString(Deserialized) + ".";
     revng_abort(Error.c_str());
   }
+
   if (!Deserialized->verify() || !(*Deserialized)->verify()) {
     std::string Error = "Unable to verify the model: '" + Options::Filename
                         + "'.";

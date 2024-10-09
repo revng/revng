@@ -79,9 +79,9 @@ public:
     if (It != Deserialized.end())
       return *It->second.get();
 
-    TupleTree<efa::ControlFlowGraph> &Result = Deserialized[Address];
-    Result = TupleTree<efa::ControlFlowGraph>::fromString(CFGs.at(Address))
-               .get();
+    using TupleTree = TupleTree<efa::ControlFlowGraph>;
+    TupleTree &Result = Deserialized[Address];
+    Result = cantFail(TupleTree::fromString(CFGs.at(Address)));
     return *Result.get();
   }
 

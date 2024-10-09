@@ -124,7 +124,7 @@ llvm::Error ContainerSet::verify() const {
     if (Pair.second == nullptr)
       continue;
 
-    if (auto Error = Pair.second->verify(); Error)
+    if (auto Error = Pair.second->verify())
       return Error;
   }
   return llvm::Error::success();
@@ -149,7 +149,7 @@ llvm::Error ContainerBase::store(const revng::FilePath &Path) const {
     return MaybeWritableFile.takeError();
   }
 
-  if (auto Error = serialize(MaybeWritableFile.get()->os()); Error)
+  if (auto Error = serialize(MaybeWritableFile.get()->os()))
     return Error;
 
   return MaybeWritableFile.get()->commit();

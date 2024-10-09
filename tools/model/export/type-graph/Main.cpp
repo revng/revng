@@ -30,7 +30,7 @@ int main(int Argc, char *Argv[]) {
   ExitOnError ExitOnError;
 
   using Model = TupleTree<model::Binary>;
-  auto MaybeModel = errorOrToExpected(Model::fromFileOrSTDIN(InputModulePath));
+  auto MaybeModel = Model::fromFileOrSTDIN(InputModulePath);
   if (not MaybeModel)
     ExitOnError(MaybeModel.takeError());
 

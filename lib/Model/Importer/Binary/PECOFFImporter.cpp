@@ -6,6 +6,7 @@
 
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
@@ -98,14 +99,14 @@ Error PECOFFImporter::parseSectionsHeaders() {
   // Read sections
   for (const SectionRef &SecRef : TheBinary.sections()) {
     unsigned Id = TheBinary.getSectionID(SecRef);
-    Expected<const object::coff_section *> SecOrErr = TheBinary.getSection(Id);
-    if (not SecOrErr) {
-      revng_log(Log,
-                "Error in section with ID " << Id << ": "
-                                            << SecOrErr.takeError());
+    Expected<const object::coff_section *> MaybeSection = TheBinary
+                                                            .getSection(Id);
+    if (auto Error = MaybeSection.takeError()) {
+      revng_log(Log, "Error in section with ID " << Id << ": " << Error);
+      consumeError(std::move(Error));
       continue;
     }
-    const object::coff_section *CoffRef = *SecOrErr;
+    const object::coff_section *CoffRef = *MaybeSection;
 
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
     Segment Segment({ Start.toGeneric(), u64(CoffRef->VirtualSize) });
@@ -149,9 +150,10 @@ void PECOFFImporter::parseSymbols() {
     if (!Symbol.isFunctionDefinition())
       continue;
 
-    Expected<StringRef> NameOrErr = TheBinary.getSymbolName(Symbol);
-    if (!NameOrErr) {
+    Expected<StringRef> MaybeName = TheBinary.getSymbolName(Symbol);
+    if (auto Error = MaybeName.takeError()) {
       revng_log(Log, "Found static symbol without a name.");
+      consumeError(std::move(Error));
       continue;
     }
 
@@ -161,7 +163,7 @@ void PECOFFImporter::parseSymbols() {
       continue;
 
     model::Function &Function = Model->Functions()[Address];
-    Function.OriginalName() = *NameOrErr;
+    Function.OriginalName() = *MaybeName;
   }
 }
 

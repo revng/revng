@@ -24,8 +24,28 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Support/ResourceFinder.h"
+#include "revng/TupleTree/TupleTree.h"
 
 namespace revng::pipes {
+
+struct TaskArgument {};
+
+struct PipeDescriptor {
+  const char *Name;
+
+  TaskArgument *Arguments;
+  size_t ArgumentCount;
+
+  void *Run;
+  void *Invalidate;
+  void *CheckPrecondition;
+};
+
+PipeDescriptor *revng_get_pipes(void);
+size_t revng_get_pipe_count(void);
+void revng_pipe_run(PipeDescriptor *Pipe, ...);
+// void revng_pipe_invaldate(PipeDescriptor *Pipe);
+void revng_pipe_check_precondition(PipeDescriptor *Pipe, void *Model);
 
 class Lift {
 public:

@@ -60,7 +60,7 @@ enum class PathType {
 ///
 ///     serialize(Path, MaybeFile.get()->os());
 ///
-///     if (auto Error = MaybeFile->commit(); Error)
+///     if (auto Error = MaybeFile->commit())
 ///       return Error;
 ///   }
 ///

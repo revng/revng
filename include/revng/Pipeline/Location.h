@@ -11,6 +11,7 @@
 #include <type_traits>
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/YAMLTraits.h"
 
 #include "revng/ADT/CompilationTime.h"
@@ -139,8 +140,10 @@ public:
       using T = typename std::tuple_element<Idx, Tuple>::type;
       using revng::detail::fromStringImpl;
       auto MaybeValue = fromStringImpl<T>(MaybeSteps->at(Idx + 2));
-      if (!MaybeValue)
+      if (auto Error = MaybeValue.takeError()) {
+        llvm::consumeError(std::move(Error));
         return false;
+      }
 
       std::get<Idx>(Result) = std::move(*MaybeValue);
       return true;

@@ -1365,7 +1365,7 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
   auto Factory = ContainerFactory::create<MapContainer>();
   Set.add("container-name", Factory);
   Set["container-name"];
-  if (auto Error = W.run(ExecutionCtx, Set, {}); Error)
+  if (auto Error = W.run(ExecutionCtx, Set, {}))
     BOOST_FAIL("unreachable");
 }
 
