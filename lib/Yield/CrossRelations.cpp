@@ -21,27 +21,27 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
   revng_assert(Metadata.size() == Binary.Functions().size());
 
   namespace ranks = revng::ranks;
-  using pipeline::toString;
+  using pipeline::locationString;
 
   // Make sure all the functions are present.
   for (auto Inserter = Relations().batch_insert();
        const auto &Function : Binary.Functions()) {
-    auto Location = toString(ranks::Function, Function.key());
+    auto Location = locationString(ranks::Function, Function.key());
     Inserter.insert(CR::RelationDescription(std::move(Location), {}));
   }
 
   // Make sure all the dynamic functions are also present
   for (auto Inserter = Relations().batch_insert();
        const auto &Function : Binary.ImportedDynamicFunctions()) {
-    auto Location = toString(ranks::DynamicFunction, Function.key());
+    auto Location = locationString(ranks::DynamicFunction, Function.key());
     Inserter.insert(CR::RelationDescription(std::move(Location), {}));
   }
 
   for (const auto &[EntryAddress, _, ControlFlowGraph] : Metadata) {
     for (const auto &BasicBlock : ControlFlowGraph) {
-      auto CallLocation = toString(ranks::BasicBlock,
-                                   EntryAddress,
-                                   BasicBlock.ID());
+      auto CallLocation = locationString(ranks::BasicBlock,
+                                         EntryAddress,
+                                         BasicBlock.ID());
 
       for (const auto &Edge : BasicBlock.Successors()) {
         if (auto *CallEdge = llvm::dyn_cast<efa::CallEdge>(Edge.get())) {
@@ -49,13 +49,13 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
             if (const auto &Callee = Edge->Destination(); Callee.isValid()) {
               // TODO: embed information about the call instruction into
               //       `CallLocation` after metadata starts providing it.
-              const auto L = toString(ranks::Function,
-                                      Callee.notInlinedAddress());
+              const auto L = locationString(ranks::Function,
+                                            Callee.notInlinedAddress());
               if (auto It = Relations().find(L); It != Relations().end())
                 It->IsCalledFrom().emplace(std::move(CallLocation));
             } else if (!CallEdge->DynamicFunction().empty()) {
-              const auto L = toString(ranks::DynamicFunction,
-                                      CallEdge->DynamicFunction());
+              const auto L = locationString(ranks::DynamicFunction,
+                                            CallEdge->DynamicFunction());
               if (auto It = Relations().find(L); It != Relations().end())
                 It->IsCalledFrom().emplace(std::move(CallLocation));
             } else {

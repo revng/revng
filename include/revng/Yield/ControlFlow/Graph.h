@@ -25,7 +25,9 @@ public:
   Node() = default;
   Node(BasicBlockID Address,
        const MetaAddress &Function = MetaAddress::invalid()) :
-    Location(pipeline::toString(revng::ranks::BasicBlock, Function, Address)) {}
+    Location(pipeline::locationString(revng::ranks::BasicBlock,
+                                      Function,
+                                      Address)) {}
   explicit Node(const pipeline::Location<BasicBlockRank> &Location) :
     Location(Location.toString()) {}
   Node &operator=(const pipeline::Location<BasicBlockRank> &NewLocation) {

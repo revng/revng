@@ -20,7 +20,7 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
 
-using pipeline::toString;
+using pipeline::locationString;
 using ptml::Tag;
 namespace attributes = ptml::attributes;
 namespace ptmlScopes = ptml::scopes;
@@ -48,19 +48,19 @@ static std::string targetPath(const BasicBlockID &Target,
                               const model::Binary &Binary) {
   if (const auto *F = yield::tryGetFunction(Binary, Target)) {
     // The target is a function
-    return toString(ranks::Function, F->Entry());
+    return locationString(ranks::Function, F->Entry());
   } else if (auto Iterator = Function.Blocks().find(Target);
              Iterator != Function.Blocks().end()) {
     // The target is a basic block
-    return toString(ranks::BasicBlock, Function.Entry(), Iterator->ID());
+    return locationString(ranks::BasicBlock, Function.Entry(), Iterator->ID());
   } else if (Target.isValid()) {
     for (const auto &Block : Function.Blocks()) {
       if (Block.Instructions().contains(Target.start())) {
         // The target is an instruction
-        return toString(ranks::Instruction,
-                        Function.Entry(),
-                        Block.ID(),
-                        Target.start());
+        return locationString(ranks::Instruction,
+                              Function.Entry(),
+                              Block.ID(),
+                              Target.start());
       }
     }
   }
@@ -297,10 +297,10 @@ static std::string instruction(const ptml::MarkupBuilder &B,
   }
 
   // Tag it with appropriate location data.
-  std::string InstructionLocation = toString(ranks::Instruction,
-                                             Function.Entry(),
-                                             BasicBlock.ID(),
-                                             Instruction.Address());
+  std::string InstructionLocation = locationString(ranks::Instruction,
+                                                   Function.Entry(),
+                                                   BasicBlock.ID(),
+                                                   Instruction.Address());
   Tag Location = B.getTag(tags::Span)
                    .addAttribute(attributes::LocationDefinition,
                                  InstructionLocation);
@@ -348,9 +348,10 @@ static std::string basicBlock(const ptml::MarkupBuilder &B,
   if (!Label.empty()) {
     LabelString = Label + "\n";
   } else {
-    std::string Location = toString(ranks::BasicBlock,
-                                    model::Function(Function.Entry()).key(),
-                                    BasicBlock.ID());
+    std::string Location = locationString(ranks::BasicBlock,
+                                          model::Function(Function.Entry())
+                                            .key(),
+                                          BasicBlock.ID());
     LabelString = B.getTag(tags::Span)
                     .addAttribute(attributes::LocationDefinition, Location)
                     .toString();

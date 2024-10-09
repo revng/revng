@@ -224,7 +224,7 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
   if (auto *ModelFunction = yield::tryGetFunction(Binary, BasicBlock)) {
     return LabelDescription{
       .Name = ModelFunction->name().str().str(),
-      .Location = toString(revng::ranks::Function, ModelFunction->key()),
+      .Location = locationString(revng::ranks::Function, ModelFunction->key()),
     };
   } else if (Function.Blocks().contains(BasicBlock)) {
     std::string BBPr = Binary.Configuration().Disassembly().BasicBlockPrefix();
@@ -235,9 +235,9 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
 
     return LabelDescription{
       .Name = BBPr + yield::sanitizedAddress(BasicBlock, Binary),
-      .Location = toString(revng::ranks::BasicBlock,
-                           model::Function(Function.Entry()).key(),
-                           BasicBlock)
+      .Location = locationString(revng::ranks::BasicBlock,
+                                 model::Function(Function.Entry()).key(),
+                                 BasicBlock)
     };
   } else {
     revng_abort("Unable to emit a label for an object that does not exist.");
