@@ -345,12 +345,7 @@ model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
       return Model->makeType(model::TypeDefinition::Key{ *MaybeID,
                                                          T::AssociatedKind });
     } else {
-      std::string ErrorMessage;
-      llvm::raw_string_ostream Stream(ErrorMessage);
-      llvm::logAllUnhandledErrors(MaybeID.takeError(), Stream);
-      Stream.flush();
-
-      Errors.emplace_back(std::move(ErrorMessage));
+      Errors.emplace_back(consumeToString(MaybeID));
     }
   }
 

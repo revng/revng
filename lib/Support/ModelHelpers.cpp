@@ -110,8 +110,9 @@ model::UpcastableType fromLLVMString(llvm::Value *V,
   auto ParsedType = fromString<model::UpcastableType>(BaseTypeString);
   if (not ParsedType) {
     std::string Error = "Could not deserialize the model type from LLVM "
-                        "constant string: '"
-                        + BaseTypeString.str() + "'.";
+                        "constant string \""
+                        + BaseTypeString.str()
+                        + "\2: " + consumeToString(ParsedType) + ".";
     revng_abort(Error.c_str());
   }
 

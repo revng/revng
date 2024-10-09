@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Support/Debug.h"
+
 #include "revng-c/mlir/Dialect/Clift/Transforms/ModelOption.h"
 
 using mlir::clift::ModelOptionType;
@@ -15,7 +17,7 @@ bool ParserType::parse(llvm::cl::Option &O,
   auto MaybeModel = TupleTreeType::fromFile(ArgValue);
 
   if (not MaybeModel) {
-    return O.error("Failed to parse model: " + MaybeModel.getError().message());
+    return O.error("Failed to parse model: " + consumeToString(MaybeModel));
   }
 
   auto Shared = std::make_shared<TupleTreeType>(std::move(*MaybeModel));
