@@ -441,9 +441,9 @@ static void generateReturnValueWrapper(Logger<> &Log,
   {
     Scope Scope(Header, ptml::c::scopes::StructBody);
     for (auto &[Index, ReturnValue] : llvm::enumerate(F.ReturnValues())) {
-      std::string ActionLocation = toString(revng::ranks::ReturnRegister,
-                                            F.key(),
-                                            ReturnValue.key());
+      std::string ActionLocation = locationString(revng::ranks::ReturnRegister,
+                                                  F.key(),
+                                                  ReturnValue.key());
 
       std::string
         FieldString = B.tokenTag(ReturnValue.name(), ptml::c::tokens::Field)

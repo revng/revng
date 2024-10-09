@@ -51,14 +51,16 @@ concept ModelFunction = std::same_as<FT, model::Function>
 
 static std::string toStringVariableLocation(llvm::StringRef VariableName,
                                             const model::DynamicFunction &F) {
-  return pipeline::toString(ranks::DynamicFunctionArgument,
-                            F.key(),
-                            VariableName.str());
+  return pipeline::locationString(ranks::DynamicFunctionArgument,
+                                  F.key(),
+                                  VariableName.str());
 }
 
 static std::string toStringVariableLocation(llvm::StringRef VariableName,
                                             const model::Function &F) {
-  return pipeline::toString(ranks::LocalVariable, F.key(), VariableName.str());
+  return pipeline::locationString(ranks::LocalVariable,
+                                  F.key(),
+                                  VariableName.str());
 }
 
 template<bool IsDefinition, ModelFunction FunctionType>
@@ -316,8 +318,8 @@ TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
     // in a struct
     revng_assert(llvm::isa<model::RawFunctionDefinition>(Function));
     std::string Name = (Twine(RetStructPrefix) + Function.name()).str();
-    std::string Location = pipeline::toString(ranks::ArtificialStruct,
-                                              Function.key());
+    std::string Location = pipeline::locationString(ranks::ArtificialStruct,
+                                                    Function.key());
     Result = B.tokenTag(Name, ptml::c::tokens::Type)
                .addAttribute(B.getLocationAttribute(IsDefinition), Location)
                .toString();
@@ -332,8 +334,8 @@ TypeString getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
   revng_assert(not llvm::StringRef(Result).trim().empty());
   return TypeString(B.getTag(ptml::tags::Span, Result)
                       .addAttribute(attributes::ActionContextLocation,
-                                    toString(ranks::ReturnValue,
-                                             Function.key()))
+                                    locationString(ranks::ReturnValue,
+                                                   Function.key()))
                       .toString());
 }
 
@@ -405,7 +407,9 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
       std::string Reg = ptml::AttributeRegistry::getAnnotation<"_REG">(Name);
       Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + Reg);
       ArgTag.addAttribute(attributes::ActionContextLocation,
-                          toString(ranks::RawArgument, RF.key(), Arg.key()));
+                          locationString(ranks::RawArgument,
+                                         RF.key(),
+                                         Arg.key()));
 
       Header << Separator << ArgTag.toString();
       Separator = Comma;
@@ -467,7 +471,9 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
       Tag ArgTag = B.getTag(ptml::tags::Span, ArgDeclaration);
       ArgTag.addAttribute(attributes::ActionContextLocation,
-                          toString(ranks::CABIArgument, CF.key(), Arg.key()));
+                          locationString(ranks::CABIArgument,
+                                         CF.key(),
+                                         Arg.key()));
       Header << Separator << ArgTag.toString();
       Separator = Comma;
     }
@@ -481,7 +487,7 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
                             ptml::CBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
-  std::string Location = toString(ranks::Function, Function.key());
+  std::string Location = locationString(ranks::Function, Function.key());
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationDefinition, Location);
@@ -512,7 +518,7 @@ void printFunctionPrototype(const model::TypeDefinition &FT,
                             ptml::CBuilder &B,
                             const model::Binary &Model,
                             bool SingleLine) {
-  std::string Location = toString(ranks::DynamicFunction, Function.key());
+  std::string Location = locationString(ranks::DynamicFunction, Function.key());
   Tag FunctionTag = B.tokenTag(Function.name(), ptml::c::tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationDefinition, Location);

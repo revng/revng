@@ -37,7 +37,7 @@ static void saveFunctionEntryPointInDISubprogram(llvm::Function &F) {
   std::string FunctionEntryLocation;
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDName);
   if (MaybeMetaAddress != MetaAddress::invalid()) {
-    FunctionEntryLocation = toString(ranks::Function, MaybeMetaAddress);
+    FunctionEntryLocation = locationString(ranks::Function, MaybeMetaAddress);
     revng_log(Log, "Function entry: " << FunctionEntryLocation);
     // For the purpose of preserving `!revng.function.entry`, let's map it in
     // DISubprogram's `linkageName;` field.

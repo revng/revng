@@ -429,7 +429,7 @@ public:
   std::string toString(const model::TypeDefinition &T) const {
     if (isGenerateTagLessPTML())
       return "";
-    return pipeline::toString(revng::ranks::TypeDefinition, T.key());
+    return pipeline::locationString(revng::ranks::TypeDefinition, T.key());
   }
 
   std::string getLocation(bool IsDefinition,
@@ -467,8 +467,8 @@ public:
     if (isGenerateTagLessPTML())
       return Result.toString();
 
-    std::string L = pipeline::toString(revng::ranks::PrimitiveType,
-                                       P.getCName());
+    std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
+                                             P.getCName());
     Result.addAttribute(getLocationAttribute(true), L);
     Result.addAttribute(attributes::ActionContextLocation, L);
 
@@ -481,8 +481,8 @@ public:
     if (isGenerateTagLessPTML())
       return Result.toString();
 
-    std::string L = pipeline::toString(revng::ranks::PrimitiveType,
-                                       P.getCName());
+    std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
+                                             P.getCName());
     Result.addAttribute(getLocationAttribute(false), L);
     Result.addAttribute(attributes::ActionContextLocation, L);
 
@@ -492,7 +492,7 @@ public:
   std::string toString(const model::Segment &T) const {
     if (isGenerateTagLessPTML())
       return "";
-    return pipeline::toString(revng::ranks::Segment, T.key());
+    return pipeline::locationString(revng::ranks::Segment, T.key());
   }
 
   Tag getNameTag(const model::Segment &S) const {
@@ -520,7 +520,9 @@ public:
     if (isGenerateTagLessPTML())
       return "";
 
-    return pipeline::toString(revng::ranks::EnumEntry, Enum.key(), Entry.key());
+    return pipeline::locationString(revng::ranks::EnumEntry,
+                                    Enum.key(),
+                                    Entry.key());
   }
 
   std::string toString(const model::StructDefinition &Struct,
@@ -528,9 +530,9 @@ public:
     if (isGenerateTagLessPTML())
       return "";
 
-    return pipeline::toString(revng::ranks::StructField,
-                              Struct.key(),
-                              Field.key());
+    return pipeline::locationString(revng::ranks::StructField,
+                                    Struct.key(),
+                                    Field.key());
   }
 
   std::string toString(const model::UnionDefinition &Union,
@@ -538,9 +540,9 @@ public:
     if (isGenerateTagLessPTML())
       return "";
 
-    return pipeline::toString(revng::ranks::UnionField,
-                              Union.key(),
-                              Field.key());
+    return pipeline::locationString(revng::ranks::UnionField,
+                                    Union.key(),
+                                    Field.key());
   }
 
   Tag getNameTag(const model::EnumDefinition &Enum,

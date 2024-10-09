@@ -918,8 +918,8 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       // Dynamic Function
       auto &DynFuncID = CallEdge->DynamicFunction();
       auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
-      std::string Location = toString(ranks::DynamicFunction,
-                                      DynamicFunc.key());
+      std::string Location = locationString(ranks::DynamicFunction,
+                                            DynamicFunc.key());
       CalleeToken = B.getTag(ptml::tags::Span, DynamicFunc.name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
@@ -932,7 +932,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       const model::Function *ModelFunc = llvmToModelFunction(Model,
                                                              *CalledFunc);
       revng_assert(ModelFunc);
-      std::string Location = toString(ranks::Function, ModelFunc->key());
+      std::string Location = locationString(ranks::Function, ModelFunc->key());
       CalleeToken = B.getTag(ptml::tags::Span, ModelFunc->name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)

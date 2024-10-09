@@ -140,7 +140,7 @@ static std::string getReturnedStructIdentifier(const llvm::Function *F) {
 }
 
 static std::string serializeHelperStructLocation(const std::string &Name) {
-  return toString(revng::ranks::HelperStructType, Name);
+  return pipeline::locationString(revng::ranks::HelperStructType, Name);
 }
 
 template<bool IsDefinition>
@@ -183,9 +183,9 @@ static std::string
 serializeHelperStructFieldLocation(const std::string &StructName,
                                    const std::string &FieldName) {
   revng_assert(not StructName.empty() and not FieldName.empty());
-  return pipeline::toString(revng::ranks::HelperStructField,
-                            StructName,
-                            FieldName);
+  return pipeline::locationString(revng::ranks::HelperStructField,
+                                  StructName,
+                                  FieldName);
 }
 
 template<bool IsDefinition>
@@ -217,7 +217,8 @@ std::string getReturnStructFieldLocationReference(const llvm::Function *F,
 }
 
 static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
-  return pipeline::toString(revng::ranks::HelperFunction, F->getName().str());
+  return pipeline::locationString(revng::ranks::HelperFunction,
+                                  F->getName().str());
 }
 
 template<bool IsDefinition>
