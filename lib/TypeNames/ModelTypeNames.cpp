@@ -64,7 +64,7 @@ static std::string toStringVariableLocation(llvm::StringRef VariableName,
 template<bool IsDefinition, ModelFunction FunctionType>
 std::string getArgumentLocation(llvm::StringRef ArgumentName,
                                 const FunctionType &F,
-                                const ptml::CBuilder &B) {
+                                const ptml::CTypeBuilder &B) {
   return B.getTag(ptml::tags::Span, ArgumentName)
     .addAttribute(attributes::Token, tokens::FunctionParameter)
     .addAttribute(B.getLocationAttribute(IsDefinition),
@@ -75,13 +75,13 @@ std::string getArgumentLocation(llvm::StringRef ArgumentName,
 static std::string
 getArgumentLocationDefinition(llvm::StringRef ArgumentName,
                               const model::DynamicFunction &F,
-                              const ptml::CBuilder &B) {
+                              const ptml::CTypeBuilder &B) {
   return getArgumentLocation<true>(ArgumentName, F, B);
 }
 
 static std::string getArgumentLocationDefinition(llvm::StringRef ArgumentName,
                                                  const model::Function &F,
-                                                 const ptml::CBuilder &B) {
+                                                 const ptml::CTypeBuilder &B) {
   return getArgumentLocation<true>(ArgumentName, F, B);
 }
 
@@ -94,7 +94,7 @@ std::string PCTB::getArgumentLocationReference(llvm::StringRef ArgumentName,
 template<bool IsDefinition>
 static std::string getVariableLocation(llvm::StringRef VariableName,
                                        const model::Function &F,
-                                       const ptml::CBuilder &B) {
+                                       const ptml::CTypeBuilder &B) {
   return B.getTag(ptml::tags::Span, VariableName)
     .addAttribute(attributes::Token, tokens::Variable)
     .addAttribute(B.getLocationAttribute(IsDefinition),
@@ -114,7 +114,7 @@ std::string PCTB::getVariableLocationReference(llvm::StringRef Name,
 }
 
 struct NamedCInstanceImpl {
-  const ptml::CBuilder &B;
+  const ptml::CTypeBuilder &B;
   llvm::ArrayRef<std::string> AllowedActions;
   bool OmitInnerTypeName;
 

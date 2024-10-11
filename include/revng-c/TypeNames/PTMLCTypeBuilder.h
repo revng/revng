@@ -168,6 +168,176 @@ public:
   }
 
 public:
+  auto getNameTag(const model::TypeDefinition &T) const {
+    return tokenTag(T.name().str().str(), ptml::c::tokens::Type);
+  }
+  auto getNameTag(const model::Segment &S) const {
+    return tokenTag(S.name(), ptml::c::tokens::Variable);
+  }
+  auto getNameTag(const model::EnumDefinition &Enum,
+                  const model::EnumEntry &Entry) const {
+    return tokenTag(Enum.entryName(Entry), ptml::c::tokens::Field);
+  }
+  template<class Aggregate, class Field>
+  auto getNameTag(const Aggregate &, const Field &F) const {
+    return tokenTag(F.name(), c::tokens::Field);
+  }
+
+private:
+  template<typename... Ts>
+  std::string locationStringImpl(Ts &&...Vs) const {
+    if (IsInTaglessMode)
+      return "";
+    return pipeline::locationString(std::forward<Ts>(Vs)...);
+  }
+
+public:
+  std::string locationString(const model::TypeDefinition &T) const {
+    return locationStringImpl(revng::ranks::TypeDefinition, T.key());
+  }
+  std::string locationString(const model::Segment &T) const {
+    return locationStringImpl(revng::ranks::Segment, T.key());
+  }
+  std::string locationString(const model::EnumDefinition &Enum,
+                             const model::EnumEntry &Entry) const {
+    return locationStringImpl(revng::ranks::EnumEntry, Enum.key(), Entry.key());
+  }
+  std::string locationString(const model::StructDefinition &Struct,
+                             const model::StructField &Field) const {
+    return locationStringImpl(revng::ranks::StructField,
+                              Struct.key(),
+                              Field.key());
+  }
+  std::string locationString(const model::UnionDefinition &Union,
+                             const model::UnionField &Field) const {
+    return locationStringImpl(revng::ranks::UnionField,
+                              Union.key(),
+                              Field.key());
+  }
+
+public:
+  constexpr const char *getLocationAttribute(bool IsDefinition) const {
+    return IsDefinition ? ptml::attributes::LocationDefinition :
+                          ptml::attributes::LocationReferences;
+  }
+
+  std::string getLocation(bool IsDefinition,
+                          const model::TypeDefinition &T,
+                          llvm::ArrayRef<std::string> AllowedActions) const {
+    auto Result = getNameTag(T);
+    if (IsInTaglessMode)
+      return Result.toString();
+
+    std::string Location = locationString(T);
+    Result.addAttribute(getLocationAttribute(IsDefinition), Location);
+    Result.addAttribute(attributes::ActionContextLocation, Location);
+
+    if (not AllowedActions.empty())
+      Result.addListAttribute(attributes::AllowedActions, AllowedActions);
+
+    return Result.toString();
+  }
+
+  std::string getLocation(bool IsDefinition, const model::Segment &S) const {
+    std::string Location = locationString(S);
+    return getNameTag(S)
+      .addAttribute(getLocationAttribute(IsDefinition), Location)
+      .addAttribute(ptml::attributes::ActionContextLocation, Location)
+      .toString();
+  }
+
+  std::string getLocation(bool IsDefinition,
+                          const model::EnumDefinition &Enum,
+                          const model::EnumEntry &Entry) const {
+    std::string Location = locationString(Enum, Entry);
+    return getNameTag(Enum, Entry)
+      .addAttribute(getLocationAttribute(IsDefinition), Location)
+      .addAttribute(ptml::attributes::ActionContextLocation, Location)
+      .toString();
+  }
+
+  template<typename Aggregate, typename Field>
+  std::string
+  getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
+    std::string Location = locationString(A, F);
+    return getNameTag(A, F)
+      .addAttribute(getLocationAttribute(IsDefinition), Location)
+      .addAttribute(attributes::ActionContextLocation, Location)
+      .toString();
+  }
+
+public:
+  std::string
+  getLocationDefinition(const model::TypeDefinition &T,
+                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
+    return getLocation(true, T, AllowedActions);
+  }
+
+  std::string getLocationDefinition(const model::PrimitiveType &P) const {
+    std::string CName = P.getCName();
+    auto Result = tokenTag(CName, ptml::c::tokens::Type);
+    if (IsInTaglessMode)
+      return Result.toString();
+
+    std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
+                                             P.getCName());
+    Result.addAttribute(getLocationAttribute(true), L);
+    Result.addAttribute(attributes::ActionContextLocation, L);
+
+    return Result.toString();
+  }
+
+  std::string getLocationDefinition(const model::Segment &S) const {
+    return getLocation(true, S);
+  }
+
+  template<typename Aggregate, typename Field>
+  std::string getLocationDefinition(const Aggregate &A, const Field &F) const {
+    return getLocation(true, A, F);
+  }
+
+public:
+  std::string
+  getLocationReference(const model::TypeDefinition &T,
+                       llvm::ArrayRef<std::string> AllowedActions = {}) const {
+    return getLocation(false, T, AllowedActions);
+  }
+
+  std::string getLocationReference(const model::PrimitiveType &P) const {
+    std::string CName = P.getCName();
+    auto Result = tokenTag(CName, ptml::c::tokens::Type);
+    if (IsInTaglessMode)
+      return Result.toString();
+
+    std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
+                                             P.getCName());
+    Result.addAttribute(getLocationAttribute(false), L);
+    Result.addAttribute(attributes::ActionContextLocation, L);
+
+    return Result.toString();
+  }
+
+  std::string getLocationReference(const model::Segment &S) const {
+    return getLocation(false, S);
+  }
+
+  template<typename Aggregate, typename Field>
+  std::string getLocationReference(const Aggregate &A, const Field &F) const {
+    return getLocation(false, A, F);
+  }
+
+public:
+  template<model::EntityWithComment Type>
+  std::string getModelComment(Type T) const {
+    return ptml::comment(*this, T, "///", 0, 80);
+  }
+
+  std::string getFunctionComment(const model::Function &Function,
+                                 const model::Binary &Binary) const {
+    return ptml::functionComment(*this, Function, Binary, "///", 0, 80);
+  }
+
+public:
   /// Obtain a line representing a typical usage of a type (how it appears
   /// when used to declare a struct field or a local variable)
   ///
