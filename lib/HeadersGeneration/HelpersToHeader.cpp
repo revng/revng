@@ -25,7 +25,7 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Backend/DecompiledCCodeIndentation.h"
-#include "revng-c/HeadersGeneration/HelpersToHeader.h"
+#include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/FunctionTags.h"
@@ -38,45 +38,43 @@ static Logger<> Log{ "helpers-to-header" };
 
 /// Print the declaration a C struct corresponding to an LLVM struct
 /// type.
-static void printDefinition(const llvm::StructType *S,
-                            const llvm::Function &F,
-                            ptml::PTMLIndentedOstream &Header,
-                            ptml::PTMLCBuilder &B) {
-  Header << B.getKeyword(ptml::PTMLCBuilder::Keyword::Typedef) << " "
-         << B.getKeyword(ptml::PTMLCBuilder::Keyword::Struct) << " "
-         << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
+static void printLLVMTypeDeclaration(const llvm::StructType *S,
+                                     const llvm::Function &F,
+                                     ptml::CTypeBuilder &B) {
+  B.append(B.getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
+           + B.getKeyword(ptml::CBuilder::Keyword::Struct) + " "
+           + ptml::AttributeRegistry::getAttribute<"_PACKED">() + " ");
 
   {
-    Scope Scope(Header, ptml::c::scopes::StructBody);
+    auto Scope = B.getIndentedScope(ptml::CBuilder::Scopes::StructBody);
 
     for (const auto &Field : llvm::enumerate(S->elements())) {
-      Header << getReturnStructFieldType(&F, Field.index(), B) << " "
-             << getReturnStructFieldLocationDefinition(&F, Field.index(), B)
-             << ";\n";
+      B.append(getReturnStructFieldType(&F, Field.index(), B) + " "
+               + getReturnStructFieldLocationDefinition(&F, Field.index(), B)
+               + ";\n");
     }
   }
 
-  Header << " " << getReturnTypeLocationDefinition(&F, B) << ";\n";
+  B.append(" " + getReturnTypeLocationDefinition(&F, B) + ";\n");
 }
 
 /// Print the prototype of a helper .
 static void printHelperPrototype(const llvm::Function *Func,
-                                 ptml::PTMLIndentedOstream &Header,
-                                 ptml::PTMLCBuilder &B) {
-  Header << getReturnTypeLocationReference(Func, B) << " "
-         << getHelperFunctionLocationDefinition(Func, B);
+                                 ptml::CTypeBuilder &B) {
+  B.append(getReturnTypeLocationReference(Func, B) + " "
+           + getHelperFunctionLocationDefinition(Func, B));
 
   if (Func->arg_empty()) {
-    Header << "(" + B.tokenTag("void", ptml::c::tokens::Type) + ");\n";
+    B.append("(" + B.tokenTag("void", ptml::c::tokens::Type) + ");\n");
   } else {
     const llvm::StringRef Open = "(";
     const llvm::StringRef Comma = ", ";
     llvm::StringRef Separator = Open;
     for (const auto &Arg : Func->args()) {
-      Header << Separator << getScalarCType(Arg.getType(), B);
+      B.append(Separator.str() + getScalarCType(Arg.getType(), B));
       Separator = Comma;
     }
-    Header << ");\n";
+    B.append(");\n");
   }
 }
 
@@ -93,71 +91,65 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
   return llvm::any_of(F.getFunctionType()->params(), IsUnprintable);
 }
 
-bool dumpHelpersToHeader(const llvm::Module &M,
-                         llvm::raw_ostream &Out,
-                         bool GeneratePlainC) {
-  using PTMLCBuilder = ptml::PTMLCBuilder;
-  PTMLCBuilder B{ GeneratePlainC };
-  auto Header = ptml::PTMLIndentedOstream(Out, DecompiledCCodeIndentation);
-  {
-    auto Scope = B.getTag(ptml::tags::Div).scope(Header);
-    Header << B.getPragmaOnce();
-    Header << B.getIncludeAngle("stdint.h");
-    Header << B.getIncludeAngle("stdbool.h");
-    Header << B.getIncludeQuote("primitive-types.h");
-    Header << "\n";
+bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
+  auto Scope = B.getIndentedTag(ptml::tags::Div);
+  std::string Includes = B.getPragmaOnce() + B.getIncludeAngle("stdint.h")
+                         + B.getIncludeAngle("stdbool.h")
+                         + B.getIncludeQuote("primitive-types.h") + "\n";
+  B.append(std::move(Includes));
 
-    for (const llvm::Function &F : M.functions()) {
+  for (const llvm::Function &F : M.functions()) {
 
-      // Skip non-helpers
-      bool IsHelper = FunctionTags::QEMU.isTagOf(&F)
-                      or FunctionTags::Helper.isTagOf(&F)
-                      or FunctionTags::OpaqueCSVValue.isTagOf(&F)
-                      or FunctionTags::Exceptional.isTagOf(&F)
-                      or F.isIntrinsic();
-      if (not IsHelper)
-        continue;
+    // Skip non-helpers
+    bool IsHelper = FunctionTags::QEMU.isTagOf(&F)
+                    or FunctionTags::Helper.isTagOf(&F)
+                    or FunctionTags::OpaqueCSVValue.isTagOf(&F)
+                    or FunctionTags::Exceptional.isTagOf(&F) or F.isIntrinsic();
+    if (not IsHelper)
+      continue;
 
-      // Skip helpers that should never be printed:
-      // - because we expect them to never require emission and we wouldn't know
-      //   how to emit them (e.g. target-specific intrinsics)
-      // - because we want to actively avoid printing them even if they are
-      //   present, such as all LLVM's debug intrinsics
-      llvm::StringRef FName = F.getName();
-      bool ShouldNotBePrinted = F.isTargetIntrinsic()
-                                or FName.startswith("llvm.dbg");
-      if (ShouldNotBePrinted)
-        continue;
+    // Skip helpers that should never be printed:
+    // - because we expect them to never require emission and we wouldn't know
+    //   how to emit them (e.g. target-specific intrinsics)
+    // - because we want to actively avoid printing them even if they are
+    //   present, such as all LLVM's debug intrinsics
+    llvm::StringRef FName = F.getName();
+    bool ShouldNotBePrinted = F.isTargetIntrinsic()
+                              or FName.startswith("llvm.dbg");
+    if (ShouldNotBePrinted)
+      continue;
 
-      // Skip helpers that have argument types or return types that we don't
-      // know how to print (e.g. vector types, or struct types whose fields are
-      // not only pointers or integers).
-      // These should never happen in revng-generated IR anyway, except for some
-      // leftover unused declarations of custom helpers that are never used
-      // (such as unknownPC)
-      if (hasUnprintableArgsOrRetTypes(F))
-        continue;
+    // Skip helpers that have argument types or return types that we don't
+    // know how to print (e.g. vector types, or struct types whose fields are
+    // not only pointers or integers).
+    // These should never happen in revng-generated IR anyway, except for some
+    // leftover unused declarations of custom helpers that are never used
+    // (such as unknownPC)
+    if (hasUnprintableArgsOrRetTypes(F))
+      continue;
 
-      if (Log.isEnabled()) {
-        auto LineCommentScope = helpers::LineComment(Header,
-                                                     B.isGenerateTagLessPTML());
-        Header << *F.getType();
-      }
-
-      // Print the declaration of the return type, if it's not scalar
-      const auto *RetTy = F.getReturnType();
-      if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
-        printDefinition(RetStructTy, F, Header, B);
-        Header << '\n';
-      }
-
-      for (auto &Arg : F.args()) {
-        revng_assert(Arg.getType()->isSingleValueType());
-      }
-
-      printHelperPrototype(&F, Header, B);
-      Header << '\n';
+    if (Log.isEnabled()) {
+      auto CommentScope = B.getLineCommentScope();
+      std::string Serialized{};
+      llvm::raw_string_ostream Helper{ Serialized };
+      Helper << *F.getType();
+      Helper.flush();
+      B.append(std::move(Serialized));
     }
+
+    // Print the declaration of the return type, if it's not scalar
+    const auto *RetTy = F.getReturnType();
+    if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
+      printLLVMTypeDeclaration(RetStructTy, F, B);
+      B.append("\n");
+    }
+
+    for (auto &Arg : F.args()) {
+      revng_assert(Arg.getType()->isSingleValueType());
+    }
+
+    printHelperPrototype(&F, B);
+    B.append("\n");
   }
 
   return true;

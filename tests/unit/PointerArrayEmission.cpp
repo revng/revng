@@ -9,10 +9,11 @@
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
+#include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
-#include "revng-c/TypeNames/ModelTypeNames.h"
+#include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 // Tests whether the way we emit pointers and arrays is reasonable.
 // Each layer of the types builds on the previous ones, so the test get more
@@ -131,9 +132,9 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
                      "(*(*const *const ****const test)[4])[39][18]");
 
   std::string FailureLog;
-  ptml::PTMLCBuilder B(/* GeneratePlainC = */ true);
+  ptml::CTypeBuilder B(llvm::nulls(), /* EnableTaglessMode = */ true);
   for (auto [Type, ExpectedOutput] : Tests) {
-    std::string ActualOutput = getNamedCInstance(*Type, "test", B).str().str();
+    std::string ActualOutput = B.getNamedCInstance(*Type, "test").str().str();
     if (ActualOutput != ExpectedOutput) {
       FailureLog += "Output of `getNamedCInstance` (\"" + ActualOutput
                     + "\")\n";

@@ -7,8 +7,8 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/ModelGlobal.h"
 
-#include "revng-c/HeadersGeneration/ModelToHeader.h"
-#include "revng-c/HeadersGeneration/ModelToHeaderPipe.h"
+#include "revng-c/HeadersGeneration/Options.h"
+#include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Pipes/Kinds.h"
 
 static llvm::cl::opt<bool> InlineTypes("inline-types",
@@ -24,39 +24,63 @@ static llvm::cl::opt<bool> InlineTypes("inline-types",
 
 namespace revng::pipes {
 
+inline constexpr char ModelHeaderFileContainerMIMEType[] = "text/x.c+ptml";
+inline constexpr char ModelHeaderFileContainerSuffix[] = ".h";
+inline constexpr char ModelHeaderFileContainerName[] = "model-header";
+using ModelHeaderFileContainer = FileContainer<&kinds::ModelHeader,
+                                               ModelHeaderFileContainerName,
+                                               ModelHeaderFileContainerMIMEType,
+                                               ModelHeaderFileContainerSuffix>;
+
+class ModelToHeader {
+public:
+  static constexpr auto Name = "model-to-header";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+
+    Contract C1(Binary, 0, ModelHeader, 1, InputPreservation::Preserve);
+    return { ContractGroup({ C1 }) };
+  }
+
+  // TODO: BinaryFile here is a placeholder. In principle this pipe has no real
+  // input container. It just uses the model in EC to generated HeaderFile.
+  // At the moment revng-pipeline does not support pipes with no inputs, so we
+  // had to resort to this trick. Whenever pipes with no inputs are supported
+  // BinaryFile can be dropped.
+  void run(pipeline::ExecutionContext &EC,
+           const BinaryFileContainer &BinaryFile,
+           ModelHeaderFileContainer &HeaderFile) {
+    if (EC.getRequestedTargetsFor(HeaderFile).empty())
+      return;
+
+    std::error_code ErrorCode;
+    llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), ErrorCode);
+    if (ErrorCode)
+      revng_abort(ErrorCode.message().c_str());
+
+    namespace options = revng::options;
+    ptml::CTypeBuilder
+      B(Header,
+        /* EnableTaglessMode = */ false,
+        { .EnableTypeInlining = options::EnableTypeInlining,
+          .EnableStackFrameInlining = !options::DisableStackFrameInlining,
+          .EnablePrintingOfTheMaximumEnumValue = true });
+    ptml::HeaderBuilder(B).printModelHeader(*getModelFromContext(EC));
+
+    Header.flush();
+    ErrorCode = Header.error();
+    if (ErrorCode)
+      revng_abort(ErrorCode.message().c_str());
+
+    EC.commitUniqueTarget(HeaderFile);
+  }
+};
+
 static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
   Reg;
 
-// TODO: BinaryFile here is a placeholder. In principle this pipe has no real
-// input container. It just juses the model in EC to generated HeaderFile.
-// At the moment revng-pipeline does not support pipes with no inputs, so we
-// had to resort to this trick. Whenever pipes with no inputs are supported
-// BinaryFile can be dropped.
-void ModelToHeader::run(pipeline::ExecutionContext &EC,
-                        const BinaryFileContainer &BinaryFile,
-                        ModelHeaderFileContainer &HeaderFile) {
-  if (EC.getRequestedTargetsFor(HeaderFile).empty())
-    return;
-
-  std::error_code ErrorCode;
-  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), ErrorCode);
-  if (ErrorCode)
-    revng_abort(ErrorCode.message().c_str());
-
-  const model::Binary &Model = *getModelFromContext(EC);
-  dumpModelToHeader(Model,
-                    Header,
-                    ModelToHeaderOptions{
-                      .DisableTypeInlining = not InlineTypes });
-
-  Header.flush();
-  ErrorCode = Header.error();
-  if (ErrorCode)
-    revng_abort(ErrorCode.message().c_str());
-
-  EC.commitUniqueTarget(HeaderFile);
-}
-
-} // end namespace revng::pipes
+} // namespace revng::pipes
 
 static pipeline::RegisterPipe<revng::pipes::ModelToHeader> Y;

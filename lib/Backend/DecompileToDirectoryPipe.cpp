@@ -13,10 +13,9 @@
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/DecompileToDirectoryPipe.h"
 #include "revng-c/Backend/DecompileToSingleFile.h"
-#include "revng-c/HeadersGeneration/HelpersToHeader.h"
-#include "revng-c/HeadersGeneration/ModelToHeader.h"
+#include "revng-c/HeadersGeneration/Options.h"
+#include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Support/PTMLC.h"
-#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
 
 namespace revng::pipes {
 
@@ -24,53 +23,45 @@ using namespace pipeline;
 
 static RegisterDefaultConstructibleContainer<RecompilableArchiveContainer> Reg;
 
-void DecompileToDirectory::run(pipeline::ExecutionContext &Ctx,
+void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
                                pipeline::LLVMContainer &IRContainer,
                                const revng::pipes::CFGMap &CFGMap,
                                RecompilableArchiveContainer &OutTarFile) {
 
-  std::error_code EC;
-  llvm::raw_fd_ostream OutputStream{ OutTarFile.getOrCreatePath(), EC };
-  if (EC)
-    revng_abort(EC.message().c_str());
+  std::error_code ErrorCode;
+  llvm::raw_fd_ostream OutputStream{ OutTarFile.getOrCreatePath(), ErrorCode };
+  if (ErrorCode)
+    revng_abort(ErrorCode.message().c_str());
 
   GzipTarWriter TarWriter{ OutputStream };
 
   llvm::Module &Module = IRContainer.getModule();
-  const model::Binary &Model = *getModelFromContext(Ctx);
+  const model::Binary &Model = *getModelFromContext(EC);
+
+  namespace options = revng::options;
+  ptml::CTypeBuilder
+    B(llvm::nulls(),
+      /* EnableTaglessMode = */ false,
+      { .EnableTypeInlining = options::EnableTypeInlining,
+        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
+  B.collectInlinableTypes(Model);
+
   {
-
     ControlFlowGraphCache Cache{ CFGMap };
-
-    std::string DecompiledC;
-
-    llvm::raw_string_ostream Out{ DecompiledC };
-
-    // Get all Stack types and all the inlinable types reachable from it,
-    // since we want to emit forward declarations for all of them.
-
-    // TODO: use TypeInlineHelper(Model).findTypesToInlineInStacks().
-    //       We have temporarily disabled stack-types inlining due to the fact
-    //       that type inlining is broken on rare cases involving recursive
-    //       types (do to the fact that it uses a different logic than
-    //       ModelToHeader). For this reason this is always the empty set for
-    //       now. When type inlining will be fixed this can be re-enabled.
-    // TODO: once we re-enable this, we need to do disable model tracking and
-    //       manually implement invalidation tracking in the appropriate pipes.
-    const TypeInlineHelper::StackTypesMap StackTypes;
-
     DecompileStringMap DecompiledFunctions("tmp");
     for (pipeline::Target &Target : CFGMap.enumerate()) {
       auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
       llvm::Function *F = Module.getFunction(getLLVMFunctionName(Model
                                                                    .Functions()
                                                                    .at(Entry)));
-      std::string CCode = decompile(Cache, *F, Model, StackTypes, false);
+      std::string CCode = decompile(Cache, *F, Model, B);
       DecompiledFunctions.insert_or_assign(Entry, std::move(CCode));
     }
 
-    ptml::PTMLCBuilder B{ /* GeneratePlainC = */ true };
-    printSingleCFile(Out, B, DecompiledFunctions, {} /* Targets */);
+    std::string DecompiledC;
+    llvm::raw_string_ostream Out{ DecompiledC };
+    B.setOutputStream(Out);
+    printSingleCFile(B, DecompiledFunctions, {} /* Targets */);
 
     Out.flush();
 
@@ -82,10 +73,10 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &Ctx,
   {
     std::string ModelHeader;
     llvm::raw_string_ostream Out{ ModelHeader };
+    B.setOutputStream(Out);
 
-    dumpModelToHeader(Model,
-                      Out,
-                      ModelToHeaderOptions{ .GeneratePlainC = true });
+    ptml::HeaderBuilder HB = B;
+    HB.printModelHeader(Model);
 
     Out.flush();
 
@@ -97,10 +88,10 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &Ctx,
   {
     std::string HelpersHeader;
     llvm::raw_string_ostream Out{ HelpersHeader };
+    B.setOutputStream(Out);
 
-    dumpHelpersToHeader(Module,
-                        Out,
-                        /* GeneratePlainC = */ true);
+    ptml::HeaderBuilder HB = B;
+    HB.printHelpersHeader(Module);
 
     Out.flush();
 
@@ -139,7 +130,7 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &Ctx,
 
   TarWriter.close();
 
-  Ctx.commitUniqueTarget(OutTarFile);
+  EC.commitUniqueTarget(OutTarFile);
 }
 
 } // end namespace revng::pipes

@@ -10,8 +10,9 @@
 
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/DecompilePipe.h"
+#include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/Pipes/Kinds.h"
-#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
+#include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 namespace revng::pipes {
 
@@ -27,23 +28,18 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   const model::Binary &Model = *getModelFromContext(EC);
   ControlFlowGraphCache Cache(CFGMap);
 
-  // Get all Stack types and all the inlinable types reachable from it,
-  // since we want to emit forward declarations for all of them.
-
-  // TODO: use TypeInlineHelper(Model).findTypesToInlineInStacks().
-  //       We have temporarily disabled stack-types inlining due to the fact
-  //       that type inlining is broken on rare cases involving recursive types
-  //       (do to the fact that it uses a different logic than ModelToHeader).
-  //       For this reason this is always the empty set for now. When type
-  //       inlining will be fixed this can be re-enabled.
-  // TODO: once we re-enable this, we need to do disable model tracking and
-  //       manually implement invalidation tracking in the appropriate pipes.
-  const TypeInlineHelper::StackTypesMap StackTypes;
+  namespace options = revng::options;
+  ptml::CTypeBuilder
+    B(llvm::nulls(),
+      /* EnableTaglessMode = */ false,
+      { .EnableTypeInlining = options::EnableTypeInlining,
+        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
+  B.collectInlinableTypes(Model);
 
   for (const model::Function &Function :
        getFunctionsAndCommit(EC, DecompiledFunctions.name())) {
     llvm::Function *F = Module.getFunction(getLLVMFunctionName(Function));
-    std::string CCode = decompile(Cache, *F, Model, StackTypes, false);
+    std::string CCode = decompile(Cache, *F, Model, B);
     DecompiledFunctions.insert_or_assign(Function.Entry(), std::move(CCode));
   }
 }

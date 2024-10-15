@@ -24,7 +24,6 @@
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
-#include "revng-c/TypeNames/ModelTypeNames.h"
 
 using namespace llvm;
 namespace ranks = revng::ranks;
@@ -37,7 +36,7 @@ static void saveFunctionEntryPointInDISubprogram(llvm::Function &F) {
   std::string FunctionEntryLocation;
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDName);
   if (MaybeMetaAddress != MetaAddress::invalid()) {
-    FunctionEntryLocation = toString(ranks::Function, MaybeMetaAddress);
+    FunctionEntryLocation = locationString(ranks::Function, MaybeMetaAddress);
     revng_log(Log, "Function entry: " << FunctionEntryLocation);
     // For the purpose of preserving `!revng.function.entry`, let's map it in
     // DISubprogram's `linkageName;` field.
@@ -134,9 +133,6 @@ static void adjustRevngMetadata(Module &M) {
 /// Give a name to all anonymous structs, because LLVM MLIR dialect does not
 /// expect nameless structs. Only literals can be anonymous.
 static void adjustAnonymousStructs(Module &M, const model::Binary &Model) {
-  using PTMLCBuilder = ptml::PTMLCBuilder;
-  PTMLCBuilder B(/*GeneratePlainC*/ true);
-
   unsigned Index = 0;
   auto setStructNameIfNeeded = [&Index](llvm::Type *T) {
     if (llvm::StructType *ST = llvm::dyn_cast<llvm::StructType>(T)) {

@@ -9,7 +9,9 @@
 
 #include "revng-c/Backend/DecompileToSingleFile.h"
 #include "revng-c/Backend/DecompileToSingleFilePipe.h"
+#include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/Pipes/Kinds.h"
+#include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 using namespace revng::kinds;
 
@@ -23,13 +25,19 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
                                 const Container &DecompiledFunctions,
                                 DecompiledFileContainer &OutCFile) {
 
-  auto Out = OutCFile.asStream();
+  llvm::raw_string_ostream Out = OutCFile.asStream();
 
-  ptml::PTMLCBuilder B;
+  namespace options = revng::options;
+  ptml::CTypeBuilder
+    B(Out,
+      /* EnableTaglessMode = */ false,
+      { .EnableTypeInlining = options::EnableTypeInlining,
+        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
+  B.collectInlinableTypes(*getModelFromContext(EC));
 
   // Make a single C file with an empty set of targets, which means all the
   // functions in DecompiledFunctions
-  printSingleCFile(Out, B, DecompiledFunctions, {} /* Targets */);
+  printSingleCFile(B, DecompiledFunctions, {} /* Targets */);
   Out.flush();
 
   EC.commitUniqueTarget(OutCFile);

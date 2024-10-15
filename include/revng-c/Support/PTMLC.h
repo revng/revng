@@ -24,7 +24,7 @@
 
 namespace ptml {
 
-class PTMLCBuilder : public ptml::PTMLBuilder {
+class CBuilder : public ptml::MarkupBuilder {
   using Tag = ptml::Tag;
 
 public:
@@ -100,8 +100,9 @@ public:
   };
 
 public:
-  PTMLCBuilder(bool GeneratePlainC = false) :
-    ptml::PTMLBuilder(GeneratePlainC) {}
+  CBuilder(ptml::MarkupBuilder B = {}) : ptml::MarkupBuilder(B) {}
+  CBuilder(bool EnableTaglessMode) :
+    ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode } {}
 
 private:
   llvm::StringRef toString(Keyword TheKeyword) const {
@@ -147,13 +148,13 @@ private:
       return "*";
     }
     case Operator::AddressOf: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&amp;";
       return "&";
     }
 
     case Operator::Arrow: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "-&gt;";
       return "->";
     }
@@ -178,19 +179,19 @@ private:
     }
 
     case Operator::RShift: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&gt;&gt;";
       return ">>";
     }
 
     case Operator::LShift: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&lt;&lt;";
       return "<<";
     }
 
     case Operator::And: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&amp;";
       return "&";
     }
@@ -208,28 +209,28 @@ private:
       return "!=";
     }
     case Operator::CmpGt: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&gt;";
       return ">";
     }
     case Operator::CmpGte: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&gt;=";
       return ">=";
     }
     case Operator::CmpLt: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&lt;";
       return "<";
     }
 
     case Operator::CmpLte: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&lt;=";
       return "<=";
     }
     case Operator::BoolAnd: {
-      if (!isGenerateTagLessPTML())
+      if (not IsInTaglessMode)
         return "&amp;&amp;";
       return "&&";
     }
@@ -292,7 +293,7 @@ private:
   }
 
   Tag keywordTagHelper(const llvm::StringRef Str) const {
-    return ptml::PTMLBuilder::getTag(ptml::tags::Span, Str)
+    return ptml::MarkupBuilder::getTag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
   }
 
@@ -308,7 +309,7 @@ public:
 
   // Constants.
   Tag getConstantTag(const llvm::StringRef Str) const {
-    return ptml::PTMLBuilder::tokenTag(Str, ptml::c::tokens::Constant);
+    return tokenTag(Str, ptml::c::tokens::Constant);
   }
 
   Tag getZeroTag() const { return getConstantTag("0"); }
@@ -341,20 +342,39 @@ public:
 
   // String literal.
   Tag getStringLiteral(const llvm::StringRef Str) const {
-    if (isGenerateTagLessPTML())
-      return ptml::PTMLBuilder::tokenTag(Str, ptml::c::tokens::StringLiteral);
+    if (IsInTaglessMode)
+      return tokenTag(Str, ptml::c::tokens::StringLiteral);
 
     std::string Escaped;
     {
       llvm::raw_string_ostream EscapeHTMLStream(Escaped);
       llvm::printHTMLEscaped(Str, EscapeHTMLStream);
     }
-    return ptml::PTMLBuilder::tokenTag(Escaped, ptml::c::tokens::StringLiteral);
+    return tokenTag(Escaped, ptml::c::tokens::StringLiteral);
   }
 
   // Keywords.
   Tag getKeyword(Keyword TheKeyword) const {
     return keywordTagHelper(toString(TheKeyword));
+  }
+
+  ptml::Tag getTypeKeyword(const model::TypeDefinition &T) const {
+    if (llvm::isa<model::EnumDefinition>(T))
+      return getKeyword(ptml::CBuilder::Keyword::Enum);
+
+    else if (llvm::isa<model::StructDefinition>(T))
+      return getKeyword(ptml::CBuilder::Keyword::Struct);
+
+    else if (llvm::isa<model::UnionDefinition>(T))
+      return getKeyword(ptml::CBuilder::Keyword::Union);
+
+    else if (llvm::isa<model::TypedefDefinition>(T)
+             || llvm::isa<model::RawFunctionDefinition>(T)
+             || llvm::isa<model::CABIFunctionDefinition>(T))
+      return getKeyword(ptml::CBuilder::Keyword::Typedef);
+
+    else
+      revng_abort("Unsupported type definition.");
   }
 
   // Scopes.
@@ -408,201 +428,40 @@ public:
 
   std::string getBlockComment(const llvm::StringRef Str,
                               bool Newline = true) const {
-    return ptml::PTMLBuilder::tokenTag("/* " + Str.str() + " */",
-                                       ptml::tokens::Comment)
+    return tokenTag("/* " + Str.str() + " */", ptml::tokens::Comment)
            + (Newline ? "\n" : "");
   }
 
   std::string getLineComment(const llvm::StringRef Str) {
     revng_check(!Str.contains('\n'));
-    return ptml::PTMLBuilder::tokenTag("// " + Str.str(), ptml::tokens::Comment)
-           + "\n";
+    return tokenTag("// " + Str.str(), ptml::tokens::Comment) + "\n";
   }
 
-  Tag getNameTag(const model::TypeDefinition &T) const {
-    return ptml::PTMLBuilder::tokenTag(T.name().str().str(),
-                                       ptml::c::tokens::Type);
+public:
+  static constexpr std::string_view structPaddingPrefix() {
+    return "_padding_at_";
   }
 
-  // Locations.
-  constexpr const char *getLocationAttribute(bool IsDefinition) const {
-    return IsDefinition ? ptml::attributes::LocationDefinition :
-                          ptml::attributes::LocationReferences;
+  static constexpr std::string_view artificialReturnValuePrefix() {
+    return "_artificial_struct_returned_by_";
+  }
+  static constexpr std::string_view artificialArrayWrapperPrefix() {
+    return "_artificial_wrapper_";
   }
 
-  std::string toString(const model::TypeDefinition &T) const {
-    if (isGenerateTagLessPTML())
-      return "";
-    return pipeline::toString(revng::ranks::TypeDefinition, T.key());
+  static constexpr std::string_view artificialReturnValueFieldPrefix() {
+    return "field_";
   }
-
-  std::string getLocation(bool IsDefinition,
-                          const model::TypeDefinition &T,
-                          llvm::ArrayRef<std::string> AllowedActions) const {
-    auto Result = getNameTag(T);
-    if (isGenerateTagLessPTML())
-      return Result.toString();
-
-    std::string Location = toString(T);
-    Result.addAttribute(getLocationAttribute(IsDefinition), Location);
-    Result.addAttribute(attributes::ActionContextLocation, Location);
-
-    if (not AllowedActions.empty())
-      Result.addListAttribute(attributes::AllowedActions, AllowedActions);
-
-    return Result.toString();
-  }
-
-  std::string
-  getLocationDefinition(const model::TypeDefinition &T,
-                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
-    return getLocation(true, T, AllowedActions);
-  }
-
-  std::string
-  getLocationReference(const model::TypeDefinition &T,
-                       llvm::ArrayRef<std::string> AllowedActions = {}) const {
-    return getLocation(false, T, AllowedActions);
-  }
-
-  std::string getLocationDefinition(const model::PrimitiveType &P) const {
-    std::string CName = P.getCName();
-    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
-    if (isGenerateTagLessPTML())
-      return Result.toString();
-
-    std::string L = pipeline::toString(revng::ranks::PrimitiveType,
-                                       P.getCName());
-    Result.addAttribute(getLocationAttribute(true), L);
-    Result.addAttribute(attributes::ActionContextLocation, L);
-
-    return Result.toString();
-  }
-
-  std::string getLocationReference(const model::PrimitiveType &P) const {
-    std::string CName = P.getCName();
-    auto Result = ptml::PTMLBuilder::tokenTag(CName, ptml::c::tokens::Type);
-    if (isGenerateTagLessPTML())
-      return Result.toString();
-
-    std::string L = pipeline::toString(revng::ranks::PrimitiveType,
-                                       P.getCName());
-    Result.addAttribute(getLocationAttribute(false), L);
-    Result.addAttribute(attributes::ActionContextLocation, L);
-
-    return Result.toString();
-  }
-
-  std::string toString(const model::Segment &T) const {
-    if (isGenerateTagLessPTML())
-      return "";
-    return pipeline::toString(revng::ranks::Segment, T.key());
-  }
-
-  Tag getNameTag(const model::Segment &S) const {
-    return ptml::PTMLBuilder::tokenTag(S.name(), ptml::c::tokens::Variable);
-  }
-
-  std::string getLocation(bool IsDefinition, const model::Segment &S) const {
-    std::string Location = toString(S);
-    return getNameTag(S)
-      .addAttribute(getLocationAttribute(IsDefinition), Location)
-      .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .toString();
-  }
-
-  std::string getLocationDefinition(const model::Segment &S) const {
-    return getLocation(true, S);
-  }
-
-  std::string getLocationReference(const model::Segment &S) const {
-    return getLocation(false, S);
-  }
-
-  std::string toString(const model::EnumDefinition &Enum,
-                       const model::EnumEntry &Entry) const {
-    if (isGenerateTagLessPTML())
-      return "";
-
-    return pipeline::toString(revng::ranks::EnumEntry, Enum.key(), Entry.key());
-  }
-
-  std::string toString(const model::StructDefinition &Struct,
-                       const model::StructField &Field) const {
-    if (isGenerateTagLessPTML())
-      return "";
-
-    return pipeline::toString(revng::ranks::StructField,
-                              Struct.key(),
-                              Field.key());
-  }
-
-  std::string toString(const model::UnionDefinition &Union,
-                       const model::UnionField &Field) const {
-    if (isGenerateTagLessPTML())
-      return "";
-
-    return pipeline::toString(revng::ranks::UnionField,
-                              Union.key(),
-                              Field.key());
-  }
-
-  Tag getNameTag(const model::EnumDefinition &Enum,
-                 const model::EnumEntry &Entry) const {
-    return ptml::PTMLBuilder::tokenTag(Enum.entryName(Entry),
-                                       ptml::c::tokens::Field);
-  }
-
-  std::string getLocation(bool IsDefinition,
-                          const model::EnumDefinition &Enum,
-                          const model::EnumEntry &Entry) const {
-    std::string Location = toString(Enum, Entry);
-    return getNameTag(Enum, Entry)
-      .addAttribute(getLocationAttribute(IsDefinition), Location)
-      .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .toString();
-  }
-
-  template<class Aggregate, class Field>
-  Tag getNameTag(const Aggregate &, const Field &F) const {
-    return ptml::PTMLBuilder::tokenTag(F.name(), c::tokens::Field);
-  }
-
-  template<typename Aggregate, typename Field>
-  std::string
-  getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
-    std::string Location = toString(A, F);
-    return getNameTag(A, F)
-      .addAttribute(getLocationAttribute(IsDefinition), Location)
-      .addAttribute(attributes::ActionContextLocation, Location)
-      .toString();
-  }
-
-  template<typename Aggregate, typename Field>
-  std::string getLocationDefinition(const Aggregate &A, const Field &F) const {
-    return getLocation(true, A, F);
-  }
-
-  template<typename Aggregate, typename Field>
-  std::string getLocationReference(const Aggregate &A, const Field &F) const {
-    return getLocation(false, A, F);
-  }
-
-  template<model::EntityWithComment Type>
-  std::string getModelComment(Type T) {
-    return ptml::comment(*this, T, "///", 0, 80);
-  }
-
-  std::string getFunctionComment(const model::Function &Function,
-                                 const model::Binary &Binary) {
-    return ptml::functionComment(*this, Function, Binary, "///", 0, 80);
+  static constexpr std::string_view artificialArrayWrapperFieldName() {
+    return "the_array";
   }
 };
+
 } // namespace ptml
 
-/// Simple RAII object for create a pair of string, this will
-/// , given a raw_ostream, print the \p Open when the object is
-/// created and the \p Close when the object goes out of scope
+/// Simple RAII object for create a pair of string, this will, given
+/// a raw_ostream, print the \p Open when the object is created and
+/// the \p Close when the object goes out of scope.
 template<ConstexprString Open, ConstexprString Close>
 struct PairedScope {
 private:
@@ -615,20 +474,20 @@ public:
 
 /// RAII object for handling c style braced scopes. This will,
 /// in order, open a brace pair, apply the Scope (think scopes, function body,
-/// struct definition etc.) and indent the PTMLIndentedOstream, allowing a
+/// struct definition etc.) and indent the IndentedOstream, allowing a
 /// egyptian-style c for most braced constructs
 struct Scope {
 private:
   using Braces = PairedScope<"{", "}">;
   Braces BraceScope;
   ptml::ScopeTag ScopeTag;
-  ptml::PTMLIndentedOstream::Scope IndentScope;
+  ptml::IndentedOstream::Scope IndentScope;
 
 public:
-  Scope(ptml::PTMLIndentedOstream &Out,
+  Scope(ptml::IndentedOstream &Out,
         const llvm::StringRef Attribute = ptml::c::scopes::Scope) :
     BraceScope(Out),
-    ScopeTag(Out.getPTMLBuilder()
+    ScopeTag(Out.getMarkupBuilder()
                .getTag(ptml::tags::Div)
                .addAttribute(ptml::attributes::Scope, Attribute)
                .scope(Out, true)),
@@ -641,14 +500,14 @@ public:
 template<ConstexprString Open, ConstexprString Close>
 struct CommentScope {
 private:
-  ptml::PTMLBuilder Builder;
+  const ptml::MarkupBuilder &B;
   ptml::ScopeTag ScopeTag;
   PairedScope<Open, Close> PairScope;
 
 public:
-  CommentScope(llvm::raw_ostream &OS, bool GeneratePlainC) :
-    Builder(GeneratePlainC),
-    ScopeTag(Builder.tokenTag("", ptml::tokens::Comment).scope(OS, false)),
+  CommentScope(llvm::raw_ostream &OS, const ptml::MarkupBuilder &B) :
+    B(B),
+    ScopeTag(B.tokenTag("", ptml::tokens::Comment).scope(OS, false)),
     PairScope(OS) {}
 };
 

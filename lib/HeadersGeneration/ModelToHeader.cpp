@@ -23,248 +23,107 @@
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/Backend/DecompiledCCodeIndentation.h"
-#include "revng-c/HeadersGeneration/ModelToHeader.h"
+#include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/ModelHelpers.h"
-#include "revng-c/Support/PTMLC.h"
-#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
-#include "revng-c/TypeNames/ModelTypeNames.h"
-
-#include "DependencyGraph.h"
-
-using llvm::isa;
-
-using TypeNameMap = std::map<model::UpcastableType, std::string>;
-using TypeToNumOfRefsMap = std::unordered_map<const model::TypeDefinition *,
-                                              unsigned>;
-using GraphInfo = TypeInlineHelper::GraphInfo;
 
 static Logger<> Log{ "model-to-header" };
 
-static void printSegmentsTypes(const model::Segment &Segment,
-                               ptml::PTMLIndentedOstream &Header,
-                               const ptml::PTMLCBuilder &B) {
-  auto Location = B.getLocationDefinition(Segment);
+bool ptml::HeaderBuilder::printModelHeader(const model::Binary &Binary) {
+  B.collectInlinableTypes(Binary);
 
-  if (Segment.Type().isEmpty()) {
-    // If the segment has not type, we emit it as an array of bytes.
-    auto Array = model::ArrayType::make(model::PrimitiveType::makeGeneric(1),
-                                        Segment.VirtualSize());
-    Header << getNamedCInstance(*Array, Location, B) << ";\n";
-  } else {
-    Header << getNamedCInstance(*Segment.Type(), Location, B) << ";\n";
-  }
-}
+  auto Scope = B.getIndentedTag(ptml::tags::Div);
 
-/// Print all type definitions for the types in the model
-static void printTypeDefinitions(const model::Binary &Model,
-                                 ptml::PTMLIndentedOstream &Header,
-                                 ptml::PTMLCBuilder &B,
-                                 TypeNameMap &AdditionalTypeNames,
-                                 const ModelToHeaderOptions &Options) {
+  std::string Includes = B.getPragmaOnce() + "\n"
+                         + B.getIncludeAngle("stdint.h")
+                         + B.getIncludeAngle("stdbool.h")
+                         + B.getIncludeQuote("primitive-types.h")
+                         + B.getIncludeQuote("attributes.h") + "\n";
+  B.append(std::move(Includes));
 
-  std::set<const model::TypeDefinition *> TypesToInlineInStacks;
-  std::set<const model::TypeDefinition *> ToInline;
-  if (not Options.DisableTypeInlining) {
-    TypeInlineHelper TheTypeInlineHelper(Model);
-    TypesToInlineInStacks = TheTypeInlineHelper.collectTypesInlinableInStacks();
-    ToInline = TheTypeInlineHelper.getTypesToInline();
-  }
+  if (not Configuration.PostIncludeSnippet.empty())
+    B.append(Configuration.PostIncludeSnippet + "\n"s);
 
-  if (Log.isEnabled()) {
-    revng_log(Log, "TypesToInlineInStacks: {");
-    {
-      LoggerIndent Indent{ Log };
-      for (const model::TypeDefinition *T : TypesToInlineInStacks)
-        revng_log(Log, T->ID());
-    }
-    revng_log(Log, "}");
-    revng_log(Log, "ToInline: {");
-    {
-      LoggerIndent Indent{ Log };
-      for (const model::TypeDefinition *T : ToInline)
-        revng_log(Log, T->ID());
-    }
-    revng_log(Log, "}");
-    revng_log(Log, "TypesToInlineInStacks should be a subset of ToInline");
+  std::string Defines = B.getDirective(CBuilder::Directive::IfNotDef) + " "
+                        + B.getNullTag() + "\n"
+                        + B.getDirective(CBuilder::Directive::Define) + " "
+                        + B.getNullTag() + " (" + B.getZeroTag() + ")\n"
+                        + B.getDirective(CBuilder::Directive::EndIf) + "\n";
+  B.append(std::move(Defines));
+
+  if (not Binary.TypeDefinitions().empty()) {
+    auto Foldable = B.getIndentedScope(CBuilder::Scopes::TypeDeclarations,
+                                       /* Newline = */ true);
+
+    B.appendLineComment("===============");
+    B.appendLineComment("==== Types ====");
+    B.appendLineComment("===============");
+    B.append("\n");
+
+    B.printTypeDefinitions(Binary);
   }
 
-  DependencyGraph Dependencies = buildDependencyGraph(Model.TypeDefinitions());
-  const auto &TypeNodes = Dependencies.TypeNodes();
-
-  std::set<const TypeDependencyNode *> Defined;
-  for (const auto *Root : Dependencies.nodes()) {
-    revng_log(Log, "PostOrder from Root:" << getNodeLabel(Root));
-
-    for (const auto *Node : llvm::post_order_ext(Root, Defined)) {
-
-      LoggerIndent PostOrderIndent{ Log };
-      revng_log(Log, "post_order visiting: " << getNodeLabel(Node));
-
-      const model::TypeDefinition *NodeT = Node->T;
-      const auto DeclKind = Node->K;
-
-      if (TypesToInlineInStacks.contains(NodeT)) {
-        if (Options.DisableTypeInlining) {
-          revng_log(Log, "Printed Stack Type");
-        } else {
-          revng_log(Log, "Ignored Stack Type");
-          continue;
-        }
-      }
-
-      if (Options.TypesToOmit.contains(NodeT)) {
-        revng_log(Log, "Omitted");
+  if (not Binary.Functions().empty()) {
+    auto Foldable = B.getIndentedScope(CBuilder::Scopes::FunctionDeclarations,
+                                       /* Newline = */ true);
+    B.appendLineComment("===================");
+    B.appendLineComment("==== Functions ====");
+    B.appendLineComment("===================");
+    B.append("\n");
+    for (const model::Function &MF : Binary.Functions()) {
+      if (Configuration.FunctionsToOmit.contains(MF.Entry()))
         continue;
+
+      const auto &FT = *Binary.prototypeOrDefault(MF.prototype());
+      if (B.Configuration.TypesToOmit.contains(FT.key()))
+        continue;
+
+      if (Log.isEnabled()) {
+        helpers::BlockComment CommentScope = B.getBlockCommentScope();
+        B.append("Emitting a model function '" + MF.name().str().str() + "':\n"
+                 + MF.toString() + "Its prototype is:\n" + FT.toString());
       }
 
-      constexpr auto Declaration = TypeNode::Kind::Declaration;
-
-      if (DeclKind == Declaration) {
-        revng_log(Log, "Declaration");
-
-        // Print the declaration. Notice that the forward declarations are
-        // emitted even for inlined types, because it's only the full definition
-        // that will be inlined.
-        revng_log(Log, "printDeclaration");
-        printDeclaration(Log, *NodeT, Header, B, Model, AdditionalTypeNames);
-
-      } else {
-        revng_log(Log, "Definition");
-
-        revng_assert(Defined.contains(TypeNodes.at({ NodeT, Declaration })));
-        if (not declarationIsDefinition(*NodeT)
-            and not ToInline.contains(NodeT)) {
-          revng_log(Log, "printDefinition");
-          printDefinition(Log,
-                          *NodeT,
-                          Header,
-                          B,
-                          Model,
-                          AdditionalTypeNames,
-                          ToInline);
-        }
-      }
-    }
-    revng_log(Log, "PostOrder DONE");
-  }
-}
-
-bool dumpModelToHeader(const model::Binary &Model,
-                       llvm::raw_ostream &Out,
-                       const ModelToHeaderOptions &Options) {
-  using PTMLCBuilder = ptml::PTMLCBuilder;
-  using Scopes = ptml::PTMLCBuilder::Scopes;
-
-  PTMLCBuilder B(Options.GeneratePlainC);
-  ptml::PTMLIndentedOstream Header(Out, DecompiledCCodeIndentation, true);
-  {
-    auto Scope = B.getTag(ptml::tags::Div).scope(Header);
-
-    Header << B.getPragmaOnce();
-    Header << "\n";
-    Header << B.getIncludeAngle("stdint.h");
-    Header << B.getIncludeAngle("stdbool.h");
-    Header << B.getIncludeQuote("primitive-types.h");
-    Header << B.getIncludeQuote("attributes.h");
-    Header << "\n";
-
-    if (Options.PostIncludes.size())
-      Header << Options.PostIncludes << "\n";
-
-    Header << B.getDirective(PTMLCBuilder::Directive::IfNotDef) << " "
-           << B.getNullTag() << "\n"
-           << B.getDirective(PTMLCBuilder::Directive::Define) << " "
-           << B.getNullTag() << " (" << B.getZeroTag() << ")\n"
-           << B.getDirective(PTMLCBuilder::Directive::EndIf) << "\n";
-
-    if (not Model.TypeDefinitions().empty()) {
-      auto Foldable = B.getScope(Scopes::TypeDeclarations)
-                        .scope(Out,
-                               /* Newline */ true);
-
-      Header << B.getLineComment("===============");
-      Header << B.getLineComment("==== Types ====");
-      Header << B.getLineComment("===============");
-      Header << '\n';
-
-      TypeNameMap AdditionalTypeNames;
-      printTypeDefinitions(Model, Header, B, AdditionalTypeNames, Options);
-    }
-
-    if (not Model.Functions().empty()) {
-      auto Foldable = B.getScope(Scopes::FunctionDeclarations)
-                        .scope(Out,
-                               /* Newline */ true);
-      Header << B.getLineComment("===================");
-      Header << B.getLineComment("==== Functions ====");
-      Header << B.getLineComment("===================");
-      Header << '\n';
-      for (const model::Function &MF : Model.Functions()) {
-        if (Options.FunctionsToOmit.contains(MF.Entry()))
-          continue;
-
-        const auto &FT = *Model.prototypeOrDefault(MF.prototype());
-        if (Options.TypesToOmit.contains(&FT))
-          continue;
-
-        auto FName = MF.name();
-
-        if (Log.isEnabled()) {
-          helpers::BlockComment CommentScope(Header, B.isGenerateTagLessPTML());
-          Header << "Analyzing Model function " << FName << "\n";
-          serialize(Header, MF);
-          Header << "Prototype\n";
-          serialize(Header, model::copyTypeDefinition(FT));
-        }
-
-        printFunctionPrototype(FT, MF, Header, B, Model, false);
-        Header << ";\n";
-      }
-    }
-
-    if (not Model.ImportedDynamicFunctions().empty()) {
-      auto Foldable = B.getScope(Scopes::DynamicFunctionDeclarations)
-                        .scope(Out, /* Newline */ true);
-      Header << B.getLineComment("==============================="
-                                 "===");
-      Header << B.getLineComment("==== ImportedDynamicFunctions "
-                                 "====");
-      Header << B.getLineComment("==============================="
-                                 "===");
-      Header << '\n';
-      for (const model::DynamicFunction &MF :
-           Model.ImportedDynamicFunctions()) {
-        const auto &FT = *Model.prototypeOrDefault(MF.prototype());
-        if (Options.TypesToOmit.contains(&FT))
-          continue;
-
-        auto FName = MF.name();
-
-        if (Log.isEnabled()) {
-          helpers::BlockComment CommentScope(Header, B.isGenerateTagLessPTML());
-          Header << "Analyzing dynamic function " << FName << "\n";
-          serialize(Header, MF);
-          Header << "Prototype\n";
-          serialize(Header, model::copyTypeDefinition(FT));
-        }
-        printFunctionPrototype(FT, MF, Header, B, Model, false);
-        Header << ";\n";
-      }
-    }
-
-    if (not Model.Segments().empty()) {
-      auto Foldable = B.getScope(Scopes::SegmentDeclarations)
-                        .scope(Out,
-                               /* Newline */ true);
-      Header << B.getLineComment("==================");
-      Header << B.getLineComment("==== Segments ====");
-      Header << B.getLineComment("==================");
-      Header << '\n';
-      for (const model::Segment &Segment : Model.Segments())
-        printSegmentsTypes(Segment, Header, B);
-      Header << '\n';
+      B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
+      B.append(";\n");
     }
   }
+
+  if (not Binary.ImportedDynamicFunctions().empty()) {
+    auto F = B.getIndentedScope(CBuilder::Scopes::DynamicFunctionDeclarations,
+                                /* Newline = */ true);
+    B.appendLineComment("==================================");
+    B.appendLineComment("==== ImportedDynamicFunctions ====");
+    B.appendLineComment("==================================");
+    B.append("\n");
+    for (const model::DynamicFunction &MF : Binary.ImportedDynamicFunctions()) {
+      const auto &FT = *Binary.prototypeOrDefault(MF.prototype());
+      if (B.Configuration.TypesToOmit.contains(FT.key()))
+        continue;
+
+      if (Log.isEnabled()) {
+        helpers::BlockComment CommentScope = B.getBlockCommentScope();
+        B.append("Emitting a dynamic function '" + MF.name().str().str()
+                 + "':\n" + MF.toString() + "Its prototype is:\n"
+                 + FT.toString());
+      }
+
+      B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
+      B.append(";\n");
+    }
+  }
+
+  if (not Binary.Segments().empty()) {
+    auto Foldable = B.getIndentedScope(CBuilder::Scopes::SegmentDeclarations,
+                                       /* Newline = */ true);
+    B.appendLineComment("==================");
+    B.appendLineComment("==== Segments ====");
+    B.appendLineComment("==================");
+    B.append("\n");
+    for (const model::Segment &Segment : Binary.Segments())
+      B.printSegmentType(Segment);
+    B.append("\n");
+  }
+
   return true;
 }

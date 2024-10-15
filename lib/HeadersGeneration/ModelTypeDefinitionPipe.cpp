@@ -9,26 +9,57 @@
 #include "revng/Pipes/StringMap.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
-#include "revng-c/HeadersGeneration/ModelTypeDefinition.h"
-#include "revng-c/HeadersGeneration/ModelTypeDefinitionPipe.h"
+#include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
-using namespace pipeline;
-static RegisterDefaultConstructibleContainer<ModelTypeDefinitionStringMap> F2;
+inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+tar+gz";
+inline constexpr char ModelTypeDefinitionName[] = "model-type-definitions";
+inline constexpr char ModelTypeDefinitionExtension[] = ".h";
+using TypeDefinitionStringMap = TypeStringMap<&kinds::ModelTypeDefinition,
+                                              ModelTypeDefinitionName,
+                                              ModelTypeDefinitionMime,
+                                              ModelTypeDefinitionExtension>;
 
-using Container = ModelTypeDefinitionStringMap;
-void GenerateModelTypeDefinition::run(ExecutionContext &EC,
-                                      const BinaryFileContainer &SourceBinary,
-                                      Container &ModelTypesContainer) {
-  const model::Binary &Model = *getModelFromContext(EC);
-  for (const model::TypeDefinition &Type :
-       getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
-    auto Key = Type.key();
-    ModelTypesContainer[Key] = dumpModelTypeDefinition(Model, Key);
+class GenerateModelTypeDefinition {
+public:
+  static constexpr auto Name = "generate-model-type-definition";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+
+    return { ContractGroup({ Contract(kinds::Binary,
+                                      0,
+                                      ModelTypeDefinition,
+                                      1,
+                                      InputPreservation::Preserve) }) };
   }
-}
+
+  void run(pipeline::ExecutionContext &EC,
+           const BinaryFileContainer &SourceBinary,
+           TypeDefinitionStringMap &ModelTypesContainer) {
+    const model::Binary &Model = *getModelFromContext(EC);
+    for (const model::TypeDefinition &Type :
+         getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
+      std::string &Result = ModelTypesContainer[Type.key()];
+      llvm::raw_string_ostream Out(Result);
+
+      ptml::CTypeBuilder B(Out,
+                           true,
+                           { .EnablePrintingOfTheMaximumEnumValue = true,
+                             .EnableExplicitPaddingMode = false,
+                             .EnableStructSizeAnnotation = true });
+      B.collectInlinableTypes(Model);
+
+      B.printTypeDefinition(Type);
+    }
+  }
+};
+
+using namespace pipeline;
+static RegisterDefaultConstructibleContainer<TypeDefinitionStringMap> F2;
 
 } // end namespace revng::pipes
 

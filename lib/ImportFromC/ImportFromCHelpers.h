@@ -21,7 +21,7 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
+#include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 namespace {
 
@@ -32,11 +32,11 @@ using Node = BidirectionalNode<NodeData>;
 using Graph = GenericGraph<Node>;
 using TypeToNodeMap = std::map<const model::TypeDefinition *, Node *>;
 
-inline llvm::SmallPtrSet<const model::TypeDefinition *, 2>
+inline std::set<model::TypeDefinition::Key>
 getIncomingTypesFor(const model::TypeDefinition &T,
                     const TupleTree<model::Binary> &Model,
                     const TypeToNodeMap &TypeToNode) {
-  llvm::SmallPtrSet<const model::TypeDefinition *, 2> Result;
+  std::set<model::TypeDefinition::Key> Result;
 
   // Visit all the nodes reachable from RootType.
   llvm::df_iterator_default_set<Node *> Visited;
@@ -45,17 +45,17 @@ getIncomingTypesFor(const model::TypeDefinition &T,
 
   for (auto &Type : Model->TypeDefinitions()) {
     if (Visited.contains(TypeToNode.at(Type.get())))
-      Result.insert(Type.get());
+      Result.insert(Type->key());
   }
 
   return Result;
 }
 
 // Remember dependencies between types.
-inline llvm::SmallPtrSet<const model::TypeDefinition *, 2>
-populateDependencies(const model::TypeDefinition &TheType,
-                     const TupleTree<model::Binary> &Model) {
-  llvm::SmallPtrSet<const model::TypeDefinition *, 2> Result;
+inline std::set<model::TypeDefinition::Key>
+collectDependentTypes(const model::TypeDefinition &TheType,
+                      const TupleTree<model::Binary> &Model) {
+  std::set<model::TypeDefinition::Key> Result;
 
   Graph InverseTypeGraph;
   std::map<const model::TypeDefinition *, Node *> TypeToNode;
@@ -76,12 +76,13 @@ populateDependencies(const model::TypeDefinition &TheType,
       if (auto *DependantType = Edge->skipToDefinition()) {
         // For non-typedefs, we can only keep the types that use the type
         // we are about to edit if there's a pointer in-between.
-        if (not declarationIsDefinition(TheType) and Edge->isPointer())
+        if (!ptml::CTypeBuilder::isDeclarationTheSameAsDefinition(TheType)
+            and Edge->isPointer())
           continue;
 
         // Current type depends on TheType.
         if (*DependantType == TheType) {
-          Result.insert(T.get());
+          Result.insert(T->key());
 
           // We need to skip all the types that can reach to this type we have
           // just ignored by doing DFS on the inverse graph.
@@ -93,7 +94,7 @@ populateDependencies(const model::TypeDefinition &TheType,
   }
 
   // Skip the type itself.
-  Result.insert(&TheType);
+  Result.insert(TheType.key());
 
   return Result;
 }
