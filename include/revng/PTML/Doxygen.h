@@ -13,7 +13,7 @@ namespace ptml {
 
 /// Emits PTML containing a free-form comment passed in a string reformatted
 /// by appending a specified indicator as well maintaining a specific offset.
-std::string freeFormComment(const ::ptml::PTMLBuilder &B,
+std::string freeFormComment(const ::ptml::MarkupBuilder &B,
                             llvm::StringRef Text,
                             llvm::StringRef CommentIndicator,
                             size_t Indentation,
@@ -22,7 +22,7 @@ std::string freeFormComment(const ::ptml::PTMLBuilder &B,
 /// Emits PTML containing the comment for the specified entity with a comment
 /// field.
 template<model::EntityWithComment Type>
-std::string comment(const ::ptml::PTMLBuilder &Builder,
+std::string comment(const ::ptml::MarkupBuilder &Builder,
                     const Type &V,
                     llvm::StringRef Indicator,
                     size_t Indent,
@@ -49,7 +49,7 @@ std::string comment(const ::ptml::PTMLBuilder &Builder,
 ///        an indentation token (see `ptml::tokens::Indentation`).
 ///
 /// \returns a serialized PTML string containing the comment.
-std::string functionComment(const ::ptml::PTMLBuilder &B,
+std::string functionComment(const ::ptml::MarkupBuilder &B,
                             const model::Function &Function,
                             const model::Binary &Binary,
                             llvm::StringRef CommentIndicator,

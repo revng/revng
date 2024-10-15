@@ -21,7 +21,6 @@
 #include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"
 
-using ptml::PTMLBuilder;
 using ptml::Tag;
 
 namespace tags {
@@ -85,7 +84,7 @@ static std::string cubicBend(const yield::layout::Point &From,
                        -To.Y);
 }
 
-static std::string edge(const PTMLBuilder &B,
+static std::string edge(const ptml::MarkupBuilder &B,
                         const yield::layout::Path &Path,
                         const std::string_view Type,
                         bool UseOrthogonalBends = true,
@@ -119,7 +118,7 @@ static std::string edge(const PTMLBuilder &B,
 }
 
 template<typename NodeData, typename EdgeData = Empty>
-std::string node(const PTMLBuilder &B,
+std::string node(const ptml::MarkupBuilder &B,
                  const yield::layout::OutputNode<NodeData, EdgeData> *Node,
                  std::string &&Content,
                  const yield::cfg::Configuration &Configuration) {
@@ -223,7 +222,7 @@ Viewbox calculateViewbox(const GraphType &Graph) {
 /// (arrow origin the same as its tip), positive values shift arrow back,
 /// leaving some space between the tip and its target, negative values shift it
 /// closer to the target possibly causing an overlap.
-static std::string arrowHead(const ::ptml::PTMLBuilder &B,
+static std::string arrowHead(const ptml::MarkupBuilder &B,
                              llvm::StringRef Name,
                              float Size,
                              float Concave,
@@ -249,7 +248,7 @@ static std::string arrowHead(const ::ptml::PTMLBuilder &B,
     .toString();
 }
 
-static std::string duplicateArrowHeadsImpl(const ::ptml::PTMLBuilder &B,
+static std::string duplicateArrowHeadsImpl(const ptml::MarkupBuilder &B,
                                            float Size,
                                            float Dip,
                                            float Shift = 0) {
@@ -260,7 +259,7 @@ static std::string duplicateArrowHeadsImpl(const ::ptml::PTMLBuilder &B,
 }
 
 static std::string
-defaultArrowHeads(const ::ptml::PTMLBuilder &B,
+defaultArrowHeads(const ptml::MarkupBuilder &B,
                   const yield::cfg::Configuration &Configuration) {
   if (Configuration.UseOrthogonalBends == true)
     return duplicateArrowHeadsImpl(B, 8, 3, 0);
@@ -281,7 +280,7 @@ concept NodeExporter = requires(CallableType &&Callable, const NodeType &Node) {
 template<bool ShouldEmitEmptyNodes,
          SpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
          NodeExporter<typename PostLayoutGraph::Node> ContentsLambda>
-static std::string exportGraph(const PTMLBuilder &B,
+static std::string exportGraph(const ptml::MarkupBuilder &B,
                                const PostLayoutGraph &Graph,
                                const yield::cfg::Configuration &Configuration,
                                yield::layout::sugiyama::Orientation Orientation,
@@ -367,7 +366,7 @@ compute(const InputGraph<Node, Edge> &Graph,
 } // namespace yield::layout::sugiyama
 
 std::string
-yield::svg::controlFlowGraph(const PTMLBuilder &B,
+yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
                              const yield::Function &InternalFunction,
                              const model::Binary &Binary) {
   constexpr auto Configuration = cfg::Configuration::getDefault();
@@ -396,7 +395,7 @@ yield::svg::controlFlowGraph(const PTMLBuilder &B,
 }
 
 struct LabelNodeHelper {
-  const PTMLBuilder &B;
+  const ptml::MarkupBuilder &B;
   const model::Binary &Binary;
   const yield::cfg::Configuration Configuration;
   std::optional<std::string_view> RootNodeLocation = std::nullopt;
@@ -452,7 +451,7 @@ struct LabelNodeHelper {
 };
 
 using CrossRelations = yield::crossrelations::CrossRelations;
-std::string yield::svg::callGraph(const PTMLBuilder &B,
+std::string yield::svg::callGraph(const ::ptml::MarkupBuilder &B,
                                   const CrossRelations &Relations,
                                   const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.
@@ -569,7 +568,7 @@ combineHalvesHelper(std::string_view SlicePoint,
   return std::move(ForwardsSlice);
 }
 
-std::string yield::svg::callGraphSlice(const PTMLBuilder &B,
+std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
                                        std::string_view SlicePoint,
                                        const CrossRelations &Relations,
                                        const model::Binary &Binary) {

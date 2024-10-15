@@ -18,7 +18,7 @@
 
 namespace ptml {
 
-class PTMLBuilder;
+class MarkupBuilder;
 struct ScopeTag;
 
 class Tag {
@@ -27,7 +27,7 @@ private:
   std::string Content;
   llvm::StringMap<std::string> Attributes;
 
-  friend class PTMLBuilder;
+  friend class MarkupBuilder;
 
 private:
   Tag() {}
@@ -151,15 +151,9 @@ inline ScopeTag Tag::scope(llvm::raw_ostream &OS, bool Newline) const {
   return ScopeTag(OS, *this, Newline);
 }
 
-class PTMLBuilder {
-private:
-  const bool GenerateTagLessPTML;
-
+class MarkupBuilder {
 public:
-  PTMLBuilder(bool GenerateTagLessPTML = false);
-
-public:
-  bool isGenerateTagLessPTML() const;
+  const bool IsInTaglessMode = false;
 
 public:
   ptml::Tag getTag(llvm::StringRef Tag) const;

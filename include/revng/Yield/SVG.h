@@ -14,7 +14,7 @@ class Binary;
 }
 
 namespace ptml {
-class PTMLBuilder;
+class MarkupBuilder;
 }
 
 namespace yield {
@@ -35,13 +35,13 @@ using CrossRelations = yield::crossrelations::CrossRelations;
 
 } // namespace detail
 
-std::string controlFlowGraph(const ::ptml::PTMLBuilder &B,
+std::string controlFlowGraph(const ::ptml::MarkupBuilder &B,
                              const yield::Function &InternalFunction,
                              const model::Binary &Binary);
-std::string callGraph(const ::ptml::PTMLBuilder &B,
+std::string callGraph(const ::ptml::MarkupBuilder &B,
                       const detail::CrossRelations &CrossRelationTree,
                       const model::Binary &Binary);
-std::string callGraphSlice(const ::ptml::PTMLBuilder &B,
+std::string callGraphSlice(const ::ptml::MarkupBuilder &B,
                            std::string_view SlicePoint,
                            const detail::CrossRelations &CrossRelationTree,
                            const model::Binary &Binary);

@@ -110,10 +110,10 @@ static void handleFunction(DIBuilder &DIB,
         auto Type = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
 
         // Let's make the debug location that points back to the binary.
-        std::string NewDebugLocation = toString(ranks::Instruction,
-                                                FM.Entry(),
-                                                LastJumpTarget,
-                                                Address.start());
+        std::string NewDebugLocation = locationString(ranks::Instruction,
+                                                      FM.Entry(),
+                                                      LastJumpTarget,
+                                                      Address.start());
         auto Subprogram = DIB.createFunction(TheSubprogram->getFile(), // Scope
                                              NewDebugLocation, // Name
                                              StringRef(), // LinkageName

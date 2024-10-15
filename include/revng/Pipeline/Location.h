@@ -169,7 +169,7 @@ inline constexpr Location<Rank> location(const Rank &, Args &&...As) {
 /// it into its string representation.
 template<RankSpecialization Rank, typename... Args>
   requires std::is_convertible_v<std::tuple<Args...>, typename Rank::Tuple>
-inline std::string toString(const Rank &R, Args &&...As) {
+inline std::string locationString(const Rank &R, Args &&...As) {
   return location(R, std::forward<Args>(As)...).toString();
 }
 

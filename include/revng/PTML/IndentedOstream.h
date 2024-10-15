@@ -10,23 +10,23 @@
 
 namespace ptml {
 
-class PTMLIndentedOstream : public llvm::raw_ostream {
+class IndentedOstream : public llvm::raw_ostream {
 private:
-  PTMLBuilder B;
+  const MarkupBuilder &B;
+
   int IndentSize;
   int IndentDepth;
   // If the buffer ends with a newline, we want to delay emitting indentation on
   // the next character, so that we can account for (de)indentations that could
-  // happen in the meantime. This boolean tracks if we last read a newline
-  // character.
+  // happen in the meantime. This boolean tracks that.
   bool TrailingNewline;
   raw_ostream &OS;
 
 public:
-  explicit PTMLIndentedOstream(llvm::raw_ostream &OS,
-                               int IndentSize = 2,
-                               bool GenerateTagLessPTML = false) :
-    B(GenerateTagLessPTML),
+  explicit IndentedOstream(llvm::raw_ostream &OS,
+                           const MarkupBuilder &B,
+                           int IndentSize = 2) :
+    B(B),
     IndentSize(IndentSize),
     IndentDepth(0),
     TrailingNewline(false),
@@ -36,10 +36,10 @@ public:
 
   struct Scope {
   private:
-    PTMLIndentedOstream &OS;
+    IndentedOstream &OS;
 
   public:
-    Scope(PTMLIndentedOstream &OS) : OS(OS) { OS.indent(); }
+    Scope(IndentedOstream &OS) : OS(OS) { OS.indent(); }
 
     ~Scope() { OS.unindent(); }
   };
@@ -49,7 +49,7 @@ public:
   void indent() { IndentDepth = std::min(INT_MAX, IndentDepth + 1); }
   void unindent() { IndentDepth = std::max(0, IndentDepth - 1); }
 
-  const PTMLBuilder &getPTMLBuilder() const { return B; }
+  const MarkupBuilder &getMarkupBuilder() const { return B; }
 
 private:
   void write_impl(const char *Ptr, size_t Size) override;

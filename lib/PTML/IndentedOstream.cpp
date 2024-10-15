@@ -10,11 +10,11 @@
 
 namespace ptml {
 
-uint64_t PTMLIndentedOstream::current_pos() const {
+uint64_t IndentedOstream::current_pos() const {
   return OS.tell();
 }
 
-void PTMLIndentedOstream::write_impl(const char *Ptr, size_t Size) {
+void IndentedOstream::write_impl(const char *Ptr, size_t Size) {
   llvm::StringRef Str(Ptr, Size);
   llvm::SmallVector<llvm::StringRef> Lines;
   Str.split(Lines, '\n');
@@ -38,12 +38,12 @@ void PTMLIndentedOstream::write_impl(const char *Ptr, size_t Size) {
   TrailingNewline = EndsInNewLine;
 }
 
-void PTMLIndentedOstream::writeIndent() {
+void IndentedOstream::writeIndent() {
   if (IndentDepth > 0) {
     Tag IndentTag = B.getTag(tags::Span,
                              std::string(IndentSize * IndentDepth, ' '));
 
-    if (not B.isGenerateTagLessPTML())
+    if (not B.IsInTaglessMode)
       IndentTag.addAttribute(attributes::Token, ptml::tokens::Indentation);
 
     OS << IndentTag.toString();

@@ -12,8 +12,6 @@
 #include "revng/Yield/Pipes/YieldControlFlow.h"
 #include "revng/Yield/SVG.h"
 
-using ptml::PTMLBuilder;
-
 namespace revng::pipes {
 
 void YieldControlFlow::run(pipeline::ExecutionContext &Context,
@@ -21,7 +19,7 @@ void YieldControlFlow::run(pipeline::ExecutionContext &Context,
                            FunctionControlFlowStringMap &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
-  ptml::PTMLBuilder B;
+  ptml::MarkupBuilder B;
 
   for (const model::Function &Function :
        getFunctionsAndCommit(Context, Output.name())) {

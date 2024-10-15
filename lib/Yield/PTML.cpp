@@ -20,8 +20,7 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
 
-using pipeline::toString;
-using ptml::PTMLBuilder;
+using pipeline::locationString;
 using ptml::Tag;
 namespace attributes = ptml::attributes;
 namespace ptmlScopes = ptml::scopes;
@@ -49,19 +48,19 @@ static std::string targetPath(const BasicBlockID &Target,
                               const model::Binary &Binary) {
   if (const auto *F = yield::tryGetFunction(Binary, Target)) {
     // The target is a function
-    return toString(ranks::Function, F->Entry());
+    return locationString(ranks::Function, F->Entry());
   } else if (auto Iterator = Function.Blocks().find(Target);
              Iterator != Function.Blocks().end()) {
     // The target is a basic block
-    return toString(ranks::BasicBlock, Function.Entry(), Iterator->ID());
+    return locationString(ranks::BasicBlock, Function.Entry(), Iterator->ID());
   } else if (Target.isValid()) {
     for (const auto &Block : Function.Blocks()) {
       if (Block.Instructions().contains(Target.start())) {
         // The target is an instruction
-        return toString(ranks::Instruction,
-                        Function.Entry(),
-                        Block.ID(),
-                        Target.start());
+        return locationString(ranks::Instruction,
+                              Function.Entry(),
+                              Block.ID(),
+                              Target.start());
       }
     }
   }
@@ -95,7 +94,7 @@ static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
   return Result;
 }
 
-static std::string emitTagged(const PTMLBuilder &B,
+static std::string emitTagged(const ptml::MarkupBuilder &B,
                               const yield::TaggedString &String) {
   llvm::StringRef Type = yield::TagType::toPTML(String.Type());
   if (Type.empty()) {
@@ -111,7 +110,7 @@ static std::string emitTagged(const PTMLBuilder &B,
   return Result.toString();
 }
 
-static std::string taggedLine(const PTMLBuilder &B,
+static std::string taggedLine(const ptml::MarkupBuilder &B,
                               const SortedVector<yield::TaggedString> &Tagged) {
   std::string Result;
 
@@ -181,7 +180,7 @@ public:
 public:
   /// \note This consumes the internal strings.
   ///       Make sure to only call once per instruction.
-  std::string emit(const PTMLBuilder &B,
+  std::string emit(const ptml::MarkupBuilder &B,
                    const MetaAddress &Instruction,
                    const BasicBlockID &BasicBlock,
                    const model::Binary &Binary) {
@@ -242,7 +241,8 @@ public:
 
   /// \note This does _not_ consume anything, feel free to call as many times
   ///       as you need.
-  std::string emitEmpty(const PTMLBuilder &B, const model::Binary &Binary) {
+  std::string emitEmpty(const ptml::MarkupBuilder &B,
+                        const model::Binary &Binary) {
     uint64_t TotalPrefixSize = 2;
 
     if (LongestAddressString != 0) {
@@ -260,7 +260,7 @@ public:
   }
 };
 
-static std::string instruction(const PTMLBuilder &B,
+static std::string instruction(const ptml::MarkupBuilder &B,
                                const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
@@ -297,10 +297,10 @@ static std::string instruction(const PTMLBuilder &B,
   }
 
   // Tag it with appropriate location data.
-  std::string InstructionLocation = toString(ranks::Instruction,
-                                             Function.Entry(),
-                                             BasicBlock.ID(),
-                                             Instruction.Address());
+  std::string InstructionLocation = locationString(ranks::Instruction,
+                                                   Function.Entry(),
+                                                   BasicBlock.ID(),
+                                                   Instruction.Address());
   Tag Location = B.getTag(tags::Span)
                    .addAttribute(attributes::LocationDefinition,
                                  InstructionLocation);
@@ -318,7 +318,7 @@ static std::string instruction(const PTMLBuilder &B,
   return Location + Out;
 }
 
-static std::string basicBlock(const PTMLBuilder &B,
+static std::string basicBlock(const ptml::MarkupBuilder &B,
                               const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
                               const model::Binary &Binary,
@@ -348,9 +348,10 @@ static std::string basicBlock(const PTMLBuilder &B,
   if (!Label.empty()) {
     LabelString = Label + "\n";
   } else {
-    std::string Location = toString(ranks::BasicBlock,
-                                    model::Function(Function.Entry()).key(),
-                                    BasicBlock.ID());
+    std::string Location = locationString(ranks::BasicBlock,
+                                          model::Function(Function.Entry())
+                                            .key(),
+                                          BasicBlock.ID());
     LabelString = B.getTag(tags::Span)
                     .addAttribute(attributes::LocationDefinition, Location)
                     .toString();
@@ -362,7 +363,7 @@ static std::string basicBlock(const PTMLBuilder &B,
 }
 
 template<bool ShouldMergeFallthroughTargets>
-static std::string labeledBlock(const PTMLBuilder &B,
+static std::string labeledBlock(const ptml::MarkupBuilder &B,
                                 const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary,
@@ -405,7 +406,7 @@ static std::string labeledBlock(const PTMLBuilder &B,
   return Result;
 }
 
-std::string yield::ptml::functionAssembly(const PTMLBuilder &B,
+std::string yield::ptml::functionAssembly(const ::ptml::MarkupBuilder &B,
                                           const yield::Function &Function,
                                           const model::Binary &Binary) {
   std::string Result;
@@ -419,7 +420,7 @@ std::string yield::ptml::functionAssembly(const PTMLBuilder &B,
     .toString();
 }
 
-std::string yield::ptml::controlFlowNode(const PTMLBuilder &B,
+std::string yield::ptml::controlFlowNode(const ::ptml::MarkupBuilder &B,
                                          const BasicBlockID &BasicBlock,
                                          const yield::Function &Function,
                                          const model::Binary &Binary) {
@@ -458,7 +459,7 @@ static model::Identifier functionNameHelper(std::string_view Location,
   }
 }
 
-std::string yield::ptml::functionNameDefinition(const PTMLBuilder &B,
+std::string yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
                                                 std::string_view Location,
                                                 const model::Binary &Binary) {
   if (Location.empty())
@@ -471,7 +472,7 @@ std::string yield::ptml::functionNameDefinition(const PTMLBuilder &B,
   return Result.toString();
 }
 
-std::string yield::ptml::functionLink(const PTMLBuilder &B,
+std::string yield::ptml::functionLink(const ::ptml::MarkupBuilder &B,
                                       std::string_view Location,
                                       const model::Binary &Binary) {
   if (Location.empty())
@@ -484,7 +485,7 @@ std::string yield::ptml::functionLink(const PTMLBuilder &B,
   return Result.toString();
 }
 
-std::string yield::ptml::shallowFunctionLink(const PTMLBuilder &B,
+std::string yield::ptml::shallowFunctionLink(const ::ptml::MarkupBuilder &B,
                                              std::string_view Location,
                                              const model::Binary &Binary) {
   if (Location.empty())
