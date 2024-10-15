@@ -676,7 +676,7 @@ mlir::LogicalResult YieldOp::verify() {
 
   if (not isObjectType(T) and not isVoid(T))
     return emitOpError() << getOperationName()
-                         << " must yield a non-void object type.";
+                         << " must yield an object type or void.";
 
   return mlir::success();
 }
