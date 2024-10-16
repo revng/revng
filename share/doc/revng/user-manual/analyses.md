@@ -49,8 +49,8 @@ $ revng artifact \
         example \
         | revng ptml | grep -A2 -B1 '\bmain\b'
 _ABI(SystemV_x86_64)
-generic64_t main(generic64_t _argument0) {
-  return (_argument0 * 3) & 0xFFFFFFFF;
+generic64_t main(generic64_t argument_0) {
+  return (argument_0 * 3) & 0xFFFFFFFF;
 }
 ```
 
@@ -67,7 +67,7 @@ $ revng artifact \
         | revng ptml \
         | grep -A2 -B1 '\bmain\b'
 _ABI(SystemV_x86_64)
-generic64_t main(generic64_t _argument0) {
-  return (_argument0 * 3) & 0xFFFFFFFF;
+generic64_t main(generic64_t argument_0) {
+  return (argument_0 * 3) & 0xFFFFFFFF;
 }
 ```

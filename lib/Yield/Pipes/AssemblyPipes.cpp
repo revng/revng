@@ -34,6 +34,7 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
 
   // Access the model
   const auto &Model = getModelFromContext(Context);
+  model::NamingHelper NamingHelper = Model->namingHelper();
 
   // Access the binary
   revng_assert(SourceBinary.path().has_value());
@@ -54,7 +55,8 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
     auto Disassembled = Helper.disassemble(Function,
                                            Metadata,
                                            BinaryView,
-                                           *Model);
+                                           *Model,
+                                           NamingHelper);
     Output.insert_or_assign(Function.Entry(), toString(Disassembled));
   }
 }
@@ -64,6 +66,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
                         FunctionAssemblyPTMLStringMap &Output) {
   // Access the model
   const auto &Model = getModelFromContext(Context);
+  model::NamingHelper NamingHelper = Model->namingHelper();
 
   ptml::MarkupBuilder B;
   for (const model::Function &Function :
@@ -82,7 +85,8 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
                                           *Model,
                                           CommentIndicator,
                                           0,
-                                          80);
+                                          80,
+                                          &NamingHelper);
     R += yield::ptml::functionAssembly(B, **MaybeFunction, *Model);
     R = B.getTag(ptml::tags::Div, std::move(R)).toString();
     Output.insert_or_assign((*MaybeFunction)->Entry(), std::move(R));

@@ -52,11 +52,10 @@ class model::TypeDefinition : public model::generated::TypeDefinition,
 public:
   using generated::TypeDefinition::TypeDefinition;
 
-  Identifier name() const;
-
   llvm::SmallVector<const model::Type *, 4> edges() const;
   llvm::SmallVector<model::Type *, 4> edges();
-  void dumpTypeGraph(const char *Path) const debug_function;
+  void dumpTypeGraph(const char *Path,
+                     const model::Binary &Binary) const debug_function;
 
 public:
   bool verify() const debug_function;

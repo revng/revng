@@ -5,11 +5,14 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Filters.h"
 
-static bool verify(const model::TypeDefinition &ModelType, const bool Assert) {
+static bool verify(const model::TypeDefinition &ModelType,
+                   const model::Binary &,
+                   const bool Assert) {
   return ModelType.verify(Assert);
 }
 
-static bool verify(const model::Type &ModelType, const bool Assert) {
+static bool
+verify(const model::Type &ModelType, const model::Binary &, const bool Assert) {
   return ModelType.verify(Assert);
 }
 

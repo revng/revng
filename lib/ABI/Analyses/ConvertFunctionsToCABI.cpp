@@ -249,6 +249,11 @@ public:
     auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
                                         TypesToIgnore);
 
+    using NH = model::NamingHelper;
+    auto NamingHelper = Log.isEnabled() ?
+                          std::make_optional<const NH>(Model->namingHelper()) :
+                          std::nullopt;
+
     // And convert them.
     for (model::RawFunctionDefinition *Old : ToConvert) {
       auto &DT = llvm::cast<model::DefinedType>(*Model->makeType(Old->key()));
@@ -266,7 +271,8 @@ public:
         std::string Message = "";
         for (model::Function &Function : Model->Functions())
           if (Function.prototype() && Function.prototype()->key() == Old->key())
-            Message += "'" + Function.name().str().str() + "', ";
+            Message += "'" + NamingHelper->function(Function).str().str()
+                       + "', ";
 
         if (!Message.empty()) {
           Message.resize(Message.size() - 2);

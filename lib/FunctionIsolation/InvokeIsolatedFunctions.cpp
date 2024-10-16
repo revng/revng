@@ -81,8 +81,9 @@ public:
     Context(M->getContext()),
     GCBI(GCBI) {
 
+    const auto &NamingHelper = Binary.namingHelper();
     for (const model::Function &Function : Binary.Functions()) {
-      auto Name = getLLVMFunctionName(Function);
+      auto Name = NamingHelper.LLVMFunction(Function);
       llvm::Function *F = M->getFunction(Name);
       revng_assert(F != nullptr);
       Map[Function.Entry()] = { &Function, nullptr, F };

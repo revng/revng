@@ -374,7 +374,8 @@ yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
   using Pre = cfg::PreLayoutGraph;
   Pre Graph = cfg::extractFromInternal(InternalFunction, Binary, Configuration);
 
-  cfg::calculateNodeSizes(Graph, InternalFunction, Binary, Configuration);
+  model::NamingHelper NH = Binary.namingHelper();
+  cfg::calculateNodeSizes(Graph, InternalFunction, Binary, NH, Configuration);
 
   constexpr auto TopToBottom = layout::sugiyama::Orientation::TopToBottom;
 
@@ -397,6 +398,7 @@ yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
 struct LabelNodeHelper {
   const ptml::MarkupBuilder &B;
   const model::Binary &Binary;
+  const model::NamingHelper &NamingHelper;
   const yield::cfg::Configuration Configuration;
   std::optional<std::string_view> RootNodeLocation = std::nullopt;
 
@@ -408,12 +410,12 @@ struct LabelNodeHelper {
         if (std::optional<model::Function::Key> Key = Node->getFunction()) {
           auto Iterator = Binary.Functions().find(std::get<0>(*Key));
           revng_assert(Iterator != Binary.Functions().end());
-          NameLength = Iterator->name().size();
+          NameLength = NamingHelper.function(*Iterator).size();
         } else if (auto DynamicFunctionKey = Node->getDynamicFunction()) {
           const std::string &Key = std::get<0>(*DynamicFunctionKey);
           auto Iterator = Binary.ImportedDynamicFunctions().find(Key);
           revng_assert(Iterator != Binary.ImportedDynamicFunctions().end());
-          NameLength = Iterator->name().size();
+          NameLength = NamingHelper.dynamicFunction(*Iterator).size();
         } else {
           revng_abort("Unsupported node type.");
         }
@@ -441,12 +443,19 @@ struct LabelNodeHelper {
     std::string_view Location = Node.getLocationString();
 
     if (Node.IsShallow)
-      return yield::ptml::shallowFunctionLink(B, Location, Binary);
+      return yield::ptml::shallowFunctionLink(B,
+                                              Location,
+                                              Binary,
+                                              NamingHelper);
 
     if (!RootNodeLocation.has_value() || *RootNodeLocation == Location)
-      return yield::ptml::functionNameDefinition(B, Location, Binary);
+      return yield::ptml::functionNameDefinition(B,
+                                                 Location,
+                                                 Binary,
+                                                 NamingHelper);
+
     else
-      return yield::ptml::functionLink(B, Location, Binary);
+      return yield::ptml::functionLink(B, Location, Binary, NamingHelper);
   }
 };
 
@@ -460,7 +469,8 @@ std::string yield::svg::callGraph(const ::ptml::MarkupBuilder &B,
   constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
   constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
-  LabelNodeHelper Helper{ B, Binary, Configuration };
+  model::NamingHelper NamingHelper = Binary.namingHelper();
+  LabelNodeHelper Helper{ B, Binary, NamingHelper, Configuration };
 
   yield::calls::PreLayoutGraph Result = Relations.toYieldGraph();
   auto EntryPoints = entryPoints(&Result);
@@ -578,7 +588,8 @@ std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
   constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
   constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
-  LabelNodeHelper Helper{ B, Binary, Configuration, SlicePoint };
+  model::NamingHelper NamingHelper = Binary.namingHelper();
+  LabelNodeHelper Helper{ B, Binary, NamingHelper, Configuration, SlicePoint };
 
   // Ready the forwards facing part of the slice
   auto Forward = calls::makeCalleeTree(Relations.toYieldGraph(), SlicePoint);

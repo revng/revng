@@ -150,11 +150,12 @@ int main(int Argc, char *Argv[]) {
 
   // Gather all the `RawFunctionDefinition` prototypes present in the first
   // model.
+  model::NamingHelper LeftNamingHelper = LeftModel->namingHelper();
   for (model::Function &F : LeftModel->Functions()) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(F.name() != "",
+    revng_assert(LeftNamingHelper.function(F) != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
@@ -163,19 +164,20 @@ int main(int Argc, char *Argv[]) {
       if (Left->ID() == LeftModel->defaultPrototype()->ID())
         continue; // Skip the default prototype.
 
-      auto [Iterator, Success] = Functions.try_emplace(F.name());
+      auto [It, Success] = Functions.try_emplace(LeftNamingHelper.function(F));
       revng_assert(Success);
-      Iterator->second.Left = Left->key();
+      It->second.Left = Left->key();
     }
   }
 
   // Gather all the `RawFunctionDefinition` prototypes present in the second
   // model.
+  model::NamingHelper RightNamingHelper = RightModel->namingHelper();
   for (model::Function &F : RightModel->Functions()) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(F.name() != "",
+    revng_assert(RightNamingHelper.function(F) != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
@@ -184,12 +186,11 @@ int main(int Argc, char *Argv[]) {
       if (Right->ID() == LeftModel->defaultPrototype()->ID())
         continue; // Skip the default prototype.
 
-      auto Iterator = Functions.find(F.name());
+      auto Iterator = Functions.find(RightNamingHelper.function(F));
       if (Iterator == Functions.end()) {
         std::string Error = "A function present in the right model is missing "
-                            "in "
-                            "the left one: "
-                            + F.name().str().str();
+                            "in the left one: "
+                            + RightNamingHelper.function(F).str().str();
         revng_abort(Error.c_str());
       }
       revng_assert(Iterator->second.Right == std::nullopt);

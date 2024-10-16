@@ -162,6 +162,7 @@ private:
   LLVMContext &Context;
   GeneratedCodeBasicInfo &GCBI;
   const model::Binary &Binary;
+  model::NamingHelper NamingHelper;
   Function *AbortFunction = nullptr;
   Function *UnreachableFunction = nullptr;
   Function *FunctionDispatcher = nullptr;
@@ -183,6 +184,7 @@ public:
     Context(TheModule->getContext()),
     GCBI(GCBI),
     Binary(Binary),
+    NamingHelper(Binary),
     Cache(&Cache),
     LECP(LECP) {
     IsolatedFunctionType = createFunctionType<void>(Context);
@@ -190,7 +192,7 @@ public:
 
 public:
   Function *getLocalFunction(const MetaAddress &Entry) const {
-    auto Name = getLLVMFunctionName(Binary.Functions().at(Entry));
+    auto Name = NamingHelper.LLVMFunction(Binary.Functions().at(Entry));
     if (auto *F = TheModule->getFunction(Name))
       return F;
 

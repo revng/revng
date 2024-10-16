@@ -67,9 +67,6 @@ public:
   using generated::Segment::Segment;
 
 public:
-  Identifier name() const;
-
-public:
   /// The helper for segment type unwrapping.
   /// Use this when you need to access/modify the existing struct,
   /// and \ref Type() when you need to assign a new one.

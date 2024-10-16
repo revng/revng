@@ -39,8 +39,8 @@ int main(int Argc, char *Argv[]) {
   if (EC)
     revng_abort(EC.message().c_str());
 
-  TypeSystemPrinter TSPrinter(Out);
-  TSPrinter.print(**MaybeModel);
+  TypeSystemPrinter TSPrinter(Out, **MaybeModel);
+  TSPrinter.print();
 
   return EXIT_SUCCESS;
 }

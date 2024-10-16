@@ -104,10 +104,6 @@ uint64_t model::Binary::getAvailableTypeID() const {
   return TypeDefinitions().rbegin()->get()->ID() + 1;
 }
 
-static std::string toIdentifier(const MetaAddress &Address) {
-  return model::Identifier::sanitize(Address.toString()).str().str();
-}
-
 namespace model {
 
 MetaAddressRangeSet Binary::executableRanges() const {
@@ -171,38 +167,6 @@ MetaAddressRangeSet Binary::executableRanges() const {
   }
 
   return ExecutableRanges;
-}
-
-Identifier Function::name() const {
-  using llvm::Twine;
-  if (not CustomName().empty()) {
-    return CustomName();
-  } else {
-    auto AutomaticName = (Twine("_function_") + toIdentifier(Entry())).str();
-    return Identifier(AutomaticName);
-  }
-}
-
-model::Identifier model::DynamicFunction::name() const {
-  using llvm::Twine;
-  if (not CustomName().empty()) {
-    return CustomName();
-  } else {
-    auto AutomaticName = (Twine("_dynamic_") + OriginalName()).str();
-    return Identifier(AutomaticName);
-  }
-}
-
-model::Identifier model::Segment::name() const {
-  using llvm::Twine;
-  if (not CustomName().empty()) {
-    return CustomName();
-  } else {
-    auto AutomaticName = (Twine("_segment_") + toIdentifier(StartAddress())
-                          + "_" + Twine(VirtualSize()))
-                           .str();
-    return Identifier(AutomaticName);
-  }
 }
 
 namespace RelocationType {
@@ -413,27 +377,29 @@ void model::Binary::dumpTypeGraph(const char *Path) const {
   if (EC)
     revng_abort(EC.message().c_str());
 
-  TypeSystemPrinter TSPrinter(Out);
-  TSPrinter.print(*this);
+  TypeSystemPrinter TSPrinter(Out, *this);
+  TSPrinter.print();
 }
 
-void model::Function::dumpTypeGraph(const char *Path) const {
+void model::Function::dumpTypeGraph(const char *Path,
+                                    const model::Binary &Binary) const {
   DisableTracking Guard(*this);
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
   if (EC)
     revng_abort(EC.message().c_str());
 
-  TypeSystemPrinter TSPrinter(Out);
+  TypeSystemPrinter TSPrinter(Out, Binary);
   TSPrinter.print(*this);
 }
 
-void model::TypeDefinition::dumpTypeGraph(const char *Path) const {
+void model::TypeDefinition::dumpTypeGraph(const char *Path,
+                                          const model::Binary &Binary) const {
   std::error_code EC;
   llvm::raw_fd_ostream Out(Path, EC);
   if (EC)
     revng_abort(EC.message().c_str());
 
-  TypeSystemPrinter TSPrinter(Out);
+  TypeSystemPrinter TSPrinter(Out, Binary);
   TSPrinter.print(*this);
 }

@@ -23,46 +23,49 @@ using llvm::Twine;
 using model::PrimitiveKind::Signed;
 using model::PrimitiveKind::Void;
 
-static bool verify(const model::TypeDefinition &ModelType, bool Assert);
-static bool verify(const model::Type &ModelType, bool Assert);
+static bool verify(const model::TypeDefinition &ModelType,
+                   const model::Binary &Binary,
+                   bool Assert);
+static bool
+verify(const model::Type &ModelType, const model::Binary &Binary, bool Assert);
 static bool verify(const model::Binary &Tree, bool Assert);
 static bool checkSerialization(const TupleTree<model::Binary> &Tree);
 
 BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
-  revng_check(verify(*PrimitiveType::makeVoid(), true));
-  revng_check(verify(*PrimitiveType::makeUnsigned(1), true));
-  revng_check(verify(*PrimitiveType::makeUnsigned(2), true));
-  revng_check(verify(*PrimitiveType::makeUnsigned(4), true));
-  revng_check(verify(*PrimitiveType::makeUnsigned(8), true));
-  revng_check(verify(*PrimitiveType::makeUnsigned(16), true));
-  revng_check(verify(*PrimitiveType::makeSigned(1), true));
-  revng_check(verify(*PrimitiveType::makeSigned(2), true));
-  revng_check(verify(*PrimitiveType::makeSigned(4), true));
-  revng_check(verify(*PrimitiveType::makeSigned(8), true));
-  revng_check(verify(*PrimitiveType::makeSigned(16), true));
-  revng_check(verify(*PrimitiveType::makeFloat(2), true));
-  revng_check(verify(*PrimitiveType::makeFloat(4), true));
-  revng_check(verify(*PrimitiveType::makeFloat(8), true));
-  revng_check(verify(*PrimitiveType::makeFloat(10), true));
-  revng_check(verify(*PrimitiveType::makeFloat(12), true));
-  revng_check(verify(*PrimitiveType::makeFloat(16), true));
-  revng_check(verify(*PrimitiveType::makeGeneric(1), true));
-  revng_check(verify(*PrimitiveType::makeGeneric(2), true));
-  revng_check(verify(*PrimitiveType::makeGeneric(4), true));
-  revng_check(verify(*PrimitiveType::makeGeneric(8), true));
-  revng_check(verify(*PrimitiveType::makeGeneric(10), true));
-  revng_check(verify(*PrimitiveType::makeGeneric(12), true));
-  revng_check(verify(*PrimitiveType::makeGeneric(16), true));
-  revng_check(verify(*PrimitiveType::makeNumber(1), true));
-  revng_check(verify(*PrimitiveType::makeNumber(2), true));
-  revng_check(verify(*PrimitiveType::makeNumber(4), true));
-  revng_check(verify(*PrimitiveType::makeNumber(8), true));
-  revng_check(verify(*PrimitiveType::makeNumber(16), true));
-  revng_check(verify(*PrimitiveType::makePointerOrNumber(1), true));
-  revng_check(verify(*PrimitiveType::makePointerOrNumber(2), true));
-  revng_check(verify(*PrimitiveType::makePointerOrNumber(4), true));
-  revng_check(verify(*PrimitiveType::makePointerOrNumber(8), true));
-  revng_check(verify(*PrimitiveType::makePointerOrNumber(16), true));
+  revng_check(verify(*PrimitiveType::makeVoid(), {}, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(1), {}, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(2), {}, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(4), {}, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(8), {}, true));
+  revng_check(verify(*PrimitiveType::makeUnsigned(16), {}, true));
+  revng_check(verify(*PrimitiveType::makeSigned(1), {}, true));
+  revng_check(verify(*PrimitiveType::makeSigned(2), {}, true));
+  revng_check(verify(*PrimitiveType::makeSigned(4), {}, true));
+  revng_check(verify(*PrimitiveType::makeSigned(8), {}, true));
+  revng_check(verify(*PrimitiveType::makeSigned(16), {}, true));
+  revng_check(verify(*PrimitiveType::makeFloat(2), {}, true));
+  revng_check(verify(*PrimitiveType::makeFloat(4), {}, true));
+  revng_check(verify(*PrimitiveType::makeFloat(8), {}, true));
+  revng_check(verify(*PrimitiveType::makeFloat(10), {}, true));
+  revng_check(verify(*PrimitiveType::makeFloat(12), {}, true));
+  revng_check(verify(*PrimitiveType::makeFloat(16), {}, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(1), {}, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(2), {}, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(4), {}, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(8), {}, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(10), {}, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(12), {}, true));
+  revng_check(verify(*PrimitiveType::makeGeneric(16), {}, true));
+  revng_check(verify(*PrimitiveType::makeNumber(1), {}, true));
+  revng_check(verify(*PrimitiveType::makeNumber(2), {}, true));
+  revng_check(verify(*PrimitiveType::makeNumber(4), {}, true));
+  revng_check(verify(*PrimitiveType::makeNumber(8), {}, true));
+  revng_check(verify(*PrimitiveType::makeNumber(16), {}, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(1), {}, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(2), {}, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(4), {}, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(8), {}, true));
+  revng_check(verify(*PrimitiveType::makePointerOrNumber(16), {}, true));
 
   for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
     auto Unsigned = PrimitiveType::makeUnsigned(ByteSize);
@@ -71,26 +74,26 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
     auto PointerOrNumber = PrimitiveType::makePointerOrNumber(ByteSize);
 
     if (std::has_single_bit(ByteSize)) {
-      revng_check(verify(*Signed, true));
+      revng_check(verify(*Signed, {}, true));
       auto ExpectedName = ("int" + Twine(8 * ByteSize) + "_t").str();
       revng_check(Signed->toPrimitive().getCName() == ExpectedName);
 
-      revng_check(verify(*Unsigned, true));
+      revng_check(verify(*Unsigned, {}, true));
       ExpectedName = ("uint" + Twine(8 * ByteSize) + "_t").str();
       revng_check(Unsigned->toPrimitive().getCName() == ExpectedName);
 
-      revng_check(verify(*Number, true));
+      revng_check(verify(*Number, {}, true));
       ExpectedName = ("number" + Twine(8 * ByteSize) + "_t").str();
       revng_check(Number->toPrimitive().getCName() == ExpectedName);
 
-      revng_check(verify(*PointerOrNumber, true));
+      revng_check(verify(*PointerOrNumber, {}, true));
       ExpectedName = ("pointer_or_number" + Twine(8 * ByteSize) + "_t").str();
       revng_check(PointerOrNumber->toPrimitive().getCName() == ExpectedName);
     } else {
-      revng_check(not verify(*Signed, false));
-      revng_check(not verify(*Unsigned, false));
-      revng_check(not verify(*Number, false));
-      revng_check(not verify(*PointerOrNumber, false));
+      revng_check(not verify(*Signed, {}, false));
+      revng_check(not verify(*Unsigned, {}, false));
+      revng_check(not verify(*Number, {}, false));
+      revng_check(not verify(*PointerOrNumber, {}, false));
     }
   }
 
@@ -99,19 +102,19 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
     auto G = PrimitiveType::makeGeneric(ByteSize);
     if (ByteSize == 2 or ByteSize == 4 or ByteSize == 8 or ByteSize == 10
         or ByteSize == 12 or ByteSize == 16) {
-      revng_check(verify(*Float, true));
+      revng_check(verify(*Float, {}, true));
       auto ExpectedName = ("float" + Twine(8 * ByteSize) + "_t").str();
       revng_check(Float->toPrimitive().getCName() == ExpectedName);
 
-      revng_check(verify(*G, true));
+      revng_check(verify(*G, {}, true));
       ExpectedName = ("generic" + Twine(8 * ByteSize) + "_t").str();
       revng_check(G->toPrimitive().getCName() == ExpectedName);
     } else {
-      revng_check(not verify(*Float, false));
+      revng_check(not verify(*Float, {}, false));
       if (ByteSize == 1)
-        revng_check(verify(*G, true));
+        revng_check(verify(*G, {}, true));
       else
-        revng_check(not verify(*G, false));
+        revng_check(not verify(*G, {}, false));
     }
   }
 
@@ -142,10 +145,10 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // The enum does not verify unless it has a valid underlying type and at least
   // one enum entry
-  revng_check(not verify(EnumDefinition, false));
+  revng_check(not verify(EnumDefinition, *T, false));
   revng_check(not verify(*T, false));
   EnumDefinition.UnderlyingType() = model::PrimitiveType::makeSigned(4);
-  revng_check(not verify(EnumDefinition, false));
+  revng_check(not verify(EnumDefinition, *T, false));
   revng_check(not verify(*T, false));
 
   // With a valid underlying type and at least one entry we're good, but we
@@ -155,7 +158,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   revng_check(Entry.verify(true));
 
   revng_check(EnumDefinition.Entries().insert(Entry).second);
-  revng_check(verify(EnumDefinition, true));
+  revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -164,24 +167,24 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   revng_check(EnumDefinition.Entries().size() == 1);
   revng_check(not EnumDefinition.Entries().insert(EnumEntry{ 0 }).second);
   revng_check(EnumDefinition.Entries().size() == 1);
-  revng_check(verify(EnumDefinition, true));
+  revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
-  revng_check(verify(EnumDefinition, true));
+  revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(EnumDefinition.Entries().insert(EnumEntry{ 1 }).second);
   revng_check(EnumDefinition.Entries().size() == 2);
-  revng_check(verify(EnumDefinition, true));
+  revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
-  // Inserting two entries with the same name succeeds but it's bad.
+  // Inserting two entries with the same name succeeds but does not verify.
   EnumEntry Entry1{ 5 };
   Entry1.CustomName() = "some_value";
   revng_check(EnumDefinition.Entries().insert(Entry1).second);
   revng_check(EnumDefinition.Entries().size() == 3);
-  revng_check(verify(EnumDefinition, true));
+  revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
   EnumEntry Entry2{ 7 };
@@ -192,7 +195,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   // But if we remove the duplicated entry we're good again
   revng_check(EnumDefinition.Entries().erase(7));
   revng_check(EnumDefinition.Entries().size() == 3);
-  revng_check(verify(EnumDefinition, true));
+  revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -202,24 +205,24 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
                                                     "/TypeDefinitions"
                                                     "/42-TypedefDefinition");
   EnumDefinition.UnderlyingType() = model::DefinedType::make(BrokenPath);
-  revng_check(not verify(EnumDefinition, false));
+  revng_check(not verify(EnumDefinition, *T, false));
   revng_check(not verify(*T, false));
 
   // Also we set the underlying type to a valid type, but that is not a
   // primitive integer type, we are not good
   EnumDefinition.UnderlyingType() = EnumType.copy();
-  revng_check(not verify(EnumDefinition, false));
+  revng_check(not verify(EnumDefinition, *T, false));
   revng_check(not verify(*T, false));
 
   // If we put back the proper underlying type it verifies.
   EnumDefinition.UnderlyingType() = model::PrimitiveType::make(Signed, 4);
-  revng_check(verify(EnumDefinition, true));
+  revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
   // But if we clear the entries it does not verify anymore
   EnumDefinition.Entries().clear();
-  revng_check(not verify(EnumDefinition, false));
+  revng_check(not verify(EnumDefinition, *T, false));
   revng_check(not verify(*T, false));
 }
 
@@ -231,13 +234,13 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   revng_check(T->TypeDefinitions().size() == 1);
   Int32.UnderlyingType() = model::PrimitiveType::make(Signed, 4);
   Int32.CustomName() = "int_32_typedef";
-  revng_check(verify(Int32, true));
+  revng_check(verify(Int32, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
   // Make it const
   Int32.UnderlyingType() = model::PrimitiveType::makeConst(Signed, 4);
-  revng_check(verify(Int32, true));
+  revng_check(verify(Int32, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -246,7 +249,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   revng_check(T->TypeDefinitions().size() == 2);
   Pointer.UnderlyingType() = model::PointerType::make(std::move(Int32Type), 4);
   Pointer.CustomName() = "int_32_pointer_typedef";
-  revng_check(verify(Pointer, true));
+  revng_check(verify(Pointer, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -255,7 +258,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   revng_check(T->TypeDefinitions().size() == 3);
   Array.UnderlyingType() = model::ArrayType::make(std::move(PointerType), 25);
   Array.CustomName() = "int_32_pointer_array_typedef";
-  revng_check(verify(Array, true));
+  revng_check(verify(Array, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -263,12 +266,12 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   auto [Error, ErrorType] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 4);
   Error.UnderlyingType() = std::move(ErrorType);
-  revng_check(not verify(Error, false));
+  revng_check(not verify(Error, *T, false));
   revng_check(not verify(*T, false));
 }
 
 BOOST_AUTO_TEST_CASE(StructTypes) {
-  revng_check(not verify(StructDefinition(), false));
+  revng_check(not verify(StructDefinition(), {}, false));
 
   TupleTree<model::Binary> T;
 
@@ -277,19 +280,19 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   revng_check(T->TypeDefinitions().size() == 1);
 
   // Struct without size does not verify.
-  revng_check(not verify(Struct, false));
+  revng_check(not verify(Struct, *T, false));
   revng_check(not verify(*T, false));
 
   // Let's make it large, so that we can play around with fields.
   Struct.Size() = 1024;
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
 
   // Insert field in the struct
   StructField Field0 = StructField{ 0 };
   Field0.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(Struct.Fields().insert(Field0).second);
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -297,7 +300,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   StructField Field1 = StructField{ 4 };
   Field1.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(Struct.Fields().insert(Field1).second);
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -305,7 +308,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   StructField Field1Bis = StructField{ 4 };
   Field1Bis.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(not Struct.Fields().insert(Field1Bis).second);
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -315,7 +318,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   Field1Ter.CustomName() = "fld1ter";
   revng_check(not Struct.Fields().insert_or_assign(Field1Ter).second);
   revng_check(Struct.Fields().at(4).CustomName() == "fld1ter");
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -324,7 +327,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   StructField AnotherField = StructField{ 128 };
   AnotherField.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(Struct.Fields().insert(AnotherField).second);
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -332,51 +335,51 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   StructField Overlap = StructField{ 129 };
   Overlap.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(Struct.Fields().insert(Overlap).second);
-  revng_check(not verify(Struct, false));
+  revng_check(not verify(Struct, *T, false));
   revng_check(not verify(*T, false));
 
   // Removing the overlapping field fixes the struct
   revng_check(Struct.Fields().erase(129));
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
   // Erasing a field that's not there fails
   revng_check(not Struct.Fields().erase(129));
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
   // Shrinking the size does not break the struct
   Struct.Size() = 132;
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
   for (int I = 0; I < 132; ++I) {
     // But shrinking too much breaks it again
     Struct.Size() = I;
-    revng_check(not verify(Struct, false));
+    revng_check(not verify(Struct, *T, false));
     revng_check(not verify(*T, false));
   }
 
   // Fixing the size fixes the struct
   Struct.Size() = 132;
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
   // Struct without fields are valid as long as their size is not zero
   Struct.Fields().clear();
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   Struct.Size() = 0;
-  revng_check(not verify(Struct, false));
+  revng_check(not verify(Struct, *T, false));
   revng_check(not verify(*T, false));
 
   // Put the size back to a large value for the other tests.
   Struct.Size() = 100;
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
 
   // Struct x cannot have a field with type x
@@ -384,13 +387,13 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   StructField Same = StructField{ 0 };
   Same.Type() = std::move(StructType);
   revng_check(Struct.Fields().insert(Same).second);
-  revng_check(not verify(Struct, false));
+  revng_check(not verify(Struct, *T, false));
   revng_check(not verify(*T, false));
 
   // But it works, if the field is the pointer to the struct.
   auto &Type = Struct.Fields().at(0).Type();
   Type = model::PointerType::make(std::move(Type), 8);
-  revng_check(verify(Struct, true));
+  revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -399,7 +402,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   StructField VoidField = StructField{ 0 };
   VoidField.Type() = model::PrimitiveType::makeVoid();
   revng_check(Struct.Fields().insert(VoidField).second);
-  revng_check(not verify(Struct, false));
+  revng_check(not verify(Struct, *T, false));
   revng_check(not verify(*T, false));
 }
 
@@ -409,14 +412,14 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   // Insert the union
   auto [Union, UnionType] = T->makeUnionDefinition();
   revng_check(T->TypeDefinitions().size() == 1);
-  revng_check(not verify(Union, false));
+  revng_check(not verify(Union, *T, false));
   revng_check(not verify(*T, false));
 
   // Insert field in the struct
   UnionField Field0(0);
   Field0.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(Union.Fields().insert(Field0).second);
-  revng_check(verify(Union, true));
+  revng_check(verify(Union, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -428,7 +431,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     const auto [It, New] = Union.Fields().insert(std::move(Field1));
     revng_check(New);
   }
-  revng_check(verify(Union, true));
+  revng_check(verify(Union, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -441,19 +444,19 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     const auto [It, New] = Union.Fields().insert(std::move(Field1));
     revng_check(New);
     revng_check(Union.Fields().at(It->Index()).CustomName() == "fld1");
-    revng_check(not verify(Union, false));
+    revng_check(not verify(Union, *T, false));
     revng_check(not verify(*T, false));
 
     // But removing goes back to good again
     revng_check(Union.Fields().erase(It->Index()));
-    revng_check(verify(Union, true));
+    revng_check(verify(Union, *T, true));
     revng_check(verify(*T, true));
     revng_check(checkSerialization(T));
   }
 
   // Union without fields are invalid
   Union.Fields().clear();
-  revng_check(not verify(Union, false));
+  revng_check(not verify(Union, *T, false));
   revng_check(not verify(*T, false));
 
   // Union x cannot have a field with type x
@@ -461,13 +464,13 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   UnionField Same;
   Same.Type() = std::move(UnionType);
   revng_check(Union.Fields().insert(Same).second);
-  revng_check(not verify(Union, false));
+  revng_check(not verify(Union, *T, false));
   revng_check(not verify(*T, false));
 
   // But it works, if the field is the pointer to the union.
   auto &Type = Union.Fields().at(0).Type();
   Type = model::PointerType::make(std::move(Type), 8);
-  revng_check(verify(Union, true));
+  revng_check(verify(Union, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -476,7 +479,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   UnionField VoidField;
   VoidField.Type() = model::PrimitiveType::makeVoid();
   revng_check(Union.Fields().insert(VoidField).second);
-  revng_check(not verify(Union, false));
+  revng_check(not verify(Union, *T, false));
   revng_check(not verify(*T, false));
 }
 
@@ -496,17 +499,17 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   const auto &Arg0 = Prototype.addArgument(model::PrimitiveType::makeSigned(4));
 
   // Prototype is already valid, since missing return value means void.
-  revng_check(verify(Prototype, true));
+  revng_check(verify(Prototype, *T, true));
   revng_check(verify(*T, true));
 
   // On the other hand explicit `Void` is not allowed.
   Prototype.ReturnType() = model::PrimitiveType::makeVoid();
-  revng_check(not verify(Prototype, false));
+  revng_check(not verify(Prototype, *T, false));
   revng_check(not verify(*T, false));
 
   // Setting it to a valid type fixes the prototype.
   Prototype.ReturnType() = model::PrimitiveType::makeSigned(4);
-  revng_check(verify(Prototype, true));
+  revng_check(verify(Prototype, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -515,7 +518,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   Argument Arg1{ 1 };
   Arg1.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(Prototype.Arguments().insert(Arg1).second);
-  revng_check(verify(Prototype, true));
+  revng_check(verify(Prototype, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -523,7 +526,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   Argument Arg1Bis{ 1 };
   Arg1Bis.Type() = model::PrimitiveType::makeSigned(4);
   revng_check(not Prototype.Arguments().insert(Arg1Bis).second);
-  revng_check(verify(Prototype, true));
+  revng_check(verify(Prototype, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
@@ -531,13 +534,13 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   revng_check(not Prototype.Arguments().insert_or_assign(Arg1Bis).second);
   auto &ArgT = Prototype.Arguments().at(1);
   revng_check(ArgT.Type() == model::PrimitiveType::makeSigned(4));
-  revng_check(verify(Prototype, true));
+  revng_check(verify(Prototype, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 
   // Prototypes without arguments are valid
   Prototype.Arguments().clear();
-  revng_check(verify(Prototype, true));
+  revng_check(verify(Prototype, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
 }
@@ -567,7 +570,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
     auto &RDIArg = Prototype.addArgument(model::Register::rdi_x86_64,
                                          model::PrimitiveType::makeGeneric(8));
     revng_check(RDIArg.verify(true));
-    revng_check(verify(Prototype, true));
+    revng_check(verify(Prototype, *T, true));
     revng_check(verify(*T, true));
 
     auto &RSIArg = Prototype.addArgument(model::Register::rsi_x86_64,
@@ -575,7 +578,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
     revng_check(RSIArg.verify(true));
     RSIArg.CustomName() = "Second";
     revng_check(RSIArg.verify(true));
-    revng_check(verify(Prototype, true));
+    revng_check(verify(Prototype, *T, true));
     revng_check(verify(*T, true));
   }
 
@@ -584,48 +587,46 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
     auto &RV = Prototype.addReturnValue(model::Register::rax_x86_64,
                                         model::PrimitiveType::makeGeneric(8));
     revng_check(RV.verify(true));
-    revng_check(verify(Prototype, true));
+    revng_check(verify(Prototype, *T, true));
     revng_check(verify(*T, true));
   }
 }
 
 BOOST_AUTO_TEST_CASE(ArraysAndPointers) {
-  TupleTree<model::Binary> T;
-
   auto Void = model::PrimitiveType::makeVoid();
-  revng_check(verify(*Void, true));
+  revng_check(verify(*Void, {}, true));
   revng_check(not Void->size().has_value());
 
   auto Generic64 = model::PrimitiveType::makeGeneric(8);
-  revng_check(verify(*Generic64, true));
+  revng_check(verify(*Generic64, {}, true));
   revng_check(*Generic64->size() == 8);
 
   auto VoidPointer = model::PointerType::make(Void.copy(), 4);
-  revng_check(verify(*VoidPointer, true));
+  revng_check(verify(*VoidPointer, {}, true));
 
   auto Void64Pointer = model::PointerType::make(Void.copy(), 8);
-  revng_check(verify(*Void64Pointer, true));
+  revng_check(verify(*Void64Pointer, {}, true));
 
   auto DoublePointer = model::PointerType::make(Void64Pointer.copy(), 8);
-  revng_check(verify(*DoublePointer, true));
+  revng_check(verify(*DoublePointer, {}, true));
 
   auto WeirdlySizedPointer = model::PointerType::make(Void.copy(), 7);
-  revng_check(not verify(*WeirdlySizedPointer, false));
+  revng_check(not verify(*WeirdlySizedPointer, {}, false));
 
   auto ConstVoid = model::PrimitiveType::makeConstVoid();
-  revng_check(verify(*ConstVoid, true));
+  revng_check(verify(*ConstVoid, {}, true));
 
   auto ConstPointerToCVoid = model::PointerType::makeConst(ConstVoid.copy(), 8);
-  revng_check(verify(*ConstPointerToCVoid, true));
+  revng_check(verify(*ConstPointerToCVoid, {}, true));
 
   auto VoidArray = model::ArrayType::make(Void.copy(), 10);
-  revng_check(not verify(*VoidArray, false));
+  revng_check(not verify(*VoidArray, {}, false));
 
   auto VoidPointerArray = model::ArrayType::make(Void64Pointer.copy(), 10);
-  revng_check(verify(*VoidPointerArray, true));
+  revng_check(verify(*VoidPointerArray, {}, true));
 
   auto ZeroSizedVoidArray = model::ArrayType::make(Void64Pointer.copy(), 0);
-  revng_check(not verify(*ZeroSizedVoidArray, false));
+  revng_check(not verify(*ZeroSizedVoidArray, {}, false));
 }
 
 BOOST_AUTO_TEST_CASE(TypeComparison) {

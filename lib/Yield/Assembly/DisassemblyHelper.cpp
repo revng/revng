@@ -106,7 +106,8 @@ static void analyzeBasicBlocks(yield::Function &Function,
 yield::Function DH::disassemble(const model::Function &Function,
                                 const efa::ControlFlowGraph &Metadata,
                                 const RawBinaryView &BinaryView,
-                                const model::Binary &Binary) {
+                                const model::Binary &Binary,
+                                const model::NamingHelper &NamingHelper) {
   yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
   for (auto BasicBlockInserter = ResultFunction.Blocks().batch_insert();
@@ -188,9 +189,12 @@ yield::Function DH::disassemble(const model::Function &Function,
   analyzeBasicBlocks(ResultFunction, Metadata, Binary);
 
   for (yield::BasicBlock &BasicBlock : ResultFunction.Blocks()) {
-    BasicBlock.setLabel(ResultFunction, Binary);
+    BasicBlock.setLabel(ResultFunction, Binary, NamingHelper);
     for (yield::Instruction &Instruction : BasicBlock.Instructions())
-      Instruction.handleSpecialTags(BasicBlock, ResultFunction, Binary);
+      Instruction.handleSpecialTags(BasicBlock,
+                                    ResultFunction,
+                                    Binary,
+                                    NamingHelper);
   }
 
   ResultFunction.verify(true);

@@ -19,11 +19,13 @@
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/NamingHelper.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Segment.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/CommonOptions.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -282,15 +284,18 @@ public:
   bool verifyTypeDefinitions(bool Assert) const debug_function;
   bool verifyTypeDefinitions() const debug_function;
 
-  bool verifyGlobalNamespace(VerifyHelper &VH) const;
-  bool verifyGlobalNamespace(bool Assert) const debug_function;
-  bool verifyGlobalNamespace() const debug_function;
+  bool verifyConfiguration(VerifyHelper &VH) const;
+  bool verifyConfiguration(bool Assert) const debug_function;
+  bool verifyConfiguration() const debug_function;
 
 public:
   void dumpTypeGraph(const char *Path) const debug_function;
 
 public:
   MetaAddressRangeSet executableRanges() const;
+
+public:
+  NamingHelper namingHelper() const { return NamingHelper(*this); }
 };
 
 #include "revng/Model/Generated/Late/Binary.h"

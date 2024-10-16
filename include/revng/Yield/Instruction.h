@@ -85,7 +85,8 @@ public:
   void importTags(std::vector<RawTag> &&Tags, std::string &&Contents);
   void handleSpecialTags(const yield::BasicBlock &BasicBlock,
                          const yield::Function &Function,
-                         const model::Binary &Binary);
+                         const model::Binary &Binary,
+                         const model::NamingHelper &NamingHelper);
 
 public:
   bool verify(model::VerifyHelper &VH) const;

@@ -82,7 +82,9 @@ public:
   using generated::BasicBlock::BasicBlock;
 
 public:
-  void setLabel(const yield::Function &Function, const model::Binary &Binary);
+  void setLabel(const yield::Function &Function,
+                const model::Binary &Binary,
+                const model::NamingHelper &NamingHelper);
 
 public:
   BasicBlockID nextBlock() const {

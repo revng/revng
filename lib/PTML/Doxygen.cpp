@@ -257,7 +257,8 @@ namespace ranks = revng::ranks;
 
 static llvm::SmallVector<DoxygenLine, 16>
 gatherArgumentComments(const model::Binary &Binary,
-                       const model::Function &Function) {
+                       const model::Function &Function,
+                       const model::NamingHelper &NamingHelper) {
   if (Function.Prototype().isEmpty())
     return {};
 
@@ -307,7 +308,9 @@ gatherArgumentComments(const model::Binary &Binary,
 
         const model::Argument &Argument = FT->Arguments().at(Index);
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     Argument.name().str().str());
+                                     NamingHelper.argument(Argument, *FT)
+                                       .str()
+                                       .str());
         std::string Location = locationString(ranks::CABIArgument,
                                               FT->key(),
                                               Argument.key());
@@ -368,7 +371,9 @@ gatherArgumentComments(const model::Binary &Binary,
         Line.InternalIndentation = Keyword.size();
 
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     Argument.name().str().str());
+                                     NamingHelper.argument(Argument, *FT)
+                                       .str()
+                                       .str());
         std::string Location = locationString(ranks::RawArgument,
                                               FT->key(),
                                               Argument.key());
@@ -403,7 +408,7 @@ gatherArgumentComments(const model::Binary &Binary,
       llvm::SmallVector<FieldMapEntry> Comments;
       for (const model::StructField &Field : Stack->Fields())
         if (!Field.Comment().empty())
-          Comments.emplace_back(Field.name().str().str(),
+          Comments.emplace_back(NamingHelper.field(Field, *Stack).str().str(),
                                 Field.Comment(),
                                 Field);
 
@@ -538,7 +543,8 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
                                   const model::Binary &Binary,
                                   llvm::StringRef CommentIndicator,
                                   size_t Indentation,
-                                  size_t WrapAt) {
+                                  size_t WrapAt,
+                                  const model::NamingHelper *NH) {
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (!Function.Comment().empty()) {
     DoxygenToken Tag{ .Type = DoxygenToken::Types::Untagged,
@@ -551,7 +557,13 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
     Result.emplace_back(DoxygenLine{ .Tags = { std::move(Tag) } });
   }
 
-  auto ArgumentComments = gatherArgumentComments(Binary, Function);
+  using CNH = const model::NamingHelper;
+  auto OwnedNamingHelper = NH ? std::nullopt :
+                                std::make_optional<CNH>(Binary.namingHelper());
+  if (OwnedNamingHelper)
+    NH = &*OwnedNamingHelper;
+
+  auto ArgumentComments = gatherArgumentComments(Binary, Function, *NH);
   if (!ArgumentComments.empty()) {
     if (!Result.empty())
       Result.emplace_back();

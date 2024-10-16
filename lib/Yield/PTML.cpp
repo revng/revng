@@ -440,33 +440,39 @@ static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
 
 } // namespace callGraphTokens
 
-static model::Identifier functionNameHelper(std::string_view Location,
-                                            const model::Binary &Binary) {
+static model::Identifier
+functionNameHelper(std::string_view Location,
+                   const model::Binary &Binary,
+                   const model::NamingHelper &NamingHelper) {
   if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
                                             Location)) {
     auto Key = std::get<0>(L->at(revng::ranks::DynamicFunction));
     auto Iterator = Binary.ImportedDynamicFunctions().find(Key);
     revng_assert(Iterator != Binary.ImportedDynamicFunctions().end());
-    return Iterator->name();
+    return NamingHelper.dynamicFunction(*Iterator);
   } else if (auto L = pipeline::locationFromString(revng::ranks::Function,
                                                    Location)) {
     auto Key = std::get<0>(L->at(revng::ranks::Function));
     auto Iterator = Binary.Functions().find(Key);
     revng_assert(Iterator != Binary.Functions().end());
-    return Iterator->name();
+    return NamingHelper.function(*Iterator);
   } else {
     revng_abort("Unsupported function type.");
   }
 }
 
-std::string yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
-                                                std::string_view Location,
-                                                const model::Binary &Binary) {
+std::string
+yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
+                                    std::string_view Location,
+                                    const model::Binary &Binary,
+                                    const model::NamingHelper &NamingHelper) {
   if (Location.empty())
     return "";
 
   ::ptml::Tag Result = B.getTag(tags::Div,
-                                functionNameHelper(Location, Binary));
+                                functionNameHelper(Location,
+                                                   Binary,
+                                                   NamingHelper));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationDefinition, Location);
   return Result.toString();
@@ -474,25 +480,32 @@ std::string yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
 
 std::string yield::ptml::functionLink(const ::ptml::MarkupBuilder &B,
                                       std::string_view Location,
-                                      const model::Binary &Binary) {
+                                      const model::Binary &Binary,
+                                      const model::NamingHelper &NamingHelper) {
   if (Location.empty())
     return "";
 
   ::ptml::Tag Result = B.getTag(tags::Div,
-                                functionNameHelper(Location, Binary));
+                                functionNameHelper(Location,
+                                                   Binary,
+                                                   NamingHelper));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
   return Result.toString();
 }
 
-std::string yield::ptml::shallowFunctionLink(const ::ptml::MarkupBuilder &B,
-                                             std::string_view Location,
-                                             const model::Binary &Binary) {
+std::string
+yield::ptml::shallowFunctionLink(const ::ptml::MarkupBuilder &B,
+                                 std::string_view Location,
+                                 const model::Binary &Binary,
+                                 const model::NamingHelper &NamingHelper) {
   if (Location.empty())
     return "";
 
   ::ptml::Tag Result = B.getTag(tags::Div,
-                                functionNameHelper(Location, Binary));
+                                functionNameHelper(Location,
+                                                   Binary,
+                                                   NamingHelper));
   Result.addAttribute(attributes::Token, callGraphTokens::ShallowNodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
   return Result.toString();

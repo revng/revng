@@ -220,10 +220,11 @@ struct LabelDescription {
 
 static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
                                   const yield::Function &Function,
-                                  const model::Binary &Binary) {
+                                  const model::Binary &Binary,
+                                  const model::NamingHelper &NamingHelper) {
   if (auto *ModelFunction = yield::tryGetFunction(Binary, BasicBlock)) {
     return LabelDescription{
-      .Name = ModelFunction->name().str().str(),
+      .Name = NamingHelper.function(*ModelFunction).str().str(),
       .Location = locationString(revng::ranks::Function, ModelFunction->key()),
     };
   } else if (Function.Blocks().contains(BasicBlock)) {
@@ -285,7 +286,8 @@ static bool tryToTurnIntoALabel(yield::TaggedString &Input,
                                 const MetaAddress &Address,
                                 const yield::BasicBlock &BasicBlock,
                                 const yield::Function &Function,
-                                const model::Binary &Binary) {
+                                const model::Binary &Binary,
+                                const model::NamingHelper &NamingHelper) {
   if (Address.isInvalid())
     return false;
 
@@ -296,7 +298,10 @@ static bool tryToTurnIntoALabel(yield::TaggedString &Input,
         && Successor->Destination().start().address() == Address.address()) {
       // Since we have no easy way to decide which one of the successors
       // is better, stop looking after the first match.
-      auto [Name, Loc] = labelImpl(Successor->Destination(), Function, Binary);
+      auto [Name, Loc] = labelImpl(Successor->Destination(),
+                                   Function,
+                                   Binary,
+                                   NamingHelper);
 
       Input.Type() = yield::TagType::Label;
       Input.Content() = std::move(Name);
@@ -309,11 +314,13 @@ static bool tryToTurnIntoALabel(yield::TaggedString &Input,
   return false;
 }
 
-static yield::TaggedString emitAddress(yield::TaggedString &&Input,
-                                       const MetaAddress &Address,
-                                       const yield::BasicBlock &BasicBlock,
-                                       const yield::Function &Function,
-                                       const model::Binary &Binary) {
+static yield::TaggedString
+emitAddress(yield::TaggedString &&Input,
+            const MetaAddress &Address,
+            const yield::BasicBlock &BasicBlock,
+            const yield::Function &Function,
+            const model::Binary &Binary,
+            const model::NamingHelper &NamingHelper) {
   namespace Style = model::DisassemblyConfigurationAddressStyle;
   const auto &Configuration = Binary.Configuration().Disassembly();
   Style::Values AddressStyle = Configuration.AddressStyle();
@@ -325,8 +332,14 @@ static yield::TaggedString emitAddress(yield::TaggedString &&Input,
   if (AddressStyle == Style::SmartWithPCRelativeFallback
       || AddressStyle == Style::Smart || AddressStyle == Style::Strict) {
     // "Smart" style selected, try to emit the label.
-    if (tryToTurnIntoALabel(Input, Address, BasicBlock, Function, Binary))
+    if (tryToTurnIntoALabel(Input,
+                            Address,
+                            BasicBlock,
+                            Function,
+                            Binary,
+                            NamingHelper)) {
       return std::move(Input);
+    }
   }
 
   // "Simple" style selected OR "Smart" detection failed.
@@ -368,7 +381,8 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
                    const yield::Instruction &Instruction,
                    const yield::BasicBlock &BasicBlock,
                    const yield::Function &Function,
-                   const model::Binary &Binary) {
+                   const model::Binary &Binary,
+                   const model::NamingHelper &NamingHelper) {
   SortedVector<yield::TaggedString> Result;
 
   uint64_t IndexOffset = 0;
@@ -382,7 +396,8 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
                                  Address,
                                  BasicBlock,
                                  Function,
-                                 Binary));
+                                 Binary,
+                                 NamingHelper));
     } else if (Iterator->Type() == yield::TagType::AbsoluteAddress) {
       auto Address = absoluteAddressFromAbsoluteImmediate(*Iterator,
                                                           Instruction);
@@ -390,7 +405,8 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
                                  Address,
                                  BasicBlock,
                                  Function,
-                                 Binary));
+                                 Binary,
+                                 NamingHelper));
     } else if (Iterator->Type() == yield::TagType::PCRelativeAddress) {
       auto Address = absoluteAddressFromPCRelativeImmediate(*Iterator,
                                                             Instruction);
@@ -401,7 +417,8 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
                                  Address,
                                  BasicBlock,
                                  Function,
-                                 Binary));
+                                 Binary,
+                                 NamingHelper));
       Result.emplace(CurrentIndex + 2, yield::TagType::Helper, ")"s);
       IndexOffset += 2;
     } else {
@@ -416,17 +433,21 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
 
 void yield::Instruction::handleSpecialTags(const yield::BasicBlock &BasicBlock,
                                            const yield::Function &Function,
-                                           const model::Binary &Binary) {
+                                           const model::Binary &Binary,
+                                           const model::NamingHelper
+                                             &NamingHelper) {
   Disassembled() = handleSpecialCases(std::move(Disassembled()),
                                       *this,
                                       BasicBlock,
                                       Function,
-                                      Binary);
+                                      Binary,
+                                      NamingHelper);
 }
 
 void yield::BasicBlock::setLabel(const yield::Function &Function,
-                                 const model::Binary &Binary) {
-  auto [N, Location] = labelImpl(ID(), Function, Binary);
+                                 const model::Binary &Binary,
+                                 const model::NamingHelper &NamingHelper) {
+  auto [N, Location] = labelImpl(ID(), Function, Binary, NamingHelper);
 
   SortedVector<TagAttribute> Attributes;
   Attributes.emplace(ptml::attributes::LocationDefinition, Location);

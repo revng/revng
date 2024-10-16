@@ -481,10 +481,11 @@ void DetectABI::analyzeABI() {
   }
 
   unsigned Runs = 0;
+  model::NamingHelper NamingHelper = Binary->namingHelper();
   while (not ToAnalyze.empty()) {
     model::Function &Function = *ToAnalyze.pop();
     revng_log(Log, "Analyzing " << Function.Entry().toString());
-    FixedPointTask.advance(Function.name());
+    FixedPointTask.advance(NamingHelper.function(Function));
     OutlinedFunction &OutlinedFunction = *Functions.at(Function.Entry());
     Changes Changes = analyzeFunctionABI(Function,
                                          OutlinedFunction,

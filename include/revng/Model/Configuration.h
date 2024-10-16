@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/DisassemblyConfiguration.h"
+#include "revng/Model/NamingConfiguration.h"
 
 /* TUPLE-TREE-YAML
 name: Configuration
@@ -12,6 +13,9 @@ type: struct
 fields:
   - name: Disassembly
     type: DisassemblyConfiguration
+    optional: true
+  - name: Naming
+    type: NamingConfiguration
     optional: true
 TUPLE-TREE-YAML */
 
