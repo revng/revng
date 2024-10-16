@@ -6,9 +6,9 @@ USAGE: revng-artifact [options] <artifact> <binary>
 
 <artifact> can be one of:
 
-  lift                        - text/x.llvm.ir
-  isolate                     - text/x.llvm.ir
-  enforce-abi                 - text/x.llvm.ir
+  lift                        - application/x.llvm.bc+zstd
+  isolate                     - application/x.llvm.bc+zstd
+  enforce-abi                 - application/x.llvm.bc+zstd
   emit-cfg                    - text/yaml+tar+gz
   hexdump                     - text/x.hexdump+ptml
   render-svg-call-graph       - image/svg
@@ -17,15 +17,15 @@ USAGE: revng-artifact [options] <artifact> <binary>
   render-svg-cfg              - image/svg
   recompile                   - application/x-executable
   recompile-isolated          - application/x-executable
-  simplify-switch             - text/x.llvm.ir
-  make-segment-ref            - text/x.llvm.ir
+  simplify-switch             - application/x.llvm.bc+zstd
+  make-segment-ref            - application/x.llvm.bc+zstd
   decompile                   - text/x.c+ptml+tar+gz
   decompile-to-single-file    - text/x.c+ptml
   emit-recompilable-archive   - application/x-tar
   emit-helpers-header         - text/x.c+ptml
   emit-model-header           - text/x.c+ptml
   emit-type-definitions       - text/x.c+tar+gz
-  cleanup-ir                  - text/x.llvm.ir
+  cleanup-ir                  - application/x.llvm.bc+zstd
   convert-to-mlir             - application/x.mlir.bc
   import-clift-types          - application/x.mlir.bc
 ```
