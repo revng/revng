@@ -4,7 +4,6 @@
 
 add_subdirectory(apply)
 add_subdirectory(diff)
-add_subdirectory(dump)
 add_subdirectory(export)
 add_subdirectory(import)
 add_subdirectory(opt)
