@@ -223,7 +223,7 @@ foreach(WELL_KNOWN_BINARY IN LISTS WELL_KNOWN_BINARIES)
 
   add_custom_command(
     OUTPUT "${FULL_MODEL_PATH}"
-    COMMAND "./bin/revng" model import binary -o "${FULL_MODEL_PATH}"
+    COMMAND "./bin/revng" analyze import-binary -o "${FULL_MODEL_PATH}"
             "${WELL_KNOWN_BINARY}"
     MAIN_DEPENDENCY "${WELL_KNOWN_BINARY}"
     DEPENDS revng-all-binaries

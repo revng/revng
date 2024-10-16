@@ -10,6 +10,6 @@ commands:
       - type: revng-qa.generated-pdb
         filter: for-import-pe
     command: |-
-      revng model import binary --use-pdb="$INPUT2" "$INPUT1"
+      revng analyze import-binary --use-pdb="$INPUT2" "$INPUT1"
         | revng model hard-purge "${SOURCE}.model.yml"
         | revng model compare "${SOURCE}.model.yml"
