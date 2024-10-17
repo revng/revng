@@ -52,7 +52,7 @@ using namespace pipeline;
 using namespace std;
 using namespace llvm;
 
-static auto Root = defineRootRank<"root">();
+static auto Root = defineRootRank<"root", "/">();
 static auto FunctionRank = defineRank<"function", std::string>(Root);
 class RootKindType : public LLVMKind {
 public:

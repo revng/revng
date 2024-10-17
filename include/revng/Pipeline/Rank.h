@@ -16,17 +16,28 @@ namespace pipeline {
 /// The rank tree is a tree used by targets to find out how many names
 /// are required to name a target
 class Rank : public DynamicHierarchy<Rank> {
+private:
+  std::string ModelPath;
+
 public:
   Rank(llvm::StringRef Name) : DynamicHierarchy(Name) {}
+  Rank(llvm::StringRef Name, std::string_view ModelPath) :
+    DynamicHierarchy(Name), ModelPath(ModelPath) {}
   Rank(llvm::StringRef Name, Rank &Parent) : DynamicHierarchy(Name, Parent) {}
+  Rank(llvm::StringRef Name, Rank &Parent, std::string_view ModelPath) :
+    DynamicHierarchy(Name, Parent), ModelPath(ModelPath) {}
+
+  std::string_view modelPath() const { return ModelPath; }
 };
 
 // Root rank specialization
-template<ConstexprString String>
+template<ConstexprString String, ConstexprString ModelPathSeparator_>
 class RootRank : public Rank {
 public:
   static constexpr bool RankTag = true;
   static constexpr std::string_view RankName = String;
+  static constexpr std::string_view ModelPathSeparator = ModelPathSeparator_;
+  static constexpr std::string_view ModelPath = "";
   using Type = void;
   using Parent = void;
 
@@ -35,16 +46,16 @@ public:
   using Tuple = std::tuple<>;
 
 public:
-  explicit RootRank() : Rank(RankName) {}
+  explicit RootRank() : Rank(RankName, ModelPathSeparator) {}
 };
 
 /// A helper function used for defining a root rank.
 ///
 /// Root rank doesn't have corresponding storage location and is only
-/// used to defining a single logical starting point in the rank hierarhy.
-template<ConstexprString Name>
-pipeline::RootRank<Name> defineRootRank() {
-  return pipeline::RootRank<Name>();
+/// used to defining a single logical starting point in the rank hierarchy.
+template<ConstexprString Name, ConstexprString ModelPathSeparator>
+pipeline::RootRank<Name, ModelPathSeparator> defineRootRank() {
+  return pipeline::RootRank<Name, ModelPathSeparator>();
 }
 
 template<typename RankType>
@@ -76,11 +87,13 @@ struct AppendToTupleHelper {
 
 template<ConstexprString String,
          HasScalarOrEnumTraits Key,
-         RankSpecialization ParentRank>
+         RankSpecialization ParentRank,
+         ConstexprString ModelPathComponent_>
 class TypedRank : public Rank {
 public:
   static constexpr bool RankTag = true;
   static constexpr std::string_view RankName = String;
+  static constexpr std::string_view ModelPathComponent = ModelPathComponent_;
   using Type = Key;
   using Parent = ParentRank;
 
@@ -89,9 +102,40 @@ public:
   static constexpr size_t Depth = Parent::Depth + 1;
   using Tuple = typename detail::AppendToTupleHelper<typename Parent::Tuple,
                                                      Type>::type;
+  static constexpr std::string_view
+    ModelPathSeparator = Parent::ModelPathSeparator;
+
+private:
+  static consteval auto modelPathImpl() {
+    namespace ct = compile_time;
+
+    constexpr std::string_view Separator = ModelPathSeparator;
+    constexpr ConstexprString<Separator.size() + 1>
+      SeparatorArgument = Separator;
+
+    constexpr std::string_view ParentPath = Parent::ModelPath;
+    constexpr ConstexprString<ParentPath.size() + 1>
+      ParentPathArgument = ParentPath;
+
+    constexpr std::string_view Component = ModelPathComponent;
+    constexpr ConstexprString<Component.size() + 1>
+      ComponentArgument = Component;
+
+    return ct::concatenateWithSeparator<SeparatorArgument,
+                                        ParentPathArgument,
+                                        ComponentArgument>();
+  }
+  static constexpr std::array ModelPathValue = modelPathImpl();
 
 public:
-  explicit TypedRank(Parent &ParentObj) : Rank(RankName, ParentObj) {}
+  static constexpr auto ModelPath = ModelPathComponent.empty() ?
+                                      std::string_view{} :
+                                      std::string_view(ModelPathValue.data(),
+                                                       ModelPathValue.size());
+
+public:
+  explicit TypedRank(Parent &ParentObj) :
+    Rank(RankName, ParentObj, ModelPath) {}
 };
 
 /// A helper function for defining a new rank.
@@ -103,9 +147,15 @@ public:
 /// \arg ParentObject is the rank this rank extends.
 template<ConstexprString Name,
          HasScalarOrEnumTraits Type,
-         RankSpecialization Parent>
-pipeline::TypedRank<Name, Type, Parent> defineRank(Parent &ParentObject) {
-  return pipeline::TypedRank<Name, Type, Parent>(ParentObject);
+         ConstexprString ModelPathComponentWithKeyOmitted = ConstexprString{},
+         RankSpecialization Parent = void>
+pipeline::TypedRank<Name, Type, Parent, ModelPathComponentWithKeyOmitted>
+defineRank(Parent &ParentObject) {
+  static_assert(not std::same_as<Parent, void>);
+  return pipeline::TypedRank<Name,
+                             Type,
+                             Parent,
+                             ModelPathComponentWithKeyOmitted>(ParentObject);
 }
 
 namespace detail {

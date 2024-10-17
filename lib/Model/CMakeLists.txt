@@ -45,6 +45,8 @@ target_tuple_tree_generator(
   EMIT_TRACKING
   GLOBAL_NAME
   Model
+  PYTHON_MIXINS
+  "${CMAKE_BINARY_DIR}/lib/python3.12/site-packages/revng/model/mixins.py"
   STRING_TYPES
   "Identifier"
   SEPARATE_STRING_TYPES

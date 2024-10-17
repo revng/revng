@@ -25,14 +25,17 @@ using NRK = model::NamedTypedRegister::Key;
 static_assert(HasScalarOrEnumTraits<MetaAddress>);
 static_assert(HasScalarOrEnumTraits<BasicBlockID>);
 
-inline auto Binary = pipeline::defineRootRank<"binary">();
+inline auto Binary = pipeline::defineRootRank<"binary", "/">();
 
 using pipeline::defineRank;
-inline auto Function = defineRank<"function", model::Function::Key>(Binary);
+inline auto
+  Function = defineRank<"function", model::Function::Key, "Functions">(Binary);
 inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
 inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 
-inline auto TypeDefinition = defineRank<"type-definition", detail::TDK>(Binary);
+inline auto TypeDefinition = defineRank<"type-definition",
+                                        detail::TDK,
+                                        "TypeDefinitions">(Binary);
 inline auto
   StructField = defineRank<"struct-field", detail::SFK>(TypeDefinition);
 inline auto UnionField = defineRank<"union-field", detail::UFK>(TypeDefinition);
@@ -49,7 +52,8 @@ inline auto
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
 
-inline auto Segment = defineRank<"segment", model::Segment::Key>(Binary);
+inline auto
+  Segment = defineRank<"segment", model::Segment::Key, "Segments">(Binary);
 
 inline auto DynamicFunction = defineRank<"dynamic-function",
                                          model::DynamicFunction::Key>(Binary);
