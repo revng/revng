@@ -21,6 +21,7 @@
 import argparse
 import json
 import os
+import shlex
 import signal
 import sys
 from contextlib import suppress
@@ -156,7 +157,10 @@ def handle_timeout(root_process):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        epilog="Arguments can also be passed via REVNG_TEST_HARNESS_OPTIONS, these take precedence"
+        + "over the ones passed by command-line"
+    )
     parser.add_argument(
         "--timeout", default=300, type=int, help="Time to timeout, in seconds (default: 300)"
     )
@@ -170,6 +174,14 @@ def parse_args():
     parser.add_argument("output", help="Output directory")
 
     args, rest = parser.parse_known_args()
+    try:
+        parser.exit_on_error = False
+        parser.parse_known_args(shlex.split(os.environ.get("REVNG_TEST_HARNESS_OPTIONS", "")), args)
+    except argparse.ArgumentError:
+        pass
+    finally:
+        parser.exit_on_error = True
+
     if rest[0] == "--":
         rest.pop(0)
     return (args, rest)
