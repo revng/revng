@@ -6,8 +6,6 @@
 
 #include <set>
 
-#include "llvm/Support/ManagedStatic.h"
-
 #include "revng/Model/Binary.h"
 
 namespace model {

@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/ArrayType.h"
 #include "revng/Model/DefinedType.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/PointerType.h"

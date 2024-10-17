@@ -515,7 +515,7 @@ public:
     if (It == TheClass.Fields().end())
       revng_abort("Class member not found.");
 
-    Out << C.getLocation(/*IsDefinition=*/false, TheClass, *It);
+    Out << C.getLocationReference(TheClass, *It);
   }
 
   RecursiveCoroutine<void> emitAccessExpression(mlir::Value V) {

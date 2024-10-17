@@ -544,13 +544,13 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                   "Some fields were converted successfully, try to slot in the "
                   "rest as a struct.");
 
-        if (RemainingRange.empty()
-            or RemainingRange.begin()->Offset() >= StartingOffset) {
-
+        if (not RemainingRange.empty()
+            and RemainingRange.begin()->Offset() < StartingOffset) {
           revng_log(Log,
                     "Such a struct would start on a misaligned offset, "
                     "which is not supported.");
 
+        } else {
           model::StructDefinition RemainingArgs;
           RemainingArgs.Size() = Stack.Size() - StartingOffset;
           for (const auto &Field : RemainingRange) {

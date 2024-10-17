@@ -10,7 +10,7 @@
 
 // Declare the existence of explicit template specializations of certain
 // functions that would be otherwise heavy on build times. Make sure this file
-// is included by an header that's include by all the translation units.
+// is included by an header that's included by all the translation units.
 
 extern template void std::vector<unsigned int>::__push_back_slow_path<
   const unsigned int &>(const unsigned int &);

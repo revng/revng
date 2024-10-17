@@ -9,6 +9,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"

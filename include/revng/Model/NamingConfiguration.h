@@ -5,6 +5,7 @@
 //
 
 /* TUPLE-TREE-YAML
+
 name: NamingConfiguration
 type: struct
 fields:

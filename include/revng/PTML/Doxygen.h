@@ -63,7 +63,6 @@ std::string functionComment(const ::ptml::MarkupBuilder &B,
 /// Emits PTML containing a statement comment.
 ///
 /// \param Comment the contents of the comment.
-/// \param ShouldBeEmittedAt the point where this comment should be emitted at.
 /// \param IsBeingEmittedAt the point where this comment is being emitted at.
 ///
 /// \note for the remaining arguments see \ref functionComment documentation.

@@ -78,7 +78,7 @@ private:
   bool AssertOnFail = false;
 
   // This field a only gets populated if this object was created with a binary,
-  // as such, no name-space related checks will take place, say, inside
+  // as such, no namespace related checks will take place, say, inside
   // a `model::Function::verify`.
   std::optional<model::NameBuilder> NameBuilder = std::nullopt;
 

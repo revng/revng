@@ -70,7 +70,7 @@ static Logger<> PTCLog("ptc");
 static Logger<> Log("lift");
 
 template<typename T, typename... ArgTypes>
-inline std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
+constexpr std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
   return { { std::forward<ArgTypes>(Args)... } };
 }
 
@@ -619,7 +619,8 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   //
 
   // Transform in no op
-  auto NoOpFunctionNames = make_array<const char *>("cpu_dump_state",
+  static constexpr auto
+    NoOpFunctionNames = make_array<llvm::StringRef>("cpu_dump_state",
                                                     "cpu_exit",
                                                     "end_exclusive"
                                                     "fprintf",
@@ -641,7 +642,8 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
   // do_arm_semihosting: we don't care about semihosting
   // EmulateAll: requires access to the opcode
-  auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
+  static constexpr auto
+    AbortFunctionNames = make_array<llvm::StringRef>("cpu_restore_state",
                                                      "cpu_mips_exec",
                                                      "gdb_handlesig",
                                                      "queue_signal",

@@ -182,8 +182,6 @@ inline constexpr Values genericFromArch(llvm::Triple::ArchType Arch) {
   default:
     revng_abort("Unsupported architecture");
   }
-
-  revng_abort("Unsupported architecture");
 }
 
 /// Convert \p Type to the corresponding generic type
@@ -331,8 +329,6 @@ inline constexpr bool isCode(Values Type, llvm::Triple::ArchType Arch) {
   default:
     revng_abort("Unsupported architecture");
   }
-
-  revng_abort();
 }
 
 /// Is \p Type a generic address?

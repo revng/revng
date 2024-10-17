@@ -56,7 +56,6 @@ private:
 class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
 private:
   TupleTree<model::Binary> &Model;
-  model::NameBuilder NameBuilder;
   ASTContext &Context;
   std::optional<model::TypeDefinition::Key> Type;
   MetaAddress FunctionEntry;
@@ -140,7 +139,6 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
                          ImportingErrorList &Errors,
                          enum ImportFromCOption AnalysisOption) :
   Model(Model),
-  NameBuilder(*Model),
   Context(Context),
   Type(Type),
   FunctionEntry(FunctionEntry),
@@ -951,8 +949,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       Size = *ModelField->size();
     }
 
-    auto PaddingPrefix = NameBuilder.configuration().structPaddingPrefix();
-    bool IsPadding = Field->getName().starts_with(PaddingPrefix);
+    const auto &Config = Model->Configuration().Naming();
+    bool IsPadding = Field->getName().starts_with(Config.structPaddingPrefix());
     auto ExplicitOffset = parseIntegerAnnotation<"_START_AT">(*Field, Errors);
     if (ExplicitOffset.has_value()) {
       if (IsPadding) {

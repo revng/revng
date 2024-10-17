@@ -16,8 +16,9 @@
 //
 // The following helpers are designed to help with handling metadata.
 //
-// Metadata are some common fields appearing in different (sometime unrelated)
-// types within the model. These allow to work with those in a generic manner.
+// Metadata are some common fields appearing in different (sometimes unrelated)
+// types within the model. These helpers allow to work with such fields in
+// a generic manner.
 
 namespace model {
 

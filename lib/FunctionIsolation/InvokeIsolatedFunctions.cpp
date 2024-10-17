@@ -84,8 +84,7 @@ public:
 
     model::NameBuilder NameBuilder = Binary;
     for (const model::Function &Function : Binary.Functions()) {
-      auto Name = NameBuilder.llvmName(Function);
-      llvm::Function *F = M->getFunction(Name);
+      llvm::Function *F = M->getFunction(NameBuilder.llvmName(Function));
       revng_assert(F != nullptr);
       Map[Function.Entry()] = { &Function, nullptr, F };
     }

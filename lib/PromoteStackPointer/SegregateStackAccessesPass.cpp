@@ -19,6 +19,7 @@
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"

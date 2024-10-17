@@ -8,6 +8,7 @@
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypeDefinition.h"

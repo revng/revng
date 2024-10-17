@@ -103,14 +103,10 @@ inline bool isRootOrLifted(const llvm::Function *F) {
          or Tags.contains(FunctionTags::Isolated);
 }
 
-inline bool isHelper(const llvm::Function *F) {
-  return FunctionTags::Helper.isTagOf(F);
-}
-
 inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
   revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
-  if (Callee != nullptr && isHelper(Callee))
+  if (Callee != nullptr && FunctionTags::Helper.isTagOf(Callee))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
@@ -119,7 +115,7 @@ inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
 inline llvm::CallInst *getCallToHelper(llvm::Instruction *I) {
   revng_assert(I != nullptr);
   const llvm::Function *Callee = getCallee(I);
-  if (Callee != nullptr && isHelper(Callee))
+  if (Callee != nullptr && FunctionTags::Helper.isTagOf(Callee))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;

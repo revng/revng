@@ -44,8 +44,8 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
                             .OptionalCallAddress = MetaAddress::invalid() };
 
   case FunctionEdgeType::FunctionCall: {
-    // Note: we assume that the first concrete type is the CallEdge. All of this
-    //       hacks are necessary to handle identical data structures under
+    // Note: we assume that the first concrete type is the CallEdge. This hack
+    //       is necessary to be able to handle identical data structures under
     //       different namespaces.
     using CallEdge = std::tuple_element_t<0, concrete_types_traits_t<T>>;
     auto *CE = llvm::cast<CallEdge>(&Edge);
