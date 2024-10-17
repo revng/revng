@@ -584,3 +584,35 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
   CommentBuilder Builder(PTML, CommentIndicator, Indentation, WrapAt);
   return Builder.emit(std::move(Result));
 }
+
+std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
+                                   const model::StatementComment &Comment,
+                                   llvm::StringRef IsBeingEmittedAt,
+                                   llvm::StringRef CommentIndicator,
+                                   size_t Indentation,
+                                   size_t WrapAt) {
+  std::string Result = "";
+
+  revng_assert(not Comment.Location().empty());
+
+  std::string ExpectedLocation = "";
+  for (const MetaAddress &Address : Comment.Location())
+    ExpectedLocation += Address.toString() + " + ";
+  ExpectedLocation.resize(ExpectedLocation.size() - 3);
+
+  if (IsBeingEmittedAt != ExpectedLocation) {
+    Result += "WARNING: Looks like this comment is attached to a non-existent "
+              "location ("
+              + ExpectedLocation + "), so it's emitted elsewhere";
+
+    if (not IsBeingEmittedAt.empty())
+      Result += " (" + IsBeingEmittedAt.str() + ")";
+
+    Result += ".\n\n";
+  }
+
+  Result += Comment.Body();
+
+  CommentBuilder Builder(B, CommentIndicator, Indentation, WrapAt);
+  return Builder.emit(Result);
+}

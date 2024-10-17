@@ -7,6 +7,7 @@
 #include <string>
 
 #include "revng/Model/Helpers.h"
+#include "revng/Model/StatementComment.h"
 #include "revng/PTML/Tag.h"
 
 namespace model {
@@ -58,5 +59,21 @@ std::string functionComment(const ::ptml::MarkupBuilder &B,
                             size_t Indentation,
                             size_t WrapAt,
                             model::NameBuilder *NameBuilder = nullptr);
+
+/// Emits PTML containing a statement comment.
+///
+/// \param Comment the contents of the comment.
+/// \param ShouldBeEmittedAt the point where this comment should be emitted at.
+/// \param IsBeingEmittedAt the point where this comment is being emitted at.
+///
+/// \note for the remaining arguments see \ref functionComment documentation.
+///
+/// \returns a serialized PTML string containing the comment.
+std::string statementComment(const ::ptml::MarkupBuilder &B,
+                             const model::StatementComment &Comment,
+                             llvm::StringRef IsBeingEmittedAt,
+                             llvm::StringRef CommentIndicator,
+                             size_t Indentation,
+                             size_t WrapAt);
 
 } // namespace ptml
