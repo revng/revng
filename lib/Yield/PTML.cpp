@@ -239,22 +239,26 @@ public:
            + std::move(Result);
   }
 
-  /// \note This does _not_ consume anything, feel free to call as many times
-  ///       as you need.
-  std::string emitEmpty(const ptml::MarkupBuilder &B,
-                        const model::Binary &Binary) {
-    uint64_t TotalPrefixSize = 2;
+  uint64_t totalPrefixSize(const model::Binary &Binary) const {
+    uint64_t Result = 2;
 
     if (LongestAddressString != 0) {
       using model::Architecture::getAssemblyLabelIndicator;
       auto Indicator = getAssemblyLabelIndicator(Binary.Architecture());
-      TotalPrefixSize += LongestAddressString + Indicator.size() + 4;
+      Result += LongestAddressString + Indicator.size() + 4;
     }
 
     if (LongestByteString != 0)
-      TotalPrefixSize += LongestByteString + 3;
+      Result += LongestByteString + 3;
 
-    return B.getTag(tags::Span, std::string(TotalPrefixSize, ' '))
+    return Result;
+  }
+
+  /// \note This does _not_ consume anything, feel free to call as many times
+  ///       as you need.
+  std::string emitEmpty(const ptml::MarkupBuilder &B,
+                        const model::Binary &Binary) const {
+    return B.getTag(tags::Span, std::string(totalPrefixSize(Binary), ' '))
       .addAttribute(attributes::Token, ptml::tokens::Indentation)
       .toString();
   }
