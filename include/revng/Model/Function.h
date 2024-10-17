@@ -10,6 +10,7 @@
 #include "revng/Model/CommonFunctionMethods.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/StatementComment.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -66,6 +67,11 @@ fields:
     sequence:
       type: SortedVector
       elementType: string
+    optional: true
+  - name: Comments
+    sequence:
+      type: vector
+      elementType: StatementComment
     optional: true
 key:
   - Entry
