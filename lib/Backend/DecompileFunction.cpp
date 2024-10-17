@@ -1264,8 +1264,6 @@ static bool isStatement(const llvm::Instruction *I) {
     return false;
 
   // Calls to Assign and LocalVariable are statemements.
-  // Stack frame declarations and call stack arguments declarations are
-  // statements.
   if (isAssignment(Call))
     return true;
 

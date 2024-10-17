@@ -295,7 +295,7 @@ gatherArgumentComments(const model::Binary &Binary,
     //       ret
     // ```
     //
-    // is pretty confusing, isn't it?
+    // which is pretty confusing, isn't it?
 
     std::size_t IndOffset = Layout.hasSPTAR() ? 1 : 0;
     revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
