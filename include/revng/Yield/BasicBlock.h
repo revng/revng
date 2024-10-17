@@ -90,6 +90,12 @@ public:
   }
 
 public:
+  [[nodiscard]] bool contains(const MetaAddress &Address) const {
+    return ID().start().addressLowerThanOrEqual(Address)
+           and Address.addressLowerThan(End());
+  }
+
+public:
   bool verify(model::VerifyHelper &VH) const;
 
 public:

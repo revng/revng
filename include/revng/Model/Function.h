@@ -8,6 +8,7 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/CommonFunctionMethods.h"
+#include "revng/Model/ContextualComment.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/TypeDefinition.h"
@@ -63,6 +64,11 @@ fields:
     sequence:
       type: SortedVector
       elementType: string
+    optional: true
+  - name: Comments
+    sequence:
+      type: SortedVector
+      elementType: ContextualComment
     optional: true
 key:
   - Entry

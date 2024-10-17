@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "revng/Model/ContextualComment.h"
 #include "revng/Model/Helpers.h"
 #include "revng/PTML/Tag.h"
 
@@ -36,10 +37,6 @@ std::string comment(const ::ptml::MarkupBuilder &Builder,
 /// \param Function the function to gather comment information from.
 /// \param Binary the model of the binary the function belongs to.
 /// \param CommentIndicator the indicator used at the start of commented lines.
-///        If no custom value is specified, the value obtained from
-///        `model::Architecture::getAssemblyCommentIndicator` is used instead,
-///        which is the preferred option for the assembly (see the inline
-///        overload calling this function).
 ///        For C code, the recommended indicator is either `'///'` or `'  *'`.
 ///        With second option, the opening (`'/**'`) and closing (`' */'`)
 ///        brackets are not provided by this function and need to be added
@@ -55,5 +52,22 @@ std::string functionComment(const ::ptml::MarkupBuilder &B,
                             llvm::StringRef CommentIndicator,
                             size_t Indentation,
                             size_t WrapAt);
+
+/// Emits PTML containing a contextual comment.
+///
+/// \param Location the point comment is being emitted at. When this doesn't
+///        exactly match the location within the comment object, a warning is
+///        emitted.
+/// \param Comment the comment to serialize.
+///
+/// \note for the remaining arguments see \ref functionComment documentation.
+///
+/// \returns a serialized PTML string containing the comment.
+std::string contextualComment(const ::ptml::MarkupBuilder &B,
+                              const MetaAddress &Location,
+                              const model::ContextualComment &Comment,
+                              llvm::StringRef CommentIndicator,
+                              size_t Indentation,
+                              size_t WrapAt);
 
 } // namespace ptml

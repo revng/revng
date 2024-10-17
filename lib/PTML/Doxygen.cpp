@@ -294,7 +294,7 @@ gatherArgumentComments(const model::Binary &Binary,
     //       ret
     // ```
     //
-    // is pretty confusing, isn't it?
+    // which is pretty confusing, isn't it?
 
     std::size_t IndOffset = Layout.hasSPTAR() ? 1 : 0;
     revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
@@ -571,4 +571,28 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
 
   CommentBuilder Builder(PTML, CommentIndicator, Indentation, WrapAt);
   return Builder.emit(std::move(Result));
+}
+
+std::string ptml::contextualComment(const ::ptml::MarkupBuilder &B,
+                                    const MetaAddress &Location,
+                                    const model::ContextualComment &Comment,
+                                    llvm::StringRef CommentIndicator,
+                                    size_t Indentation,
+                                    size_t WrapAt) {
+  std::string Result;
+
+  if (Location.isInvalid() or Location.addressDiffers(Comment.Location())) {
+    constexpr std::string_view WarningPrefix = "WARNING: Looks like this "
+                                               "comment is attached to a "
+                                               "non-existent location (";
+    constexpr std::string_view WarningSuffix = "), so it's emitted "
+                                               "elsewhere.\n\n";
+    Result += std::string(WarningPrefix) + Comment.Location().toString()
+              + std::string(WarningSuffix);
+  }
+
+  Result += Comment.Text();
+
+  CommentBuilder Builder(B, CommentIndicator, Indentation, WrapAt);
+  return Builder.emit(Result);
 }

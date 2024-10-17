@@ -5,6 +5,7 @@
 //
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "llvm/ADT/PostOrderIterator.h"
 
@@ -13,6 +14,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/PTML/Constants.h"
+#include "revng/PTML/Doxygen.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -239,24 +241,140 @@ public:
            + std::move(Result);
   }
 
-  /// \note This does _not_ consume anything, feel free to call as many times
-  ///       as you need.
-  std::string emitEmpty(const ptml::MarkupBuilder &B,
-                        const model::Binary &Binary) {
-    uint64_t TotalPrefixSize = 2;
+  uint64_t totalPrefixSize(const model::Binary &Binary) const {
+    uint64_t Result = 2;
 
     if (LongestAddressString != 0) {
       using model::Architecture::getAssemblyLabelIndicator;
       auto Indicator = getAssemblyLabelIndicator(Binary.Architecture());
-      TotalPrefixSize += LongestAddressString + Indicator.size() + 4;
+      Result += LongestAddressString + Indicator.size() + 4;
     }
 
     if (LongestByteString != 0)
-      TotalPrefixSize += LongestByteString + 3;
+      Result += LongestByteString + 3;
 
-    return B.getTag(tags::Span, std::string(TotalPrefixSize, ' '))
+    return Result;
+  }
+
+  /// \note This does _not_ consume anything, feel free to call as many times
+  ///       as you need.
+  std::string emitEmpty(const ptml::MarkupBuilder &B,
+                        const model::Binary &Binary) const {
+    return B.getTag(tags::Span, std::string(totalPrefixSize(Binary), ' '))
       .addAttribute(attributes::Token, ptml::tokens::Indentation)
       .toString();
+  }
+};
+
+class CommentManager {
+private:
+  const ptml::MarkupBuilder *B = nullptr;
+  const uint64_t TotalPrefixSize = 0;
+  std::string_view CommentIndicator = "";
+
+  const model::Function::TypeOfComments *Comments = nullptr;
+  std::unordered_map<MetaAddress, std::vector<const model::ContextualComment *>>
+    InstructionToCommentMap = {};
+  std::unordered_set<const model::ContextualComment *> PlacedComments = {};
+
+private:
+  std::string emitImpl(const std::string_view &Text) const {
+    return ptml::freeFormComment(*B,
+                                 Text,
+                                 CommentIndicator,
+                                 TotalPrefixSize,
+                                 80);
+  }
+
+  std::string emitImpl(const MetaAddress &Instruction,
+                       const model::ContextualComment &Comment) const {
+    return "\n"
+           + ptml::contextualComment(*B,
+                                     Instruction,
+                                     Comment,
+                                     CommentIndicator,
+                                     TotalPrefixSize,
+                                     80);
+  }
+
+  // Because MetaAddress compares by `Type` before it compares by `Address`, we
+  // can't use normal `lower_bound`, not before we re-sort the list.
+  std::optional<MetaAddress>
+  findClosestAddress(const yield::BasicBlock &BasicBlock, MetaAddress Target) {
+    auto InstructionToAddress = [](const yield::Instruction &I) {
+      return I.Address();
+    };
+
+    struct Comparator {
+      bool operator()(const MetaAddress &LHS, const MetaAddress &RHS) const {
+        return LHS.addressLowerThan(RHS);
+      }
+    };
+
+    std::set ReSorted = BasicBlock.Instructions()
+                        | std::views::transform(InstructionToAddress)
+                        | revng::to<std::set<MetaAddress, Comparator>>();
+    auto Iterator = ReSorted.lower_bound(Target);
+    if (Iterator != ReSorted.end())
+      return *Iterator;
+
+    return std::nullopt;
+  }
+
+public:
+  CommentManager() = default;
+  CommentManager(const ptml::MarkupBuilder &B,
+                 const uint64_t &TotalPrefixSize,
+                 std::string_view CommentIndicator,
+                 const model::Function::TypeOfComments &Comments,
+                 const yield::Function &Function) :
+    B(&B),
+    TotalPrefixSize(TotalPrefixSize),
+    CommentIndicator(CommentIndicator),
+    Comments(&Comments) {
+
+    for (const model::ContextualComment &Comment : Comments) {
+      for (const yield::BasicBlock &BasicBlock : Function.Blocks()) {
+        if (BasicBlock.contains(Comment.Location())) {
+          if (auto Addr = findClosestAddress(BasicBlock, Comment.Location())) {
+            auto &InstructionComments = InstructionToCommentMap[*Addr];
+            if (not llvm::is_contained(InstructionComments, &Comment))
+              InstructionComments.push_back(&Comment);
+
+            PlacedComments.emplace(&Comment);
+          }
+        }
+      }
+    }
+  }
+
+  std::string emit(const MetaAddress &Instruction) const {
+    auto It = InstructionToCommentMap.find(Instruction);
+    if (It != InstructionToCommentMap.end()) {
+      revng_assert(!It->second.empty());
+
+      std::string Result;
+      for (const model::ContextualComment *Comment : It->second)
+        Result += emitImpl(Instruction, *Comment);
+      return Result;
+
+    } else {
+      return "";
+    }
+  }
+
+  std::string emitOrphans() const {
+    revng_assert(Comments->size() >= PlacedComments.size());
+    if (Comments->size() == PlacedComments.size())
+      return "";
+
+    std::string Result;
+
+    for (const model::ContextualComment &Comment : *Comments)
+      if (not llvm::is_contained(PlacedComments, &Comment))
+        Result += emitImpl(MetaAddress::invalid(), Comment);
+
+    return Result;
   }
 };
 
@@ -265,9 +383,12 @@ static std::string instruction(const ptml::MarkupBuilder &B,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
                                const model::Binary &Binary,
+                               const CommentManager &CM,
                                InstructionPrefixManager &&Prefixes,
                                bool AddTargets = false) {
   revng_assert(Instruction.verify(true));
+
+  std::string Result = CM.emit(Instruction.Address());
 
   std::string Prefix = Prefixes.emit(B,
                                      Instruction.Address(),
@@ -275,7 +396,6 @@ static std::string instruction(const ptml::MarkupBuilder &B,
                                      Binary);
 
   // Tagged instruction body.
-  std::string Result;
   for (const auto &Directive : Instruction.PrecedingDirectives()) {
     Result += B.getTag(tags::Div,
                        std::move(Prefix) + taggedLine(B, Directive.Tags()))
@@ -323,6 +443,7 @@ static std::string basicBlock(const ptml::MarkupBuilder &B,
                               const yield::Function &Function,
                               const model::Binary &Binary,
                               std::string Label,
+                              const CommentManager &CM,
                               InstructionPrefixManager &&Prefixes) {
   revng_assert(!BasicBlock.Instructions().empty());
   auto FromIterator = BasicBlock.Instructions().begin();
@@ -335,12 +456,14 @@ static std::string basicBlock(const ptml::MarkupBuilder &B,
                           BasicBlock,
                           Function,
                           Binary,
+                          CM,
                           std::move(Prefixes));
   Result += instruction(B,
                         *(ToIterator++),
                         BasicBlock,
                         Function,
                         Binary,
+                        CM,
                         std::move(Prefixes),
                         true);
 
@@ -367,6 +490,7 @@ static std::string labeledBlock(const ptml::MarkupBuilder &B,
                                 const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary,
+                                const CommentManager &CM = {},
                                 InstructionPrefixManager &&Prefixes = {}) {
   std::string Result;
   std::string Label = emitTagged(B, std::move(FirstBlock.Label()));
@@ -383,6 +507,7 @@ static std::string labeledBlock(const ptml::MarkupBuilder &B,
                         Function,
                         Binary,
                         std::move(Label),
+                        CM,
                         std::move(Prefixes))
              + "\n";
   } else {
@@ -397,6 +522,7 @@ static std::string labeledBlock(const ptml::MarkupBuilder &B,
                            Function,
                            Binary,
                            IsFirst ? std::move(Label) : std::string(),
+                           CM,
                            std::move(Prefixes));
       IsFirst = false;
     }
@@ -412,8 +538,19 @@ std::string yield::ptml::functionAssembly(const ::ptml::MarkupBuilder &B,
   std::string Result;
 
   InstructionPrefixManager P(Function, Binary);
-  for (const auto &BasicBlock : Function.Blocks())
-    Result += labeledBlock<true>(B, BasicBlock, Function, Binary, std::move(P));
+
+  const model::Architecture::Values A = Binary.Architecture();
+  auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+  CommentManager CM(B,
+                    P.totalPrefixSize(Binary),
+                    CommentIndicator,
+                    Binary.Functions().at(Function.Entry()).Comments(),
+                    Function);
+
+  for (const auto &BBlock : Function.Blocks())
+    Result += labeledBlock<true>(B, BBlock, Function, Binary, CM, std::move(P));
+
+  Result += CM.emitOrphans();
 
   return B.getTag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
@@ -426,6 +563,10 @@ std::string yield::ptml::controlFlowNode(const ::ptml::MarkupBuilder &B,
                                          const model::Binary &Binary) {
   auto Iterator = Function.Blocks().find(BasicBlock);
   revng_assert(Iterator != Function.Blocks().end());
+
+  // TODO: enable comments in the CFG too after the size computation rework.
+  //
+  // CommentManager CM;
 
   auto Result = labeledBlock<false>(B, *Iterator, Function, Binary);
   revng_assert(!Result.empty());
