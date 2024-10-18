@@ -82,6 +82,7 @@ inline void eraseFromParent(llvm::Value *V) {
 constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
 constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
+constexpr const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
@@ -1597,3 +1598,72 @@ void emitCall(llvm::IRBuilderBase &Builder,
               const llvm::Twine &Reason,
               const llvm::DebugLoc &DbgLocation,
               const ProgramCounterHandler *PCH = nullptr);
+
+namespace llvm {
+class DominatorTree;
+}
+
+void pushInstructionALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove);
+
+template<typename T>
+std::optional<T> getConstantArg(llvm::CallInst *Call, unsigned Index) {
+  using namespace llvm;
+
+  if (auto *CI = dyn_cast<ConstantInt>(Call->getArgOperand(Index))) {
+    return CI->getLimitedValue();
+  } else {
+    return {};
+  }
+}
+
+inline std::optional<uint64_t> getUnsignedConstantArg(llvm::CallInst *Call,
+                                                      unsigned Index) {
+  return getConstantArg<uint64_t>(Call, Index);
+}
+
+inline std::optional<int64_t> getSignedConstantArg(llvm::CallInst *Call,
+                                                   unsigned Index) {
+  return getConstantArg<int64_t>(Call, Index);
+}
+
+llvm::SmallVector<llvm::SmallPtrSet<llvm::CallInst *, 2>, 2>
+getExtractedValuesFromInstruction(llvm::Instruction *);
+
+llvm::SmallVector<llvm::SmallPtrSet<const llvm::CallInst *, 2>, 2>
+getExtractedValuesFromInstruction(const llvm::Instruction *);
+
+/// Deletes the body of an llvm::Function, but preserving all the tags and
+/// attributes (which llvm::Function::deleteBody() does not preserve).
+/// Returns true if the body was cleared, false if it was already empty.
+bool deleteOnlyBody(llvm::Function &F);
+
+/// Set the key of a model::Segment stored as a metadata.
+void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
+                           MetaAddress StartAddress,
+                           uint64_t VirtualSize);
+
+/// Extract the key of a model::Segment stored as a metadata.
+std::pair<MetaAddress, uint64_t>
+extractSegmentKeyFromMetadata(const llvm::Function &F);
+
+/// Returns true if \F has an attached metadata representing a segment key.
+bool hasSegmentKeyMetadata(const llvm::Function &F);
+
+void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
+                              MetaAddress StartAddress,
+                              uint64_t VirtualSize,
+                              uint64_t Offset,
+                              uint64_t StringLength,
+                              llvm::Type *ReturnType);
+
+bool hasStringLiteralMetadata(const llvm::Function &StringLiteralFunction);
+
+std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
+extractStringLiteralFromMetadata(const llvm::Function &StringLiteralFunction);
+
+void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);
+void emitMessage(llvm::IRBuilder<llvm::ConstantFolder,
+                                 llvm::IRBuilderDefaultInserter> &Builder,
+                 const llvm::Twine &Message);
+
+unsigned getMemoryAccessSize(llvm::Instruction *I);
