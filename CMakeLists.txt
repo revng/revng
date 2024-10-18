@@ -8,6 +8,8 @@ project(revng)
 
 include(share/revng/cmake/Common.cmake)
 
+find_program(CLANG_PATH NAMES clang)
+
 #
 # Compile flags
 #
@@ -109,21 +111,14 @@ llvm_map_components_to_libnames(
   Passes
   TargetParser)
 
-# Create share/revng/additional-bin-paths
-set(ADDITIONAL_BIN_PATHS "${CMAKE_BINARY_DIR}/share/revng/additional-bin-paths")
-file(WRITE "${ADDITIONAL_BIN_PATHS}" "libexec/revng\n")
+# MLIR CMake stuff
+find_package(MLIR REQUIRED CONFIG)
+include_directories(${MLIR_INCLUDE_DIRS})
 
-file(RELATIVE_PATH RELATIVE_LLVM_TOOLS_BINARY_DIR "${CMAKE_INSTALL_PREFIX}"
-     "${LLVM_TOOLS_BINARY_DIR}")
-file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
-
-# Create additional-search-prefixes
-file(WRITE "${CMAKE_BINARY_DIR}/additional-search-prefixes"
-     "${CMAKE_INSTALL_PREFIX}\n")
-
-file(RELATIVE_PATH RELATIVE_LLVM_TOOLS_BINARY_DIR "${CMAKE_INSTALL_PREFIX}"
-     "${LLVM_TOOLS_BINARY_DIR}")
-file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
+#
+# Link Clang
+#
+find_package(Clang REQUIRED CONFIG)
 
 #
 # Component hash
@@ -158,9 +153,23 @@ install(
   NAMESPACE revng::
   DESTINATION share/revng/cmake)
 
-# Build the support module for each architecture and in several configurations
-set(CLANG "clang")
+# Create share/revng/additional-bin-paths
+set(ADDITIONAL_BIN_PATHS "${CMAKE_BINARY_DIR}/share/revng/additional-bin-paths")
+file(WRITE "${ADDITIONAL_BIN_PATHS}" "libexec/revng\n")
 
+file(RELATIVE_PATH RELATIVE_LLVM_TOOLS_BINARY_DIR "${CMAKE_INSTALL_PREFIX}"
+     "${LLVM_TOOLS_BINARY_DIR}")
+file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
+
+# Create additional-search-prefixes
+file(WRITE "${CMAKE_BINARY_DIR}/additional-search-prefixes"
+     "${CMAKE_INSTALL_PREFIX}\n")
+
+file(RELATIVE_PATH RELATIVE_LLVM_TOOLS_BINARY_DIR "${CMAKE_INSTALL_PREFIX}"
+     "${LLVM_TOOLS_BINARY_DIR}")
+file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
+
+# Build the support module for each architecture and in several configurations
 set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
 set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
@@ -179,7 +188,7 @@ foreach(
     OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
     DEPENDS "${CMAKE_SOURCE_DIR}/share/revng/early-linked.c"
     COMMAND
-      "${CLANG}" ARGS "${CMAKE_SOURCE_DIR}/share/revng/early-linked.c" -o
+      ${TARGET_CLANG} ARGS "${CMAKE_SOURCE_DIR}/share/revng/early-linked.c" -o
       "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}" -S -emit-llvm -g
       -DTARGET_${ARCH} -I"${CMAKE_SOURCE_DIR}/share/revng"
       -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -195,7 +204,7 @@ foreach(
       OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
       DEPENDS "${CMAKE_SOURCE_DIR}/share/revng/support.c"
       COMMAND
-        "${CLANG}" ARGS "${CMAKE_SOURCE_DIR}/share/revng/support.c" -O2
+        ${TARGET_CLANG} ARGS "${CMAKE_SOURCE_DIR}/share/revng/support.c" -O2
         -fexceptions -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}" -S
         -emit-llvm -g -DTARGET_${ARCH} -I"${CMAKE_SOURCE_DIR}/share/revng"
         -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
