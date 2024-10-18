@@ -27,12 +27,12 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 #include "MakeSegmentRefPass.h"

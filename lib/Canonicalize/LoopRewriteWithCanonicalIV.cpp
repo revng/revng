@@ -15,8 +15,7 @@
 #include "llvm/Transforms/Utils/SimplifyIndVar.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
-
-#include "revng-c/Support/IRHelpers.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 

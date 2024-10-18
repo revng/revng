@@ -48,7 +48,6 @@
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using llvm::AnalysisUsage;

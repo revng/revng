@@ -13,7 +13,6 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/Mangling.h"
 
 static constexpr const char *const ModelGEPName = "ModelGEP";

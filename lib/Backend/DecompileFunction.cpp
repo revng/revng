@@ -62,7 +62,6 @@
 #include "revng-c/RestructureCFG/RestructureCFG.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"

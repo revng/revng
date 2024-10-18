@@ -19,10 +19,10 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 enum class IntFormatting : uint32_t {

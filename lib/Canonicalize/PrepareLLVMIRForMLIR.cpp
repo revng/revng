@@ -20,10 +20,10 @@
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 
 using namespace llvm;
 namespace ranks = revng::ranks;

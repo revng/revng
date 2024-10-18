@@ -7,11 +7,11 @@
 
 #include "revng/ADT/Queue.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 
 using namespace llvm;
 

@@ -27,7 +27,6 @@
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 #include "Helpers.h"

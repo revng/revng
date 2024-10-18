@@ -15,10 +15,10 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 
 using namespace llvm;
 
