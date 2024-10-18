@@ -12,6 +12,7 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
@@ -82,10 +83,8 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
   llvm::IRBuilder<> Builder(LLVMCtx);
 
   // Initialize function pool
-  OpaqueFunctionsPool<llvm::Type *> AssignPool(&M, false);
-  initAssignPool(AssignPool);
-  OpaqueFunctionsPool<llvm::Type *> CopyPool(&M, false);
-  initCopyPool(CopyPool);
+  auto AssignPool = FunctionTags::Assign.getPool(M);
+  auto CopyPool = FunctionTags::Copy.getPool(M);
 
   llvm::SmallVector<llvm::Instruction *, 32> ToRemove;
 

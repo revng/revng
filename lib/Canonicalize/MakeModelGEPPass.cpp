@@ -2092,10 +2092,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   ModelGEPArgCache TypeArgCache;
 
   // Create a function pool for AddressOf calls
-  OpaqueFunctionsPool<TypePair> AddressOfPool(&M,
-                                              /* PurgeOnDestruction */ false);
-  if (not GEPReplacements.empty())
-    initAddressOfPool(AddressOfPool, &M);
+  auto AddressOfPool = FunctionTags::AddressOf.getPool(M);
 
   llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Context, *Model);
 

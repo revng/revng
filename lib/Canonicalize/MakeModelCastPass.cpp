@@ -26,6 +26,9 @@
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 
 using namespace llvm;
+
+using TypePair = FunctionTags::TypePair;
+
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
 
@@ -191,8 +194,7 @@ bool MMCP::runOnFunction(Function &F) {
   bool Changed = false;
 
   Module *M = F.getParent();
-  OpaqueFunctionsPool<TypePair> ModelCastPool(M, false);
-  initModelCastPool(ModelCastPool, M);
+  auto ModelCastPool = FunctionTags::ModelCast.getPool(*M);
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();

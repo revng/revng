@@ -27,6 +27,7 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -44,9 +45,9 @@ private:
   const model::Binary &Binary;
   llvm::Module &M;
   llvm::LLVMContext &Context;
-  OpaqueFunctionsPool<SegmentRefPoolKey> SegmentRefPool;
-  OpaqueFunctionsPool<TypePair> AddressOfPool;
-  OpaqueFunctionsPool<StringLiteralPoolKey> StringLiteralPool;
+  OpaqueFunctionsPool<FunctionTags::SegmentRefPoolKey> SegmentRefPool;
+  OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
+  OpaqueFunctionsPool<FunctionTags::StringLiteralPoolKey> StringLiteralPool;
 
 public:
   MakeSegmentRefPassImpl(llvm::ModulePass &Pass,
@@ -56,13 +57,9 @@ public:
     Binary(Binary),
     M(M),
     Context(M.getContext()),
-    SegmentRefPool(&M, false),
-    AddressOfPool(&M, false),
-    StringLiteralPool(&M, false) {
-    initSegmentRefPool(SegmentRefPool, &M);
-    initAddressOfPool(AddressOfPool, &M);
-    initStringLiteralPool(StringLiteralPool, &M);
-  }
+    SegmentRefPool(FunctionTags::SegmentRef.getPool(M)),
+    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
+    StringLiteralPool(FunctionTags::StringLiteral.getPool(M)) {}
 
   bool runOnFunction(const model::Function &ModelFunction,
                      llvm::Function &Function) override;
@@ -190,7 +187,7 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
             Constant *ConstExpr = getUniqueString(&M, Str);
 
             auto RealOpType = Op->getType();
-            StringLiteralPoolKey Key = {
+            FunctionTags::StringLiteralPoolKey Key = {
               StartAddress, VirtualSize, OffsetInSegment, RealOpType
             };
 
@@ -214,7 +211,9 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
 
             revng::verify(&M);
           } else {
-            SegmentRefPoolKey Key = { StartAddress, VirtualSize, OperandType };
+            FunctionTags::SegmentRefPoolKey Key = { StartAddress,
+                                                    VirtualSize,
+                                                    OperandType };
             auto *SegmentRefFunction = SegmentRefPool.get(Key,
                                                           OperandType,
                                                           {},

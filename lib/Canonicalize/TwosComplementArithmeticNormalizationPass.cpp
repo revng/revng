@@ -13,6 +13,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Support/FunctionTags.h"
@@ -39,9 +40,8 @@ class UnaryMinusBuilder {
 
 public:
   UnaryMinusBuilder(llvm::Function &F) :
-    Pool(F.getParent(), false), Builder(F.getContext()) {
-    initUnaryMinusPool(Pool);
-  }
+    Pool(FunctionTags::UnaryMinus.getPool(*F.getParent())),
+    Builder(F.getContext()) {}
 
   void SetInsertPoint(llvm::Instruction *I) { Builder.SetInsertPoint(I); }
 
@@ -61,9 +61,8 @@ class BinaryNotBuilder {
 
 public:
   BinaryNotBuilder(llvm::Function &F) :
-    Pool(F.getParent(), false), Builder(F.getContext()) {
-    initBinaryNotPool(Pool);
-  }
+    Pool(FunctionTags::BinaryNot.getPool(*F.getParent())),
+    Builder(F.getContext()) {}
 
   void SetInsertPoint(llvm::Instruction *I) { Builder.SetInsertPoint(I); }
 
@@ -81,9 +80,8 @@ class BooleanNotBuilder {
 
 public:
   BooleanNotBuilder(llvm::Function &F) :
-    Pool(F.getParent(), false), Builder(F.getContext()) {
-    initBooleanNotPool(Pool);
-  }
+    Pool(FunctionTags::BooleanNot.getPool(*F.getParent())),
+    Builder(F.getContext()) {}
 
   void SetInsertPoint(llvm::Instruction *I) { Builder.SetInsertPoint(I); }
 
