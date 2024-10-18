@@ -10,6 +10,7 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ModuleStatistics.h"
+#include "revng/Support/Tag.h"
 
 using namespace llvm;
 

@@ -26,6 +26,7 @@ revng_add_library_internal(
   ResourceFinder.cpp
   SelfReferencingDbgAnnotationWriter.cpp
   Statistics.cpp
+  Tag.cpp
   GzipTarFile.cpp
   GzipStream.cpp)
 

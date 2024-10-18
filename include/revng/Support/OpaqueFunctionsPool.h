@@ -15,8 +15,8 @@
 
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/Tag.h"
 
 template<typename T>
 concept PointerToLLVMTypeOrDerived = std::derived_from<std::remove_pointer_t<T>,
@@ -144,5 +144,128 @@ public:
   {
     for (llvm::Function &F : TheTag.functions(M))
       record(F.getName().str(), &F);
+  }
+};
+
+enum class InitializationMode {
+  InitializeFromArgument0 = 0,
+  InitializeFromArgument1 = 1,
+  InitializeFromArgument2 = 2,
+  InitializeFromArgument3 = 3,
+  InitializeFromArgument4 = 4,
+  InitializeFromArgument5 = 5,
+  InitializeFromArgument6 = 6,
+  InitializeFromReturnType,
+  CustomInitialization
+};
+
+template<typename KeyT>
+class FunctionPoolTag : public FunctionTags::Tag {
+public:
+  using AttributeVector = llvm::SmallVector<llvm::Attribute::AttrKind, 4>;
+
+  using CustomInitializer = void (*)(OpaqueFunctionsPool<KeyT> &,
+                                     llvm::Module &,
+                                     const FunctionPoolTag &);
+
+private:
+  AttributeVector Attributes;
+  llvm::MemoryEffects MemoryEffects;
+  std::set<const Tag *> Tags;
+  InitializationMode Initialization;
+  CustomInitializer Initializer = nullptr;
+
+private:
+  FunctionPoolTag(llvm::StringRef Name,
+                  AttributeVector Attributes,
+                  llvm::MemoryEffects MemoryEffects,
+                  std::set<const Tag *> OtherTags,
+                  InitializationMode Initialization,
+                  CustomInitializer Initializer) :
+    Tag(Name),
+    Attributes(Attributes),
+    MemoryEffects(MemoryEffects),
+    Tags(OtherTags),
+    Initialization(Initialization),
+    Initializer(Initializer) {
+    Tags.insert(this);
+  }
+
+public:
+  FunctionPoolTag(llvm::StringRef Name,
+                  AttributeVector Attributes,
+                  llvm::MemoryEffects MemoryEffects,
+                  std::set<const Tag *> OtherTags,
+                  InitializationMode Initialization) :
+    FunctionPoolTag(Name,
+                    Attributes,
+                    MemoryEffects,
+                    OtherTags,
+                    Initialization,
+                    nullptr) {
+
+    revng_assert(Initialization != InitializationMode::CustomInitialization);
+  }
+
+  FunctionPoolTag(llvm::StringRef Name,
+                  AttributeVector Attributes,
+                  llvm::MemoryEffects MemoryEffects,
+                  std::set<const Tag *> OtherTags,
+                  CustomInitializer Initializer) :
+    FunctionPoolTag(Name,
+                    Attributes,
+                    MemoryEffects,
+                    OtherTags,
+                    InitializationMode::CustomInitialization,
+                    Initializer) {}
+
+public:
+  OpaqueFunctionsPool<KeyT> getPool(llvm::Module &M) const {
+    OpaqueFunctionsPool<KeyT> Result(&M, false);
+
+    // Set attributes
+    for (auto Attribute : Attributes)
+      Result.addFnAttribute(Attribute);
+
+    Result.setMemoryEffects(MemoryEffects);
+
+    // Set revng tags
+    FunctionTags::TagsSet TagsSet;
+    for (const Tag *TheTag : Tags)
+      TagsSet.insert(*TheTag);
+    Result.setTags(TagsSet);
+
+    auto CustomInitialization = InitializationMode::CustomInitialization;
+    bool HasInitializer = Initializer != nullptr;
+    revng_check((Initialization == CustomInitialization) == HasInitializer);
+
+    if constexpr (std::derived_from<std::remove_pointer_t<KeyT>, llvm::Type>) {
+      switch (Initialization) {
+      case InitializationMode::InitializeFromReturnType:
+        Result.initializeFromReturnType(*this);
+        return Result;
+
+      case InitializationMode::InitializeFromArgument0:
+      case InitializationMode::InitializeFromArgument1:
+      case InitializationMode::InitializeFromArgument2:
+      case InitializationMode::InitializeFromArgument3:
+      case InitializationMode::InitializeFromArgument4:
+      case InitializationMode::InitializeFromArgument5:
+      case InitializationMode::InitializeFromArgument6: {
+        auto ArgNumber = static_cast<unsigned>(Initialization);
+        Result.initializeFromNthArgType(*this, ArgNumber);
+        return Result;
+      }
+
+      case InitializationMode::CustomInitialization:
+        // Handle below
+        break;
+      }
+    }
+
+    revng_check(Initialization == InitializationMode::CustomInitialization);
+    Initializer(Result, M, *this);
+
+    return Result;
   }
 };
