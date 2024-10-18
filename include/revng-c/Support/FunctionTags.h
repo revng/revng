@@ -16,46 +16,6 @@ class ExtractValueInst;
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-namespace FunctionTags {
-extern Tag AllocatesLocalVariable;
-extern Tag ReturnsPolymorphic;
-extern Tag IsRef;
-extern Tag AddressOf;
-extern Tag StringLiteral;
-extern Tag ModelCast;
-extern Tag ModelGEP;
-extern Tag ModelGEPRef;
-extern Tag OpaqueExtractValue;
-extern Tag Parentheses;
-extern Tag LiteralPrintDecorator;
-extern Tag HexInteger;
-extern Tag CharInteger;
-extern Tag BoolInteger;
-extern Tag NullPtr;
-extern Tag LocalVariable;
-extern Tag Assign;
-extern Tag Copy;
-extern Tag SegmentRef;
-extern Tag UnaryMinus;
-extern Tag BinaryNot;
-extern Tag BooleanNot;
-
-inline Tag LiftingArtifactsRemoved("lifting-artifacts-removed", CSVsPromoted);
-
-inline Tag StackPointerPromoted("stack-pointer-promoted",
-                                LiftingArtifactsRemoved);
-
-inline Tag StackAccessesSegregated("stack-accesses-segregated",
-                                   StackPointerPromoted);
-
-inline Tag Decompiled("decompiled", StackPointerPromoted);
-
-inline Tag StackOffsetMarker("stack-offset-marker");
-
-inline Tag BinaryOperationOverflows("binary-operation-overflow");
-
-} // namespace FunctionTags
-
 /// This struct can be used as a key of an OpaqueFunctionsPool where both
 /// the return type and one of the arguments are needed to identify a function
 /// in the pool.
