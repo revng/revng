@@ -45,6 +45,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra ")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-limit-debug-info")
 
 # Enable some additional warnings
+add_flag_if_available("-Wunreachable-code-break")
 add_flag_if_available("-Wimplicit-fallthrough")
 add_flag_if_available("-Wnon-virtual-dtor")
 add_flag_if_available("-Winconsistent-missing-destructor-override")

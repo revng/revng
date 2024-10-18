@@ -561,7 +561,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
         rc_return buildCastExpr(rc_recur getConstantToken(Operand),
                                 SrcType,
                                 DstType);
-    } break;
+    }
 
     default:
       revng_abort(dumpToString(ConstExpr).c_str());
@@ -1135,8 +1135,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     revng_abort(Error.c_str());
 
     rc_return "";
-
-  } break;
+  }
 
   case llvm::Instruction::Ret: {
 
@@ -1147,8 +1146,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
       Result += " " + rc_recur getToken(ReturnedVal);
 
     rc_return addDebugInfo(I, Result, B);
-
-  } break;
+  }
 
   case llvm::Instruction::Unreachable:
     rc_return addDebugInfo(I, "__builtin_trap()", B);
@@ -1168,8 +1166,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
                              + addParentheses(Op1String) + " : "
                              + addParentheses(Op2String),
                            B);
-
-  } break;
+  }
 
   default: {
     std::string Error = "Cannot getToken for llvm::Instruction: "
@@ -1431,8 +1428,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
     }
 
     rc_return CompareNodeString;
-
-  } break;
+  }
 
   case NodeKind::NK_Atomic: {
     revng_log(VisitLog, "(atomic)");
@@ -1476,7 +1472,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
       }
     }
     rc_return rc_recur getToken(Br->getCondition());
-  } break;
+  }
 
   case NodeKind::NK_Not: {
     revng_log(VisitLog, "(not)");
@@ -1485,7 +1481,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
     ExprNode *Negated = N->getNegatedNode();
     rc_return B.getOperator(ptml::CBuilder::Operator::BoolNot)
       + addAlwaysParentheses(rc_recur buildGHASTCondition(Negated, EmitBB));
-  } break;
+  }
 
   case NodeKind::NK_And:
   case NodeKind::NK_Or: {
@@ -1502,7 +1498,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
                            B.getOperator(PTMLOperator::BoolOr);
     rc_return addAlwaysParentheses(Child1Token) + " " + OpToken.toString() + " "
       + addAlwaysParentheses(Child2Token);
-  } break;
+  }
 
   default:
     revng_abort("Unknown ExprNode kind");

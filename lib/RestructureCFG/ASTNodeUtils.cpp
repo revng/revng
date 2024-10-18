@@ -26,7 +26,6 @@ static RecursiveCoroutine<bool> needsLoopVarImpl(const ASTNode *N) {
   case ASTNode::NodeKind::NK_Continue:
   case ASTNode::NodeKind::NK_Code:
     rc_return false;
-    break;
 
   case ASTNode::NodeKind::NK_If: {
     const IfNode *If = llvm::cast<IfNode>(N);
@@ -40,12 +39,12 @@ static RecursiveCoroutine<bool> needsLoopVarImpl(const ASTNode *N) {
         rc_return true;
 
     rc_return false;
-  } break;
+  }
 
   case ASTNode::NodeKind::NK_Scs: {
     const ScsNode *LoopBody = llvm::cast<ScsNode>(N);
     rc_return rc_recur needsLoopVarImpl(LoopBody->getBody());
-  } break;
+  }
 
   case ASTNode::NodeKind::NK_List: {
     const SequenceNode *Seq = llvm::cast<SequenceNode>(N);
@@ -54,7 +53,7 @@ static RecursiveCoroutine<bool> needsLoopVarImpl(const ASTNode *N) {
         rc_return true;
 
     rc_return false;
-  } break;
+  }
 
   case ASTNode::NodeKind::NK_Switch: {
     const SwitchNode *Switch = llvm::cast<SwitchNode>(N);
@@ -68,11 +67,11 @@ static RecursiveCoroutine<bool> needsLoopVarImpl(const ASTNode *N) {
         rc_return true;
 
     rc_return false;
-  } break;
+  }
 
   case ASTNode::NodeKind::NK_Set: {
     rc_return true;
-  } break;
+  }
   }
 }
 

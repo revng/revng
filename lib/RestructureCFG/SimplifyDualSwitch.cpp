@@ -244,7 +244,7 @@ simplifyDualSwitch(ASTTree &AST, ASTNode *Node) {
     }
 
     rc_return If;
-  } break;
+  }
   case ASTNode::NK_Code:
   case ASTNode::NK_Set:
   case ASTNode::NK_SwitchBreak:

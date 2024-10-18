@@ -140,11 +140,11 @@ static std::partial_ordering compareLeafTypes(const LayoutTypeSystemNode *A,
 
     case LeafType::Generic: {
       return std::partial_ordering::equivalent;
-    } break;
+    }
 
     case LeafType::Pointer: {
       return std::partial_ordering::less;
-    } break;
+    }
 
     default:
       revng_abort();
@@ -158,11 +158,11 @@ static std::partial_ordering compareLeafTypes(const LayoutTypeSystemNode *A,
 
     case LeafType::Generic: {
       return std::partial_ordering::greater;
-    } break;
+    }
 
     case LeafType::Pointer: {
       return comparePointee(AType.Pointee, BType.Pointee);
-    } break;
+    }
 
     default:
       revng_abort();

@@ -503,7 +503,7 @@ initModelTypesImpl(const llvm::Instruction &I,
     revng_assert(BaseType->isSingleValueType());
     rc_return model::PointerType::make(llvmIntToModelType(BaseType, Model),
                                        Model.Architecture());
-  } break;
+  }
 
   case Instruction::Select: {
     auto *Select = dyn_cast<llvm::SelectInst>(&I);

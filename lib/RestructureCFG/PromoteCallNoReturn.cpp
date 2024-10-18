@@ -32,12 +32,12 @@ static bool isPreferredAsFallThrough(FallThroughScopeType Element) {
   case FallThroughScopeType::Continue:
   case FallThroughScopeType::LoopBreak: {
     return true;
-  } break;
+  }
   case FallThroughScopeType::FallThrough:
   case FallThroughScopeType::MixedNoFallThrough:
   case FallThroughScopeType::CallNoReturn: {
     return false;
-  } break;
+  }
   }
 }
 

@@ -58,7 +58,7 @@ bool isScalarCType(const llvm::Type *LLVMType) {
     default:
       return false;
     }
-  } break;
+  }
 
   default:
     return false;
@@ -73,25 +73,23 @@ std::string getScalarCType(const llvm::Type *LLVMType, const CBuilder &B) {
   case llvm::Type::HalfTyID:
   case llvm::Type::BFloatTyID:
     return B.tokenTag("float16_t", ptml::c::tokens::Type).toString();
-    break;
+
   case llvm::Type::FloatTyID:
     return B.tokenTag("float32_t", ptml::c::tokens::Type).toString();
-    break;
+
   case llvm::Type::DoubleTyID:
     return B.tokenTag("float64_t", ptml::c::tokens::Type).toString();
-    break;
+
   case llvm::Type::X86_FP80TyID:
     // TODO: 80-bit float have 96 bit storage, how should we call them?
     return B.tokenTag("float96_t", ptml::c::tokens::Type).toString();
-    break;
+
   case llvm::Type::FP128TyID:
   case llvm::Type::PPC_FP128TyID:
     return B.tokenTag("float128_t", ptml::c::tokens::Type).toString();
-    break;
 
   case llvm::Type::VoidTyID: {
     return B.tokenTag("void", ptml::c::tokens::Type).toString();
-    break;
 
   case llvm::Type::IntegerTyID: {
     auto *IntType = cast<llvm::IntegerType>(LLVMType);
@@ -102,16 +100,12 @@ std::string getScalarCType(const llvm::Type *LLVMType, const CBuilder &B) {
       return B.tokenTag("uint8_t", ptml::c::tokens::Type).toString();
     case 16:
       return B.tokenTag("uint16_t", ptml::c::tokens::Type).toString();
-      break;
     case 32:
       return B.tokenTag("uint32_t", ptml::c::tokens::Type).toString();
-      break;
     case 64:
       return B.tokenTag("uint64_t", ptml::c::tokens::Type).toString();
-      break;
     case 128:
       return B.tokenTag("uint128_t", ptml::c::tokens::Type).toString();
-      break;
     default:
       revng_abort("Found an LLVM integer with a size that is not a power of "
                   "two");
@@ -121,7 +115,7 @@ std::string getScalarCType(const llvm::Type *LLVMType, const CBuilder &B) {
   case llvm::Type::PointerTyID: {
     return B.tokenTag("void", ptml::c::tokens::Type) + " "
            + B.getOperator(Operator::PointerDereference);
-  } break;
+  }
 
   default:
     revng_abort("Cannot convert this type directly to a C type.");

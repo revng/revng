@@ -81,7 +81,7 @@ fallThroughScopeImpl(const model::Binary &Model,
     // sequence node is nofallthrough.
     ASTNode *Last = Seq->getNodeN(Seq->length() - 1);
     rc_return ResultMap.at(Last);
-  } break;
+  }
   case ASTNode::NK_Scs: {
     ScsNode *Loop = llvm::cast<ScsNode>(Node);
 
@@ -99,7 +99,7 @@ fallThroughScopeImpl(const model::Binary &Model,
     // perform fallthrough (which is reasonable, considering that the body of a
     // loop will end with `break` and `continue` statements)
     rc_return FallThroughScopeType::FallThrough;
-  } break;
+  }
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
 
@@ -119,7 +119,7 @@ fallThroughScopeImpl(const model::Binary &Model,
     }
 
     rc_return combineTypes(ThenFallThrough, ElseFallThrough);
-  } break;
+  }
   case ASTNode::NK_Switch: {
     SwitchNode *Switch = llvm::cast<SwitchNode>(Node);
 
@@ -164,7 +164,7 @@ fallThroughScopeImpl(const model::Binary &Model,
     } else {
       rc_return FallThroughScopeType::FallThrough;
     }
-  } break;
+  }
   case ASTNode::NK_Code: {
     CodeNode *Code = llvm::cast<CodeNode>(Node);
     llvm::BasicBlock *BB = Code->getBB();
@@ -222,22 +222,22 @@ fallThroughScopeImpl(const model::Binary &Model,
     }
 
     rc_return FallThroughScopeType::FallThrough;
-  } break;
+  }
   case ASTNode::NK_Set: {
     rc_return FallThroughScopeType::FallThrough;
-  } break;
+  }
   case ASTNode::NK_SwitchBreak: {
 
     // `The `SwitchBreak` represents the fact that we fallthrough from the
     // switch out
     rc_return FallThroughScopeType::FallThrough;
-  } break;
+  }
   case ASTNode::NK_Continue: {
     rc_return FallThroughScopeType::Continue;
   }
   case ASTNode::NK_Break: {
     rc_return FallThroughScopeType::LoopBreak;
-  } break;
+  }
   default:
     revng_abort();
   }
