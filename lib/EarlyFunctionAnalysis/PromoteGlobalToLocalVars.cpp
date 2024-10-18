@@ -9,6 +9,7 @@
 #include "llvm/IR/IRBuilder.h"
 
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 

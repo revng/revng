@@ -15,11 +15,6 @@
 
 constexpr const char *PrototypeMDName = "revng.prototype";
 
-inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
-  revng_assert(FunctionTags::Isolated.isTagOf(&F));
-  return getMetaAddressMetadata(&F, FunctionEntryMDName);
-}
-
 template<ConstOrNot<model::Binary> T>
 inline ConstPtrIfConst<T, model::TypeDefinition>
 getCallSitePrototype(T &Binary, const llvm::Instruction *Call) {
