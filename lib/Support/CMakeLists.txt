@@ -27,7 +27,8 @@ revng_add_library_internal(
   SelfReferencingDbgAnnotationWriter.cpp
   Statistics.cpp
   GzipTarFile.cpp
-  GzipStream.cpp)
+  GzipStream.cpp
+  ZstdStream.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core Object)
 
@@ -37,7 +38,8 @@ if(NOT LibArchive_FOUND)
   message(FATAL_ERROR "libarchive not found")
 endif()
 
-target_link_libraries(revngSupport z ${LibArchive_LIBRARIES} ${LLVM_LIBRARIES})
+target_link_libraries(revngSupport z zstd ${LibArchive_LIBRARIES}
+                      ${LLVM_LIBRARIES})
 
 target_include_directories(revngSupport INTERFACE $<INSTALL_INTERFACE:include/>)
 

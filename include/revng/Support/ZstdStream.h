@@ -9,37 +9,37 @@
 
 #include "revng/Support/DataBuffer.h"
 
-#include "zlib.h"
+#include "zstd.h"
 
-void gzipCompress(llvm::raw_ostream &OS,
+void zstdCompress(llvm::raw_ostream &OS,
                   DataBuffer Buffer,
                   int CompressionLevel = 3);
 
-inline llvm::SmallVector<char> gzipCompress(DataBuffer Buffer) {
+inline llvm::SmallVector<char> zstdCompress(DataBuffer Buffer) {
   llvm::SmallVector<char> Result;
   llvm::raw_svector_ostream OS(Result);
-  gzipCompress(OS, Buffer);
+  zstdCompress(OS, Buffer);
   return Result;
 }
 
-void gzipDecompress(llvm::raw_ostream &OS, DataBuffer Buffer);
+void zstdDecompress(llvm::raw_ostream &OS, DataBuffer Buffer);
 
-inline llvm::SmallVector<char> gzipDecompress(DataBuffer Buffer) {
+inline llvm::SmallVector<char> zstdDecompress(DataBuffer Buffer) {
   llvm::SmallVector<char> Result;
   llvm::raw_svector_ostream OS(Result);
-  gzipDecompress(OS, Buffer);
+  zstdDecompress(OS, Buffer);
   return Result;
 }
 
-class GzipCompressedOstream : public llvm::raw_ostream {
+class ZstdCompressedOstream : public llvm::raw_ostream {
 private:
   llvm::raw_ostream &OS;
-  llvm::SmallVector<uint8_t> OutBuffer;
-  z_stream Stream;
+  llvm::SmallVector<char> OutBuffer;
+  ZSTD_CCtx *Ctx = nullptr;
 
 public:
-  GzipCompressedOstream(llvm::raw_ostream &OS, int CompressionLevel = 3);
-  ~GzipCompressedOstream() override;
+  ZstdCompressedOstream(llvm::raw_ostream &DestOS, int CompressionLevel = 3);
+  ~ZstdCompressedOstream() override;
   void flush();
 
 private:
