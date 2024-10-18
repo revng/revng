@@ -33,7 +33,6 @@
 
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/PromoteStackPointerPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 

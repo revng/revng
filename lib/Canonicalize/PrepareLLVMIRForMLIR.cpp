@@ -23,7 +23,6 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Pipes/Kinds.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 namespace ranks = revng::ranks;

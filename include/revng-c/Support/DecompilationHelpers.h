@@ -15,8 +15,6 @@
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Support/FunctionTags.h"
-
 inline bool hasSideEffects(const llvm::Instruction &I) {
   auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
   if (not Call)

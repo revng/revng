@@ -33,7 +33,6 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Pipes/Kinds.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 #include "MakeSegmentRefPass.h"

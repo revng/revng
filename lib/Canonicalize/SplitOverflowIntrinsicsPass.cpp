@@ -8,9 +8,8 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
-
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 

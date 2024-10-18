@@ -16,11 +16,11 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 #include "Helpers.h"
 

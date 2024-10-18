@@ -19,8 +19,6 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-#include "revng-c/Support/FunctionTags.h"
-
 using namespace llvm;
 
 static cl::opt<std::string> LanguageName("language",

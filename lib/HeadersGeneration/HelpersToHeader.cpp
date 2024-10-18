@@ -28,7 +28,6 @@
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/Annotations.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 

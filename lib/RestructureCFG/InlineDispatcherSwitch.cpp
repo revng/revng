@@ -17,12 +17,12 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTNodeUtils.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/RestructureCFG/ExprNode.h"
-#include "revng-c/Support/FunctionTags.h"
 
 #include "FallThroughScopeAnalysis.h"
 #include "InlineDispatcherSwitch.h"

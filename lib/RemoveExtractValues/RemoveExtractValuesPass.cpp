@@ -10,7 +10,6 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/RemoveExtractValues/RemoveExtractValuesPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 

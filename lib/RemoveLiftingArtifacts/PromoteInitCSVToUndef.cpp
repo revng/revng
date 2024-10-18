@@ -13,8 +13,6 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/Support/FunctionTags.h"
-
 using namespace llvm;
 
 static bool

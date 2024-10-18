@@ -16,7 +16,6 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Pipes/Ranks.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 #include "revng-c/TypeNames/PTMLCTypeBuilder.h"

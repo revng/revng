@@ -23,7 +23,6 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 enum class IntFormatting : uint32_t {

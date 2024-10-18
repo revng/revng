@@ -16,8 +16,6 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-#include "revng-c/Support/FunctionTags.h"
-
 struct TwosComplementArithmeticNormalizationPass : public llvm::FunctionPass {
 public:
   static char ID;

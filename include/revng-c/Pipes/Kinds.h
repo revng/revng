@@ -7,9 +7,9 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Pipes/TypeKind.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Pipes/Ranks.h"
-#include "revng-c/Support/FunctionTags.h"
 
 namespace revng::kinds {
 

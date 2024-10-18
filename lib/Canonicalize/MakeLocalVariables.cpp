@@ -17,7 +17,6 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 static Logger<> Log{ "make-local-variables" };

@@ -32,7 +32,6 @@
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/DecompilationHelpers.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using llvm::BasicBlock;

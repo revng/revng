@@ -18,11 +18,11 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/Support/DecompilationHelpers.h"
-#include "revng-c/Support/FunctionTags.h"
 
 #include "ALAPVariableDeclaration.h"
 

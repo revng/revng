@@ -17,7 +17,6 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 #include "../FuncOrCallInst.h"
