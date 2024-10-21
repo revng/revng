@@ -130,7 +130,7 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
                                       [Symbol,
                                        NoRegionArguments,
                                        IsolatedFromAbove]> {
-  let arguments = (ins StrAttr:$sym_name,
+  let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<Clift_ValueType>:$type,
                        DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
 
