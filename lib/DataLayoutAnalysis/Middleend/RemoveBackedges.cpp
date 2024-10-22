@@ -12,6 +12,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Progress.h"
 
 #include "revng/Support/Assert.h"
@@ -59,6 +60,24 @@ static bool isSCCRoot(const dla::LTSN *N) {
 template<SCCWithBackedgeHelper SCC>
 static bool hasNoSCCEdge(const LTSN *Node) {
   return isSCCRoot<SCC>(Node) and isSCCLeaf<SCC>(Node);
+};
+
+template<SCCWithBackedgeHelper SCC>
+using MixedNodeT = EdgeFilteredGraph<LTSN *, isMixedEdge<SCC>>;
+
+template<SCCWithBackedgeHelper SCC>
+struct StackEntry {
+  LTSN *Node = nullptr;
+  const LTSN *ComponentLeader = nullptr;
+  typename MixedNodeT<SCC>::ChildEdgeIteratorType NextToVisitIt;
+};
+
+struct EdgeInfo {
+  LTSN *Src = nullptr;
+  LTSN *Tgt = nullptr;
+  const TypeLinkTag *Tag = nullptr;
+  // Comparison operators to use in set
+  std::strong_ordering operator<=>(const EdgeInfo &) const = default;
 };
 
 template<SCCWithBackedgeHelper SCC>
@@ -138,9 +157,9 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
   // Here all the nodes are nodes have a component, except nodes that have no
   // incoming or outgoing SCCNodeView edges
 
-  using MixedNodeT = EdgeFilteredGraph<LTSN *, isMixedEdge<SCC>>;
-
   T.advance("Remove Backedges");
+  using MixedNodeT = MixedNodeT<SCC>;
+
   for (const auto &Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
     // We start from SCCNodeView roots and look if we find an SCC with mixed
@@ -153,159 +172,191 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
 
     revng_log(Log, "# Looking for mixed loops from: " << Root->ID);
 
-    struct EdgeInfo {
-      LTSN *Src = nullptr;
-      LTSN *Tgt = nullptr;
-      const TypeLinkTag *Tag = nullptr;
-      // Comparison operators to use in set
-      std::strong_ordering operator<=>(const EdgeInfo &) const = default;
-    };
+    using StackEntry = StackEntry<SCC>;
 
     llvm::SmallPtrSet<const LTSN *, 16> Visited;
     llvm::SmallPtrSet<const LTSN *, 16> InStack;
+    llvm::SmallVector<EdgeInfo> BackedgesOnStack;
+    llvm::SmallVector<StackEntry> VisitStack;
 
-    struct StackEntry {
-      LTSN *Node = nullptr;
-      const LTSN *ComponentLeader = nullptr;
-      typename MixedNodeT::ChildEdgeIteratorType NextToVisitIt;
+    // Helper enum to describe if push succeeds and different ways to fail
+    enum class TryPushStatus {
+      FailedNoChildren,
+      FailedCloseLoop,
+      AlreadyVisited,
+      Success,
     };
-    std::vector<StackEntry> VisitStack;
 
-    const auto TryPush = [&](LTSN *N, const LTSN *ComponentLeader) {
-      revng_log(Log, "--* try_push(" << N->ID << ')');
+    // Struct holding the success/failure status, along with the edge iterator
+    // that caused it.
+    struct TryPushResult {
+      TryPushStatus Status;
+      MixedNodeT::ChildEdgeIteratorType EdgeToPush;
+    };
+
+    const auto TryPushNextChild = [&]() -> TryPushResult {
+      revng_assert(not VisitStack.empty());
+      revng_assert(VisitStack.size() == InStack.size());
+      StackEntry &Top = VisitStack.back();
+      const auto &[TopNode, TopComponent, _] = Top;
+      // Make a copy, because we have to increment the old Top.NextToVisitIt,
+      // while at the same time we still want to have access to the previous one
+      // in case of failure.
+      typename MixedNodeT::ChildEdgeIteratorType
+        NextEdgeToVisit = Top.NextToVisitIt;
+
+      revng_log(Log, "--* TryPushNextChild of (" << TopNode->ID << ')');
       LoggerIndent Indent{ Log };
-      bool NewVisit = Visited.insert(N).second;
-      if (NewVisit) {
-        revng_log(Log, "component leader: " << ComponentLeader);
 
-        VisitStack.push_back({ N,
-                               ComponentLeader,
-                               MixedNodeT::child_edge_begin(N) });
-        InStack.insert(N);
-        revng_assert(InStack.size() == VisitStack.size());
-        revng_log(Log, "--> pushed!");
-      } else {
-        revng_log(Log, "--| already visited!");
+      if (NextEdgeToVisit == MixedNodeT::child_edge_end(TopNode)) {
+        revng_log(Log, "--| no children left");
+        return TryPushResult{ .Status = TryPushStatus::FailedNoChildren,
+                              .EdgeToPush = NextEdgeToVisit };
       }
-      return NewVisit;
+
+      ++Top.NextToVisitIt;
+
+      LTSN *NextChild = NextEdgeToVisit->first;
+      const TypeLinkTag *NextTag = NextEdgeToVisit->second;
+      revng_log(Log,
+                "--| next children is " << NextChild->ID
+                                        << " tag: " << *NextTag);
+
+      bool NewVisit = Visited.insert(NextChild).second;
+      if (not NewVisit) {
+        if (InStack.contains(NextChild)) {
+          revng_log(Log, "--| loop detected!");
+          return TryPushResult{ .Status = TryPushStatus::FailedCloseLoop,
+                                .EdgeToPush = NextEdgeToVisit };
+        } else {
+          revng_log(Log, "--| already visited!");
+          return TryPushResult{ .Status = TryPushStatus::AlreadyVisited,
+                                .EdgeToPush = NextEdgeToVisit };
+        }
+      }
+
+      // Make sure we track all the backedges on stack, because if we ever hit
+      // a loop we'll have to mark these for removal.
+      EdgeInfo NewEdge = { TopNode, NextChild, NextTag };
+      if (SCC::BackedgeNodeView::filter()({ nullptr, NewEdge.Tag }))
+        BackedgesOnStack.push_back(std::move(NewEdge));
+
+      // Add a new entry on the stack
+      revng_log(Log, "TopComponent: " << TopComponent);
+
+      StackEntry NewEntry = {
+        .Node = NextChild,
+        .ComponentLeader = Components.findValue(NextChild) != Components.end() ?
+                             *Components.findLeader(NextChild) :
+                             TopComponent,
+        .NextToVisitIt = MixedNodeT::child_edge_begin(NextChild)
+      };
+
+      VisitStack.push_back(std::move(NewEntry));
+      InStack.insert(NextChild);
+      revng_assert(InStack.size() == VisitStack.size());
+
+      revng_log(Log, "--> pushed!");
+      return TryPushResult{ .Status = TryPushStatus::Success,
+                            .EdgeToPush = NextEdgeToVisit };
     };
 
-    const auto Pop = [&VisitStack, &InStack]() {
-      revng_log(Log, "<-- pop(" << VisitStack.back().Node->ID << ')');
-      InStack.erase(VisitStack.back().Node);
-      VisitStack.pop_back();
+    const auto Pop = [&]() {
       revng_assert(InStack.size() == VisitStack.size());
+
+      // Make a copy before popping.
+      StackEntry Back = VisitStack.back();
+      revng_log(Log, "<-- pop(" << Back.Node->ID << ')');
+
+      // Erase the node and the StackEntry from stack
+      bool Erased = InStack.erase(Back.Node);
+      revng_assert(Erased);
+      VisitStack.pop_back();
+
+      // If the stack is now empty, we're done.
+      if (VisitStack.empty())
+        return;
+
+      // If after popping, the stack isn't empty, we have to check if we've
+      // popped a backedge, and in that case remove it from BackedgesOnStack.
+      StackEntry &Parent = VisitStack.back();
+      auto Begin = MixedNodeT::child_edge_begin(Parent.Node);
+      revng_assert(Parent.NextToVisitIt != Begin);
+
+      EdgeInfo PoppedEdge = {
+        .Src = Parent.Node,
+        .Tgt = Back.Node,
+        .Tag = std::prev(Parent.NextToVisitIt)->second,
+      };
+
+      // If we've popped a backedge it must be equal to PoppedEdge. If it's not
+      // the stack is malformed. If it's the correct edge, we have to remove it
+      // from BackedgesOnStack since we're popping.
+      if (SCC::BackedgeNodeView::filter()({ nullptr, PoppedEdge.Tag })) {
+        revng_assert(BackedgesOnStack.back() == PoppedEdge);
+        BackedgesOnStack.pop_back();
+      }
     };
 
     llvm::SmallSet<EdgeInfo, 8> ToRemove;
-    llvm::SmallVector<EdgeInfo, 8> CrossComponentEdges;
 
     revng_assert(Components.findValue(Root) != Components.end());
-    TryPush(Root, Components.getLeaderValue(Root));
+    StackEntry Init = { .Node = Root,
+                        .ComponentLeader = Components.getLeaderValue(Root),
+                        .NextToVisitIt = MixedNodeT::child_edge_begin(Root) };
+    VisitStack.push_back(std::move(Init));
+    InStack.insert(Root);
+    Visited.insert(Root);
+
     while (not VisitStack.empty()) {
+
       StackEntry &Top = VisitStack.back();
 
-      const LTSN *TopComponent = Top.ComponentLeader;
-      LTSN *TopNode = Top.Node;
-      typename MixedNodeT::ChildEdgeIteratorType
-        &NextEdgeToVisit = Top.NextToVisitIt;
+      revng_log(Log, "## Stack top has ID: " << Top.Node->ID);
+      revng_log(Log, "   Component ID: " << Top.ComponentLeader->ID);
 
-      revng_log(Log,
-                "## Stack top has ID: " << TopNode->ID
-                                        << " ComponentLeader ID: "
-                                        << TopComponent->ID);
+      const auto &[Status, Edge] = TryPushNextChild();
+      switch (Status) {
 
-      bool StartNew = false;
-      while (not StartNew
-             and NextEdgeToVisit != MixedNodeT::child_edge_end(TopNode)) {
+      default:
+        // do nothing
+        break;
 
-        LTSN *NextChild = NextEdgeToVisit->first;
-        const TypeLinkTag *NextTag = NextEdgeToVisit->second;
-        EdgeInfo E = { TopNode, NextChild, NextTag };
+      case TryPushStatus::FailedNoChildren: {
+        Pop();
+      } break;
 
-        revng_log(Log, "### Next child ID: " << NextChild->ID);
+      case TryPushStatus::FailedCloseLoop: {
 
-        // Check if the next children is in a component.
-        // If it's not, leave the same component of the top of the stack, so
-        // that we can identify the first edge that closes the crossing from one
-        // component to another.
-        const LTSN *NextComponent = TopComponent;
-        if (auto ComponentIt = Components.findValue(NextChild);
-            ComponentIt != Components.end()) {
-          revng_log(Log, "Next is in a Component");
-          NextComponent = *Components.findLeader(ComponentIt);
-          if (NextComponent != TopComponent) {
+        // If we're closing a loop, add all the backedges involved in the loop
+        // in the edges ToRemove.
+        if (Log.isEnabled()) {
+          for (EdgeInfo &B : BackedgesOnStack) {
             revng_log(Log,
-                      "Push Cross-Component Edge " << TopNode->ID << " -> "
-                                                   << NextChild->ID);
-            revng_assert(SCC::BackedgeNodeView::filter()({ nullptr, E.Tag }));
-            CrossComponentEdges.push_back(std::move(E));
+                      "remove backedge that is on stack: "
+                        << B.Src->ID << " -> " << B.Tgt->ID
+                        << " Tag: " << B.Tag);
           }
         }
+        ToRemove.insert(BackedgesOnStack.begin(), BackedgesOnStack.end());
 
-        ++NextEdgeToVisit;
-        StartNew = TryPush(NextChild, NextComponent);
-
-        if (not StartNew) {
-
-          // We haven't pushed, either because NextChild is on the stack, or
-          // because it was visited before.
-          if (InStack.contains(NextChild)) {
-
-            // If it's on the stack, we're closing a loop.
-            // Add all the cross-component edges to the edges ToRemove.
-            revng_log(Log, "Closes Loop");
-            if (Log.isEnabled()) {
-              for (EdgeInfo &E : CrossComponentEdges) {
-                revng_log(Log,
-                          "Is to remove: " << E.Src->ID << " -> " << E.Tgt->ID);
-              }
-            }
-            ToRemove.insert(CrossComponentEdges.begin(),
-                            CrossComponentEdges.end());
-
-            // This an optimization.
-            // All the CrossComponentEdges have just been added to the edges
-            // ToRemove, so there's no point keeping them also in
-            // CrossComponentEdges, and possibly trying to insert them again
-            // later. We can drop all of them here.
-            CrossComponentEdges.clear();
-
-            if (NextComponent == TopComponent
-                and SCC::BackedgeNodeView::filter()({ nullptr, E.Tag })) {
-              // This means that the edge E we tried to push on the stack is an
-              // BackedgeNodeView edge closing a loop.
-              ToRemove.insert(std::move(E));
-            }
-          }
-
-          if (NextComponent != TopComponent
-              and not CrossComponentEdges.empty()) {
-            EdgeInfo E = CrossComponentEdges.pop_back_val();
-            revng_log(Log,
-                      "Pop Cross-Component Edge " << E.Src->ID << " -> "
-                                                  << E.Tgt->ID);
-          }
+        if (SCC::BackedgeNodeView::filter()({ nullptr, Edge->second })) {
+          // This means that the edge E we tried to push on the stack is an
+          // BackedgeNodeView edge closing a loop.
+          EdgeInfo BackedgeNotPushed{
+            .Src = VisitStack.back().Node,
+            .Tgt = Edge->first,
+            .Tag = Edge->second,
+          };
+          revng_log(Log,
+                    "remove backedge closing loop, that isn't on stack: "
+                      << BackedgeNotPushed.Src->ID << " -> "
+                      << BackedgeNotPushed.Tgt->ID
+                      << " Tag: " << BackedgeNotPushed.Tag);
+          ToRemove.insert(std::move(BackedgeNotPushed));
         }
-      }
 
-      if (StartNew) {
-        // We exited the push loop with a TryPush succeeding, so we need to look
-        // at the new child freshly pushed on the stack.
-        continue;
-      }
-
-      revng_log(Log, "## Completed : " << TopNode->ID);
-
-      Pop();
-
-      if (not VisitStack.empty() and not CrossComponentEdges.empty()
-          and TopComponent != VisitStack.back().ComponentLeader) {
-        // We are popping back a cross-component edge. Remove it.
-        EdgeInfo E = CrossComponentEdges.pop_back_val();
-        revng_log(Log,
-                  "Pop Cross-Component Edge " << E.Src->ID << " -> "
-                                              << E.Tgt->ID);
+      } break;
       }
     }
 
@@ -340,8 +391,11 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
       auto E = llvm::scc_end(MixedNodeT(Node));
       for (; I != E; ++I) {
         Visited.insert(I->begin(), I->end());
-        if (I.hasCycle())
+        if (I.hasCycle()) {
+          for (const auto *N : *I)
+            llvm::dbgs() << std::to_string(N->ID) << "\n";
           revng_check(false);
+        }
       }
     }
   }
