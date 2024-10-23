@@ -34,6 +34,8 @@ char DropRootPass::ID = 0;
 using Register = llvm::RegisterPass<DropRootPass>;
 static Register X("drop-root", "Drop Root Pass", true, true);
 
+auto &DeadBinaryKind = pipeline::Kind::deadKind(revng::ranks::Binary);
+
 struct DropRootPipe {
   static constexpr auto Name = "drop-root";
 
@@ -41,7 +43,7 @@ struct DropRootPipe {
     using namespace pipeline;
     namespace ranks = ::revng::ranks;
     return { ContractGroup::transformOnlyArgument(::revng::kinds::Root,
-                                                  Kind::deadKind(ranks::Binary),
+                                                  DeadBinaryKind,
                                                   InputPreservation::Erase) };
   }
 
