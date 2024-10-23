@@ -38,6 +38,8 @@ private:
 
 public:
   DynamicHierarchy(llvm::StringRef Name) : Parent(nullptr), Name(Name.str()) {
+    revng_assert(not Initialized);
+
     getRoots().push_back(&self());
     getAll().push_back(&self());
 
@@ -49,6 +51,8 @@ public:
 
   DynamicHierarchy(llvm::StringRef Name, DynamicHierarchy &Parent) :
     Parent(&Parent), Name(Name.str()) {
+    revng_assert(not Initialized);
+
     getAll().push_back(&self());
 
     // NOTE: see constructor above
