@@ -64,10 +64,17 @@ public:
 public:
   void record(KeyT Key, llvm::Function *F) {
     auto It = Pool.find(Key);
-    if (It == Pool.end())
+    if (It == Pool.end()) {
       Pool[Key] = F;
-    else
-      revng_assert(It->second == F);
+    } else {
+      if (It->second != F) {
+        dbg << "Same key, different function.\nOriginal:\n";
+        It->second->dump();
+        dbg << "New:\n";
+        F->dump();
+        revng_abort();
+      }
+    }
   }
 
 public:
