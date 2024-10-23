@@ -16,8 +16,10 @@ include "CliftOpInterfaces.td"
 include "CliftOpTraits.td"
 include "CliftTypes.td"
 
-class Clift_Op<string mnemonic, list<Trait> traits = []> :
-    Op<Clift_Dialect, mnemonic, traits>;
+class Clift_Op<string mnemonic, list<Trait> traits = []>
+  : Op<Clift_Dialect,
+       mnemonic,
+       !listconcat(traits, [NoTerminator])>;
 
 //===-------------------------- Type constraints --------------------------===//
 
@@ -46,7 +48,6 @@ def Clift_ModuleOp : Clift_Op<"module",
                               [SymbolTable,
                                HasOnlyGraphRegion,
                                NoRegionArguments,
-                               NoTerminator,
                                SingleBlock,
                                RegionKindInterface]> {
   let regions = (region AnyRegion:$body);
@@ -66,8 +67,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                                  CallableOpInterface,
                                  FunctionOpInterface,
                                  AutomaticAllocationScope,
-                                 IsolatedFromAbove,
-                                 NoTerminator]> {
+                                 IsolatedFromAbove]> {
   let arguments = (ins StrAttr:$sym_name,
                        TypeAttrOf<Clift_FunctionType>:$function_type,
                        DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
@@ -128,8 +128,8 @@ def Clift_FunctionOp : Clift_Op<"func",
 
 def Clift_GlobalVariableOp : Clift_Op<"global",
                                       [Symbol,
-                                       IsolatedFromAbove,
-                                       NoTerminator]> {
+                                       NoRegionArguments,
+                                       IsolatedFromAbove]> {
   let arguments = (ins StrAttr:$sym_name,
                        TypeAttrOf<Clift_ValueType>:$type,
                        DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
@@ -150,7 +150,10 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
 //===----------------------------- Statements -----------------------------===//
 
 class Clift_StatementOp<string mnemonic, list<Trait> traits = []>
-  : Clift_Op<mnemonic, !listconcat([Clift_StatementOpInterface], traits)>;
+  : Clift_Op<mnemonic,
+             !listconcat(traits,
+                         [Clift_StatementOpInterface,
+                          NoRegionArguments])>;
 
 def Clift_MakeLabelOp
   : Clift_StatementOp<"make_label",
@@ -182,7 +185,7 @@ def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
   }];
 }
 
-def Clift_DoWhileOp : Clift_StatementOp<"do_while", [NoTerminator]> {
+def Clift_DoWhileOp : Clift_StatementOp<"do_while"> {
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ExpressionRegion:$condition);
 
@@ -201,7 +204,7 @@ def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
   }];
 }
 
-def Clift_ForOp : Clift_StatementOp<"for", [NoTerminator]> {
+def Clift_ForOp : Clift_StatementOp<"for"> {
   let regions = (region Clift_StatementRegion:$initializer,
                         Clift_OptionalExpressionRegion:$condition,
                         Clift_OptionalExpressionRegion:$expression,
@@ -222,7 +225,7 @@ def Clift_GoToOp : Clift_StatementOp<"goto", [Clift_NoFallthrough]> {
   }];
 }
 
-def Clift_IfOp : Clift_StatementOp<"if", [NoTerminator]> {
+def Clift_IfOp : Clift_StatementOp<"if"> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$then,
                         Clift_StatementRegion:$else);
@@ -234,7 +237,7 @@ def Clift_IfOp : Clift_StatementOp<"if", [NoTerminator]> {
   let hasVerifier = 1;
 }
 
-def Clift_LocalVariableOp : Clift_StatementOp<"local", [NoTerminator]> {
+def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
   let arguments = (ins StrAttr:$sym_name);
 
   let results = (outs Clift_AnyValueType:$result);
@@ -268,8 +271,7 @@ def Clift_LoopContinueOp : Clift_StatementOp<"loop_continue",
   }];
 }
 
-def Clift_ReturnOp : Clift_StatementOp<"return",
-                                       [Clift_NoFallthrough, NoTerminator]> {
+def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
 
   let regions = (region Clift_OptionalExpressionRegion:$result);
 
@@ -280,7 +282,7 @@ def Clift_ReturnOp : Clift_StatementOp<"return",
   let hasVerifier = 1;
 }
 
-def Clift_SwitchOp : Clift_StatementOp<"switch", [NoTerminator]> {
+def Clift_SwitchOp : Clift_StatementOp<"switch"> {
   let arguments = (ins DenseI64ArrayAttr:$case_values);
 
   let regions = (region Clift_ExpressionRegion:$condition,
@@ -331,7 +333,7 @@ def Clift_SwitchBreakOp : Clift_StatementOp<"switch_break",
   }];
 }
 
-def Clift_WhileOp : Clift_StatementOp<"while", [NoTerminator]> {
+def Clift_WhileOp : Clift_StatementOp<"while"> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$body);
 
