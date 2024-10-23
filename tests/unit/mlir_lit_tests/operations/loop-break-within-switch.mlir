@@ -15,7 +15,7 @@
 
 // CHECK: must be nested within a loop operation
 clift.module {
-  clift.func "f" !f {
+  clift.func @f<!f>() {
     clift.while {
       %0 = clift.undef : !int32_t
       clift.yield %0 : !int32_t

@@ -27,9 +27,9 @@ def Clift_AnyValueType : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">
                               "Clift value type",
                               "mlir::clift::ValueType">;
 
-def Clift_FunctionType : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
-                              "Clift function type",
-                              "mlir::clift::ValueType">;
+def Clift_AnyFunctionType : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
+                                 "Clift function type",
+                                 "mlir::clift::ValueType">;
 
 //===---------------------------- Region types ----------------------------===//
 
@@ -69,7 +69,9 @@ def Clift_FunctionOp : Clift_Op<"func",
                                  AutomaticAllocationScope,
                                  IsolatedFromAbove]> {
   let arguments = (ins StrAttr:$sym_name,
-                       TypeAttrOf<Clift_FunctionType>:$function_type,
+                       TypeAttrOf<Clift_AnyFunctionType>:$function_type,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs,
                        DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
 
   let description = [{
@@ -78,9 +80,7 @@ def Clift_FunctionOp : Clift_Op<"func",
 
   let regions = (region Clift_StatementRegion:$body);
 
-  let assemblyFormat = [{
-    $sym_name $function_type $body attr-dict
-  }];
+  let hasCustomAssemblyFormat = 1;
 
   code extraClassDeclaration = [{
     mlir::Region::BlockListType& getBlocks() {
@@ -112,15 +112,6 @@ def Clift_FunctionOp : Clift_Op<"func",
 
     ArrayRef<Type> getArgumentTypes();
     ArrayRef<Type> getResultTypes();
-
-    mlir::ArrayAttr getArgAttrsAttr();
-    mlir::ArrayAttr getResAttrsAttr();
-
-    void setArgAttrsAttr(mlir::ArrayAttr attrs);
-    void setResAttrsAttr(mlir::ArrayAttr attrs);
-
-    mlir::Attribute removeArgAttrsAttr();
-    mlir::Attribute removeResAttrsAttr();
 
     Type cloneTypeWith(TypeRange inputs, TypeRange results);
   }];

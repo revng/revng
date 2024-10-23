@@ -5,6 +5,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 
+#include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/RegionGraphTraits.h"
 
 #include "revng/Support/GraphAlgorithms.h"
@@ -402,38 +403,124 @@ mlir::LogicalResult clift::ModuleOp::verify() {
 
 //===----------------------------- FunctionOp -----------------------------===//
 
+mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
+                                    OperationState &Result) {
+  StringAttr SymbolNameAttr;
+  if (Parser
+        .parseSymbolName(SymbolNameAttr,
+                         SymbolTable::getSymbolAttrName(),
+                         Result.attributes)
+        .failed())
+    return mlir::failure();
+
+  if (Parser.parseLess().failed())
+    return mlir::failure();
+
+  auto FunctionTypeLoc = Parser.getCurrentLocation();
+  clift::ValueType FunctionType;
+  if (Parser.parseType(FunctionType).failed())
+    return mlir::failure();
+
+  auto FunctionTypeAttr = ::getFunctionTypeAttr(FunctionType);
+  if (not FunctionTypeAttr)
+    return Parser.emitError(FunctionTypeLoc) << "expected Clift function or "
+                                                "pointer-to-function type.";
+
+  if (Parser.parseGreater().failed())
+    return mlir::failure();
+
+  llvm::SmallVector<OpAsmParser::Argument> Arguments;
+  llvm::SmallVector<mlir::Type> ResultTypes;
+  llvm::SmallVector<DictionaryAttr> ResultAttrs;
+  bool IsVariadic = false;
+
+  auto RoughResultTypeLocation = Parser.getCurrentLocation();
+  if (function_interface_impl::parseFunctionSignature(Parser,
+                                                      /*allowVariadic=*/false,
+                                                      Arguments,
+                                                      IsVariadic,
+                                                      ResultTypes,
+                                                      ResultAttrs)
+        .failed())
+    return mlir::failure();
+
+  if (ResultTypes.size() > 1)
+    return Parser.emitError(RoughResultTypeLocation) << "expected no more than "
+                                                        "one result";
+
+  auto False = BoolAttr::get(Parser.getContext(), false);
+
+  if (ResultTypes.empty()) {
+    ResultTypes.push_back(PrimitiveType::get(Parser.getContext(),
+                                             PrimitiveKind::VoidKind,
+                                             0,
+                                             False));
+    ResultAttrs.push_back(DictionaryAttr::get(Parser.getContext()));
+  }
+
+  llvm::SmallVector<mlir::Type> ArgumentTypes;
+  for (auto &Argument : Arguments)
+    ArgumentTypes.push_back(Argument.type);
+
+  Result.addAttribute(getFunctionTypeAttrName(Result.name),
+                      TypeAttr::get(FunctionType));
+
+  if (Parser.parseOptionalAttrDictWithKeyword(Result.attributes).failed())
+    return mlir::failure();
+
+  function_interface_impl::addArgAndResultAttrs(Parser.getBuilder(),
+                                                Result,
+                                                Arguments,
+                                                ResultAttrs,
+                                                getArgAttrsAttrName(Result
+                                                                      .name),
+                                                getResAttrsAttrName(Result
+                                                                      .name));
+
+  auto *Body = Result.addRegion();
+  auto RegionParseResult = Parser.parseOptionalRegion(*Body, Arguments);
+  if (RegionParseResult.has_value() && mlir::failed(*RegionParseResult))
+    return mlir::failure();
+
+  return mlir::success();
+}
+
+void FunctionOp::print(OpAsmPrinter &Printer) {
+  Printer << ' ';
+  Printer.printSymbolName(getSymName());
+  Printer << '<';
+  Printer.printType(getFunctionType());
+
+  auto FunctionTypeAttr = ::getFunctionTypeAttr(getFunctionType());
+
+  function_interface_impl::printFunctionSignature(Printer,
+                                                  *this,
+                                                  FunctionTypeAttr
+                                                    .getArgumentTypes(),
+                                                  /*isVariadic=*/false,
+                                                  FunctionTypeAttr
+                                                    .getResultTypes());
+
+  function_interface_impl::printFunctionAttributes(Printer,
+                                                   *this,
+                                                   { getFunctionTypeAttrName(),
+                                                     getArgAttrsAttrName(),
+                                                     getResAttrsAttrName() });
+
+  if (Region &Body = getBody(); !Body.empty()) {
+    Printer << ' ';
+    Printer.printRegion(Body,
+                        /*printEntryBlockArgs=*/false,
+                        /*printBlockTerminators=*/true);
+  }
+}
+
 ArrayRef<Type> FunctionOp::getArgumentTypes() {
   return ::getFunctionTypeAttr(getFunctionType()).getArgumentTypes();
 }
 
 ArrayRef<Type> FunctionOp::getResultTypes() {
   return ::getFunctionTypeAttr(getFunctionType()).getResultTypes();
-}
-
-mlir::ArrayAttr FunctionOp::getArgAttrsAttr() {
-  return {};
-}
-
-mlir::ArrayAttr FunctionOp::getResAttrsAttr() {
-  return {};
-}
-
-void FunctionOp::setArgAttrsAttr(mlir::ArrayAttr Attrs) {
-  if (Attrs)
-    revng_abort("Operation not supported");
-}
-
-void FunctionOp::setResAttrsAttr(mlir::ArrayAttr Attrs) {
-  if (Attrs)
-    revng_abort("Operation not supported");
-}
-
-mlir::Attribute FunctionOp::removeArgAttrsAttr() {
-  return {};
-}
-
-mlir::Attribute FunctionOp::removeResAttrsAttr() {
-  return {};
 }
 
 Type FunctionOp::cloneTypeWith(TypeRange inputs, TypeRange results) {
