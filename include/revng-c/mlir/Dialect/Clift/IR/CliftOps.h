@@ -21,8 +21,6 @@
 
 namespace mlir::clift::impl {
 
-bool verifyFunctionType(ValueType Type);
-
 bool verifyStatementRegion(Region &R);
 bool verifyExpressionRegion(Region &R, bool Required);
 

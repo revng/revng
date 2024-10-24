@@ -15,8 +15,6 @@
 #define GET_OP_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOps.cpp.inc"
 
-#include "CliftTypeHelpers.h"
-
 using namespace mlir;
 using namespace mlir::clift;
 
@@ -52,11 +50,6 @@ static FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
 }
 
 //===-------------------------- Type constraints --------------------------===//
-
-bool clift::impl::verifyFunctionType(ValueType Type) {
-  auto T = mlir::dyn_cast<DefinedType>(dealias(Type));
-  return T and mlir::isa<FunctionTypeAttr>(T.getElementType());
-}
 
 //===---------------------------- Region types ----------------------------===//
 
@@ -642,7 +635,7 @@ mlir::LogicalResult MakeLabelOp::verify() {
 //===------------------------------ ReturnOp ------------------------------===//
 
 mlir::LogicalResult ReturnOp::verify() {
-  if (not verifyFunctionReturnType(getExpressionType(getResult())))
+  if (not isReturnableType(getExpressionType(getResult())))
     return emitOpError() << getOperationName()
                          << " requires void or non-array object type.";
 

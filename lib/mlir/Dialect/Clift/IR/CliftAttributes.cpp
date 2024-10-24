@@ -20,7 +20,6 @@
 
 #include "CliftParser.h"
 #include "CliftStorage.h"
-#include "CliftTypeHelpers.h"
 
 // This include should stay here for correct build procedure
 //
@@ -238,7 +237,7 @@ mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
       return EmitError() << "Function parameter type may not be an array type";
   }
 
-  if (not verifyFunctionReturnType(R))
+  if (not isReturnableType(R))
     return EmitError() << "Function return type must be void or a non-array "
                           "object type.";
 
@@ -251,7 +250,7 @@ FunctionTypeAttr::verify(EmitErrorType EmitError,
                          llvm::StringRef Name,
                          clift::ValueType ReturnType,
                          llvm::ArrayRef<clift::ValueType> Args) {
-  if (not verifyFunctionReturnType(ReturnType))
+  if (not isReturnableType(ReturnType))
     return EmitError() << "Function return type must be void or a non-array "
                           "object type.";
 

@@ -29,7 +29,7 @@ def Clift_AnyValueType
          "mlir::clift::ValueType">;
 
 def Clift_AnyFunctionType
-  : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
+  : Type<CPred<"mlir::clift::isFunctionType($_self)">,
          "a Clift function type",
          "mlir::clift::ValueType">;
 

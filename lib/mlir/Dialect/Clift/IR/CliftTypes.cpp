@@ -14,14 +14,200 @@
 
 #include "CliftParser.h"
 #include "CliftStorage.h"
-#include "CliftTypeHelpers.h"
 
 #define GET_TYPEDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
 
 using namespace mlir::clift;
+namespace clift = mlir::clift;
 
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
+
+//===---------------------------- Type helpers ----------------------------===//
+
+TypedefDecomposition clift::decomposeTypedef(ValueType Type) {
+  bool HasConstTypedef = false;
+
+  while (true) {
+    auto D = mlir::dyn_cast<DefinedType>(Type);
+    if (not D)
+      break;
+
+    auto T = mlir::dyn_cast<TypedefTypeAttr>(D.getElementType());
+    if (not T)
+      break;
+
+    Type = T.getUnderlyingType();
+    HasConstTypedef |= D.isConst();
+  }
+
+  return { Type, HasConstTypedef };
+}
+
+ValueType clift::dealias(ValueType Type, bool IgnoreQualifiers) {
+  auto [UnderlyingType, HasConstTypedef] = decomposeTypedef(Type);
+
+  if (HasConstTypedef and not IgnoreQualifiers)
+    UnderlyingType = UnderlyingType.addConst();
+
+  return UnderlyingType;
+}
+
+bool clift::isModifiableType(ValueType Type) {
+  auto [UnderlyingType, HasConst] = decomposeTypedef(Type);
+  return not HasConst and not UnderlyingType.isConst();
+}
+
+bool clift::isIntegerKind(PrimitiveKind Kind) {
+  switch (Kind) {
+  case PrimitiveKind::GenericKind:
+  case PrimitiveKind::PointerOrNumberKind:
+  case PrimitiveKind::NumberKind:
+  case PrimitiveKind::UnsignedKind:
+  case PrimitiveKind::SignedKind:
+    return true;
+
+  case PrimitiveKind::VoidKind:
+  case PrimitiveKind::FloatKind:
+    break;
+  }
+  return false;
+}
+
+PrimitiveType clift::getUnderlyingIntegerType(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return isIntegerKind(T.getKind()) ? T : nullptr;
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
+    if (auto EnumT = mlir::dyn_cast<EnumTypeAttr>(T.getElementType()))
+      return mlir::cast<PrimitiveType>(dealias(EnumT.getUnderlyingType()));
+  }
+
+  return nullptr;
+}
+
+bool clift::isCompleteType(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
+    auto Definition = T.getElementType();
+    if (auto D = mlir::dyn_cast<StructTypeAttr>(Definition))
+      return D.isDefinition();
+    if (auto D = mlir::dyn_cast<UnionTypeAttr>(Definition))
+      return D.isDefinition();
+    return true;
+  }
+
+  if (auto T = mlir::dyn_cast<ScalarTupleType>(Type))
+    return T.isComplete();
+
+  if (auto T = mlir::dyn_cast<ArrayType>(Type))
+    return isCompleteType(T.getElementType());
+
+  return true;
+}
+
+bool clift::isVoid(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return T.getKind() == PrimitiveKind::VoidKind;
+
+  return false;
+}
+
+bool clift::isScalarType(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return T.getKind() != PrimitiveKind::VoidKind;
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type))
+    return mlir::isa<EnumTypeAttr>(T.getElementType());
+
+  return mlir::isa<PointerType>(Type);
+}
+
+bool clift::isPrimitiveIntegerType(ValueType Type) {
+  if (auto T = mlir::dyn_cast<PrimitiveType>(dealias(Type, true)))
+    return isIntegerKind(T.getKind());
+
+  return false;
+}
+
+bool clift::isIntegerType(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return isIntegerKind(T.getKind());
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type))
+    return mlir::isa<EnumTypeAttr>(T.getElementType());
+
+  return false;
+}
+
+bool clift::isPointerType(ValueType Type) {
+  return mlir::isa<PointerType>(dealias(Type));
+}
+
+bool clift::isObjectType(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
+    if (T.getKind() == PrimitiveKind::VoidKind)
+      return false;
+  }
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
+    if (mlir::isa<FunctionTypeAttr>(T.getElementType()))
+      return false;
+  }
+
+  if (mlir::isa<ScalarTupleType>(Type))
+    return false;
+
+  return true;
+}
+
+bool clift::isArrayType(ValueType Type) {
+  return mlir::isa<ArrayType>(dealias(Type));
+}
+
+bool clift::isEnumType(ValueType Type) {
+  if (auto T = mlir::dyn_cast<DefinedType>(dealias(Type))) {
+    if (mlir::isa<EnumTypeAttr>(T.getElementType()))
+      return true;
+  }
+  return false;
+}
+
+bool clift::isClassType(ValueType Type) {
+  if (auto T = mlir::dyn_cast<DefinedType>(dealias(Type))) {
+    if (mlir::isa<StructTypeAttr, UnionTypeAttr>(T.getElementType()))
+      return true;
+  }
+  return false;
+}
+
+bool clift::isFunctionType(ValueType Type) {
+  if (auto T = mlir::dyn_cast<DefinedType>(dealias(Type))) {
+    if (mlir::isa<FunctionTypeAttr>(T.getElementType()))
+      return true;
+  }
+  return false;
+}
+
+bool clift::isReturnableType(ValueType ReturnType) {
+  ReturnType = dealias(ReturnType);
+
+  if (isObjectType(ReturnType))
+    return not isArrayType(ReturnType);
+
+  return isVoid(ReturnType) or mlir::isa<ScalarTupleType>(ReturnType);
+}
 
 //===---------------------------- CliftDialect ----------------------------===//
 
