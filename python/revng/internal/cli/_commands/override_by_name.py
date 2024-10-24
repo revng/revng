@@ -4,13 +4,12 @@
 
 import sys
 from shutil import copyfileobj
-from tempfile import NamedTemporaryFile
 
 import yaml
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.internal.cli.revng import run_revng_command
-from revng.internal.cli.support import log_error
+from revng.internal.cli.support import log_error, temporary_file_gen
 
 
 class ModelOverrideByName(Command):
@@ -45,15 +44,7 @@ class ModelOverrideByName(Command):
         args = options.parsed_args
 
         self.verbose = args.verbose
-
-        def temporary_file(suffix="", mode="w+"):
-            return NamedTemporaryFile(
-                prefix="revng-override-by-name-",
-                suffix=suffix,
-                mode=mode,
-                delete=not options.keep_temporaries,
-            )
-
+        temporary_file = temporary_file_gen("revng-override-by-name-", options)
         with open(args.input_model_path, "rb") as input_file, temporary_file(
             mode="wb+"
         ) as saved_file, temporary_file(suffix=".yml") as model_file, open(

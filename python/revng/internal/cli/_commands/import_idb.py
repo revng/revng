@@ -3,13 +3,13 @@
 #
 
 import logging
-from tempfile import NamedTemporaryFile
 
 import idb
 import yaml
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.internal.cli.revng import run_revng_command
+from revng.internal.cli.support import temporary_file_gen
 from revng.model import YamlDumper  # type: ignore
 
 from .idb_converter import IDBConverter
@@ -45,15 +45,7 @@ class ImportIDBCommand(Command):
             revng_model = idb_converter.get_model()
 
         yaml_model = yaml.dump(revng_model, Dumper=YamlDumper)
-
-        def temporary_file(suffix="", mode="w+"):
-            return NamedTemporaryFile(
-                prefix="revng-import-idb-",
-                suffix=suffix,
-                mode=mode,
-                delete=not options.keep_temporaries,
-            )
-
+        temporary_file = temporary_file_gen("revng-import-idb-", options)
         with temporary_file(suffix=".yml") as model_file:
             model_file.write(yaml_model)
             model_file.flush()

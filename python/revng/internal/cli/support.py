@@ -11,6 +11,7 @@ from io import BytesIO
 from shutil import which
 from subprocess import Popen
 from tarfile import open as tar_open
+from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Union
 
 import yaml
@@ -209,3 +210,15 @@ def to_yaml(filename: str, raw: bytes) -> str:
 def is_file_executable(filename: str) -> bool:
     stat = os.stat(filename)
     return stat.st_mode & 0o111 == 0o111
+
+
+def temporary_file_gen(prefix: str, options: Options):
+    def temporary_file(suffix="", mode="w+"):
+        return NamedTemporaryFile(
+            prefix=prefix,
+            suffix=suffix,
+            mode=mode,
+            delete=not options.keep_temporaries,
+        )
+
+    return temporary_file
