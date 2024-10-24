@@ -8,6 +8,18 @@
     </head>
     <body>
         <div id="nav"></div>
+        <div class="crash-stats" data-category="OOM"></div>
+        <div id="flamegraphs">
+            <h3>Flamegraphs</h3>
+            <div>
+                <a href="ooms_bottomup.svg" target="_blank">
+                    <img src="ooms_bottomup.png" />
+                </a>
+                <a href="ooms_topdown.svg" target="_blank">
+                    <img src="ooms_topdown.png" />
+                </a>
+            </div>
+        </div>
         <table id="data-table" data-filter="status = 'OOM'" class="compact"></table>
     </body>
     <script src="main.js"></script>

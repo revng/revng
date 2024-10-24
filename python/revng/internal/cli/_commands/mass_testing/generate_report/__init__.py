@@ -3,67 +3,74 @@
 #
 
 import argparse
+import functools
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2, copytree, which
 from subprocess import DEVNULL, PIPE, run
+from typing import Dict, List
 
 import yaml
 
+from revng.internal.cli.commands_registry import Command, Options
 from revng.internal.cli.support import get_root
 
-from ....commands_registry import Command, Options
 from .db import create_and_populate
 from .meta import GlobalMeta
-from .stacktrace import generate_crash_components, generate_flamegraph
+from .stacktrace import Stacktrace, generate_crash_components, generate_flamegraph
 from .test_directory import TestDirectory
 
 
-def generate_flamegraphs(crashed_stacktraces, timed_out_stacktraces, output, options):
-    if which("inkscape") is None:
-        sys.stderr.write("ERROR: 'inkscape' not found in PATH")
-        sys.exit(1)
-
-    generate_flamegraph(
-        crashed_stacktraces,
-        output / "failures_topdown.svg",
-        "Stack traces - Top down - Thread entry point is at the bottom",
-        True,
-    )
-    generate_flamegraph(
-        crashed_stacktraces,
-        output / "failures_bottomup.svg",
-        "Stack traces - Bottom up - Crash location is at the top",
-    )
-    generate_flamegraph(
-        timed_out_stacktraces,
-        output / "timeouts_topdown.svg",
-        "Timeouts - Top down - Thread entry point is at the bottom",
-    )
-    generate_flamegraph(
-        timed_out_stacktraces,
-        output / "timeouts_bottomup.svg",
-        "Timeouts - Bottom up - Time out location is at the top",
-        True,
-    )
-
+@functools.cache
+def generate_inkscape_data():
     # Filter out DISPLAY, if set wrong it causes inkscape to fail
     inkscape_env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
+
     # Inkscape might be >1.0, which requires -e, whereas inkscape >=1.0 requires -o
     proc = run(["inkscape", "--version"], env=inkscape_env, stdout=PIPE, text=True)
     old_inkscape = proc.stdout.startswith("Inkscape 0")
     export_switch = "-e" if old_inkscape else "-o"
 
-    svgs = ["failures_topdown", "failures_bottomup", "timeouts_topdown", "timeouts_bottomup"]
-    for svg in svgs:
-        run(
-            ("inkscape", "-w", "1920")
-            + (str(output / f"{svg}.svg"), export_switch, str(output / f"{svg}.png")),
-            env=inkscape_env,
-            stdout=DEVNULL,
-            stderr=DEVNULL,
-            check=True,
+    return {"export_switch": export_switch, "env": inkscape_env}
+
+
+def svg_to_png(svg_input: str, png_output: str):
+    inkscape_data = generate_inkscape_data()
+    run(
+        ("inkscape", "-w", "1920", svg_input, inkscape_data["export_switch"], png_output),
+        env=inkscape_data["env"],
+        stdout=DEVNULL,
+        stderr=DEVNULL,
+        check=True,
+    )
+
+
+@dataclass(frozen=True)
+class GFOptions:
+    file_prefix: str
+    legend_prefix: str
+    end_location_name: str
+
+
+def generate_flamegraphs(stacktraces, output: Path, options: GFOptions):
+    generate_flamegraph(
+        stacktraces,
+        output / f"{options.file_prefix}_topdown.svg",
+        f"{options.legend_prefix} - Top down - Thread entry point is at the bottom",
+        True,
+    )
+    generate_flamegraph(
+        stacktraces,
+        output / f"{options.file_prefix}_bottomup.svg",
+        f"{options.legend_prefix} - Bottom up - {options.end_location_name} location is at the top",
+    )
+
+    for name in ("topdown", "bottomup"):
+        svg_to_png(
+            str(output / f"{options.file_prefix}_{name}.svg"),
+            str(output / f"{options.file_prefix}_{name}.png"),
         )
 
 
@@ -77,15 +84,18 @@ class MassTestingGenerateReportCommand(Command):
         parser.add_argument("output", help="Output directory")
 
     def run(self, options: Options):
+        if which("inkscape") is None:
+            sys.stderr.write("ERROR: 'inkscape' not found in PATH")
+            return 1
+
         args = options.parsed_args
+        output = Path(args.output)
+
         tests = []
         for dirpath, dirnames, filenames in os.walk(args.input):
             test_dir = TestDirectory(dirpath, os.path.relpath(dirpath, args.input))
             if test_dir.is_valid():
                 tests.append(test_dir)
-
-        crashed_stacktraces = [d.stacktrace for d in tests if d.status == "CRASHED"]
-        timed_out_stacktraces = [d.stacktrace for d in tests if d.status == "TIMED_OUT"]
 
         global_meta_path = Path(args.input) / "meta.yml"
         if global_meta_path.exists():
@@ -94,13 +104,23 @@ class MassTestingGenerateReportCommand(Command):
         else:
             global_meta = GlobalMeta.from_dict({})
 
-        stack_aggregation = global_meta.stacktrace_aggregation
-        crash_counts = generate_crash_components(crashed_stacktraces, stack_aggregation)
-        timed_out_counts = generate_crash_components(timed_out_stacktraces, stack_aggregation)
-        total_counts = {"CRASHED": crash_counts, "TIMED_OUT": timed_out_counts}
+        stacktrace_categories = ("CRASHED", "TIMED_OUT", "OOM")
+        stacktraces: Dict[str, List[Stacktrace | None]] = {k: [] for k in stacktrace_categories}
+        for test in tests:
+            if test.status in stacktrace_categories:
+                stacktraces[test.status].append(test.stacktrace)
 
-        output = Path(args.output)
-        generate_flamegraphs(crashed_stacktraces, timed_out_stacktraces, output, options)
+        stack_aggregation = global_meta.stacktrace_aggregation
+        gf_options = {
+            "CRASHED": GFOptions("failures", "Stack traces", "Crash"),
+            "TIMED_OUT": GFOptions("timeouts", "Timeouts", "Time out"),
+            "OOM": GFOptions("ooms", "OOMs", "OOM"),
+        }
+
+        total_counts = {}
+        for cat, cat_stacktraces in stacktraces.items():
+            total_counts[cat] = generate_crash_components(cat_stacktraces, stack_aggregation)
+            generate_flamegraphs(cat_stacktraces, output, gf_options[cat])
 
         db = output / "main.db"
         db.unlink(missing_ok=True)
@@ -114,3 +134,5 @@ class MassTestingGenerateReportCommand(Command):
             output_dir = output / test.name
             output_dir.mkdir(parents=True, exist_ok=True)
             test.copy_to(output_dir)
+
+        return 0
