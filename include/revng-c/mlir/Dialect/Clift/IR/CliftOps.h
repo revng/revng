@@ -38,6 +38,8 @@ void printCliftOpTypes(OpAsmPrinter &Printer,
                        Type Result,
                        llvm::ArrayRef<Type> Arguments);
 
+mlir::LogicalResult verifyUnaryIntegerMutationOp(Operation *Op);
+
 } // namespace clift::impl
 
 template<std::same_as<Type>... Ts>
