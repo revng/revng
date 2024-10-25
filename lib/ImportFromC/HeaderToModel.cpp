@@ -7,9 +7,9 @@
 #include "clang/Frontend/TextDiagnostic.h"
 
 #include "revng/Model/Processing.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"

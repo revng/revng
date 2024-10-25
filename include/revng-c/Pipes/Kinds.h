@@ -5,11 +5,10 @@
 //
 
 #include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Pipes/TypeKind.h"
 #include "revng/Support/FunctionTags.h"
-
-#include "revng-c/Pipes/Ranks.h"
 
 namespace revng::kinds {
 

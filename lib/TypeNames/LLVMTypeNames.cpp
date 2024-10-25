@@ -12,10 +12,10 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 #include "revng-c/TypeNames/PTMLCTypeBuilder.h"
