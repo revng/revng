@@ -25,5 +25,6 @@ revng_add_analyses_library(
   SimplifyHybridNot.cpp
   SimplifyImplicitStatement.cpp)
 
-target_link_libraries(revngcRestructureCFG revngcSupport revng::revngModel
-                      revng::revngSupport ${LLVM_LIBRARIES})
+target_link_libraries(
+  revngcRestructureCFG revngcSupport revng::revngModel revng::revngPipeline
+  revng::revngSupport ${LLVM_LIBRARIES})
