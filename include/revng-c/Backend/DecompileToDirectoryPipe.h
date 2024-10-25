@@ -15,8 +15,6 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 
-#include "revng-c/Pipes/Kinds.h"
-
 namespace revng::pipes {
 
 inline constexpr char RecompilableArchiveMime[] = "application/x-tar";

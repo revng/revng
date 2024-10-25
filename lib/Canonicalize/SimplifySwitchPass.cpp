@@ -22,10 +22,9 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionPass.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/ValueMaterializer/ValueMaterializer.h"
-
-#include "revng-c/Pipes/Kinds.h"
 
 using namespace llvm;
 using namespace ::revng::kinds;

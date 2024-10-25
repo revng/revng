@@ -11,8 +11,7 @@
 #include "mlir/IR/MLIRContext.h"
 
 #include "revng/Pipeline/Container.h"
-
-#include "revng-c/Pipes/Kinds.h"
+#include "revng/Pipes/Kinds.h"
 
 namespace revng::pipes {
 

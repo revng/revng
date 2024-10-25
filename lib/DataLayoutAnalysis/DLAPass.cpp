@@ -12,7 +12,6 @@
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLAPass.h"
-#include "revng-c/Pipes/Kinds.h"
 
 #include "Backend/DLAMakeModelTypes.h"
 #include "Frontend/DLATypeSystemBuilder.h"

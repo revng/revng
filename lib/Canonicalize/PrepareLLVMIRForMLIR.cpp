@@ -18,11 +18,10 @@
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "revng-c/Pipes/Kinds.h"
 
 using namespace llvm;
 namespace ranks = revng::ranks;

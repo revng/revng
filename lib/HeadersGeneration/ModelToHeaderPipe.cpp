@@ -5,11 +5,11 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/Pipes/FileContainer.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 
 #include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
-#include "revng-c/Pipes/Kinds.h"
 
 static llvm::cl::opt<bool> InlineTypes("inline-types",
                                        llvm::cl::desc("Enable printing struct, "

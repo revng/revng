@@ -12,7 +12,6 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
 
-#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng-c/mlir/Dialect/Clift/Utils/Helpers.h"

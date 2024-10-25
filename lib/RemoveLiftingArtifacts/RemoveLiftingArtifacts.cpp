@@ -11,10 +11,9 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "revng-c/Pipes/Kinds.h"
 
 using namespace llvm;
 

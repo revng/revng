@@ -17,7 +17,6 @@
 #include "revng/Pipes/StringMap.h"
 
 #include "revng-c/Backend/DecompilePipe.h"
-#include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
 

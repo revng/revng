@@ -19,12 +19,12 @@
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OverflowSafeInt.h"
 
-#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/ModelHelpers.h"
 
