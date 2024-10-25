@@ -112,7 +112,6 @@ target_link_libraries(
   revngcSupport
   revngcTypeNames
   revng::revngModel
-  revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})

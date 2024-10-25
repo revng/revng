@@ -12,10 +12,5 @@ revng_add_analyses_library(
   MakeSegmentRefPipe.cpp)
 
 target_link_libraries(
-  revngcRemoveLiftingArtifacts
-  revngcSupport
-  revng::revngModel
-  revng::revngSupport
-  revng::revngPipes
-  revng::revngLift
-  ${LLVM_LIBRARIES})
+  revngcRemoveLiftingArtifacts revngcSupport revng::revngModel
+  revng::revngPipes revng::revngLift ${LLVM_LIBRARIES})

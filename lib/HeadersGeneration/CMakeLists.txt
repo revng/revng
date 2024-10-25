@@ -29,7 +29,6 @@ target_link_libraries(
   revngcTypeNames
   revngcSupport
   revng::revngModel
-  revng::revngSupport
   revng::revngPipeline
   revng::revngPipes
   revng::revngPTML
