@@ -7,9 +7,8 @@ commands:
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-detect-abi
+    suffix: /
     command: |-
-      revng analyze
-        --abi-enforcement-level=no
-        revng-initial-auto-analysis
-        "${INPUT}" |
+      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
+      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" --abi-enforcement-level=no |
         revng model compare "${SOURCE}.model.yml"

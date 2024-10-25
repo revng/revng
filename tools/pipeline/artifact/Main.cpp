@@ -58,12 +58,12 @@ static opt<bool> ListArtifacts("list",
                                cat(MainCategory),
                                init(false));
 
-static cl::list<string> AnalysesLists("analyses-list",
-                                      desc("Analyses list to run"),
-                                      cat(MainCategory));
+static opt<string> Analyses("analyses",
+                            desc("Analyses to run, comma separated"),
+                            cat(MainCategory));
 
 static opt<bool> Analyze("analyze",
-                         desc("Run all available *-initial-auto-analysis"),
+                         desc("Run all available revng-initial-auto-analysis"),
                          cat(MainCategory));
 
 static ToolCLOptions BaseOptions(MainCategory);
@@ -90,13 +90,14 @@ int main(int argc, char *argv[]) {
   Registry::runAllInitializationRoutines();
 
   auto Manager = AbortOnError(BaseOptions.makeManager());
+  auto &Runner = Manager.getRunner();
 
   if (Arguments.size() == 0) {
     std::cout << "USAGE: revng-artifact [options] <artifact> <binary>\n\n";
     std::cout << "<artifact> can be one of:\n\n";
 
     std::vector<std::pair<std::string, std::string>> Pairs;
-    for (auto &Step : Manager.getRunner())
+    for (auto &Step : Runner)
       if (Step.getArtifactsKind() != nullptr)
         Pairs
           .emplace_back(Step.getName().str(),
@@ -107,7 +108,7 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
-  if (not Manager.getRunner().containsStep(Arguments[0])) {
+  if (not Runner.containsStep(Arguments[0])) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
                                    "No known artifact named %s.\nUse `revng "
                                    "artifact` with no arguments to list "
@@ -115,7 +116,7 @@ int main(int argc, char *argv[]) {
                                    Arguments[0].c_str()));
   }
 
-  auto &Step = Manager.getRunner().getStep(Arguments[0]);
+  auto &Step = Runner.getStep(Arguments[0]);
   auto MaybeContainer = Step.getArtifactsContainer();
   if (not MaybeContainer) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
@@ -124,9 +125,9 @@ int main(int argc, char *argv[]) {
                                    Arguments[0].c_str()));
   }
 
-  if (Analyze && AnalysesLists.getNumOccurrences() > 0) {
+  if (Analyze && Analyses.getNumOccurrences() > 0) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "Cannot use --analyze and --analyses-lists "
+                                   "Cannot use --analyze and --analyses "
                                    "together."));
   }
 
@@ -136,16 +137,20 @@ int main(int argc, char *argv[]) {
                                    "arguments different from 1."));
   }
 
-  auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
+  auto &InputContainer = Runner.begin()->containers()["input"];
   InputPath = Arguments[1];
   AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
 
-  TargetInStepSet InvMap;
-  for (auto &AnalysesListName : AnalysesLists) {
-    if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
-      AbortOnError(createStringError(inconvertibleErrorCode(),
-                                     "No known analyses list named "
-                                       + AnalysesListName + "."));
+  SmallVector<StringRef> AnalysesToRun;
+  if (Analyses.getNumOccurrences() > 0) {
+    StringRef(Analyses.getValue()).split(AnalysesToRun, ',');
+    for (StringRef AnalysesName : AnalysesToRun) {
+      if (not Runner.hasAnalysesList(AnalysesName)
+          and not Runner.containsAnalysis(AnalysesName)) {
+        AbortOnError(createStringError(inconvertibleErrorCode(),
+                                       "No known analysis named " + AnalysesName
+                                         + "."));
+      }
     }
   }
 
@@ -153,33 +158,27 @@ int main(int argc, char *argv[]) {
   T.advance("Run analyses", true);
 
   // Collect analyses lists to run
-  SmallVector<StringRef> ListsToRun;
   if (Analyze) {
-    // TODO: drop this once we merge revng-c in here
-    SmallVector<StringRef> Lists = { "revng-initial-auto-analysis",
-                                     "revng-c-initial-auto-analysis" };
-    for (StringRef AnalysisListName : Lists) {
+    StringRef List = "revng-initial-auto-analysis";
 
-      if (not Manager.getRunner().hasAnalysesList(AnalysisListName)) {
-        AbortOnError(createStringError(inconvertibleErrorCode(),
-                                       "The \"" + AnalysisListName.str()
-                                         + "\" analysis list is not "
-                                           "available.\n"));
-      }
-
-      ListsToRun.push_back(AnalysisListName);
+    if (not Runner.hasAnalysesList(List)) {
+      AbortOnError(createStringError(inconvertibleErrorCode(),
+                                     "The \"" + List.str()
+                                       + "\" analysis list is not "
+                                         "available.\n"));
     }
-  } else if (AnalysesLists.size() != 0) {
-    for (const std::string &AnalysisList : AnalysesLists)
-      ListsToRun.push_back(AnalysisList);
+
+    AnalysesToRun.insert(AnalysesToRun.begin(), List);
   }
 
   // Run the analyses lists
-  Task T2(ListsToRun.size(), "Run analyses lists");
-  for (StringRef AnalysesListName : ListsToRun) {
-    T2.advance(AnalysesListName, true);
-    AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
-    AbortOnError(Manager.runAnalyses(AL, InvMap));
+  Task T2(AnalysesToRun.size(), "Run analyses");
+  for (StringRef AnalysesName : AnalysesToRun) {
+    T2.advance(AnalysesName, true);
+
+    auto InvMap = revng::pipes::runAnalysisOrAnalysesList(Manager,
+                                                          AnalysesName,
+                                                          AbortOnError);
   }
 
   T.advance("Produce artifact", true);
@@ -209,7 +208,7 @@ int main(int argc, char *argv[]) {
       Map.add(ContainerName, RequestedTarget);
     }
   }
-  AbortOnError(Manager.getRunner().run(Step.getName(), Map));
+  AbortOnError(Runner.run(Step.getName(), Map));
 
   AbortOnError(Manager.store());
 

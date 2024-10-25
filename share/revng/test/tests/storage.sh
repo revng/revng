@@ -18,7 +18,7 @@ trap 'kill -9 $S3RVER_PID' EXIT
 # Run revng with the server as the resume directory
 revng artifact \
   --resume="s3://S3RVER:S3RVER@region+127.0.0.1:$S3_PORT/test/project-test-dir" \
-  --analyses-list=revng-initial-auto-analysis \
+  --analyze \
   -o /dev/null \
   disassemble "$1"
 

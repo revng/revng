@@ -67,10 +67,6 @@ static opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
                                                  cat(MainCategory),
                                                  init(false));
 
-static cl::list<string> AnalysesLists("analyses-list",
-                                      desc("Analyses list to run"),
-                                      cat(MainCategory));
-
 static opt<bool> InvalidateAll("invalidate-all",
                                desc("Try invalidating all possible "
                                     "targets after producing them. Used for "
@@ -186,20 +182,6 @@ int main(int argc, char *argv[]) {
     TargetInStepSet Map;
     GlobalTupleTreeDiff GlobalDiff(std::move(Diff), ModelGlobalName);
     AbortOnError(Runner.apply(GlobalDiff, Map));
-  }
-
-  TargetInStepSet InvMap;
-  for (auto &AnalysesListName : AnalysesLists) {
-    if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
-      AbortOnError(createStringError(inconvertibleErrorCode(),
-                                     "no known analyses list named %s, invoke "
-                                     "this command without arguments to see "
-                                     "the list of available analysis",
-                                     AnalysesListName.c_str()));
-    }
-
-    AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
-    AbortOnError(Manager.runAnalyses(AL, InvMap));
   }
 
   runPipeline(Manager.getRunner());

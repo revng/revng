@@ -12,7 +12,7 @@ commands:
         filter: for-runtime and for-comparison
     command: |-
       revng artifact
-        --analyses-list=revng-initial-auto-analysis
+        --analyses=import-binary,detect-abi
         recompile-isolated
         "$INPUT"
         -o "$OUTPUT";

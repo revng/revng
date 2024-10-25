@@ -9,7 +9,7 @@ commands:
         filter: for-collect-cfg
     command: |-
       revng artifact
-        --analyses-list=revng-initial-auto-analysis
+        --analyses=import-binary,detect-abi
         --debug-names
         emit-cfg "$INPUT" |
         revng tar to-yaml |
