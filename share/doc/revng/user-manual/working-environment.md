@@ -79,13 +79,10 @@ At this point, from the `orchestra` repository, we can sync all the information 
 $ orc update
 ```
 
-Currently, rev.ng is split in two repositories `revng`, containing infrastructure and the lifter, and `revng-c` containing the backend of the decompiler, the part actually emitting the C code.
-These two repos will eventually get merged.
-
-To install `revng`, `revng-c` and its dependencies from the binary archives run the following command:
+To install `revng` and its dependencies from the binary archives run the following command:
 
 ```{bash notest}
-$ orc install revng revng-c
+$ orc install revng
 ```
 
 Now you can enter the environment where you can use `revng`:
@@ -114,13 +111,12 @@ In order to build from source, add the following to `.orchestra/config/user_opti
 +#@overlay/replace
 +build_from_source:
 +  - revng
-+  - revng-c
 ```
 
-We can now install and test `revng` and `revng-c`:
+We can now install and test `revng`:
 
 ```{bash notest}
-$ orc install --test revng revng-c
+$ orc install --test revng
 ```
 
-This will clone the sources into `sources/revng` and `sources/revng-c`, build them, install them (in `root/`) and run the test suites.
+This will clone the sources into `sources/revng`, build them, install them (in `root/`) and run the test suites.

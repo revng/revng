@@ -6,9 +6,6 @@ rev.ng is an open source binary analysis framework based on LLVM and QEMU.
 It features a full-fledged decompiler.
 It's developed by [rev.ng Labs](https://rev.ng/about) in the open.
 
-This repository contains the source code of the rev.ng infrastructure and of the lifter. You can find the source of the decompiler in the [`revng-c` repository](https://github.com/revng/revng-c).
-Eventually, these two repositories will be merged.
-
 ## Getting started
 
 Head to the [online documentation](https://docs.rev.ng) to get started ([source](share/doc/revng/index.md)).

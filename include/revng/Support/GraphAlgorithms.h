@@ -252,8 +252,8 @@ public:
 
 } // namespace revng::detail
 
-// TODO: remove the `BlackList`/`WhiteList` parameter once the last use in
-//       `revng-c` is dropped, checking that no other uses are still present
+// TODO: remove the `BlackList`/`WhiteList` parameter once the last use is
+//       dropped, checking that no other uses are still present
 template<revng::detail::FilterSet FilterSetType,
          class GraphT,
          class GT = llvm::GraphTraits<GraphT>>
