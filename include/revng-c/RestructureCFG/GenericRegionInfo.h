@@ -14,8 +14,6 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/GraphAlgorithms.h"
 
-#include "revng-c/ADT/STLExtras.h"
-
 #include "GenericRegion.h"
 
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
