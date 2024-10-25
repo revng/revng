@@ -1174,7 +1174,7 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   setCustomName(*NewType, Definition->getName());
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
-    auto NewIterator = NewType->Entries().emplace(Value).first;
+    auto NewIterator = NewType->Entries().insert(Value).first;
     NewIterator->CustomName() = Enum->getName().str();
   }
 
