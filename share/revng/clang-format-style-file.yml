@@ -75,7 +75,6 @@
   IncludeBlocks: Regroup,
   IncludeCategories:
     [
-      { Regex: '^"revng-c/', Priority: -1 },
       { Regex: '^"revng/', Priority: -2 },
       { Regex: '^"clang/', Priority: -3 },
       { Regex: '^"mlir/', Priority: -4 },

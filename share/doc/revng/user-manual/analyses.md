@@ -38,11 +38,6 @@ $ revng analyze \
         revng-initial-auto-analysis \
         example \
         -o /dev/null
-$ revng analyze \
-        --resume=working-directory \
-        revng-c-initial-auto-analysis \
-        example \
-        -o /dev/null
 $ revng artifact \
         --resume=working-directory \
         decompile-to-single-file \
@@ -55,13 +50,13 @@ generic64_t main(generic64_t argument_0) {
 ```
 
 The commands above are *stateful*, they build on top of each other storing intermediate results into the directory specified by the `--resume` parameter.
-The first command runs the set of initial autoanalyses of `revng`, the open source component of rev.ng, the second the analyses of `revng-c`, in particular Data LayoutAnalysis, and the last one produces the decompiled code.
+The first command runs the set of initial autoanalyses of `revng` and the last one produces the decompiled code.
 
-Alternatively, you can run `revng-initial-auto-analysis`, `revng-c-initial-auto-analysis` *and* produce the artifact with a single command:
+Alternatively, you can run `revng-initial-auto-analysis` *and* produce the artifact with a single command:
 
 ```bash
 $ revng artifact \
-        --analyses=revng-initial-auto-analysis,revng-c-initial-auto-analysis \
+        --analyze \
         decompile-to-single-file \
         example \
         | revng ptml \

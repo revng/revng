@@ -19,8 +19,6 @@ Once rev.ng has produced the LLVM IR, there are two core things that you can do:
 
 In the former case, the goal is to understand what the program does.
 One of the core goals of the rev.ng project as a whole is, in fact, to build a decompiler, i.e., a tool able to produce C code representing the behavior of the program.
-To know more about the rev.ng decompiler, revng-c, check out the `dedicated page
-<https://rev.ng/revngc-features.html>`_.
 
 The other use case for rev.ng is to recompile the lifted IR to an executable binary.
 Typically, we do this for ensuring the accuracy of the lifting process, but there are interesting use cases.
