@@ -130,15 +130,6 @@ public:
     Out[getName()].merge(ToInvalidateMap);
   }
 
-  bool invalidationMetadataContains(llvm::StringRef GlobalName,
-                                    const TargetInContainer &Target) const {
-    for (const PipeWrapper &Pipe : Pipes) {
-      if (Pipe.InvalidationMetadata.contains(GlobalName, Target))
-        return true;
-    }
-    return false;
-  }
-
 private:
   llvm::Error loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
                                            ContainerSet::value_type &Pair);

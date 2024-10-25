@@ -7,6 +7,7 @@
 #include <string>
 #include <tuple>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/YAMLTraits.h"
 
@@ -59,13 +60,7 @@ public:
 class PathTargetBimap {
 private:
   using MapType = std::map<TupleTreePath, std::set<TargetInContainer>>;
-  using ReverseMapType = std::map<TargetInContainer,
-                                  std::vector<TupleTreePath>>;
   MapType Map;
-  // When we will instrument the entire pipeline there will not be any longer a
-  // need to have a reverse map, since it will only be inspected at load time of
-  // the pipeline.
-  ReverseMapType ReverseMap;
 
 public:
   explicit PathTargetBimap() : Map() {}
@@ -92,7 +87,6 @@ public:
   void insert(const TargetInContainer &TargetInContainer,
               const TupleTreePath &Path) {
     Map[Path].insert(TargetInContainer);
-    ReverseMap[TargetInContainer].push_back(Path);
   }
 
   void insert(const Target &Target,
@@ -103,23 +97,11 @@ public:
   }
 
   void remove(const TargetsList &List, llvm::StringRef ContainerName) {
-    for (auto &Target : List) {
-      TargetInContainer ToErase(Target, ContainerName.str());
-      auto Iter = ReverseMap.find(ToErase);
-      if (Iter == ReverseMap.end())
-        continue;
-
-      for (auto &Path : Iter->second) {
-        Map.at(Path).erase(ToErase);
-      }
-
-      ReverseMap.erase(Iter);
+    for (auto &[Path, Targets] : Map) {
+      std::erase_if(Targets, [&List](const TargetInContainer &TIC) -> bool {
+        return List.contains(TIC.getTarget());
+      });
     }
-  }
-
-public:
-  bool contains(const TargetInContainer &Target) const {
-    return ReverseMap.find(Target) != ReverseMap.end();
   }
 };
 

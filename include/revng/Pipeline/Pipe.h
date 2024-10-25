@@ -356,13 +356,6 @@ public:
     }
   }
 
-  bool contains(llvm::StringRef GlobalName,
-                const TargetInContainer &Target) const {
-    if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end())
-      return Iter->second.contains(Target);
-    return false;
-  }
-
   const llvm::StringMap<PathTargetBimap> &getPathCache() const {
     return PathCache;
   }
