@@ -30,8 +30,6 @@ revng_add_library_internal(
   GzipTarFile.cpp
   GzipStream.cpp)
 
-llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core Object)
-
 include(FindLibArchive)
 
 if(NOT LibArchive_FOUND)
