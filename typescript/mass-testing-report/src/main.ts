@@ -331,6 +331,11 @@ function populateCrashStats(element: Element, db: Database, category: string) {
     counts.sort((a, b) => (a[1] === b[1] ? 0 : a[1] < b[1] ? 1 : -1));
 
     pre.innerHTML = "";
+    if (total === 0) {
+        pre.innerHTML = "No crashes present in this category\n";
+        return;
+    }
+
     for (const [name, count] of counts) {
         const count_percent = percent(count, total);
         pre.innerHTML += `${name}: ${count} (${count_percent})\n`;
