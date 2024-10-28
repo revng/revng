@@ -368,8 +368,7 @@ public:
   }
 
 private:
-  pair<Instruction *, Instruction *>
-  createLocal(IRBuilder<> &B, const model::Type &VariableType) {
+  Instruction *createLocal(IRBuilder<> &B, const model::Type &VariableType) {
     // Get call to local variable
     auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
     auto *LocalVarFunction = LocalVarPool.get(PtrSizedInteger,
@@ -387,9 +386,7 @@ private:
     auto *AddressOfFunction = AddressOfPool.get({ T, T },
                                                 AddressOfFunctionType,
                                                 "AddressOf");
-    Instruction *Pointer = B.CreateCall(AddressOfFunction,
-                                        { ReferenceString, Reference });
-    return { Reference, Pointer };
+    return B.CreateCall(AddressOfFunction, { ReferenceString, Reference });
   }
 
   Value *pointer(IRBuilder<> &B, Value *V) const {
@@ -546,11 +543,10 @@ private:
       break;
     }
 
-    Value *ReturnValueReference = nullptr;
     Value *ReturnValuePointer = nullptr;
     if (ReturnMethod == ReturnMethod::ModelAggregate) {
-      auto RetValuePair = createLocal(B, Layout.returnValueAggregateType());
-      std::tie(ReturnValueReference, ReturnValuePointer) = RetValuePair;
+      ReturnValuePointer = createLocal(B, Layout.returnValueAggregateType());
+      revng_assert(ReturnValuePointer);
 
       if (Layout.hasSPTAR()) {
         // Identify the SPTAR
@@ -703,7 +699,8 @@ private:
     // Handle return values
     switch (ReturnMethod) {
     case ReturnMethod::ModelAggregate: {
-      // Replace return instructions with returning ReturnValueReference
+      // Replace return instructions with returning a copy of the local variable
+      // representing the return value
       for (ReturnInst *Ret : Returns) {
         B.SetInsertPoint(Ret);
 
@@ -736,6 +733,12 @@ private:
         }
 
         // Return the pointer to the result variable
+        revng_assert(ReturnValuePointer
+                     and isCallToTagged(ReturnValuePointer,
+                                        FunctionTags::AddressOf));
+        auto *LocalVarDecl = getCallToTagged(ReturnValuePointer,
+                                             FunctionTags::AddressOf);
+        auto *ReturnValueReference = LocalVarDecl->getArgOperand(1);
         B.CreateRet(ReturnValueReference);
         Ret->eraseFromParent();
       }
