@@ -10,6 +10,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/CallInterfaces.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #include "revng-c/mlir/Dialect/Clift/IR/Clift.h"
@@ -23,6 +24,10 @@ namespace mlir::clift::impl {
 
 bool verifyStatementRegion(Region &R);
 bool verifyExpressionRegion(Region &R, bool Required);
+
+bool verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind);
+
+mlir::Type removeCliftConst(mlir::Type Type);
 
 } // namespace mlir::clift::impl
 

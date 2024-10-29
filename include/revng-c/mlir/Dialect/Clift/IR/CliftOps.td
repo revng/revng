@@ -6,6 +6,7 @@
 #define MLIR_CLIFT_OPS
 
 include "mlir/Interfaces/CallInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/BuiltinAttributes.td"
 include "mlir/IR/FunctionInterfaces.td"
@@ -28,10 +29,53 @@ def Clift_AnyValueType
          "a Clift value type",
          "mlir::clift::ValueType">;
 
+class Clift_AnyPrimitiveTypeOf<string Kind>
+  : Type<CPred<"mlir::clift::impl::verifyPrimitiveTypeOf($_self," #
+                                                         "mlir::clift::PrimitiveKind::" # Kind # ")">,
+         "a Clift primitive type of " # Kind,
+         "mlir::clift::PrimitiveType">;
+
+def Clift_AnyScalarType
+  : Type<CPred<"mlir::clift::isScalarType($_self)">,
+         "a Clift scalar type",
+         "mlir::clift::ValueType">;
+
+def Clift_AnyIntegerType
+  : Type<CPred<"mlir::clift::isIntegerType($_self)">,
+         "a Clift integer type",
+         "mlir::clift::ValueType">;
+
+def Clift_AnyPrimitiveIntegerType
+  : Type<CPred<"mlir::clift::isPrimitiveIntegerType($_self)">,
+         "a primitive Clift integer type",
+         "mlir::clift::PrimitiveType">;
+
+def Clift_AnyPointerType
+  : Type<CPred<"mlir::clift::isPointerType($_self)">,
+         "a Clift pointer type",
+         "mlir::clift::PointerType">;
+
 def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::isFunctionType($_self)">,
          "a Clift function type",
          "mlir::clift::ValueType">;
+
+class Clift_AnyNonConstType<Type type>
+  : Type<And<[type.predicate,
+              CPred<"not mlir::cast<mlir::clift::ValueType>($_self).isConst()">]>,
+         "non-const",
+         "mlir::clift::ValueType">;
+
+class Clift_AnyModifiableType<Type type>
+  : Type<And<[type.predicate,
+              CPred<"mlir::clift::isModifiableType($_self)">]>,
+         "modifiable",
+         "mlir::clift::ValueType">;
+
+class Clift_AllTypesMatch<list<string> names>
+  : AllMatchSameOperatorTrait<names,
+                              "mlir::clift::impl::removeCliftConst($_self.getType())",
+                              "type, ignoring qualifiers">;
 
 //===---------------------------- Region types ----------------------------===//
 
