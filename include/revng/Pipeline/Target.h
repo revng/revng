@@ -42,8 +42,10 @@ class Context;
 /// The PathComponent list is used to tell apart objects belonging to the same
 /// Kind
 class Target {
+public:
+  using PathComponents = llvm::SmallVector<std::string, 1>;
+
 private:
-  using PathComponents = std::vector<std::string>;
   PathComponents Components;
   const Kind *K = nullptr;
 

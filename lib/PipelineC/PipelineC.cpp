@@ -368,7 +368,7 @@ static rp_target *_rp_target_create(const rp_kind *kind,
   revng_check(kind != nullptr);
   revng_check(path_components != nullptr);
   revng_check(kind->rank().depth() == path_components_count);
-  std::vector<std::string> List;
+  Target::PathComponents List;
   for (size_t I = 0; I < path_components_count; I++) {
     llvm::StringRef Rank(path_components[I]);
     List.push_back(Rank.str());
