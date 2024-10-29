@@ -270,9 +270,6 @@ bool FunctionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
 }
 
 llvm::ArrayRef<mlir::Type> FunctionTypeAttr::getResultTypes() {
-  if (isVoid(dealias(getImpl()->return_type)))
-    return {};
-
   return ArrayRef<Type>(getImpl()->return_type);
 }
 
