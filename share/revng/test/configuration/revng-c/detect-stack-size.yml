@@ -12,5 +12,6 @@ commands:
         filter: for-detect-stack-size
     suffix: /
     command: |-
-      revng analyze --resume "$OUTPUT" revng-initial-auto-analysis "$INPUT" -o /dev/null;
+      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
+      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" -o /dev/null;
       revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -;
