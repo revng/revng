@@ -106,9 +106,8 @@ struct ImportFromCAnalysis {
         auto [Key] = L->at(revng::ranks::Function);
         auto Iterator = Model->Functions().find(Key);
         if (Iterator == Model->Functions().end()) {
-          return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                         "Couldn't find the function "
-                                           + LocationToEdit);
+          return revng::createError("Couldn't find the function "
+                                    + LocationToEdit);
         }
 
         FunctionToEdit = &*Iterator;
@@ -118,16 +117,13 @@ struct ImportFromCAnalysis {
         auto [Key, Kind] = L->at(revng::ranks::TypeDefinition);
         auto Iterator = Model->TypeDefinitions().find({ Key, Kind });
         if (Iterator == Model->TypeDefinitions().end()) {
-          return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                         "Couldn't find the type "
-                                           + LocationToEdit);
+          return revng::createError("Couldn't find the type " + LocationToEdit);
         }
 
         TypeToEdit = Iterator->get();
         TheOption = ImportFromCOption::EditType;
       } else {
-        return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                       "Invalid location");
+        return revng::createError("Invalid location");
       }
     }
 
@@ -217,8 +213,7 @@ struct ImportFromCAnalysis {
     StringRef CompileFlagsPath = "share/revng-c/compile-flags.cfg";
     auto MaybeCompileCFGPath = revng::ResourceFinder.findFile(CompileFlagsPath);
     if (not MaybeCompileCFGPath) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Couldn't find compile-flags.cfg");
+      return revng::createError("Couldn't find compile-flags.cfg");
     }
 
     // Since the `--config` is just a clang Driver option, we need to parse it
@@ -245,8 +240,7 @@ struct ImportFromCAnalysis {
                                    "primitive-types.h";
     auto MaybePrimitiveHeaderPath = findHeaderFile(PrimitivesHeader);
     if (not MaybePrimitiveHeaderPath) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Couldn't find primitive-types.h");
+      return revng::createError("Couldn't find primitive-types.h");
     }
     Compilation.push_back("-I" + *MaybePrimitiveHeaderPath);
 
@@ -257,8 +251,7 @@ struct ImportFromCAnalysis {
                                                   FilteredHeader,
                                                   Compilation,
                                                   InputCFile)) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Unable to run clang");
+      return revng::createError("Unable to run clang");
     }
 
     // Check if an error was reported by clang or revng during parsing of C
@@ -269,15 +262,12 @@ struct ImportFromCAnalysis {
         Result += std::move(Error);
 
       revng_log(Log, Result.c_str());
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     std::move(Result));
+      return revng::createError(Result);
     }
 
     model::VerifyHelper VH(false);
     if (not OutModel->verify(VH)) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "New model does not verify: "
-                                       + VH.getReason());
+      return revng::createError("New model does not verify: " + VH.getReason());
     }
 
     // Replace the original Model with the OutModel that contains the changes.

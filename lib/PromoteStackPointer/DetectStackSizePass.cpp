@@ -359,9 +359,8 @@ public:
     auto &Global = getWritableModelFromContext(EC);
 
     if (Global->Architecture() == model::Architecture::Invalid) {
-      return createStringError(inconvertibleErrorCode(),
-                               "DetectStackSize analysis require a valid"
-                               " Architecture");
+      return revng::createError("DetectStackSize analysis require a valid "
+                                "Architecture");
     }
 
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));
