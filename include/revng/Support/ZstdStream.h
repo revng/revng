@@ -9,16 +9,16 @@
 
 #include "revng/ADT/STLExtras.h"
 
-#include "zlib.h"
+#include "zstd.h"
 
-void gzipCompress(llvm::raw_ostream &OS,
+void zstdCompress(llvm::raw_ostream &OS,
                   llvm::ArrayRef<uint8_t> Buffer,
                   int CompressionLevel = 3);
 
 template<DataBuffer T>
 inline void
-gzipCompress(llvm::raw_ostream &OS, T Buffer, int CompressionLevel = 3) {
-  gzipCompress(OS,
+zstdCompress(llvm::raw_ostream &OS, T Buffer, int CompressionLevel = 3) {
+  zstdCompress(OS,
                { reinterpret_cast<const uint8_t *>(Buffer.data()),
                  Buffer.size() },
                CompressionLevel);
@@ -26,39 +26,39 @@ gzipCompress(llvm::raw_ostream &OS, T Buffer, int CompressionLevel = 3) {
 
 template<DataBuffer T>
 inline llvm::SmallVector<char>
-gzipCompress(T Buffer, int CompressionLevel = 3) {
+zstdCompress(T Buffer, int CompressionLevel = 3) {
   llvm::SmallVector<char> Result;
   llvm::raw_svector_ostream OS(Result);
-  gzipCompress(OS, Buffer);
+  zstdCompress(OS, Buffer, CompressionLevel);
   return Result;
 }
 
-void gzipDecompress(llvm::raw_ostream &OS, llvm::ArrayRef<uint8_t> Buffer);
+void zstdDecompress(llvm::raw_ostream &OS, llvm::ArrayRef<uint8_t> Buffer);
 
 template<DataBuffer T>
-inline void gzipDecompress(llvm::raw_ostream &OS, T Buffer) {
-  gzipDecompress(OS,
+inline void zstdDecompress(llvm::raw_ostream &OS, T Buffer) {
+  zstdDecompress(OS,
                  { reinterpret_cast<const uint8_t *>(Buffer.data()),
                    Buffer.size() });
 }
 
 template<DataBuffer T>
-inline llvm::SmallVector<char> gzipDecompress(T Buffer) {
+inline llvm::SmallVector<char> zstdDecompress(T Buffer) {
   llvm::SmallVector<char> Result;
   llvm::raw_svector_ostream OS(Result);
-  gzipDecompress(OS, Buffer);
+  zstdDecompress(OS, Buffer);
   return Result;
 }
 
-class GzipCompressedOstream : public llvm::raw_ostream {
+class ZstdCompressedOstream : public llvm::raw_ostream {
 private:
   llvm::raw_ostream &OS;
-  llvm::SmallVector<uint8_t> OutBuffer;
-  z_stream Stream;
+  llvm::SmallVector<char> OutBuffer;
+  std::unique_ptr<ZSTD_CCtx, void (*)(ZSTD_CCtx *)> Ctx;
 
 public:
-  GzipCompressedOstream(llvm::raw_ostream &OS, int CompressionLevel = 3);
-  ~GzipCompressedOstream() override;
+  ZstdCompressedOstream(llvm::raw_ostream &DestOS, int CompressionLevel = 3);
+  ~ZstdCompressedOstream() override;
   void flush();
 
 private:

@@ -19,6 +19,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/ZstdStream.h"
 
 using namespace llvm;
 using namespace std;
@@ -407,7 +408,7 @@ Error Step::load(const revng::DirectoryPath &DirPath) {
 llvm::Error
 Step::loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
                                    ContainerSet::value_type &Container) {
-  auto FilePath = Path.getFile(Container.first().str() + ".cache");
+  auto FilePath = Path.getFile(Container.first().str() + ".cache.zst");
   auto MaybeBool = FilePath.exists();
   if (not MaybeBool)
     return MaybeBool.takeError();
@@ -419,8 +420,11 @@ Step::loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
   if (not File)
     return File.takeError();
 
+  llvm::MemoryBuffer &Buf = File.get()->buffer();
+  llvm::SmallVector<char> DecompressedData = zstdDecompress(Buf.getBuffer());
   using Type = llvm::SmallVector<NamedPathTargetBimapVector, 2>;
-  auto Parsed = ::fromString<Type>(File.get()->buffer().getBuffer());
+  auto Parsed = ::fromString<Type>({ DecompressedData.data(),
+                                     DecompressedData.size() });
   if (not Parsed)
     return Parsed.takeError();
 
@@ -484,11 +488,13 @@ Step::storeInvalidationMetadata(const revng::DirectoryPath &Path) const {
       ToStore.emplace_back(std::move(Entry));
     }
 
-    auto File = Path.getFile(Container.first().str() + ".cache")
+    auto File = Path.getFile(Container.first().str() + ".cache.zst")
                   .getWritableFile();
     if (not File)
       return File.takeError();
-    ::serialize(File->get()->os(), ToStore);
+
+    ZstdCompressedOstream OS(File->get()->os(), 5);
+    ::serialize(OS, ToStore);
     if (auto Error = File->get()->commit())
       return Error;
   }
@@ -500,6 +506,6 @@ std::vector<revng::FilePath>
 Step::getWrittenFiles(const revng::DirectoryPath &DirPath) const {
   std::vector<revng::FilePath> Result = Containers.getWrittenFiles(DirPath);
   for (auto &Container : Containers)
-    Result.push_back(DirPath.getFile(Container.first().str() + ".cache"));
+    Result.push_back(DirPath.getFile(Container.first().str() + ".cache.zst"));
   return Result;
 }

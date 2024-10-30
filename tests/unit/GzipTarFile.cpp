@@ -13,19 +13,13 @@ bool init_unit_test();
 
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
-static std::string gzipDecompress(llvm::ArrayRef<char> Buffer) {
-  llvm::SmallString<128> Output;
-  llvm::raw_svector_ostream OS(Output);
-  gzipDecompress(OS, Buffer);
-  return Output.str().str();
-}
-
 static void checkOffset(llvm::SmallVector<char> &Buffer,
                         size_t Start,
                         size_t Size,
                         llvm::StringRef ExpectedValue) {
-  std::string Result = gzipDecompress({ Buffer.data() + Start, Size });
-  BOOST_TEST(Result == ExpectedValue.str());
+  llvm::ArrayRef<char> ArrayRef{ Buffer.data() + Start, Size };
+  llvm::SmallVector<char> Result = gzipDecompress(ArrayRef);
+  BOOST_TEST(llvm::StringRef(Result.begin(), Result.size()) == ExpectedValue);
 }
 
 BOOST_AUTO_TEST_CASE(GzipTarFileTest) {

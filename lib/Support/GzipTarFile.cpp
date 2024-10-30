@@ -132,12 +132,12 @@ static llvm::SmallString<BlockSize * 3> writePaxHeader(llvm::StringRef Path,
 static void
 writeFileHeader(llvm::raw_ostream &OS, llvm::StringRef Path, size_t Size) {
   llvm::SmallString<BlockSize * 3> FileHeader = writePaxHeader(Path, Size);
-  gzipCompress(OS, { FileHeader.data(), FileHeader.size() });
+  gzipCompress(OS, FileHeader);
 }
 
 static void compressedPadding(llvm::raw_ostream &OS, size_t Size) {
   llvm::SmallVector<char> Buffer(Size, '\0');
-  return gzipCompress(OS, { Buffer.data(), Buffer.size() });
+  return gzipCompress(OS, Buffer);
 }
 
 namespace revng {
@@ -152,7 +152,7 @@ OffsetDescriptor GzipTarWriter::append(llvm::StringRef Path,
   writeFileHeader(*OS, Path, Data.size());
 
   Result.DataStart = OS->tell();
-  gzipCompress(*OS, { Data.data(), Data.size() });
+  gzipCompress(*OS, Data);
 
   Result.PaddingStart = OS->tell();
   if (size_t Padding = computePadding(Data.size()); Padding % BlockSize != 0)
