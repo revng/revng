@@ -276,10 +276,7 @@ private:
   Module &M;
   Function *SSACS = nullptr;
   Function *InitLocalSP = nullptr;
-  Function *CallStackArgumentsAllocator = nullptr;
   std::set<Instruction *> ToPurge;
-  /// Builder for StackArgumentsAllocator calls
-  IRBuilder<> SABuilder;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
   IntegerType *StackPointerType = nullptr;
@@ -305,7 +302,6 @@ public:
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
     InitLocalSP(M.getFunction("_init_local_sp")),
-    SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
     StackPointerType(cast<IntegerType>(getAnalysis<GCBIWP>()
                                          .getGCBI()
@@ -334,7 +330,6 @@ public:
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
     InitLocalSP(M.getFunction("_init_local_sp")),
-    SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
     StackPointerType(cast<IntegerType>(getAnalysis<GCBIWP>()
                                          .getGCBI()
@@ -354,34 +349,6 @@ public:
     // After segregate, we should not introduce new calls to
     // `_init_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
-
-    auto Create = [&M](StringRef Name, llvm::FunctionType *FType) {
-      auto *Result = Function::Create(FType,
-                                      GlobalValue::ExternalLinkage,
-                                      Name,
-                                      &M);
-      Result->addFnAttr(Attribute::NoUnwind);
-      Result->addFnAttr(Attribute::WillReturn);
-      // NoMerge, because merging two calls to one of these opcodes that
-      // allocate local variable would mean merging the variables.
-      Result->addFnAttr(Attribute::NoMerge);
-      Result->setMemoryEffects(MemoryEffects::readOnly());
-      Result->setOnlyAccessesInaccessibleMemory();
-      FunctionTags::AllocatesLocalVariable.addTo(Result);
-      FunctionTags::ReturnsPolymorphic.addTo(Result);
-      FunctionTags::IsRef.addTo(Result);
-
-      return Result;
-    };
-
-    llvm::Type *StringPtrType = getStringPtrType(M.getContext());
-
-    // TODO: revng_call_stack_arguments can decay into a LocalVariable
-    CallStackArgumentsAllocator = Create("revng_call_stack_arguments",
-                                         FunctionType::get(StackPointerType,
-                                                           { StringPtrType,
-                                                             StackPointerType },
-                                                           false));
   }
 
 public:
@@ -434,36 +401,18 @@ private:
     return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
   }
 
-  template<typename... Types>
-  std::pair<CallInst *, CallInst *>
-  createCallWithAddressOf(IRBuilder<> &B,
-                          const model::UpcastableType &AllocatedType,
-                          FunctionCallee Callee,
-                          Types... Arguments) {
-
-    SmallVector<Value *> ArgumentsValues;
-    FunctionType *CalleeType = Callee.getFunctionType();
-
-    unsigned Index = 0;
-    auto AddArgument = [&](auto Argument) {
-      using ArgumentType = decltype(Argument);
-      Value *ArgumentValue = nullptr;
-      if constexpr (std::is_same_v<ArgumentType, uint64_t>) {
-        auto *ArgumentType = cast<IntegerType>(CalleeType->getParamType(Index));
-        ArgumentValue = ConstantInt::get(ArgumentType, Argument);
-      } else {
-        ArgumentValue = Argument;
-      }
-
-      ArgumentsValues.push_back(ArgumentValue);
-      ++Index;
-    };
-
-    (AddArgument(Arguments), ...);
-
-    auto *Call = B.CreateCall(Callee, ArgumentsValues);
-    auto *AddressofCall = createAddressOf(B, Call, AllocatedType);
-    return { Call, AddressofCall };
+  /// Creates an alloca in \a F with type \a T.
+  /// Allocas created with this method are intended to be inserted temporarily,
+  /// and subsequently optimized away from LLVM optimizations.
+  /// There's no need to tag them with model::Types in any way.
+  std::pair<AllocaInst *, PtrToIntInst *>
+  createAllocaWithPtrToInt(Function *F, Type *T) const {
+    IRBuilder<> B(M.getContext());
+    B.SetInsertPointPastAllocas(F);
+    AllocaInst *Alloca = B.CreateAlloca(T);
+    PtrToIntInst *
+      PtrToInt = cast<PtrToIntInst>(B.CreatePtrToInt(Alloca, StackPointerType));
+    return { Alloca, PtrToInt };
   }
 
   void upgradeDynamicFunctions() {
@@ -684,12 +633,12 @@ private:
         }
 
         if (ModelArgument.Stack) {
-          auto *Alloca = new AllocaInst(NewArgument.getType(),
-                                        0,
-                                        "",
-                                        &*NewFunction->getEntryBlock().begin());
+          const auto &[Alloca,
+                       PtrToInt] = createAllocaWithPtrToInt(NewFunction,
+                                                            NewArgument
+                                                              .getType());
           B.CreateStore(&NewArgument, Alloca);
-          ToRecordSpan = B.CreatePtrToInt(Alloca, StackPointerType);
+          ToRecordSpan = PtrToInt;
         }
 
       } else if (ModelArgument.Kind == ReferenceToAggregate) {
@@ -842,8 +791,6 @@ private:
 
   void segregateStackAccesses(Function &F) {
     revng_assert(InitLocalSP != nullptr);
-
-    setInsertPointToFirstNonAlloca(SABuilder, F);
 
     // Get model::Function
     MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
@@ -1014,16 +961,15 @@ private:
           revng_assert(MaybeStackSize);
 
           // Create an alloca
-          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
-                                                    * 8),
-                                        0,
-                                        "",
-                                        &*Caller->getEntryBlock().begin());
+          const auto
+            &[Alloca,
+              PtrToInt] = createAllocaWithPtrToInt(Caller,
+                                                   B.getIntNTy(ModelArgument
+                                                                 .Stack->Size
+                                                               * 8));
 
           // Record its portion of the stack for redirection
-          Redirector.recordSpan(*ModelArgument.Stack,
-                                SABuilder.CreatePtrToInt(Alloca,
-                                                         StackPointerType));
+          Redirector.recordSpan(*ModelArgument.Stack, PtrToInt);
 
           // Load the alloca and record it as a pointer
           Pointer = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
@@ -1080,16 +1026,15 @@ private:
           revng_assert(MaybeStackSize);
 
           // Create an alloca
-          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
-                                                    * 8),
-                                        0,
-                                        "",
-                                        &*Caller->getEntryBlock().begin());
+          const auto
+            &[Alloca,
+              PtrToInt] = createAllocaWithPtrToInt(Caller,
+                                                   B.getIntNTy(ModelArgument
+                                                                 .Stack->Size
+                                                               * 8));
 
           // Record its portion of the stack for redirection
-          Redirector.recordSpan(*ModelArgument.Stack,
-                                SABuilder.CreatePtrToInt(Alloca,
-                                                         StackPointerType));
+          Redirector.recordSpan(*ModelArgument.Stack, PtrToInt);
 
           Value *Loaded = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
 
@@ -1113,27 +1058,50 @@ private:
       } break;
 
       case ArgumentKind::ReferenceToAggregate: {
-        // Allocate memory for stack arguments
-        llvm::Constant *ArgumentType = toLLVMString(ModelArgument.Type, M);
-        auto [StackArgsCall,
-              AddrOfCall] = createCallWithAddressOf(SABuilder,
-                                                    ModelArgument.Type,
-                                                    CallStackArgumentsAllocator,
-                                                    ArgumentType,
-                                                    NewSize);
-        StackArgsCall->copyMetadata(*SSACSCall);
 
-        // Record for pushing ALAP. AddrOfCall should be pushed ALAP first to
-        // leave slack to StackArgsCall
-        ToPushALAP.push_back(AddrOfCall);
-        ToPushALAP.push_back(StackArgsCall);
+        VariableBuilder.setTargetFunction(SSACSCall->getFunction());
+        Instruction
+          *StackArgsAddress = VariableBuilder
+                                .createCallStackArgumentVariable(*ModelArgument
+                                                                    .Type);
+        revng_assert(StackArgsAddress);
+        Instruction *StackArgsAllocation = nullptr;
+        if constexpr (LegacyLocalVariables) {
+          // When in legacy mode, the actual instruction performing the stack
+          // allocation is the first operand of StackArgsAddress, which is
+          // guaranteed to be a call to AddressOf.
+          auto *CallToAddressOf = getCallToTagged(StackArgsAddress,
+                                                  FunctionTags::AddressOf);
+          auto *AllocationInst = CallToAddressOf->getArgOperand(1);
+          StackArgsAllocation = cast<Instruction>(AllocationInst);
+          // Then we have to push the address computation and the allocation
+          // ALAP. The address should be pushed ALAP first to leave slack for
+          // the allocation instruction to also be pushed ALAP afterwards.
+          ToPushALAP.push_back(StackArgsAddress);
+          ToPushALAP.push_back(StackArgsAllocation);
+        } else {
+          // When not in legacy mode, the instruction returning the address of
+          // the stack arguments is also the instruction performing the actual
+          // allocation, so we can just say they're equal.
+          //
+          // Also, there's no need to push it ALAP, since it's an alloca.
+          // We do have to push ALAP its cast to an integer though.
+          revng_assert(isa<PtrToIntInst>(StackArgsAddress));
+          revng_assert(isa<AllocaInst>(StackArgsAddress->getOperand(0)));
+          StackArgsAllocation = StackArgsAddress;
+          ToPushALAP.push_back(StackArgsAddress);
+        }
+
+        // We also have to copy over metadata, from the annotation about the
+        // size of the stack arguments.
+        StackArgsAllocation->copyMetadata(*SSACSCall);
 
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
           Value *OldArgument = ArgumentToRegister.at(Register);
           unsigned OldSize = model::Register::getSize(Register);
 
-          Value *Address = createAdd(B, AddrOfCall, OffsetInNewArgument);
+          Value *Address = createAdd(B, StackArgsAddress, OffsetInNewArgument);
 
           // Store value
           Value *Pointer = pointer(B, Address);
@@ -1144,9 +1112,9 @@ private:
         }
 
         if (ModelArgument.Stack)
-          Redirector.recordSpan(*ModelArgument.Stack, AddrOfCall);
+          Redirector.recordSpan(*ModelArgument.Stack, StackArgsAddress);
 
-        Arguments.push_back(StackArgsCall);
+        Arguments.push_back(StackArgsAllocation);
       } break;
 
       default:
