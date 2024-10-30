@@ -13,6 +13,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/IRHelpers.h"
@@ -249,6 +250,21 @@ struct SortByFunction {
   }
 };
 
+using GCBIWP = GeneratedCodeBasicInfoWrapperPass;
+
+template<bool IsLegacy>
+using LVB = LocalVariableBuilder<IsLegacy>;
+
+/// This pass has two modes of operation:
+/// - when LegacyLocalVariables is true it uses old FunctionTags and dedicated
+/// functions to represent local variables, and accesses to them;
+/// - when LegacyLocalVariables is false it represents local variables as
+///   regular LLVM allocas, while accesses are modeled as regular load/store
+///   instructions
+///
+/// TODO: At some point the legacy mode will be discontinued and we can remove
+/// the template parameter.
+template<bool LegacyLocalVariables>
 class SegregateStackAccesses : public pipeline::FunctionPassImpl {
 private:
   using MFIResult = std::map<BasicBlock *,
@@ -266,7 +282,7 @@ private:
   IRBuilder<> SABuilder;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
-  Type *StackPointerType = nullptr;
+  IntegerType *StackPointerType = nullptr;
   std::map<Function *, Function *> OldToNew;
   std::set<Function *> FunctionsWithStackArguments;
   std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
@@ -276,11 +292,14 @@ private:
   llvm::Type *OpaquePointerType = nullptr;
   OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
   OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
+  LocalVariableBuilder<LegacyLocalVariables> VariableBuilder;
 
 public:
   SegregateStackAccesses(llvm::ModulePass &Pass,
                          const model::Binary &Binary,
-                         llvm::Module &M) :
+                         llvm::Module &M)
+    requires(not LegacyLocalVariables)
+    :
     pipeline::FunctionPassImpl(Pass),
     Binary(Binary),
     M(M),
@@ -288,13 +307,47 @@ public:
     InitLocalSP(M.getFunction("_init_local_sp")),
     SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
+    StackPointerType(cast<IntegerType>(getAnalysis<GCBIWP>()
+                                         .getGCBI()
+                                         .spReg()
+                                         ->getValueType())),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    LocalVarPool(FunctionTags::LocalVariable.getPool(M)) {
+    LocalVarPool(FunctionTags::LocalVariable.getPool(M)),
+    VariableBuilder(LVB</* IsLegacy */ false>::make(Binary, M)) {
 
-    auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-    StackPointerType = GCBI.spReg()->getValueType();
+    revng_assert(SSACS != nullptr);
+
+    // After segregate, we should not introduce new calls to
+    // `_init_local_sp`: enable to DCE it away
+    InitLocalSP->setOnlyReadsMemory();
+  }
+
+  SegregateStackAccesses(llvm::ModulePass &Pass,
+                         const model::Binary &Binary,
+                         llvm::Module &M)
+    requires LegacyLocalVariables
+    :
+    pipeline::FunctionPassImpl(Pass),
+    Binary(Binary),
+    M(M),
+    SSACS(M.getFunction("stack_size_at_call_site")),
+    InitLocalSP(M.getFunction("_init_local_sp")),
+    SABuilder(M.getContext()),
+    CallInstructionPushSize(getCallPushSize(Binary)),
+    StackPointerType(cast<IntegerType>(getAnalysis<GCBIWP>()
+                                         .getGCBI()
+                                         .spReg()
+                                         ->getValueType())),
+    PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
+    OpaquePointerType(PointerType::get(M.getContext(), 0)),
+    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
+    LocalVarPool(FunctionTags::LocalVariable.getPool(M)),
+    VariableBuilder(LVB<true>::makeLegacyStackBuilder(Binary,
+                                                      M,
+                                                      StackPointerType,
+                                                      AddressOfPool)) {
 
     revng_assert(SSACS != nullptr);
 
@@ -1517,14 +1570,48 @@ private:
   /// \}
 };
 
-void SegregateStackAccesses::getAnalysisUsage(AnalysisUsage &AU) {
+static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
   AU.setPreservesCFG();
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
 }
 
 template<>
-char pipeline::FunctionPass<SegregateStackAccesses>::ID = 0;
+void SegregateStackAccesses<true>::getAnalysisUsage(AnalysisUsage &AU) {
+  return ::getAnalysisUsage(AU);
+}
+
+template<>
+void SegregateStackAccesses<false>::getAnalysisUsage(AnalysisUsage &AU) {
+  return ::getAnalysisUsage(AU);
+}
+
+template<>
+char pipeline::FunctionPass<SegregateStackAccesses<true>>::ID = 0;
+
+template<>
+char pipeline::FunctionPass<SegregateStackAccesses<false>>::ID = 0;
+
+static constexpr const char *LegacyFlag = "legacy-segregate-stack-accesses";
+
+struct LegacySegregateStackAccessesPipe {
+  static constexpr auto Name = LegacyFlag;
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+    return { ContractGroup::transformOnlyArgument(StackPointerPromoted,
+                                                  StackAccessesSegregated,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(legacy::PassManager &Manager) {
+    using Pass = SegregateStackAccesses</* LegacyLocalVariables = */ true>;
+    Manager.add(new pipeline::FunctionPass<Pass>);
+  }
+};
+
+static pipeline::RegisterLLVMPass<LegacySegregateStackAccessesPipe> X;
 
 static constexpr const char *Flag = "segregate-stack-accesses";
 
@@ -1540,7 +1627,8 @@ struct SegregateStackAccessesPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new pipeline::FunctionPass<SegregateStackAccesses>);
+    using Pass = SegregateStackAccesses</* LegacyLocalVariables = */ false>;
+    Manager.add(new pipeline::FunctionPass<Pass>);
   }
 };
 

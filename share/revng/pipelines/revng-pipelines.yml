@@ -416,14 +416,14 @@ Branches:
             Docs: |-
               This analysis, for each function, identifies the size of the stack
               frame and the amount of stack used to pass arguments.
-      - Name: segregate-stack-accesses
+      - Name: legacy-segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [module.bc.zstd]
             Passes:
               - hoist-struct-phis
-              - segregate-stack-accesses
-      - Name: late-optimize
+              - legacy-segregate-stack-accesses
+      - Name: legacy-late-optimize
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [module.bc.zstd]
@@ -458,7 +458,7 @@ Branches:
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: stack_access_segregate.ll
+          SingleTargetFilename: legacy_stack_access_segregate.ll
           Docs: |-
             This artifact contains an LLVM function for each function in the
             input program.
@@ -622,7 +622,7 @@ Branches:
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: stack_access_segregate.ll
+          SingleTargetFilename: legacy_stack_access_segregate.ll
           Docs: |-
             This artifact contains one LLVM function for each function defined
             in this binary.
