@@ -9,6 +9,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Verifier.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
@@ -421,27 +422,6 @@ public:
   }
 
 private:
-  Instruction *createLocal(IRBuilder<> &B, const model::Type &VariableType) {
-    // Get call to local variable
-    auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
-    auto *LocalVarFunction = LocalVarPool.get(PtrSizedInteger,
-                                              LocalVarFunctionType,
-                                              "LocalVariable");
-
-    // Allocate variable for return value
-    Constant *ReferenceString = toLLVMString(VariableType, M);
-    Instruction *Reference = B.CreateCall(LocalVarFunction,
-                                          { ReferenceString });
-
-    // Take the address
-    auto *T = Reference->getType();
-    auto *AddressOfFunctionType = getAddressOfType(T, T);
-    auto *AddressOfFunction = AddressOfPool.get({ T, T },
-                                                AddressOfFunctionType,
-                                                "AddressOf");
-    return B.CreateCall(AddressOfFunction, { ReferenceString, Reference });
-  }
-
   Value *pointer(IRBuilder<> &B, Value *V) const {
     return B.CreateIntToPtr(V, OpaquePointerType);
   }
@@ -553,8 +533,6 @@ private:
     //
     // Update references to old arguments
     //
-    IRBuilder<> B(&NewFunction->getEntryBlock());
-    setInsertPointToFirstNonAlloca(B, *NewFunction);
 
     // Create StackAccessRedirector, if required
     StackAccessRedirector *Redirector = nullptr;
@@ -578,7 +556,21 @@ private:
       break;
 
     case ReturnMethod::ModelAggregate:
-      // Nothing to check here.
+      if constexpr (LegacyLocalVariables) {
+        // Nothing to check here.
+      } else {
+        if (Layout.hasSPTAR()) {
+          // Nothing to check here
+        } else {
+          revng_assert(NewReturnType->isArrayTy());
+          auto *ArrayTy = cast<llvm::ArrayType>(NewReturnType);
+          auto *ElemTy = ArrayTy->getElementType();
+          revng_assert(cast<llvm::IntegerType>(ElemTy)->getBitWidth() == 8);
+          unsigned NumElems = ArrayTy->getNumElements();
+          size_t ModelAggregateSize = *Layout.returnValueAggregateType().size();
+          revng_assert(ModelAggregateSize == NumElems);
+        }
+      }
       break;
 
     case ReturnMethod::RegisterSet:
@@ -596,10 +588,16 @@ private:
       break;
     }
 
-    Value *ReturnValuePointer = nullptr;
+    Value *ReturnValueAllocation = nullptr;
+    Value *ReturnValueIntAddress = nullptr;
     if (ReturnMethod == ReturnMethod::ModelAggregate) {
-      ReturnValuePointer = createLocal(B, Layout.returnValueAggregateType());
-      revng_assert(ReturnValuePointer);
+      const model::Type &A = Layout.returnValueAggregateType();
+      VariableBuilder.setTargetFunction(NewFunction);
+      tie(ReturnValueAllocation,
+          ReturnValueIntAddress) = VariableBuilder
+                                     .createLocalVariableAndTakeIntAddress(A);
+      revng_assert(ReturnValueAllocation);
+      revng_assert(ReturnValueIntAddress);
 
       if (Layout.hasSPTAR()) {
         // Identify the SPTAR
@@ -608,19 +606,22 @@ private:
         if (ModelArgument.Stack) {
           revng_assert(ModelArgument.Registers.size() == 0);
           Redirector->recordSpan(*ModelArgument.Stack + CallInstructionPushSize,
-                                 ReturnValuePointer);
+                                 ReturnValueIntAddress);
         } else {
           // It's in a register
           revng_assert(ModelArgument.Registers.size() == 1);
           Argument *OldArgument = nullptr;
           OldArgument = ArgumentToRegister.at(ModelArgument.Registers[0]);
-          OldArgument->replaceAllUsesWith(ReturnValuePointer);
+          OldArgument->replaceAllUsesWith(ReturnValueIntAddress);
         }
 
         // Exclude the SPTAR from the list to process
         ModelArguments = llvm::drop_begin(ModelArguments);
       }
     }
+
+    IRBuilder<> B(&NewFunction->getEntryBlock());
+    setInsertPointToFirstNonAlloca(B, *NewFunction);
 
     // Handle arguments
     for (auto [ModelArgument, NewArgument] :
@@ -779,20 +780,26 @@ private:
           // values
           uint64_t Offset = 0;
           for (Value *ReturnValue : ReturnValues) {
-            Value *Pointer = createAdd(B, ReturnValuePointer, Offset);
+            Value *Pointer = createAdd(B, ReturnValueIntAddress, Offset);
             B.CreateStore(ReturnValue, pointer(B, Pointer));
             Offset += ReturnValue->getType()->getIntegerBitWidth() / 8;
           }
         }
 
         // Return the pointer to the result variable
-        revng_assert(ReturnValuePointer
-                     and isCallToTagged(ReturnValuePointer,
-                                        FunctionTags::AddressOf));
-        auto *LocalVarDecl = getCallToTagged(ReturnValuePointer,
-                                             FunctionTags::AddressOf);
-        auto *ReturnValueReference = LocalVarDecl->getArgOperand(1);
-        B.CreateRet(ReturnValueReference);
+        revng_assert(ReturnValueAllocation);
+        revng_assert(ReturnValueIntAddress);
+        Value *ToReturn = nullptr;
+        if constexpr (LegacyLocalVariables) {
+          ToReturn = ReturnValueAllocation;
+        } else {
+          if (Layout.hasSPTAR()) {
+            ToReturn = ReturnValueIntAddress;
+          } else {
+            ToReturn = B.CreateLoad(NewReturnType, ReturnValueAllocation);
+          }
+        }
+        B.CreateRet(ToReturn);
         Ret->eraseFromParent();
       }
     } break;
@@ -1530,7 +1537,20 @@ private:
       break;
 
     case ReturnMethod::ModelAggregate:
-      ReturnType = StackPointerType;
+      if constexpr (LegacyLocalVariables) {
+        ReturnType = StackPointerType;
+      } else {
+        if (Layout.hasSPTAR()) {
+          ReturnType = StackPointerType;
+        } else {
+          const model::Type &ReturnAggregate = Layout
+                                                 .returnValueAggregateType();
+          size_t ReturnSize = *ReturnAggregate.size();
+          auto &Context = OldReturnType->getContext();
+          auto *Int8 = llvm::IntegerType::getInt8Ty(Context);
+          ReturnType = llvm::ArrayType::get(Int8, ReturnSize);
+        }
+      }
       break;
 
     case ReturnMethod::Scalar: {
