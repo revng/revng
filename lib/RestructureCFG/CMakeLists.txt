@@ -2,6 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# We need an additional library because we link this also for unit tests
+revng_add_library_internal(revngScopeGraphUtils ScopeGraphUtils.cpp)
+target_link_libraries(revngScopeGraphUtils revngSupport ${LLVM_LIBRARIES})
+
 revng_add_analyses_library_internal(
   revngRestructureCFG
   ASTNode.cpp
@@ -24,5 +28,5 @@ revng_add_analyses_library_internal(
   SimplifyHybridNot.cpp
   SimplifyImplicitStatement.cpp)
 
-target_link_libraries(revngRestructureCFG revngSupport revngModel revngPipeline
-                      ${LLVM_LIBRARIES})
+target_link_libraries(revngRestructureCFG revngScopeGraphUtils revngSupport
+                      revngModel revngPipeline ${LLVM_LIBRARIES})

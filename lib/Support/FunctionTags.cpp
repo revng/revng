@@ -37,6 +37,9 @@ Tag AllocatesLocalVariable("allocates-local-variable");
 Tag ReturnsPolymorphic("returns-polymorphic");
 Tag IsRef("is-ref");
 
+Tag ScopeCloserMarker("scope-closer");
+Tag GotoBlockMarker("goto-block");
+
 FunctionPoolTag<TypePair>
   AddressOf("address-of",
             { llvm::Attribute::NoUnwind,
