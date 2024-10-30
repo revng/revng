@@ -523,19 +523,17 @@ struct EnforceABIPipe {
 
     for (const auto &Function : Model.Functions()) {
       if (Function.Prototype().isEmpty()) {
-        return llvm::createStringError(inconvertibleErrorCode(),
-                                       "Binary needs to either have a default "
-                                       "prototype, or a prototype for each "
-                                       "function.");
+        return revng::createError("Binary needs to either have a default "
+                                  "prototype, or a prototype for each "
+                                  "function.");
       }
     }
 
     for (const auto &Function : Model.ImportedDynamicFunctions()) {
       if (Function.Prototype().isEmpty()) {
-        return llvm::createStringError(inconvertibleErrorCode(),
-                                       "Binary needs to either have a default "
-                                       "prototype, or a prototype for each "
-                                       "function.");
+        return revng::createError("Binary needs to either have a default "
+                                  "prototype, or a prototype for each "
+                                  "function.");
       }
     }
 

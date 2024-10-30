@@ -15,6 +15,7 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 
 /// GenericGraph is our implementation of a universal graph architecture.
 /// First and foremost, it's tailored for the revng codebase, but maybe you
@@ -1320,8 +1321,7 @@ public:
     for (const std::unique_ptr<NodeT> &Node : Nodes) {
 
       if (Node.get() == nullptr) {
-        return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                       "Graph contains a nullptr node");
+        return revng::createError("Graph contains a nullptr node");
       }
 
       ValidNodes.insert(Node.get());
@@ -1331,18 +1331,14 @@ public:
     for (const std::unique_ptr<NodeT> &Node : Nodes) {
       for (NodeT *Successor : Node->successors()) {
         if (not ValidNodes.contains(Successor)) {
-          return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                         "A node contains an unknown "
-                                         "successor");
+          return revng::createError("A node contains an unknown successor");
         }
       }
 
       if constexpr (StrictSpecializationOfBidirectionalNode<NodeT>) {
         for (NodeT *Predecessor : Node->predecessors()) {
           if (not ValidNodes.contains(Predecessor)) {
-            return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                           "A node contains an unknown "
-                                           "predecessor");
+            return revng::createError("A node contains an unknown predecessor");
           }
         }
       }

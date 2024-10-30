@@ -102,8 +102,7 @@ template<typename T>
 static llvm::Error
 toError(const Aws::Utils::Outcome<T, Aws::S3::S3Error> &Request) {
   revng_check(!Request.IsSuccess());
-  return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                 Request.GetError().GetMessage());
+  return revng::createError(Request.GetError().GetMessage());
 }
 
 std::string S3StorageClient::resolvePath(llvm::StringRef Path) {
@@ -194,8 +193,7 @@ public:
                                                std::ios_base::in
                                                  | std::ios_base::binary);
     if (File->fail()) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Could not open temporary file");
+      return revng::createError("Could not open temporary file");
     }
 
     Request.SetBody(File);
@@ -349,9 +347,8 @@ llvm::sys::path::Style S3StorageClient::getStyle() const {
 llvm::Error S3StorageClient::copy(llvm::StringRef Source,
                                   llvm::StringRef Destination) {
   if (FilenameMap.count(Source) == 0) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Source file %s does not exist",
-                                   Source.str().c_str());
+    return revng::createError("Source file %s does not exist",
+                              Source.str().c_str());
   }
 
   FilenameMap[Destination] = FilenameMap[Source];
@@ -362,9 +359,7 @@ llvm::Expected<std::unique_ptr<ReadableFile>>
 S3StorageClient::getReadableFile(llvm::StringRef Path) {
   using llvm::MemoryBuffer;
   if (FilenameMap.count(Path) == 0) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "File %s does not exist",
-                                   Path.str().c_str());
+    return revng::createError("File %s does not exist", Path.str().c_str());
   }
 
   Aws::S3::Model::GetObjectRequest Request;
@@ -383,8 +378,7 @@ S3StorageClient::getReadableFile(llvm::StringRef Path) {
 
   std::ofstream OS(MaybeTemporary->path().str(), std::ios::binary);
   if (OS.fail()) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Could not open temporary file");
+    return revng::createError("Could not open temporary file");
   }
 
   constexpr size_t BufSize = 4096;

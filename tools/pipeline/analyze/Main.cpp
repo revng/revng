@@ -119,9 +119,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (Arguments.size() == 1) {
-    AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "Expected any number of positional "
-                                   "arguments different from 1"));
+    AbortOnError(revng::createError("Expected any number of positional "
+                                    "arguments different from 1"));
   }
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];

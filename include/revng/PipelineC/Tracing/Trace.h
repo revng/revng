@@ -12,6 +12,7 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 
 namespace detail {
 
@@ -215,9 +216,7 @@ Trace::fromBuffer(const llvm::MemoryBuffer &Buffer) {
   YAMLReader >> Trace;
 
   if (Trace.Version != 1) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Unexpected trace version: %u",
-                                   Trace.Version);
+    return revng::createError("Unexpected trace version: %u", Trace.Version);
   }
 
   for (size_t CommandI = 0; CommandI < Trace.Commands.size(); CommandI++) {
@@ -226,11 +225,10 @@ Trace::fromBuffer(const llvm::MemoryBuffer &Buffer) {
          ArgumentI++) {
       auto &Argument = Command.Arguments[ArgumentI];
       if (!Argument.isValid())
-        return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                       "Argument did not verify: Command #%u, "
-                                       "Argument #%u",
-                                       CommandI,
-                                       ArgumentI);
+        return revng::createError("Argument did not verify: Command #%u, "
+                                  "Argument #%u",
+                                  CommandI,
+                                  ArgumentI);
     }
   }
 

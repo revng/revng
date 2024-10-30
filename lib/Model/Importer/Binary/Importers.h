@@ -28,8 +28,3 @@ llvm::Error importPECOFF(TupleTree<model::Binary> &Model,
 llvm::Error importMachO(TupleTree<model::Binary> &Model,
                         llvm::object::MachOObjectFile &TheBinary,
                         const ImporterOptions &Options);
-
-template<typename... Ts>
-llvm::Error createError(char const *Fmt, const Ts &...Vals) {
-  return llvm::createStringError(llvm::inconvertibleErrorCode(), Fmt, Vals...);
-}

@@ -197,9 +197,8 @@ Error MachOImporter::import() {
       Model->DefaultABI() = ABI.value();
     } else {
       auto ArchName = model::Architecture::getName(Model->Architecture()).str();
-      return createStringError(llvm::inconvertibleErrorCode(),
-                               "Unsupported architecture for PECOFF: "
-                                 + ArchName);
+      return revng::createError("Unsupported architecture for PECOFF: "
+                                + ArchName);
     }
   }
 

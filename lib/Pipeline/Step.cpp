@@ -206,8 +206,7 @@ ContainerInvalidationMetadata::deserialize(const Context &Context,
         MaybeParsedPath = Global.deserializePath(SerializedPath);
 
       if (not MaybeParsedPath) {
-        return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                       "could not parse " + SerializedPath);
+        return revng::createError("could not parse " + SerializedPath);
       }
 
       for (const TargetInContainer &Path : *MaybeTarget) {

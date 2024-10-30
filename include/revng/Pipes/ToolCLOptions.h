@@ -11,6 +11,7 @@
 
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Storage/CLPathOpt.h"
+#include "revng/Support/Error.h"
 
 namespace revng::pipes {
 class ToolCLOptions {
@@ -95,11 +96,10 @@ runAnalysisOrAnalysesList(revng::pipes::PipelineManager &Manager,
   } else {
     auto *Step = getStepOfAnalysis(Runner, Name);
     if (not Step) {
-      AbortOnError(createStringError(inconvertibleErrorCode(),
-                                     "No known analysis named %s, invoke "
-                                     "this command without arguments to see "
-                                     "the list of available analysis",
-                                     Name.data()));
+      AbortOnError(revng::createError("No known analysis named %s, invoke this "
+                                      "command without arguments to see the "
+                                      "list of available analysis",
+                                      Name.data()));
     }
 
     auto &Analysis = Step->getAnalysis(Name);

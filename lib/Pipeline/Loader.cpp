@@ -34,10 +34,9 @@ Error Loader::parseStepDeclaration(Runner &Runner,
     auto &KindName = Declaration.Artifacts.Kind;
     const Kind *Kind = Runner.getKindsRegistry().find(KindName);
     if (Kind == nullptr) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Twine("Can't find kind ") + KindName
-                                       + Twine(" for the artifact of step ")
-                                       + LastAddedStep + Twine(" not found"));
+      return revng::createError(Twine("Can't find kind ") + KindName
+                                + Twine(" for the artifact of step ")
+                                + LastAddedStep + Twine(" not found"));
     }
     if (auto Error = JustAdded.setArtifacts(Declaration.Artifacts.Container,
                                             Kind,
@@ -109,9 +108,7 @@ Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
   auto It = KnownAnalysisTypes.find(Declaration.Type);
   if (It == KnownAnalysisTypes.end()) {
     auto *Message = "While parsing analyses: no known analysis named name %s";
-    return createStringError(inconvertibleErrorCode(),
-                             Message,
-                             Declaration.Type.c_str());
+    return revng::createError(Message, Declaration.Type.c_str());
   }
   auto &Entry = It->second;
   auto ToReturn = AnalysisWrapper(Entry, Declaration.UsedContainers);
@@ -127,18 +124,15 @@ Loader::parseInvocation(Step &Step,
     return parseLLVMPass(Invocation);
 
   if (not Invocation.Passes.empty())
-    return createStringError(inconvertibleErrorCode(),
-                             "While parsing pipe %s: passes declarations are "
-                             "not allowed in non-llvm pipes",
-                             Invocation.Type.c_str());
+    return revng::createError("While parsing pipe %s: passes declarations are "
+                              "not allowed in non-llvm pipes",
+                              Invocation.Type.c_str());
 
   auto It = KnownPipesTypes.find(Invocation.Type);
   if (It == KnownPipesTypes.end()) {
     auto *Message = "While parsing pipe invocation: no known pipe with "
                     "name %s";
-    return createStringError(inconvertibleErrorCode(),
-                             Message,
-                             Invocation.Type.c_str());
+    return revng::createError(Message, Invocation.Type.c_str());
   }
   auto &Pipe = It->second;
   for (const auto &ContainerNameAndIndex :
@@ -154,10 +148,9 @@ Loader::parseInvocation(Step &Step,
       continue;
 
     if (PipelineContext->hasRegisteredReadOnlyContainer(ContainerName)) {
-      return createStringError(inconvertibleErrorCode(),
-                               "Detected two non const uses of read only "
-                               "container %s",
-                               ContainerName.c_str());
+      return revng::createError("Detected two non const uses of read only "
+                                "container %s",
+                                ContainerName.c_str());
     }
 
     revng_assert(Step.containers().containsOrCanCreate(ContainerName));
@@ -175,30 +168,24 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
   if (not Dec.Role.empty() and KnownContainerRoles.count(Dec.Role) == 0) {
     auto *Message = "While parsing container declaration with Name %s has a "
                     "unknown role %s.";
-    return createStringError(inconvertibleErrorCode(),
-                             Message,
-                             Dec.Name.c_str(),
-                             Dec.Role.c_str());
+    return revng::createError(Message, Dec.Name.c_str(), Dec.Role.c_str());
   }
 
   if (not Dec.Role.empty()
       and KnownContainerRoles.find(Dec.Role)->second != Dec.Type) {
     auto *Message = "While parsing container declaration with Name %s: "
                     "role %s was not a valid role for container of type %s.";
-    return createStringError(inconvertibleErrorCode(),
-                             Message,
-                             Dec.Name.c_str(),
-                             Dec.Role.c_str(),
-                             Dec.Type.c_str());
+    return revng::createError(Message,
+                              Dec.Name.c_str(),
+                              Dec.Role.c_str(),
+                              Dec.Type.c_str());
   }
 
   auto It = KnownContainerTypes.find(Dec.Type);
   if (It == KnownContainerTypes.end()) {
     auto *Message = "While parsing container declaration: No known container "
                     "with name %s";
-    return createStringError(inconvertibleErrorCode(),
-                             Message,
-                             Dec.Type.c_str());
+    return revng::createError(Message, Dec.Type.c_str());
   }
   auto &Entry = It->second;
   Pipeline.addContainerFactory(Dec.Name, Entry);
@@ -216,8 +203,7 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
 
     Input >> Declarations[I];
     if (Input.error())
-      return createStringError(inconvertibleErrorCode(),
-                               "Could not parse pipeline\n");
+      return revng::createError("Could not parse pipeline\n");
   }
 
   return load(Declarations);
@@ -287,8 +273,7 @@ sortPipeline(llvm::SmallVector<const BranchDeclaration *, 2> &ToSort) {
     size_t InitialSize = ToSort.size();
     llvm::erase_if(ToSort, RequirementsMet);
     if (InitialSize == ToSort.size())
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Could not satisfy all requirements");
+      return revng::createError("Could not satisfy all requirements");
   }
 
   ToSort = std::move(Sorted);
@@ -343,10 +328,8 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
       llvm::SmallVector<AnalysisReference, 2> Analyses;
       for (auto &AnalysisName : List.UsedAnalysesNames) {
         if (not ToReturn.containsAnalysis(AnalysisName)) {
-          return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                         "No known analysis " + AnalysisName
-                                           + " used in analysis list "
-                                           + List.Name);
+          return revng::createError("No known analysis " + AnalysisName
+                                    + " used in analysis list " + List.Name);
         }
 
         for (const auto &Step : ToReturn) {

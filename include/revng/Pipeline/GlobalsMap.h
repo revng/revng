@@ -6,6 +6,7 @@
 
 #include "revng/Pipeline/Global.h"
 #include "revng/Storage/Path.h"
+#include "revng/Support/Error.h"
 
 namespace pipeline {
 class GlobalsMap {
@@ -52,18 +53,13 @@ public:
   llvm::Expected<T *> get(llvm::StringRef Name) const {
     auto It = Map.find(Name.str());
     if (It == Map.end()) {
-      auto *Message = "Unknown Global %s";
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Message,
-                                     Name.str().c_str());
+      return revng::createError("Unknown Global " + Name);
     }
 
     auto *Casted = llvm::dyn_cast<T>(It->second.get());
     if (Casted == nullptr) {
       auto *Message = "requested to cast %s to the wrong type";
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Message,
-                                     Name.str().c_str());
+      return revng::createError(Message, Name.str().c_str());
     }
 
     return Casted;
@@ -72,10 +68,7 @@ public:
   llvm::Expected<pipeline::Global *> get(llvm::StringRef Name) const {
     auto It = Map.find(Name.str());
     if (It == Map.end()) {
-      auto *Message = "Unknown Global %s";
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Message,
-                                     Name.str().c_str());
+      return revng::createError("Unknown Global " + Name);
     }
     return &*It->second;
   }
@@ -105,8 +98,7 @@ public:
     if (!MaybeGlobal)
       return MaybeGlobal.takeError();
     if (not MaybeGlobal.get()->verify()) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Could not verify " + GlobalName);
+      return revng::createError("Could not verify " + GlobalName);
     }
     return llvm::Error::success();
   }

@@ -20,6 +20,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Error.h"
 #include "revng/TupleTree/DiffError.h"
 #include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -106,8 +107,7 @@ llvm::Error checkTypeIsCorrect(const TupleTreePath &Path,
   auto Result = callByPath<Model>(Checker, Path);
   revng_assert(Result == true);
   if (not Checker.IsCorrect)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Type check has failed");
+    return revng::createError("Type check has failed");
   return llvm::Error::success();
 }
 

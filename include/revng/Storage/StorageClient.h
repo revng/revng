@@ -16,6 +16,7 @@
 #include "revng/Storage/WritableFile.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 
 namespace revng {
 
@@ -106,8 +107,7 @@ public:
   virtual llvm::Error commit() { return llvm::Error::success(); };
 
   virtual llvm::Error setCredentials(llvm::StringRef Credentials) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Not Supported");
+    return revng::createError("Not Supported");
   }
 
 private:

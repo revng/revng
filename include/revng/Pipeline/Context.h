@@ -22,6 +22,7 @@
 #include "revng/Pipeline/KindsRegistry.h"
 #include "revng/Storage/Path.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Error.h"
 
 namespace pipeline {
 
@@ -80,19 +81,15 @@ public:
   llvm::Expected<T *> getExternalContext(llvm::StringRef Name) const {
     auto Iter = Contexts.find(Name);
     if (Iter == Contexts.end()) {
-      auto *Message = "pipeline loader context did not contained object %s";
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Message,
-                                     Name.str().c_str());
+      auto *Message = "pipeline loader context did not contained object ";
+      return revng::createError(Message + Name);
     }
 
     auto *Casted = std::any_cast<T *>(Iter->second);
     if (Casted == nullptr) {
       auto *Message = "pipeline loader was requested to cast %s to the wrong "
                       "type";
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Message,
-                                     Name.str().c_str());
+      return revng::createError(Message, Name.str().c_str());
     }
 
     return Casted;

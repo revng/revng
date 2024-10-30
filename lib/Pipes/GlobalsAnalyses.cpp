@@ -20,8 +20,7 @@ static llvm::Error applyDiffImpl(pipeline::ExecutionContext &EC,
                                  std::string DiffGlobalName,
                                  std::string DiffContent) {
   if (DiffGlobalName.empty()) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "global-name must be set");
+    return revng::createError("global-name must be set");
   }
 
   std::unique_ptr<llvm::MemoryBuffer>
@@ -42,9 +41,7 @@ static llvm::Error applyDiffImpl(pipeline::ExecutionContext &EC,
     return ApplyError;
 
   if (not GlobalClone->verify()) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "could not verify %s",
-                                   DiffGlobalName.c_str());
+    return revng::createError("could not verify %s", DiffGlobalName.c_str());
   }
 
   if constexpr (commit) {
@@ -71,8 +68,7 @@ inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &EC,
                                  std::string SetGlobalName,
                                  std::string GlobalContent) {
   if (SetGlobalName.empty()) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "global-name must be set");
+    return revng::createError("global-name must be set");
   }
 
   std::unique_ptr<llvm::MemoryBuffer>
@@ -84,9 +80,7 @@ inline llvm::Error setGlobalImpl(pipeline::ExecutionContext &EC,
     return MaybeNewGlobal.takeError();
 
   if (not MaybeNewGlobal->get()->verify()) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "could not verify %s",
-                                   SetGlobalName.c_str());
+    return revng::createError("could not verify %s", SetGlobalName.c_str());
   }
 
   if constexpr (commit) {
