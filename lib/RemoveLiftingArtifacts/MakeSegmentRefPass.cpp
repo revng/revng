@@ -17,8 +17,10 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include "revng/ABI/ModelHelpers.h"
+#include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
@@ -33,8 +35,6 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
-
-#include "MakeSegmentRefPass.h"
 
 using namespace llvm;
 
