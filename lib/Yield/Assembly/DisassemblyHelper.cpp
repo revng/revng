@@ -47,6 +47,9 @@ convert(const UpcastablePointer<efa::FunctionEdgeBase> &Source) {
 static void analyzeBasicBlocks(yield::Function &Function,
                                const efa::ControlFlowGraph &Metadata,
                                const model::Binary &Binary) {
+  if (Metadata.Blocks().empty())
+    return;
+
   // Gather all the basic blocks that only have a single predecessor.
   std::map<BasicBlockID, std::optional<BasicBlockID>> Predecessors;
 

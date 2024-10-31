@@ -69,12 +69,14 @@ public:
         New.OriginalName() = Function.OriginalName();
       }
 
-      revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
+      if (New.Blocks().size() > 0)
+        revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
 
       // Run final steps on the CFG
       New.simplify(*Binary);
 
-      revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
+      if (New.Blocks().size() > 0)
+        revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
 
       // TODO: we'd need a function-wise TupleTreeContainer
       CFGs[EntryAddress] = toString(New);

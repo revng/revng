@@ -1010,7 +1010,6 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     Attributes.insert(model::FunctionAttribute::NoReturn);
   }
 
-  revng_assert(CFG.size() > 0);
   for (efa::BasicBlock &Block : CFG)
     revng_assert(Block.Successors().size() > 0);
 
@@ -1053,19 +1052,9 @@ FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
     };
     revng_assert(none_of(instructions(OutlinedFunction.Function.get()),
                          IsCallToNewPC));
-
-    // Create a fake, 0-sized basic block performing a longjmp
-    efa::BasicBlock Block;
-    Block.ID() = BasicBlockID(Entry, 0);
-    Block.End() = Entry;
-    using Edge = UpcastablePointer<efa::FunctionEdgeBase>;
-    auto Successor = Edge::make<efa::FunctionEdge>();
-    Successor->Type() = FunctionEdgeType::LongJmp;
-    Block.Successors().insert(std::move(Successor));
-    CFG.insert(std::move(Block));
+  } else {
+    revng_assert(CFG.size() > 0);
   }
-
-  revng_assert(CFG.size() > 0);
 
   // The analysis aims at identifying the callee-saved registers of a
   // function and establishing if a function returns properly, i.e., it

@@ -142,10 +142,12 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
     }
   }
 
-  revng_assert(EntryAddress.isValid());
-  auto EntryNodeIterator = NodeLookup.find(BasicBlockID(EntryAddress));
-  revng_assert(EntryNodeIterator != NodeLookup.end());
-  Graph.setEntryNode(EntryNodeIterator->second);
+  if (BB.size() != 0) {
+    revng_assert(EntryAddress.isValid());
+    auto EntryNodeIterator = NodeLookup.find(BasicBlockID(EntryAddress));
+    revng_assert(EntryNodeIterator != NodeLookup.end());
+    Graph.setEntryNode(EntryNodeIterator->second);
+  }
 
   return Res;
 }
