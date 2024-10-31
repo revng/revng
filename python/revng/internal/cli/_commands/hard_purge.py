@@ -4,12 +4,12 @@
 
 import sys
 from argparse import FileType
-from tempfile import NamedTemporaryFile
 
 import yaml
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.internal.cli.revng import run_revng_command
+from revng.internal.cli.support import temporary_file_gen
 
 
 class HardPurgeCommand(Command):
@@ -84,14 +84,7 @@ class HardPurgeCommand(Command):
                 if f["OriginalName"] in functions_to_preserve
             ]
 
-        def temporary_file(suffix="", mode="w+"):
-            return NamedTemporaryFile(
-                prefix="revng-hard-purge-",
-                suffix=suffix,
-                mode=mode,
-                delete=not options.keep_temporaries,
-            )
-
+        temporary_file = temporary_file_gen("revng-hard-purge-", options)
         with temporary_file(suffix=".yml") as model_file:
             model_file.write("---\n")
             yaml.dump(patched_model, stream=model_file)

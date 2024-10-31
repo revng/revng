@@ -12,9 +12,9 @@ from xml.dom.minidom import Document, parseString
 from .common import handle_file, log, normalize_filter_extract
 
 COLOR_CONVERSION = {
+    "comment": "white",
     "asm.label": "bright_red",
     "asm.label-indicator": "bright_white",
-    "asm.comment-indicator": "white",
     "asm.mnemonic": "dodger_blue1",
     "asm.mnemonic-prefix": "bright_green",
     "asm.mnemonic-suffix": "bright_green",
@@ -36,6 +36,8 @@ COLOR_CONVERSION = {
     "c.string_literal": "medium_purple1",
     "c.keyword": "dodger_blue1",
     "c.directive": "dodger_blue1",
+    "doxygen.keyword": "turquoise2",
+    "doxygen.identifier": "tan",
 }
 
 
