@@ -10,6 +10,6 @@
 
 // CHECK: condition requires an integer type
 clift.switch {
-  %0 = clift.undef !pointer
+  %0 = clift.undef : !pointer
   clift.yield %0 : !pointer
 }

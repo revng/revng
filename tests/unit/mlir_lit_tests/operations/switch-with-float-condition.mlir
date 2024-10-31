@@ -8,6 +8,6 @@
 
 // CHECK: condition requires an integer type
 clift.switch {
-  %0 = clift.undef !float
+  %0 = clift.undef : !float
   clift.yield %0 : !float
 }

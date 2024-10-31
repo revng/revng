@@ -7,6 +7,7 @@ add_mlir_dialect_library(
   MLIRCliftDialect
   CliftOps.cpp
   Clift.cpp
+  CliftOpInterfaces.cpp
   CliftOpTraits.cpp
   CliftTypes.cpp
   CliftAttributes.cpp

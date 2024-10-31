@@ -16,11 +16,11 @@
 #dc2_2 = #clift.function<id = 40, name = "dc2", return_type = !const_dc, argument_types = [!const_int32_t]>
 !dc2_3 = !clift.defined<#dc2_2>
 module {
-  %0 = clift.undef !const_int32_t
-  %1 = clift.undef !const_dc
-  %2 = clift.undef !dc2_3
-  %3 = clift.undef !dc2_1
-  %4 = clift.undef !int_type_def1
-  %5 = clift.undef !clift.array<element_type = !const_dc, elements_count = 40>
-  %6 = clift.undef !const_dc1
+  %0 = clift.undef : !const_int32_t
+  %1 = clift.undef : !const_dc
+  %2 = clift.undef : !dc2_3
+  %3 = clift.undef : !dc2_1
+  %4 = clift.undef : !int_type_def1
+  %5 = clift.undef : !clift.array<element_type = !const_dc, elements_count = 40>
+  %6 = clift.undef : !const_dc1
 }

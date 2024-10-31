@@ -19,11 +19,11 @@
 >>
 
 clift.switch {
-  %0 = clift.undef !int32_t
+  %0 = clift.undef : !int32_t
   clift.yield %0 : !int32_t
 }
 
 clift.switch {
-  %0 = clift.undef !enum
+  %0 = clift.undef : !enum
   clift.yield %0 : !enum
 }

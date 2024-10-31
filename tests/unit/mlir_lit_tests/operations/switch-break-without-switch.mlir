@@ -14,7 +14,7 @@
 
 // CHECK: must be nested within a switch operation
 clift.module {
-  clift.func "f" !f {
+  clift.func @f<!f>() {
     clift.switch_break
   }
 }
