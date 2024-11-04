@@ -15,6 +15,7 @@
 #include "revng/Model/Pass/PromoteOriginalName.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 #include "Importers.h"

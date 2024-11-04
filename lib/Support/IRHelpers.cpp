@@ -10,6 +10,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/FileSystem.h"
@@ -21,6 +22,7 @@
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ProgramCounterHandler.h"
+#include "revng/Support/Tag.h"
 
 // TODO: including GeneratedCodeBasicInfo.h is not very nice
 
@@ -530,4 +532,82 @@ void emitCall(llvm::IRBuilderBase &Builder,
     if (I.isTerminator())
       ++Terminators;
   revng_assert(Terminators == 1);
+}
+
+void pushInstructionALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove) {
+  using namespace llvm;
+
+  llvm::DenseSet<Instruction *> Users;
+  BasicBlock *CommonDominator = nullptr;
+  for (User *U : ToMove->users()) {
+    if (auto *I = dyn_cast<Instruction>(U)) {
+      Users.insert(I);
+      auto *BB = I->getParent();
+      if (CommonDominator == nullptr) {
+        CommonDominator = BB;
+      } else {
+        CommonDominator = DT.findNearestCommonDominator(CommonDominator, BB);
+      }
+    }
+  }
+
+  revng_assert(CommonDominator != nullptr);
+
+  for (Instruction &I : *CommonDominator) {
+    if (I.isTerminator() or Users.contains(&I)) {
+      ToMove->moveBefore(&I);
+      return;
+    }
+  }
+
+  revng_abort("Block has no terminator");
+}
+
+unsigned getMemoryAccessSize(llvm::Instruction *I) {
+  using namespace llvm;
+  Type *T = nullptr;
+
+  if (auto *Load = dyn_cast<LoadInst>(I))
+    T = Load->getType();
+  else if (auto *Store = dyn_cast<StoreInst>(I))
+    T = Store->getValueOperand()->getType();
+  else
+    revng_abort();
+
+  return llvm::cast<llvm::IntegerType>(T)->getBitWidth() / 8;
+}
+
+bool deleteOnlyBody(llvm::Function &F) {
+  bool Result = false;
+  if (not F.empty()) {
+    // deleteBody() also kills all attributes and tags. Since we still
+    // want them, we have to save them and re-add them after deleting the
+    // body of the function.
+    auto Attributes = F.getAttributes();
+    auto FTags = FunctionTags::TagsSet::from(&F);
+
+    llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>> AllMetadata;
+    if (F.hasMetadata())
+      F.getAllMetadata(AllMetadata);
+
+    // Kill the body.
+    F.deleteBody();
+
+    // Restore tags and attributes
+    FTags.set(&F);
+    F.setAttributes(Attributes);
+
+    F.clearMetadata();
+    for (const auto &[KindID, MetaData] : AllMetadata) {
+      // Debug metadata is not stripped away by deleteBody() nor by
+      // clearMetadata(), but it is wrong to set it twice (the Module would not
+      // verify anymore). Hence set the metadata only if its not a debug
+      // metadata.
+      if (not F.hasMetadata(KindID) and KindID != llvm::LLVMContext::MD_dbg)
+        F.setMetadata(KindID, MetaData);
+    }
+
+    Result = true;
+  }
+  return Result;
 }

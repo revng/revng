@@ -68,4 +68,58 @@ public:
     return Manager;
   }
 };
+
+inline pipeline::Step *getStepOfAnalysis(pipeline::Runner &Runner,
+                                         llvm::StringRef AnalysisName) {
+  using namespace pipeline;
+  const auto &StepHasAnalysis = [AnalysisName](const Step &Step) {
+    return Step.hasAnalysis(AnalysisName);
+  };
+  auto It = llvm::find_if(Runner, StepHasAnalysis);
+  if (It == Runner.end())
+    return nullptr;
+  return &*It;
+}
+
+inline pipeline::TargetInStepSet
+runAnalysisOrAnalysesList(revng::pipes::PipelineManager &Manager,
+                          llvm::StringRef Name,
+                          llvm::ExitOnError &AbortOnError) {
+  using namespace pipeline;
+  using namespace llvm;
+  auto &Runner = Manager.getRunner();
+  TargetInStepSet InvMap;
+  if (Runner.hasAnalysesList(Name)) {
+    AnalysesList AL = Runner.getAnalysesList(Name);
+    AbortOnError(Manager.runAnalyses(AL, InvMap));
+  } else {
+    auto *Step = getStepOfAnalysis(Runner, Name);
+    if (not Step) {
+      AbortOnError(createStringError(inconvertibleErrorCode(),
+                                     "No known analysis named %s, invoke "
+                                     "this command without arguments to see "
+                                     "the list of available analysis",
+                                     Name.data()));
+    }
+
+    auto &Analysis = Step->getAnalysis(Name);
+
+    ContainerToTargetsMap Map;
+    for (const auto &Pair :
+         llvm::enumerate(Analysis->getRunningContainersNames())) {
+      auto Index = Pair.index();
+      const auto &ContainerName = Pair.value();
+      for (const auto &Kind : Analysis->getAcceptedKinds(Index)) {
+        Map.add(ContainerName, Kind->allTargets(Manager.context()));
+      }
+    }
+
+    llvm::StringRef StepName = Step->getName();
+    std::string AnalysisName = Name.str();
+    AbortOnError(Manager.runAnalysis(AnalysisName, StepName, Map, InvMap));
+  }
+
+  return InvMap;
+}
+
 } // namespace revng::pipes

@@ -4,217 +4,93 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <set>
+#include "revng/Support/OpaqueFunctionsPool.h"
 
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/IR/GlobalObject.h"
-#include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/Module.h"
+std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
+extractStringLiteralFromMetadata(const llvm::Function &StringLiteralFunction);
 
-#include "revng/Support/DynamicHierarchy.h"
-
-namespace llvm {
-class MDNode;
-class User;
-class Module;
-} // namespace llvm
+/// Extract the key of a model::Segment stored as a metadata.
+std::pair<MetaAddress, uint64_t>
+extractSegmentKeyFromMetadata(const llvm::Function &F);
 
 namespace FunctionTags {
 
-class Tag;
-
-template<typename T>
-concept Taggable = (std::is_same_v<llvm::GlobalVariable, T>
-                    or std::is_same_v<llvm::Function, T>);
-
-/// Represents a set of Tag that can be attached to an
-/// Instruction/GlobalVariable/Function
-///
-/// \note This class automatically deduplicates Tags and keeps the most specific
-///       Tag available, in case two Tags that are in a parent-child
-///       relationship are added to the set
-class TagsSet {
-private:
-  static constexpr const char *TagsMetadataName = "revng.tags";
-
-private:
-  std::set<const Tag *> Tags;
-
-public:
-  TagsSet() {}
-  TagsSet(std::initializer_list<const Tag *> I) : Tags{ I } {}
-
-  bool operator<(const TagsSet &Other) const { return this->Tags < Other.Tags; }
-  bool operator==(const TagsSet &Other) const = default;
-
-public:
-  static TagsSet from(const Taggable auto *V) {
-    return from(V->getMetadata(TagsMetadataName));
-  }
-  static TagsSet from(const llvm::MDNode *MD);
-
-public:
-  auto begin() const { return Tags.begin(); }
-  auto end() const { return Tags.end(); }
-
-public:
-  bool containsExactly(const Tag &Target) const;
-
-  // TODO: This seems non-obvious to me. I feel like it would be more natural
-  //       for this to be called `containsDescendants`, while `containsExactly`
-  //       could either stay as is or be renamed into just `contains`.
-  bool contains(const Tag &Target) const;
-
-public:
-  void set(Taggable auto *V) const {
-    V->setMetadata(TagsMetadataName, getMetadata(V->getContext()));
-  }
-
-public:
-  void insert(const Tag &Target);
-
-private:
-  llvm::MDNode *getMetadata(llvm::LLVMContext &C) const;
-};
-
-/// Represents a tag that can be attached to a
-/// Instruction/GlobalVariable/Function
-///
-/// \note Tag can have a parent tag.
-class Tag : public DynamicHierarchy<Tag> {
-public:
-  Tag(llvm::StringRef Name);
-  Tag(llvm::StringRef Name, Tag &Parent);
-
-public:
-  void addTo(Taggable auto *I) const {
-    auto Set = TagsSet::from(I);
-    Set.insert(*this);
-    Set.set(I);
-  }
-
-public:
-  bool isTagOf(const Taggable auto *I) const {
-    return TagsSet::from(I).contains(*this);
-  }
-
-  bool isExactTagOf(const Taggable auto *I) const {
-    return TagsSet::from(I).containsExactly(*this);
-  }
-
-  auto functions(llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](Function &F) { return isTagOf(&F); };
-    return make_filter_range(M->functions(), Filter);
-  }
-
-  auto functions(const llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](const Function &F) { return isTagOf(&F); };
-    return make_filter_range(M->functions(), Filter);
-  }
-
-  auto exactFunctions(llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](Function &F) { return isExactTagOf(&F); };
-    return make_filter_range(M->functions(), Filter);
-  }
-
-  auto exactFunctions(const llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](const Function &F) { return isExactTagOf(&F); };
-    return make_filter_range(M->functions(), Filter);
-  }
-
-  auto globals(llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](GlobalVariable &G) { return isTagOf(&G); };
-    return make_filter_range(M->globals(), Filter);
-  }
-
-  auto globals(const llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](const GlobalVariable &G) { return isTagOf(&G); };
-    return make_filter_range(M->globals(), Filter);
-  }
-
-  auto exactGlobals(llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](GlobalVariable &G) { return isExactTagOf(&G); };
-    return make_filter_range(M->globals(), Filter);
-  }
-
-  auto exactGlobals(const llvm::Module *M) const {
-    using namespace llvm;
-    auto Filter = [this](const GlobalVariable &G) { return isExactTagOf(&G); };
-    return make_filter_range(M->globals(), Filter);
-  }
-};
-
-inline bool TagsSet::containsExactly(const Tag &Target) const {
-  // if the input is not inside me, return false
-  if (Tags.count(&Target) == 0)
-    return false;
-
-  // for each element of me, if the target is a ancestor but is not exactly that
-  // tag, return false
-  for (const Tag *T : Tags)
-    if (Target.ancestorOf(*T) and &Target != T)
-      return false;
-  return true;
-}
-
-inline bool TagsSet::contains(const Tag &Target) const {
-  for (const Tag *T : Tags)
-    if (Target.ancestorOf(*T))
-      return true;
-  return false;
-}
-
-inline void TagsSet::insert(const Tag &Target) {
-  for (auto It = Tags.begin(); It != Tags.end();) {
-    if (Target.ancestorOf(**It)) {
-      // No need to insert, we already have a Tag derived from Target in the set
-      return;
-    } else if ((*It)->ancestorOf(Target)) {
-      // Target is more specific than (*It), delete (*It)
-      It = Tags.erase(It);
-    } else {
-      ++It;
-    }
-  }
-
-  Tags.insert(&Target);
-}
-
-inline Tag QEMU("qemu");
-inline Tag Helper("helper");
-
-inline Tag Isolated("isolated");
-inline Tag ABIEnforced("abi-enforced", Isolated);
-inline Tag CSVsPromoted("csvs-promoted", ABIEnforced);
-
-inline Tag Exceptional("exceptional");
-inline Tag StructInitializer("struct-initializer");
-inline Tag OpaqueCSVValue("opaque-csv-value");
-inline Tag FunctionDispatcher("functin-dispatcher");
-inline Tag Root("root");
-inline Tag IsolatedRoot("isolated-root");
-inline Tag CSVsAsArgumentsWrapper("csvs-as-arguments-wrapper");
-inline Tag Marker("marker");
-inline Tag DynamicFunction("dynamic-function");
-inline Tag ClobbererFunction("clobberer-function");
-inline Tag WriterFunction("writer-function");
-inline Tag ReaderFunction("reader-function");
-inline Tag OpaqueReturnAddressFunction("opaque-return-address");
-
-inline Tag CSV("csv");
-
-inline Tag UniquedByPrototype("uniqued-by-prototype");
-
+extern Tag QEMU;
+extern Tag Helper;
+extern Tag Isolated;
+extern Tag ABIEnforced;
+extern Tag CSVsPromoted;
+extern Tag Exceptional;
+extern Tag StructInitializer;
+extern Tag OpaqueCSVValue;
+extern Tag FunctionDispatcher;
+extern Tag Root;
+extern Tag IsolatedRoot;
+extern Tag CSVsAsArgumentsWrapper;
+extern Tag Marker;
+extern Tag DynamicFunction;
+extern Tag ClobbererFunction;
+extern Tag WriterFunction;
+extern Tag ReaderFunction;
+extern Tag OpaqueReturnAddressFunction;
+extern Tag CSV;
+extern Tag UniquedByPrototype;
 inline const char *UniqueIDMDName = "revng.unique_id";
-inline Tag UniquedByMetadata("uniqued-by-metadata");
+extern Tag UniquedByMetadata;
+extern Tag AllocatesLocalVariable;
+extern Tag ReturnsPolymorphic;
+extern Tag IsRef;
+
+/// This struct can be used as a key of an OpaqueFunctionsPool where both
+/// the return type and one of the arguments are needed to identify a function
+/// in the pool.
+struct TypePair {
+  llvm::Type *RetType;
+  llvm::Type *ArgType;
+
+  bool operator<(const TypePair &Rhs) const {
+    return RetType < Rhs.RetType
+           or (RetType == Rhs.RetType and ArgType < Rhs.ArgType);
+  }
+};
+
+extern FunctionPoolTag<TypePair> AddressOf;
+
+struct StringLiteralPoolKey {
+  MetaAddress Address;
+  uint64_t VirtualSize;
+  uint64_t OffsetInSegment;
+  llvm::Type *Type;
+
+  std::strong_ordering
+  operator<=>(const StringLiteralPoolKey &) const = default;
+};
+
+extern FunctionPoolTag<StringLiteralPoolKey> StringLiteral;
+extern FunctionPoolTag<TypePair> ModelCast;
+extern Tag ModelGEP;
+extern Tag ModelGEPRef;
+extern FunctionPoolTag<TypePair> OpaqueExtractValue;
+extern FunctionPoolTag<llvm::Type *> Parentheses;
+extern Tag LiteralPrintDecorator;
+extern FunctionPoolTag<llvm::Type *> HexInteger;
+extern FunctionPoolTag<llvm::Type *> CharInteger;
+extern FunctionPoolTag<llvm::Type *> BoolInteger;
+extern FunctionPoolTag<llvm::Type *> NullPtr;
+extern FunctionPoolTag<llvm::Type *> LocalVariable;
+extern FunctionPoolTag<llvm::Type *> Assign;
+extern FunctionPoolTag<llvm::Type *> Copy;
+using SegmentRefPoolKey = std::tuple<MetaAddress, uint64_t, llvm::Type *>;
+extern FunctionPoolTag<SegmentRefPoolKey> SegmentRef;
+extern FunctionPoolTag<llvm::Type *> UnaryMinus;
+extern FunctionPoolTag<llvm::Type *> BinaryNot;
+extern FunctionPoolTag<llvm::Type *> BooleanNot;
+extern Tag LiftingArtifactsRemoved;
+extern Tag StackPointerPromoted;
+extern Tag StackAccessesSegregated;
+extern Tag Decompiled;
+extern Tag StackOffsetMarker;
+extern Tag BinaryOperationOverflows;
 
 } // namespace FunctionTags
 
@@ -224,25 +100,229 @@ inline bool isRootOrLifted(const llvm::Function *F) {
          or Tags.contains(FunctionTags::Isolated);
 }
 
-//
-// {is,get}CallToTagged
-//
-const llvm::CallInst *getCallToTagged(const llvm::Value *V,
-                                      const FunctionTags::Tag &T);
-
-llvm::CallInst *getCallToTagged(llvm::Value *V, const FunctionTags::Tag &T);
-
-inline bool isCallToTagged(const llvm::Value *V, const FunctionTags::Tag &T) {
-  return getCallToTagged(V, T) != nullptr;
+inline bool isHelper(const llvm::Function *F) {
+  return FunctionTags::Helper.isTagOf(F);
 }
 
-//
-// {is,get}CallToIsolatedFunction
-//
-const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V);
-
-llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V);
-
-inline bool isCallToIsolatedFunction(const llvm::Value *V) {
-  return getCallToIsolatedFunction(V) != nullptr;
+inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
+  revng_assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  if (Callee != nullptr && isHelper(Callee))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
 }
+
+inline llvm::CallInst *getCallToHelper(llvm::Instruction *I) {
+  revng_assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  if (Callee != nullptr && isHelper(Callee))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+/// Is \p I a call to an helper function?
+inline bool isCallToHelper(const llvm::Instruction *I) {
+  return getCallToHelper(I) != nullptr;
+}
+
+inline std::optional<CSVsUsage>
+getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
+  revng_assert(isCallToHelper(Call));
+
+  const llvm::Module *M = getModule(Call);
+  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
+  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
+
+  if (Call->getMetadata(LoadMDKind) == nullptr
+      and Call->getMetadata(StoreMDKind) == nullptr) {
+    return {};
+  }
+
+  CSVsUsage Result;
+  Result.Read = extractCSVs(Call, LoadMDKind);
+  Result.Written = extractCSVs(Call, StoreMDKind);
+  return Result;
+}
+
+inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
+  return *getCSVUsedByHelperCallIfAvailable(Call);
+}
+/// Checks if \p I is a marker
+///
+/// A marker a function call to an empty function acting as meta-information,
+/// for example the `function_call` marker.
+inline bool isMarker(const llvm::Instruction *I) {
+  if (auto *Callee = getCallee(I))
+    return FunctionTags::Marker.isTagOf(Callee);
+
+  return false;
+}
+
+inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
+  auto It = I->getIterator();
+  auto End = I->getParent()->end();
+  while (++It != End) {
+    if (not isMarker(&*It))
+      return &*It;
+  }
+
+  return nullptr;
+}
+
+inline llvm::CallInst *getMarker(llvm::Instruction *T, llvm::Function *Marker) {
+  revng_assert(T && T->isTerminator());
+  llvm::Instruction *Previous = getPrevious(T);
+  while (Previous != nullptr
+         && (isMarker(Previous) || isCallTo(Previous, "abort"))) {
+    if (auto *Call = getCallTo(Previous, Marker))
+      return Call;
+
+    Previous = getPrevious(Previous);
+  }
+
+  return nullptr;
+}
+
+inline llvm::CallInst *getMarker(llvm::Instruction *I,
+                                 llvm::StringRef MarkerName) {
+  return getMarker(I, getModule(I)->getFunction(MarkerName));
+}
+
+inline llvm::CallInst *getMarker(llvm::BasicBlock *BB,
+                                 llvm::StringRef MarkerName) {
+  return getMarker(BB->getTerminator(), MarkerName);
+}
+
+inline llvm::CallInst *getMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
+  return getMarker(BB->getTerminator(), Marker);
+}
+
+inline bool hasMarker(llvm::Instruction *T, llvm::StringRef MarkerName) {
+  return getMarker(T, MarkerName);
+}
+
+inline bool hasMarker(llvm::BasicBlock *BB, llvm::StringRef MarkerName) {
+  return getMarker(BB->getTerminator(), MarkerName);
+}
+
+inline bool hasMarker(llvm::Instruction *T, llvm::Function *Marker) {
+  return getMarker(T, Marker);
+}
+
+inline bool hasMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
+  return getMarker(BB->getTerminator(), Marker);
+}
+
+/// Return the callee basic block given a function_call marker.
+inline llvm::BasicBlock *getFunctionCallCallee(llvm::Instruction *T) {
+  if (auto *Call = getMarker(T, "function_call")) {
+    if (auto *Callee = llvm::dyn_cast<llvm::BlockAddress>(Call->getOperand(0)))
+      return Callee->getBasicBlock();
+  }
+
+  return nullptr;
+}
+
+inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
+  return getFunctionCallCallee(BB->getTerminator());
+}
+
+/// Return the fall-through basic block given a function_call marker.
+inline llvm::BasicBlock *getFallthrough(llvm::Instruction *T) {
+  if (auto *Call = getMarker(T, "function_call")) {
+    auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
+    return Fallthrough->getBasicBlock();
+  }
+
+  return nullptr;
+}
+
+inline llvm::BasicBlock *getFallthrough(llvm::BasicBlock *BB) {
+  return getFallthrough(BB->getTerminator());
+}
+
+/// Return true if \p T is has a fallthrough basic block.
+inline bool isFallthrough(llvm::Instruction *T) {
+  return getFallthrough(T) != nullptr;
+}
+
+inline bool isFallthrough(llvm::BasicBlock *BB) {
+  return isFallthrough(BB->getTerminator());
+}
+
+llvm::SmallVector<llvm::SmallPtrSet<llvm::CallInst *, 2>, 2>
+getExtractedValuesFromInstruction(llvm::Instruction *);
+
+llvm::SmallVector<llvm::SmallPtrSet<const llvm::CallInst *, 2>, 2>
+getExtractedValuesFromInstruction(const llvm::Instruction *);
+
+/// Set the key of a model::Segment stored as a metadata.
+void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
+                           MetaAddress StartAddress,
+                           uint64_t VirtualSize);
+
+/// Returns true if \F has an attached metadata representing a segment key.
+bool hasSegmentKeyMetadata(const llvm::Function &F);
+
+void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
+                              MetaAddress StartAddress,
+                              uint64_t VirtualSize,
+                              uint64_t Offset,
+                              uint64_t StringLength,
+                              llvm::Type *ReturnType);
+
+bool hasStringLiteralMetadata(const llvm::Function &StringLiteralFunction);
+
+void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);
+void emitMessage(llvm::IRBuilder<llvm::ConstantFolder,
+                                 llvm::IRBuilderDefaultInserter> &Builder,
+                 const llvm::Twine &Message);
+
+inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
+  revng_assert(FunctionTags::Isolated.isTagOf(&F));
+  return getMetaAddressMetadata(&F, FunctionEntryMDName);
+}
+
+/// AddressOf functions are used to transform a reference into a pointer.
+///
+/// \param RetType The LLVM type returned by the Addressof call
+/// \param BaseType The LLVM type of the second argument (the reference that
+/// we want to transform into a pointer).
+llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
+
+/// ModelGEP functions are used to replace pointer arithmetic with a navigation
+/// of the Model.
+///
+/// \param RetType ModelGEP should return an integer of the size of the gepped
+/// element
+/// \param BaseType The LLVM type of the second argument (the base pointer)
+llvm::Function *
+getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
+
+/// ModelGEP Ref is a ModelGEP where the base value is considered to be a
+/// reference.
+llvm::Function *
+getModelGEPRef(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
+
+using ModelCastPoolKey = std::pair<llvm::Type *, llvm::Type *>;
+
+/// Derive the function type of the corresponding OpaqueExtractValue() function
+/// from an ExtractValue instruction. OpaqueExtractValues wrap an
+/// ExtractValue to prevent it from being optimized out, so the return type and
+/// arguments are the same as the instruction being wrapped.
+llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract);
+
+/// LocalVariable is used to indicate the allocation of a local variable. It
+/// returns a reference to the allocated variable.
+llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType);
+
+/// Assign() are meant to replace `store` instructions in which the pointer
+/// operand is a reference.
+llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
+                                          llvm::Type *PtrType);
+
+/// Copy() are meant to replace `load` instructions in which the pointer
+/// operand is a reference.
+llvm::FunctionType *getCopyType(llvm::Type *ReturnedType);

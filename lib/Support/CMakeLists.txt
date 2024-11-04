@@ -26,11 +26,10 @@ revng_add_library_internal(
   ResourceFinder.cpp
   SelfReferencingDbgAnnotationWriter.cpp
   Statistics.cpp
+  Tag.cpp
   GzipTarFile.cpp
   GzipStream.cpp
   ZstdStream.cpp)
-
-llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core Object)
 
 include(FindLibArchive)
 

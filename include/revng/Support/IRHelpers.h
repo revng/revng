@@ -29,7 +29,6 @@
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -82,6 +81,7 @@ inline void eraseFromParent(llvm::Value *V) {
 constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
 constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
+constexpr const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
@@ -875,33 +875,6 @@ inline bool isCallTo(const llvm::Value *I, llvm::Function *F) {
   return Callee != nullptr && Callee == F;
 }
 
-inline bool isHelper(const llvm::Function *F) {
-  return FunctionTags::Helper.isTagOf(F);
-}
-
-inline const llvm::CallInst *getCallToHelper(const llvm::Instruction *I) {
-  revng_assert(I != nullptr);
-  const llvm::Function *Callee = getCallee(I);
-  if (Callee != nullptr && isHelper(Callee))
-    return llvm::cast<llvm::CallInst>(I);
-  else
-    return nullptr;
-}
-
-inline llvm::CallInst *getCallToHelper(llvm::Instruction *I) {
-  revng_assert(I != nullptr);
-  const llvm::Function *Callee = getCallee(I);
-  if (Callee != nullptr && isHelper(Callee))
-    return llvm::cast<llvm::CallInst>(I);
-  else
-    return nullptr;
-}
-
-/// Is \p I a call to an helper function?
-inline bool isCallToHelper(const llvm::Instruction *I) {
-  return getCallToHelper(I) != nullptr;
-}
-
 inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
   if (isCallTo(I, Name))
     return llvm::cast<llvm::CallInst>(I);
@@ -978,29 +951,6 @@ public:
   std::vector<llvm::GlobalVariable *> Read;
   std::vector<llvm::GlobalVariable *> Written;
 };
-
-inline std::optional<CSVsUsage>
-getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
-  revng_assert(isCallToHelper(Call));
-
-  const llvm::Module *M = getModule(Call);
-  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
-  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
-
-  if (Call->getMetadata(LoadMDKind) == nullptr
-      and Call->getMetadata(StoreMDKind) == nullptr) {
-    return {};
-  }
-
-  CSVsUsage Result;
-  Result.Read = extractCSVs(Call, LoadMDKind);
-  Result.Written = extractCSVs(Call, StoreMDKind);
-  return Result;
-}
-
-inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
-  return *getCSVUsedByHelperCallIfAvailable(Call);
-}
 
 inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
   using namespace llvm;
@@ -1234,109 +1184,6 @@ inline bool replaceAllUsesInFunctionWith(llvm::Function *F,
     }
   }
   return Changed;
-}
-
-/// Checks if \p I is a marker
-///
-/// A marker a function call to an empty function acting as meta-information,
-/// for example the `function_call` marker.
-inline bool isMarker(const llvm::Instruction *I) {
-  if (auto *Callee = getCallee(I))
-    return FunctionTags::Marker.isTagOf(Callee);
-
-  return false;
-}
-
-inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
-  auto It = I->getIterator();
-  auto End = I->getParent()->end();
-  while (++It != End) {
-    if (not isMarker(&*It))
-      return &*It;
-  }
-
-  return nullptr;
-}
-
-inline llvm::CallInst *getMarker(llvm::Instruction *T, llvm::Function *Marker) {
-  revng_assert(T && T->isTerminator());
-  llvm::Instruction *Previous = getPrevious(T);
-  while (Previous != nullptr
-         && (isMarker(Previous) || isCallTo(Previous, "abort"))) {
-    if (auto *Call = getCallTo(Previous, Marker))
-      return Call;
-
-    Previous = getPrevious(Previous);
-  }
-
-  return nullptr;
-}
-
-inline llvm::CallInst *getMarker(llvm::Instruction *I,
-                                 llvm::StringRef MarkerName) {
-  return getMarker(I, getModule(I)->getFunction(MarkerName));
-}
-
-inline llvm::CallInst *getMarker(llvm::BasicBlock *BB,
-                                 llvm::StringRef MarkerName) {
-  return getMarker(BB->getTerminator(), MarkerName);
-}
-
-inline llvm::CallInst *getMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
-  return getMarker(BB->getTerminator(), Marker);
-}
-
-inline bool hasMarker(llvm::Instruction *T, llvm::StringRef MarkerName) {
-  return getMarker(T, MarkerName);
-}
-
-inline bool hasMarker(llvm::BasicBlock *BB, llvm::StringRef MarkerName) {
-  return getMarker(BB->getTerminator(), MarkerName);
-}
-
-inline bool hasMarker(llvm::Instruction *T, llvm::Function *Marker) {
-  return getMarker(T, Marker);
-}
-
-inline bool hasMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
-  return getMarker(BB->getTerminator(), Marker);
-}
-
-/// Return the callee basic block given a function_call marker.
-inline llvm::BasicBlock *getFunctionCallCallee(llvm::Instruction *T) {
-  if (auto *Call = getMarker(T, "function_call")) {
-    if (auto *Callee = llvm::dyn_cast<llvm::BlockAddress>(Call->getOperand(0)))
-      return Callee->getBasicBlock();
-  }
-
-  return nullptr;
-}
-
-inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
-  return getFunctionCallCallee(BB->getTerminator());
-}
-
-/// Return the fall-through basic block given a function_call marker.
-inline llvm::BasicBlock *getFallthrough(llvm::Instruction *T) {
-  if (auto *Call = getMarker(T, "function_call")) {
-    auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
-    return Fallthrough->getBasicBlock();
-  }
-
-  return nullptr;
-}
-
-inline llvm::BasicBlock *getFallthrough(llvm::BasicBlock *BB) {
-  return getFallthrough(BB->getTerminator());
-}
-
-/// Return true if \p T is has a fallthrough basic block.
-inline bool isFallthrough(llvm::Instruction *T) {
-  return getFallthrough(T) != nullptr;
-}
-
-inline bool isFallthrough(llvm::BasicBlock *BB) {
-  return isFallthrough(BB->getTerminator());
 }
 
 inline llvm::Constant *toLLVMConstant(llvm::LLVMContext &Context,
@@ -1597,3 +1444,37 @@ void emitCall(llvm::IRBuilderBase &Builder,
               const llvm::Twine &Reason,
               const llvm::DebugLoc &DbgLocation,
               const ProgramCounterHandler *PCH = nullptr);
+
+namespace llvm {
+class DominatorTree;
+}
+
+void pushInstructionALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove);
+
+template<typename T>
+std::optional<T> getConstantArg(llvm::CallInst *Call, unsigned Index) {
+  using namespace llvm;
+
+  if (auto *CI = dyn_cast<ConstantInt>(Call->getArgOperand(Index))) {
+    return CI->getLimitedValue();
+  } else {
+    return {};
+  }
+}
+
+inline std::optional<uint64_t> getUnsignedConstantArg(llvm::CallInst *Call,
+                                                      unsigned Index) {
+  return getConstantArg<uint64_t>(Call, Index);
+}
+
+inline std::optional<int64_t> getSignedConstantArg(llvm::CallInst *Call,
+                                                   unsigned Index) {
+  return getConstantArg<int64_t>(Call, Index);
+}
+
+/// Deletes the body of an llvm::Function, but preserving all the tags and
+/// attributes (which llvm::Function::deleteBody() does not preserve).
+/// Returns true if the body was cleared, false if it was already empty.
+bool deleteOnlyBody(llvm::Function &F);
+
+unsigned getMemoryAccessSize(llvm::Instruction *I);

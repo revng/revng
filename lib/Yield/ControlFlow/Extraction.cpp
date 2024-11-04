@@ -29,7 +29,7 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
       Result.removeNode(ExitNodeIterator->second);
   }
 
-  if (Configuration.AddEntryNode) {
+  if (Configuration.AddEntryNode and ControlFlowGraph.size() != 0) {
     auto EntryIterator = Lookup.find(BasicBlockID(Function.Entry()));
     revng_assert(EntryIterator != Lookup.end());
     auto *RootNode = Result.addNode();

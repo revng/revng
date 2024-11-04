@@ -78,17 +78,6 @@ static TupleTreeGlobal<model::Binary> &getModel(PipelineManager &Manager) {
   return *FinalModel;
 }
 
-static Step *getStepOfAnalysis(pipeline::Runner &Runner,
-                               llvm::StringRef AnalysisName) {
-  const auto &StepHasAnalysis = [AnalysisName](const Step &Step) {
-    return Step.hasAnalysis(AnalysisName);
-  };
-  auto It = llvm::find_if(Runner, StepHasAnalysis);
-  if (It == Runner.end())
-    return nullptr;
-  return &*It;
-}
-
 static llvm::Error overrideModel(PipelineManager &Manager,
                                  TupleTree<model::Binary> NewModel) {
   const auto &Name = revng::ModelGlobalName;
@@ -139,36 +128,9 @@ int main(int argc, char *argv[]) {
   InputPath = Arguments[1];
   AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
 
-  TargetInStepSet InvMap;
-  if (Manager.getRunner().hasAnalysesList(Arguments[0])) {
-    AnalysesList AL = Manager.getRunner().getAnalysesList(Arguments[0]);
-    AbortOnError(Manager.runAnalyses(AL, InvMap));
-  } else {
-    auto *Step = getStepOfAnalysis(Manager.getRunner(), Arguments[0]);
-    if (not Step) {
-      AbortOnError(createStringError(inconvertibleErrorCode(),
-                                     "No known analysis named %s, invoke "
-                                     "this command without arguments to see "
-                                     "the list of available analysis",
-                                     Arguments[0].c_str()));
-    }
-
-    auto &Analysis = Step->getAnalysis(Arguments[0]);
-
-    ContainerToTargetsMap Map;
-    for (const auto &Pair :
-         llvm::enumerate(Analysis->getRunningContainersNames())) {
-      auto Index = Pair.index();
-      const auto &ContainerName = Pair.value();
-      for (const auto &Kind : Analysis->getAcceptedKinds(Index)) {
-        Map.add(ContainerName, Kind->allTargets(Manager.context()));
-      }
-    }
-
-    llvm::StringRef StepName = Step->getName();
-    std::string AnalysisName = Arguments[0];
-    AbortOnError(Manager.runAnalysis(AnalysisName, StepName, Map, InvMap));
-  }
+  auto InvMap = revng::pipes::runAnalysisOrAnalysesList(Manager,
+                                                        Arguments[0],
+                                                        AbortOnError);
 
   if (NoApplyModel)
     AbortOnError(overrideModel(Manager, OriginalModel.get()));

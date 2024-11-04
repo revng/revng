@@ -23,6 +23,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "PTCDump.h"

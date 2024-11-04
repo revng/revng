@@ -9,6 +9,7 @@
 #include "llvm/Support/ModRef.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
 using namespace llvm;
