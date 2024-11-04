@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Segment.h"
 
 /// Use this class to print a graph representing one or more model types
@@ -14,6 +15,9 @@ class TypeSystemPrinter {
 private:
   /// Where to print the `.dot` graph
   llvm::raw_ostream &Out;
+  const model::Binary &Binary;
+  model::NameBuilder NameBuilder;
+
   /// Visited == all the edges have already been emitted
   llvm::SmallPtrSet<const model::TypeDefinition *, 16> Visited;
   /// Map each Type to the ID of the corresponding emitted `.dot` node
@@ -23,7 +27,9 @@ private:
   uint64_t NextID = 0;
 
 public:
-  TypeSystemPrinter(llvm::raw_ostream &Out, bool OrthoEdges = false);
+  TypeSystemPrinter(llvm::raw_ostream &Out,
+                    const model::Binary &Binary,
+                    bool OrthoEdges = false);
   ~TypeSystemPrinter();
 
 private:
@@ -67,6 +73,17 @@ public:
   /// Generate a graph of the types for the segment
   void print(const model::Segment &S);
 
-  /// Generate a graph of all the types in a given Module.
-  void print(const model::Binary &Model);
+  /// Generate a graph of all the types in a given binary.
+  void print();
+
+private:
+  std::string buildFieldName(const model::Type &Type,
+                             std::string &&Prefix = {},
+                             std::string &&Suffix = {});
+  void dumpStructFields(llvm::raw_ostream &Out,
+                        const model::StructDefinition *T);
+  void dumpUnionFields(llvm::raw_ostream &Out, const model::UnionDefinition *T);
+  void dumpFunctionType(llvm::raw_ostream &Out, const model::TypeDefinition *T);
+  void dumpTypedefUnderlying(llvm::raw_ostream &Out,
+                             const model::TypedefDefinition *T);
 };

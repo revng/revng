@@ -105,8 +105,10 @@ static FieldList collectFields(const model::TypeDefinition *T) {
   return Fields;
 }
 
-TypeSystemPrinter::TypeSystemPrinter(llvm::raw_ostream &Out, bool OrthoEdges) :
-  Out(Out) {
+TypeSystemPrinter::TypeSystemPrinter(llvm::raw_ostream &Out,
+                                     const model::Binary &Binary,
+                                     bool OrthoEdges) :
+  Out(Out), Binary(Binary), NameBuilder(Binary) {
   Out << "digraph TypeGraph {\n";
   if (OrthoEdges)
     Out << "splines=ortho;\n";
@@ -124,9 +126,9 @@ TypeSystemPrinter::~TypeSystemPrinter() {
 /// Build a C-like string for a given Type
 // TODO: replace this with a call to `getNamedCInstance` once the two repos
 //       are merged together.
-static std::string buildFieldName(const model::Type &Type,
-                                  std::string &&Prefix = {},
-                                  std::string &&Suffix = {}) {
+std::string TypeSystemPrinter::buildFieldName(const model::Type &Type,
+                                              std::string &&Prefix,
+                                              std::string &&Suffix) {
   if (const auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
     revng_assert(!Array->IsConst(),
                  "Const arrays are not supported by this serializer.");
@@ -142,7 +144,7 @@ static std::string buildFieldName(const model::Type &Type,
     if (!Result.empty() && Result.back() != '*')
       Result += ' ';
 
-    return Result += (D->unwrap().name() + Suffix).str();
+    return Result += (NameBuilder.name(D->unwrap()) + Suffix).str();
 
   } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
     return buildFieldName(*P->PointeeType(),
@@ -175,8 +177,8 @@ static void addStructField(llvm::raw_ostream &Out,
 }
 
 /// Generate the inner table of a struct type
-static void dumpStructFields(llvm::raw_ostream &Out,
-                             const model::StructDefinition *T) {
+void TypeSystemPrinter::dumpStructFields(llvm::raw_ostream &Out,
+                                         const model::StructDefinition *T) {
   if (T->Fields().size() == 0) {
     Out << "<TR><TD></TD></TR>";
     return;
@@ -211,8 +213,8 @@ static void dumpStructFields(llvm::raw_ostream &Out,
 }
 
 /// Generate the inner table of a union type
-static void dumpUnionFields(llvm::raw_ostream &Out,
-                            const model::UnionDefinition *T) {
+void TypeSystemPrinter::dumpUnionFields(llvm::raw_ostream &Out,
+                                        const model::UnionDefinition *T) {
   if (T->Fields().size() == 0) {
     Out << "<TR><TD></TD></TR>";
     return;
@@ -230,8 +232,8 @@ static void dumpUnionFields(llvm::raw_ostream &Out,
 }
 
 /// Generate the inner table of a function type
-static void dumpFunctionType(llvm::raw_ostream &Out,
-                             const model::TypeDefinition *T) {
+void TypeSystemPrinter::dumpFunctionType(llvm::raw_ostream &Out,
+                                         const model::TypeDefinition *T) {
   llvm::SmallVector<const model::Type *, 8> ReturnTypes;
   llvm::SmallVector<const model::Type *, 8> Arguments;
 
@@ -297,8 +299,9 @@ static void dumpFunctionType(llvm::raw_ostream &Out,
 }
 
 /// Generate the inner content of a Typedef node
-static void dumpTypedefUnderlying(llvm::raw_ostream &Out,
-                                  const model::TypedefDefinition *T) {
+void TypeSystemPrinter::dumpTypedefUnderlying(llvm::raw_ostream &Out,
+                                              const model::TypedefDefinition
+                                                *T) {
   Out << "<TR>";
   paddedCell(Out, buildFieldName(*T->UnderlyingType()), 0);
   Out << "</TR>";
@@ -318,7 +321,8 @@ void TypeSystemPrinter::dumpTypeNode(const model::TypeDefinition *T,
 
   // Print the name of the type on top
   Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << " PORT='TOP'><B>"
-      << T->name() << "</B>  (size: " << to_string(T->trySize().value_or(0))
+      << NameBuilder.name(*T)
+      << "</B>  (size: " << to_string(T->trySize().value_or(0))
       << ")</TD></TR>";
 
   // Print fields in a table
@@ -478,8 +482,8 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   Out << "label= < <TABLE " << TableOpts << ">";
 
   // Print the name of the function on top
-  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>" << F.name()
-      << "()</B></TD></TR>";
+  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>"
+      << NameBuilder.name(F) << "()</B></TD></TR>";
 
   // Print connected types in a table
   Out << "<TR><TD><TABLE " << TableOpts << "> ";
@@ -493,12 +497,12 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   Out << "<TR>";
 
   if (const model::TypeDefinition *Prototype = F.prototype())
-    paddedCell(Out, Prototype->name(), /*port=*/0);
+    paddedCell(Out, NameBuilder.name(*Prototype), /*port=*/0);
   else
     Out << "<TD></TD>";
 
   if (const model::StructDefinition *StackFrame = F.stackFrameType())
-    paddedCell(Out, StackFrame->name(), /*port=*/1);
+    paddedCell(Out, NameBuilder.name(*StackFrame), /*port=*/1);
   else
     Out << "<TD></TD>";
 
@@ -549,8 +553,8 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
   Out << "label= < <TABLE " << TableOpts << ">";
 
   // Print the name of the function on top
-  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>" << F.name()
-      << "()</B></TD></TR>";
+  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>"
+      << NameBuilder.name(F) << "()</B></TD></TR>";
 
   // Print connected types in a table
   Out << "<TR><TD><TABLE " << TableOpts << "> ";
@@ -563,7 +567,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
   Out << "<TR>";
 
   if (const model::TypeDefinition *Prototype = F.prototype())
-    paddedCell(Out, Prototype->name(), /*port=*/0);
+    paddedCell(Out, NameBuilder.name(*Prototype), /*port=*/0);
   else
     Out << "<TD></TD>";
 
@@ -604,8 +608,8 @@ void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
   Out << "label= < <TABLE " << TableOpts << ">";
 
   // Print the name of the function on top
-  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>" << S.name()
-      << "()</B></TD></TR>";
+  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>"
+      << NameBuilder.name(S) << "()</B></TD></TR>";
 
   // Print connected types in a table
   Out << "<TR><TD><TABLE " << TableOpts << "> ";
@@ -618,7 +622,7 @@ void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
   Out << "<TR>";
 
   if (const model::StructDefinition *Type = S.type())
-    paddedCell(Out, Type->name(), /*port=*/0);
+    paddedCell(Out, NameBuilder.name(*Type), /*port=*/0);
   else
     Out << "<TD></TD>";
 
@@ -647,21 +651,21 @@ void TypeSystemPrinter::print(const model::Segment &S) {
   }
 }
 
-void TypeSystemPrinter::print(const model::Binary &Model) {
+void TypeSystemPrinter::print() {
   // Print all functions and related types
-  for (auto &F : Model.Functions())
+  for (auto &F : Binary.Functions())
     print(F);
 
   // Print all dynamic functions and related types
-  for (auto &F : Model.ImportedDynamicFunctions())
+  for (auto &F : Binary.ImportedDynamicFunctions())
     print(F);
 
   // Print all the segments and related types
-  for (auto &S : Model.Segments())
+  for (auto &S : Binary.Segments())
     print(S);
 
   // Print remaining types, if any
-  for (auto &T : Model.TypeDefinitions())
+  for (auto &T : Binary.TypeDefinitions())
     if (!NodesMap.contains(T.get()))
       print(*T);
 }
