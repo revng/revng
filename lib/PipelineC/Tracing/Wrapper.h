@@ -298,7 +298,7 @@ inline decltype(auto) wrap(CalleeT Callee, ArgsT... Args) {
     // calling a PipelineC function within PipelineC
     std::lock_guard Guard(TraceMutex);
 
-    Tracing->functionPrelude(std::string_view(Name));
+    Tracing->functionPrelude(llvm::StringRef(Name));
     handleArguments<Name>(Args...);
     if constexpr (std::is_same_v<ReturnT, void>) {
       Callee(std::forward<ArgsT>(Args)...);

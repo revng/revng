@@ -78,7 +78,7 @@ static void conversionHelper(const CR::CrossRelations &Input,
     AddNode(LocationString);
 
   for (const CR::RelationDescription &Relation : Input.Relations())
-    for (std::string_view CallerLocation : Relation.IsCalledFrom())
+    for (llvm::StringRef CallerLocation : Relation.IsCalledFrom())
       AddEdge(Relation.Location(), CallerLocation);
 }
 
@@ -88,13 +88,13 @@ CR::CrossRelations::toCallGraph() const {
 
   using NodeView = decltype(Result)::Node *;
   std::unordered_map<std::string_view, NodeView> LookupHelper;
-  auto AddNode = [&Result, &LookupHelper](std::string_view Location) {
+  auto AddNode = [&Result, &LookupHelper](llvm::StringRef Location) {
     auto *Node = Result.addNode(Location);
     auto [Iterator, Success] = LookupHelper.try_emplace(Location, Node);
     revng_assert(Success);
   };
-  auto AddEdge = [&LookupHelper](std::string_view Callee,
-                                 std::string_view Caller) {
+  auto AddEdge = [&LookupHelper](llvm::StringRef Callee,
+                                 llvm::StringRef Caller) {
     // This assumes all the call sites are represented as basic block
     // locations for all the relations covered by these two kinds.
     using namespace pipeline;
@@ -120,7 +120,7 @@ yield::calls::PreLayoutGraph CR::CrossRelations::toYieldGraph() const {
 
   namespace ranks = revng::ranks;
   using pipeline::locationFromString;
-  auto AddNode = [&Result, &LookupHelper](std::string_view Location) {
+  auto AddNode = [&Result, &LookupHelper](llvm::StringRef Location) {
     GraphNode *Node = nullptr;
     if (auto Dynamic = locationFromString(ranks::DynamicFunction, Location))
       Node = Result.addNode(*Dynamic);
@@ -132,8 +132,8 @@ yield::calls::PreLayoutGraph CR::CrossRelations::toYieldGraph() const {
     auto [Iterator, Success] = LookupHelper.try_emplace(Location, Node);
     revng_assert(Success);
   };
-  auto AddEdge = [&LookupHelper](std::string_view Callee,
-                                 std::string_view Caller) {
+  auto AddEdge = [&LookupHelper](llvm::StringRef Callee,
+                                 llvm::StringRef Caller) {
     // This assumes all the call sites are represented as basic block
     // locations for all the relations covered by these two kinds.
     auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);

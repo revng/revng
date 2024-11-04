@@ -440,7 +440,7 @@ static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
 
 } // namespace callGraphTokens
 
-static model::Identifier functionNameHelper(std::string_view Location,
+static model::Identifier functionNameHelper(llvm::StringRef Location,
                                             const model::Binary &Binary,
                                             model::NameBuilder &NameBuilder) {
   if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
@@ -462,7 +462,7 @@ static model::Identifier functionNameHelper(std::string_view Location,
 
 std::string
 yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
-                                    std::string_view Location,
+                                    llvm::StringRef Location,
                                     const model::Binary &Binary,
                                     model::NameBuilder &NameBuilder) {
   if (Location.empty())
@@ -478,7 +478,7 @@ yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
 }
 
 std::string yield::ptml::functionLink(const ::ptml::MarkupBuilder &B,
-                                      std::string_view Location,
+                                      llvm::StringRef Location,
                                       const model::Binary &Binary,
                                       model::NameBuilder &NameBuilder) {
   if (Location.empty())
@@ -494,7 +494,7 @@ std::string yield::ptml::functionLink(const ::ptml::MarkupBuilder &B,
 }
 
 std::string yield::ptml::shallowFunctionLink(const ::ptml::MarkupBuilder &B,
-                                             std::string_view Location,
+                                             llvm::StringRef Location,
                                              const model::Binary &Binary,
                                              model::NameBuilder &NameBuilder) {
   if (Location.empty())

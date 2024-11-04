@@ -13,6 +13,8 @@
 #include <string>
 #include <string_view>
 
+#include "llvm/ADT/StringRef.h"
+
 #include "revng/Support/Assert.h"
 
 // Ugly way to bypass the check-conventions check that enforces the usage of
@@ -21,8 +23,8 @@
 
 int *SomeGlobalPointerNobodyWillInitialize;
 
-static void printAndFlush(std::string_view String) {
-  std::cout << String << std::endl;
+static void printAndFlush(llvm::StringRef String) {
+  std::cout << String.str() << std::endl;
   std::cout.flush();
 }
 

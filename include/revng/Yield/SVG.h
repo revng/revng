@@ -42,7 +42,7 @@ std::string callGraph(const ::ptml::MarkupBuilder &B,
                       const detail::CrossRelations &CrossRelationTree,
                       const model::Binary &Binary);
 std::string callGraphSlice(const ::ptml::MarkupBuilder &B,
-                           std::string_view SlicePoint,
+                           llvm::StringRef SlicePoint,
                            const detail::CrossRelations &CrossRelationTree,
                            const model::Binary &Binary);
 

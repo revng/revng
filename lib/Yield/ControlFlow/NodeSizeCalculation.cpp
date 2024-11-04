@@ -90,7 +90,7 @@ fontSize(yield::layout::Size &&Input,
 }
 
 static yield::layout::Size
-singleLineSize(std::string_view Text,
+singleLineSize(llvm::StringRef Text,
                float Font,
                const yield::cfg::Configuration &Configuration) {
   yield::layout::Size Result = fontSize(textSize(Text), Font, Configuration);

@@ -63,7 +63,7 @@ public:
   NameBuilder(const model::Binary &Binary) : Binary(Binary) {}
 
 private:
-  llvm::Error isNameForbidden(std::string_view Name);
+  llvm::Error isNameForbidden(llvm::StringRef Name);
 
 public:
   const model::NamingConfiguration &configuration() const;
@@ -92,7 +92,7 @@ private:
   }
 
 public:
-  [[nodiscard]] bool isGlobalSymbol(std::string_view Name) {
+  [[nodiscard]] bool isGlobalSymbol(llvm::StringRef Name) {
     return globalNamespace().contains(Name);
   }
 
@@ -180,7 +180,7 @@ public:
   Identifier artificialArrayWrapperName(const model::ArrayType &Type) {
     // Not checking anything here since the relevant checks should have already
     // been done when constructing the helper.
-    std::string_view Prefix = configuration().artificialArrayWrapperPrefix();
+    llvm::StringRef Prefix = configuration().artificialArrayWrapperPrefix();
     return Identifier(std::string(Prefix)
                       + std::string(artificialArrayWrapperNameImpl(Type)));
   }

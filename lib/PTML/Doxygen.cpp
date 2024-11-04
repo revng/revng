@@ -262,7 +262,7 @@ gatherArgumentComments(const model::Binary &Binary,
   if (Function.Prototype().isEmpty())
     return {};
 
-  static constexpr std::string_view Keyword = "\\param ";
+  static constexpr llvm::StringRef Keyword = "\\param ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (auto *FT = Function.cabiPrototype()) {
@@ -413,7 +413,7 @@ gatherArgumentComments(const model::Binary &Binary,
                                 Field);
 
       if (!Comments.empty()) {
-        static constexpr std::string_view FirstLine = "stack_args ";
+        static constexpr llvm::StringRef FirstLine = "stack_args ";
 
         bool IsFirst = true;
         for (auto [Name, Comment, Field] : Comments) {
@@ -467,7 +467,7 @@ gatherReturnValueComments(const model::Binary &Binary,
   if (Function.Prototype().isEmpty())
     return {};
 
-  static constexpr std::string_view Keyword = "\\returns ";
+  static constexpr llvm::StringRef Keyword = "\\returns ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (auto *FT = Function.cabiPrototype()) {

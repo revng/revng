@@ -43,7 +43,7 @@ std::string controlFlowNode(const ::ptml::MarkupBuilder &B,
 ///   </div>
 /// ```
 std::string functionNameDefinition(const ::ptml::MarkupBuilder &B,
-                                   std::string_view Location,
+                                   llvm::StringRef Location,
                                    const model::Binary &Binary,
                                    model::NameBuilder &NameBuilder);
 
@@ -58,7 +58,7 @@ std::string functionNameDefinition(const ::ptml::MarkupBuilder &B,
 ///   </div>
 /// ```
 std::string functionLink(const ::ptml::MarkupBuilder &B,
-                         std::string_view Location,
+                         llvm::StringRef Location,
                          const model::Binary &Binary,
                          model::NameBuilder &NameBuilder);
 
@@ -76,7 +76,7 @@ std::string functionLink(const ::ptml::MarkupBuilder &B,
 ///   </div>
 /// ```
 std::string shallowFunctionLink(const ::ptml::MarkupBuilder &B,
-                                std::string_view Location,
+                                llvm::StringRef Location,
                                 const model::Binary &Binary,
                                 model::NameBuilder &NameBuilder);
 

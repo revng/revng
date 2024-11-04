@@ -12,7 +12,7 @@ using namespace llvm;
 
 namespace model {
 
-[[nodiscard]] bool VerifyHelper::isGlobalSymbol(std::string_view Name) {
+[[nodiscard]] bool VerifyHelper::isGlobalSymbol(llvm::StringRef Name) {
   if (not NameBuilder) {
     // Global symbols aren't set, which most likely means this verification
     // didn't start from the binary. As such, let's pretend, global symbols

@@ -40,7 +40,7 @@ static constexpr auto RefusedArrowHead = "refused-arrow-head";
 
 } // namespace tags
 
-static std::string_view edgeTypeAsString(const yield::cfg::Edge &Edge) {
+static llvm::StringRef edgeTypeAsString(const yield::cfg::Edge &Edge) {
   switch (Edge.Type) {
   case yield::cfg::EdgeType::Unconditional:
     return tags::UnconditionalEdge;
@@ -55,7 +55,7 @@ static std::string_view edgeTypeAsString(const yield::cfg::Edge &Edge) {
   }
 }
 
-static std::string_view edgeTypeAsString(const yield::calls::Edge &Edge) {
+static llvm::StringRef edgeTypeAsString(const yield::calls::Edge &Edge) {
   // TODO: we might want to use separate set of tags for call graphs.
   return Edge.IsBackwards ? tags::RefusedEdge : tags::TakenEdge;
 }
@@ -86,7 +86,7 @@ static std::string cubicBend(const yield::layout::Point &From,
 
 static std::string edge(const ptml::MarkupBuilder &B,
                         const yield::layout::Path &Path,
-                        const std::string_view Type,
+                        const llvm::StringRef Type,
                         bool UseOrthogonalBends = true,
                         bool UseVerticalCurves = false) {
   std::string Points;
@@ -400,7 +400,7 @@ struct LabelNodeHelper {
   const model::Binary &Binary;
   model::NameBuilder &NameBuilder;
   const yield::cfg::Configuration Configuration;
-  std::optional<std::string_view> RootNodeLocation = std::nullopt;
+  std::optional<llvm::StringRef> RootNodeLocation = std::nullopt;
 
   void computeSizes(yield::calls::PreLayoutGraph &Graph) {
     for (auto *Node : Graph.nodes()) {
@@ -440,7 +440,7 @@ struct LabelNodeHelper {
     if (Node.isEmpty())
       return "";
 
-    std::string_view Location = Node.getLocationString();
+    llvm::StringRef Location = Node.getLocationString();
 
     if (Node.IsShallow)
       return yield::ptml::shallowFunctionLink(B, Location, Binary, NameBuilder);
@@ -509,7 +509,7 @@ static auto convertPoint(yield::layout::Point const &Point,
 }
 
 static yield::calls::PostLayoutGraph
-combineHalvesHelper(std::string_view SlicePoint,
+combineHalvesHelper(llvm::StringRef SlicePoint,
                     yield::calls::PostLayoutGraph &&ForwardsSlice,
                     yield::calls::PostLayoutGraph &&BackwardsSlice) {
   revng_assert(ForwardsSlice.size() != 0 && BackwardsSlice.size() != 0);
@@ -576,7 +576,7 @@ combineHalvesHelper(std::string_view SlicePoint,
 }
 
 std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
-                                       std::string_view SlicePoint,
+                                       llvm::StringRef SlicePoint,
                                        const CrossRelations &Relations,
                                        const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.

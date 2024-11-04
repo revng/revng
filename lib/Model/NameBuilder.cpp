@@ -50,7 +50,7 @@ static std::string path(const model::Segment &Segment) {
   return "/Segments/" + key(Segment);
 }
 
-llvm::Error model::NameBuilder::isNameForbidden(std::string_view Name) {
+llvm::Error model::NameBuilder::isNameForbidden(llvm::StringRef Name) {
   // Do these strictly for now, then soften them if needed.
 
   if (Name.starts_with(configuration().structPaddingPrefix()))

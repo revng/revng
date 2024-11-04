@@ -128,91 +128,91 @@ public:
 
   // TODO: remove these after the support the default TTG values is added.
 
-  std::string_view unnamedSegmentPrefix() const {
+  llvm::StringRef unnamedSegmentPrefix() const {
     if (UnnamedSegmentPrefix().empty())
       return "segment_";
     else
       return UnnamedSegmentPrefix();
   }
 
-  std::string_view unnamedFunctionPrefix() const {
+  llvm::StringRef unnamedFunctionPrefix() const {
     if (UnnamedFunctionPrefix().empty())
       return "function_";
     else
       return UnnamedFunctionPrefix();
   }
-  std::string_view unnamedDynamicFunctionPrefix() const {
+  llvm::StringRef unnamedDynamicFunctionPrefix() const {
     if (UnnamedDynamicFunctionPrefix().empty())
       return "dynamic_";
     else
       return UnnamedDynamicFunctionPrefix();
   }
 
-  std::string_view unnamedTypeDefinitionPrefix() const {
+  llvm::StringRef unnamedTypeDefinitionPrefix() const {
     if (UnnamedTypeDefinitionPrefix().empty())
       return "";
     else
       return UnnamedTypeDefinitionPrefix();
   }
 
-  std::string_view unnamedEnumEntryPrefix() const {
+  llvm::StringRef unnamedEnumEntryPrefix() const {
     if (UnnamedEnumEntryPrefix().empty())
       return "enum_entry_";
     else
       return UnnamedEnumEntryPrefix();
   }
-  std::string_view unnamedStructFieldPrefix() const {
+  llvm::StringRef unnamedStructFieldPrefix() const {
     if (UnnamedStructFieldPrefix().empty())
       return "offset_";
     else
       return UnnamedStructFieldPrefix();
   }
-  std::string_view unnamedUnionFieldPrefix() const {
+  llvm::StringRef unnamedUnionFieldPrefix() const {
     if (UnnamedUnionFieldPrefix().empty())
       return "member_";
     else
       return UnnamedUnionFieldPrefix();
   }
 
-  std::string_view unnamedFunctionArgumentPrefix() const {
+  llvm::StringRef unnamedFunctionArgumentPrefix() const {
     if (UnnamedFunctionArgumentPrefix().empty())
       return "argument_";
     else
       return UnnamedFunctionArgumentPrefix();
   }
-  std::string_view unnamedFunctionRegisterPrefix() const {
+  llvm::StringRef unnamedFunctionRegisterPrefix() const {
     if (UnnamedFunctionRegisterPrefix().empty())
       return "register_";
     else
       return UnnamedFunctionRegisterPrefix();
   }
 
-  std::string_view structPaddingPrefix() const {
+  llvm::StringRef structPaddingPrefix() const {
     if (StructPaddingPrefix().empty())
       return "padding_at_";
     else
       return StructPaddingPrefix();
   }
-  std::string_view artificialReturnValuePrefix() const {
+  llvm::StringRef artificialReturnValuePrefix() const {
     if (ArtificialReturnValuePrefix().empty())
       return "artificial_struct_returned_by_";
     else
       return ArtificialReturnValuePrefix();
   }
-  std::string_view artificialArrayWrapperPrefix() const {
+  llvm::StringRef artificialArrayWrapperPrefix() const {
     if (ArtificialArrayWrapperPrefix().empty())
       return "artificial_wrapper_";
     else
       return ArtificialArrayWrapperPrefix();
   }
-  std::string_view artificialArrayWrapperFieldName() const {
+  llvm::StringRef artificialArrayWrapperFieldName() const {
     if (ArtificialArrayWrapperFieldName().empty())
       return "the_array";
     else
       return ArtificialArrayWrapperFieldName();
   }
 
-  std::string_view collisionResolutionSuffix() const {
+  llvm::StringRef collisionResolutionSuffix() const {
     if (CollisionResolutionSuffix().empty())
       return "_";
     else

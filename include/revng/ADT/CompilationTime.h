@@ -9,6 +9,8 @@
 #include <string_view>
 #include <type_traits>
 
+#include "llvm/ADT/StringRef.h"
+
 namespace compile_time {
 
 namespace detail {
@@ -95,18 +97,18 @@ constexpr std::optional<size_t> select(CallableType &&Callable) {
 namespace detail {
 
 template<size_t N, size_t I = 0>
-inline constexpr bool split(std::array<std::string_view, N> &Result,
-                            std::string_view Separator,
-                            std::string_view Input) {
+inline constexpr bool split(std::array<llvm::StringRef, N> &Result,
+                            llvm::StringRef Separator,
+                            llvm::StringRef Input) {
   size_t Position = Input.find(Separator);
   if constexpr (I < N - 1) {
-    if (Position == std::string_view::npos)
+    if (Position == llvm::StringRef::npos)
       return false;
 
     Result[I] = Input.substr(0, Position);
     return split<N, I + 1>(Result, Separator, Input.substr(Position + 1));
   } else {
-    if (Position != std::string_view::npos)
+    if (Position != llvm::StringRef::npos)
       return false;
 
     Result[I] = Input;
@@ -119,13 +121,13 @@ inline constexpr bool split(std::array<std::string_view, N> &Result,
 /// I'm forced to implement my own split because `llvm::StringRef`'s alternative
 /// is not `constexpr`-compatible.
 ///
-/// This also uses `std::string_view` instead of `llvm::StringRef` because its
+/// This also uses `llvm::StringRef` instead of `llvm::StringRef` because its
 /// `find` member is constexpr - hence at least that member doesn't have to be
 /// reimplemented
 template<size_t N>
-inline constexpr std::optional<std::array<std::string_view, N>>
-split(std::string_view Separator, std::string_view Input) {
-  if (std::array<std::string_view, N> Result;
+inline constexpr std::optional<std::array<llvm::StringRef, N>>
+split(llvm::StringRef Separator, llvm::StringRef Input) {
+  if (std::array<llvm::StringRef, N> Result;
       detail::split<N>(Result, Separator, Input))
     return Result;
   else

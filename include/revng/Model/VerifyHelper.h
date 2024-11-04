@@ -155,7 +155,7 @@ public:
   // NOTE: Be careful when using this, if this helper was created without
   //       the binary, this will always return false (as if global namespace
   //       collisions never happen).
-  [[nodiscard]] bool isGlobalSymbol(std::string_view Name);
+  [[nodiscard]] bool isGlobalSymbol(llvm::StringRef Name);
   [[nodiscard]] bool populateGlobalNamespace();
 
 public:
