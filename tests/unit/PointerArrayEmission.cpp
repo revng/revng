@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   // Maps types to their expected output.
   std::vector<std::pair<const model::UpcastableType &, std::string>> Tests;
 
-  model::Binary Binary;
+  TupleTree<model::Binary> Binary = {};
 
   auto Void = model::PrimitiveType::makeVoid();
   Tests.emplace_back(Void, "void test");
@@ -39,8 +39,8 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   auto Int = model::PrimitiveType::makeConstSigned(4);
   Tests.emplace_back(Int, "const int32_t test");
 
-  auto [TypedefDef, Typedef] = Binary.makeTypedefDefinition(Void.copy());
-  Tests.emplace_back(Typedef, "_typedef_0 test");
+  auto [TypedefDef, Typedef] = Binary->makeTypedefDefinition(Void.copy());
+  Tests.emplace_back(Typedef, "typedef_0 test");
 
   auto VoidP = model::PointerType::make(Void.copy(), 8);
   Tests.emplace_back(VoidP, "void *test");
@@ -51,9 +51,9 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   auto IntCP = model::PointerType::makeConst(Int.copy(), 8);
   Tests.emplace_back(IntCP, "const int32_t *const test");
   auto TypedefP = model::PointerType::make(Typedef.copy(), 8);
-  Tests.emplace_back(TypedefP, "_typedef_0 *test");
+  Tests.emplace_back(TypedefP, "typedef_0 *test");
   auto TypedefCP = model::PointerType::makeConst(Typedef.copy(), 8);
-  Tests.emplace_back(TypedefCP, "_typedef_0 *const test");
+  Tests.emplace_back(TypedefCP, "typedef_0 *const test");
 
   auto VoidPA = model::ArrayType::make(VoidP.copy(), 15);
   Tests.emplace_back(VoidPA, "void *test[15]");
@@ -64,9 +64,9 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   auto IntCPA = model::ArrayType::make(IntCP.copy(), 18);
   Tests.emplace_back(IntCPA, "const int32_t *const test[18]");
   auto TypedefPA = model::ArrayType::make(TypedefP.copy(), 19);
-  Tests.emplace_back(TypedefPA, "_typedef_0 *test[19]");
+  Tests.emplace_back(TypedefPA, "typedef_0 *test[19]");
   auto TypedefCPA = model::ArrayType::make(TypedefCP.copy(), 20);
-  Tests.emplace_back(TypedefCPA, "_typedef_0 *const test[20]");
+  Tests.emplace_back(TypedefCPA, "typedef_0 *const test[20]");
 
   auto VoidPAA = model::ArrayType::make(VoidPA.copy(), 42);
   Tests.emplace_back(VoidPAA, "void *test[42][15]");
@@ -77,9 +77,9 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   auto IntCPAA = model::ArrayType::make(IntCPA.copy(), 39);
   Tests.emplace_back(IntCPAA, "const int32_t *const test[39][18]");
   auto TypedefPAA = model::ArrayType::make(TypedefPA.copy(), 38);
-  Tests.emplace_back(TypedefPAA, "_typedef_0 *test[38][19]");
+  Tests.emplace_back(TypedefPAA, "typedef_0 *test[38][19]");
   auto TypedefCPAA = model::ArrayType::make(TypedefCPA.copy(), 37);
-  Tests.emplace_back(TypedefCPAA, "_typedef_0 *const test[37][20]");
+  Tests.emplace_back(TypedefCPAA, "typedef_0 *const test[37][20]");
 
   auto VoidPAACP = model::PointerType::makeConst(VoidPAA.copy(), 8);
   Tests.emplace_back(VoidPAACP, "void *(*const test)[42][15]");
@@ -90,9 +90,9 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   auto IntCPAAP = model::PointerType::make(IntCPAA.copy(), 8);
   Tests.emplace_back(IntCPAAP, "const int32_t *const (*test)[39][18]");
   auto TypedefPAACP = model::PointerType::makeConst(TypedefPAA.copy(), 8);
-  Tests.emplace_back(TypedefPAACP, "_typedef_0 *(*const test)[38][19]");
+  Tests.emplace_back(TypedefPAACP, "typedef_0 *(*const test)[38][19]");
   auto TypedefCPAAP = model::PointerType::make(TypedefCPAA.copy(), 8);
-  Tests.emplace_back(TypedefCPAAP, "_typedef_0 *const (*test)[37][20]");
+  Tests.emplace_back(TypedefCPAAP, "typedef_0 *const (*test)[37][20]");
 
   auto FinalV = model::ArrayType::make(VoidPAACP.copy(), 1);
   Tests.emplace_back(FinalV, "void *(*const test[1])[42][15]");
@@ -103,9 +103,9 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   auto FinalIC = model::ArrayType::make(IntCPAAP.copy(), 4);
   Tests.emplace_back(FinalIC, "const int32_t *const (*test[4])[39][18]");
   auto FinalT = model::ArrayType::make(TypedefPAACP.copy(), 5);
-  Tests.emplace_back(FinalT, "_typedef_0 *(*const test[5])[38][19]");
+  Tests.emplace_back(FinalT, "typedef_0 *(*const test[5])[38][19]");
   auto FinalTC = model::ArrayType::make(TypedefCPAAP.copy(), 6);
-  Tests.emplace_back(FinalTC, "_typedef_0 *const (*test[6])[37][20]");
+  Tests.emplace_back(FinalTC, "typedef_0 *const (*test[6])[37][20]");
 
   auto Extra1 = model::PointerType::makeConst(FinalIC.copy(), 8);
   Tests.emplace_back(Extra1,
@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
                      "(*(*const *const ****const test)[4])[39][18]");
 
   std::string FailureLog;
-  ptml::CTypeBuilder B(llvm::nulls(), /* EnableTaglessMode = */ true);
+  ptml::CTypeBuilder B(llvm::nulls(), *Binary, /* EnableTaglessMode = */ true);
   for (auto [Type, ExpectedOutput] : Tests) {
     std::string ActualOutput = B.getNamedCInstance(*Type, "test").str().str();
     if (ActualOutput != ExpectedOutput) {

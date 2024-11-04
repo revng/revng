@@ -46,7 +46,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::EnumDefinition &E,
 
     if (Configuration.EnablePrintingOfTheMaximumEnumValue) {
       // This ensures the enum is exactly as large as the Underlying type
-      *Out << tokenTag(("_enum_max_value_" + E.name()).str(),
+      *Out << tokenTag(("_enum_max_value_" + NameBuilder.name(E)).str(),
                        ptml::c::tokens::Field)
            << " " + getOperator(COperator::Assign) + " "
            << getHex(MaxBitPatternInEnum) << ",\n";
@@ -64,8 +64,7 @@ void ptml::CTypeBuilder::printPadding(uint64_t FieldOffset,
 
   if (Configuration.EnableExplicitPaddingMode) {
     *Out << tokenTag("uint8_t", ptml::c::tokens::Type) << " "
-         << tokenTag(std::string(structPaddingPrefix())
-                       + std::to_string(FieldOffset),
+         << tokenTag(NameBuilder.paddingFieldName(FieldOffset),
                      ptml::c::tokens::Field)
          << "[" << getNumber(NextOffset - FieldOffset) << "];\n";
   } else {
@@ -101,7 +100,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
       } else {
-        printInlineDefinition(Field.name().str(), *Field.Type());
+        printInlineDefinition(NameBuilder.name(S, Field).str(), *Field.Type());
       }
 
       PreviousOffset = Field.Offset() + Field.Type()->size().value();
@@ -129,7 +128,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
       } else {
-        printInlineDefinition(Field.name().str(), *Field.Type());
+        printInlineDefinition(NameBuilder.name(U, Field).str(), *Field.Type());
       }
     }
   }
@@ -165,7 +164,8 @@ void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
                                                   ReturnValue.key());
 
       std::string
-        FieldString = tokenTag(ReturnValue.name(), ptml::c::tokens::Field)
+        FieldString = tokenTag(NameBuilder.returnValueName(F, ReturnValue),
+                               ptml::c::tokens::Field)
                         .addAttribute(ptml::attributes::ActionContextLocation,
                                       ActionLocation)
                         .toString();
@@ -215,7 +215,8 @@ void ptml::CTypeBuilder::generateArrayWrapper(const model::ArrayType
        << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
-    *Out << getNamedCInstance(ArrayType, artificialArrayWrapperFieldName())
+    *Out << getNamedCInstance(ArrayType,
+                              NameBuilder.artificialArrayWrapperFieldName())
          << ";\n";
   }
   *Out << " " << tokenTag(It->second, ptml::c::tokens::Type) << ";\n";
@@ -310,7 +311,7 @@ void ptml::CTypeBuilder::printInlineDefinition(llvm::StringRef Name,
 
 static Logger<> InlineTypeLog{ "inline-type-selection" };
 
-void ptml::CTypeBuilder::collectInlinableTypes(const model::Binary &Binary) {
+void ptml::CTypeBuilder::collectInlinableTypes() {
   if (not DependencyCache.has_value())
     DependencyCache = buildDependencyGraph(Binary.TypeDefinitions());
 
@@ -404,7 +405,7 @@ void ptml::CTypeBuilder::collectInlinableTypes(const model::Binary &Binary) {
 
 static Logger<> TypePrinterLog{ "type-definition-printer" };
 
-void ptml::CTypeBuilder::printTypeDefinitions(const model::Binary &Binary) {
+void ptml::CTypeBuilder::printTypeDefinitions() {
   if (not DependencyCache.has_value())
     DependencyCache = buildDependencyGraph(Binary.TypeDefinitions());
 

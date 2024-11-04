@@ -2,12 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-CHECK: typedef struct _PACKED _struct_3001 _struct_3001;
-CHECK: struct _PACKED _struct_3001 {
-CHECK:     generic64_t _offset_0;
-CHECK:     uint8_t _padding_at_8[8];
+CHECK: typedef struct _PACKED struct_3001 struct_3001;
+CHECK: struct _PACKED struct_3001 {
+CHECK:     generic64_t offset_0;
+CHECK:     uint8_t padding_at_8[8];
 CHECK: };
 CHECK: typedef struct _PACKED S S;
 CHECK: struct _PACKED S {
-CHECK:     _struct_3001 s1;
+CHECK:     struct_3001 s1;
 CHECK: };

@@ -8,6 +8,6 @@ CHECK: struct _PACKED B {
 CHECK:     enum _ENUM_UNDERLYING(uint32_t) _PACKED A {
 CHECK:         FIRST = 0x0U,
 CHECK:         SECOND = 0x1U,
-CHECK:         _enum_max_value_A = 0xffffffffU,
+CHECK:         enum_max_value_A = 0xffffffffU,
 CHECK:     } the_a;
 CHECK: };

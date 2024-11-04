@@ -41,19 +41,19 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
   namespace options = revng::options;
   ptml::CTypeBuilder
     B(llvm::nulls(),
+      Model,
       /* EnableTaglessMode = */ false,
       { .EnableTypeInlining = options::EnableTypeInlining,
         .EnableStackFrameInlining = !options::DisableStackFrameInlining });
-  B.collectInlinableTypes(Model);
+  B.collectInlinableTypes();
 
   {
     ControlFlowGraphCache Cache{ CFGMap };
     DecompileStringMap DecompiledFunctions("tmp");
     for (pipeline::Target &Target : CFGMap.enumerate()) {
       auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
-      llvm::Function *F = Module.getFunction(getLLVMFunctionName(Model
-                                                                   .Functions()
-                                                                   .at(Entry)));
+      const model::Function &Function = Model.Functions().at(Entry);
+      auto *F = Module.getFunction(B.NameBuilder.llvmName(Function));
       std::string CCode = decompile(Cache, *F, Model, B);
       DecompiledFunctions.insert_or_assign(Entry, std::move(CCode));
     }
@@ -76,7 +76,7 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
     B.setOutputStream(Out);
 
     ptml::HeaderBuilder HB = B;
-    HB.printModelHeader(Model);
+    HB.printModelHeader();
 
     Out.flush();
 

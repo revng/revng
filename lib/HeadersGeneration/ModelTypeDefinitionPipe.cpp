@@ -46,11 +46,12 @@ public:
       llvm::raw_string_ostream Out(Result);
 
       ptml::CTypeBuilder B(Out,
+                           Model,
                            true,
                            { .EnablePrintingOfTheMaximumEnumValue = true,
                              .EnableExplicitPaddingMode = false,
                              .EnableStructSizeAnnotation = true });
-      B.collectInlinableTypes(Model);
+      B.collectInlinableTypes();
 
       B.printTypeDefinition(Type);
     }

@@ -113,7 +113,7 @@ std::string PCTB::getVariableLocationReference(llvm::StringRef Name,
 }
 
 struct NamedCInstanceImpl {
-  const ptml::CTypeBuilder &B;
+  ptml::CTypeBuilder &B;
   llvm::ArrayRef<std::string> AllowedActions;
   bool OmitInnerTypeName;
 
@@ -219,7 +219,7 @@ private:
 TypeString PCTB::getNamedCInstance(const model::Type &Type,
                                    StringRef InstanceName,
                                    llvm::ArrayRef<std::string> AllowedActions,
-                                   bool OmitInnerTypeName) const {
+                                   bool OmitInnerTypeName) {
   NamedCInstanceImpl Helper(*this, AllowedActions, OmitInnerTypeName);
 
   std::string Result = InstanceName.str();
@@ -228,44 +228,15 @@ TypeString PCTB::getNamedCInstance(const model::Type &Type,
   return TypeString(std::move(Result));
 }
 
-static RecursiveCoroutine<std::string>
-getArrayWrapperImpl(const model::Type &Type, const ptml::CBuilder &B) {
-  if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
-    std::string Result = "array_" + std::to_string(Array->ElementCount())
-                         + "_of_";
-    Result += rc_recur getArrayWrapperImpl(*Array->ElementType(), B);
-    rc_return Result;
-
-  } else if (auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_" : "");
-    rc_return std::move(Result += D->unwrap().name().str().str());
-
-  } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_ptr_to_" : "ptr_to_");
-    rc_return std::move(Result += rc_recur
-                          getArrayWrapperImpl(*Pointer->PointeeType(), B));
-
-  } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_" : "");
-    rc_return std::move(Result += Primitive->getCName());
-
-  } else {
-    revng_abort("Unsupported model::Type.");
-  }
-}
-
-TypeString PCTB::getArrayWrapper(const model::ArrayType &ArrayType) const {
-  std::string Result(artificialArrayWrapperPrefix());
-
-  Result += getArrayWrapperImpl(ArrayType, *this);
-
-  return TypeString(getTag(ptml::tags::Span, std::move(Result)).toString());
+TypeString PCTB::getArrayWrapper(const model::ArrayType &ArrayType) {
+  auto Name = NameBuilder.artificialArrayWrapperName(ArrayType);
+  return TypeString(getTag(ptml::tags::Span, std::move(Name)).toString());
 }
 
 TypeString
 PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
                                    llvm::StringRef InstanceName,
-                                   bool IsDefinition) const {
+                                   bool IsDefinition) {
   TypeString Result;
   std::vector<std::string> AllowedActions = { ptml::actions::Rename };
 
@@ -310,12 +281,13 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
   case ReturnMethod::RegisterSet: {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
-    revng_assert(llvm::isa<model::RawFunctionDefinition>(Function));
-    std::string Name = std::string(artificialReturnValuePrefix())
-                       + Function.name().str().str();
+    auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&Function);
+    revng_assert(RFT);
+
     std::string Location = pipeline::locationString(ranks::ArtificialStruct,
-                                                    Function.key());
-    Result = tokenTag(Name, ptml::c::tokens::Type)
+                                                    RFT->key());
+    Result = tokenTag(NameBuilder.artificialReturnValueWrapperName(*RFT),
+                      ptml::c::tokens::Type)
                .addAttribute(getLocationAttribute(IsDefinition), Location)
                .toString();
     if (not InstanceName.empty())
@@ -368,7 +340,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::RawFunctionDefinition &RF,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       ptml::CTypeBuilder &B,
                                        bool SingleLine) {
   using namespace abi::FunctionType;
   auto Layout = Layout::make(RF);
@@ -390,7 +362,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     const StringRef Comma = ", ";
     StringRef Separator = Open;
     for (const model::NamedTypedRegister &Arg : RF.Arguments()) {
-      std::string ArgName = Arg.name().str().str();
+      std::string ArgName = B.NameBuilder.argumentName(RF, Arg).str().str();
       std::string ArgString;
       if (Function != nullptr)
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
@@ -430,7 +402,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::CABIFunctionDefinition &CF,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       ptml::CTypeBuilder &B,
                                        bool SingleLine) {
   std::string Result;
 
@@ -449,7 +421,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     StringRef Separator = Open;
 
     for (const auto &Arg : CF.Arguments()) {
-      std::string ArgName = Arg.name().str().str();
+      std::string ArgName = B.NameBuilder.argumentName(CF, Arg).str().str();
       std::string ArgString;
       if (Function != nullptr)
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
@@ -484,7 +456,8 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
                                                 bool SingleLine) {
   std::string Location = pipeline::locationString(ranks::Function,
                                                   Function.key());
-  auto FunctionTag = tokenTag(Function.name(), ptml::c::tokens::Function)
+  auto FunctionTag = tokenTag(NameBuilder.name(Function),
+                              ptml::c::tokens::Function)
                        .addAttribute(attributes::ActionContextLocation,
                                      Location)
                        .addAttribute(attributes::LocationDefinition, Location);
@@ -511,7 +484,8 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
                                                 bool SingleLine) {
   std::string Location = pipeline::locationString(ranks::DynamicFunction,
                                                   Function.key());
-  auto FunctionTag = tokenTag(Function.name(), ptml::c::tokens::Function)
+  auto FunctionTag = tokenTag(NameBuilder.name(Function),
+                              ptml::c::tokens::Function)
                        .addAttribute(attributes::ActionContextLocation,
                                      Location)
                        .addAttribute(attributes::LocationDefinition, Location);

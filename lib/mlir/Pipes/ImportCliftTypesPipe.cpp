@@ -124,7 +124,10 @@ static void importReachableModelTypes(const model::Binary &Model,
   // Import each model type in the set as a Clift type and insert an undef op
   // referencing that type in the module.
   for (const model::TypeDefinition *ModelType : ImportedTypes) {
-    const auto CliftType = importModelType(EmitError, Context, *ModelType);
+    const auto CliftType = importModelType(EmitError,
+                                           Context,
+                                           *ModelType,
+                                           Model);
     revng_assert(CliftType);
 
     Builder.create<UndefOp>(mlir::UnknownLoc::get(&Context), CliftType);
@@ -190,7 +193,7 @@ static void importAllModelTypes(const model::Binary &Model,
 
   mlir::OpBuilder Builder(Module.getRegion());
   for (const auto &ModelType : Model.TypeDefinitions()) {
-    auto CliftType = importModelType(EmitError, *Context, *ModelType);
+    auto CliftType = importModelType(EmitError, *Context, *ModelType, Model);
     Builder.create<UndefOp>(mlir::UnknownLoc::get(Context), CliftType);
   }
 }

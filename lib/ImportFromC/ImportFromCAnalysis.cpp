@@ -32,7 +32,6 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 
 #include "HeaderToModel.h"
@@ -156,7 +155,7 @@ struct ImportFromCAnalysis {
       // declarations.
       if (!ptml::CTypeBuilder::isDeclarationTheSameAsDefinition(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(HeaderConfiguration.PostIncludeSnippet);
-        ptml::CTypeBuilder PI(Stream, /* GenerateTaglessPTML = */ true);
+        ptml::CTypeBuilder PI(Stream, *Model, /* GenerateTaglessPTML = */ true);
         PI.appendLineComment("The type we are editing");
         // The declaration of this type will be near the top of the file.
         PI.printForwardTypeDeclaration(*TypeToEdit);
@@ -176,14 +175,11 @@ struct ImportFromCAnalysis {
       revng_abort("Unknown action requested.");
     }
 
-    {
-      ptml::CTypeBuilder B(Out,
-                           /* EnableTaglessMode = */ true,
-                           std::move(Configuration));
-      ptml::HeaderBuilder(B, std::move(HeaderConfiguration))
-        .printModelHeader(*Model);
-    }
-
+    ptml::CTypeBuilder B(Out,
+                         *Model,
+                         /* EnableTaglessMode = */ true,
+                         std::move(Configuration));
+    ptml::HeaderBuilder(B, std::move(HeaderConfiguration)).printModelHeader();
     Out.close();
 
     std::string FilteredHeader = std::string("#include \"")
@@ -265,7 +261,7 @@ struct ImportFromCAnalysis {
       return revng::createError(Result);
     }
 
-    model::VerifyHelper VH(false);
+    model::VerifyHelper VH(*OutModel, false);
     if (not OutModel->verify(VH)) {
       return revng::createError("New model does not verify: " + VH.getReason());
     }

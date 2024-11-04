@@ -29,10 +29,11 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
   namespace options = revng::options;
   ptml::CTypeBuilder
     B(Out,
+      *getModelFromContext(EC),
       /* EnableTaglessMode = */ false,
       { .EnableTypeInlining = options::EnableTypeInlining,
         .EnableStackFrameInlining = !options::DisableStackFrameInlining });
-  B.collectInlinableTypes(*getModelFromContext(EC));
+  B.collectInlinableTypes();
 
   // Make a single C file with an empty set of targets, which means all the
   // functions in DecompiledFunctions

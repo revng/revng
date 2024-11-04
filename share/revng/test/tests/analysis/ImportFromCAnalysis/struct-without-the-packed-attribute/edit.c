@@ -3,6 +3,6 @@
 //
 
 struct my_struct {
-  uint8_t _padding_at_0[8];
+  uint8_t padding_at_0[8];
   uint64_t *normal_field;
 };
