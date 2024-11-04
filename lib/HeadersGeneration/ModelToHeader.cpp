@@ -18,13 +18,13 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
-#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 static Logger<> Log{ "model-to-header" };

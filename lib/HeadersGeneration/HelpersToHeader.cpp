@@ -20,15 +20,14 @@
 #include "revng/Model/Identifier.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
-#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/Annotations.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 

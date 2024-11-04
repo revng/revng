@@ -12,7 +12,6 @@
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/FileContainer.h"
-
-#include "revng-c/Pipes/Kinds.h"
+#include "revng/Pipes/Kinds.h"
 
 #include "MakeSegmentRefPass.h"

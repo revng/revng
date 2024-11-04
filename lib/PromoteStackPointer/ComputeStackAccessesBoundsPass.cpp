@@ -18,11 +18,11 @@
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/PromoteStackPointer/ComputeStackAccessesBoundsPass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 

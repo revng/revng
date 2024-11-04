@@ -6,10 +6,10 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/RemoveExtractValues/RemoveExtractValuesPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 
@@ -40,9 +40,7 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
 
   // Create a pool of functions with the same behavior: we will need a different
   // function for each different struct
-  OpaqueFunctionsPool<TypePair> OpaqueEVPool(F.getParent(),
-                                             /* PurgeOnDestruction */ false);
-  initOpaqueEVPool(OpaqueEVPool, F.getParent());
+  auto OpaqueEVPool = FunctionTags::OpaqueExtractValue.getPool(*F.getParent());
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
   IRBuilder<> Builder(LLVMCtx);
@@ -59,7 +57,8 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
 
     // Get or generate the function
     auto *EVFunctionType = getOpaqueEVFunctionType(I);
-    const TypePair &Key = { I->getType(), I->getAggregateOperand()->getType() };
+    FunctionTags::TypePair Key = { I->getType(),
+                                   I->getAggregateOperand()->getType() };
     auto *ExtractValueFunction = OpaqueEVPool.get(Key,
                                                   EVFunctionType,
                                                   "OpaqueExtractvalue");

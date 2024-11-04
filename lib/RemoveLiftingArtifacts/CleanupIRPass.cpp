@@ -14,7 +14,6 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using namespace llvm;

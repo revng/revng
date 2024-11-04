@@ -10,7 +10,7 @@ commands:
         filter: for-decompilation
     suffix: /
     command: |-
-      revng artifact --resume "$OUTPUT" --analyze decompile-to-single-file "$INPUT" -o /dev/null
+      revng artifact --resume "$OUTPUT" --analyses=revng-initial-auto-analysis,revng-c-initial-auto-analysis decompile-to-single-file "$INPUT" -o /dev/null
   - # Perform checks on the model
     type: revng-c.decompile-to-single-file.model-check
     from:

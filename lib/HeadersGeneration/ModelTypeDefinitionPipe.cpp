@@ -10,7 +10,6 @@
 
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
-#include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
 

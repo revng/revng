@@ -6,11 +6,5 @@ revng_add_analyses_library(
   revngcTypeNames revngc DependencyGraph.cpp LLVMTypeNames.cpp
   ModelTypeNames.cpp TypePrinters.cpp)
 
-target_link_libraries(
-  revngcTypeNames
-  revngcSupport
-  revng::revngABI
-  revng::revngModel
-  revng::revngPTML
-  revng::revngSupport
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngcTypeNames revngcSupport revng::revngABI
+                      revng::revngModel revng::revngPTML ${LLVM_LIBRARIES})

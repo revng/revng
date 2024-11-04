@@ -17,8 +17,6 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringMap.h"
 
-#include "revng-c/Pipes/Kinds.h"
-
 namespace revng::pipes {
 
 inline constexpr char DecompileMime[] = "text/x.c+ptml+tar+gz";

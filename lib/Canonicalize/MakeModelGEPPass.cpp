@@ -47,8 +47,6 @@
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
-#include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using llvm::AnalysisUsage;
@@ -572,7 +570,7 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       IRArithmetic Result = LHSIsAddress ? LHS : RHS;
       Result.Summation += LHSIsAddress ? RHS.Summation : LHS.Summation;
       rc_return Result;
-    } break;
+    }
 
     case Instruction::ZExt: {
       // Zero extension is the only thing we traverse that allows the size to
@@ -592,7 +590,7 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       revng_log(ModelGEPLog, "Traverse cast!");
       rc_return rc_recur getIRArithmetic(AddrArithmeticInst->getOperandUse(0),
                                          PointerTypes);
-    } break;
+    }
 
     case Instruction::Mul: {
 
@@ -614,8 +612,7 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
         // non-address and non-strided instruction, just like e.g. division.
         rc_return IRArithmetic::unknown(AddrArithmeticInst);
       }
-
-    } break;
+    }
 
     case Instruction::Shl: {
 
@@ -633,7 +630,6 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
             auto *IndexForStridedAccess = AddrArithmeticInst->getOperand(0);
 
             rc_return IRArithmetic::index(Stride, IndexForStridedAccess);
-            break;
           }
         }
       }
@@ -642,16 +638,15 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       // and non-strided instruction, just like e.g. division.
 
       rc_return IRArithmetic::unknown(AddrArithmeticInst);
-
-    } break;
+    }
 
     case Instruction::Alloca: {
       rc_return std::nullopt;
-    } break;
+    }
 
     case Instruction::GetElementPtr: {
       revng_abort("TODO: gep is not supported by make-model-gep yet");
-    } break;
+    }
 
     case Instruction::Load:
     case Instruction::Call:
@@ -674,7 +669,7 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       // address, but it's just considered as regular offset arithmetic of
       // an unknown offset.
       rc_return IRArithmetic::unknown(AddrArithmeticInst);
-    } break;
+    }
 
     default: {
       revng_abort("Unexpected instruction for address arithmetic");
@@ -1622,7 +1617,7 @@ getAccessedTypeOnIR(const llvm::Use &U,
 
     revng_log(ModelGEPLog, "AccessedTypeOnIR: " << toString(Result));
     return Result;
-  } break;
+  }
 
   case llvm::Instruction::Store: {
     auto *Store = cast<llvm::StoreInst>(UserInstr);
@@ -2096,10 +2091,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   ModelGEPArgCache TypeArgCache;
 
   // Create a function pool for AddressOf calls
-  OpaqueFunctionsPool<TypePair> AddressOfPool(&M,
-                                              /* PurgeOnDestruction */ false);
-  if (not GEPReplacements.empty())
-    initAddressOfPool(AddressOfPool, &M);
+  auto AddressOfPool = FunctionTags::AddressOf.getPool(M);
 
   llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Context, *Model);
 

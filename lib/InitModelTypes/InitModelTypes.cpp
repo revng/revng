@@ -27,12 +27,11 @@
 #include "revng/Model/TypedefDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/DecompilationHelpers.h"
-#include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using llvm::BasicBlock;
@@ -503,7 +502,7 @@ initModelTypesImpl(const llvm::Instruction &I,
     revng_assert(BaseType->isSingleValueType());
     rc_return model::PointerType::make(llvmIntToModelType(BaseType, Model),
                                        Model.Architecture());
-  } break;
+  }
 
   case Instruction::Select: {
     auto *Select = dyn_cast<llvm::SelectInst>(&I);

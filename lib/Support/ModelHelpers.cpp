@@ -25,8 +25,6 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using llvm::dyn_cast;
@@ -252,7 +250,6 @@ handleReturnValue(const model::TypeDefinition &Prototype,
     revng_assert(Layout.ReturnValues.size() == 1);
     revng_assert(Layout.ReturnValues[0].Type->isScalar());
     return { Layout.ReturnValues[0].Type };
-    break;
   case abi::FunctionType::ReturnMethod::RegisterSet:
     return flattenReturnTypes(Layout, Model);
   default:
@@ -448,14 +445,14 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
       auto BitWidth = U->get()->getType()->getIntegerBitWidth();
       revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
       return { model::PrimitiveType::makeSigned(BitWidth / 8) };
-    } break;
+    }
 
     case llvm::Instruction::UDiv:
     case llvm::Instruction::URem: {
       auto BitWidth = U->get()->getType()->getIntegerBitWidth();
       revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
       return { model::PrimitiveType::makeUnsigned(BitWidth / 8) };
-    } break;
+    }
 
     case llvm::Instruction::AShr:
     case llvm::Instruction::LShr:
@@ -494,7 +491,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         return { model::PrimitiveType::makeNumber(Bytes) };
       else
         return { model::PrimitiveType::makePointerOrNumber(Bytes) };
-    } break;
+    }
     case llvm::Instruction::Mul:
     case llvm::Instruction::And:
     case llvm::Instruction::Or:
@@ -504,7 +501,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
                    and (BitWidth == 1 or BitWidth >= 8));
       auto Bytes = (BitWidth == 1) ? 1 : BitWidth / 8;
       return { model::PrimitiveType::makeNumber(Bytes) };
-    } break;
+    }
     case llvm::Instruction::FAdd:
     case llvm::Instruction::FSub:
     case llvm::Instruction::FMul:

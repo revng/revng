@@ -11,6 +11,7 @@ revng_add_analyses_library(
 target_link_libraries(
   revngcModelToHeader
   revngcTypeNames
+  revng::revngEarlyFunctionAnalysis
   revng::revngModel
   revng::revngSupport
   revng::revngPipeline
@@ -28,7 +29,6 @@ target_link_libraries(
   revngcTypeNames
   revngcSupport
   revng::revngModel
-  revng::revngSupport
   revng::revngPipeline
   revng::revngPipes
   revng::revngPTML

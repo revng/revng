@@ -9,10 +9,9 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/CFG.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/GraphAlgorithms.h"
-
-#include "revng-c/ADT/STLExtras.h"
 
 template<class NodeT>
 class GenericRegion {

@@ -24,6 +24,5 @@ target_link_libraries(
   revng::revngModel
   revng::revngPipes
   revng::revngPTML
-  revng::revngSupport
   revng::revngYield
   ${LLVM_LIBRARIES})

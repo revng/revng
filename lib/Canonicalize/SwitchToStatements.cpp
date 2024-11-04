@@ -36,7 +36,6 @@
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/DecompilationHelpers.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 static Logger<> Log{ "switch-to-statements" };
@@ -852,14 +851,9 @@ public:
     TheTypeMap(std::move(TMap)),
     F(TheF),
     Builder(TheF.getContext()),
-    LocalVarPool(TheF.getParent(), false),
-    AssignPool(TheF.getParent(), false),
-    CopyPool(TheF.getParent(), false) {
-
-    initLocalVarPool(LocalVarPool);
-    initAssignPool(AssignPool);
-    initCopyPool(CopyPool);
-  }
+    LocalVarPool(FunctionTags::LocalVariable.getPool(*TheF.getParent())),
+    AssignPool(FunctionTags::Assign.getPool(*TheF.getParent())),
+    CopyPool(FunctionTags::Copy.getPool(*TheF.getParent())) {}
 
 public:
   bool run(const PickedInstructions &Picked) {

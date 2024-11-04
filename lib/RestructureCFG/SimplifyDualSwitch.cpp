@@ -13,11 +13,11 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/RestructureCFG/ExprNode.h"
-#include "revng-c/Support/FunctionTags.h"
 
 #include "SimplifyDualSwitch.h"
 
@@ -244,7 +244,7 @@ simplifyDualSwitch(ASTTree &AST, ASTNode *Node) {
     }
 
     rc_return If;
-  } break;
+  }
   case ASTNode::NK_Code:
   case ASTNode::NK_Set:
   case ASTNode::NK_SwitchBreak:

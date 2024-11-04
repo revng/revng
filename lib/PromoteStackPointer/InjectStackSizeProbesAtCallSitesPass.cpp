@@ -8,7 +8,6 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 

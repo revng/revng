@@ -11,9 +11,7 @@
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/FunctionTags.h"
-
-#include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 

@@ -10,8 +10,8 @@
 #include "mlir/Target/LLVMIR/Import.h"
 
 #include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/Kinds.h"
 
-#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/mlir/Dialect/Clift/Utils/Helpers.h"
 #include "revng-c/mlir/Pipes/MLIRContainer.h"
 

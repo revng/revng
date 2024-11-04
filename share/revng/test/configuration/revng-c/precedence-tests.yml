@@ -9,7 +9,7 @@ commands:
         filter: for-precedence-tests
     suffix: .c
     command: |-
-      revng artifact --analyze decompile-to-single-file "${INPUT}"
+      revng artifact --analyses=revng-initial-auto-analysis,revng-c-initial-auto-analysis decompile-to-single-file "${INPUT}"
       | revng ptml
       | tee "${OUTPUT}"
       | FileCheck "${SOURCE}".filecheck

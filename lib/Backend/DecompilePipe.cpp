@@ -11,7 +11,6 @@
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/DecompilePipe.h"
 #include "revng-c/HeadersGeneration/Options.h"
-#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 namespace revng::pipes {

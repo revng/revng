@@ -27,13 +27,12 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/PromoteStackPointerPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 

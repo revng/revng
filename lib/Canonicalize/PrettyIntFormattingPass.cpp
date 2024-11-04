@@ -19,10 +19,10 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-#include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 enum class IntFormatting : uint32_t {
@@ -63,17 +63,11 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
   const model::Binary
     &Model = *getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
 
-  OpaqueFunctionsPool<llvm::Type *> HexIntegerPool(F.getParent(), false);
-  initHexPrintPool(HexIntegerPool);
-
-  OpaqueFunctionsPool<llvm::Type *> CharIntegerPool(F.getParent(), false);
-  initCharPrintPool(CharIntegerPool);
-
-  OpaqueFunctionsPool<llvm::Type *> BoolIntegerPool(F.getParent(), false);
-  initBoolPrintPool(BoolIntegerPool);
-
-  OpaqueFunctionsPool<llvm::Type *> NullPtrPool(F.getParent(), false);
-  initNullPtrPrintPool(NullPtrPool);
+  auto &M = *F.getParent();
+  auto HexIntegerPool = FunctionTags::HexInteger.getPool(M);
+  auto CharIntegerPool = FunctionTags::CharInteger.getPool(M);
+  auto BoolIntegerPool = FunctionTags::BoolInteger.getPool(M);
+  auto NullPtrPool = FunctionTags::NullPtr.getPool(M);
 
   std::vector<FormatInt> IntsToBeFormatted;
 

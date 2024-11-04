@@ -13,9 +13,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
-
-#include "revng-c/Support/FunctionTags.h"
 
 struct TernaryReductionPass : public llvm::FunctionPass {
 public:
@@ -36,10 +35,8 @@ class TernaryReductionImpl {
 
 public:
   TernaryReductionImpl(llvm::Module &Module) :
-    Builder(Module.getContext()), BooleanNotPool(&Module, false) {
-
-    initBooleanNotPool(BooleanNotPool);
-  }
+    Builder(Module.getContext()),
+    BooleanNotPool(FunctionTags::BooleanNot.getPool(Module)) {}
 
   llvm::Value *reduce(llvm::SelectInst &Select) {
     std::optional TrueBranch = unwrapBoolConstant(Select.getTrueValue());

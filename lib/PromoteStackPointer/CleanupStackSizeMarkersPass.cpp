@@ -4,11 +4,11 @@
 
 #include "llvm/IR/Instructions.h"
 
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/PromoteStackPointer/CleanupStackSizeMarkersPass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 

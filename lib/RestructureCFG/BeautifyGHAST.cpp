@@ -98,24 +98,24 @@ static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
       }
     }
     rc_return false;
-  } break;
+  }
 
   case ExprNode::NodeKind::NK_Not: {
     auto *Not = llvm::cast<NotNode>(Expr);
     rc_return rc_recur hasSideEffects(Not->getNegatedNode());
-  } break;
+  }
 
   case ExprNode::NodeKind::NK_And: {
     auto *And = llvm::cast<AndNode>(Expr);
     const auto [LHS, RHS] = And->getInternalNodes();
     rc_return rc_recur hasSideEffects(LHS) or rc_recur hasSideEffects(RHS);
-  } break;
+  }
 
   case ExprNode::NodeKind::NK_Or: {
     auto *Or = llvm::cast<OrNode>(Expr);
     const auto [LHS, RHS] = Or->getInternalNodes();
     rc_return rc_recur hasSideEffects(LHS) or rc_recur hasSideEffects(RHS);
-  } break;
+  }
 
   default:
     revng_abort();
@@ -688,7 +688,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
       Accum += NWeight;
     }
     rc_return Accum;
-  } break;
+  }
   case ASTNode::NK_Scs: {
     ScsNode *Loop = llvm::cast<ScsNode>(Node);
     if (Loop->hasBody()) {
@@ -700,7 +700,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
     } else {
       rc_return 1;
     }
-  } break;
+  }
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
 
@@ -717,7 +717,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
       NodeWeight[Else] = ElseWeight;
     }
     rc_return ThenWeight + ElseWeight + 1;
-  } break;
+  }
   case ASTNode::NK_Switch: {
     SwitchNode *Switch = llvm::cast<SwitchNode>(Node);
 
@@ -730,7 +730,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
       SwitchWeight += CaseWeight;
     }
     rc_return SwitchWeight + 1;
-  } break;
+  }
   case ASTNode::NK_Code: {
 
     // TODO: At the moment we use the BasicBlock size to assign a weight to the
@@ -740,7 +740,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
     CodeNode *Code = llvm::cast<CodeNode>(Node);
     llvm::BasicBlock *BB = Code->getBB();
     rc_return BB->size();
-  } break;
+  }
   case ASTNode::NK_Continue: {
 
     // The weight of a continue node, contrary to what intuition would suggest,
@@ -768,7 +768,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
     // If we assign weight 1 to all these cases, no distinction is needed for
     // them.
     rc_return 1;
-  } break;
+  }
   default:
     revng_abort();
   }

@@ -17,12 +17,12 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTNodeUtils.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/RestructureCFG/ExprNode.h"
-#include "revng-c/Support/FunctionTags.h"
 
 #include "FallThroughScopeAnalysis.h"
 #include "InlineDispatcherSwitch.h"
@@ -397,7 +397,7 @@ static RecursiveCoroutine<bool> containsSet(ASTNode *Node) {
       HasSet = HasSet or rc_recur containsSet(N);
     }
     rc_return HasSet;
-  } break;
+  }
   case ASTNode::NK_Scs: {
     ScsNode *Loop = llvm::cast<ScsNode>(Node);
 
@@ -407,7 +407,7 @@ static RecursiveCoroutine<bool> containsSet(ASTNode *Node) {
     } else {
       rc_return false;
     }
-  } break;
+  }
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
 
@@ -423,7 +423,7 @@ static RecursiveCoroutine<bool> containsSet(ASTNode *Node) {
     }
 
     rc_return HasSet;
-  } break;
+  }
   case ASTNode::NK_Switch: {
     auto *Switch = llvm::cast<SwitchNode>(Node);
 
@@ -435,17 +435,17 @@ static RecursiveCoroutine<bool> containsSet(ASTNode *Node) {
     }
 
     rc_return HasSet;
-  } break;
+  }
   case ASTNode::NK_Set: {
     rc_return true;
-  } break;
+  }
 
   case ASTNode::NK_Code:
   case ASTNode::NK_SwitchBreak:
   case ASTNode::NK_Continue:
   case ASTNode::NK_Break: {
     rc_return false;
-  } break;
+  }
   default:
     revng_unreachable();
   }
@@ -534,7 +534,7 @@ static RecursiveCoroutine<bool> containsContinueOrBreak(ASTNode *Node) {
     // This will be executed only if no non local CF has been found in the
     // above iterations
     rc_return false;
-  } break;
+  }
   case ASTNode::NK_Scs: {
 
     // At the current stage, we do not consider the possibility of inlining a
@@ -542,7 +542,7 @@ static RecursiveCoroutine<bool> containsContinueOrBreak(ASTNode *Node) {
     // eventual exit dispatcher associated to the `ScsNode`.
     // We may want, however, to enable this possibility in the future.
     rc_return true;
-  } break;
+  }
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
 
@@ -563,7 +563,7 @@ static RecursiveCoroutine<bool> containsContinueOrBreak(ASTNode *Node) {
     // This will be executed only if no non local CF has been found in both the
     // `then` and `else` branches
     rc_return false;
-  } break;
+  }
   case ASTNode::NK_Switch: {
     auto *Switch = llvm::cast<SwitchNode>(Node);
 
@@ -577,7 +577,7 @@ static RecursiveCoroutine<bool> containsContinueOrBreak(ASTNode *Node) {
     // This will be executed only if no non local CF has been found in any of
     // the `case`s of the `switch`
     rc_return false;
-  } break;
+  }
   case ASTNode::NK_Set:
   case ASTNode::NK_Code:
   case ASTNode::NK_SwitchBreak: {
@@ -586,11 +586,11 @@ static RecursiveCoroutine<bool> containsContinueOrBreak(ASTNode *Node) {
     // `break` statements related to loops. The `SwitchBreak` statement does not
     // fall in this category.
     rc_return false;
-  } break;
+  }
   case ASTNode::NK_Continue:
   case ASTNode::NK_Break: {
     rc_return true;
-  } break;
+  }
   default:
     revng_unreachable();
   }

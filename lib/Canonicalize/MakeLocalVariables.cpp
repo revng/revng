@@ -13,10 +13,10 @@
 
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
-#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 static Logger<> Log{ "make-local-variables" };
@@ -63,10 +63,8 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   llvm::Type *PtrSizedInteger = getPointerSizedInteger(LLVMCtx, *Model);
 
   // Initialize function pools
-  OpaqueFunctionsPool<TypePair> AddressOfPool(&M, false);
-  initAddressOfPool(AddressOfPool, &M);
-  OpaqueFunctionsPool<llvm::Type *> LocalVarPool(&M, false);
-  initLocalVarPool(LocalVarPool);
+  auto AddressOfPool = FunctionTags::AddressOf.getPool(M);
+  auto LocalVarPool = FunctionTags::LocalVariable.getPool(M);
 
   // Try to initialize a map for the known model types of llvm::Values
   // that are reachable from F. If this fails, we just bail out because we

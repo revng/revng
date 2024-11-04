@@ -7,9 +7,9 @@
 #include "clang/Frontend/TextDiagnostic.h"
 
 #include "revng/Model/Processing.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
@@ -1174,7 +1174,7 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   setCustomName(*NewType, Definition->getName());
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
-    auto NewIterator = NewType->Entries().emplace(Value).first;
+    auto NewIterator = NewType->Entries().insert(Value).first;
     NewIterator->CustomName() = Enum->getName().str();
   }
 

@@ -10,7 +10,6 @@
 #include "revng-c/Backend/DecompileToSingleFile.h"
 #include "revng-c/Backend/DecompileToSingleFilePipe.h"
 #include "revng-c/HeadersGeneration/Options.h"
-#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/TypeNames/PTMLCTypeBuilder.h"
 
 using namespace revng::kinds;
