@@ -79,7 +79,7 @@ At this point, we provided rev.ng enough information to be able to show us the d
 ```bash
 $ revng artifact disassemble sum --model model.yml | revng ptml
 0x400000:Code_x86_64.asm.tar.gz: |-
-  _function_0x400000_Code_x86_64:
+  function_0x400000_Code_x86_64:
     400000:    48 01 f7    add rdi, rsi
     400003:    48 89 f8    mov rax, rdi
     400006:    c3          ret

@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   auto Type = NewModel->makeType(FieldLocation.at(ranks::TypeDefinition));
 
   // Ensure the type we got is the same type we started with.
-  revng_check(Type->tryGetAsDefinition()->name() == "my_cool_union");
+  revng_check(Type->tryGetAsDefinition()->CustomName() == "my_cool_union");
 
   // Ensure the key is encoded in the serialized form of the location.
   std::string Key = toString(Definition.key());

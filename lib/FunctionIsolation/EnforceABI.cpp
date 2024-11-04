@@ -151,8 +151,6 @@ bool EnforceABI::prologue() {
 
 bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
                                llvm::Function &OldFunction) {
-  revng_assert(not FunctionModel.name().empty());
-
   // Recreate the function with the right prototype and the function prologue
   const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
   revng_assert(ProtoT != nullptr);
