@@ -783,6 +783,63 @@ bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
 }
 
 //
+// Configuration
+//
+
+bool Configuration::verify(VerifyHelper &VH) const {
+  // TODO: as this helper grows, split it up.
+
+  // These checks are not necessary for now since the can't return an empty
+  // string but they will be needed after the have a way to specify the default
+  // value of a TTG field (since the default value helpers will go away).
+  //
+  // As such, let's add them now so that they don't end up forgotten.
+
+  if (Configuration().Naming().unnamedSegmentPrefix().empty())
+    return VH.fail("Segment prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedFunctionPrefix().empty())
+    return VH.fail("Function prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedDynamicFunctionPrefix().empty())
+    return VH.fail("Dynamic function prefix must not be empty.");
+
+  // `unnamedTypeDefinitionPrefix` can be empty.
+
+  if (Configuration().Naming().unnamedEnumEntryPrefix().empty())
+    return VH.fail("Enum entry prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedStructFieldPrefix().empty())
+    return VH.fail("Struct field prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedUnionFieldPrefix().empty())
+    return VH.fail("Union field prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedFunctionArgumentPrefix().empty())
+    return VH.fail("Argument prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedFunctionRegisterPrefix().empty())
+    return VH.fail("Register prefix must not be empty.");
+
+  if (Configuration().Naming().structPaddingPrefix().empty())
+    return VH.fail("Padding prefix must not be empty.");
+
+  if (Configuration().Naming().artificialReturnValuePrefix().empty())
+    return VH.fail("Artificial return value prefix must not be empty.");
+
+  if (Configuration().Naming().artificialArrayWrapperPrefix().empty())
+    return VH.fail("Artificial array wrapper prefix must not be empty.");
+
+  if (Configuration().Naming().artificialArrayWrapperFieldName().empty())
+    return VH.fail("Artificial array field name must not be empty.");
+
+  if (Configuration().Naming().collisionResolutionSuffix().empty())
+    return VH.fail("Conflict resolution suffix must not be empty.");
+
+  return true;
+}
+
+//
 // Binary
 //
 
@@ -820,9 +877,9 @@ bool Binary::verify(VerifyHelper &VH) const {
   }
 
   //
-  // Verify the type system
+  // Verify the configuration and the type system
   //
-  return verifyTypeDefinitions(VH);
+  return Configuration().verify(VH) and verifyTypeDefinitions(VH);
 }
 
 //
@@ -941,8 +998,16 @@ bool Binary::verifyTypeDefinitions() const {
   return verifyTypeDefinitions(false);
 }
 
-bool Binary::verify(bool Assert) const {
+bool Configuration::verify(bool Assert) const {
   VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool Configuration::verify() const {
+  return verify(false);
+}
+
+bool Binary::verify(bool Assert) const {
+  VerifyHelper VH(*this, Assert);
   return verify(VH);
 }
 bool Binary::verify() const {
