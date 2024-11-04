@@ -54,21 +54,25 @@ bool ptml::HeaderBuilder::printModelHeader() {
     auto Foldable = B.getIndentedScope(CBuilder::Scopes::TypeDeclarations,
                                        /* Newline = */ true);
 
-    B.appendLineComment("===============");
-    B.appendLineComment("==== Types ====");
-    B.appendLineComment("===============");
+    B.appendLineComment("\\defgroup Type definitions");
+    B.appendLineComment("\\{");
     B.append("\n");
 
     B.printTypeDefinitions();
+
+    B.append("\n");
+    B.appendLineComment("\\}");
+    B.append("\n");
   }
 
   if (not B.Binary.Functions().empty()) {
     auto Foldable = B.getIndentedScope(CBuilder::Scopes::FunctionDeclarations,
                                        /* Newline = */ true);
-    B.appendLineComment("===================");
-    B.appendLineComment("==== Functions ====");
-    B.appendLineComment("===================");
+
+    B.appendLineComment("\\defgroup Functions");
+    B.appendLineComment("\\{");
     B.append("\n");
+
     for (const model::Function &MF : B.Binary.Functions()) {
       if (Configuration.FunctionsToOmit.contains(MF.Entry()))
         continue;
@@ -87,15 +91,20 @@ bool ptml::HeaderBuilder::printModelHeader() {
       B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
       B.append(";\n");
     }
+
+    B.append("\n");
+    B.appendLineComment("\\}");
+    B.append("\n");
   }
 
   if (not B.Binary.ImportedDynamicFunctions().empty()) {
     auto F = B.getIndentedScope(CBuilder::Scopes::DynamicFunctionDeclarations,
                                 /* Newline = */ true);
-    B.appendLineComment("==================================");
-    B.appendLineComment("==== ImportedDynamicFunctions ====");
-    B.appendLineComment("==================================");
+
+    B.appendLineComment("\\defgroup Imported dynamic functions");
+    B.appendLineComment("\\{");
     B.append("\n");
+
     for (const auto &MF : B.Binary.ImportedDynamicFunctions()) {
       const auto &FT = *B.Binary.prototypeOrDefault(MF.prototype());
       if (B.Configuration.TypesToOmit.contains(FT.key()))
@@ -111,17 +120,25 @@ bool ptml::HeaderBuilder::printModelHeader() {
       B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
       B.append(";\n");
     }
+
+    B.append("\n");
+    B.appendLineComment("\\}");
+    B.append("\n");
   }
 
   if (not B.Binary.Segments().empty()) {
     auto Foldable = B.getIndentedScope(CBuilder::Scopes::SegmentDeclarations,
                                        /* Newline = */ true);
-    B.appendLineComment("==================");
-    B.appendLineComment("==== Segments ====");
-    B.appendLineComment("==================");
+
+    B.appendLineComment("/// \\defgroup Segments");
+    B.appendLineComment("/// \\{");
     B.append("\n");
+
     for (const model::Segment &Segment : B.Binary.Segments())
       B.printSegmentType(Segment);
+
+    B.append("\n");
+    B.appendLineComment("\\}");
     B.append("\n");
   }
 
