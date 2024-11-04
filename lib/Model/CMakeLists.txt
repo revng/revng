@@ -9,6 +9,7 @@ revng_add_analyses_library_internal(
   CommonTypeMethods.cpp
   Identifier.cpp
   LoadModelPass.cpp
+  NameBuilder.cpp
   TypeSystemPrinter.cpp
   Processing.cpp
   Type.cpp
