@@ -76,9 +76,6 @@ public:
   using generated::Function::Function;
 
 public:
-  Identifier name() const;
-
-public:
   /// The helper for stack frame type unwrapping.
   /// Use this when you need to access/modify the existing struct,
   /// and \ref StackFrameType() when you need to assign a new one.
@@ -103,7 +100,8 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
-  void dumpTypeGraph(const char *Path) const debug_function;
+  void dumpTypeGraph(const char *Path,
+                     const model::Binary &Binary) const debug_function;
 };
 
 #include "revng/Model/Generated/Late/Function.h"

@@ -63,13 +63,3 @@ inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
   revng_assert(Type.isScalar());
   return getLLVMIntegerTypeFor(Context, Type);
 }
-
-inline std::string getLLVMFunctionName(const model::Function &Function) {
-  std::string Result = "local_";
-  if (DebugNames)
-    Result += Function.name().str().str();
-  else
-    Result += Function.Entry().toString();
-
-  return Result;
-}
