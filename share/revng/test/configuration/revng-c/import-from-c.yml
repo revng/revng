@@ -48,19 +48,37 @@ sources:
       - union
 
 commands:
+  # This tests sample c snippets to ensure the models we get from those are
+  # what we expect.
+  #
+  # It produces a debug output directory that contains:
+  #   - model.yml
+  #   - error.txt
+  #
+  # If import is successful, the result is checked against
+  # `${INPUT}/check-against.yml`,
+  #
+  # otherwise, the error is checked against `${INPUT}/expected-error.txt` with
+  # its license header stripped.
   - type: revng-c.import-from-c
     from:
       - type: source
         filter: import-from-c
     suffix: /
     command: |-
-      revng analyze
-        --model "${INPUT}/input-model.yml"
-        import-from-c
-        --import-from-c-location-to-edit="$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location")"
-        --import-from-c-ccode="$$(cat "${INPUT}/edit.c")"
-        /dev/null
-        1> "${OUTPUT}/model.yml"
-        2> "${OUTPUT}/error.txt"
-      && revng model compare "${INPUT}/check-against.yml" "${OUTPUT}/model.yml"
-      || [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" == "$$(cat "${OUTPUT}/error.txt")" ]]
+      if revng analyze
+           --model "${INPUT}/input-model.yml"
+           import-from-c
+           --import-from-c-location-to-edit="$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location")"
+           --import-from-c-ccode="$$(cat "${INPUT}/edit.c")"
+           /dev/null
+           1> "${OUTPUT}/model.yml"
+           2> "${OUTPUT}/error.txt"; then
+
+        revng model compare "${INPUT}/check-against.yml" "${OUTPUT}/model.yml";
+
+      else
+
+        [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" == "$$(cat "${OUTPUT}/error.txt")" ]];
+
+      fi
