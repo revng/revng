@@ -123,6 +123,22 @@ public:
       /**- endif -**/
     }
 
+  /** if struct.abstract **/
+  protected:
+    /// Copy and move constructors
+    /*= struct.name =*/(const /*= struct.name =*/ &Another) = default;
+    /*= struct.name =*/(/*= struct.name =*/ &&Another) = default;
+    /*= struct.name =*/ &operator=(const /*= struct.name =*/ &Another) = default;
+    /*= struct.name =*/ &operator=(/*= struct.name =*/ &&Another) = default;
+  public:
+  /** else **/
+    /// Copy and move constructors
+    /*= struct.name =*/(const /*= struct.name =*/ &Another) = default;
+    /*= struct.name =*/(/*= struct.name =*/ &&Another) = default;
+    /*= struct.name =*/ &operator=(const /*= struct.name =*/ &Another) = default;
+    /*= struct.name =*/ &operator=(/*= struct.name =*/ &&Another) = default;
+  /** endif **/
+
   /**- if struct.key_fields **/
   /// Key constructor
   /*= struct.name =*/(
