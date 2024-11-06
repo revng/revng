@@ -59,15 +59,16 @@ class PythonDoctest(Doctest):
         if not self.script:
             return
 
-        self.script = self.script.strip() + "\n"
+        self.script = f"\"\"\"{self.script}\"\"\""
         log(f"Running the following Python script:\n{textwrap.indent(self.script, '    ')}\n")
 
         script_path = working_directory / "run.py"
         script_path.write_text(self.script)
         run(
             working_directory,
-            ["python", "-c", "import doctest; import sys; doctest.testfile('run.py')"],
+            ["python", "-m", "doctest", "-v", "run.py"]
         )
+        self.script = ""
 
     def process(self, code, extra=""):
         self.script += code + "\n"
@@ -102,6 +103,8 @@ class BashDoctest(Doctest):
                 + " && diff -Bwu output.log expected_output.log",
             ],
         )
+        self.script = ""
+        self.expected_output = ""
 
     def process(self, code, extra=""):
         next_line_is_command = False
@@ -160,11 +163,12 @@ class TypeScriptDoctest(Doctest):
             [
                 "bash",
                 "-c",
-                """npm install typescript revng-model @types/node"
+                "npm install typescript revng-model @types/node"
                 + " && ./node_modules/.bin/tsc run.ts"
-                + " && node run.js""",
+                + " && node run.js"
             ],
         )
+        self.script = ""
 
     def process(self, code, extra=""):
         output = "console.log = (x) => { return x; };\nlet last;\n"
@@ -192,7 +196,7 @@ class TypeScriptDoctest(Doctest):
         if last_output:
             output += emit_assertion(last_output)
 
-        return output
+        self.script = output
 
 
 def only(entries):
@@ -213,59 +217,57 @@ def handle_file(path: Path):
 
     document = marko.parse(path.read_text())
 
-    for block in document.children:
-        if type(block) is not marko.block.FencedCode:
-            continue
+    with TemporaryDirectory(
+        prefix=f"revng-docs-test-{os.path.basename(path)}-"
+    ) as temporary_directory:
+        for block in document.children:
+            if type(block) is not marko.block.FencedCode:
+                continue
 
-        block.lang = block.lang.strip("{").strip("}")
-        block.extra = block.extra.strip("{").strip("}")
+            block.lang = block.lang.strip("{").strip("}")
+            block.extra = block.extra.strip("{").strip("}")
 
-        if "notest" in block.extra:
-            log(
-                f"Ignoring fenced code of type {block.lang}"
-                + f' due to `notest` in "{block.extra}"'
-            )
-            continue
+            if "notest" in block.extra:
+                log(
+                    f"Ignoring fenced code of type {block.lang}"
+                    + f' due to `notest` in "{block.extra}"'
+                )
+                continue
 
-        if "noorchestra" in block.extra:
-            log(f'Disabling orchestra environment due to `noorchestra` in "{block.extra}"')
-            handlers["bash"].process(
-                "$ unset ORCHESTRA_DOTDIR;"
-                + " unset ORCHESTRA_ROOT;"
-                + " unset ORCHESTRA_NODE_CACHE;"
-                + " export ORCHESTRA_DOTDIR ORCHESTRA_ROOT ORCHESTRA_NODE_CACHE;"
-            )
+            if "noorchestra" in block.extra:
+                log(f'Disabling orchestra environment due to `noorchestra` in "{block.extra}"')
+                handlers["bash"].process(
+                    "$ unset ORCHESTRA_DOTDIR;"
+                    + " unset ORCHESTRA_ROOT;"
+                    + " unset ORCHESTRA_NODE_CACHE;"
+                    + " export ORCHESTRA_DOTDIR ORCHESTRA_ROOT ORCHESTRA_NODE_CACHE;"
+                )
 
-        rawtext = only(block.children)
-        assert type(rawtext) is marko.inline.RawText
-        text = rawtext.children
-        assert type(text) is str
+            rawtext = only(block.children)
+            assert type(rawtext) is marko.inline.RawText
+            text = rawtext.children
+            assert type(text) is str
 
-        match = re.match(r"title=([^ ]*\.[^ ]*)", block.extra)
-        if match:
-            append_to = match.groups()[0]
-            log(f"Appending to {append_to}")
-            if text.endswith("\n"):
-                text = text[:-1]
-            for line in text.split("\n"):
-                handlers["bash"].process("$ echo " + shlex.quote(line) + " >> " + append_to)
-        elif block.lang == "diff":
-            log("Applying diff")
-            handlers["bash"].process("""$ rm -f patch.patch""")
-            for line in text.split("\n"):
-                handlers["bash"].process("$ echo " + shlex.quote(line) + " >> patch.patch")
-            handlers["bash"].process("""$ patch --quiet -p1 < patch.patch""")
-            handlers["bash"].process("""$ rm patch.patch""")
+            match = re.match(r"title=([^ ]*\.[^ ]*)", block.extra)
+            if match:
+                append_to = match.groups()[0]
+                log(f"Appending to {append_to}")
+                if text.endswith("\n"):
+                    text = text[:-1]
+                for line in text.split("\n"):
+                    handlers["bash"].process("$ echo " + shlex.quote(line) + " >> " + append_to)
+            elif block.lang == "diff":
+                log("Applying diff")
+                handlers["bash"].process("""$ rm -f patch.patch""")
+                for line in text.split("\n"):
+                    handlers["bash"].process("$ echo " + shlex.quote(line) + " >> patch.patch")
+                handlers["bash"].process("""$ patch --quiet -p1 < patch.patch""")
+                handlers["bash"].process("""$ rm patch.patch""")
 
-        elif block.lang in handlers:
-            log(f"Handling {block.lang} snippet")
-            handlers[block.lang].process(text, block.extra)
-
-    for language, handler in handlers.items():
-        with TemporaryDirectory(
-            prefix=f"revng-docs-test-{language}-{os.path.basename(path)}-"
-        ) as temporary_directory:
-            handler.run(Path(temporary_directory))
+            elif block.lang in handlers:
+                log(f"Handling {block.lang} snippet")
+                handlers[block.lang].process(text, block.extra)
+                handlers[block.lang].run(Path(temporary_directory))
 
 
 class TestDocsCommand(Command):
