@@ -58,15 +58,13 @@ class PythonDoctest(Doctest):
         if not self.script:
             return
 
-        self.script = self.script.strip() + "\n"
+        self.script = f'"""{self.script}"""'
         log(f"Running the following Python script:\n{textwrap.indent(self.script, '    ')}\n")
 
         script_path = working_directory / "run.py"
         script_path.write_text(self.script)
-        run(
-            working_directory,
-            ["python", "-c", "import doctest; import sys; doctest.testfile('run.py')"],
-        )
+        run(working_directory, ["python", "-m", "doctest", "-v", "run.py"])
+        self.script = ""
 
     def process(self, code, extra=""):
         self.script += code + "\n"
@@ -101,6 +99,8 @@ class BashDoctest(Doctest):
                 + " && diff -Bwu output.log expected_output.log",
             ],
         )
+        self.script = ""
+        self.expected_output = ""
 
     def process(self, code, extra=""):
         next_line_is_command = False
@@ -133,15 +133,6 @@ class BashDoctest(Doctest):
             self.script += f" ) |& grep -vE '{ignore_regexp}'\n"
 
 
-def escape_js(string):
-    assert type(string) is str
-    return json.dumps(string)
-
-
-def emit_assertion(expected):
-    return f"if (JSON.stringify(last) !== {escape_js(expected[:-1])})\n  process.exit(1);\n"
-
-
 class TypeScriptDoctest(Doctest):
     def __init__(self):
         self.script = ""
@@ -159,11 +150,21 @@ class TypeScriptDoctest(Doctest):
             [
                 "bash",
                 "-c",
-                """npm install typescript revng-model @types/node"
+                "npm install typescript revng-model @types/node"
                 + " && ./node_modules/.bin/tsc run.ts"
-                + " && node run.js""",
+                + " && node run.js",
             ],
         )
+        self.script = ""
+
+    @staticmethod
+    def escape_js(string):
+        assert type(string) is str
+        return json.dumps(string)
+
+    @classmethod
+    def emit_assertion(cls, expected):
+        return f"if (JSON.stringify(last) !== {cls.escape_js(expected[:-1])})\n  process.exit(1);\n"
 
     def process(self, code, extra=""):
         output = "console.log = (x) => { return x; };\nlet last;\n"
@@ -176,7 +177,7 @@ class TypeScriptDoctest(Doctest):
 
             if is_command:
                 if last_output:
-                    output += emit_assertion(last_output)
+                    output += self.emit_assertion(last_output)
                     last_output = ""
 
                 line = line[2:]
@@ -189,9 +190,9 @@ class TypeScriptDoctest(Doctest):
                 last_output += line + "\n"
 
         if last_output:
-            output += emit_assertion(last_output)
+            output += self.emit_assertion(last_output)
 
-        return output
+        self.script = output
 
 
 def only(entries):
