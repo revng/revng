@@ -3,5 +3,5 @@
 #
 
 # The definition will be generated inline in the decompiled functions.
-CHECK: typedef struct _PACKED _struct_3001 _struct_3001;
+CHECK: typedef struct _PACKED struct_3001 struct_3001;
 CHECK-NOT: struct_3001

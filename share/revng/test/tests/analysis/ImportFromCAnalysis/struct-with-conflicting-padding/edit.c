@@ -4,7 +4,7 @@
 
 struct _PACKED my_struct {
   // This statement will be ignored because it conflicts with the next one
-  uint8_t _padding_at_0[64];
+  uint8_t padding_at_0[64];
 
   _START_AT(16)
   uint64_t *field;

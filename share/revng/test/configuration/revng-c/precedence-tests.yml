@@ -3,6 +3,9 @@
 #
 
 commands:
+  # This tests decompilation of some sample on-liner function representing all possible combinations of operators from different precedence groups.
+  #
+  # The goal is to ensure we emit parentheses around those correctly.
   - type: revng-c.check-precedence
     from:
       - type: revng-qa.compiled-with-debug-info

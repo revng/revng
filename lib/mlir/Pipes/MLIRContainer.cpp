@@ -350,8 +350,7 @@ llvm::Error MLIRContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
     NewModule = mlir::parseSourceString<ModuleOp>(Buffer.getBuffer(), Config);
 
   if (not NewModule)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Cannot load MLIR module.");
+    return revng::createError("Cannot load MLIR module.");
 
   Module = std::move(NewModule);
   Context = std::move(NewContext);

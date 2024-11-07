@@ -2,7 +2,4 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-struct my_struct {
-  uint8_t padding_at_0[8];
-  uint64_t *normal_field;
-};
+CHECK: int32_t function_0x400000_Code_x86_64(int32_t argument_0, int32_t argument_1);

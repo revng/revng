@@ -23,14 +23,13 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
-#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 static Logger<> Log{ "model-to-header" };
 
-bool ptml::HeaderBuilder::printModelHeader(const model::Binary &Binary) {
-  B.collectInlinableTypes(Binary);
+bool ptml::HeaderBuilder::printModelHeader() {
+  B.collectInlinableTypes();
 
   auto Scope = B.getIndentedTag(ptml::tags::Div);
 
@@ -51,77 +50,95 @@ bool ptml::HeaderBuilder::printModelHeader(const model::Binary &Binary) {
                         + B.getDirective(CBuilder::Directive::EndIf) + "\n";
   B.append(std::move(Defines));
 
-  if (not Binary.TypeDefinitions().empty()) {
+  if (not B.Binary.TypeDefinitions().empty()) {
     auto Foldable = B.getIndentedScope(CBuilder::Scopes::TypeDeclarations,
                                        /* Newline = */ true);
 
-    B.appendLineComment("===============");
-    B.appendLineComment("==== Types ====");
-    B.appendLineComment("===============");
+    B.appendLineComment("\\defgroup Type definitions");
+    B.appendLineComment("\\{");
     B.append("\n");
 
-    B.printTypeDefinitions(Binary);
+    B.printTypeDefinitions();
+
+    B.append("\n");
+    B.appendLineComment("\\}");
+    B.append("\n");
   }
 
-  if (not Binary.Functions().empty()) {
+  if (not B.Binary.Functions().empty()) {
     auto Foldable = B.getIndentedScope(CBuilder::Scopes::FunctionDeclarations,
                                        /* Newline = */ true);
-    B.appendLineComment("===================");
-    B.appendLineComment("==== Functions ====");
-    B.appendLineComment("===================");
+
+    B.appendLineComment("\\defgroup Functions");
+    B.appendLineComment("\\{");
     B.append("\n");
-    for (const model::Function &MF : Binary.Functions()) {
+
+    for (const model::Function &MF : B.Binary.Functions()) {
       if (Configuration.FunctionsToOmit.contains(MF.Entry()))
         continue;
 
-      const auto &FT = *Binary.prototypeOrDefault(MF.prototype());
+      const auto &FT = *B.Binary.prototypeOrDefault(MF.prototype());
       if (B.Configuration.TypesToOmit.contains(FT.key()))
         continue;
 
       if (Log.isEnabled()) {
         helpers::BlockComment CommentScope = B.getBlockCommentScope();
-        B.append("Emitting a model function '" + MF.name().str().str() + "':\n"
-                 + MF.toString() + "Its prototype is:\n" + FT.toString());
+        B.append("Emitting a model function '"
+                 + B.NameBuilder.name(MF).str().str() + "':\n" + MF.toString()
+                 + "Its prototype is:\n" + FT.toString());
       }
 
       B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
       B.append(";\n");
     }
+
+    B.append("\n");
+    B.appendLineComment("\\}");
+    B.append("\n");
   }
 
-  if (not Binary.ImportedDynamicFunctions().empty()) {
+  if (not B.Binary.ImportedDynamicFunctions().empty()) {
     auto F = B.getIndentedScope(CBuilder::Scopes::DynamicFunctionDeclarations,
                                 /* Newline = */ true);
-    B.appendLineComment("==================================");
-    B.appendLineComment("==== ImportedDynamicFunctions ====");
-    B.appendLineComment("==================================");
+
+    B.appendLineComment("\\defgroup Imported dynamic functions");
+    B.appendLineComment("\\{");
     B.append("\n");
-    for (const model::DynamicFunction &MF : Binary.ImportedDynamicFunctions()) {
-      const auto &FT = *Binary.prototypeOrDefault(MF.prototype());
+
+    for (const auto &MF : B.Binary.ImportedDynamicFunctions()) {
+      const auto &FT = *B.Binary.prototypeOrDefault(MF.prototype());
       if (B.Configuration.TypesToOmit.contains(FT.key()))
         continue;
 
       if (Log.isEnabled()) {
         helpers::BlockComment CommentScope = B.getBlockCommentScope();
-        B.append("Emitting a dynamic function '" + MF.name().str().str()
-                 + "':\n" + MF.toString() + "Its prototype is:\n"
-                 + FT.toString());
+        B.append("Emitting a dynamic function '"
+                 + B.NameBuilder.name(MF).str().str() + "':\n" + MF.toString()
+                 + "Its prototype is:\n" + FT.toString());
       }
 
       B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
       B.append(";\n");
     }
+
+    B.append("\n");
+    B.appendLineComment("\\}");
+    B.append("\n");
   }
 
-  if (not Binary.Segments().empty()) {
+  if (not B.Binary.Segments().empty()) {
     auto Foldable = B.getIndentedScope(CBuilder::Scopes::SegmentDeclarations,
                                        /* Newline = */ true);
-    B.appendLineComment("==================");
-    B.appendLineComment("==== Segments ====");
-    B.appendLineComment("==================");
+
+    B.appendLineComment("/// \\defgroup Segments");
+    B.appendLineComment("/// \\{");
     B.append("\n");
-    for (const model::Segment &Segment : Binary.Segments())
+
+    for (const model::Segment &Segment : B.Binary.Segments())
       B.printSegmentType(Segment);
+
+    B.append("\n");
+    B.appendLineComment("\\}");
     B.append("\n");
   }
 

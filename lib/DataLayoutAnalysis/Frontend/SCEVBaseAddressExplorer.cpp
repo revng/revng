@@ -8,6 +8,7 @@
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "SCEVBaseAddressExplorer.h"
 

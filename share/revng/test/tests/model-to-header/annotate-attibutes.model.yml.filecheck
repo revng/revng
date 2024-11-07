@@ -2,20 +2,20 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# CHECK: typedef _ABI(SystemV_x86_64) void _cabifunction_3001(int32_t, generic64_t, uint16_t);
+# CHECK: typedef _ABI(SystemV_x86_64) void cabifunction_3001(int32_t, generic64_t, uint16_t);
 
-# CHECK: typedef _ABI(raw_x86_64) void _rawfunction_3008(generic64_t _REG(rcx_x86_64), generic64_t _REG(rdx_x86_64), generic64_t _REG(rsi_x86_64), generic64_t _REG(rdi_x86_64), generic64_t _REG(r8_x86_64), generic64_t _REG(r9_x86_64));
+# CHECK: typedef _ABI(raw_x86_64) void rawfunction_3008(generic64_t _REG(rcx_x86_64), generic64_t _REG(rdx_x86_64), generic64_t _REG(rsi_x86_64), generic64_t _REG(rdi_x86_64), generic64_t _REG(r8_x86_64), generic64_t _REG(r9_x86_64));
 
 # CHECK: typedef enum _PACKED prefix_enum_9 prefix_enum_9;
 # CHECK: enum _ENUM_UNDERLYING(int64_t) _PACKED prefix_enum_9 {
 # CHECK:     prefix_enum_9_none = 0x0U,
 # CHECK:     prefix_enum_9_positive = 0x1U,
 # CHECK:     prefix_enum_9_max_held_value = 0xffffffffU,
-# CHECK:     _enum_max_value_prefix_enum_9 = 0xffffffffffffffffU,
+# CHECK:     enum_max_value_prefix_enum_9 = 0xffffffffffffffffU,
 # CHECK: };
 
 
 # CHECK: _ABI(SystemV_x86_64)
 # CHECK: void fn(int32_t b, generic64_t c, uint16_t d);
 # CHECK: _ABI(raw_x86_64)
-# CHECK: void fn2(generic64_t _register_rcx _REG(rcx_x86_64), generic64_t _register_rdx _REG(rdx_x86_64), generic64_t _register_rsi _REG(rsi_x86_64), generic64_t _register_rdi _REG(rdi_x86_64), generic64_t _register_r8 _REG(r8_x86_64), generic64_t _register_r9 _REG(r9_x86_64));
+# CHECK: void fn2(generic64_t register_rcx _REG(rcx_x86_64), generic64_t register_rdx _REG(rdx_x86_64), generic64_t register_rsi _REG(rsi_x86_64), generic64_t register_rdi _REG(rdi_x86_64), generic64_t register_r8 _REG(r8_x86_64), generic64_t register_r9 _REG(r9_x86_64));

@@ -14,6 +14,10 @@ class CTypeBuilder : public CBuilder {
 public:
   using OutStream = ptml::IndentedOstream;
 
+public:
+  const model::Binary &Binary;
+  model::NameBuilder NameBuilder;
+
 protected:
   /// The stream to print the result to.
   std::unique_ptr<OutStream> Out;
@@ -78,7 +82,7 @@ public:
   /// Gather (and store internally) the list of types that can (and should)
   /// be inlined. This list is then later used by the invocations of
   /// \ref printTypeDefinition.
-  void collectInlinableTypes(const model::Binary &Model);
+  void collectInlinableTypes();
 
   bool shouldInline(model::TypeDefinition::Key Key) const {
     revng_assert(InlinableCacheIsReady,
@@ -105,34 +109,46 @@ public:
 
 public:
   CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
                CBuilder B,
                ConfigurationOptions &&Configuration) :
     CBuilder(B),
+    Binary(Binary),
+    NameBuilder(Binary),
     Out(std::make_unique<OutStream>(OutputStream,
                                     *this,
                                     DecompiledCCodeIndentation)),
     Configuration(std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream, CBuilder B) :
-    CTypeBuilder(OutputStream, B, ConfigurationOptions{}) {}
+  CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
+               CBuilder B) :
+    CTypeBuilder(OutputStream, Binary, B, ConfigurationOptions{}) {}
 
   CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
                bool EnableTaglessMode,
                ConfigurationOptions &&Configuration) :
     CTypeBuilder(OutputStream,
+                 Binary,
                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode },
                  std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream, bool EnableTaglessMode) :
+  CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
+               bool EnableTaglessMode) :
     CTypeBuilder(OutputStream,
+                 Binary,
                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode }) {}
 
   CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
                ConfigurationOptions &&Configuration) :
-    CTypeBuilder(OutputStream, {}, std::move(Configuration)) {}
+    CTypeBuilder(OutputStream, Binary, {}, std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream) :
-    CTypeBuilder(OutputStream, {}, {}) {}
+  CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary = {}) :
+    CTypeBuilder(OutputStream, Binary, {}, {}) {}
 
 public:
   void setOutputStream(llvm::raw_ostream &OutputStream) {
@@ -168,19 +184,19 @@ public:
   }
 
 public:
-  auto getNameTag(const model::TypeDefinition &T) const {
-    return tokenTag(T.name().str().str(), ptml::c::tokens::Type);
+  auto getNameTag(const model::TypeDefinition &T) {
+    return tokenTag(NameBuilder.name(T), ptml::c::tokens::Type);
   }
-  auto getNameTag(const model::Segment &S) const {
-    return tokenTag(S.name(), ptml::c::tokens::Variable);
+  auto getNameTag(const model::Segment &S) {
+    return tokenTag(NameBuilder.name(S), ptml::c::tokens::Variable);
   }
   auto getNameTag(const model::EnumDefinition &Enum,
-                  const model::EnumEntry &Entry) const {
-    return tokenTag(Enum.entryName(Entry), ptml::c::tokens::Field);
+                  const model::EnumEntry &Entry) {
+    return tokenTag(NameBuilder.name(Enum, Entry), ptml::c::tokens::Field);
   }
   template<class Aggregate, class Field>
-  auto getNameTag(const Aggregate &, const Field &F) const {
-    return tokenTag(F.name(), c::tokens::Field);
+  auto getNameTag(const Aggregate &A, const Field &F) {
+    return tokenTag(NameBuilder.name(A, F), c::tokens::Field);
   }
 
 private:
@@ -223,7 +239,7 @@ public:
 
   std::string getLocation(bool IsDefinition,
                           const model::TypeDefinition &T,
-                          llvm::ArrayRef<std::string> AllowedActions) const {
+                          llvm::ArrayRef<std::string> AllowedActions) {
     auto Result = getNameTag(T);
     if (IsInTaglessMode)
       return Result.toString();
@@ -238,7 +254,7 @@ public:
     return Result.toString();
   }
 
-  std::string getLocation(bool IsDefinition, const model::Segment &S) const {
+  std::string getLocation(bool IsDefinition, const model::Segment &S) {
     std::string Location = locationString(S);
     return getNameTag(S)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
@@ -248,7 +264,7 @@ public:
 
   std::string getLocation(bool IsDefinition,
                           const model::EnumDefinition &Enum,
-                          const model::EnumEntry &Entry) const {
+                          const model::EnumEntry &Entry) {
     std::string Location = locationString(Enum, Entry);
     return getNameTag(Enum, Entry)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
@@ -258,7 +274,7 @@ public:
 
   template<typename Aggregate, typename Field>
   std::string
-  getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
+  getLocation(bool IsDefinition, const Aggregate &A, const Field &F) {
     std::string Location = locationString(A, F);
     return getNameTag(A, F)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
@@ -269,7 +285,7 @@ public:
 public:
   std::string
   getLocationDefinition(const model::TypeDefinition &T,
-                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
+                        llvm::ArrayRef<std::string> AllowedActions = {}) {
     return getLocation(true, T, AllowedActions);
   }
 
@@ -287,19 +303,19 @@ public:
     return Result.toString();
   }
 
-  std::string getLocationDefinition(const model::Segment &S) const {
+  std::string getLocationDefinition(const model::Segment &S) {
     return getLocation(true, S);
   }
 
   template<typename Aggregate, typename Field>
-  std::string getLocationDefinition(const Aggregate &A, const Field &F) const {
+  std::string getLocationDefinition(const Aggregate &A, const Field &F) {
     return getLocation(true, A, F);
   }
 
 public:
   std::string
   getLocationReference(const model::TypeDefinition &T,
-                       llvm::ArrayRef<std::string> AllowedActions = {}) const {
+                       llvm::ArrayRef<std::string> AllowedActions = {}) {
     return getLocation(false, T, AllowedActions);
   }
 
@@ -317,12 +333,12 @@ public:
     return Result.toString();
   }
 
-  std::string getLocationReference(const model::Segment &S) const {
+  std::string getLocationReference(const model::Segment &S) {
     return getLocation(false, S);
   }
 
   template<typename Aggregate, typename Field>
-  std::string getLocationReference(const Aggregate &A, const Field &F) const {
+  std::string getLocationReference(const Aggregate &A, const Field &F) {
     return getLocation(false, A, F);
   }
 
@@ -332,8 +348,7 @@ public:
     return ptml::comment(*this, T, "///", 0, 80);
   }
 
-  std::string getFunctionComment(const model::Function &Function,
-                                 const model::Binary &Binary) const {
+  std::string getFunctionComment(const model::Function &Function) const {
     return ptml::functionComment(*this, Function, Binary, "///", 0, 80);
   }
 
@@ -359,17 +374,16 @@ public:
   getNamedCInstance(const model::Type &Type,
                     llvm::StringRef InstanceName,
                     llvm::ArrayRef<std::string> AllowedActions = {},
-                    bool OmitInnerTypeName = false) const;
+                    bool OmitInnerTypeName = false);
 
-  tokenDefinition::types::TypeString
-  getTypeName(const model::Type &Type) const {
+  tokenDefinition::types::TypeString getTypeName(const model::Type &Type) {
     return getNamedCInstance(Type, "");
   }
 
 public:
   /// Return the name of the array wrapper that wraps \a ArrayType
   tokenDefinition::types::TypeString
-  getArrayWrapper(const model::ArrayType &ArrayType) const;
+  getArrayWrapper(const model::ArrayType &ArrayType);
 
   /// Return a string containing the C Type name of the return type of
   /// \a FunctionType, and a (possibly empty) \a InstanceName.
@@ -378,11 +392,11 @@ public:
   tokenDefinition::types::TypeString
   getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
                                llvm::StringRef InstanceName,
-                               bool IsDefinition) const;
+                               bool IsDefinition);
 
   tokenDefinition::types::TypeString
   getReturnTypeName(const model::TypeDefinition &FunctionType,
-                    bool IsDefinition) const {
+                    bool IsDefinition) {
     return getNamedInstanceOfReturnType(FunctionType, "", IsDefinition);
   }
 
@@ -465,12 +479,12 @@ public:
   /// Please use this instead of calling \ref typeDefinition
   /// on every type, as types can depend on each other.
   /// This method ensures they are printed in a valid order.
-  void printTypeDefinitions(const model::Binary &Model);
+  void printTypeDefinitions();
 };
 
 } // namespace ptml
 
 inline std::string getPlainTypeName(const model::Type &Type) {
-  ptml::CTypeBuilder B(llvm::nulls(), /* EnableTaglessMode = */ true);
+  ptml::CTypeBuilder B(llvm::nulls(), {}, /* EnableTaglessMode = */ true);
   return B.getTypeName(Type).str().str();
 }

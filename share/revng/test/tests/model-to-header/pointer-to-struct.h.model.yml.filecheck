@@ -3,7 +3,7 @@
 #
 
 CHECK: typedef struct _PACKED B B;
-CHECK: typedef _ABI(SystemV_x86_64) void _cabifunction_3001(B *);
+CHECK: typedef _ABI(SystemV_x86_64) void cabifunction_3001(B *);
 CHECK: struct _PACKED B {
 CHECK:     uint32_t a1;
 CHECK:     uint32_t a2;

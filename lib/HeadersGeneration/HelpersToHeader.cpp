@@ -25,7 +25,6 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng-c/Support/Annotations.h"
 #include "revng-c/Support/PTMLC.h"

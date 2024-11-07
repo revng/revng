@@ -143,7 +143,10 @@ void DetectStackSize::collectStackBounds(Function &F) {
   // Obtain model::Function corresponding to this llvm::Function
   MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
   model::Function &ModelFunction = Binary->Functions().at(Entry);
-  revng_log(Log, "Collecting stack bounds for " << ModelFunction.name().str());
+  revng_log(Log,
+            "Collecting stack bounds for "
+              << model::NameBuilder(*Binary).name(ModelFunction).str());
+
   LoggerIndent<> Indent(Log);
 
   // Check if this function already has information about stack
@@ -243,7 +246,10 @@ void DSSI::electStackArgumentsSize(RawFunctionDefinition &Prototype,
 
 void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
   model::Function &ModelFunction = FSI.Function;
-  revng_log(Log, "electFunctionStackFrameSize: " << ModelFunction.name().str());
+  revng_log(Log,
+            "electFunctionStackFrameSize: "
+              << model::NameBuilder(*Binary).name(ModelFunction).str());
+
   LoggerIndent<> Indent(Log);
 
   if (FSI.MaxStackSize)
@@ -359,9 +365,8 @@ public:
     auto &Global = getWritableModelFromContext(EC);
 
     if (Global->Architecture() == model::Architecture::Invalid) {
-      return createStringError(inconvertibleErrorCode(),
-                               "DetectStackSize analysis require a valid"
-                               " Architecture");
+      return revng::createError("DetectStackSize analysis require a valid "
+                                "Architecture");
     }
 
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));

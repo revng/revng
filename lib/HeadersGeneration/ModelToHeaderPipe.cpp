@@ -63,11 +63,12 @@ public:
     namespace options = revng::options;
     ptml::CTypeBuilder
       B(Header,
+        *getModelFromContext(EC),
         /* EnableTaglessMode = */ false,
         { .EnableTypeInlining = options::EnableTypeInlining,
           .EnableStackFrameInlining = !options::DisableStackFrameInlining,
           .EnablePrintingOfTheMaximumEnumValue = true });
-    ptml::HeaderBuilder(B).printModelHeader(*getModelFromContext(EC));
+    ptml::HeaderBuilder(B).printModelHeader();
 
     Header.flush();
     ErrorCode = Header.error();

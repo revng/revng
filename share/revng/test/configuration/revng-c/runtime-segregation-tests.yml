@@ -3,6 +3,8 @@
 #
 
 commands:
+  # This reuses abi-centric test binaries to ensure they can always go through
+  # the whole pipeline (without any analyses) without crashing.
   - type: revng-c.runtime-segregation-tests
     from:
       - type: revng-qa.runtime-abi-tests

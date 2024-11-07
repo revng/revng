@@ -436,25 +436,6 @@ public:
     revng_check(!Str.contains('\n'));
     return tokenTag("// " + Str.str(), ptml::tokens::Comment) + "\n";
   }
-
-public:
-  static constexpr std::string_view structPaddingPrefix() {
-    return "_padding_at_";
-  }
-
-  static constexpr std::string_view artificialReturnValuePrefix() {
-    return "_artificial_struct_returned_by_";
-  }
-  static constexpr std::string_view artificialArrayWrapperPrefix() {
-    return "_artificial_wrapper_";
-  }
-
-  static constexpr std::string_view artificialReturnValueFieldPrefix() {
-    return "field_";
-  }
-  static constexpr std::string_view artificialArrayWrapperFieldName() {
-    return "the_array";
-  }
 };
 
 } // namespace ptml
