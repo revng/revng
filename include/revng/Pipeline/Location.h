@@ -44,7 +44,7 @@ private:
   static constexpr size_t Size = Rank::Depth;
 
 private:
-  constexpr static std::string_view Separator = "/";
+  constexpr static llvm::StringRef Separator = "/";
 
 public:
   using Tuple::Tuple;
@@ -124,7 +124,7 @@ public:
   /// If the string is not a valid location OR if its rank is different
   /// from this location's rank, `std::nullopt` is returned instead.
   static constexpr std::optional<Location<Rank>>
-  fromString(std::string_view String) {
+  fromString(llvm::StringRef String) {
     Location<Rank> Result;
 
     auto MaybeSteps = compile_time::split<Size + 2>(Separator, String);
@@ -132,7 +132,7 @@ public:
       return std::nullopt;
 
     revng_assert(MaybeSteps.value().size() == Size + 2);
-    constexpr std::string_view ExpectedName = Rank::RankName;
+    constexpr llvm::StringRef ExpectedName = Rank::RankName;
     if (MaybeSteps->at(0) != "" || MaybeSteps->at(1) != ExpectedName)
       return std::nullopt;
 
@@ -179,7 +179,7 @@ inline std::string locationString(const Rank &R, Args &&...As) {
 /// It takes a reference to the corresponding rank object as its first argument.
 template<RankSpecialization Rank>
 inline constexpr std::optional<Location<Rank>>
-locationFromString(const Rank &, std::string_view String) {
+locationFromString(const Rank &, llvm::StringRef String) {
   return Location<Rank>::fromString(String);
 }
 
@@ -215,7 +215,7 @@ using ConstP = std::add_pointer_t<std::add_const_t<std::decay_t<T>>>;
 template<typename ExpectedRank, typename... SupportedRanks>
   requires(RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
 inline constexpr std::optional<Location<ExpectedRank>>
-genericLocationFromString(std::string_view Serialized,
+genericLocationFromString(llvm::StringRef Serialized,
                           const ExpectedRank &Expected,
                           const SupportedRanks &...Supported) {
   Location<ExpectedRank> Result;
@@ -247,7 +247,7 @@ genericLocationFromString(std::string_view Serialized,
 template<size_t Idx, typename ExpectedRank, typename... SupportedRanks>
   requires(RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
 constexpr std::optional<std::tuple_element_t<Idx, typename ExpectedRank::Tuple>>
-genericLocationFromString(std::string_view Serialized,
+genericLocationFromString(llvm::StringRef Serialized,
                           const ExpectedRank &Expected,
                           const SupportedRanks &...Supported) {
   static_assert(Idx < std::decay_t<ExpectedRank>::Depth);

@@ -363,7 +363,7 @@ inline unsigned getMinimalFinalStackOffset(Values V) {
   }
 }
 
-inline constexpr std::string_view getAssemblyCommentIndicator(Values V) {
+inline constexpr llvm::StringRef getAssemblyCommentIndicator(Values V) {
   switch (V) {
   case model::Architecture::x86:
   case model::Architecture::x86_64:
@@ -380,7 +380,7 @@ inline constexpr std::string_view getAssemblyCommentIndicator(Values V) {
   }
 }
 
-inline constexpr std::string_view getAssemblyLabelIndicator(Values V) {
+inline constexpr llvm::StringRef getAssemblyLabelIndicator(Values V) {
   switch (V) {
   case model::Architecture::x86:
   case model::Architecture::x86_64:

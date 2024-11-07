@@ -27,7 +27,7 @@ namespace revng {
 namespace detail {
 template<typename V>
 concept HasName = requires() {
-  { TupleLikeTraits<V>::Name } -> std::convertible_to<std::string_view>;
+  { TupleLikeTraits<V>::Name } -> std::convertible_to<llvm::StringRef>;
 };
 }
 

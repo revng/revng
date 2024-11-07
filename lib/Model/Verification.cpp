@@ -12,103 +12,61 @@ using namespace llvm;
 
 namespace model {
 
-//
-// Namespacing
-//
+[[nodiscard]] bool VerifyHelper::isGlobalSymbol(llvm::StringRef Name) {
+  if (not NameBuilder) {
+    // Global symbols aren't set, which most likely means this verification
+    // didn't start from the binary. As such, let's pretend, global symbols
+    // don't exist.
+    return false;
+  }
 
-bool VerifyHelper::isGlobalSymbol(const model::Identifier &Name) const {
-  return GlobalSymbols.count(Name) > 0;
+  return NameBuilder->isGlobalSymbol(Name);
 }
 
-bool VerifyHelper::registerGlobalSymbol(const model::Identifier &Name,
-                                        const std::string &Path) {
-  if (Name.empty())
+[[nodiscard]] bool model::VerifyHelper::populateGlobalNamespace() {
+  revng_assert(NameBuilder,
+               "For global namespace checks, you have to pass a binary to the "
+               "verify helper constructor.");
+
+  // Allow multiple calls to `verify` even though the namespace can only be
+  // populated once.
+  if (NameBuilder->isGlobalNamespacePopulated())
     return true;
 
-  auto It = GlobalSymbols.find(Name);
-  if (It == GlobalSymbols.end()) {
-    GlobalSymbols.insert({ Name, Path });
-    return true;
-  } else {
-    std::string Message;
-    Message += "Duplicate global symbol \"";
-    Message += Name.str().str();
-    Message += "\":\n\n";
+  if (llvm::Error Error = NameBuilder->populateGlobalNamespace()) {
+    struct ExtractMessage {
+      std::string &Out;
 
-    Message += "  " + It->second + "\n";
-    Message += "  " + Path + "\n";
-    return fail(Message);
-  }
-}
+      llvm::Error operator()(const llvm::StringError &Error) {
+        Out = Error.getMessage();
+        return llvm::Error::success();
+      }
+    };
+    auto CatchAll = [](const llvm::ErrorInfoBase &) -> llvm::Error {
+      revng_abort("Unsupported error type.");
+    };
 
-template<typename T>
-static std::string key(const T &Object) {
-  return getNameFromYAMLScalar(KeyedObjectTraits<T>::key(Object));
-}
+    std::string Out;
+    llvm::handleAllErrors(std::move(Error), ExtractMessage{ Out }, CatchAll);
 
-static std::string path(const model::Function &F) {
-  return "/Functions/" + key(F);
-}
-
-static std::string path(const model::DynamicFunction &F) {
-  return "/ImportedDynamicFunctions/" + key(F);
-}
-
-static std::string path(const model::TypeDefinition &T) {
-  return "/TypeDefinitions/" + key(T);
-}
-
-static std::string path(const model::EnumDefinition &D,
-                        const model::EnumEntry &Entry) {
-  return path(static_cast<const model::TypeDefinition &>(D))
-         + "/EnumDefinition/Entries/" + key(Entry);
-}
-
-static std::string path(const model::Segment &Segment) {
-  return "/Segments/" + key(Segment);
-}
-
-bool model::Binary::verifyGlobalNamespace(VerifyHelper &VH) const {
-
-  // Namespacing rules:
-  //
-  // 1. each struct/union induces a namespace for its field names;
-  // 2. each prototype induces a namespace for its arguments (and local
-  //    variables, but those are not part of the model yet);
-  // 3. the global namespace includes segment names, function names, dynamic
-  //    function names, type names and entries of `enum`s;
-  //
-  // Verify needs to verify that each namespace has no internal clashes.
-  // Also, the global namespace clashes with everything.
-  for (const Function &F : Functions()) {
-    if (not VH.registerGlobalSymbol(F.CustomName(), path(F)))
-      return VH.fail("Duplicate name", F);
-  }
-
-  // Verify DynamicFunctions
-  for (const DynamicFunction &DF : ImportedDynamicFunctions()) {
-    if (not VH.registerGlobalSymbol(DF.CustomName(), path(DF)))
-      return VH.fail();
-  }
-
-  // Verify types and enum entries
-  for (const model::UpcastableTypeDefinition &Def : TypeDefinitions()) {
-    if (not VH.registerGlobalSymbol(Def->CustomName(), path(*Def)))
-      return VH.fail();
-
-    if (auto *Enum = dyn_cast<model::EnumDefinition>(Def.get()))
-      for (auto &Entry : Enum->Entries())
-        if (not VH.registerGlobalSymbol(Entry.CustomName(), path(*Enum, Entry)))
-          return VH.fail();
-  }
-
-  // Verify Segments
-  for (const Segment &S : Segments()) {
-    if (not VH.registerGlobalSymbol(S.CustomName(), path(S)))
-      return VH.fail();
+    revng_assert(not Out.empty());
+    return fail(std::move(Out));
   }
 
   return true;
+}
+
+VerifyHelper::VerifyHelper() = default;
+VerifyHelper::VerifyHelper(bool AssertOnFail) : AssertOnFail(AssertOnFail) {
+}
+VerifyHelper::VerifyHelper(const model::Binary &Binary) :
+  NameBuilder(new model::NameBuilder(Binary)) {
+}
+VerifyHelper::VerifyHelper(const model::Binary &Binary, bool AssertOnFail) :
+  AssertOnFail(AssertOnFail), NameBuilder(new model::NameBuilder(Binary)) {
+}
+VerifyHelper::~VerifyHelper() {
+  revng_assert(InProgress.size() == 0);
 }
 
 //
@@ -761,11 +719,6 @@ bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
     if (not Definition.get()->verify(VH))
       return VH.fail();
 
-    // Ensure the names are unique
-    auto Name = Definition->name();
-    if (not Names.insert(Name).second)
-      return VH.fail(Twine("Multiple types with the following name: ") + Name);
-
     using CFT = model::CABIFunctionDefinition;
     using RFT = model::RawFunctionDefinition;
     if (const auto *T = llvm::dyn_cast<CFT>(Definition.get())) {
@@ -783,6 +736,63 @@ bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
 }
 
 //
+// Configuration
+//
+
+bool Configuration::verify(VerifyHelper &VH) const {
+  // TODO: as this helper grows, split it up.
+
+  // These checks are not necessary for now since the can't return an empty
+  // string but they will be needed after the have a way to specify the default
+  // value of a TTG field (since the default value helpers will go away).
+  //
+  // As such, let's add them now so that they don't end up forgotten.
+
+  if (Configuration().Naming().unnamedSegmentPrefix().empty())
+    return VH.fail("Segment prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedFunctionPrefix().empty())
+    return VH.fail("Function prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedDynamicFunctionPrefix().empty())
+    return VH.fail("Dynamic function prefix must not be empty.");
+
+  // `unnamedTypeDefinitionPrefix` can be empty.
+
+  if (Configuration().Naming().unnamedEnumEntryPrefix().empty())
+    return VH.fail("Enum entry prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedStructFieldPrefix().empty())
+    return VH.fail("Struct field prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedUnionFieldPrefix().empty())
+    return VH.fail("Union field prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedFunctionArgumentPrefix().empty())
+    return VH.fail("Argument prefix must not be empty.");
+
+  if (Configuration().Naming().unnamedFunctionRegisterPrefix().empty())
+    return VH.fail("Register prefix must not be empty.");
+
+  if (Configuration().Naming().structPaddingPrefix().empty())
+    return VH.fail("Padding prefix must not be empty.");
+
+  if (Configuration().Naming().artificialReturnValuePrefix().empty())
+    return VH.fail("Artificial return value prefix must not be empty.");
+
+  if (Configuration().Naming().artificialArrayWrapperPrefix().empty())
+    return VH.fail("Artificial array wrapper prefix must not be empty.");
+
+  if (Configuration().Naming().artificialArrayWrapperFieldName().empty())
+    return VH.fail("Artificial array field name must not be empty.");
+
+  if (Configuration().Naming().collisionResolutionSuffix().empty())
+    return VH.fail("Conflict resolution suffix must not be empty.");
+
+  return true;
+}
+
+//
 // Binary
 //
 
@@ -791,7 +801,7 @@ bool Binary::verify(VerifyHelper &VH) const {
 
   // First of all, verify the global namespace: we need to fully populate it
   // before we can verify namespaces with smaller scopes
-  if (not verifyGlobalNamespace(VH))
+  if (not VH.populateGlobalNamespace())
     return VH.fail();
 
   // Verify individual functions
@@ -820,9 +830,9 @@ bool Binary::verify(VerifyHelper &VH) const {
   }
 
   //
-  // Verify the type system
+  // Verify the configuration and the type system
   //
-  return verifyTypeDefinitions(VH);
+  return Configuration().verify(VH) and verifyTypeDefinitions(VH);
 }
 
 //
@@ -925,14 +935,6 @@ bool Type::verify() const {
   return verify(false);
 }
 
-bool Binary::verifyGlobalNamespace(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verifyGlobalNamespace(VH);
-}
-bool Binary::verifyGlobalNamespace() const {
-  return verifyGlobalNamespace(false);
-}
-
 bool Binary::verifyTypeDefinitions(bool Assert) const {
   VerifyHelper VH(Assert);
   return verifyTypeDefinitions(VH);
@@ -941,8 +943,16 @@ bool Binary::verifyTypeDefinitions() const {
   return verifyTypeDefinitions(false);
 }
 
-bool Binary::verify(bool Assert) const {
+bool Configuration::verify(bool Assert) const {
   VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool Configuration::verify() const {
+  return verify(false);
+}
+
+bool Binary::verify(bool Assert) const {
+  VerifyHelper VH(*this, Assert);
   return verify(VH);
 }
 bool Binary::verify() const {

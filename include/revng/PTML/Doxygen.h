@@ -47,6 +47,8 @@ std::string comment(const ::ptml::MarkupBuilder &Builder,
 /// \param WrapAt the expected width of a line within the emitted comment.
 /// \param Indentation the number of spaces appended **before** the comment as
 ///        an indentation token (see `ptml::tokens::Indentation`).
+/// \param NameBuilder an optional naming helper, when not specified, a new one
+///        is made using the \ref Binary.
 ///
 /// \returns a serialized PTML string containing the comment.
 std::string functionComment(const ::ptml::MarkupBuilder &B,
@@ -54,6 +56,7 @@ std::string functionComment(const ::ptml::MarkupBuilder &B,
                             const model::Binary &Binary,
                             llvm::StringRef CommentIndicator,
                             size_t Indentation,
-                            size_t WrapAt);
+                            size_t WrapAt,
+                            model::NameBuilder *NameBuilder = nullptr);
 
 } // namespace ptml

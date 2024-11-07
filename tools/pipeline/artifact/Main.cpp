@@ -109,32 +109,28 @@ int main(int argc, char *argv[]) {
   }
 
   if (not Runner.containsStep(Arguments[0])) {
-    AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "No known artifact named %s.\nUse `revng "
-                                   "artifact` with no arguments to list "
-                                   "available artifacts.",
-                                   Arguments[0].c_str()));
+    AbortOnError(revng::createError("No known artifact named %s.\nUse `revng "
+                                    "artifact` with no arguments to list "
+                                    "available artifacts.",
+                                    Arguments[0].c_str()));
   }
 
   auto &Step = Runner.getStep(Arguments[0]);
   auto MaybeContainer = Step.getArtifactsContainer();
   if (not MaybeContainer) {
-    AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "The step %s is not associated to an "
-                                   "artifact.",
-                                   Arguments[0].c_str()));
+    AbortOnError(revng::createError("The step %s is not associated to "
+                                    "an artifact.",
+                                    Arguments[0].c_str()));
   }
 
   if (Analyze && Analyses.getNumOccurrences() > 0) {
-    AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "Cannot use --analyze and --analyses "
-                                   "together."));
+    AbortOnError(revng::createError("Cannot use --analyze and --analyses "
+                                    "together."));
   }
 
   if (Arguments.size() == 1) {
-    AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "Expected any number of positional "
-                                   "arguments different from 1."));
+    AbortOnError(revng::createError("Expected any number of positional "
+                                    "arguments different from 1."));
   }
 
   auto &InputContainer = Runner.begin()->containers()["input"];
@@ -147,9 +143,8 @@ int main(int argc, char *argv[]) {
     for (StringRef AnalysesName : AnalysesToRun) {
       if (not Runner.hasAnalysesList(AnalysesName)
           and not Runner.containsAnalysis(AnalysesName)) {
-        AbortOnError(createStringError(inconvertibleErrorCode(),
-                                       "No known analysis named " + AnalysesName
-                                         + "."));
+        AbortOnError(revng::createError("No known analysis named "
+                                        + AnalysesName + "."));
       }
     }
   }
@@ -162,10 +157,9 @@ int main(int argc, char *argv[]) {
     StringRef List = "revng-initial-auto-analysis";
 
     if (not Runner.hasAnalysesList(List)) {
-      AbortOnError(createStringError(inconvertibleErrorCode(),
-                                     "The \"" + List.str()
-                                       + "\" analysis list is not "
-                                         "available.\n"));
+      AbortOnError(revng::createError("The \"" + List.str()
+                                      + "\" analysis list is not "
+                                        "available.\n"));
     }
 
     AnalysesToRun.insert(AnalysesToRun.begin(), List);

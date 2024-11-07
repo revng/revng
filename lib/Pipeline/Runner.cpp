@@ -162,9 +162,7 @@ PipelineFileMapping::parse(StringRef ToParse) {
   if (ToParse.count(':') < 1 or ToParse.count('/') < 1) {
     auto *Message = "could not parse %s\n"
                     "Format is: file_path:step/container";
-    return createStringError(inconvertibleErrorCode(),
-                             Message,
-                             ToParse.str().c_str());
+    return revng::createError(Message, ToParse.str().c_str());
   }
 
   auto [StoragePath, ContainerPath] = ToParse.rsplit(':');
@@ -176,25 +174,21 @@ PipelineFileMapping::parse(StringRef ToParse) {
 
 Error PipelineFileMapping::load(Runner &LoadInto) const {
   if (not LoadInto.containsStep(Step))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known step " + Step);
+    return revng::createError("No known step " + Step);
 
   if (not LoadInto[Step].containers().containsOrCanCreate(Container))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known container " + Container);
+    return revng::createError("No known container " + Container);
 
   return LoadInto[Step].containers()[Container].load(Path);
 }
 
 Error PipelineFileMapping::store(Runner &LoadInto) const {
   if (not LoadInto.containsStep(Step)) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known step " + Step);
+    return revng::createError("No known step " + Step);
   }
 
   if (not LoadInto[Step].containers().containsOrCanCreate(Container)) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known container " + Container);
+    return revng::createError("No known container " + Container);
   }
 
   return LoadInto[Step].containers()[Container].store(Path);
@@ -221,9 +215,8 @@ Error Runner::storeStepToDisk(llvm::StringRef StepName,
                               const revng::DirectoryPath &DirPath) const {
   auto Step = Steps.find(StepName);
   if (Step == Steps.end())
-    return createStringError(inconvertibleErrorCode(),
-                             "Could not find a step named %s\n",
-                             StepName.str().c_str());
+    return revng::createError("Could not find a step named %s\n",
+                              StepName.str().c_str());
 
   revng::DirectoryPath StepDir = DirPath.getDirectory(Step->first());
   if (auto Error = StepDir.create())
@@ -279,9 +272,8 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
   auto MaybeStep = Steps.find(StepName);
 
   if (MaybeStep == Steps.end()) {
-    return createStringError(inconvertibleErrorCode(),
-                             "Could not find a step named %s\n",
-                             StepName.str().c_str());
+    return revng::createError("Could not find a step named %s\n",
+                              StepName.str().c_str());
   }
 
   Task T(3, "Analysis execution");

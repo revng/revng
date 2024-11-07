@@ -257,11 +257,12 @@ namespace ranks = revng::ranks;
 
 static llvm::SmallVector<DoxygenLine, 16>
 gatherArgumentComments(const model::Binary &Binary,
-                       const model::Function &Function) {
+                       const model::Function &Function,
+                       model::NameBuilder &NameBuilder) {
   if (Function.Prototype().isEmpty())
     return {};
 
-  static constexpr std::string_view Keyword = "\\param ";
+  static constexpr llvm::StringRef Keyword = "\\param ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (auto *FT = Function.cabiPrototype()) {
@@ -307,7 +308,9 @@ gatherArgumentComments(const model::Binary &Binary,
 
         const model::Argument &Argument = FT->Arguments().at(Index);
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     Argument.name().str().str());
+                                     NameBuilder.argumentName(*FT, Argument)
+                                       .str()
+                                       .str());
         std::string Location = locationString(ranks::CABIArgument,
                                               FT->key(),
                                               Argument.key());
@@ -368,7 +371,9 @@ gatherArgumentComments(const model::Binary &Binary,
         Line.InternalIndentation = Keyword.size();
 
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     Argument.name().str().str());
+                                     NameBuilder.argumentName(*FT, Argument)
+                                       .str()
+                                       .str());
         std::string Location = locationString(ranks::RawArgument,
                                               FT->key(),
                                               Argument.key());
@@ -403,12 +408,12 @@ gatherArgumentComments(const model::Binary &Binary,
       llvm::SmallVector<FieldMapEntry> Comments;
       for (const model::StructField &Field : Stack->Fields())
         if (!Field.Comment().empty())
-          Comments.emplace_back(Field.name().str().str(),
+          Comments.emplace_back(NameBuilder.name(*Stack, Field).str().str(),
                                 Field.Comment(),
                                 Field);
 
       if (!Comments.empty()) {
-        static constexpr std::string_view FirstLine = "stack_args ";
+        static constexpr llvm::StringRef FirstLine = "stack_args ";
 
         bool IsFirst = true;
         for (auto [Name, Comment, Field] : Comments) {
@@ -462,7 +467,7 @@ gatherReturnValueComments(const model::Binary &Binary,
   if (Function.Prototype().isEmpty())
     return {};
 
-  static constexpr std::string_view Keyword = "\\returns ";
+  static constexpr llvm::StringRef Keyword = "\\returns ";
 
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (auto *FT = Function.cabiPrototype()) {
@@ -538,7 +543,8 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
                                   const model::Binary &Binary,
                                   llvm::StringRef CommentIndicator,
                                   size_t Indentation,
-                                  size_t WrapAt) {
+                                  size_t WrapAt,
+                                  model::NameBuilder *NB) {
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (!Function.Comment().empty()) {
     DoxygenToken Tag{ .Type = DoxygenToken::Types::Untagged,
@@ -551,7 +557,12 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
     Result.emplace_back(DoxygenLine{ .Tags = { std::move(Tag) } });
   }
 
-  auto ArgumentComments = gatherArgumentComments(Binary, Function);
+  using NHT = model::NameBuilder;
+  auto OwnedNameBuilder = NB ? std::nullopt : std::make_optional<NHT>(Binary);
+  if (OwnedNameBuilder)
+    NB = &*OwnedNameBuilder;
+
+  auto ArgumentComments = gatherArgumentComments(Binary, Function, *NB);
   if (!ArgumentComments.empty()) {
     if (!Result.empty())
       Result.emplace_back();

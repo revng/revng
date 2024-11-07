@@ -32,7 +32,8 @@ public:
   yield::Function disassemble(const model::Function &Function,
                               const efa::ControlFlowGraph &Metadata,
                               const RawBinaryView &BinaryView,
-                              const model::Binary &Binary);
+                              const model::Binary &Binary,
+                              model::NameBuilder &NameBuilder);
 
 private:
   LLVMDisassemblerInterface &

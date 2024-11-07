@@ -324,8 +324,7 @@ llvm::Error LLVMContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
   bool Failed = llvm::verifyModule(*MaybeModule.get(), &Stream);
   if (Failed) {
     Stream.flush();
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   ErrorMessage);
+    return revng::createError(ErrorMessage);
   }
 
   Module = std::move(MaybeModule.get());

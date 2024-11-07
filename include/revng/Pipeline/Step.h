@@ -27,6 +27,7 @@
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 
 namespace pipeline {
 
@@ -192,8 +193,7 @@ public:
                            const Kind *ArtifactsKind,
                            std::string SingleTargetFilename) {
     if (Containers.contains(ContainerName)) {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Artifact Container does not exist");
+      return revng::createError("Artifact Container does not exist");
     }
     Artifacts = ArtifactsInfo(std::move(ContainerName),
                               ArtifactsKind,

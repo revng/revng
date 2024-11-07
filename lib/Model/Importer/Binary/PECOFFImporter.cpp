@@ -76,7 +76,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
   bool IsLittleEndian = Architecture::isLittleEndian(Architecture);
 
   if ((PointerSize != 4 and PointerSize != 8) or not IsLittleEndian)
-    return createError("Only 32/64-bit little endian COFF files are supported");
+    return revng::createError("Only 32/64-bit little endian COFF files are "
+                              "supported");
 
   const object::pe32_header *PE32Header = TheBinary.getPE32Header();
 
@@ -89,7 +90,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     const object::pe32plus_header *PE32PlusHeader = TheBinary
                                                       .getPE32PlusHeader();
     if (not PE32PlusHeader)
-      return createError("Invalid PE Header");
+      return revng::createError("Invalid PE Header");
 
     // PE32+ Header
     ImageBase = fromPC(PE32PlusHeader->ImageBase);
@@ -504,9 +505,8 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
       Model->DefaultABI() = ABI.value();
     } else {
       auto ArchName = model::Architecture::getName(Model->Architecture()).str();
-      return createStringError(llvm::inconvertibleErrorCode(),
-                               "Unsupported architecture for PECOFF: "
-                                 + ArchName);
+      return revng::createError("Unsupported architecture for PECOFF: "
+                                + ArchName);
     }
   }
 

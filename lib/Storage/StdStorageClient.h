@@ -73,8 +73,7 @@ public:
   getWritableFile(llvm::StringRef Path, ContentEncoding Encoding) override {
     using llvm::sys::fs::OF_None;
     if (Path != "") {
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Cannot open file");
+      return revng::createError("Cannot open file");
     }
 
     std::error_code EC;

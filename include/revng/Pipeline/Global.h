@@ -15,6 +15,7 @@
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/PathTargetBimap.h"
 #include "revng/Storage/Path.h"
+#include "revng/Support/Error.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Tracking.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
@@ -129,9 +130,7 @@ public:
       return MaybeTupleTree.takeError();
 
     if (not(*MaybeTupleTree)->verify()) {
-      using llvm::Twine;
-      std::string Message = (Twine("Verify failed on ") + getName()).str();
-      return llvm::createStringError(llvm::inconvertibleErrorCode(), Message);
+      return revng::createError("Verify failed on " + getName());
     }
 
     Value = *MaybeTupleTree;

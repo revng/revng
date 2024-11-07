@@ -164,7 +164,7 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
       }
 
       // Format number and put it to the output
-      const uint64_t &B = SegmentBinary[Index];
+      uint64_t B = SegmentBinary[Index];
       Output << formatNumber(B, 2);
 
       // Increment counter of bytes printed in current line.

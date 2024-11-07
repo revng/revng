@@ -31,7 +31,7 @@ using Def = abi::Definition;
 template<bool EnforceABIConformance>
 struct DeductionImpl {
   const abi::Definition &ABI;
-  const std::string_view ABIName;
+  const llvm::StringRef ABIName;
   explicit DeductionImpl(const abi::Definition &ABI) :
     ABI(ABI), ABIName(model::ABI::getName(ABI.ABI())) {}
 

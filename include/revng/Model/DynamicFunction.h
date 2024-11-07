@@ -54,9 +54,6 @@ public:
   using generated::DynamicFunction::DynamicFunction;
 
 public:
-  Identifier name() const;
-
-public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;

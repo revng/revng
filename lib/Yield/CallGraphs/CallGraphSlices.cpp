@@ -21,7 +21,7 @@ static Node *copyNode(yield::calls::PreLayoutGraph &Graph, const Node *Source) {
 /// \tparam NV local `NodeView` specialization
 /// \tparam INV inverted location `NodeView` specialization
 template<typename NV, typename INV>
-Graph makeTreeImpl(const Graph &Input, std::string_view SlicePointLocation) {
+Graph makeTreeImpl(const Graph &Input, llvm::StringRef SlicePointLocation) {
   auto SlicePointPredicate = [&SlicePointLocation](const Node *Node) {
     return Node->getLocationString() == SlicePointLocation;
   };
@@ -110,7 +110,7 @@ Graph makeTreeImpl(const Graph &Input, std::string_view SlicePointLocation) {
 
 yield::calls::PreLayoutGraph
 yield::calls::makeCalleeTree(const PreLayoutGraph &Input,
-                             std::string_view SlicePoint) {
+                             llvm::StringRef SlicePoint) {
   // Forwards direction, makes sure no successor relation ever gets lost.
   return makeTreeImpl<const PreLayoutNode *,
                       llvm::Inverse<const PreLayoutNode *>>(Input, SlicePoint);
@@ -118,7 +118,7 @@ yield::calls::makeCalleeTree(const PreLayoutGraph &Input,
 
 yield::calls::PreLayoutGraph
 yield::calls::makeCallerTree(const PreLayoutGraph &Input,
-                             std::string_view SlicePoint) {
+                             llvm::StringRef SlicePoint) {
   // Backwards direction, makes sure no predecessor relation ever gets lost.
   return makeTreeImpl<llvm::Inverse<const PreLayoutNode *>,
                       const PreLayoutNode *>(Input, SlicePoint);

@@ -9,6 +9,7 @@ revng_add_analyses_library_internal(
   CommonTypeMethods.cpp
   Identifier.cpp
   LoadModelPass.cpp
+  NameBuilder.cpp
   TypeSystemPrinter.cpp
   Processing.cpp
   Type.cpp
@@ -72,6 +73,7 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/Function.h"
   "${MODEL_HEADERS_DIR}/FunctionAttribute.h"
   "${MODEL_HEADERS_DIR}/NamedTypedRegister.h"
+  "${MODEL_HEADERS_DIR}/NamingConfiguration.h"
   "${MODEL_HEADERS_DIR}/PointerType.h"
   "${MODEL_HEADERS_DIR}/PrimitiveKind.h"
   "${MODEL_HEADERS_DIR}/PrimitiveType.h"

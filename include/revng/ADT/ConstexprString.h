@@ -7,6 +7,8 @@
 #include <array>
 #include <string_view>
 
+#include "llvm/ADT/StringRef.h"
+
 /// Allows passing strings as template parameters
 ///
 /// Objects of this type should only ever be constructed from a string literal.
@@ -46,5 +48,8 @@ public:
   }
   constexpr operator std::string_view() const noexcept {
     return std::string_view{ String.data(), String.size() };
+  }
+  constexpr operator llvm::StringRef() const noexcept {
+    return llvm::StringRef{ String.data(), String.size() };
   }
 };

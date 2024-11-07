@@ -249,6 +249,10 @@ public:
     auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
                                         TypesToIgnore);
 
+    using NB = model::NameBuilder;
+    auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
+                                         std::nullopt;
+
     // And convert them.
     for (model::RawFunctionDefinition *Old : ToConvert) {
       auto &DT = llvm::cast<model::DefinedType>(*Model->makeType(Old->key()));
@@ -266,7 +270,7 @@ public:
         std::string Message = "";
         for (model::Function &Function : Model->Functions())
           if (Function.prototype() && Function.prototype()->key() == Old->key())
-            Message += "'" + Function.name().str().str() + "', ";
+            Message += "'" + NameBuilder->name(Function).str().str() + "', ";
 
         if (!Message.empty()) {
           Message.resize(Message.size() - 2);

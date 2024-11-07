@@ -182,8 +182,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
       Model->DefaultABI() = ABI.value();
     } else {
       auto ArchName = model::Architecture::getName(Model->Architecture()).str();
-      return createStringError(llvm::inconvertibleErrorCode(),
-                               "Unsupported architecture for ELF: " + ArchName);
+      return revng::createError("Unsupported architecture for ELF: "
+                                + ArchName);
     }
   }
 
@@ -197,8 +197,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   };
 
   if (not(Type == ELF::ET_DYN or Type == ELF::ET_EXEC))
-    return createError("Only ELF executables and ELF dynamic libraries are "
-                       "supported");
+    return revng::createError("Only ELF executables and ELF dynamic libraries "
+                              "are supported");
 
   // Look for static or dynamic symbols and relocations
   ConstElf_Shdr *SymtabShdr = nullptr;

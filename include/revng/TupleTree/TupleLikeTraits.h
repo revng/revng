@@ -36,8 +36,8 @@ concept HasTuple = StrictSpecializationOf<Tuple<T>, std::tuple>;
 
 template<typename T>
 concept TraitedTupleLike = requires {
-  { TupleLikeTraits<T>::Name } -> std::convertible_to<std::string_view>;
-  { TupleLikeTraits<T>::FullName } -> std::convertible_to<std::string_view>;
+  { TupleLikeTraits<T>::Name } -> std::convertible_to<llvm::StringRef>;
+  { TupleLikeTraits<T>::FullName } -> std::convertible_to<llvm::StringRef>;
   {
     TupleLikeTraits<T>::FieldNames
   } -> std::convertible_to<const std::span<const llvm::StringRef>>;

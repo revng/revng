@@ -137,16 +137,13 @@ llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
   const auto &Model = *getModelFromContext(Context);
 
   if (Model.Architecture() == model::Architecture::Invalid) {
-    return llvm::createStringError(inconvertibleErrorCode(),
-                                   "Cannot lift binary with architecture "
-                                   "invalid.");
+    return revng::createError("Cannot lift binary with architecture invalid.");
   }
 
   if (Model.DefaultABI() == model::ABI::Invalid
       and Model.DefaultPrototype().isEmpty()) {
-    return llvm::createStringError(inconvertibleErrorCode(),
-                                   "Cannot lift binary without either a "
-                                   "DefaultABI or a DefaultPrototype.");
+    return revng::createError("Cannot lift binary without either a DefaultABI "
+                              "or a DefaultPrototype.");
   }
 
   return llvm::Error::success();

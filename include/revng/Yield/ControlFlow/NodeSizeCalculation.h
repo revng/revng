@@ -20,6 +20,7 @@ struct Configuration;
 void calculateNodeSizes(PreLayoutGraph &Graph,
                         const yield::Function &Function,
                         const model::Binary &Binary,
+                        model::NameBuilder &NameBuilder,
                         const Configuration &Configuration);
 
 } // namespace yield::cfg

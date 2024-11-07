@@ -26,7 +26,7 @@ template<ConstexprString String>
 class RootRank : public Rank {
 public:
   static constexpr bool RankTag = true;
-  static constexpr std::string_view RankName = String;
+  static constexpr llvm::StringRef RankName = String;
   using Type = void;
   using Parent = void;
 
@@ -51,7 +51,7 @@ template<typename RankType>
 concept RankSpecialization = requires(RankType &&Rank) {
   RankType::RankTag;
 
-  { RankType::RankName } -> std::convertible_to<std::string_view>;
+  { RankType::RankName } -> std::convertible_to<llvm::StringRef>;
   { RankType::Depth } -> std::convertible_to<size_t>;
 
   typename RankType::Type;
@@ -80,7 +80,7 @@ template<ConstexprString String,
 class TypedRank : public Rank {
 public:
   static constexpr bool RankTag = true;
-  static constexpr std::string_view RankName = String;
+  static constexpr llvm::StringRef RankName = String;
   using Type = Key;
   using Parent = ParentRank;
 

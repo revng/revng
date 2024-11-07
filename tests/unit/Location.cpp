@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   auto Type = NewModel->makeType(FieldLocation.at(ranks::TypeDefinition));
 
   // Ensure the type we got is the same type we started with.
-  revng_check(Type->tryGetAsDefinition()->name() == "my_cool_union");
+  revng_check(Type->tryGetAsDefinition()->CustomName() == "my_cool_union");
 
   // Ensure the key is encoded in the serialized form of the location.
   std::string Key = toString(Definition.key());
@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
 }
 
 BOOST_AUTO_TEST_CASE(Serialization) {
-  constexpr std::array<std::string_view, 4> TestCases{
+  constexpr std::array<llvm::StringRef, 4> TestCases{
     // a list of unrelated serialized locations to use as sources of truth
     "/binary",
     "/instruction/0x12:Generic64/0x34:Generic64/0x56:Generic64",

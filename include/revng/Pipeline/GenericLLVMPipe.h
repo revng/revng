@@ -19,6 +19,7 @@
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 #include "revng/Support/ResourceFinder.h"
 
 namespace pipeline {
@@ -54,9 +55,7 @@ public:
   static llvm::Expected<std::unique_ptr<PureLLVMPassWrapper>>
   create(llvm::StringRef PassName) {
     if (not passExists(PassName))
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Could not load llvm pass %s ",
-                                     PassName.str().c_str());
+      return revng::createError("Could not load llvm pass " + PassName);
 
     return std::make_unique<PureLLVMPassWrapper>(PassName);
   }

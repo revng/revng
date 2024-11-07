@@ -95,14 +95,12 @@ Trace::getBuffer(const BufferLocation &Location) const {
 llvm::Expected<std::vector<char>> Trace::getBuffer(size_t CommandNo,
                                                    size_t ArgNo) const {
   if (CommandNo > this->Commands.size())
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Command number OOB");
+    return revng::createError("Command number OOB");
 
   const revng::tracing::Command &Command = this->Commands[CommandNo];
   if (!BufferRegistry.has(Command.Name)
       || !BufferRegistry[Command.Name].contains(ArgNo))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No buffer information");
+    return revng::createError("No buffer information");
 
   return extractBuffer(Command.Arguments[ArgNo]);
 }

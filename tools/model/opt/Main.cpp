@@ -74,8 +74,7 @@ int main(int Argc, char *Argv[]) {
   for (const PassName &PassName : PassesList) {
     const RegisterModelPass::ModelPass *Pass = RegisterModelPass::get(PassName);
     if (Pass == nullptr) {
-      ExitOnError(llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                          "Pass not found: " + PassName));
+      ExitOnError(revng::createError("Pass not found: " + PassName));
     }
 
     // Run pass

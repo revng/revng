@@ -19,6 +19,8 @@
 inline Logger<> ModelVerifyLogger("model-verify");
 
 namespace model {
+class Binary;
+class NameBuilder;
 class TypeDefinition;
 class Identifier;
 class VerifyHelper {
@@ -74,7 +76,12 @@ private:
   std::map<const model::TypeDefinition *, uint64_t> SizeCache;
   std::set<const model::TypeDefinition *> InProgress;
   bool AssertOnFail = false;
-  std::map<model::Identifier, std::string> GlobalSymbols;
+
+  // Name builder is stored as a pointer in order to avoid an inclusion loop:
+  // NameBuilder methods return `model::Identifier`, which depends on this
+  // helper.
+  std::unique_ptr<model::NameBuilder> NameBuilder = nullptr;
+
   bool HasPushedTracking = false;
 
   // TODO: This is a hack for now, but the methods, when the Model does not
@@ -82,10 +89,11 @@ private:
   std::string ReasonBuffer;
 
 public:
-  VerifyHelper() = default;
-  VerifyHelper(bool AssertOnFail) : AssertOnFail(AssertOnFail) {}
-
-  ~VerifyHelper() { revng_assert(InProgress.size() == 0); }
+  VerifyHelper();
+  VerifyHelper(bool AssertOnFail);
+  VerifyHelper(const model::Binary &Binary);
+  VerifyHelper(const model::Binary &Binary, bool AssertOnFail);
+  ~VerifyHelper();
 
 private:
   bool hasPushedTracking() const { return HasPushedTracking; }
@@ -144,9 +152,11 @@ public:
   }
 
 public:
-  [[nodiscard]] bool isGlobalSymbol(const model::Identifier &Name) const;
-  [[nodiscard]] bool registerGlobalSymbol(const model::Identifier &Name,
-                                          const std::string &Path);
+  // NOTE: Be careful when using this, if this helper was created without
+  //       the binary, this will always return false (as if global namespace
+  //       collisions never happen).
+  [[nodiscard]] bool isGlobalSymbol(llvm::StringRef Name);
+  [[nodiscard]] bool populateGlobalNamespace();
 
 public:
   bool maybeFail(bool Result) { return maybeFail(Result, {}); }

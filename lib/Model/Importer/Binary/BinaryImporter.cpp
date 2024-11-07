@@ -33,7 +33,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
   Model->Architecture() = fromLLVMArchitecture(ObjectFile.getArch());
 
   if (Model->Architecture() == model::Architecture::Invalid)
-    return createError("Invalid architecture");
+    return revng::createError("Invalid architecture");
 
   llvm::Error Result = Error::success();
   revng_check(not Result);
@@ -44,7 +44,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
   else if (auto *TheBinary = dyn_cast<MachOObjectFile>(&ObjectFile))
     Result = importMachO(Model, *TheBinary, Options);
   else
-    return createError("Unsupported binary format");
+    return revng::createError("Unsupported binary format");
 
   if (not Result.success())
     return Result;
@@ -65,13 +65,11 @@ Error importBinary(TupleTree<model::Binary> &Model,
 
   auto *Binary = BinaryOrError->getBinary();
   if (isa<object::MachOUniversalBinary>(Binary)) {
-    return createStringError(inconvertibleErrorCode(),
-                             "Unsupported format: MachO universal binary.");
+    return revng::createError("Unsupported format: MachO universal binary.");
   } else if (isa<llvm::object::Archive>(Binary)) {
-    return createStringError(inconvertibleErrorCode(),
-                             "Unsupported format: archive.");
+    return revng::createError("Unsupported format: archive.");
   } else if (not isa<object::ObjectFile>(Binary)) {
-    return createStringError(inconvertibleErrorCode(), "Unsupported format");
+    return revng::createError("Unsupported format");
   }
 
   return importBinary(Model, *cast<object::ObjectFile>(Binary), Options);

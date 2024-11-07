@@ -90,7 +90,7 @@ fontSize(yield::layout::Size &&Input,
 }
 
 static yield::layout::Size
-singleLineSize(std::string_view Text,
+singleLineSize(llvm::StringRef Text,
                float Font,
                const yield::cfg::Configuration &Configuration) {
   yield::layout::Size Result = fontSize(textSize(Text), Font, Configuration);
@@ -221,6 +221,7 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
 void yield::cfg::calculateNodeSizes(PreLayoutGraph &Graph,
                                     const yield::Function &Function,
                                     const model::Binary &Binary,
+                                    model::NameBuilder &NameBuilder,
                                     const Configuration &Configuration) {
   for (PreLayoutNode *Node : Graph.nodes()) {
     revng_assert(Node != nullptr);
@@ -232,7 +233,7 @@ void yield::cfg::calculateNodeSizes(PreLayoutGraph &Graph,
           Iterator != Function.Blocks().end()) {
         Node->Size = basicBlockSize(*Iterator, Function, Binary, Configuration);
       } else if (const auto *F = tryGetFunction(Binary, BasicBlock)) {
-        Node->Size = singleLineSize(F->name().str(),
+        Node->Size = singleLineSize(NameBuilder.name(*F).str(),
                                     Configuration.InstructionFontSize,
                                     Configuration);
       } else {

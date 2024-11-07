@@ -354,10 +354,9 @@ PipelineManager::deserializeContainer(pipeline::Step &Step,
                                       llvm::StringRef ContainerName,
                                       const llvm::MemoryBuffer &Buffer) {
   if (!Step.containers().isContainerRegistered(ContainerName))
-    return createStringError(inconvertibleErrorCode(),
-                             "Could not find container %s in step %s\n",
-                             ContainerName.str().c_str(),
-                             Step.getName().str().c_str());
+    return revng::createError("Could not find container %s in step %s\n",
+                              ContainerName.str().c_str(),
+                              Step.getName().str().c_str());
 
   auto &Container = Step.containers()[ContainerName];
   if (auto Error = Container.deserialize(Buffer); !!Error)
@@ -530,23 +529,20 @@ llvm::Error
 PipelineManager::materializeTargets(const llvm::StringRef StepName,
                                     const ContainerToTargetsMap &Map) {
   if (CurrentState.count(StepName) == 0)
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Step %s does not have any targets",
-                                   StepName.str().c_str());
+    return revng::createError("Step %s does not have any targets",
+                              StepName.str().c_str());
 
   const auto &StepCurrentState = CurrentState[StepName];
   for (auto ContainerName : Map.keys()) {
     if (!StepCurrentState.contains(ContainerName))
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Container %s does not have any targets",
-                                     ContainerName.str().c_str());
+      return revng::createError("Container %s does not have any targets",
+                                ContainerName.str().c_str());
 
     auto &CurrentContainerState = StepCurrentState.at(ContainerName);
     for (const pipeline::Target &Target : Map.at(ContainerName)) {
       if (!CurrentContainerState.contains(Target))
-        return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                       "Target %s cannot be produced",
-                                       Target.toString().c_str());
+        return revng::createError("Target %s cannot be produced",
+                                  Target.toString().c_str());
     }
   }
 
@@ -601,8 +597,7 @@ llvm::Error PipelineManager::computeDescription() {
 llvm::Error
 PipelineManager::setStorageCredentials(llvm::StringRef Credentials) {
   if (StorageClient == nullptr) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Client missing");
+    return revng::createError("Client missing");
   }
 
   return StorageClient->setCredentials(Credentials);

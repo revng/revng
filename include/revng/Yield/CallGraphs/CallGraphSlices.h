@@ -36,13 +36,13 @@ namespace yield::calls {
 ///
 /// \note: this makes a copy of the graph, as such `Input` is not affected.
 PreLayoutGraph makeCalleeTree(const PreLayoutGraph &Input,
-                              std::string_view SlicePointLocation = "");
+                              llvm::StringRef SlicePointLocation = "");
 
 /// Produces a backwards facing slice of the graph starting from a single node.
 ///
 /// It is exactly the same as \see makeCalleeTree except it works in
 /// the opposite direction (it makes sure all the predecessors are preserved).
 PreLayoutGraph makeCallerTree(const PreLayoutGraph &Input,
-                              std::string_view SlicePointLocation = "");
+                              llvm::StringRef SlicePointLocation = "");
 
 } // namespace yield::calls

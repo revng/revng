@@ -151,9 +151,6 @@ bool EnforceABI::prologue() {
 
 bool EnforceABI::runOnFunction(const model::Function &FunctionModel,
                                llvm::Function &OldFunction) {
-  revng_assert(not FunctionModel.name().empty());
-  auto OldFunctionName = getLLVMFunctionName(FunctionModel);
-
   // Recreate the function with the right prototype and the function prologue
   const auto *ProtoT = Binary.prototypeOrDefault(FunctionModel.prototype());
   revng_assert(ProtoT != nullptr);
@@ -524,19 +521,17 @@ struct EnforceABIPipe {
 
     for (const auto &Function : Model.Functions()) {
       if (Function.Prototype().isEmpty()) {
-        return llvm::createStringError(inconvertibleErrorCode(),
-                                       "Binary needs to either have a default "
-                                       "prototype, or a prototype for each "
-                                       "function.");
+        return revng::createError("Binary needs to either have a default "
+                                  "prototype, or a prototype for each "
+                                  "function.");
       }
     }
 
     for (const auto &Function : Model.ImportedDynamicFunctions()) {
       if (Function.Prototype().isEmpty()) {
-        return llvm::createStringError(inconvertibleErrorCode(),
-                                       "Binary needs to either have a default "
-                                       "prototype, or a prototype for each "
-                                       "function.");
+        return revng::createError("Binary needs to either have a default "
+                                  "prototype, or a prototype for each "
+                                  "function.");
       }
     }
 

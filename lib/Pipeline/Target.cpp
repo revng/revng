@@ -98,8 +98,7 @@ std::string Target::toString() const {
 llvm::Expected<Target> Target::deserialize(Context &Context,
                                            llvm::StringRef String) {
   if (String.contains('*'))
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "String cannot contain *");
+    return revng::createError("String cannot contain *");
 
   TargetsList Out;
   if (auto Error = parseTarget(Context,
@@ -123,9 +122,7 @@ llvm::Error pipeline::parseTarget(const Context &Context,
 
   if (Pos == llvm::StringRef::npos) {
     auto *Message = "String '%s' was not in expected form <path:kind>";
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   Message,
-                                   AsString.str().c_str());
+    return revng::createError(Message, AsString.str().c_str());
   }
 
   llvm::StringRef Name(AsString.data(), Pos);
@@ -135,9 +132,8 @@ llvm::Error pipeline::parseTarget(const Context &Context,
 
   auto It = llvm::find_if(Dict, [&](Kind &K) { return KindName == K.name(); });
   if (It == Dict.end())
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known Kind '%s' in dictionary",
-                                   KindName.str().c_str());
+    return revng::createError("No known Kind '%s' in dictionary",
+                              KindName.str().c_str());
 
   if (AsString[0] == ':') {
     Out.push_back(Target({}, *It));
@@ -165,9 +161,7 @@ llvm::Error pipeline::parseTarget(const Context &Context,
 
   if (Parts.size() != 2) {
     auto *Text = "string '%s' was not in expected form <ContainerName/Target>";
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   Text,
-                                   AsString.str().c_str());
+    return revng::createError(Text, AsString.str().c_str());
   }
 
   return parseTarget(Context, Parts[1], Dict, CurrentStatus[Parts[0]]);

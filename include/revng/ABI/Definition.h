@@ -127,7 +127,7 @@ public:
   static const Definition &get(model::ABI::Values ABI);
 
 public:
-  std::string_view getName() const { return model::ABI::getName(ABI()); }
+  llvm::StringRef getName() const { return model::ABI::getName(ABI()); }
   uint64_t getPointerSize() const { return model::ABI::getPointerSize(ABI()); }
   model::Architecture::Values getArchitecture() const {
     return model::ABI::getArchitecture(ABI());
@@ -275,7 +275,7 @@ private:
 
   template<ranges::sized_range InputContainer,
            ranges::sized_range OutputContainer>
-  void assertSortingWasSuccessful(std::string_view RegisterType,
+  void assertSortingWasSuccessful(llvm::StringRef RegisterType,
                                   const InputContainer &Input,
                                   const OutputContainer &Output) const {
     if (Input.size() != Output.size()) {

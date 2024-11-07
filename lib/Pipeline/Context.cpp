@@ -53,8 +53,7 @@ llvm::Error Context::load(const revng::DirectoryPath &Path) {
 
   llvm::StringRef Buffer = MaybeReadableFile->get()->buffer().getBuffer();
   if (Buffer.trim().getAsInteger(10, CommitIndex)) {
-    return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "Malformed index file");
+    return revng::createError("Malformed index file");
   }
 
   return llvm::Error::success();

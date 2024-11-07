@@ -417,7 +417,7 @@ public:
 private:
   template<ConstexprString Name, typename FunctionT>
   void registerFunction(FunctionT Function) {
-    std::string StrName{ std::string_view(Name) };
+    std::string StrName{ llvm::StringRef(Name) };
     if (Registry.count(StrName) == 0) {
       CommandRunner Runner = makeRunner<Name>(std::function{ Function });
       Registry.insert({ StrName, Runner });
