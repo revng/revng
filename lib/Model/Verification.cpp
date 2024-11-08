@@ -60,11 +60,10 @@ namespace model {
 VerifyHelper::VerifyHelper() = default;
 VerifyHelper::VerifyHelper(bool AssertOnFail) : AssertOnFail(AssertOnFail) {
 }
-VerifyHelper::VerifyHelper(const model::Binary &Binary) :
-  NameBuilder(new model::NameBuilder(Binary)) {
+VerifyHelper::VerifyHelper(const model::Binary &Binary) : NameBuilder(Binary) {
 }
 VerifyHelper::VerifyHelper(const model::Binary &Binary, bool AssertOnFail) :
-  AssertOnFail(AssertOnFail), NameBuilder(new model::NameBuilder(Binary)) {
+  AssertOnFail(AssertOnFail), NameBuilder(Binary) {
 }
 VerifyHelper::~VerifyHelper() {
   revng_assert(InProgress.size() == 0);

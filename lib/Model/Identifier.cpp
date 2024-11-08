@@ -4,7 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/DefinedType.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/PointerType.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/VerifyHelper.h"
 
 using namespace model;

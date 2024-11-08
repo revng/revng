@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 
 const model::NamingConfiguration &model::NameBuilder::configuration() const {
   return Binary.Configuration().Naming();
