@@ -27,7 +27,6 @@
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"

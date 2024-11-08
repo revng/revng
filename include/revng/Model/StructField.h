@@ -7,7 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: StructField
@@ -38,6 +37,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/StructField.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::StructField : public model::generated::StructField {
 public:

@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/SortedVector.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: CanonicalRegisterValue
@@ -30,6 +29,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/CanonicalRegisterValue.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::CanonicalRegisterValue
   : public model::generated::CanonicalRegisterValue {

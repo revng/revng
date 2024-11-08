@@ -23,6 +23,7 @@
 
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Option.h"

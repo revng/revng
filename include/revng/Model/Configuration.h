@@ -6,7 +6,6 @@
 
 #include "revng/Model/DisassemblyConfiguration.h"
 #include "revng/Model/NamingConfiguration.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: Configuration
@@ -21,6 +20,10 @@ fields:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Configuration.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::Configuration : public model::generated::Configuration {
 public:

@@ -9,6 +9,10 @@
 #include "revng/Model/Helpers.h"
 #include "revng/PTML/Tag.h"
 
+namespace model {
+class NameBuilder;
+}
+
 namespace ptml {
 
 /// Emits PTML containing a free-form comment passed in a string reformatted

@@ -7,7 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: NamedTypedRegister
@@ -36,6 +35,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/NamedTypedRegister.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::NamedTypedRegister : public model::generated::NamedTypedRegister {
 public:

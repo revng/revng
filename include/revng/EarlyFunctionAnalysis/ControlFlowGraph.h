@@ -5,7 +5,6 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
@@ -39,6 +38,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/EarlyFunctionAnalysis/Generated/Early/ControlFlowGraph.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class efa::ControlFlowGraph : public efa::generated::ControlFlowGraph {
 public:

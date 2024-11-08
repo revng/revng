@@ -8,7 +8,7 @@
 #include <string>
 
 #include "revng/ADT/SortedVector.h"
-#include "revng/Model/VerifyHelper.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Yield/TagType.h"
@@ -70,6 +70,10 @@ TUPLE-TREE-YAML */
 
 #include "revng/Yield/Generated/Early/Instruction.h"
 
+namespace model {
+class VerifyHelper;
+}
+
 namespace yield {
 
 class Instruction : public generated::Instruction {
@@ -89,14 +93,9 @@ public:
                          model::NameBuilder &NameBuilder);
 
 public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
-
-public:
-  inline bool verify() const debug_function { return verify(false); }
-  inline bool verify(bool Assert) const debug_function {
-    model::VerifyHelper VH(Assert);
-    return verify(VH);
-  }
 
 public:
   inline MetaAddress getRelativeAddressBase() const {

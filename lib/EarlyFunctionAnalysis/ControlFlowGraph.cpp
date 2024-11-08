@@ -14,6 +14,7 @@
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

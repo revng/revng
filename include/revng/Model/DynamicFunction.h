@@ -7,7 +7,6 @@
 #include "revng/ADT/MutableSet.h"
 #include "revng/Model/CommonFunctionMethods.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: DynamicFunction
@@ -48,6 +47,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/DynamicFunction.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::DynamicFunction
   : public model::generated::DynamicFunction,

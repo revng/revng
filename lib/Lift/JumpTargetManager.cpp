@@ -12,7 +12,6 @@
 #include "llvm/Transforms/Scalar.h"
 
 #include "revng/Lift/Lift.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"

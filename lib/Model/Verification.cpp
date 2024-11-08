@@ -7,6 +7,7 @@
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/VerifyHelper.h"
 
 using namespace llvm;
 

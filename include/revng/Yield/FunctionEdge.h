@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Yield/FunctionEdgeBase.h"
 
 /* TUPLE-TREE-YAML
@@ -20,6 +19,10 @@ class FunctionEdge;
 }
 
 #include "revng/Yield/Generated/Early/FunctionEdge.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class yield::FunctionEdge : public yield::generated::FunctionEdge {
 private:

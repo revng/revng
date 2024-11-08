@@ -11,7 +11,6 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
@@ -43,6 +42,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/EarlyFunctionAnalysis/Generated/Early/BasicBlock.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class efa::BasicBlock : public efa::generated::BasicBlock {
 public:

@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/Identifier.h"
+#include "revng/Model/VerifyHelper.h"
 
 using namespace model;
 

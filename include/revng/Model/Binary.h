@@ -24,7 +24,6 @@
 #include "revng/Model/Register.h"
 #include "revng/Model/Segment.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
@@ -120,6 +119,10 @@ fields:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Binary.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 // TODO: Prevent changing the keys. Currently we need them to be public and
 //       non-const for serialization purposes.

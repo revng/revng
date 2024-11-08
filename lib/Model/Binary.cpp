@@ -14,6 +14,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeSystemPrinter.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommandLine.h"
 
 namespace {

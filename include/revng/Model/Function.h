@@ -11,7 +11,6 @@
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -73,6 +72,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Function.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::Function : public model::generated::Function,
                         public model::CommonFunctionMethods<Function> {

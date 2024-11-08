@@ -10,7 +10,6 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 
 namespace llvm {
 class CallInst;

@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Yield/BasicBlock.h"
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/Function.h"
@@ -119,4 +120,44 @@ bool yield::Function::verify(model::VerifyHelper &VH) const {
       return VH.fail("Basic block verification failed.");
 
   return true;
+}
+
+bool yield::TaggedString::verify() const {
+  return verify(false);
+}
+bool yield::TaggedString::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::TaggedLine::verify() const {
+  return verify(false);
+}
+bool yield::TaggedLine::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::Instruction::verify() const {
+  return verify(false);
+}
+bool yield::Instruction::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::BasicBlock::verify() const {
+  return verify(false);
+}
+bool yield::BasicBlock::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::Function::verify() const {
+  return verify(false);
+}
+bool yield::Function::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
 }

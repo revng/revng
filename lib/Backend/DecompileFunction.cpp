@@ -44,7 +44,6 @@
 #include "revng/Model/Segment.h"
 #include "revng/Model/StructDefinition.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"

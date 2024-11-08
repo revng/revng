@@ -8,7 +8,6 @@
 #include <limits>
 #include <string>
 
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Yield/TagType.h"
 
 /* TUPLE-TREE-YAML
@@ -37,6 +36,10 @@ TUPLE-TREE-YAML */
 
 #include "revng/Yield/Generated/Early/TaggedString.h"
 
+namespace model {
+class VerifyHelper;
+}
+
 namespace yield {
 
 class TaggedString : public generated::TaggedString {
@@ -46,14 +49,9 @@ public:
     generated::TaggedString(Index, Type, Content.str(), {}) {}
 
 public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
-
-public:
-  inline bool verify() const debug_function { return verify(false); }
-  inline bool verify(bool Assert) const debug_function {
-    model::VerifyHelper VH(Assert);
-    return verify(VH);
-  }
 };
 
 } // namespace yield
