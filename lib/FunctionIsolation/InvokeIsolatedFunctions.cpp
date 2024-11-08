@@ -12,6 +12,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Kind.h"

@@ -41,6 +41,7 @@
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/ExecutionContext.h"

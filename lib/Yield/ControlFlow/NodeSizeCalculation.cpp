@@ -7,6 +7,7 @@
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/GraphLayout/Graphs.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Yield/ControlFlow/Configuration.h"

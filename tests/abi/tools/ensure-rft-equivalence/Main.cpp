@@ -21,6 +21,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"

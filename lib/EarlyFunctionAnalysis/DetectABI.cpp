@@ -33,6 +33,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Pass/PromoteOriginalName.h"
 #include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"

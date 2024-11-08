@@ -19,7 +19,6 @@
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/FunctionAttribute.h"
-#include "revng/Model/NameBuilder.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Segment.h"

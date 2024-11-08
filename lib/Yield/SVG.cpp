@@ -11,6 +11,7 @@
 
 #include "revng/GraphLayout/SugiyamaStyle/Compute.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Yield/CallGraphs/CallGraphSlices.h"
