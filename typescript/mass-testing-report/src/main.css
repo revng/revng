@@ -7,6 +7,13 @@ body {
     margin-right: 1.5%;
 }
 
+.pre {
+    display: block;
+    font-family: var(--bs-font-monospace);
+    white-space: pre;
+    font-size: .875em;
+}
+
 div.stats {
     display: flex;
 }
@@ -16,7 +23,7 @@ div.stats div.pieChart {
     width: 25%;
 }
 
-div.stats pre {
+div.stats .pre {
     margin-right: auto;
 }
 
