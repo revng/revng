@@ -15,4 +15,4 @@ commands:
       revng artifact
         --resume "$OUTPUT" --analyze simplify-switch
         --abi-enforcement-level=no "$INPUT" -o /dev/null ;
-      revng opt -S "$OUTPUT/simplify-switch/module.ll" | FileCheck "${SOURCE}.filecheck";
+      revng opt -S "$OUTPUT/simplify-switch/module.bc.zstd" | FileCheck "${SOURCE}.filecheck";

@@ -24,7 +24,7 @@ Branches:
       - Name: remove-lifting-artifacts
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - dce
               - remove-lifting-artifacts
@@ -32,14 +32,14 @@ Branches:
       - Name: promote-stack-pointer
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - measure-stack-size-at-call-sites
               - promote-stack-pointer
       - Name: early-optimize
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - dce
               - remove-extractvalues
@@ -74,15 +74,15 @@ Branches:
       - Name: simplify-switch
         Pipes:
           - Type: simplify-switch
-            UsedContainers: [input, module.ll]
+            UsedContainers: [input, module.bc.zstd]
         Artifacts:
-          Container: module.ll
+          Container: module.bc.zstd
           Kind: stack-pointer-promoted
           SingleTargetFilename: simplify-switch.ll
       - Name: detect-stack-size
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - remove-stack-alignment
               - instrument-stack-accesses
@@ -94,18 +94,18 @@ Branches:
         Analyses:
           - Name: detect-stack-size
             Type: detect-stack-size
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
       - Name: segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - hoist-struct-phis
               - segregate-stack-accesses
       - Name: late-optimize
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - cleanup-stack-size-markers
               - dce
@@ -133,19 +133,19 @@ Branches:
       - Name: make-segment-ref
         Pipes:
           - Type: make-segment-ref
-            UsedContainers: [input, module.ll]
+            UsedContainers: [input, module.bc.zstd]
         Artifacts:
-          Container: module.ll
+          Container: module.bc.zstd
           Kind: stack-accesses-segregated
           SingleTargetFilename: stack_access_segregate.ll
         Analyses:
           - Name: analyze-data-layout
             Type: analyze-data-layout
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
       - Name: canonicalize
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - hoist-struct-phis
               - remove-llvmassume-calls
@@ -170,11 +170,11 @@ Branches:
       - Name: decompile
         Pipes:
           - Type: helpers-to-header
-            UsedContainers: [module.ll, helpers.h]
+            UsedContainers: [module.bc.zstd, helpers.h]
           - Type: model-to-header
             UsedContainers: [input, types-and-globals.h]
           - Type: decompile
-            UsedContainers: [module.ll, cfg.yml.tar.gz, decompiled.tar.gz]
+            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
           Kind: decompiled
@@ -196,7 +196,7 @@ Branches:
       - Name: emit-recompilable-archive
         Pipes:
           - Type: decompile-to-directory
-            UsedContainers: [module.ll, cfg.yml.tar.gz, recompilable-archive.tar.gz]
+            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz, recompilable-archive.tar.gz]
         Artifacts:
           Container: recompilable-archive.tar.gz
           Kind: recompilable-archive
@@ -206,7 +206,7 @@ Branches:
       - Name: emit-helpers-header
         Pipes:
           - Type: helpers-to-header
-            UsedContainers: [module.ll, helpers.h]
+            UsedContainers: [module.bc.zstd, helpers.h]
         Artifacts:
           Container: helpers.h
           Kind: helpers-header
@@ -236,13 +236,13 @@ Branches:
       - Name: cleanup-ir
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - instcombine
               - cleanup-ir
               - dce
         Artifacts:
-          Container: module.ll
+          Container: module.bc.zstd
           Kind: stack-accesses-segregated
           SingleTargetFilename: stack_access_segregate.ll
   - From: make-segment-ref
@@ -250,11 +250,11 @@ Branches:
       - Name: convert-to-mlir
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - prepare-llvmir-for-mlir
           - Type: import-llvm-to-mlir
-            UsedContainers: [module.ll, module.mlir]
+            UsedContainers: [module.bc.zstd, module.mlir]
         Artifacts:
           Container: module.mlir
           Kind: mlir-module
