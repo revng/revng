@@ -50,7 +50,7 @@ class TranslateCommand(Command):
         ]
 
         command.append("--analyze=initial/import-binary/input/:binary")
-        command.append("--analyze=lift/detect-abi/module.ll/:root")
+        command.append("--analyze=lift/detect-abi/module.bc.zstd/:root")
 
         command = command + [
             f"--produce={step_name}/output/:translated",

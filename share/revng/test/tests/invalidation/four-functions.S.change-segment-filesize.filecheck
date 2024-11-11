@@ -10,5 +10,5 @@ Changes:
 ...
 
 # CHECK: lift:
-# CHECK:   module.ll:
+# CHECK:   module.bc.zstd:
 # CHECK:     - ":root"

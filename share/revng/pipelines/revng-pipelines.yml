@@ -9,7 +9,7 @@ Containers:
   - Name: cross-relations.yml
     Type: binary-cross-relations
     Role: cross-relations
-  - Name: module.ll
+  - Name: module.bc.zstd
     Type: llvm-container
   - Name: input
     Type: binary
@@ -57,42 +57,42 @@ Branches:
       - Name: lift
         Pipes:
           - Type: lift
-            UsedContainers: [input, module.ll]
+            UsedContainers: [input, module.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes: [globaldce]
         Artifacts:
-          Container: module.ll
+          Container: module.bc.zstd
           Kind: root
           SingleTargetFilename: module_lifted.ll
         Analyses:
           - Name: detect-abi
             Type: detect-abi
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
       - Name: isolate
         Pipes:
           - Type: collect-cfg
-            UsedContainers: [module.ll, cfg.yml.tar.gz]
+            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz]
           - Type: isolate
-            UsedContainers: [cfg.yml.tar.gz, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
           - Type: attach-debug-info-to-isolated
-            UsedContainers: [cfg.yml.tar.gz, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
           - Type: process-call-graph
             UsedContainers: [cfg.yml.tar.gz, cross-relations.yml]
         Artifacts:
-          Container: module.ll
+          Container: module.bc.zstd
           Kind: isolated
           SingleTargetFilename: module_isolated.ll
       - Name: enforce-abi
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - drop-root
           - Type: enforce-abi
-            UsedContainers: [cfg.yml.tar.gz, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - strip-debug-info-from-helpers
               # Note: we're running promote-csvs twice: it is important to run
@@ -104,15 +104,15 @@ Branches:
               - mem2reg
               - inline-helpers
           - Type: attach-debug-info-to-abi-enforced
-            UsedContainers: [cfg.yml.tar.gz, module.ll]
+            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes:
               - promote-csvs
               - remove-exceptional-functions
 
         Artifacts:
-          Container: module.ll
+          Container: module.bc.zstd
           Kind: csvs-promoted
           SingleTargetFilename: module_abienforced.ll
   - From: isolate
@@ -128,7 +128,7 @@ Branches:
       - Name: hexdump
         Pipes:
           - Type: hex-dump
-            UsedContainers: [input, module.ll, cfg.yml.tar.gz, hex.dump]
+            UsedContainers: [input, module.bc.zstd, cfg.yml.tar.gz, hex.dump]
         Artifacts:
           Container: hex.dump
           Kind: hex-dump
@@ -182,16 +182,16 @@ Branches:
       - Name: recompile
         Pipes:
           - Type: link-support
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes: [O2]
             EnabledWhen: [O2]
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes: [drop-opaque-return-address]
           - Type: compile
-            UsedContainers: [module.ll, object.o]
+            UsedContainers: [module.bc.zstd, object.o]
           - Type: link-for-translation
             UsedContainers: [input, object.o, output]
         Artifacts:
@@ -203,19 +203,19 @@ Branches:
       - Name: recompile-isolated
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes: [invoke-isolated-functions]
           - Type: link-support
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes: [O2]
             EnabledWhen: [O2]
           - Type: llvm-pipe
-            UsedContainers: [module.ll]
+            UsedContainers: [module.bc.zstd]
             Passes: [drop-opaque-return-address]
           - Type: compile-isolated
-            UsedContainers: [module.ll, object.o]
+            UsedContainers: [module.bc.zstd, object.o]
           - Type: link-for-translation
             UsedContainers: [input, object.o, output]
         Artifacts:

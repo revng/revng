@@ -210,7 +210,7 @@ async def test_info(client):
     assert initial_step.Parent == "begin"
 
     container_names = [c.Name for c in desc.Containers]
-    assert "module.ll" in container_names
+    assert "module.bc.zstd" in container_names
     assert "input" in container_names
 
     input_container = next(c for c in desc.Containers if c.Name == "input")
@@ -297,7 +297,7 @@ async def test_targets(client):
             ready
         }
 
-        lift: targets(step: "lift", container: "module.ll") {
+        lift: targets(step: "lift", container: "module.bc.zstd") {
             kind
             ready
         }
@@ -316,7 +316,8 @@ async def test_produce(client):
     await run_preliminary_analyses(client)
     index = await get_index(client)
     q = gql(
-        f'{{ produce(step: "lift", container: "module.ll", targetList: ":root", index: "{index}")'
+        '{ produce(step: "lift", container: "module.bc.zstd", targetList: ":root", '
+        + f'index: "{index}")'
         + "{ __typename } }"
     )
     result = await client.execute(q)
@@ -345,11 +346,11 @@ async def test_function_endpoint(client):
                 }
         }"""
     )
-    await client.execute(q, {"ctt": json.dumps({"module.ll": [":root"]}), "index": index})
+    await client.execute(q, {"ctt": json.dumps({"module.bc.zstd": [":root"]}), "index": index})
 
     q = gql(
         """{
-            targets(step: "isolate", container: "module.ll") {
+            targets(step: "isolate", container: "module.bc.zstd") {
                 serialized
             }
         }"""
@@ -371,7 +372,7 @@ async def test_function_endpoint(client):
 
 
 async def test_analysis_kind_check(client):
-    ctt = json.dumps({"module.ll": [":isolated-root"]})
+    ctt = json.dumps({"module.bc.zstd": [":isolated-root"]})
     index = await get_index(client)
     q = gql(
         """mutation($ctt: String!, $index: BigInt!) {
