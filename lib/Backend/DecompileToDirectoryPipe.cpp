@@ -42,7 +42,7 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
   ptml::CTypeBuilder
     B(llvm::nulls(),
       Model,
-      /* EnableTaglessMode = */ false,
+      /* EnableTaglessMode = */ true,
       { .EnableTypeInlining = options::EnableTypeInlining,
         .EnableStackFrameInlining = !options::DisableStackFrameInlining });
   B.collectInlinableTypes();
