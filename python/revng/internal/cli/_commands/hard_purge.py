@@ -74,7 +74,9 @@ class HardPurgeCommand(Command):
 
             # Delete functions.
             patched_model["Functions"] = [
-                f for f in patched_model["Functions"] if f["OriginalName"] in functions_to_preserve
+                f
+                for f in patched_model["Functions"]
+                if f.get("OriginalName", "") in functions_to_preserve
             ]
 
             # Delete dynamic functions.

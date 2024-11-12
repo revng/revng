@@ -46,7 +46,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
   else
     return revng::createError("Unsupported binary format");
 
-  if (not Result.success())
+  if (Result)
     return Result;
 
   // If we got an EntryPoint, ensure we also have Function for it

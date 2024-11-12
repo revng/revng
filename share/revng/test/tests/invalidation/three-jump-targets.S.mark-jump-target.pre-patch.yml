@@ -2,9 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# Add regular entry function
+# Remove entry point and add regular entry function
 ---
 Changes:
+  - Path: "/Functions"
+    Remove:
+      Entry: "0x500000:Code_x86_64"
   - Path: "/Functions"
     Add:
       Entry: "0x500001:Code_x86_64"

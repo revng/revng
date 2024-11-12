@@ -5,6 +5,9 @@
 ---
 Changes:
   - Path: "/Functions"
+    Remove:
+      Entry: "0x500000:Code_x86_64"
+  - Path: "/Functions"
     Add:
       Entry: "0x500000:Code_x86_64"
       CustomName: "caller"
