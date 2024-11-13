@@ -968,15 +968,33 @@ template<>
 struct KeyedObjectTraits<MetaAddress>
   : public IdentityKeyedObjectTraits<MetaAddress> {};
 
+inline llvm::hash_code hash_value(const MetaAddress &Address) {
+  return hash_combine(Address.arch(),
+                      Address.address(),
+                      Address.epoch(),
+                      Address.addressSpace());
+}
+
 namespace std {
+
 template<>
-class hash<MetaAddress> {
+struct hash<const MetaAddress> {
 public:
   uint64_t operator()(const MetaAddress &Address) const {
-    return hash_combine(Address.arch(),
-                        Address.address(),
-                        Address.epoch(),
-                        Address.addressSpace());
+    return hash_value(Address);
   }
 };
+template<>
+struct hash<MetaAddress> : hash<const MetaAddress> {};
+
+template<>
+struct hash<const std::set<MetaAddress>> {
+public:
+  uint64_t operator()(const std::set<MetaAddress> &Addresses) const {
+    return llvm::hash_combine_range(Addresses.begin(), Addresses.end());
+  }
+};
+template<>
+struct hash<std::set<MetaAddress>> : hash<const std::set<MetaAddress>> {};
+
 } // namespace std
