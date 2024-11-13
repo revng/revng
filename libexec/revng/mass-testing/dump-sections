@@ -26,17 +26,40 @@ def find_section_attribute(data: dict, name: str, attr_name: str) -> int | None:
     return None
 
 
+def _set_or_add(num1: int | None, num2: int):
+    return num2 if num1 is None else num1 + num2
+
+
+def _flag_overlap(flag_set: dict, flags: frozenset[str]):
+    new_flags = {f["Name"] for f in flag_set}
+    return bool(new_flags & flags)
+
+
 def compute_segment_load_size(data: dict):
     size = None
     for segment in data["ProgramHeaders"]:
         if segment["Type"]["Value"] != "PT_LOAD":
             continue
-        flags = [f["Name"] for f in segment["Flags"]["Flags"]]
-        if "PF_X" not in flags:
-            continue
-        if size is None:
-            size = 0
-        size += segment["FileSize"]
+        if _flag_overlap(segment["Flags"]["Flags"], frozenset(("PF_X",))):
+            size = _set_or_add(size, segment["FileSize"])
+    return size
+
+
+def compute_executable_sections_macho(data: dict):
+    size = None
+    executable_flags = frozenset(("PureInstructions", "SomeInstructions"))
+    for section in data["Sections"]:
+        if _flag_overlap(section["Attributes"]["Flags"], executable_flags):
+            size = _set_or_add(size, section["Size"])
+    return size
+
+
+def compute_executable_sections_pe(data: dict):
+    size = None
+    executable_flags = frozenset(("IMAGE_SCN_CNT_CODE", "IMAGE_SCN_MEM_EXECUTE"))
+    for section in data["Sections"]:
+        if _flag_overlap(section["Characteristics"]["Flags"], executable_flags):
+            size = _set_or_add(size, section["RawDataSize"])
     return size
 
 
@@ -48,8 +71,12 @@ def get_text_size(data: dict):
             res = compute_segment_load_size(data)
     elif format_.startswith("Mach-O"):
         res = find_section_attribute(data, "__text", "Size")
+        if res is None:
+            res = compute_executable_sections_macho(data)
     elif format_.startswith("COFF"):
         res = find_section_attribute(data, ".text", "RawDataSize")
+        if res is None:
+            res = compute_executable_sections_pe(data)
     else:
         raise ValueError(f"Invalid format: {format_}")
 

@@ -4,6 +4,7 @@
 
 import os
 import sys
+from tempfile import mkstemp
 
 import requests
 
@@ -30,8 +31,8 @@ def download_file(url, local_filename):
     try:
         with requests.get(url, stream=True) as request:
             if request.status_code == 200:
-                download_name = local_filename + ".tmp"
-                with open(download_name, "wb") as debug_file:
+                down_fd, download_name = mkstemp(dir=os.path.dirname(local_filename))
+                with open(down_fd, "wb") as debug_file:
                     for chunk in request.iter_content(chunk_size=64 * 1024):
                         debug_file.write(chunk)
                 log("Downloaded")

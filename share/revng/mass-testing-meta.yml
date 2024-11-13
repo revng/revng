@@ -43,3 +43,9 @@ stacktrace_aggregation:
     - TupleTree.*
     - Model
     - Pipes
+
+highlights:
+  - query: WHERE status = 'TIMED_OUT' ORDER BY text_size ASC
+    description: "Smallest timed-out binary"
+  - query: WHERE status = 'OOM' ORDER BY text_size ASC
+    description: "Smallest out-of-memory binary"
