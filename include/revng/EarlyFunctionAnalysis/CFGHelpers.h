@@ -111,7 +111,7 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
   auto &[Graph, NodeLookup] = Res;
   for (const BasicBlockType &Block : BB) {
     revng_assert(Block.ID().isValid());
-    auto *NewNode = Graph.addNode(Node{ Block.ID(), EntryAddress });
+    auto *NewNode = Graph.addNode(Node{ Block, EntryAddress });
     auto [_, Success] = NodeLookup.try_emplace(Block.ID(), NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
@@ -132,7 +132,8 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
       } else {
         if (ExitNode == nullptr) {
           constexpr auto Invalid = BasicBlockID::invalid();
-          ExitNode = Graph.addNode(Node{ Invalid, EntryAddress });
+          ExitNode = Graph.addNode(Node{ BasicBlockType{ Invalid },
+                                         EntryAddress });
           auto [_, Success] = NodeLookup.try_emplace(BasicBlockID::invalid(),
                                                      ExitNode);
           revng_assert(Success != false);
