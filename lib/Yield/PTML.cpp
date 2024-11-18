@@ -12,6 +12,7 @@
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
+#include "revng/PTML/CommentPlacementHelper.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
@@ -264,14 +265,65 @@ public:
   }
 };
 
+struct StatementGraphNode {
+  const yield::BasicBlock *Block;
+
+  StatementGraphNode(const yield::BasicBlock &BB, const MetaAddress &) :
+    Block(&BB) {}
+};
+using StatementGraph = GenericGraph<ForwardNode<StatementGraphNode>>;
+
+template<>
+struct yield::StatementTraits<StatementGraph::Node *> {
+
+  using StatementType = const yield::Instruction *;
+
+  // TODO: switch to `std::optional` after updating to c++26.
+  using LocationType = const llvm::SmallVector<MetaAddress, 1>;
+
+  static RangeOf<StatementType> auto
+  getStatements(const StatementGraph::Node *Node) {
+    constexpr static SortedVector<yield::Instruction> Empty{};
+    return (Node->Block->ID().isValid() ? Node->Block->Instructions() : Empty)
+           | std::views::transform([](auto &&R) { return &R; });
+  }
+
+  static LocationType getAddresses(StatementType Statement) {
+    if (Statement->Address().isValid())
+      return { Statement->Address() };
+    else
+      return {};
+  }
+};
+
+using SGNode = StatementGraph::Node;
+using CommentPlacementHelper = yield::CommentPlacementHelper<SGNode *>;
+
 static std::string instruction(const ptml::MarkupBuilder &B,
                                const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
+                               const model::Function &ModelFunction,
                                const model::Binary &Binary,
+                               const CommentPlacementHelper &CM,
                                InstructionPrefixManager &&Prefixes,
                                bool AddTargets = false) {
   revng_assert(Instruction.verify(true));
+
+  std::string Result = "";
+
+  const model::Architecture::Values A = Binary.Architecture();
+  auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+  for (const auto &Comment : CM.getComments(&Instruction)) {
+    auto &&ModelComment = ModelFunction.Comments().at(Comment.CommentIndex);
+    Result += "\n"
+              + ::ptml::statementComment(B,
+                                         ModelComment,
+                                         Instruction.Address().toString(),
+                                         CommentIndicator,
+                                         Prefixes.totalPrefixSize(Binary),
+                                         80);
+  }
 
   std::string Prefix = Prefixes.emit(B,
                                      Instruction.Address(),
@@ -279,7 +331,6 @@ static std::string instruction(const ptml::MarkupBuilder &B,
                                      Binary);
 
   // Tagged instruction body.
-  std::string Result;
   for (const auto &Directive : Instruction.PrecedingDirectives()) {
     Result += B.getTag(tags::Div,
                        std::move(Prefix) + taggedLine(B, Directive.Tags()))
@@ -325,8 +376,10 @@ static std::string instruction(const ptml::MarkupBuilder &B,
 static std::string basicBlock(const ptml::MarkupBuilder &B,
                               const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
+                              const model::Function &ModelFunction,
                               const model::Binary &Binary,
                               std::string Label,
+                              const CommentPlacementHelper &CM,
                               InstructionPrefixManager &&Prefixes) {
   revng_assert(!BasicBlock.Instructions().empty());
   auto FromIterator = BasicBlock.Instructions().begin();
@@ -338,13 +391,17 @@ static std::string basicBlock(const ptml::MarkupBuilder &B,
                           *Iterator,
                           BasicBlock,
                           Function,
+                          ModelFunction,
                           Binary,
+                          CM,
                           std::move(Prefixes));
   Result += instruction(B,
                         *(ToIterator++),
                         BasicBlock,
                         Function,
+                        ModelFunction,
                         Binary,
+                        CM,
                         std::move(Prefixes),
                         true);
 
@@ -370,7 +427,9 @@ template<bool ShouldMergeFallthroughTargets>
 static std::string labeledBlock(const ptml::MarkupBuilder &B,
                                 const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
+                                const model::Function &ModelFunction,
                                 const model::Binary &Binary,
+                                const CommentPlacementHelper &CM = {},
                                 InstructionPrefixManager &&Prefixes = {}) {
   std::string Result;
   std::string Label = emitTagged(B, std::move(FirstBlock.Label()));
@@ -385,8 +444,10 @@ static std::string labeledBlock(const ptml::MarkupBuilder &B,
     Result = basicBlock(B,
                         FirstBlock,
                         Function,
+                        ModelFunction,
                         Binary,
                         std::move(Label),
+                        CM,
                         std::move(Prefixes))
              + "\n";
   } else {
@@ -399,8 +460,10 @@ static std::string labeledBlock(const ptml::MarkupBuilder &B,
       Result += basicBlock(B,
                            *BasicBlock,
                            Function,
+                           ModelFunction,
                            Binary,
                            IsFirst ? std::move(Label) : std::string(),
+                           CM,
                            std::move(Prefixes));
       IsFirst = false;
     }
@@ -416,8 +479,36 @@ std::string yield::ptml::functionAssembly(const ::ptml::MarkupBuilder &B,
   std::string Result;
 
   InstructionPrefixManager P(Function, Binary);
-  for (const auto &BasicBlock : Function.Blocks())
-    Result += labeledBlock<true>(B, BasicBlock, Function, Binary, std::move(P));
+
+  const model::Function &MFunction = Binary.Functions().at(Function.Entry());
+
+  auto [G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
+                                                           Function.Entry(),
+                                                           Binary);
+  ::CommentPlacementHelper CM(MFunction, G);
+
+  for (const auto &BBlock : Function.Blocks()) {
+    Result += labeledBlock<true>(B,
+                                 BBlock,
+                                 Function,
+                                 MFunction,
+                                 Binary,
+                                 CM,
+                                 std::move(P));
+  }
+
+  const model::Architecture::Values A = Binary.Architecture();
+  auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+  for (const auto &Comment : CM.getHomelessComments()) {
+    auto &&ModelComment = MFunction.Comments().at(Comment.CommentIndex);
+    Result += "\n"
+              + ::ptml::statementComment(B,
+                                         ModelComment,
+                                         "after the function",
+                                         CommentIndicator,
+                                         P.totalPrefixSize(Binary),
+                                         80);
+  }
 
   return B.getTag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
@@ -431,7 +522,16 @@ std::string yield::ptml::controlFlowNode(const ::ptml::MarkupBuilder &B,
   auto Iterator = Function.Blocks().find(BasicBlock);
   revng_assert(Iterator != Function.Blocks().end());
 
-  auto Result = labeledBlock<false>(B, *Iterator, Function, Binary);
+  const model::Function &MFunction = Binary.Functions().at(Function.Entry());
+
+  // TODO: enable comments in the CFG too after the size computation rework.
+  //
+  // auto [G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
+  //                                                          Function.Entry(),
+  //                                                          Binary);
+  // ::CommentPlacementHelper CM(MFunction, G.getEntryNode());
+
+  auto Result = labeledBlock<false>(B, *Iterator, Function, MFunction, Binary);
   revng_assert(!Result.empty());
 
   return Result;
