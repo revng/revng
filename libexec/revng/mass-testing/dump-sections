@@ -63,7 +63,7 @@ def compute_executable_sections_pe(data: dict):
     return size
 
 
-def get_text_size(data: dict):
+def _get_text_size(data: dict) -> int:
     format_: str = data["Format"]
     if format_.startswith("elf"):
         res = find_section_attribute(data, ".text", "Size")
@@ -83,9 +83,52 @@ def get_text_size(data: dict):
     return res if res is not None else -1
 
 
+def get_text_size(data: list | dict) -> int:
+    if isinstance(data, dict):
+        return _get_text_size(data)
+    sizes = [_get_text_size(e) for e in data]
+    if all(e == -1 for e in sizes):
+        return -1
+    return sum(e for e in sizes if e != -1)
+
+
+def _normalize_nonelf_output(data: list):
+    results = []
+    result: dict = {}
+    for elem in data:
+        assert isinstance(elem, dict)
+        assert len(elem) == 1
+        if "File" in elem:
+            # Start of a new "file"
+            result = {}
+            results.append(result)
+        if "Sections" in elem:
+            result["Sections"] = []
+            for section in data[4]["Sections"]:
+                result["Sections"].append(section["Section"])
+        elif "Segment" in elem:
+            if "Segments" not in result:
+                result["Segments"] = []
+            result["Segments"].append(elem["Segment"])
+        else:
+            result.update(elem)
+
+    if len(results) == 1:
+        return results[0]
+    else:
+        return results
+
+
 def readobj(filepath: str):
     proc = run(
-        ["llvm-readobj", "--elf-output-style=JSON", "--sections", "--segments", filepath],
+        [
+            "llvm-readobj",
+            "--elf-output-style=JSON",
+            "--sections",
+            "--segments",
+            "--macho-segment",
+            filepath,
+        ],
         stdout=PIPE,
         stderr=DEVNULL,
         check=True,
@@ -93,25 +136,17 @@ def readobj(filepath: str):
     )
     data = yaml.safe_load(proc.stdout)
 
-    result = {}
     if len(data) == 1:
         # ELF output
-        result.update(data[0]["FileSummary"])
+        result = dict(data[0]["FileSummary"])
         result["Sections"] = []
         for section in data[0]["Sections"]:
             result["Sections"].append(section["Section"])
         result["ProgramHeaders"] = []
         for segment in data[0]["ProgramHeaders"]:
             result["ProgramHeaders"].append(segment["ProgramHeader"])
-    elif len(data) == 5:
-        # PE/MACH-O output
-        for i in range(0, 4):
-            result.update(data[i])
-        result["Sections"] = []
-        for section in data[4]["Sections"]:
-            result["Sections"].append(section["Section"])
     else:
-        raise ValueError()
+        return _normalize_nonelf_output(data)
     return result
 
 
