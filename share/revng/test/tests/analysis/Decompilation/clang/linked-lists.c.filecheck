@@ -1,0 +1,43 @@
+This file is distributed under the MIT License. See LICENSE.md for details.
+
+
+The init_list function should have the proper detected return type, a pointer to
+struct representing the node of the linked list.
+
+CHECK: [[NODE_STRUCT:struct_[0-9]+]] *init_list(void)
+
+
+The release_list function should have the proper detected type for its first
+argument.
+TODO: unfortunately we can't recover it until we don't properly model `free` and
+memory release in general, so for now we disabled the test on the prototype of
+release_list. We might think to re-enable this in the future when we support
+`free` or tweak the input program, but for now this is just disabled.
+release_list([[NODE_STRUCT]] *{{.*}})
+
+
+The sum function should take a pointer to node, return a 64-bits integer.
+The argument should be accessed at offset 0, which is an array. And the array
+should be indexed by a index that increments by one at each iteration.
+
+CHECK: {{.*}}64_t sum([[NODE_STRUCT]] *[[ARG0:.*]])
+CHECK: do {
+CHECK: [[ACCUMULATOR:_var_[0-9]+]] = [[ACCUMULATOR]] + [[ARG0]]->offset_0[[[INDEX:_var_[0-9]+]]];
+CHECK: [[INDEX]] = [[INDEX]] + 1;
+CHECK: } while ([[INDEX]] != 5);
+CHECK: return [[ACCUMULATOR]];
+
+
+The compute function should take a pointer to node.
+TODO: it should also return a 64-bits integer. Try to re-add it later in the
+future, possibly when EFA 4 is ready.
+It should contain a local variable PTR that is a pointer to node, and a do-while
+loop, where PTR is updated with PTR->offset_40 (representing the next pointer
+field), and PTR->offset_40 should also be the exit condition of the do-while.
+
+CHECK: compute([[NODE_STRUCT]] *{{.*}})
+CHECK: [[NODE_STRUCT]] *[[PTR:_var_[0-9]+]];
+CHECK: do {
+CHECK: [[ACCUMULATOR:_var_[0-9]+]] = [[ACCUMULATOR]] + [[WHATEVER:.*]]
+CHECK: [[PTR]] = [[PTR]]->offset_40;
+CHECK: while ([[PTR]]);

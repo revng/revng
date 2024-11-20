@@ -1,0 +1,35 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+
+Architecture: x86_64
+TypeDefinitions:
+  # CHECK: #my_function2$def = #clift.function<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_function2"
+  # CHECK:   return_type = !uint64_t
+  # CHECK:   argument_types = [
+  # CHECK:     !uint64_t
+  # CHECK:   ]
+  # CHECK: >
+  # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
+  - ID: 1001
+    Kind: RawFunctionDefinition
+    CustomName: "my_function2"
+    Architecture: x86_64
+    Arguments:
+      - Location: rax_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+    ReturnValues:
+      - Location: rcx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+    PreservedRegisters:
+      - rdi_x86_64
+    FinalStackOffset: 0

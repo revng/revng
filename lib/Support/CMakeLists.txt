@@ -25,6 +25,7 @@ revng_add_library_internal(
   ProgramCounterHandler.cpp
   ResourceFinder.cpp
   SelfReferencingDbgAnnotationWriter.cpp
+  SimplifyCFGWithHoistAndSinkPass.cpp
   Statistics.cpp
   Tag.cpp
   GzipTarFile.cpp

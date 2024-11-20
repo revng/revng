@@ -1,0 +1,483 @@
+---
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+Functions:
+  - Entry: "0x400700:Code_x86_64"
+    CustomName: "fn"
+    OriginalName: fn
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3001-CABIFunctionDefinition"
+    ExportedNames:
+      - fn
+  - Entry: "0x400740:Code_x86_64"
+    CustomName: "fn2"
+    OriginalName: fn2
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3002-CABIFunctionDefinition"
+    ExportedNames:
+      - fn2
+  - Entry: "0x400749:Code_x86_64"
+    CustomName: "fn3"
+    OriginalName: fn3
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3003-CABIFunctionDefinition"
+    ExportedNames:
+      - fn3
+  - Entry: "0x400770:Code_x86_64"
+    CustomName: "fn4"
+    OriginalName: fn4
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3004-CABIFunctionDefinition"
+    ExportedNames:
+      - fn4
+  - Entry: "0x4007e8:Code_x86_64"
+    CustomName: "fn5"
+    OriginalName: fn5
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3005-CABIFunctionDefinition"
+    ExportedNames:
+      - fn5
+  - Entry: "0x402266:Code_x86_64"
+    CustomName: "fn6"
+    OriginalName: fn6
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3006-CABIFunctionDefinition"
+    ExportedNames:
+      - fn6
+  - Entry: "0x402288:Code_x86_64"
+    CustomName: "fn7"
+    OriginalName: fn7
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3008-CABIFunctionDefinition"
+    ExportedNames:
+      - fn7
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
+    ID: 3001
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 4
+        CustomName: "b"
+        OriginalName: b
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
+        CustomName: "c"
+        OriginalName: c
+      - Index: 2
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 2
+        CustomName: "d"
+        OriginalName: d
+  - Kind: CABIFunctionDefinition
+    ID: 3008
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 10
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 12
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionDefinition
+    ID: 3002
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 1
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 2
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 4
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
+        CustomName: "arg4"
+        OriginalName: arg4
+  - Kind: CABIFunctionDefinition
+    ID: 3003
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 16
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 1
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 2
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 4
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 8
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: PointerOrNumber
+            Size: 16
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionDefinition
+    ID: 3004
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 1
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 2
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 4
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 8
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Number
+            Size: 16
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 1
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionDefinition
+    ID: 3005
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 2
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 4
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 16
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 1
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 2
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionDefinition
+    ID: 3006
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 4
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 8
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 16
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 2
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 4
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 8
+        CustomName: "arg6"
+        OriginalName: arg6
+      - Index: 6
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 10
+        CustomName: "arg7"
+        OriginalName: arg7
+      - Index: 7
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 12
+        CustomName: "arg8"
+        OriginalName: arg8
+      - Index: 8
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Float
+            Size: 16
+        CustomName: "arg9"
+        OriginalName: arg9
+  - Kind: StructDefinition
+    ID: 3007
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+    Size: 16

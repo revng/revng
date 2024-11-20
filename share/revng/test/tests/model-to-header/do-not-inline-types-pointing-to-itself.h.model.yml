@@ -1,0 +1,23 @@
+---
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 3001
+    CustomName: "B"
+    OriginalName: B
+    Fields:
+      - Offset: 0
+        CustomName: "next"
+        OriginalName: next
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3001-StructDefinition"
+    Size: 8
+---
+

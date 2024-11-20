@@ -1,0 +1,44 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+
+TypeDefinitions:
+  # CHECK: #my_union$def = #clift.union<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_union"
+  # CHECK:   fields = [
+  # CHECK:     <
+  # CHECK:       offset = 0
+  # CHECK:       type = !clift.primitive<UnsignedKind 1>
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       offset = 0
+  # CHECK:       type = !clift.primitive<UnsignedKind 2>
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       offset = 0
+  # CHECK:       type = !clift.primitive<UnsignedKind 4>
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  # CHECK: !my_union = !clift.defined<#my_union$def>
+  - ID: 1001
+    Kind: UnionDefinition
+    CustomName: "my_union"
+    Fields:
+      - Index: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+      - Index: 1
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
+      - Index: 2
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

@@ -1,0 +1,36 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+
+TypeDefinitions:
+  # CHECK: #my_struct$def = #clift.struct<
+  # CHECK:   id = 1001
+  # CHECK:   name = "my_struct"
+  # CHECK:   size = 4
+  # CHECK:   fields = [
+  # CHECK:     <
+  # CHECK:       offset = 0
+  # CHECK:       type = !clift.pointer<
+  # CHECK:         pointee_type = !clift.defined<
+  # CHECK:           #clift.struct<
+  # CHECK:             id = 1001
+  # CHECK:           >
+  # CHECK:         >
+  # CHECK:       >
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  # CHECK: !my_struct = !clift.defined<#my_struct$def>
+  - ID: 1001
+    Kind: StructDefinition
+    CustomName: "my_struct"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 4
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1001-StructDefinition"

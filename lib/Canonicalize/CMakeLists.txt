@@ -1,0 +1,39 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+revng_add_analyses_library_internal(
+  revngCanonicalize
+  ExitSSAPass.cpp
+  FoldModelGEP.cpp
+  HoistStructPhis.cpp
+  LoopRewriteWithCanonicalIV.cpp
+  MakeLocalVariables.cpp
+  ImplicitModelCastPass.cpp
+  MakeModelCastPass.cpp
+  MakeModelGEPPass.cpp
+  OperatorPrecedenceResolutionPass.cpp
+  PeepholeOptimizationPass.cpp
+  PrepareLLVMIRForMLIR.cpp
+  PrettyIntFormattingPass.cpp
+  RemoveBrokenDebugInformation.cpp
+  RemoveLLVMAssumeCallsPass.cpp
+  RemoveLoadStore.cpp
+  RemovePointerCasts.cpp
+  SimplifySwitchPass.cpp
+  SplitOverflowIntrinsicsPass.cpp
+  SwitchToStatements.cpp
+  TernaryReductionPass.cpp
+  TwosComplementArithmeticNormalizationPass.cpp)
+
+target_link_libraries(
+  revngCanonicalize
+  revngInitModelTypes
+  revngTypeNames
+  revngSupport
+  revngABI
+  revngModel
+  revngPipes
+  revngPTML
+  revngLift
+  ${LLVM_LIBRARIES})

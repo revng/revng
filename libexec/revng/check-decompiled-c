@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+set -euo pipefail
+
+DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; )";
+
+SHARE="$DIR/../../share/revng"
+
+if ! test -d "$SHARE"; then
+  SHARE="$DIR/../share/revng"
+fi
+
+if ! test -d "$SHARE"; then
+  echo "Cannot find share/revng" > /dev/stderr
+  exit 1
+fi
+
+if grep "revng error: unexpected use of global variable" "$1"; then
+  exit 1
+fi
+
+clang \
+  -c \
+  -fsyntax-only \
+  -ferror-limit=0 \
+  --config "$SHARE/compile-flags.cfg" \
+  -I "$SHARE/include" \
+  -o /dev/null \
+  "$@"

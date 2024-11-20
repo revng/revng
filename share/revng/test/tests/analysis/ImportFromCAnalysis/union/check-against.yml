@@ -1,0 +1,21 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - Kind: UnionDefinition
+    ID: 3000
+    CustomName: new_union_name
+    Fields:
+      - Index: 0
+        CustomName: "first_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+      - Index: 1
+        CustomName: "second_field"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4

@@ -1,0 +1,65 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
+    ID: 3000
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3005-StructDefinition"
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/3005-StructDefinition"
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/3006-StructDefinition"
+      - Index: 2
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: DefinedType
+              Definition: "/TypeDefinitions/3006-StructDefinition"
+      - Index: 3
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Signed
+            Size: 4
+  - Kind: StructDefinition
+    ID: 3005
+    Fields:
+      - Offset: 0
+        CustomName: "can_do_threads"
+        OriginalName: can_do_threads
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+    Size: 4
+  - Kind: StructDefinition
+    ID: 3006
+    Fields:
+      - Offset: 0
+        CustomName: "do_threads"
+        OriginalName: do_threads
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 1
+    Size: 1

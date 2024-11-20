@@ -1,0 +1,46 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+
+Configuration:
+  Naming:
+    UnnamedFunctionArgumentPrefix: "unnamed_argument_with_index_"
+
+Functions:
+  - Entry: "0x400000:Code_x86_64"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-CABIFunctionDefinition"
+
+TypeDefinitions:
+  - ID: 0
+    Kind: EnumDefinition
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
+    Entries:
+      - Value: 0
+        CustomName: "unnamed_argument_with_index_1"
+
+  - Kind: CABIFunctionDefinition
+    ID: 1
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Index: 1
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4

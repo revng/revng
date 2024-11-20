@@ -1,0 +1,29 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-segregate-stack-accesses
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-segregate-stack-accesses
+    suffix: /
+    command: |-
+      export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
+
+      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
+
+      revng model override-by-name
+        "$OUTPUT/context/model.yml"
+        ${SOURCE}.override.yml
+        > "$OUTPUT/context/model-tmp.yml";
+      mv "$OUTPUT/context/model-tmp.yml" "$OUTPUT/context/model.yml";
+
+      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" -o /dev/null;
+
+      revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" -o /dev/null;
+
+      revng artifact --resume "$OUTPUT" make-segment-ref "$INPUT" |
+        revng opt -S | FileCheck ${SOURCE}.filecheck.ll;
+
+      revng artifact --resume "$OUTPUT" decompile "$INPUT" -o /dev/null;

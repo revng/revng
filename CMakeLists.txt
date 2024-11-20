@@ -150,8 +150,8 @@ install(
 # Export CMake targets
 install(
   EXPORT revng
-  NAMESPACE revng::
-  DESTINATION share/revng/cmake)
+  NAMESPACE DESTINATION
+  share/revng/cmake)
 
 # Create share/revng/additional-bin-paths
 set(ADDITIONAL_BIN_PATHS "${CMAKE_BINARY_DIR}/share/revng/additional-bin-paths")

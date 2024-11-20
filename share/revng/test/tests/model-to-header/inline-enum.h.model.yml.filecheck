@@ -1,0 +1,13 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+CHECK: typedef struct _PACKED B B;
+CHECK: typedef enum _PACKED A A;
+CHECK: struct _PACKED B {
+CHECK:     enum _ENUM_UNDERLYING(uint32_t) _PACKED A {
+CHECK:         FIRST = 0x0U,
+CHECK:         SECOND = 0x1U,
+CHECK:         enum_max_value_A = 0xffffffffU,
+CHECK:     } the_a;
+CHECK: };

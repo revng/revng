@@ -1,0 +1,33 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+Functions:
+  - Entry: "0x400000:Code_x86_64"
+    CustomName: new_function_name
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3000-RawFunctionDefinition"
+TypeDefinitions:
+  - Kind: RawFunctionDefinition
+    ID: 3000
+    Architecture: x86_64
+    Arguments:
+      - Location: rcx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 8
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Location: rbx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4

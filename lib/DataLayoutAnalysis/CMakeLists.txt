@@ -1,0 +1,42 @@
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+revng_add_analyses_library_internal(
+  revngDataLayoutAnalysis
+  Frontend/DLACreateInterProceduralTypes.cpp
+  Frontend/DLACreateIntraProceduralTypes.cpp
+  Frontend/DLATypeSystemBuilder.cpp
+  Frontend/SCEVBaseAddressExplorer.cpp
+  Middleend/ArrangeAccessesHierarchically.cpp
+  Middleend/CollapseSCC.cpp
+  Middleend/CompactCompatibleArrays.cpp
+  Middleend/DLAComputeNonInterferingComponents.cpp
+  Middleend/DLAComputeUpperMemberAccess.cpp
+  Middleend/DLAPruneLayoutNodesWithoutLayout.cpp
+  Middleend/DLACollapseSingleChild.cpp
+  Middleend/DecomposeStridedEdges.cpp
+  Middleend/DeduplicateFields.cpp
+  Middleend/DLAStep.cpp
+  Middleend/FieldSizeComputation.cpp
+  Middleend/MergePointeesOfPointerUnion.cpp
+  Middleend/MergePointerNodes.cpp
+  Middleend/PushDownPointers.cpp
+  Middleend/RemoveBackedges.cpp
+  Middleend/RemoveInvalidPointers.cpp
+  Middleend/RemoveInvalidStrideEdges.cpp
+  Middleend/ResolveLeafUnions.cpp
+  Middleend/SimplifyInstanceAtOffset0.cpp
+  Backend/DLAMakeModelTypes.cpp
+  Backend/DLAUpdateModelTypes.cpp
+  FuncOrCallInst.cpp
+  DLAPass.cpp
+  DLATypeSystem.cpp)
+
+target_link_libraries(
+  revngDataLayoutAnalysis
+  revngSupport
+  revngEarlyFunctionAnalysis
+  revngModel
+  revngPipeline
+  revngPipes
+  ${LLVM_LIBRARIES})

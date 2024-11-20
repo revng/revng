@@ -1,0 +1,31 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
+    ID: 3000
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Index: 1
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PointerType
+            PointerSize: 8
+            PointeeType:
+              Kind: PrimitiveType
+              PrimitiveKind: Unsigned
+              Size: 1

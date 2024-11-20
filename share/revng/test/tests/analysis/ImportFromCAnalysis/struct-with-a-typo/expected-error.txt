@@ -1,0 +1,9 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import-from-c failed: Unable to parse the struct.
+clang:6:28: error: expected identifier or '('
+clang:6:28: error: expected ')'
+clang:6:27: note: to match this '('
+

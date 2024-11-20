@@ -11,6 +11,7 @@ revng_add_analyses_library_internal(
   FunctionType/Conversion.cpp
   FunctionType/Layout.cpp
   FunctionType/ValueDistributor.cpp
+  ModelHelpers.cpp
   RegisterStateDeductions.cpp)
 
 target_link_libraries(

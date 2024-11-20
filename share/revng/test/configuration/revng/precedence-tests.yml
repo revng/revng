@@ -1,0 +1,18 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  # This tests decompilation of some sample on-liner function representing all possible combinations of operators from different precedence groups.
+  #
+  # The goal is to ensure we emit parentheses around those correctly.
+  - type: revng.check-precedence
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-precedence-tests
+    suffix: .c
+    command: |-
+      revng artifact --analyze decompile-to-single-file "${INPUT}"
+      | revng ptml
+      | tee "${OUTPUT}"
+      | FileCheck "${SOURCE}".filecheck

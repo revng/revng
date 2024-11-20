@@ -1,0 +1,144 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# Note that while there are many check lines checking only for angle brackets,
+# no line break is being matched. Other check lines will match text on the same
+# input line. The angle brackets are matched separately in order to ignore
+# parameters other than those explicitly being checked for.
+#
+# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+
+TypeDefinitions:
+  # CHECK: #my_enum1$def = #clift.enum<
+  # CHECK:   id = 1104
+  # CHECK:   name = "my_enum1"
+  # CHECK:   underlying_type = !int32_t
+  # CHECK:   fields = [
+  # CHECK:     <
+  # CHECK:       raw_value = 0
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 1
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 2147483647
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 18446744071562067968
+  # CHECK:     >
+  # CHECK:     <
+  # CHECK:       raw_value = 18446744073709551615
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  - ID: 1104
+    Kind: EnumDefinition
+    CustomName: "my_enum1"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0x000000007fffffff # 2^31 - 1
+      - Value: 0xffffffff80000000 # 2^64 - 2^31
+      - Value: 0xffffffffffffffff # 2^64 - 1
+
+    # CHECK: #my_enum2$def = #clift.enum<
+    # CHECK:   id = 1108
+    # CHECK:   name = "my_enum2"
+    # CHECK:   underlying_type = !int64_t
+    # CHECK:   fields = [
+    # CHECK:     <
+    # CHECK:       raw_value = 0
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 1
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 9223372036854775807
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 9223372036854775808
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 18446744073709551615
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+  - ID: 1108
+    Kind: EnumDefinition
+    CustomName: "my_enum2"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0x7fffffffffffffff # 2^63 - 1
+      - Value: 0x8000000000000000 # 2^63
+      - Value: 0xffffffffffffffff # 2^64 - 1
+
+    # CHECK: #my_enum3$def = #clift.enum<
+    # CHECK:   id = 1204
+    # CHECK:   name = "my_enum3"
+    # CHECK:   underlying_type = !uint32_t
+    # CHECK:   fields = [
+    # CHECK:     <
+    # CHECK:       raw_value = 0
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 1
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 4294967295
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+  - ID: 1204
+    Kind: EnumDefinition
+    CustomName: "my_enum3"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 4
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0x00000000ffffffff # 2^32 - 1
+
+    # CHECK: #my_enum4$def = #clift.enum<
+    # CHECK:   id = 1208
+    # CHECK:   name = "my_enum4"
+    # CHECK:   underlying_type = !uint64_t
+    # CHECK:   fields = [
+    # CHECK:     <
+    # CHECK:       raw_value = 0
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 1
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       raw_value = 18446744073709551615
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+  - ID: 1208
+    Kind: EnumDefinition
+    CustomName: "my_enum4"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0xffffffffffffffff # 2^64 - 1
+
+
+    # CHECK: !my_enum1_ = !clift.defined<#my_enum1$def>
+    # CHECK: !my_enum2_ = !clift.defined<#my_enum2$def>
+    # CHECK: !my_enum3_ = !clift.defined<#my_enum3$def>
+    # CHECK: !my_enum4_ = !clift.defined<#my_enum4$def>

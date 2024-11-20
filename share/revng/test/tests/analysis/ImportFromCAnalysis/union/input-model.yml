@@ -1,0 +1,22 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+TypeDefinitions:
+  - Kind: UnionDefinition
+    ID: 3000
+    CustomName: old_union_name
+    Fields:
+      - Index: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Index: 1
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8

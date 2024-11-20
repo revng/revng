@@ -1,0 +1,13 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+CHECK: typedef struct _PACKED B B;
+CHECK: typedef _ABI(SystemV_x86_64) void cabifunction_3001(B *);
+CHECK: struct _PACKED B {
+CHECK:     uint32_t a1;
+CHECK:     uint32_t a2;
+CHECK: };
+
+CHECK: _ABI(SystemV_x86_64)
+CHECK: void fn(B *b_array);

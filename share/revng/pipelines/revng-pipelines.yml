@@ -29,6 +29,20 @@ Containers:
     Type: function-control-flow-graph-svg
   - Name: cfg.yml.tar.gz
     Type: cfg
+  - Name: types-and-globals.h
+    Type: model-header
+  - Name: helpers.h
+    Type: helpers-header
+  - Name: decompiled.c
+    Type: decompiled-c-code
+  - Name: decompiled.tar.gz
+    Type: decompile
+  - Name: recompilable-archive.tar.gz
+    Type: recompilable-archive
+  - Name: module.mlir
+    Type: mlir-module
+  - Name: model-type-definitions.tar.gz
+    Type: model-type-definitions
 Branches:
   - Steps:
       - Name: initial
@@ -222,9 +236,260 @@ Branches:
           Container: output
           Kind: translated
           SingleTargetFilename: isolated-translated-binary
+  - From: enforce-abi
+    Steps:
+      - Name: remove-lifting-artifacts
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - dce
+              - remove-lifting-artifacts
+              - promote-init-csv-to-undef
+      - Name: promote-stack-pointer
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - measure-stack-size-at-call-sites
+              - promote-stack-pointer
+      - Name: early-optimize
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - dce
+              - remove-extractvalues
+              - simplify-cfg-with-hoist-and-sink
+              - dse
+              - instcombine
+              - remove-extractvalues
+              - sroa
+              - instsimplify
+              - jump-threading
+              - licm
+              - unreachableblockelim
+              - instcombine
+              - remove-extractvalues
+              - early-cse
+              - simplify-cfg-with-hoist-and-sink
+              - early-type-shrinking
+              - type-shrinking
+              - early-cse
+              - instsimplify
+              - gvn
+              - instsimplify
+              - dse
+              - dce
+              # In Outliner we inject some store of opaque values before calls
+              # targeting the link register/top of the stack: the goal is make
+              # sure the stores writing the return address are dead.
+              # After the previous optimization pipeline, dead store elimination
+              # should have removed such stores, therefore, we can now drop
+              # those injected by us too.
+              - drop-opaque-return-address
+      - Name: simplify-switch
+        Pipes:
+          - Type: simplify-switch
+            UsedContainers: [input, module.bc.zstd]
+        Artifacts:
+          Container: module.bc.zstd
+          Kind: stack-pointer-promoted
+          SingleTargetFilename: simplify-switch.ll
+      - Name: detect-stack-size
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - remove-stack-alignment
+              - instrument-stack-accesses
+              - instcombine
+              - remove-extractvalues
+              - loop-rotate
+              - loop-simplify
+              - compute-stack-accesses-bounds
+        Analyses:
+          - Name: detect-stack-size
+            Type: detect-stack-size
+            UsedContainers: [module.bc.zstd]
+      - Name: segregate-stack-accesses
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - hoist-struct-phis
+              - segregate-stack-accesses
+      - Name: late-optimize
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - cleanup-stack-size-markers
+              - dce
+              - sroa
+              - instcombine
+              - remove-extractvalues
+              - sroa
+              - simplify-cfg-with-hoist-and-sink
+              # loop-rotate rearranges loops in a way that should make it
+              # easier to match do-while loops
+              - loop-rotate
+              - loop-rewrite-with-canonical-induction-variable
+              - simplify-cfg-with-hoist-and-sink
+              # don't run simplify-cfg{,-with-hoist-and-sink} after
+              # loop-simplify because it kills the loop-simplify form causing
+              # DLA not to identify arrays properly
+              - loop-simplify
+              - instcombine
+              - remove-extractvalues
+              - early-cse
+              - dce
+              - strip-dead-prototypes
+              - split-overflow-intrinsics
+              - dce
+      - Name: make-segment-ref
+        Pipes:
+          - Type: make-segment-ref
+            UsedContainers: [input, module.bc.zstd]
+        Artifacts:
+          Container: module.bc.zstd
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: stack_access_segregate.ll
+        Analyses:
+          - Name: analyze-data-layout
+            Type: analyze-data-layout
+            UsedContainers: [module.bc.zstd]
+      - Name: canonicalize
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - hoist-struct-phis
+              - remove-llvmassume-calls
+              - dce
+              - remove-pointer-casts
+              - make-model-gep
+              - dce
+              - twoscomplement-normalization
+              - peephole-opt-for-decompilation
+              - ternary-reduction
+              - exit-ssa
+              - make-local-variables
+              - remove-load-store
+              - fold-model-gep
+              - dce
+              - switch-to-statements
+              - make-model-cast
+              - implicit-model-cast
+              - operatorprecedence-resolution
+              - pretty-int-formatting
+              - remove-broken-debug-information
+      - Name: decompile
+        Pipes:
+          - Type: helpers-to-header
+            UsedContainers: [module.bc.zstd, helpers.h]
+          - Type: model-to-header
+            UsedContainers: [input, types-and-globals.h]
+          - Type: decompile
+            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
+        Artifacts:
+          Container: decompiled.tar.gz
+          Kind: decompiled
+          SingleTargetFilename: decompiled.c
+        Analyses:
+          - Name: import-from-c
+            Type: import-from-c
+            UsedContainers: []
+      - Name: decompile-to-single-file
+        Pipes:
+          - Type: decompile-to-single-file
+            UsedContainers: [decompiled.tar.gz, decompiled.c]
+        Artifacts:
+          Container: decompiled.c
+          Kind: decompiled-to-c
+          SingleTargetFilename: binary_decompiled.c
+  - From: canonicalize
+    Steps:
+      - Name: emit-recompilable-archive
+        Pipes:
+          - Type: decompile-to-directory
+            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz, recompilable-archive.tar.gz]
+        Artifacts:
+          Container: recompilable-archive.tar.gz
+          Kind: recompilable-archive
+          SingleTargetFilename: recompilable-archive.tar.gz
+  - From: canonicalize
+    Steps:
+      - Name: emit-helpers-header
+        Pipes:
+          - Type: helpers-to-header
+            UsedContainers: [module.bc.zstd, helpers.h]
+        Artifacts:
+          Container: helpers.h
+          Kind: helpers-header
+          SingleTargetFilename: helpers.h
+  - From: initial
+    Steps:
+      - Name: emit-model-header
+        Pipes:
+          - Type: model-to-header
+            UsedContainers: [input, types-and-globals.h]
+        Artifacts:
+          Container: types-and-globals.h
+          Kind: model-header
+          SingleTargetFilename: types-and-globals.h
+  - From: canonicalize
+    Steps:
+      - Name: emit-type-definitions
+        Pipes:
+          - Type: generate-model-type-definition
+            UsedContainers: [input, model-type-definitions.tar.gz]
+        Artifacts:
+          Container: model-type-definitions.tar.gz
+          Kind: model-type-definition
+          SingleTargetFilename: type.h
+  - From: make-segment-ref
+    Steps:
+      - Name: cleanup-ir
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - instcombine
+              - cleanup-ir
+              - dce
+        Artifacts:
+          Container: module.bc.zstd
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: stack_access_segregate.ll
+  - From: make-segment-ref
+    Steps:
+      - Name: convert-to-mlir
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - prepare-llvmir-for-mlir
+          - Type: import-llvm-to-mlir
+            UsedContainers: [module.bc.zstd, module.mlir]
+        Artifacts:
+          Container: module.mlir
+          Kind: mlir-module
+          SingleTargetFilename: mlir-llvm-dialect.mlir
+      - Name: import-clift-types
+        Pipes:
+          - Type: import-clift-types
+            UsedContainers: [cfg.yml.tar.gz, module.mlir]
+        Artifacts:
+          Container: module.mlir
+          Kind: mlir-module
+          SingleTargetFilename: mlir-llvm-dialect-with-clift-types.mlir
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
       - import-binary
       - import-well-known-models
       - detect-abi
+      - detect-stack-size
+      - analyze-data-layout
+      - convert-functions-to-cabi

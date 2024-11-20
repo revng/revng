@@ -1,0 +1,43 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - # Run pipeline up to decompile-to-single-file
+    type: revng.decompile-to-single-file
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-decompilation
+    suffix: /
+    command: |-
+      revng artifact --resume "$OUTPUT" --analyze decompile-to-single-file "$INPUT" -o /dev/null
+  - # Perform checks on the model
+    type: revng.decompile-to-single-file.model-check
+    from:
+      - type: revng.decompile-to-single-file
+    command: |-
+      revng model compare "${SOURCE}".model.yml "$INPUT/context/model.yml"
+  - # Check well-formedness of decompiled C
+    type: revng.decompile-to-single-file.check-decompiled-c
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-decompilation
+      - type: revng.decompile-to-single-file
+    suffix: /
+    command: |-
+      RESUME=$$(temp -d);
+      cp -Tar "$INPUT2" "$$RESUME";
+      revng artifact --resume "$$RESUME" decompile-to-single-file "$INPUT1" | revng ptml > "$OUTPUT/decompiled.c";
+      revng artifact --resume "$$RESUME" emit-model-header "$INPUT1" | revng ptml > "$OUTPUT/types-and-globals.h";
+      revng artifact --resume "$$RESUME" emit-helpers-header "$INPUT1" | revng ptml > "$OUTPUT/helpers.h";
+      revng check-decompiled-c "$OUTPUT/decompiled.c" -I "$OUTPUT"
+  - # Perform checks on the decompiled C code
+    type: revng.decompile-to-single-file.filecheck
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-decompilation
+      - type: revng.decompile-to-single-file
+    command: |-
+      RESUME=$$(temp -d);
+      cp -Tar "$INPUT2" "$$RESUME";
+      revng artifact --resume "$$RESUME" decompile-to-single-file "$INPUT1" | revng ptml | FileCheck "${SOURCE}".filecheck

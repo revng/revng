@@ -1,0 +1,15 @@
+This file is distributed under the MIT License. See LICENSE.md for details.
+
+The print_string function should use an inline string literal.
+
+CHECK: void print_string(void) {
+CHECK: puts{{[_]?}}({{.*}}"hello world!");
+CHECK: }
+
+The sum_globals function should return the sum of two fields of the segment.
+These fields should be accessed using member access operator to access sections
+(first) and the specific data (TheData), recovered from public symbol names in
+the binary.
+
+CHECK: sum_globals(void)
+CHECK: return {{.*}}segment_0x[[SEGMENT_ADDRESS:[0-9a-f]+]]_Generic64_[[SEGMENT_SIZE:[0-9]+]].unreserved__data.TheData.offset_1004 + segment_0x[[SEGMENT_ADDRESS]]_Generic64_[[SEGMENT_SIZE]].unreserved__data.TheData.offset_0

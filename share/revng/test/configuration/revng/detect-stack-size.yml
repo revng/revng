@@ -1,0 +1,17 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  #
+  # Run detect-stack-size and test against ground truth
+  #
+  - type: revng.test-detect-stack-size
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-detect-stack-size
+    suffix: /
+    command: |-
+      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
+      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" -o /dev/null;
+      revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -;

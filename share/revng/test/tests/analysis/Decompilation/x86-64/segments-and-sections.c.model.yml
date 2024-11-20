@@ -1,0 +1,54 @@
+---
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+Segments:
+  - IsReadable: true
+    IsWriteable: false
+    Type:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1812-StructDefinition"
+  - IsReadable: true
+    IsWriteable: true
+    Type:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1815-StructDefinition"
+TypeDefinitions:
+  - ID: 1812
+    Kind: StructDefinition
+    Fields:
+      - OriginalName: .rodata
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1813-StructDefinition"
+  - ID: 1813
+    Kind: StructDefinition
+    Size: 13
+  - ID: 1815
+    Kind: StructDefinition
+    Fields:
+      - OriginalName: .data
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1816-StructDefinition"
+  - ID: 1816
+    Kind: StructDefinition
+    Fields:
+      - OriginalName: TheData
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1817-StructDefinition"
+  - ID: 1817
+    Kind: StructDefinition
+    Size: 1008
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+      - Offset: 1004
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4

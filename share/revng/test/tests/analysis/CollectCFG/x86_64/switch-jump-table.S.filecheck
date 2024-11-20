@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+CHECK: switch i64 %
+CHECK-DAG: i64 0, label
+CHECK-DAG: i64 1, label
+CHECK-DAG: i64 2, label
+CHECK-DAG: i64 3, label
+CHECK-DAG: i64 4, label
+CHECK-DAG: i64 5, label
+CHECK: ]

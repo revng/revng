@@ -1,0 +1,102 @@
+---
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+Functions:
+  - OriginalName: init_list
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1867-CABIFunctionDefinition"
+  # TODO: unfortunately we can't recover it until we don't properly model `free` and
+  # memory release in general, so for now we disabled the test on the prototype of
+  # release_list. We might think to re-enable this in the future when we support
+  # `free` or tweak the input program, but for now this is just disabled.
+  # - OriginalName: release_list
+  #   Prototype:
+  #     Kind: DefinedType
+  #     Definition: "/TypeDefinitions/1868-CABIFunctionDefinition"
+  - OriginalName: sum
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1869-CABIFunctionDefinition"
+  - OriginalName: compute
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1870-CABIFunctionDefinition"
+TypeDefinitions:
+  - ID: 1848
+    Kind: StructDefinition
+    Size: 48
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: ArrayType
+          ElementCount: 5
+          ElementType:
+            Kind: PrimitiveType
+            PrimitiveKind: Generic
+            Size: 8
+      - Offset: 40
+        Type:
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1848-StructDefinition"
+  - ID: 1867
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: PointerType
+      PointeeType:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/1848-StructDefinition"
+    Arguments: []
+  # TODO: unfortunately we can't recover it until we don't properly model `free` and
+  # memory release in general, so for now we disabled the test on the prototype of
+  # release_list. We might think to re-enable this in the future when we support
+  # `free` or tweak the input program, but for now this is just disabled.
+  # - ID: 1868
+  #   Kind: CABIFunctionDefinition
+  #   ABI: SystemV_x86_64
+  #   ReturnType:
+  #     Kind: PrimitiveType
+  #     PrimitiveKind: Generic
+  #     Size: 8
+  #   Arguments:
+  #     - Index: 0
+  #       Type:
+  #         Kind: PointerType
+  #         PointeeType:
+  #           Kind: DefinedType
+  #           Definition: "/TypeDefinitions/1848-StructDefinition"
+  - ID: 1869
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1848-StructDefinition"
+  - ID: 1870
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 8
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1848-StructDefinition"

@@ -1,0 +1,122 @@
+---
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+Functions:
+  - Entry: "0x400700:Code_x86_64"
+    CustomName: "fn"
+    OriginalName: fn
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3001-CABIFunctionDefinition"
+    ExportedNames:
+      - fn
+  - Entry: "0x400800:Code_x86_64"
+    CustomName: "fn2"
+    OriginalName: fn2
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3007-StructDefinition"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/3008-RawFunctionDefinition"
+    ExportedNames:
+      - fn2
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
+    ID: 3001
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+        CustomName: "b"
+        OriginalName: b
+      - Index: 1
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+        CustomName: "c"
+        OriginalName: c
+      - Index: 2
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
+        CustomName: "d"
+        OriginalName: d
+  - Kind: EnumDefinition
+    ID: 3009
+    CustomName: "prefix_enum_9"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
+    Entries:
+      - Value: 0
+        CustomName: "prefix_enum_9_none"
+      - Value: 1
+        CustomName: "prefix_enum_9_positive"
+      - Value: 4294967295
+        CustomName: "prefix_enum_9_max_held_value"
+  - Kind: StructDefinition
+    ID: 3007
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+    Size: 16
+  - Kind: RawFunctionDefinition
+    ID: 3008
+    Architecture: x86_64
+    Arguments:
+      - Location: rcx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Location: rdx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Location: rsi_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Location: rdi_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Location: r8_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Location: r9_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+    ReturnValues: []
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 8

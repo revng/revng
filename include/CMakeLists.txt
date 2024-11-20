@@ -3,3 +3,6 @@
 #
 
 install_pattern("*.h" "*.inc")
+
+# MLIR Clift
+add_subdirectory(revng)

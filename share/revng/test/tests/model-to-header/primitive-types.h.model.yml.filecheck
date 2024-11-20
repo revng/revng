@@ -1,0 +1,11 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+CHECK: void fn(int32_t *b, generic64_t *c, uint16_t *d);
+CHECK: void fn2(generic8_t *arg1, generic16_t *arg2, generic32_t *arg3, generic64_t *arg4);
+CHECK: void fn3(generic128_t *arg1, pointer_or_number8_t *arg2, pointer_or_number16_t *arg3, pointer_or_number32_t *arg4, pointer_or_number64_t *arg5, pointer_or_number128_t *arg6);
+CHECK: void fn4(number8_t *arg1, number16_t *arg2, number32_t *arg3, number64_t *arg4, number128_t *arg5, uint8_t *arg6);
+CHECK: void fn5(uint16_t *arg1, uint32_t *arg2, uint64_t *arg3, uint128_t *arg4, int8_t *arg5, int16_t *arg6);
+CHECK: void fn6(int32_t *arg1, int64_t *arg2, int128_t *arg3, float16_t *arg4, float32_t *arg5, float64_t *arg6, float80_t *arg7, float96_t *arg8, float128_t *arg9);
+CHECK: void fn7(generic80_t *arg5, generic96_t *arg6);
