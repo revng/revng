@@ -402,6 +402,8 @@ private:
   CallInst *createAddressOf(IRBuilder<> &B,
                             Value *V,
                             const model::UpcastableType &AllocatedType) {
+    revng_assert(LegacyLocalVariables);
+
     auto *ArgType = V->getType();
     // Inject a call to AddressOf
     Constant *ModelTypeString = toLLVMString(AllocatedType, M);
@@ -599,9 +601,11 @@ private:
         auto Architecture = Binary.Architecture();
         auto PointerSize = model::Architecture::getPointerSize(Architecture);
         revng_assert(ModelArgument.Type->size() > PointerSize);
-        auto *AddressOfNewArgument = createAddressOf(B,
-                                                     &NewArgument,
-                                                     ModelArgument.Type);
+        Value *AddressOfNewArgument = &NewArgument;
+        if constexpr (LegacyLocalVariables)
+          AddressOfNewArgument = createAddressOf(B,
+                                                 &NewArgument,
+                                                 ModelArgument.Type);
 
         if (UsesStack) {
           // When loading from this stack slot, return the address of the
@@ -655,9 +659,11 @@ private:
       } else if (ModelArgument.Kind == ReferenceToAggregate) {
 
         // Handle non-scalar argument (passed by pointer)
-        auto *AddressOfNewArgument = createAddressOf(B,
-                                                     &NewArgument,
-                                                     ModelArgument.Type);
+        Value *AddressOfNewArgument = &NewArgument;
+        if constexpr (LegacyLocalVariables)
+          AddressOfNewArgument = createAddressOf(B,
+                                                 &NewArgument,
+                                                 ModelArgument.Type);
 
         for (model::Register::Values Register : ModelArgument.Registers) {
           Argument *OldArgument = ArgumentToRegister.at(Register);
@@ -1183,8 +1189,19 @@ private:
         }
       } else {
         revng_assert(not ReturnValuePointer);
-        const auto &ReturnValue = Layout.returnValueAggregateType();
-        ReturnValuePointer = createAddressOf(B, NewCall, ReturnValue);
+        const auto &ReturnType = Layout.returnValueAggregateType();
+        if constexpr (LegacyLocalVariables) {
+          ReturnValuePointer = createAddressOf(B, NewCall, ReturnType);
+        } else {
+          auto &VB = VariableBuilder;
+          VB.setTargetFunction(Caller);
+          Value *Allocation = nullptr;
+          Value *IntAddress = nullptr;
+          tie(Allocation,
+              IntAddress) = VB.createLocalVariableAndTakeIntAddress(ReturnType);
+          B.CreateStore(NewCall, Allocation);
+          ReturnValuePointer = IntAddress;
+        }
       }
 
       if (HasSPTAR) {
