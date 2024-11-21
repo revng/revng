@@ -501,7 +501,7 @@ Branches:
               - remove-load-store
               - fold-model-gep
               - dce
-              - switch-to-statements
+              - legacy-switch-to-statements
               - make-model-cast
               - implicit-model-cast
               - operatorprecedence-resolution

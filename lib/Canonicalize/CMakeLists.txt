@@ -32,6 +32,7 @@ target_link_libraries(
   revngTypeNames
   revngSupport
   revngABI
+  revngLocalVariables
   revngModel
   revngPipes
   revngPTML
