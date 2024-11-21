@@ -251,6 +251,17 @@ struct SortByFunction {
   }
 };
 
+static CallInst *
+getAsModelGEP(IRBuilder<> &B, Value *Pointer, const model::Type &ModelType) {
+  Module &M = *B.GetInsertBlock()->getModule();
+  llvm::Type *T = Pointer->getType();
+  Function *ModelGEPFunction = getModelGEP(M, T, T);
+  auto *TypeString = toLLVMString(ModelType, M);
+  auto *Int64Type = IntegerType::getInt64Ty(M.getContext());
+  auto *Zero = ConstantInt::get(Int64Type, 0);
+  return B.CreateCall(ModelGEPFunction, { TypeString, Pointer, Zero });
+}
+
 using GCBIWP = GeneratedCodeBasicInfoWrapperPass;
 
 template<bool IsLegacy>
@@ -979,14 +990,12 @@ private:
           Pointer = ArgumentToRegister.at(Register);
         }
 
-        // Pass as argument the pointer compute above, dereferenced
-        Type *T = Pointer->getType();
-        Function *GetModelGEPFunction = getModelGEP(M, T, T);
-        auto *TypeString = toLLVMString(ModelArgument.Type, M);
-        auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
-        auto *Zero = ConstantInt::get(Int64Type, 0);
-        Arguments.push_back(B.CreateCall(GetModelGEPFunction,
-                                         { TypeString, Pointer, Zero }));
+        // Pass as argument the pointer compute above.
+        // In legacy mode, wrap it into a ModelGEP at offset 0.
+        if constexpr (LegacyLocalVariables) {
+          Pointer = getAsModelGEP(B, Pointer, *ModelArgument.Type);
+        }
+        Arguments.push_back(Pointer);
       } break;
 
       case ArgumentKind::Scalar:
@@ -1165,15 +1174,13 @@ private:
     switch (Layout.returnMethod()) {
     case ReturnMethod::ModelAggregate: {
       if (HasSPTAR) {
-        // Make reference out of ReturnValuePointer
-        Type *T = ReturnValuePointer->getType();
-        Function *GetModelGEPFunction = getModelGEP(M, T, T);
-        auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
-        auto *Zero = ConstantInt::get(Int64Type, 0);
-        B.CreateCall(GetModelGEPFunction,
-                     { toLLVMString(Layout.returnValueAggregateType(), M),
-                       ReturnValuePointer,
-                       Zero });
+        // In legacy mode, make a reference out of ReturnValuePointer, using a
+        // ModelGEP at offset 0.
+        if constexpr (LegacyLocalVariables) {
+          getAsModelGEP(B,
+                        ReturnValuePointer,
+                        Layout.returnValueAggregateType());
+        }
       } else {
         revng_assert(not ReturnValuePointer);
         const auto &ReturnValue = Layout.returnValueAggregateType();
