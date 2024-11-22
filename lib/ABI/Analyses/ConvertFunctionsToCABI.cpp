@@ -188,7 +188,7 @@ public:
     //
     // Use `--convert-functions-to-cabi-mode=unsafe` to force conversion even
     // when ABI is not considered fully tested.
-    if (Mode != "safe") {
+    if (Mode == "safe") {
       // TODO: extend this list.
       static constexpr std::array ABIsTheConversionIsEnabledFor = {
         model::ABI::SystemV_x86_64,
