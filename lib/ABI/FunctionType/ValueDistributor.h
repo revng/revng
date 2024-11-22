@@ -85,6 +85,21 @@ public:
   uint64_t LastAddedStackPadding = 0;
   uint64_t ArgumentIndex = 0;
 
+public:
+  ValueDistributor(const ValueDistributor &Another) = default;
+  ValueDistributor(ValueDistributor &&Another) = default;
+  ValueDistributor &operator=(const ValueDistributor &Another) {
+    revng_assert(&ABI == &Another.ABI);
+    UsedGeneralPurposeRegisterCount = Another.UsedGeneralPurposeRegisterCount;
+    UsedVectorRegisterCount = Another.UsedVectorRegisterCount;
+    UsedStackOffset = Another.UsedStackOffset;
+    CurrentStackAlignment = Another.CurrentStackAlignment;
+    LastAddedStackPadding = Another.LastAddedStackPadding;
+    ArgumentIndex = Another.ArgumentIndex;
+
+    return *this;
+  }
+
 protected:
   explicit ValueDistributor(const abi::Definition &ABI) :
     ABI(ABI), UsedStackOffset(ABI.StackBytesAllocatedForRegisterArguments()) {
