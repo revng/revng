@@ -124,3 +124,39 @@ inline const llvm::CallInst *isCallToNonIsolated(const llvm::Value *I) {
 inline bool isHelperAggregateLocalVarDecl(const llvm::Value *I) {
   return isCallToNonIsolated(I) and I->getType()->isAggregateType();
 }
+
+inline bool isStatement(const llvm::Instruction &I) {
+  // Return are statements
+  if (isa<llvm::ReturnInst>(I))
+    return true;
+
+  // Instructions that are not calls are never statement.
+  auto *Call = dyn_cast<llvm::CallInst>(&I);
+  if (not Call)
+    return false;
+
+  // Calls to Assign and LocalVariable are statemements.
+  if (isAssignment(Call))
+    return true;
+
+  // Calls to isolated functions or helpers that return struct types on LLVM IR
+  // need a statement.
+  // This is necessary as a result of the fact that there is no direct mapping
+  // between struct types on LLVM IR and on the model, so whenever a function
+  // returns a struct in LLVM IR we cannot generally create a call to
+  // LocalVariable nor to Copy/Assign (because we'd need to tag them with model
+  // Type and we can't do that.), so we have to deal with it here on the fly.
+  // We do it by marking these as statements, and emitting an assignment in C
+  if (isArtificialAggregateLocalVarDecl(Call)
+      or isHelperAggregateLocalVarDecl(Call))
+    return true;
+
+  // Calls to isolated functions and helpers that return void are statements.
+  // If they don't return void, they are not statements. They are expressions
+  // that will be assigned to some local variables in some other assign
+  // statements.
+  if (isCallToIsolatedFunction(Call) or isCallToNonIsolated(Call))
+    return Call->getType()->isVoidTy();
+
+  return false;
+}
