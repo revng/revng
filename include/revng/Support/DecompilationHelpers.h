@@ -91,6 +91,10 @@ inline bool isAssignment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Assign);
 }
 
+inline bool isComment(const llvm::Value *I) {
+  return isCallToTagged(I, FunctionTags::Comment);
+}
+
 inline bool isLocalVarDecl(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::LocalVariable);
 }
@@ -136,7 +140,7 @@ inline bool isStatement(const llvm::Instruction &I) {
     return false;
 
   // Calls to Assign and LocalVariable are statemements.
-  if (isAssignment(Call))
+  if (isAssignment(Call) or isComment(Call))
     return true;
 
   // Calls to isolated functions or helpers that return struct types on LLVM IR

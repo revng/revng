@@ -124,7 +124,8 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::UnaryMinus)
          or isCallToTagged(I, FunctionTags::BinaryNot)
          or isCallToTagged(I, FunctionTags::BooleanNot)
-         or isCallToTagged(I, FunctionTags::StringLiteral);
+         or isCallToTagged(I, FunctionTags::StringLiteral)
+         or isCallToTagged(I, FunctionTags::Comment);
 }
 
 static bool isCConstant(const llvm::Value *V) {
@@ -900,6 +901,28 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) {
     rc_return B.getStringLiteral(StringLiteral).toString();
   }
 
+  if (isCallToTagged(Call, FunctionTags::Comment)) {
+    const auto *Index = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(0));
+    const auto &Comment = ModelFunction.Comments().at(Index->getZExtValue());
+
+    std::string ShouldBeEmittedAtOp = rc_recur getToken(Call->getArgOperand(2));
+    llvm::StringRef ShouldBeEmittedAt = llvm::StringRef(ShouldBeEmittedAtOp);
+    ShouldBeEmittedAt.consume_front("\"");
+    ShouldBeEmittedAt.consume_back("\"");
+
+    std::string IsBeingEmittedAtOp = rc_recur getToken(Call->getArgOperand(3));
+    llvm::StringRef IsBeingEmittedAt = llvm::StringRef(IsBeingEmittedAtOp);
+    IsBeingEmittedAt.consume_front("\"");
+    IsBeingEmittedAt.consume_back("\"");
+
+    const auto *IsExact = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
+    if (IsExact->getZExtValue())
+      revng_assert(ShouldBeEmittedAt == IsBeingEmittedAt);
+
+    rc_return "\n"
+      + ptml::statementComment(B, Comment, IsBeingEmittedAt, "//", 0, 80);
+  }
+
   std::string Error = "Cannot get token for custom opcode: "
                       + dumpToString(Call);
   revng_abort(Error.c_str());
@@ -1270,12 +1293,13 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
 
     } else if (I.getType()->isVoidTy()) {
       revng_assert(isa<llvm::ReturnInst>(I) or isCallToIsolatedFunction(&I)
-                   or isCallToNonIsolated(&I) or isAssignment(&I));
+                   or isCallToNonIsolated(&I) or isAssignment(&I)
+                   or isComment(&I));
 
       // Handle the implicit `return` emission. If the correct parameter is set,
       // avoid the emission of the `Instruction` token.
       if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn))
-        B.append(std::string(getToken(&I)) + ";\n");
+        B.append(std::string(getToken(&I)) + (not isComment(&I) ? ";\n" : ""));
 
     } else if (isHelperAggregateLocalVarDecl(Call)
                or isArtificialAggregateLocalVarDecl(Call)) {
