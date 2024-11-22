@@ -7,6 +7,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Type.h"
 
@@ -16,6 +17,9 @@
 #include "revng/Support/FunctionTags.h"
 
 inline bool hasSideEffects(const llvm::Instruction &I) {
+  if (llvm::isa<llvm::StoreInst>(I))
+    return true;
+
   auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
   if (not Call)
     return false;
