@@ -251,29 +251,38 @@ public:
     auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
                                          std::nullopt;
 
+    auto LogFunctionName = [&NameBuilder,
+                            &Model](const model::TypeDefinition::Key &Key) {
+      if (not Log.isEnabled())
+        return;
+
+      revng_log(Log,
+                "Converting a function: "
+                  << toString(Model->getDefinitionReference(Key)));
+
+      std::string Names = "";
+      for (model::Function &Function : Model->Functions())
+        if (Function.prototype() && Function.prototype()->key() == Key)
+          Names += "\"" + NameBuilder->name(Function).str().str() + "\", ";
+
+      if (Names.empty()) {
+        revng_log(Log, "There are no functions using it as a prototype.");
+      } else {
+        Names.resize(Names.size() - 2);
+        revng_log(Log, "It's a prototype of " << Names);
+      }
+    };
+
     // And convert them.
     for (model::RawFunctionDefinition *Old : ToConvert) {
-      auto &DT = llvm::cast<model::DefinedType>(*Model->makeType(Old->key()));
+      LogFunctionName(Old->key());
+
       if (!checkVectorRegisterSupport(VectorVH, *Old)) {
         // TODO: remove this check after `abi::FunctionType` supports vectors.
         revng_log(Log,
-                  "Skip a function conversion because it requires vector type "
-                  "support: "
-                    << toString(DT.Definition()));
+                  "Do not touch this function because it requires vector "
+                  "register support.");
         continue;
-      }
-
-      revng_log(Log, "Converting a function: " << toString(DT.Definition()));
-      if (Log.isEnabled()) {
-        std::string Message = "";
-        for (model::Function &Function : Model->Functions())
-          if (Function.prototype() && Function.prototype()->key() == Old->key())
-            Message += "'" + NameBuilder->name(Function).str().str() + "', ";
-
-        if (!Message.empty()) {
-          Message.resize(Message.size() - 2);
-          revng_log(Log, "It's a prototype of " << Message);
-        }
       }
 
       namespace FT = abi::FunctionType;
