@@ -259,36 +259,39 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
   return Result;
 }
 
-/// \note: `NextAlignment` of 0 means that there is no next argument.
+struct ArgumentProperties {
+  uint64_t Offset = 0;
+  uint64_t Size = 0;
+  uint64_t Alignment = 0;
+};
+
+/// \note: if `Next` is `std::nullopt`, it means there is no next argument.
 static bool verifyAlignment(const abi::Definition &ABI,
-                            uint64_t CurrentOffset,
-                            uint64_t CurrentSize,
-                            uint64_t CurrentAlignment,
-                            uint64_t NextOffset,
-                            uint64_t NextAlignment) {
+                            const ArgumentProperties &Current,
+                            const std::optional<ArgumentProperties> &Next) {
   uint64_t Alignment = std::max(ABI.MinimumStackArgumentSize(),
-                                CurrentAlignment);
-  uint64_t PaddedSize = paddedSizeOnStack(CurrentSize, Alignment);
+                                Current.Alignment);
+  uint64_t PaddedSize = paddedSizeOnStack(Current.Size, Alignment);
   if (ABI.PackStackArguments())
-    PaddedSize = CurrentSize;
+    PaddedSize = Current.Size;
 
   if (Log.isEnabled()) {
     Log << "Attempting to verify alignment for an argument with size "
-        << CurrentSize << " (" << PaddedSize << " when padded) at offset "
-        << CurrentOffset << ". ";
+        << Current.Size << " (" << PaddedSize << " when padded) at offset "
+        << Current.Offset << ". ";
 
-    if (NextAlignment == 0) {
+    if (Next.has_value()) {
       Log << "There's no next argument, but the total stack size is "
-          << NextOffset << ".";
+          << Next->Offset << ".";
     } else {
-      Log << "The next argument is at offset " << NextOffset
-          << " and is aligned at " << NextAlignment << ".";
+      Log << "The next argument is at offset " << Next->Offset
+          << " and is aligned at " << Next->Alignment << ".";
     }
 
     Log << DoLog;
   }
 
-  OverflowSafeInt Offset = CurrentOffset;
+  OverflowSafeInt Offset = Current.Offset;
   Offset += PaddedSize;
   if (!Offset) {
     // Abandon if offset overflows.
@@ -296,10 +299,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
     return false;
   }
 
-  if (*Offset == NextOffset) {
-    revng_log(Log, "Argument slots in perfectly.");
-    return true;
-  } else if (NextAlignment == 0) {
+  if (not Next.has_value())
     // This is the last argument.
     //
     // Since we often find trailing padding to be inconsistent, it would be
@@ -307,16 +307,20 @@ static bool verifyAlignment(const abi::Definition &ABI,
     // is the last one, it's always right.
     return true;
 
-  } else if (*Offset < NextOffset) {
+  else if (*Offset == Next->Offset) {
+    revng_log(Log, "Argument slots in perfectly.");
+    return true;
+
+  } else if (*Offset < Next->Offset) {
     // Offsets are different, there's most likely padding between the arguments.
-    if (NextOffset % NextAlignment != 0) {
+    if (Next->Offset % Next->Alignment != 0) {
       revng_log(Log, "Error: Next offset is not aligned as expected.");
       return false;
     }
 
     // Round all the alignment up to the register size - to avoid sub-word
     // offsets on the stack.
-    uint64_t AdjustedAlignment = NextAlignment;
+    uint64_t AdjustedAlignment = Next->Alignment;
     if (!ABI.PackStackArguments()) {
       if (AdjustedAlignment < ABI.MinimumStackArgumentSize())
         AdjustedAlignment = ABI.MinimumStackArgumentSize();
@@ -324,7 +328,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
 
     // Check whether the next argument's position makes sense.
     uint64_t Delta = AdjustedAlignment - *Offset % AdjustedAlignment;
-    if (Delta != AdjustedAlignment && *Offset + Delta == NextOffset) {
+    if (Delta != AdjustedAlignment && *Offset + Delta == Next->Offset) {
       revng_log(Log,
                 "Argument slots in after accounting for the alignment of the "
                 "next field adjusted to "
@@ -353,9 +357,8 @@ static bool verifyAlignment(const abi::Definition &ABI,
 template<model::AnyType ModelType>
 bool canBeNext(ArgumentDistributor &Distributor,
                const ModelType &CurrentType,
-               uint64_t CurrentOffset,
-               uint64_t NextOffset,
-               uint64_t NextAlignment) {
+               const ArgumentProperties &Current,
+               const std::optional<ArgumentProperties> &Next) {
   const abi::Definition &ABI = Distributor.ABI;
 
   revng_log(Log,
@@ -365,19 +368,8 @@ bool canBeNext(ArgumentDistributor &Distributor,
               << " general purpose and " << Distributor.UsedVectorRegisterCount
               << " vector registers are in use.");
 
-  std::optional<uint64_t> Size = CurrentType.size();
-  revng_assert(Size.has_value() && Size.value() != 0);
-
-  uint64_t Alignment = *ABI.alignment(CurrentType);
-  revng_assert(llvm::isPowerOf2_64(Alignment));
-  if (!verifyAlignment(ABI,
-                       CurrentOffset,
-                       *Size,
-                       Alignment,
-                       NextOffset,
-                       NextAlignment)) {
+  if (!verifyAlignment(ABI, Current, Next))
     return false;
-  }
 
   for (const auto &Distributed : Distributor.nextArgument(CurrentType)) {
     if (Distributed.RepresentsPadding)
@@ -402,7 +394,7 @@ bool canBeNext(ArgumentDistributor &Distributor,
     // Compute the next stack offset
     uint64_t NextStackOffset = ABI.alignedOffset(Distributor.UsedStackOffset,
                                                  CurrentType);
-    NextStackOffset += ABI.paddedSizeOnStack(*Size);
+    NextStackOffset += ABI.paddedSizeOnStack(Current.Size);
     uint64_t SizeWithPadding = NextStackOffset - Distributor.UsedStackOffset;
     if (Distributed.SizeOnStack != SizeWithPadding) {
       revng_log(Log,
@@ -463,19 +455,26 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     while (CurrentRange.size() > 1) {
       auto [CurrentArgument, TheNextOne] = takeAsTuple<2>(CurrentRange);
 
-      uint64_t NextAlignment = *ABI.alignment(*TheNextOne.Type());
-      revng_assert(llvm::isPowerOf2_64(NextAlignment));
+      ArgumentProperties CurrentProperties = {
+        .Offset = CurrentArgument.Offset(),
+        .Size = *CurrentArgument.Type()->size(),
+        .Alignment = *ABI.hasNaturalAlignment(*CurrentArgument.Type()) ?
+                       *ABI.alignment(*CurrentArgument.Type()) :
+                       ABI.MinimumStackArgumentSize()
+      };
 
-      if (!*ABI.hasNaturalAlignment(*TheNextOne.Type())) {
-        revng_assert(NextAlignment == 1);
-        NextAlignment = ABI.MinimumStackArgumentSize();
-      }
+      ArgumentProperties NextProperties = {
+        .Offset = TheNextOne.Offset(),
+        .Size = *TheNextOne.Type()->size(),
+        .Alignment = *ABI.hasNaturalAlignment(*TheNextOne.Type()) ?
+                       *ABI.alignment(*TheNextOne.Type()) :
+                       ABI.MinimumStackArgumentSize()
+      };
 
       if (!canBeNext(Distributor,
                      *CurrentArgument.Type(),
-                     CurrentArgument.Offset(),
-                     TheNextOne.Offset(),
-                     NextAlignment)) {
+                     CurrentProperties,
+                     NextProperties)) {
         // We met a argument we cannot just "add" as is.
         NaiveConversionFailed = true;
         break;
@@ -500,13 +499,18 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       // Having only one element in the "remaining" range means that only
       // the last field is left - add it too after checking.
       const model::StructField &LastArgument = CurrentRange.front();
-      std::optional<uint64_t> LastSize = LastArgument.Type()->size();
-      revng_assert(LastSize.has_value() && LastSize.value() != 0);
+      ArgumentProperties LastProperties = {
+        .Offset = LastArgument.Offset(),
+        .Size = *LastArgument.Type()->size(),
+        .Alignment = *ABI.hasNaturalAlignment(*LastArgument.Type()) ?
+                       *ABI.alignment(*LastArgument.Type()) :
+                       ABI.MinimumStackArgumentSize()
+      };
+
       if (canBeNext(Distributor,
                     *LastArgument.Type(),
-                    LastArgument.Offset(),
-                    StackSize,
-                    0)) {
+                    LastProperties,
+                    std::nullopt)) {
         model::Argument &New = Result.emplace_back();
         model::copyMetadata(New, LastArgument);
         New.Type() = LastArgument.Type();
@@ -554,8 +558,16 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
         RemainingArguments.Fields().emplace(std::move(Copy));
       }
 
+      ArgumentProperties RemainingProperties = {
+        .Offset = Offset,
+        .Size = RemainingArguments.Size(),
+        .Alignment = *ABI.hasNaturalAlignment(RemainingArguments) ?
+                       *ABI.alignment(RemainingArguments) :
+                       ABI.MinimumStackArgumentSize()
+      };
+
       auto &RA = RemainingArguments;
-      if (canBeNext(Distributor, RA, Offset, Stack.Size(), 0)) {
+      if (canBeNext(Distributor, RA, RemainingProperties, std::nullopt)) {
         revng_log(Log, "Struct for the remaining arguments worked.");
         model::Argument &New = Result.emplace_back();
         New.Index() = Stack.Fields().size() - CurrentRange.size();
@@ -567,13 +579,21 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     }
   }
 
+  ArgumentProperties StackProperties = {
+    .Offset = 0,
+    .Size = Stack.Size(),
+    .Alignment = *ABI.hasNaturalAlignment(Stack) ?
+                   *ABI.alignment(Stack) :
+                   ABI.MinimumStackArgumentSize()
+  };
+
   // Reaching this far means that we either aborted on the very first argument
   // OR that the partial conversion didn't work well either OR that stack struct
   // has explicit metadata (i.e. name, comments, etc) so we don't want to break
   // it apart.
   // Let's try and see if it would make sense to add the whole "stack" struct
   // as one argument.
-  if (!canBeNext(Distributor, *StackStruct, 0, StackSize, 0)) {
+  if (!canBeNext(Distributor, *StackStruct, StackProperties, std::nullopt)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;
