@@ -95,5 +95,5 @@ def suppress_brokenpipe(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs)
     sys.unraisablehook = new_unraisablehook
 
     with suppress(BrokenPipeError):
-        return func(*args)
+        return func(*args, **kwargs)
     return None
