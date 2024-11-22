@@ -334,17 +334,18 @@ static bool verifyAlignment(const abi::Definition &ABI,
     } else {
       revng_log(Log,
                 "Error: The natural alignment of a type would make it "
-                "impossible to represent as CABI: there would have to be "
-                "a hole between two arguments. Abandon the conversion.");
+                "impossible to represent as CABI:\n"
+                "There would have to be a hole between two arguments.");
       // TODO: we probably want to preprocess such functions and manually
       //       "fill" the holes in before attempting the conversion.
       return false;
     }
+
   } else {
     revng_log(Log,
               "Error: The natural alignment of a type would make it "
-              "impossible to represent as CABI: the arguments (including "
-              "the padding) would have to overlap. Abandon the conversion.");
+              "impossible to represent as CABI:\n"
+              "The arguments (including the padding) would have to overlap.");
     return false;
   }
 }
@@ -383,6 +384,8 @@ bool canBeNext(ArgumentDistributor &Distributor,
       continue; // Skip padding.
 
     if (!Distributed.Registers.empty()) {
+      // TODO: we might want to consider filling such holes manually, either
+      //       here or in a different analysis.
       revng_log(Log,
                 "Error: Because there are still available registers, "
                 "an argument cannot just be added as is - resulting CFT would "
@@ -553,7 +556,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
 
       auto &RA = RemainingArguments;
       if (canBeNext(Distributor, RA, Offset, Stack.Size(), 0)) {
-        revng_log(Log, "Struct for the remaining argument worked.");
+        revng_log(Log, "Struct for the remaining arguments worked.");
         model::Argument &New = Result.emplace_back();
         New.Index() = Stack.Fields().size() - CurrentRange.size();
         New.Index() += InitialIndexOffset;
