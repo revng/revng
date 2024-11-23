@@ -98,7 +98,8 @@ def Clift_ModuleOp : Clift_Op<"module",
                                HasOnlyGraphRegion,
                                NoRegionArguments,
                                SingleBlock,
-                               RegionKindInterface]> {
+                               RegionKindInterface,
+                               IsolatedFromAbove]> {
   let regions = (region AnyRegion:$body);
 
   let skipDefaultBuilders = 1;
