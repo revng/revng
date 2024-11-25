@@ -442,6 +442,40 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     // we cannot just convert "as is").
     auto RemainingRange = std::ranges::subrange(Stack.Fields().begin(),
                                                 Stack.Fields().end());
+
+    // Some ABIs require the stack arguments to start at an offset (usually 4
+    // words, enough space to put all the register arguments). This branch
+    // handles that by adjusting the `RemainingRange` to account for it.
+    if (auto SkippedBytes = ABI.StackBytesAllocatedForRegisterArguments()) {
+      revng_assert(SkippedBytes % ABI.getPointerSize() == 0);
+
+      auto Iterator = Stack.Fields().find(SkippedBytes);
+      if (Iterator == Stack.Fields().end()) {
+        revng_log(Log,
+                  "Area at the top of the stack dedicated for storing "
+                  "registers seems malformed (as in, there is no field for "
+                  "the *actual* first stack argument), abort the conversion.");
+        return std::nullopt;
+      }
+
+      revng_log(Log,
+                "Skipping some fields because they fall into an reserved part "
+                "of the stack.");
+
+      RemainingRange = std::ranges::subrange(Iterator, Stack.Fields().end());
+
+      if (Iterator != Stack.Fields().begin()) {
+        auto Previous = std::prev(Iterator);
+        PreviousArgumentProperties = ArgumentProperties{
+          .Offset = Previous->Offset(),
+          .Size = *Previous->Type()->size(),
+          .Alignment = *ABI.hasNaturalAlignment(*Previous->Type()) ?
+                         *ABI.alignment(*Previous->Type()) :
+                         ABI.MinimumStackArgumentSize()
+        };
+      }
+    }
+
     while (not RemainingRange.empty()) {
       const auto &CurrentArgument = *RemainingRange.begin();
 
@@ -533,6 +567,15 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
         return Result;
       }
     }
+  }
+
+  if (ABI.StackBytesAllocatedForRegisterArguments()) {
+    revng_log(Log,
+              "Full stack struct mode is not supported on the ABIs that "
+              "require a part of it to be stripped.");
+    // TODO: We might be able to strip just the offending bytes from the top,
+    //       but abort the entire conversion for now.
+    return std::nullopt;
   }
 
   ArgumentProperties StackProperties = {
