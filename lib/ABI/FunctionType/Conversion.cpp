@@ -558,8 +558,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       if (canBeNext(Distributor, RemainingArgs, RemainingProperties, PAS)) {
         revng_log(Log, "Struct for the remaining arguments worked.");
         model::Argument &New = Result.emplace_back();
-        New.Index() = Stack.Fields().size() - RemainingRange.size();
-        New.Index() += InitialIndexOffset;
+        New.Index() = Distributor.ArgumentIndex - 1;
 
         auto &RA = RemainingArgs;
         New.Type() = Bucket.makeStructDefinition(std::move(RA)).second;
