@@ -519,74 +519,86 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                                              Stack.Fields().end());
     }
 
-    // Getting to this point (past the return statement in the last element
-    // section) means that there is at least one argument we cannot just "add".
-    //
-    // TODO: consider using more robust approaches here, maybe an attempt to
-    //       re-start adding argument normally after some "nonconforming"
-    //       structs are added.
-    revng_log(Log,
-              "Naive conversion failed. Try to fall back on using structs "
-              "instead.");
-    if (not RemainingRange.empty()
-        && RemainingRange.size() != Stack.Fields().size()) {
-      // This condition being true means that we did succeed in converting some
-      // of the arguments, but failed on some others. Let's try to wrap
-      // the remainder into a struct and see if bundled together they make more
-      // sense in c-like representation.
-      revng_log(Log,
-                "Some fields were converted successfully, try to slot in the "
-                "rest as a struct.");
-      revng_assert(PreviousArgumentProperties.has_value());
+    if (PreviousArgumentProperties.has_value()) {
+      // Having previous argument property set means that we successfully
+      // distributed at least one argument, but it doesn't mean we have handled
+      // all of them.
+      //
+      // So that's exactly what we need to check for now.
 
       auto [PreviousOffset,
             PreviousSize,
             PreviousAlignment] = *PreviousArgumentProperties;
-      uint64_t Alignment = *ABI.alignment(*RemainingRange.begin()->Type());
+      uint64_t CurrentAlignment = ABI.MinimumStackArgumentSize();
+      if (not RemainingRange.empty())
+        CurrentAlignment = *ABI.alignment(*RemainingRange.begin()->Type());
       uint64_t CompoundAlignment = computeCompoundAlignment(ABI,
                                                             PreviousAlignment,
-                                                            Alignment);
+                                                            CurrentAlignment);
       uint64_t StartingOffset = PreviousOffset
                                 + paddedSizeOnStack(PreviousSize,
                                                     CompoundAlignment);
+      if (StartingOffset < Stack.Size()) {
+        // We still have unhandled data at the end of the stack,
+        // try to pack them into a struct and see if such a struct would
+        // make any sense.
+        revng_log(Log,
+                  "Some fields were converted successfully, try to slot in the "
+                  "rest as a struct.");
 
-      model::StructDefinition RemainingArgs;
-      RemainingArgs.Size() = Stack.Size() - StartingOffset;
-      for (const auto &Field : RemainingRange) {
-        model::StructField Copy = Field;
-        revng_assert(Copy.Offset() >= StartingOffset);
-        Copy.Offset() -= StartingOffset;
-        RemainingArgs.Fields().emplace(std::move(Copy));
-      }
+        model::StructDefinition RemainingArgs;
+        RemainingArgs.Size() = Stack.Size() - StartingOffset;
+        for (const auto &Field : RemainingRange) {
+          model::StructField Copy = Field;
+          revng_assert(Copy.Offset() >= StartingOffset);
+          Copy.Offset() -= StartingOffset;
+          RemainingArgs.Fields().emplace(std::move(Copy));
+        }
 
-      ArgumentProperties RemainingProperties = {
-        .Offset = StartingOffset,
-        .Size = RemainingArgs.Size(),
-        .Alignment = *ABI.hasNaturalAlignment(RemainingArgs) ?
-                       *ABI.alignment(RemainingArgs) :
-                       ABI.MinimumStackArgumentSize()
-      };
+        ArgumentProperties RemainingProperties = {
+          .Offset = StartingOffset,
+          .Size = RemainingArgs.Size(),
+          .Alignment = *ABI.hasNaturalAlignment(RemainingArgs) ?
+                         *ABI.alignment(RemainingArgs) :
+                         ABI.MinimumStackArgumentSize()
+        };
 
-      const auto &PAS = PreviousArgumentProperties;
-      if (canBeNext(Distributor, RemainingArgs, RemainingProperties, PAS)) {
-        revng_log(Log, "Struct for the remaining arguments worked.");
-        model::Argument &New = Result.emplace_back();
-        New.Index() = Distributor.ArgumentIndex - 1;
+        const auto &PAS = PreviousArgumentProperties;
+        if (canBeNext(Distributor, RemainingArgs, RemainingProperties, PAS)) {
+          revng_log(Log, "Struct for the remaining arguments worked.");
+          model::Argument &New = Result.emplace_back();
+          New.Index() = Distributor.ArgumentIndex - 1;
 
-        auto &RA = RemainingArgs;
-        New.Type() = Bucket.makeStructDefinition(std::move(RA)).second;
+          auto &RA = RemainingArgs;
+          New.Type() = Bucket.makeStructDefinition(std::move(RA)).second;
 
+          return Result;
+        }
+      } else {
+        if (StartingOffset != Stack.Size()) {
+          revng_log(Log,
+                    "WARNING: The struct ending point does not match the "
+                    "expected alignment ("
+                      << StartingOffset << " is expected, but " << Stack.Size()
+                      << " was found).\n"
+                      << "Note that this is not necessarily a problem on its "
+                         "own, but it might be an indication that we're "
+                         "mishandling something, so proceed with caution.");
+        }
+
+        // All good, all the arguments make sense!
         return Result;
       }
     }
 
-    // Every attempt failed, the only option left is to try and see if
-    // the entire stack struct makes sense as a single argument, but for that
-    // we'd need to undo any changes made to the distributor by our attempts.
+    // Reaching this far means that we couldn't do much and that our best bet is
+    // to try and use the entire stack struct as a single argument.
     //
-    // The easiest way to do that is to restore it from the backup created
-    // earlier.
+    // Note that any distribution attempts we made before this should be
+    // discarded before we proceed. And the easiest way to do that is to restore
+    // the distributor from the backup created earlier.
     std::swap(BackupDistributor, Distributor);
+    Result = {};
   }
 
   if (ABI.StackBytesAllocatedForRegisterArguments()) {
@@ -606,13 +618,10 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                    ABI.MinimumStackArgumentSize()
   };
 
-  // Reaching this far means that we either aborted on the very first argument
-  // OR that the partial conversion didn't work well either OR that stack struct
-  // has explicit metadata (i.e. name, comments, etc) so we don't want to break
-  // it apart.
-  // Let's try and see if it would make sense to add the whole "stack" struct
-  // as one argument.
-  if (!canBeNext(Distributor, *StackStruct, StackProperties, std::nullopt)) {
+  if (!canBeNext(Distributor,
+                 *StackStruct,
+                 StackProperties,
+                 std::nullopt)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
     return std::nullopt;
@@ -621,11 +630,11 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
   revng_log(Log,
             "Adding the whole stack as a single argument is the best we can "
             "do.");
-  model::Argument &New = Result.emplace_back();
+  model::Argument New;
   New.Type() = StackStruct.copy();
   New.Index() = InitialIndexOffset;
 
-  return Result;
+  return { { New } };
 }
 
 std::optional<model::UpcastableType>
