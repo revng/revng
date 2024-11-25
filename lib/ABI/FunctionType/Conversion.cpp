@@ -366,7 +366,11 @@ bool canBeNext(ArgumentDistributor &Distributor,
   if (!verifyAlignment(ABI, Current, Previous))
     return false;
 
-  for (const auto &Distributed : Distributor.nextArgument(CurrentType)) {
+  // We want to ensure the distributor does not change on a failed argument.
+  // The easiest way to do that is to work on a copy.
+  ArgumentDistributor LocalDistributor = Distributor;
+
+  for (const auto &Distributed : LocalDistributor.nextArgument(CurrentType)) {
     if (Distributed.RepresentsPadding)
       continue; // Skip padding.
 
@@ -387,10 +391,10 @@ bool canBeNext(ArgumentDistributor &Distributor,
     }
 
     // Compute the next stack offset
-    uint64_t NextStackOffset = ABI.alignedOffset(Distributor.UsedStackOffset,
-                                                 CurrentType);
+    auto NextStackOffset = ABI.alignedOffset(LocalDistributor.UsedStackOffset,
+                                             CurrentType);
     NextStackOffset += ABI.paddedSizeOnStack(Current.Size);
-    uint64_t SizeWithPadding = NextStackOffset - Distributor.UsedStackOffset;
+    auto SizeWithPadding = NextStackOffset - LocalDistributor.UsedStackOffset;
     if (Distributed.SizeOnStack != SizeWithPadding) {
       revng_log(Log,
                 "Because the stack position wouldn't match due to holes in "
@@ -400,7 +404,11 @@ bool canBeNext(ArgumentDistributor &Distributor,
                   << Distributed.SizeOnStack << " instead.");
       return false;
     }
+
+    // The distribution succeeded, apply the distributor
+    std::swap(LocalDistributor, Distributor);
   }
+
   return true;
 }
 
@@ -434,6 +442,11 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
 
     if (Stack.Fields().empty())
       revng_log(Log, "Stack struct has no fields.");
+
+    // If none of our unrolling attempts work and we have to fall back onto
+    // the full struct distribution, we'd need a "fresh" distributor, so make
+    // a copy of one now.
+    ArgumentDistributor BackupDistributor = Distributor;
 
     std::optional<ArgumentProperties> PreviousArgumentProperties = std::nullopt;
 
@@ -566,6 +579,14 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
         return Result;
       }
     }
+
+    // Every attempt failed, the only option left is to try and see if
+    // the entire stack struct makes sense as a single argument, but for that
+    // we'd need to undo any changes made to the distributor by our attempts.
+    //
+    // The easiest way to do that is to restore it from the backup created
+    // earlier.
+    std::swap(BackupDistributor, Distributor);
   }
 
   if (ABI.StackBytesAllocatedForRegisterArguments()) {
