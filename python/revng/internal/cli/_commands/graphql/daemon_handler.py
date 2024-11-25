@@ -4,8 +4,10 @@
 
 import asyncio
 import os
+import signal
 import sys
 from socket import AF_UNIX, SOCK_STREAM, getaddrinfo, socket
+from subprocess import TimeoutExpired
 from typing import Mapping, Protocol
 
 from psutil import Process
@@ -82,5 +84,9 @@ class InternalDaemonHandler(DaemonHandler):
         if target_proc is None:
             raise ValueError("Unable to find daemon process")
 
-        target_proc.terminate()
+        target_proc.send_signal(signal.SIGINT)
+        try:
+            target_proc.wait(30)
+        except TimeoutExpired:
+            target_proc.send_signal(signal.SIGKILL)
         return self.process.wait()
