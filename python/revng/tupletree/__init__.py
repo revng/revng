@@ -9,8 +9,9 @@ from copy import deepcopy
 from dataclasses import dataclass, fields
 from enum import Enum, EnumType
 from functools import lru_cache
-from typing import Any, Callable, Dict, Generic, List, NotRequired, Optional, Tuple, Type
-from typing import TypeAlias, TypedDict, TypeVar, Union, get_args, get_origin, get_type_hints
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, List, NotRequired, Optional, Tuple
+from typing import Type, TypeAlias, TypedDict, TypeVar, Union, get_args, get_origin
+from typing import get_type_hints
 
 import yaml
 
@@ -22,6 +23,9 @@ except ImportError:
     from yaml import SafeDumper as Dumper  # type: ignore
     from yaml import SafeLoader as Loader  # type: ignore
 
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
+
 no_default = object()
 
 dataclass_kwargs = {}
@@ -31,6 +35,33 @@ if sys.version_info >= (3, 10, 0):
     dataclass_kwargs["kw_only"] = True
 
 
+class YamlLoader(Loader):
+    pass
+
+
+class YamlDumper(Dumper):
+    def __init__(self, *args, **kwargs):
+        # By default we emit an explicit document start (---) to make LLVM YAML parser happy
+        if kwargs.get("explicit_start") is None:
+            kwargs["explicit_start"] = True
+        super().__init__(*args, **kwargs)
+
+    def increase_indent(self, flow=False, _indentless=False):
+        """Improves indentation"""
+        return super().increase_indent(flow, False)
+
+    def represent_str(self, data: str) -> yaml.ScalarNode:
+        """Ensures literals starting with ? or : are quoted to make LLVM YAML parser happy"""
+        node = super().represent_str(data)
+        if data.startswith("?") or data.startswith(":"):
+            node.style = '"'
+        return node
+
+    def ignore_aliases(self, data):
+        return True
+
+
+DataclassT = TypeVar("DataclassT", bound="DataclassInstance")
 EnumT = TypeVar("EnumT", bound=Enum)
 T = TypeVar("T")
 
@@ -90,7 +121,7 @@ class StructBase:
             args = get_args(field_spec_type)
 
             # If the field is a list of something we need to instantiate its elements one by one
-            if origin is list:
+            if origin in (list, TypedList):
                 assert len(args) == 1
                 underlying_type = args[0]
 
@@ -100,7 +131,11 @@ class StructBase:
                         + f"got {type(field_value)}"
                     )
 
-                instances = []
+                if origin is list:
+                    instances = []
+                else:
+                    instances = TypedList(args[0])
+
                 for v in field_value:
                     try:
                         v_inst = _create_instance(v, underlying_type)
@@ -142,7 +177,9 @@ class StructBase:
         return cls.from_dict(**mapping)
 
     @classmethod
-    def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance):
+    def yaml_representer(
+        cls: Type[DataclassT], dumper: YamlDumper, instance: DataclassT
+    ) -> yaml.Node:
         mapping_to_dump = {}
         for field in fields(cls):
             field_val = instance.__getattribute__(field.name)
@@ -209,7 +246,7 @@ class DefaultEnumType(EnumType):
 
 class EnumBase(Enum, metaclass=DefaultEnumType):
     @classmethod
-    def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance: Enum):
+    def yaml_representer(cls: Type[EnumT], dumper: YamlDumper, instance: EnumT) -> yaml.Node:
         return dumper.represent_str(instance.name)
 
     def __str__(self):
@@ -272,45 +309,19 @@ def _field_is_default(field, value):
     return value == factory()
 
 
-class YamlLoader(Loader):
-    pass
-
-
-class YamlDumper(Dumper):
-    def __init__(self, *args, **kwargs):
-        # By default we emit an explicit document start (---) to make LLVM YAML parser happy
-        if kwargs.get("explicit_start") is None:
-            kwargs["explicit_start"] = True
-        super().__init__(*args, **kwargs)
-
-    def increase_indent(self, flow=False, _indentless=False):
-        """Improves indentation"""
-        return super().increase_indent(flow, False)
-
-    def represent_str(self, data: str) -> yaml.ScalarNode:
-        """Ensures literals starting with ? or : are quoted to make LLVM YAML parser happy"""
-        node = super().represent_str(data)
-        if data.startswith("?") or data.startswith(":"):
-            node.style = '"'
-        return node
-
-    def ignore_aliases(self, data):
-        return True
-
-
-class TypedList(MutableSequence):
-    def __init__(self, base_class: type):
+class TypedList(Generic[T], MutableSequence):
+    def __init__(self, base_class: Type[T]):
         self._data: List[Any] = []
         self._base_class = base_class
 
-    def __setitem__(self, idx, obj):
+    def __setitem__(self, idx: int, obj: T):  # type: ignore
         if not isinstance(obj, self._base_class):
             raise ValueError(
                 f"Cannot insert object, must be of type {self._base_class.__name__} (or subclass)"
             )
         self._data[idx] = obj
 
-    def insert(self, index: int, obj):
+    def insert(self, index: int, obj: T):
         if not isinstance(obj, self._base_class):
             raise ValueError(
                 f"Cannot insert object, must be of type {self._base_class.__name__} (or subclass)"

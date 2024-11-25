@@ -6,7 +6,7 @@
 import random
 import sys
 from dataclasses import dataclass, field
-from typing import List, ClassVar
+from typing import ClassVar
 
 from revng.tupletree import (
     EnumBase,
@@ -15,6 +15,7 @@ from revng.tupletree import (
     AbstractStructBase,
     dataclass_kwargs,
     no_default,
+    TypedList,
     typedlist_factory,
     force_constructor_kwarg,
     force_kw_only,

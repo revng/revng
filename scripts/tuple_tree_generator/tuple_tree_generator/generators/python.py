@@ -67,7 +67,7 @@ class PythonGenerator:
         if isinstance(resolved_type, StructDefinition):
             return resolved_type.name
         if isinstance(resolved_type, SequenceDefinition):
-            return f"List[{cls._python_type(resolved_type.element_type)}]"
+            return f"TypedList[{cls._python_type(resolved_type.element_type)}]"
         if isinstance(resolved_type, EnumDefinition):
             return resolved_type.name
         if isinstance(resolved_type, ScalarDefinition):
