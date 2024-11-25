@@ -404,7 +404,7 @@ static void handleRpShutdown(RunnerContext &Context,
   softAssert(Context, false, "rp_shutdown invoked mid-trace");
 }
 
-static class CommandHandler {
+class CommandHandler {
 private:
   llvm::StringMap<CommandRunner> Registry;
 
@@ -438,8 +438,7 @@ private:
       Registry.insert({ StrName, Runner });
     }
   }
-
-} CommandHandler;
+};
 
 static std::vector<revng::tracing::Argument>
 argumentTransformer(RunnerContext &Context,
@@ -475,6 +474,7 @@ llvm::Error Trace::run(const revng::tracing::RunTraceOptions Options) const {
   const size_t LastCommandI = this->Commands.size()
                               - (LastCommand.Name == "rp_shutdown" ? 1 : 0);
 
+  static CommandHandler CommandHandler;
   for (size_t CommandI = FirstCommandI; CommandI < LastCommandI; CommandI++) {
     auto &Command = this->Commands[CommandI];
     revng_check(CommandHandler.has(Command.Name),
