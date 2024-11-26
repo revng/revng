@@ -39,6 +39,8 @@ private:
   model::TypeBucket Bucket;
   const bool UseSoftRegisterStateDeductions = false;
 
+  abi::Definition::AlignmentCache AlignmentCache = {};
+
 public:
   ToCABIConverter(const abi::Definition &ABI,
                   model::Binary &Binary,
@@ -134,6 +136,22 @@ private:
   ///         otherwise.
   std::optional<model::UpcastableType>
   tryConvertingReturnValue(RFTReturnValues Registers);
+
+private:
+  template<model::AnyType AnyType>
+  uint64_t adjustedAlignment(const AnyType &Type) {
+    std::optional IsNatural = ABI.hasNaturalAlignment(Type, AlignmentCache);
+    revng_assert(IsNatural.has_value());
+    if (not *IsNatural)
+      return ABI.MinimumStackArgumentSize();
+
+    std::optional<uint64_t> Result = *ABI.alignment(Type, AlignmentCache);
+    revng_assert(Result.has_value());
+    if (ABI.PackStackArguments())
+      return *Result;
+
+    return std::max(*Result, ABI.MinimumStackArgumentSize());
+  }
 };
 
 std::optional<model::UpcastableType>
@@ -265,21 +283,6 @@ struct ArgumentProperties {
   uint64_t Alignment = 0;
 };
 
-static uint64_t computeCompoundAlignment(const abi::Definition &ABI,
-                                         uint64_t PreviousAlignment,
-                                         uint64_t CurrentAlignment) {
-  uint64_t Result = ABI.MinimumStackArgumentSize();
-  if (ABI.PackStackArguments())
-    Result = 0;
-
-  if (PreviousAlignment > Result)
-    Result = PreviousAlignment;
-  if (CurrentAlignment > Result)
-    Result = CurrentAlignment;
-
-  return Result;
-}
-
 /// \note: if `Previous` is `std::nullopt`, it means this is the first argument.
 static bool verifyAlignment(const abi::Definition &ABI,
                             const ArgumentProperties &Current,
@@ -305,10 +308,8 @@ static bool verifyAlignment(const abi::Definition &ABI,
 
   uint64_t ExpectedOffset = 0;
   if (Previous.has_value()) {
-    uint64_t AdjustedAlignment = computeCompoundAlignment(ABI,
-                                                          Current.Alignment,
-                                                          Previous->Alignment);
-    uint64_t PaddedSize = paddedSizeOnStack(Previous->Size, AdjustedAlignment);
+    uint64_t PaddedSize = paddedSizeOnStack(Previous->Size,
+                                            Previous->Alignment);
 
     if (PaddedSize != Previous->Size)
       revng_log(Log,
@@ -325,6 +326,8 @@ static bool verifyAlignment(const abi::Definition &ABI,
 
     ExpectedOffset = *OverflowCheck;
   }
+
+  ExpectedOffset = ABI.alignedOffset(ExpectedOffset, Current.Alignment);
 
   if (ExpectedOffset == Current.Offset) {
     revng_log(Log, "Argument slots in perfectly.");
@@ -422,9 +425,8 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     return llvm::SmallVector<model::Argument, 8>{};
   }
   auto &Stack = StackStruct->toStruct();
-  uint64_t AdjustedAlignment = std::max(*ABI.alignment(Stack),
-                                        ABI.MinimumStackArgumentSize());
-  uint64_t StackSize = paddedSizeOnStack(Stack.Size(), AdjustedAlignment);
+  uint64_t StackSize = paddedSizeOnStack(Stack.Size(),
+                                         adjustedAlignment(Stack));
 
   // If the struct is empty, it indicates that there are no stack arguments.
   if (Stack.Size() == 0) {
@@ -482,9 +484,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
         PreviousArgumentProperties = ArgumentProperties{
           .Offset = Previous->Offset(),
           .Size = *Previous->Type()->size(),
-          .Alignment = *ABI.hasNaturalAlignment(*Previous->Type()) ?
-                         *ABI.alignment(*Previous->Type()) :
-                         ABI.MinimumStackArgumentSize()
+          .Alignment = adjustedAlignment(*Previous->Type())
         };
       }
     }
@@ -495,9 +495,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       ArgumentProperties CurrentArgumentProperties = {
         .Offset = CurrentArgument.Offset(),
         .Size = *CurrentArgument.Type()->size(),
-        .Alignment = *ABI.hasNaturalAlignment(*CurrentArgument.Type()) ?
-                       *ABI.alignment(*CurrentArgument.Type()) :
-                       ABI.MinimumStackArgumentSize()
+        .Alignment = adjustedAlignment(*CurrentArgument.Type())
       };
 
       if (!canBeNext(Distributor,
@@ -529,15 +527,15 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       auto [PreviousOffset,
             PreviousSize,
             PreviousAlignment] = *PreviousArgumentProperties;
-      uint64_t CurrentAlignment = ABI.MinimumStackArgumentSize();
-      if (not RemainingRange.empty())
-        CurrentAlignment = *ABI.alignment(*RemainingRange.begin()->Type());
-      uint64_t CompoundAlignment = computeCompoundAlignment(ABI,
-                                                            PreviousAlignment,
-                                                            CurrentAlignment);
       uint64_t StartingOffset = PreviousOffset
                                 + paddedSizeOnStack(PreviousSize,
-                                                    CompoundAlignment);
+                                                    PreviousAlignment);
+
+      uint64_t CurrentAlignment = ABI.MinimumStackArgumentSize();
+      if (not RemainingRange.empty())
+        CurrentAlignment = adjustedAlignment(*RemainingRange.begin()->Type());
+      StartingOffset = ABI.alignedOffset(StartingOffset, CurrentAlignment);
+
       if (StartingOffset < Stack.Size()) {
         // We still have unhandled data at the end of the stack,
         // try to pack them into a struct and see if such a struct would
@@ -558,9 +556,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
         ArgumentProperties RemainingProperties = {
           .Offset = StartingOffset,
           .Size = RemainingArgs.Size(),
-          .Alignment = *ABI.hasNaturalAlignment(RemainingArgs) ?
-                         *ABI.alignment(RemainingArgs) :
-                         ABI.MinimumStackArgumentSize()
+          .Alignment = adjustedAlignment(RemainingArgs)
         };
 
         const auto &PAS = PreviousArgumentProperties;
@@ -610,17 +606,13 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     return std::nullopt;
   }
 
-  ArgumentProperties StackProperties = {
-    .Offset = 0,
-    .Size = Stack.Size(),
-    .Alignment = *ABI.hasNaturalAlignment(Stack) ?
-                   *ABI.alignment(Stack) :
-                   ABI.MinimumStackArgumentSize()
+  ArgumentProperties FullStackProperties = {
+    .Offset = 0, .Size = Stack.Size(), .Alignment = adjustedAlignment(Stack)
   };
 
   if (!canBeNext(Distributor,
                  *StackStruct,
-                 StackProperties,
+                 FullStackProperties,
                  std::nullopt)) {
     // Nope, stack struct didn't work either. There's nothing else we can do.
     // Just report that this function cannot be converted.
