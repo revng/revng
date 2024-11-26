@@ -96,28 +96,28 @@ void zstdCompress(llvm::raw_ostream &OS,
                   llvm::ArrayRef<uint8_t> InputBuffer,
                   int CompressionLevel) {
   revng_assert(CompressionLevel >= 1 and CompressionLevel <= 19);
-  ZSTD_CCtx *Ctx = ZSTD_createCCtx();
-  size_t RC = ZSTD_initCStream(Ctx, CompressionLevel);
+  std::unique_ptr<ZSTD_CCtx, void (*)(ZSTD_CCtx *)> Ctx(ZSTD_createCCtx(),
+                                                        zstdContextFree);
+  size_t RC = ZSTD_initCStream(&*Ctx, CompressionLevel);
   revng_assert(ZSTD_isError(RC) == 0);
 
   llvm::SmallVector<char> OutBuffer;
   OutBuffer.resize_for_overwrite(BufferSize);
-  zstdReadInput<ZSTDCompress>(Ctx, OS, InputBuffer, OutBuffer);
-  zstdFlushOutput<ZSTDCompress>(Ctx, OS, OutBuffer);
-  zstdContextFree(Ctx);
+  zstdReadInput<ZSTDCompress>(&*Ctx, OS, InputBuffer, OutBuffer);
+  zstdFlushOutput<ZSTDCompress>(&*Ctx, OS, OutBuffer);
 }
 
 void zstdDecompress(llvm::raw_ostream &OS,
                     llvm::ArrayRef<uint8_t> InputBuffer) {
-  ZSTD_DCtx *Ctx = ZSTD_createDCtx();
-  size_t RC = ZSTD_initDStream(Ctx);
+  std::unique_ptr<ZSTD_DCtx, void (*)(ZSTD_DCtx *)> Ctx(ZSTD_createDCtx(),
+                                                        zstdContextFree);
+  size_t RC = ZSTD_initDStream(&*Ctx);
   revng_assert(ZSTD_isError(RC) == 0);
 
   llvm::SmallVector<char> OutBuffer;
   OutBuffer.resize_for_overwrite(BufferSize);
-  zstdReadInput<ZSTDDecompress>(Ctx, OS, InputBuffer, OutBuffer);
-  zstdFlushOutput<ZSTDDecompress>(Ctx, OS, OutBuffer);
-  zstdContextFree(Ctx);
+  zstdReadInput<ZSTDDecompress>(&*Ctx, OS, InputBuffer, OutBuffer);
+  zstdFlushOutput<ZSTDDecompress>(&*Ctx, OS, OutBuffer);
 }
 
 ZstdCompressedOstream::ZstdCompressedOstream(llvm::raw_ostream &DestOS,
