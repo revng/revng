@@ -32,8 +32,7 @@ char UnknownTargetError::ID;
 
 void UnknownTargetError::log(raw_ostream &OS) const {
   OS << "Could not erase the following targets, since they are not available "
-        "in "
-     << ContainerName << ":";
+     << "in " << ContainerName << ":\n";
   for (const Target &Target : Unknown)
     OS << "  " << Target.toString() << "\n";
 }

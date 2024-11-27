@@ -75,9 +75,10 @@ Error PECOFFImporter::parseSectionsHeaders() {
   uint64_t PointerSize = Architecture::getPointerSize(Architecture);
   bool IsLittleEndian = Architecture::isLittleEndian(Architecture);
 
-  if ((PointerSize != 4 and PointerSize != 8) or not IsLittleEndian)
+  if ((PointerSize != 4 and PointerSize != 8) or not IsLittleEndian) {
     return revng::createError("Only 32/64-bit little endian COFF files are "
                               "supported");
+  }
 
   const object::pe32_header *PE32Header = TheBinary.getPE32Header();
 
