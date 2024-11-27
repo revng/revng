@@ -16,7 +16,7 @@ Tag CSVsPromoted("csvs-promoted", ABIEnforced);
 Tag Exceptional("exceptional");
 Tag StructInitializer("struct-initializer");
 Tag OpaqueCSVValue("opaque-csv-value");
-Tag FunctionDispatcher("functin-dispatcher");
+Tag FunctionDispatcher("function-dispatcher");
 Tag Root("root");
 Tag IsolatedRoot("isolated-root");
 Tag CSVsAsArgumentsWrapper("csvs-as-arguments-wrapper");
