@@ -2,6 +2,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import ast
+import os
+from pathlib import Path
+from typing import List, cast
+
 import black
 from jinja2 import Environment
 
@@ -16,11 +21,21 @@ from .jinja_utils import is_simple_struct_field, loader
 
 
 class PythonGenerator:
-    def __init__(self, schema: Schema, root_type, string_types=None, external_types=None):
+    def __init__(
+        self,
+        schema: Schema,
+        root_type,
+        output,
+        string_types=None,
+        external_types=None,
+        mixins_paths=[],
+    ):
         self.schema = schema
         self.root_type = root_type
+        self.output = output
         self.string_types = string_types or []
         self.external_types = external_types or []
+        self.mixins_paths = mixins_paths
         self.jinja_environment = Environment(
             block_start_string="##",
             block_end_string="##",
@@ -36,10 +51,13 @@ class PythonGenerator:
         self.jinja_environment.filters["default_value"] = self.default_value
         self.jinja_environment.filters["gen_key"] = self.gen_key
         self.jinja_environment.filters["key_parser"] = self.key_parser
+        self.jinja_environment.filters["get_mixins"] = self.get_mixins
+        self.jinja_environment.globals["get_mixins_imports"] = self.get_mixins_imports
         self.jinja_environment.tests["simple_field"] = is_simple_struct_field
         self.jinja_environment.tests["sequence_field"] = is_sequence_struct_field
         self.jinja_environment.tests["reference_field"] = is_reference_struct_field
         self.template = self.jinja_environment.get_template("tuple_tree_gen.py.tpl")
+        self.mixins: dict[str, List[str]] = self._parse_mixins()
 
     def emit_python(self) -> str:
         rendered_template = self.template.render(
@@ -156,6 +174,82 @@ class PythonGenerator:
     @staticmethod
     def to_bool(_input: bool) -> str:
         return "True" if _input else "False"
+
+    def _parse_mixins(self) -> dict[str, List[str]]:
+        """Parse the mixins stored in `mixins_paths`. These files should define
+        one or more of the following:
+        * `AllMixin`: a mixin that will be applied to all the classes created
+                      by this generator
+        * `{Name}Mixin`: this mixin will be applied to the class with `Name`,
+                         e.g. BinaryMixin will be applied to the class 'Binary'
+
+        These classes can be defined either via class declaration or
+        assignment, for example:
+        ```python
+        class AllMixin:
+            ...
+
+        class _CommonMixin:
+            ...
+
+        FooMixin = _CommonMixin
+        BarMixin = _CommonMixin
+        ```
+        """
+        mixins: dict[str, List[str]] = {}
+        for mixins_path in self.mixins_paths:
+            with open(Path(mixins_path), "r") as mixin_file:
+                mixins_parsed = ast.parse(mixin_file.read())
+                mixin_classes = []
+                for node in mixins_parsed.body:
+                    # This node is encountered when defining a class, e.g.
+                    # class Foo: ...   # noqa: E800
+                    if isinstance(node, ast.ClassDef):
+                        mixin_classes.append(node.name)
+                    # This node is encountered when checking assignments e.g.
+                    # FooMixin = _CommonMixin  # noqa: E800
+                    elif isinstance(node, ast.Assign):
+                        for target in node.targets:
+                            mixin_classes.append(cast(ast.Name, target).id)
+                mixins[mixins_path] = mixin_classes
+        return mixins
+
+    def get_mixins(self, struct_name: str) -> str:
+        for mixin_classes in self.mixins.values():
+            for mc in mixin_classes:
+                if struct_name == mc.removesuffix("Mixin"):
+                    return mc
+
+            if "AllMixin" in mixin_classes:
+                return "AllMixin"
+        return ""
+
+    def get_mixins_imports(self) -> List[str]:
+        """
+        This method supports mixin imports from the `model` dir level or from subdirs
+        """
+        imports: List[str] = []
+        for mixin_path, mixin_classes in self.mixins.items():
+            path_distance = os.path.relpath(
+                os.path.dirname(mixin_path), os.path.dirname(self.output)
+            )
+            file_name = os.path.basename(mixin_path).removesuffix(".py")
+
+            if path_distance == ".":
+                path = f".{file_name}"
+            elif path_distance == "..":
+                path = f"..{file_name}"
+            else:
+                # Transform from unix path to python import
+                path = ""
+                while path_distance.startswith("../"):
+                    path += "."
+                    path_distance = path_distance[3:]
+                path += path_distance.replace("/", ".")
+                path += f".{file_name}"
+
+            imports.append(f"from {path} import {', '.join(mixin_classes)}")  # noqa: E501
+        return imports
 
     @staticmethod
     def gen_key(struct: StructDefinition) -> str:

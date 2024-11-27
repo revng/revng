@@ -29,6 +29,9 @@ from revng.tupletree import YamlDumper as _ExternalYamlDumper
 from .external import #{ external_type }#
 ## endfor ##
 
+##- for import_string in get_mixins_imports() ##
+#{ import_string }#
+##- endfor -##
 
 # Every subclass of YamlLoader can register its own independent loaders
 class YamlLoader(_ExternalYamlLoader):
@@ -73,10 +76,11 @@ class #{ struct.name }#(
     #{ struct.inherits.name }#,
     ##- endif -##
     ##- if struct.abstract -##
-    AbstractStructBase
+    AbstractStructBase,
     ##- else -##
-    StructBase
+    StructBase,
     ##- endif -##
+    #{- struct.name | get_mixins }#
 ):
     #{ struct.doc | docstring }#
 

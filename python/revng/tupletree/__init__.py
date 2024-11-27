@@ -208,8 +208,8 @@ class StructBase:
                 setattr(self, field.name, new_field_value)
 
     def __setattr__(self, key, value):
-        # Prevent setting undefined attributes
-        if key not in [f.name for f in fields(self)]:
+        # Prevent setting undefined attributes, `_` allows to set private attributes like `_project`
+        if not (key in [f.name for f in fields(self)] or key.startswith("_")):
             raise AttributeError(f"Cannot set attribute {key} for class {type(self).__name__}")
         super().__setattr__(key, value)
 

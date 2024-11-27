@@ -17,7 +17,8 @@ function(tuple_tree_generator_impl)
       GLOBAL_NAME
       PYTHON_PATH
       TYPESCRIPT_PATH
-      DOCS_PATH)
+      DOCS_PATH
+      PYTHON_MIXINS)
   set(multiValueArgs TYPESCRIPT_INCLUDE STRING_TYPES SEPARATE_STRING_TYPES
                      SCALAR_TYPES)
   cmake_parse_arguments(GENERATOR "" "${oneValueArgs}" "${multiValueArgs}"
@@ -48,6 +49,9 @@ function(tuple_tree_generator_impl)
   endif()
   if(NOT DEFINED GENERATOR_DOCS_PATH)
     set(GENERATOR_DOCS_PATH "")
+  endif()
+  if(NOT DEFINED GENERATOR_PYTHON_MIXINS)
+    set(GENERATOR_PYTHON_MIXINS "")
   endif()
 
   #
@@ -113,6 +117,7 @@ function(tuple_tree_generator_impl)
       "${GENERATOR_STRING_TYPES}"
       "${GENERATOR_SEPARATE_STRING_TYPES}"
       "${GENERATOR_SCALAR_TYPES}"
+      "${GENERATOR_PYTHON_MIXINS}"
       "${GENERATOR_PYTHON_PATH}")
     list(APPEND EXTRA_TARGETS ${GENERATOR_PYTHON_PATH})
   endif()
@@ -389,6 +394,8 @@ function(
   # Types equivalent to plain strings that get a separate type definition
   EXTERNAL_TYPES
   SCALAR_TYPES
+  # Path to files containing the mixins python classes
+  PYTHON_MIXINS
   # Output path
   OUTPUT_PATH)
   set(STRING_TYPE_ARGS)
@@ -406,12 +413,17 @@ function(
     list(APPEND SCALAR_TYPE_ARGS --scalar-type "'${ET}'")
   endforeach()
 
+  set(PYTHON_MIXINS_ARGS)
+  foreach(PM ${PYTHON_MIXINS})
+    list(APPEND PYTHON_MIXINS_ARGS --mixins "'${PM}'")
+  endforeach()
+
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py" --namespace
       "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
-      ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS}
-      "${YAML_DEFINITIONS}"
+      ${PYTHON_MIXINS_ARGS} ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS}
+      ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${PYTHON_TEMPLATES}
             ${TUPLE_TREE_GENERATOR_SOURCES})
@@ -461,7 +473,8 @@ function(target_tuple_tree_generator TARGET_ID)
       INCLUDE_PATH_PREFIX
       PYTHON_PATH
       TYPESCRIPT_PATH
-      HEADERS_PATH)
+      HEADERS_PATH
+      PYTHON_MIXINS)
   set(multiValueArgs TYPESCRIPT_INCLUDE STRING_TYPES SEPARATE_STRING_TYPES
                      SCALAR_TYPES)
   cmake_parse_arguments(GEN "${options}" "${oneValueArgs}" "${multiValueArgs}"
@@ -521,7 +534,9 @@ function(target_tuple_tree_generator TARGET_ID)
     SCALAR_TYPES
     ${GEN_SCALAR_TYPES}
     EMIT_TRACKING
-    ${GEN_EMIT_TRACKING})
+    ${GEN_EMIT_TRACKING}
+    PYTHON_MIXINS
+    "${GEN_PYTHON_MIXINS}")
   if(GEN_INSTALL)
     install(DIRECTORY ${GEN_HEADERS_PATH}
             DESTINATION include/revng/${GEN_HEADER_DIRECTORY})
