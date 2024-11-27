@@ -462,7 +462,7 @@ void emitMessage(llvm::IRBuilder<> &Builder, const llvm::Twine &Message) {
   if (not FunctionTags::Helper.isTagOf(F))
     FunctionTags::Helper.addTo(F);
 
-  Builder.CreateCall(Callee, getUniqueString(M, "emitMessage", Message.str()));
+  Builder.CreateCall(Callee, getUniqueString(M, Message.str()));
 }
 
 static constexpr const char *const ModelGEPName = "ModelGEP";
