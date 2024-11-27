@@ -88,10 +88,9 @@ bool ptml::HeaderBuilder::printModelHeader() {
       }
 
       B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
-      B.append(";\n");
+      B.append(";\n\n");
     }
 
-    B.append("\n");
     B.appendLineComment("\\}");
     B.append("\n");
   }
@@ -117,10 +116,9 @@ bool ptml::HeaderBuilder::printModelHeader() {
       }
 
       B.printFunctionPrototype(FT, MF, /* SingleLine = */ false);
-      B.append(";\n");
+      B.append(";\n\n");
     }
 
-    B.append("\n");
     B.appendLineComment("\\}");
     B.append("\n");
   }

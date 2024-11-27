@@ -442,12 +442,15 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
         revng_log(TypePrinterLog, "Definition");
 
         revng_assert(Defined.contains(TypeNodes.at({ NodeT, Declaration })));
-        if (not isDeclarationTheSameAsDefinition(*NodeT)
-            and not shouldInline(*NodeT)) {
-          revng_log(TypePrinterLog, "printTypeDefinition");
-          printTypeDefinition(*NodeT);
+        if (isDeclarationTheSameAsDefinition(*NodeT) or shouldInline(*NodeT)) {
+          continue;
         }
+
+        revng_log(TypePrinterLog, "printTypeDefinition");
+        printTypeDefinition(*NodeT);
       }
+
+      *Out << "\n";
     }
     revng_log(TypePrinterLog, "PostOrder DONE");
   }
