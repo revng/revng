@@ -271,7 +271,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   parseSymbols(TheELF, SymtabShdr);
 
   const auto &ElfHeader = TheELF.getHeader();
-  Model->EntryPoint() = relocate(fromPC(ElfHeader.e_entry));
+  if (ElfHeader.e_entry != 0)
+    Model->EntryPoint() = relocate(fromPC(ElfHeader.e_entry));
 
   // Parse segments
   Task.advance("Parse program headers", true);

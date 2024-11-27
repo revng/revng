@@ -86,7 +86,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
     ImageBase = fromPC(PE32Header->ImageBase);
 
-    Model->EntryPoint() = ImageBase + u64(PE32Header->AddressOfEntryPoint);
+    if (PE32Header->AddressOfEntryPoint != 0)
+      Model->EntryPoint() = ImageBase + u64(PE32Header->AddressOfEntryPoint);
   } else {
     const object::pe32plus_header *PE32PlusHeader = TheBinary
                                                       .getPE32PlusHeader();
@@ -95,7 +96,10 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // PE32+ Header
     ImageBase = fromPC(PE32PlusHeader->ImageBase);
-    Model->EntryPoint() = ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint);
+    if (PE32PlusHeader->AddressOfEntryPoint != 0) {
+      Model->EntryPoint() = ImageBase
+                            + u64(PE32PlusHeader->AddressOfEntryPoint);
+    }
   }
 
   // Read sections
