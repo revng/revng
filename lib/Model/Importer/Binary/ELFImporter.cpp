@@ -166,7 +166,7 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 template<typename T, bool HasAddend>
 Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   revng_log(ELFImporterLog, "Starting ELF import");
-  llvm::Task Task(11, "Import ELF");
+  llvm::Task Task(12, "Import ELF");
   Task.advance("Parse ELF", true);
 
   // Parse the ELF file
@@ -174,6 +174,10 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   if (not TheELFOrErr)
     return TheELFOrErr.takeError();
   object::ELFFile<T> &TheELF = *TheELFOrErr;
+
+  // Parse segments
+  Task.advance("Parse segments", true);
+  parseSegments(TheELF);
 
   // Set default ABI
   if (Model->DefaultABI() == model::ABI::Invalid) {
@@ -274,7 +278,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   if (ElfHeader.e_entry != 0)
     Model->EntryPoint() = relocate(fromPC(ElfHeader.e_entry));
 
-  // Parse segments
+  // Parse program headers
   Task.advance("Parse program headers", true);
   parseProgramHeaders(TheELF);
 
@@ -678,15 +682,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
 }
 
 template<typename T, bool HasAddend>
-void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
-  // Loop over the program headers looking for PT_LOAD segments, read them out
-  // and create a global variable for each one of them (writable or
-  // read-only), assign them a section and output information about them in
-  // the linking info CSV
-  using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
-
-  Elf_Phdr *DynamicPhdr = nullptr;
-
+void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
   auto ProgHeaders = TheELF.program_headers();
   if (auto Error = ProgHeaders.takeError()) {
     revng_log(ELFImporterLog, "Cannot access program headers: " << Error);
@@ -694,9 +690,8 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
     return;
   }
 
-  for (Elf_Phdr &ProgramHeader : *ProgHeaders) {
-    switch (ProgramHeader.p_type) {
-    case ELF::PT_LOAD: {
+  for (auto &ProgramHeader : *ProgHeaders) {
+    if (ProgramHeader.p_type == ELF::PT_LOAD) {
       auto Start = relocate(fromGeneric(ProgramHeader.p_vaddr));
       auto EndVirtualAddress = Start + u64(ProgramHeader.p_memsz);
       if (Start.isInvalid() or EndVirtualAddress.isInvalid()) {
@@ -736,7 +731,27 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       NewSegment.verify(true);
 
       Model->Segments().insert(std::move(NewSegment));
+    }
+  }
+}
 
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
+  using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
+
+  Elf_Phdr *DynamicPhdr = nullptr;
+
+  auto ProgHeaders = TheELF.program_headers();
+  if (auto Error = ProgHeaders.takeError()) {
+    revng_log(ELFImporterLog, "Cannot access program headers: " << Error);
+    consumeError(std::move(Error));
+    return;
+  }
+
+  for (Elf_Phdr &ProgramHeader : *ProgHeaders) {
+    switch (ProgramHeader.p_type) {
+    case ELF::PT_LOAD: {
+      // Already processed
     } break;
 
     case ELF::PT_GNU_EH_FRAME:

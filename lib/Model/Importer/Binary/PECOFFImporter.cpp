@@ -82,12 +82,10 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
   const object::pe32_header *PE32Header = TheBinary.getPE32Header();
 
+  // Identify ImageBase
   if (PE32Header) {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
     ImageBase = fromPC(PE32Header->ImageBase);
-
-    if (PE32Header->AddressOfEntryPoint != 0)
-      Model->EntryPoint() = ImageBase + u64(PE32Header->AddressOfEntryPoint);
   } else {
     const object::pe32plus_header *PE32PlusHeader = TheBinary
                                                       .getPE32PlusHeader();
@@ -96,10 +94,6 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // PE32+ Header
     ImageBase = fromPC(PE32PlusHeader->ImageBase);
-    if (PE32PlusHeader->AddressOfEntryPoint != 0) {
-      Model->EntryPoint() = ImageBase
-                            + u64(PE32PlusHeader->AddressOfEntryPoint);
-    }
   }
 
   // Read sections
@@ -144,6 +138,22 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     Segment.verify(true);
     Model->Segments().insert(std::move(Segment));
+  }
+
+  // Identify EntryPoint
+  if (PE32Header) {
+    if (PE32Header->AddressOfEntryPoint != 0)
+      Model->EntryPoint() = ImageBase + u64(PE32Header->AddressOfEntryPoint);
+  } else {
+    const object::pe32plus_header *PE32PlusHeader = TheBinary
+                                                      .getPE32PlusHeader();
+    revng_assert(PE32PlusHeader);
+
+    // PE32+ Header
+    if (PE32PlusHeader->AddressOfEntryPoint != 0) {
+      Model->EntryPoint() = ImageBase
+                            + u64(PE32PlusHeader->AddressOfEntryPoint);
+    }
   }
 
   return Error::success();

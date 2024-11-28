@@ -203,13 +203,12 @@ Error MachOImporter::import() {
   }
 
   bool IsLittleEndian = Architecture::isLittleEndian(Model->Architecture());
+  bool MustSwap = IsLittleEndian != sys::IsLittleEndianHost;
   StringRef StringDataRef = TheBinary.getData();
   auto RawDataRef = ArrayRef<uint8_t>(StringDataRef.bytes_begin(),
                                       StringDataRef.size());
-  bool MustSwap = IsLittleEndian != sys::IsLittleEndianHost;
 
-  bool EntryPointFound = false;
-  std::optional<uint64_t> EntryPointOffset;
+  // Process segments first
   for (const LoadCommandInfo &LCI : MachO.load_commands()) {
     switch (LCI.C.cmd) {
 
@@ -220,7 +219,14 @@ Error MachOImporter::import() {
     case LC_SEGMENT_64:
       parseMachOSegment(RawDataRef, MachO.getSegment64LoadCommand(LCI));
       break;
+    }
+  }
 
+  // Identify EntryPoint
+  bool EntryPointFound = false;
+  std::optional<uint64_t> EntryPointOffset;
+  for (const LoadCommandInfo &LCI : MachO.load_commands()) {
+    switch (LCI.C.cmd) {
     case LC_UNIXTHREAD: {
       if (EntryPointFound) {
         revng_log(Log, "Multiple entry points found. Ignoring.");

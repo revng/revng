@@ -143,6 +143,8 @@ private:
   void parseSymbols(llvm::object::ELFFile<T> &TheELF,
                     ConstElf_Shdr *SectionHeader);
 
+  void parseSegments(llvm::object::ELFFile<T> &TheELF);
+
   void parseProgramHeaders(llvm::object::ELFFile<T> &TheELF);
 
   void parseDynamicSymbol(llvm::object::Elf_Sym_Impl<T> &Symbol,
