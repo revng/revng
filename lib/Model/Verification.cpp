@@ -165,7 +165,10 @@ bool Function::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   if (not Entry().isValid())
-    return VH.fail("Invalid Entry", *this);
+    return VH.fail("Invalid Function Entry", *this);
+
+  if (not Entry().isCode())
+    return VH.fail("Function Entry is not a code address", *this);
 
   if (not Prototype().isEmpty()) {
 
@@ -804,10 +807,48 @@ bool Binary::verify(VerifyHelper &VH) const {
   if (not VH.populateGlobalNamespace())
     return VH.fail();
 
+  // Build list of executable segments
+  SmallVector<const model::Segment *, 4> ExecutableSegments;
+  for (const model::Segment &Segment : Segments())
+    if (Segment.IsExecutable())
+      ExecutableSegments.push_back(&Segment);
+
+  auto IsExecutable = [&ExecutableSegments](const MetaAddress &Address) {
+    auto ContainsAddress = [Address](const model::Segment *Segment) -> bool {
+      return Segment->contains(Address);
+    };
+    return llvm::any_of(ExecutableSegments, ContainsAddress);
+  };
+
+  // Verify EntryPoint
+  if (EntryPoint().isValid()) {
+    if (not EntryPoint().isCode())
+      return VH.fail("EntryPoint is not code", EntryPoint());
+
+    if (not IsExecutable(EntryPoint()))
+      return VH.fail("Binary entry point not executable", EntryPoint());
+  }
+
+  // Verify ExtraCodeAddresses
+  for (const MetaAddress &Address : ExtraCodeAddresses()) {
+    if (not Address.isValid())
+      return VH.fail("Invalid entry in ExtraCodeAddresses", Address);
+
+    if (not Address.isCode())
+      return VH.fail("Non-code entry in ExtraCodeAddresses", Address);
+
+    if (not IsExecutable(Address))
+      return VH.fail("ExtraCodeAddress entry is not executable", *this);
+  }
+
   // Verify individual functions
-  for (const Function &F : Functions())
+  for (const Function &F : Functions()) {
     if (not F.verify(VH))
       return VH.fail();
+
+    if (not IsExecutable(F.Entry()))
+      return VH.fail("Function entry not executable", F);
+  }
 
   // Verify DynamicFunctions
   for (const DynamicFunction &DF : ImportedDynamicFunctions())

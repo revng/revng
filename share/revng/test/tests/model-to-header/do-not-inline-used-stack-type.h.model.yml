@@ -47,5 +47,12 @@ TypeDefinitions:
           Kind: DefinedType
           Definition: "/TypeDefinitions/3001-StructDefinition"
     Size: 16
----
 
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 40960
+    StartOffset: 0
+    FileSize: 40960
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true

@@ -34,3 +34,12 @@ TypeDefinitions:
     Fields: []
     Size: 16
     CustomName: "my_stack_struct"
+
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true

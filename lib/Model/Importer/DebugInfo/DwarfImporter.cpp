@@ -179,15 +179,16 @@ public:
                         size_t Index,
                         size_t AltIndex,
                         uint64_t PreferredBaseAddress) :
-    BinaryImporterHelper(Importer.getModel()->Architecture(),
-                         PreferredBaseAddress),
+    BinaryImporterHelper(*Importer.getModel(), PreferredBaseAddress, DILogger),
     Importer(Importer),
     Model(Importer.getModel()),
     Index(Index),
     AltIndex(AltIndex),
     Context(Context) {
 
-    Architecture = Model->Architecture();
+    // When we import DWARF, we assume we already have parsed Segments
+    processSegments();
+
     BaseAddress = PreferredBaseAddress;
 
     // Ensure the architecture is consistent.
@@ -859,21 +860,22 @@ private:
                       << "\"");
 
           // Get/create the local function
-          auto &Function = Model->Functions()[LowPC];
+          if (auto *Function = registerFunctionEntry(LowPC)) {
 
-          if (Prototype.isEmpty())
-            revng_log(DILogger, "Can't get the prototype");
-          else if (not Function.prototype())
-            Function.Prototype() = std::move(Prototype);
+            if (Prototype.isEmpty())
+              revng_log(DILogger, "Can't get the prototype");
+            else if (not Function->prototype())
+              Function->Prototype() = std::move(Prototype);
 
-          if (SymbolName.size() != 0) {
-            Function.ExportedNames().insert(SymbolName);
-            if (Function.OriginalName().size() == 0)
-              Function.OriginalName() = SymbolName;
+            if (SymbolName.size() != 0) {
+              Function->ExportedNames().insert(SymbolName);
+              if (Function->OriginalName().size() == 0)
+                Function->OriginalName() = SymbolName;
+            }
+
+            if (isNoReturn(*CU.get(), Die))
+              Function->Attributes().insert(model::FunctionAttribute::NoReturn);
           }
-
-          if (isNoReturn(*CU.get(), Die))
-            Function.Attributes().insert(model::FunctionAttribute::NoReturn);
         } else if (not SymbolName.empty() and Functions.contains(SymbolName)) {
           // It's a dynamic function
           if (Prototype.isEmpty()) {

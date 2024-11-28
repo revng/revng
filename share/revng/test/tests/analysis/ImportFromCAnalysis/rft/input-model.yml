@@ -29,3 +29,12 @@ TypeDefinitions:
           Size: 8
         CustomName: "fd"
         OriginalName: fd
+
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true

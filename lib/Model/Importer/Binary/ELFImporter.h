@@ -68,7 +68,6 @@ private:
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
 
-private:
   llvm::SmallVector<DataSymbol, 32> DataSymbols;
 
 protected:
@@ -83,7 +82,7 @@ public:
   ELFImporter(TupleTree<model::Binary> &Model,
               const llvm::object::ELFObjectFileBase &TheBinary,
               uint64_t BaseAddress) :
-    BinaryImporterHelper(Model->Architecture(), BaseAddress),
+    BinaryImporterHelper(*Model, BaseAddress, ELFImporterLog),
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
     TheBinary(TheBinary) {}
@@ -142,6 +141,8 @@ private:
 
   void parseSymbols(llvm::object::ELFFile<T> &TheELF,
                     ConstElf_Shdr *SectionHeader);
+
+  void parseSegments(llvm::object::ELFFile<T> &TheELF);
 
   void parseProgramHeaders(llvm::object::ELFFile<T> &TheELF);
 
