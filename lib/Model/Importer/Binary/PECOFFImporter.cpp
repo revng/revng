@@ -16,6 +16,7 @@
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/MetaAddress.h"
 
 #include "CrossModelFindTypeHelper.h"
 #include "Importers.h"
@@ -37,7 +38,7 @@ public:
   PECOFFImporter(TupleTree<model::Binary> &Model,
                  const object::COFFObjectFile &TheBinary,
                  uint64_t BaseAddress) :
-    BinaryImporterHelper(Model->Architecture(), BaseAddress),
+    BinaryImporterHelper(*Model, BaseAddress, Log),
     Model(Model),
     TheBinary(TheBinary) {}
 
@@ -70,10 +71,9 @@ Error PECOFFImporter::parseSectionsHeaders() {
   using namespace model;
 
   revng_assert(Model->Architecture() != Architecture::Invalid);
-  Architecture = Model->Architecture();
 
-  uint64_t PointerSize = Architecture::getPointerSize(Architecture);
-  bool IsLittleEndian = Architecture::isLittleEndian(Architecture);
+  uint64_t PointerSize = Architecture::getPointerSize(Model->Architecture());
+  bool IsLittleEndian = Architecture::isLittleEndian(Model->Architecture());
 
   if ((PointerSize != 4 and PointerSize != 8) or not IsLittleEndian) {
     return revng::createError("Only 32/64-bit little endian COFF files are "
@@ -87,8 +87,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
     ImageBase = fromPC(PE32Header->ImageBase);
   } else {
-    const object::pe32plus_header *PE32PlusHeader = TheBinary
-                                                      .getPE32PlusHeader();
+    const pe32plus_header *PE32PlusHeader = TheBinary.getPE32PlusHeader();
     if (not PE32PlusHeader)
       return revng::createError("Invalid PE Header");
 
@@ -140,21 +139,26 @@ Error PECOFFImporter::parseSectionsHeaders() {
     Model->Segments().insert(std::move(Segment));
   }
 
+  processSegments();
+
   // Identify EntryPoint
+  MetaAddress EntryPoint;
   if (PE32Header) {
-    if (PE32Header->AddressOfEntryPoint != 0)
-      Model->EntryPoint() = ImageBase + u64(PE32Header->AddressOfEntryPoint);
+    if (PE32Header->AddressOfEntryPoint != 0) {
+      EntryPoint = ImageBase + u64(PE32Header->AddressOfEntryPoint);
+    }
   } else {
-    const object::pe32plus_header *PE32PlusHeader = TheBinary
-                                                      .getPE32PlusHeader();
+    const pe32plus_header *PE32PlusHeader = TheBinary.getPE32PlusHeader();
     revng_assert(PE32PlusHeader);
 
     // PE32+ Header
     if (PE32PlusHeader->AddressOfEntryPoint != 0) {
-      Model->EntryPoint() = ImageBase
-                            + u64(PE32PlusHeader->AddressOfEntryPoint);
+      EntryPoint = ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint);
     }
   }
+
+  if (EntryPoint.isValid())
+    setEntryPoint(EntryPoint);
 
   return Error::success();
 }
@@ -178,8 +182,8 @@ void PECOFFImporter::parseSymbols() {
     if (Model->Functions().contains(Address))
       continue;
 
-    model::Function &Function = Model->Functions()[Address];
-    Function.OriginalName() = *MaybeName;
+    if (auto *Function = registerFunctionEntry(Address))
+      Function->OriginalName() = *MaybeName;
   }
 }
 

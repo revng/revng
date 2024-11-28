@@ -8,19 +8,23 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
-#include "revng/Model/Architecture.h"
+#include "revng/Model/Binary.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
 
 class BinaryImporterHelper {
 protected:
-  model::Architecture::Values Architecture = model::Architecture::Invalid;
+  model::Binary &Binary;
   uint64_t BaseAddress = 0;
+  Logger<> &Logger;
+  llvm::SmallVector<const model::Segment *> ExecutableSegments;
+  bool SegmentsInitialized = false;
 
 public:
-  BinaryImporterHelper(model::Architecture::Values Architecture,
-                       uint64_t BaseAddress) :
-    Architecture(Architecture), BaseAddress(BaseAddress) {}
+  BinaryImporterHelper(model::Binary &Binary,
+                       uint64_t BaseAddress,
+                       ::Logger<> &Logger) :
+    Binary(Binary), BaseAddress(BaseAddress), Logger(Logger) {}
 
 public:
   MetaAddress relocate(MetaAddress Address) const {
@@ -33,16 +37,77 @@ public:
 
   MetaAddress fromPC(uint64_t PC) const {
     using namespace model::Architecture;
-    revng_assert(Architecture != Invalid);
-    return MetaAddress::fromPC(toLLVMArchitecture(Architecture), PC);
+    revng_assert(Binary.Architecture() != Invalid);
+    return MetaAddress::fromPC(toLLVMArchitecture(Binary.Architecture()), PC);
   }
 
   MetaAddress fromGeneric(uint64_t Address) const {
     using namespace model::Architecture;
-    revng_assert(Architecture != Invalid);
-    return MetaAddress::fromGeneric(toLLVMArchitecture(Architecture), Address);
+    revng_assert(Binary.Architecture() != Invalid);
+    return MetaAddress::fromGeneric(toLLVMArchitecture(Binary.Architecture()),
+                                    Address);
+  }
+
+public:
+  void processSegments() {
+    for (const model::Segment &Segment : Binary.Segments())
+      if (Segment.IsExecutable())
+        ExecutableSegments.push_back(&Segment);
+
+    SegmentsInitialized = true;
+  }
+
+public:
+  void registerExtraCodeAddress(const MetaAddress &Address) {
+    revng_assert(Address.isValid());
+
+    if (not isExecutable(Address)) {
+      report("register ExtraCodeAddress", Address);
+      return;
+    }
+
+    Binary.ExtraCodeAddresses().insert(Address);
+  }
+
+  model::Function *registerFunctionEntry(const MetaAddress &Address) {
+    revng_assert(Address.isValid());
+
+    if (not isExecutable(Address)) {
+      report("register Function", Address);
+      return nullptr;
+    }
+
+    return &Binary.Functions()[Address];
+  }
+
+  void setEntryPoint(const MetaAddress &Address) {
+    revng_assert(Address.isValid());
+
+    if (not isExecutable(Address)) {
+      report("set EntryPoint", Address);
+      return;
+    }
+
+    Binary.EntryPoint() = Address;
   }
 
 public:
   static uint64_t u64(uint64_t Value) { return Value; }
+
+private:
+  void report(const char *Action, const MetaAddress &Address) {
+    revng_log(Logger,
+              "Cannot " << Action << " " << Address.toString()
+                        << " since it's not in an executable segment.");
+  }
+
+  /// \note Keep this private in order enforce not direct usage of EntryPoint
+  ///       ExtraCodeAddress and new Functions registration.
+  bool isExecutable(const MetaAddress &Address) const {
+    revng_assert(SegmentsInitialized);
+    auto ContainsAddress = [Address](const model::Segment *Segment) -> bool {
+      return Segment->contains(Address);
+    };
+    return llvm::any_of(ExecutableSegments, ContainsAddress);
+  }
 };

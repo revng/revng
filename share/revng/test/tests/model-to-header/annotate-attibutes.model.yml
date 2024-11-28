@@ -120,3 +120,12 @@ TypeDefinitions:
       - r14_x86_64
       - r15_x86_64
     FinalStackOffset: 8
+
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true

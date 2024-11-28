@@ -13,10 +13,11 @@
 #include "llvm/Object/COFF.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 
 struct ImporterOptions;
 
-class PDBImporter {
+class PDBImporter : public BinaryImporterHelper {
 private:
   TupleTree<model::Binary> &Model;
   MetaAddress ImageBase;
@@ -26,8 +27,7 @@ private:
   std::optional<llvm::codeview::GUID> ExpectedGUID;
 
 public:
-  PDBImporter(TupleTree<model::Binary> &Model, MetaAddress ImageBase) :
-    Model(Model), ImageBase(ImageBase) {}
+  PDBImporter(TupleTree<model::Binary> &Model, MetaAddress ImageBase);
 
   TupleTree<model::Binary> &getModel() { return Model; }
   MetaAddress &getBaseAddress() { return ImageBase; }

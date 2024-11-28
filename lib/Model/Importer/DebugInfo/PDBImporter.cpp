@@ -58,6 +58,16 @@ static llvm::cl::opt<std::string> UsePDB("use-pdb",
                                          llvm::cl::desc("Path to the PDB."),
                                          llvm::cl::cat(MainCategory));
 
+PDBImporter::PDBImporter(TupleTree<model::Binary> &Model,
+                         MetaAddress ImageBase) :
+  BinaryImporterHelper(*Model, ImageBase.address(), Log),
+  Model(Model),
+  ImageBase(ImageBase) {
+
+  // When we import debug info, we assume we already have parsed Segments
+  processSegments();
+}
+
 namespace {
 class PDBImporterImpl {
 private:
@@ -147,6 +157,7 @@ public:
 /// type stream was traversed before invoking this class.
 class PDBImporterSymbolVisitor : public SymbolVisitorCallbacks {
 private:
+  BinaryImporterHelper &Helper;
   TupleTree<model::Binary> &Model;
   ProcessedTypeMap &ProcessedTypes;
 
@@ -154,10 +165,12 @@ private:
   MetaAddress &ImageBase;
 
 public:
-  PDBImporterSymbolVisitor(TupleTree<model::Binary> &M,
+  PDBImporterSymbolVisitor(BinaryImporterHelper &Helper,
+                           TupleTree<model::Binary> &M,
                            ProcessedTypeMap &ProcessedTypes,
                            NativeSession &Session,
                            MetaAddress &ImageBase) :
+    Helper(Helper),
     Model(M),
     ProcessedTypes(ProcessedTypes),
     Session(Session),
@@ -222,7 +235,8 @@ public:
 
       SymbolVisitorCallbackPipeline Pipeline;
       SymbolDeserializer Deserializer(nullptr, CodeViewContainer::Pdb);
-      PDBImporterSymbolVisitor SymVisitor(Importer.getModel(),
+      PDBImporterSymbolVisitor SymVisitor(Importer,
+                                          Importer.getModel(),
                                           ProcessedTypes,
                                           Session,
                                           Importer.getBaseAddress());
@@ -1299,11 +1313,12 @@ Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
     MetaAddress FunctionAddress = ImageBase + FunctionVirtualAddress;
 
     if (not Model->Functions().contains(FunctionAddress)) {
-      model::Function &Function = Model->Functions()[FunctionAddress];
-      Function.OriginalName() = Proc.Name;
-      TypeIndex FunctionTypeIndex = Proc.FunctionType;
-      if (ProcessedTypes.find(FunctionTypeIndex) != ProcessedTypes.end())
-        Function.Prototype() = ProcessedTypes[FunctionTypeIndex];
+      if (auto *Function = Helper.registerFunctionEntry(FunctionAddress)) {
+        Function->OriginalName() = Proc.Name;
+        TypeIndex FunctionTypeIndex = Proc.FunctionType;
+        if (ProcessedTypes.find(FunctionTypeIndex) != ProcessedTypes.end())
+          Function->Prototype() = ProcessedTypes[FunctionTypeIndex];
+      }
     } else {
       auto It = Model->Functions().find(FunctionAddress);
       TypeIndex FunctionTypeIndex = Proc.FunctionType;

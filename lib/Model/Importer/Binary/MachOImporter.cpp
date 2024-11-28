@@ -18,6 +18,7 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/OverflowSafeInt.h"
 
+#include "ELFImporter.h"
 #include "Importers.h"
 
 using namespace llvm::MachO;
@@ -173,7 +174,7 @@ public:
   MachOImporter(TupleTree<model::Binary> &Model,
                 object::MachOObjectFile &TheBinary,
                 uint64_t BaseAddress) :
-    BinaryImporterHelper(Model->Architecture(), BaseAddress),
+    BinaryImporterHelper(*Model, BaseAddress, Log),
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
     TheBinary(TheBinary) {}
@@ -222,6 +223,8 @@ Error MachOImporter::import() {
     }
   }
 
+  processSegments();
+
   // Identify EntryPoint
   bool EntryPointFound = false;
   std::optional<uint64_t> EntryPointOffset;
@@ -239,9 +242,10 @@ Error MachOImporter::import() {
                                       LCI.C.cmdsize - sizeof(thread_command));
 
       if (contains(RawDataRef, CommandBuffer)) {
-        Model->EntryPoint() = getInitialPC(Model->Architecture(),
-                                           MustSwap,
-                                           CommandBuffer);
+        auto EntryPoint = getInitialPC(Model->Architecture(),
+                                       MustSwap,
+                                       CommandBuffer);
+        setEntryPoint(EntryPoint);
       } else {
         revng_log(Log, "LC_UNIXTHREAD Ptr is out of bounds. Ignoring.");
       }
@@ -271,8 +275,9 @@ Error MachOImporter::import() {
   if (EntryPointOffset) {
     using namespace model::Architecture;
     auto LLVMArchitecture = toLLVMArchitecture(Model->Architecture());
-    Model->EntryPoint() = File.offsetToAddress(*EntryPointOffset)
-                            .toPC(LLVMArchitecture);
+    auto EntryPoint = File.offsetToAddress(*EntryPointOffset)
+                        .toPC(LLVMArchitecture);
+    setEntryPoint(EntryPoint);
   }
 
   Error TheError = Error::success();
