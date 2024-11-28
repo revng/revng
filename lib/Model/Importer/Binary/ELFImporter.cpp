@@ -276,7 +276,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
   const auto &ElfHeader = TheELF.getHeader();
   if (ElfHeader.e_entry != 0)
-    Model->EntryPoint() = relocate(fromPC(ElfHeader.e_entry));
+    setEntryPoint(relocate(fromPC(ElfHeader.e_entry)));
 
   // Parse program headers
   Task.advance("Parse program headers", true);
@@ -368,6 +368,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
                             *DynsymPortion.get(),
                             *DynstrPortion.get());
       }
+
       auto SetCanonicalValue = [this](model::Register::Values Register,
                                       uint64_t Value) {
         for (model::Segment &Segment : Model->Segments())
@@ -601,7 +602,7 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
   case ELF::DT_INIT:
   case ELF::DT_FINI:
     revng_assert(PCAddress.isValid());
-    Model->Functions()[PCAddress];
+    registerFunctionEntry(PCAddress);
     break;
 
   default:
@@ -663,12 +664,12 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
     if (IsCode) {
       revng_assert(Address.isValid());
       if (Model->Functions().tryGet(Address) == nullptr) {
-        model::Function &Function = Model->Functions()[Address];
-        if (MaybeName and MaybeName->size() > 0) {
-          Function.OriginalName() = *MaybeName;
+        auto *Function = registerFunctionEntry(Address);
+        if (Function != nullptr and MaybeName and MaybeName->size() > 0) {
+          Function->OriginalName() = *MaybeName;
           // Insert Original name into exported ones, since it is by default
           // true.
-          Function.ExportedNames().insert((*MaybeName).str());
+          Function->ExportedNames().insert((*MaybeName).str());
         }
       }
     } else if (IsDataObject and Size > 0) {
@@ -733,6 +734,8 @@ void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
       Model->Segments().insert(std::move(NewSegment));
     }
   }
+
+  processSegments();
 }
 
 template<typename T, bool HasAddend>
@@ -834,11 +837,12 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
       if (It != Model->Functions().end()) {
         Function = &*It;
       } else {
-        Function = &Model->Functions()[Address];
-        Function->OriginalName() = Name;
+        Function = registerFunctionEntry(Address);
+        if (Function != nullptr)
+          Function->OriginalName() = Name;
       }
 
-      if (Name.size() > 0)
+      if (Function != nullptr and Name.size() > 0)
         Function->ExportedNames().insert(Name.str());
     } else {
       Address = relocate(fromGeneric(Symbol.st_value));
@@ -864,7 +868,7 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
   ArrayRef<uint8_t> EHFrameHdr = *MaybeEHFrameHdr;
 
   using namespace model::Architecture;
-  DwarfReader<T> EHFrameHdrReader(toLLVMArchitecture(Architecture),
+  DwarfReader<T> EHFrameHdrReader(toLLVMArchitecture(Binary.Architecture()),
                                   EHFrameHdr,
                                   *EHFrameHdrAddress);
 
@@ -1031,7 +1035,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
                        PersonalityPtr);
 
             // Register in the model for exploration
-            Model->ExtraCodeAddresses().insert(PersonalityPtr);
+            registerExtraCodeAddress(PersonalityPtr);
             break;
           }
           case 'R':
@@ -1150,13 +1154,8 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
     // Action
     LSDAReader.readULEB128();
 
-    if (LandingPad.isValid()) {
-      auto &ExtraCodeAddresses = Model->ExtraCodeAddresses();
-      if (!ExtraCodeAddresses.contains(LandingPad))
-        logAddress(ELFImporterLog, "New landing pad found: ", LandingPad);
-
-      ExtraCodeAddresses.insert(LandingPad);
-    }
+    if (LandingPad.isValid())
+      registerExtraCodeAddress(LandingPad);
   }
 }
 
@@ -1234,7 +1233,8 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     model::Relocation NewRelocation(Address, RelocationType, Addend);
 
     bool HasName = SymbolName.size() != 0;
-    bool IsBaseRelative = isELFRelocationBaseRelative(Architecture, Type);
+    bool IsBaseRelative = isELFRelocationBaseRelative(Model->Architecture(),
+                                                      Type);
 
     if (HasName and IsBaseRelative) {
       revng_log(ELFImporterLog,

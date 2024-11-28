@@ -48,3 +48,12 @@ TypeDefinitions:
           PrimitiveKind: Unsigned
           Size: 4
     Size: 8
+
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 40960
+    StartOffset: 0
+    FileSize: 40960
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true

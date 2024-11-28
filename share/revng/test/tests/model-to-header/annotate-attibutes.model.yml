@@ -5,6 +5,15 @@
 
 Architecture: x86_64
 
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+
 Functions:
   - Entry: "0x400700:Code_x86_64"
     CustomName: "fn"
