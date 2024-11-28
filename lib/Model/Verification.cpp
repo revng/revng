@@ -161,6 +161,28 @@ bool CallSitePrototype::verify(VerifyHelper &VH) const {
   return true;
 }
 
+bool StatementComment::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  if (Body().empty())
+    return VH.fail("Comment body must not be empty.", *this);
+
+  std::set<MetaAddress> Deduplicator;
+  for (const MetaAddress &Address : Location()) {
+    if (Address.isInvalid())
+      return VH.fail("Only valid addresses can be a part of the comment "
+                     "location.",
+                     *this);
+
+    if (not Deduplicator.insert(Address).second)
+      return VH.fail("Duplicated addresses are not allowed as a part of the "
+                     "comment location.",
+                     *this);
+  }
+
+  return true;
+}
+
 bool Function::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
@@ -190,6 +212,10 @@ bool Function::verify(VerifyHelper &VH) const {
 
   for (auto &CallSitePrototype : CallSitePrototypes())
     if (not CallSitePrototype.verify(VH))
+      return VH.fail();
+
+  for (const auto &Comment : Comments())
+    if (not Comment.verify())
       return VH.fail();
 
   return true;
@@ -901,6 +927,14 @@ bool CallSitePrototype::verify(bool Assert) const {
   return verify(VH);
 }
 bool CallSitePrototype::verify() const {
+  return verify(false);
+}
+
+bool StatementComment::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool StatementComment::verify() const {
   return verify(false);
 }
 

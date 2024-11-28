@@ -41,6 +41,11 @@ TUPLE-TREE-YAML */
 class model::StatementComment : public model::generated::StatementComment {
 public:
   using generated::StatementComment::StatementComment;
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
 };
 
 #include "revng/Model/Generated/Late/StatementComment.h"
