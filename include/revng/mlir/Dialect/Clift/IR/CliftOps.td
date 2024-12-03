@@ -24,6 +24,12 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 //===-------------------------- Type constraints --------------------------===//
 
+def Clift_AnyLabelType
+  : Type<CPred<"mlir::isa<mlir::clift::LabelType>($_self)">,
+         "a Clift label type",
+         "mlir::clift::LabelType">,
+    BuildableType<"$_builder.getType<mlir::clift::LabelType>()">;
+
 def Clift_AnyValueType
   : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
          "a Clift value type",
@@ -200,10 +206,11 @@ def Clift_MakeLabelOp
   : Clift_StatementOp<"make_label",
                       [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
 
+  let arguments = (ins StrAttr:$name);
   let results = (outs Clift_LabelType:$result);
 
   let assemblyFormat = [{
-    type($result) attr-dict
+    $name attr-dict
   }];
 
   let hasCanonicalizeMethod = 1;
@@ -213,7 +220,8 @@ def Clift_MakeLabelOp
     OpBuilder<(ins), [{
       build($_builder,
             $_state,
-            mlir::clift::LabelType::get($_builder.getContext()));
+            mlir::clift::LabelType::get($_builder.getContext()),
+            mlir::StringAttr::get($_builder.getContext(), ""));
     }]>
   ];
 }
@@ -222,7 +230,11 @@ def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
-    $label type($label) attr-dict
+    $label attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] MakeLabelOp getLabelOp();
   }];
 }
 
@@ -262,7 +274,11 @@ def Clift_GoToOp : Clift_StatementOp<"goto", [Clift_NoFallthrough]> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
-    $label type($label) attr-dict
+    $label attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] MakeLabelOp getLabelOp();
   }];
 }
 

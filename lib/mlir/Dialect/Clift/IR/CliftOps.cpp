@@ -677,6 +677,12 @@ mlir::LogicalResult GlobalVariableOp::verify() {
 
 //===----------------------------- Statements -----------------------------===//
 
+//===---------------------------- AssignLabelOp ---------------------------===//
+
+MakeLabelOp AssignLabelOp::getLabelOp() {
+  return getLabel().getDefiningOp<MakeLabelOp>();
+}
+
 //===------------------------------ DoWhileOp -----------------------------===//
 
 mlir::LogicalResult DoWhileOp::verify() {
@@ -706,6 +712,12 @@ mlir::LogicalResult ForOp::verify() {
   }
 
   return mlir::success();
+}
+
+//===------------------------------- GotoOp -------------------------------===//
+
+MakeLabelOp GoToOp::getLabelOp() {
+  return getLabel().getDefiningOp<MakeLabelOp>();
 }
 
 //===-------------------------------- IfOp --------------------------------===//
