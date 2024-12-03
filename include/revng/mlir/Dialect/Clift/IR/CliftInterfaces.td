@@ -121,6 +121,14 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
         return $_attr.getName();
       }]
     >,
+    InterfaceMethod<
+      "returns the size of the type.",
+      "uint64_t", "getByteSize", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return $_attr.getSize();
+      }]
+    >,
   ];
 }
 

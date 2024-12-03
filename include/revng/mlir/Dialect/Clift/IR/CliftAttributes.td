@@ -71,7 +71,8 @@ def Clift_EnumTypeAttr
   : Clift_Attr<"EnumType",
                "enum",
                [DeclareAttrInterfaceMethods<Clift_AliasableAttr>,
-                DeclareAttrInterfaceMethods<Clift_SizedType, ["getByteSize"]>,
+                DeclareAttrInterfaceMethods<Clift_TypeDefinitionAttr,
+                                            ["getByteSize"]>,
                 SubElementAttrInterface]> {
 
   let summary = "Clift enum type";
@@ -108,7 +109,8 @@ def Clift_TypedefTypeAttr
   : Clift_Attr<"TypedefType",
                "typedef",
                [DeclareAttrInterfaceMethods<Clift_AliasableAttr>,
-                DeclareAttrInterfaceMethods<Clift_SizedType, ["getByteSize"]>,
+                DeclareAttrInterfaceMethods<Clift_TypeDefinitionAttr,
+                                            ["getByteSize"]>,
                 SubElementAttrInterface]> {
 
   let summary = "Clift typedef type";
@@ -142,7 +144,8 @@ def Clift_FunctionTypeAttr
   : Clift_Attr<"FunctionType",
                "function",
                [DeclareAttrInterfaceMethods<Clift_AliasableAttr>,
-                DeclareAttrInterfaceMethods<Clift_SizedType, ["getByteSize"]>,
+                DeclareAttrInterfaceMethods<Clift_TypeDefinitionAttr,
+                                            ["getByteSize"]>,
                 SubElementAttrInterface]> {
 
   let summary = "Clift function type";
