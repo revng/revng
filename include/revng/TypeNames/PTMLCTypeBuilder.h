@@ -429,6 +429,10 @@ public:
                                             const model::Function &F) const;
   std::string getVariableLocationReference(llvm::StringRef VariableName,
                                            const model::Function &F) const;
+  std::string getGotoLabelLocationDefinition(llvm::StringRef GotoLabelName,
+                                             const model::Function &F) const;
+  std::string getGotoLabelLocationReference(llvm::StringRef GotoLabelName,
+                                            const model::Function &F) const;
 
 public:
   /// Returns true for types we never print definitions for a give type

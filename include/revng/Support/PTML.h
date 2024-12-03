@@ -21,6 +21,7 @@ inline constexpr auto Operator = "c.operator";
 inline constexpr auto StringLiteral = "c.string_literal";
 inline constexpr auto Type = "c.type";
 inline constexpr auto Variable = "c.variable";
+inline constexpr auto GotoLabel = "c.goto_label";
 
 } // namespace tokens
 

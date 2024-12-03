@@ -76,6 +76,9 @@ inline auto DynamicFunctionArgument = defineRank<"dynamic-function-argument",
 /// Rank for locations associated to function arguments and local variables.
 inline auto LocalVariable = defineRank<"local-variable", std::string>(Function);
 
+/// Rank for locations associated to goto-labels within functions.
+inline auto GotoLabel = defineRank<"goto-label", std::string>(Function);
+
 /// Rank for artificial structs returned by raw functions
 inline auto
   ArtificialStruct = defineRank<"artificial-struct",
