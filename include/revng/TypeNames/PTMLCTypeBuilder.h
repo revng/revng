@@ -319,18 +319,21 @@ public:
     return getLocation(false, T, AllowedActions);
   }
 
-  std::string getLocationReference(const model::PrimitiveType &P) const {
-    std::string CName = P.getCName();
+  std::string getPrimitiveTypeLocationReference(llvm::StringRef CName) const {
     auto Result = tokenTag(CName, ptml::c::tokens::Type);
     if (IsInTaglessMode)
       return Result.toString();
 
     std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
-                                             P.getCName());
+                                             CName.str());
     Result.addAttribute(getLocationAttribute(false), L);
     Result.addAttribute(attributes::ActionContextLocation, L);
 
     return Result.toString();
+  }
+
+  std::string getLocationReference(const model::PrimitiveType &P) const {
+    return getPrimitiveTypeLocationReference(P.getCName());
   }
 
   std::string getLocationReference(const model::Segment &S) {
