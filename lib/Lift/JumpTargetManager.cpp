@@ -267,10 +267,66 @@ bool TDBP::pinConstantStore(Function &F) {
   return true;
 }
 
+static bool isPossiblyReturningHelper(ProgramCounterHandler *PCH,
+                                      const MetaAddress &PC,
+                                      llvm::Instruction *I) {
+  // Is this a helper?
+  auto *Call = getCallToHelper(I);
+  if (Call == nullptr)
+    return false;
+
+  // Does this helper write something?
+  auto UsedCSV = getCSVUsedByHelperCallIfAvailable(Call);
+  if (not UsedCSV.has_value() or UsedCSV->Written.empty())
+    return false;
+
+  // Does this helper affect PC?
+  auto AffectsPC = [PCH](GlobalVariable *CSV) { return PCH->affectsPC(CSV); };
+  if (not llvm::any_of(UsedCSV->Written, AffectsPC))
+    return false;
+
+  // Obtain the name of the helper
+  StringRef CalleeName;
+  if (auto *Callee = getCalledFunction(Call))
+    CalleeName = Callee->getName();
+
+  // Returns the value of the n-th argument, if constant
+  auto GetArgument = [Call](unsigned Index) -> std::optional<uint64_t> {
+    Value *V = Call->getArgOperand(Index);
+    auto *CI = dyn_cast_or_null<ConstantInt>(V);
+    if (CI == nullptr)
+      return std::nullopt;
+
+    return CI->getLimitedValue();
+  };
+
+  // TODO: handle non-returning syscalls
+
+  // Exclude architecture specific exceptions
+  switch (PC.type()) {
+  case MetaAddressType::Code_aarch64:
+    // Handle calls to helper_exception_with_syndrome with EXCP_UDEF
+    if (CalleeName == "helper_exception_with_syndrome"
+        and GetArgument(1).value_or(0) == 1) {
+      return false;
+    }
+    break;
+
+  default:
+    // TODO: add more
+    break;
+  }
+
+  return true;
+}
+
 bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
   // If someone else already took care of the situation, quit
   if (getLimitedValue(Call->getArgOperand(0)) > 0)
     return false;
+
+  const auto &[PC, Size] = JTM->getPC(Call);
+  MetaAddress NextPC = PC + Size;
 
   bool ForceFallthrough = false;
 
@@ -285,7 +341,7 @@ bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
           // We found a PC-store, give up
           return false;
         }
-      } else if (isCallToHelper(I)) {
+      } else if (isPossiblyReturningHelper(PCH, PC, I)) {
         // We found a call to an helper
         ForceFallthrough = true;
         break;
@@ -310,9 +366,6 @@ bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
 
   IRBuilder<> Builder(Call->getParent());
   Call->setArgOperand(0, Builder.getInt32(1));
-
-  // Create the fallthrough jump
-  MetaAddress NextPC = JTM->getNextPC(Call);
 
   // Get the fallthrough basic block and emit a conditional branch, if not
   // possible simply jump to anyPC
