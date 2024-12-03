@@ -26,9 +26,8 @@ macro(append_target_property TARGET PROPERTY VALUE SEPARATOR)
   set_target_properties("${TARGET}" PROPERTIES "${PROPERTY}" "${TMP}${VALUE}")
 endmacro()
 
-macro(revng_add_library NAME TYPE EXPORT_NAME)
+function(revng_register_library NAME EXPORT_NAME)
 
-  add_library("${NAME}" "${TYPE}" ${ARGN})
   add_dependencies(revng-all-binaries "${NAME}")
   target_include_directories("${NAME}" INTERFACE $<INSTALL_INTERFACE:include/>)
   prepend_target_property("${NAME}" BUILD_RPATH
@@ -45,6 +44,13 @@ macro(revng_add_library NAME TYPE EXPORT_NAME)
     EXPORT "${EXPORT_NAME}"
     LIBRARY DESTINATION lib/
     ARCHIVE DESTINATION lib/)
+
+endfunction()
+
+macro(revng_add_library NAME TYPE EXPORT_NAME)
+
+  add_library("${NAME}" "${TYPE}" ${ARGN})
+  revng_register_library("${NAME}" "${EXPORT_NAME}")
 
 endmacro()
 
