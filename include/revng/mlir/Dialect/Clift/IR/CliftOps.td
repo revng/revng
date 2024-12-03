@@ -354,6 +354,8 @@ def Clift_SwitchOp : Clift_StatementOp<"switch"> {
   ];
 
   code extraClassDeclaration = [{
+    [[nodiscard]] mlir::clift::ValueType getConditionType();
+
     [[nodiscard]] Region &getConditionRegion() {
       return getRegion(0);
     }

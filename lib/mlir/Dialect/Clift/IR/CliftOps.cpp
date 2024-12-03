@@ -799,6 +799,10 @@ mlir::LogicalResult ReturnOp::verify() {
 
 //===------------------------------ SwitchOp ------------------------------===//
 
+ValueType SwitchOp::getConditionType() {
+  return getExpressionType(getConditionRegion());
+}
+
 void SwitchOp::build(OpBuilder &OdsBuilder,
                      OperationState &OdsState,
                      const llvm::ArrayRef<uint64_t> CaseValues) {
