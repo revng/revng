@@ -132,5 +132,20 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
   ];
 }
 
+def Clift_ClassTypeAttr : Clift_AttrInterface<"ClassTypeAttr"> {
+  let methods = [
+    InterfaceMethod<
+      "Returns the field attributes of this class type",
+      "llvm::ArrayRef<mlir::clift::FieldAttr>",
+      "getFields",
+      (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return $_attr.getFields();
+      }]
+    >
+  ];
+}
+
 #endif
 
