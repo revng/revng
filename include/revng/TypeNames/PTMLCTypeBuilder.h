@@ -345,6 +345,9 @@ public:
     return getLocation(false, A, F);
   }
 
+  std::string getLocationReference(const model::Function &F);
+  std::string getLocationReference(const model::DynamicFunction &F);
+
 public:
   template<model::EntityWithComment Type>
   std::string getModelComment(Type T) const {

@@ -111,6 +111,25 @@ std::string PCTB::getVariableLocationReference(llvm::StringRef Name,
   return getVariableLocation<false>(Name, F, *this);
 }
 
+std::string PCTB::getLocationReference(const model::Function &F) {
+  std::string Location = pipeline::locationString(ranks::Function, F.key());
+  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+    .addAttribute(attributes::Token, ptml::c::tokens::Function)
+    .addAttribute(attributes::ActionContextLocation, Location)
+    .addAttribute(attributes::LocationReferences, Location)
+    .toString();
+}
+
+std::string PCTB::getLocationReference(const model::DynamicFunction &F) {
+  std::string Location = pipeline::locationString(ranks::DynamicFunction,
+                                                  F.key());
+  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+    .addAttribute(attributes::Token, ptml::c::tokens::Function)
+    .addAttribute(attributes::ActionContextLocation, Location)
+    .addAttribute(attributes::LocationReferences, Location)
+    .toString();
+}
+
 struct NamedCInstanceImpl {
   ptml::CTypeBuilder &B;
   llvm::ArrayRef<std::string> AllowedActions;
