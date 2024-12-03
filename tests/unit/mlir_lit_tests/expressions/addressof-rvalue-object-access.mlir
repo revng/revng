@@ -20,7 +20,7 @@
 >>
 
 %0 = clift.undef : !s
-%1 = clift.object_access<0> %0 : !s -> !int32_t
+%1 = clift.access<0> %0 : !s -> !int32_t
 
 // CHECK: operand must be an lvalue-expression
 %2 = clift.addressof %1 : !int32_t$ptr

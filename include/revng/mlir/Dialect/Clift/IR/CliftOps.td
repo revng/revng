@@ -651,37 +651,29 @@ def Clift_AssignOp
   let hasVerifier = 1;
 }
 
-def Clift_ObjectAccessOp : Clift_ExpressionOp<"object_access"> {
-  let arguments = (ins Clift_AnyValueType:$object,
+def Clift_AccessOp : Clift_ExpressionOp<"access"> {
+  let arguments = (ins Clift_AnyValueType:$value,
+                       UnitAttr:$indirect,
                        I64Attr:$member_index);
 
   let results = (outs Clift_AnyValueType:$result);
 
   let assemblyFormat = [{
-    `<` $member_index `>` $object attr-dict `:` type($object) `->` type($result)
+    `<` (`indirect` $indirect^)? $member_index `>` $value attr-dict
+    `:` type($value) `->` type($result)
   }];
 
   let extraClassDeclaration = [{
-    bool isLvalueExpression();
-  }];
-
-  let hasVerifier = 1;
-}
-
-def Clift_PointerAccessOp : Clift_ExpressionOp<"pointer_access"> {
-  let arguments = (ins Clift_AnyPointerType:$pointer,
-                       I64Attr:$member_index);
-
-  let results = (outs Clift_AnyValueType:$result);
-
-  let assemblyFormat = [{
-    `<` $member_index `>` $pointer attr-dict `:` type($pointer) `->` type($result)
-  }];
-
-  let extraClassDeclaration = [{
-    bool isLvalueExpression() {
-      return true;
+    [[nodiscard]] bool isIndirect() {
+      return getIndirect();
     }
+
+    [[nodiscard]] bool isLvalueExpression();
+
+    [[nodiscard]] DefinedType getClassType();
+    [[nodiscard]] TypeDefinitionAttr getClassTypeAttr();
+
+    [[nodiscard]] FieldAttr getFieldAttr();
   }];
 
   let hasVerifier = 1;

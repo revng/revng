@@ -1032,64 +1032,63 @@ mlir::LogicalResult AssignOp::verify() {
   return mlir::success();
 }
 
-//===--------------------------- ObjectAccessOp ---------------------------===//
+//===------------------------------ AccessOp ------------------------------===//
 
-static ValueType getField(ValueType ClassType, size_t Index) {
-  const auto GetField = [&](llvm::ArrayRef<FieldAttr> Fields) -> ValueType {
-    if (Index < Fields.size())
-      return Fields[Index].getType();
-    return nullptr;
-  };
-
-  auto T = mlir::cast<DefinedType>(ClassType);
-  if (auto D = mlir::dyn_cast<StructTypeAttr>(T.getElementType()))
-    return GetField(D.getFields());
-  if (auto D = mlir::dyn_cast<UnionTypeAttr>(T.getElementType()))
-    return GetField(D.getFields());
-
-  return nullptr;
+bool AccessOp::isLvalueExpression() {
+  return isIndirect() or clift::isLvalueExpression(getValue());
 }
 
-bool ObjectAccessOp::isLvalueExpression() {
-  return clift::isLvalueExpression(getObject());
+DefinedType AccessOp::getClassType() {
+  auto ObjectT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
+
+  if (isIndirect()) {
+    ObjectT = mlir::cast<PointerType>(ObjectT).getPointeeType();
+    ObjectT = dealias(ObjectT, /*IgnoreQualifiers=*/true);
+  }
+
+  return mlir::cast<DefinedType>(ObjectT);
 }
 
-mlir::LogicalResult ObjectAccessOp::verify() {
-  auto ObjectT = dealias(getObject().getType());
+TypeDefinitionAttr AccessOp::getClassTypeAttr() {
+  return getClassType().getElementType();
+}
 
-  if (not isClassType(ObjectT))
+FieldAttr AccessOp::getFieldAttr() {
+  auto C = mlir::cast<ClassTypeAttr>(getClassTypeAttr());
+  return C.getFields()[getMemberIndex()];
+}
+
+mlir::LogicalResult AccessOp::verify() {
+  auto ObjectT = dealias(getValue().getType());
+
+  if (auto PointerT = mlir::dyn_cast<PointerType>(ObjectT)) {
+    if (not isIndirect())
+      return emitOpError() << getOperationName()
+                           << " operand must have pointer type.";
+
+    ObjectT = dealias(PointerT.getPointeeType(), /*IgnoreQualifiers=*/true);
+  }
+
+  auto DefinedT = mlir::dyn_cast<DefinedType>(ObjectT);
+  if (not DefinedT)
     return emitOpError() << getOperationName()
-                         << " operand must have struct or union type.";
+                         << " operand must have (pointer to) struct or union"
+                         << " type.";
 
-  auto FieldT = getField(ObjectT, getMemberIndex());
-  if (FieldT == nullptr)
+  auto Class = mlir::dyn_cast<ClassTypeAttr>(DefinedT.getElementType());
+  if (not Class)
+    return emitOpError() << getOperationName()
+                         << " operand must have (pointer to) struct or union"
+                         << " type.";
+
+  auto Fields = Class.getFields();
+
+  const uint64_t Index = getMemberIndex();
+  if (Index >= Fields.size())
     return emitOpError() << getOperationName()
                          << " struct or union member index out of range.";
-  if (FieldT != getResult().getType())
-    return emitOpError() << getOperationName()
-                         << " result type must match the selected member type.";
 
-  return mlir::success();
-}
-
-//===--------------------------- PointerAccessOp --------------------------===//
-
-mlir::LogicalResult PointerAccessOp::verify() {
-  auto PointerT = mlir::dyn_cast<PointerType>(getPointer().getType());
-  if (not PointerT)
-    return emitOpError() << getOperationName()
-                         << " operand must have pointer type.";
-
-  auto PointeeT = PointerT.getPointeeType();
-  if (not isClassType(PointeeT))
-    return emitOpError() << getOperationName()
-                         << " operand type must be a pointer to struct or union"
-                            " type.";
-
-  auto FieldT = getField(PointeeT, getMemberIndex());
-  if (FieldT == nullptr)
-    return emitOpError() << getOperationName()
-                         << " struct or union member index must be valid.";
+  auto FieldT = Fields[Index].getType();
   if (FieldT != getResult().getType())
     return emitOpError() << getOperationName()
                          << " result type must match the selected member type.";

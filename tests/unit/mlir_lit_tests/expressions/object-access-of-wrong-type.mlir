@@ -22,4 +22,4 @@
 %0 = clift.undef : !s
 
 // CHECK: result type must match the selected member type
-%1 = clift.object_access<0> %0 : !s -> !uint32_t
+%1 = clift.access<0> %0 : !s -> !uint32_t
