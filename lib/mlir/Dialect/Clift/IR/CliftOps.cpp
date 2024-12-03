@@ -892,18 +892,6 @@ mlir::LogicalResult WhileOp::verify() {
 
 //===----------------------------- Expressions ----------------------------===//
 
-//===------------------------------- YieldOp ------------------------------===//
-
-mlir::LogicalResult YieldOp::verify() {
-  auto T = getValue().getType();
-
-  if (not isObjectType(T) and not isVoid(T))
-    return emitOpError() << getOperationName()
-                         << " must yield an object type or void.";
-
-  return mlir::success();
-}
-
 //===----------------------- UnaryIntegerMutationOp -----------------------===//
 
 mlir::LogicalResult clift::impl::verifyUnaryIntegerMutationOp(Operation *Op) {

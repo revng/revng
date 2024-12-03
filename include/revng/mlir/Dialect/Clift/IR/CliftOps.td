@@ -404,8 +404,6 @@ def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
 def Clift_YieldOp : Clift_ExpressionOp<"yield", [Terminator]> {
   let arguments = (ins Clift_AnyValueType:$value);
 
-  let hasVerifier = 1;
-
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
   }];
