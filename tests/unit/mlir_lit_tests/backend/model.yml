@@ -1,0 +1,190 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - ID: 1001
+    Kind: CABIFunctionDefinition
+    CustomName: "fun_0x40001001_t"
+    ABI: SystemV_x86_64
+    Arguments: []
+
+  - ID: 1002
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+    Arguments:
+      - Index: 0
+        CustomName: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Index: 1
+        CustomName: "y"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
+  - ID: 1003
+    Kind: RawFunctionDefinition
+    Architecture: x86_64
+    Arguments:
+      - Location: rcx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+        CustomName: "rcx"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2004-StructDefinition"
+
+  - ID: 1004
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        CustomName: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
+  - ID: 1005
+    Kind: CABIFunctionDefinition
+    ABI: SystemV_x86_64
+    Arguments: []
+
+  - ID: 2001
+    Kind: EnumDefinition
+    CustomName: "my_enum"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+    Entries:
+      - Value: 0
+        CustomName: "my_enum_0"
+
+  - ID: 2002
+    Kind: StructDefinition
+    CustomName: "my_struct"
+    Size: 4
+    Fields:
+      - Offset: 0
+        CustomName: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Offset: 4
+        CustomName: "y"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
+  - ID: 2003
+    Kind: UnionDefinition
+    CustomName: "my_union"
+    Fields:
+      - Index: 0
+        CustomName: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Index: 1
+        CustomName: "y"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
+  - ID: 2004
+    Kind: StructDefinition
+    CustomName: "args_1003"
+    Size: 4
+    Fields:
+      - Offset: 0
+        CustomName: "a"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
+  - ID: 2005
+    Kind: StructDefinition
+    CustomName: "frame_1005"
+    Size: 4
+    Fields:
+      - Offset: 0
+        CustomName: "a"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
+Functions:
+  - Entry: "0x40001001:Code_x86_64"
+    CustomName: "fun_0x40001001"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1001-CABIFunctionDefinition"
+
+  - Entry: "0x40001002:Code_x86_64"
+    CustomName: "fun_0x40001002"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1002-CABIFunctionDefinition"
+
+  - Entry: "0x40001003:Code_x86_64"
+    CustomName: "fun_0x40001003"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1003-RawFunctionDefinition"
+
+  - Entry: "0x40001004:Code_x86_64"
+    CustomName: "fun_0x40001004"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1004-CABIFunctionDefinition"
+
+  - Entry: "0x40001005:Code_x86_64"
+    CustomName: "fun_0x40001005"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1005-CABIFunctionDefinition"
+    StackFrameType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2005-StructDefinition"
+
+ImportedDynamicFunctions:
+  - OriginalName: "imported"
+    CustomName: "imported"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1001-CABIFunctionDefinition"
+
+Segments:
+  - StartAddress: "0x40002001:Generic64"
+    VirtualSize: 4
+    CustomName: "seg_0x40002001"
+    StartOffset: 0
+    FileSize: 4
+    IsReadable: true
+    IsWriteable: true
+    IsExecutable: false
