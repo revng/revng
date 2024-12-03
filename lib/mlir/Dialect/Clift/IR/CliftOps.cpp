@@ -722,7 +722,7 @@ mlir::LogicalResult IfOp::verify() {
 
 mlir::LogicalResult LocalVariableOp::verify() {
   if (Region &R = getInitializer(); not R.empty()) {
-    if (getExpressionType(R) != getType())
+    if (getExpressionType(R) != getType().removeConst())
       return emitOpError() << getOperationName()
                            << " initializer type must match the variable type";
   }
