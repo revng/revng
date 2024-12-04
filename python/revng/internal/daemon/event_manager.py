@@ -14,6 +14,7 @@ from revng.internal.api import Manager
 class EventType(StrEnum):
     BEGIN = auto()
     CONTEXT = auto()
+    PRODUCE = auto()
 
 
 def emit_event(event_type: EventType):
@@ -41,17 +42,22 @@ class EventManager(Thread):
         self.manager = manager
         self.save_hooks = save_hooks
         self.running = True
-        self.next_save: float | None = None
+        self._interval = 120  # 2 minutes
+        self.last_save: float = time.time()
+        self.last_event: float | None = None
         self.credentials: str | None = None
 
     def run(self):
         while self.running:
-            # This loop will call manager.save after 5 minutes of inactivity. This is to prevent
-            # the manager from lagging on every change. Some changes related to speeding up the
-            # pipeline manager from saving (e.g. detecting dirtiness in containers) need to be
-            # implemented before this can be dropped
-            if self.next_save is not None and self.next_save < time.time():
+            # This loop will call manager.save every 2 minutes if changes have been made in the
+            # meantime. This is to prevent the manager from lagging on every change. Some changes
+            # related to speeding up the pipeline manager from saving (e.g. detecting dirtiness in
+            # containers) need to be implemented before this can be dropped
+            if self.last_save + self._interval < time.time() and (
+                self.last_event is not None and self.last_event < self.last_save
+            ):
                 self.save()
+                self.last_save = time.time()
             time.sleep(10)
 
     def save(self):
@@ -63,7 +69,7 @@ class EventManager(Thread):
         return result
 
     def handle_event(self, type_: EventType):
-        self.next_save = time.time() + 300
+        self.last_event = time.time()
 
     def set_credentials(self, credentials: str):
         self.credentials = credentials
