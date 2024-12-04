@@ -194,6 +194,14 @@ Error PipelineFileMapping::store(Runner &LoadInto) const {
   return LoadInto[Step].containers()[Container].store(Path);
 }
 
+Error Runner::storeContext(const revng::DirectoryPath &DirPath) const {
+  revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
+  if (auto Error = ContextDir.create())
+    return Error;
+
+  return TheContext->store(ContextDir);
+}
+
 Error Runner::store(const revng::DirectoryPath &DirPath) const {
   if (auto Error = DirPath.create())
     return Error;
@@ -203,12 +211,7 @@ Error Runner::store(const revng::DirectoryPath &DirPath) const {
       return Error;
     }
   }
-
-  revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
-  if (auto Error = ContextDir.create())
-    return Error;
-
-  return TheContext->store(ContextDir);
+  return storeContext(DirPath);
 }
 
 Error Runner::storeStepToDisk(llvm::StringRef StepName,

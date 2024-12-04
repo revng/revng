@@ -211,6 +211,7 @@ public:
 
 public:
   llvm::Error store(const revng::DirectoryPath &DirPath) const;
+  llvm::Error storeContext(const revng::DirectoryPath &DirPath) const;
   llvm::Error dump(const char *DirPath) const debug_function {
     return store(revng::DirectoryPath::fromLocalStorage(DirPath));
   }
