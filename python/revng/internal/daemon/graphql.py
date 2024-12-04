@@ -83,6 +83,7 @@ bigint_scalar = ScalarType("BigInt", serializer=str, value_parser=int)
 
 
 @query.field("produce")
+@emit_event(EventType.PRODUCE)
 async def resolve_produce(
     obj,
     info,
@@ -111,6 +112,7 @@ async def resolve_produce(
 
 
 @query.field("produceArtifacts")
+@emit_event(EventType.PRODUCE)
 async def resolve_produce_artifacts(
     obj,
     info,
