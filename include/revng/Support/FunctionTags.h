@@ -147,8 +147,9 @@ getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
 }
 
 inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
-  return *getCSVUsedByHelperCallIfAvailable(Call);
+  return getCSVUsedByHelperCallIfAvailable(Call).value();
 }
+
 /// Checks if \p I is a marker
 ///
 /// A marker a function call to an empty function acting as meta-information,
