@@ -609,11 +609,20 @@ constexpr size_t getCount(model::Architecture::Values Architecture) {
   });
 }
 
+inline model::Architecture::Values
+canonicalArchitecture(model::Architecture::Values Architecture) {
+  if (Architecture == model::Architecture::mipsel)
+    return model::Architecture::mips;
+
+  return Architecture;
+}
+
 inline Values fromRegisterName(llvm::StringRef Name,
                                model::Architecture::Values Architecture) {
-  std::string FullName = (llvm::Twine(Name) + "_"
-                          + model::Architecture::getName(Architecture))
-                           .str();
+  Architecture = canonicalArchitecture(Architecture);
+  std::string FullName = Name.str();
+  FullName += "_";
+  FullName += model::Architecture::getName(Architecture).str();
 
   return fromName(FullName);
 }
