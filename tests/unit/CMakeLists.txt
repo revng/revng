@@ -598,3 +598,13 @@ target_link_libraries(
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
 add_test(NAME test_pointer_array_emission COMMAND test_pointer_array_emission)
+
+#
+# compile a pass
+#
+
+# We use the plain `add_library` and not the revng version
+# (revng_add_library_internal) in order to not get this installed into `lib`
+add_library(test_scopegraph SHARED "${SRC}/ScopeGraphLoggerPass.cpp")
+target_link_libraries(test_scopegraph revngScopeGraphUtils revngSupport
+                      ${LLVM_LIBRARIES})

@@ -16,7 +16,7 @@ Tag CSVsPromoted("csvs-promoted", ABIEnforced);
 Tag Exceptional("exceptional");
 Tag StructInitializer("struct-initializer");
 Tag OpaqueCSVValue("opaque-csv-value");
-Tag FunctionDispatcher("functin-dispatcher");
+Tag FunctionDispatcher("function-dispatcher");
 Tag Root("root");
 Tag IsolatedRoot("isolated-root");
 Tag CSVsAsArgumentsWrapper("csvs-as-arguments-wrapper");
@@ -36,6 +36,9 @@ Tag UniquedByMetadata("uniqued-by-metadata");
 Tag AllocatesLocalVariable("allocates-local-variable");
 Tag ReturnsPolymorphic("returns-polymorphic");
 Tag IsRef("is-ref");
+
+Tag ScopeCloserMarker("scope-closer");
+Tag GotoBlockMarker("goto-block");
 
 FunctionPoolTag<TypePair>
   AddressOf("address-of",
