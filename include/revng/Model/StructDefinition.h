@@ -11,23 +11,22 @@
 /* TUPLE-TREE-YAML
 name: StructDefinition
 doc: |
-  A struct type in model.
-  Structs are actually typedefs of unnamed structs in C.
+  A `struct` type.
 type: struct
 inherits: TypeDefinition
 fields:
   - name: Size
-    doc: Size in bytes
+    doc: The size, in bytes, of the `struct`.
     type: uint64_t
   - name: CanContainCode
     doc: |
-      When this field is set to true AND this struct is reachable for
-      a segment's root type without traversing through pointers, arrays or
-      other qualifiers - the padding of the struct is treated at if it contains
-      code.
+      When this field is set to `true` *and* this `struct` is reachable for
+      a segment's root type without traversing pointer, arrays or other
+      qualifiers, the padding of the struct is treated at if it contains code.
     type: bool
     optional: true
   - name: Fields
+    doc: The list of fields of this `struct`.
     sequence:
       type: SortedVector
       elementType: StructField

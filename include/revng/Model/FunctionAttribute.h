@@ -11,9 +11,9 @@ doc: |
 type: enum
 members:
   - name: NoReturn
-    doc: The function does not return
+    doc: The function does not return.
   - name: Inline
-    doc: The function must be inlined in callers
+    doc: The function must be inlined in callers.
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/FunctionAttribute.h"

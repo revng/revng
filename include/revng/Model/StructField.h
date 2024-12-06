@@ -11,11 +11,15 @@
 
 /* TUPLE-TREE-YAML
 name: StructField
-doc: A field of a struct type in model, with offset, qualified type, and name
+doc: |-
+  A field of a `StructDefinition`.
+
+  It is composed by the offset of the field and its type.
 type: struct
 fields:
   - name: Offset
     type: uint64_t
+    doc: Offset at which the field starts within the `struct`.
   - name: CustomName
     type: Identifier
     optional: true
@@ -27,6 +31,7 @@ fields:
     optional: true
   - name: Type
     type: Type
+    doc: The type of the field.
     upcastable: true
 key:
   - Offset

@@ -35,7 +35,7 @@ fields:
     doc: |
       The prefix for a type definition without a name.
 
-      The default value is ``.
+      The default value is "".
 
       Note that the type kind (like `struct`, or `typedef`) is going to be
       inserted automatically after this prefix.
@@ -103,7 +103,7 @@ fields:
   - name: ArtificialArrayWrapperFieldName
     doc: |
       The name of the field within the artificial array wrapper.
-      See \ref ArtificialArrayWrapperPrefix.
+      See `ArtificialArrayWrapperPrefix`.
 
       The default value is `the_array`.
     type: string

@@ -10,17 +10,28 @@
 
 /* TUPLE-TREE-YAML
 name: EnumEntry
-doc: An entry in a model enum, with a name and a value
+doc: An entry in an `enum`.
 type: struct
 fields:
   - name: Value
+    doc: |-
+      The value associated to this `enum` entry.
+
+      Has to be unique within the `enum`.
     type: uint64_t
   - name: CustomName
     type: Identifier
     optional: true
+    doc: |-
+      A user-chosen `Identifier` for this `enum` entry.
   - name: OriginalName
     type: string
     optional: true
+    doc: |-
+      The name this `enum` entry had upon import.
+
+      This value can differ from `CustomName`, since `CustomName` needs to
+      respect the constraints of an `Identifier`.
   - name: Comment
     type: string
     optional: true

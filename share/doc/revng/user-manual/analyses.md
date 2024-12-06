@@ -1,4 +1,6 @@
-Clearly we don't want our users to write the model by hand.
+In [the previous page](model-tutorial.md) we saw how we can build a model from scratch, by hand.
+
+However, we don't want our users to write the model by hand.
 Therefore, as mentioned before, we developed a series of analyses which can automatically populate the model for you when you open a new project.
 
 Consider the following simple program:

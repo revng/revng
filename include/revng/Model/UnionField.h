@@ -11,11 +11,15 @@
 
 /* TUPLE-TREE-YAML
 name: UnionField
-doc: A field of a union type in model, with position, qualified type, and name
+doc: |-
+  An alternative of a `UnionDefinition`.
+
+  It is composed by a index and the `Type`.
 type: struct
 fields:
   - name: Index
     type: uint64_t
+    doc: The index of the alternative within the `union`.
   - name: CustomName
     type: Identifier
     optional: true
@@ -27,6 +31,7 @@ fields:
     optional: true
   - name: Type
     type: Type
+    doc: The type of this `union` alternative.
     upcastable: true
 key:
   - Index

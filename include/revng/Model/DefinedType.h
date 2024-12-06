@@ -10,6 +10,7 @@
 name: DefinedType
 type: struct
 inherits: Type
+doc: A reference to a `TypeDefinition`.
 fields:
   - name: Definition
     reference:

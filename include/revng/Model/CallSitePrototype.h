@@ -12,21 +12,21 @@
 
 /* TUPLE-TREE-YAML
 name: CallSitePrototype
-doc: Prototype of a callsite
+doc: Information about the prototype of a specific callsite within a `Function`.
 type: struct
 fields:
   - name: CallerBlockAddress
-    doc: Address of the basic block of the call
+    doc: Address of the basic block of the call.
     type: MetaAddress
   - name: Prototype
     type: Type
     upcastable: true
   - name: IsTailCall
-    doc: Whether this call site is a tail call or not
+    doc: Whether this call site is a tail call or not.
     type: bool
     optional: true
   - name: Attributes
-    doc: Attributes for this call site
+    doc: Attributes for this call site.
     sequence:
       type: MutableSet
       elementType: FunctionAttribute

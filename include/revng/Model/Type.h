@@ -11,7 +11,8 @@
 
 /* TUPLE-TREE-YAML
 name: Type
-doc: Base class of model types used for LLVM-style RTTI
+doc: |-
+  A type such as an array, a pointer, a primitive or a defined type.
 type: struct
 fields:
   - name: Kind

@@ -141,7 +141,7 @@ Treat all the structs as if they were packed[^1].
 
 This means that options that assume regular alignment rules (like `PackStackArguments`) stop applying to them, while others (such as `AllowPackedTypesInRegisters`) start.
 
-Practically this option is mostly used to conditionally ensure [`PackStackArguments`](#stackargumentsuseregularstructalignmentrules-bool) does not apply to structs (see Apple AArch64 ABI for the reference).
+Practically this option is mostly used to conditionally ensure [`PackStackArguments`](#packstackarguments-bool) does not apply to structs (see Apple AArch64 ABI for the reference).
 
 # Stack and register limits
 

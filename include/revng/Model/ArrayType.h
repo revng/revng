@@ -9,13 +9,17 @@
 /* TUPLE-TREE-YAML
 name: ArrayType
 type: struct
+doc: |-
+  An array of `Type`s.
 inherits: Type
 fields:
   - name: ElementCount
     type: uint64_t
+    doc: The number of elements.
   - name: ElementType
     type: Type
     upcastable: true
+    doc: The type of the elements of the array.
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/ArrayType.h"
