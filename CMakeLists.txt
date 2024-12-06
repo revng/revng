@@ -288,23 +288,29 @@ file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}"
 #
 # Build docs
 #
+configure_file(mkdocs.yml "${CMAKE_BINARY_DIR}" COPYONLY)
+set(HTML_DOCS_PATH "${CMAKE_CURRENT_BINARY_DIR}/share/doc/revng/html")
 find_program(MKDOCS NAMES mkdocs)
+
 add_custom_command(
   OUTPUT share/doc/revng/html/404.html
-  DEPENDS share/doc/revng/references/abi-definition.md
-          share/doc/revng/references/mime-types.md
-          share/doc/revng/references/ptml.md
-          share/doc/revng/user-manual/analyses.md
-          share/doc/revng/user-manual/index.md
-          share/doc/revng/user-manual/metaaddress.md
-          share/doc/revng/user-manual/model.md
-          share/doc/revng/user-manual/model-tutorial.md
-          share/doc/revng/user-manual/working-environment.md
-          share/doc/revng/what-is-revng.md
-          share/doc/revng/index.md
-  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-  COMMAND ${MKDOCS} build --quiet --strict --site-dir
-          "${CMAKE_CURRENT_BINARY_DIR}/share/doc/revng/html"
+  DEPENDS mkdocs.yml
+          copy_share
+          "share/doc/revng/references/abi-definition.md"
+          "share/doc/revng/references/mime-types.md"
+          "share/doc/revng/references/ptml.md"
+          "share/doc/revng/user-manual/analyses.md"
+          "share/doc/revng/user-manual/index.md"
+          "share/doc/revng/user-manual/metaaddress.md"
+          "share/doc/revng/user-manual/model.md"
+          "share/doc/revng/user-manual/model-tutorial.md"
+          "share/doc/revng/user-manual/working-environment.md"
+          "share/doc/revng/what-is-revng.md"
+          "share/doc/revng/index.md"
+          generate-revngModel-tuple-tree-code
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+  COMMAND ${MKDOCS} build --quiet --strict --site-dir mkdocs-output && rm -rf
+          "${HTML_DOCS_PATH}" && mv -T mkdocs-output "${HTML_DOCS_PATH}"
   COMMENT "Generating mkdocs")
 add_custom_target(mkdocs ALL DEPENDS share/doc/revng/html/404.html)
 

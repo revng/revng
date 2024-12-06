@@ -16,7 +16,8 @@ function(tuple_tree_generator_impl)
       ROOT_TYPE
       GLOBAL_NAME
       PYTHON_PATH
-      TYPESCRIPT_PATH)
+      TYPESCRIPT_PATH
+      DOCS_PATH)
   set(multiValueArgs HEADERS TYPESCRIPT_INCLUDE STRING_TYPES
                      SEPARATE_STRING_TYPES SCALAR_TYPES)
   cmake_parse_arguments(GENERATOR "" "${oneValueArgs}" "${multiValueArgs}"
@@ -44,6 +45,9 @@ function(tuple_tree_generator_impl)
   endif()
   if(NOT DEFINED GENERATOR_TYPESCRIPT_PATH)
     set(GENERATOR_TYPESCRIPT_PATH "")
+  endif()
+  if(NOT DEFINED GENERATOR_DOCS_PATH)
+    set(GENERATOR_DOCS_PATH "")
   endif()
 
   #
@@ -91,6 +95,17 @@ function(tuple_tree_generator_impl)
       "${GENERATOR_SCALAR_TYPES}"
       "${GENERATOR_JSONSCHEMA_PATH}")
     list(APPEND EXTRA_TARGETS ${GENERATOR_JSONSCHEMA_PATH})
+  endif()
+
+  #
+  # Produce JSON schema, if requested
+  #
+  if(NOT "${GENERATOR_DOCS_PATH}" STREQUAL "")
+    tuple_tree_generator_generate_docs(
+      "${GENERATOR_SCHEMA_PATH}" "${GENERATOR_NAMESPACE}"
+      "${GENERATOR_DOCS_PATH}" "${GENERATOR_ROOT_TYPE}"
+      "${GENERATOR_SCALAR_TYPES}")
+    list(APPEND EXTRA_TARGETS ${GENERATOR_DOCS_PATH})
   endif()
 
   #
@@ -216,6 +231,35 @@ set(TUPLE_TREE_GENERATOR_SOURCES
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/schema.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/struct.py")
+
+# Generates docs
+function(
+  tuple_tree_generator_generate_docs
+  # Path to the yaml definitions
+  YAML_DEFINITIONS
+  # Base namespace of the generated classes (e.g. model)
+  NAMESPACE
+  # List of headers that are expected to be generated
+  EXPECTED_GENERATED_MARKDOWN
+  # Root type of the schema, if there is any
+  ROOT_TYPE
+  SCALAR_TYPES)
+
+  set(SCALAR_TYPE_ARGS)
+  foreach(ST ${SCALAR_TYPES})
+    list(APPEND SCALAR_TYPE_ARGS --scalar-type "'${ST}'")
+  endforeach()
+
+  add_custom_command(
+    COMMAND
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-docs.py" --namespace
+      "${NAMESPACE}" --root-type \""${ROOT_TYPE}"\" ${SCALAR_TYPE_ARGS}
+      "${YAML_DEFINITIONS}" > "${EXPECTED_GENERATED_MARKDOWN}"
+    OUTPUT "${EXPECTED_GENERATED_MARKDOWN}"
+    DEPENDS "${YAML_DEFINITIONS}" "${TEMPLATES_DIR}/docs.md.tpl"
+            "${SCRIPTS_ROOT_DIR}/extract_yaml.py"
+            ${TUPLE_TREE_GENERATOR_SOURCES})
+endfunction()
 
 # Generates headers and implementation C++ files
 function(

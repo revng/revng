@@ -1,6 +1,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 
-from .generators import CppHeadersGenerator, JSONSchemaGenerator, PythonGenerator
+from .generators import CppHeadersGenerator, DocsGenerator, JSONSchemaGenerator, PythonGenerator
 from .generators import TypeScriptGenerator
 from .schema import Schema
 
@@ -37,3 +37,8 @@ def generate_python(schema: Schema, root_type: str, string_types=None, external_
 def generate_typescript(*args, **kwargs) -> str:
     generator = TypeScriptGenerator(*args, **kwargs)
     return generator.emit_typescript()
+
+
+def generate_docs(schema: Schema, root_type: str) -> str:
+    generator = DocsGenerator(schema, root_type)
+    return generator.emit_docs()

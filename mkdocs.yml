@@ -25,6 +25,7 @@ nav:
       - "Building a model from scratch": "user-manual/model-tutorial.md"
       - "Analyses": "user-manual/analyses.md"
   - "References":
+      - "Model": references/model.md
       - "MIME types": references/mime-types.md
       - PTML: references/ptml.md
 markdown_extensions:

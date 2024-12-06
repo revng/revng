@@ -24,6 +24,7 @@ set(MODEL_HEADERS_DIR "${CMAKE_SOURCE_DIR}/include/revng/Model")
 set(SCHEMA_PATH "${CMAKE_BINARY_DIR}/model-schema.yml")
 set(JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
 set(TYPESCRIPT_PATH "${CMAKE_BINARY_DIR}/lib/typescript/model.ts")
+set(DOCS_PATH "${CMAKE_BINARY_DIR}/share/doc/revng/references/model.md")
 target_tuple_tree_generator(
   revngModel
   INSTALL
@@ -41,6 +42,8 @@ target_tuple_tree_generator(
   "${TYPESCRIPT_PATH}"
   TYPESCRIPT_INCLUDE
   "${CMAKE_SOURCE_DIR}/typescript/model.ts"
+  DOCS_PATH
+  "${DOCS_PATH}"
   ROOT_TYPE
   Binary
   EMIT_TRACKING
