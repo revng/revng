@@ -567,6 +567,15 @@ forwardTaintAnalysis(const Module *M,
       case Instruction::And:
       case Instruction::Or:
         break;
+      case Instruction::AtomicRMW: {
+        auto *Rmw = cast<AtomicRMWInst>(TheUser);
+        if (TheUse->get() == Rmw->getPointerOperand()) {
+          Results.TaintedLoads.insert(TheUser);
+          Results.TaintedStores.insert(TheUser);
+        } else {
+          revng_abort();
+        }
+      } break;
       default:
         revng_abort();
       }
@@ -710,6 +719,9 @@ public:
     if (isa<SelectInst>(I)) {
       Sources.push_back(&I->getOperandUse(1));
       Sources.push_back(&I->getOperandUse(2));
+    } else if (isa<AtomicRMWInst>(I)) {
+      const auto PtrOpNum = AtomicRMWInst::getPointerOperandIndex();
+      Sources.push_back(&I->getOperandUse(PtrOpNum));
     } else if (not isa<StoreInst>(I)) {
       for (const Use &OpUse : I->operands()) {
         // NOTE(anjo): We ignore undef values here to not
@@ -2006,6 +2018,14 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       }
       revng_assert(New);
     } break;
+    case Instruction::AtomicRMW: {
+      revng_assert(Item.getNumSources() == 1);
+      Value *AddressValue = cast<AtomicRMWInst>(Instr)->getPointerOperand();
+      auto CSOff = std::make_pair(ItemVal,
+                                  ValueCallSiteOffsets.at(AddressValue));
+      bool New = StoreCallSiteOffsets.insert(CSOff).second;
+      revng_assert(New);
+    } break;
     default:
       revng_abort(dumpToString(Instr).data());
     }
@@ -2080,6 +2100,8 @@ CPUSAOA::getOffsetsOrExploreSrc(Value *V, WorkItem &Item, bool IsLoad) const {
       revng_log(CSVAccessLog, "CMP");
       return CSVOffsets(CSVOffsets::Kind::Unknown);
     case Instruction::Store:
+      revng_abort();
+    case Instruction::AtomicRMW:
       revng_abort();
     default:
       break;
@@ -2289,7 +2311,7 @@ void CPUSAOA::computeAggregatedOffsets() {
     auto DL = M.getDataLayout();
 
     bool IsInstr = isa<Instruction>(I);
-    bool IsCorrectAccessType = IsLoad ? isa<LoadInst>(I) : isa<StoreInst>(I);
+    bool IsCorrectAccessType = IsLoad ? isa<LoadInst>(I) : (isa<StoreInst>(I) or isa<AtomicRMWInst>(I));
     bool IsCallToBuiltinMemcpy = callsBuiltinMemcpy(dyn_cast<Instruction>(I));
     revng_assert(IsInstr and (IsCorrectAccessType or IsCallToBuiltinMemcpy));
     auto *Instr = dyn_cast<Instruction>(I);
@@ -2303,9 +2325,12 @@ void CPUSAOA::computeAggregatedOffsets() {
     } else if (IsLoad) {
       auto *Load = cast<LoadInst>(Instr);
       AccessSize = DL.getTypeAllocSize(Load->getType());
-    } else {
+    } else if (isa<StoreInst>(Instr)) {
       auto Store = cast<StoreInst>(Instr);
       AccessSize = DL.getTypeAllocSize(Store->getValueOperand()->getType());
+    } else {
+      auto Rmw = cast<AtomicRMWInst>(Instr);
+      AccessSize = DL.getTypeAllocSize(Rmw->getType());
     }
     revng_assert(AccessSize != 0);
 
@@ -2547,6 +2572,9 @@ static Value *getStoreAddressValue(Instruction *I) {
   case Instruction::Store: {
     Address = cast<StoreInst>(I)->getPointerOperand();
   } break;
+  case Instruction::AtomicRMW: {
+    Address = cast<AtomicRMWInst>(I)->getPointerOperand();
+  } break;
   case Instruction::Call: {
     auto *Call = cast<CallInst>(I);
     Function *Callee = getCallee(Call);
@@ -2565,6 +2593,8 @@ static Value *getStoreAddressValue(Instruction *I) {
 static Type *getStoredType(Instruction *I) {
   if (auto *Store = dyn_cast<StoreInst>(I)) {
     return Store->getValueOperand()->getType();
+  } else if (auto *Rmw = dyn_cast<AtomicRMWInst>(I)) {
+    return Rmw->getType();
   }
   return nullptr;
 }
@@ -2722,6 +2752,10 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
     revng_assert(Size != 0);
     Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, V).has_value();
   } break;
+
+  case Instruction::AtomicRMW: {
+    revng_abort();
+  }
 
   case Instruction::Call: {
     CallInst *Call = cast<CallInst>(Clone);
@@ -2926,6 +2960,37 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
         } else {
           revng_abort();
         }
+      } break;
+
+      case Instruction::AtomicRMW: {
+        if (IsLoad) {
+          revng_abort();
+        }
+        auto *Rmw = cast<AtomicRMWInst>(Clone);
+        unsigned Size = DL.getTypeAllocSize(Rmw->getType());
+        revng_assert(Size != 0);
+        Value *OpV= Rmw->getValOperand();
+        Value *OldV = Variables->loadFromEnvOffset(Builder, Size, Offset);
+        Value *NewV = nullptr;
+        using Intrinsic::smax, Intrinsic::smin, Intrinsic::umax, Intrinsic::umin;
+        switch (Rmw->getOperation()) {
+        case AtomicRMWInst::Xchg: NewV = OpV; break;
+        case AtomicRMWInst::Add:  NewV = Builder.CreateAdd(OldV, OpV); break;
+        case AtomicRMWInst::Sub:  NewV = Builder.CreateSub(OldV, OpV); break;
+        case AtomicRMWInst::And:  NewV = Builder.CreateAnd(OldV, OpV); break;
+        case AtomicRMWInst::Nand: NewV = Builder.CreateNot(Builder.CreateAnd(OldV, OpV)); break;
+        case AtomicRMWInst::Or:   NewV = Builder.CreateOr(OldV, OpV); break;
+        case AtomicRMWInst::Xor:  NewV = Builder.CreateXor(OldV, OpV); break;
+        case AtomicRMWInst::Max:  NewV = Builder.CreateBinaryIntrinsic(smax, OldV, OpV); break;
+        case AtomicRMWInst::Min:  NewV = Builder.CreateBinaryIntrinsic(smin, OldV, OpV); break;
+        case AtomicRMWInst::UMax: NewV = Builder.CreateBinaryIntrinsic(umax, OldV, OpV); break;
+        case AtomicRMWInst::UMin: NewV = Builder.CreateBinaryIntrinsic(umin, OldV, OpV); break;
+        default:
+          revng_abort();
+        }
+        Ok = Variables->storeToEnvOffset(Builder, Size, Offset, NewV)
+               .has_value();
+        Clone->replaceAllUsesWith(NewV);
       } break;
 
       case Instruction::Call: {
