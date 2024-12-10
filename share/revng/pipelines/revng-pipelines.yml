@@ -50,24 +50,52 @@ Branches:
           - Name: apply-diff
             Type: apply-diff
             UsedContainers: []
+            Docs: |-
+              Apply a diff to the model.
           - Name: verify-diff
             Type: verify-diff
             UsedContainers: []
+            Docs: |-
+              Verifies if a diff for the model would apply correctly.
           - Name: set-global
             Type: set-global
             UsedContainers: []
+            Docs: |-
+              Replace the model with a new one.
           - Name: verify-global
             Type: verify-global
             UsedContainers: []
+            Docs: |-
+              Verify if the given model is valid.
           - Name: import-binary
             Type: import-binary
             UsedContainers: [input]
+            Docs: |-
+              This analysis inspects the input binary and, if its format is
+              among the supported ones, imports all the available information
+              in the model.
+              If debug info are available, they are imported as well.
+
+              In particular, from the binary image we import `Segment`s, the
+              `EntryPoint` and, if symbols are available, `Function` `Entry` and
+              names.
+              We currently support ELF, PE/COFF and Mach-O.
+
+              From debug information, all the data structures and function
+              prototypes are imported.
+              We currently support DWARF and CodeView (`.pdb`) debug info.
           - Name: import-well-known-models
             Type: import-well-known-models
             UsedContainers: []
+            Docs: |-
+              Import the prototype of certain well-known functions from the C
+              standard library.
           - Name: convert-functions-to-cabi
             Type: convert-functions-to-cabi
             UsedContainers: []
+            Docs: |-
+              Convert as many `RawFunctionType`s as possible to
+              `CABIFunctionType`s, using the requested ABI.
       - Name: lift
         Pipes:
           - Type: lift
@@ -79,10 +107,25 @@ Branches:
           Container: module.bc.zstd
           Kind: root
           SingleTargetFilename: module_lifted.ll
+          Docs: |-
+            The `root` function produced by the lifting phase.
+            It's a single large function containing all of the executable code
+            identified in the binary.
         Analyses:
           - Name: detect-abi
             Type: detect-abi
             UsedContainers: [module.bc.zstd]
+            Docs: |-
+              This analysis creates new functions from targets of function calls
+              and from code addresses found in the code or in memory that would
+              otherwise be unreachable.
+
+              Additionally, the analysis builds, for each function lacking a
+              prototype, a `RawFunctionType` by automatically identifying the
+              list of arguments passed through registers and the list of return
+              values.
+
+              This analysis doesn't handle stack arguments.
       - Name: isolate
         Pipes:
           - Type: collect-cfg
@@ -97,6 +140,12 @@ Branches:
           Container: module.bc.zstd
           Kind: isolated
           SingleTargetFilename: module_isolated.ll
+          Docs: |-
+            This artifact contains an LLVM function for each function in the
+            input program.
+            The functions still employ global variables (CSVs) to pass and
+            return data.
+            Therefore, they lack arguments and return values.
       - Name: enforce-abi
         Pipes:
           - Type: llvm-pipe
@@ -129,6 +178,23 @@ Branches:
           Container: module.bc.zstd
           Kind: csvs-promoted
           SingleTargetFilename: module_abienforced.ll
+          Docs: |-
+            This artifact contains an LLVM function for each function in the
+            input program.
+            The functions no longer use global variables (CSVs) to communicate:
+            each register is promoted to a local variable, an argument and/or a
+            return value.
+
+            This means that, for instance, a function using the SystemV ABI for
+            x86-64 that has two `uint8_t` arguments, will have two 64-bits
+            registers, not two 8-bits registers.
+            This reflects the fact that in the considered ABI, two `uint8_t`
+            arguments are passed on the `rdi` and `rsi` registers.
+
+            The stack pointer is an exception: it's still used as a CSV.
+            As a consequence, stack arguments are not promoted to actual
+            arguments: they are accessed with pointer arithmetic w.r.t. the
+            stack pointer CSV.
   - From: isolate
     Steps:
       - Name: emit-cfg
@@ -137,6 +203,11 @@ Branches:
           Container: cfg.yml.tar.gz
           Kind: cfg
           SingleTargetFilename: cfg.yml.tar.gz
+          Docs: |-
+            This artifact is an archive containing one YAML file for each
+            function.
+            Each document contains information about the control-flow graph of
+            each function.
   - From: isolate
     Steps:
       - Name: hexdump
@@ -147,6 +218,9 @@ Branches:
           Container: hex.dump
           Kind: hex-dump
           SingleTargetFilename: hex_dump.hex
+          Docs: |-
+            This artifact contains a hex dump of each segment in the input
+            binary.
   - From: isolate
     Steps:
       - Name: render-svg-call-graph
@@ -157,6 +231,9 @@ Branches:
           Container: call-graph.svg.yml
           Kind: call-graph-svg
           SingleTargetFilename: call-graph.svg
+          Docs: |-
+            This artifact is an SVG representing the call graph of the input
+            program.
   - From: isolate
     Steps:
       - Name: render-svg-call-graph-slice
@@ -167,6 +244,10 @@ Branches:
           Container: call-graph-slice.svg.tar.gz
           Kind: call-graph-slice-svg
           SingleTargetFilename: call-graph-slice.svg
+          Docs: |-
+            This artifact is an archive of SVG files.
+            Each file represents a subset of the call graph considering only the
+            functions called/calling, directly or indirectly, the given function.
   - From: isolate
     Steps:
       - Name: process-assembly
@@ -181,6 +262,9 @@ Branches:
           Container: assembly.ptml.tar.gz
           Kind: function-assembly-ptml
           SingleTargetFilename: disassembly.S
+          Docs: |-
+            This artifact is an archive of PTML files.
+            Each file represents the disassembly of the given function.
   - From: process-assembly
     Steps:
       - Name: render-svg-cfg
@@ -191,6 +275,9 @@ Branches:
           Container: cfg.svg.tar.gz
           Kind: function-control-flow-graph-svg
           SingleTargetFilename: cfg.svg
+          Docs: |-
+            This artifact is an archive of SVG files.
+            Each file represents the CFG of the given function.
   - From: lift
     Steps:
       - Name: recompile
@@ -212,6 +299,10 @@ Branches:
           Container: output
           Kind: translated
           SingleTargetFilename: translated-binary
+          Docs: |-
+            This artifact is translated version of the input binary.
+            Specifically, it's an ELF executable for Linux x86-64 containing the
+            `root` function plus the required runtime.
   - From: isolate
     Steps:
       - Name: recompile-isolated
@@ -236,6 +327,11 @@ Branches:
           Container: output
           Kind: translated
           SingleTargetFilename: isolated-translated-binary
+          Docs: |-
+            This artifact is translated version of the input binary.
+            Specifically, it's an ELF executable for Linux x86-64 containing the
+            `root` function, all the isolated functions plus the required
+            runtime.
   - From: enforce-abi
     Steps:
       - Name: remove-lifting-artifacts
@@ -296,6 +392,11 @@ Branches:
           Container: module.bc.zstd
           Kind: stack-pointer-promoted
           SingleTargetFilename: simplify-switch.ll
+          Docs: |-
+            This artifact contains an LLVM function for each function in the
+            input program.
+            The stack pointer has been promoted to a local variable and
+            initialized with the result of an opaque function call.
       - Name: detect-stack-size
         Pipes:
           - Type: llvm-pipe
@@ -312,6 +413,9 @@ Branches:
           - Name: detect-stack-size
             Type: detect-stack-size
             UsedContainers: [module.bc.zstd]
+            Docs: |-
+              This analysis, for each function, identifies the size of the stack
+              frame and the amount of stack used to pass arguments.
       - Name: segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
@@ -355,10 +459,29 @@ Branches:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
           SingleTargetFilename: stack_access_segregate.ll
+          Docs: |-
+            This artifact contains an LLVM function for each function in the
+            input program.
+            The functions have an argument for each argument in the input
+            prototype.
+
+            Unlike upstream artifacts, the arguments are not tied to the
+            *register* containing them. So, if a function using the x86-64
+            SystemV ABI has two `uint8_t` arguments, they will appear as two
+            distinct arguments, as opposed to being merged in a single argument
+            representing `rdi`.
+
+            Additionally, this artifact correctly represent each stack argument
+            in the function prototype.
         Analyses:
           - Name: analyze-data-layout
             Type: analyze-data-layout
             UsedContainers: [module.bc.zstd]
+            Docs: |-
+              This analysis inspects the memory accesses performed by the input
+              program and detects the layout of data structures.
+              The produced data structures are the result of merging the
+              information obtained from each function interprocedurally.
       - Name: canonicalize
         Pipes:
           - Type: llvm-pipe
@@ -396,10 +519,17 @@ Branches:
           Container: decompiled.tar.gz
           Kind: decompiled
           SingleTargetFilename: decompiled.c
+          Docs: |-
+            This artifact is an archive of PTML file representing the C code of
+            the program's functions.
         Analyses:
           - Name: import-from-c
             Type: import-from-c
             UsedContainers: []
+            Docs: |-
+              This analysis, given a snippet of C code representing an
+              individual type, parses it and imports into the model, possibly
+              replacing an existing type.
       - Name: decompile-to-single-file
         Pipes:
           - Type: decompile-to-single-file
@@ -408,6 +538,10 @@ Branches:
           Container: decompiled.c
           Kind: decompiled-to-c
           SingleTargetFilename: binary_decompiled.c
+          Docs: |-
+            This artifact is a single PTML file representing the decompiled C
+            code of the whole program, including the body of all of program's
+            functions.
   - From: canonicalize
     Steps:
       - Name: emit-recompilable-archive
@@ -418,6 +552,19 @@ Branches:
           Container: recompilable-archive.tar.gz
           Kind: recompilable-archive
           SingleTargetFilename: recompilable-archive.tar.gz
+          Docs: |-
+            This artifact is an archive containing all the files necessary to
+            recompile the decompiled C code of the input program.
+            These files are not in PTML, they are plain C.
+
+            It contains:
+
+            - `functions.c`: the `decompile-to-single-file` artifact;
+            - `types-and-globals.h`: see the `emit-model-header` artifact;
+            - `helpers.h`: see the `emit-helpers-header` artifact;
+            - `attributes.h`: an helper header file defining a set of
+              annotations used by the decompiled C source files;
+            - `primitive-types.h`: a header defining all the primitive types.
   - From: canonicalize
     Steps:
       - Name: emit-helpers-header
@@ -428,6 +575,9 @@ Branches:
           Container: helpers.h
           Kind: helpers-header
           SingleTargetFilename: helpers.h
+          Docs: |-
+            This artifact contains the declarations of all the helpers used
+            the decompiled code.
   - From: initial
     Steps:
       - Name: emit-model-header
@@ -438,6 +588,9 @@ Branches:
           Container: types-and-globals.h
           Kind: model-header
           SingleTargetFilename: types-and-globals.h
+          Docs: |-
+            This artifact contains all the declaration of types, functions and
+            segments defined in the binary.
   - From: canonicalize
     Steps:
       - Name: emit-type-definitions
@@ -448,6 +601,14 @@ Branches:
           Container: model-type-definitions.tar.gz
           Kind: model-type-definition
           SingleTargetFilename: type.h
+          Docs: |-
+            This artifact is an archive of plain C headers.
+            Each file contains the declaration of a type defined for this
+            binary.
+            This artifact is designed to be used as the initial input of the
+            `import-from-c` analysis. In fact, this artifact is designed to be
+            easily editable by the end-user; it's not designed to represent
+            valid C code, unlike the `emit-model-header` artifact.
   - From: make-segment-ref
     Steps:
       - Name: cleanup-ir
@@ -462,6 +623,16 @@ Branches:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
           SingleTargetFilename: stack_access_segregate.ll
+          Docs: |-
+            This artifact contains one LLVM function for each function defined
+            in this binary.
+
+            The output similar to the output of `make-segment-ref` but it's
+            cleaned up from rev.ng-specific artifacts in order to be more easily
+            consumed as standard LLVM IR.
+
+            This is an appropriate artifact on top of which write analyses, such
+            as a taint analysis.
   - From: make-segment-ref
     Steps:
       - Name: convert-to-mlir
@@ -476,6 +647,9 @@ Branches:
           Container: module.mlir
           Kind: mlir-module
           SingleTargetFilename: mlir-llvm-dialect.mlir
+          Docs: |-
+            This artifact is an MLIR module with one function for each function
+            defined in the binary.
       - Name: import-clift-types
         Pipes:
           - Type: import-clift-types
@@ -484,6 +658,8 @@ Branches:
           Container: module.mlir
           Kind: mlir-module
           SingleTargetFilename: mlir-llvm-dialect-with-clift-types.mlir
+          Docs: |-
+            A test artifact to import types into a Clift module.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
