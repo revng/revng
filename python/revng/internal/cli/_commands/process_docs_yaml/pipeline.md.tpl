@@ -16,7 +16,7 @@ Each step runs a series of *pipes*.
 Each pipe works on one or more *container*.
 Certain steps have an *artifact*, which represents basically their output.
 
-[Analyses](../user-manual/model.md), when scheduled, run at a certain point in the pipeline, after a specified step.
+[Analyses](../user-manual/key-concepts/model.md), when scheduled, run at a certain point in the pipeline, after a specified step.
 
 The following tree reports the structure of the pipeline, its steps and analyses.
 

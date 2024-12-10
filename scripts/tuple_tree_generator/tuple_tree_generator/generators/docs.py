@@ -26,9 +26,7 @@ def type_name(target_type):
         return f"list of {type_name(target_type.element_type)}"
     if isinstance(target_type, ReferenceDefinition):
         return f"reference to {type_name(target_type.pointee)}"
-    if isinstance(target_type, ScalarDefinition) and (
-        target_type.name in ["bool", "string"] or target_type.name.startswith("uint")
-    ):
+    if isinstance(target_type, ScalarDefinition):
         return f"`{target_type.name}`"
     if isinstance(target_type, UpcastableDefinition):
         return f"any {type_name(target_type.base)}"

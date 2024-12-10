@@ -1,4 +1,4 @@
-In [the previous page](model-tutorial.md) we saw how we can build a model from scratch, by hand.
+In [the previous page](model-from-scratch.md) we saw how we can build a model from scratch, by hand.
 
 However, we don't want our users to write the model by hand.
 Therefore, as mentioned before, we developed a series of analyses which can automatically populate the model for you when you open a new project.
@@ -17,7 +17,7 @@ Let's compile it:
 $ gcc example.c -o example -O2
 ```
 
-We can use the `import-binary` analysis to automatically collect all the loading information available in the ELF headers:
+We can use the [`import-binary` analysis](../../references/analyses.md#import-binary-analysis) to automatically collect all the loading information available in the ELF headers:
 
 ```{bash ignore="VirtualSize|FileSize"}
 $ revng analyze import-binary example -o example.yml

@@ -43,8 +43,13 @@ Architecture: x86_64
 DefaultABI: SystemV_x86_64
 ```
 
+::: tip
+
+    You can check out the [model reference](../../reference/model.md) to see what each field exactly means.
+
 Then, we need to describe how to load the program.
-Let's pretend we want to load this code at address `0x400000`:
+Let's pretend we want to load this code at address `0x400000`.
+We can do this by introducing a new [`Segment`](../../references/model.md#segment):
 
 ```yaml title="model.yml"
 Segments:
@@ -62,19 +67,20 @@ The piece of model above tells rev.ng to take 7 bytes from the file and load the
 ### Step 2: Function list
 
 Most parts of rev.ng work on a function basis (e.g., we decompile one function at a time).
-Let's create an entry in the function list:
+Let's create an entry in the [functions list](../../references/model.md#Binary.Functions):
 
 ```yaml title="model.yml"
 Functions:
   - Entry: "0x400000:Code_x86_64"
 ```
 
-At a minimum, a function is identified by its entry [`MetaAddress`](metaaddress.md).
+At a minimum, a function is identified by its entry [`MetaAddress`](../key-concepts/metaaddress.md).
 Note how here the type of the `MetaAddress` is not `Generic64` but `Code_x86_64`, to indicate the type of code we can expect in the function.
 
 ### Step 3: Disassembly
 
 At this point, we provided rev.ng enough information to be able to show us the disassembly of our program.
+Let's produce the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact).
 
 ```bash
 $ revng artifact disassemble sum --model model.yml | revng ptml
@@ -85,10 +91,10 @@ $ revng artifact disassemble sum --model model.yml | revng ptml
     400006:    c3          ret
 ```
 
-The output of the `revng artifact disassemble` command is a `tar.gz` composed by one file for each input function. Each file is an assembly listing decorated using [PTML](../references/ptml.md).
+The output of the `revng artifact disassemble` command is a `tar.gz` composed by one file for each input function. Each file is an assembly listing decorated using [PTML](../../references/ptml.md).
 <br />`revng ptml` strips away all this details and outputs a YAML dictionary with one entry for each disassembled function.
 
-For further information on the file types emitted by `revng artifact`, see the [MIME types documentation](../references/mime-types.md).
+For further information on the file types emitted by `revng artifact`, see the [MIME types documentation](../../references/mime-types.md).
 
 ### Step 4: Defining a function prototype
 
@@ -129,8 +135,8 @@ TypeDefinitions:
 
 OK, there's a lot here. Let's go through it line by line:
 
-* `TypeDefinitions:`: begin the part of the model containing type information;
-* `Kind: CABIFunctionDefinition`: we're defining a type, specifically a C prototype associated to an ABI;
+* [`TypeDefinitions`](../../references/model.md#Binary.TypeDefinitions): begin the part of the model containing type information;
+* [`Kind: CABIFunctionDefinition`](../../references/model.md#cabifunctiondefinition): we're defining a type, specifically a C prototype associated to an ABI;
 * `ABI: SystemV_x86_64`: the chosen ABI is the x86-64 SystemV one;
 * `ID: ...`: a unique identifier. Every type definition must have one. Our tools usually use progressive ones, but that's not necessary: as long as there are no collisions, any integer works.
 * `Arguments`: we have two arguments (index `0` and index `1`):
@@ -161,7 +167,8 @@ Basically, this specifies that the function type we created above is the prototy
 
 ### Step 5: Decompiling
 
-At this point, we have all the information we need to successfully decompile our example program:
+At this point, we have all the information we need to successfully decompile our example program.
+To do so, we can ask rev.ng to produce the [`decompile` artifact](../../references/artifacts.md#decompile-artifact):
 
 ```c
 $ revng artifact decompile sum --model model.yml | revng ptml
