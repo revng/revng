@@ -57,6 +57,10 @@ def is_struct(obj):
     return isinstance(obj, StructDefinition)
 
 
+def is_upcastable(obj):
+    return isinstance(obj, UpcastableDefinition)
+
+
 def leaf(target_type):
     if is_sequence(target_type):
         return target_type.element_type
@@ -80,6 +84,7 @@ class DocsGenerator:
                 "struct": is_struct,
                 "scalar": is_scalar,
                 "enum": is_enum,
+                "upcastable": is_upcastable,
             }
         )
         environment.filters["indent"] = indent

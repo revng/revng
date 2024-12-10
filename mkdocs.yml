@@ -26,10 +26,14 @@ nav:
       - "Analyses": "user-manual/analyses.md"
   - "References":
       - "Model": references/model.md
+      - Artifacts: references/artifacts.md
+      - Analyses: references/analyses.md
       - "MIME types": references/mime-types.md
       - PTML: references/ptml.md
+      - Pipeline: references/pipeline.md
 markdown_extensions:
-  - mkdocs_graphviz
+  - mkdocs_graphviz:
+      color: cbd4da
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true

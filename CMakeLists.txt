@@ -308,9 +308,30 @@ add_custom_command(
           "share/doc/revng/what-is-revng.md"
           "share/doc/revng/index.md"
           generate-revngModel-tuple-tree-code
+          python/revng/internal/cli/_commands/process_docs_yaml/pipeline.md.tpl
+          python/revng/internal/cli/_commands/process_docs_yaml/artifacts.md.tpl
+          python/revng/internal/cli/_commands/process_docs_yaml/analyses.md.tpl
+          python/revng/internal/cli/_commands/process_docs_yaml/common.md.tpl
+          share/revng/pipelines/revng-pipelines.yml
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-  COMMAND ${MKDOCS} build --quiet --strict --site-dir mkdocs-output && rm -rf
-          "${HTML_DOCS_PATH}" && mv -T mkdocs-output "${HTML_DOCS_PATH}"
+  COMMAND
+    "./bin/revng" process-docs-yaml
+    "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/pipeline.md.tpl"
+    < "${CMAKE_SOURCE_DIR}/share/revng/pipelines/revng-pipelines.yml" >
+    share/doc/revng/references/pipeline.md
+  COMMAND
+    "./bin/revng" process-docs-yaml
+    "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/analyses.md.tpl"
+    < "${CMAKE_SOURCE_DIR}/share/revng/pipelines/revng-pipelines.yml" >
+    share/doc/revng/references/analyses.md
+  COMMAND
+    "./bin/revng" process-docs-yaml
+    "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/artifacts.md.tpl"
+    < "${CMAKE_SOURCE_DIR}/share/revng/pipelines/revng-pipelines.yml" >
+    share/doc/revng/references/artifacts.md
+  COMMAND ${MKDOCS} build --quiet --strict --site-dir mkdocs-output
+  COMMAND rm -rf "${HTML_DOCS_PATH}"
+  COMMAND mv -T mkdocs-output "${HTML_DOCS_PATH}"
   COMMENT "Generating mkdocs")
 add_custom_target(mkdocs ALL DEPENDS share/doc/revng/html/404.html)
 
