@@ -201,6 +201,8 @@ def only(entries):
 
 
 def handle_file(path: Path):
+    log(f"Processing {str(path)}")
+
     handler_types = {
         "python": PythonDoctest,
         "bash": BashDoctest,
