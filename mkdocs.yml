@@ -31,6 +31,10 @@ nav:
       - "Model": references/model.md
       - Artifacts: references/artifacts.md
       - Analyses: references/analyses.md
+      - CLI:
+          - revng-common: references/cli/revng-common.md
+          - revng-artifact: references/cli/revng-artifact.md
+          - revng-analyze: references/cli/revng-analyze.md
       - "MIME types": references/mime-types.md
       - PTML: references/ptml.md
       - Pipeline: references/pipeline.md

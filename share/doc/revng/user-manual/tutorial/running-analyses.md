@@ -17,7 +17,7 @@ Let's compile it:
 $ gcc example.c -o example -O2
 ```
 
-We can use the [`import-binary` analysis](../../references/analyses.md#import-binary-analysis) to automatically collect all the loading information available in the ELF headers:
+We run the [`import-binary` analysis](../../references/analyses.md#import-binary-analysis) using [`revng-analyze`](../../references/cli/revng-analyze.md) to automatically collect all the loading information available in the ELF headers:
 
 ```{bash ignore="VirtualSize|FileSize"}
 $ revng analyze import-binary example -o example.yml
