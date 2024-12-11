@@ -1,4 +1,4 @@
-Running `revng artifact` you will get a list of artifacts that can be produced along with their [MIME types](https://en.wikipedia.org/wiki/Media_type):
+Running [`revng artifact`](cli/revng-artifact.md) you will get a list of artifacts that can be produced along with their [MIME types](https://en.wikipedia.org/wiki/Media_type):
 
 ```bash
 $ revng artifact

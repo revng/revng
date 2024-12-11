@@ -12,22 +12,41 @@
 name: RawFunctionDefinition
 type: struct
 inherits: TypeDefinition
+doc: |-
+  The function type described by explicitly listing how arguments and return
+  values are passed.
+
+  This is a "low level" representation of the prototype of a function. Where
+  the list of registers used to pass arguments and return values is explicitl.
+  For stack arguments, they are collected in a single `struct`
+  (`StackArgumentsType`).
+
+  In contrast, a `CABIFunctionDefinition` expresses the function type from a
+  high-level perspective (e.g., a single argument might span multiple registers)
+  and his associated to a well-known ABI. Given an ABI, it is always possible
+  to convert a `CABIFunctionDefinition` into a `RawFunctionDefinition`.
 fields:
   - name: Architecture
     type: Architecture
-    doc: The processor architecture of this function
+    doc: The processor architecture of this function type.
   - name: Arguments
     optional: true
     sequence:
       type: SortedVector
       elementType: NamedTypedRegister
-    doc: The argument registers must be valid in the target architecture
+    doc: |-
+      The list of registers used to pass arguments.
+
+      The registers must belong to `Architecture`.
   - name: ReturnValues
     optional: true
     sequence:
       type: SortedVector
       elementType: NamedTypedRegister
-    doc: The return value registers must be valid in the target architecture
+    doc: |-
+      The list of registers used to return values.
+
+      The registers must belong to `Architecture`.
   - name: ReturnValueComment
     type: string
     optional: true
@@ -36,12 +55,23 @@ fields:
     sequence:
       type: SortedVector
       elementType: Register
-    doc: The preserved registers must be valid in the target architecture
+    doc: |-
+      The list of registers preserved by functions using this function type.
+
+      The registers must belong to `Architecture`.
   - name: FinalStackOffset
     type: uint64_t
     optional: true
+    doc: |-
+      The expected difference between the initial and final value of the stack
+      pointer.
+
+      For instance, in the x86-64 SystemV ABI, the difference between the
+      initial and final value of the stack pointer is 8.
+      This is due to the fact that `ret` instruction increase the stack pointer
+      by 8.
   - name: StackArgumentsType
-    doc: The type of the struct representing stack arguments
+    doc: The type of the `struct` representing all of the stack arguments.
     type: Type
     optional: true
     upcastable: true

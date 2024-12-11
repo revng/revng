@@ -11,12 +11,12 @@
 /* TUPLE-TREE-YAML
 name: UnionDefinition
 doc: |
-  A union type definition in the model.
-  Unions are actually typedefs of unnamed unions in C.
+  A `union` type.
 type: struct
 inherits: TypeDefinition
 fields:
   - name: Fields
+    doc: The list of alternative types in this `union`.
     sequence:
       type: SortedVector
       elementType: UnionField

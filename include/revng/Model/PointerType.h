@@ -11,12 +11,14 @@
 name: PointerType
 type: struct
 inherits: Type
+doc: A pointer type.
 fields:
   - name: PointerSize
     doc: As of now, only 4 and 8 byte pointers are supported.
     type: uint64_t
   - name: PointeeType
     type: Type
+    doc: The pointee type.
     upcastable: true
 TUPLE-TREE-YAML */
 

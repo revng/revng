@@ -16,12 +16,12 @@ members:
 
   - name: SmartWithPCRelativeFallback
     doc: |
-      Same as \ref Smart, except when unable to single out the target,
+      Same as `Smart`, except when unable to single out the target,
       print a PC-relative address instead.
 
   - name: Strict
     doc: |
-      Same as \ref Smart, except when unable to single out the target,
+      Same as `Smart`, except when unable to single out the target,
       print an error token.
 
   - name: Global

@@ -169,6 +169,7 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/override_by_name.py
     revng/internal/cli/_commands/daemon.py
     revng/internal/cli/_commands/hard_purge.py
+    revng/internal/cli/_commands/process_docs_yaml/__init__.py
     revng/internal/cli/_commands/import_idb.py
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs.py

@@ -11,31 +11,33 @@
 
 /* TUPLE-TREE-YAML
 name: DynamicFunction
-doc: Function defined in a dynamic library
+doc: A function defined in a dynamic library.
 type: struct
 fields:
   - name: CustomName
-    doc: An optional custom name
     type: Identifier
     optional: true
   - name: OriginalName
-    doc: The name of the symbol for this dynamic function
+    doc: The name of the symbol for this dynamic function.
     type: string
   - name: Comment
     type: string
     optional: true
   - name: Prototype
-    doc: The prototype of the function
+    doc: The prototype of the function.
     type: Type
     upcastable: true
     optional: true
   - name: Attributes
-    doc: Function attributes
+    doc: The attributes of this dynamic function.
     sequence:
       type: MutableSet
       elementType: FunctionAttribute
     optional: true
   - name: Relocations
+    doc: |-
+      A list of locations where the address of this dynamic function should
+      be placed.
     sequence:
       type: SortedVector
       elementType: Relocation

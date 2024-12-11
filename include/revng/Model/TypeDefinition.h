@@ -22,20 +22,39 @@
 
 /* TUPLE-TREE-YAML
 name: TypeDefinition
-doc: Base class of model type definitions used for LLVM-style RTTI
+doc: |-
+  Base data structure for all the type definitions.
+
+  A type definition differs from a `Type` in the fact that it has an identity.
+  In fact, while two identical instances of `Type` can be considered to be the
+  same `Type`, two instances of a `TypeDefinition` that only differ from their
+  `ID` are two distinct types.
+
+  A type definition can be a `struct`, a `union`, a `typedef`, an `enum` or a
+  function prototype.
 type: struct
 fields:
   - name: ID
     type: uint64_t
     is_guid: true
+    doc: |-
+      A unique identifier for this type.
   - name: Kind
     type: TypeDefinitionKind
+    doc: |-
+      A discriminator field to identify the concrete type.
   - name: CustomName
     type: Identifier
     optional: true
+    doc: |-
+      A user-chosen `Identifier` for this type.
   - name: OriginalName
     type: string
     optional: true
+    doc: |-
+      The name this type had upon import.
+      This value can differ from `CustomName`, since `CustomName` needs to
+      respect the constraints of an `Identifier`.
   - name: Comment
     type: string
     optional: true

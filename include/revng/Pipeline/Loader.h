@@ -36,6 +36,7 @@ struct AnalysisDeclaration {
   std::vector<std::string> UsedContainers;
   std::string Name = "";
   std::string Step = "";
+  std::string Docs = "";
 };
 
 struct PipeInvocation {
@@ -50,6 +51,7 @@ struct ArtifactsDeclaration {
   std::string Container;
   std::string Kind;
   std::string SingleTargetFilename;
+  std::string Docs;
 
   ArtifactsDeclaration() : Container(), Kind(), SingleTargetFilename() {}
 
@@ -303,6 +305,7 @@ struct llvm::yaml::MappingTraits<pipeline::ArtifactsDeclaration> {
   static void mapping(IO &TheIO, pipeline::ArtifactsDeclaration &Info) {
     TheIO.mapRequired("Container", Info.Container);
     TheIO.mapRequired("Kind", Info.Kind);
+    TheIO.mapRequired("Docs", Info.Docs);
     TheIO.mapRequired("SingleTargetFilename", Info.SingleTargetFilename);
   }
 };
@@ -313,6 +316,7 @@ struct llvm::yaml::MappingTraits<pipeline::AnalysisDeclaration> {
     TheIO.mapRequired("Name", Info.Name);
     TheIO.mapRequired("Type", Info.Type);
     TheIO.mapOptional("Step", Info.Step);
+    TheIO.mapOptional("Docs", Info.Docs);
     TheIO.mapRequired("UsedContainers", Info.UsedContainers);
   }
 };

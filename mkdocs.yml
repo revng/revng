@@ -17,23 +17,37 @@ theme:
     - content.code.copy
 nav:
   - "What's rev.ng?": "what-is-revng.md"
-  - "User's Manual":
+  - "User's manual":
       - Introduction: "user-manual/index.md"
-      - "Getting a working environment": "user-manual/working-environment.md"
-      - MetaAddress: "user-manual/metaaddress.md"
-      - Model: "user-manual/model.md"
-      - "Building a model from scratch": "user-manual/model-tutorial.md"
-      - "Analyses": "user-manual/analyses.md"
+      - "Initial setup": "user-manual/initial-setup.md"
+      - "Key concepts":
+          - MetaAddress: "user-manual/key-concepts/metaaddress.md"
+          - Model: "user-manual/key-concepts/model.md"
+          - "Artifacts and analyses": "user-manual/key-concepts/artifacts-and-analyses.md"
+      - Tutorial:
+          - "A model from scratch": "user-manual/tutorial/model-from-scratch.md"
+          - "Running analyses": "user-manual/tutorial/running-analyses.md"
   - "References":
+      - "Model": references/model.md
+      - Artifacts: references/artifacts.md
+      - Analyses: references/analyses.md
+      - CLI:
+          - revng-common: references/cli/revng-common.md
+          - revng-artifact: references/cli/revng-artifact.md
+          - revng-analyze: references/cli/revng-analyze.md
       - "MIME types": references/mime-types.md
       - PTML: references/ptml.md
+      - Pipeline: references/pipeline.md
 markdown_extensions:
-  - mkdocs_graphviz
+  - mkdocs_graphviz:
+      color: cbd4da
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
   - toc:
       permalink: "#"
+  - admonition
+  - pymdownx.details
 extra_css:
   - stylesheets/main.css
   - stylesheets/theme.css

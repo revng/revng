@@ -12,13 +12,22 @@
 /* TUPLE-TREE-YAML
 name: Relocation
 type: struct
+doc: |-
+  A relocation, i.e., a directive to write the address of an object (a
+  `DynamicFunction` or a `Segment`) at a specific address.
+  Optionally, the address of the object can be modified with a constant offset.
 fields:
   - name: Address
     type: MetaAddress
+    doc: Where to write the address of the object.
   - name: Type
     type: RelocationType
+    doc: |-
+      How to write the address of the object (e.g., 32-bit vs 64-bit
+      integer).
   - name: Addend
     type: uint64_t
+    doc: Fixed offset to add when writing the address of the object.
 
 key:
   - Address

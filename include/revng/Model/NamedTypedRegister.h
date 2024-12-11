@@ -12,6 +12,10 @@
 /* TUPLE-TREE-YAML
 name: NamedTypedRegister
 type: struct
+doc: |-
+  An argument or return values in a `RawFunctionDefinition`.
+
+  It is basically a pair of a register and a `Type`.
 fields:
   - name: Location
     type: Register

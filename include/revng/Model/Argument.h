@@ -12,14 +12,15 @@
 /* TUPLE-TREE-YAML
 name: Argument
 doc: |
-  The argument of a function type. It features an argument index (the key), a
-  type and an optional name
+  The argument of a `CABIFunctionType`.
 type: struct
 fields:
   - name: Index
     type: uint64_t
+    doc: The argument index.
   - name: Type
     type: Type
+    doc: The type of the argument.
     upcastable: true
   - name: CustomName
     type: Identifier

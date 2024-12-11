@@ -16,15 +16,16 @@ fields:
     type: PrimitiveKind
   - name: Size
     doc: |
-      As of now, for floating point primitives, supported sizes include
+      As of now, for floating point primitives, supported sizes include:
       ```
       { 2, 4, 8, 10, 12, 16 }
       ```
-      For non-floating point, they are
+      For non-floating point, they are:
       ```
       { 1, 2, 4, 8, 16 }
       ```
-      Note that `Void` _has to_ have size of 0 and `Generic` can use all the
+
+      Note that `Void` *must* have size of 0 while `Generic` can use all the
       supported sizes, floating point or not.
     type: uint64_t
     optional: true

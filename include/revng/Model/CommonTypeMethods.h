@@ -185,7 +185,7 @@ public:
   /// \note similarly to other `isX` methods, this also skips typedefs.
   bool isScalar() const;
 
-  /// This helper returns true if and only if this type is is not scalar.
+  /// This helper returns true if and only if this type is not scalar.
   ///
   /// \note it asserts if called on something that's not an object.
   ///

@@ -1,4 +1,4 @@
-The *model* is a YAML document that contains information about the binary that the user might want to customize.
+The *model* is a YAML document that contains information about the binary that the user can customize.
 You can think about the model as a sort of interchange format for reverse engineering: it is not specific to a binary image format (e.g., ELF) or an architecture.
 
 It includes:
@@ -11,6 +11,8 @@ On the other hand, it *does not* include things such as the **control-flow graph
 <br />For instance, if a user wants to mark a function as `noreturn`, in order to obtain a valid model it'd need to update the CFG of all of its callers.
 However, the user might be sometimes interested in providing extra information about the control-flow of a program, which is a job more suitable for rev.ng internals.
 
+The full structure of the model is documented in the [model reference page](../../references/model.md).
+
 The model must be a valid YAML document, but that's not enough.
 In order to be consumed by rev.ng, a model needs to be valid.
 You can check if a model is valid as follows:
@@ -20,6 +22,10 @@ $ revng model opt -verify mymodel.yml
 ```
 
 If the command succeeds, the tool will print the model again.
+
+!!! question "Too much theory?"
+
+    Check out the tutorial on [how to create a model from scratch](../tutorial/model-from-scratch.md)!
 
 ## Who uses the model?
 
@@ -40,6 +46,7 @@ The model has a couple of different users:
 * **Analyses**: rev.ng also provides a set of *analyses* that can automatically recover high-level information by analyzing the binary or artifacts produced by a pipeline.
   The final goal of an analysis is to make changes to the model.
   <br />For instance, rev.ng provides an analysis that automatically detects the arguments of a function: when you run such an analysis, it will go through the list of functions in the model, analyze each function and enrich each function that did not initially have a prototype, with arguments and return values.
+  To better understand the role of analyses, check out the [artifacts and analysis documentation](artifacts-and-analyses.md).
 
 ## Relevant sources
 

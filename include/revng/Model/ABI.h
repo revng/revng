@@ -12,56 +12,54 @@ type: enum
 members:
   - name: SystemV_x86_64
     doc: |
-      64-bit SystemV ABI for x86 processor architecture.
-      The latest version of the documentation can be found
-      \sa https://gitlab.com/x86-psABIs/x86-64-ABI
-
+      64-bit SystemV ABI for x86 processor architecture
+      ([reference](https://gitlab.com/x86-psABIs/x86-64-ABI)).
   - name: SystemV_x86
     doc: |
-      32-bit SystemV ABI for x86 processor architecture.
-      The latest version of the documentation can be found
-      \sa https://gitlab.com/x86-psABIs/i386-ABI/-/tree/hjl/x86/master
+      32-bit SystemV ABI for x86 processor architecture ([reference][abi1]).
+
+      [abi1]: https://gitlab.com/x86-psABIs/i386-ABI/-/tree/hjl/x86/master
 
   - name: SystemV_x86_regparm_3
     doc: |
-      A gcc specific modification of the 32-bit SystemV ABI for x86 processor
+      A GCC specific modification of the 32-bit SystemV ABI for x86 processor
       architecture. It allows three first GPR-sized arguments to be passed
       using the EAX, EDX, and ECX registers.
-      \sa `regparm` x86 function attribute.
+      See the reference for `regparm` x86 function attribute.
 
   - name: SystemV_x86_regparm_2
     doc: |
-      A gcc specific modification of the 32-bit SystemV ABI for x86 processor
+      A GCC specific modification of the 32-bit SystemV ABI for x86 processor
       architecture. It allows two first GPR-sized arguments to be passed
       using the EAX, and ECX registers.
-      \sa `regparm` x86 function attribute.
+      See the GCC documentation for `regparm` x86 function attribute.
 
   - name: SystemV_x86_regparm_1
     doc: |
-      A gcc specific modification of the 32-bit SystemV ABI for x86 processor
+      A GCC specific modification of the 32-bit SystemV ABI for x86 processor
       architecture. It allows the first GPR-sized argument to be passed
       using the EAX register.
-      \sa `regparm` x86 function attribute.
+      See the GCC documentation for `regparm` x86 function attribute.
 
   - name: Microsoft_x86_64
-    doc: |
-      64-bit Microsoft ABI for x86 processor architecture.
-      The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
+    doc: >
+      64-bit Microsoft ABI for x86 processor architecture
+      ([reference][abi2]).
+
+      [abi2]: https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
 
   - name: Microsoft_x86_64_vectorcall
     doc: |
-      A modification of 64-bit Microsoft ABI for x86 processor architecture.
+      A modification of 64-bit Microsoft ABI for x86 processor architecture
+      ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
       It allows using extra vector registers for passing function arguments.
-      The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/vectorcall
 
   - name: Microsoft_x86_cdecl
     doc: |
-      The default 32-bit Microsoft ABI for x86 processor architecture.
+      The default 32-bit Microsoft ABI for x86 processor architecture
+      ([reference](https://docs.microsoft.com/en-us/cpp/cpp/cdecl)).
       It was indented to be compatible with `SystemV_x86` but there are slight
-      differences. The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/cdecl
+      differences.
 
   - name: Microsoft_x86_cdecl_gcc
     doc: |
@@ -71,10 +69,10 @@ members:
   - name: Microsoft_x86_stdcall
     doc: |
       A modification of the 32-bit `__cdecl` Microsoft ABI for x86 processor
-      architecture. The main difference is the fact that the callee is
-      responsible for stack cleanup instead of the caller.
-      The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/stdcall
+      architecture
+      ([reference](https://docs.microsoft.com/en-us/cpp/cpp/stdcall)).
+      The main difference is the fact that the callee is responsible for stack
+      cleanup instead of the caller.
 
   - name: Microsoft_x86_stdcall_gcc
     doc: |
@@ -84,19 +82,20 @@ members:
   - name: Microsoft_x86_thiscall
     doc: |
       A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
-      architecture. The main difference is the fact that it allows to pass a
+      architecture
+      ([reference](https://docs.microsoft.com/en-us/cpp/cpp/thiscall)).
+      The main difference is the fact that it allows to pass a
       single (the first) function argument using a register. This ABI is only
       used for member function call where the first argument is always a `this`
-      pointer. The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/thiscall
+      pointer.
 
   - name: Microsoft_x86_fastcall
     doc: |
       A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
-      architecture. The main difference is the fact that it allows to pass two
-      first GPR-sized non-aggregate function arguments in registers.=
-      The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/fastcall
+      architecture
+      ([reference](https://docs.microsoft.com/en-us/cpp/cpp/fastcall)).
+      The main difference is the fact that it allows to pass two
+      first GPR-sized non-aggregate function arguments in registers.
 
   - name: Microsoft_x86_fastcall_gcc
     doc: |
@@ -106,55 +105,55 @@ members:
   - name: Microsoft_x86_vectorcall
     doc: |
       A modification of the 32-bit `__fastcall` Microsoft ABI for x86 processor
-      architecture. It allows using extra vector registers for passing function
-      arguments. The documentation can be found
-      \sa https://docs.microsoft.com/en-us/cpp/cpp/vectorcall
+      architecture
+      ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
+      It allows using extra vector registers for passing function arguments.
 
   - name: AAPCS64
     doc: |
-      Stands for `Arm Architecture Procedure Call Standard (64-bit)`.
+      Stands for `Arm Architecture Procedure Call Standard (64-bit)`
+      ([reference](https://github.com/ARM-software/abi-aa/releases)).
       The official ABI for AArch64 (ARM64) processor architecture.
-      The latest version of the documentation can be found
-      \sa https://github.com/ARM-software/abi-aa/releases
 
   - name: Microsoft_AAPCS64
-    doc: "Stands for `Arm Architecture Procedure Call Standard (64-bit)`.\n
-          This represents the version of the ABI used by windows-on-arm.\n
-          For differences from the original ABI see\n
-          \\sa https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-\
-          conventions\n"
+    doc: >
+      Stands for "Arm Architecture Procedure Call Standard (64-bit)".
+      This represents the version of the ABI used by windows-on-arm.
+      For differences from the original ABI see the [reference][ab3].
+
+      [ab3]: https://learn.microsoft.com/cpp/build/arm64-windows-abi-conventions
 
   - name: Apple_AAPCS64
-    doc: "Stands for `Arm Architecture Procedure Call Standard (64-bit)`.\n
+    doc: "Stands for \"Arm Architecture Procedure Call Standard (64-bit)\".\n
           This represents the version of the ABI used by the apple products.\n
-          For differences from the original ABI see\n
-          \\sa https://developer.apple.com/documentation/xcode/writing-arm64-\
-          code-for-apple-platforms\n"
+          For differences from the original ABI see the [reference](\
+          https://developer.apple.com/documentation/xcode/writing-arm64-
+          code-for-apple-platforms)."
 
   - name: AAPCS
     doc: |
-      Stands for `Arm Architecture Procedure Call Standard`.
+      Stands for "Arm Architecture Procedure Call Standard"
+      ([reference](https://github.com/ARM-software/abi-aa/releases)).
       The official ABI for ARM processor architecture.
-      The latest version of the documentation can be found
-      \sa https://github.com/ARM-software/abi-aa/releases
 
   - name: SystemV_MIPS_o32
-    doc: |
-      The ABI for MIPS RISC processor architecture.
-      The latest version of the documentation can be found
-      \sa http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
+    doc: >
+      The ABI for MIPS RISC processor architecture
+      ([reference][abi4]).
+
+      [abi4]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
 
   - name: SystemV_MIPSEL_o32
     doc: >
-      The ABI for MIPS RISC processor architecture (little endian edition).
-      The latest version of the documentation can be found
-      \sa http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
+      The ABI for little-endian edition of the MIPS RISC processor architecture
+      ([reference][abi5]).
+
+      [abi5]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
 
   - name: SystemZ_s390x
     doc: |
-      The s390x ABI for SystemZ processor architecture.
-      The latest version of the documentation can be found
-      \sa https://github.com/IBM/s390x-abi
+      The s390x ABI for SystemZ processor architecture
+      ([reference](https://github.com/IBM/s390x-abi)).
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/ABI.h"
