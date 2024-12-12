@@ -189,7 +189,7 @@ public:
     return tokenTag(NameBuilder.name(T), ptml::c::tokens::Type);
   }
   auto getNameTag(const model::Segment &S) {
-    return tokenTag(NameBuilder.name(S), ptml::c::tokens::Variable);
+    return tokenTag(NameBuilder.name(Binary, S), ptml::c::tokens::Variable);
   }
   auto getNameTag(const model::EnumDefinition &Enum,
                   const model::EnumEntry &Entry) {

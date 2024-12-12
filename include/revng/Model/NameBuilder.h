@@ -52,10 +52,12 @@ private:
     revng_abort(Error.c_str());
   }
 
-  [[nodiscard]] std::string automaticName(const model::Segment &Segment) const {
-    std::string Result = Configuration.unnamedSegmentPrefix().str()
-                         + Segment.StartAddress().toIdentifier() + "_"
-                         + std::to_string(Segment.VirtualSize());
+  [[nodiscard]] std::string automaticName(const model::Binary &Binary,
+                                          const model::Segment &Segment) const {
+    auto Iterator = Binary.Segments().find(Segment.key());
+    auto Result = std::string(Configuration.unnamedSegmentPrefix())
+                  + std::to_string(std::distance(Binary.Segments().begin(),
+                                                 Iterator));
     if constexpr (EnableSanityChecks)
       if (not isNameReserved(Result, Configuration))
         failSanityCheck(Result);
