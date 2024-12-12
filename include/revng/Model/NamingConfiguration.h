@@ -103,6 +103,13 @@ fields:
     type: string
     optional: true
 
+  - name: ReserveNamesStartingWithUnderscore
+    doc: |
+      When this is set to `true`, all the names starting with underscores will
+      have a \ref ReservedNamePrefix prefix attached.
+    type: bool
+    optional: true
+
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/NamingConfiguration.h"

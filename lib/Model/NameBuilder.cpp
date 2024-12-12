@@ -332,6 +332,10 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
   // The following forbidden names are based on the configuration
   //
 
+  if (Configuration.ReserveNamesStartingWithUnderscore())
+    if (Name[0] == '_')
+      return true;
+
   // Prefix + `[0-9]+`
   if (isPrefixAndIndex(Name, Configuration.unnamedSegmentPrefix()))
     return true;
