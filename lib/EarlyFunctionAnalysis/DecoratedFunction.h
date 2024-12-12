@@ -17,7 +17,7 @@ type: struct
 fields:
   - name: Entry
     type: MetaAddress
-  - name: OriginalName
+  - name: Name
     type: string
   - name: ControlFlowGraph
     type: efa::ControlFlowGraph

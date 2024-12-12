@@ -7,8 +7,7 @@ Architecture: x86_64
 
 Functions:
   - Entry: "0x400700:Code_x86_64"
-    CustomName: "fn"
-    OriginalName: fn
+    Name: fn
     StackFrameType:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3007-StructDefinition"
@@ -18,8 +17,7 @@ Functions:
     ExportedNames:
       - fn
   - Entry: "0x400800:Code_x86_64"
-    CustomName: "fn2"
-    OriginalName: fn2
+    Name: fn2
     StackFrameType:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3007-StructDefinition"
@@ -38,36 +36,33 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
-        CustomName: "b"
-        OriginalName: b
+        Name: b
       - Index: 1
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Generic
           Size: 8
-        CustomName: "c"
-        OriginalName: c
+        Name: c
       - Index: 2
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned
           Size: 2
-        CustomName: "d"
-        OriginalName: d
+        Name: d
   - Kind: EnumDefinition
     ID: 3009
-    CustomName: "prefix_enum_9"
+    Name: "prefix_enum_9"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Signed
       Size: 8
     Entries:
       - Value: 0
-        CustomName: "prefix_enum_9_none"
+        Name: "prefix_enum_9_none"
       - Value: 1
-        CustomName: "prefix_enum_9_positive"
+        Name: "prefix_enum_9_positive"
       - Value: 4294967295
-        CustomName: "prefix_enum_9_max_held_value"
+        Name: "prefix_enum_9_max_held_value"
   - Kind: StructDefinition
     ID: 3007
     Fields:

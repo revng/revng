@@ -12,11 +12,11 @@
 
 ---
 Functions:
-  - OriginalName: main
+  - Name: main
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1815-CABIFunctionDefinition"
-  - OriginalName: doSomething
+  - Name: doSomething
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1818-CABIFunctionDefinition"
@@ -44,20 +44,17 @@ TypeDefinitions:
         Definition: "/TypeDefinitions/1822-StructDefinition"
   - Kind: StructDefinition
     ID: 1822
-    CustomName: "Foo"
-    OriginalName: Foo
+    Name: Foo
     Size: 8
     Fields:
       - Offset: 0
-        CustomName: "x"
-        OriginalName: x
+        Name: x
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
       - Offset: 4
-        CustomName: "y"
-        OriginalName: "y"
+        Name: "y"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed

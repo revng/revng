@@ -6,30 +6,25 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 3001
-    CustomName: "B"
-    OriginalName: B
+    Name: B
     Fields:
       - Offset: 0
-        CustomName: "a1"
-        OriginalName: a1
+        Name: a1
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/3002-StructDefinition"
       - Offset: 4
-        CustomName: "a2"
-        OriginalName: a2
+        Name: a2
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/3002-StructDefinition"
     Size: 8
   - Kind: StructDefinition
     ID: 3002
-    CustomName: "A"
-    OriginalName: A
+    Name: A
     Fields:
       - Offset: 0
-        CustomName: "x"
-        OriginalName: x
+        Name: x
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed

@@ -25,7 +25,7 @@ commands:
         import yaml
 
         def should_keep(cfg):
-            if cfg.get("OriginalName", ""):
+            if cfg.get("Name", ""):
                 return True
 
             for block in cfg["Blocks"]:

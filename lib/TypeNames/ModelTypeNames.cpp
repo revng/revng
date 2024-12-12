@@ -18,7 +18,6 @@
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"

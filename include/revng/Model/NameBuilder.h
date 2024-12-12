@@ -11,7 +11,6 @@
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/NamingConfiguration.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/StructDefinition.h"
@@ -137,27 +136,25 @@ private:
   }
 
 public:
-  [[nodiscard]] std::string name(EntityWithCustomName auto const &Entity) {
-    if (Entity.CustomName().empty()
-        || isNameReserved(Entity.CustomName(), Configuration))
-      return automaticName(Entity);
+  [[nodiscard]] std::string name(EntityWithName auto const &E) {
+    if (E.Name().empty() || isNameReserved(E.Name(), Configuration))
+      return automaticName(E);
 
-    return Entity.CustomName().str().str();
+    return E.Name();
   }
 
   [[nodiscard]] std::string name(const auto &Parent,
-                                 EntityWithCustomName auto const &Entity) {
-    if (Entity.CustomName().empty()
-        || isNameReserved(Entity.CustomName(), Configuration))
-      return automaticName(Parent, Entity);
+                                 EntityWithName auto const &E) {
+    if (E.Name().empty() || isNameReserved(E.Name(), Configuration))
+      return automaticName(Parent, E);
 
-    return Entity.CustomName().str().str();
+    return E.Name();
   }
 
   // Dynamic functions are special - we never introduce automatic names for them
   [[nodiscard]] std::string name(const model::DynamicFunction &Function) {
-    revng_assert(not isNameReserved(Function.CustomName(), Configuration));
-    return Function.CustomName().str().str();
+    revng_assert(not isNameReserved(Function.Name(), Configuration));
+    return Function.Name();
   }
 
   [[nodiscard]] std::string llvmName(const model::Function &Function) {

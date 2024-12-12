@@ -3,7 +3,7 @@
 #
 
 ---
-- OriginalName: _start
+- Name: _start
   Blocks:
     - ID: "1"
       End: "2"
@@ -15,7 +15,7 @@
       Successors:
         - "-Destination": ""
           Type: Return
-- OriginalName: longjmp
+- Name: longjmp
   Blocks:
     - ID: "3"
       End: "4"

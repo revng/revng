@@ -5,39 +5,39 @@
 Architecture: x86_64
 
 Functions:
-  - OriginalName: raw_primitives_on_registers
+  - Name: raw_primitives_on_registers
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100000-RawFunctionDefinition"
-  - OriginalName: raw_pointers_on_registers
+  - Name: raw_pointers_on_registers
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100001-RawFunctionDefinition"
-  - OriginalName: raw_primitives_on_stack
+  - Name: raw_primitives_on_stack
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100002-RawFunctionDefinition"
-  - OriginalName: cabi_primitives_on_registers
+  - Name: cabi_primitives_on_registers
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100004-CABIFunctionDefinition"
-  - OriginalName: cabi_primitives_on_stack
+  - Name: cabi_primitives_on_stack
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100005-CABIFunctionDefinition"
-  - OriginalName: cabi_aggregate_on_registers
+  - Name: cabi_aggregate_on_registers
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100006-CABIFunctionDefinition"
-  - OriginalName: cabi_aggregate_on_stack
+  - Name: cabi_aggregate_on_stack
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100007-CABIFunctionDefinition"
-  - OriginalName: cabi_aggregate_on_stack_and_registers
+  - Name: cabi_aggregate_on_stack_and_registers
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100008-CABIFunctionDefinition"
-  - OriginalName: cabi_return_big_aggregate
+  - Name: cabi_return_big_aggregate
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100010-CABIFunctionDefinition"

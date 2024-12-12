@@ -3,12 +3,7 @@
 #
 
 revng_add_library_internal(
-  revngModelPasses
-  SHARED
-  DeduplicateEquivalentTypes.cpp
-  OptionCategory.cpp
-  PromoteOriginalName.cpp
-  PurgeUnnamedAndUnreachableTypes.cpp
-  Verify.cpp)
+  revngModelPasses SHARED DeduplicateEquivalentTypes.cpp OptionCategory.cpp
+  PurgeUnnamedAndUnreachableTypes.cpp Verify.cpp)
 
 target_link_libraries(revngModelPasses revngModel revngPipes)

@@ -12,41 +12,35 @@
 
 ---
 Functions:
-  - CustomName: "Foo__Foo"
-    OriginalName: "Foo::Foo"
+  - Name: "Foo::Foo"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/16558654860526908435-CABIFunctionDefinition"
-  - CustomName: "Foo__retX"
-    OriginalName: "Foo::retX"
+  - Name: "Foo::retX"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/17990064059287856019-CABIFunctionDefinition"
-  - CustomName: "Foo__retY"
-    OriginalName: "Foo::retY"
+  - Name: "Foo::retY"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/8800211852340388695-CABIFunctionDefinition"
-  - CustomName: "Foo__dummy"
-    OriginalName: "Foo::dummy"
+  - Name: "Foo::dummy"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/11972987020417764497-CABIFunctionDefinition"
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 987067897056915724
-    OriginalName: Foo
+    Name: Foo
     Fields:
       - Offset: 0
-        CustomName: "x"
-        OriginalName: x
+        Name: x
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
       - Offset: 4
-        CustomName: "y"
-        OriginalName: "y"
+        Name: "y"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed

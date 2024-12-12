@@ -3,14 +3,14 @@
 #
 
 ---
-- OriginalName: "strlen"
+- Name: "strlen_1"
   Blocks:
     - Successors:
         - "-Destination": ""
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true
-- OriginalName: use_plt
+- Name: use_plt
   Blocks:
     - Successors:
         - Kind: CallEdge
@@ -19,7 +19,7 @@
         - Type: FunctionCall
     - Successors:
         - Type: Return
-- OriginalName: do_not_use_plt
+- Name: do_not_use_plt
   Blocks:
     - Successors:
         - "-Destination": ""

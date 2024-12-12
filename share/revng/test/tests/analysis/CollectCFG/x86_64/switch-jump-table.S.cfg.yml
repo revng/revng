@@ -3,7 +3,7 @@
 #
 
 ---
-- OriginalName: myfunc
+- Name: myfunc
   Blocks:
     - ID: "1"
       End: "2"

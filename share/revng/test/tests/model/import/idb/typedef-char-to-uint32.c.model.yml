@@ -3,7 +3,7 @@
 #
 
 Functions:
-  - OriginalName: fn
+  - Name: fn
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/13950133128659256343-CABIFunctionDefinition"
@@ -20,11 +20,11 @@ TypeDefinitions:
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/10614298789832763328-TypedefDefinition"
-        OriginalName: x
+        Name: x
 
   - Kind: TypedefDefinition
     ID: 10614298789832763328
-    OriginalName: uint32_t
+    Name: uint32_t
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Number

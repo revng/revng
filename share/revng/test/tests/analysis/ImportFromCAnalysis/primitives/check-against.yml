@@ -5,34 +5,34 @@
 TypeDefinitions:
   - Kind: UnionDefinition
     ID: 3000
-    CustomName: "my_union"
+    Name: "my_union"
     Fields:
       - Index: 0
-        CustomName: "first_field"
+        Name: "first_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Generic
           Size: 10
       - Index: 1
-        CustomName: "second_field"
+        Name: "second_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Generic
           Size: 12
       - Index: 2
-        CustomName: "third_field"
+        Name: "third_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Float
           Size: 10
       - Index: 3
-        CustomName: "fourth_field"
+        Name: "fourth_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Float
           Size: 12
       - Index: 4
-        CustomName: "fifth_field"
+        Name: "fifth_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Float

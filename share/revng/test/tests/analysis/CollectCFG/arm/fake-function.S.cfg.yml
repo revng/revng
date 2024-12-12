@@ -3,7 +3,7 @@
 #
 
 ---
-- OriginalName: _start
+- Name: _start
   Blocks:
     - End: "2"
       ID: "1"
@@ -25,7 +25,7 @@
       Successors:
         - "-Destination": ""
           Type: Return
-- OriginalName: prologue
+- Name: prologue
   # Note: this function is inline, if necessary, we can add it here.
   Blocks:
     - ID: "3"
@@ -33,7 +33,7 @@
       Successors:
         - "-Destination": ""
           Type: BrokenReturn
-- OriginalName: epilogue
+- Name: epilogue
   # Note: this function is noreturn, if necessary, we can add it here.
   Blocks:
     - End: "5"

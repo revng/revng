@@ -24,7 +24,7 @@ fields:
   - name: Entry
     doc: Start address of the basic block
     type: MetaAddress
-  - name: OriginalName
+  - name: Name
     type: string
     doc: Optional name for debugging purposes
     optional: true

@@ -529,11 +529,11 @@ void IsolateFunctionsImpl::run() {
                             "Dynamic functions creation");
   for (const model::DynamicFunction &Function :
        Binary.ImportedDynamicFunctions()) {
-    StringRef Name = Function.OriginalName();
+    StringRef Name = Function.Name();
     DynamicFunctionsTask.advance(Name, true);
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
-                                         "dynamic_" + Function.OriginalName(),
+                                         "dynamic_" + Function.Name(),
                                          TheModule);
     FunctionTags::DynamicFunction.addTo(NewFunction);
     NewFunction->addFnAttr(Attribute::NoMerge);

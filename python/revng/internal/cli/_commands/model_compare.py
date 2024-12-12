@@ -245,19 +245,19 @@ class YAMLGraph:
         interestingness = defaultdict(lambda: 2)
         shortest_paths = dict(all_pairs_shortest_path_length(self.graph))
         for node_id in self.graph:
-            # TODO: here we are hardcoding `CustomName`, we need to take
+            # TODO: here we are hardcoding the name, we need to take
             #       the time to write a small function computing how
             #       much disambiguation power a certain reference node
             #       has based on how many compatible nodes are there in
             #       the input graph, just looking at the semantic.
             has_customname = (
-                isinstance(self.node_map[node_id], dict) and "CustomName" in self.node_map[node_id]
+                isinstance(self.node_map[node_id], dict) and "Name" in self.node_map[node_id]
             )
             if self.graph.in_degree(node_id) == 0:
                 # No incoming edges, it's the entry node
                 interestingness[node_id] = 1
             elif has_customname:
-                # Those with CustomName take priority
+                # Those with a name take priority
                 interestingness[node_id] = 2
 
                 # Distribute points depending on the distance

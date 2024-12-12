@@ -3,7 +3,7 @@
 #
 
 ---
-- OriginalName: __start
+- Name: __start
   Blocks:
     - Successors:
         - Type: DirectBranch
@@ -26,7 +26,7 @@
     - Successors:
         - "-Destination": ""
           Type: LongJmp
-- OriginalName: function
+- Name: function
   Blocks:
     - Successors:
         - "-Destination": ""

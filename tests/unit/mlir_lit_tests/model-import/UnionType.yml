@@ -24,7 +24,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 1001
     Kind: UnionDefinition
-    CustomName: "my_union"
+    Name: "my_union"
     Fields:
       - Index: 0
         Type:

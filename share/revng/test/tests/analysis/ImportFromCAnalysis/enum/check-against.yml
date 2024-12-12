@@ -5,17 +5,17 @@
 TypeDefinitions:
   - Kind: EnumDefinition
     ID: 3000
-    CustomName: "my_enum"
+    Name: "my_enum"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Unsigned
       Size: 4
     Entries:
       - Value: 0
-        CustomName: "none"
+        Name: "none"
       - Value: 1
-        CustomName: "positive"
+        Name: "positive"
       - Value: 2
-        CustomName: "negative"
+        Name: "negative"
       - Value: 3
-        CustomName: "neutral"
+        Name: "neutral"

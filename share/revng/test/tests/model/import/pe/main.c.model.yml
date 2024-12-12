@@ -12,8 +12,7 @@
 
 ---
 Functions:
-  - CustomName: "main"
-    OriginalName: main
+  - Name: main
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1215409121627673421-CABIFunctionDefinition"

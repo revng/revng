@@ -10,7 +10,6 @@
 #include "llvm/IR/Type.h"
 
 #include "revng/Model/Binary.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Assert.h"
@@ -121,15 +120,23 @@ std::string getScalarCType(const llvm::Type *LLVMType, const CBuilder &B) {
   }
 }
 
-static std::string getHelperFunctionIdentifier(const llvm::Function *F) {
+static std::string getHelperFunctionIdentifier(const llvm::Function *F,
+                                               const CTypeBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
-  return (Twine("_") + model::Identifier::sanitize(F->getName())).str();
+
+  auto ReplaceForbiddenCharacters = [](char Character) -> char {
+    return std::isalnum(Character) ? Character : '_';
+  };
+  return "_" + F->getName().str()
+         | std::views::transform(ReplaceForbiddenCharacters)
+         | revng::to<std::string>();
 }
 
-static std::string getReturnedStructIdentifier(const llvm::Function *F) {
+static std::string getReturnedStructIdentifier(const llvm::Function *F,
+                                               const CTypeBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(llvm::isa<llvm::StructType>(F->getReturnType()));
-  return (Twine(StructWrapperPrefix) + Twine(getHelperFunctionIdentifier(F)))
+  return (Twine(StructWrapperPrefix) + Twine(getHelperFunctionIdentifier(F, B)))
     .str();
 }
 
@@ -145,7 +152,7 @@ getReturnTypeLocation(const llvm::Function *F, const CTypeBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
 
   if (RetType->isAggregateType()) {
-    std::string StructName = getReturnedStructIdentifier(F);
+    std::string StructName = getReturnedStructIdentifier(F, B);
     return B.tokenTag(StructName, ptml::c::tokens::Type)
       .addAttribute(B.getLocationAttribute(IsDefinition),
                     serializeHelperStructLocation(StructName))
@@ -189,7 +196,7 @@ static std::string getReturnStructFieldLocation(const llvm::Function *F,
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(F->getReturnType()->isStructTy());
 
-  std::string StructName = getReturnedStructIdentifier(F);
+  std::string StructName = getReturnedStructIdentifier(F, B);
   std::string FieldName = (Twine(StructFieldPrefix) + Twine(Index)).str();
   return B.getTag(ptml::tags::Span, FieldName)
     .addAttribute(attributes::Token, tokens::Field)
@@ -218,7 +225,8 @@ static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
 template<bool IsDefinition>
 static std::string
 getHelperFunctionLocation(const llvm::Function *F, const CTypeBuilder &B) {
-  return B.tokenTag(getHelperFunctionIdentifier(F), ptml::c::tokens::Function)
+  return B
+    .tokenTag(getHelperFunctionIdentifier(F, B), ptml::c::tokens::Function)
     .addAttribute(B.getLocationAttribute(IsDefinition),
                   serializeHelperFunctionLocation(F))
     .toString();

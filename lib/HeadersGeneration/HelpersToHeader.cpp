@@ -18,7 +18,6 @@
 
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Identifier.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"

@@ -9,13 +9,13 @@
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true
-- OriginalName: _start
+- Name: _start
   Blocks:
     - Successors:
         - Type: FunctionCall
     - Successors:
         - Type: Return
-- OriginalName: use_plt
+- Name: use_plt
   Blocks:
     - Successors:
         - Type: FunctionCall

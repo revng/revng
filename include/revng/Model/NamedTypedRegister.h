@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
 
 /* TUPLE-TREE-YAML
@@ -21,11 +20,8 @@ fields:
   - name: Type
     type: Type
     upcastable: true
-  - name: CustomName
-    type: Identifier
-    optional: true
-  - name: OriginalName
-    type: Identifier
+  - name: Name
+    type: string
     optional: true
   - name: Comment
     type: string

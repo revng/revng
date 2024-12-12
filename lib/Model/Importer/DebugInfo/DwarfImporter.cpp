@@ -490,7 +490,7 @@ private:
     switch (Tag) {
     case llvm::dwarf::DW_TAG_subroutine_type: {
       auto &FunctionType = cast<model::CABIFunctionDefinition>(Definition);
-      FunctionType.OriginalName() = Name;
+      FunctionType.Name() = Name;
       FunctionType.ABI() = getABI();
 
       if (FunctionType.ABI() == model::ABI::Invalid) {
@@ -524,7 +524,7 @@ private:
     case llvm::dwarf::DW_TAG_restrict_type:
     case llvm::dwarf::DW_TAG_volatile_type: {
       auto &Typedef = cast<model::TypedefDefinition>(Definition);
-      Typedef.OriginalName() = Name;
+      Typedef.Name() = Name;
       Typedef.UnderlyingType() = rc_recur makeTypeOrVoid(Die);
 
     } break;
@@ -538,7 +538,7 @@ private:
       }
 
       auto &Struct = cast<model::StructDefinition>(Definition);
-      Struct.OriginalName() = Name;
+      Struct.Name() = Name;
       Struct.Size() = *MaybeSize->getAsUnsignedConstant();
 
       uint64_t Index = 0;
@@ -570,7 +570,7 @@ private:
 
           // Create new field
           auto &Field = Struct.Fields()[Offset];
-          Field.OriginalName() = getName(ChildDie);
+          Field.Name() = getName(ChildDie);
           Field.Type() = std::move(MemberType);
 
           ++Index;
@@ -586,7 +586,7 @@ private:
 
     case llvm::dwarf::DW_TAG_union_type: {
       auto &Union = cast<model::UnionDefinition>(Definition);
-      Union.OriginalName() = Name;
+      Union.Name() = Name;
 
       for (const DWARFDie &ChildDie : Die.children()) {
         if (ChildDie.getTag() == DW_TAG_member) {
@@ -600,7 +600,7 @@ private:
 
           // Create new field
           auto &Field = Union.addField(std::move(MemberType));
-          Field.OriginalName() = getName(ChildDie);
+          Field.Name() = getName(ChildDie);
         }
       }
 
@@ -613,7 +613,7 @@ private:
 
     case llvm::dwarf::DW_TAG_enumeration_type: {
       auto &Enum = llvm::cast<model::EnumDefinition>(Definition);
-      Enum.OriginalName() = Name;
+      Enum.Name() = Name;
 
       const model::UpcastableType UnderlyingType = rc_recur makeType(Die);
       if (UnderlyingType.isEmpty()) {
@@ -641,11 +641,11 @@ private:
           // Create new entry
           std::string EntryName = getName(ChildDie);
 
-          // If it's the first time, set OriginalName
+          // If it's the first time, set the name
           auto *It = Enum.Entries().tryGet(Value);
           if (It == nullptr) {
             auto &Entry = Enum.Entries()[Value];
-            Entry.OriginalName() = EntryName;
+            Entry.Name() = EntryName;
           } else {
             // Ignore aliases
           }
@@ -825,7 +825,7 @@ private:
         // Note: at this stage we don't check the size. If an argument is
         // unsized, the function will be purged later on.
         model::Argument &A = FunctionType.addArgument(std::move(ArgumentType));
-        A.OriginalName() = getName(ChildDie);
+        A.Name() = getName(ChildDie);
       }
     }
 
@@ -870,8 +870,8 @@ private:
 
             if (SymbolName.size() != 0) {
               Function->ExportedNames().insert(SymbolName);
-              if (Function->OriginalName().size() == 0)
-                Function->OriginalName() = SymbolName;
+              if (Function->Name().size() == 0)
+                Function->Name() = SymbolName;
             }
 
             if (isNoReturn(*CU.get(), Die))
@@ -937,8 +937,6 @@ public:
     purgeInvalidTypes(Model);
     T.advance("Deduplicate equivalent types", true);
     deduplicateEquivalentTypes(Model);
-    T.advance("Promote OriginalName", true);
-    promoteOriginalName(Model);
     T.advance("Purge unnamed unreachable types", true);
     purgeUnnamedAndUnreachableTypes(Model);
     T.advance("Verify the model", true);
@@ -1373,8 +1371,8 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
   std::unordered_map<std::string, model::Function *> FunctionsByName;
   // Map functions by names, so we have faster lookup below.
   for (auto &Function : Functions) {
-    if (Function.OriginalName().size()) {
-      FunctionsByName[Function.OriginalName()] = &Function;
+    if (Function.Name().size()) {
+      FunctionsByName[Function.Name()] = &Function;
     }
   }
 
@@ -1417,7 +1415,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
         PotentialExportedNamesToBeAdded.push_back(Name);
         if (It != FunctionsByName.end()) {
           // We found a local function.
-          // TODO: In some situations OriginalName is not in the ExportedNames?
+          // TODO: In some situations Name is not in the ExportedNames?
           // For example in the case of importing `__libc_calloc` from
           // libc.so.6.
           TheFunction = It->second;

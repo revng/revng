@@ -7,8 +7,7 @@ Architecture: x86_64
 
 Functions:
   - Entry: "0x401129:Code_x86_64"
-    CustomName: "fn"
-    OriginalName: fn
+    Name: fn
     StackFrameType:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3001-StructDefinition"
@@ -37,12 +36,10 @@ TypeDefinitions:
     Size: 16
   - Kind: StructDefinition
     ID: 3003
-    CustomName: "S"
-    OriginalName: S
+    Name: S
     Fields:
       - Offset: 0
-        CustomName: "s1"
-        OriginalName: s1
+        Name: s1
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/3001-StructDefinition"

@@ -5,22 +5,22 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 12620553074732431538
-    OriginalName: my_struct
+    Name: my_struct
     Fields:
       - Offset: 0
-        OriginalName: x
+        Name: x
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Number
           Size: 4
       - Offset: 4
-        OriginalName: "y"
+        Name: "y"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Number
           Size: 4
       - Offset: 8
-        OriginalName: z
+        Name: z
         Type:
           Kind: PointerType
           PointerSize: 8
@@ -30,22 +30,22 @@ TypeDefinitions:
     Size: 16
   - Kind: TypedefDefinition
     ID: 626103279023675435
-    OriginalName: second_struct
+    Name: second_struct
     UnderlyingType:
       Kind: DefinedType
       Definition: "/TypeDefinitions/2113910595525978593-StructDefinition"
   - Kind: StructDefinition
     ID: 2113910595525978593
-    OriginalName: second_struct
+    Name: second_struct
     Fields:
       - Offset: 0
-        OriginalName: a
+        Name: a
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Number
           Size: 4
       - Offset: 4
-        OriginalName: b
+        Name: b
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Number

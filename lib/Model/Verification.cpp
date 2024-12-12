@@ -173,11 +173,11 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   // Ensure we have a name
-  if (OriginalName().size() == 0)
-    return VH.fail("Dynamic functions must have an OriginalName.", *this);
+  if (Name().size() == 0)
+    return VH.fail("Dynamic functions must have a name.", *this);
 
-  if (OriginalName().find('/') != std::string::npos)
-    return VH.fail("Dynamic function names must not contain '/'.", *this);
+  if (not VH.isNameAllowed(Name()))
+    return VH.fail();
 
   if (not Prototype().isEmpty()) {
     if (not Prototype()->isPrototype())
@@ -314,12 +314,12 @@ RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
 
 bool EnumEntry::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
-  return VH.maybeFail(CustomName().verify(VH));
+  return VH.isNameAllowed(Name());
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const EnumDefinition &T) {
-  if (T.Entries().empty() or not T.CustomName().verify(VH))
+  if (T.Entries().empty() or not VH.isNameAllowed(T.Name()))
     rc_return VH.fail();
 
   if (T.UnderlyingType().isEmpty())
@@ -348,7 +348,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const TypedefDefinition &T) {
-  rc_return VH.maybeFail(T.CustomName().verify(VH)
+  rc_return VH.maybeFail(VH.isNameAllowed(T.Name())
                          and T.Kind() == TypeDefinitionKind::TypedefDefinition
                          and not T.UnderlyingType().isEmpty()
                          and rc_recur T.UnderlyingType()->verify(VH));
@@ -368,7 +368,7 @@ RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
   if (not MaybeSize)
     rc_return VH.fail("Struct field is zero-sized", Type());
 
-  rc_return VH.maybeFail(CustomName().verify(VH));
+  rc_return VH.isNameAllowed(Name());
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
@@ -378,8 +378,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
   revng_assert(T.Kind() == TypeDefinitionKind::StructDefinition);
 
-  if (not T.CustomName().verify(VH))
-    rc_return VH.fail("Invalid name", T);
+  if (not VH.isNameAllowed(T.Name()))
+    rc_return VH.fail();
 
   if (T.Size() == 0)
     rc_return VH.fail("Struct size must be greater than zero.", T);
@@ -424,7 +424,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail("Last field ends outside the struct", T);
     }
 
-    if (not VH.isNameAllowed(Field.CustomName()))
+    if (not VH.isNameAllowed(Field.Name()))
       rc_return VH.fail();
   }
 
@@ -445,15 +445,15 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
   if (not MaybeSize)
     rc_return VH.fail("Union field is zero-sized", Type());
 
-  rc_return VH.maybeFail(CustomName().verify(VH));
+  rc_return VH.isNameAllowed(Name());
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const UnionDefinition &T) {
   revng_assert(T.Kind() == TypeDefinitionKind::UnionDefinition);
 
-  if (not T.CustomName().verify(VH))
-    rc_return VH.fail("Invalid name", T);
+  if (not VH.isNameAllowed(T.Name()))
+    rc_return VH.fail();
 
   if (T.Fields().empty())
     rc_return VH.fail("Union must have at least one field.", T);
@@ -472,7 +472,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
 
-    if (not VH.isNameAllowed(Field.CustomName()))
+    if (not VH.isNameAllowed(Field.Name()))
       rc_return VH.fail();
   }
 
@@ -480,8 +480,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 }
 
 RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
-  if (not CustomName().verify(VH))
-    rc_return VH.fail("A function argument has invalid CustomName", *this);
+  if (not VH.isNameAllowed(Name()))
+    rc_return VH.fail();
 
   if (Type().isEmpty())
     rc_return VH.fail("A function argument must have a type", *this);
@@ -497,7 +497,7 @@ RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const CABIFunctionDefinition &T) {
-  if (not T.CustomName().verify(VH))
+  if (not VH.isNameAllowed(T.Name()))
     rc_return VH.fail();
 
   if (not T.ReturnType().isEmpty()) {
@@ -527,7 +527,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
 
-    if (not VH.isNameAllowed(Argument.CustomName()))
+    if (not VH.isNameAllowed(Argument.Name()))
       rc_return VH.fail();
   }
 
@@ -538,7 +538,7 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   // Ensure the name is valid
-  if (not CustomName().verify(VH))
+  if (not VH.isNameAllowed(Name()))
     rc_return VH.fail();
 
   if (Type().isEmpty())
@@ -584,7 +584,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail();
     if (not isUsedInArchitecture(Argument.Location(), Architecture))
       rc_return VH.fail();
-    if (not VH.isNameAllowed(Argument.CustomName()))
+    if (not VH.isNameAllowed(Argument.Name()))
       rc_return VH.fail();
   }
 
@@ -609,7 +609,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       and not rc_recur StackArgumentsType->verify(VH))
     rc_return VH.fail();
 
-  rc_return VH.maybeFail(T.CustomName().verify(VH));
+  rc_return VH.isNameAllowed(T.Name());
 }
 
 RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
@@ -658,7 +658,6 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
 bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  std::set<Identifier> Names;
   for (const model::UpcastableTypeDefinition &Definition : TypeDefinitions()) {
     // All types on their own should verify
     if (not Definition.get()->verify(VH))
@@ -832,8 +831,8 @@ bool Binary::verify(VerifyHelper &VH) const {
     // Unlike all the other renamable objects, dynamic functions do not have
     // a possibility of falling back onto an automatic name. As such, we have to
     // be a lot stricter with what we allow as their names.
-    if (llvm::Error Error = NameBuilder.isNameReserved(DF.CustomName()))
-      return VH.fail("Dynamic function name (`" + DF.CustomName()
+    if (llvm::Error Error = NameBuilder.isNameReserved(DF.Name()))
+      return VH.fail("Dynamic function name (`" + DF.Name()
                      + "`) is not valid because "
                      + revng::unwrapError(std::move(Error)));
   }

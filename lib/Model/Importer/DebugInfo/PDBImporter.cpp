@@ -289,7 +289,6 @@ void PDBImporterImpl::run(NativeSession &Session) {
 
   TupleTree<model::Binary> &Model = Importer.getModel();
   deduplicateEquivalentTypes(Model);
-  promoteOriginalName(Model);
   purgeUnreachableTypes(Model);
   revng_assert(Model->verify(true));
 }
@@ -670,12 +669,12 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       // an incomplete struct type.
       model::UpcastableType Void = model::PrimitiveType::makeVoid();
       auto &&[Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
-      Typedef.OriginalName() = Class.getName();
+      Typedef.Name() = Class.getName();
       ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     } else {
       // Pre-create the type that is being referenced by this type.
       auto &&[Struct, NewType] = Model->makeStructDefinition();
-      Struct.OriginalName() = Class.getName();
+      Struct.Name() = Class.getName();
       Struct.Size() = ForwardTypeSize;
       ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     }
@@ -689,7 +688,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     model::StructDefinition *Struct = nullptr;
     auto NewDefinition = makeTypeDefinition<model::StructDefinition>();
     if (not WasReferenced) {
-      NewDefinition->OriginalName() = Class.getName();
+      NewDefinition->Name() = Class.getName();
       auto &NewStruct = llvm::cast<model::StructDefinition>(*NewDefinition);
       NewStruct.Size() = Class.getSize();
       Struct = &NewStruct;
@@ -743,7 +742,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         }
 
         auto &FieldType = Struct->Fields()[Offset];
-        FieldType.OriginalName() = Field.getName().str();
+        FieldType.Name() = Field.getName().str();
         FieldType.Type() = std::move(FieldModelType);
       }
     }
@@ -844,7 +843,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex FieldsTypeIndex = Enum.getFieldList();
   auto NewDefinition = model::makeTypeDefinition<model::EnumDefinition>();
   auto &NewEnum = *cast<model::EnumDefinition>(NewDefinition.get());
-  NewEnum.OriginalName() = Enum.getName();
+  NewEnum.Name() = Enum.getName();
 
   TypeIndex UnderlyingTypeIndex = Enum.getUnderlyingType();
   auto UnderlyingModelType = makeModelTypeForIndex(UnderlyingTypeIndex);
@@ -863,7 +862,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
   for (const auto &Entry : TheFields) {
     auto &EnumEntry = NewEnum.Entries()[Entry.getValue().getExtValue()];
-    EnumEntry.OriginalName() = Entry.getName().str();
+    EnumEntry.Name() = Entry.getName().str();
   }
 
   auto &&[_, NewType] = Model->recordNewType(std::move(NewDefinition));
@@ -1001,7 +1000,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     // Typedef it to void.
     model::UpcastableType Void = model::PrimitiveType::makeVoid();
     auto &&[Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
-    Typedef.OriginalName() = Union.getName().str();
+    Typedef.Name() = Union.getName().str();
     ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
 
     return Error::success();
@@ -1009,7 +1008,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
   auto NewDefinition = model::makeTypeDefinition<model::UnionDefinition>();
   auto &NewUnion = llvm::cast<model::UnionDefinition>(*NewDefinition.get());
-  NewUnion.OriginalName() = Union.getName().str();
+  NewUnion.Name() = Union.getName().str();
 
   bool GeneratedAtLeastOneField = false;
   for (const auto &Field : TheFields) {
@@ -1030,7 +1029,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
       GeneratedAtLeastOneField = true;
       auto &FieldType = NewUnion.addField(std::move(FieldModelType));
-      FieldType.OriginalName() = Field.getName().str();
+      FieldType.Name() = Field.getName().str();
     }
   }
 
@@ -1314,7 +1313,7 @@ Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
 
     if (not Model->Functions().contains(FunctionAddress)) {
       if (auto *Function = Helper.registerFunctionEntry(FunctionAddress)) {
-        Function->OriginalName() = Proc.Name;
+        Function->Name() = Proc.Name;
         TypeIndex FunctionTypeIndex = Proc.FunctionType;
         if (ProcessedTypes.find(FunctionTypeIndex) != ProcessedTypes.end())
           Function->Prototype() = ProcessedTypes[FunctionTypeIndex];

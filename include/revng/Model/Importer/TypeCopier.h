@@ -10,14 +10,6 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
 
-template<typename T>
-concept HasCustomAndOriginalName = requires(const T &Element) {
-  { Element.CustomName() } -> std::same_as<const model::Identifier &>;
-  { Element.OriginalName() } -> std::same_as<const std::string &>;
-};
-static_assert(HasCustomAndOriginalName<model::TypeDefinition>);
-static_assert(HasCustomAndOriginalName<model::EnumEntry>);
-
 class TypeCopier {
 private:
   TupleTree<model::Binary> &FromModel;
@@ -58,18 +50,6 @@ public:
 
         // Reset type ID: recordNewType will set it for us
         NewType->ID() = 0;
-
-        // Adjust all CustomNames
-        auto Visitor = [](auto &Element) {
-          using T = std::decay_t<decltype(Element)>;
-          if constexpr (HasCustomAndOriginalName<T>) {
-            std::string CustomName = Element.CustomName().str().str();
-            Element.CustomName() = model::Identifier();
-            if (Element.OriginalName().empty())
-              Element.OriginalName() = CustomName;
-          }
-        };
-        visitTupleTree(NewType, Visitor, [](const auto &) {});
 
         // Record the type
         auto &&[D, Type] = DestinationModel->recordNewType(std::move(NewType));

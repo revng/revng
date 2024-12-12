@@ -12,11 +12,11 @@
 
 ---
 Functions:
-  - OriginalName: cmpfunc
+  - Name: cmpfunc
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/5944255354151483434-CABIFunctionDefinition"
-  - OriginalName: qsort
+  - Name: qsort
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/17913232940792519997-CABIFunctionDefinition"

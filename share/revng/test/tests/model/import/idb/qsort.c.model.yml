@@ -3,12 +3,12 @@
 #
 
 ImportedDynamicFunctions:
-  - OriginalName: qsort
+  - Name: qsort
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3821538295510931842-CABIFunctionDefinition"
 Functions:
-  - OriginalName: cmpfunc
+  - Name: cmpfunc
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/5944255354151483434-CABIFunctionDefinition"
@@ -24,32 +24,32 @@ TypeDefinitions:
           PointeeType:
             Kind: PrimitiveType
             PrimitiveKind: Void
-        OriginalName: base
+        Name: base
       - Index: 1
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/855760813070670525-TypedefDefinition"
-        OriginalName: nmemb
+        Name: nmemb
       - Index: 2
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/855760813070670525-TypedefDefinition"
-        OriginalName: size
+        Name: size
       - Index: 3
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/7339777181910699325-TypedefDefinition"
-        OriginalName: compar
+        Name: compar
   - Kind: TypedefDefinition
     ID: 855760813070670525
-    OriginalName: size_t
+    Name: size_t
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Unsigned
       Size: 8
   - Kind: TypedefDefinition
     ID: 7339777181910699325
-    OriginalName: __compar_fn_t
+    Name: __compar_fn_t
     UnderlyingType:
       Kind: PointerType
       PointerSize: 8

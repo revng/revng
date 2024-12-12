@@ -6,17 +6,13 @@
 
 #include "revng/ADT/MutableSet.h"
 #include "revng/Model/CommonFunctionMethods.h"
-#include "revng/Model/Identifier.h"
 
 /* TUPLE-TREE-YAML
 name: DynamicFunction
 doc: A function defined in a dynamic library.
 type: struct
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
-  - name: OriginalName
+  - name: Name
     doc: The name of the symbol for this dynamic function.
     type: string
   - name: Comment
@@ -43,7 +39,7 @@ fields:
     optional: true
 
 key:
-  - OriginalName
+  - Name
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/DynamicFunction.h"

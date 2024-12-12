@@ -115,25 +115,21 @@ For our `test_args`, the prototype looks like
       - Index:           0
         Type:
           UnqualifiedType: "/TypeDefinitions/2-StructDefinition"
-        CustomName:      "argument_0"
-        OriginalName:    argument_0
+        Name:    argument_0
       - Index:           1
         Type:
           UnqualifiedType: "/TypeDefinitions/3-StructDefinition"
-        CustomName:      "argument_1"
-        OriginalName:    argument_1
+        Name:    argument_1
   - ID:              2
     Kind:            StructDefinition
     Size:            4
     Fields:
       - Offset:          0
-        CustomName:      "a"
-        OriginalName:    a
+        Name:    a
         Type:
           UnqualifiedType: "/TypeDefinitions/1282-PrimitiveDefinition"
       - Offset:          2
-        CustomName:      "b"
-        OriginalName:    b
+        Name:    b
         Type:
           UnqualifiedType: "/TypeDefinitions/1282-PrimitiveDefinition"
   - ID:              3
@@ -141,8 +137,7 @@ For our `test_args`, the prototype looks like
     Size:            64
     Fields:
       - Offset:          0
-        CustomName:      "a"
-        OriginalName:    a
+        Name:    a
         Type:
           UnqualifiedType: "/TypeDefinitions/1288-PrimitiveDefinition"
           Qualifiers:

@@ -12,4 +12,4 @@ These fields should be accessed using member access operator to access sections
 the binary.
 
 CHECK: sum_globals(void)
-CHECK: return {{.*}}segment_[[SEGMENT_INDEX:[0-9]+]].unreserved__data.TheData.offset_1004 + segment_[[SEGMENT_INDEX]].unreserved__data.TheData.offset_0
+CHECK: return segment_[[SEGMENT_INDEX:[0-9]+]]._data.TheData.offset_1004 + segment_[[SEGMENT_INDEX]]._data.TheData.offset_0

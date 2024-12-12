@@ -5,19 +5,19 @@
 TypeDefinitions:
   - Kind: EnumDefinition
     ID: 8119090305649570066
-    OriginalName: A
+    Name: A
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Unsigned
       Size: 4
     Entries:
       - Value: 0
-        OriginalName: x
+        Name: x
       - Value: 1
-        OriginalName: "y"
+        Name: "y"
   - Kind: TypedefDefinition
     ID: 1687222338895130802
-    OriginalName: A
+    Name: A
     UnderlyingType:
       Kind: DefinedType
       Definition: "/TypeDefinitions/8119090305649570066-EnumDefinition"
@@ -29,4 +29,4 @@ TypeDefinitions:
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/1687222338895130802-TypedefDefinition"
-        OriginalName: x
+        Name: x

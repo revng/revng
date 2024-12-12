@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   Function TheFunction(MetaAddress::invalid());
 
   // Use get
-  TheFunction.CustomName() = "FunctionName";
+  TheFunction.Name() = "FunctionName";
   revng_check(get<1>(TheFunction) == "FunctionName");
 
   // Test std::tuple_size
@@ -43,10 +43,10 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   static_assert(TraitedTupleLike<Function>);
   using TLT = TupleLikeTraits<Function>;
   static_assert(std::is_same_v<std::tuple_element_t<1, Function> &,
-                               decltype(TheFunction.CustomName())>);
+                               decltype(TheFunction.Name())>);
   revng_check(StringRef(TLT::Name) == "Function");
   revng_check(StringRef(TLT::FullName) == "model::Function");
-  revng_check(StringRef(TLT::FieldNames[1]) == "CustomName");
+  revng_check(StringRef(TLT::FieldNames[1]) == "Name");
 }
 
 BOOST_AUTO_TEST_CASE(TestPathAccess) {
@@ -77,9 +77,9 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
                                                         8);
 
   std::string Path = "/TypeDefinitions/" + toString(Typedef.key())
-                     + "/TypedefDefinition::OriginalName";
+                     + "/TypedefDefinition::Name";
   auto *OriginalNamePointer = getByPath<std::string>(Path, Binary);
-  revng_check(OriginalNamePointer == &Typedef.OriginalName());
+  revng_check(OriginalNamePointer == &Typedef.Name());
 
   Path = "/TypeDefinitions/" + toString(Typedef.key());
   revng_check(getByPath<model::TypeDefinition>(Path, Binary) == &Typedef);
@@ -108,7 +108,7 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
 
   TupleTreePath InvalidFunctionNamePath = InvalidFunctionPath;
   InvalidFunctionNamePath.push_back(size_t(1));
-  auto MaybePath = stringAsPath<Binary>("/Functions/:Invalid/CustomName");
+  auto MaybePath = stringAsPath<Binary>("/Functions/:Invalid/Name");
   revng_check(MaybePath.value() == InvalidFunctionNamePath);
 
   auto CheckRoundTrip = [](const char *String) {
@@ -191,8 +191,8 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
 
     revng_check(Dedup() == 0);
 
-    Typedef1.OriginalName() = "MyUInt8";
-    Typedef2.OriginalName() = "MyUInt8";
+    Typedef1.Name() = "MyUInt8";
+    Typedef2.Name() = "MyUInt8";
 
     revng_check(Dedup() == 1);
   }
@@ -200,18 +200,18 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
   // Two structs
   {
     auto &Struct1 = Model->makeStructDefinition().first;
-    Struct1.Fields()[0].CustomName() = "FirstField";
+    Struct1.Fields()[0].Name() = "FirstField";
     Struct1.Fields()[0].Type() = UInt32.copy();
-    Struct1.OriginalName() = "MyStruct";
+    Struct1.Name() = "MyStruct";
 
     auto &Struct2 = Model->makeStructDefinition().first;
-    Struct2.Fields()[0].CustomName() = "DifferentName";
+    Struct2.Fields()[0].Name() = "DifferentName";
     Struct2.Fields()[0].Type() = UInt32.copy();
-    Struct2.OriginalName() = "MyStruct";
+    Struct2.Name() = "MyStruct";
 
     revng_check(Dedup() == 0);
 
-    Struct1.Fields()[0].CustomName() = Struct2.Fields()[0].CustomName();
+    Struct1.Fields()[0].Name() = Struct2.Fields()[0].Name();
 
     revng_check(Dedup() == 1);
   }
@@ -226,8 +226,8 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     LeftStruct1.Fields()[0].Type() = Pointer::make(std::move(LeftType2), 8);
     LeftStruct2.Fields()[0].Type() = Pointer::make(std::move(LeftType1), 8);
 
-    LeftStruct1.OriginalName() = "LoopingStructs1";
-    LeftStruct2.OriginalName() = "LoopingStructs2";
+    LeftStruct1.Name() = "LoopingStructs1";
+    LeftStruct2.Name() = "LoopingStructs2";
 
     auto &&[RightStruct1, RightType1] = Model->makeStructDefinition();
     auto &&[RightStruct2, RightType2] = Model->makeStructDefinition();
@@ -237,8 +237,8 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     auto DoublePtr = Pointer::make(Pointer::make(std::move(RightType1), 8), 8);
     RightStruct2.Fields()[0].Type() = std::move(DoublePtr);
 
-    RightStruct1.OriginalName() = "LoopingStructs1";
-    RightStruct2.OriginalName() = "LoopingStructs2";
+    RightStruct1.Name() = "LoopingStructs1";
+    RightStruct2.Name() = "LoopingStructs2";
 
     revng_check(Dedup() == 0);
 

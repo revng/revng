@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
 
 /* TUPLE-TREE-YAML
@@ -21,10 +20,7 @@ fields:
     type: Type
     doc: The type of the argument.
     upcastable: true
-  - name: CustomName
-    type: Identifier
-    optional: true
-  - name: OriginalName
+  - name: Name
     type: string
     optional: true
   - name: Comment
@@ -44,7 +40,7 @@ class model::Argument : public model::generated::Argument {
 public:
   using generated::Argument::Argument;
   Argument(uint64_t Index, UpcastableType &&Type) :
-    model::generated::Argument(Index, std::move(Type), {}, {}, {}) {}
+    model::generated::Argument(Index, std::move(Type), {}, {}) {}
 
 public:
   bool verify() const debug_function;

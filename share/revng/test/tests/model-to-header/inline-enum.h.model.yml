@@ -6,30 +6,25 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 1
-    CustomName: "B"
-    OriginalName: B
+    Name: B
     Fields:
       - Offset: 0
-        CustomName: "the_a"
-        OriginalName: the_a
+        Name: the_a
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/3002-EnumDefinition"
     Size: 4
   - Kind: EnumDefinition
     ID: 3002
-    CustomName: "A"
-    OriginalName: A
+    Name: A
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Unsigned
       Size: 4
     Entries:
       - Value: 0
-        CustomName: "FIRST"
-        OriginalName: FIRST
+        Name: FIRST
       - Value: 1
-        CustomName: "SECOND"
-        OriginalName: SECOND
+        Name: SECOND
 ---
 

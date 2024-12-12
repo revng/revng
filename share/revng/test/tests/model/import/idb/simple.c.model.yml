@@ -3,7 +3,7 @@
 #
 
 Functions:
-  - OriginalName: main
+  - Name: main
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/9061286636309425384-CABIFunctionDefinition"
@@ -21,7 +21,7 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Number
           Size: 4
-        OriginalName: argc
+        Name: argc
       - Index: 1
         Type:
           Kind: PointerType
@@ -34,7 +34,7 @@ TypeDefinitions:
               IsConst: true
               PrimitiveKind: Number
               Size: 1
-        OriginalName: argv
+        Name: argv
       - Index: 2
         Type:
           Kind: PointerType
@@ -47,4 +47,4 @@ TypeDefinitions:
               IsConst: true
               PrimitiveKind: Number
               Size: 1
-        OriginalName: envp
+        Name: envp

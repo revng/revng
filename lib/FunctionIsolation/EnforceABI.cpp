@@ -125,8 +125,7 @@ bool EnforceABI::prologue() {
   for (const model::DynamicFunction &FunctionModel :
        Binary.ImportedDynamicFunctions()) {
     // TODO: have an API to go from model to llvm::Function
-    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.OriginalName())
-                             .str();
+    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.Name()).str();
     Function *OldFunction = M.getFunction(OldFunctionName);
     if (not OldFunction or OldFunction->isDeclaration())
       continue;

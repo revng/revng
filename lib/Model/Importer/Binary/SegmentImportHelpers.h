@@ -60,7 +60,7 @@ inline void importSymbolsInto(model::Binary &Binary,
 
       model::StructField &Field = Struct.addField(*Offset, {});
       Field.Offset() = *Offset;
-      Field.OriginalName() = SymbolName.str();
+      Field.Name() = SymbolName.str();
       if (SymbolSize == 1 || SymbolSize == 2 || SymbolSize == 4
           || SymbolSize == 8) {
         Field.Type() = model::PrimitiveType::makeGeneric(SymbolSize);
@@ -115,7 +115,7 @@ populateSegmentTypeStruct(model::Binary &Binary,
 
     // Insert the field the segment struct
     auto &SectionField = SegmentStruct.addField(*Offset, std::move(Type));
-    SectionField.OriginalName() = Section.Name;
+    SectionField.Name() = Section.Name;
   }
 
   // Pour the remaining symbols into the segment struct

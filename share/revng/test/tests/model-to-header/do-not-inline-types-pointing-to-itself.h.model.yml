@@ -6,12 +6,10 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 3001
-    CustomName: "B"
-    OriginalName: B
+    Name: B
     Fields:
       - Offset: 0
-        CustomName: "next"
-        OriginalName: next
+        Name: next
         Type:
           Kind: PointerType
           PointerSize: 8

@@ -28,7 +28,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 1001
     Kind: StructDefinition
-    CustomName: "my_struct"
+    Name: "my_struct"
     Size: 8
     Fields:
       - Offset: 0

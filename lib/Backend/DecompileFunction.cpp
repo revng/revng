@@ -38,7 +38,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/RawFunctionDefinition.h"

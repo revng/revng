@@ -8,7 +8,7 @@ DefaultABI: SystemV_x86_64
 TypeDefinitions:
   - Kind: UnionDefinition
     ID: 3000
-    CustomName: old_union_name
+    Name: old_union_name
     Fields:
       - Index: 0
         Type:

@@ -252,7 +252,7 @@ TCC::tryConvertingRegisterArguments(RFTArguments Registers) {
       // If the current register is confirmed to be in use, convert it into
       // an argument while preserving its type and metadata.
       model::Argument &Current = Result.emplace_back();
-      Current.CustomName() = CurrentRegisterIterator->CustomName();
+      Current.Name() = CurrentRegisterIterator->Name();
 
       revng_assert(!CurrentRegisterIterator->Type().isEmpty());
       Current.Type() = CurrentRegisterIterator->Type().copy();
@@ -439,7 +439,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
   if (!StackStruct->isTypedef() && !model::hasMetadata(Stack)) {
     // NOTE: Only proceed with trying to "split" the stack struct up if it has
     //       no metadata attached: as in, it doesn't have a user-defined
-    //       `CustomName` or a `Comment` or any other fields we'll mark as
+    //       `Name` or a `Comment` or any other fields we'll mark as
     //       metadata in the future.
 
     if (Stack.Fields().empty())

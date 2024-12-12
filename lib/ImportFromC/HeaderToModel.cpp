@@ -318,7 +318,7 @@ model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
   // Try to find by name first.
   for (auto &Type : Model->TypeDefinitions())
     if (llvm::isa<T>(Type.get()))
-      if (Type->CustomName() == Name)
+      if (Type->Name() == Name)
         return Model->makeType(Type->key());
 
   // Getting here means we didn't manage to find it,
@@ -549,7 +549,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       model::Argument &NewArgument = FunctionType.Arguments()[Index];
 
       // TODO: we shouldn't write generated names into the model.
-      NewArgument.CustomName() = FD->getParamDecl(I)->getName();
+      NewArgument.Name() = FD->getParamDecl(I)->getName();
 
       NewArgument.Type() = std::move(ParamType);
       ++Index;
@@ -695,7 +695,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(Location);
         ParamReg.Type() = std::move(ParamType);
         if (not ParamDecl->getName().empty())
-          ParamReg.CustomName() = ParamDecl->getName();
+          ParamReg.Name() = ParamDecl->getName();
       }
     }
   }
@@ -704,7 +704,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   auto &ModelFunction = Model->Functions()[FunctionEntry];
 
   // TODO: we shouldn't write generated names into the model.
-  ModelFunction.CustomName() = FD->getName();
+  ModelFunction.Name() = FD->getName();
 
   // TODO: remember/clone StackFrameType as well.
 
@@ -763,7 +763,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   TheTypeTypeDef->UnderlyingType() = std::move(ModelTypedefType);
 
   // TODO: we shouldn't write generated names into the model.
-  TheTypeTypeDef->CustomName() = D->getName();
+  TheTypeTypeDef->Name() = D->getName();
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     revng_assert(*Type == NewTypedef->key());
@@ -870,7 +870,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     NewType->ID() = ID;
 
   // TODO: we shouldn't write generated names into the model.
-  NewType->CustomName() = RD->getName();
+  NewType->Name() = RD->getName();
 
   auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
@@ -977,7 +977,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       auto &FieldModelType = Struct->Fields()[CurrentOffset];
 
       // TODO: we shouldn't write generated names into the model.
-      FieldModelType.CustomName() = Field->getName();
+      FieldModelType.Name() = Field->getName();
 
       FieldModelType.Type() = std::move(ModelField);
     } else {
@@ -1042,7 +1042,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     NewType->ID() = ID;
 
   // TODO: we shouldn't write generated names into the model.
-  NewType->CustomName() = RD->getName();
+  NewType->Name() = RD->getName();
 
   auto Union = cast<model::UnionDefinition>(NewType.get());
 
@@ -1069,7 +1069,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     auto &FieldModelType = Union->Fields()[CurrentIndex];
 
     // TODO: we shouldn't write generated names into the model.
-    FieldModelType.CustomName() = Field->getName();
+    FieldModelType.Name() = Field->getName();
 
     FieldModelType.Type() = std::move(TheFieldType);
 
@@ -1177,12 +1177,12 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   auto *Definition = D->getDefinition();
 
   // TODO: we shouldn't write generated names into the model.
-  NewType->CustomName() = Definition->getName();
+  NewType->Name() = Definition->getName();
 
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
     auto NewIterator = NewType->Entries().insert(Value).first;
-    NewIterator->CustomName() = Enum->getName().str();
+    NewIterator->Name() = Enum->getName().str();
   }
 
   return true;

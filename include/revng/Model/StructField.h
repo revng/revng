@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
 
 /* TUPLE-TREE-YAML
@@ -18,11 +17,7 @@ type: struct
 fields:
   - name: Offset
     type: uint64_t
-    doc: Offset at which the field starts within the `struct`.
-  - name: CustomName
-    type: Identifier
-    optional: true
-  - name: OriginalName
+  - name: Name
     type: string
     optional: true
   - name: Comment

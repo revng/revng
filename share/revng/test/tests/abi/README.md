@@ -129,4 +129,4 @@ This tool is used to compare `downgraded_reference_binary.yml` and `downgraded_u
 
 Sadly, there are cases where `revng model diff` is not good enough to verify that two instances of a model are the same. Mostly because it relies on the type IDs. So even if there are two identical types generated in different places (they have different IDs because of that), the diff detects these "changes" and fails the check.
 
-To counteract that, use a `CustomName`-first approach. And since there are quirks, it's easier to provide specialized tool (namely `revng ensure-rft-equivalence`) which scouts two separate model files for the functions with a matching `CustomName` and then takes extra care comparing them semantically.
+To counteract that, use a name-first approach. And since there are quirks, it's easier to provide specialized tool (namely `revng ensure-rft-equivalence`) which scouts two separate model files for the functions with a matching names and then takes extra care comparing them semantically.

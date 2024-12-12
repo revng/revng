@@ -154,7 +154,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   // With a valid underlying type and at least one entry we're good, but we
   // have to initialize all the cross references in the tree.
   EnumEntry Entry = EnumEntry{ 0 };
-  Entry.CustomName() = "value0";
+  Entry.Name() = "value0";
   revng_check(Entry.verify(true));
 
   revng_check(EnumDefinition.Entries().insert(Entry).second);
@@ -181,14 +181,14 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // Inserting two entries with the same name succeeds but does not verify.
   EnumEntry Entry1{ 5 };
-  Entry1.CustomName() = "some_value";
+  Entry1.Name() = "some_value";
   revng_check(EnumDefinition.Entries().insert(Entry1).second);
   revng_check(EnumDefinition.Entries().size() == 3);
   revng_check(verify(EnumDefinition, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
   EnumEntry Entry2{ 7 };
-  Entry2.CustomName() = "some_value";
+  Entry2.Name() = "some_value";
   revng_check(EnumDefinition.Entries().insert(Entry2).second);
   revng_check(EnumDefinition.Entries().size() == 4);
   revng_check(not verify(*T, false));
@@ -233,7 +233,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   auto &&[Int32, Int32Type] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 1);
   Int32.UnderlyingType() = model::PrimitiveType::make(Signed, 4);
-  Int32.CustomName() = "int_32_typedef";
+  Int32.Name() = "int_32_typedef";
   revng_check(verify(Int32, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
@@ -248,7 +248,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   auto &&[Pointer, PointerType] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 2);
   Pointer.UnderlyingType() = model::PointerType::make(std::move(Int32Type), 4);
-  Pointer.CustomName() = "int_32_pointer_typedef";
+  Pointer.Name() = "int_32_pointer_typedef";
   revng_check(verify(Pointer, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
@@ -257,7 +257,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   auto &&[Array, ArrayType] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 3);
   Array.UnderlyingType() = model::ArrayType::make(std::move(PointerType), 25);
-  Array.CustomName() = "int_32_pointer_array_typedef";
+  Array.Name() = "int_32_pointer_array_typedef";
   revng_check(verify(Array, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
@@ -315,9 +315,9 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   // Assigning succeeds if even if an index is already present
   StructField Field1Ter = StructField{ 4 };
   Field1Ter.Type() = model::PrimitiveType::makeSigned(4);
-  Field1Ter.CustomName() = "fld1ter";
+  Field1Ter.Name() = "fld1ter";
   revng_check(not Struct.Fields().insert_or_assign(Field1Ter).second);
-  revng_check(Struct.Fields().at(4).CustomName() == "fld1ter");
+  revng_check(Struct.Fields().at(4).Name() == "fld1ter");
   revng_check(verify(Struct, *T, true));
   revng_check(verify(*T, true));
   revng_check(checkSerialization(T));
@@ -427,7 +427,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   {
     UnionField Field1(1);
     Field1.Type() = model::PrimitiveType::makeSigned(8);
-    Field1.CustomName() = "fld1";
+    Field1.Name() = "fld1";
     auto &&[It, New] = Union.Fields().insert(std::move(Field1));
     revng_check(New);
   }
@@ -440,10 +440,10 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     // succeeds, but verification of the binary fails.
     UnionField Field1(2);
     Field1.Type() = model::PrimitiveType::makeSigned(4);
-    Field1.CustomName() = "fld1";
+    Field1.Name() = "fld1";
     auto &&[It, New] = Union.Fields().insert(std::move(Field1));
     revng_check(New);
-    revng_check(Union.Fields().at(It->Index()).CustomName() == "fld1");
+    revng_check(Union.Fields().at(It->Index()).Name() == "fld1");
     revng_check(not verify(*T, false));
 
     // But removing goes back to good again
@@ -575,7 +575,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
     auto &RSIArg = Prototype.addArgument(model::Register::rsi_x86_64,
                                          model::PrimitiveType::makeGeneric(8));
     revng_check(RSIArg.verify(true));
-    RSIArg.CustomName() = "Second";
+    RSIArg.Name() = "Second";
     revng_check(RSIArg.verify(true));
     revng_check(verify(Prototype, *T, true));
     revng_check(verify(*T, true));

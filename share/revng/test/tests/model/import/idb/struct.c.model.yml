@@ -5,16 +5,16 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 10354558065911308391
-    OriginalName: my_struct
+    Name: my_struct
     Fields:
       - Offset: 0
-        OriginalName: x
+        Name: x
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Number
           Size: 4
       - Offset: 4
-        OriginalName: "y"
+        Name: "y"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Number

@@ -550,7 +550,7 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
   VerificationHelper Helper{ Architecture, Def, Parsed.IsLittleEndian };
   size_t ArgumentTestCount = 0, ReturnValueTestCount = 0;
   for (auto &Function : Binary->Functions()) {
-    Helper.FunctionName = Function.OriginalName();
+    Helper.FunctionName = Function.Name();
     if (Helper.FunctionName.take_front(5) == "test_")
       Helper.FunctionName = Helper.FunctionName.drop_front(5);
     if (auto Test = Parsed.ArgumentTests.find(Helper.FunctionName);

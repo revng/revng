@@ -416,8 +416,8 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
       auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         // TODO: add this to model verify
-        revng_assert(not StringRef(Function.OriginalName()).contains('\0'));
-        Result = MaterializedValue::fromSymbol(Function.OriginalName(),
+        revng_assert(not StringRef(Function.Name()).contains('\0'));
+        Result = MaterializedValue::fromSymbol(Function.Name(),
                                                NewAPInt(Addend));
         ++MatchCount;
       }

@@ -10,21 +10,21 @@ Changes:
   - Path: "/Functions"
     Add:
       Entry: "0x500000:Code_x86_64"
-      CustomName: "caller"
+      Name: "caller"
       Prototype:
         Kind: DefinedType
         Definition: "/TypeDefinitions/2000-RawFunctionDefinition"
   - Path: "/Functions"
     Add:
       Entry: "0x500006:Code_x86_64"
-      CustomName: "callee"
+      Name: "callee"
       Prototype:
         Kind: DefinedType
         Definition: "/TypeDefinitions/2001-RawFunctionDefinition"
   - Path: "/Functions"
     Add:
       Entry: "0x500007:Code_x86_64"
-      CustomName: "not_called"
+      Name: "not_called"
       Prototype:
         Kind: DefinedType
         Definition: "/TypeDefinitions/2002-RawFunctionDefinition"

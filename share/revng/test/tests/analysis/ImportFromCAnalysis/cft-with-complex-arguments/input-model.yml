@@ -10,8 +10,7 @@ TypeDefinitions:
     ID: 3005
     Fields:
       - Offset: 0
-        CustomName: "can_do_threads"
-        OriginalName: can_do_threads
+        Name: can_do_threads
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -21,8 +20,7 @@ TypeDefinitions:
     ID: 3006
     Fields:
       - Offset: 0
-        CustomName: "do_threads"
-        OriginalName: do_threads
+        Name: do_threads
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -57,8 +55,7 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
-        CustomName: "argc"
-        OriginalName: argc
+        Name: argc
       - Index: 1
         Type:
           Kind: PointerType
@@ -70,5 +67,4 @@ TypeDefinitions:
               Kind: PrimitiveType
               PrimitiveKind: Signed
               Size: 1
-        CustomName: "argv"
-        OriginalName: argv
+        Name: argv

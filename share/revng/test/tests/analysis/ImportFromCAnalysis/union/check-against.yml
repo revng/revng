@@ -5,16 +5,16 @@
 TypeDefinitions:
   - Kind: UnionDefinition
     ID: 3000
-    CustomName: new_union_name
+    Name: new_union_name
     Fields:
       - Index: 0
-        CustomName: "first_field"
+        Name: "first_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned
           Size: 8
       - Index: 1
-        CustomName: "second_field"
+        Name: "second_field"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned

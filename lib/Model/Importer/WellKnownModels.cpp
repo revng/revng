@@ -81,7 +81,7 @@ public:
       // Compose the key
       WellKnownFunctionKey Key = { Model->Architecture(),
                                    Model->DefaultABI(),
-                                   F.OriginalName() };
+                                   F.Name() };
 
       // See if it's a well-known function
       auto It = WellKnownFunctions.find(Key);

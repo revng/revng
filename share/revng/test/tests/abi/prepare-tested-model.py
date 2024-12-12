@@ -35,9 +35,9 @@ def main():
 
     def can_drop(function):
         return not (
-            function.OriginalName.startswith("test_")
-            or function.OriginalName == "main"
-            or function.OriginalName == "memcpy"
+            function.Name.startswith("test_")
+            or function.Name == "main"
+            or function.Name == "memcpy"
         )
 
     for function in [f for f in binary.Functions if can_drop(f)]:

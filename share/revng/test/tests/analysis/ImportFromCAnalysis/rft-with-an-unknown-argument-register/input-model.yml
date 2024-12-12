@@ -7,7 +7,7 @@ Architecture: x86_64
 DefaultABI: SystemV_x86_64
 Functions:
   - Entry: "0x400000:Code_x86_64"
-    CustomName: "old_function_name"
+    Name: "old_function_name"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3000-CABIFunctionDefinition"
@@ -25,8 +25,7 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
-        CustomName: "fd"
-        OriginalName: fd
+        Name: fd
 
 Segments:
   - StartAddress: "0x400000:Generic64"

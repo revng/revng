@@ -77,18 +77,18 @@ class ModelOverrideByName(Command):
             self.log("Loading the override model")
             override_model = yaml.load(override_file, Loader=yaml.SafeLoader)
 
-            self.log("Importing Entry and OriginalName")
+            self.log("Importing entry address and name")
             for function_to_override in override_model["Functions"]:
-                function_name = function_to_override["OriginalName"]
+                function_name = function_to_override["Name"]
 
                 if not function_name:
-                    self.log("A function is missing OriginalName")
+                    self.log("A function is missing a name Name")
                     return 1
 
                 for base_function in base_model["Functions"]:
-                    if base_function["OriginalName"] == function_name:
+                    if base_function["Name"] == function_name:
                         function_to_override["Entry"] = base_function["Entry"]
-                        function_to_override["CustomName"] = base_function["CustomName"]
+                        function_to_override["Name"] = base_function["Name"]
 
             self.log("Saving patched override file")
             patched_file.write("---\n")

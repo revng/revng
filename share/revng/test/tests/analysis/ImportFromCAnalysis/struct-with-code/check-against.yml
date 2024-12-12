@@ -5,13 +5,13 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 0
-    CustomName: "my_struct"
+    Name: "my_struct"
     Size: 24
     CanContainCode: true
     # The leading $ means that the size of the Fields list must match
     $Fields:
       - Offset: 16
-        CustomName: "no_code_in_the_last_third"
+        Name: "no_code_in_the_last_third"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned
