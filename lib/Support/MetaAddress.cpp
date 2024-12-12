@@ -60,9 +60,10 @@ MetaAddress MetaAddress::decomposeIntegerPC(const APInt &Value) {
   return Result;
 }
 
-std::string
-MetaAddress::toString(std::optional<llvm::Triple::ArchType> Arch) const {
-  if (isInvalid())
+static std::string toStringImpl(const MetaAddress &Address,
+                                std::optional<llvm::Triple::ArchType> Arch,
+                                llvm::StringRef Separator) {
+  if (Address.isInvalid())
     return Separator.str() += "Invalid";
 
   bool ShouldPrintTheType = true;
@@ -70,23 +71,33 @@ MetaAddress::toString(std::optional<llvm::Triple::ArchType> Arch) const {
     // Assert if `Arch` is not supported.
     static_cast<void>(MetaAddressType::genericFromArch(Arch.value()));
 
-    if (arch().has_value() && arch().value() == Arch.value())
+    if (Address.arch().has_value() && Address.arch().value() == Arch.value())
       ShouldPrintTheType = false;
   }
 
   std::string Result;
   {
     raw_string_ostream Stream(Result);
-    Stream << "0x" << Twine::utohexstr(Address);
+    Stream << "0x" << Twine::utohexstr(Address.address());
     if (ShouldPrintTheType)
-      Stream << Separator << MetaAddressType::toString(type());
-    if (not isDefaultEpoch())
-      Stream << Separator << Epoch;
-    if (not isDefaultAddressSpace())
-      Stream << Separator << AddressSpace;
+      Stream << Separator << MetaAddressType::toString(Address.type());
+    if (not Address.isDefaultEpoch())
+      Stream << Separator << Address.epoch();
+    if (not Address.isDefaultAddressSpace())
+      Stream << Separator << Address.addressSpace();
   }
 
   return Result;
+}
+
+std::string
+MetaAddress::toString(std::optional<llvm::Triple::ArchType> Arch) const {
+  return toStringImpl(*this, Arch, Separator);
+}
+
+std::string
+MetaAddress::toIdentifier(std::optional<llvm::Triple::ArchType> Arch) const {
+  return toStringImpl(*this, Arch, "_");
 }
 
 MetaAddress MetaAddress::fromString(StringRef Text) {

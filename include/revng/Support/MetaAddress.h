@@ -935,6 +935,8 @@ public:
   ///        the serialized string. But it also leads to inability
   ///        to deserialize it! So only use if you know what you're doing.
   std::string toString(std::optional<llvm::Triple::ArchType> Arch = {}) const;
+  std::string
+  toIdentifier(std::optional<llvm::Triple::ArchType> Arch = {}) const;
   static MetaAddress fromString(llvm::StringRef Text);
 
 private:
