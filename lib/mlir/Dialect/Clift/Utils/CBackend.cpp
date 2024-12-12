@@ -1292,7 +1292,7 @@ public:
         PushParameterName(C.NameBuilder.name(*F, Register));
 
       if (not F->StackArgumentsType().isEmpty())
-        PushParameterName("_stack_arguments");
+        PushParameterName(C.NameBuilder.Configuration.rawStackArgumentName());
     } else {
       revng_abort("Unsupported model function type definition");
     }

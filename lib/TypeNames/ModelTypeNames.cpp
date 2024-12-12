@@ -431,10 +431,12 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     if (not RF.StackArgumentsType().isEmpty()) {
       // Add last argument representing a pointer to the stack arguments
       std::string StackArgName;
-      if (Function != nullptr)
-        StackArgName = getArgumentLocationDefinition("_stack_arguments",
+      if (Function != nullptr) {
+        StackArgName = B.NameBuilder.Configuration.rawStackArgumentName();
+        StackArgName = getArgumentLocationDefinition(StackArgName,
                                                      *Function,
                                                      B);
+      }
       auto N = B.getNamedCInstance(*RF.StackArgumentsType(), StackArgName);
       Result += Separator.str() + N.str().str() + " "
                 + ptml::AttributeRegistry::getAttribute<"_STACK">();

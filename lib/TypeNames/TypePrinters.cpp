@@ -46,7 +46,9 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::EnumDefinition &E,
 
     if (Configuration.EnablePrintingOfTheMaximumEnumValue) {
       // This ensures the enum is exactly as large as the Underlying type
-      *Out << tokenTag(("_enum_max_value_" + NameBuilder.name(E)),
+
+      auto Prefix = NameBuilder.Configuration.maximumEnumValuePrefix();
+      *Out << tokenTag(Prefix.str() + NameBuilder.name(E),
                        ptml::c::tokens::Field)
            << " " + getOperator(COperator::Assign) + " "
            << getHex(MaxBitPatternInEnum) << ",\n";

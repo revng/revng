@@ -22,7 +22,7 @@ should be indexed by a index that increments by one at each iteration.
 
 CHECK: {{.*}}64_t sum([[NODE_STRUCT]] *[[ARG0:.*]])
 CHECK: do {
-CHECK: [[ACCUMULATOR:_var_[0-9]+]] = [[ACCUMULATOR]] + [[ARG0]]->offset_0[[[INDEX:_var_[0-9]+]]];
+CHECK: [[ACCUMULATOR:var_[0-9]+]] = [[ACCUMULATOR]] + [[ARG0]]->offset_0[[[INDEX:var_[0-9]+]]];
 CHECK: [[INDEX]] = [[INDEX]] + 1;
 CHECK: } while ([[INDEX]] != 5);
 CHECK: return [[ACCUMULATOR]];
@@ -36,8 +36,8 @@ loop, where PTR is updated with PTR->offset_40 (representing the next pointer
 field), and PTR->offset_40 should also be the exit condition of the do-while.
 
 CHECK: compute([[NODE_STRUCT]] *{{.*}})
-CHECK: [[NODE_STRUCT]] *[[PTR:_var_[0-9]+]];
+CHECK: [[NODE_STRUCT]] *[[PTR:var_[0-9]+]];
 CHECK: do {
-CHECK: [[ACCUMULATOR:_var_[0-9]+]] = [[ACCUMULATOR]] + [[WHATEVER:.*]]
+CHECK: [[ACCUMULATOR:var_[0-9]+]] = [[ACCUMULATOR]] + [[WHATEVER:.*]]
 CHECK: [[PTR]] = [[PTR]]->offset_40;
 CHECK: while ([[PTR]]);

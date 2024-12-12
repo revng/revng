@@ -65,6 +65,7 @@ private:
   std::map<WrapperKey, Function *> Wrappers;
   SetVector<GlobalVariable *> CSVs;
   model::Architecture::Values Architecture;
+  const model::NamingConfiguration &Configuration;
 
 public:
   PromoteCSVs(ModulePass &Pass, const model::Binary &Binary, Module &M);
@@ -101,7 +102,8 @@ PromoteCSVs::PromoteCSVs(ModulePass &Pass,
   pipeline::FunctionPassImpl(Pass),
   Initializers(&M),
   CSVInitializers(&M, false),
-  Architecture(Binary.Architecture()) {
+  Architecture(Binary.Architecture()),
+  Configuration(Binary.Configuration().Naming()) {
 
   CSVInitializers.setMemoryEffects(MemoryEffects::readOnly());
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
@@ -119,7 +121,8 @@ PromoteCSVs::PromoteCSVs(ModulePass &Pass,
       continue;
 
     CSVs.insert(CSV);
-    if (auto *F = M.getFunction((Twine("_init_") + CSV->getName()).str()))
+    if (auto *F = M.getFunction(Configuration.opaqueCSVValuePrefix().str()
+                                + CSV->getName().str()))
       if (FunctionTags::OpaqueCSVValue.isTagOf(F))
         CSVInitializers.record(CSV->getName(), F);
   }
@@ -297,10 +300,11 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     using namespace model::Register;
     Values Register = fromCSVName(CSVName, Architecture);
     if (Register != Invalid) {
+      llvm::StringRef Prefix = Configuration.opaqueCSVValuePrefix();
       auto *Initializer = CSVInitializers.get(CSVName,
                                               CSVType,
                                               {},
-                                              Twine("_init_") + CSVName);
+                                              Prefix + CSVName);
 
       if (not Initializer->hasMetadata("revng.abi_register")) {
         Initializer->setMetadata("revng.abi_register",

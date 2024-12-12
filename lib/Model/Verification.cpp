@@ -715,8 +715,27 @@ bool Configuration::verify(VerifyHelper &VH) const {
   if (Configuration().Naming().unnamedFunctionRegisterPrefix().empty())
     return VH.fail("Register prefix must not be empty.");
 
+  if (Configuration().Naming().unnamedLocalVariablePrefix().empty())
+    return VH.fail("Local variable prefix must not be empty.");
+  if (Configuration().Naming().unnamedBreakFromLoopVariablePrefix().empty())
+    return VH.fail("'Break from loop' variable prefix must not be empty.");
+
   if (Configuration().Naming().structPaddingPrefix().empty())
     return VH.fail("Padding prefix must not be empty.");
+
+  if (Configuration().Naming().undefinedValuePrefix().empty())
+    return VH.fail("Undefined value prefix must not be empty.");
+  if (Configuration().Naming().opaqueCSVValuePrefix().empty())
+    return VH.fail("Undefined value prefix must not be empty.");
+  if (Configuration().Naming().maximumEnumValuePrefix().empty())
+    return VH.fail("Maximum enum value prefix must not be empty.");
+
+  if (Configuration().Naming().stackFrameVariableName().empty())
+    return VH.fail("Stack frame variable name must not be empty.");
+  if (Configuration().Naming().rawStackArgumentName().empty())
+    return VH.fail("Raw stack argument name must not be empty.");
+  if (Configuration().Naming().loopStateVariableName().empty())
+    return VH.fail("Loop state variable name must not be empty.");
 
   if (Configuration().Naming().artificialReturnValuePrefix().empty())
     return VH.fail("Artificial return value prefix must not be empty.");

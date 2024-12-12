@@ -81,4 +81,4 @@ CHECK-LABEL: generic64_t compare
 Ignore the !, since this test is only testing implicit casts in C.
 The ! depends on control-flow recovery, that which is not being tested here.
 CHECK:    if ({{[!]?}}({{[^()]+}}))
-CHECK:      _var_{{.*}} = identity({{[^()]+}})
+CHECK:      var_{{.*}} = identity({{[^()]+}})

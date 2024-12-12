@@ -329,7 +329,7 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
     return true;
 
   //
-  // The following forbidden names are based on the configuration
+  // The following names are reserved based on the configuration
   //
 
   if (Configuration.ReserveNamesStartingWithUnderscore())
@@ -344,6 +344,11 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
   if (isPrefixAndIndex(Name, Configuration.unnamedUnionFieldPrefix()))
     return true;
   if (isPrefixAndIndex(Name, Configuration.unnamedFunctionArgumentPrefix()))
+    return true;
+  if (isPrefixAndIndex(Name, Configuration.unnamedLocalVariablePrefix()))
+    return true;
+  if (isPrefixAndIndex(Name,
+                       Configuration.unnamedBreakFromLoopVariablePrefix()))
     return true;
 
   // NOTE: This should live in the "Prefix + `[0-9]+`" section, but because we
@@ -362,10 +367,14 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
     return true;
 
   // NOTE: since automatic enum entry names depend on (potentially unreserved)
-  //       enum names, we have no choice but to ban everything starting with
+  //       enum names, we have no choice but to reserve everything starting with
   //       this prefix that also ends with a number.
   if (Name.starts_with(Configuration.unnamedEnumEntryPrefix())
       and std::isdigit(Name.back()))
+    return true;
+
+  // NOTE: since we parse these it's safer to reserve all of them.
+  if (Name.starts_with(Configuration.maximumEnumValuePrefix()))
     return true;
 
   // Prefix + model::Register::getRegisterName(Register)
@@ -373,7 +382,7 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
     return true;
 
   // NOTE: since artificial return value struct name depends on a (potentially
-  //       unreserved) function type name, we have no choice but to ban
+  //       unreserved) function type name, we have no choice but to reserve
   //       everything starting with this prefix.
   if (Name.starts_with(Configuration.artificialReturnValuePrefix()))
     return true;
@@ -383,8 +392,36 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
   if (Name.starts_with(Configuration.artificialArrayWrapperPrefix()))
     return true;
 
+  // TODO: more granularity is possible here since this prefix is only ever
+  //       followed by a primitive name, but forbid them all for now.
+  if (Name.starts_with(Configuration.undefinedValuePrefix()))
+    return true;
+
+  // NOTE: since CSV value names are kind of external, reserve everything just
+  //       to be safe.
+  if (Name.starts_with(Configuration.opaqueCSVValuePrefix()))
+    return true;
+
+  //
+  // Hardcoded prefixes
+  //
+
+  // TODO: We can be more careful with these and only reserve the ones we use,
+  //       once `CTargetImplementation` is mature enough to give us the list.
+  if (Name.starts_with("__builtin_"))
+    return true;
+
+  //
   // Exact names
+  //
+
   if (Name == Configuration.artificialArrayWrapperFieldName())
+    return true;
+  if (Name == Configuration.stackFrameVariableName())
+    return true;
+  if (Name == Configuration.rawStackArgumentName())
+    return true;
+  if (Name == Configuration.loopStateVariableName())
     return true;
 
   // Anything else to add here?

@@ -22,8 +22,6 @@ using llvm::Twine;
 using CBuilder = ptml::CBuilder;
 using CTypeBuilder = ptml::CTypeBuilder;
 
-constexpr const char *const StructWrapperPrefix = "_artificial_struct_returned_"
-                                                  "by_";
 constexpr const char *const StructFieldPrefix = "field_";
 
 namespace tokens = ptml::c::tokens;
@@ -136,8 +134,8 @@ static std::string getReturnedStructIdentifier(const llvm::Function *F,
                                                const CTypeBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(llvm::isa<llvm::StructType>(F->getReturnType()));
-  return (Twine(StructWrapperPrefix) + Twine(getHelperFunctionIdentifier(F, B)))
-    .str();
+  return B.NameBuilder.Configuration.artificialReturnValuePrefix().str()
+         + getHelperFunctionIdentifier(F, B);
 }
 
 static std::string serializeHelperStructLocation(const std::string &Name) {

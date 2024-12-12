@@ -91,8 +91,6 @@ using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
 
-static constexpr const char *StackFrameVarName = "_stack";
-
 static Logger<> Log{ "c-backend" };
 static Logger<> VisitLog{ "c-backend-visit-order" };
 
@@ -269,15 +267,21 @@ private:
 private:
   class VarNameGenerator {
   private:
-    uint64_t CurVarID = 0;
+    uint64_t CurrentVariableID = 0;
+    const model::NamingConfiguration &Configuration;
 
   public:
-    std::string nextVarName() { return "_var_" + to_string(CurVarID++); }
+    VarNameGenerator(const model::Binary &Binary) :
+      Configuration(Binary.Configuration().Naming()) {}
 
-    StringToken nextSwitchStateVar() {
-      StringToken StateVar("_break_from_loop_");
-      StateVar += to_string(CurVarID++);
-      return StateVar;
+    std::string nextVarName() {
+      return Configuration.unnamedLocalVariablePrefix().str()
+             + std::to_string(CurrentVariableID++);
+    }
+
+    std::string nextSwitchStateVar() {
+      return Configuration.unnamedBreakFromLoopVariablePrefix().str()
+             + std::to_string(CurrentVariableID++);
     }
   };
 
@@ -318,12 +322,14 @@ public:
                            /* PointersOnly = */ false)),
     B(B),
     SwitchStateVars(),
-    Cache(Cache) {
+    Cache(Cache),
+    NameGenerator(Model) {
     // TODO: don't use a global loop state variable
-    static const char *LoopStateVarName = "_loop_state_var";
-    LoopStateVar = B.getVariableLocationReference(LoopStateVarName,
+    const auto &Configuration = B.NameBuilder.Configuration;
+    llvm::StringRef LoopStateVariable = Configuration.loopStateVariableName();
+    LoopStateVar = B.getVariableLocationReference(LoopStateVariable,
                                                   ModelFunction);
-    LoopStateVarDeclaration = B.getVariableLocationDefinition(LoopStateVarName,
+    LoopStateVarDeclaration = B.getVariableLocationDefinition(LoopStateVariable,
                                                               ModelFunction);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
@@ -401,7 +407,8 @@ private:
     revng_assert(isStackFrameDecl(I));
     revng_assert(not TokenMap.contains(I));
 
-    std::string VarName = StackFrameVarName;
+    const auto &Configuration = Model.Configuration().Naming();
+    std::string VarName = Configuration.stackFrameVariableName().str();
     TokenMap[I] = B.getVariableLocationReference(VarName, ModelFunction);
     return B.getVariableLocationDefinition(VarName, ModelFunction);
   }
@@ -462,8 +469,9 @@ std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
 }
 
 static std::string getUndefToken(const model::Type &UndefType,
-                                 const ptml::CBuilder &B) {
-  return "_undef_" + UndefType.toPrimitive().getCName() + "()";
+                                 const ptml::CTypeBuilder &B) {
+  return B.Binary.Configuration().Naming().undefinedValuePrefix().str()
+         + UndefType.toPrimitive().getCName() + "()";
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
@@ -1731,7 +1739,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // is used by nested switches inside loops to break out of the loop
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
-      StringToken NewVarName = NameGenerator.nextSwitchStateVar();
+      std::string NewVarName = NameGenerator.nextSwitchStateVar();
       std::string
         SwitchStateVar = B.getVariableLocationReference(NewVarName,
                                                         ModelFunction);
@@ -1886,7 +1894,7 @@ static std::string getModelArgIdentifier(const model::TypeDefinition &ModelFT,
       const auto &Argument = std::next(RFT->Arguments().begin(), ArgNo);
       return NameBuilder.name(*RFT, *Argument);
     } else {
-      return "_stack_arguments";
+      return NameBuilder.Configuration.rawStackArgumentName().str();
     }
   } else if (auto *CFT = dyn_cast<model::CABIFunctionDefinition>(&ModelFT)) {
     revng_assert(LLVMFunction->arg_size() == CFT->Arguments().size());
