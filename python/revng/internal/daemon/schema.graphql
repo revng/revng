@@ -28,6 +28,7 @@ type Target {
 }
 
 type Mutation {
+    save: Boolean!
     uploadB64(input: String!, container: String!): Boolean!
     uploadFile(file: Upload, container: String!): Boolean!
     runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String, index: BigInt!): AnalysisResult!

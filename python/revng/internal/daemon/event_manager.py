@@ -6,7 +6,7 @@ import time
 from enum import StrEnum, auto
 from functools import wraps
 from threading import Thread
-from typing import Callable, Iterable
+from typing import Callable, Iterable, cast
 
 from revng.internal.api import Manager
 
@@ -60,12 +60,12 @@ class EventManager(Thread):
                 self.last_save = time.time()
             time.sleep(10)
 
-    def save(self):
+    def save(self) -> bool:
         result = self.manager.save()
         if result:
             self.next_save = None
             for hook in self.save_hooks:
-                hook(self.manager, self.credentials)
+                hook(self.manager, cast(str, self.credentials))
         return result
 
     def handle_event(self, type_: EventType):
