@@ -22,53 +22,6 @@
 
 #include "revng/Support/Debug.h"
 
-template<typename T>
-struct scc_iterator_traits {
-  using iterator = llvm::scc_iterator<T, llvm::GraphTraits<T>>;
-  using iterator_category = std::forward_iterator_tag;
-  using reference = decltype(*llvm::scc_begin((T) nullptr));
-  using value_type = std::remove_reference_t<reference>;
-  using pointer = value_type *;
-  using difference_type = size_t;
-};
-
-template<typename NodeTy>
-auto exitless_scc_range(NodeTy Entry) {
-  using namespace llvm;
-
-  auto Range = make_range(scc_begin(Entry), scc_end(Entry));
-
-  using NodesVector = std::vector<NodeTy>;
-  using GT = llvm::GraphTraits<NodeTy>;
-
-  auto Filter = [](const NodesVector &SCC) {
-    std::set<NodeTy> SCCNodes;
-    SCCNodes.clear();
-    for (NodeTy BB : SCC)
-      SCCNodes.insert(BB);
-
-    bool HasExit = false;
-    bool AtLeastOneEdge = false;
-    for (NodeTy BB : SCC) {
-      auto Successors = make_range(GT::child_begin(BB), GT::child_end(BB));
-      for (NodeTy Successor : Successors) {
-        AtLeastOneEdge = true;
-        if (!SCCNodes.contains(Successor)) {
-          HasExit = true;
-          break;
-        }
-      }
-
-      if (HasExit)
-        break;
-    }
-
-    return (not HasExit) and AtLeastOneEdge;
-  };
-
-  return make_filter_range(Range, Filter);
-}
-
 /// A generic way to compute a set of entry points to a graph such that any node
 /// in said graph is reachable from at least one of those points.
 template<typename GraphType>
