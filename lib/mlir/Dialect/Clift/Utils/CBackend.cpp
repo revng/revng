@@ -43,51 +43,17 @@ static Operation getOnlyOperation(mlir::Region &R) {
   }
 }
 
-// TODO: Move to TargetCImplementation when it is implemented.
-enum class CInteger {
-  Char,
-  Short,
-  Int,
-  Long,
-  LongLong,
-};
-
-static CInteger getCInteger(const PlatformInfo &Platform,
-                            const uint64_t IntegerSize) {
-  if (IntegerSize == Platform.sizeof_char)
-    return CInteger::Char;
-  if (IntegerSize == Platform.sizeof_short)
-    return CInteger::Short;
-  if (IntegerSize == Platform.sizeof_int)
-    return CInteger::Int;
-  if (IntegerSize == Platform.sizeof_long)
-    return CInteger::Long;
-  if (IntegerSize == Platform.sizeof_longlong)
-    return CInteger::LongLong;
-  revng_abort("Invalid integer size");
-}
-
-static std::pair<CInteger, bool> getCInteger(const PlatformInfo &Platform,
-                                             PrimitiveType IntegerType) {
-  const bool Signed = IntegerType.getKind() == PrimitiveKind::SignedKind;
-  return { getCInteger(Platform, IntegerType.getSize()), Signed };
-}
-
-static llvm::StringRef getCIntegerLiteralSuffix(const CInteger Integer,
+static llvm::StringRef getCIntegerLiteralSuffix(const CIntegerKind Integer,
                                                 const bool Signed) {
   switch (Integer) {
-  case CInteger::Char:
-  case CInteger::Short:
-    break;
-
-  case CInteger::Int:
+  default:
+  case CIntegerKind::Int:
     return Signed ? "" : "u";
-  case CInteger::Long:
+  case CIntegerKind::Long:
     return Signed ? "l" : "ul";
-  case CInteger::LongLong:
+  case CIntegerKind::LongLong:
     return Signed ? "ll" : "ull";
   }
-  revng_abort("The requested integer literal suffix does not exist");
 }
 
 using Keyword = ptml::CBuilder::Keyword;
@@ -114,10 +80,10 @@ enum class OperatorPrecedence {
 
 class CEmitter {
 public:
-  explicit CEmitter(const PlatformInfo &Platform,
+  explicit CEmitter(const TargetCImplementation &Target,
                     ptml::CTypeBuilder &Builder,
                     llvm::raw_ostream &Out) :
-    Platform(Platform), C(Builder), Out(Out, C) {
+    Target(Target), C(Builder), Out(Out, C) {
     Builder.setOutputStream(this->Out);
   }
 
@@ -310,7 +276,7 @@ public:
       } break;
       case StackItemKind::Pointer: {
         auto T = mlir::dyn_cast<PointerType>(SI.Type);
-        if (T.getPointerSize() != Platform.sizeof_pointer)
+        if (T.getPointerSize() != Target.PointerSize)
           revng_abort("Pointer is not representable on the target platform.");
         EmitSpace();
         Out << '*';
@@ -393,7 +359,8 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
-  ptml::Tag getIntegerConstant(uint64_t Value, CInteger Integer, bool Signed) {
+  ptml::Tag
+  getIntegerConstant(uint64_t Value, CIntegerKind Integer, bool Signed) {
     llvm::SmallString<64> String;
     {
       llvm::raw_svector_ostream Stream(String);
@@ -409,16 +376,25 @@ public:
     return C.getConstantTag(String);
   }
 
-  ptml::Tag getIntegerConstant(uint64_t Value, PrimitiveType Type) {
-    auto [Integer, Signed] = getCInteger(Platform, Type);
-    return getIntegerConstant(Value, Integer, Signed);
-  }
-
   void emitIntegerImmediate(uint64_t Value, ValueType Type) {
     Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
     if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-      Out << getIntegerConstant(Value, T);
+      auto Integer = Target.getIntegerKind(T.getSize());
+
+      if (not Integer) {
+        // Emit explicit cast if the standard integer type is not known. Emit
+        // the literal itself without a suffix (as if int).
+
+        Out << '(';
+        emitPrimitiveType(T);
+        Out << ')';
+
+        Integer = CIntegerKind::Int;
+      }
+
+      bool Signed = T.getKind() == PrimitiveKind::SignedKind;
+      Out << getIntegerConstant(Value, *Integer, Signed);
     } else {
       auto TypeAttr = mlir::cast<DefinedType>(Type).getElementType();
       const auto &ModelType = getModelTypeDefinition(TypeAttr);
@@ -1259,7 +1235,7 @@ public:
   }
 
 private:
-  const PlatformInfo &Platform;
+  const TargetCImplementation &Target;
   ptml::CTypeBuilder &C;
   ptml::IndentedOstream Out;
 
@@ -1280,10 +1256,10 @@ private:
 } // namespace
 
 std::string clift::decompile(FunctionOp Function,
-                             const PlatformInfo &Platform,
+                             const TargetCImplementation &Target,
                              ptml::CTypeBuilder &Builder) {
   std::string Result;
   llvm::raw_string_ostream Out(Result);
-  CEmitter(Platform, Builder, Out).emitFunction(Function);
+  CEmitter(Target, Builder, Out).emitFunction(Function);
   return Result;
 }
