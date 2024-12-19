@@ -575,8 +575,7 @@ def Clift_PostDecrementOp : Clift_UnaryIntegerMutationOp<"post_dec">;
 
 def Clift_CastOp : Clift_ExpressionOp<"cast"> {
   let arguments = (ins Clift_AnyValueType:$value,
-                       Clift_CastKind:$kind,
-                       DefaultValuedStrAttr<StrAttr, "">:$purpose);
+                       Clift_CastKind:$kind);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
 
