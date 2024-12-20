@@ -33,6 +33,4 @@ int main(int Argc, char *Argv[]) {
   using mlir::MlirOptMain;
 
   return asMainReturnCode(MlirOptMain(Argc, Argv, ToolName, Registry));
-
-  return 0;
 }
