@@ -29,7 +29,7 @@ public:
              const llvm::StringRef ArgValue,
              mlir::clift::ModelOptionType &Value);
 
-  StringRef getValueName() const override { return "<model path>"; }
+  StringRef getValueName() const override { return "model path"; }
 
   static void print(raw_ostream &os,
                     const mlir::clift::ModelOptionType &Value) {
