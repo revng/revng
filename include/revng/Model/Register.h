@@ -1080,4 +1080,30 @@ inline cppcoro::generator<model::Register::Values> registers(Values V) {
 
 } // namespace model::Architecture
 
+namespace model::Register {
+
+inline cppcoro::generator<model::Register::Values> allRegisters() {
+  using namespace model::Architecture;
+
+  // TODO: we might want to provide a similar iteration utilities for
+  //       architectures so that we don't need to manually specify every
+  //       one of them here.
+  for (model::Register::Values Register : registers(x86))
+    co_yield Register;
+  for (model::Register::Values Register : registers(x86_64))
+    co_yield Register;
+  for (model::Register::Values Register : registers(arm))
+    co_yield Register;
+  for (model::Register::Values Register : registers(aarch64))
+    co_yield Register;
+  for (model::Register::Values Register : registers(mips))
+    co_yield Register;
+  for (model::Register::Values Register : registers(mipsel))
+    co_yield Register;
+  for (model::Register::Values Register : registers(systemz))
+    co_yield Register;
+}
+
+} // namespace model::Register
+
 #include "revng/Model/Generated/Late/Register.h"
