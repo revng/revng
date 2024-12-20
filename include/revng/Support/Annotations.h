@@ -122,6 +122,16 @@ public:
 
     return Result;
   }
+
+public:
+  constexpr bool isMacro(llvm::StringRef String) const {
+    auto Comparator = [String](const auto &A) {
+      return std::string_view(String) == A.Macro;
+    };
+
+    return revng::any_of(StaticAttributes, Comparator)
+           || revng::any_of(StaticAnnotations, Comparator);
+  }
 };
 inline constexpr AttributeRegistry Attributes;
 
