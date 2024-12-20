@@ -5,6 +5,7 @@
 add_mlir_dialect_library(
   MLIRCliftTransforms
   SHARED
+  CBackend.cpp
   ModelOption.cpp
   DEPENDS
   LINK_LIBS
