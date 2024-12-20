@@ -21,7 +21,7 @@ from revng.internal.api.errors import DocumentError, Error, SimpleError
 from revng.internal.api.manager import Manager
 from revng.internal.api.target import Target
 
-from .event_manager import EventType, emit_event
+from .event_manager import EventManager, EventType, emit_event
 from .multiqueue import MultiQueue
 from .util import produce_serializer
 
@@ -83,6 +83,7 @@ bigint_scalar = ScalarType("BigInt", serializer=str, value_parser=int)
 
 
 @query.field("produce")
+@emit_event(EventType.PRODUCE)
 async def resolve_produce(
     obj,
     info,
@@ -111,6 +112,7 @@ async def resolve_produce(
 
 
 @query.field("produceArtifacts")
+@emit_event(EventType.PRODUCE)
 async def resolve_produce_artifacts(
     obj,
     info,
@@ -167,6 +169,12 @@ async def resolve_pipeline_description(_, info) -> str:
 async def resolve_context_commit_index(_, info) -> int:
     manager: Manager = info.context["manager"]
     return await run_in_executor(manager.get_context_commit_index)
+
+
+@mutation.field("save")
+async def resolve_save(_, info) -> bool:
+    event_manager: EventManager = info.context["event_manager"]
+    return await run_in_executor(event_manager.save)
 
 
 @mutation.field("uploadB64")

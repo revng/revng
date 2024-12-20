@@ -28,7 +28,6 @@ COLOR_CONVERSION = {
     "c.function": "bright_red",
     "c.type": "sea_green1",
     "c.operator": "dodger_blue1",
-    "c.comparison": "dodger_blue1",
     "c.function_parameter": "orange1",
     "c.variable": "orange1",
     "c.field": "orange1",

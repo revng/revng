@@ -52,7 +52,7 @@ class Manager:
     def uid(self) -> int:
         return int(ffi.cast("uintptr_t", self._manager))
 
-    def save(self):
+    def save(self) -> bool:
         return _api.rp_manager_save(self._manager)
 
     # description utilities
