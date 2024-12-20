@@ -859,7 +859,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) {
       auto RF = llvm::cast<const model::RawFunctionDefinition>(CalleePrototype);
       uint64_t Idx = I->getZExtValue();
       const auto &ReturnValue = std::next(RF->ReturnValues().begin(), Idx);
-      StructFieldRef = B.NameBuilder.returnValueName(*RF, *ReturnValue).str();
+      StructFieldRef = B.NameBuilder.name(*RF, *ReturnValue);
     }
 
     rc_return rc_recur getToken(AggregateOp) + "." + StructFieldRef;
@@ -943,7 +943,7 @@ CCodeGenerator::getIsolatedFunctionToken(const llvm::Function *CalledFunc) {
   const model::Function *ModelFunc = llvmToModelFunction(Model, *CalledFunc);
   revng_assert(ModelFunc);
   std::string Location = locationString(ranks::Function, ModelFunc->key());
-  return B.getTag(ptml::tags::Span, B.NameBuilder.name(*ModelFunc).str())
+  return B.getTag(ptml::tags::Span, B.NameBuilder.name(*ModelFunc))
     .addAttribute(attributes::Token, tokens::Function)
     .addAttribute(attributes::ActionContextLocation, Location)
     .addAttribute(attributes::LocationReferences, Location)
@@ -970,8 +970,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) {
       auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
       std::string Location = locationString(ranks::DynamicFunction,
                                             DynamicFunc.key());
-      CalleeToken = B.getTag(ptml::tags::Span,
-                             B.NameBuilder.name(DynamicFunc).str())
+      CalleeToken = B.getTag(ptml::tags::Span, B.NameBuilder.name(DynamicFunc))
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
@@ -1872,13 +1871,13 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   rc_return;
 }
 
-static std::string getModelArgIdentifier(const model::TypeDefinition *ModelFT,
+static std::string getModelArgIdentifier(const model::TypeDefinition &ModelFT,
                                          const llvm::Argument &Argument,
                                          model::NameBuilder &NameBuilder) {
   const llvm::Function *LLVMFunction = Argument.getParent();
   unsigned ArgNo = Argument.getArgNo();
 
-  if (auto *RFT = dyn_cast<model::RawFunctionDefinition>(ModelFT)) {
+  if (auto *RFT = dyn_cast<model::RawFunctionDefinition>(&ModelFT)) {
     auto NumModelArguments = RFT->Arguments().size();
     revng_assert(ArgNo <= NumModelArguments + 1);
     revng_assert(LLVMFunction->arg_size() == NumModelArguments
@@ -1886,14 +1885,14 @@ static std::string getModelArgIdentifier(const model::TypeDefinition *ModelFT,
                      and (LLVMFunction->arg_size() == NumModelArguments + 1)));
     if (ArgNo < NumModelArguments) {
       const auto &Argument = std::next(RFT->Arguments().begin(), ArgNo);
-      return NameBuilder.argumentName(*RFT, *Argument).str().str();
+      return NameBuilder.name(*RFT, *Argument);
     } else {
       return "_stack_arguments";
     }
-  } else if (auto *CFT = dyn_cast<model::CABIFunctionDefinition>(ModelFT)) {
+  } else if (auto *CFT = dyn_cast<model::CABIFunctionDefinition>(&ModelFT)) {
     revng_assert(LLVMFunction->arg_size() == CFT->Arguments().size());
     revng_assert(ArgNo < CFT->Arguments().size());
-    return NameBuilder.argumentName(*CFT, ArgNo).str().str();
+    return NameBuilder.name(*CFT, CFT->Arguments().at(ArgNo));
   }
   revng_abort("Unexpected function type");
 
@@ -1916,7 +1915,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
 
   // Set up the argument identifiers to be used in the function's body.
   for (const auto &Arg : LLVMFunction.args()) {
-    std::string ArgString = getModelArgIdentifier(&Prototype,
+    std::string ArgString = getModelArgIdentifier(Prototype,
                                                   Arg,
                                                   B.NameBuilder);
     TokenMap[&Arg] = B.getArgumentLocationReference(ArgString, ModelFunction);

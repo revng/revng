@@ -24,13 +24,6 @@ fields:
       The default value is `function_`.
     type: string
     optional: true
-  - name: UnnamedDynamicFunctionPrefix
-    doc: |
-      The prefix for a dynamic function without a name.
-
-      The default value is `dynamic_`.
-    type: string
-    optional: true
 
   - name: UnnamedTypeDefinitionPrefix
     doc: |
@@ -110,14 +103,6 @@ fields:
     type: string
     optional: true
 
-  - name: CollisionResolutionSuffix
-    doc: |
-      The suffix attached to colliding names in order to disambiguate them.
-
-      The default value is `_`.
-    type: string
-    optional: true
-
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/NamingConfiguration.h"
@@ -141,12 +126,6 @@ public:
       return "function_";
     else
       return UnnamedFunctionPrefix();
-  }
-  llvm::StringRef unnamedDynamicFunctionPrefix() const {
-    if (UnnamedDynamicFunctionPrefix().empty())
-      return "dynamic_";
-    else
-      return UnnamedDynamicFunctionPrefix();
   }
 
   llvm::StringRef unnamedTypeDefinitionPrefix() const {
@@ -211,13 +190,6 @@ public:
       return "the_array";
     else
       return ArtificialArrayWrapperFieldName();
-  }
-
-  llvm::StringRef collisionResolutionSuffix() const {
-    if (CollisionResolutionSuffix().empty())
-      return "_";
-    else
-      return CollisionResolutionSuffix();
   }
 };
 

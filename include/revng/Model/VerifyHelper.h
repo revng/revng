@@ -141,6 +141,12 @@ public:
   }
 
 public:
+  bool isNameAllowed(llvm::StringRef Name) {
+    // TODO: find a way to escape '/' so we can allow it.
+    return maybeFail(!Name.contains('/'), "Name is not supported", Name);
+  }
+
+public:
   bool maybeFail(bool Result) { return maybeFail(Result, {}); }
 
   bool maybeFail(bool Result, const llvm::Twine &Reason) {

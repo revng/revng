@@ -437,14 +437,13 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
   {
     // Assigning another field in a different position with a duplicated name
-    // succeeds, but verification fails.
+    // succeeds, but verification of the binary fails.
     UnionField Field1(2);
     Field1.Type() = model::PrimitiveType::makeSigned(4);
     Field1.CustomName() = "fld1";
     auto &&[It, New] = Union.Fields().insert(std::move(Field1));
     revng_check(New);
     revng_check(Union.Fields().at(It->Index()).CustomName() == "fld1");
-    revng_check(not verify(Union, *T, false));
     revng_check(not verify(*T, false));
 
     // But removing goes back to good again

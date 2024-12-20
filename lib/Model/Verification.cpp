@@ -384,7 +384,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   if (T.Size() == 0)
     rc_return VH.fail("Struct size must be greater than zero.", T);
 
-  llvm::SmallSet<llvm::StringRef, 8> Names;
   auto FieldIt = T.Fields().begin();
   auto FieldEnd = T.Fields().end();
   for (; FieldIt != FieldEnd; ++FieldIt) {
@@ -424,6 +423,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       // size.
       rc_return VH.fail("Last field ends outside the struct", T);
     }
+
+    if (not VH.isNameAllowed(Field.CustomName()))
+      rc_return VH.fail();
   }
 
   rc_return true;
@@ -468,6 +470,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     }
 
     if (not rc_recur Field.verify(VH))
+      rc_return VH.fail();
+
+    if (not VH.isNameAllowed(Field.CustomName()))
       rc_return VH.fail();
   }
 
@@ -520,6 +525,9 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail("A function argument has an invalid index", T);
 
     if (not rc_recur Argument.verify(VH))
+      rc_return VH.fail();
+
+    if (not VH.isNameAllowed(Argument.CustomName()))
       rc_return VH.fail();
   }
 
@@ -575,6 +583,8 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
     if (not isUsedInArchitecture(Argument.Location(), Architecture))
+      rc_return VH.fail();
+    if (not VH.isNameAllowed(Argument.CustomName()))
       rc_return VH.fail();
   }
 
@@ -689,9 +699,6 @@ bool Configuration::verify(VerifyHelper &VH) const {
   if (Configuration().Naming().unnamedFunctionPrefix().empty())
     return VH.fail("Function prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedDynamicFunctionPrefix().empty())
-    return VH.fail("Dynamic function prefix must not be empty.");
-
   // `unnamedTypeDefinitionPrefix` can be empty.
 
   if (Configuration().Naming().unnamedEnumEntryPrefix().empty())
@@ -720,9 +727,6 @@ bool Configuration::verify(VerifyHelper &VH) const {
 
   if (Configuration().Naming().artificialArrayWrapperFieldName().empty())
     return VH.fail("Artificial array field name must not be empty.");
-
-  if (Configuration().Naming().collisionResolutionSuffix().empty())
-    return VH.fail("Conflict resolution suffix must not be empty.");
 
   return true;
 }
@@ -828,7 +832,7 @@ bool Binary::verify(VerifyHelper &VH) const {
     // Unlike all the other renamable objects, dynamic functions do not have
     // a possibility of falling back onto an automatic name. As such, we have to
     // be a lot stricter with what we allow as their names.
-    if (llvm::Error Error = NameBuilder.isNameForbidden(DF.CustomName()))
+    if (llvm::Error Error = NameBuilder.isNameReserved(DF.CustomName()))
       return VH.fail("Dynamic function name (`" + DF.CustomName()
                      + "`) is not valid because "
                      + revng::unwrapError(std::move(Error)));

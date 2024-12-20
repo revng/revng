@@ -5,6 +5,7 @@
 //
 
 #include "revng/Backend/DecompiledCCodeIndentation.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Support/PTMLC.h"
 #include "revng/TypeNames/DependencyGraph.h"
 
@@ -307,6 +308,11 @@ public:
     return getLocation(true, S);
   }
 
+  std::string getLocationDefinition(const model::EnumDefinition &Enum,
+                                    const model::EnumEntry &Entry) {
+    return getLocation(true, Enum, Entry);
+  }
+
   template<typename Aggregate, typename Field>
   std::string getLocationDefinition(const Aggregate &A, const Field &F) {
     return getLocation(true, A, F);
@@ -338,6 +344,11 @@ public:
 
   std::string getLocationReference(const model::Segment &S) {
     return getLocation(false, S);
+  }
+
+  std::string getLocationReference(const model::EnumDefinition &Enum,
+                                   const model::EnumEntry &Entry) {
+    return getLocation(false, Enum, Entry);
   }
 
   template<typename Aggregate, typename Field>

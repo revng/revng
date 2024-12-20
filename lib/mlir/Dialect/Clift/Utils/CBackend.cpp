@@ -1286,10 +1286,10 @@ public:
 
     if (auto F = llvm::dyn_cast<model::CABIFunctionDefinition>(MFD)) {
       for (const model::Argument &Parameter : F->Arguments())
-        PushParameterName(C.NameBuilder.argumentName(*F, Parameter));
+        PushParameterName(C.NameBuilder.name(*F, Parameter));
     } else if (auto F = llvm::dyn_cast<model::RawFunctionDefinition>(MFD)) {
       for (const model::NamedTypedRegister &Register : F->Arguments())
-        PushParameterName(C.NameBuilder.argumentName(*F, Register));
+        PushParameterName(C.NameBuilder.name(*F, Register));
 
       if (not F->StackArgumentsType().isEmpty())
         PushParameterName("_stack_arguments");

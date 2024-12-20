@@ -551,9 +551,9 @@ static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
 
 } // namespace callGraphTokens
 
-static model::Identifier functionNameHelper(llvm::StringRef Location,
-                                            const model::Binary &Binary,
-                                            model::NameBuilder &NameBuilder) {
+static std::string functionNameHelper(llvm::StringRef Location,
+                                      const model::Binary &Binary,
+                                      model::NameBuilder &NameBuilder) {
   if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
                                             Location)) {
     auto Key = std::get<0>(L->at(revng::ranks::DynamicFunction));

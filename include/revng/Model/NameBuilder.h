@@ -6,9 +6,11 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/ArrayType.h"
+#include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
+#include "revng/Model/Helpers.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/NamingConfiguration.h"
 #include "revng/Model/RawFunctionDefinition.h"
@@ -18,159 +20,170 @@
 
 namespace model {
 
-namespace detail {
-
-struct TransparentStringHash {
-  using is_transparent = void;
-
-  std::size_t operator()(const char *Value) const {
-    return std::hash<std::string_view>{}(Value);
-  }
-  std::size_t operator()(const std::string &Value) const {
-    return std::hash<std::string_view>{}(Value);
-  }
-  std::size_t operator()(std::string_view Value) const {
-    return std::hash<std::string_view>{}(Value);
-  }
-  std::size_t operator()(llvm::StringRef Value) const {
-    return std::hash<std::string_view>{}(Value);
-  }
-  std::size_t operator()(const model::Identifier &Value) const {
-    return std::hash<std::string_view>{}(Value.str());
-  }
-};
-
-} // namespace detail
-
-class Binary;
-class VerifyHelper;
-
 class NameBuilder {
-private:
-  using GlobalNamespaceMap = std::unordered_map<std::string,
-                                                std::string,
-                                                detail::TransparentStringHash,
-                                                std::equal_to<>>;
-
-  std::optional<GlobalNamespaceMap> GlobalNamespace = std::nullopt;
-
-public:
-  const Binary &Binary;
-
 private:
   using RFT = model::RawFunctionDefinition;
 
 public:
-  NameBuilder(const model::Binary &Binary) : Binary(Binary) {}
+  const model::NamingConfiguration &Configuration;
 
 public:
-  llvm::Error isNameForbidden(llvm::StringRef Name);
+  NameBuilder(const model::Binary &Binary) :
+    Configuration(Binary.Configuration().Naming()) {}
 
 public:
-  const model::NamingConfiguration &configuration() const;
+  [[nodiscard]] static bool
+  isNameReserved(llvm::StringRef Name,
+                 const model::NamingConfiguration &Configuration);
 
-public:
-  // This function is triggered automatically the first time a name is
-  // requested.
-  //
-  // There's no need to call it manually unless you expect it to fail,
-  // for example, when verifying a binary.
-  llvm::Error populateGlobalNamespace();
-
-  bool isGlobalNamespacePopulated() const {
-    return GlobalNamespace.has_value();
+  [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const {
+    if (isNameReserved(Name, Configuration))
+      return llvm::Error::success();
+    else
+      return revng::createError("Name is reserved: " + Name);
   }
 
 private:
-  const GlobalNamespaceMap &globalNamespace() {
-    if (not GlobalNamespace.has_value()) {
-      auto MaybeError = populateGlobalNamespace();
-      revng_check(not MaybeError);
-      revng_assert(GlobalNamespace.has_value());
-    }
-
-    return *GlobalNamespace;
+  static constexpr bool EnableSanityChecks = true;
+  static void failSanityCheck(llvm::StringRef Name) {
+    std::string Error = "An automatic name '" + Name.str()
+                        + "' must not be allowed, otherwise a name collision "
+                          "might occur.";
+    revng_abort(Error.c_str());
   }
 
-public:
-  [[nodiscard]] bool isGlobalSymbol(llvm::StringRef Name) {
-    return globalNamespace().contains(Name);
+  [[nodiscard]] std::string automaticName(const model::Segment &Segment) const {
+    std::string Result = Configuration.unnamedSegmentPrefix().str()
+                         + Segment.StartAddress().toIdentifier() + "_"
+                         + std::to_string(Segment.VirtualSize());
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
+  [[nodiscard]] std::string
+  automaticName(const model::Function &Function) const {
+    std::string Result = Configuration.unnamedFunctionPrefix().str()
+                         + Function.Entry().toIdentifier();
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
+  [[nodiscard]] std::string
+  automaticName(const model::TypeDefinition &Definition) const {
+    auto K = model::TypeDefinitionKind::automaticNamePrefix(Definition.Kind());
+    std::string Result = Configuration.unnamedTypeDefinitionPrefix().str()
+                         + K.str() + std::to_string(Definition.ID());
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
   }
 
-public:
-  Identifier name(const model::Segment &Segment);
-  Identifier name(const model::Function &Function);
-  Identifier name(const model::DynamicFunction &Function);
+  [[nodiscard]] std::string
+  automaticName(const model::EnumDefinition &Definition,
+                const model::EnumEntry &Entry) {
+    std::string Result = Configuration.unnamedEnumEntryPrefix().str()
+                         + name(Definition) + "_"
+                         + std::to_string(Entry.Value());
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
+  [[nodiscard]] std::string
+  automaticName(const model::StructDefinition &Definition,
+                const model::StructField &Field) const {
+    std::string Result = Configuration.unnamedStructFieldPrefix().str()
+                         + std::to_string(Field.Offset());
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
+  [[nodiscard]] std::string
+  automaticName(const model::UnionDefinition &Definition,
+                const model::UnionField &Field) const {
+    std::string Result = Configuration.unnamedUnionFieldPrefix().str()
+                         + std::to_string(Field.Index());
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
 
-  std::string llvmName(const model::Function &Function) {
-    std::string Result = "local_";
-    if (DebugNames)
-      Result += name(Function).str().str();
-    else
-      Result += Function.Entry().toString();
-
+  [[nodiscard]] std::string
+  automaticName(const model::CABIFunctionDefinition &Function,
+                const model::Argument &Argument) const {
+    std::string Result = Configuration.unnamedFunctionArgumentPrefix().str()
+                         + std::to_string(Argument.Index());
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
+  [[nodiscard]] std::string
+  automaticName(const model::RawFunctionDefinition &Function,
+                const model::NamedTypedRegister &Argument) const {
+    std::string Result = Configuration.unnamedFunctionRegisterPrefix().str()
+                         + std::string(getRegisterName(Argument.Location()));
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
     return Result;
   }
 
 public:
-  Identifier name(const model::TypeDefinition &Definition);
+  [[nodiscard]] std::string name(EntityWithCustomName auto const &Entity) {
+    if (Entity.CustomName().empty()
+        || isNameReserved(Entity.CustomName(), Configuration))
+      return automaticName(Entity);
 
-  Identifier name(const model::EnumDefinition &Definition,
-                  const model::EnumEntry &Entry);
-  Identifier name(const model::EnumDefinition &Definition, uint64_t Value) {
-    return name(Definition, Definition.Entries().at(Value));
+    return Entity.CustomName().str().str();
   }
 
-  Identifier name(const model::StructDefinition &Definition,
-                  const model::StructField &Field);
-  Identifier name(const model::StructDefinition &Definition, uint64_t Offset) {
-    revng_assert(Offset <= Definition.Size());
-    return name(Definition, Definition.Fields().at(Offset));
+  [[nodiscard]] std::string name(const auto &Parent,
+                                 EntityWithCustomName auto const &Entity) {
+    if (Entity.CustomName().empty()
+        || isNameReserved(Entity.CustomName(), Configuration))
+      return automaticName(Parent, Entity);
+
+    return Entity.CustomName().str().str();
   }
 
-  Identifier name(const model::UnionDefinition &Definition,
-                  const model::UnionField &Field);
-  Identifier name(const model::UnionDefinition &Definition, uint64_t Index) {
-    revng_assert(Index <= Definition.Fields().size());
-    return name(Definition, Definition.Fields().at(Index));
+  // Dynamic functions are special - we never introduce automatic names for them
+  [[nodiscard]] std::string name(const model::DynamicFunction &Function) {
+    revng_assert(not isNameReserved(Function.CustomName(), Configuration));
+    return Function.CustomName().str().str();
   }
 
-  Identifier paddingFieldName(uint64_t Offset) const {
-    // Not checking anything here since the relevant checks should have already
-    // been done when constructing the helper.
-    return Identifier(std::string(configuration().structPaddingPrefix())
-                      + std::to_string(Offset));
-  }
-
-public:
-  Identifier argumentName(const model::CABIFunctionDefinition &Function,
-                          const model::Argument &Argument);
-  Identifier argumentName(const model::CABIFunctionDefinition &Function,
-                          uint64_t ArgumentIndex) {
-    revng_assert(ArgumentIndex <= Function.Arguments().size());
-    return argumentName(Function, Function.Arguments().at(ArgumentIndex));
-  }
-
-  Identifier argumentName(const model::RawFunctionDefinition &Function,
-                          const model::NamedTypedRegister &Argument);
-  Identifier argumentName(const model::RawFunctionDefinition &Function,
-                          const model::Register::Values &Register) {
-    return argumentName(Function, Function.Arguments().at(Register));
-  }
-
-  Identifier returnValueName(const model::RawFunctionDefinition &Function,
-                             const model::NamedTypedRegister &ReturnValue);
-  Identifier returnValueName(const model::RawFunctionDefinition &Function,
-                             const model::Register::Values &Register) {
-    return returnValueName(Function, Function.ReturnValues().at(Register));
+  [[nodiscard]] std::string llvmName(const model::Function &Function) {
+    if (DebugNames)
+      return "local_" + name(Function);
+    else
+      return "local_" + Function.Entry().toString();
   }
 
 public:
-  Identifier artificialReturnValueWrapperName(const RFT &Function) {
-    // Not checking anything here since the relevant checks should have already
-    // been done when constructing the helper.
-    auto R = configuration().artificialReturnValuePrefix() + name(Function);
-    return Identifier(R.str());
+  [[nodiscard]] std::string paddingFieldName(uint64_t Offset) const {
+    std::string Result = Configuration.structPaddingPrefix().str()
+                         + std::to_string(Offset);
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
+
+public:
+  [[nodiscard]] std::string
+  artificialReturnValueWrapperName(const RFT &Function) {
+    auto Result = Configuration.artificialReturnValuePrefix().str()
+                  + name(Function);
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
   }
 
 private:
@@ -178,15 +191,23 @@ private:
   artificialArrayWrapperNameImpl(const model::Type &Type);
 
 public:
-  Identifier artificialArrayWrapperName(const model::ArrayType &Type) {
-    // Not checking anything here since the relevant checks should have already
-    // been done when constructing the helper.
-    llvm::StringRef Prefix = configuration().artificialArrayWrapperPrefix();
-    return Identifier(std::string(Prefix)
-                      + std::string(artificialArrayWrapperNameImpl(Type)));
+  [[nodiscard]] std::string
+  artificialArrayWrapperName(const model::ArrayType &Type) {
+    auto Result = Configuration.artificialArrayWrapperPrefix().str()
+                  + std::string(artificialArrayWrapperNameImpl(Type));
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
   }
 
-  Identifier artificialArrayWrapperFieldName();
+  [[nodiscard]] std::string artificialArrayWrapperFieldName() {
+    auto Result = Configuration.artificialArrayWrapperFieldName().str();
+    if constexpr (EnableSanityChecks)
+      if (not isNameReserved(Result, Configuration))
+        failSanityCheck(Result);
+    return Result;
+  }
 };
 
 } // namespace model

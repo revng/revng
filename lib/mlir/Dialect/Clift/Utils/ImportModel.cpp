@@ -184,7 +184,7 @@ private:
     Fields.reserve(ModelType.Entries().size());
 
     for (const model::EnumEntry &Entry : ModelType.Entries()) {
-      model::Identifier Name = NameBuilder.name(ModelType, Entry);
+      std::string Name = NameBuilder.name(ModelType, Entry);
       const auto Attribute = make<clift::EnumFieldAttr>(Entry.Value(), Name);
       if (not Attribute)
         rc_return nullptr;
@@ -212,9 +212,8 @@ private:
 
       const auto Attribute = make<ElementAttr>(Offset,
                                                RegisterType,
-                                               NameBuilder
-                                                 .returnValueName(ModelType,
-                                                                  Register));
+                                               NameBuilder.name(ModelType,
+                                                                Register));
       if (not Attribute)
         rc_return nullptr;
 

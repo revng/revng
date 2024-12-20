@@ -146,7 +146,7 @@ int main(int Argc, char *Argv[]) {
       return LHS < RHS;
     }
   };
-  std::map<model::Identifier, KeyPair, TransparentComparator> Functions;
+  std::map<std::string, KeyPair, TransparentComparator> Functions;
   std::unordered_set<uint64_t> FunctionIDLookup;
 
   // Gather all the `RawFunctionDefinition` prototypes present in the first
@@ -191,7 +191,7 @@ int main(int Argc, char *Argv[]) {
       if (Iterator == Functions.end()) {
         std::string Error = "A function present in the right model is missing "
                             "in the left one: "
-                            + RightNameBuilder.name(F).str().str();
+                            + RightNameBuilder.name(F);
         revng_abort(Error.c_str());
       }
       revng_assert(Iterator->second.Right == std::nullopt);
@@ -208,12 +208,12 @@ int main(int Argc, char *Argv[]) {
     if (Iterator->second.Left == std::nullopt) {
       std::string Error = "This should never happen, something is VERY wrong. "
                           "A function is missing in the left model: "
-                          + Iterator->first.str().str() + "?";
+                          + Iterator->first;
     }
     if (Iterator->second.Right == std::nullopt) {
       std::string Error = "A function present in the left model is missing in "
                           "the right one: "
-                          + Iterator->first.str().str();
+                          + Iterator->first;
       revng_abort(Error.c_str());
     }
 

@@ -264,7 +264,7 @@ public:
       std::string Names = "";
       for (model::Function &Function : Model->Functions())
         if (Function.prototype() && Function.prototype()->key() == Key)
-          Names += "\"" + NameBuilder->name(Function).str().str() + "\", ";
+          Names += "\"" + NameBuilder->name(Function) + "\", ";
 
       if (Names.empty()) {
         revng_log(Log, "There are no functions using it as a prototype.");

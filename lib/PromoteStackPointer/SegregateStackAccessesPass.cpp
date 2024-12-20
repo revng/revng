@@ -790,8 +790,7 @@ private:
     const model::Function &ModelFunction = Binary.Functions().at(Entry);
 
     revng_log(Log,
-              "Segregating "
-                << model::NameBuilder(Binary).name(ModelFunction).str());
+              "Segregating " << model::NameBuilder(Binary).name(ModelFunction));
 
     LoggerIndent<> Indent(Log);
 

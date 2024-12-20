@@ -145,7 +145,7 @@ void DetectStackSize::collectStackBounds(Function &F) {
   model::Function &ModelFunction = Binary->Functions().at(Entry);
   revng_log(Log,
             "Collecting stack bounds for "
-              << model::NameBuilder(*Binary).name(ModelFunction).str());
+              << model::NameBuilder(*Binary).name(ModelFunction));
 
   LoggerIndent<> Indent(Log);
 
@@ -248,7 +248,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
   model::Function &ModelFunction = FSI.Function;
   revng_log(Log,
             "electFunctionStackFrameSize: "
-              << model::NameBuilder(*Binary).name(ModelFunction).str());
+              << model::NameBuilder(*Binary).name(ModelFunction));
 
   LoggerIndent<> Indent(Log);
 

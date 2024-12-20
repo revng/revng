@@ -143,7 +143,7 @@ PCTB::getGotoLabelLocationReference(llvm::StringRef Name,
 
 std::string PCTB::getLocationReference(const model::Function &F) {
   std::string Location = pipeline::locationString(ranks::Function, F.key());
-  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+  return getTag(ptml::tags::Span, NameBuilder.name(F))
     .addAttribute(attributes::Token, ptml::c::tokens::Function)
     .addAttribute(attributes::ActionContextLocation, Location)
     .addAttribute(attributes::LocationReferences, Location)
@@ -153,7 +153,7 @@ std::string PCTB::getLocationReference(const model::Function &F) {
 std::string PCTB::getLocationReference(const model::DynamicFunction &F) {
   std::string Location = pipeline::locationString(ranks::DynamicFunction,
                                                   F.key());
-  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+  return getTag(ptml::tags::Span, NameBuilder.name(F))
     .addAttribute(attributes::Token, ptml::c::tokens::Function)
     .addAttribute(attributes::ActionContextLocation, Location)
     .addAttribute(attributes::LocationReferences, Location)
@@ -410,7 +410,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     const StringRef Comma = ", ";
     StringRef Separator = Open;
     for (const model::NamedTypedRegister &Arg : RF.Arguments()) {
-      std::string ArgName = B.NameBuilder.argumentName(RF, Arg).str().str();
+      std::string ArgName = B.NameBuilder.name(RF, Arg);
       std::string ArgString;
       if (Function != nullptr)
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
@@ -474,7 +474,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     StringRef Separator = Open;
 
     for (const auto &Arg : CF.Arguments()) {
-      std::string ArgName = B.NameBuilder.argumentName(CF, Arg).str().str();
+      std::string ArgName = B.NameBuilder.name(CF, Arg);
       std::string ArgString;
       if (Function != nullptr)
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);

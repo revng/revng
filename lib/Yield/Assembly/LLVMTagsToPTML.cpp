@@ -224,7 +224,7 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
                                   model::NameBuilder &NameBuilder) {
   if (auto *ModelFunction = yield::tryGetFunction(Binary, BasicBlock)) {
     return LabelDescription{
-      .Name = NameBuilder.name(*ModelFunction).str().str(),
+      .Name = NameBuilder.name(*ModelFunction),
       .Location = locationString(revng::ranks::Function, ModelFunction->key()),
     };
   } else if (Function.Blocks().contains(BasicBlock)) {

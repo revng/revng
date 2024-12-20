@@ -46,7 +46,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::EnumDefinition &E,
 
     if (Configuration.EnablePrintingOfTheMaximumEnumValue) {
       // This ensures the enum is exactly as large as the Underlying type
-      *Out << tokenTag(("_enum_max_value_" + NameBuilder.name(E)).str(),
+      *Out << tokenTag(("_enum_max_value_" + NameBuilder.name(E)),
                        ptml::c::tokens::Field)
            << " " + getOperator(COperator::Assign) + " "
            << getHex(MaxBitPatternInEnum) << ",\n";
@@ -100,7 +100,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
       } else {
-        printInlineDefinition(NameBuilder.name(S, Field).str(), *Field.Type());
+        printInlineDefinition(NameBuilder.name(S, Field), *Field.Type());
       }
 
       PreviousOffset = Field.Offset() + Field.Type()->size().value();
@@ -128,7 +128,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
       } else {
-        printInlineDefinition(NameBuilder.name(U, Field).str(), *Field.Type());
+        printInlineDefinition(NameBuilder.name(U, Field), *Field.Type());
       }
     }
   }
@@ -164,7 +164,7 @@ void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
                                                   ReturnValue.key());
 
       std::string
-        FieldString = tokenTag(NameBuilder.returnValueName(F, ReturnValue),
+        FieldString = tokenTag(NameBuilder.name(F, ReturnValue),
                                ptml::c::tokens::Field)
                         .addAttribute(ptml::attributes::ActionContextLocation,
                                       ActionLocation)

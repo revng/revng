@@ -309,9 +309,7 @@ gatherArgumentComments(const model::Binary &Binary,
 
         const model::Argument &Argument = FT->Arguments().at(Index);
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     NameBuilder.argumentName(*FT, Argument)
-                                       .str()
-                                       .str());
+                                     NameBuilder.name(*FT, Argument));
         std::string Location = locationString(ranks::CABIArgument,
                                               FT->key(),
                                               Argument.key());
@@ -372,9 +370,7 @@ gatherArgumentComments(const model::Binary &Binary,
         Line.InternalIndentation = Keyword.size();
 
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     NameBuilder.argumentName(*FT, Argument)
-                                       .str()
-                                       .str());
+                                     NameBuilder.name(*FT, Argument));
         std::string Location = locationString(ranks::RawArgument,
                                               FT->key(),
                                               Argument.key());
@@ -409,7 +405,7 @@ gatherArgumentComments(const model::Binary &Binary,
       llvm::SmallVector<FieldMapEntry> Comments;
       for (const model::StructField &Field : Stack->Fields())
         if (!Field.Comment().empty())
-          Comments.emplace_back(NameBuilder.name(*Stack, Field).str().str(),
+          Comments.emplace_back(NameBuilder.name(*Stack, Field),
                                 Field.Comment(),
                                 Field);
 

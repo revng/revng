@@ -144,7 +144,7 @@ std::string TypeSystemPrinter::buildFieldName(const model::Type &Type,
     if (!Result.empty() && Result.back() != '*')
       Result += ' ';
 
-    return Result += (NameBuilder.name(D->unwrap()) + Suffix).str();
+    return Result += NameBuilder.name(D->unwrap()) + Suffix;
 
   } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
     return buildFieldName(*P->PointeeType(),
