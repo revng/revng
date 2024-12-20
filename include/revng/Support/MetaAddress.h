@@ -143,6 +143,19 @@ inline constexpr Values fromString(llvm::StringRef String) {
   }
 }
 
+inline llvm::StringRef consumeFromString(llvm::StringRef String) {
+  for (Values Index = Invalid; Index < Count;) {
+
+    llvm::StringRef Serialized = MetaAddressType::toString(Index);
+    if (String.starts_with(Serialized))
+      return String.substr(Serialized.size());
+
+    Index = static_cast<Values>(static_cast<uint16_t>(Index) + 1);
+  }
+
+  return String;
+}
+
 inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
   switch (V) {
   case Code_x86:
