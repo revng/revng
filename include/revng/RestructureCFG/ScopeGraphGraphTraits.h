@@ -6,33 +6,32 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/SmallVector.h"
 
-#include "revng/ADT/GeneratorIterator.h"
+#include "revng/ADT/Concepts.h"
+#include "revng/ADT/EagerMaterializationRangeIterator.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 
 // We use a template here in order to instantiate `BlockType` both as
 // `BasicBlock *` and `const BasicBlock *`
-template<typename BlockType>
-inline cppcoro::generator<BlockType> getNextScopeGraphSuccessor(BlockType BB) {
+template<ConstOrNot<llvm::BasicBlock> BlockType>
+inline llvm::SmallVector<BlockType *> getScopeGraphSuccessors(BlockType *BB) {
 
+  llvm::SmallVector<BlockType *> Successors;
   //  First of all, we return all the standard successors of `BB`, but only if
   //  the current block does not contain the `goto_block` marker. If that is the
   //  case, since we have the constraint that a `goto_block` can only exists in
   //  a block with a single successor (which is the `goto` target).
-  if (not isGotoBlock(BB)) {
-    for (auto *Successor : successors(BB)) {
-      co_yield Successor;
-    }
-  }
+  if (not isGotoBlock(BB))
+    for (BlockType *S : successors(BB))
+      Successors.push_back(S);
 
   // We then move to returning the additional successor represented by the
   // `ScopeCloser` edge, if present at all
-  BlockType ScopeCloserTarget = getScopeCloserTarget(BB);
-  if (ScopeCloserTarget) {
-    co_yield ScopeCloserTarget;
-  }
+  if (BlockType *ScopeCloserTarget = getScopeCloserTarget(BB))
+    Successors.push_back(ScopeCloserTarget);
 
-  co_return;
+  return Successors;
 }
 
 /// This class is used as a marker class to tell the graph iterator to treat the
@@ -50,15 +49,17 @@ template<>
 struct llvm::GraphTraits<Scope<llvm::BasicBlock *>> {
 public:
   using NodeRef = llvm::BasicBlock *;
-  using ChildIteratorType = GeneratorIterator<llvm::BasicBlock *>;
+  using ChildIteratorType = EagerMaterializationRangeIterator<
+    llvm::BasicBlock *>;
 
 public:
   static ChildIteratorType child_begin(NodeRef N) {
-    return GeneratorIterator<llvm::BasicBlock *>(getNextScopeGraphSuccessor(N));
+    return EagerMaterializationRangeIterator<
+      llvm::BasicBlock *>(getScopeGraphSuccessors(N));
   }
 
   static ChildIteratorType child_end(NodeRef N) {
-    return GeneratorIterator<llvm::BasicBlock *>();
+    return EagerMaterializationRangeIterator<llvm::BasicBlock *>::end();
   }
 
   // In the implementation for `llvm::BasicBlock *` trait we simply return
@@ -74,16 +75,17 @@ template<>
 struct llvm::GraphTraits<Scope<const llvm::BasicBlock *>> {
 public:
   using NodeRef = const llvm::BasicBlock *;
-  using ChildIteratorType = GeneratorIterator<const llvm::BasicBlock *>;
+  using ChildIteratorType = EagerMaterializationRangeIterator<
+    const llvm::BasicBlock *>;
 
 public:
   static ChildIteratorType child_begin(NodeRef N) {
-    return GeneratorIterator<
-      const llvm::BasicBlock *>(getNextScopeGraphSuccessor(N));
+    return EagerMaterializationRangeIterator<
+      const llvm::BasicBlock *>(getScopeGraphSuccessors(N));
   }
 
   static ChildIteratorType child_end(NodeRef N) {
-    return GeneratorIterator<const llvm::BasicBlock *>();
+    return EagerMaterializationRangeIterator<const llvm::BasicBlock *>::end();
   }
 
   // In the implementation for `llvm::BasicBlock *` trait we simply return
