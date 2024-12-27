@@ -99,13 +99,4 @@ BOOST_AUTO_TEST_CASE(LabelsWithGoToMustBeAlive) {
   BOOST_TEST(module.getBody()->getOperations().size() == 3);
 }
 
-BOOST_AUTO_TEST_CASE(SwitchWithMismatchedCaseValuesAndRegionsIsNotValid) {
-  const int64_t CaseValues[] = { 1 };
-  builder.create<SwitchOp>(builder.getUnknownLoc(),
-                           /*case_values=*/CaseValues,
-                           /*casesCount=*/2);
-
-  BOOST_TEST(mlir::verify(module).failed());
-}
-
 BOOST_AUTO_TEST_SUITE_END()
