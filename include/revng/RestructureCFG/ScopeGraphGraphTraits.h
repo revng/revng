@@ -419,4 +419,9 @@ debug_function inline void dumpScopeGraph(llvm::Function &F) {
   llvm::PostDomTreeOnView<llvm::BasicBlock, Scope> PostDominatorTree;
   PostDominatorTree.recalculate(F);
   PostDominatorTree.print(llvm::dbgs());
+
+  // We also dump the `.dot` serialization of the `ScopeGraph` for debugging
+  // purposes
+  llvm::dbgs() << "Serializing the dot file representing the ScopeGraph\n";
+  llvm::WriteGraph<Scope<llvm::Function *>>(PF, "ScopeGraph");
 }
