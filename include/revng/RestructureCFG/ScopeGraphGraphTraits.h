@@ -79,9 +79,19 @@ inline llvm::SmallVector<BlockType *> getScopeGraphPredecessors(BlockType *BB) {
 /// edges as actual edges, and ignoring the goto edges
 template<class GraphType>
 struct Scope {
+
+  // Special care should be employed when instantiating this class with a `*`
+  // `GraphType` (like we do with `Function *`), because the `const GraphType &`
+  // will be a temporary which can go out of scope as soon as the constructor
+  // terminates. We do it this way in order to mimic what it is done in
+  // `llvm/ADT/GraphTraits.h` for the `Inverse` marker class.
   const GraphType &Graph;
 
   inline Scope(const GraphType &G) : Graph(G) {}
+
+  // Delete the constructor accepting a rvalue reference, in order to avoid
+  // ill-formed instances of the class
+  Scope(const GraphType &&) = delete;
 };
 
 /// Specializes `GraphTraits<Scope<llvm::BasicBlock *>>`
@@ -308,8 +318,9 @@ debug_function inline void dumpScopeGraph(llvm::Function &F) {
   }
 
   // Iteration on the whole graph using a `llvm::depth_first` visit
+  llvm::Function *PF = &F;
   llvm::dbgs() << "Depth first order:\n";
-  for (auto *DFSNode : llvm::depth_first(Scope<llvm::Function *>(&F))) {
+  for (auto *DFSNode : llvm::depth_first(Scope<llvm::Function *>(PF))) {
     llvm::dbgs() << DFSNode->getName().str() << "\n";
   }
 
