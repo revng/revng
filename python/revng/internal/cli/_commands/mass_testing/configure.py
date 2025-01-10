@@ -26,9 +26,7 @@ class MassTestingConfigureCommand(Command):
         parser.add_argument("--seed", help="Seed to use in the RNG for shuffling")
         parser.add_argument("input", help="Input directory")
         parser.add_argument("output", help="Output directory")
-        parser.add_argument(
-            "config_files", nargs="+", help="Additional .yml files to pass to test-configure"
-        )
+        parser.add_argument("config_file", help="Config file to be read by configure")
 
     def run(self, options: Options):
         args = options.parsed_args
@@ -48,21 +46,35 @@ class MassTestingConfigureCommand(Command):
             seed = getrandbits(32)
         Random(seed).shuffle(file_list)
 
-        data = {"sources": [{"members": file_list}]}
-        binaries_yml = NamedTemporaryFile("w", suffix=".yml")
-        yaml.safe_dump(data, binaries_yml)
+        with open(args.config_file) as f:
+            config = yaml.safe_load(f)
 
-        run(
-            ("revng", "test-configure", "--install-path", args.input)
-            + ("--destination", args.output, binaries_yml.name, *args.config_files),
-            check=True,
-        )
+        commands = []
+        for entry in config:
+            cmd_data = {"type": entry["name"], "from": [{"type": "source"}], "suffix": "/"}
+            cmd = 'test-harness "$INPUT" "$OUTPUT"'
+            if "timeout" in entry:
+                cmd += f' --timeout {entry["timeout"]}'
+            if "memory_limit" in entry:
+                cmd += f' --memory-limit {entry["memory_limit"]}'
+            cmd += f' -- {entry["command"]}'
+            cmd_data["command"] = cmd
+            commands.append(cmd_data)
 
+        configure_data = {"sources": [{"members": file_list}], "commands": commands}
+        with NamedTemporaryFile("w", suffix=".yml") as config_yml:
+            yaml.safe_dump(configure_data, config_yml)
+            run(
+                ("revng", "test-configure", "--install-path", args.input)
+                + ("--destination", args.output, config_yml.name),
+                check=True,
+            )
+
+        data: dict = {}
         if args.meta is not None:
             with open(args.meta) as f:
                 data = yaml.safe_load(f)
-        else:
-            data = {}
         data["seed"] = seed
+        data["configurations"] = config
         with open(Path(args.output) / "meta.yml", "w") as f:
             yaml.safe_dump(data, f)
