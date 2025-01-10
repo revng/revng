@@ -447,6 +447,14 @@ struct ModuleValidator {
                                     /*DirectlyNested=*/false))
         return Op->emitOpError()
                << Op->getName() << " must be nested within a loop operation.";
+    } else if (auto Sym = mlir::dyn_cast<MakeLabelOp>(Op)) {
+      if (not LabelNames.insert(Sym.getName()).second)
+        return Op->emitOpError()
+               << Op->getName() << " conflicts with another label.";
+    } else if (auto Sym = mlir::dyn_cast<LocalVariableOp>(Op)) {
+      if (not LocalNames.insert(Sym.getSymName()).second)
+        return Op->emitOpError()
+               << Op->getName() << " conflicts with another local variable.";
     }
 
     return visitOp(Op);
@@ -464,6 +472,9 @@ struct ModuleValidator {
     if (auto F = mlir::dyn_cast<FunctionOp>(Op)) {
       auto TypeAttr = getFunctionTypeAttr(F.getFunctionType());
       FunctionReturnType = mlir::cast<ValueType>(TypeAttr.getReturnType());
+
+      LocalNames.clear();
+      LabelNames.clear();
     }
 
     return visitOp(Op);
@@ -476,6 +487,9 @@ private:
   llvm::SmallPtrSet<mlir::Type, 32> VisitedTypes;
   llvm::SmallPtrSet<mlir::Attribute, 32> VisitedAttrs;
   llvm::DenseMap<uint64_t, TypeDefinitionAttr> Definitions;
+
+  llvm::DenseSet<llvm::StringRef> LocalNames;
+  llvm::DenseSet<llvm::StringRef> LabelNames;
 
   static std::optional<LoopOrSwitch> isLoopOrSwitch(Operation *Op) {
     if (mlir::isa<ForOp, DoWhileOp, WhileOp>(Op))
@@ -677,6 +691,12 @@ mlir::LogicalResult GlobalVariableOp::verify() {
 
 //===----------------------------- Statements -----------------------------===//
 
+//===---------------------------- AssignLabelOp ---------------------------===//
+
+MakeLabelOp AssignLabelOp::getLabelOp() {
+  return getLabel().getDefiningOp<MakeLabelOp>();
+}
+
 //===------------------------------ DoWhileOp -----------------------------===//
 
 mlir::LogicalResult DoWhileOp::verify() {
@@ -708,6 +728,12 @@ mlir::LogicalResult ForOp::verify() {
   return mlir::success();
 }
 
+//===------------------------------- GotoOp -------------------------------===//
+
+MakeLabelOp GoToOp::getLabelOp() {
+  return getLabel().getDefiningOp<MakeLabelOp>();
+}
+
 //===-------------------------------- IfOp --------------------------------===//
 
 mlir::LogicalResult IfOp::verify() {
@@ -721,8 +747,12 @@ mlir::LogicalResult IfOp::verify() {
 //===--------------------------- LocalVariableOp --------------------------===//
 
 mlir::LogicalResult LocalVariableOp::verify() {
+  if (getSymName().empty())
+    return emitOpError() << getOperationName()
+                         << " must have a non-empty name.";
+
   if (Region &R = getInitializer(); not R.empty()) {
-    if (getExpressionType(R) != getType())
+    if (getExpressionType(R) != getType().removeConst())
       return emitOpError() << getOperationName()
                            << " initializer type must match the variable type";
   }
@@ -761,6 +791,10 @@ mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
 }
 
 mlir::LogicalResult MakeLabelOp::verify() {
+  if (getName().empty())
+    return emitOpError() << getOperationName()
+                         << " must have a non-empty name.";
+
   const auto [Assignments, GoTos] = getNumLabelUsers(*this);
 
   if (Assignments > 1)
@@ -786,6 +820,10 @@ mlir::LogicalResult ReturnOp::verify() {
 }
 
 //===------------------------------ SwitchOp ------------------------------===//
+
+ValueType SwitchOp::getConditionType() {
+  return getExpressionType(getConditionRegion());
+}
 
 void SwitchOp::build(OpBuilder &OdsBuilder,
                      OperationState &OdsState,
@@ -891,18 +929,6 @@ mlir::LogicalResult WhileOp::verify() {
 }
 
 //===----------------------------- Expressions ----------------------------===//
-
-//===------------------------------- YieldOp ------------------------------===//
-
-mlir::LogicalResult YieldOp::verify() {
-  auto T = getValue().getType();
-
-  if (not isObjectType(T) and not isVoid(T))
-    return emitOpError() << getOperationName()
-                         << " must yield an object type or void.";
-
-  return mlir::success();
-}
 
 //===----------------------- UnaryIntegerMutationOp -----------------------===//
 
@@ -1028,64 +1054,63 @@ mlir::LogicalResult AssignOp::verify() {
   return mlir::success();
 }
 
-//===--------------------------- ObjectAccessOp ---------------------------===//
+//===------------------------------ AccessOp ------------------------------===//
 
-static ValueType getField(ValueType ClassType, size_t Index) {
-  const auto GetField = [&](llvm::ArrayRef<FieldAttr> Fields) -> ValueType {
-    if (Index < Fields.size())
-      return Fields[Index].getType();
-    return nullptr;
-  };
-
-  auto T = mlir::cast<DefinedType>(ClassType);
-  if (auto D = mlir::dyn_cast<StructTypeAttr>(T.getElementType()))
-    return GetField(D.getFields());
-  if (auto D = mlir::dyn_cast<UnionTypeAttr>(T.getElementType()))
-    return GetField(D.getFields());
-
-  return nullptr;
+bool AccessOp::isLvalueExpression() {
+  return isIndirect() or clift::isLvalueExpression(getValue());
 }
 
-bool ObjectAccessOp::isLvalueExpression() {
-  return clift::isLvalueExpression(getObject());
+DefinedType AccessOp::getClassType() {
+  auto ObjectT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
+
+  if (isIndirect()) {
+    ObjectT = mlir::cast<PointerType>(ObjectT).getPointeeType();
+    ObjectT = dealias(ObjectT, /*IgnoreQualifiers=*/true);
+  }
+
+  return mlir::cast<DefinedType>(ObjectT);
 }
 
-mlir::LogicalResult ObjectAccessOp::verify() {
-  auto ObjectT = dealias(getObject().getType());
+TypeDefinitionAttr AccessOp::getClassTypeAttr() {
+  return getClassType().getElementType();
+}
 
-  if (not isClassType(ObjectT))
+FieldAttr AccessOp::getFieldAttr() {
+  auto C = mlir::cast<ClassTypeAttr>(getClassTypeAttr());
+  return C.getFields()[getMemberIndex()];
+}
+
+mlir::LogicalResult AccessOp::verify() {
+  auto ObjectT = dealias(getValue().getType());
+
+  if (auto PointerT = mlir::dyn_cast<PointerType>(ObjectT)) {
+    if (not isIndirect())
+      return emitOpError() << getOperationName()
+                           << " operand must have pointer type.";
+
+    ObjectT = dealias(PointerT.getPointeeType(), /*IgnoreQualifiers=*/true);
+  }
+
+  auto DefinedT = mlir::dyn_cast<DefinedType>(ObjectT);
+  if (not DefinedT)
     return emitOpError() << getOperationName()
-                         << " operand must have struct or union type.";
+                         << " operand must have (pointer to) struct or union"
+                         << " type.";
 
-  auto FieldT = getField(ObjectT, getMemberIndex());
-  if (FieldT == nullptr)
+  auto Class = mlir::dyn_cast<ClassTypeAttr>(DefinedT.getElementType());
+  if (not Class)
+    return emitOpError() << getOperationName()
+                         << " operand must have (pointer to) struct or union"
+                         << " type.";
+
+  auto Fields = Class.getFields();
+
+  const uint64_t Index = getMemberIndex();
+  if (Index >= Fields.size())
     return emitOpError() << getOperationName()
                          << " struct or union member index out of range.";
-  if (FieldT != getResult().getType())
-    return emitOpError() << getOperationName()
-                         << " result type must match the selected member type.";
 
-  return mlir::success();
-}
-
-//===--------------------------- PointerAccessOp --------------------------===//
-
-mlir::LogicalResult PointerAccessOp::verify() {
-  auto PointerT = mlir::dyn_cast<PointerType>(getPointer().getType());
-  if (not PointerT)
-    return emitOpError() << getOperationName()
-                         << " operand must have pointer type.";
-
-  auto PointeeT = PointerT.getPointeeType();
-  if (not isClassType(PointeeT))
-    return emitOpError() << getOperationName()
-                         << " operand type must be a pointer to struct or union"
-                            " type.";
-
-  auto FieldT = getField(PointeeT, getMemberIndex());
-  if (FieldT == nullptr)
-    return emitOpError() << getOperationName()
-                         << " struct or union member index must be valid.";
+  auto FieldT = Fields[Index].getType();
   if (FieldT != getResult().getType())
     return emitOpError() << getOperationName()
                          << " result type must match the selected member type.";

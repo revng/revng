@@ -59,6 +59,13 @@ static std::string toStringVariableLocation(llvm::StringRef VariableName,
                                   VariableName.str());
 }
 
+static std::string toStringGotoLabelLocation(llvm::StringRef GotoLabelName,
+                                             const model::Function &F) {
+  return pipeline::locationString(ranks::GotoLabel,
+                                  F.key(),
+                                  GotoLabelName.str());
+}
+
 template<bool IsDefinition, ModelFunction FunctionType>
 std::string getArgumentLocation(llvm::StringRef ArgumentName,
                                 const FunctionType &F,
@@ -109,6 +116,48 @@ PCTB::getVariableLocationDefinition(llvm::StringRef Name,
 std::string PCTB::getVariableLocationReference(llvm::StringRef Name,
                                                const model::Function &F) const {
   return getVariableLocation<false>(Name, F, *this);
+}
+
+template<bool IsDefinition>
+static std::string getGotoLabelLocation(llvm::StringRef GotoLabelName,
+                                        const model::Function &F,
+                                        const ptml::CTypeBuilder &B) {
+  return B.getTag(ptml::tags::Span, GotoLabelName)
+    .addAttribute(attributes::Token, tokens::GotoLabel)
+    .addAttribute(B.getLocationAttribute(IsDefinition),
+                  toStringGotoLabelLocation(GotoLabelName, F))
+    .toString();
+}
+
+std::string
+PCTB::getGotoLabelLocationDefinition(llvm::StringRef Name,
+                                     const model::Function &F) const {
+  return getGotoLabelLocation<true>(Name, F, *this);
+}
+
+std::string
+PCTB::getGotoLabelLocationReference(llvm::StringRef Name,
+                                    const model::Function &F) const {
+  return getGotoLabelLocation<false>(Name, F, *this);
+}
+
+std::string PCTB::getLocationReference(const model::Function &F) {
+  std::string Location = pipeline::locationString(ranks::Function, F.key());
+  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+    .addAttribute(attributes::Token, ptml::c::tokens::Function)
+    .addAttribute(attributes::ActionContextLocation, Location)
+    .addAttribute(attributes::LocationReferences, Location)
+    .toString();
+}
+
+std::string PCTB::getLocationReference(const model::DynamicFunction &F) {
+  std::string Location = pipeline::locationString(ranks::DynamicFunction,
+                                                  F.key());
+  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+    .addAttribute(attributes::Token, ptml::c::tokens::Function)
+    .addAttribute(attributes::ActionContextLocation, Location)
+    .addAttribute(attributes::LocationReferences, Location)
+    .toString();
 }
 
 struct NamedCInstanceImpl {

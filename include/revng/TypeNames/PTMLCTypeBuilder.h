@@ -319,18 +319,21 @@ public:
     return getLocation(false, T, AllowedActions);
   }
 
-  std::string getLocationReference(const model::PrimitiveType &P) const {
-    std::string CName = P.getCName();
+  std::string getPrimitiveTypeLocationReference(llvm::StringRef CName) const {
     auto Result = tokenTag(CName, ptml::c::tokens::Type);
     if (IsInTaglessMode)
       return Result.toString();
 
     std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
-                                             P.getCName());
+                                             CName.str());
     Result.addAttribute(getLocationAttribute(false), L);
     Result.addAttribute(attributes::ActionContextLocation, L);
 
     return Result.toString();
+  }
+
+  std::string getLocationReference(const model::PrimitiveType &P) const {
+    return getPrimitiveTypeLocationReference(P.getCName());
   }
 
   std::string getLocationReference(const model::Segment &S) {
@@ -341,6 +344,9 @@ public:
   std::string getLocationReference(const Aggregate &A, const Field &F) {
     return getLocation(false, A, F);
   }
+
+  std::string getLocationReference(const model::Function &F);
+  std::string getLocationReference(const model::DynamicFunction &F);
 
 public:
   template<model::EntityWithComment Type>
@@ -423,6 +429,10 @@ public:
                                             const model::Function &F) const;
   std::string getVariableLocationReference(llvm::StringRef VariableName,
                                            const model::Function &F) const;
+  std::string getGotoLabelLocationDefinition(llvm::StringRef GotoLabelName,
+                                             const model::Function &F) const;
+  std::string getGotoLabelLocationReference(llvm::StringRef GotoLabelName,
+                                            const model::Function &F) const;
 
 public:
   /// Returns true for types we never print definitions for a give type

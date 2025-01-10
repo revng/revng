@@ -22,5 +22,5 @@
 
 %0 = clift.undef : !p_s
 %1 = clift.indirection %0 : !p_s
-%2 = clift.object_access<0> %1 : !s -> !int32_t
+%2 = clift.access<0> %1 : !s -> !int32_t
 %3 = clift.addressof %2 : !int32_t$ptr

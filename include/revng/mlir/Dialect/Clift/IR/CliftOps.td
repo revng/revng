@@ -24,6 +24,12 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 //===-------------------------- Type constraints --------------------------===//
 
+def Clift_AnyLabelType
+  : Type<CPred<"mlir::isa<mlir::clift::LabelType>($_self)">,
+         "a Clift label type",
+         "mlir::clift::LabelType">,
+    BuildableType<"$_builder.getType<mlir::clift::LabelType>()">;
+
 def Clift_AnyValueType
   : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
          "a Clift value type",
@@ -98,7 +104,8 @@ def Clift_ModuleOp : Clift_Op<"module",
                                HasOnlyGraphRegion,
                                NoRegionArguments,
                                SingleBlock,
-                               RegionKindInterface]> {
+                               RegionKindInterface,
+                               IsolatedFromAbove]> {
   let regions = (region AnyRegion:$body);
 
   let skipDefaultBuilders = 1;
@@ -199,10 +206,11 @@ def Clift_MakeLabelOp
   : Clift_StatementOp<"make_label",
                       [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
 
+  let arguments = (ins StrAttr:$name);
   let results = (outs Clift_LabelType:$result);
 
   let assemblyFormat = [{
-    type($result) attr-dict
+    $name attr-dict
   }];
 
   let hasCanonicalizeMethod = 1;
@@ -212,7 +220,8 @@ def Clift_MakeLabelOp
     OpBuilder<(ins), [{
       build($_builder,
             $_state,
-            mlir::clift::LabelType::get($_builder.getContext()));
+            mlir::clift::LabelType::get($_builder.getContext()),
+            mlir::StringAttr::get($_builder.getContext(), ""));
     }]>
   ];
 }
@@ -221,7 +230,11 @@ def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
-    $label type($label) attr-dict
+    $label attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] MakeLabelOp getLabelOp();
   }];
 }
 
@@ -261,7 +274,11 @@ def Clift_GoToOp : Clift_StatementOp<"goto", [Clift_NoFallthrough]> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
-    $label type($label) attr-dict
+    $label attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] MakeLabelOp getLabelOp();
   }];
 }
 
@@ -337,6 +354,8 @@ def Clift_SwitchOp : Clift_StatementOp<"switch"> {
   ];
 
   code extraClassDeclaration = [{
+    [[nodiscard]] mlir::clift::ValueType getConditionType();
+
     [[nodiscard]] Region &getConditionRegion() {
       return getRegion(0);
     }
@@ -402,8 +421,6 @@ def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
 
 def Clift_YieldOp : Clift_ExpressionOp<"yield", [Terminator]> {
   let arguments = (ins Clift_AnyValueType:$value);
-
-  let hasVerifier = 1;
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
@@ -547,8 +564,8 @@ def Clift_EqualOp : Clift_ComparisonOp<"eq">;
 def Clift_NotEqualOp : Clift_ComparisonOp<"ne">;
 def Clift_LessThanOp : Clift_ComparisonOp<"lt">;
 def Clift_GreaterThanOp : Clift_ComparisonOp<"gt">;
-def Clift_LessThanOrEqual : Clift_ComparisonOp<"le">;
-def Clift_GreaterThanOrEqual : Clift_ComparisonOp<"ge">;
+def Clift_LessThanOrEqualOp : Clift_ComparisonOp<"le">;
+def Clift_GreaterThanOrEqualOp : Clift_ComparisonOp<"ge">;
 
 def Clift_IncrementOp : Clift_UnaryIntegerMutationOp<"inc">;
 def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;
@@ -634,37 +651,29 @@ def Clift_AssignOp
   let hasVerifier = 1;
 }
 
-def Clift_ObjectAccessOp : Clift_ExpressionOp<"object_access"> {
-  let arguments = (ins Clift_AnyValueType:$object,
+def Clift_AccessOp : Clift_ExpressionOp<"access"> {
+  let arguments = (ins Clift_AnyValueType:$value,
+                       UnitAttr:$indirect,
                        I64Attr:$member_index);
 
   let results = (outs Clift_AnyValueType:$result);
 
   let assemblyFormat = [{
-    `<` $member_index `>` $object attr-dict `:` type($object) `->` type($result)
+    `<` (`indirect` $indirect^)? $member_index `>` $value attr-dict
+    `:` type($value) `->` type($result)
   }];
 
   let extraClassDeclaration = [{
-    bool isLvalueExpression();
-  }];
-
-  let hasVerifier = 1;
-}
-
-def Clift_PointerAccessOp : Clift_ExpressionOp<"pointer_access"> {
-  let arguments = (ins Clift_AnyPointerType:$pointer,
-                       I64Attr:$member_index);
-
-  let results = (outs Clift_AnyValueType:$result);
-
-  let assemblyFormat = [{
-    `<` $member_index `>` $pointer attr-dict `:` type($pointer) `->` type($result)
-  }];
-
-  let extraClassDeclaration = [{
-    bool isLvalueExpression() {
-      return true;
+    [[nodiscard]] bool isIndirect() {
+      return getIndirect();
     }
+
+    [[nodiscard]] bool isLvalueExpression();
+
+    [[nodiscard]] DefinedType getClassType();
+    [[nodiscard]] TypeDefinitionAttr getClassTypeAttr();
+
+    [[nodiscard]] FieldAttr getFieldAttr();
   }];
 
   let hasVerifier = 1;
