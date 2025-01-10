@@ -139,6 +139,12 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
       continue;
 
     for (Use &Op : I.operands()) {
+
+      // Operands of calls to OpaqueExtractValue should never be promoted to
+      // references to segments
+      if (isCallToTagged(Op.getUser(), FunctionTags::OpaqueExtractValue))
+        continue;
+
       if (isa<SwitchInst>(&I) && (cast<SwitchInst>(&I)->getCondition() != Op))
         continue;
 
