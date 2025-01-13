@@ -2,6 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import os
+import struct
 from pathlib import Path
 
 from elftools.common.exceptions import ELFError
@@ -24,6 +26,22 @@ def log_success(file_path):
 
 def log_fail():
     log("Result: No debug info found")
+
+
+def is_pe(file):
+    file.seek(0, os.SEEK_SET)
+    mz_header = file.read(2)
+    if mz_header != b"MZ":
+        return False
+    file.seek(0x3C, os.SEEK_SET)  # 0x3C contains PE offset
+    pe_offset = struct.unpack("<i", file.read(4))[0]  # Offset is encoded as a little-endian int
+    file.seek(pe_offset, os.SEEK_SET)
+    return file.read(4) == b"PE\x00\x00"
+
+
+def is_elf(file):
+    file.seek(0, os.SEEK_SET)
+    return file.read(4) == b"\x7fELF"
 
 
 class FetchDebugInfoCommand(Command):
@@ -50,8 +68,7 @@ class FetchDebugInfoCommand(Command):
 
         with path.open(mode="rb") as f:
             # Check if it is an ELF.
-            magic_for_elf = f.read(4)
-            if magic_for_elf == b"\x7fELF":
+            if is_elf(f):
                 try:
                     the_elffile = ELFFile(f)
                     if not args.urls:
@@ -60,13 +77,15 @@ class FetchDebugInfoCommand(Command):
                 except ELFError as elf_error:
                     log_error(str(elf_error))
                     return 1
-            else:
-                # Should be a PE/COFF otherwise.
+            elif is_pe(f):
                 # TODO: handle _NT_SYMBOL_PATH and _NT_ALT_SYMBOL_PATH
                 # https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/symbol-path
                 if not args.urls:
                     args.urls.append(microsoft_symbol_server_url)
                 result = fetch_pdb(path, args.urls)
+            else:
+                log_fail()
+                return 1
 
         if result is None:
             # We have not found the debug info file.
