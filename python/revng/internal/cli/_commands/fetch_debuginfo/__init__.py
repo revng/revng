@@ -41,9 +41,7 @@ class FetchDebugInfoCommand(Command):
 
     def run(self, options: Options):
         args = options.parsed_args
-
-        self.verbose = args.verbose
-        logger.verbose = self.verbose
+        logger.verbose = args.verbose
 
         path = Path(args.input)
         if not path.exists():
