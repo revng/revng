@@ -57,6 +57,11 @@ class TestDirectory:
     def elapsed_time(self):
         return self.test_harness_data["time"]["elapsed_time"]
 
+    @property
+    def max_rss(self):
+        # Note: time returns this value in kbytes, convert to bytes
+        return self.test_harness_data["time"]["max_resident_set_size"] * 1024
+
     @cached_property
     def stacktrace(self) -> Stacktrace | None:
         stacktrace = self.path / "stacktrace.json"
