@@ -393,6 +393,12 @@ public:
           if (isCallToTagged(C, FunctionTags::ReturnsPolymorphic)) {
 
             const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
+            if (Function *Called = C->getCalledFunction();
+                Called and Called->getName().startswith("revng_stack_frame")) {
+              auto *StackSize = cast<ConstantInt>(C->getArgOperand(0));
+              StackLayout->Size = StackSize->getZExtValue();
+              StackLayout->NonScalar = true;
+            }
             Changed |= New;
             const SCEV *CallSCEV = SE->getSCEV(C);
             SCEVToLayoutType.insert(std::make_pair(CallSCEV, StackLayout));
