@@ -9,6 +9,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/GraphWriter.h"
 
@@ -79,9 +80,19 @@ inline llvm::SmallVector<BlockType *> getScopeGraphPredecessors(BlockType *BB) {
 /// edges as actual edges, and ignoring the goto edges
 template<class GraphType>
 struct Scope {
+
+  // Special care should be employed when instantiating this class with a `*`
+  // `GraphType` (like we do with `Function *`), because the `const GraphType &`
+  // will be a temporary which can go out of scope as soon as the constructor
+  // terminates. We do it this way in order to mimic what it is done in
+  // `llvm/ADT/GraphTraits.h` for the `Inverse` marker class.
   const GraphType &Graph;
 
   inline Scope(const GraphType &G) : Graph(G) {}
+
+  // Delete the constructor accepting a rvalue reference, in order to avoid
+  // ill-formed instances of the class
+  Scope(const GraphType &&) = delete;
 };
 
 /// Specializes `GraphTraits<Scope<llvm::BasicBlock *>>`
@@ -296,6 +307,91 @@ struct llvm::GraphTraits<llvm::Inverse<Scope<const llvm::Function *>>>
   }
 };
 
+inline std::string getNodeLabel(const llvm::BasicBlock *N,
+                                const llvm::Function *F) {
+  if (N->hasName()) {
+    return N->getName().str();
+  } else {
+
+    // We iterate over the function and we assign an incremental ID for each
+    // unnamed `BasicBlock` that we encounter
+    unsigned ID = 0;
+    for (const auto *Node : llvm::nodes(F)) {
+      if (N == Node) {
+        return "block_" + std::to_string(ID);
+      } else {
+        ++ID;
+      }
+    }
+  }
+
+  revng_abort("We should always find the basicblock in the loop above");
+}
+
+inline std::string
+getEdgeAttributes(const llvm::BasicBlock *N,
+                  llvm::GraphTraits<
+                    Scope<llvm::BasicBlock *>>::ChildIteratorType EI,
+                  const Scope<llvm::Function *> G) {
+
+  // If we are printing a block which has a `scope_closer` edge, which by
+  // construction must be unique, if present, and the last in the
+  // `MaterializedRange` representing the successors, we print such edge as
+  // dashed
+  using EMRI = EagerMaterializationRangeIterator<llvm::BasicBlock *>;
+  if (getScopeCloserTarget(N) and std::next(EI) == EMRI::end()) {
+    return "style=dashed";
+  }
+
+  // TODO: we may want to print `goto` edges as dotted lines, that do not affect
+  //       the graph layout (`constraint=false`). This cannot be done inside
+  //       this method, because the `goto` edges are not "iterated on" during
+  //       the serialization of the `ScopeGraph`. We may want to specialize the
+  //       `addCustomGraphFeatures` for such purposes.
+
+  // If we excluded that the edge is scope_closer edge, we can print it
+  // as a solid edge
+  return "style=solid";
+}
+
+template<>
+struct llvm::DOTGraphTraits<Scope<llvm::Function *>>
+  : public llvm::DefaultDOTGraphTraits {
+  using llvm::DefaultDOTGraphTraits::DefaultDOTGraphTraits;
+  using EdgeIterator = llvm::GraphTraits<
+    Scope<llvm::BasicBlock *>>::ChildIteratorType;
+
+  std::string getNodeLabel(const llvm::BasicBlock *N,
+                           const Scope<llvm::Function *> G) {
+    return ::getNodeLabel(N, G.Graph);
+  }
+
+  std::string getEdgeAttributes(const llvm::BasicBlock *N,
+                                const EdgeIterator EI,
+                                const Scope<llvm::Function *> G) {
+    return ::getEdgeAttributes(N, EI, G);
+  }
+};
+
+template<>
+struct llvm::DOTGraphTraits<Scope<const llvm::Function *>>
+  : public llvm::DefaultDOTGraphTraits {
+  using llvm::DefaultDOTGraphTraits::DefaultDOTGraphTraits;
+  using EdgeIterator = llvm::GraphTraits<
+    Scope<llvm::BasicBlock *>>::ChildIteratorType;
+
+  std::string getNodeLabel(const llvm::BasicBlock *N,
+                           const Scope<const llvm::Function *> G) {
+    return ::getNodeLabel(N, G.Graph);
+  }
+
+  std::string getEdgeAttributes(const llvm::BasicBlock *N,
+                                const EdgeIterator EI,
+                                const Scope<llvm::Function *> G) {
+    return ::getEdgeAttributes(N, EI, G);
+  }
+};
+
 // Debug function used dump a serialized representation of the `ScopeGraph` on a
 // stream
 debug_function inline void dumpScopeGraph(llvm::Function &F) {
@@ -308,8 +404,9 @@ debug_function inline void dumpScopeGraph(llvm::Function &F) {
   }
 
   // Iteration on the whole graph using a `llvm::depth_first` visit
+  llvm::Function *PF = &F;
   llvm::dbgs() << "Depth first order:\n";
-  for (auto *DFSNode : llvm::depth_first(Scope<llvm::Function *>(&F))) {
+  for (auto *DFSNode : llvm::depth_first(Scope<llvm::Function *>(PF))) {
     llvm::dbgs() << DFSNode->getName().str() << "\n";
   }
 
@@ -322,4 +419,9 @@ debug_function inline void dumpScopeGraph(llvm::Function &F) {
   llvm::PostDomTreeOnView<llvm::BasicBlock, Scope> PostDominatorTree;
   PostDominatorTree.recalculate(F);
   PostDominatorTree.print(llvm::dbgs());
+
+  // We also dump the `.dot` serialization of the `ScopeGraph` for debugging
+  // purposes
+  llvm::dbgs() << "Serializing the dot file representing the ScopeGraph\n";
+  llvm::WriteGraph<Scope<llvm::Function *>>(PF, "ScopeGraph");
 }
