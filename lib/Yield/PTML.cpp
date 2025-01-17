@@ -314,6 +314,10 @@ static std::string instruction(const ptml::MarkupBuilder &B,
 
   const model::Architecture::Values A = Binary.Architecture();
   auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+
+  const model::Configuration &Configuration = Binary.Configuration();
+  uint64_t LineWidth = Configuration.commentLineWidth();
+
   for (const auto &Comment : CM.getComments(&Instruction)) {
     auto &&ModelComment = ModelFunction.Comments().at(Comment.CommentIndex);
     Result += "\n"
@@ -322,7 +326,7 @@ static std::string instruction(const ptml::MarkupBuilder &B,
                                          Instruction.Address().toString(),
                                          CommentIndicator,
                                          Prefixes.totalPrefixSize(Binary),
-                                         80);
+                                         LineWidth);
   }
 
   std::string Prefix = Prefixes.emit(B,
@@ -499,6 +503,10 @@ std::string yield::ptml::functionAssembly(const ::ptml::MarkupBuilder &B,
 
   const model::Architecture::Values A = Binary.Architecture();
   auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+
+  const model::Configuration &Configuration = Binary.Configuration();
+  uint64_t LineWidth = Configuration.commentLineWidth();
+
   for (const auto &Comment : CM.getHomelessComments()) {
     auto &&ModelComment = MFunction.Comments().at(Comment.CommentIndex);
     Result += "\n"
@@ -507,7 +515,7 @@ std::string yield::ptml::functionAssembly(const ::ptml::MarkupBuilder &B,
                                          "after the function",
                                          CommentIndicator,
                                          P.totalPrefixSize(Binary),
-                                         80);
+                                         LineWidth);
   }
 
   return B.getTag(tags::Div, Result)
