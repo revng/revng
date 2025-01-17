@@ -866,10 +866,9 @@ public:
       auto *TheAddress = cast<CallInst>(TheAssign)->getArgOperand(1);
 
       // Create a Copy to dereference TheAssign
-      auto *CopyFnType = getCopyType(TheAddress->getType());
-      auto *CopyFunction = CopyPool.get(TheAddress->getType(),
-                                        CopyFnType,
-                                        "Copy");
+      auto *CopiedType = TheUse->get()->getType();
+      auto *CopyFnType = getCopyType(CopiedType, TheAddress->getType());
+      auto *CopyFunction = CopyPool.get(CopiedType, CopyFnType, "Copy");
       auto *Copy = Builder.CreateCall(CopyFunction, { TheAddress });
       TheUse->set(Copy);
     }
@@ -946,9 +945,10 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
   // First, we have to declare the LocalVariable, always at the entry block.
   Builder.SetInsertPoint(&F.getEntryBlock().front());
 
-  auto *IType = I->getType();
-  auto *LocalVarFunctionType = getLocalVarType(IType);
-  auto *LocalVarFunction = LocalVarPool.get(IType,
+  llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(F.getContext(),
+                                                          Model);
+  auto *LocalVarFunctionType = getLocalVarType(PtrSizedInt);
+  auto *LocalVarFunction = LocalVarPool.get(PtrSizedInt,
                                             LocalVarFunctionType,
                                             "LocalVariable");
 
@@ -956,6 +956,7 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
   const model::UpcastableType &VariableType = TheTypeMap.at(I);
   const llvm::DataLayout &DL = I->getModule()->getDataLayout();
   auto ModelSize = VariableType->size().value();
+  auto *IType = I->getType();
   auto IRSize = DL.getTypeStoreSize(IType);
   if (ModelSize < IRSize) {
     revng_assert(IType->isPointerTy());
@@ -995,10 +996,8 @@ bool VariableBuilder::serializeToLocalVariable(Instruction *I) {
     llvm::Value *ValueToUse = LocalVarCall;
     if (DoCopy) {
       // Create a Copy to dereference the LocalVariable
-      auto *CopyFnType = getCopyType(LocalVarCall->getType());
-      auto *CopyFunction = CopyPool.get(LocalVarCall->getType(),
-                                        CopyFnType,
-                                        "Copy");
+      auto *CopyFnType = getCopyType(U->getType(), LocalVarCall->getType());
+      auto *CopyFunction = CopyPool.get(U->getType(), CopyFnType, "Copy");
       ValueToUse = Builder.CreateCall(CopyFunction, { LocalVarCall });
     }
     U.set(ValueToUse);
