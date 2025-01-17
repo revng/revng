@@ -650,6 +650,66 @@ Branches:
           Docs: |-
             This artifact is an MLIR module with one function for each function
             defined in the binary.
+    # Clift-based decompilation pipeline
+    # TODO: this is still under construction and can't generate C code yet
+  - From: detect-stack-size
+    Steps:
+      - Name: segregate-stack-accesses
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - hoist-struct-phis
+              - segregate-stack-accesses
+      - Name: late-optimize
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - cleanup-stack-size-markers
+              - dce
+              - sroa
+              - instcombine
+              - remove-extractvalues
+              - sroa
+              - simplify-cfg-with-hoist-and-sink
+              # loop-rotate rearranges loops in a way that should make it
+              # easier to match do-while loops
+              - loop-rotate
+              - loop-rewrite-with-canonical-induction-variable
+              - simplify-cfg-with-hoist-and-sink
+              # don't run simplify-cfg{,-with-hoist-and-sink} after
+              # loop-simplify because it kills the loop-simplify form causing
+              # DLA not to identify arrays properly
+              - loop-simplify
+              - instcombine
+              - remove-extractvalues
+              - early-cse
+              - dce
+              - strip-dead-prototypes
+              - split-overflow-intrinsics
+              - dce
+      - Name: prepare-for-clift
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - remove-llvmassume-calls
+              - dce
+              - exit-ssa
+              - switch-to-statements
+        Artifacts:
+          Container: module.bc.zstd
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: prepare_for_clift.ll
+          Docs: |-
+            This artifact contains an LLVM function for each function in the
+            input program.
+
+            The output is similar to the output of `make-segment-ref` but it now
+            contains explicit Alloca/Load/Store instructions.
+            These are injected as a preliminary step for moving away from LLVM
+            towards a higher-level representation that can be emitted in C.
       - Name: import-clift-types
         Pipes:
           - Type: import-clift-types
