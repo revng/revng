@@ -376,7 +376,23 @@ yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
   Pre Graph = cfg::extractFromInternal(InternalFunction, Binary, Configuration);
 
   model::NameBuilder NB = Binary;
-  cfg::calculateNodeSizes(Graph, InternalFunction, Binary, NB, Configuration);
+
+  // This is somewhat crude, as it forces each node's text to be manifested
+  // twice: once without any ptml tags and once containing them.
+  // TODO: clean this up if it ever becomes a performance concern.
+  ::ptml::MarkupBuilder Tagless{ .IsInTaglessMode = true };
+  for (yield::cfg::PreLayoutNode *Node : Graph.nodes()) {
+    if (Node->isEmpty()) {
+      Node->Size = yield::cfg::emptyNodeSize(Configuration);
+
+    } else {
+      auto NodeContents = yield::ptml::controlFlowNode(Tagless,
+                                                       Node->getBasicBlock(),
+                                                       InternalFunction,
+                                                       Binary);
+      Node->Size = yield::cfg::nodeSize(NodeContents, Configuration);
+    }
+  }
 
   constexpr auto TopToBottom = layout::sugiyama::Orientation::TopToBottom;
 
@@ -405,35 +421,29 @@ struct LabelNodeHelper {
 
   void computeSizes(yield::calls::PreLayoutGraph &Graph) {
     for (auto *Node : Graph.nodes()) {
-      if (!Node->isEmpty()) {
-        // A normal node
+      if (Node->isEmpty()) {
+        Node->Size = yield::cfg::emptyNodeSize(Configuration);
+
+      } else {
         size_t NameLength = 0;
         if (std::optional<model::Function::Key> Key = Node->getFunction()) {
           auto Iterator = Binary.Functions().find(std::get<0>(*Key));
           revng_assert(Iterator != Binary.Functions().end());
           NameLength = NameBuilder.name(*Iterator).size();
+
         } else if (auto DynamicFunctionKey = Node->getDynamicFunction()) {
           const std::string &Key = std::get<0>(*DynamicFunctionKey);
           auto Iterator = Binary.ImportedDynamicFunctions().find(Key);
           revng_assert(Iterator != Binary.ImportedDynamicFunctions().end());
           NameLength = NameBuilder.name(*Iterator).size();
+
         } else {
           revng_abort("Unsupported node type.");
         }
 
         revng_assert(NameLength != 0);
-        Node->Size = yield::layout::Size{
-          NameLength * Configuration.LabelFontSize
-            * Configuration.HorizontalFontFactor,
-          1 * Configuration.LabelFontSize * Configuration.VerticalFontFactor
-        };
-      } else {
-        // An entry node.
-        Node->Size = yield::layout::Size{ 30, 30 };
+        Node->Size = yield::cfg::nodeSize(NameLength, 0, Configuration);
       }
-
-      Node->Size.W += Configuration.InternalNodeMarginSize * 2;
-      Node->Size.H += Configuration.InternalNodeMarginSize * 2;
     }
   }
 

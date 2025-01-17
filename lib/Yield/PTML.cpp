@@ -532,12 +532,10 @@ std::string yield::ptml::controlFlowNode(const ::ptml::MarkupBuilder &B,
 
   const model::Function &MFunction = Binary.Functions().at(Function.Entry());
 
-  // TODO: enable comments in the CFG too after the size computation rework.
-  //
-  // auto [G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
-  //                                                          Function.Entry(),
-  //                                                          Binary);
-  // ::CommentPlacementHelper CM(MFunction, G.getEntryNode());
+  auto [G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
+                                                           Function.Entry(),
+                                                           Binary);
+  ::CommentPlacementHelper CM(MFunction, G);
 
   auto Result = labeledBlock<false>(B, *Iterator, Function, MFunction, Binary);
   revng_assert(!Result.empty());
