@@ -585,6 +585,8 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
   return Builder.emit(std::move(Result));
 }
 
+static Logger ImprecisePositionWarning("statement-comment-emission");
+
 std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
                                    const model::StatementComment &Comment,
                                    llvm::StringRef IsBeingEmittedAt,
@@ -600,15 +602,22 @@ std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
     ExpectedLocation += Address.toString() + " + ";
   ExpectedLocation.resize(ExpectedLocation.size() - 3);
 
-  if (IsBeingEmittedAt != ExpectedLocation) {
-    Result += "WARNING: Looks like this comment is attached to a non-existent "
-              "location ("
-              + ExpectedLocation + "), so it's emitted elsewhere";
+  if (ImprecisePositionWarning.isEnabled()) {
+    if (IsBeingEmittedAt != ExpectedLocation) {
+      std::string Warning = "WARNING: Looks like this comment is attached to a "
+                            "non-existent location ("
+                            + ExpectedLocation + "), so it's emitted elsewhere";
 
-    if (not IsBeingEmittedAt.empty())
-      Result += " (" + IsBeingEmittedAt.str() + ")";
+      if (not IsBeingEmittedAt.empty())
+        Warning += " (" + IsBeingEmittedAt.str() + ")";
 
-    Result += ".\n\n";
+      Warning += ".\n";
+
+      revng_log(ImprecisePositionWarning, Warning.c_str());
+
+      Result += std::move(Warning);
+      Result += '\n';
+    }
   }
 
   Result += Comment.Body();
