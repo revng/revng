@@ -246,7 +246,7 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
 
   if (ABI.TreatAllAggregatesAsPacked() && !IsScalar) {
     // This is a bit of trick: manually setting the alignment to unnatural
-    // forces the underlying distribution to be _extra_ careful about how it
+    // forces the underlying distribution to be *extra* careful about how it
     // handles the type. Which just happened to be exactly what we want in
     // some other, unrelated to unnatural alignment, cases.
     HasNaturalAlignment = false;

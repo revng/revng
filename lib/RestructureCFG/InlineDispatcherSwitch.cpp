@@ -481,7 +481,7 @@ static void processNestedWeavedSwitches(SwitchNode *Switch) {
     // first node in a `SequenceNode`. In that situation, we may inline the
     // content of the cases of the nested weaved `SwitchNode`, but we still need
     // to retain the `case`s in the parent `SwitchNode`, because the nodes in
-    // the `SequenceNode` still need to be _executed_ when the `loop_state_var`
+    // the `SequenceNode` still need to be *executed* when the `loop_state_var`
     // assumes the current values.
     if (LabelSet.size() > 1 and llvm::isa<SwitchNode>(Case)) {
       auto *WeavedSwitch = llvm::cast<SwitchNode>(Case);

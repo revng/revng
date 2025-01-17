@@ -58,7 +58,7 @@ promoteCallNoReturnImpl(ASTTree &AST,
     // when the `SequenceNode` ends with a `CallNoReturn` scope, we search for a
     // preceding `IfNode` with just the `then` scope, that ends if a
     // `NonLocalCF` scope. If we can find such situation, we swap the
-    // statements, in order to try to _push down_ the `NonLocalCF` statements.
+    // statements, in order to try to *push down* the `NonLocalCF` statements.
     // At this stage, we assume that every possible `IfNode` we encounter, has
     // already been normalized with respect the empty `then` criterion.
     size_t SequenceSize = Seq->length();

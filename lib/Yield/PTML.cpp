@@ -255,7 +255,7 @@ public:
     return Result;
   }
 
-  /// \note This does _not_ consume anything, feel free to call as many times
+  /// \note This does *not* consume anything, feel free to call as many times
   ///       as you need.
   std::string emitEmpty(const ptml::MarkupBuilder &B,
                         const model::Binary &Binary) const {

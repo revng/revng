@@ -341,13 +341,13 @@ ASTNode *simplifyAtomicSequence(ASTTree &AST, ASTNode *RootNode) {
 }
 
 /// Beautify helper function that is used to enforce the principal invariants
-/// that we want in the _normalized_ version of the GHAST.
+/// that we want in the *normalized* version of the GHAST.
 /// Mainly, the objective of this function is to:
 /// 1) Transform an `IfNode` with an empth `then` branch and non-empty `else`,
-///    to an equivalent `IfNode` with the condition _flipped_, and the `then`
+///    to an equivalent `IfNode` with the condition *flipped*, and the `then`
 ///    and `else` branches swapped.
 /// 2) Enforce that no `SequenceNode` has as a direct child, another
-///   `SequenceNode`. In this situation, we want to _copy_ all the children of
+///   `SequenceNode`. In this situation, we want to *copy* all the children of
 ///    the nested `SequenceNode`, in place of the node itself in the parent
 ///    `SequenceNode`.
 /// 3) Enforce that no `SequenceNode` with a single child are present. To do

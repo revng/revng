@@ -105,7 +105,7 @@ public:
   /// Print a `.csv` with the mapping between nodes and `llvm::Value`s
   ///
   /// The mapping is reconstructed on-the-fly, therefore is expensive. The
-  /// generated .csv uses _semicolons_ as separators.
+  /// generated .csv uses *semicolons* as separators.
   void debug_function dumpValuesMapping(const llvm::StringRef Name) const;
 
 public:
