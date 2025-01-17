@@ -71,8 +71,8 @@ inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
 /// \param Types The list of types to filter
 /// \return filtered list
 template<derived_from<model::TypeDefinition> DerivedType,
-         range_with_value_type<model::UpcastableTypeDefinition> OwningRange,
-         range_with_value_type<model::TypeDefinition *> ViewRange =
+         RangeOf<model::UpcastableTypeDefinition> OwningRange,
+         RangeOf<model::TypeDefinition *> ViewRange =
            std::vector<model::TypeDefinition *>>
 std::vector<DerivedType *>
 filterTypes(OwningRange &FilterFrom, const ViewRange &Ignored = {}) {

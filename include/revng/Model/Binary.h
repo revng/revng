@@ -211,7 +211,7 @@ public:
   ///
   /// \tparam Range constrained input range type.
   /// \param  NewTypes the input range.
-  template<range_with_value_type<UpcastablePointer<TypeDefinition>> Range>
+  template<RangeOf<UpcastablePointer<TypeDefinition>> Range>
   void recordNewTypeDefinitions(Range &&NewTypes) {
     auto Inserter = TypeDefinitions().batch_insert();
 

@@ -51,7 +51,7 @@ public:
     return *this;
   }
 
-  template<range_with_value_type<llvm::StringRef> T>
+  template<RangeOf<llvm::StringRef> T>
   Tag &addListAttribute(llvm::StringRef Name, const T &Values) {
     if (TheTag.empty())
       return *this;

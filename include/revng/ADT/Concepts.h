@@ -116,10 +116,10 @@ template<typename R, typename T>
 using ConstPtrIfConst = std::conditional_t<IsConstReference<R>, const T *, T *>;
 
 template<class R, typename ValueType>
-concept range_with_value_type = std::ranges::range<R>
-                                and std::is_convertible_v<
-                                  decltype(*std::declval<R>().begin()),
-                                  ValueType>;
+concept RangeOf = std::ranges::range<R>
+                  and std::is_convertible_v<
+                    decltype(*std::declval<R>().begin()),
+                    ValueType>;
 
 template<typename T, typename... Types>
   requires(sizeof...(Types) > 0)

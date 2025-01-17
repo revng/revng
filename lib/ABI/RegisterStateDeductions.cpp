@@ -72,7 +72,7 @@ private:
                                    ABI.VectorReturnValueRegisters());
   }
 
-  template<range_with_value_type<CRegister> Registers>
+  template<RangeOf<CRegister> Registers>
   bool ensureRegistersAreAllowed(Def::RegisterSet &UsedSet,
                                  Registers &&AllowedRegisters) const {
     if constexpr (EnforceABIConformance == true) {
@@ -188,7 +188,7 @@ private:
     return true;
   }
 
-  template<range_with_value_type<CRegister> Registers>
+  template<RangeOf<CRegister> Registers>
   void fillState(Def::RegisterSet &State, Registers RequiredRegisters) {
     for (model::Register::Values Register : RequiredRegisters)
       State.emplace(Register);
