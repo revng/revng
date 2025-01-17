@@ -31,6 +31,9 @@ inline bool hasSideEffects(const llvm::Instruction &I) {
 }
 
 inline bool mayReadMemory(const llvm::Instruction &I) {
+  if (llvm::isa<llvm::LoadInst>(I))
+    return true;
+
   auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
   if (not Call)
     return false;
