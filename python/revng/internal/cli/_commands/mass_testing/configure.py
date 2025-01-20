@@ -42,7 +42,17 @@ class MassTestingConfigureCommand(Command):
         seed: str | int | None = os.environ.get("MASS_TESTING_CONFIGURE_SEED")
         if seed is None:
             seed = getrandbits(32)
-        Random(seed).shuffle(file_list)
+        random = Random(seed)
+
+        sample_raw = os.environ.get("MASS_TESTING_CONFIGURE_SAMPLE")
+        if sample_raw is not None:
+            sample = int(sample_raw)
+            file_list = random.sample(file_list, sample)
+        else:
+            sample = None
+            # Shuffle the input files, this avoids having a limited variety of
+            # test runs for a partial run
+            random.shuffle(file_list)
 
         with open(args.config_file) as f:
             config = yaml.safe_load(f)
@@ -73,6 +83,8 @@ class MassTestingConfigureCommand(Command):
             with open(args.meta) as f:
                 data = yaml.safe_load(f)
         data["seed"] = seed
+        if sample is not None:
+            data["sample"] = sample
         data["configurations"] = config
         with open(Path(args.output) / "meta.yml", "w") as f:
             yaml.safe_dump(data, f)
