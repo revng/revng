@@ -23,7 +23,6 @@ class MassTestingConfigureCommand(Command):
     def register_arguments(self, parser: argparse.ArgumentParser):
         parser.description = "Collect binary files and run test-configure"
         parser.add_argument("--meta", help="Metadata definition")
-        parser.add_argument("--seed", help="Seed to use in the RNG for shuffling")
         parser.add_argument("input", help="Input directory")
         parser.add_argument("output", help="Output directory")
         parser.add_argument("config_file", help="Config file to be read by configure")
@@ -40,9 +39,8 @@ class MassTestingConfigureCommand(Command):
 
         # Shuffle the input files, this avoids having a limited variety of
         # test runs for a partial run
-        if args.seed is not None:
-            seed = args.seed
-        else:
+        seed: str | int | None = os.environ.get("MASS_TESTING_CONFIGURE_SEED")
+        if seed is None:
             seed = getrandbits(32)
         Random(seed).shuffle(file_list)
 
