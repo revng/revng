@@ -299,7 +299,6 @@ private:
   llvm::Type *PtrSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
   OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
-  OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
   LocalVariableBuilder<LegacyLocalVariables> VariableBuilder;
 
 public:
@@ -321,7 +320,6 @@ public:
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    LocalVarPool(FunctionTags::LocalVariable.getPool(M)),
     VariableBuilder(LVB</* IsLegacy */ false>::make(Binary, M)) {
 
     revng_assert(SSACS != nullptr);
@@ -349,7 +347,6 @@ public:
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    LocalVarPool(FunctionTags::LocalVariable.getPool(M)),
     VariableBuilder(LVB<true>::makeLegacyStackBuilder(Binary,
                                                       M,
                                                       StackPointerType,
