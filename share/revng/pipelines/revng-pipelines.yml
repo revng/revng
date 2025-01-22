@@ -627,7 +627,7 @@ Branches:
             This artifact contains one LLVM function for each function defined
             in this binary.
 
-            The output similar to the output of `make-segment-ref` but it's
+            The output is similar to the output of `make-segment-ref` but it's
             cleaned up from rev.ng-specific artifacts in order to be more easily
             consumed as standard LLVM IR.
 
