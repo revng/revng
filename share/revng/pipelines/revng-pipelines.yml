@@ -622,7 +622,7 @@ Branches:
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: legacy_stack_access_segregate.ll
+          SingleTargetFilename: cleanup-ir.ll
           Docs: |-
             This artifact contains one LLVM function for each function defined
             in this binary.
