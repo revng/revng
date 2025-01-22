@@ -633,23 +633,6 @@ Branches:
 
             This is an appropriate artifact on top of which write analyses, such
             as a taint analysis.
-  - From: make-segment-ref
-    Steps:
-      - Name: convert-to-mlir
-        Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
-            Passes:
-              - prepare-llvmir-for-mlir
-          - Type: import-llvm-to-mlir
-            UsedContainers: [module.bc.zstd, module.mlir]
-        Artifacts:
-          Container: module.mlir
-          Kind: mlir-module
-          SingleTargetFilename: mlir-llvm-dialect.mlir
-          Docs: |-
-            This artifact is an MLIR module with one function for each function
-            defined in the binary.
     # Clift-based decompilation pipeline
     # TODO: this is still under construction and can't generate C code yet
   - From: detect-stack-size

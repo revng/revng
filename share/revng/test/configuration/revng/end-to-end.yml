@@ -131,15 +131,3 @@ commands:
     suffix: /
     command: |-
       revng artifact --model "$INPUT2" --resume "$OUTPUT" prepare-for-clift "$INPUT1" -o /dev/null
-
-  #
-  # Produce convert-to-mlir from revng.analyzed-model
-  #
-  - type: revng.convert-to-mlir
-    from:
-      - type: revng-qa.compiled
-        filter: one-per-architecture
-      - type: revng.analyzed-model
-    suffix: .mlir
-    command: |-
-      revng artifact --model "$INPUT2" convert-to-mlir "$INPUT1" -o "$OUTPUT";

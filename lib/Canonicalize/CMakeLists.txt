@@ -14,7 +14,6 @@ revng_add_analyses_library_internal(
   MakeModelGEPPass.cpp
   OperatorPrecedenceResolutionPass.cpp
   PeepholeOptimizationPass.cpp
-  PrepareLLVMIRForMLIR.cpp
   PrettyIntFormattingPass.cpp
   RemoveBrokenDebugInformation.cpp
   RemoveLLVMAssumeCallsPass.cpp
