@@ -423,11 +423,6 @@ Branches:
             Passes:
               - hoist-struct-phis
               - legacy-segregate-stack-accesses
-      - Name: legacy-late-optimize
-        Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
-            Passes:
               - cleanup-stack-size-markers
               - dce
               - sroa
@@ -644,11 +639,6 @@ Branches:
             Passes:
               - hoist-struct-phis
               - segregate-stack-accesses
-      - Name: late-optimize
-        Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
-            Passes:
               - cleanup-stack-size-markers
               - dce
               - sroa
