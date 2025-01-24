@@ -62,7 +62,9 @@ enum Values : uint16_t {
   Code_aarch64,
 
   /// The address of a z/Architecture (s390x) basic block
-  Code_systemz
+  Code_systemz,
+
+  Count
 };
 
 inline constexpr bool isValid(Values V) {
@@ -79,6 +81,7 @@ inline constexpr bool isValid(Values V) {
   case Code_aarch64:
   case Code_systemz:
     return true;
+  case Count:
   default:
     return false;
   }
@@ -108,9 +111,10 @@ inline constexpr const char *toString(Values V) {
     return "Code_aarch64";
   case Code_systemz:
     return "Code_systemz";
+  case Count:
+  default:
+    revng_abort();
   }
-
-  revng_abort();
 }
 
 inline constexpr Values fromString(llvm::StringRef String) {
@@ -137,8 +141,6 @@ inline constexpr Values fromString(llvm::StringRef String) {
   } else {
     return Invalid;
   }
-
-  revng_abort();
 }
 
 inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
@@ -162,6 +164,7 @@ inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
   case Generic32:
   case Generic64:
     return {};
+  case Count:
   default:
     revng_abort();
   }
@@ -205,9 +208,11 @@ inline constexpr Values toGeneric(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return Generic64;
-  }
 
-  revng_abort("Unsupported architecture");
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Get the default type for code of the given architecture
@@ -252,9 +257,11 @@ inline constexpr unsigned alignment(Values Type) {
   case Code_arm:
   case Code_aarch64:
     return 4;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Get the size in bit of an address of the given type
@@ -274,9 +281,11 @@ inline constexpr unsigned bitSize(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return 64;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Get a 64-bits mask representing the relevant bits for the given type
@@ -304,9 +313,11 @@ inline constexpr bool isCode(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return true;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Does \p Type represent an address pointing to \p Arch code?
@@ -348,9 +359,11 @@ inline constexpr bool isGeneric(Values Type) {
   case Generic32:
   case Generic64:
     return true;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 inline constexpr bool isDefaultCode(Values Type) {
@@ -369,9 +382,11 @@ inline constexpr bool isDefaultCode(Values Type) {
   case Generic64:
   case Code_arm_thumb:
     return false;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
@@ -389,9 +404,11 @@ inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return "";
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 } // namespace MetaAddressType
@@ -782,9 +799,11 @@ public:
     case MetaAddressType::Generic32:
     case MetaAddressType::Generic64:
       revng_abort();
-    }
 
-    revng_abort();
+    case MetaAddressType::Count:
+    default:
+      revng_abort("Unknown MetaAddressType value");
+    }
   }
 
   constexpr uint16_t addressSpace() const {
