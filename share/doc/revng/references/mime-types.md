@@ -27,7 +27,6 @@ USAGE: revng-artifact [options] <artifact> <binary>
   emit-type-definitions       - text/x.c+tar+gz
   cleanup-ir                  - application/x.llvm.bc+zstd
   prepare-for-clift           - application/x.llvm.bc+zstd
-  import-clift-types          - application/x.mlir.bc
 ```
 
 ## MIME types

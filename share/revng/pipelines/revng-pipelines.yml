@@ -693,16 +693,6 @@ Branches:
             contains explicit Alloca/Load/Store instructions.
             These are injected as a preliminary step for moving away from LLVM
             towards a higher-level representation that can be emitted in C.
-      - Name: import-clift-types
-        Pipes:
-          - Type: import-clift-types
-            UsedContainers: [cfg.yml.tar.gz, module.mlir]
-        Artifacts:
-          Container: module.mlir
-          Kind: mlir-module
-          SingleTargetFilename: mlir-llvm-dialect-with-clift-types.mlir
-          Docs: |-
-            A test artifact to import types into a Clift module.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:

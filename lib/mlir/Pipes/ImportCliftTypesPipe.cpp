@@ -133,6 +133,17 @@ static void importReachableModelTypes(const model::Binary &Model,
   }
 }
 
+// TODO: this pipe should be extended and turned into a pipe that generates
+// the whole Clift module from LLVM IR, and not just types.
+//
+// At the moment this pipe is broken, because it claims to be producing
+// artifacts with function rank, while it only produces types.
+//
+// We should add an input LLVMContainer, and the run() method should first
+// import types, and then create the functions and their bodies.
+// It's very important for invalidation that the run() method keeps using
+// importReachableModelTypes only on the functions that are available in the
+// container.
 class ImportCliftTypesPipe {
 public:
   static constexpr auto Name = "import-clift-types";
