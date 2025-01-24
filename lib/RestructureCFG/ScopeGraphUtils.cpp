@@ -36,7 +36,10 @@ static Function *getOrCreateScopeCloserFunction(Module *M) {
 
   // Create the `ScopeCloserMarker` function if it doesn't exists
   if (not Result) {
-    auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)), {}, false);
+    PointerType *BlockAddressTy = Type::getInt8PtrTy(getContext(M));
+    auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)),
+                                 { BlockAddressTy },
+                                 false);
     Result = cast<Function>(M->getOrInsertFunction(Tag.name(), FT).getCallee());
     setFunctionAttributes(Result, Tag);
   }
@@ -50,10 +53,7 @@ static Function *getOrCreateGotoBlockFunction(Module *M) {
 
   // Create the `ScopeCloserMarker` function if it doesn't exists
   if (not Result) {
-    PointerType *BlockAddressTy = Type::getInt8PtrTy(getContext(M));
-    auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)),
-                                 { BlockAddressTy },
-                                 false);
+    auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)), {}, false);
     Result = cast<Function>(M->getOrInsertFunction(Tag.name(), FT).getCallee());
     setFunctionAttributes(Result, Tag);
   }
@@ -78,10 +78,7 @@ void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) {
   // We always insert the marker as the penultimate instruction in a
   // `BasicBlock`
   IRBuilder<> Builder(Terminator);
-  LLVMContext &C = getContext(GotoBlock);
-  PointerType *BlockAddressTy = Type::getInt8PtrTy(C);
-  auto *NullBasicBlockAddress = ConstantPointerNull::get(BlockAddressTy);
-  Builder.CreateCall(GotoBlockFunction, NullBasicBlockAddress);
+  Builder.CreateCall(GotoBlockFunction, {});
 }
 
 void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source, BasicBlock *Target) {
