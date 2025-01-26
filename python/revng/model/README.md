@@ -12,11 +12,4 @@ with open("/path/to/model.yaml") as f:
     model = yaml.load(f, Loader=m.YamlLoader)
 ```
 
-If you need to access a specific version of the model you can import it like so:
-
-```python
-import yaml
-from revng.model import v1
-
-yaml.load(..., Loader=v1.YamlLoader)
-```
+It is not possible to import a model with a schema version other than the latest.
