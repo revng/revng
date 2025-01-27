@@ -12,7 +12,6 @@ export const yamlParseOptions = {
 
 export const yamlOutParseOptions = {
     keepUndefined: false,
-    sortMapEntries: true,
 } as const;
 
 export const yamlToStringOptions = {
