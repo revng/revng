@@ -350,7 +350,7 @@ public:
 
 public:
   template<model::EntityWithComment Type>
-  std::string getModelComment(Type T) const {
+  std::string getModelComment(const Type &T) const {
     return ptml::comment(*this, T, "///", 0, 80);
   }
 
