@@ -528,20 +528,20 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       rc_return IRArithmetic::constant(ConstantValue);
     }
 
-    auto *AddrArithmeticInst = dyn_cast<Instruction>(AddressArith);
-    auto *ConstExprAddrArith = dyn_cast<ConstantExpr>(AddressArith);
-    if (ConstExprAddrArith)
-      AddrArithmeticInst = ConstExprAddrArith->getAsInstruction();
+    unsigned int Opcode = 0;
+    auto *AddrArithmeticUser = dyn_cast<User>(AddressArith);
+    if (auto *I = dyn_cast<Instruction>(AddressArith))
+      Opcode = I->getOpcode();
+    else if (auto *CE = dyn_cast<ConstantExpr>(AddressArith))
+      Opcode = CE->getOpcode();
 
-    switch (AddrArithmeticInst->getOpcode()) {
+    switch (Opcode) {
 
     case Instruction::Add: {
-      auto *Add = cast<llvm::BinaryOperator>(AddrArithmeticInst);
-
-      Use &LHSUse = Add->getOperandUse(0);
+      Use &LHSUse = AddrArithmeticUser->getOperandUse(0);
       auto LHSOrNone = rc_recur getIRArithmetic(LHSUse, PointerTypes);
 
-      Use &RHSUse = Add->getOperandUse(1);
+      Use &RHSUse = AddrArithmeticUser->getOperandUse(1);
       auto RHSOrNone = rc_recur getIRArithmetic(RHSUse, PointerTypes);
 
       if (not RHSOrNone.has_value() or not LHSOrNone.has_value())
@@ -576,9 +576,9 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       // shrink if we go backwards. We have to detect this case, because if
       // something is the result of zero extension of boolean value it cannot be
       // an address for sure.
-      auto *Operand = AddrArithmeticInst->getOperand(0);
+      auto *Operand = AddrArithmeticUser->getOperand(0);
       if (Operand->getType()->getIntegerBitWidth() == 1)
-        rc_return IRArithmetic::unknown(AddrArithmeticInst);
+        rc_return IRArithmetic::unknown(AddrArithmeticUser);
     } break;
 
     case Instruction::IntToPtr:
@@ -587,15 +587,15 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
     case Instruction::Freeze: {
       // casts are traversed
       revng_log(ModelGEPLog, "Traverse cast!");
-      rc_return rc_recur getIRArithmetic(AddrArithmeticInst->getOperandUse(0),
+      rc_return rc_recur getIRArithmetic(AddrArithmeticUser->getOperandUse(0),
                                          PointerTypes);
     }
 
     case Instruction::Mul: {
 
-      auto *Op0 = AddrArithmeticInst->getOperand(0);
+      auto *Op0 = AddrArithmeticUser->getOperand(0);
       auto *Op0Const = dyn_cast<ConstantInt>(Op0);
-      auto *Op1 = AddrArithmeticInst->getOperand(1);
+      auto *Op1 = AddrArithmeticUser->getOperand(1);
       auto *Op1Const = dyn_cast<ConstantInt>(Op1);
       auto *ConstOp = Op1Const ? Op1Const : Op0Const;
       auto *OtherOp = Op1Const ? Op0 : Op1;
@@ -609,24 +609,24 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       } else {
         // In all the other cases, fall back to treating this as a
         // non-address and non-strided instruction, just like e.g. division.
-        rc_return IRArithmetic::unknown(AddrArithmeticInst);
+        rc_return IRArithmetic::unknown(AddrArithmeticUser);
       }
     }
 
     case Instruction::Shl: {
 
-      auto *ShiftedBits = AddrArithmeticInst->getOperand(1);
+      auto *ShiftedBits = AddrArithmeticUser->getOperand(1);
       if (auto *ConstShift = dyn_cast<ConstantInt>(ShiftedBits)) {
 
         if (ConstShift->getValue().isNonNegative()) {
           // Build the stride
-          auto *AddrType = AddrArithmeticInst->getType();
+          auto *AddrType = AddrArithmeticUser->getType();
           auto *ArithTy = cast<llvm::IntegerType>(AddrType);
           auto *Stride = ConstantInt::get(ArithTy,
                                           1ULL << ConstShift->getZExtValue());
           if (not Stride->isNegative()) {
             // The first operand of the shift is the index
-            auto *IndexForStridedAccess = AddrArithmeticInst->getOperand(0);
+            auto *IndexForStridedAccess = AddrArithmeticUser->getOperand(0);
 
             rc_return IRArithmetic::index(Stride, IndexForStridedAccess);
           }
@@ -636,7 +636,7 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       // In all the other cases, fall back to treating this as a non-address
       // and non-strided instruction, just like e.g. division.
 
-      rc_return IRArithmetic::unknown(AddrArithmeticInst);
+      rc_return IRArithmetic::unknown(AddrArithmeticUser);
     }
 
     case Instruction::Alloca: {
@@ -667,16 +667,13 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       // If we reach one of these instructions, it definitely cannot be an
       // address, but it's just considered as regular offset arithmetic of
       // an unknown offset.
-      rc_return IRArithmetic::unknown(AddrArithmeticInst);
+      rc_return IRArithmetic::unknown(AddrArithmeticUser);
     }
 
     default: {
       revng_abort("Unexpected instruction for address arithmetic");
     } break;
     }
-
-    if (ConstExprAddrArith)
-      AddrArithmeticInst->deleteValue();
 
   } else if (auto *Const = dyn_cast<ConstantInt>(AddressArith)) {
 
@@ -693,7 +690,8 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
 
   } else if (isa<llvm::GlobalVariable>(AddressArith)
              or isa<llvm::UndefValue>(AddressArith)
-             or isa<llvm::PoisonValue>(AddressArith)) {
+             or isa<llvm::PoisonValue>(AddressArith)
+             or isa<llvm::Function>(AddressArith)) {
 
     rc_return std::nullopt;
 

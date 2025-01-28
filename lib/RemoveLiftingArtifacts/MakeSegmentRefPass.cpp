@@ -127,7 +127,12 @@ getStringLiteral(RawBinaryView &BinaryView,
 
 bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
                                            llvm::Function &F) {
+  model::NameBuilder NameBuilder(Binary);
   RawBinaryView &BinaryView = getAnalysis<LoadBinaryWrapperPass>().get();
+
+  std::map<MetaAddress, MetaAddress> FunctionEntries;
+  for (const model::Function &Function : Binary.Functions())
+    FunctionEntries[Function.Entry().toGeneric()] = Function.Entry();
 
   bool Changed = false;
   IRBuilder<> IRB(Context);
@@ -162,8 +167,10 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
 
         if (auto Segment = findLiteralInSegments(Binary, ConstantAddress);
             Segment) {
+
           const auto &[StartAddress, VirtualSize] = *Segment;
           auto OffsetInSegment = ConstantAddress - StartAddress.address();
+          MetaAddress Address = StartAddress + OffsetInSegment;
 
           if (isa<PHINode>(&I)) {
             auto *BB = cast<PHINode>(&I)->getIncomingBlock(Op);
@@ -172,12 +179,25 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
             IRB.SetInsertPoint(&I);
           }
 
+          auto It = FunctionEntries.find(Address);
+          if (It != FunctionEntries.end()) {
+            auto Name = NameBuilder.llvmName(Binary.Functions().at(It->second));
+
+            auto *ReferencedFunction = M.getFunction(Name);
+            revng_assert(ReferencedFunction != nullptr);
+            I.setOperand(Op.getOperandNo(),
+                         IRB.CreatePtrToInt(ReferencedFunction, Op->getType()));
+            Changed = true;
+            continue;
+          }
+
           IntegerType *OperandType = ConstOp->getType();
 
           // Check if the use of this constant is a icmp. If it is we cannot
           // replace it with a string literal, because comparisons between
           // string literals are undefined behavior in C.
           bool UseIsComparison = llvm::isa<llvm::CmpInst>(Op.getUser());
+
           // Check if the Op is large as a pointer. If it isn't it can't be a
           // string literal.
           // See if we can find a string literal there.

@@ -373,6 +373,8 @@ private:
 
   RecursiveCoroutine<std::string> getModelGEPToken(const llvm::CallInst *C);
 
+  std::string getIsolatedFunctionToken(const llvm::Function *F);
+
   RecursiveCoroutine<std::string> getIsolatedCallToken(const llvm::CallInst *C);
 
   RecursiveCoroutine<std::string>
@@ -507,6 +509,10 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) {
       rc_return get128BitIntegerHexConstant(Value, B, Model);
   }
 
+  if (auto *Function = dyn_cast<llvm::Function>(C)) {
+    rc_return getIsolatedFunctionToken(Function);
+  }
+
   if (auto *Global = dyn_cast<llvm::GlobalVariable>(C)) {
     using namespace llvm;
     // Check if initializer is a CString
@@ -556,6 +562,15 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) {
                                 DstType);
     }
 
+    case Instruction::PtrToInt: {
+      const auto *Operand = cast<llvm::Constant>(ConstExpr->getOperand(0));
+      const model::Type &SrcType = *TypeMap.at(Operand);
+      const model::Type &DstType = *TypeMap.at(ConstExpr);
+      rc_return buildCastExpr(rc_recur getConstantToken(Operand),
+                              SrcType,
+                              DstType);
+    }
+
     default:
       revng_abort(dumpToString(ConstExpr).c_str());
     }
@@ -594,9 +609,13 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) {
   if (IsRef) {
     // In ModelGEPRefs, the base value is a reference, and the base type is
     // its type
-    revng_assert(*TypeMap.at(BaseValue) == *CurType,
-                 "The ModelGEP base type is not coherent with the "
-                 "propagated type.");
+    if (*TypeMap.at(BaseValue) != *CurType) {
+      BaseValue->dump();
+      TypeMap.at(BaseValue)->dump();
+      CurType->dump();
+      revng_abort("The ModelGEP base type is not coherent with the "
+                  "propagated type.");
+    }
     // If there are no further arguments we're just dereferencing the base value
     if (std::next(CurArg) == Call->arg_end()) {
       // But dereferencing a reference does not produce any code so we're done
@@ -886,6 +905,19 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) {
   rc_return "";
 }
 
+std::string
+CCodeGenerator::getIsolatedFunctionToken(const llvm::Function *CalledFunc) {
+  revng_assert(CalledFunc);
+  const model::Function *ModelFunc = llvmToModelFunction(Model, *CalledFunc);
+  revng_assert(ModelFunc);
+  std::string Location = locationString(ranks::Function, ModelFunc->key());
+  return B.getTag(ptml::tags::Span, B.NameBuilder.name(*ModelFunc).str())
+    .addAttribute(attributes::Token, tokens::Function)
+    .addAttribute(attributes::ActionContextLocation, Location)
+    .addAttribute(attributes::LocationReferences, Location)
+    .toString();
+}
+
 RecursiveCoroutine<std::string>
 CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) {
 
@@ -916,16 +948,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) {
       // Isolated function
       llvm::Function *CalledFunc = getCalledFunction(Call);
       revng_assert(CalledFunc);
-      const model::Function *ModelFunc = llvmToModelFunction(Model,
-                                                             *CalledFunc);
-      revng_assert(ModelFunc);
-      std::string Location = locationString(ranks::Function, ModelFunc->key());
-      CalleeToken = B.getTag(ptml::tags::Span,
-                             B.NameBuilder.name(*ModelFunc).str())
-                      .addAttribute(attributes::Token, tokens::Function)
-                      .addAttribute(attributes::ActionContextLocation, Location)
-                      .addAttribute(attributes::LocationReferences, Location)
-                      .toString();
+      CalleeToken = getIsolatedFunctionToken(CalledFunc);
     }
   }
 
