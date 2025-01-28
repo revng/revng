@@ -86,16 +86,9 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
       continue;
 
     Other->clearMetadata();
-    llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> MDs;
-    Function.getAllMetadata(MDs);
-    for (auto &MD : MDs) {
-      // The !dbg attachment from the function definition cannot be attached to
-      // its declaration.
-      if (Other->isDeclaration() && isa<llvm::DISubprogram>(MD.second))
-        continue;
 
-      Other->addMetadata(MD.first, *llvm::MapMetadata(MD.second, Map));
-    }
+    MetadataBackup SavedMetadata(&Function);
+    SavedMetadata.restoreIn(Other);
   }
 
   return std::make_unique<ThisType>(this->name(),

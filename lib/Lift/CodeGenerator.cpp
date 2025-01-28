@@ -242,16 +242,12 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
 }
 
 static BasicBlock *replaceFunction(Function *ToReplace) {
-  // Save metadata
-  SmallVector<std::pair<unsigned, MDNode *>, 4> SavedMetadata;
-  ToReplace->getAllMetadata(SavedMetadata);
+  MetadataBackup SavedMetadata(ToReplace);
 
   ToReplace->setLinkage(GlobalValue::InternalLinkage);
   ToReplace->dropAllReferences();
 
-  // Restore metadata
-  for (auto [Kind, MD] : SavedMetadata)
-    ToReplace->setMetadata(Kind, MD);
+  SavedMetadata.restoreIn(ToReplace);
 
   return BasicBlock::Create(ToReplace->getParent()->getContext(),
                             "",
