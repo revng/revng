@@ -12,6 +12,7 @@
 
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
+#include "revng/Lift/Lift.h"
 
 using namespace llvm;
 
@@ -70,6 +71,7 @@ private:
         continue;
 
       uint32_t Reasons = GCBI.getJTReasons(&BB);
+      bool IsSimpleLiteral = hasReason(Reasons, JTReason::SimpleLiteral);
       bool IsUnusedGlobalData = hasReason(Reasons, JTReason::UnusedGlobalData);
       bool IsDirectJump = hasReason(Reasons, JTReason::DirectJump);
       bool IsMemoryStore = hasReason(Reasons, JTReason::MemoryStore);
@@ -81,6 +83,7 @@ private:
       revng_log(Log,
                 Entry.toString()
                   << "\n"
+                  << "  IsSimpleLiteral: " << IsSimpleLiteral << "\n"
                   << "  IsUnusedGlobalData: " << IsUnusedGlobalData << "\n"
                   << "  IsDirectJump: " << IsDirectJump << "\n"
                   << "  IsMemoryStore: " << IsMemoryStore << "\n"
@@ -89,13 +92,14 @@ private:
                   << "  IsLoadAddress: " << IsLoadAddress << "\n"
                   << "  IsPartOfOtherCFG: " << IsPartOfOtherCFG << "\n");
 
-      // Look for unused global data or address stored in memory that are never
-      // written directly to the PC. Also, ignore code for which we already have
-      // a direct jump or is part of the CFG of another function. Also, ignore
-      // addresses that are return addresses.
-      if ((IsUnusedGlobalData or (IsMemoryStore and not IsPCStore))
-          and not IsPartOfOtherCFG and not IsDirectJump
-          and not IsReturnAddress) {
+      // Look for simple literals, unused global data or address stored in
+      // memory that are never written directly to the PC. Also, ignore code for
+      // which we already have a direct jump or is part of the CFG of another
+      // function. Also, ignore addresses that are return addresses.
+      bool Interesting = (IsSimpleLiteral or IsUnusedGlobalData
+                          or (IsMemoryStore and not IsPCStore));
+      bool Ignore = IsPartOfOtherCFG or IsDirectJump or IsReturnAddress;
+      if (Interesting and not Ignore) {
 
         if (IsLoadAddress) {
           revng_log(Log,
