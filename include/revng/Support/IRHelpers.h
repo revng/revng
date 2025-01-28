@@ -17,6 +17,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -1478,3 +1479,26 @@ inline std::optional<int64_t> getSignedConstantArg(llvm::CallInst *Call,
 bool deleteOnlyBody(llvm::Function &F);
 
 unsigned getMemoryAccessSize(llvm::Instruction *I);
+
+class MetadataBackup {
+private:
+  llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> SavedMetadata;
+
+public:
+  MetadataBackup(llvm::Function *Source) {
+    Source->getAllMetadata(SavedMetadata);
+  }
+
+public:
+  void restoreIn(llvm::Function *Destination) const {
+    // Restore metadata
+    for (auto &MD : SavedMetadata) {
+      // The !dbg attachment from the function definition cannot be attached
+      // to its declaration.
+      if (isa<llvm::DISubprogram>(MD.second))
+        continue;
+
+      Destination->addMetadata(MD.first, *MD.second);
+    }
+  }
+};

@@ -9,6 +9,7 @@
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/LLVMContainer.h"
+#include "revng/Support/IRHelpers.h"
 
 namespace pipeline {
 
@@ -106,8 +107,16 @@ public:
 
     const bool AllContained = enumerate(Container).contains(Targets);
 
-    for (auto &GL : targetsIntersection(Targets, Container))
-      GL->deleteBody();
+    for (auto *Function : targetsIntersection(Targets, Container)) {
+      // Save metadata
+      MetadataBackup Backup(Function);
+
+      // Delete function body
+      Function->deleteBody();
+
+      // Restore metadata
+      Backup.restoreIn(Function);
+    }
 
     return AllContained;
   }

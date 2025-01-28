@@ -133,7 +133,8 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
     using namespace llvm;
     revng_assert(isa<UndefValue>(UVal) or isa<Argument>(UVal)
                  or isa<Instruction>(UVal) or isa<GlobalVariable>(UVal)
-                 or isa<ConstantExpr>(UVal) or isa<ConstantPointerNull>(UVal));
+                 or isa<ConstantExpr>(UVal) or isa<ConstantPointerNull>(UVal)
+                 or isa<Function>(UVal));
   } break;
 
   case llvm::scZeroExtend: {

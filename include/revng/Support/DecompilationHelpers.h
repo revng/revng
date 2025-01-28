@@ -55,7 +55,7 @@ inline bool areMemOpCompatible(const model::Type &ModelType,
                                const model::Binary &Model) {
 
   // loads/stores from/to void pointers are not allowed
-  if (ModelType.isVoidPrimitive())
+  if (ModelType.isVoidPrimitive() or ModelType.isPrototype())
     return false;
 
   // We don't load or store entire structs in a single mem operation

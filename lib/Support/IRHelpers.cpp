@@ -586,9 +586,7 @@ bool deleteOnlyBody(llvm::Function &F) {
     auto Attributes = F.getAttributes();
     auto FTags = FunctionTags::TagsSet::from(&F);
 
-    llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>> AllMetadata;
-    if (F.hasMetadata())
-      F.getAllMetadata(AllMetadata);
+    MetadataBackup SavedMetadata(&F);
 
     // Kill the body.
     F.deleteBody();
@@ -598,14 +596,8 @@ bool deleteOnlyBody(llvm::Function &F) {
     F.setAttributes(Attributes);
 
     F.clearMetadata();
-    for (const auto &[KindID, MetaData] : AllMetadata) {
-      // Debug metadata is not stripped away by deleteBody() nor by
-      // clearMetadata(), but it is wrong to set it twice (the Module would not
-      // verify anymore). Hence set the metadata only if its not a debug
-      // metadata.
-      if (not F.hasMetadata(KindID) and KindID != llvm::LLVMContext::MD_dbg)
-        F.setMetadata(KindID, MetaData);
-    }
+
+    SavedMetadata.restoreIn(&F);
 
     Result = true;
   }

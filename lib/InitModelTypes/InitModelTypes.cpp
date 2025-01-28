@@ -22,8 +22,11 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/Model/Architecture.h"
+#include "revng/Model/ArrayType.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionDefinition.h"
+#include "revng/Model/CommonTypeMethods.h"
+#include "revng/Model/DefinedType.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypedefDefinition.h"
@@ -80,14 +83,14 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
                                                const model::Binary &Model,
                                                ModelTypesMap &TypeMap,
                                                bool PointersOnly) {
-
   // For ConstExprs, check their OpCode
   if (auto *Expr = dyn_cast<llvm::ConstantExpr>(Operand)) {
     // A constant expression might have its own uninitialized constant operands
     for (const llvm::Value *Op : Expr->operand_values())
       rc_recur addOperandType(Op, Model, TypeMap, PointersOnly);
 
-    if (Expr->getOpcode() == Instruction::IntToPtr) {
+    unsigned Opcode = Expr->getOpcode();
+    if (Opcode == Instruction::IntToPtr or Opcode == Instruction::PtrToInt) {
       auto It = TypeMap.find(Expr->getOperand(0));
       if (It != TypeMap.end()) {
         const model::UpcastableType &OperandType = It->second;
@@ -95,7 +98,6 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
         if (OperandType->isPointer()) {
           // If the operand is already a pointer, just forward it
           TypeMap.insert({ Operand, OperandType.copy() });
-
         } else if (not PointersOnly) {
           auto PS = model::Architecture::getPointerSize(Model.Architecture());
           TypeMap.insert({ Operand, model::PrimitiveType::makeGeneric(PS) });
@@ -140,6 +142,23 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
     auto PtrSize = model::Architecture::getPointerSize(Model.Architecture());
     TypeMap.insert({ Operand, model::PrimitiveType::makeGeneric(PtrSize) });
     rc_return true;
+  } else if (auto *ReferencedFunction = dyn_cast<llvm::Function>(Operand)) {
+    if (FunctionTags::Isolated.isTagOf(ReferencedFunction)) {
+      // Given a function, obtain a function pointer
+      // TODO: introduce helpers, this is terrible
+      using namespace model;
+      auto EntryAddress = getMetaAddressOfIsolatedFunction(*ReferencedFunction);
+      const model::Function &Function = Model.Functions().at(EntryAddress);
+      const auto &Prototype = Model.prototypeOrDefault(Function.prototype());
+      const auto &Key = Prototype->getPrototype()->key();
+      auto PrototypeReference = Model.getDefinitionReference(Key);
+      auto PrototypeType = DefinedType::make(PrototypeReference);
+      auto PointerSize = Architecture::getPointerSize(Model.Architecture());
+      auto Pointer = PointerType::make(std::move(PrototypeType), PointerSize);
+      TypeMap.insert({ Operand, Pointer });
+
+      rc_return true;
+    }
   }
 
   rc_return false;

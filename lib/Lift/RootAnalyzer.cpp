@@ -44,6 +44,7 @@ RunningStatistics StoredInMemoryStatistics("stored-in-memory");
 RunningStatistics LoadAddressStatistics("load-address");
 
 Logger<> NewEdgesLog("new-edges");
+static Logger<> Log("root-analyzer");
 
 // NOTE: Setting this to 1 gives us performance improvement. We have tested and
 // realized that there is an impact on performance if setting it to 2.
@@ -653,6 +654,9 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
   // Iterate over all the ValueMaterializer markers
   Function *ValueMaterializerMarker = AR.aviMarker();
   for (CallBase *Call : callers(ValueMaterializerMarker)) {
+    revng_log(Log, "collectMaterializedValues on " << getName(Call));
+    LoggerIndent<> Indent(Log);
+
     // Get the ID from the marker, and then the original instruction and marker
     // type
     Value *LastArgument = Call->getArgOperand(Call->arg_size() - 1);
@@ -660,6 +664,8 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
     auto TV = AR.rootInstructionById(ValueMaterializerID);
     auto TIT = TV.Type;
     Instruction *I = TV.I;
+
+    revng_log(Log, TrackedInstructionType::getName(TIT));
 
     // Did ValueMaterializer produce any info?
     auto *T = dyn_cast_or_null<MDTuple>(Call->getMetadata("revng.avi"));
@@ -702,15 +708,27 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
       }
     }
 
+    if (Log.isEnabled()) {
+      Log << "Targets:\n";
+      for (const MetaAddress &Target : Targets)
+        Log << "  " << Target << "\n";
+      Log << DoLog;
+    }
+
     // Proceed only if all the results are valid
-    if (not AllValid)
+    if (not AllValid) {
+      revng_log(Log, "Not all targets are valid, ignoring.");
       continue;
+    }
 
     // If it's supposed to be a PC, all of them have to be a PC
     bool ShouldBePC = (TIT == TrackedInstructionType::WrittenInPC
                        or TIT == TrackedInstructionType::StoredInMemory);
-    if (ShouldBePC and not AllPCs)
+    if (ShouldBePC and not AllPCs) {
+      revng_log(Log,
+                "All targets were expected to point to code, but some don't.");
       continue;
+    }
 
     // Register the resulting addresses
     unsigned RegisteredAddresses = 0;

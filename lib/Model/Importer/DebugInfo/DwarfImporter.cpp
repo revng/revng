@@ -17,6 +17,7 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Progress.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -1055,6 +1056,10 @@ static std::optional<std::string>
 findDebugInfoFileByName(StringRef FileName,
                         StringRef DebugFileName,
                         llvm::object::ObjectFile *ELF) {
+  revng_log(DILogger,
+            "Looking for \"" << DebugFileName << "\" for " << FileName << "\"");
+  LoggerIndent<> Indent(DILogger);
+
   // Let's find it in canonical places, where debug info was fetched.
   //  1) Look for a .gnu_debuglink/.gnu_debugaltlink/.debug_sup section.
   //  The .debug file should be in canonical places.
@@ -1154,6 +1159,11 @@ findDebugInfoFileByName(StringRef FileName,
 }
 
 void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
+  revng_log(DILogger,
+            "Importing DWARF information for "
+              << llvm::sys::path::filename(FileName));
+  LoggerIndent<> Indent(DILogger);
+
   Task T(3,
          "Importing DWARF information for "
            + llvm::sys::path::filename(FileName));
@@ -1223,11 +1233,14 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
       // There are no .debug_* sections in the file itself, let's try to find it
       // on the device, otherwise find it on web by using the `fetch-debuginfo`
       // tool.
-      auto DebugFile = getDebugFileName(MaybeBinary->get());
+      std::string DebugFile = getDebugFileName(MaybeBinary->get()).str();
       if (!DebugFile.size()) {
-        revng_log(DILogger, "Can't find file name of the debug file.");
-        return;
+        DebugFile = (llvm::sys::path::filename(FileName) + ".debug").str();
+        revng_log(DILogger,
+                  "Can't find file name of the debug file, using "
+                    << DebugFile);
       }
+
       auto DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
       if (!DebugFilePath) {
         if (!::Runner.isProgramAvailable("revng")) {
