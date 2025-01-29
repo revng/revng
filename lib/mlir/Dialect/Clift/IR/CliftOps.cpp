@@ -10,6 +10,7 @@
 
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/Utils/ModuleValidator.h"
 
 #define GET_OP_CLASSES
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.cpp.inc"
@@ -240,58 +241,35 @@ static bool isModuleLevelOperation(Operation *Op) {
   return false;
 }
 
-struct ModuleValidator {
-  explicit ModuleValidator(clift::ModuleOp Module) : Module(Module) {}
-
+class ModuleVerifier : public ModuleValidator<ModuleVerifier> {
   enum class LoopOrSwitch : uint8_t {
     Loop,
     Switch,
   };
 
-  template<typename SubElementInterface>
-  mlir::LogicalResult visitSubElements(mlir::Operation *ContainingOp,
-                                       SubElementInterface Interface) {
-    mlir::LogicalResult R = mlir::success();
-
-    const auto WalkType = [&](mlir::Type InnerType) {
-      if (visitType(ContainingOp, InnerType).failed())
-        R = mlir::failure();
-    };
-    const auto WalkAttr = [&](mlir::Attribute InnerAttr) {
-      if (visitAttr(ContainingOp, InnerAttr).failed())
-        R = mlir::failure();
-    };
-    Interface.walkImmediateSubElements(WalkAttr, WalkType);
-
-    return R;
-  };
-
+public:
   // Visit a field type of a class type attribute.
   // RootAttr is the root class type attribute and is used to detect recursion.
-  mlir::LogicalResult visitFieldType(mlir::Operation *ContainingOp,
-                                     clift::ValueType FieldType,
+  mlir::LogicalResult visitFieldType(clift::ValueType FieldType,
                                      TypeDefinitionAttr RootAttr) {
     FieldType = dealias(FieldType);
 
     if (auto T = mlir::dyn_cast<DefinedType>(FieldType)) {
       if (T.getElementType() == RootAttr)
-        return ContainingOp->emitError() << "Clift ModuleOp contains a "
-                                            "recursive class type.";
+        return getCurrentOp()->emitError() << "Clift ModuleOp contains a "
+                                              "recursive class type.";
 
-      return maybeVisitClassTypeAttr(ContainingOp,
-                                     T.getElementType(),
-                                     RootAttr);
+      return maybeVisitClassTypeAttr(T.getElementType(), RootAttr);
     }
 
     return mlir::success();
   }
 
   template<typename ClassTypeAttr>
-  mlir::LogicalResult visitClassTypeAttr(mlir::Operation *ContainingOp,
-                                         ClassTypeAttr Attr,
-                                         TypeDefinitionAttr RootAttr) {
+  mlir::LogicalResult
+  visitClassTypeAttr(ClassTypeAttr Attr, TypeDefinitionAttr RootAttr) {
     for (FieldAttr Field : Attr.getFields()) {
-      if (visitFieldType(ContainingOp, Field.getType(), RootAttr).failed())
+      if (visitFieldType(Field.getType(), RootAttr).failed())
         return mlir::failure();
     }
     return mlir::success();
@@ -299,106 +277,50 @@ struct ModuleValidator {
 
   // Call visitClassTypeAttr if Attr is a class type attribute.
   // RootAttr is the root class type attribute and is used to detect recursion.
-  mlir::LogicalResult maybeVisitClassTypeAttr(mlir::Operation *ContainingOp,
-                                              TypeDefinitionAttr Attr,
+  mlir::LogicalResult maybeVisitClassTypeAttr(TypeDefinitionAttr Attr,
                                               TypeDefinitionAttr RootAttr) {
     if (auto T = mlir::dyn_cast<StructTypeAttr>(Attr))
-      return visitClassTypeAttr(ContainingOp, T, RootAttr);
+      return visitClassTypeAttr(T, RootAttr);
     if (auto T = mlir::dyn_cast<UnionTypeAttr>(Attr))
-      return visitClassTypeAttr(ContainingOp, T, RootAttr);
+      return visitClassTypeAttr(T, RootAttr);
     return mlir::success();
   }
 
-  mlir::LogicalResult visitTypeAttr(mlir::Operation *ContainingOp,
-                                    TypeDefinitionAttr Attr) {
+  mlir::LogicalResult visitTypeAttr(TypeDefinitionAttr Attr) {
     auto const [Iterator, Inserted] = Definitions.try_emplace(Attr.id(), Attr);
 
     if (not Inserted and Iterator->second != Attr)
-      return ContainingOp->emitError() << "Found two distinct type definitions "
-                                          "with the same ID";
+      return getCurrentOp()->emitError() << "Found two distinct type "
+                                            "definitions with the same ID";
 
-    if (maybeVisitClassTypeAttr(ContainingOp, Attr, Attr).failed())
+    if (maybeVisitClassTypeAttr(Attr, Attr).failed())
       return mlir::failure();
 
     return mlir::success();
   }
 
-  mlir::LogicalResult visitValueType(mlir::Operation *ContainingOp,
-                                     clift::ValueType Type) {
+  mlir::LogicalResult visitValueType(clift::ValueType Type) {
     Type = dealias(Type);
 
     if (not isCompleteType(Type))
-      return ContainingOp->emitError() << "Clift ModuleOp contains an "
-                                          "incomplete type";
+      return getCurrentOp()->emitError() << "Clift ModuleOp contains an "
+                                            "incomplete type";
 
     if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-      if (visitTypeAttr(ContainingOp, T.getElementType()).failed())
+      if (visitTypeAttr(T.getElementType()).failed())
         return mlir::failure();
     }
 
     return mlir::success();
   }
 
-  mlir::LogicalResult visitSingleType(mlir::Operation *ContainingOp,
-                                      mlir::Type Type) {
+  mlir::LogicalResult visitType(mlir::Type Type) {
     if (Type.getDialect().getTypeID() != mlir::TypeID::get<CliftDialect>())
-      return ContainingOp->emitError() << "Clift ModuleOp a contains non-Clift "
-                                          "type";
+      return getCurrentOp()->emitError() << "Clift ModuleOp a contains "
+                                            "non-Clift type";
 
     if (auto T = mlir::dyn_cast<ValueType>(Type)) {
-      if (visitValueType(ContainingOp, Type).failed())
-        return mlir::failure();
-    }
-
-    return mlir::success();
-  }
-
-  mlir::LogicalResult visitType(mlir::Operation *ContainingOp,
-                                mlir::Type Type) {
-    if (not VisitedTypes.insert(Type).second)
-      return mlir::success();
-
-    if (visitSingleType(ContainingOp, Type).failed())
-      return mlir::failure();
-
-    if (auto T = mlir::dyn_cast<mlir::SubElementTypeInterface>(Type)) {
-      if (visitSubElements(ContainingOp, T).failed())
-        return mlir::failure();
-    }
-
-    return mlir::success();
-  }
-
-  mlir::LogicalResult visitAttr(mlir::Operation *ContainingOp,
-                                mlir::Attribute Attr) {
-    if (not VisitedAttrs.insert(Attr).second)
-      return mlir::success();
-
-    if (auto T = mlir::dyn_cast<mlir::SubElementAttrInterface>(Attr)) {
-      if (visitSubElements(ContainingOp, T).failed())
-        return mlir::failure();
-    }
-
-    return mlir::success();
-  }
-
-  mlir::LogicalResult visitOp(mlir::Operation *Op) {
-    for (const auto &Result : Op->getOpResults()) {
-      if (visitType(Op, Result.getType()).failed())
-        return mlir::failure();
-    }
-
-    for (mlir::Region &Region : Op->getRegions()) {
-      for (auto &Block : Region.getBlocks()) {
-        for (auto &Argument : Block.getArguments()) {
-          if (visitType(Op, Argument.getType()).failed())
-            return mlir::failure();
-        }
-      }
-    }
-
-    for (auto Attr : Op->getAttrs()) {
-      if (visitAttr(Op, Attr.getValue()).failed())
+      if (visitValueType(Type).failed())
         return mlir::failure();
     }
 
@@ -406,13 +328,10 @@ struct ModuleValidator {
   }
 
   mlir::LogicalResult visitNestedOp(mlir::Operation *Op) {
-    if (Op == ModuleLevelOp)
-      return mlir::success();
-
     if (isModuleLevelOperation(Op))
       return Op->emitOpError() << Op->getName()
-                               << " must be directly nested within a "
-                                  "ModuleOp.";
+                               << " must be directly nested within a"
+                                  " ModuleOp.";
 
     if (auto Return = mlir::dyn_cast<ReturnOp>(Op)) {
       ValueType ReturnType = {};
@@ -422,13 +341,13 @@ struct ModuleValidator {
 
       if (ReturnType and isVoid(FunctionReturnType))
         return Op->emitOpError() << Op->getName()
-                                 << " cannot return expression in function "
-                                    "returning void.";
+                                 << " cannot return expression in function"
+                                    " returning void.";
 
       if (ReturnType != FunctionReturnType)
         return Op->emitOpError() << Op->getName()
-                                 << " type does not match the function return "
-                                    "type";
+                                 << " type does not match the function return"
+                                    " type";
     } else if (mlir::isa<SwitchBreakOp>(Op)) {
       if (not hasLoopOrSwitchParent(Op,
                                     LoopOrSwitch::Switch,
@@ -457,17 +376,14 @@ struct ModuleValidator {
                << Op->getName() << " conflicts with another local variable.";
     }
 
-    return visitOp(Op);
+    return mlir::success();
   }
 
   mlir::LogicalResult visitModuleLevelOp(mlir::Operation *Op) {
-    ModuleLevelOp = Op;
-
-    if (not isModuleLevelOperation(Op)) {
+    if (not isModuleLevelOperation(Op))
       return Op->emitOpError() << Op->getName()
-                               << " cannot be directly nested within a "
-                                  "ModuleOp.";
-    }
+                               << " cannot be directly nested within a"
+                                  " ModuleOp.";
 
     if (auto F = mlir::dyn_cast<FunctionOp>(Op)) {
       auto TypeAttr = getFunctionTypeAttr(F.getFunctionType());
@@ -477,15 +393,11 @@ struct ModuleValidator {
       LabelNames.clear();
     }
 
-    return visitOp(Op);
+    return mlir::success();
   }
 
 private:
-  clift::ModuleOp Module;
-  Operation *ModuleLevelOp = nullptr;
   clift::ValueType FunctionReturnType;
-  llvm::SmallPtrSet<mlir::Type, 32> VisitedTypes;
-  llvm::SmallPtrSet<mlir::Attribute, 32> VisitedAttrs;
   llvm::DenseMap<uint64_t, TypeDefinitionAttr> Definitions;
 
   llvm::DenseSet<llvm::StringRef> LocalNames;
@@ -506,7 +418,7 @@ private:
   // its kind. Does not consider other statements, such as if-statements at all.
   bool
   hasLoopOrSwitchParent(Operation *Op, LoopOrSwitch Kind, bool DirectlyNested) {
-    while (Op != Module.getOperation()) {
+    while (Op != getCurrentModuleLevelOp()) {
       Op = Op->getParentOp();
 
       if (auto OpKind = isLoopOrSwitch(Op)) {
@@ -524,30 +436,11 @@ private:
 } // namespace
 
 mlir::LogicalResult clift::ModuleOp::verify() {
-  ModuleValidator Validator(*this);
-
-  Region &R = getRegion();
-
-  if (not R.hasOneBlock())
+  if (not getRegion().hasOneBlock())
     return emitOpError() << getOperationName()
                          << " must contain exactly one block.";
 
-  for (Operation &Op : R.front()) {
-    if (mlir::failed(Validator.visitModuleLevelOp(&Op)))
-      return mlir::failure();
-
-    const auto Visitor = [&](Operation *NestedOp) -> mlir::WalkResult {
-      return Validator.visitNestedOp(NestedOp);
-    };
-
-    if (Op.walk(Visitor).wasInterrupted())
-      return mlir::failure();
-  }
-
-  if (mlir::failed(Validator.visitOp(getOperation())))
-    return mlir::failure();
-
-  return mlir::success();
+  return ModuleVerifier::validate(*this);
 }
 
 //===----------------------------- FunctionOp -----------------------------===//
