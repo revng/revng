@@ -8,7 +8,7 @@
 !uint32_t = !clift.primitive<UnsignedKind 4>
 
 !s = !clift.defined<#clift.struct<
-  id = 1,
+  unique_handle = "/model-type/1",
   name = "",
   size = 4,
   fields = [<

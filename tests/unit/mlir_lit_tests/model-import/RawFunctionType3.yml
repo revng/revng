@@ -17,10 +17,10 @@ TypeDefinitions:
           Size: 8
 
     # CHECK: #my_function3$def = #clift.function<
-    # CHECK:   id = 1002
+    # CHECK:   unique_handle = "/model-type/1002"
     # CHECK:   name = "my_function3"
     # CHECK:   return_type = !clift.tuple<
-    # CHECK:     id = 1002
+    # CHECK:     unique_handle = "/model-type/1002"
     # CHECK:     fields = [
     # CHECK:       <
     # CHECK:         type = !uint64_t

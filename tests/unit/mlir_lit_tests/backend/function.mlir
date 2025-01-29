@@ -7,7 +7,7 @@
 !void = !clift.primitive<VoidKind 0>
 
 !f = !clift.defined<#clift.function<
-  id = 1001,
+  unique_handle = "/model-type/1001",
   name = "",
   return_type = !void,
   argument_types = []>>

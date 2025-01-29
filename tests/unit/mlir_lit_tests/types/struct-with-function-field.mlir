@@ -7,14 +7,14 @@
 !void = !clift.primitive<VoidKind 0>
 
 !f = !clift.defined<#clift.function<
-  id = 1000,
+  unique_handle = "/model-type/1000",
   name = "f",
   return_type = !void,
   argument_types = []>>
 
 // CHECK: field types must be object types
 !s = !clift.defined<#clift.struct<
-  id = 1,
+  unique_handle = "/model-type/1",
   name = "",
   size = 1,
   fields = [

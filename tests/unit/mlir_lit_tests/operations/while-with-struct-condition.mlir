@@ -6,7 +6,7 @@
 
 !void = !clift.primitive<VoidKind 0>
 
-!s = !clift.defined<#clift.struct<id = 1, name = "", size = 1, fields = []>>
+!s = !clift.defined<#clift.struct<unique_handle = "/model-type/1", name = "", size = 1, fields = []>>
 
 // CHECK: condition requires a scalar type
 clift.while {

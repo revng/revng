@@ -104,7 +104,7 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
 //===---------------------------- EnumTypeAttr ----------------------------===//
 
 mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
-                                         uint64_t ID,
+                                         llvm::StringRef UniqueHandle,
                                          llvm::StringRef Name,
                                          clift::ValueType UnderlyingType,
                                          llvm::ArrayRef<EnumFieldAttr> Fields) {
@@ -198,7 +198,7 @@ bool EnumTypeAttr::getAlias(llvm::raw_ostream &OS) const {
 //===--------------------------- TypedefTypeAttr --------------------------===//
 
 mlir::LogicalResult TypedefTypeAttr::verify(EmitErrorType EmitError,
-                                            uint64_t ID,
+                                            llvm::StringRef UniqueHandle,
                                             llvm::StringRef Name,
                                             clift::ValueType UnderlyingType) {
   return mlir::success();
@@ -218,7 +218,7 @@ bool TypedefTypeAttr::getAlias(llvm::raw_ostream &OS) const {
 //===-------------------------- FunctionTypeAttr --------------------------===//
 
 mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
-                                             uint64_t ID,
+                                             llvm::StringRef UniqueHandle,
                                              llvm::StringRef Name,
                                              mlir::Type ReturnType,
                                              llvm::ArrayRef<mlir::Type> Args) {
@@ -246,7 +246,7 @@ mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult
 FunctionTypeAttr::verify(EmitErrorType EmitError,
-                         uint64_t ID,
+                         llvm::StringRef UniqueHandle,
                          llvm::StringRef Name,
                          clift::ValueType ReturnType,
                          llvm::ArrayRef<clift::ValueType> Args) {
@@ -287,13 +287,13 @@ ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
 //===--------------------------- StructTypeAttr ---------------------------===//
 
 mlir::LogicalResult StructTypeAttr::verify(EmitErrorType EmitError,
-                                           uint64_t ID) {
+                                           llvm::StringRef UniqueHandle) {
   return mlir::success();
 }
 
 mlir::LogicalResult
 StructTypeAttr::verify(const EmitErrorType EmitError,
-                       const uint64_t ID,
+                       const llvm::StringRef UniqueHandle,
                        const llvm::StringRef Name,
                        const uint64_t Size,
                        const llvm::ArrayRef<FieldAttr> Fields) {
@@ -326,35 +326,36 @@ StructTypeAttr::verify(const EmitErrorType EmitError,
   return mlir::success();
 }
 
-StructTypeAttr StructTypeAttr::get(MLIRContext *Context, uint64_t ID) {
-  return Base::get(Context, ID);
+StructTypeAttr StructTypeAttr::get(MLIRContext *Context,
+                                   llvm::StringRef UniqueHandle) {
+  return Base::get(Context, UniqueHandle);
 }
 
 StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
                                           MLIRContext *Context,
-                                          uint64_t ID) {
-  return Base::get(Context, ID);
+                                          llvm::StringRef UniqueHandle) {
+  return Base::get(Context, UniqueHandle);
 }
 
 StructTypeAttr StructTypeAttr::get(MLIRContext *Context,
-                                   uint64_t ID,
+                                   llvm::StringRef UniqueHandle,
                                    llvm::StringRef Name,
                                    uint64_t Size,
                                    llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(Context, ID);
+  auto Result = Base::get(Context, UniqueHandle);
   Result.define(Name, Size, Fields);
   return Result;
 }
 
 StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
                                           MLIRContext *Context,
-                                          uint64_t ID,
+                                          llvm::StringRef UniqueHandle,
                                           llvm::StringRef Name,
                                           uint64_t Size,
                                           llvm::ArrayRef<FieldAttr> Fields) {
-  if (failed(verify(EmitError, ID, Name, Size, Fields)))
+  if (failed(verify(EmitError, UniqueHandle, Name, Size, Fields)))
     return {};
-  return get(Context, ID, Name, Size, Fields);
+  return get(Context, UniqueHandle, Name, Size, Fields);
 }
 
 void StructTypeAttr::define(const llvm::StringRef Name,
@@ -370,8 +371,8 @@ void StructTypeAttr::define(const llvm::StringRef Name,
                   "type");
 }
 
-uint64_t StructTypeAttr::getId() const {
-  return getImpl()->getID();
+llvm::StringRef StructTypeAttr::getUniqueHandle() const {
+  return getImpl()->getUniqueHandle();
 }
 
 llvm::StringRef StructTypeAttr::getName() const {
@@ -426,12 +427,12 @@ StructTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
 //===---------------------------- UnionTypeAttr ---------------------------===//
 
 mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
-                                          uint64_t ID) {
+                                          llvm::StringRef UniqueHandle) {
   return mlir::success();
 }
 
 mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
-                                          uint64_t ID,
+                                          llvm::StringRef UniqueHandle,
                                           llvm::StringRef Name,
                                           llvm::ArrayRef<FieldAttr> Fields) {
   if (Fields.empty())
@@ -451,33 +452,34 @@ mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context, uint64_t ID) {
-  return Base::get(Context, ID);
+UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context,
+                                 llvm::StringRef UniqueHandle) {
+  return Base::get(Context, UniqueHandle);
 }
 
 UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
                                         MLIRContext *Context,
-                                        uint64_t ID) {
-  return Base::get(Context, ID);
+                                        llvm::StringRef UniqueHandle) {
+  return Base::get(Context, UniqueHandle);
 }
 
 UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context,
-                                 uint64_t ID,
+                                 llvm::StringRef UniqueHandle,
                                  llvm::StringRef Name,
                                  llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(Context, ID);
+  auto Result = Base::get(Context, UniqueHandle);
   Result.define(Name, Fields);
   return Result;
 }
 
 UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
                                         MLIRContext *Context,
-                                        uint64_t ID,
+                                        llvm::StringRef UniqueHandle,
                                         llvm::StringRef Name,
                                         llvm::ArrayRef<FieldAttr> Fields) {
-  if (failed(verify(EmitError, ID, Name, Fields)))
+  if (failed(verify(EmitError, UniqueHandle, Name, Fields)))
     return {};
-  return get(Context, ID, Name, Fields);
+  return get(Context, UniqueHandle, Name, Fields);
 }
 
 void UnionTypeAttr::define(const llvm::StringRef Name,
@@ -492,8 +494,8 @@ void UnionTypeAttr::define(const llvm::StringRef Name,
                   "type");
 }
 
-uint64_t UnionTypeAttr::getId() const {
-  return getImpl()->getID();
+llvm::StringRef UnionTypeAttr::getUniqueHandle() const {
+  return getImpl()->getUniqueHandle();
 }
 
 llvm::StringRef UnionTypeAttr::getName() const {

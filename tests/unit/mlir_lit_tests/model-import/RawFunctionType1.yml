@@ -6,7 +6,7 @@
 Architecture: x86_64
 TypeDefinitions:
   # CHECK: #my_function1$def = #clift.function<
-  # CHECK:   id = 1000
+  # CHECK:   unique_handle = "/model-type/1000"
   # CHECK:   name = "my_function1"
   # CHECK:   return_type = !void
   # CHECK:   argument_types = []

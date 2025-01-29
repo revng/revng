@@ -47,20 +47,20 @@ class ClassTypeStorage : public BaseT {
   // and then override operators to pretend they don't know about the non key
   // fields. That way when it is needed one can access everything.
   struct Key {
-    uint64_t ID;
+    llvm::StringRef UniqueHandle;
     std::optional<KeyDefinition> Definition;
 
-    Key(const uint64_t ID) : ID(ID) {}
+    Key(const llvm::StringRef UniqueHandle) : UniqueHandle(UniqueHandle) {}
 
     // struct storages are never exposed to the user, they are only used
     // internally to figure out how to create unique objects. only operator== is
     // every used, everything else is handled by hasValue
     friend bool operator==(const Key &LHS, const Key &RHS) {
-      return LHS.ID == RHS.ID;
+      return LHS.UniqueHandle == RHS.UniqueHandle;
     }
 
     [[nodiscard]] llvm::hash_code hashValue() const {
-      return llvm::hash_value(ID);
+      return llvm::hash_value(UniqueHandle);
     }
   };
 
@@ -77,12 +77,13 @@ public:
 
   bool operator==(const Key &Other) const { return TheKey == Other; }
 
-  template<typename... ArgsT>
-  ClassTypeStorage(const uint64_t ID) : TheKey(ID) {}
+  ClassTypeStorage(const llvm::StringRef UniqueHandle) : TheKey(UniqueHandle) {}
 
   static StorageT *construct(mlir::StorageUniquer::StorageAllocator &Allocator,
                              const KeyTy &Key) {
-    StorageT *const S = new (Allocator.allocate<StorageT>()) StorageT(Key.ID);
+    void *const Storage = Allocator.allocate<StorageT>();
+    llvm::StringRef UniqueHandle = Allocator.copyInto(Key.UniqueHandle);
+    StorageT *const S = new (Storage) StorageT(UniqueHandle);
     if (Key.Definition)
       S->TheKey.Definition.emplace(Allocator, *Key.Definition);
     return S;
@@ -118,7 +119,9 @@ public:
     return mlir::success();
   }
 
-  [[nodiscard]] uint64_t getID() const { return TheKey.ID; }
+  [[nodiscard]] llvm::StringRef getUniqueHandle() const {
+    return TheKey.UniqueHandle;
+  }
 
   [[nodiscard]] bool isInitialized() const {
     return TheKey.Definition.has_value();

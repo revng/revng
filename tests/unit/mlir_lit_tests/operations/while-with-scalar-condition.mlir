@@ -11,7 +11,7 @@
 !pointer = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
 
 !enum = !clift.defined<#clift.enum<
-  id = 1,
+  unique_handle = "/model-type/1",
   name = "",
   underlying_type = !int32_t,
   fields = [

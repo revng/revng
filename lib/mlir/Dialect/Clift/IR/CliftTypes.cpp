@@ -420,8 +420,8 @@ mlir::LogicalResult DefinedType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-uint64_t DefinedType::id() const {
-  return getElementType().id();
+llvm::StringRef DefinedType::getUniqueHandle() const {
+  return getElementType().getUniqueHandle();
 }
 
 llvm::StringRef DefinedType::name() const {
@@ -462,14 +462,15 @@ ValueType DefinedType::removeConst() const {
 
 //===--------------------------- ScalarTupleType --------------------------===//
 
-mlir::LogicalResult ScalarTupleType::verify(const EmitErrorType EmitError,
-                                            const uint64_t ID) {
+mlir::LogicalResult
+ScalarTupleType::verify(const EmitErrorType EmitError,
+                        const llvm::StringRef UniqueHandle) {
   return mlir::success();
 }
 
 mlir::LogicalResult
 ScalarTupleType::verify(const EmitErrorType EmitError,
-                        const uint64_t ID,
+                        const llvm::StringRef UniqueHandle,
                         const llvm::StringRef Name,
                         const llvm::ArrayRef<ScalarTupleElementAttr> Elements) {
   if (Elements.size() < 2)
@@ -488,22 +489,22 @@ ScalarTupleType::verify(const EmitErrorType EmitError,
 }
 
 ScalarTupleType ScalarTupleType::get(MLIRContext *const Context,
-                                     const uint64_t ID) {
-  return Base::get(Context, ID);
+                                     const llvm::StringRef UniqueHandle) {
+  return Base::get(Context, UniqueHandle);
 }
 
 ScalarTupleType ScalarTupleType::getChecked(const EmitErrorType EmitError,
                                             MLIRContext *const Context,
-                                            const uint64_t ID) {
-  return get(Context, ID);
+                                            llvm::StringRef UniqueHandle) {
+  return get(Context, UniqueHandle);
 }
 
 ScalarTupleType
 ScalarTupleType::get(MLIRContext *const Context,
-                     const uint64_t ID,
+                     const llvm::StringRef UniqueHandle,
                      const llvm::StringRef Name,
                      const llvm::ArrayRef<ScalarTupleElementAttr> Elements) {
-  auto Result = Base::get(Context, ID);
+  auto Result = Base::get(Context, UniqueHandle);
   Result.define(Name, Elements);
   return Result;
 }
@@ -511,13 +512,13 @@ ScalarTupleType::get(MLIRContext *const Context,
 ScalarTupleType
 ScalarTupleType::getChecked(const EmitErrorType EmitError,
                             MLIRContext *const Context,
-                            const uint64_t ID,
+                            const llvm::StringRef UniqueHandle,
                             const llvm::StringRef Name,
                             const llvm::ArrayRef<ScalarTupleElementAttr>
                               Elements) {
-  if (failed(verify(EmitError, ID, Name, Elements)))
+  if (failed(verify(EmitError, UniqueHandle, Name, Elements)))
     return {};
-  return get(Context, ID, Name, Elements);
+  return get(Context, UniqueHandle, Name, Elements);
 }
 
 void ScalarTupleType::define(const llvm::StringRef Name,
@@ -530,8 +531,8 @@ void ScalarTupleType::define(const llvm::StringRef Name,
                   "type");
 }
 
-uint64_t ScalarTupleType::getId() const {
-  return getImpl()->getID();
+llvm::StringRef ScalarTupleType::getUniqueHandle() const {
+  return getImpl()->getUniqueHandle();
 }
 
 llvm::StringRef ScalarTupleType::getName() const {

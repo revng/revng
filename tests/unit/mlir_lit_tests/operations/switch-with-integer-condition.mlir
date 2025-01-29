@@ -7,7 +7,7 @@
 !int32_t = !clift.primitive<SignedKind 4>
 
 !enum = !clift.defined<#clift.enum<
-  id = 1,
+  unique_handle = "/model-type/1",
   name = "",
   underlying_type = !int32_t,
   fields = [

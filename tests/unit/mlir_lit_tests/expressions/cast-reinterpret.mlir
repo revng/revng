@@ -12,11 +12,11 @@
 !uint32_t = !clift.primitive<UnsignedKind 4>
 !uint32_t$ptr = !clift.pointer<pointee_type = !uint32_t, pointer_size = 8>
 
-!my_uint32 = !clift.defined<#clift.typedef<id = 1,
+!my_uint32 = !clift.defined<#clift.typedef<unique_handle = "/model-type/1",
                                            name = "my_uint32",
                                            underlying_type = !uint32_t>>
 
-!my_enum = !clift.defined<#clift.enum<id = 2,
+!my_enum = !clift.defined<#clift.enum<unique_handle = "/model-type/2",
                                       name = "my_enum",
                                       underlying_type = !uint32_t,
                                       fields = [

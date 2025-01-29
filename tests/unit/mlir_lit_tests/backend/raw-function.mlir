@@ -7,7 +7,7 @@
 !int32_t = !clift.primitive<SignedKind 4>
 
 !f_args = !clift.defined<#clift.struct<
-  id = 2004,
+  unique_handle = "/model-type/2004",
   name = "",
   size = 4,
   fields = [
@@ -19,7 +19,7 @@
   ]>>
 
 !f = !clift.defined<#clift.function<
-  id = 1003,
+  unique_handle = "/model-type/1003",
   name = "",
   return_type = !int32_t,
   argument_types = [!int32_t, !f_args]>>

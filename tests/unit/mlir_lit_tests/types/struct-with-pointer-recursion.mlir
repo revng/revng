@@ -5,7 +5,7 @@
 // RUN: %revngcliftopt %s
 
 !s = !clift.defined<#clift.struct<
-  id = 1,
+  unique_handle = "/model-type/1",
   name = "",
   size = 8,
   fields = [<
@@ -13,7 +13,7 @@
       name = "",
       type = !clift.pointer<
         pointer_size = 8,
-        pointee_type = !clift.defined<#clift.struct<id = 1>>
+        pointee_type = !clift.defined<#clift.struct<unique_handle = "/model-type/1">>
       >
     >
   ]

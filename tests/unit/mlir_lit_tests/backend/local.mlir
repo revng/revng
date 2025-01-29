@@ -8,13 +8,13 @@
 !int32_t = !clift.primitive<SignedKind 4>
 
 !f = !clift.defined<#clift.function<
-  id = 1001,
+  unique_handle = "/model-type/1001",
   name = "",
   return_type = !void,
   argument_types = []>>
 
 !my_enum = !clift.defined<#clift.enum<
-  id = 2001,
+  unique_handle = "/model-type/2001",
   name = "",
   underlying_type = !int32_t,
   fields = [
@@ -25,7 +25,7 @@
   ]>>
 
 !my_struct = !clift.defined<#clift.struct<
-  id = 2002,
+  unique_handle = "/model-type/2002",
   name = "",
   size = 4,
   fields = [
@@ -37,7 +37,7 @@
   ]>>
 
 !my_union = !clift.defined<#clift.union<
-  id = 2003,
+  unique_handle = "/model-type/2003",
   name = "",
   fields = [
     <

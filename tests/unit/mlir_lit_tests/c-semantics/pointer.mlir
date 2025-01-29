@@ -5,7 +5,7 @@
 // RUN: not %revngcliftopt --verify-c %s 2>&1 | FileCheck %s
 
 !s = !clift.defined<#clift.struct<
-  id = 1,
+  unique_handle = "/model-type/1",
   name = "",
   size = 8,
   fields = [

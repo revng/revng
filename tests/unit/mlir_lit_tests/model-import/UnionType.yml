@@ -5,7 +5,7 @@
 
 TypeDefinitions:
   # CHECK: #my_union$def = #clift.union<
-  # CHECK:   id = 1001
+  # CHECK:   unique_handle = "/model-type/1001"
   # CHECK:   name = "my_union"
   # CHECK:   fields = [
   # CHECK:     <

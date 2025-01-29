@@ -82,7 +82,7 @@ def Clift_DefinedType
   : Clift_Type<"Defined",
                "defined",
                [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize",
-                                                              "id",
+                                                              "getUniqueHandle",
                                                               "addConst",
                                                               "removeConst"]>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
@@ -101,7 +101,7 @@ def Clift_DefinedType
   }];
 
   let extraClassDeclaration = [{
-    uint64_t id() const;
+    llvm::StringRef getUniqueHandle() const;
     llvm::StringRef name() const;
   }];
 

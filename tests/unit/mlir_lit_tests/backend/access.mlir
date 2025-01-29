@@ -9,7 +9,7 @@
 !int32_t = !clift.primitive<SignedKind 4>
 
 !s = !clift.defined<#clift.struct<
-  id = 2002,
+  unique_handle = "/model-type/2002",
   name = "",
   size = 8,
   fields = [
@@ -27,7 +27,7 @@
 !s$p = !clift.pointer<pointer_size = 8, pointee_type = !s>
 
 !u = !clift.defined<#clift.union<
-  id = 2003,
+  unique_handle = "/model-type/2003",
   name = "",
   fields = [
     <
@@ -44,7 +44,7 @@
 !u$p = !clift.pointer<pointer_size = 8, pointee_type = !u>
 
 !f = !clift.defined<#clift.function<
-  id = 1001,
+  unique_handle = "/model-type/1001",
   name = "",
   return_type = !void,
   argument_types = []>>

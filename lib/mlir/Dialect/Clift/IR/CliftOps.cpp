@@ -287,11 +287,15 @@ public:
   }
 
   mlir::LogicalResult visitTypeAttr(TypeDefinitionAttr Attr) {
-    auto const [Iterator, Inserted] = Definitions.try_emplace(Attr.id(), Attr);
+    auto const [Iterator,
+                Inserted] = Definitions.try_emplace(Attr.getUniqueHandle(),
+                                                    Attr);
 
     if (not Inserted and Iterator->second != Attr)
       return getCurrentOp()->emitError() << "Found two distinct type "
-                                            "definitions with the same ID";
+                                            "definitions with the same unique "
+                                            "handle: '"
+                                         << Attr.getUniqueHandle() << '\'';
 
     if (maybeVisitClassTypeAttr(Attr, Attr).failed())
       return mlir::failure();
@@ -398,7 +402,7 @@ public:
 
 private:
   clift::ValueType FunctionReturnType;
-  llvm::DenseMap<uint64_t, TypeDefinitionAttr> Definitions;
+  llvm::DenseMap<llvm::StringRef, TypeDefinitionAttr> Definitions;
 
   llvm::DenseSet<llvm::StringRef> LocalNames;
   llvm::DenseSet<llvm::StringRef> LabelNames;

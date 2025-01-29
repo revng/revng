@@ -8,7 +8,7 @@
 !int32_t$ptr = !clift.pointer<pointee_type = !int32_t, pointer_size = 8>
 
 !s = !clift.defined<#clift.struct<
-  id = 1,
+  unique_handle = "/model-type/1",
   name = "",
   size = 4,
   fields = [<

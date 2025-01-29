@@ -5,7 +5,7 @@
 
 TypeDefinitions:
   # CHECK: #my_struct$def = #clift.struct<
-  # CHECK:   id = 1001
+  # CHECK:   unique_handle = "/model-type/1001"
   # CHECK:   name = "my_struct"
   # CHECK:   size = 4
   # CHECK:   fields = [
@@ -14,7 +14,7 @@ TypeDefinitions:
   # CHECK:       type = !clift.pointer<
   # CHECK:         pointee_type = !clift.defined<
   # CHECK:           #clift.struct<
-  # CHECK:             id = 1001
+  # CHECK:             unique_handle = "/model-type/1001"
   # CHECK:           >
   # CHECK:         >
   # CHECK:       >

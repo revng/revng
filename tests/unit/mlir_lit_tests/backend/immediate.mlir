@@ -10,13 +10,13 @@
 !uint32_t = !clift.primitive<UnsignedKind 4>
 
 !f = !clift.defined<#clift.function<
-  id = 1001,
+  unique_handle = "/model-type/1001",
   name = "",
   return_type = !void,
   argument_types = []>>
 
 !my_enum = !clift.defined<#clift.enum<
-  id = 2001,
+  unique_handle = "/model-type/2001",
   name = "",
   underlying_type = !int32_t,
   fields = [

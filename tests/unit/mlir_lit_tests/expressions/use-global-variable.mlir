@@ -6,7 +6,7 @@
 
 !int32_t = !clift.primitive<SignedKind 4>
 
-!f = !clift.defined<#clift.function<id = 1,
+!f = !clift.defined<#clift.function<unique_handle = "/model-type/1",
                                     name = "",
                                     return_type = !int32_t,
                                     argument_types = []>>

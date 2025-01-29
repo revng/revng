@@ -6,8 +6,8 @@
 
 using namespace mlir::clift;
 
-static thread_local std::map<uint64_t, void *> AsmRecursionMap;
+static thread_local llvm::SmallPtrSet<void *, 8> AsmRecursionMap;
 
-std::map<uint64_t, void *> &mlir::clift::getAsmRecursionMap() {
+llvm::SmallPtrSet<void *, 8> &mlir::clift::getAsmRecursionMap() {
   return AsmRecursionMap;
 }

@@ -132,6 +132,21 @@ public:
     revng_abort("Expected isolated model function.");
   }
 
+  std::optional<uint64_t>
+  parseModelTypeUniqueHandle(llvm::StringRef UniqueHandle) {
+    if (not UniqueHandle.consume_front("/model-type/"))
+      return std::nullopt;
+
+    uint64_t ID;
+    if (UniqueHandle.consumeInteger(/*Radix=*/10, ID))
+      return std::nullopt;
+
+    if (not UniqueHandle.empty())
+      return std::nullopt;
+
+    return ID;
+  }
+
   const model::TypeDefinition *
   getModelTypeDefinition(uint64_t ID, model::TypeDefinitionKind::Values Kind) {
     auto It = C.Binary.TypeDefinitions().find({ ID, Kind });
@@ -143,10 +158,14 @@ public:
   const model::TypeDefinition &getModelTypeDefinition(TypeDefinitionAttr Type) {
     using TypeKind = model::TypeDefinitionKind::Values;
 
+    auto MaybeID = parseModelTypeUniqueHandle(Type.getUniqueHandle());
+    if (not MaybeID)
+      revng_abort("Unrecognized type unique handle");
+
     if (mlir::isa<FunctionTypeAttr>(Type)) {
-      auto CF = getModelTypeDefinition(Type.id(),
+      auto CF = getModelTypeDefinition(*MaybeID,
                                        TypeKind::CABIFunctionDefinition);
-      auto RF = getModelTypeDefinition(Type.id(),
+      auto RF = getModelTypeDefinition(*MaybeID,
                                        TypeKind::RawFunctionDefinition);
 
       if (CF != nullptr and RF != nullptr)
@@ -173,7 +192,7 @@ public:
     else
       revng_abort("Unsupported type definition");
 
-    auto ModelType = getModelTypeDefinition(Type.id(), Kind);
+    auto ModelType = getModelTypeDefinition(*MaybeID, Kind);
     if (ModelType == nullptr)
       revng_abort("No matching model type definition.");
     return *ModelType;

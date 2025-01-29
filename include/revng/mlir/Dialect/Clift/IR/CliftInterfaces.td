@@ -106,11 +106,11 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
 
   let methods = [
     InterfaceMethod<
-      "the the unique id of the type",
-      "uint64_t", "id", (ins),
+      "The unique handle of the type",
+      "llvm::StringRef", "getUniqueHandle", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return $_attr.getId();
+        return $_attr.getUniqueHandle();
       }]
     >,
     InterfaceMethod<

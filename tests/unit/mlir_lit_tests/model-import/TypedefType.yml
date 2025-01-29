@@ -5,7 +5,7 @@
 
 TypeDefinitions:
   # CHECK:  #my_float$def = #clift.typedef<
-  # CHECK:    id = 0,
+  # CHECK:    unique_handle = "/model-type/0",
   # CHECK:    name = "my_float",
   # CHECK:    underlying_type = !float96_t
   # CHECK:  >
@@ -18,7 +18,7 @@ TypeDefinitions:
       Size: 12
 
   # CHECK:  #my_generic$def = #clift.typedef<
-  # CHECK:    id = 1,
+  # CHECK:    unique_handle = "/model-type/1",
   # CHECK:    name = "my_generic",
   # CHECK:    underlying_type = !generic8_t
   # CHECK:  >
@@ -31,7 +31,7 @@ TypeDefinitions:
       Size: 1
 
   # CHECK:  #my_int$def = #clift.typedef<
-  # CHECK:    id = 2,
+  # CHECK:    unique_handle = "/model-type/2",
   # CHECK:    name = "my_int",
   # CHECK:    underlying_type = !int64_t
   # CHECK:  >
@@ -44,7 +44,7 @@ TypeDefinitions:
       Size: 8
 
   # CHECK:  #my_number$def = #clift.typedef<
-  # CHECK:    id = 3,
+  # CHECK:    unique_handle = "/model-type/3",
   # CHECK:    name = "my_number",
   # CHECK:    underlying_type = !number32_t
   # CHECK:  >
@@ -57,7 +57,7 @@ TypeDefinitions:
       Size: 4
 
   # CHECK:  #my_pon$def = #clift.typedef<
-  # CHECK:    id = 4,
+  # CHECK:    unique_handle = "/model-type/4",
   # CHECK:    name = "my_pon",
   # CHECK:    underlying_type = !pointer_or_number16_t
   # CHECK:  >
@@ -70,7 +70,7 @@ TypeDefinitions:
       Size: 2
 
   # CHECK:  #my_uint$def = #clift.typedef<
-  # CHECK:    id = 5,
+  # CHECK:    unique_handle = "/model-type/5",
   # CHECK:    name = "my_uint",
   # CHECK:    underlying_type = !uint64_t
   # CHECK:  >
@@ -83,7 +83,7 @@ TypeDefinitions:
       Size: 8
 
   # CHECK:  #my_void$def = #clift.typedef<
-  # CHECK:    id = 6,
+  # CHECK:    unique_handle = "/model-type/6",
   # CHECK:    name = "my_void",
   # CHECK:    underlying_type = !void
   # CHECK:  >

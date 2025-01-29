@@ -13,7 +13,7 @@
 !int32_t$1$p = !clift.pointer<pointer_size = 8, pointee_type = !int32_t$1>
 
 !f = !clift.defined<#clift.function<
-  id = 1001,
+  unique_handle = "/model-type/1001",
   name = "",
   return_type = !void,
   argument_types = []>>

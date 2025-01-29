@@ -151,36 +151,37 @@ public:
   using Base::Base;
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID);
+                              llvm::StringRef UniqueHandle);
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID,
+                              llvm::StringRef UniqueHandle,
                               llvm::StringRef Name,
                               llvm::ArrayRef<ScalarTupleElementAttr> Elements);
 
-  static ScalarTupleType get(MLIRContext *Context, uint64_t ID);
+  static ScalarTupleType get(MLIRContext *Context,
+                             llvm::StringRef UniqueHandle);
 
   static ScalarTupleType
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
-             uint64_t ID);
+             llvm::StringRef UniqueHandle);
 
   static ScalarTupleType get(MLIRContext *Context,
-                             uint64_t ID,
+                             llvm::StringRef UniqueHandle,
                              llvm::StringRef Name,
                              llvm::ArrayRef<ScalarTupleElementAttr> Elements);
 
   static ScalarTupleType
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
-             uint64_t ID,
+             llvm::StringRef UniqueHandle,
              llvm::StringRef Name,
              llvm::ArrayRef<ScalarTupleElementAttr> Elements);
 
   void define(llvm::StringRef Name,
               llvm::ArrayRef<ScalarTupleElementAttr> Elements);
 
-  [[nodiscard]] uint64_t getId() const;
+  [[nodiscard]] llvm::StringRef getUniqueHandle() const;
   [[nodiscard]] llvm::StringRef getName() const;
   [[nodiscard]] llvm::ArrayRef<ScalarTupleElementAttr> getElements() const;
 

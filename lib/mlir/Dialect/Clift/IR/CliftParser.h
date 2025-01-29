@@ -7,7 +7,9 @@
 #include <map>
 
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 
 #include "mlir/IR/OpImplementation.h"
 
@@ -16,7 +18,7 @@
 
 namespace mlir::clift {
 
-std::map<uint64_t, void *> &getAsmRecursionMap();
+llvm::SmallPtrSet<void *, 8> &getAsmRecursionMap();
 
 template<typename ObjectT>
 concept hasExplicitSize = requires(const typename ObjectT::ImplType::KeyTy
@@ -24,14 +26,14 @@ concept hasExplicitSize = requires(const typename ObjectT::ImplType::KeyTy
 
 template<typename ObjectT>
 void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
-  const uint64_t ID = Object.getImpl()->getID();
-
   Printer << Object.getMnemonic();
-  Printer << "<id = ";
-  Printer << ID;
+  Printer << "<unique_handle = \"";
+  llvm::printEscapedString(Object.getImpl()->getUniqueHandle(),
+                           Printer.getStream());
+  Printer << "\"";
 
   auto &RecursionMap = getAsmRecursionMap();
-  const auto [Iterator, Inserted] = RecursionMap.try_emplace(ID);
+  const auto [Iterator, Inserted] = RecursionMap.insert(Object.getImpl());
 
   if (not Inserted) {
     Printer << ">";
@@ -39,7 +41,7 @@ void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
   }
 
   const auto EraseGuard = llvm::make_scope_exit([&]() {
-    RecursionMap.erase(Iterator);
+    RecursionMap.erase(Object.getImpl());
   });
 
   Printer << ", name = ";
@@ -71,30 +73,30 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
   if (Parser.parseLess())
     return OnUnexpectedToken("<");
 
-  if (Parser.parseKeyword("id").failed())
-    return OnUnexpectedToken("keyword 'id'");
+  if (Parser.parseKeyword("unique_handle").failed())
+    return OnUnexpectedToken("keyword 'unique_handle'");
 
   if (Parser.parseEqual().failed())
     return OnUnexpectedToken("=");
 
-  uint64_t ID;
-  if (Parser.parseInteger(ID).failed())
+  std::string UniqueHandle;
+  if (Parser.parseString(&UniqueHandle).failed())
     return OnUnexpectedToken("<integer>");
 
+  ObjectT Object = ObjectT::get(Parser.getContext(), UniqueHandle);
+
   auto &RecursionMap = getAsmRecursionMap();
-  const auto [Iterator, Inserted] = RecursionMap.try_emplace(ID);
+  const auto [Iterator, Inserted] = RecursionMap.insert(Object.getImpl());
 
   if (not Inserted) {
-    revng_assert(Iterator->second != nullptr);
-
     if (Parser.parseGreater().failed())
       return OnUnexpectedToken(">");
 
-    return ObjectT(static_cast<typename ObjectT::ImplType *>(Iterator->second));
+    return Object;
   }
 
   const auto EraseGuard = llvm::make_scope_exit([&]() {
-    RecursionMap.erase(Iterator);
+    RecursionMap.erase(Object.getImpl());
   });
 
   if (Parser.parseComma().failed())
@@ -137,10 +139,6 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
   if (Parser.parseLSquare().failed())
     return OnUnexpectedToken("[");
 
-  revng_assert(Iterator->second == nullptr);
-  ObjectT Object = ObjectT::get(Parser.getContext(), ID);
-  Iterator->second = Object.getImpl();
-
   using SubobjectType = typename ObjectT::ImplType::SubobjectTy;
   using SubobjectVectorType = llvm::SmallVector<SubobjectType>;
   using SubobjectParserType = mlir::FieldParser<SubobjectVectorType>;
@@ -151,8 +149,8 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
 
     if (mlir::failed(Subobjects)) {
       Parser.emitError(Parser.getCurrentLocation(),
-                       "in type with ID " + std::to_string(ID)
-                         + ": failed to parse class type parameter 'fields' "
+                       "in type with unique handle '" + UniqueHandle
+                         + "': failed to parse class type parameter 'fields' "
                            "which is to be a "
                            "`llvm::ArrayRef<mlir::clift::FieldAttr>`");
       return {};
@@ -175,7 +173,7 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
 
   auto DefineObject = [&](const auto &...Args) -> ObjectT {
     auto EmitError = [&] { return Parser.emitError(ObjectLoc); };
-    if (ObjectT::verify(EmitError, ID, Args...).failed())
+    if (ObjectT::verify(EmitError, UniqueHandle, Args...).failed())
       return {};
 
     Object.define(Args...);
