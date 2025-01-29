@@ -103,9 +103,9 @@ commands:
       revng artifact --resume "$OUTPUT" render-svg-cfg "$INPUT1" -o /dev/null;
 
   #
-  # Produce single decompiled file and headers from revng.analyzed-model
+  # Produce legacy single decompiled file and headers from revng.analyzed-model
   #
-  - type: revng.decompiled-c
+  - type: revng.legacy.decompiled-c
     from:
       - type: revng-qa.compiled
         filter: one-per-architecture
@@ -121,13 +121,13 @@ commands:
       # revng check-decompiled-c "$$WORKDIR/decompiled.c" -I"$$WORKDIR" -m${POINTER_SIZE};
 
   #
-  # Produce convert-to-mlir from revng.analyzed-model
+  # Produce the prepare-for-clift artifact, as a preliminary test for clift-based decompilation
   #
-  - type: revng.convert-to-mlir
+  - type: revng.decompiled-c
     from:
       - type: revng-qa.compiled
         filter: one-per-architecture
       - type: revng.analyzed-model
-    suffix: .mlir
+    suffix: /
     command: |-
-      revng artifact --model "$INPUT2" convert-to-mlir "$INPUT1" -o "$OUTPUT";
+      revng artifact --model "$INPUT2" --resume "$OUTPUT" prepare-for-clift "$INPUT1" -o /dev/null

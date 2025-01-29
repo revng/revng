@@ -328,4 +328,5 @@ llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
 
 /// Copy() are meant to replace `load` instructions in which the pointer
 /// operand is a reference.
-llvm::FunctionType *getCopyType(llvm::Type *ReturnedType);
+llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
+                                llvm::Type *VariableReferenceType);

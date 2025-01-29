@@ -9,10 +9,12 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Verifier.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/IRHelpers.h"
@@ -249,6 +251,32 @@ struct SortByFunction {
   }
 };
 
+static CallInst *
+getAsModelGEP(IRBuilder<> &B, Value *Pointer, const model::Type &ModelType) {
+  Module &M = *B.GetInsertBlock()->getModule();
+  llvm::Type *T = Pointer->getType();
+  Function *ModelGEPFunction = getModelGEP(M, T, T);
+  auto *TypeString = toLLVMString(ModelType, M);
+  auto *Int64Type = IntegerType::getInt64Ty(M.getContext());
+  auto *Zero = ConstantInt::get(Int64Type, 0);
+  return B.CreateCall(ModelGEPFunction, { TypeString, Pointer, Zero });
+}
+
+using GCBIWP = GeneratedCodeBasicInfoWrapperPass;
+
+template<bool IsLegacy>
+using LVB = LocalVariableBuilder<IsLegacy>;
+
+/// This pass has two modes of operation:
+/// - when LegacyLocalVariables is true it uses old FunctionTags and dedicated
+/// functions to represent local variables, and accesses to them;
+/// - when LegacyLocalVariables is false it represents local variables as
+///   regular LLVM allocas, while accesses are modeled as regular load/store
+///   instructions
+///
+/// TODO: At some point the legacy mode will be discontinued and we can remove
+/// the template parameter.
+template<bool LegacyLocalVariables>
 class SegregateStackAccesses : public pipeline::FunctionPassImpl {
 private:
   using MFIResult = std::map<BasicBlock *,
@@ -259,14 +287,10 @@ private:
   Module &M;
   Function *SSACS = nullptr;
   Function *InitLocalSP = nullptr;
-  Function *StackFrameAllocator = nullptr;
-  Function *CallStackArgumentsAllocator = nullptr;
   std::set<Instruction *> ToPurge;
-  /// Builder for StackArgumentsAllocator calls
-  IRBuilder<> SABuilder;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
-  Type *StackPointerType = nullptr;
+  IntegerType *StackPointerType = nullptr;
   std::map<Function *, Function *> OldToNew;
   std::set<Function *> FunctionsWithStackArguments;
   std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
@@ -275,64 +299,64 @@ private:
   llvm::Type *PtrSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
   OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
-  OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
+  LocalVariableBuilder<LegacyLocalVariables> VariableBuilder;
 
 public:
   SegregateStackAccesses(llvm::ModulePass &Pass,
                          const model::Binary &Binary,
-                         llvm::Module &M) :
+                         llvm::Module &M)
+    requires(not LegacyLocalVariables)
+    :
     pipeline::FunctionPassImpl(Pass),
     Binary(Binary),
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
     InitLocalSP(M.getFunction("_init_local_sp")),
-    SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
+    StackPointerType(cast<IntegerType>(getAnalysis<GCBIWP>()
+                                         .getGCBI()
+                                         .spReg()
+                                         ->getValueType())),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    LocalVarPool(FunctionTags::LocalVariable.getPool(M)) {
-
-    auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-    StackPointerType = GCBI.spReg()->getValueType();
+    VariableBuilder(LVB</* IsLegacy */ false>::make(Binary, M)) {
 
     revng_assert(SSACS != nullptr);
 
     // After segregate, we should not introduce new calls to
     // `_init_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
+  }
 
-    auto Create = [&M](StringRef Name, llvm::FunctionType *FType) {
-      auto *Result = Function::Create(FType,
-                                      GlobalValue::ExternalLinkage,
-                                      Name,
-                                      &M);
-      Result->addFnAttr(Attribute::NoUnwind);
-      Result->addFnAttr(Attribute::WillReturn);
-      // NoMerge, because merging two calls to one of these opcodes that
-      // allocate local variable would mean merging the variables.
-      Result->addFnAttr(Attribute::NoMerge);
-      Result->setMemoryEffects(MemoryEffects::readOnly());
-      Result->setOnlyAccessesInaccessibleMemory();
-      FunctionTags::AllocatesLocalVariable.addTo(Result);
-      FunctionTags::ReturnsPolymorphic.addTo(Result);
-      FunctionTags::IsRef.addTo(Result);
+  SegregateStackAccesses(llvm::ModulePass &Pass,
+                         const model::Binary &Binary,
+                         llvm::Module &M)
+    requires LegacyLocalVariables
+    :
+    pipeline::FunctionPassImpl(Pass),
+    Binary(Binary),
+    M(M),
+    SSACS(M.getFunction("stack_size_at_call_site")),
+    InitLocalSP(M.getFunction("_init_local_sp")),
+    CallInstructionPushSize(getCallPushSize(Binary)),
+    StackPointerType(cast<IntegerType>(getAnalysis<GCBIWP>()
+                                         .getGCBI()
+                                         .spReg()
+                                         ->getValueType())),
+    PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
+    OpaquePointerType(PointerType::get(M.getContext(), 0)),
+    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
+    VariableBuilder(LVB<true>::makeLegacyStackBuilder(Binary,
+                                                      M,
+                                                      StackPointerType,
+                                                      AddressOfPool)) {
 
-      return Result;
-    };
+    revng_assert(SSACS != nullptr);
 
-    StackFrameAllocator = Create("revng_stack_frame",
-                                 FunctionType::get(StackPointerType,
-                                                   { StackPointerType },
-                                                   false));
-    llvm::Type *StringPtrType = getStringPtrType(M.getContext());
-
-    // TODO: revng_call_stack_arguments can decay into a LocalVariable
-    CallStackArgumentsAllocator = Create("revng_call_stack_arguments",
-                                         FunctionType::get(StackPointerType,
-                                                           { StringPtrType,
-                                                             StackPointerType },
-                                                           false));
+    // After segregate, we should not introduce new calls to
+    // `_init_local_sp`: enable to DCE it away
+    InitLocalSP->setOnlyReadsMemory();
   }
 
 public:
@@ -368,73 +392,37 @@ public:
   }
 
 private:
-  pair<Instruction *, Instruction *>
-  createLocal(IRBuilder<> &B, const model::Type &VariableType) {
-    // Get call to local variable
-    auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
-    auto *LocalVarFunction = LocalVarPool.get(PtrSizedInteger,
-                                              LocalVarFunctionType,
-                                              "LocalVariable");
-
-    // Allocate variable for return value
-    Constant *ReferenceString = toLLVMString(VariableType, M);
-    Instruction *Reference = B.CreateCall(LocalVarFunction,
-                                          { ReferenceString });
-
-    // Take the address
-    auto *T = Reference->getType();
-    auto *AddressOfFunctionType = getAddressOfType(T, T);
-    auto *AddressOfFunction = AddressOfPool.get({ T, T },
-                                                AddressOfFunctionType,
-                                                "AddressOf");
-    Instruction *Pointer = B.CreateCall(AddressOfFunction,
-                                        { ReferenceString, Reference });
-    return { Reference, Pointer };
-  }
-
   Value *pointer(IRBuilder<> &B, Value *V) const {
     return B.CreateIntToPtr(V, OpaquePointerType);
   }
 
-  template<typename... Types>
-  std::pair<CallInst *, CallInst *>
-  createCallWithAddressOf(IRBuilder<> &B,
-                          const model::UpcastableType &AllocatedType,
-                          FunctionCallee Callee,
-                          Types... Arguments) {
+  CallInst *createAddressOf(IRBuilder<> &B,
+                            Value *V,
+                            const model::UpcastableType &AllocatedType) {
+    revng_assert(LegacyLocalVariables);
 
-    SmallVector<Value *> ArgumentsValues;
-    FunctionType *CalleeType = Callee.getFunctionType();
-
-    unsigned Index = 0;
-    auto AddArgument = [&](auto Argument) {
-      using ArgumentType = decltype(Argument);
-      Value *ArgumentValue = nullptr;
-      if constexpr (std::is_same_v<ArgumentType, uint64_t>) {
-        auto *ArgumentType = cast<IntegerType>(CalleeType->getParamType(Index));
-        ArgumentValue = ConstantInt::get(ArgumentType, Argument);
-      } else {
-        ArgumentValue = Argument;
-      }
-
-      ArgumentsValues.push_back(ArgumentValue);
-      ++Index;
-    };
-
-    (AddArgument(Arguments), ...);
-
-    auto *Call = B.CreateCall(Callee, ArgumentsValues);
-    auto CallType = Call->getType();
-
+    auto *ArgType = V->getType();
     // Inject a call to AddressOf
-    llvm::Constant *ModelTypeString = toLLVMString(AllocatedType, M);
-    auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger, CallType);
-    auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger, CallType },
+    Constant *ModelTypeString = toLLVMString(AllocatedType, M);
+    auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger, ArgType);
+    auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger, ArgType },
                                                 AddressOfFunctionType,
                                                 "AddressOf");
-    auto *AddressofCall = B.CreateCall(AddressOfFunction,
-                                       { ModelTypeString, Call });
-    return { Call, AddressofCall };
+    return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
+  }
+
+  /// Creates an alloca in \a F with type \a T.
+  /// Allocas created with this method are intended to be inserted temporarily,
+  /// and subsequently optimized away from LLVM optimizations.
+  /// There's no need to tag them with model::Types in any way.
+  std::pair<AllocaInst *, PtrToIntInst *>
+  createAllocaWithPtrToInt(Function *F, Type *T) const {
+    IRBuilder<> B(M.getContext());
+    B.SetInsertPointPastAllocas(F);
+    AllocaInst *Alloca = B.CreateAlloca(T);
+    PtrToIntInst *
+      PtrToInt = cast<PtrToIntInst>(B.CreatePtrToInt(Alloca, StackPointerType));
+    return { Alloca, PtrToInt };
   }
 
   void upgradeDynamicFunctions() {
@@ -503,8 +491,6 @@ private:
     //
     // Update references to old arguments
     //
-    IRBuilder<> B(&NewFunction->getEntryBlock());
-    setInsertPointToFirstNonAlloca(B, *NewFunction);
 
     // Create StackAccessRedirector, if required
     StackAccessRedirector *Redirector = nullptr;
@@ -528,7 +514,21 @@ private:
       break;
 
     case ReturnMethod::ModelAggregate:
-      // Nothing to check here.
+      if constexpr (LegacyLocalVariables) {
+        // Nothing to check here.
+      } else {
+        if (Layout.hasSPTAR()) {
+          // Nothing to check here
+        } else {
+          revng_assert(NewReturnType->isArrayTy());
+          auto *ArrayTy = cast<llvm::ArrayType>(NewReturnType);
+          auto *ElemTy = ArrayTy->getElementType();
+          revng_assert(cast<llvm::IntegerType>(ElemTy)->getBitWidth() == 8);
+          unsigned NumElems = ArrayTy->getNumElements();
+          size_t ModelAggregateSize = *Layout.returnValueAggregateType().size();
+          revng_assert(ModelAggregateSize == NumElems);
+        }
+      }
       break;
 
     case ReturnMethod::RegisterSet:
@@ -546,11 +546,16 @@ private:
       break;
     }
 
-    Value *ReturnValueReference = nullptr;
-    Value *ReturnValuePointer = nullptr;
+    Value *ReturnValueAllocation = nullptr;
+    Value *ReturnValueIntAddress = nullptr;
     if (ReturnMethod == ReturnMethod::ModelAggregate) {
-      auto RetValuePair = createLocal(B, Layout.returnValueAggregateType());
-      std::tie(ReturnValueReference, ReturnValuePointer) = RetValuePair;
+      const model::Type &A = Layout.returnValueAggregateType();
+      VariableBuilder.setTargetFunction(NewFunction);
+      tie(ReturnValueAllocation,
+          ReturnValueIntAddress) = VariableBuilder
+                                     .createLocalVariableAndTakeIntAddress(A);
+      revng_assert(ReturnValueAllocation);
+      revng_assert(ReturnValueIntAddress);
 
       if (Layout.hasSPTAR()) {
         // Identify the SPTAR
@@ -559,19 +564,22 @@ private:
         if (ModelArgument.Stack) {
           revng_assert(ModelArgument.Registers.size() == 0);
           Redirector->recordSpan(*ModelArgument.Stack + CallInstructionPushSize,
-                                 ReturnValuePointer);
+                                 ReturnValueIntAddress);
         } else {
           // It's in a register
           revng_assert(ModelArgument.Registers.size() == 1);
           Argument *OldArgument = nullptr;
           OldArgument = ArgumentToRegister.at(ModelArgument.Registers[0]);
-          OldArgument->replaceAllUsesWith(ReturnValuePointer);
+          OldArgument->replaceAllUsesWith(ReturnValueIntAddress);
         }
 
         // Exclude the SPTAR from the list to process
         ModelArguments = llvm::drop_begin(ModelArguments);
       }
     }
+
+    IRBuilder<> B(&NewFunction->getEntryBlock());
+    setInsertPointToFirstNonAlloca(B, *NewFunction);
 
     // Handle arguments
     for (auto [ModelArgument, NewArgument] :
@@ -590,17 +598,11 @@ private:
         auto Architecture = Binary.Architecture();
         auto PointerSize = model::Architecture::getPointerSize(Architecture);
         revng_assert(ModelArgument.Type->size() > PointerSize);
-
-        llvm::Constant *ModelTypeString = toLLVMString(ModelArgument.Type, M);
-        auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
-                                                       NewArgumentType);
-        auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
-                                                      NewArgumentType },
-                                                    AddressOfFunctionType,
-                                                    "AddressOf");
-        auto *AddressOfNewArgument = B.CreateCall(AddressOfFunction,
-                                                  { ModelTypeString,
-                                                    &NewArgument });
+        Value *AddressOfNewArgument = &NewArgument;
+        if constexpr (LegacyLocalVariables)
+          AddressOfNewArgument = createAddressOf(B,
+                                                 &NewArgument,
+                                                 ModelArgument.Type);
 
         if (UsesStack) {
           // When loading from this stack slot, return the address of the
@@ -643,27 +645,22 @@ private:
         }
 
         if (ModelArgument.Stack) {
-          auto *Alloca = new AllocaInst(NewArgument.getType(),
-                                        0,
-                                        "",
-                                        &*NewFunction->getEntryBlock().begin());
+          const auto &[Alloca,
+                       PtrToInt] = createAllocaWithPtrToInt(NewFunction,
+                                                            NewArgument
+                                                              .getType());
           B.CreateStore(&NewArgument, Alloca);
-          ToRecordSpan = B.CreatePtrToInt(Alloca, StackPointerType);
+          ToRecordSpan = PtrToInt;
         }
 
       } else if (ModelArgument.Kind == ReferenceToAggregate) {
 
         // Handle non-scalar argument (passed by pointer)
-        llvm::Constant *ModelTypeString = toLLVMString(ModelArgument.Type, M);
-        auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
-                                                       NewArgumentType);
-        auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
-                                                      NewArgumentType },
-                                                    AddressOfFunctionType,
-                                                    "AddressOf");
-        auto *AddressOfNewArgument = B.CreateCall(AddressOfFunction,
-                                                  { ModelTypeString,
-                                                    &NewArgument });
+        Value *AddressOfNewArgument = &NewArgument;
+        if constexpr (LegacyLocalVariables)
+          AddressOfNewArgument = createAddressOf(B,
+                                                 &NewArgument,
+                                                 ModelArgument.Type);
 
         for (model::Register::Values Register : ModelArgument.Registers) {
           Argument *OldArgument = ArgumentToRegister.at(Register);
@@ -703,7 +700,8 @@ private:
     // Handle return values
     switch (ReturnMethod) {
     case ReturnMethod::ModelAggregate: {
-      // Replace return instructions with returning ReturnValueReference
+      // Replace return instructions with returning a copy of the local variable
+      // representing the return value
       for (ReturnInst *Ret : Returns) {
         B.SetInsertPoint(Ret);
 
@@ -729,14 +727,26 @@ private:
           // values
           uint64_t Offset = 0;
           for (Value *ReturnValue : ReturnValues) {
-            Value *Pointer = createAdd(B, ReturnValuePointer, Offset);
+            Value *Pointer = createAdd(B, ReturnValueIntAddress, Offset);
             B.CreateStore(ReturnValue, pointer(B, Pointer));
             Offset += ReturnValue->getType()->getIntegerBitWidth() / 8;
           }
         }
 
         // Return the pointer to the result variable
-        B.CreateRet(ReturnValueReference);
+        revng_assert(ReturnValueAllocation);
+        revng_assert(ReturnValueIntAddress);
+        Value *ToReturn = nullptr;
+        if constexpr (LegacyLocalVariables) {
+          ToReturn = ReturnValueAllocation;
+        } else {
+          if (Layout.hasSPTAR()) {
+            ToReturn = ReturnValueIntAddress;
+          } else {
+            ToReturn = B.CreateLoad(NewReturnType, ReturnValueAllocation);
+          }
+        }
+        B.CreateRet(ToReturn);
         Ret->eraseFromParent();
       }
     } break;
@@ -795,8 +805,6 @@ private:
 
   void segregateStackAccesses(Function &F) {
     revng_assert(InitLocalSP != nullptr);
-
-    setInsertPointToFirstNonAlloca(SABuilder, F);
 
     // Get model::Function
     MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
@@ -967,16 +975,15 @@ private:
           revng_assert(MaybeStackSize);
 
           // Create an alloca
-          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
-                                                    * 8),
-                                        0,
-                                        "",
-                                        &*Caller->getEntryBlock().begin());
+          const auto
+            &[Alloca,
+              PtrToInt] = createAllocaWithPtrToInt(Caller,
+                                                   B.getIntNTy(ModelArgument
+                                                                 .Stack->Size
+                                                               * 8));
 
           // Record its portion of the stack for redirection
-          Redirector.recordSpan(*ModelArgument.Stack,
-                                SABuilder.CreatePtrToInt(Alloca,
-                                                         StackPointerType));
+          Redirector.recordSpan(*ModelArgument.Stack, PtrToInt);
 
           // Load the alloca and record it as a pointer
           Pointer = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
@@ -986,14 +993,12 @@ private:
           Pointer = ArgumentToRegister.at(Register);
         }
 
-        // Pass as argument the pointer compute above, dereferenced
-        Type *T = Pointer->getType();
-        Function *GetModelGEPFunction = getModelGEP(M, T, T);
-        auto *TypeString = toLLVMString(ModelArgument.Type, M);
-        auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
-        auto *Zero = ConstantInt::get(Int64Type, 0);
-        Arguments.push_back(B.CreateCall(GetModelGEPFunction,
-                                         { TypeString, Pointer, Zero }));
+        // Pass as argument the pointer compute above.
+        // In legacy mode, wrap it into a ModelGEP at offset 0.
+        if constexpr (LegacyLocalVariables) {
+          Pointer = getAsModelGEP(B, Pointer, *ModelArgument.Type);
+        }
+        Arguments.push_back(Pointer);
       } break;
 
       case ArgumentKind::Scalar:
@@ -1033,16 +1038,15 @@ private:
           revng_assert(MaybeStackSize);
 
           // Create an alloca
-          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
-                                                    * 8),
-                                        0,
-                                        "",
-                                        &*Caller->getEntryBlock().begin());
+          const auto
+            &[Alloca,
+              PtrToInt] = createAllocaWithPtrToInt(Caller,
+                                                   B.getIntNTy(ModelArgument
+                                                                 .Stack->Size
+                                                               * 8));
 
           // Record its portion of the stack for redirection
-          Redirector.recordSpan(*ModelArgument.Stack,
-                                SABuilder.CreatePtrToInt(Alloca,
-                                                         StackPointerType));
+          Redirector.recordSpan(*ModelArgument.Stack, PtrToInt);
 
           Value *Loaded = B.CreateLoad(Alloca->getAllocatedType(), Alloca);
 
@@ -1066,27 +1070,50 @@ private:
       } break;
 
       case ArgumentKind::ReferenceToAggregate: {
-        // Allocate memory for stack arguments
-        llvm::Constant *ArgumentType = toLLVMString(ModelArgument.Type, M);
-        auto [StackArgsCall,
-              AddrOfCall] = createCallWithAddressOf(SABuilder,
-                                                    ModelArgument.Type,
-                                                    CallStackArgumentsAllocator,
-                                                    ArgumentType,
-                                                    NewSize);
-        StackArgsCall->copyMetadata(*SSACSCall);
 
-        // Record for pushing ALAP. AddrOfCall should be pushed ALAP first to
-        // leave slack to StackArgsCall
-        ToPushALAP.push_back(AddrOfCall);
-        ToPushALAP.push_back(StackArgsCall);
+        VariableBuilder.setTargetFunction(SSACSCall->getFunction());
+        Instruction
+          *StackArgsAddress = VariableBuilder
+                                .createCallStackArgumentVariable(*ModelArgument
+                                                                    .Type);
+        revng_assert(StackArgsAddress);
+        Instruction *StackArgsAllocation = nullptr;
+        if constexpr (LegacyLocalVariables) {
+          // When in legacy mode, the actual instruction performing the stack
+          // allocation is the first operand of StackArgsAddress, which is
+          // guaranteed to be a call to AddressOf.
+          auto *CallToAddressOf = getCallToTagged(StackArgsAddress,
+                                                  FunctionTags::AddressOf);
+          auto *AllocationInst = CallToAddressOf->getArgOperand(1);
+          StackArgsAllocation = cast<Instruction>(AllocationInst);
+          // Then we have to push the address computation and the allocation
+          // ALAP. The address should be pushed ALAP first to leave slack for
+          // the allocation instruction to also be pushed ALAP afterwards.
+          ToPushALAP.push_back(StackArgsAddress);
+          ToPushALAP.push_back(StackArgsAllocation);
+        } else {
+          // When not in legacy mode, the instruction returning the address of
+          // the stack arguments is also the instruction performing the actual
+          // allocation, so we can just say they're equal.
+          //
+          // Also, there's no need to push it ALAP, since it's an alloca.
+          // We do have to push ALAP its cast to an integer though.
+          revng_assert(isa<PtrToIntInst>(StackArgsAddress));
+          revng_assert(isa<AllocaInst>(StackArgsAddress->getOperand(0)));
+          StackArgsAllocation = StackArgsAddress;
+          ToPushALAP.push_back(StackArgsAddress);
+        }
+
+        // We also have to copy over metadata, from the annotation about the
+        // size of the stack arguments.
+        StackArgsAllocation->copyMetadata(*SSACSCall);
 
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
           Value *OldArgument = ArgumentToRegister.at(Register);
           unsigned OldSize = model::Register::getSize(Register);
 
-          Value *Address = createAdd(B, AddrOfCall, OffsetInNewArgument);
+          Value *Address = createAdd(B, StackArgsAddress, OffsetInNewArgument);
 
           // Store value
           Value *Pointer = pointer(B, Address);
@@ -1097,9 +1124,9 @@ private:
         }
 
         if (ModelArgument.Stack)
-          Redirector.recordSpan(*ModelArgument.Stack, AddrOfCall);
+          Redirector.recordSpan(*ModelArgument.Stack, StackArgsAddress);
 
-        Arguments.push_back(StackArgsCall);
+        Arguments.push_back(StackArgsAllocation);
       } break;
 
       default:
@@ -1150,26 +1177,28 @@ private:
     switch (Layout.returnMethod()) {
     case ReturnMethod::ModelAggregate: {
       if (HasSPTAR) {
-        // Make reference out of ReturnValuePointer
-        Type *T = ReturnValuePointer->getType();
-        Function *GetModelGEPFunction = getModelGEP(M, T, T);
-        auto *Int64Type = IntegerType::getIntNTy(M.getContext(), 64);
-        auto *Zero = ConstantInt::get(Int64Type, 0);
-        B.CreateCall(GetModelGEPFunction,
-                     { toLLVMString(Layout.returnValueAggregateType(), M),
-                       ReturnValuePointer,
-                       Zero });
+        // In legacy mode, make a reference out of ReturnValuePointer, using a
+        // ModelGEP at offset 0.
+        if constexpr (LegacyLocalVariables) {
+          getAsModelGEP(B,
+                        ReturnValuePointer,
+                        Layout.returnValueAggregateType());
+        }
       } else {
         revng_assert(not ReturnValuePointer);
-        auto *T = NewCall->getType();
-        auto *AddressOfFunctionType = getAddressOfType(T, T);
-        auto *AddressOfFunction = AddressOfPool.get({ T, T },
-                                                    AddressOfFunctionType,
-                                                    "AddressOf");
-        const auto &ReturnValue = Layout.returnValueAggregateType();
-        Constant *ReferenceString = toLLVMString(ReturnValue, M);
-        ReturnValuePointer = B.CreateCall(AddressOfFunction,
-                                          { ReferenceString, NewCall });
+        const auto &ReturnType = Layout.returnValueAggregateType();
+        if constexpr (LegacyLocalVariables) {
+          ReturnValuePointer = createAddressOf(B, NewCall, ReturnType);
+        } else {
+          auto &VB = VariableBuilder;
+          VB.setTargetFunction(Caller);
+          Value *Allocation = nullptr;
+          Value *IntAddress = nullptr;
+          tie(Allocation,
+              IntAddress) = VB.createLocalVariableAndTakeIntAddress(ReturnType);
+          B.CreateStore(NewCall, Allocation);
+          ReturnValuePointer = IntAddress;
+        }
       }
 
       if (HasSPTAR) {
@@ -1350,8 +1379,8 @@ private:
     //
     // Find call to _init_local_sp
     //
-    CallInst *Call = findCallTo(&F, InitLocalSP);
-    if (Call == nullptr or ModelFunction.StackFrameType().isEmpty())
+    CallInst *InitLocalSPCall = findCallTo(&F, InitLocalSP);
+    if (InitLocalSPCall == nullptr or ModelFunction.StackFrameType().isEmpty())
       return;
 
     //
@@ -1365,18 +1394,17 @@ private:
     // Create call and rebase SP0, if StackFrameSize is not zero
     //
     if (StackFrameSize != 0) {
-      IRBuilder<> Builder(Call);
-      model::UpcastableType StackFrameType = ModelFunction.StackFrameType();
-      auto [_, StackFrameCall] = createCallWithAddressOf(Builder,
-                                                         StackFrameType,
-                                                         StackFrameAllocator,
-                                                         StackFrameSize);
-      auto *SP0 = Builder.CreateAdd(StackFrameCall,
+      VariableBuilder.setTargetFunction(&F);
+      Instruction *StackFrameAddress = VariableBuilder
+                                         .createStackFrameVariable();
+
+      IRBuilder<> Builder(InitLocalSPCall);
+      auto *SP0 = Builder.CreateAdd(StackFrameAddress,
                                     getSPConstant(StackFrameSize));
-      Call->replaceAllUsesWith(SP0);
+      InitLocalSPCall->replaceAllUsesWith(SP0);
 
       // Cleanup _init_local_sp
-      eraseFromParent(Call);
+      eraseFromParent(InitLocalSPCall);
     }
   }
 
@@ -1474,7 +1502,20 @@ private:
       break;
 
     case ReturnMethod::ModelAggregate:
-      ReturnType = StackPointerType;
+      if constexpr (LegacyLocalVariables) {
+        ReturnType = StackPointerType;
+      } else {
+        if (Layout.hasSPTAR()) {
+          ReturnType = StackPointerType;
+        } else {
+          const model::Type &ReturnAggregate = Layout
+                                                 .returnValueAggregateType();
+          size_t ReturnSize = *ReturnAggregate.size();
+          auto &Context = OldReturnType->getContext();
+          auto *Int8 = llvm::IntegerType::getInt8Ty(Context);
+          ReturnType = llvm::ArrayType::get(Int8, ReturnSize);
+        }
+      }
       break;
 
     case ReturnMethod::Scalar: {
@@ -1514,14 +1555,48 @@ private:
   /// \}
 };
 
-void SegregateStackAccesses::getAnalysisUsage(AnalysisUsage &AU) {
+static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
   AU.setPreservesCFG();
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
 }
 
 template<>
-char pipeline::FunctionPass<SegregateStackAccesses>::ID = 0;
+void SegregateStackAccesses<true>::getAnalysisUsage(AnalysisUsage &AU) {
+  return ::getAnalysisUsage(AU);
+}
+
+template<>
+void SegregateStackAccesses<false>::getAnalysisUsage(AnalysisUsage &AU) {
+  return ::getAnalysisUsage(AU);
+}
+
+template<>
+char pipeline::FunctionPass<SegregateStackAccesses<true>>::ID = 0;
+
+template<>
+char pipeline::FunctionPass<SegregateStackAccesses<false>>::ID = 0;
+
+static constexpr const char *LegacyFlag = "legacy-segregate-stack-accesses";
+
+struct LegacySegregateStackAccessesPipe {
+  static constexpr auto Name = LegacyFlag;
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+    return { ContractGroup::transformOnlyArgument(StackPointerPromoted,
+                                                  StackAccessesSegregated,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(legacy::PassManager &Manager) {
+    using Pass = SegregateStackAccesses</* LegacyLocalVariables = */ true>;
+    Manager.add(new pipeline::FunctionPass<Pass>);
+  }
+};
+
+static pipeline::RegisterLLVMPass<LegacySegregateStackAccessesPipe> X;
 
 static constexpr const char *Flag = "segregate-stack-accesses";
 
@@ -1537,7 +1612,8 @@ struct SegregateStackAccessesPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new pipeline::FunctionPass<SegregateStackAccesses>);
+    using Pass = SegregateStackAccesses</* LegacyLocalVariables = */ false>;
+    Manager.add(new pipeline::FunctionPass<Pass>);
   }
 };
 

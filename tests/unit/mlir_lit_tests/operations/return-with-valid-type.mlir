@@ -12,7 +12,7 @@ clift.return {
   clift.yield %0 : !void
 }
 
-//WIP: This is not accepted:
+// TODO: This is currently invalid. Add support for it.
 //  clift.return {
 //    %0 = clift.undef : !int32_t
 //    clift.yield %0 : !int32_t

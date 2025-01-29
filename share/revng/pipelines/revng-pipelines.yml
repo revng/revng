@@ -416,18 +416,13 @@ Branches:
             Docs: |-
               This analysis, for each function, identifies the size of the stack
               frame and the amount of stack used to pass arguments.
-      - Name: segregate-stack-accesses
+      - Name: legacy-segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [module.bc.zstd]
             Passes:
               - hoist-struct-phis
-              - segregate-stack-accesses
-      - Name: late-optimize
-        Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
-            Passes:
+              - legacy-segregate-stack-accesses
               - cleanup-stack-size-markers
               - dce
               - sroa
@@ -458,7 +453,7 @@ Branches:
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: stack_access_segregate.ll
+          SingleTargetFilename: legacy_stack_access_segregate.ll
           Docs: |-
             This artifact contains an LLVM function for each function in the
             input program.
@@ -501,7 +496,7 @@ Branches:
               - remove-load-store
               - fold-model-gep
               - dce
-              - switch-to-statements
+              - legacy-switch-to-statements
               - make-model-cast
               - implicit-model-cast
               - operatorprecedence-resolution
@@ -622,44 +617,72 @@ Branches:
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: stack_access_segregate.ll
+          SingleTargetFilename: cleanup-ir.ll
           Docs: |-
             This artifact contains one LLVM function for each function defined
             in this binary.
 
-            The output similar to the output of `make-segment-ref` but it's
+            The output is similar to the output of `make-segment-ref` but it's
             cleaned up from rev.ng-specific artifacts in order to be more easily
             consumed as standard LLVM IR.
 
             This is an appropriate artifact on top of which write analyses, such
             as a taint analysis.
-  - From: make-segment-ref
+    # Clift-based decompilation pipeline
+    # TODO: this is still under construction and can't generate C code yet
+  - From: detect-stack-size
     Steps:
-      - Name: convert-to-mlir
+      - Name: segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [module.bc.zstd]
             Passes:
-              - prepare-llvmir-for-mlir
-          - Type: import-llvm-to-mlir
-            UsedContainers: [module.bc.zstd, module.mlir]
-        Artifacts:
-          Container: module.mlir
-          Kind: mlir-module
-          SingleTargetFilename: mlir-llvm-dialect.mlir
-          Docs: |-
-            This artifact is an MLIR module with one function for each function
-            defined in the binary.
-      - Name: import-clift-types
+              - hoist-struct-phis
+              - segregate-stack-accesses
+              - cleanup-stack-size-markers
+              - dce
+              - sroa
+              - instcombine
+              - remove-extractvalues
+              - sroa
+              - simplify-cfg-with-hoist-and-sink
+              # loop-rotate rearranges loops in a way that should make it
+              # easier to match do-while loops
+              - loop-rotate
+              - loop-rewrite-with-canonical-induction-variable
+              - simplify-cfg-with-hoist-and-sink
+              # don't run simplify-cfg{,-with-hoist-and-sink} after
+              # loop-simplify because it kills the loop-simplify form causing
+              # DLA not to identify arrays properly
+              - loop-simplify
+              - instcombine
+              - remove-extractvalues
+              - early-cse
+              - dce
+              - strip-dead-prototypes
+              - split-overflow-intrinsics
+              - dce
+      - Name: prepare-for-clift
         Pipes:
-          - Type: import-clift-types
-            UsedContainers: [cfg.yml.tar.gz, module.mlir]
+          - Type: llvm-pipe
+            UsedContainers: [module.bc.zstd]
+            Passes:
+              - remove-llvmassume-calls
+              - dce
+              - exit-ssa
+              - switch-to-statements
         Artifacts:
-          Container: module.mlir
-          Kind: mlir-module
-          SingleTargetFilename: mlir-llvm-dialect-with-clift-types.mlir
+          Container: module.bc.zstd
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: prepare_for_clift.ll
           Docs: |-
-            A test artifact to import types into a Clift module.
+            This artifact contains an LLVM function for each function in the
+            input program.
+
+            The output is similar to the output of `make-segment-ref` but it now
+            contains explicit Alloca/Load/Store instructions.
+            These are injected as a preliminary step for moving away from LLVM
+            towards a higher-level representation that can be emitted in C.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:

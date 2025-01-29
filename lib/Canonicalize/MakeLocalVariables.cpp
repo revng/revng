@@ -106,15 +106,13 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
       AllocatedType = llvmIntToModelType(Alloca->getAllocatedType(), *Model);
     revng_assert(!AllocatedType.isEmpty() && AllocatedType->verify());
 
-    llvm::Constant *ModelTypeString = toLLVMString(AllocatedType, M);
-    auto LocalVarLLVMType = llvm::IntegerType::get(LLVMCtx,
-                                                   *AllocatedType->size() * 8);
-
     // Inject call to LocalVariable
-    auto *LocalVarFunctionType = getLocalVarType(LocalVarLLVMType);
-    auto *LocalVarFunction = LocalVarPool.get(LocalVarLLVMType,
+    llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx, *Model);
+    auto *LocalVarFunctionType = getLocalVarType(PtrSizedInt);
+    auto *LocalVarFunction = LocalVarPool.get(PtrSizedInt,
                                               LocalVarFunctionType,
                                               "LocalVariable");
+    llvm::Constant *ModelTypeString = toLLVMString(AllocatedType, M);
     auto *LocalVarCall = Builder.CreateCall(LocalVarFunction,
                                             { ModelTypeString });
 

@@ -112,17 +112,17 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         revng_assert(areMemOpCompatible(*PointedT, *Load->getType(), *Model));
 
         // Create an index-less ModelGEP for the pointer operand
+        llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx,
+                                                                *Model);
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PtrOp,
                                          PointedT,
-                                         Load->getType());
+                                         PtrSizedInt);
 
         // Create a Copy to dereference the ModelGEP
-        auto *CopyFnType = getCopyType(DerefCall->getType());
-        auto *CopyFunction = CopyPool.get(DerefCall->getType(),
-                                          CopyFnType,
-                                          "Copy");
+        auto *CopyFnType = getCopyType(I.getType(), DerefCall->getType());
+        auto *CopyFunction = CopyPool.get(I.getType(), CopyFnType, "Copy");
         InjectedCall = Builder.CreateCall(CopyFunction, { DerefCall });
 
         // Add the dereferenced type to the type map
@@ -159,11 +159,13 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         }
         revng_assert(areMemOpCompatible(*StoredType, *PointedType, *Model));
 
+        llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx,
+                                                                *Model);
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PointerOp,
                                          StoredType,
-                                         ValueOp->getType());
+                                         PtrSizedInt);
 
         // Add the dereferenced type to the type map
         TypeMap.insert({ DerefCall, StoredType });

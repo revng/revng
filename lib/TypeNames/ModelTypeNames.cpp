@@ -452,6 +452,11 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const llvm::StringRef &FunctionName,
                                        ptml::CTypeBuilder &B,
                                        bool SingleLine) {
+
+  using namespace abi::FunctionType;
+  auto Layout = Layout::make(CF);
+  revng_assert(Layout.returnMethod() != ReturnMethod::RegisterSet);
+
   std::string Result;
 
   llvm::StringRef ABIName = model::ABI::getName(CF.ABI());

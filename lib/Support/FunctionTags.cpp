@@ -651,10 +651,14 @@ llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
                                  false /* IsVarArg */);
 }
 
-llvm::FunctionType *getCopyType(llvm::Type *ReturnedType) {
+llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
+                                llvm::Type *VariableReferenceType) {
   using namespace llvm;
-
   // The argument is an llvm::Value representing a reference
-  SmallVector<llvm::Type *, 1> FixedArgs = { ReturnedType };
+  // It's not part of the key in the Copy pool, because all references should
+  // have the same underlying LLVM type, which is a pointer-sized integer.
+  // This is a hack, but Copy will go away in the clift-base decompilation
+  // pipeline, so it's temporary.
+  SmallVector<llvm::Type *, 1> FixedArgs = { VariableReferenceType };
   return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
 }

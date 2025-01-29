@@ -19,6 +19,7 @@ target_link_libraries(
   revngABI
   revngBasicAnalyses
   revngEarlyFunctionAnalysis
+  revngLocalVariables
   revngModel
   revngPipes
   ${LLVM_LIBRARIES})
