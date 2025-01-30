@@ -210,11 +210,11 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
 
     // Enqueue the successors of the current nodes
     EdgeVec NextToVisit1, NextToVisit2;
-    revng_assert(Node1->Successors.size() == Node2->Successors.size());
     size_t NChildren = Node1->Successors.size();
+    revng_assert(NChildren == Node2->Successors.size());
 
-    NextToVisit1.reserve(NextToVisit1.size() + Node1->Successors.size());
-    NextToVisit2.reserve(NextToVisit2.size() + Node2->Successors.size());
+    NextToVisit1.reserve(NChildren);
+    NextToVisit2.reserve(NChildren);
     llvm::copy(Node1->Successors, std::back_inserter(NextToVisit1));
     llvm::copy(Node2->Successors, std::back_inserter(NextToVisit2));
 
