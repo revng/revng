@@ -59,6 +59,8 @@ void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
 
 template<typename ObjectT>
 ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
+  auto ObjectLoc = Parser.getCurrentLocation();
+
   const auto OnUnexpectedToken = [&](const llvm::StringRef Name) -> ObjectT {
     Parser.emitError(Parser.getCurrentLocation(),
                      "Expected " + Name + " while parsing mlir "
@@ -171,12 +173,19 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
   if (Parser.parseGreater().failed())
     return OnUnexpectedToken(">");
 
-  if constexpr (hasExplicitSize<ObjectT>)
-    Object.define(OptionalName, Size, *Subobjects);
-  else
-    Object.define(OptionalName, *Subobjects);
+  auto DefineObject = [&](const auto &...Args) -> ObjectT {
+    auto EmitError = [&] { return Parser.emitError(ObjectLoc); };
+    if (ObjectT::verify(EmitError, ID, Args...).failed())
+      return {};
 
-  return Object;
+    Object.define(Args...);
+    return Object;
+  };
+
+  if constexpr (hasExplicitSize<ObjectT>)
+    return DefineObject(OptionalName, Size, *Subobjects);
+  else
+    return DefineObject(OptionalName, *Subobjects);
 }
 
 } // namespace mlir::clift

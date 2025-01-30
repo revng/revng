@@ -7,7 +7,7 @@
 !s = !clift.defined<#clift.struct<
   id = 1,
   name = "",
-  size = 1,
+  size = 8,
   fields = [<
       offset = 0,
       name = "",

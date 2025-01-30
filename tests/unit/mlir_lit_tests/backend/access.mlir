@@ -11,7 +11,7 @@
 !s = !clift.defined<#clift.struct<
   id = 2002,
   name = "",
-  size = 4,
+  size = 8,
   fields = [
     <
       name = "",
