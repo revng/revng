@@ -71,6 +71,7 @@ public:
 };
 
 bool SDKIsInitialized = false;
+std::optional<llvm::ThreadPool> ThreadPool;
 
 void initializeSDK() {
   revng_assert(!SDKIsInitialized);
@@ -84,6 +85,8 @@ void initializeSDK() {
   };
   Aws::InitAPI(Options);
   OnQuit->add([Options = std::move(Options)] { Aws::ShutdownAPI(Options); });
+
+  ThreadPool.emplace(llvm::hardware_concurrency(8));
 }
 
 } // namespace
@@ -156,6 +159,41 @@ public:
   llvm::MemoryBuffer &buffer() override { return *Buffer; };
 };
 
+class AsyncUploadTask {
+private:
+  Aws::S3::S3Client &Client;
+  Aws::S3::Model::PutObjectRequest Request;
+  std::string Path;
+  std::string NewFilename;
+  TemporaryFile TempFile;
+
+public:
+  AsyncUploadTask(Aws::S3::S3Client &Client,
+                  Aws::S3::Model::PutObjectRequest &&Request,
+                  llvm::StringRef Path,
+                  llvm::StringRef NewFilename,
+                  TemporaryFile &&TempFile) :
+    Client(Client),
+    Request(std::move(Request)),
+    Path(Path),
+    NewFilename(NewFilename),
+    TempFile(std::move(TempFile)) {}
+
+  S3StorageClient::UploadResult operator()() {
+    Aws::S3::Model::PutObjectOutcome Result;
+    auto File = std::make_shared<Aws::FStream>(TempFile.path().str(),
+                                               std::ios_base::in
+                                                 | std::ios_base::binary);
+    if (File->fail()) {
+      return { Result, Path, NewFilename, "Could not open temporary file" };
+    }
+
+    Request.SetBody(File);
+    Result = Client.PutObject(Request);
+    return { Result, Path, NewFilename, std::string{} };
+  }
+};
+
 class S3WritableFile : public WritableFile {
 private:
   TemporaryFile TempFile;
@@ -189,19 +227,15 @@ public:
     std::string NewFilename = generateNewFilename(Path);
     Request.SetKey(Client.resolvePath(NewFilename));
 
-    auto File = std::make_shared<Aws::FStream>(TempFile.path().str(),
-                                               std::ios_base::in
-                                                 | std::ios_base::binary);
-    if (File->fail()) {
-      return revng::createError("Could not open temporary file");
-    }
-
-    Request.SetBody(File);
-    Aws::S3::Model::PutObjectOutcome Result = Client.Client.PutObject(Request);
-    if (not Result.IsSuccess())
-      return toError(Result);
-
-    Client.FilenameMap[Path] = NewFilename;
+    auto Task = std::make_shared<AsyncUploadTask>(Client.Client,
+                                                  std::move(Request),
+                                                  Path,
+                                                  NewFilename,
+                                                  std::move(TempFile));
+    using UploadResult = S3StorageClient::UploadResult;
+    std::shared_future<UploadResult>
+      ResultFuture = Client.TaskGroup.async([Task]() { return (*Task)(); });
+    Client.PendingUploads.push_back(std::move(ResultFuture));
     return llvm::Error::success();
   }
 };
@@ -217,7 +251,8 @@ public:
   Aws::Auth::AWSCredentials GetAWSCredentials() override { return Credentials; }
 };
 
-S3StorageClient::S3StorageClient(llvm::StringRef RawURL) {
+S3StorageClient::S3StorageClient(llvm::StringRef RawURL) :
+  TaskGroup(*ThreadPool) {
   // Url format is:
   // s3://<username>:<password>@<region>+<host:port>/<bucket name>/<path>
   revng_assert(isS3URL(RawURL));
@@ -426,6 +461,22 @@ S3StorageClient::getWritableFile(llvm::StringRef Path,
 }
 
 llvm::Error S3StorageClient::commit() {
+  TaskGroup.wait();
+
+  std::vector<llvm::Error> Errors;
+  for (const auto &Element : PendingUploads) {
+    const UploadResult &Result = Element.get();
+    if (not Result.Error.empty())
+      Errors.push_back(revng::createError(Result.Error));
+    else if (not Result.Outcome.IsSuccess())
+      Errors.push_back(toError(Result.Outcome));
+    else
+      FilenameMap[Result.Path] = Result.NewPath;
+  }
+  if (Errors.size() > 0) {
+    return joinErrors(Errors);
+  }
+
   std::string SerializedIndex;
 
   {
