@@ -13,7 +13,7 @@ TypeDefinitions:
     Size: 92
     Fields:
       - Offset: 0
-        Name: .custom_data
+        Name: custom_data
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/1816-StructDefinition"

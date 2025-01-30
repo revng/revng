@@ -115,7 +115,19 @@ populateSegmentTypeStruct(model::Binary &Binary,
 
     // Insert the field the segment struct
     auto &SectionField = SegmentStruct.addField(*Offset, std::move(Type));
-    SectionField.Name() = Section.Name;
+
+    // TODO: This is the only place where we automatically change names coming
+    //       from the binary (aside from the deduplication, but that's
+    //       a separate issue). Are we happy with this?
+
+    llvm::StringRef Name = Section.Name;
+    if (Name.starts_with("."))
+      Name = Name.drop_front();
+
+    constexpr auto ReplaceDots = std::views::transform([](char Character) {
+      return Character != '.' ? Character : '_';
+    });
+    SectionField.Name() = Name | ReplaceDots | revng::to<std::string>();
   }
 
   // Pour the remaining symbols into the segment struct
