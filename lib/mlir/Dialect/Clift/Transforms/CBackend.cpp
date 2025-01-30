@@ -76,16 +76,14 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
   }
 
   void runOnOperation() override {
-    // TODO: Get the platform info from an option.
-    const clift::PlatformInfo Platform = {
-      .sizeof_char = 1,
-      .sizeof_short = 2,
-      .sizeof_int = 4,
-      .sizeof_long = 8,
-      .sizeof_longlong = 8,
-      .sizeof_float = 4,
-      .sizeof_double = 8,
-      .sizeof_pointer = 8,
+    clift::TargetCImplementation Target = {
+      .PointerSize = 8,
+      .IntegerTypes = {
+        { 1, clift::CIntegerKind::Char },
+        { 2, clift::CIntegerKind::Short },
+        { 4, clift::CIntegerKind::Int },
+        { 8, clift::CIntegerKind::Long },
+      },
     };
 
     if (not tryOpenOutputFile())
@@ -97,7 +95,7 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
 
     getOperation()->walk([&](clift::FunctionOp Function) {
       if (not Function.isExternal())
-        writeToOutputFile(clift::decompile(Function, Platform, B));
+        writeToOutputFile(clift::decompile(Function, Target, B));
     });
   }
 };
