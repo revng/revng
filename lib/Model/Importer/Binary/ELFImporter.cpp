@@ -167,7 +167,7 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 template<typename T, bool HasAddend>
 Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   revng_log(ELFImporterLog, "Starting ELF import");
-  llvm::Task Task(12, "Import ELF");
+  llvm::Task Task(13, "Import ELF");
   Task.advance("Parse ELF", true);
 
   // Parse the ELF file
@@ -425,6 +425,9 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     findMissingTypes(TheELF, AdjustedOptions);
   }
 
+  Task.advance("Flatten primitive typedefs", true);
+  model::flattenPrimitiveTypedefs(Model);
+
   Task.advance("Deduplicate colliding names", true);
   model::deduplicateCollidingNames(Model);
 
@@ -538,6 +541,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   Model.evictCachedReferences();
   Model.initializeReferences();
 
+  model::flattenPrimitiveTypedefs(Model);
   deduplicateEquivalentTypes(Model);
   model::deduplicateCollidingNames(Model);
 }

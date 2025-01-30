@@ -288,6 +288,7 @@ void PDBImporterImpl::run(NativeSession &Session) {
   populateSymbolsWithTypes(Session);
 
   TupleTree<model::Binary> &Model = Importer.getModel();
+  model::flattenPrimitiveTypedefs(Model);
   deduplicateEquivalentTypes(Model);
   model::deduplicateCollidingNames(Model);
   purgeUnreachableTypes(Model);

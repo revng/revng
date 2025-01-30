@@ -13,6 +13,7 @@
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
+#include "revng/Model/Pass/FlattenPrimitiveTypedefs.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -298,6 +299,7 @@ Error MachOImporter::import() {
   if (TheError)
     revng_log(Log, "Error while decoding weakBindTable: " << TheError);
 
+  model::flattenPrimitiveTypedefs(Model);
   model::deduplicateCollidingNames(Model);
   return Error::success();
 }

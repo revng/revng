@@ -924,7 +924,7 @@ private:
 
 public:
   void run() {
-    Task T(9, "Importing DWARF");
+    Task T(10, "Importing DWARF");
     T.advance("Materialize types with an identity", true);
     materializeTypesWithIdentity();
     T.advance("Resolve types", true);
@@ -935,6 +935,8 @@ public:
     purgeUnresolvedPlaceholders();
     T.advance("Remove types that couldn't be imported fully", true);
     purgeInvalidTypes(Model);
+    T.advance("Flatten primitive typedefs", true);
+    model::flattenPrimitiveTypedefs(Model);
     T.advance("Deduplicate equivalent types", true);
     deduplicateEquivalentTypes(Model);
     T.advance("Deduplicate colliding names", true);

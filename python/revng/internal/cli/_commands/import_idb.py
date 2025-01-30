@@ -79,6 +79,18 @@ class ImportIDBCommand(Command):
                 [
                     "model",
                     "opt",
+                    "-flatten-primitive-typedefs",
+                    model_file.name,
+                    "-o",
+                    model_file.name,
+                ],
+                options,
+            )
+
+            run_revng_command(
+                [
+                    "model",
+                    "opt",
                     "-deduplicate-colliding-names",
                     model_file.name,
                     "-o",
