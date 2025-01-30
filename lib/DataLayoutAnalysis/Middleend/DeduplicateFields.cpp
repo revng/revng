@@ -472,6 +472,19 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               revng_assert(not Preserved.empty());
               revng_assert(not Erased.empty());
 
+              // Check that the node that was meant to be preserved was actually
+              // preserved, and not erased.
+              // Notice that later collapseSingle can remove even more nodes.
+              // In principle we should add them to Erased and remove them
+              // from Preserved.
+              // However, in the remainder of the code below, both Preserved
+              // and Erased are only used to update FieldsToCompare and
+              // AnalyzedNodesNotMerged, and to set boolean flags to control
+              // iteration.
+              // Hence, we can get away without updating Preserved and Erased.
+              revng_assert(not Erased.contains(NotMergedNode));
+              revng_assert(Preserved.contains(NotMergedNode));
+
               // This should always be true, since whenever we merge we are at
               // least erasing CurChild, merging it with NotMergedNode.
               FieldsMerged |= Erased.contains(CurChild);
@@ -480,27 +493,12 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               TypeSystemChanged = true;
               NodeWithFieldsChanged = true;
 
-              // Collapse new single children that could emerge while merging
-              {
-                // Copy the post_order into a SmallVector, since collapseSingle
-                // might mutate the graph and screw up the po_iterator.
-                for (auto &N : llvm::SmallVector<LTSN *>{
-                       post_order(NonPointerFilterT(NotMergedNode)) })
-                  CollapseSingleChild::collapseSingle(TS, N);
-
-                // Notice that collapseSingle can actually remove more nodes.
-                // In principle we should add them to Erased and remove them
-                // from Preserved.
-                // However, in the remainder of the code below, both Preserved
-                // and Erased are only used to update FieldsToCompare and
-                // AnalyzedNodesNotMerged, and to set boolean flags to control
-                // iteration.
-                // Hence, we can get away without updating Preserved and Erased,
-                // since the following assertions hold.
-
-                revng_assert(not Erased.contains(NotMergedNode));
-                revng_assert(Preserved.contains(NotMergedNode));
-              }
+              // Collapse new single children that could emerge while merging.
+              // Copy the post_order into a SmallVector, since collapseSingle
+              // might mutate the graph and screw up the po_iterator.
+              for (auto &N : llvm::SmallVector<LTSN *>{
+                     post_order(NonPointerFilterT(NotMergedNode)) })
+                CollapseSingleChild::collapseSingle(TS, N);
 
               revng_log(Log, "The merge has erased the following nodes:");
               for (auto &ErasedNode : Erased) {
