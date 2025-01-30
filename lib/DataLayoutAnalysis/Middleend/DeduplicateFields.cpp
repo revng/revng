@@ -229,6 +229,8 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
     // So for now we just compare pointers, that are always sorted at the
     // back, and bail out if we find a pair of pointer edges that point to
     // different nodes.
+    // NOTE: This relies on the fact that pointer edges are sorted after all
+    // other kinds of edges.
     size_t FirstPointerIndex = NChildren;
     size_t Index = 0;
     for (const auto &[Link1, Link2] : llvm::zip(NextToVisit1, NextToVisit2)) {
