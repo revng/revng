@@ -6,5 +6,6 @@
 
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Pass/DeduplicateEquivalentTypes.h"
+#include "revng/Model/Pass/FlattenPrimitiveTypedefs.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/Pass/Verify.h"

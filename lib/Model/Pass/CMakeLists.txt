@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   DeduplicateCollidingNames.cpp
   DeduplicateEquivalentTypes.cpp
+  FlattenPrimitiveTypedefs.cpp
   OptionCategory.cpp
   PurgeUnnamedAndUnreachableTypes.cpp
   Verify.cpp)
