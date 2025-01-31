@@ -19,16 +19,18 @@ TypeDefinitions:
     # CHECK: #my_function3$def = #clift.function<
     # CHECK:   unique_handle = "/model-type/1002"
     # CHECK:   name = "my_function3"
-    # CHECK:   return_type = !clift.tuple<
-    # CHECK:     unique_handle = "/model-type/1002"
-    # CHECK:     fields = [
-    # CHECK:       <
-    # CHECK:         type = !uint64_t
-    # CHECK:       >
-    # CHECK:       <
-    # CHECK:         type = !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
-    # CHECK:       >
-    # CHECK:     ]
+    # CHECK:   return_type = !clift.defined<
+    # CHECK:     #clift.struct<
+    # CHECK:       unique_handle = "/register-set-type/1002"
+    # CHECK:       fields = [
+    # CHECK:         <
+    # CHECK:           type = !uint64_t
+    # CHECK:         >
+    # CHECK:         <
+    # CHECK:           type = !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
+    # CHECK:         >
+    # CHECK:       ]
+    # CHECK:     >
     # CHECK:   >
     # CHECK:   argument_types = [
     # CHECK:     !uint64_t

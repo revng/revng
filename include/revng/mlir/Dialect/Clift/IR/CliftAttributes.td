@@ -199,24 +199,4 @@ def Clift_FunctionTypeAttr
   }];
 }
 
-def Clift_ScalarTupleElementAttr
-  : Clift_Attr<"ScalarTupleElement",
-               "tuple_element",
-               [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
-
-  let summary = "An attribute representing an element of a scalar tuple";
-  let description = [{
-    An attribute representing an element of a scalar tuple
-  }];
-
-  let parameters = (ins "mlir::clift::ValueType":$type,
-                        StringRefParameter<>:$name);
-
-  let genVerifyDecl = 1;
-
-  let assemblyFormat = [{
-    `<` struct($name, $type) `>`
-  }];
-}
-
 #endif

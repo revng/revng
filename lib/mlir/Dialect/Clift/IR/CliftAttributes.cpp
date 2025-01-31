@@ -272,18 +272,6 @@ llvm::ArrayRef<mlir::Type> FunctionTypeAttr::getResultTypes() {
   return ArrayRef<Type>(getImpl()->return_type);
 }
 
-//===----------------------- ScalarTupleElementAttr -----------------------===//
-
-mlir::LogicalResult
-ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
-                               clift::ValueType Type,
-                               const llvm::StringRef Name) {
-  if (not isScalarType(Type))
-    return EmitError() << "Scalar tuple element types must be scalar types.";
-
-  return mlir::success();
-}
-
 //===--------------------------- StructTypeAttr ---------------------------===//
 
 mlir::LogicalResult StructTypeAttr::verify(EmitErrorType EmitError,
