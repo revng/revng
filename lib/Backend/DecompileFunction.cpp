@@ -137,8 +137,7 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
 }
 
 static std::string get128BitIntegerHexConstant(llvm::APInt Value,
-                                               ptml::CTypeBuilder &B,
-                                               const model::Binary &Model) {
+                                               ptml::CTypeBuilder &B) {
   revng_assert(Value.getBitWidth() > 64);
   revng_assert(Value.getBitWidth() <= 128);
   using PTMLOperator = ptml::CBuilder::Operator;
@@ -187,8 +186,7 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
 }
 
 static std::string hexLiteral(const llvm::ConstantInt *Int,
-                              ptml::CTypeBuilder &B,
-                              const model::Binary &Model) {
+                              ptml::CTypeBuilder &B) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
     Int->getValue().toString(Formatted,
@@ -197,7 +195,7 @@ static std::string hexLiteral(const llvm::ConstantInt *Int,
                              /*formatAsCLiteral*/ true);
     return Formatted.str().str();
   }
-  return get128BitIntegerHexConstant(Int->getValue(), B, Model);
+  return get128BitIntegerHexConstant(Int->getValue(), B);
 }
 
 static std::string charLiteral(const llvm::ConstantInt *Int) {
@@ -458,13 +456,12 @@ static std::string getUndefToken(const model::Type &UndefType,
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
-                                            ptml::CTypeBuilder &B,
-                                            const model::Binary &Model) {
+                                            ptml::CTypeBuilder &B) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(hexLiteral(Value, B, Model)).toString();
+    return B.getConstantTag(hexLiteral(Value, B)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::CharInteger)) {
@@ -506,7 +503,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) {
     if (Value.isIntN(64))
       rc_return B.getNumber(Value).toString();
     else
-      rc_return get128BitIntegerHexConstant(Value, B, Model);
+      rc_return get128BitIntegerHexConstant(Value, B);
   }
 
   if (auto *Function = dyn_cast<llvm::Function>(C)) {
@@ -577,7 +574,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) {
   }
 
   if (isCallToTagged(C, FunctionTags::LiteralPrintDecorator))
-    rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C), B, Model);
+    rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C), B);
 
   std::string Error = "Cannot get token for llvm::Constant: ";
   Error += dumpToString(C).c_str();
