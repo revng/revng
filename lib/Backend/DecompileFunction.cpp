@@ -198,20 +198,24 @@ static std::string hexLiteral(const llvm::ConstantInt *Int,
   return get128BitIntegerHexConstant(Int->getValue(), B);
 }
 
-static std::string charLiteral(const llvm::ConstantInt *Int) {
+static std::string charLiteral(const llvm::ConstantInt *Int,
+                               ptml::CTypeBuilder &B) {
   revng_assert(Int->getValue().getBitWidth() == 8);
   const auto LimitedValue = Int->getLimitedValue(0xffu);
   const auto CharValue = static_cast<char>(LimitedValue);
 
-  std::string EscapedC;
-  llvm::raw_string_ostream EscapeCStream(EscapedC);
+  std::string Escaped;
+  llvm::raw_string_ostream EscapeCStream(Escaped);
   EscapeCStream.write_escaped(std::string(&CharValue, 1));
 
-  std::string EscapedHTML;
-  llvm::raw_string_ostream EscapeHTMLStream(EscapedHTML);
-  llvm::printHTMLEscaped(EscapedC, EscapeHTMLStream);
+  if (not B.IsInTaglessMode) {
+    std::string Tmp;
+    llvm::raw_string_ostream EscapeHTMLStream(Tmp);
+    llvm::printHTMLEscaped(Escaped, EscapeHTMLStream);
+    Escaped = Tmp;
+  }
 
-  return llvm::formatv("'{0}'", EscapeHTMLStream.str());
+  return llvm::formatv("'{0}'", Escaped);
 }
 
 static std::string boolLiteral(const llvm::ConstantInt *Int) {
@@ -467,7 +471,7 @@ static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
   if (isCallToTagged(Call, FunctionTags::CharInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(charLiteral(Value)).toString();
+    return B.getConstantTag(charLiteral(Value, B)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::BoolInteger)) {
