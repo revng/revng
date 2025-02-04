@@ -1225,7 +1225,7 @@ public:
         const auto *D = llvm::cast<model::DefinedType>(T)->Definition().get();
 
         if (C.shouldInline(D->key()))
-          C.printTypeDefinition(*D);
+          C.printDefinition(*D);
       }
 
       rc_recur emitStatementRegion(Op.getBody());

@@ -52,7 +52,7 @@ public:
                              .EnableStructSizeAnnotation = true });
       B.collectInlinableTypes();
 
-      B.printTypeDefinition(Type);
+      B.printDefinition(Type);
     }
   }
 };

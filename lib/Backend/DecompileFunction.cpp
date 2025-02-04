@@ -1925,7 +1925,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
         revng_assert(not IsStackDefined, "Multiple stack variables?");
         const model::StructDefinition &Struct = *ModelFunction.stackFrameType();
         if (B.shouldInline(Struct.key())) {
-          B.printTypeDefinition(Struct, " " + std::move(VarName));
+          B.printDefinition(Struct, " " + std::move(VarName));
         } else {
           auto Named = B.getNamedCInstance(*ModelFunction.StackFrameType(),
                                            std::move(VarName));
