@@ -219,6 +219,18 @@ public:
   model::Type &getPointee() { return *toPointer().PointeeType(); }
   const model::Type &getPointee() const { return *toPointer().PointeeType(); }
 
+  /// Returns the element type of an array type while unwrapping typedefs.
+  ///
+  /// \note This asserts if the type is _not_ an array, so only use it when
+  ///       it's guaranteed to be one.
+  ///
+  /// \note This ignores the constness of the dropped array (and typedefs
+  ///       in the way)
+  model::Type &getArrayElement() { return *toArray().ElementType(); }
+  const model::Type &getArrayElement() const {
+    return *toArray().ElementType();
+  }
+
 private:
   using PKind = model::PrimitiveKind::Values;
   constexpr static auto PoN = model::PrimitiveKind::PointerOrNumber;
