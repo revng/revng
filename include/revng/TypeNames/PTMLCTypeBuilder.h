@@ -842,10 +842,10 @@ public:
 public:
   void printForwardDeclaration(const model::TypeDefinition &T);
 
-  void printTypeDeclaration(const model::TypedefDefinition &Typedef);
-  void printTypeDeclaration(const model::RawFunctionDefinition &F);
-  void printTypeDeclaration(const model::CABIFunctionDefinition &F);
-  void printTypeDeclaration(const model::TypeDefinition &T);
+  void printDeclaration(const model::TypedefDefinition &Typedef);
+  void printDeclaration(const model::RawFunctionDefinition &F);
+  void printDeclaration(const model::CABIFunctionDefinition &F);
+  void printDeclaration(const model::TypeDefinition &T);
 
 private:
   using TypeSet = std::set<model::TypeDefinition::Key>;
