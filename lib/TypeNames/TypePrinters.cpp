@@ -8,7 +8,7 @@
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
 using T = model::TypeDefinition;
-void ptml::CTypeBuilder::printForwardTypeDeclaration(const T &Type) {
+void ptml::CTypeBuilder::printForwardDeclaration(const T &Type) {
   revng_assert(not isDeclarationTheSameAsDefinition(Type));
 
   auto TypeNameReference = getReferenceTag(Type);
@@ -239,13 +239,13 @@ void ptml::CTypeBuilder::printTypeDeclaration(const CFT &F) {
 
 void ptml::CTypeBuilder::printTypeDeclaration(const model::TypeDefinition &T) {
   if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(&T))
-    printForwardTypeDeclaration(*Enum);
+    printForwardDeclaration(*Enum);
 
   else if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(&T))
-    printForwardTypeDeclaration(*Struct);
+    printForwardDeclaration(*Struct);
 
   else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(&T))
-    printForwardTypeDeclaration(*Union);
+    printForwardDeclaration(*Union);
 
   else if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(&T))
     printTypeDeclaration(*Typedef);

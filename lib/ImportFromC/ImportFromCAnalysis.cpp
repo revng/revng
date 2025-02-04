@@ -154,7 +154,7 @@ struct ImportFromCAnalysis {
         ptml::CTypeBuilder PI(Stream, *Model, /* GenerateTaglessPTML = */ true);
         PI.appendLineComment("The type we are editing");
         // The declaration of this type will be near the top of the file.
-        PI.printForwardTypeDeclaration(*TypeToEdit);
+        PI.printForwardDeclaration(*TypeToEdit);
         PI.append("\n");
       }
 
