@@ -338,22 +338,10 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
       }
 
       if (InlineTypeLog.isEnabled()) {
-        if (Node->K == TypeNode::Kind::Declaration)
-          InlineTypeLog << "Declaration of '";
-        else
-          InlineTypeLog << "Definition of '";
+        InlineTypeLog << getNodeLabel(Node) << "' is depended on by: {\n";
 
-        InlineTypeLog << ::toString(Node->T->key())
-                      << "' is depended on by: {\n";
-
-        for (auto *Predecessor : Node->predecessors()) {
-          if (Predecessor->K == TypeNode::Kind::Declaration)
-            InlineTypeLog << "- Declaration of '";
-          else
-            InlineTypeLog << "- Definition of '";
-
-          InlineTypeLog << ::toString(Predecessor->T->key()) << "'\n";
-        }
+        for (auto *Predecessor : Node->predecessors())
+          InlineTypeLog << "- " << getNodeLabel(Predecessor) << '\n';
 
         InlineTypeLog << "}\n" << DoLog;
       }
