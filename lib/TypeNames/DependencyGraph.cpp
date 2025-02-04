@@ -41,11 +41,14 @@ void DependencyGraph::addNode(const model::TypeDefinition *T) {
 
   constexpr auto Declaration = TypeNode::Kind::Declaration;
   auto *DeclNode = GenericGraph::addNode(TypeNode{ T, Declaration });
-  TypeToNode[TypeKindPair{ T, Declaration }] = DeclNode;
 
   constexpr auto Definition = TypeNode::Kind::Definition;
   auto *DefNode = GenericGraph::addNode(TypeNode{ T, Definition });
-  TypeToNode[TypeKindPair{ T, Definition }] = DefNode;
+
+  TypeToNodes[T] = AssociatedNodes{
+    .Declaration = DeclNode,
+    .Definition = DefNode,
+  };
 }
 
 std::string getNodeLabel(const TypeDependencyNode *N) {
@@ -102,7 +105,7 @@ analyzeDependencyEdges(const model::Type &Type, bool PointerFound = false) {
 template<TypeNode::Kind K>
 static TypeDependencyNode *
 getDependencyFor(const model::Type &Type,
-                 const TypeToDependencyNodeMap &TypeToNode) {
+                 const DependencyGraph::TypeToNodesMap &TypeToNodes) {
 
   // TODO: Unfortunately, here we have to deal with some quirks of the C
   // language concerning pointers to arrays of struct/union.
@@ -149,21 +152,29 @@ getDependencyFor(const model::Type &Type,
     // If the last type edge was an array, because of the quirks of
     // the C standard mentioned above, we have to depend on the Definition
     // of the element type of the array.
-    return TypeToNode.at({ EdgeTarget, TypeNode::Kind::Definition });
+    return TypeToNodes.at(EdgeTarget).Definition;
   }
 
   if (PointerIsBetweenTypes) {
     // Otherwise, if we've found at least a pointer, we only depend on the name
     // of the pointee.
-    return TypeToNode.at({ EdgeTarget, TypeNode::Kind::Declaration });
+    return TypeToNodes.at(EdgeTarget).Declaration;
   }
 
   // In all the other cases we depend on the type with the kind indicated by K.
-  return TypeToNode.at({ EdgeTarget, K });
+  if constexpr (K == TypeNode::Kind::Declaration)
+    return TypeToNodes.at(EdgeTarget).Declaration;
+  else if constexpr (K == TypeNode::Kind::Definition)
+    return TypeToNodes.at(EdgeTarget).Definition;
+  else
+    static_assert(value_always_false_v<K>);
+
+  return nullptr;
 }
 
-static void registerDependencies(const model::TypeDefinition &T,
-                                 const TypeToDependencyNodeMap &TypeToNode) {
+static void
+registerDependencies(const model::TypeDefinition &T,
+                     const DependencyGraph::TypeToNodesMap &TypeToNodes) {
 
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
   llvm::SmallVector<Edge, 2> Deps;
@@ -174,8 +185,7 @@ static void registerDependencies(const model::TypeDefinition &T,
   // declared it) but it doesn't introduce cycles and it enables the algorithm
   // that decides on the ordering on the declarations and definitions to make
   // more assumptions about definitions being emitted before declarations.
-  auto *DefNode = TypeToNode.at({ &T, TypeNode::Kind::Definition });
-  auto *DeclNode = TypeToNode.at({ &T, TypeNode::Kind::Declaration });
+  const auto &[DeclNode, DefNode] = TypeToNodes.at(&T);
   Deps.push_back({ DefNode, DeclNode });
 
   if (llvm::isa<model::EnumDefinition>(T)) {
@@ -187,11 +197,12 @@ static void registerDependencies(const model::TypeDefinition &T,
     // Struct and Union names can always be conjured out of thin air thanks to
     // typedefs. So we only need to add dependencies between their full
     // definition and the full definition of their fields.
-    auto *Full = TypeToNode.at({ &T, TypeNode::Kind::Definition });
     for (const model::Type *Edge : T.edges()) {
-      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge, TypeToNode)) {
-        Deps.push_back({ Full, D });
-        revng_log(Log, getNodeLabel(Full) << " depends on " << getNodeLabel(D));
+      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge,
+                                                           TypeToNodes)) {
+        Deps.push_back({ DefNode, D });
+        revng_log(Log,
+                  getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
       }
     }
 
@@ -199,16 +210,16 @@ static void registerDependencies(const model::TypeDefinition &T,
     // Typedefs are nasty.
     const model::Type &Under = *TD->UnderlyingType();
 
-    auto *TDDef = TypeToNode.at({ TD, TypeNode::Kind::Definition });
-    if (auto *D = getDependencyFor<TypeNode::Definition>(Under, TypeToNode)) {
-      Deps.push_back({ TDDef, D });
-      revng_log(Log, getNodeLabel(TDDef) << " depends on " << getNodeLabel(D));
+    if (auto *D = getDependencyFor<TypeNode::Definition>(Under, TypeToNodes)) {
+      Deps.push_back({ DefNode, D });
+      revng_log(Log,
+                getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
     }
 
-    auto *TDDecl = TypeToNode.at({ TD, TypeNode::Kind::Declaration });
-    if (auto *D = getDependencyFor<TypeNode::Declaration>(Under, TypeToNode)) {
-      Deps.push_back({ TDDecl, D });
-      revng_log(Log, getNodeLabel(TDDecl) << " depends on " << getNodeLabel(D));
+    if (auto *D = getDependencyFor<TypeNode::Declaration>(Under, TypeToNodes)) {
+      Deps.push_back({ DeclNode, D });
+      revng_log(Log,
+                getNodeLabel(DeclNode) << " depends on " << getNodeLabel(D));
     }
 
   } else if (T.isPrototype()) {
@@ -232,14 +243,15 @@ static void registerDependencies(const model::TypeDefinition &T,
       // this dependencies, or pre-processing the model so that what reaches
       // this point is always guaranteed to be in a form that can be emitted.
 
-      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge, TypeToNode)) {
+      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge,
+                                                           TypeToNodes)) {
         Deps.push_back({ DefNode, D });
         revng_log(Log,
                   getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
       }
 
       if (auto *D = getDependencyFor<TypeNode::Declaration>(*Edge,
-                                                            TypeToNode)) {
+                                                            TypeToNodes)) {
         Deps.push_back({ DeclNode, D });
         revng_log(Log,
                   getNodeLabel(DeclNode) << " depends on " << getNodeLabel(D));
