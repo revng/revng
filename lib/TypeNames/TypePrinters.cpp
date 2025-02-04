@@ -397,8 +397,6 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
   if (not DependencyCache.has_value())
     DependencyCache = buildDependencyGraph(Binary.TypeDefinitions());
 
-  const auto &TypeNodes = DependencyCache->TypeNodes();
-
   std::set<const TypeDependencyNode *> Defined;
   for (const auto *Root : DependencyCache->nodes()) {
     revng_log(TypePrinterLog, "PostOrder from Root:" << getNodeLabel(Root));
@@ -429,7 +427,7 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
       } else {
         revng_log(TypePrinterLog, "Definition");
 
-        revng_assert(Defined.contains(TypeNodes.at({ NodeT, Declaration })));
+        revng_assert(Defined.contains(DependencyCache->getDeclaration(NodeT)));
         if (isDeclarationTheSameAsDefinition(*NodeT) or shouldInline(*NodeT)) {
           continue;
         }

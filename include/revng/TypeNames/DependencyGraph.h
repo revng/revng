@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <unordered_map>
+
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 
@@ -46,19 +48,45 @@ struct TypeNode {
 };
 
 using TypeDependencyNode = BidirectionalNode<TypeNode>;
-using TypeKindPair = std::pair<const model::TypeDefinition *, TypeNode::Kind>;
-using TypeToDependencyNodeMap = std::map<TypeKindPair, TypeDependencyNode *>;
 using TypeVector = TrackingSortedVector<model::UpcastableTypeDefinition>;
 
 /// Represents the graph of dependencies among types
-struct DependencyGraph : public GenericGraph<TypeDependencyNode> {
+class DependencyGraph : public GenericGraph<TypeDependencyNode> {
+private:
+  /// A pair of associated nodes that are respectively the declaration and the
+  /// definition of the same type.
+  struct AssociatedNodes {
+    TypeDependencyNode *Declaration;
+    TypeDependencyNode *Definition;
+  };
+
+  using TypeToNodesMap = std::unordered_map<const model::TypeDefinition *,
+                                            AssociatedNodes>;
+
+private:
+  /// Maps a model::TypeDefinition * to an AssociatedNodes, representing
+  /// respectively the declaration and the definition of the TypeDefinition.
+  TypeToNodesMap TypeToNodes;
+
+public:
+  const TypeToNodesMap &TypeNodes() const { return TypeToNodes; }
 
   void addNode(const model::TypeDefinition *T);
 
-  const TypeToDependencyNodeMap &TypeNodes() const { return TypeToNode; }
+public:
+  /// Get the declaration node associated to \p Definition.
+  /// Asserts if \p Definition is not a definition node.
+  const TypeDependencyNode *
+  getDeclaration(const model::TypeDefinition *TD) const {
+    return TypeToNodes.at(TD).Declaration;
+  }
 
-private:
-  TypeToDependencyNodeMap TypeToNode;
+  /// Get the definition node associated to \p Declaration.
+  /// Asserts if \p Declaration is not a declaration node.
+  const TypeDependencyNode *
+  getDefinition(const model::TypeDefinition *TD) const {
+    return TypeToNodes.at(TD).Definition;
+  }
 };
 
 std::string getNodeLabel(const TypeDependencyNode *N);
