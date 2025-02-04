@@ -30,6 +30,19 @@ struct TypeNode {
     /// wrapper for the type referred to by T
     ArtificialWrapperDefinition,
   } K;
+
+  bool isDeclaration() const {
+    return K == Declaration or K == ArtificialWrapperDeclaration;
+  }
+
+  bool isDefinition() const {
+    return K == Definition or K == ArtificialWrapperDefinition;
+  }
+
+  bool isArtificial() const {
+    return K == ArtificialWrapperDefinition
+           or K == ArtificialWrapperDeclaration;
+  }
 };
 
 using TypeDependencyNode = BidirectionalNode<TypeNode>;
