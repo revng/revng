@@ -29,6 +29,10 @@ static llvm::StringRef toString(TypeNode::Kind K) {
     return "Declaration";
   case TypeNode::Kind::Definition:
     return "Definition";
+  case TypeNode::Kind::ArtificialWrapperDeclaration:
+    return "ArtificialWrapperDeclaration";
+  case TypeNode::Kind::ArtificialWrapperDefinition:
+    return "ArtificialWrapperDefinition";
   }
   return "Invalid";
 }

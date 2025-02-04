@@ -19,8 +19,16 @@ struct TypeNode {
   /// For each model::TypeDefinition we'll have nodes representing the type name
   /// or the full type, depending on this enum.
   enum Kind {
+    /// The TypeNode represents a declaration of a type name
     Declaration,
-    Definition
+    /// The TypeNode represents the full definition of a type name
+    Definition,
+    /// The TypeNode represents the forward declaration of an artificial struct
+    /// wrapper for the type referred to by T
+    ArtificialWrapperDeclaration,
+    /// The TypeNode represents the full definition of an artificial struct
+    /// wrapper for the type referred to by T
+    ArtificialWrapperDefinition,
   } K;
 };
 
