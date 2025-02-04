@@ -487,7 +487,7 @@ public:
   void printPadding(uint64_t FieldOffset, uint64_t NextOffset);
 
 public:
-  void printForwardTypeDeclaration(const model::TypeDefinition &T);
+  void printForwardDeclaration(const model::TypeDefinition &T);
 
   void printTypeDeclaration(const model::TypedefDefinition &Typedef);
   void printTypeDeclaration(const model::RawFunctionDefinition &F);
