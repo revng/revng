@@ -137,7 +137,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
 }
 
 using TD = model::TypedefDefinition;
-void ptml::CTypeBuilder::printTypeDeclaration(const TD &Typedef) {
+void ptml::CTypeBuilder::printDeclaration(const TD &Typedef) {
   if (isDeclarationTheSameAsDefinition(Typedef))
     *Out << getModelComment(Typedef);
 
@@ -188,7 +188,7 @@ void ptml::CTypeBuilder::printFunctionWrappers(const RFT &F) {
 
 /// Print a typedef for a RawFunctionDefinition, that can be used when you have
 /// a variable that is a pointer to a function.
-void ptml::CTypeBuilder::printTypeDeclaration(const RFT &F) {
+void ptml::CTypeBuilder::printDeclaration(const RFT &F) {
   printFunctionWrappers(F);
 
   *Out << getModelComment(F) << getKeyword(ptml::CBuilder::Keyword::Typedef)
@@ -237,7 +237,7 @@ void ptml::CTypeBuilder::printFunctionWrappers(const CFT &F) {
 
 /// Print a typedef for a CABI function, that can be used when you have
 /// a variable that is a pointer to a function.
-void ptml::CTypeBuilder::printTypeDeclaration(const CFT &F) {
+void ptml::CTypeBuilder::printDeclaration(const CFT &F) {
   printFunctionWrappers(F);
 
   *Out << getModelComment(F) << getKeyword(ptml::CBuilder::Keyword::Typedef)
@@ -249,7 +249,7 @@ void ptml::CTypeBuilder::printTypeDeclaration(const CFT &F) {
   *Out << ";\n";
 }
 
-void ptml::CTypeBuilder::printTypeDeclaration(const model::TypeDefinition &T) {
+void ptml::CTypeBuilder::printDeclaration(const model::TypeDefinition &T) {
   if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(&T))
     printForwardDeclaration(*Enum);
 
@@ -260,13 +260,13 @@ void ptml::CTypeBuilder::printTypeDeclaration(const model::TypeDefinition &T) {
     printForwardDeclaration(*Union);
 
   else if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(&T))
-    printTypeDeclaration(*Typedef);
+    printDeclaration(*Typedef);
 
   else if (auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&T))
-    printTypeDeclaration(*RFT);
+    printDeclaration(*RFT);
 
   else if (auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(&T))
-    printTypeDeclaration(*CFT);
+    printDeclaration(*CFT);
 
   else
     revng_abort("Unsupported type definition.");
@@ -274,7 +274,7 @@ void ptml::CTypeBuilder::printTypeDeclaration(const model::TypeDefinition &T) {
 
 void ptml::CTypeBuilder::printTypeDefinition(const model::TypeDefinition &T) {
   if (isDeclarationTheSameAsDefinition(T))
-    printTypeDeclaration(T);
+    printDeclaration(T);
 
   else if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(&T))
     printTypeDefinition(*Struct);
@@ -424,7 +424,7 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
         // Print the declaration. Notice that the forward declarations are
         // emitted even for inlined types, because it's only the full definition
         // that will be inlined.
-        printTypeDeclaration(*NodeT);
+        printDeclaration(*NodeT);
 
       } else {
         revng_log(TypePrinterLog, "Definition");
