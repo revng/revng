@@ -83,7 +83,7 @@ private:
 public:
   /// Gather (and store internally) the list of types that can (and should)
   /// be inlined. This list is then later used by the invocations of
-  /// \ref printTypeDefinition.
+  /// \ref printDefinition.
   void collectInlinableTypes();
 
   bool shouldInline(model::TypeDefinition::Key Key) const {
@@ -851,13 +851,13 @@ private:
   using TypeSet = std::set<model::TypeDefinition::Key>;
 
 public:
-  void printTypeDefinition(const model::EnumDefinition &E,
-                           std::string &&Suffix = "");
-  void printTypeDefinition(const model::StructDefinition &S,
-                           std::string &&Suffix = "");
-  void printTypeDefinition(const model::UnionDefinition &U,
-                           std::string &&Suffix = "");
-  void printTypeDefinition(const model::TypeDefinition &T);
+  void printDefinition(const model::EnumDefinition &E,
+                       std::string &&Suffix = "");
+  void printDefinition(const model::StructDefinition &S,
+                       std::string &&Suffix = "");
+  void printDefinition(const model::UnionDefinition &U,
+                       std::string &&Suffix = "");
+  void printDefinition(const model::TypeDefinition &T);
 
   void printInlineDefinition(llvm::StringRef Name, const model::Type &T);
 

@@ -18,8 +18,8 @@ void ptml::CTypeBuilder::printForwardDeclaration(const T &Type) {
        << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
-void ptml::CTypeBuilder::printTypeDefinition(const model::EnumDefinition &E,
-                                             std::string &&Suffix) {
+void ptml::CTypeBuilder::printDefinition(const model::EnumDefinition &E,
+                                         std::string &&Suffix) {
   // We have to make the enum of the correct size of the underlying type
   auto ByteSize = *E.size();
   revng_assert(ByteSize <= 8);
@@ -79,8 +79,8 @@ void ptml::CTypeBuilder::printPadding(uint64_t FieldOffset,
   }
 }
 
-void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
-                                             std::string &&Suffix) {
+void ptml::CTypeBuilder::printDefinition(const model::StructDefinition &S,
+                                         std::string &&Suffix) {
 
   std::string StructLine = getModelCommentWithoutLeadingNewline(S)
                            + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
@@ -127,14 +127,13 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
   *Out << std::move(Suffix) << ";\n";
 }
 
-void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
-                                             std::string &&Suffix) {
+void ptml::CTypeBuilder::printDefinition(const model::UnionDefinition &U,
+                                         std::string &&Suffix) {
   std::string UnionLine = getModelCommentWithoutLeadingNewline(U)
                           + getKeyword(ptml::CBuilder::Keyword::Union) + " "
                           + ptml::AttributeRegistry::getAttribute<"_PACKED">()
                           + " " + getDefinitionTag(U) + " ";
   *Out << getCommentableTag(std::move(UnionLine), U);
-
   {
     Scope Scope(*Out, ptml::c::scopes::UnionBody);
     for (const auto &Field : U.Fields()) {
@@ -260,18 +259,18 @@ void ptml::CTypeBuilder::printDeclaration(const model::TypeDefinition &T) {
     revng_abort("Unsupported type definition.");
 }
 
-void ptml::CTypeBuilder::printTypeDefinition(const model::TypeDefinition &T) {
+void ptml::CTypeBuilder::printDefinition(const model::TypeDefinition &T) {
   if (isDeclarationTheSameAsDefinition(T))
     printDeclaration(T);
 
   else if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(&T))
-    printTypeDefinition(*Struct);
+    printDefinition(*Struct);
 
   else if (auto *Union = llvm::dyn_cast<model::UnionDefinition>(&T))
-    printTypeDefinition(*Union);
+    printDefinition(*Union);
 
   else if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(&T))
-    printTypeDefinition(*Enum);
+    printDefinition(*Enum);
 
   else
     revng_abort("Unsupported type definition.");
@@ -284,13 +283,13 @@ void ptml::CTypeBuilder::printInlineDefinition(llvm::StringRef Name,
 
   auto Suffix = getNamedCInstance(T, Name, true);
   if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(Definition)) {
-    printTypeDefinition(*Struct, std::move(Suffix));
+    printDefinition(*Struct, std::move(Suffix));
 
   } else if (auto *U = llvm::dyn_cast<model::UnionDefinition>(Definition)) {
-    printTypeDefinition(*U, std::move(Suffix));
+    printDefinition(*U, std::move(Suffix));
 
   } else if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(Definition)) {
-    printTypeDefinition(*Enum, std::move(Suffix));
+    printDefinition(*Enum, std::move(Suffix));
 
   } else {
     revng_abort("Only enums, structs, and unions can be printed inline.");
@@ -422,8 +421,8 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
           continue;
         }
 
-        revng_log(TypePrinterLog, "printTypeDefinition");
-        printTypeDefinition(*NodeT);
+        revng_log(TypePrinterLog, "printDefinition");
+        printDefinition(*NodeT);
       }
 
       *Out << "\n";
