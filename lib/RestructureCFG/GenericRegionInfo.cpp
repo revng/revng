@@ -3,12 +3,15 @@
 //
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/GenericCycleImpl.h"
+#include "llvm/ADT/GenericCycleInfo.h"
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/Analysis/CycleAnalysis.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/SSAContext.h"
 
 #include "revng/RestructureCFG/GenericRegionInfo.h"
+#include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/GraphAlgorithms.h"
 
@@ -25,19 +28,43 @@ static ValueT mapAt(llvm::SmallDenseMap<KeyT, ValueT> &Map, KeyT Key) {
   return MapIt->second;
 }
 
-template<class GraphT, class GT>
-void GenericRegionInfo<GraphT, GT>::initializeRegions(GraphT F) {
+/// Helper function to obtain a `GenericCycleInfo` analysis
+template<class GraphT>
+static GenericCycleInfo<SSAContext, GraphT> getGenericCycleInfo(GraphT &F) {
   // We instantiate the `GenericCycle` analysis and wrap the results in
   // the region objects
-  CycleInfo CI;
-  CI.compute(*F);
+  GenericCycleInfo<SSAContext, GraphT> GCI;
+  GCI.compute(*F);
 
-  using CycleT = CycleInfo::CycleT;
+  return GCI;
+}
+
+/// Template function specialization to obtain the `GenericCycleInfo` analysis
+/// starting from a `Scope<llvm::Function *>` parameter, since we need to unwrap
+/// the `Graph` object from the `Scope` wrapper class
+template<>
+GenericCycleInfo<SSAContext, Scope<llvm::Function *>>
+getGenericCycleInfo(Scope<llvm::Function *> &SG) {
+  // We instantiate the `GenericCycle` analysis and wrap the results in
+  // the region objects
+  GenericCycleInfo<SSAContext, Scope<llvm::Function *>> GCI;
+  GCI.compute(*SG.Graph);
+
+  return GCI;
+}
+
+template<class GraphT, class GT>
+void GenericRegionInfo<GraphT, GT>::initializeRegions(GraphT F) {
+
+  // Obtain the `GenericCycleInfo` analysis
+  auto GCI = getGenericCycleInfo(F);
+
+  using CycleT = GenericCycleInfo<SSAContext, GraphT>::CycleT;
   using Region = GenericRegion<NodeT>;
   llvm::SmallDenseMap<const CycleT *, Region *> CycleToRegionMap;
 
   // Populate the `Regions` with the identified regions
-  for (const auto *TLC : CI.toplevel_cycles()) {
+  for (const auto *TLC : GCI.toplevel_cycles()) {
     for (const auto *Cycle : depth_first(TLC)) {
 
       // Create a new `Region`
@@ -58,7 +85,7 @@ void GenericRegionInfo<GraphT, GT>::initializeRegions(GraphT F) {
   // Populate the children regions. We need to perform this operation in a
   // separate step in order to have already all the created regions in the step
   // above
-  for (const auto *TLC : CI.toplevel_cycles()) {
+  for (const auto *TLC : GCI.toplevel_cycles()) {
     for (const auto *Cycle : depth_first(TLC)) {
       auto *Region = mapAt(CycleToRegionMap, Cycle);
       for (const auto *Child : Cycle->children()) {
@@ -201,3 +228,4 @@ std::string GenericRegionInfo<GraphT, GT>::print() const {
 }
 
 template class GenericRegionInfo<llvm::Function *>;
+template class GenericRegionInfo<Scope<llvm::Function *>>;
