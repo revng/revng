@@ -12,4 +12,4 @@ with open("/path/to/model.yaml") as f:
     model = yaml.load(f, Loader=m.YamlLoader)
 ```
 
-It is not possible to import a model with a schema version other than the latest.
+It is not possible to import a model with a schema version other than the latest. In order to load older models, you first need to migrate them, either using the `revng.model.migrations` Python module or using the `revng model migrate` CLI command.
