@@ -9,6 +9,7 @@
 #include "llvm/Support/Signals.h"
 
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 
 class TemporaryFile {
 private:
@@ -20,7 +21,7 @@ private:
 
 public:
   TemporaryFile(const llvm::Twine &Prefix, llvm::StringRef Suffix = "") {
-    cantFail(llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path));
+    revng::cantFail(llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path));
     llvm::sys::RemoveFileOnSignal(Path);
   }
 
@@ -38,7 +39,7 @@ public:
   TemporaryFile(TemporaryFile &&Other) { *this = std::move(Other); }
   TemporaryFile &operator=(TemporaryFile &&Other) {
     if (not Path.empty()) {
-      cantFail(llvm::sys::fs::remove(Path));
+      revng::cantFail(llvm::sys::fs::remove(Path));
       llvm::sys::DontRemoveFileOnSignal(Path);
     }
 
@@ -50,7 +51,7 @@ public:
 
   ~TemporaryFile() {
     if (not Path.empty()) {
-      cantFail(llvm::sys::fs::remove(Path));
+      revng::cantFail(llvm::sys::fs::remove(Path));
       llvm::sys::DontRemoveFileOnSignal(Path);
     }
   }
@@ -64,7 +65,4 @@ public:
     revng_assert(Path.size() > 0);
     return Path;
   }
-
-private:
-  static void cantFail(std::error_code EC) { revng_assert(!EC); }
 };

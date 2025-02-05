@@ -30,7 +30,6 @@ class FileContainer
   : public pipeline::Container<FileContainer<K, TypeName, MIME, Suffix>> {
 private:
   llvm::SmallString<32> Path;
-  static void cantFail(std::error_code EC) { revng_assert(!EC); }
 
 public:
   inline static char ID = '0';
