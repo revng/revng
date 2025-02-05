@@ -125,6 +125,13 @@ python_module(
   "${PYTHON_GENERATED_MODEL_PATH}")
 
 #
+# Install revng.model.migrations
+#
+set(PYTHON_MODEL_MIGRATIONS_FILES revng/model/migrations/__init__.py)
+python_module(TARGET_NAME python-model-migrations WHEEL revng MODULE_FILES
+              ${PYTHON_MODEL_MIGRATIONS_FILES})
+
+#
 # Install revng.tupletree
 #
 set(PYTHON_TUPLETREE_FILES revng/tupletree/__init__.py)
@@ -174,7 +181,8 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs.py
     revng/internal/cli/_commands/trace_run.py
-    revng/internal/cli/_commands/model_compare.py)
+    revng/internal/cli/_commands/model_compare.py
+    revng/internal/cli/_commands/model_migrate.py)
 python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
               MODULE_FILES ${REVNG_CLI_COMMANDS_MODULE_FILES})
 
