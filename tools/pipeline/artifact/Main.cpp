@@ -186,8 +186,7 @@ int main(int argc, char *argv[]) {
     auto State = StepState.second.find(ContainerName)->second.filter(*Kind);
 
     for (const auto &Entry : State) {
-      Entry.dumpPathComponents(dbg);
-      dbg << "\n";
+      dbg << Entry.path() << "\n";
     }
     return EXIT_SUCCESS;
   }
@@ -197,8 +196,10 @@ int main(int argc, char *argv[]) {
     Map.add(ContainerName, Kind->allTargets(Manager.context()));
   } else {
     for (llvm::StringRef Argument : llvm::drop_begin(Arguments, 2)) {
-      auto RequestedTarget = AbortOnError(Target::deserialize(Manager.context(),
-                                                              Argument));
+      std::string ArgumentWithKind = (Argument + ":" + Kind->name()).str();
+      auto
+        RequestedTarget = AbortOnError(Target::deserialize(Manager.context(),
+                                                           ArgumentWithKind));
       Map.add(ContainerName, RequestedTarget);
     }
   }

@@ -106,6 +106,7 @@ public:
 
 public:
   std::string toString() const;
+  std::string path() const;
 
   void dump() const debug_function { dump(dbg); }
 
@@ -113,17 +114,6 @@ public:
   void dump(OStream &OS, size_t Indentation = 0) const debug_function {
     indent(OS, Indentation);
     OS << toString() << '\n';
-  }
-
-  template<typename OStream>
-  void dumpPathComponents(OStream &OS) const debug_function {
-    OS << "/";
-    for (const auto &Entry : Components) {
-      OS << Entry;
-      if (&Entry != &Components.back())
-        OS << "/";
-    }
-    OS << ":" << K->name().str();
   }
 };
 
