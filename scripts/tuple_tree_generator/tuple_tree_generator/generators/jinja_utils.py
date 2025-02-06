@@ -6,7 +6,8 @@ from pathlib import Path
 
 import jinja2
 
-from ..schema.struct import ReferenceStructField, SequenceStructField, SimpleStructField
+from tuple_tree_generator.schema.struct import ReferenceStructField, SequenceStructField
+from tuple_tree_generator.schema.struct import SimpleStructField
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 

@@ -2,7 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from ...commands_registry import CommandsRegistry
+from revng.internal.cli.commands_registry import CommandsRegistry
+
 from .configure import MassTestingConfigureCommand
 from .generate_report import MassTestingGenerateReportCommand
 from .run import MassTestingRunCommand

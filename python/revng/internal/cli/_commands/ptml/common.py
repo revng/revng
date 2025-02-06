@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, ParamSpec, TypeVar, Unio
 
 import yaml
 
-from ...support import extract_tar, is_tar
+from revng.internal.cli.support import extract_tar, is_tar
 
 
 def log(msg: str):

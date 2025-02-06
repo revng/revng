@@ -6,8 +6,10 @@ from collections import defaultdict
 
 import jinja2
 
-from ..schema import EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
-from ..schema import SequenceDefinition, StructDefinition, UpcastableDefinition
+from tuple_tree_generator.schema import EnumDefinition, ReferenceDefinition, ScalarDefinition
+from tuple_tree_generator.schema import Schema, SequenceDefinition, StructDefinition
+from tuple_tree_generator.schema import UpcastableDefinition
+
 from .jinja_utils import loader
 
 environment = jinja2.Environment(

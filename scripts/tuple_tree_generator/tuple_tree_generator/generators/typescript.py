@@ -8,9 +8,11 @@ from typing import List, Optional
 from jinja2 import Environment
 from markupsafe import Markup
 
-from ..schema import EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
-from ..schema import SequenceDefinition, StructDefinition, StructField, UpcastableDefinition
-from ..schema.struct import SimpleStructField
+from tuple_tree_generator.schema import EnumDefinition, ReferenceDefinition, ScalarDefinition
+from tuple_tree_generator.schema import Schema, SequenceDefinition, StructDefinition, StructField
+from tuple_tree_generator.schema import UpcastableDefinition
+from tuple_tree_generator.schema.struct import SimpleStructField
+
 from .jinja_utils import int_re, loader
 
 BUILTINS = ["string", "boolean", "bigint"]

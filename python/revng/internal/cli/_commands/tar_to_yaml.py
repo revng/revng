@@ -8,8 +8,8 @@ from typing import Optional
 
 import yaml
 
-from ..commands_registry import Command, CommandsRegistry, Options
-from ..support import extract_tar, to_string, to_yaml
+from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.support import extract_tar, to_string, to_yaml
 
 
 def auto_process(filename: str, raw: bytes) -> str:

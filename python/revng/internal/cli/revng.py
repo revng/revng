@@ -8,7 +8,8 @@ from importlib import import_module
 from inspect import isfunction
 from pathlib import Path
 
-from ..support.collect import collect_files_recursive
+from revng.internal.support.collect import collect_files_recursive
+
 from .commands_registry import CommandsRegistry, Options
 from .support import executable_name, get_root, is_file_executable, read_lines
 
