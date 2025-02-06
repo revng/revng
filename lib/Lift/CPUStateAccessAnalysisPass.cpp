@@ -171,7 +171,7 @@ struct TaintResults {
   ConstValuePtrSet TaintedValues;
 
   // A set of CallInst that are considered illegal. These include indirect
-  // calls, calls to functions without body, and calls to Intrinsinc::memcpy
+  // calls, calls to functions without body, and calls to Intrinsic::memcpy
   // with unknown size. They are considered illegal because we have no way of
   // knowing how they access the CSV.
   CallPtrSet IllegalCalls;
