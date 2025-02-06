@@ -19,8 +19,7 @@ revng::StdoutStorageClient StdoutClient;
 
 std::string normalizeLocalPath(llvm::StringRef Path) {
   llvm::SmallString<256> PathCopy(Path);
-  std::error_code MakeAbsoluteError = llvm::sys::fs::make_absolute(PathCopy);
-  revng_assert(not MakeAbsoluteError);
+  revng::cantFail(llvm::sys::fs::make_absolute(PathCopy));
   llvm::sys::path::remove_dots(PathCopy, true);
   llvm::StringRef Result(PathCopy.substr(1)); // Remove leading '/'
   return Result.str();

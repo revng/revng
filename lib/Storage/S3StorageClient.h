@@ -9,20 +9,32 @@
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/ThreadPool.h"
 
 #include "revng/Storage/StorageClient.h"
 
 namespace revng {
 
+class AsyncUploadTask;
 class S3WritableFile;
 
 class S3StorageClient : public StorageClient {
+private:
+  struct UploadResult {
+    Aws::S3::Model::PutObjectOutcome Outcome;
+    std::string Path;
+    std::string NewPath;
+    std::string Error;
+  };
+
 private:
   Aws::Auth::AWSCredentials Credentials;
   Aws::S3::S3Client Client;
   std::string Bucket;
   std::string SubPath;
   std::string RedactedURL;
+  llvm::ThreadPoolTaskGroup TaskGroup;
+  std::vector<std::shared_future<UploadResult>> PendingUploads;
   llvm::StringMap<std::string> FilenameMap;
   static constexpr auto IndexName = "index.yml";
 
@@ -61,6 +73,7 @@ private:
   std::string dumpString() const override;
   std::string resolvePath(llvm::StringRef Path);
   friend class S3WritableFile;
+  friend class AsyncUploadTask;
 };
 
 } // namespace revng
