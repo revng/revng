@@ -52,16 +52,4 @@ target_tuple_tree_generator(
   ROOT_TYPE
   PipelineDescription
   GLOBAL_NAME
-  PipelineDescription
-  HEADERS
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysesList.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysisContainerInput.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysisOption.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/AnalysisReference.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Analysis.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Artifacts.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Container.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Kind.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/PipelineDescription.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Rank.h"
-  "${PIPELINEDESCRIPTION_HEADERS_DIR}/Step.h")
+  PipelineDescription)
