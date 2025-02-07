@@ -61,6 +61,9 @@ private:
   };
 
 public:
+  /// A factory class used to build a DependencyGraph
+  class Builder;
+
   using TypeToNodesMap = std::unordered_map<const model::TypeDefinition *,
                                             AssociatedNodes>;
 
@@ -68,6 +71,10 @@ private:
   /// Maps a model::TypeDefinition * to an AssociatedNodes, representing
   /// respectively the declaration and the definition of the TypeDefinition.
   TypeToNodesMap TypeToNodes;
+
+public:
+  /// Factory method to create a DependencyGraph from a TypeVector.
+  static DependencyGraph make(const TypeVector &TV);
 
 public:
   const TypeToNodesMap &TypeNodes() const { return TypeToNodes; }
@@ -100,5 +107,3 @@ struct llvm::DOTGraphTraits<DependencyGraph *>
   std::string getNodeLabel(const TypeDependencyNode *N,
                            const DependencyGraph *G);
 };
-
-DependencyGraph buildDependencyGraph(const TypeVector &Types);

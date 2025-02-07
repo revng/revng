@@ -3,6 +3,7 @@
 //
 
 #include <optional>
+#include <type_traits>
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Twine.h"
@@ -270,19 +271,46 @@ registerDependencies(const model::TypeDefinition &T,
   }
 }
 
-DependencyGraph buildDependencyGraph(const TypeVector &Types) {
+class DependencyGraph::Builder {
+  const TypeVector *Types;
+
+public:
+  Builder(const TypeVector &TV) : Types(&TV) {}
+
+  // Ensure we don't initialize Types to the address of a temporary.
+  Builder(TypeVector &&TV) = delete;
+
+public:
+  DependencyGraph make() const;
+
+  static DependencyGraph make(const TypeVector &TV) {
+    return Builder(TV).make();
+  }
+};
+
+static_assert(std::is_copy_constructible_v<DependencyGraph::Builder>);
+static_assert(std::is_copy_assignable_v<DependencyGraph::Builder>);
+static_assert(std::is_move_constructible_v<DependencyGraph::Builder>);
+static_assert(std::is_move_assignable_v<DependencyGraph::Builder>);
+
+DependencyGraph DependencyGraph::Builder::make() const {
+
   DependencyGraph Dependencies;
 
   // Create nodes
-  for (const model::UpcastableTypeDefinition &MT : Types)
+  for (const model::UpcastableTypeDefinition &MT : *Types)
     Dependencies.addNode(MT.get());
 
   // Compute dependencies and add them to the graph
-  for (const model::UpcastableTypeDefinition &MT : Types)
+  for (const model::UpcastableTypeDefinition &MT : *Types)
     registerDependencies(*MT, Dependencies.TypeNodes());
 
   if (Log.isEnabled())
     llvm::ViewGraph(&Dependencies, "type-deps.dot");
 
   return Dependencies;
+}
+
+DependencyGraph DependencyGraph::make(const TypeVector &TV) {
+  return DependencyGraph::Builder::make(TV);
 }
