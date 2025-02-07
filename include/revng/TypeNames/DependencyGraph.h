@@ -15,8 +15,20 @@
 /// Represents a model::TypeDefinition in the DependencyGraph
 struct TypeNode {
 
-  /// A pointer to the associated model::TypeDefinition
-  const model::TypeDefinition *T;
+  /// A reference to the associated model::Type.
+  /// For a TypeNode N such that not N.isArtificial(), T refers *directly* (i.e.
+  /// not via typedef) to a model::TypeDefinition, and N represent either the
+  /// declaration or the definition of the type N.T, depending on K.
+  /// For a TypeNode N such that N.isArtificial(), T refers *directly* (i.e. not
+  /// via typedef) to either a model::ArrayType, or a
+  /// model::RawFunctionDefinition.
+  /// In the case of a model::ArrayType, N represents a either the declaration
+  /// of the definition (depending on N.K) of an artificial struct wrapper
+  /// around the array type.
+  /// In the case of a model::RawFunctionDefinition, N represents either the
+  /// declaration or the definition (depending on N.K) of an artificial struct
+  /// wrapper around the set of registers returned by N.T.
+  const model::UpcastableType T;
 
   /// For each model::TypeDefinition we'll have nodes representing the type name
   /// or the full type, depending on this enum.
@@ -48,7 +60,6 @@ struct TypeNode {
 };
 
 using TypeDependencyNode = BidirectionalNode<TypeNode>;
-using TypeVector = TrackingSortedVector<model::UpcastableTypeDefinition>;
 
 /// Represents the graph of dependencies among types
 class DependencyGraph : public GenericGraph<TypeDependencyNode> {
@@ -60,22 +71,35 @@ private:
     TypeDependencyNode *Definition;
   };
 
-  /// A internal factory class used to build a DependencyGraph
-  class Builder;
-
   /// A map type that maps a model::TypeDefinition to a pair of
   /// TypeDependencyNodes, representing respectively the declaration and the
   /// definition of such TypeDefinition.
-  using TypeToNodesMap = std::unordered_map<const model::TypeDefinition *,
-                                            AssociatedNodes>;
+  using DefinitionToNodesMap = std::unordered_map<const model::TypeDefinition *,
+                                                  AssociatedNodes>;
 
-  /// Maps a model::TypeDefinition * to an AssociatedNodes, representing
-  /// respectively the declaration and the definition of the TypeDefinition.
-  TypeToNodesMap TypeToNodes;
+  /// A map type that maps a model::UpcastableType to a pair of
+  /// TypeDependencyNodes, representing respectively the declaration and the
+  /// definition of an artificial struct wrapper for that UpcastableType.
+  using WrappedTypeToNodesMap = std::map<const model::UpcastableType,
+                                         AssociatedNodes>;
 
 public:
-  /// Factory method to create a DependencyGraph from a TypeVector.
-  static DependencyGraph make(const TypeVector &TV);
+  /// A internal factory class used to build a DependencyGraph
+  class Builder;
+
+private:
+  /// Maps a model::TypeDefinition * to its AssociatedNodes, representing
+  /// respectively the declaration and the definition of the TypeDefinition.
+  DefinitionToNodesMap TypeToNodes;
+
+  /// Maps a model::UpcastableType to its AssociatedNodes, representing
+  /// respectively the declaration and the definition of an artificial struct
+  /// wrapper for that UpcastableType.
+  WrappedTypeToNodesMap WrappedToNodes;
+
+public:
+  /// Factory method to create a DependencyGraph from a model::Binary.
+  static DependencyGraph make(const model::Binary &);
 
 public:
   /// Get the declaration node associated to \p Definition.

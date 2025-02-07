@@ -4,6 +4,8 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
+#include "revng/Model/CommonTypeMethods.h"
 #include "revng/Support/Annotations.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
@@ -313,7 +315,7 @@ static Logger<> InlineTypeLog{ "inline-type-selection" };
 
 void ptml::CTypeBuilder::collectInlinableTypes() {
   if (not DependencyCache.has_value())
-    DependencyCache = DependencyGraph::make(Binary.TypeDefinitions());
+    DependencyCache = DependencyGraph::make(Binary);
 
   StackFrameTypeCache = {};
   for (const model::Function &Function : Binary.Functions())
@@ -321,31 +323,78 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
       StackFrameTypeCache.insert(StackFrame->key());
 
   if (Configuration.EnableTypeInlining
-      || Configuration.EnableStackFrameInlining) {
+      or Configuration.EnableStackFrameInlining) {
     std::map<model::TypeDefinition::Key, uint64_t> DependentTypeCount;
     for (const auto *Node : DependencyCache->nodes()) {
-      if (isDeclarationTheSameAsDefinition(*Node->T)) {
+      const model::TypeDefinition &T = *Node->T->tryGetAsDefinition();
+
+      // Skip stuff we never want to inline.
+      if (Node->isArtificial() or isDeclarationTheSameAsDefinition(T)) {
         // Skip types that never produce a definition since there's no point
         // inlining them.
+        // Artificial nodes are always struct, so in principle they could be
+        // inlined. However, there are various reasons why we don't want to ever
+        // inline artificial structs.
+        //
+        // Artificial structs are currently emitted in C for 3 reasons.
+        // 1. For representing return types of RawFunctionDefinitions that
+        // return a RegisterSet.
+        // 2. For wrapping array arguments types and array return types for
+        // CABIFunctionDefinitions.
+        // 3. For wrapping individual instances of subtypes whose type is a
+        // pointer-to-array, to break potentially infinite loops.
+        //
+        // In each of these case we have reasons no to inline them.
+        // Respectively for the three cases above.
+        //
+        // 1. inlining a struct wrapper in the declaration of a
+        // RawFunctionDefinition (called f) would look something like
+        //
+        //     struct f_return_wrapper { uint64_t rax; uint64_t rdx; } f();
+        //
+        // This is ugly and very verbose. It's better not to inline this.
+        //
+        // 2. inlining a struct wrapper for an array argument type or return
+        // value type would look like
+        //
+        //     struct f_array_return_wrapper { uint8_t array[4]; }
+        //     f(struct f_arg_0_type_wrapper { uint8_t array[8]; });
+        //
+        // This is ugly and very verbose. It's better not to inline this.
+        //
+        // 3. inlining a struct wrapper for specific instance of an array
+        // subtype would look like
+        //
+        //     struct external {
+        //       struct wrapper {
+        //         int32_t array[8];
+        //       } *pointer_to_array;
+        //     };
+        //
+        // This in principle could be desirable, but doing this requires us to
+        // track not only the keys of the TypeDefinitions that must always be
+        // inlined, but pairs of <parent_type, subtype> such that the given
+        // instance of the subtype needs a struct wrapper in the parent_type.
+        // This is feasible but requires sensible redesign of how we track the
+        // types to be inlined, so we don't do it for now and just ban inlining
+        // for artificial wrapper types.
         continue;
       }
 
-      auto &&[Iterator, _] = DependentTypeCount.try_emplace(Node->T->key(), 0);
+      auto [Iterator, _] = DependentTypeCount.try_emplace(T.key(), 0);
       Iterator->second += Node->predecessorCount();
-      if (Node->K == TypeNode::Kind::Declaration) {
+      if (Node->isDeclaration()) {
         // Ignore a reference from a type definition to its own declaration.
         // But only do so if there is exactly one. If there are more, keep it in
         // order to ensure it is never marked for inlining.
-        auto SelfEdgeCounter = [Key = Node->T->key()](auto *N) {
-          return N->T->key() == Key;
-        };
-        if (llvm::count_if(Node->predecessors(), SelfEdgeCounter) == 1)
+        const TypeDependencyNode *DefNode = DependencyCache->getDefinition(&T);
+        if (1 == llvm::count(Node->predecessors(), DefNode))
           --Iterator->second;
 
         // Since dependency graph does not take functions into account,
         // explicitly add one "use" to each struct that appears as a function
         // stack frame.
-        if (StackFrameTypeCache.contains(Node->T->key()))
+        if (StackFrameTypeCache.contains(T.key()))
           ++Iterator->second;
       }
 
@@ -395,7 +444,7 @@ static Logger<> TypePrinterLog{ "type-definition-printer" };
 
 void ptml::CTypeBuilder::printTypeDefinitions() {
   if (not DependencyCache.has_value())
-    DependencyCache = DependencyGraph::make(Binary.TypeDefinitions());
+    DependencyCache = DependencyGraph::make(Binary);
 
   std::set<const TypeDependencyNode *> Defined;
   for (const auto *Root : DependencyCache->nodes()) {
@@ -406,7 +455,36 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
       LoggerIndent PostOrderIndent{ TypePrinterLog };
       revng_log(TypePrinterLog, "post_order visiting: " << getNodeLabel(Node));
 
-      const model::TypeDefinition *NodeT = Node->T;
+      if (Node->isArtificial()) {
+        // Some assertions and logging
+        {
+          using namespace llvm; // For isa, dyn_cast
+
+          const model::Type *T = Node->T.get();
+          bool IsArray = isa<model::ArrayType>(T);
+
+          bool ReturnsRegisterSet = false;
+          if (const auto *DT = dyn_cast<model::DefinedType>(T)) {
+            if (const auto
+                  *RF = dyn_cast<model::RawFunctionDefinition>(&DT->unwrap())) {
+
+              using Layout = abi::FunctionType::Layout;
+              auto RetMethod = Layout::make(*RF).returnMethod();
+
+              using namespace abi::FunctionType::ReturnMethod;
+              ReturnsRegisterSet = RetMethod == RegisterSet;
+            }
+          }
+
+          revng_assert(IsArray or ReturnsRegisterSet);
+          revng_log(TypePrinterLog,
+                    "Warning: ignoring unexpected artificial TypeDependencyNode"
+                      << getNodeLabel(Node));
+        }
+        continue;
+      }
+
+      const model::TypeDefinition *NodeT = Node->T->tryGetAsDefinition();
       const auto DeclKind = Node->K;
 
       if (Configuration.TypesToOmit.contains(NodeT->key())) {

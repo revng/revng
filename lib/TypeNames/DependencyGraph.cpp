@@ -11,11 +11,13 @@
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/ScopedExchange.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Generated/ForwardDecls.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -40,8 +42,14 @@ static llvm::StringRef toString(TypeNode::Kind K) {
 }
 
 std::string getNodeLabel(const TypeDependencyNode *N) {
-  return (Twine(getNameFromYAMLScalar(N->T->key())) + Twine("-")
-          + Twine(toString(N->K)))
+  const model::UpcastableType &NodeType = N->T;
+  revng_assert(not NodeType.empty());
+  if (const model::TypeDefinition *TD = NodeType->tryGetAsDefinition()) {
+    return (Twine(getNameFromYAMLScalar(TD->key())) + Twine("-")
+            + Twine(toString(N->K)))
+      .str();
+  }
+  return (Twine(NodeType->toString()) + Twine("-") + Twine(toString(N->K)))
     .str();
 }
 
@@ -94,15 +102,15 @@ class DependencyGraph::Builder {
   /// A pointer to the DependencyGraph being constructed and initialized.
   DependencyGraph *Graph = nullptr;
 
-  /// A pointer to the TypeVector fow which the Builder is building a
+  /// A pointer to the model::Binary for which the Builder is building a
   /// DependencyGraph.
-  const TypeVector *Types = nullptr;
+  const model::Binary *TheBinary = nullptr;
 
 public:
-  Builder(const TypeVector &TV) : Graph(nullptr), Types(&TV) {}
+  Builder(const model::Binary &B) : Graph(nullptr), TheBinary(&B) {}
 
-  // Ensure we don't initialize Types to the address of a temporary.
-  Builder(TypeVector &&TV) = delete;
+  // Ensure we don't initialize TheBinary to the address of a temporary.
+  Builder(model::Binary &&) = delete;
 
 public:
   /// Create and initialize a DependencyGraph.
@@ -124,9 +132,9 @@ public:
     return Dependencies;
   }
 
-  /// Create and initialize a DependencyGraph from a TypeVector.
-  static DependencyGraph make(const TypeVector &TV) {
-    return Builder(TV).make();
+  /// Create and initialize a DependencyGraph from a model::Binary.
+  static DependencyGraph make(const model::Binary &B) {
+    return Builder(B).make();
   }
 
 private:
@@ -153,12 +161,13 @@ void DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
 
   using TypeNodeGenericGraph = GenericGraph<TypeDependencyNode>;
   auto *G = static_cast<TypeNodeGenericGraph *const>(Graph);
+  const model::UpcastableType UT = TheBinary->makeType(T.key());
 
   constexpr auto Declaration = TypeNode::Kind::Declaration;
-  auto *DeclNode = G->addNode(TypeNode{ &T, Declaration });
+  auto *DeclNode = G->addNode(TypeNode{ UT, Declaration });
 
   constexpr auto Definition = TypeNode::Kind::Definition;
-  auto *DefNode = G->addNode(TypeNode{ &T, Definition });
+  auto *DefNode = G->addNode(TypeNode{ UT, Definition });
 
   Graph->TypeToNodes[&T] = AssociatedNodes{
     .Declaration = DeclNode,
@@ -332,14 +341,14 @@ void DependencyGraph::Builder::addDependencies(const model::TypeDefinition &T)
 void DependencyGraph::Builder::makeImpl() const {
 
   // Create declaration and definition nodes for all the nodes
-  for (const model::UpcastableTypeDefinition &MT : *Types)
+  for (const model::UpcastableTypeDefinition &MT : TheBinary->TypeDefinitions())
     addNodes(*MT);
 
   // Compute dependencies and add them to the graph
-  for (const model::UpcastableTypeDefinition &MT : *Types)
+  for (const model::UpcastableTypeDefinition &MT : TheBinary->TypeDefinitions())
     addDependencies(*MT);
 }
 
-DependencyGraph DependencyGraph::make(const TypeVector &TV) {
-  return DependencyGraph::Builder::make(TV);
+DependencyGraph DependencyGraph::make(const model::Binary &B) {
+  return DependencyGraph::Builder::make(B);
 }
