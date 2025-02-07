@@ -30,3 +30,4 @@ def setup(commands_registry: CommandsRegistry):
     commands_registry.register_command(PipelineToolCommand("invalidate", "revng invalidate"))
     commands_registry.register_command(PipelineToolCommand("pipeline", "revng pipeline"))
     commands_registry.register_command(PipelineToolCommand("pipe", "revng pipe"))
+    commands_registry.register_command(PipelineToolCommand("init", "revng init"))
