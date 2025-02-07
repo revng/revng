@@ -63,19 +63,7 @@ target_tuple_tree_generator(
   "BasicBlockID"
   "MetaAddress"
   "yield::ByteContainer"
-  "model::FunctionAttribute::Values"
-  HEADERS
-  "${INTERNAL_ASSEMBLY_HEADERS}/CallEdge.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdge.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdgeBase.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdgeType.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/BasicBlock.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TagAttribute.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TaggedLine.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TaggedString.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h")
+  "model::FunctionAttribute::Values")
 
 set(INTERNAL_ASSEMBLY_HEADERS
     "${CMAKE_SOURCE_DIR}/include/revng/Yield/CrossRelations")
@@ -95,10 +83,7 @@ target_tuple_tree_generator(
   SCALAR_TYPES
   "BasicBlockID"
   "MetaAddress"
-  "yield::ByteContainer"
-  HEADERS
-  "${INTERNAL_ASSEMBLY_HEADERS}/CrossRelations.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/RelationDescription.h")
+  "yield::ByteContainer")
 
 revng_add_analyses_library_internal(
   revngYieldPipes SHARED Pipes/AssemblyPipes.cpp Pipes/CallGraphPipes.cpp

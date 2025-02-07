@@ -62,13 +62,6 @@ target_tuple_tree_generator(
   SCALAR_TYPES
   "BasicBlockID"
   "MetaAddress"
-  "model::FunctionAttribute::Values"
-  HEADERS
-  "${EFA_HEADERS_DIR}/BasicBlock.h"
-  "${EFA_HEADERS_DIR}/CallEdge.h"
-  "${EFA_HEADERS_DIR}/FunctionEdge.h"
-  "${EFA_HEADERS_DIR}/FunctionEdgeBase.h"
-  "${EFA_HEADERS_DIR}/FunctionEdgeType.h"
-  "${EFA_HEADERS_DIR}/ControlFlowGraph.h")
+  "model::FunctionAttribute::Values")
 
 install(DIRECTORY ${OUTPUT_DIR} DESTINATION include/revng/EarlyFunctionAnalysis)

@@ -272,8 +272,6 @@ set_tests_properties(test_model_type PROPERTIES LABELS "unit")
 # test_tuple_tree_generator
 #
 
-set(HEADERS "${SRC}/TupleTreeGenerator/TestClass.h"
-            "${SRC}/TupleTreeGenerator/TestEnum.h")
 set(INCLUDE_DIR "${CMAKE_SOURCE_DIR}/tests/unit/TupleTreeGenerator")
 set(OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/tests/unit/TupleTreeGenerator")
 set(HEADERS_DIR "${OUTPUT_DIR}/include")
@@ -285,8 +283,6 @@ target_include_directories(test_tuple_tree_generator PUBLIC "${HEADERS_DIR}"
                                                             "${INCLUDE_DIR}")
 target_tuple_tree_generator(
   test_tuple_tree_generator
-  HEADERS
-  "${HEADERS}"
   NAMESPACE
   ttgtest
   ROOT_TYPE
