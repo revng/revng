@@ -313,7 +313,7 @@ static Logger<> InlineTypeLog{ "inline-type-selection" };
 
 void ptml::CTypeBuilder::collectInlinableTypes() {
   if (not DependencyCache.has_value())
-    DependencyCache = buildDependencyGraph(Binary.TypeDefinitions());
+    DependencyCache = DependencyGraph::make(Binary.TypeDefinitions());
 
   StackFrameTypeCache = {};
   for (const model::Function &Function : Binary.Functions())
@@ -395,7 +395,7 @@ static Logger<> TypePrinterLog{ "type-definition-printer" };
 
 void ptml::CTypeBuilder::printTypeDefinitions() {
   if (not DependencyCache.has_value())
-    DependencyCache = buildDependencyGraph(Binary.TypeDefinitions());
+    DependencyCache = DependencyGraph::make(Binary.TypeDefinitions());
 
   std::set<const TypeDependencyNode *> Defined;
   for (const auto *Root : DependencyCache->nodes()) {
