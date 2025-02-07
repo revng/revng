@@ -53,6 +53,10 @@ using TypeVector = TrackingSortedVector<model::UpcastableTypeDefinition>;
 /// Represents the graph of dependencies among types
 class DependencyGraph : public GenericGraph<TypeDependencyNode> {
 private:
+  /// An internal factory class used to build a DependencyGraph.
+  class Builder;
+
+private:
   /// A pair of associated nodes that are respectively the declaration and the
   /// definition of the same type.
   struct AssociatedNodes {
@@ -60,14 +64,12 @@ private:
     TypeDependencyNode *Definition;
   };
 
-public:
-  /// A factory class used to build a DependencyGraph
-  class Builder;
-
+  /// A map type that maps a model::TypeDefinition to a pair of
+  /// TypeDependencyNodes, representing respectively the declaration and the
+  /// definition of such TypeDefinition.
   using TypeToNodesMap = std::unordered_map<const model::TypeDefinition *,
                                             AssociatedNodes>;
 
-private:
   /// Maps a model::TypeDefinition * to an AssociatedNodes, representing
   /// respectively the declaration and the definition of the TypeDefinition.
   TypeToNodesMap TypeToNodes;
@@ -75,11 +77,6 @@ private:
 public:
   /// Factory method to create a DependencyGraph from a TypeVector.
   static DependencyGraph make(const TypeVector &TV);
-
-public:
-  const TypeToNodesMap &TypeNodes() const { return TypeToNodes; }
-
-  void addNode(const model::TypeDefinition *T);
 
 public:
   /// Get the declaration node associated to \p Definition.

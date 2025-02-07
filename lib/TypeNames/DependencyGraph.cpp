@@ -14,6 +14,7 @@
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
+#include "revng/ADT/ScopedExchange.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/Assert.h"
@@ -36,20 +37,6 @@ static llvm::StringRef toString(TypeNode::Kind K) {
     return "ArtificialWrapperDefinition";
   }
   return "Invalid";
-}
-
-void DependencyGraph::addNode(const model::TypeDefinition *T) {
-
-  constexpr auto Declaration = TypeNode::Kind::Declaration;
-  auto *DeclNode = GenericGraph::addNode(TypeNode{ T, Declaration });
-
-  constexpr auto Definition = TypeNode::Kind::Definition;
-  auto *DefNode = GenericGraph::addNode(TypeNode{ T, Definition });
-
-  TypeToNodes[T] = AssociatedNodes{
-    .Declaration = DeclNode,
-    .Definition = DefNode,
-  };
 }
 
 std::string getNodeLabel(const TypeDependencyNode *N) {
@@ -103,10 +90,80 @@ analyzeDependencyEdges(const model::Type &Type, bool PointerFound = false) {
   }
 }
 
+class DependencyGraph::Builder {
+  /// A pointer to the DependencyGraph being constructed and initialized.
+  DependencyGraph *Graph = nullptr;
+
+  /// A pointer to the TypeVector for which the Builder is building a
+  /// DependencyGraph.
+  const TypeVector *Types = nullptr;
+
+public:
+  Builder(const TypeVector &TV) : Graph(nullptr), Types(&TV) {}
+
+  // Ensure we don't initialize Types to the address of a temporary.
+  Builder(TypeVector &&TV) = delete;
+
+public:
+  /// Create and initialize a DependencyGraph.
+  DependencyGraph make() {
+
+    // Set up an empty DependencyGraph, and the Graph pointer to point to it, so
+    // that all methods that are used to build the graph from makeImpl down can
+    // just use Graph.
+    // The Graph pointer is then reset to nullptr via the ScopedExchange when
+    // construction is done.
+    DependencyGraph Dependencies;
+    ScopedExchange ExchangeGraphPtr(Graph, &Dependencies);
+
+    makeImpl();
+
+    if (Log.isEnabled())
+      llvm::ViewGraph(Graph, "type-deps.dot");
+
+    return Dependencies;
+  }
+
+  /// Create and initialize a DependencyGraph from a TypeVector.
+  static DependencyGraph make(const TypeVector &TV) {
+    return Builder(TV).make();
+  }
+
+private:
+  /// Actual implementation of the make method.
+  void makeImpl() const;
+
+  /// Add a declaration node and a definition node to Graph for \p T.
+  void addNodes(const model::TypeDefinition &T) const;
+
+  /// Add all the necessary dependency edges to Graph for the nodes that
+  /// represent the declaration and definition of \p T.
+  void addDependencies(const model::TypeDefinition &T) const;
+
+  template<TypeNode::Kind K>
+  TypeDependencyNode *getDependencyFor(const model::Type &Type) const;
+};
+
+void DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
+
+  using TypeNodeGenericGraph = GenericGraph<TypeDependencyNode>;
+  auto *G = static_cast<TypeNodeGenericGraph *const>(Graph);
+
+  constexpr auto Declaration = TypeNode::Kind::Declaration;
+  auto *DeclNode = G->addNode(TypeNode{ &T, Declaration });
+
+  constexpr auto Definition = TypeNode::Kind::Definition;
+  auto *DefNode = G->addNode(TypeNode{ &T, Definition });
+
+  Graph->TypeToNodes[&T] = AssociatedNodes{
+    .Declaration = DeclNode,
+    .Definition = DefNode,
+  };
+}
+
 template<TypeNode::Kind K>
-static TypeDependencyNode *
-getDependencyFor(const model::Type &Type,
-                 const DependencyGraph::TypeToNodesMap &TypeToNodes) {
+TypeDependencyNode *
+DependencyGraph::Builder::getDependencyFor(const model::Type &Type) const {
 
   // TODO: Unfortunately, here we have to deal with some quirks of the C
   // language concerning pointers to arrays of struct/union.
@@ -153,29 +210,28 @@ getDependencyFor(const model::Type &Type,
     // If the last type edge was an array, because of the quirks of
     // the C standard mentioned above, we have to depend on the Definition
     // of the element type of the array.
-    return TypeToNodes.at(EdgeTarget).Definition;
+    return Graph->TypeToNodes.at(EdgeTarget).Definition;
   }
 
   if (PointerIsBetweenTypes) {
     // Otherwise, if we've found at least a pointer, we only depend on the name
     // of the pointee.
-    return TypeToNodes.at(EdgeTarget).Declaration;
+    return Graph->TypeToNodes.at(EdgeTarget).Declaration;
   }
 
   // In all the other cases we depend on the type with the kind indicated by K.
   if constexpr (K == TypeNode::Kind::Declaration)
-    return TypeToNodes.at(EdgeTarget).Declaration;
+    return Graph->TypeToNodes.at(EdgeTarget).Declaration;
   else if constexpr (K == TypeNode::Kind::Definition)
-    return TypeToNodes.at(EdgeTarget).Definition;
+    return Graph->TypeToNodes.at(EdgeTarget).Definition;
   else
     static_assert(value_always_false_v<K>);
 
   return nullptr;
 }
 
-static void
-registerDependencies(const model::TypeDefinition &T,
-                     const DependencyGraph::TypeToNodesMap &TypeToNodes) {
+void DependencyGraph::Builder::addDependencies(const model::TypeDefinition &T)
+  const {
 
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
   llvm::SmallVector<Edge, 2> Deps;
@@ -186,7 +242,7 @@ registerDependencies(const model::TypeDefinition &T,
   // declared it) but it doesn't introduce cycles and it enables the algorithm
   // that decides on the ordering on the declarations and definitions to make
   // more assumptions about definitions being emitted before declarations.
-  const auto &[DeclNode, DefNode] = TypeToNodes.at(&T);
+  const auto &[DeclNode, DefNode] = Graph->TypeToNodes.at(&T);
   Deps.push_back({ DefNode, DeclNode });
 
   if (llvm::isa<model::EnumDefinition>(T)) {
@@ -194,13 +250,12 @@ registerDependencies(const model::TypeDefinition &T,
     // definition. As such, there's nothing to do here.
 
   } else if (llvm::isa<model::StructDefinition>(T)
-             || llvm::isa<model::UnionDefinition>(T)) {
+             or llvm::isa<model::UnionDefinition>(T)) {
     // Struct and Union names can always be conjured out of thin air thanks to
     // typedefs. So we only need to add dependencies between their full
     // definition and the full definition of their fields.
     for (const model::Type *Edge : T.edges()) {
-      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge,
-                                                           TypeToNodes)) {
+      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge)) {
         Deps.push_back({ DefNode, D });
         revng_log(Log,
                   getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
@@ -211,13 +266,13 @@ registerDependencies(const model::TypeDefinition &T,
     // Typedefs are nasty.
     const model::Type &Under = *TD->UnderlyingType();
 
-    if (auto *D = getDependencyFor<TypeNode::Definition>(Under, TypeToNodes)) {
+    if (auto *D = getDependencyFor<TypeNode::Definition>(Under)) {
       Deps.push_back({ DefNode, D });
       revng_log(Log,
                 getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
     }
 
-    if (auto *D = getDependencyFor<TypeNode::Declaration>(Under, TypeToNodes)) {
+    if (auto *D = getDependencyFor<TypeNode::Declaration>(Under)) {
       Deps.push_back({ DeclNode, D });
       revng_log(Log,
                 getNodeLabel(DeclNode) << " depends on " << getNodeLabel(D));
@@ -244,15 +299,13 @@ registerDependencies(const model::TypeDefinition &T,
       // this dependencies, or pre-processing the model so that what reaches
       // this point is always guaranteed to be in a form that can be emitted.
 
-      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge,
-                                                           TypeToNodes)) {
+      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge)) {
         Deps.push_back({ DefNode, D });
         revng_log(Log,
                   getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
       }
 
-      if (auto *D = getDependencyFor<TypeNode::Declaration>(*Edge,
-                                                            TypeToNodes)) {
+      if (auto *D = getDependencyFor<TypeNode::Declaration>(*Edge)) {
         Deps.push_back({ DeclNode, D });
         revng_log(Log,
                   getNodeLabel(DeclNode) << " depends on " << getNodeLabel(D));
@@ -271,46 +324,23 @@ registerDependencies(const model::TypeDefinition &T,
   }
 }
 
-class DependencyGraph::Builder {
-  const TypeVector *Types;
+void DependencyGraph::Builder::makeImpl() const {
 
-public:
-  Builder(const TypeVector &TV) : Types(&TV) {}
-
-  // Ensure we don't initialize Types to the address of a temporary.
-  Builder(TypeVector &&TV) = delete;
-
-public:
-  DependencyGraph make() const;
-
-  static DependencyGraph make(const TypeVector &TV) {
-    return Builder(TV).make();
-  }
-};
-
-static_assert(std::is_copy_constructible_v<DependencyGraph::Builder>);
-static_assert(std::is_copy_assignable_v<DependencyGraph::Builder>);
-static_assert(std::is_move_constructible_v<DependencyGraph::Builder>);
-static_assert(std::is_move_assignable_v<DependencyGraph::Builder>);
-
-DependencyGraph DependencyGraph::Builder::make() const {
-
-  DependencyGraph Dependencies;
-
-  // Create nodes
+  // Create declaration and definition nodes for all the type definitions
   for (const model::UpcastableTypeDefinition &MT : *Types)
-    Dependencies.addNode(MT.get());
+    addNodes(*MT);
 
   // Compute dependencies and add them to the graph
   for (const model::UpcastableTypeDefinition &MT : *Types)
-    registerDependencies(*MT, Dependencies.TypeNodes());
-
-  if (Log.isEnabled())
-    llvm::ViewGraph(&Dependencies, "type-deps.dot");
-
-  return Dependencies;
+    addDependencies(*MT);
 }
 
 DependencyGraph DependencyGraph::make(const TypeVector &TV) {
+
+  static_assert(std::is_copy_constructible_v<DependencyGraph::Builder>);
+  static_assert(std::is_copy_assignable_v<DependencyGraph::Builder>);
+  static_assert(std::is_move_constructible_v<DependencyGraph::Builder>);
+  static_assert(std::is_move_assignable_v<DependencyGraph::Builder>);
+
   return DependencyGraph::Builder::make(TV);
 }
