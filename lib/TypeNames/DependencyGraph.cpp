@@ -134,7 +134,7 @@ private:
   void makeImpl() const;
 
   /// Add a declaration node and a definition node to Graph for \p T.
-  void addNodes(const model::TypeDefinition &T) const;
+  AssociatedNodes addNodes(const model::TypeDefinition &T) const;
 
   /// Add all the necessary dependency edges to Graph for the nodes that
   /// represent the declaration and definition of \p T.
@@ -144,7 +144,8 @@ private:
   TypeDependencyNode *getDependencyFor(const model::Type &Type) const;
 };
 
-void DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
+DependencyGraph::AssociatedNodes
+DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
 
   using TypeNodeGenericGraph = GenericGraph<TypeDependencyNode>;
   auto *G = static_cast<TypeNodeGenericGraph *const>(Graph);
@@ -155,7 +156,7 @@ void DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
   constexpr auto Definition = TypeNode::Kind::Definition;
   auto *DefNode = G->addNode(TypeNode{ &T, Definition });
 
-  Graph->TypeToNodes[&T] = AssociatedNodes{
+  return Graph->TypeToNodes[&T] = AssociatedNodes{
     .Declaration = DeclNode,
     .Definition = DefNode,
   };
