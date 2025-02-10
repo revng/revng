@@ -156,6 +156,14 @@ DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
   constexpr auto Definition = TypeNode::Kind::Definition;
   auto *DefNode = G->addNode(TypeNode{ &T, Definition });
 
+  // The definition always depends on the declaration.
+  // This is not strictly necessary (e.g. when definition and declaration are
+  // the same, or when printing a the body of a struct without having forward
+  // declared it) but it doesn't introduce cycles and it enables the algorithm
+  // that decides on the ordering on the declarations and definitions to make
+  // more assumptions about definitions being emitted before declarations.
+  DefNode->addSuccessor(DeclNode);
+
   return Graph->TypeToNodes[&T] = AssociatedNodes{
     .Declaration = DeclNode,
     .Definition = DefNode,
@@ -237,14 +245,7 @@ void DependencyGraph::Builder::addDependencies(const model::TypeDefinition &T)
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
   llvm::SmallVector<Edge, 2> Deps;
 
-  // The full definition always depends on declaration.
-  // This is not strictly necessary (e.g. when definition and declaration are
-  // the same, or when printing a the body of a struct without having forward
-  // declared it) but it doesn't introduce cycles and it enables the algorithm
-  // that decides on the ordering on the declarations and definitions to make
-  // more assumptions about definitions being emitted before declarations.
   const auto &[DeclNode, DefNode] = Graph->TypeToNodes.at(&T);
-  Deps.push_back({ DefNode, DeclNode });
 
   if (llvm::isa<model::EnumDefinition>(T)) {
     // Enums can only depend on primitives, and those are always present by
