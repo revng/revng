@@ -169,6 +169,14 @@ static_assert(std::is_copy_assignable_v<DependencyGraph::Builder>);
 static_assert(std::is_move_constructible_v<DependencyGraph::Builder>);
 static_assert(std::is_move_assignable_v<DependencyGraph::Builder>);
 
+static void addAndLogSuccessor(TypeDependencyNode *From,
+                               TypeDependencyNode *To) {
+  revng_log(Log,
+            "Adding edge " << getNodeLabel(From) << " --> "
+                           << getNodeLabel(To));
+  From->addSuccessor(To);
+}
+
 DependencyGraph::AssociatedNodes
 DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
 
@@ -188,7 +196,7 @@ DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
   // declared it) but it doesn't introduce cycles and it enables the algorithm
   // that decides on the ordering on the declarations and definitions to make
   // more assumptions about definitions being emitted before declarations.
-  DefNode->addSuccessor(DeclNode);
+  addAndLogSuccessor(DefNode, DeclNode);
 
   return Graph->TypeToNodes[&T] = AssociatedNodes{
     .Declaration = DeclNode,
@@ -219,7 +227,7 @@ DependencyGraph::Builder::addArtificialNodes(const model::Type &T) const {
   // enables the algorithm that decides on the ordering on the declarations and
   // definitions to make more assumptions about definitions being emitted before
   // declarations.
-  DefNode->addSuccessor(DeclNode);
+  addAndLogSuccessor(DefNode, DeclNode);
 
   return Graph->WrappedToNodes[UT] = AssociatedNodes{
     .Declaration = DeclNode,
@@ -256,7 +264,7 @@ DependencyGraph::Builder::addArtificialNodes(const model::RawFunctionDefinition
   // declared it) but it doesn't introduce cycles and it enables the algorithm
   // that decides on the ordering on the declarations and definitions to make
   // more assumptions about definitions being emitted before declarations.
-  DefNode->addSuccessor(DeclNode);
+  addAndLogSuccessor(DefNode, DeclNode);
 
   return Graph->WrappedToNodes[UT] = AssociatedNodes{
     .Declaration = DeclNode,
@@ -412,12 +420,8 @@ void DependencyGraph::Builder::addDependencies(const model::TypeDefinition &T)
     revng_abort();
   }
 
-  for (const auto &[From, To] : Deps) {
-    revng_log(Log,
-              "Adding edge " << getNodeLabel(From) << " --> "
-                             << getNodeLabel(To));
-    From->addSuccessor(To);
-  }
+  for (const auto &[From, To] : Deps)
+    addAndLogSuccessor(From, To);
 }
 
 void DependencyGraph::Builder::makeImpl() const {
