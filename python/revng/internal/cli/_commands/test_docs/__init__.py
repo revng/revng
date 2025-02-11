@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import abc
 import json
 import os
 import re
@@ -9,7 +10,6 @@ import shlex
 import subprocess
 import sys
 import textwrap
-from abc import ABC
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Mapping
@@ -18,6 +18,7 @@ import marko
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 
+SCRIPT_DIR = Path(__file__).parent.resolve()
 verbose = False
 
 
@@ -26,7 +27,7 @@ def log(message):
         sys.stderr.write(message + "\n")
 
 
-def run(working_directory, arguments):
+def run(working_directory: Path, arguments):
     log(f"Running {shlex.join(arguments)}")
     process = subprocess.run(
         arguments, cwd=working_directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
@@ -42,19 +43,36 @@ def run(working_directory, arguments):
         sys.exit(1)
 
 
-class Doctest(ABC):
-    def run(self, working_directory):
+class Doctest(abc.ABC):
+    @abc.abstractmethod
+    def run(self, working_directory: Path):
         pass
 
-    def process(self, code, extra=""):
+    @abc.abstractmethod
+    def process(self, code: str, extra: str = ""):
         pass
+
+    @staticmethod
+    def _parse_extra(extra: str) -> dict[str, str | None]:
+        if extra.strip() == "":
+            return {}
+
+        result: dict[str, str | None] = {}
+        for part in re.split(r"\s+", extra):
+            assert part.count("=") in (0, 1)
+            if part.count("=") == 0:
+                result[part] = None
+            else:
+                key, value = part.split("=", 1)
+                result[key] = value
+        return result
 
 
 class PythonDoctest(Doctest):
     def __init__(self):
         self.script = ""
 
-    def run(self, working_directory):
+    def run(self, working_directory: Path):
         if not self.script:
             return
 
@@ -63,11 +81,28 @@ class PythonDoctest(Doctest):
 
         script_path = working_directory / "run.py"
         script_path.write_text(self.script)
-        run(working_directory, ["python", "-m", "doctest", "-v", "run.py"])
+        run(working_directory, ["python", str(SCRIPT_DIR / "doctest_runner.py"), "-v", "run.py"])
         self.script = ""
 
-    def process(self, code, extra=""):
-        self.script += code + "\n"
+    def process(self, code: str, extra: str = ""):
+        extra_decoded = self._parse_extra(extra)
+        if "ignoreoutput" in extra_decoded:
+            ignore_output = extra_decoded["ignoreoutput"]
+            split_lines = code.splitlines()
+
+            if ignore_output is None:
+                lines_to_ignore_output = list(range(1, len(split_lines) + 1))
+            else:
+                lines_to_ignore_output = [int(x) for x in ignore_output.split(",")]
+
+            for index, line in enumerate(split_lines):
+                if index + 1 in lines_to_ignore_output:
+                    self.script += line + "  # doctest: +IGNORE_OUTPUT\n"
+                else:
+                    self.script += line + "\n"
+            self.script += "\n"
+        else:
+            self.script += code + "\n"
 
 
 class BashDoctest(Doctest):
@@ -75,7 +110,7 @@ class BashDoctest(Doctest):
         self.script = ""
         self.expected_output = ""
 
-    def run(self, working_directory):
+    def run(self, working_directory: Path):
         if not self.script and not self.expected_output:
             return
 
@@ -137,7 +172,7 @@ class TypeScriptDoctest(Doctest):
     def __init__(self):
         self.script = ""
 
-    def run(self, working_directory):
+    def run(self, working_directory: Path):
         if not self.script:
             return
 
@@ -210,7 +245,7 @@ def handle_file(path: Path):
     }
 
     handlers: Mapping[str, Doctest] = {
-        language: constructor() for language, constructor in handler_types.items()
+        language: constructor() for language, constructor in handler_types.items()  # type: ignore
     }
 
     document = marko.parse(path.read_text())

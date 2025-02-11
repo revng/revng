@@ -202,7 +202,8 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/process_docs_yaml/__init__.py
     revng/internal/cli/_commands/import_idb.py
     revng/internal/cli/_commands/tar_to_yaml.py
-    revng/internal/cli/_commands/test_docs.py
+    revng/internal/cli/_commands/test_docs/__init__.py
+    revng/internal/cli/_commands/test_docs/doctest_runner.py
     revng/internal/cli/_commands/trace_run.py
     revng/internal/cli/_commands/model_compare.py
     revng/internal/cli/_commands/model_migrate.py
