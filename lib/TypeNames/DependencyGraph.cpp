@@ -144,6 +144,18 @@ private:
   /// Add a declaration node and a definition node to Graph for \p T.
   AssociatedNodes addNodes(const model::TypeDefinition &T) const;
 
+  /// Add a declaration node and a definition node to Graph for an artificial
+  /// struct wrapper intended to wrap \p T. \p T is required to have nonzero
+  /// size.
+  AssociatedNodes addArtificialNodes(const model::Type &T) const;
+
+  /// Add a declaration node and a definition node to Graph for an artificial
+  /// struct wrapper intended to wrap \p T. \p T is required to return a
+  /// RegisterSet, and the artificial wrapper is a struct with each of those
+  /// registers' types as fields.
+  AssociatedNodes
+  addArtificialNodes(const model::RawFunctionDefinition &T) const;
+
   /// Add all the necessary dependency edges to Graph for the nodes that
   /// represent the declaration and definition of \p T.
   void addDependencies(const model::TypeDefinition &T) const;
@@ -179,6 +191,74 @@ DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
   DefNode->addSuccessor(DeclNode);
 
   return Graph->TypeToNodes[&T] = AssociatedNodes{
+    .Declaration = DeclNode,
+    .Definition = DefNode,
+  };
+}
+
+DependencyGraph::AssociatedNodes
+DependencyGraph::Builder::addArtificialNodes(const model::Type &T) const {
+
+  const auto UT = model::UpcastableType(T);
+  if (auto It = Graph->WrappedToNodes.find(UT);
+      It != Graph->WrappedToNodes.end()) {
+    return It->second;
+  }
+
+  using TypeNodeGenericGraph = GenericGraph<TypeDependencyNode>;
+  auto *G = static_cast<TypeNodeGenericGraph *const>(Graph);
+
+  constexpr auto Declaration = TypeNode::Kind::ArtificialWrapperDeclaration;
+  auto *DeclNode = G->addNode(TypeNode{ UT, Declaration });
+
+  constexpr auto Definition = TypeNode::Kind::ArtificialWrapperDefinition;
+  auto *DefNode = G->addNode(TypeNode{ UT, Definition });
+
+  // The definition always depends on the declaration.
+  // This is not strictly necessary but it doesn't introduce cycles and it
+  // enables the algorithm that decides on the ordering on the declarations and
+  // definitions to make more assumptions about definitions being emitted before
+  // declarations.
+  DefNode->addSuccessor(DeclNode);
+
+  return Graph->WrappedToNodes[UT] = AssociatedNodes{
+    .Declaration = DeclNode,
+    .Definition = DefNode,
+  };
+}
+
+DependencyGraph::AssociatedNodes
+DependencyGraph::Builder::addArtificialNodes(const model::RawFunctionDefinition
+                                               &T) const {
+
+  const model::UpcastableType UT = TheBinary->makeType(T.key());
+  if (auto It = Graph->WrappedToNodes.find(UT);
+      It != Graph->WrappedToNodes.end()) {
+    return It->second;
+  }
+
+  auto Layout = abi::FunctionType::Layout::make(T);
+  using namespace abi::FunctionType::ReturnMethod;
+  revng_assert(Layout.returnMethod() == RegisterSet);
+
+  using TypeNodeGenericGraph = GenericGraph<TypeDependencyNode>;
+  auto *G = static_cast<TypeNodeGenericGraph *const>(Graph);
+
+  constexpr auto Declaration = TypeNode::Kind::ArtificialWrapperDeclaration;
+  auto *DeclNode = G->addNode(TypeNode{ UT, Declaration });
+
+  constexpr auto Definition = TypeNode::Kind::ArtificialWrapperDefinition;
+  auto *DefNode = G->addNode(TypeNode{ UT, Definition });
+
+  // The definition always depends on the declaration.
+  // This is not strictly necessary (e.g. when definition and declaration are
+  // the same, or when printing a the body of a struct without having forward
+  // declared it) but it doesn't introduce cycles and it enables the algorithm
+  // that decides on the ordering on the declarations and definitions to make
+  // more assumptions about definitions being emitted before declarations.
+  DefNode->addSuccessor(DeclNode);
+
+  return Graph->WrappedToNodes[UT] = AssociatedNodes{
     .Declaration = DeclNode,
     .Definition = DefNode,
   };
