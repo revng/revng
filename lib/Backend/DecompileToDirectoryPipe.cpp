@@ -42,8 +42,8 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
     B(llvm::nulls(),
       Model,
       /* EnableTaglessMode = */ true,
-      { .EnableTypeInlining = options::EnableTypeInlining,
-        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
+      { .EnableTypeInlining = not options::DisableTypeInlining,
+        .EnableStackFrameInlining = not options::DisableStackFrameInlining });
   B.collectInlinableTypes();
 
   {

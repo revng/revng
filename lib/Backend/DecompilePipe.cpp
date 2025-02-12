@@ -31,8 +31,8 @@ void Decompile::run(pipeline::ExecutionContext &EC,
     B(llvm::nulls(),
       Model,
       /* EnableTaglessMode = */ false,
-      { .EnableTypeInlining = options::EnableTypeInlining,
-        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
+      { .EnableTypeInlining = not options::DisableTypeInlining,
+        .EnableStackFrameInlining = not options::DisableStackFrameInlining });
   B.collectInlinableTypes();
 
   for (const model::Function &Function :

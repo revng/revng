@@ -64,8 +64,8 @@ public:
       B(Header,
         *getModelFromContext(EC),
         /* EnableTaglessMode = */ false,
-        { .EnableTypeInlining = options::EnableTypeInlining,
-          .EnableStackFrameInlining = !options::DisableStackFrameInlining,
+        { .EnableTypeInlining = not options::DisableTypeInlining,
+          .EnableStackFrameInlining = not options::DisableStackFrameInlining,
           .EnablePrintingOfTheMaximumEnumValue = true });
     ptml::HeaderBuilder(B).printModelHeader();
 

@@ -30,8 +30,8 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
     B(Out,
       *getModelFromContext(EC),
       /* EnableTaglessMode = */ false,
-      { .EnableTypeInlining = options::EnableTypeInlining,
-        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
+      { .EnableTypeInlining = not options::DisableTypeInlining,
+        .EnableStackFrameInlining = not options::DisableStackFrameInlining });
   B.collectInlinableTypes();
 
   // Make a single C file with an empty set of targets, which means all the
