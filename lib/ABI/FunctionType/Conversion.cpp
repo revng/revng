@@ -461,7 +461,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     // Some ABIs require the stack arguments to start at an offset (usually 4
     // words, enough space to put all the register arguments). This branch
     // handles that by adjusting the `RemainingRange` to account for it.
-    if (auto SkippedBytes = ABI.StackBytesAllocatedForRegisterArguments()) {
+    if (auto SkippedBytes = ABI.UnusedStackArgumentBytes()) {
       revng_assert(SkippedBytes % ABI.getPointerSize() == 0);
 
       auto Iterator = Stack.Fields().find(SkippedBytes);
@@ -597,11 +597,13 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
     Result = {};
   }
 
-  if (ABI.StackBytesAllocatedForRegisterArguments()) {
+  if (ABI.UnusedStackArgumentBytes()) {
     revng_log(Log,
-              "Full stack struct mode is not supported on the ABIs that "
-              "require a part of it to be stripped.");
-    // TODO: We might be able to strip just the offending bytes from the top,
+              "Attaching the whole stack as a single struct is not supported "
+              "under the ABIs that require a part of it to be stripped "
+              "(see `UnusedStackArgumentBytes` within a given ABI definition "
+              "for more information).");
+    // TODO: We might be able to strip just the problem bytes from the top,
     //       but abort the entire conversion for now.
     return std::nullopt;
   }

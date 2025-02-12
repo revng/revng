@@ -155,7 +155,7 @@ States the required alignment of the stack at the point of a function call in by
 
 States the minimum possible stack argument size in bytes. When the actual type of an argument is below this value, some padding with be inserted.
 
-## `StackBytesAllocatedForRegisterArguments` (`unsigned`)
+## `UnusedStackArgumentBytes` (`unsigned`)
 
 States the number of bytes reserved for the callee to be able to "mirror" register arguments on the stack. This value should be set to `0` for any ABI that does not require such space.
 

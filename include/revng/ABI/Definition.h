@@ -51,7 +51,7 @@ fields:
     type: uint64_t
   - name: MinimumStackArgumentSize
     type: uint64_t
-  - name: StackBytesAllocatedForRegisterArguments
+  - name: UnusedStackArgumentBytes
     type: uint64_t
     optional: true
 

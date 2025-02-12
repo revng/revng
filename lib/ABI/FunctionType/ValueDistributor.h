@@ -102,7 +102,7 @@ public:
 
 protected:
   explicit ValueDistributor(const abi::Definition &ABI) :
-    ABI(ABI), UsedStackOffset(ABI.StackBytesAllocatedForRegisterArguments()) {
+    ABI(ABI), UsedStackOffset(ABI.UnusedStackArgumentBytes()) {
 
     revng_assert(ABI.verify());
   }

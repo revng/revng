@@ -111,7 +111,7 @@ namespace runtime_test = abi::runtime_test;
 std::vector<std::byte>
 VH::dropInterArgumentPadding(llvm::ArrayRef<std::byte> Bytes) const {
   std::vector<std::byte> Result;
-  auto PreviousArgumentEndsAt = ABI.StackBytesAllocatedForRegisterArguments();
+  auto PreviousArgumentEndsAt = ABI.UnusedStackArgumentBytes();
   for (const auto &Argument : FunctionLayout.Arguments) {
     if (Argument.Stack.has_value()) {
       revng_assert(Argument.Stack->Size != 0);
@@ -515,7 +515,7 @@ getPrototypeLayout(const model::Function &Function,
     if (!Stack || Stack->Fields().empty())
       return Result;
 
-    uint64_t FirstOffset = ABI.StackBytesAllocatedForRegisterArguments();
+    uint64_t FirstOffset = ABI.UnusedStackArgumentBytes();
     if (not FirstOffset)
       return Result;
 
