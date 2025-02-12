@@ -70,6 +70,17 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
   }
 }
 
+namespace detail {
+
+template<typename GraphType, typename BasicBlockType>
+concept CFGCompatible = SpecializationOfGenericGraph<GraphType>
+                        && SpecializationOfBasicBlock<BasicBlockType>
+                        && std::constructible_from<typename GraphType::Node,
+                                                   const BasicBlockType &,
+                                                   const MetaAddress &>;
+
+} // namespace detail
+
 /// A function for converting EFA's internal CFG representation into a generic
 /// graph.
 ///
@@ -105,6 +116,8 @@ std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
 buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
                       const MetaAddress &EntryAddress,
                       const model::Binary &Binary) {
+  static_assert(detail::CFGCompatible<GraphType, BasicBlockType>);
+
   using Node = typename GraphType::Node;
   std::pair<GraphType, std::map<BasicBlockID, Node *>> Res;
 
