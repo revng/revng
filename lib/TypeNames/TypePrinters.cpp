@@ -6,6 +6,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/CommonTypeMethods.h"
+#include "revng/Pipeline/Location.h"
 #include "revng/Support/Annotations.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
@@ -148,105 +149,91 @@ void ptml::CTypeBuilder::printDeclaration(const TD &Typedef) {
        << getNamedCInstance(*Typedef.UnderlyingType(), Type) << ";\n";
 }
 
-/// Generate the definition of a new struct type that wraps all the return
-/// values of \a F. The name of the struct type is provided by the caller.
 using RFT = model::RawFunctionDefinition;
-void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
+
+void ptml::CTypeBuilder::printReturnValueWrapperImpl(const RFT &F,
+                                                     bool IsDefinition) {
   revng_assert(F.ReturnValues().size() > 1);
   *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
        << getKeyword(ptml::CBuilder::Keyword::Struct) << " "
-       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
+       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
+       << getReturnTypeName(F, false) << " ";
 
-  {
-    Scope Scope(*Out, ptml::c::scopes::StructBody);
-    for (auto &[Index, ReturnValue] : llvm::enumerate(F.ReturnValues())) {
-      std::string
-        ActionLocation = pipeline::locationString(revng::ranks::ReturnRegister,
-                                                  F.key(),
-                                                  ReturnValue.key());
+  if (IsDefinition) {
+    {
+      Scope Scope(*Out, ptml::c::scopes::StructBody);
+      for (auto &[Index, ReturnValue] : llvm::enumerate(F.ReturnValues())) {
+        using pipeline::locationString;
+        std::string
+          ActionLocation = locationString(revng::ranks::ReturnRegister,
+                                          F.key(),
+                                          ReturnValue.key());
 
-      std::string
-        FieldString = tokenTag(NameBuilder.returnValueName(F, ReturnValue),
-                               ptml::c::tokens::Field)
-                        .addAttribute(ptml::attributes::ActionContextLocation,
-                                      ActionLocation)
-                        .toString();
-      *Out << getNamedCInstance(*ReturnValue.Type(), FieldString) << ";\n";
+        std::string
+          FieldString = tokenTag(NameBuilder.returnValueName(F, ReturnValue),
+                                 ptml::c::tokens::Field)
+                          .addAttribute(ptml::attributes::ActionContextLocation,
+                                        ActionLocation)
+                          .toString();
+        *Out << getNamedCInstance(*ReturnValue.Type(), FieldString) << ";\n";
+      }
+      *Out << " ";
     }
   }
 
-  *Out << " " << getReturnTypeName(F, true) << ";\n";
+  *Out << getReturnTypeName(F, IsDefinition) << ";\n";
 }
 
-/// If the function has more than one return value, generate a wrapper struct
-/// that contains them.
-void ptml::CTypeBuilder::printFunctionWrappers(const RFT &F) {
-  if (F.ReturnValues().size() > 1)
-    generateReturnValueWrapper(F);
-
-  for (auto &Arg : F.Arguments())
-    revng_assert(Arg.Type()->isScalar());
-}
-
-/// Print a typedef for a RawFunctionDefinition, that can be used when you have
-/// a variable that is a pointer to a function.
+/// Print a typedef for a RawFunctionDefinition, that can be used when you
+/// have a variable that is a pointer to a function.
 void ptml::CTypeBuilder::printDeclaration(const RFT &F) {
-  printFunctionWrappers(F);
 
   *Out << getModelComment(F) << getKeyword(ptml::CBuilder::Keyword::Typedef)
        << " ";
   // In this case, we are defining a type for the function, not the function
-  // itself, so the token right before the parenthesis is the name of the type.
+  // itself, so the token right before the parenthesis is the name of the
+  // type.
   printFunctionPrototype(F);
   *Out << ";\n";
 }
 
-/// Generate the definition of a new struct type that wraps \a ArrayType.
-/// This is used to wrap array arguments or array return values of
-/// CABI functions.
-void ptml::CTypeBuilder::generateArrayWrapper(const model::ArrayType
-                                                &ArrayType) {
+void ptml::CTypeBuilder::printArrayWrapperImpl(const model::ArrayType
+                                                 &ArrayType,
+                                               bool IsDefinition) {
   // Check if the wrapper was already added
   auto &&[It, IsNew] = ArtificialNameCache.emplace(ArrayType,
                                                    getArrayWrapper(ArrayType));
-  if (not IsNew)
-    return;
+  revng_assert(IsNew or It->second == getArrayWrapper(ArrayType));
 
   *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
        << getKeyword(ptml::CBuilder::Keyword::Struct) << " "
-       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
-  {
-    Scope Scope(*Out, ptml::c::scopes::StructBody);
-    *Out << getNamedCInstance(ArrayType,
-                              NameBuilder.artificialArrayWrapperFieldName())
-         << ";\n";
+       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
+       << tokenTag(It->second, ptml::c::tokens::Type) << " ";
+
+  if (IsDefinition) {
+    {
+      Scope Scope(*Out, ptml::c::scopes::StructBody);
+      *Out << getNamedCInstance(ArrayType,
+                                NameBuilder.artificialArrayWrapperFieldName())
+           << ";\n";
+    }
+    *Out << " ";
   }
-  *Out << " " << tokenTag(It->second, ptml::c::tokens::Type) << ";\n";
+  *Out << tokenTag(It->second, ptml::c::tokens::Type) << ";\n";
 }
 
-/// If the return value or any of the arguments is an array, generate a wrapper
-/// struct for each of them, if it's not already in the cache.
 using CFT = model::CABIFunctionDefinition;
-void ptml::CTypeBuilder::printFunctionWrappers(const CFT &F) {
-  if (not F.ReturnType().isEmpty())
-    if (auto *Array = F.ReturnType()->getArray())
-      generateArrayWrapper(*Array);
-
-  for (auto &Arg : F.Arguments())
-    if (auto *Array = Arg.Type()->getArray())
-      generateArrayWrapper(*Array);
-}
 
 /// Print a typedef for a CABI function, that can be used when you have
 /// a variable that is a pointer to a function.
 void ptml::CTypeBuilder::printDeclaration(const CFT &F) {
-  printFunctionWrappers(F);
 
   *Out << getModelComment(F) << getKeyword(ptml::CBuilder::Keyword::Typedef)
        << " ";
 
   // In this case, we are defining a type for the function, not the function
-  // itself, so the token right before the parenthesis is the name of the type.
+  // itself, so the token right before the parenthesis is the name of the
+  // type.
   printFunctionPrototype(F);
   *Out << ";\n";
 }
@@ -333,8 +320,8 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
         // Skip types that never produce a definition since there's no point
         // inlining them.
         // Artificial nodes are always struct, so in principle they could be
-        // inlined. However, there are various reasons why we don't want to ever
-        // inline artificial structs.
+        // inlined. However, there are various reasons why we don't want to
+        // ever inline artificial structs.
         //
         // Artificial structs are currently emitted in C for 3 reasons.
         // 1. For representing return types of RawFunctionDefinitions that
@@ -376,8 +363,8 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
         // inlined, but pairs of <parent_type, subtype> such that the given
         // instance of the subtype needs a struct wrapper in the parent_type.
         // This is feasible but requires sensible redesign of how we track the
-        // types to be inlined, so we don't do it for now and just ban inlining
-        // for artificial wrapper types.
+        // types to be inlined, so we don't do it for now and just ban
+        // inlining for artificial wrapper types.
         continue;
       }
 
@@ -385,9 +372,10 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
       Iterator->second += Node->predecessorCount();
       if (Node->isDeclaration()) {
         // Ignore a reference from a type definition to its own declaration.
-        // But only do so if there is exactly one. If there are more, keep it in
-        // order to ensure it is never marked for inlining.
-        const TypeDependencyNode *DefNode = DependencyCache->getDefinition(&T);
+        // But only do so if there is exactly one. If there are more, keep it
+        // in order to ensure it is never marked for inlining.
+        using TDN = TypeDependencyNode;
+        const TDN *DefNode = DependencyCache->getDefinition(&T);
         if (1 == llvm::count(Node->predecessors(), DefNode))
           --Iterator->second;
 
@@ -456,36 +444,43 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
       revng_log(TypePrinterLog, "post_order visiting: " << getNodeLabel(Node));
 
       if (Node->isArtificial()) {
-        // Some assertions and logging
-        {
-          using namespace llvm; // For isa, dyn_cast
+        using namespace llvm; // For isa, dyn_cast
 
-          const model::Type *T = Node->T.get();
-          bool IsArray = isa<model::ArrayType>(T);
+        const model::Type *T = Node->T.get();
+        const model::ArrayType *Array = dyn_cast<model::ArrayType>(T);
 
-          bool ReturnsRegisterSet = false;
-          if (const auto *DT = dyn_cast<model::DefinedType>(T)) {
-            if (const auto
-                  *RF = dyn_cast<model::RawFunctionDefinition>(&DT->unwrap())) {
+        bool ReturnsRegisterSet = false;
+        const model::RawFunctionDefinition *RF = nullptr;
+        if (const auto *DT = dyn_cast<model::DefinedType>(T)) {
+          RF = dyn_cast<model::RawFunctionDefinition>(&DT->unwrap());
+          if (RF) {
 
-              using Layout = abi::FunctionType::Layout;
-              auto RetMethod = Layout::make(*RF).returnMethod();
+            using Layout = abi::FunctionType::Layout;
+            auto RetMethod = Layout::make(*RF).returnMethod();
 
-              using namespace abi::FunctionType::ReturnMethod;
-              ReturnsRegisterSet = RetMethod == RegisterSet;
-            }
+            using namespace abi::FunctionType::ReturnMethod;
+            ReturnsRegisterSet = RetMethod == RegisterSet;
           }
-
-          revng_assert(IsArray or ReturnsRegisterSet);
-          revng_log(TypePrinterLog,
-                    "Warning: ignoring unexpected artificial TypeDependencyNode"
-                      << getNodeLabel(Node));
         }
+
+        revng_assert(Array or ReturnsRegisterSet);
+        revng_log(TypePrinterLog,
+                  "Warning: ignoring unexpected artificial TypeDependencyNode"
+                    << getNodeLabel(Node));
+
+        if (Array) {
+          printArrayWrapperImpl(*Array, Node->isDefinition());
+        } else {
+          revng_assert(ReturnsRegisterSet and RF);
+          printReturnValueWrapperImpl(*RF, Node->isDefinition());
+        }
+
+        *Out << "\n";
+
         continue;
       }
 
       const model::TypeDefinition *NodeT = Node->T->tryGetAsDefinition();
-      const auto DeclKind = Node->K;
 
       if (Configuration.TypesToOmit.contains(NodeT->key())) {
         revng_log(TypePrinterLog, "Omitted");
@@ -494,12 +489,12 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
 
       constexpr auto Declaration = TypeNode::Kind::Declaration;
 
-      if (DeclKind == Declaration) {
+      if (Node->isDeclaration()) {
         revng_log(TypePrinterLog, "Declaration");
 
         // Print the declaration. Notice that the forward declarations are
-        // emitted even for inlined types, because it's only the full definition
-        // that will be inlined.
+        // emitted even for inlined types, because it's only the full
+        // definition that will be inlined.
         printDeclaration(*NodeT);
 
       } else {

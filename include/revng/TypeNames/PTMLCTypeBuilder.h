@@ -472,17 +472,40 @@ public:
            and not llvm::isa<model::EnumDefinition>(&T);
   }
 
+private:
+  void printReturnValueWrapperImpl(const model::RawFunctionDefinition &F,
+                                   bool IsDefinition);
+
+public:
+  /// Generates the forward declaration of a new struct type that wraps all the
+  /// return values of \a F.
+  void
+  printReturnValueWrapperDeclaration(const model::RawFunctionDefinition &F) {
+    printReturnValueWrapperImpl(F, /* IsDefinition */ false);
+  }
+
   /// Generates the definition of a new struct type that wraps all the return
   /// values of \a F.
-  void generateReturnValueWrapper(const model::RawFunctionDefinition &F);
+  void
+  printReturnValueWrapperDefinition(const model::RawFunctionDefinition &F) {
+    printReturnValueWrapperImpl(F, /* IsDefinition */ true);
+  }
+
+private:
+  void printArrayWrapperImpl(const model::ArrayType &ArrayType,
+                             bool IsDefinition);
+
+public:
+  /// Generates the forward declaration of a new struct type that wraps \a
+  /// ArrayType.
+  void printArrayWrapperDeclaration(const model::ArrayType &ArrayType) {
+    printArrayWrapperImpl(ArrayType, /* IsDefinition */ false);
+  };
 
   /// Generates the definition of a new struct type that wraps \a ArrayType.
-  /// This is used to wrap array arguments or array return values of
-  /// CABI functions.
-  void generateArrayWrapper(const model::ArrayType &ArrayType);
-
-  void printFunctionWrappers(const model::RawFunctionDefinition &F);
-  void printFunctionWrappers(const model::CABIFunctionDefinition &F);
+  void printArrayWrapperDefinition(const model::ArrayType &ArrayType) {
+    printArrayWrapperImpl(ArrayType, /* IsDefinition */ true);
+  }
 
   void printPadding(uint64_t FieldOffset, uint64_t NextOffset);
 
