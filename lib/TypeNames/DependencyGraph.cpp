@@ -16,6 +16,7 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/ScopedExchange.h"
+#include "revng/Model/ArrayType.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Generated/ForwardDecls.h"
 #include "revng/Model/TypeDefinition.h"
@@ -58,44 +59,6 @@ using DepGraph = DependencyGraph;
 std::string llvm::DOTGraphTraits<DepGraph *>::getNodeLabel(const DepNode *N,
                                                            const DepGraph *G) {
   return ::getNodeLabel(N);
-}
-
-struct DependencyEdgeAnalysisResult {
-  const model::TypeDefinition *EdgeTarget;
-  bool ThereIsAPointerBetweenTypes;
-};
-
-static RecursiveCoroutine<DependencyEdgeAnalysisResult>
-analyzeDependencyEdges(const model::Type &Type, bool PointerFound = false) {
-  if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
-    const model::Type &Pointee = *Pointer->PointeeType();
-    const auto *Defined = llvm::dyn_cast<model::DefinedType>(&Pointee);
-    const auto *Definition = Defined ? &Defined->unwrap() : nullptr;
-    if (Definition || llvm::isa<model::PrimitiveType>(&Pointee)) {
-      rc_return{ .EdgeTarget = Definition,
-                 .ThereIsAPointerBetweenTypes = true };
-    } else {
-      rc_return rc_recur analyzeDependencyEdges(Pointee, true);
-    }
-
-  } else if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
-    const model::Type &Element = *Array->ElementType();
-    const auto *Defined = llvm::dyn_cast<model::DefinedType>(&Element);
-    const auto *Definition = Defined ? &Defined->unwrap() : nullptr;
-    if (Definition || llvm::isa<model::PrimitiveType>(&Element)) {
-      rc_return{ .EdgeTarget = Definition,
-                 .ThereIsAPointerBetweenTypes = PointerFound };
-    } else {
-      rc_return rc_recur analyzeDependencyEdges(Element, PointerFound);
-    }
-
-  } else {
-    // This is only reachable on the very first step.
-    const auto *Defined = llvm::dyn_cast<model::DefinedType>(&Type);
-    const auto *Definition = Defined ? &Defined->unwrap() : nullptr;
-    revng_assert(Definition || llvm::isa<model::PrimitiveType>(&Type));
-    rc_return{ .EdgeTarget = Definition, .ThereIsAPointerBetweenTypes = false };
-  }
 }
 
 class DependencyGraph::Builder {
@@ -141,33 +104,58 @@ private:
   /// Actual implementation of the make method.
   void makeImpl() const;
 
-  /// Add a declaration node and a definition node to Graph for \p T.
+  /// Adds a declaration node and a definition node to Graph for \p T and
+  /// returns their AssociatedNodes.
   AssociatedNodes addNodes(const model::TypeDefinition &T) const;
 
-  /// Add a declaration node and a definition node to Graph for an artificial
-  /// struct wrapper intended to wrap \p T. \p T is required to have nonzero
-  /// size.
+  /// Adds a declaration node and a definition node to Graph for an artificial
+  /// struct wrapper intended to wrap \p T, and returns their AssociatedNodes.
+  /// \p T is required to have nonzero size.
   AssociatedNodes addArtificialNodes(const model::Type &T) const;
 
-  /// Add a declaration node and a definition node to Graph for an artificial
-  /// struct wrapper intended to wrap \p T. \p T is required to return a
-  /// RegisterSet, and the artificial wrapper is a struct with each of those
-  /// registers' types as fields.
+  /// Adds a declaration node and a definition node to Graph for an artificial
+  /// struct wrapper intended to wrap \p T, and return their AssociatedNodes.
+  /// \p T is required to return a RegisterSet, and the artificial wrapper is a
+  /// struct with each of those registers' types as fields.
   AssociatedNodes
   addArtificialNodes(const model::RawFunctionDefinition &T) const;
 
-  /// Add all the necessary dependency edges to Graph for the nodes that
+  /// Adds all the necessary dependency edges to Graph from the \p Dependent
+  /// AssociatedNodes to the \p DependedOn model::Type.
+  /// This may include adding new struct wrapper nodes, along with dependency
+  /// edges from and to them.
+  void addDependenciesFrom(const AssociatedNodes Dependent,
+                           const model::Type &DependedOn) const;
+
+  /// Adds all the necessary dependency edges to Graph for the nodes that
   /// represent the declaration and definition of \p T.
+  /// This may include adding new struct wrapper nodes, along with dependency
+  /// edges from and to them.
   void addDependencies(const model::TypeDefinition &T) const;
 
-  template<TypeNode::Kind K>
-  TypeDependencyNode *getDependencyFor(const model::Type &Type) const;
+  /// Given a model::ArrayType \p Array that needs to be wrapped into an
+  /// artificial struct wrapper, adds a declaration and a definition node for
+  /// the wrapper, along with all the necessary dependency edges from and to the
+  /// wrapped types.
+  /// Returns the AssociatedNodes of the wrapper.
+  AssociatedNodes
+  addWrappedArrayWithDependencies(const model::ArrayType &Array) const;
+
+  /// Given a model::RawFunctionDefinition \p RF returning a RegisterSet, adds a
+  /// declaration and a definition node for an artificial struct wrapper
+  /// whose fields are all the return register types, along with all the
+  /// necessary dependency edges from and to the wrapped types.
+  /// Returns the AssociatedNodes of the wrapper.
+  AssociatedNodes
+  addWrappedRFWithDependencies(const model::RawFunctionDefinition &RF) const;
 };
 
-static_assert(std::is_copy_constructible_v<DependencyGraph::Builder>);
-static_assert(std::is_copy_assignable_v<DependencyGraph::Builder>);
-static_assert(std::is_move_constructible_v<DependencyGraph::Builder>);
-static_assert(std::is_move_assignable_v<DependencyGraph::Builder>);
+using DGBuilder = DependencyGraph::Builder;
+
+static_assert(std::is_copy_constructible_v<DGBuilder>);
+static_assert(std::is_copy_assignable_v<DGBuilder>);
+static_assert(std::is_move_constructible_v<DGBuilder>);
+static_assert(std::is_move_assignable_v<DGBuilder>);
 
 static void addAndLogSuccessor(TypeDependencyNode *From,
                                TypeDependencyNode *To) {
@@ -178,7 +166,7 @@ static void addAndLogSuccessor(TypeDependencyNode *From,
 }
 
 DependencyGraph::AssociatedNodes
-DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
+DGBuilder::addNodes(const model::TypeDefinition &T) const {
 
   using TypeNodeGenericGraph = GenericGraph<TypeDependencyNode>;
   auto *G = static_cast<TypeNodeGenericGraph *const>(Graph);
@@ -205,7 +193,7 @@ DependencyGraph::Builder::addNodes(const model::TypeDefinition &T) const {
 }
 
 DependencyGraph::AssociatedNodes
-DependencyGraph::Builder::addArtificialNodes(const model::Type &T) const {
+DGBuilder::addArtificialNodes(const model::Type &T) const {
 
   const auto UT = model::UpcastableType(T);
   if (auto It = Graph->WrappedToNodes.find(UT);
@@ -236,8 +224,7 @@ DependencyGraph::Builder::addArtificialNodes(const model::Type &T) const {
 }
 
 DependencyGraph::AssociatedNodes
-DependencyGraph::Builder::addArtificialNodes(const model::RawFunctionDefinition
-                                               &T) const {
+DGBuilder::addArtificialNodes(const model::RawFunctionDefinition &T) const {
 
   const model::UpcastableType UT = TheBinary->makeType(T.key());
   if (auto It = Graph->WrappedToNodes.find(UT);
@@ -272,159 +259,238 @@ DependencyGraph::Builder::addArtificialNodes(const model::RawFunctionDefinition
   };
 }
 
-template<TypeNode::Kind K>
-TypeDependencyNode *
-DependencyGraph::Builder::getDependencyFor(const model::Type &Type) const {
+struct TypeSpecifierResult {
+  const model::TypeDefinition *SpecifierDefinition;
+  bool FoundPointer;
+};
 
-  // TODO: Unfortunately, here we have to deal with some quirks of the C
-  // language concerning pointers to arrays of struct/union.
-  // Basically, in C, `struct X (*ptr_to_array)[2];` declares a variable
-  // `ptr_to_array` that points to an array with two elements of type `struct
-  // X`. The problem is that, because of a quirk of paragraph 6.7.6.2 of the
-  // C11 standard (Array declarators), to declare `ptr_to_array` it is required
-  // to see the complete definition of `struct X`.
-  // Even if MSVC seems to compile it just fine, clang and gcc don't.
-  //
-  // In principle this could be worked around by
-  // 1) introducing wrapper structs around arrays of struct/union that are used
-  // as pointees
-  // 2) postpone the complete definition of the wrapper to after the element
-  // type of the array is complete.
-  //
-  // However for now we just inject a stronger dependency to enforce ordering.
-  // This is actually stricter than necessary and can yield to be unable to
-  // print valid C code for model that was otherwise perfectly valid and could
-  // have been fixed if injected the wrapper structs properly.
-  //
-  // This particular handling of pointers to array is more strict than actually
-  // necessary. It has been implemented as a workaround, instead of handling
-  // the emission of wrapper structs. This latter solution of emitting structs
-  // has already been used in other places but, in all the other places where we
-  // currently do it, it is possible to do it on-the-fly, locally.
-  // On the other hand, for dealing with this case properly we'd have to keep
-  // track of dependencies between the forward declaration of the wrapper, and
-  // the full definition of the element type of the wrapped array.
-  // The emission of the full definition of the wrapper must be postponed until
-  // the element type of the wrapped type is fully defined, otherwise it would
-  // fail compilation. So for now we've put this forced dependency, that could
-  // be relaxed if we properly handle the array wrappers.
+/// Returns the type specifier of a model::Type \p T if it is a
+/// model::TypeDefinition. If it's a primitive type returns nullptr.
+/// The FoundPointer field of the return value is set to true is at any point in
+/// the traversal from T to the SpecifierDefinition a model::PointerType was
+/// encountered.
+static RecursiveCoroutine<TypeSpecifierResult>
+getTypeSpecifierResult(const model::Type &T, bool FoundPointer = false) {
 
-  DependencyEdgeAnalysisResult Analyzed = analyzeDependencyEdges(Type);
-  auto &&[EdgeTarget, PointerIsBetweenTypes] = Analyzed;
-  if (EdgeTarget == nullptr) {
-    // By definition, all the primitives are always present.
-    // As such, there's no need to add any edges for such cases.
-    return nullptr;
+  if (const auto *P = dyn_cast<model::PointerType>(&T)) {
+    const model::Type &Pointee = *P->PointeeType();
+    rc_return rc_recur getTypeSpecifierResult(Pointee, true);
   }
 
-  if (llvm::isa<model::ArrayType>(Type)) {
-    // If the last type edge was an array, because of the quirks of
-    // the C standard mentioned above, we have to depend on the Definition
-    // of the element type of the array.
-    return Graph->TypeToNodes.at(EdgeTarget).Definition;
+  if (auto *A = dyn_cast<model::ArrayType>(&T)) {
+    const model::Type &Element = *A->ElementType();
+    rc_return rc_recur getTypeSpecifierResult(Element, FoundPointer);
   }
 
-  if (PointerIsBetweenTypes) {
-    // Otherwise, if we've found at least a pointer, we only depend on the name
-    // of the pointee.
-    return Graph->TypeToNodes.at(EdgeTarget).Declaration;
+  if (auto *Definition = T.tryGetAsDefinition()) {
+    rc_return{ Definition, FoundPointer };
   }
 
-  // In all the other cases we depend on the type with the kind indicated by K.
-  if constexpr (K == TypeNode::Kind::Declaration)
-    return Graph->TypeToNodes.at(EdgeTarget).Declaration;
-  else if constexpr (K == TypeNode::Kind::Definition)
-    return Graph->TypeToNodes.at(EdgeTarget).Definition;
-  else
-    static_assert(value_always_false_v<K>);
-
-  return nullptr;
+  rc_return{ nullptr, FoundPointer };
 }
 
-void DependencyGraph::Builder::addDependencies(const model::TypeDefinition &T)
+/// Returns the type specifier of a model::Type \p T if it is a
+/// model::TypeDefinition. If it's a primitive type returns nullptr.
+static const model::TypeDefinition *
+getTypeSpecifierDefinition(const model::Type &T) {
+  TypeSpecifierResult Result = getTypeSpecifierResult(T, false);
+  return Result.SpecifierDefinition;
+}
+
+static auto returnValueTypes(const abi::FunctionType::Layout &L) {
+  using abi::FunctionType::Layout;
+  return llvm::map_range(L.ReturnValues,
+                         [](const Layout::ReturnValue &RV) { return RV.Type; });
+}
+
+static RecursiveCoroutine<const model::Type *>
+skipPointers(const model::PointerType &Pointer) {
+  const model::Type &Pointee = *Pointer.PointeeType();
+  if (auto *Ptr = dyn_cast<model::PointerType>(&Pointee))
+    rc_return rc_recur skipPointers(*Ptr);
+
+  rc_return &Pointee;
+}
+
+/// If \p T is not a model::PointerType returns nullptr.
+/// If \p is a model::PointerType and its pointee type is also a PointerType,
+/// traverses the pointees until it finds a non-pointer.
+/// If that non-pointer is a model::ArrayType, returns it, otherwise returns a
+/// nullptr.
+static RecursiveCoroutine<const model::ArrayType *>
+getArrayPointee(const model::Type &T) {
+
+  const auto *Pointer = dyn_cast<model::PointerType>(&T);
+  if (not Pointer)
+    rc_return nullptr;
+
+  const model::Type *Pointee = skipPointers(*Pointer);
+
+  if (const auto *Array = dyn_cast<model::ArrayType>(Pointee))
+    rc_return Array;
+
+  rc_return nullptr;
+}
+
+DependencyGraph::AssociatedNodes
+DGBuilder::addWrappedArrayWithDependencies(const model::ArrayType &Array)
   const {
 
-  using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
-  llvm::SmallVector<Edge, 2> Deps;
+  AssociatedNodes ArtificialWrapper = addArtificialNodes(Array);
+  const auto &[WrapperDecl, WrapperDef] = ArtificialWrapper;
 
-  const auto &[DeclNode, DefNode] = Graph->TypeToNodes.at(&T);
+  // WrapperDecl has no dependencies, because it's the declaration node for a
+  // struct wrapper, and struct can always be forward declared without
+  // depending on any types. WrapperDef, instead, needs to depend on the full
+  // definition of the type specifier of the array that the dependent depends
+  // on, i.e. the SpecifierDef.
+  const model::TypeDefinition
+    *TypeSpecifier = getTypeSpecifierDefinition(Array);
+  const auto &[SpecifierDecl,
+               SpecifierDef] = Graph->TypeToNodes.at(TypeSpecifier);
+  addAndLogSuccessor(WrapperDef, SpecifierDef);
 
-  if (llvm::isa<model::EnumDefinition>(T)) {
-    // Enums can only depend on primitives, and those are always present by
-    // definition. As such, there's nothing to do here.
-
-  } else if (llvm::isa<model::StructDefinition>(T)
-             or llvm::isa<model::UnionDefinition>(T)) {
-    // Struct and Union names can always be conjured out of thin air thanks to
-    // typedefs. So we only need to add dependencies between their full
-    // definition and the full definition of their fields.
-    for (const model::Type *Edge : T.edges()) {
-      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge)) {
-        Deps.push_back({ DefNode, D });
-        revng_log(Log,
-                  getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
-      }
-    }
-
-  } else if (auto *TD = llvm::dyn_cast<model::TypedefDefinition>(&T)) {
-    // Typedefs are nasty.
-    const model::Type &Under = *TD->UnderlyingType();
-
-    if (auto *D = getDependencyFor<TypeNode::Definition>(Under)) {
-      Deps.push_back({ DefNode, D });
-      revng_log(Log,
-                getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
-    }
-
-    if (auto *D = getDependencyFor<TypeNode::Declaration>(Under)) {
-      Deps.push_back({ DeclNode, D });
-      revng_log(Log,
-                getNodeLabel(DeclNode) << " depends on " << getNodeLabel(D));
-    }
-
-  } else if (T.isPrototype()) {
-    // For function types we can print a valid typedef definition as long as
-    // we have visibility on all the names of all the argument types and all
-    // return types.
-
-    for (const model::Type *Edge : T.edges()) {
-      // The two dependencies added here below are actually stricter than
-      // necessary for e.g. stack arguments.
-      // The reason is that, on the model, stack arguments are represented by
-      // value, but in some cases they are actually passed by pointer in C.
-      // Given that with the edges() accessor here we cannot discriminate, we
-      // decided to err on the strict side.
-      // This could potentially create graphs with loops of dependencies, or
-      // make some instances not solvable, that would have otherwise been valid.
-      // This should only happen in nasty cases involving loops of function
-      // pointers, but possibly other cases we haven't considered.
-      // Overall, these remote cases have never showed up until now.
-      // If this ever happen, we'll need to fix this properly, either relaxing
-      // this dependencies, or pre-processing the model so that what reaches
-      // this point is always guaranteed to be in a form that can be emitted.
-
-      if (auto *D = getDependencyFor<TypeNode::Definition>(*Edge)) {
-        Deps.push_back({ DefNode, D });
-        revng_log(Log,
-                  getNodeLabel(DefNode) << " depends on " << getNodeLabel(D));
-      }
-
-      if (auto *D = getDependencyFor<TypeNode::Declaration>(*Edge)) {
-        Deps.push_back({ DeclNode, D });
-        revng_log(Log,
-                  getNodeLabel(DeclNode) << " depends on " << getNodeLabel(D));
-      }
-    }
-
-  } else {
-    revng_abort();
-  }
-
-  for (const auto &[From, To] : Deps)
-    addAndLogSuccessor(From, To);
+  return ArtificialWrapper;
 }
 
-void DependencyGraph::Builder::makeImpl() const {
+void DGBuilder::addDependenciesFrom(const AssociatedNodes Dependent,
+                                    const model::Type &DependedOn) const {
+
+  const auto &[DependentDecl, DependentDef] = Dependent;
+
+  const auto AddArrayWrapper = [&](const model::ArrayType &Array) {
+    const auto &[ArrayWrapperDecl,
+                 ArrayWrapperDef] = addWrappedArrayWithDependencies(Array);
+    // The declaration of Dependent always depends on the declaration of the
+    // struct wrapper that wraps the Array.
+    addAndLogSuccessor(DependentDecl, ArrayWrapperDecl);
+    // The definition of Dependent also only depends on the declaration of the
+    // struct wrapper that wraps the Array.
+    // The reason is that Dependent will only contain a pointer to the struct
+    // wrapper that wraps the Array, so it only needs the forward declaration
+    // of the wrapper.
+    addAndLogSuccessor(DependentDef, ArrayWrapperDecl);
+  };
+
+  // If the DependedOn is a pointer-to-array, wrap the pointed array in a struct
+  // wrapper, creating the necessary artificial nodes and dependencies.
+  if (const model::ArrayType *Array = getArrayPointee(DependedOn)) {
+    AddArrayWrapper(*Array);
+    return;
+  }
+
+  bool Artificial = DependentDecl->isArtificial();
+  revng_assert(Artificial == DependentDef->isArtificial());
+
+  const model::TypeDefinition *TD = DependentDecl->T->tryGetAsDefinition();
+  bool IsFunction = isa<model::RawFunctionDefinition>(TD)
+                    or isa<model::CABIFunctionDefinition>(TD);
+  const model::ArrayType *Array = dyn_cast<model::ArrayType>(&DependedOn);
+  if (Artificial and IsFunction and Array) {
+    AddArrayWrapper(*Array);
+    return;
+  }
+
+  TypeSpecifierResult Result = getTypeSpecifierResult(DependedOn);
+  const auto &[TypeSpecifierDef, FoundPointer] = Result;
+  if (not TypeSpecifierDef)
+    return;
+
+  AssociatedNodes Specifier = Graph->TypeToNodes.at(TypeSpecifierDef);
+  // The declaration of Dependent needs the declaration of the Specifier only if
+  // the declaration of Dependent is *not* a forward declaration.
+  // If the declaration of Dependent is a forward declaration we can avoi adding
+  // a dependency from DependentDecl to Specifier.Declaration
+  if (not isa<model::StructDefinition>(TD)
+      and not isa<model::UnionDefinition>(TD)
+      and not isa<model::EnumDefinition>(TD))
+    addAndLogSuccessor(DependentDecl, Specifier.Declaration);
+
+  // If we found a pointer on the path to TypeSpecifierDef, the definition of
+  // Dependent only needs the declaration of the Specifier.
+  // Otherwise it needs the full definition of the Specifier.
+  if (FoundPointer)
+    addAndLogSuccessor(DependentDef, Specifier.Declaration);
+  else
+    addAndLogSuccessor(DependentDef, Specifier.Definition);
+}
+
+DependencyGraph::AssociatedNodes
+DGBuilder::addWrappedRFWithDependencies(const model::RawFunctionDefinition &RF)
+  const {
+  AssociatedNodes ReturnValuesWrapper = addArtificialNodes(RF);
+  const auto &[RVWrapperDecl, RVWrapperDef] = ReturnValuesWrapper;
+
+  using abi::FunctionType::Layout;
+  auto Layout = Layout::make(RF);
+
+  // Then the artificial wrapper wrapping the return values should depend on the
+  // relevant return values types, that are the types of its fields.
+  auto ReturnValues = returnValueTypes(Layout);
+  revng_assert(not ReturnValues.empty());
+  for (const model::UpcastableType &ReturnType : ReturnValues) {
+    revng_assert(not ReturnType->isArray());
+    addDependenciesFrom(ReturnValuesWrapper, *ReturnType);
+  }
+
+  return ReturnValuesWrapper;
+}
+
+void DGBuilder::addDependencies(const model::TypeDefinition &T) const {
+
+  const auto &TDNodes = Graph->TypeToNodes.at(&T);
+  const auto &[DeclNode, DefNode] = TDNodes;
+
+  switch (T.Kind()) {
+
+  case model::TypeDefinitionKind::TypedefDefinition:
+  case model::TypeDefinitionKind::EnumDefinition:
+  case model::TypeDefinitionKind::StructDefinition:
+  case model::TypeDefinitionKind::UnionDefinition: {
+    for (const model::Type *Edge : T.edges())
+      addDependenciesFrom(TDNodes, *Edge);
+  } break;
+
+  case model::TypeDefinitionKind::RawFunctionDefinition:
+  case model::TypeDefinitionKind::CABIFunctionDefinition: {
+    // Function types may require to add struct wrappers around argument types
+    // and return types.
+    using abi::FunctionType::Layout;
+    auto Layout = Layout::make(T);
+
+    using namespace abi::FunctionType::ReturnMethod;
+    if (Layout.returnMethod() == RegisterSet) {
+
+      // If T is a RawFunctionDefinition returning a RegisterSet, we create an
+      // artificial struct wrapper around the returned registers.
+      const auto *RF = cast<model::RawFunctionDefinition>(&T);
+      AssociatedNodes WrapperNodes = addWrappedRFWithDependencies(*RF);
+
+      // Both the declaration and the definition of the function type depend
+      // only on the declaration of the struct wrapper for the return type.
+      addAndLogSuccessor(DeclNode, WrapperNodes.Declaration);
+      addAndLogSuccessor(DefNode, WrapperNodes.Declaration);
+    } else {
+      for (const model::UpcastableType &ReturnType : returnValueTypes(Layout)) {
+        addDependenciesFrom(TDNodes, *ReturnType);
+      }
+    }
+
+    auto ArgumentTypes = llvm::map_range(Layout.Arguments,
+                                         [](const Layout::Argument &A) {
+                                           return A.Type;
+                                         });
+    for (const model::UpcastableType &ArgumentType : ArgumentTypes)
+      addDependenciesFrom(TDNodes, *ArgumentType);
+
+  } break;
+
+  default:
+    revng_abort("Unexpected T.Kind()");
+  }
+}
+
+void DGBuilder::makeImpl() const {
 
   // Create declaration and definition nodes for all the nodes
   for (const model::UpcastableTypeDefinition &MT : TheBinary->TypeDefinitions())
@@ -436,5 +502,5 @@ void DependencyGraph::Builder::makeImpl() const {
 }
 
 DependencyGraph DependencyGraph::make(const model::Binary &B) {
-  return DependencyGraph::Builder::make(B);
+  return DGBuilder::make(B);
 }
