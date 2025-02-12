@@ -76,7 +76,7 @@ bool DecomposeStridedEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
         LayoutTypeSystemNode *Pred = NodeChain[Idx + 1];
         LayoutTypeSystemNode *Succ = NodeChain[Idx];
         // Link them
-        const auto [Tag, New] = TS.addInstanceLink(Pred, Succ, std::move(OE));
+        auto &&[Tag, New] = TS.addInstanceLink(Pred, Succ, std::move(OE));
         if (Pred != Parent)
           Pred->Size = getFieldSize(Succ, Tag);
       }

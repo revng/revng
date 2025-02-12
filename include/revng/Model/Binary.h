@@ -151,7 +151,7 @@ public:
   makeTypeDefinition(ArgumentTypes &&...Arguments) {
     using UTD = model::UpcastableTypeDefinition;
     UTD New = UTD::make<NewType>(std::forward<ArgumentTypes>(Arguments)...);
-    auto [Reference, Result] = recordNewType(std::move(New));
+    auto &&[Reference, Result] = recordNewType(std::move(New));
     return { llvm::cast<NewType>(Reference), std::move(Result) };
   }
 

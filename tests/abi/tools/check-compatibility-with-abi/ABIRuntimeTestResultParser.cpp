@@ -160,7 +160,7 @@ static void verify(const abi::runtime_test::Deserialized &Data) {
   }
 
   size_t ExpectedIterationCount = Counter.begin()->second.full();
-  for (auto [_, Counts] : Counter) {
+  for (auto &&[_, Counts] : Counter) {
     bool IsAnArgumentTest = Counts.ArgumentIterations != 0;
     bool IsAnReturnValueTest = Counts.ReturnValueIterations != 0;
     if (IsAnArgumentTest == IsAnReturnValueTest) {

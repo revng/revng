@@ -45,7 +45,7 @@ public:
                     const llvm::Twine &Description,
                     ModelPass Pass) {
     Registered RegisteredPass{ Name.str(), Description.str(), Pass };
-    auto [_, Success] = Registry->emplace(std::move(RegisteredPass));
+    auto &&[_, Success] = Registry->emplace(std::move(RegisteredPass));
     revng_assert(Success);
   }
 

@@ -74,9 +74,10 @@ static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
                                      const model::Binary &Binary) {
   std::set<std::string> Result;
   for (const auto &Edge : BasicBlock.Successors()) {
-    auto [NextAddress, MaybeCall] = efa::parseSuccessor(*Edge,
-                                                        BasicBlock.nextBlock(),
-                                                        Binary);
+    auto &&[NextAddress,
+            MaybeCall] = efa::parseSuccessor(*Edge,
+                                             BasicBlock.nextBlock(),
+                                             Binary);
     if (NextAddress.isValid())
       Result.emplace(targetPath(NextAddress, Function, Binary));
 
@@ -145,7 +146,7 @@ public:
                            const model::Binary &Binary) {
     const auto Config = Binary.Configuration().Disassembly();
     for (const yield::BasicBlock &BasicBlock : Function.Blocks()) {
-      auto [Iterator, Success] = Prefixes.try_emplace(BasicBlock.ID());
+      auto &&[Iterator, Success] = Prefixes.try_emplace(BasicBlock.ID());
       revng_assert(Success, "Duplicate basic blocks?");
       auto &BBPrefixes = Iterator->second;
 
@@ -171,8 +172,8 @@ public:
         InstructionPrefix Result = { .Address = std::move(Address),
                                      .Bytes = std::move(Bytes) };
 
-        auto [_, Success] = BBPrefixes.try_emplace(Instruction.Address(),
-                                                   std::move(Result));
+        auto &&[_, Success] = BBPrefixes.try_emplace(Instruction.Address(),
+                                                     std::move(Result));
         revng_assert(Success, "Duplicate instructions?");
       }
     }
@@ -486,9 +487,9 @@ std::string yield::ptml::functionAssembly(const ::ptml::MarkupBuilder &B,
 
   const model::Function &MFunction = Binary.Functions().at(Function.Entry());
 
-  auto [G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
-                                                           Function.Entry(),
-                                                           Binary);
+  auto &&[G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
+                                                             Function.Entry(),
+                                                             Binary);
   ::CommentPlacementHelper CM(MFunction, G);
 
   for (const auto &BBlock : Function.Blocks()) {
@@ -532,9 +533,9 @@ std::string yield::ptml::controlFlowNode(const ::ptml::MarkupBuilder &B,
 
   const model::Function &MFunction = Binary.Functions().at(Function.Entry());
 
-  auto [G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
-                                                           Function.Entry(),
-                                                           Binary);
+  auto &&[G, _] = efa::buildControlFlowGraph<StatementGraph>(Function.Blocks(),
+                                                             Function.Entry(),
+                                                             Binary);
   ::CommentPlacementHelper CM(MFunction, G);
 
   auto Result = labeledBlock<false>(B, *Iterator, Function, MFunction, Binary);

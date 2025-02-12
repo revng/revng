@@ -66,7 +66,7 @@ Graph makeTreeImpl(const Graph &Input, llvm::StringRef SlicePointLocation) {
       }
     }
 
-    auto [_, Success] = RealEdges.try_emplace(Current, SelectedNeighbour);
+    auto &&[_, Success] = RealEdges.try_emplace(Current, SelectedNeighbour);
     revng_assert(Success);
   }
 

@@ -71,7 +71,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     if (not FuncWithSameProto.isNull()) {
       auto OtherRetVals = getLayoutTypes(*FuncWithSameProto.getVal());
       revng_assert(FRetTypes.size() == OtherRetVals.size());
-      for (auto [N1, N2] : llvm::zip(OtherRetVals, FRetTypes))
+      for (auto &&[N1, N2] : llvm::zip(OtherRetVals, FRetTypes))
         TS.addEqualityLink(N1, N2.first);
     }
 
@@ -96,7 +96,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       // Arguments can only be integers and pointers
       revng_assert(isa<IntegerType>(ArgVal.getType())
                    or isa<PointerType>(ArgVal.getType()));
-      auto [ArgNode, _] = getOrCreateLayoutType(&ArgVal);
+      auto &&[ArgNode, _] = getOrCreateLayoutType(&ArgVal);
       revng_assert(ArgNode);
 
       model::UpcastableType ArgumentModelType;

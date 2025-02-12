@@ -51,7 +51,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   TupleTree<model::Binary> NewModel;
 
   // Define a new union
-  auto [Definition, _] = NewModel->makeUnionDefinition();
+  auto &&[Definition, _] = NewModel->makeUnionDefinition();
   Definition.CustomName() = "my_cool_union";
   auto &ThirdField = Definition.Fields()[2];
   ThirdField.CustomName() = "third_field";

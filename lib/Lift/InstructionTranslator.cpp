@@ -800,7 +800,7 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
 void IT::registerDirectJumps() {
 
   for (BasicBlock *ExitBB : ExitBlocks) {
-    auto [Result, NextPC] = PCH->getUniqueJumpTarget(ExitBB);
+    auto &&[Result, NextPC] = PCH->getUniqueJumpTarget(ExitBB);
     if (Result == NextJumpTarget::Unique and JumpTargets.isPC(NextPC)
         and not JumpTargets.hasJT(NextPC)) {
       JumpTargets.registerJT(NextPC, JTReason::DirectJump);

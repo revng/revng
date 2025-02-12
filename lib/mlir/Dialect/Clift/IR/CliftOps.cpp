@@ -1154,7 +1154,7 @@ void CallOp::print(OpAsmPrinter &Printer) {
   auto ParameterTypes = FunctionTypeAttr.getArgumentTypes();
 
   bool RequiresExplicitArgumentTypes = false;
-  for (auto [ArgumentT, ParameterT] :
+  for (auto &&[ArgumentT, ParameterT] :
        llvm::zip_equal(ArgumentTypes, ParameterTypes)) {
     auto ParameterValueT = mlir::cast<clift::ValueType>(ParameterT);
 
@@ -1187,7 +1187,7 @@ mlir::LogicalResult CallOp::verify() {
                          << " argument count must match the number of function"
                             " parameters.";
 
-  for (auto [ArgumentT, ParameterT] :
+  for (auto &&[ArgumentT, ParameterT] :
        llvm::zip_equal(ArgumentTypes, ParameterTypes)) {
     auto ArgumentValueT = mlir::cast<clift::ValueType>(ArgumentT);
     auto ParameterValueT = mlir::cast<clift::ValueType>(ParameterT);

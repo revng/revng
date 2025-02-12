@@ -371,7 +371,7 @@ private:
 
   template<revng::SetOrKOC T>
   void diffImpl(const T &LHS, const T &RHS) {
-    for (auto [LHSElement, RHSElement] : zipmap_range(LHS, RHS)) {
+    for (auto &&[LHSElement, RHSElement] : zipmap_range(LHS, RHS)) {
       if (LHSElement == nullptr) {
         // Added
         Result.add(Stack, *RHSElement);

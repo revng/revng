@@ -186,7 +186,7 @@ bool EnforceABI::epilogue() {
     eraseFromParent(OldFunction);
 
   // Quick and dirty DCE
-  for (auto [_, F] : OldToNew)
+  for (auto &&[_, F] : OldToNew)
     if (not F->isDeclaration())
       EliminateUnreachableBlocks(*F, nullptr, false);
 
@@ -206,7 +206,7 @@ getLLVMReturnTypeAndArguments(llvm::Module *M, const UsedRegisters &Registers) {
     return IntegerType::getIntNTy(Context, 8 * model::Register::getSize(V));
   };
 
-  auto [ArgumentRegisters, ReturnValueRegisters] = Registers;
+  auto &&[ArgumentRegisters, ReturnValueRegisters] = Registers;
   std::ranges::copy(ArgumentRegisters | std::views::transform(IntoLLVMType),
                     std::back_inserter(ArgumentsTypes));
   std::ranges::copy(ReturnValueRegisters | std::views::transform(IntoLLVMType),
@@ -251,8 +251,8 @@ Function *EnforceABI::recreateFunction(Function &OldFunction,
                                        const abi::FunctionType::UsedRegisters
                                          &Registers) {
   // Create new function
-  auto [NewReturnType, NewArguments] = getLLVMReturnTypeAndArguments(&M,
-                                                                     Registers);
+  auto &&[NewReturnType,
+          NewArguments] = getLLVMReturnTypeAndArguments(&M, Registers);
 
   auto *Result = changeFunctionType(OldFunction, NewReturnType, NewArguments);
   revng_assert(Result->arg_size() == Registers.Arguments.size());
@@ -300,7 +300,7 @@ void EnforceABI::createPrologue(Function *NewFunction,
   SmallVector<std::pair<Type *, Constant *>, 8> ReturnCSVs;
 
   // We sort arguments by their CSV name
-  auto [ArgumentRegisters, ReturnValueRegisters] = UsedRegisters;
+  auto &&[ArgumentRegisters, ReturnValueRegisters] = UsedRegisters;
   for (model::Register::Values Register : ArgumentRegisters)
     ArgumentCSVs.push_back(getCSVOrUndef(&M, Register).second);
   for (model::Register::Values Register : ReturnValueRegisters)
@@ -318,7 +318,7 @@ void EnforceABI::createPrologue(Function *NewFunction,
       if (auto *Return = dyn_cast<ReturnInst>(BB.getTerminator())) {
         IRBuilder<> Builder(Return);
         std::vector<Value *> ReturnValues;
-        for (auto [Type, ReturnCSV] : ReturnCSVs)
+        for (auto &&[Type, ReturnCSV] : ReturnCSVs)
           ReturnValues.push_back(Builder.CreateLoad(Type, ReturnCSV));
 
         if (ReturnValues.size() == 1)
@@ -436,7 +436,8 @@ CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
     // Create a new `indirect_placeholder` function with the specific function
     // type we need
     Value *PC = GCBI.programCounterHandler()->loadJumpablePC(Builder);
-    auto [ReturnType, Arguments] = getLLVMReturnTypeAndArguments(&M, Registers);
+    auto &&[ReturnType, Arguments] = getLLVMReturnTypeAndArguments(&M,
+                                                                   Registers);
     auto *NewType = FunctionType::get(ReturnType, Arguments, false);
     Callee = toFunctionPointer(Builder, PC, NewType);
   } else {

@@ -50,7 +50,8 @@ static Error getObjectives(Runner &Runner,
   Step *CurrentStep = &(Runner[EndingStepName]);
   while (CurrentStep != nullptr and not ToLoad.empty()) {
     ContainerToTargetsMap Output = ToLoad;
-    auto [Required, PipesExecutionEntries] = CurrentStep->analyzeGoals(ToLoad);
+    auto &&[Required,
+            PipesExecutionEntries] = CurrentStep->analyzeGoals(ToLoad);
     ToLoad = std::move(Required);
     ToExec.emplace_back(*CurrentStep,
                         Output,
@@ -165,10 +166,10 @@ PipelineFileMapping::parse(StringRef ToParse) {
     return revng::createError(Message, ToParse.str().c_str());
   }
 
-  auto [StoragePath, ContainerPath] = ToParse.rsplit(':');
+  auto &&[StoragePath, ContainerPath] = ToParse.rsplit(':');
   auto Path = revng::FilePath::fromLocalStorage(StoragePath);
 
-  auto [StepName, ContainerName] = ContainerPath.split('/');
+  auto &&[StepName, ContainerName] = ContainerPath.split('/');
   return PipelineFileMapping(StepName, ContainerName, std::move(Path));
 }
 

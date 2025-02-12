@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
 BOOST_AUTO_TEST_CASE(EnumTypes) {
   TupleTree<model::Binary> T;
 
-  auto [EnumDefinition, EnumType] = T->makeEnumDefinition();
+  auto &&[EnumDefinition, EnumType] = T->makeEnumDefinition();
   revng_check(T->TypeDefinitions().size() == 1);
 
   // The enum does not verify unless it has a valid underlying type and at least
@@ -230,7 +230,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   TupleTree<model::Binary> T;
 
   // Make a typedef of an int32_t
-  auto [Int32, Int32Type] = T->makeTypeDefinition<TypedefDefinition>();
+  auto &&[Int32, Int32Type] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 1);
   Int32.UnderlyingType() = model::PrimitiveType::make(Signed, 4);
   Int32.CustomName() = "int_32_typedef";
@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   revng_check(checkSerialization(T));
 
   // Make another typedef, this time a pointer.
-  auto [Pointer, PointerType] = T->makeTypeDefinition<TypedefDefinition>();
+  auto &&[Pointer, PointerType] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 2);
   Pointer.UnderlyingType() = model::PointerType::make(std::move(Int32Type), 4);
   Pointer.CustomName() = "int_32_pointer_typedef";
@@ -254,7 +254,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   revng_check(checkSerialization(T));
 
   // Make one more, this time an array
-  auto [Array, ArrayType] = T->makeTypeDefinition<TypedefDefinition>();
+  auto &&[Array, ArrayType] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 3);
   Array.UnderlyingType() = model::ArrayType::make(std::move(PointerType), 25);
   Array.CustomName() = "int_32_pointer_array_typedef";
@@ -263,7 +263,7 @@ BOOST_AUTO_TEST_CASE(TypedefTypes) {
   revng_check(checkSerialization(T));
 
   // If the underlying type is the type itself, something is broken
-  auto [Error, ErrorType] = T->makeTypeDefinition<TypedefDefinition>();
+  auto &&[Error, ErrorType] = T->makeTypeDefinition<TypedefDefinition>();
   revng_check(T->TypeDefinitions().size() == 4);
   Error.UnderlyingType() = std::move(ErrorType);
   revng_check(not verify(Error, *T, false));
@@ -276,7 +276,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   TupleTree<model::Binary> T;
 
   // Insert the struct
-  auto [Struct, StructType] = T->makeStructDefinition();
+  auto &&[Struct, StructType] = T->makeStructDefinition();
   revng_check(T->TypeDefinitions().size() == 1);
 
   // Struct without size does not verify.
@@ -410,7 +410,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   TupleTree<model::Binary> T;
 
   // Insert the union
-  auto [Union, UnionType] = T->makeUnionDefinition();
+  auto &&[Union, UnionType] = T->makeUnionDefinition();
   revng_check(T->TypeDefinitions().size() == 1);
   revng_check(not verify(Union, *T, false));
   revng_check(not verify(*T, false));
@@ -428,7 +428,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     UnionField Field1(1);
     Field1.Type() = model::PrimitiveType::makeSigned(8);
     Field1.CustomName() = "fld1";
-    const auto [It, New] = Union.Fields().insert(std::move(Field1));
+    auto &&[It, New] = Union.Fields().insert(std::move(Field1));
     revng_check(New);
   }
   revng_check(verify(Union, *T, true));
@@ -441,7 +441,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     UnionField Field1(2);
     Field1.Type() = model::PrimitiveType::makeSigned(4);
     Field1.CustomName() = "fld1";
-    const auto [It, New] = Union.Fields().insert(std::move(Field1));
+    auto &&[It, New] = Union.Fields().insert(std::move(Field1));
     revng_check(New);
     revng_check(Union.Fields().at(It->Index()).CustomName() == "fld1");
     revng_check(not verify(Union, *T, false));
@@ -488,7 +488,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   T->Architecture() = Architecture::x86_64;
 
   // Create a C-like function prototype
-  auto [Prototype, FunctionType] = T->makeCABIFunctionDefinition();
+  auto &&[Prototype, FunctionType] = T->makeCABIFunctionDefinition();
   Prototype.ABI() = model::ABI::SystemV_x86_64;
   revng_check(T->TypeDefinitions().size() == 1);
 
@@ -549,7 +549,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   TupleTree<model::Binary> T;
   T->Architecture() = Architecture::x86_64;
 
-  auto [Prototype, FunctionType] = T->makeRawFunctionDefinition();
+  auto &&[Prototype, FunctionType] = T->makeRawFunctionDefinition();
   Prototype.Architecture() = Architecture::x86_64;
   revng_check(Prototype.verify(true));
 
@@ -638,10 +638,10 @@ BOOST_AUTO_TEST_CASE(TypeComparison) {
 
   model::Binary Model;
 
-  auto [FirstTD, FirstT] = Model.makeTypedefDefinition(PT::makeUnsigned(4));
+  auto &&[FirstTD, FirstT] = Model.makeTypedefDefinition(PT::makeUnsigned(4));
   revng_check(FirstTD == *FirstT->tryGetAsDefinition());
 
-  auto [SecondTD, SecondT] = Model.makeTypedefDefinition(PT::makeUnsigned(4));
+  auto &&[SecondTD, SecondT] = Model.makeTypedefDefinition(PT::makeUnsigned(4));
   revng_check(SecondTD == *SecondT->tryGetAsDefinition());
 
   // Ensure different types are different, even if they only differ by the ID.
@@ -679,7 +679,7 @@ BOOST_AUTO_TEST_CASE(TypeComparison) {
 BOOST_AUTO_TEST_CASE(Filters) {
   model::Binary Model;
   {
-    auto [Enum, _] = Model.makeEnumDefinition();
+    auto &&[Enum, _] = Model.makeEnumDefinition();
     Enum.UnderlyingType() = model::PrimitiveType::makeUnsigned(4);
     Enum.Entries().emplace(1ull);
 
@@ -696,7 +696,7 @@ BOOST_AUTO_TEST_CASE(Filters) {
   }
   revng_check(ScalarCount == 3);
 
-  auto [CFT, _] = Model.makeCABIFunctionDefinition();
+  auto &&[CFT, _] = Model.makeCABIFunctionDefinition();
   for (auto &[Index, Definition] : llvm::enumerate(Model.TypeDefinitions())) {
     if (auto &&Type = Model.makeType(Definition->key());
         Definition->isPrototype()) {

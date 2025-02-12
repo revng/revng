@@ -54,7 +54,7 @@ static void analyzeBasicBlocks(yield::Function &Function,
   std::map<BasicBlockID, std::optional<BasicBlockID>> Predecessors;
 
   for (const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
-    auto [It, Success] = Predecessors.try_emplace(BasicBlock.ID());
+    auto &&[It, Success] = Predecessors.try_emplace(BasicBlock.ID());
     revng_assert(Success,
                  "Duplicate basic blocks in a `SortedVector`? "
                  "Something is clearly very wrong.");
@@ -67,9 +67,9 @@ static void analyzeBasicBlocks(yield::Function &Function,
 
   for (const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
     for (const auto &Edge : BasicBlock.Successors()) {
-      auto [NextBlock, _] = efa::parseSuccessor(*convert(Edge).get(),
-                                                BasicBlock.nextBlock(),
-                                                Binary);
+      auto &&[NextBlock, _] = efa::parseSuccessor(*convert(Edge).get(),
+                                                  BasicBlock.nextBlock(),
+                                                  Binary);
       if (not NextBlock.isValid()) {
         // Ignore edges with unknown destinations (like indirect jumps).
         continue;
@@ -89,7 +89,7 @@ static void analyzeBasicBlocks(yield::Function &Function,
   }
 
   // Save the results of the analysis
-  for (auto [CurrentAddress, PredecessorAddress] : Predecessors) {
+  for (auto &&[CurrentAddress, PredecessorAddress] : Predecessors) {
     if (PredecessorAddress.has_value()) {
       auto Current = Metadata.Blocks().find(CurrentAddress);
       revng_assert(Current != Metadata.Blocks().end());
@@ -214,8 +214,8 @@ DH::getDisassemblerFor(MetaAddressType::Values AddressType,
     return It->second;
 
   using DI = LLVMDisassemblerInterface;
-  auto [R, Success] = Internal->try_emplace(AddressType,
-                                            DI(AddressType, Configuration));
+  auto &&[R, Success] = Internal->try_emplace(AddressType,
+                                              DI(AddressType, Configuration));
   revng_assert(Success);
   return R->second;
 }

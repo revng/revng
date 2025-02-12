@@ -194,7 +194,7 @@ void TypeSystemPrinter::dumpStructFields(llvm::raw_ostream &Out,
 
   // Struct fields are stacked vertically
   uint64_t LastOffset = 0;
-  for (auto [Index, Field] : llvm::enumerate(T->Fields())) {
+  for (auto &&[Index, Field] : llvm::enumerate(T->Fields())) {
     // Check if there's padding to be added before this field
     if (Field.Offset() > LastOffset)
       addStructField(Out, LastOffset, Field.Offset() - LastOffset, "padding");
@@ -223,7 +223,7 @@ void TypeSystemPrinter::dumpUnionFields(llvm::raw_ostream &Out,
   Out << "<TR>";
 
   // Union fields are disposed horizontally
-  for (auto [Index, Field] : llvm::enumerate(T->Fields())) {
+  for (auto &&[Index, Field] : llvm::enumerate(T->Fields())) {
     auto Name = buildFieldName(*Field.Type());
     const auto Size = Field.Type()->size().value_or(0);
     paddedCell(Out, Name + "  (size: " + to_string(Size) + ")", Index);
@@ -433,9 +433,9 @@ void TypeSystemPrinter::print(const model::TypeDefinition &T) {
 
     // Collect all the successors
     FieldList Fields = collectFields(CurType);
-    for (auto [Index, Field] : llvm::enumerate(Fields)) {
+    for (auto &&[Index, Field] : llvm::enumerate(Fields)) {
       FieldEdge Edge = buildFieldEdgeLabel(*Field);
-      auto [Label, DefinitionPointer, IsPointer] = Edge;
+      auto &&[Label, DefinitionPointer, IsPointer] = Edge;
 
       // Don't add edges for primitive types, as they would pollute the graph
       // and add no information regarding the type system structure

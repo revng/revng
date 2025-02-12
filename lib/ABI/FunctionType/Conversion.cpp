@@ -186,7 +186,7 @@ tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
 
   // The conversion was successful, a new `CABIFunctionDefinition` can now be
   // created,
-  auto [Definition, Type] = Binary->makeCABIFunctionDefinition();
+  auto &&[Definition, Type] = Binary->makeCABIFunctionDefinition();
   revng_assert(Definition.ID() != 0);
   model::copyMetadata(Definition, FunctionType);
   Definition.ABI() = ABI.ABI();
@@ -704,7 +704,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
     } else {
       // It could be either a struct or a scalar, go the conservative route
       // and make a struct for it.
-      auto [Definition, ReturnType] = Bucket.makeStructDefinition();
+      auto &&[Definition, ReturnType] = Bucket.makeStructDefinition();
       for (model::Register::Values Register : Ordered) {
         // Make a separate field for each register.
         model::StructField Field;

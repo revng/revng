@@ -27,7 +27,7 @@ struct Expected {
 template<typename... Types>
   requires(same_as<Types, Expected> && ...)
 void testAlignment(model::UpcastableType &&Type, const Types &...TestCases) {
-  for (auto [ABI, Expected] : std::array{ TestCases... }) {
+  for (auto &&[ABI, Expected] : std::array{ TestCases... }) {
     std::optional<uint64_t> TestResult = ABI.alignment(*Type);
     if (TestResult.value_or(0) != Expected) {
       std::string Error = "Alignment run failed for type:\n" + toString(Type)
@@ -179,13 +179,13 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
 
-    auto [SimpleDefinition, Simple] = Binary->makeUnionDefinition();
+    auto &&[SimpleDefinition, Simple] = Binary->makeUnionDefinition();
     SimpleDefinition.addField(Int32.copy());
     SimpleDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
       compareTypeAlignments(ABI, Int64, Simple);
 
-    auto [SmallFloatDefinition, SmallFloat] = Binary->makeUnionDefinition();
+    auto &&[SmallFloatDefinition, SmallFloat] = Binary->makeUnionDefinition();
     SmallFloatDefinition.addField(Int32.copy());
     SmallFloatDefinition.addField(Float.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
@@ -193,13 +193,13 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
       compareTypeAlignments(ABI, Float, SmallFloat);
     }
 
-    auto [BigFloatDefinition, BigFloat] = Binary->makeUnionDefinition();
+    auto &&[BigFloatDefinition, BigFloat] = Binary->makeUnionDefinition();
     BigFloatDefinition.addField(LongDouble.copy());
     BigFloatDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
       compareTypeAlignments(ABI, LongDouble, BigFloat);
 
-    auto [WeirdFloatDefinition, WeirdFloat] = Binary->makeUnionDefinition();
+    auto &&[WeirdFloatDefinition, WeirdFloat] = Binary->makeUnionDefinition();
     WeirdFloatDefinition.addField(WeirdLD.copy());
     WeirdFloatDefinition.addField(Int32.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
@@ -207,13 +207,14 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
-    auto [EclipsedFloatDefinition, EclipsedFl] = Binary->makeUnionDefinition();
+    auto &&[EclipsedFloatDefinition,
+            EclipsedFl] = Binary->makeUnionDefinition();
     EclipsedFloatDefinition.addField(Float.copy());
     EclipsedFloatDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
       compareTypeAlignments(ABI, Int64, EclipsedFl);
 
-    auto [NestedDefinition, Nested] = Binary->makeUnionDefinition();
+    auto &&[NestedDefinition, Nested] = Binary->makeUnionDefinition();
     NestedDefinition.addField(SmallFloat.copy());
     NestedDefinition.addField(Int16.copy());
     if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
@@ -222,7 +223,8 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
       compareTypeAlignments(ABI, SmallFloat, Nested);
     }
 
-    auto [EclipsedNestedDefinition, EclipsedN] = Binary->makeUnionDefinition();
+    auto &&[EclipsedNestedDefinition,
+            EclipsedN] = Binary->makeUnionDefinition();
     EclipsedNestedDefinition.addField(SmallFloat.copy());
     EclipsedNestedDefinition.addField(Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
@@ -245,13 +247,13 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   for (model::ABI::Values ABIName : TestedABIs) {
     const abi::Definition &ABI = abi::Definition::get(ABIName);
 
-    auto [SimpleDefinition, Simple] = Binary->makeStructDefinition();
+    auto &&[SimpleDefinition, Simple] = Binary->makeStructDefinition();
     SimpleDefinition.addField(0, Int32.copy());
     SimpleDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }))
       compareTypeAlignments(ABI, Int64, Simple);
 
-    auto [SmallFloatDefinition, SmallFloat] = Binary->makeStructDefinition();
+    auto &&[SmallFloatDefinition, SmallFloat] = Binary->makeStructDefinition();
     SmallFloatDefinition.addField(0, Int32.copy());
     SmallFloatDefinition.addField(4, Float.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
@@ -259,13 +261,13 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
       compareTypeAlignments(ABI, Float, SmallFloat);
     }
 
-    auto [BigFloatDefinition, BigFloat] = Binary->makeStructDefinition();
+    auto &&[BigFloatDefinition, BigFloat] = Binary->makeStructDefinition();
     BigFloatDefinition.addField(0, LongDouble.copy());
     BigFloatDefinition.addField(16, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 16 }))
       compareTypeAlignments(ABI, LongDouble, BigFloat);
 
-    auto [WeirdFloatDefinition, WeirdFloat] = Binary->makeStructDefinition();
+    auto &&[WeirdFloatDefinition, WeirdFloat] = Binary->makeStructDefinition();
     WeirdFloatDefinition.addField(0, WeirdLD.copy());
     WeirdFloatDefinition.addField(12, Int32.copy());
     if (ABIhasIntsOfSizes(ABI, { 4 }) && ABIhasFloatsOfSizes(ABI, { 12 }))
@@ -273,13 +275,14 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
 
     // Test the case where on top of the float field, there's also another
     // stricter-aligned field, which "eclipses" the float one.
-    auto [EclipsedFloatDefinition, EclipsedFl] = Binary->makeStructDefinition();
+    auto &&[EclipsedFloatDefinition,
+            EclipsedFl] = Binary->makeStructDefinition();
     EclipsedFloatDefinition.addField(0, Float.copy());
     EclipsedFloatDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))
       compareTypeAlignments(ABI, Int64, EclipsedFl);
 
-    auto [NestedDefinition, Nested] = Binary->makeStructDefinition();
+    auto &&[NestedDefinition, Nested] = Binary->makeStructDefinition();
     NestedDefinition.addField(0, SmallFloat.copy());
     NestedDefinition.addField(8, Int16.copy());
     if (ABIhasIntsOfSizes(ABI, { 2, 4 }) && ABIhasFloatsOfSizes(ABI, { 4 })) {
@@ -288,7 +291,8 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
       compareTypeAlignments(ABI, SmallFloat, Nested);
     }
 
-    auto [EclipsedNestedDefinition, EclipsedN] = Binary->makeStructDefinition();
+    auto &&[EclipsedNestedDefinition,
+            EclipsedN] = Binary->makeStructDefinition();
     EclipsedNestedDefinition.addField(0, SmallFloat.copy());
     EclipsedNestedDefinition.addField(8, Int64.copy());
     if (ABIhasIntsOfSizes(ABI, { 4, 8 }) && ABIhasFloatsOfSizes(ABI, { 4 }))

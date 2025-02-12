@@ -1255,7 +1255,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       while (Changed) {
         Changed = false;
         for (const auto &Backedge : Backedges) {
-          const auto [Source, Target] = Backedge;
+          auto &&[Source, Target] = Backedge;
           revng_assert(not Meta->containsNode(Source));
           if (Meta->containsNode(Target)) {
             revng_assert(Target == Head);

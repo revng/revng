@@ -50,7 +50,7 @@ public:
   llvm::Instruction *load(llvm::IRBuilder<> &Builder, unsigned TemporaryId) {
     using namespace llvm;
 
-    auto [IsNew, V] = getOrCreate(TemporaryId, true);
+    auto &&[IsNew, V] = getOrCreate(TemporaryId, true);
 
     if (V == nullptr)
       return nullptr;

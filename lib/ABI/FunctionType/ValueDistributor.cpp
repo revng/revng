@@ -252,13 +252,13 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
     HasNaturalAlignment = false;
   }
 
-  auto [Result, NextRegisterIndex] = distribute(Size,
-                                                Alignment,
-                                                HasNaturalAlignment,
-                                                RegisterList,
-                                                *RegisterCounter,
-                                                RegisterLimit,
-                                                ForbidSplitting);
+  auto &&[Result, NextRegisterIndex] = distribute(Size,
+                                                  Alignment,
+                                                  HasNaturalAlignment,
+                                                  RegisterList,
+                                                  *RegisterCounter,
+                                                  RegisterLimit,
+                                                  ForbidSplitting);
   if (UsesPointerToCopy) {
     revng_assert(Result.size() == 1);
     Result[0].UsesPointerToCopy = UsesPointerToCopy;
@@ -357,7 +357,7 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
                               ABI.MaximumGPRsPerAggregateReturnValue();
   }
 
-  auto [Result, _] = distribute(Type, RegisterList, 0, Limit, true);
+  auto &&[Result, _] = distribute(Type, RegisterList, 0, Limit, true);
   revng_assert(Result.size() == 1, "Return values should never be padded.");
   return Result[0];
 }

@@ -221,7 +221,7 @@ public:
       for (const auto &Statement : Trait::getStatements(Node->getBlock())) {
         StatementLocationType Location = Trait::getAddresses(Statement);
 
-        for (auto [Index, Comment] : llvm::enumerate(Function.Comments())) {
+        for (auto &&[Index, Comment] : llvm::enumerate(Function.Comments())) {
 
           // Use the Tversky Index as the scoring function.
           // Note the parameters controlling the weights of the sets: the higher
@@ -241,7 +241,7 @@ public:
     }
 
     // Process homeless comments so they don't interfere with the others
-    for (auto [I, Comment] : llvm::enumerate(Function.Comments()))
+    for (auto &&[I, Comment] : llvm::enumerate(Function.Comments()))
       if (Scores[I].first.Numerator == 0)
         HomelessComments.emplace_back(I, false, Score{}, &Comment.Location());
 

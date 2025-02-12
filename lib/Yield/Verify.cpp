@@ -29,7 +29,7 @@ bool yield::TaggedString::verify(model::VerifyHelper &VH) const {
 }
 
 bool yield::TaggedLine::verify(model::VerifyHelper &VH) const {
-  for (auto [Index, String] : llvm::enumerate(Tags())) {
+  for (auto &&[Index, String] : llvm::enumerate(Tags())) {
     if (Index != String.Index())
       return VH.fail("Tagged string indexing is broken.");
 
@@ -48,7 +48,7 @@ bool yield::Instruction::verify(model::VerifyHelper &VH) const {
 
   if (Disassembled().empty())
     return VH.fail("An instruction must have at least one tag.");
-  for (auto [Index, Tagged] : llvm::enumerate(Disassembled())) {
+  for (auto &&[Index, Tagged] : llvm::enumerate(Disassembled())) {
     if (Index != Tagged.Index())
       return VH.fail("Tagged string indexing is broken.");
 
@@ -56,14 +56,14 @@ bool yield::Instruction::verify(model::VerifyHelper &VH) const {
       return VH.fail();
   }
 
-  for (auto [Index, Directive] : llvm::enumerate(PrecedingDirectives())) {
+  for (auto &&[Index, Directive] : llvm::enumerate(PrecedingDirectives())) {
     if (Index != Directive.Index())
       return VH.fail("Preceding directive indexing is broken.");
 
     if (!Directive.verify(VH))
       return VH.fail();
   }
-  for (auto [Index, Directive] : llvm::enumerate(FollowingDirectives())) {
+  for (auto &&[Index, Directive] : llvm::enumerate(FollowingDirectives())) {
     if (Index != Directive.Index())
       return VH.fail("Following directive indexing is broken.");
 

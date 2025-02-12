@@ -172,8 +172,8 @@ public:
     // Add the personality to the root function
     RootFunction->setPersonalityFn(PersonalityFunction);
 
-    for (auto [_, T] : Map) {
-      auto [ModelF, BB, F] = T;
+    for (auto &&[_, T] : Map) {
+      auto &&[ModelF, BB, F] = T;
 
       // Create a new trampoline entry block and substitute it to the old entry
       // block

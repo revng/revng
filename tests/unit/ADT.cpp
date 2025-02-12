@@ -92,7 +92,7 @@ consteval int takeAsTupleExample() {
 
   {
     // Edit some elements.
-    auto [First, Second, Third] = takeAsTuple<3>(Data);
+    auto &&[First, Second, Third] = takeAsTuple<3>(Data);
     ++First;
     Second = 2;
     Third = 3;
@@ -100,7 +100,7 @@ consteval int takeAsTupleExample() {
 
   {
     // Read multiple elements through a view.
-    auto [Second, Third] = takeAsTuple<2>(Data | std::views::drop(1));
+    auto &&[Second, Third] = takeAsTuple<2>(Data | std::views::drop(1));
     return Second + Third;
   }
 }

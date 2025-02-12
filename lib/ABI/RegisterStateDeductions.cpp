@@ -126,7 +126,7 @@ private:
     }
 
     auto ArgumentRange = llvm::zip(llvm::reverse(GPAR), llvm::reverse(VAR));
-    for (auto [GPR, VR] : ArgumentRange)
+    for (auto &&[GPR, VR] : ArgumentRange)
       if (!singlePositionBasedDeduction(GPR, VR, State, IsRequired))
         return false;
 

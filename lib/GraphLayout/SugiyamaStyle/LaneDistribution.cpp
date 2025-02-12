@@ -36,10 +36,10 @@ public:
   bool operator<(const SortableEdge &Another) const {
     if (IsFacingRight == Another.IsFacingRight) {
       // Both edges face in the same direction.
-      auto [LHSMin, LHSMax] = std::minmax(Edge.From->Center.X,
-                                          Edge.To->Center.X);
-      auto [RHSMin, RHSMax] = std::minmax(Another.Edge.From->Center.X,
-                                          Another.Edge.To->Center.X);
+      auto &&[LHSMin, LHSMax] = std::minmax(Edge.From->Center.X,
+                                            Edge.To->Center.X);
+      auto &&[RHSMin, RHSMax] = std::minmax(Another.Edge.From->Center.X,
+                                            Another.Edge.To->Center.X);
 
       if (IsFacingRight)
         return LHSMax == RHSMax ? LHSMin < RHSMin : LHSMax < RHSMax;
@@ -78,7 +78,7 @@ LaneContainer assignLanes(InternalGraph &Graph,
 
   // Calculate the number of lanes needed for each layer
   for (auto *From : Graph.nodes()) {
-    for (auto [To, Label] : From->successor_edges()) {
+    for (auto &&[To, Label] : From->successor_edges()) {
       // If the ends of an edge are not a part of the same linear segment or
       // their horizontal coordinates are not aligned, a bend is necessary.
       if (LinearSegments.at(From) != LinearSegments.at(To)
@@ -117,8 +117,8 @@ LaneContainer assignLanes(InternalGraph &Graph,
 
     auto &NodeExits = Result.Exits[Node];
     for (size_t ExitRank = 0; ExitRank < Neighbors.size(); ExitRank++) {
-      auto [_, Success] = NodeExits.try_emplace(Neighbors[ExitRank].view(),
-                                                ExitRank);
+      auto &&[_, Success] = NodeExits.try_emplace(Neighbors[ExitRank].view(),
+                                                  ExitRank);
       revng_assert(Success);
     }
   }
@@ -129,8 +129,8 @@ LaneContainer assignLanes(InternalGraph &Graph,
 
     auto &NodeEntries = Result.Entries[Node];
     for (size_t EntryRank = 0; EntryRank < Neighbors.size(); EntryRank++) {
-      auto [_, Success] = NodeEntries.try_emplace(Neighbors[EntryRank].view(),
-                                                  EntryRank);
+      auto &&[_, Success] = NodeEntries.try_emplace(Neighbors[EntryRank].view(),
+                                                    EntryRank);
       revng_assert(Success);
     }
   }

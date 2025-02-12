@@ -16,7 +16,7 @@ BOOST_AUTO_TEST_CASE(Commit) {
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeStructDefinition();
+    auto &&[Type, Path] = Bucket.makeStructDefinition();
     Bucket.commit();
   }
 
@@ -28,7 +28,7 @@ BOOST_AUTO_TEST_CASE(Drop) {
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeStructDefinition();
+    auto &&[Type, Path] = Bucket.makeStructDefinition();
     Bucket.drop();
   }
 
@@ -40,14 +40,14 @@ BOOST_AUTO_TEST_CASE(Multiple) {
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeStructDefinition();
+    auto &&[Type, Path] = Bucket.makeStructDefinition();
     Type.OriginalName() = "First";
     Bucket.commit();
   }
 
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Type, Path] = Bucket.makeStructDefinition();
+    auto &&[Type, Path] = Bucket.makeStructDefinition();
     Type.OriginalName() = "Second";
     Bucket.commit();
   }
@@ -62,21 +62,21 @@ BOOST_AUTO_TEST_CASE(Reused) {
   TupleTree<model::Binary> Binary;
 
   model::TypeBucket Bucket = *Binary;
-  auto [Type, Path] = Bucket.makeStructDefinition();
+  auto &&[Type, Path] = Bucket.makeStructDefinition();
   Type.OriginalName() = "First";
   Bucket.commit();
 
   revng_check(Binary->TypeDefinitions().size() == 1);
   revng_check((*Binary->TypeDefinitions().begin())->OriginalName() == "First");
 
-  auto [AnotherType, AP] = Bucket.makeStructDefinition();
+  auto &&[AnotherType, AP] = Bucket.makeStructDefinition();
   AnotherType.OriginalName() = "Second";
   Bucket.drop();
 
   revng_check(Binary->TypeDefinitions().size() == 1);
   revng_check((*Binary->TypeDefinitions().begin())->OriginalName() == "First");
 
-  auto [OneMoreType, _] = Bucket.makeStructDefinition();
+  auto &&[OneMoreType, _] = Bucket.makeStructDefinition();
   OneMoreType.OriginalName() = "Third";
   Bucket.commit();
 
@@ -92,7 +92,7 @@ BOOST_AUTO_TEST_CASE(Paths) {
   model::UpcastableType Saved;
   {
     model::TypeBucket Bucket = *Binary;
-    auto [Definition, Type] = Bucket.makeStructDefinition();
+    auto &&[Definition, Type] = Bucket.makeStructDefinition();
     Definition.OriginalName() = "Valid";
 
     revng_check(Binary->TypeDefinitions().size() == 0);

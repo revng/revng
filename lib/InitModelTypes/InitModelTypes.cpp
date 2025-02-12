@@ -293,7 +293,7 @@ static void handleCallInstruction(const llvm::CallInst *Call,
     const auto ExtractedValues = getExtractedValuesFromInstruction(Call);
     revng_assert(ReturnedTypes.size() == ExtractedValues.size());
 
-    for (auto [Type, ExtractedSet] : zip(ReturnedTypes, ExtractedValues)) {
+    for (auto &&[Type, ExtractedSet] : zip(ReturnedTypes, ExtractedValues)) {
       revng_assert(Type->isScalar());
 
       // Each extractedSet contains the set of instructions that extract the

@@ -131,7 +131,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // TODO: replace the following with `populateSegmentTypeStruct`, when
     // symbol table and dynamic symbol table parsing is finalized
-    auto [Struct, Type] = Model->makeStructDefinition(Segment.VirtualSize());
+    auto &&[Struct, Type] = Model->makeStructDefinition(Segment.VirtualSize());
     Struct.CanContainCode() = Segment.IsExecutable();
     Segment.Type() = std::move(Type);
 
@@ -461,8 +461,8 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
     revng_assert(Iterator != ModelsOfLibraries.end());
 
     auto NewCopier = std::make_unique<TypeCopier>(Iterator->second, Model);
-    auto [Result, Success] = TypeCopiers.emplace(Name.str(),
-                                                 std::move(NewCopier));
+    auto &&[Result, Success] = TypeCopiers.emplace(Name.str(),
+                                                   std::move(NewCopier));
     revng_assert(Success);
     return *Result->second;
   };

@@ -161,8 +161,8 @@ public:
     for (NodeRef Node : llvm::nodes(Graph)) {
       layout::Size Size = LayoutTrait::getNodeSize(Node);
 
-      auto [It, Success] = InternalLookup.try_emplace(Node,
-                                                      Result.makeNode(Size));
+      auto &&[It, Success] = InternalLookup.try_emplace(Node,
+                                                        Result.makeNode(Size));
       revng_assert(Success);
       revng_assert(It->second->Index == Lookup.Nodes.size());
       Lookup.Nodes.emplace_back(Node);
@@ -203,7 +203,7 @@ public:
                                      std::move(Node->Center));
 
     for (InternalNode *From : nodes()) {
-      for (auto [To, Label] : From->successor_edges()) {
+      for (auto &&[To, Label] : From->successor_edges()) {
         revng_assert(Label->IsRouted == true);
 
         if (!Label->isVirtual())

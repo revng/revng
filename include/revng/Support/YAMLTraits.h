@@ -118,7 +118,7 @@ struct CompositeScalar {
   static llvm::StringRef
   input(llvm::StringRef Scalar, void *Context, T &Value) {
     if constexpr (I < std::tuple_size_v<T>) {
-      auto [Before, After] = Scalar.split(Separator);
+      auto &&[Before, After] = Scalar.split(Separator);
 
       using element = std::tuple_element_t<I, T>;
       get<I>(Value) = getValueFromYAMLScalar<element>(Before);

@@ -2028,7 +2028,7 @@ class ModelGEPArgCache {
 
 public:
   Constant *get(const model::UpcastableType &Type, llvm::Module &M) {
-    auto [It, Success] = GlobalModelGEPTypeArgs.try_emplace(Type, nullptr);
+    auto &&[It, Success] = GlobalModelGEPTypeArgs.try_emplace(Type, nullptr);
     if (Success)
       It->second = toLLVMString(Type, M);
 
@@ -2039,7 +2039,7 @@ public:
 static llvm::BasicBlock *getUniqueIncoming(Value *V, PHINode *Phi) {
   llvm::BasicBlock *Result = nullptr;
 
-  for (auto [IncomingValue, IncomingBlock] :
+  for (auto &&[IncomingValue, IncomingBlock] :
        zip(Phi->incoming_values(), Phi->blocks())) {
     if (IncomingValue == V) {
       if (Result == nullptr) {

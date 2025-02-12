@@ -48,7 +48,7 @@ createStructWrapper(const LTSN *N,
                     uint64_t Offset = 0ULL,
                     uint64_t WrapperSize = 0ULL) {
   // Create struct
-  auto [Struct, NewType] = Model->makeStructDefinition();
+  auto &&[Struct, NewType] = Model->makeStructDefinition();
 
   // Create and insert field in struct
   model::StructField &Field = Struct.addField(Offset, std::move(T));
@@ -179,7 +179,7 @@ makeStructFromNode(const LTSN *N,
   // Create struct
   revng_log(Log, "Creating struct type for node " << N->ID);
   LoggerIndent StructIndent{ Log };
-  auto [Struct, NewType] = Model->makeStructDefinition();
+  auto &&[Struct, NewType] = Model->makeStructDefinition();
   Struct.Size() = N->Size;
 
   // This holds the struct fields in the same order as in the model, so we can
@@ -250,7 +250,7 @@ makeUnionFromNode(const LTSN *N,
                   const VectEqClasses &EqClasses) {
   // Create union
   revng_log(Log, "Creating union type for node " << N->ID);
-  auto [Union, NewType] = Model->makeUnionDefinition();
+  auto &&[Union, NewType] = Model->makeUnionDefinition();
 
   LoggerIndent StructIndent{ Log };
 
@@ -294,17 +294,17 @@ makeUnionFromNode(const LTSN *N,
 
   for (auto &[Field, SuccNode] : Fields) {
     // Insert field in union
-    const auto &[NewF, Inserted] = Union.Fields().insert(std::move(Field));
+    const auto &[New, Inserted] = Union.Fields().insert(std::move(Field));
     revng_assert(Inserted);
 
     // If the field is a pointer, save the type: we want to update it later
-    if (NewF->Type()->isPointer()) {
-      auto [_, S] = PointerFieldsToUpdate[SuccNode].insert(NewF->Type().get());
+    if (New->Type()->isPointer()) {
+      auto &&[_, S] = PointerFieldsToUpdate[SuccNode].insert(New->Type().get());
       revng_assert(S);
       revng_log(Log,
                 "Pointer node " << SuccNode->ID
                                 << " inside union (ID: " << Union.ID()
-                                << "): " << NewF->Type()->toString());
+                                << "): " << New->Type()->toString());
     }
   }
 
@@ -435,7 +435,7 @@ static TypeMapT mapLLVMValuesToModelTypes(const LayoutTypeSystem &TS,
   TypeMapT ValMap;
   revng_log(TypeMapLog, "LayoutTypePtr; ModelType");
 
-  for (auto [ValueIdx, Val] : llvm::enumerate(Values)) {
+  for (auto &&[ValueIdx, Val] : llvm::enumerate(Values)) {
     // If the value is in the class that represents nodes removed from the
     // graph, or the value itself does not represent an llvm::Value, we can just
     // skip it.
@@ -495,15 +495,14 @@ TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
   // encountered. In this way, each tree of pointer edges is visited only once.
   revng_log(Log, "Fixing pointer fields");
   LoggerIndent Indent{ Log };
-  for (auto [PointerNode, PointerTypes] : PointerFieldsToUpdate) {
+  for (auto &&[PointerNode, PointerTypes] : PointerFieldsToUpdate) {
     revng_log(Log,
               "Updating " << PointerTypes.size()
                           << " pointer types associated to ptr node: "
                           << PointerNode->ID);
     LoggerIndent MoreIndent{ Log };
 
-    const auto [NumPointers,
-                PointeeNode] = getNumPointersAndPointee(PointerNode);
+    auto &&[NumPointers, PointeeNode] = getNumPointersAndPointee(PointerNode);
     revng_log(Log, "NumPointers: " << NumPointers);
 
     auto FinalPointeeType = getNodeType(Model, PointeeNode, Types, EqClasses);

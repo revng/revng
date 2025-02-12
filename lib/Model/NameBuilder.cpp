@@ -100,7 +100,7 @@ llvm::Error model::NameBuilder::populateGlobalNamespace() {
                                   + ".\n");
       }
 
-      auto [Iterator, Success] = GlobalNamespace->try_emplace(Name, Path);
+      auto &&[Iterator, Success] = GlobalNamespace->try_emplace(Name, Path);
       if (not Success)
         return makeDuplicateSymbolError(Name, Iterator->second, Path);
     }

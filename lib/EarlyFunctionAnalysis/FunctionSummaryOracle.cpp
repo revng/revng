@@ -49,8 +49,8 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
     Summary.ABIResults.ReturnValuesRegisters.erase(CSV);
   }
 
-  auto [ArgumentRegisters,
-        ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
+  auto &&[ArgumentRegisters,
+          ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
   for (Register ArgumentRegister : ArgumentRegisters) {
     llvm::StringRef Name = model::Register::getCSVName(ArgumentRegister);
     if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
@@ -73,7 +73,7 @@ FunctionSummaryOracle::getCallSite(MetaAddress Function,
                                    BasicBlockID CallerBlockAddress,
                                    MetaAddress CalledLocalFunction,
                                    llvm::StringRef CalledSymbol) {
-  auto [Summary, IsTailCall] = getExactCallSite(Function, CallerBlockAddress);
+  auto &&[Summary, IsTailCall] = getExactCallSite(Function, CallerBlockAddress);
   if (Summary != nullptr) {
     return { Summary, IsTailCall };
   } else if (not CalledSymbol.empty()) {

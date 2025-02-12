@@ -241,7 +241,7 @@ bool TDBP::pinConstantStore(Function &F) {
     revng_assert(getCalledFunction(Call) == ExitTB);
 
     // Look for the last write to the PC
-    auto [Result, NextPC] = PCH->getUniqueJumpTarget(Call->getParent());
+    auto &&[Result, NextPC] = PCH->getUniqueJumpTarget(Call->getParent());
 
     switch (Result) {
     case NextJumpTarget::Unique:
@@ -805,7 +805,7 @@ void JumpTargetManager::translateIndirectJumps() {
 
         // Look for the last write to the PC
         BasicBlock *CallBB = Call->getParent();
-        auto [Result, NextPC] = PCH->getUniqueJumpTarget(CallBB);
+        auto &&[Result, NextPC] = PCH->getUniqueJumpTarget(CallBB);
 
         if (NextPC.isValid() and isExecutableAddress(NextPC)) {
           revng_check(Result != NextJumpTarget::Unique

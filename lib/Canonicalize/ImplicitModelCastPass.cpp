@@ -360,7 +360,7 @@ bool IMCP::collectTypeInfoForPromotionForSingleValue(const llvm::Value *Value,
   if (PromotedType) {
     // This will be used in the second stage of the
     // reducing-cast-algorithm.
-    auto [It, Success] = PromotedTypes[I].try_emplace(Value, PromotedType);
+    auto &&[It, Success] = PromotedTypes[I].try_emplace(Value, PromotedType);
     if (not Success) {
       revng_assert(not It->second.isEmpty());
       revng_assert(not PromotedType.isEmpty());

@@ -134,7 +134,7 @@ getDependencyFor(const model::Type &Type,
   // be relaxed if we properly handle the array wrappers.
 
   DependencyEdgeAnalysisResult Analyzed = analyzeDependencyEdges(Type);
-  auto [EdgeTarget, PointerIsBetweenTypes] = Analyzed;
+  auto &&[EdgeTarget, PointerIsBetweenTypes] = Analyzed;
   if (EdgeTarget == nullptr) {
     // By definition, all the primitives are always present.
     // As such, there's no need to add any edges for such cases.

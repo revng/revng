@@ -122,13 +122,13 @@ convert(const InputGraph<NodeDataType, EdgeDataType> &Input) {
     OutputNode Output(*Node);
     Output.Size = Node->Size;
 
-    auto [It, Success] = Lookup.emplace(Node,
-                                        Result.addNode(std::move(Output)));
+    auto &&[It, Success] = Lookup.emplace(Node,
+                                          Result.addNode(std::move(Output)));
     revng_assert(Success);
   }
 
   for (const InputNode *From : Input.nodes())
-    for (auto [To, EdgeLabel] : From->successor_edges())
+    for (auto &&[To, EdgeLabel] : From->successor_edges())
       Lookup.at(From)->addSuccessor(Lookup.at(To),
                                     EdgeDataType(std::move(*EdgeLabel)));
 

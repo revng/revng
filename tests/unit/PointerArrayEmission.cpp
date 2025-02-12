@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   auto Int = model::PrimitiveType::makeConstSigned(4);
   Tests.emplace_back(Int, "const int32_t test");
 
-  auto [TypedefDef, Typedef] = Binary->makeTypedefDefinition(Void.copy());
+  auto &&[TypedefDef, Typedef] = Binary->makeTypedefDefinition(Void.copy());
   Tests.emplace_back(Typedef, "typedef_0 test");
 
   auto VoidP = model::PointerType::make(Void.copy(), 8);
@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
 
   std::string FailureLog;
   ptml::CTypeBuilder B(llvm::nulls(), *Binary, /* EnableTaglessMode = */ true);
-  for (auto [Type, ExpectedOutput] : Tests) {
+  for (auto &&[Type, ExpectedOutput] : Tests) {
     std::string ActualOutput = B.getNamedCInstance(*Type, "test").str().str();
     if (ActualOutput != ExpectedOutput) {
       FailureLog += "Output of `getNamedCInstance` (\"" + ActualOutput

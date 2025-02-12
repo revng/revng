@@ -123,7 +123,7 @@ bool computeInternal(InternalGraph &Graph, const Configuration &Configuration) {
   // by the router so they can be treated in a special way.
   // For more details on this, see `routeBackwardsCorners` function.
   bool ShouldClassify = !Configuration.UseSimpleTreeOptimization;
-  auto [Ranks, Classified] = prepareGraph<RS>(Graph, !ShouldClassify);
+  auto &&[Ranks, Classified] = prepareGraph<RS>(Graph, !ShouldClassify);
 
   // Try to select an optimal node permutation per layer.
   // NOTE: since this is the part with the highest complexity, it needs extra

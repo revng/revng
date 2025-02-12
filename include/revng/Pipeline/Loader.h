@@ -126,11 +126,10 @@ public:
 
   template<typename ContainerType>
   void addDefaultConstructibleContainer(llvm::StringRef Name) {
-    auto [_,
-          inserted] = KnownContainerTypes
-                        .try_emplace(Name,
-                                     ContainerFactory::create<ContainerType>());
-    revng_assert(inserted);
+    bool S = KnownContainerTypes
+               .try_emplace(Name, ContainerFactory::create<ContainerType>())
+               .second;
+    revng_assert(S);
   }
 
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Factory) {
@@ -152,7 +151,7 @@ public:
 
   template<typename LLVMPass>
   void registerLLVMPass(llvm::StringRef Name) {
-    auto [_, inserted] = KnownLLVMPipeTypes.try_emplace(Name, []() {
+    auto &&[_, inserted] = KnownLLVMPipeTypes.try_emplace(Name, []() {
       using Type = LLVMPassWrapper<LLVMPass>;
       return std::make_unique<Type>(LLVMPass());
     });
@@ -162,17 +161,17 @@ public:
 
   template<typename AnalysisType>
   void registerAnalysis(llvm::StringRef Name, const AnalysisType &Analysis) {
-    auto [_, inserted] = KnownAnalysisTypes
-                           .try_emplace(Name,
-                                        AnalysisWrapper::make(Analysis, {}));
-    revng_assert(inserted);
+    bool S = KnownAnalysisTypes
+               .try_emplace(Name, AnalysisWrapper::make(Analysis, {}))
+               .second;
+    revng_assert(S);
   }
 
   template<typename PipeType>
   void registerPipe(llvm::StringRef Name) {
-    auto [_, inserted] = KnownPipesTypes
-                           .try_emplace(Name, PipeWrapper::make<PipeType>({}));
-    revng_assert(inserted);
+    bool S = KnownPipesTypes.try_emplace(Name, PipeWrapper::make<PipeType>({}))
+               .second;
+    revng_assert(S);
   }
 
   void registerEnabledFlags(auto &NamesRange) {

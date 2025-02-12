@@ -570,9 +570,9 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   if (String.size() == 0)
     return true;
 
-  auto [Kind, RHS] = String.split("::");
+  auto &&[Kind, RHS] = String.split("::");
   auto Dispatch = [&RHS, &Result]<typename Upcasted>() {
-    auto [Before, After] = RHS.split('/');
+    auto &&[Before, After] = RHS.split('/');
     return PathMatcher::visitTuple<Upcasted>(Before, After, Result);
   };
 
@@ -590,7 +590,7 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   if (String.size() == 0)
     return true;
 
-  auto [Before, After] = String.split('/');
+  auto &&[Before, After] = String.split('/');
   return visitTuple<T>(Before, After, Result);
 }
 
@@ -600,13 +600,13 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   if (String.size() == 0)
     return true;
 
-  auto [Before, After] = String.split('/');
+  auto &&[Before, After] = String.split('/');
 
   using Key = std::remove_cv_t<typename T::key_type>;
   using Value = typename T::value_type;
 
   if constexpr (StrictSpecializationOf<Value, UpcastablePointer>) {
-    auto [PreDash, PostDash] = Before.split("-");
+    auto &&[PreDash, PostDash] = Before.split("-");
     if (PreDash == "*") {
       // Mark as free
       Result.Free.push_back(Result.Path.size());

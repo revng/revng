@@ -563,7 +563,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   auto Pointer = model::PointerType::make(std::move(ReferencedTypeFromModel),
                                           getPointerSize(Ptr.getPointerKind()));
 
-  auto [Typedef, NewType] = Model->makeTypedefDefinition();
+  auto &&[Typedef, NewType] = Model->makeTypedefDefinition();
   Typedef.UnderlyingType() = std::move(Pointer);
   ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
 
@@ -587,7 +587,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     const uint64_t ArraySize = Array.getSize() / *MaybeSize;
     auto NewA = model::ArrayType::make(std::move(ElementTypeFromModel),
                                        ArraySize);
-    auto [_, NewType] = Model->makeTypedefDefinition(std::move(NewA));
+    auto &&[_, NewType] = Model->makeTypedefDefinition(std::move(NewA));
     ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
   }
 
@@ -607,7 +607,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   } else {
     using ModifierOs = ModifierOptions;
     if ((Modifier.getModifiers() & ModifierOs::Const) != ModifierOs::None) {
-      auto [_, NewType] = Model->makeTypedefDefinition(std::move(ModelType));
+      auto &&[_, NewType] = Model->makeTypedefDefinition(std::move(ModelType));
       NewType->IsConst() = true;
       ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     }
@@ -669,12 +669,12 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       // 0-sized structs are typedef'ed to void. It can happen that there is
       // an incomplete struct type.
       model::UpcastableType Void = model::PrimitiveType::makeVoid();
-      auto [Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
+      auto &&[Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
       Typedef.OriginalName() = Class.getName();
       ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     } else {
       // Pre-create the type that is being referenced by this type.
-      auto [Struct, NewType] = Model->makeStructDefinition();
+      auto &&[Struct, NewType] = Model->makeStructDefinition();
       Struct.OriginalName() = Class.getName();
       Struct.Size() = ForwardTypeSize;
       ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
@@ -749,7 +749,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     }
 
     if (not WasReferenced) {
-      auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+      auto &&[_, NewType] = Model->recordNewType(std::move(NewDefinition));
       ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
     } else {
       TypeIndex ForwardRef = ForwardReferencedTypes[CurrentTypeIndex];
@@ -830,7 +830,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         }
       }
 
-      auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+      auto &&[_, NewType] = Model->recordNewType(std::move(NewDefinition));
       ProcessedTypes[FnTypeIndex] = std::move(NewType);
     }
   }
@@ -866,7 +866,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     EnumEntry.OriginalName() = Entry.getName().str();
   }
 
-  auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+  auto &&[_, NewType] = Model->recordNewType(std::move(NewDefinition));
   ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
 
   return Error::success();
@@ -984,7 +984,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
       }
     }
 
-    auto [_, NewType] = Model->recordNewType(std::move(NewDef));
+    auto &&[_, NewType] = Model->recordNewType(std::move(NewDef));
     ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
   }
 
@@ -1000,7 +1000,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     // Handle an empty union, similar to 0-sized structs.
     // Typedef it to void.
     model::UpcastableType Void = model::PrimitiveType::makeVoid();
-    auto [Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
+    auto &&[Typedef, NewType] = Model->makeTypedefDefinition(std::move(Void));
     Typedef.OriginalName() = Union.getName().str();
     ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
 
@@ -1035,7 +1035,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   }
 
   if (GeneratedAtLeastOneField) {
-    auto [_, NewType] = Model->recordNewType(std::move(NewDefinition));
+    auto &&[_, NewType] = Model->recordNewType(std::move(NewDefinition));
     ProcessedTypes[CurrentTypeIndex] = std::move(NewType);
   }
 
@@ -1245,7 +1245,7 @@ PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
     // implemented in the msvc compiler.
     revng_abort("128-bit pointers are not supported for now.");
     model::UpcastableType Void = model::PrimitiveType::makeVoid();
-    auto [_, Typedef] = Model->makeTypedefDefinition(std::move(Void));
+    auto &&[_, Typedef] = Model->makeTypedefDefinition(std::move(Void));
     return ProcessedTypes[SimpleType] = std::move(Typedef);
 
   } else {

@@ -271,20 +271,20 @@ private:
 
 public:
   auto insert(const ValueType &V) {
-    auto [Iterator, Success] = Map.insert(V);
+    auto &&[Iterator, Success] = Map.insert(V);
     return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
   auto insert(ValueType &&V) {
-    auto [Iterator, Success] = Map.insert(std::move(V));
+    auto &&[Iterator, Success] = Map.insert(std::move(V));
     return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
 
   auto insert_or_assign(KeyType Key, const std::string &Value) {
-    auto [Iterator, Success] = Map.insert_or_assign(Key, Value);
+    auto &&[Iterator, Success] = Map.insert_or_assign(Key, Value);
     return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
   auto insert_or_assign(KeyType Key, std::string &&Value) {
-    auto [Iterator, Success] = Map.insert_or_assign(Key, std::move(Value));
+    auto &&[Iterator, Success] = Map.insert_or_assign(Key, std::move(Value));
     return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
 

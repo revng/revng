@@ -19,9 +19,9 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
                                 const Configuration &Configuration) {
   using PLG = PreLayoutGraph;
   const auto &ControlFlowGraph = Function.Blocks();
-  auto [Result, Lookup] = efa::buildControlFlowGraph<PLG>(ControlFlowGraph,
-                                                          Function.Entry(),
-                                                          Binary);
+  auto &&[Result, Lookup] = efa::buildControlFlowGraph<PLG>(ControlFlowGraph,
+                                                            Function.Entry(),
+                                                            Binary);
 
   if (!Configuration.AddExitNode) {
     auto ExitNodeIterator = Lookup.find(BasicBlockID::invalid());

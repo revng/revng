@@ -93,7 +93,7 @@ public:
     std::string Result;
 
     for (DoxygenLine &&Line : as_rvalue(Lines)) {
-      auto [ResultLine, CurrentSize] = line();
+      auto &&[ResultLine, CurrentSize] = line();
 
       if (Line.Tags.empty())
         Result += toString(std::move(ResultLine));
@@ -417,7 +417,7 @@ gatherArgumentComments(const model::Binary &Binary,
         static constexpr llvm::StringRef FirstLine = "stack_args ";
 
         bool IsFirst = true;
-        for (auto [Name, Comment, Field] : Comments) {
+        for (auto &&[Name, Comment, Field] : Comments) {
           DoxygenLine &Line = Result.emplace_back();
           if (IsFirst) {
             Line->emplace_back(DoxygenToken::Types::Keyword,

@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
   revng_check(getByPath<Function>("/Functions/:Invalid", Binary) == &F);
 
   // Test UpcastablePointer
-  auto [Typedef, TypedefType] = Binary.makeTypedefDefinition();
+  auto &&[Typedef, TypedefType] = Binary.makeTypedefDefinition();
   Typedef.UnderlyingType() = model::PrimitiveType::make(PrimitiveKind::Unsigned,
                                                         8);
 
@@ -220,8 +220,8 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
   {
     using Pointer = model::PointerType;
 
-    auto [LeftStruct1, LeftType1] = Model->makeStructDefinition();
-    auto [LeftStruct2, LeftType2] = Model->makeStructDefinition();
+    auto &&[LeftStruct1, LeftType1] = Model->makeStructDefinition();
+    auto &&[LeftStruct2, LeftType2] = Model->makeStructDefinition();
 
     LeftStruct1.Fields()[0].Type() = Pointer::make(std::move(LeftType2), 8);
     LeftStruct2.Fields()[0].Type() = Pointer::make(std::move(LeftType1), 8);
@@ -229,8 +229,8 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     LeftStruct1.OriginalName() = "LoopingStructs1";
     LeftStruct2.OriginalName() = "LoopingStructs2";
 
-    auto [RightStruct1, RightType1] = Model->makeStructDefinition();
-    auto [RightStruct2, RightType2] = Model->makeStructDefinition();
+    auto &&[RightStruct1, RightType1] = Model->makeStructDefinition();
+    auto &&[RightStruct2, RightType2] = Model->makeStructDefinition();
 
     RightStruct1.Fields()[0].Type() = Pointer::make(std::move(RightType2), 8);
 

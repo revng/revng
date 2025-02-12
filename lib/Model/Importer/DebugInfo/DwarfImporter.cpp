@@ -294,7 +294,7 @@ private:
   }
 
   void createInvalidPrimitivePlaceholder(const DWARFDie &Die) {
-    auto [Definition, Type] = Model->makeTypedefDefinition();
+    auto &&[Definition, Type] = Model->makeTypedefDefinition();
     record(Die, std::move(Type), false);
     InvalidPrimitives.insert(&Definition);
   }
@@ -677,7 +677,7 @@ private:
     }
 
     auto Tag = Die.getTag();
-    auto [SearchResult, Type] = findType(Die);
+    auto &&[SearchResult, Type] = findType(Die);
 
     switch (SearchResult) {
     case TypeSearchResult::Absent: {
@@ -908,7 +908,7 @@ private:
 
   void purgeUnresolvedPlaceholders() {
     std::set<const model::TypeDefinition *> ToDrop;
-    for (const auto [_, Type] : Placeholders)
+    for (auto &&[_, Type] : Placeholders)
       ToDrop.insert(Type);
 
     unsigned DroppedTypes = dropTypesDependingOnDefinitions(Model, ToDrop);

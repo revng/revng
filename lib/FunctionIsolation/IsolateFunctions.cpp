@@ -353,7 +353,7 @@ void printAddressListComparison(const LeftMap &ExpectedAddresses,
                                 const RightMap &ActualAddresses) {
   // Compare expected and actual
   if (TheLogger.isEnabled()) {
-    for (auto [ExpectedAddress, ActualAddress] :
+    for (auto &&[ExpectedAddress, ActualAddress] :
          zipmap_range(ExpectedAddresses, ActualAddresses)) {
       if (ExpectedAddress == nullptr) {
         TheLogger << "Warning: ";

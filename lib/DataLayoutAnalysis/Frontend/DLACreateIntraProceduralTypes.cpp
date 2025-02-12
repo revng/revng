@@ -420,9 +420,10 @@ public:
             // Add an equality edge between the `AddressOf` node and it's
             // pointee node
             auto *Arg = C->getArgOperand(1);
-            auto [PointedLayout, ArgIsNew] = Builder.getOrCreateLayoutType(Arg);
+            auto &&[PointedLayout,
+                    ArgIsNew] = Builder.getOrCreateLayoutType(Arg);
             Changed |= ArgIsNew;
-            auto [_, NewLink] = TS.addEqualityLink(PointedLayout, AddrLayout);
+            auto &&[_, NewLink] = TS.addEqualityLink(PointedLayout, AddrLayout);
             Changed |= NewLink;
             continue;
           }
@@ -664,7 +665,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
       auto OtherRetVals = getLayoutTypes(*OtherCall.getVal());
       auto RetVals = getLayoutTypes(*Call);
       revng_assert(RetVals.size() == OtherRetVals.size());
-      for (auto [N1, N2] : llvm::zip(OtherRetVals, RetVals)) {
+      for (auto &&[N1, N2] : llvm::zip(OtherRetVals, RetVals)) {
         Changed = true;
         TS.addEqualityLink(N1, N2);
       }

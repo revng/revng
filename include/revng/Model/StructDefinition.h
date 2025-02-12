@@ -44,7 +44,7 @@ public:
   }
 
   StructField &addField(uint64_t Offset, UpcastableType &&Type) {
-    auto [Iterator, Success] = Fields().emplace(Offset);
+    auto &&[Iterator, Success] = Fields().emplace(Offset);
     revng_assert(Success);
     Iterator->Type() = std::move(Type);
     return *Iterator;

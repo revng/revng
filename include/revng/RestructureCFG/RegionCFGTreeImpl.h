@@ -392,7 +392,7 @@ RegionCFG<NodeT>::cloneUntilExit(BasicBlockNode<NodeT> *Node,
     // Ensure that we are not processing the sink node.
     revng_assert(CurrentNode != Sink);
 
-    auto [_, Inserted] = AlreadyProcessed.insert(CurrentNode);
+    auto &&[_, Inserted] = AlreadyProcessed.insert(CurrentNode);
     if (!Inserted)
       continue;
 

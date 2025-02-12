@@ -496,8 +496,8 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     revng_assert(Iterator != ModelsOfLibraries.end());
 
     auto NewCopier = std::make_unique<TypeCopier>(Iterator->second, Model);
-    auto [Result, Success] = TypeCopiers.emplace(Name.str(),
-                                                 std::move(NewCopier));
+    auto &&[Result, Success] = TypeCopiers.emplace(Name.str(),
+                                                   std::move(NewCopier));
     revng_assert(Success);
     return *Result->second;
   };

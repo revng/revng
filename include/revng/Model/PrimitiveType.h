@@ -141,7 +141,7 @@ public:
 
   static UpcastableType fromCName(llvm::StringRef Name) {
     // Figure the primitive kind out.
-    auto [Kind, RemainingName] = PrimitiveKind::tryConsumeCPrefix(Name);
+    auto &&[Kind, RemainingName] = PrimitiveKind::tryConsumeCPrefix(Name);
     if (Kind == PrimitiveKind::Invalid || RemainingName == Name)
       return UpcastableType::empty();
 

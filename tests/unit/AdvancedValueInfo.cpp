@@ -127,7 +127,7 @@ static void checkAdvancedValueInfo(const char *Body, const CheckMap &Map) {
   for (auto &P : Map)
     Reference[instructionByName(F, P.first)] = P.second;
 
-  for (auto [ResultPair, ReferencePair] : zipmap_range(Results, Reference)) {
+  for (auto &&[ResultPair, ReferencePair] : zipmap_range(Results, Reference)) {
     std::set<MaterializedValue> ResultSet;
     std::set<MaterializedValue> ReferenceSet;
 
@@ -145,7 +145,7 @@ static void checkAdvancedValueInfo(const char *Body, const CheckMap &Map) {
       dbg << "ResultSet.size() == " << ResultSet.size() << "\n";
       dbg << "ReferenceSet.size() == " << ReferenceSet.size() << "\n";
 
-      for (auto [ResultValue, ReferenceValue] :
+      for (auto &&[ResultValue, ReferenceValue] :
            zipmap_range(ResultSet, ReferenceSet)) {
         MaterializedValue Value;
         if (ResultValue != nullptr and ReferenceValue != nullptr) {

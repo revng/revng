@@ -129,11 +129,11 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
                                        OutlinedFunctionsMap &FunctionsMap) {
   llvm::LLVMContext &Context = M.getContext();
 
-  auto [Summary, IsTailCall] = getCallSiteInfo(CallerFunction,
-                                               CallerBlock,
-                                               FunctionCall,
-                                               JumpToSymbol,
-                                               Callee);
+  auto &&[Summary, IsTailCall] = getCallSiteInfo(CallerFunction,
+                                                 CallerBlock,
+                                                 FunctionCall,
+                                                 JumpToSymbol,
+                                                 Callee);
 
   using namespace llvm;
   using llvm::BasicBlock;
@@ -289,11 +289,11 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
         PCCallee = getBasicBlockAddress(Next);
 
       CallInst *JumpToSymbol = getMarker(Current, "jump_to_symbol");
-      auto [Summary, IsTailCall] = getCallSiteInfo(FunctionAddress,
-                                                   FunctionCall->getParent(),
-                                                   FunctionCall,
-                                                   JumpToSymbol,
-                                                   PCCallee);
+      auto &&[Summary, IsTailCall] = getCallSiteInfo(FunctionAddress,
+                                                     FunctionCall->getParent(),
+                                                     FunctionCall,
+                                                     JumpToSymbol,
+                                                     PCCallee);
 
       // Unless it's NoReturn, enqueue the call fallthrough
       using namespace model::FunctionAttribute;
@@ -348,11 +348,11 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
       using namespace model::FunctionAttribute;
 
       CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
-      auto [CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
-                                                         BB,
-                                                         FunctionCall,
-                                                         JumpToSymbol,
-                                                         PCCallee);
+      auto &&[CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
+                                                           BB,
+                                                           FunctionCall,
+                                                           JumpToSymbol,
+                                                           PCCallee);
 
       bool IsNoReturn = CalleeSummary->Attributes.contains(NoReturn);
       if (IsNoReturn) {
@@ -475,11 +475,11 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
     Value *SymbolName = CPN::get(Type::getInt8PtrTy(Context));
     CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
 
-    auto [Summary, _] = getCallSiteInfo(OutlinedFunction->Address,
-                                        BB,
-                                        nullptr,
-                                        JumpToSymbol,
-                                        MetaAddress::invalid());
+    auto &&[Summary, _] = getCallSiteInfo(OutlinedFunction->Address,
+                                          BB,
+                                          nullptr,
+                                          JumpToSymbol,
+                                          MetaAddress::invalid());
 
     if (JumpToSymbol != nullptr) {
       SymbolName = JumpToSymbol->getArgOperand(0);

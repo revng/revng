@@ -618,7 +618,7 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
           NewU->Fields().erase(FieldNum);
 
         // Re-enumerate the remaining fields
-        for (auto [Index, Field] : llvm::enumerate(NewU->Fields()))
+        for (auto &&[Index, Field] : llvm::enumerate(NewU->Fields()))
           Field.Index() = Index;
 
         revng_assert(NewU->Fields().size() == FieldsRemaining);

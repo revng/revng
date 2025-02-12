@@ -85,7 +85,7 @@ public:
       }
     }
 
-    for (auto [V, Predecessor] : zip(Phi->incoming_values(), Phi->blocks())) {
+    for (auto &&[V, Predecessor] : zip(Phi->incoming_values(), Phi->blocks())) {
       if (isa<UndefValue>(V)) {
         for (auto *NewPhi : Phis)
           cast<PHINode>(NewPhi)->addIncoming(UndefValue::get(NewPhi->getType()),
@@ -97,7 +97,7 @@ public:
         }
       } else if (auto *Call = dyn_cast<CallInst>(V)) {
         revng_assert(Call->arg_size() == Phis.size());
-        for (auto [Argument, NewPhi] : zip(Call->args(), Phis))
+        for (auto &&[Argument, NewPhi] : zip(Call->args(), Phis))
           cast<PHINode>(NewPhi)->addIncoming(Argument, Predecessor);
       }
     }

@@ -120,7 +120,7 @@ public:
     // * FunctionsStackInfo: we can use it to elect stack frame size
 
     // Elect stack arguments size for prototypes
-    for (auto [Prototype, UpperBound] : FunctionTypeStackArguments)
+    for (auto &&[Prototype, UpperBound] : FunctionTypeStackArguments)
       electStackArgumentsSize(*Prototype, UpperBound);
 
     // Now all prototypes have a definitive stack arguments size, we can elect

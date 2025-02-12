@@ -199,7 +199,7 @@ Viewbox calculateViewbox(const GraphType &Graph) {
 
   // Ensure every edge point fits.
   for (const auto *From : Graph.nodes())
-    for (const auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       for (const auto &Point : Label->Path)
         expandViewbox(Result, Point);
 
@@ -295,7 +295,7 @@ static std::string exportGraph(const ptml::MarkupBuilder &B,
   // Export all the edges.
   for (const auto *From : Graph.nodes()) {
     if (ShouldEmitEmptyNodes || !From->isEmpty()) {
-      for (const auto [To, Edge] : From->successor_edges()) {
+      for (auto &&[To, Edge] : From->successor_edges()) {
         if (ShouldEmitEmptyNodes || !To->isEmpty()) {
           revng_assert(Edge != nullptr);
           Result += edge(B,
@@ -547,7 +547,7 @@ combineHalvesHelper(llvm::StringRef SlicePoint,
   // Ready the backwards part of the graph
   for (auto *From : BackwardsSlice.nodes()) {
     From->Center = convertPoint(From->Center, Delta);
-    for (auto [Neighbor, Label] : From->successor_edges())
+    for (auto &&[Neighbor, Label] : From->successor_edges())
       for (auto &Point : Label->Path)
         Point = convertPoint(Point, Delta);
   }
@@ -566,18 +566,18 @@ combineHalvesHelper(llvm::StringRef SlicePoint,
     revng_assert(Node != nullptr);
     if (Node != BackwardsSlicePoint) {
       auto NewNode = ForwardsSlice.addNode(Node->moveData());
-      auto [Iterator, Success] = Lookup.try_emplace(Node, NewNode);
+      auto &&[Iterator, Success] = Lookup.try_emplace(Node, NewNode);
       revng_assert(Success == true);
     } else {
-      auto [Iterator, Success] = Lookup.try_emplace(BackwardsSlicePoint,
-                                                    ForwardsSlicePoint);
+      auto &&[Iterator, Success] = Lookup.try_emplace(BackwardsSlicePoint,
+                                                      ForwardsSlicePoint);
       revng_assert(Success == true);
     }
   }
 
   // Move all the edges while also inverting their direction.
   for (auto *From : BackwardsSlice.nodes()) {
-    for (auto [To, Label] : From->successor_edges()) {
+    for (auto &&[To, Label] : From->successor_edges()) {
       std::reverse(Label->Path.begin(), Label->Path.end());
       AccessLookup(To)->addSuccessor(AccessLookup(From), std::move(*Label));
     }
@@ -602,7 +602,7 @@ std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
   // Ready the forwards facing part of the slice
   auto Forward = calls::makeCalleeTree(Relations.toYieldGraph(), SlicePoint);
   for (auto *From : Forward.nodes())
-    for (auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       Label->IsBackwards = false;
   Helper.computeSizes(Forward);
   auto LaidOutForwardsGraph = layout::sugiyama::compute(Forward,
@@ -615,7 +615,7 @@ std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
   // Ready the backwards facing part of the slice
   auto Backwards = calls::makeCallerTree(Relations.toYieldGraph(), SlicePoint);
   for (auto *From : Backwards.nodes())
-    for (auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       Label->IsBackwards = true;
   Helper.computeSizes(Backwards);
   auto LaidOutBackwardsGraph = layout::sugiyama::compute(Backwards,
