@@ -421,12 +421,12 @@ model::NameBuilder::artificialArrayWrapperNameImpl(const T &Type) {
     rc_return Result += this->name(D->unwrap()).str().str();
 
   } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_ptr_to_" : "ptr_to_");
+    std::string Result = (Pointer->IsConst() ? "const_ptr_to_" : "ptr_to_");
     Result += rc_recur artificialArrayWrapperNameImpl(*Pointer->PointeeType());
     rc_return Result;
 
   } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_" : "");
+    std::string Result = (Primitive->IsConst() ? "const_" : "");
     rc_return Result += Primitive->getCName();
 
   } else {
