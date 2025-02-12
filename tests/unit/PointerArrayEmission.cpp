@@ -81,54 +81,145 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   Tests.emplace_back(TypedefCPAA, "typedef_0 *const test[37][20]");
 
   auto VoidPAACP = model::PointerType::makeConst(VoidPAA.copy(), 8);
-  Tests.emplace_back(VoidPAACP, "void *(*const test)[42][15]");
+  Tests.emplace_back(VoidPAACP,
+                     "artificial_wrapper_"
+                     "array_42_of_"
+                     "array_15_of_"
+                     "ptr_to_"
+                     "void *const test");
   auto VoidCPAACP = model::PointerType::makeConst(VoidCPAA.copy(), 8);
-  Tests.emplace_back(VoidCPAACP, "void *const (*const test)[41][16]");
+  Tests.emplace_back(VoidCPAACP,
+                     "artificial_wrapper_"
+                     "array_41_of_"
+                     "array_16_of_"
+                     "const_ptr_to_"
+                     "void *const test");
   auto IntPAAP = model::PointerType::make(IntPAA.copy(), 8);
-  Tests.emplace_back(IntPAAP, "const int32_t *(*test)[40][17]");
+  Tests.emplace_back(IntPAAP,
+                     "artificial_wrapper_"
+                     "array_40_of_"
+                     "array_17_of_"
+                     "ptr_to_"
+                     "const_int32_t *test");
   auto IntCPAAP = model::PointerType::make(IntCPAA.copy(), 8);
-  Tests.emplace_back(IntCPAAP, "const int32_t *const (*test)[39][18]");
+  Tests.emplace_back(IntCPAAP,
+                     "artificial_wrapper_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *test");
   auto TypedefPAACP = model::PointerType::makeConst(TypedefPAA.copy(), 8);
-  Tests.emplace_back(TypedefPAACP, "typedef_0 *(*const test)[38][19]");
+  Tests.emplace_back(TypedefPAACP,
+                     "artificial_wrapper_"
+                     "array_38_of_"
+                     "array_19_of_"
+                     "ptr_to_"
+                     "typedef_0 *const test");
   auto TypedefCPAAP = model::PointerType::make(TypedefCPAA.copy(), 8);
-  Tests.emplace_back(TypedefCPAAP, "typedef_0 *const (*test)[37][20]");
+  Tests.emplace_back(TypedefCPAAP,
+                     "artificial_wrapper_"
+                     "array_37_of_"
+                     "array_20_of_"
+                     "const_ptr_to_"
+                     "typedef_0 *test");
 
   auto FinalV = model::ArrayType::make(VoidPAACP.copy(), 1);
-  Tests.emplace_back(FinalV, "void *(*const test[1])[42][15]");
+  Tests.emplace_back(FinalV,
+                     "artificial_wrapper_"
+                     "array_42_of_"
+                     "array_15_of_"
+                     "ptr_to_"
+                     "void *const test[1]");
   auto FinalVC = model::ArrayType::make(VoidCPAACP.copy(), 2);
-  Tests.emplace_back(FinalVC, "void *const (*const test[2])[41][16]");
+  Tests.emplace_back(FinalVC,
+                     "artificial_wrapper_"
+                     "array_41_of_"
+                     "array_16_of_"
+                     "const_ptr_to_"
+                     "void *const test[2]");
   auto FinalI = model::ArrayType::make(IntPAAP.copy(), 3);
-  Tests.emplace_back(FinalI, "const int32_t *(*test[3])[40][17]");
+  Tests.emplace_back(FinalI,
+                     "artificial_wrapper_"
+                     "array_40_of_"
+                     "array_17_of_"
+                     "ptr_to_"
+                     "const_int32_t *test[3]");
   auto FinalIC = model::ArrayType::make(IntCPAAP.copy(), 4);
-  Tests.emplace_back(FinalIC, "const int32_t *const (*test[4])[39][18]");
+  Tests.emplace_back(FinalIC,
+                     "artificial_wrapper_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *test[4]");
   auto FinalT = model::ArrayType::make(TypedefPAACP.copy(), 5);
-  Tests.emplace_back(FinalT, "typedef_0 *(*const test[5])[38][19]");
+  Tests.emplace_back(FinalT,
+                     "artificial_wrapper_"
+                     "array_38_of_"
+                     "array_19_of_"
+                     "ptr_to_"
+                     "typedef_0 *const test[5]");
   auto FinalTC = model::ArrayType::make(TypedefCPAAP.copy(), 6);
-  Tests.emplace_back(FinalTC, "typedef_0 *const (*test[6])[37][20]");
+  Tests.emplace_back(FinalTC,
+                     "artificial_wrapper_"
+                     "array_37_of_"
+                     "array_20_of_"
+                     "const_ptr_to_"
+                     "typedef_0 *test[6]");
 
   auto Extra1 = model::PointerType::makeConst(FinalIC.copy(), 8);
   Tests.emplace_back(Extra1,
-                     "const int32_t *const (*(*const test)[4])[39][18]");
+                     "artificial_wrapper_"
+                     "array_4_of_"
+                     "ptr_to_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *const test");
   auto Extra2 = model::PointerType::makeConst(Extra1.copy(), 8);
   Tests.emplace_back(Extra2,
-                     "const int32_t *const "
-                     "(*(*const *const test)[4])[39][18]");
+                     "artificial_wrapper_"
+                     "array_4_of_"
+                     "ptr_to_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *const *const test");
   auto Extra3 = model::PointerType::make(Extra2.copy(), 8);
   Tests.emplace_back(Extra3,
-                     "const int32_t *const "
-                     "(*(*const *const *test)[4])[39][18]");
+                     "artificial_wrapper_"
+                     "array_4_of_"
+                     "ptr_to_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *const *const *test");
   auto Extra4 = model::PointerType::make(Extra3.copy(), 8);
   Tests.emplace_back(Extra4,
-                     "const int32_t *const "
-                     "(*(*const *const **test)[4])[39][18]");
+                     "artificial_wrapper_"
+                     "array_4_of_"
+                     "ptr_to_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *const *const **test");
   auto Extra5 = model::PointerType::make(Extra4.copy(), 8);
   Tests.emplace_back(Extra5,
-                     "const int32_t *const "
-                     "(*(*const *const ***test)[4])[39][18]");
+                     "artificial_wrapper_"
+                     "array_4_of_"
+                     "ptr_to_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *const *const ***test");
   auto Extra6 = model::PointerType::makeConst(Extra5.copy(), 8);
   Tests.emplace_back(Extra6,
-                     "const int32_t *const "
-                     "(*(*const *const ****const test)[4])[39][18]");
+                     "artificial_wrapper_"
+                     "array_4_of_"
+                     "ptr_to_"
+                     "array_39_of_"
+                     "array_18_of_"
+                     "const_ptr_to_"
+                     "const_int32_t *const *const ****const test");
 
   std::string FailureLog;
   ptml::CTypeBuilder B(llvm::nulls(), *Binary, /* EnableTaglessMode = */ true);

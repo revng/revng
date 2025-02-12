@@ -205,8 +205,11 @@ private:
                                        bool PreviousWasAPointer) {
     revng_assert(Array.IsConst() == false);
 
-    if (PreviousWasAPointer)
-      Emitted = "(" + std::move(Emitted) + ")";
+    if (PreviousWasAPointer) {
+      // We're dealing with a pointer-to-array, which now is always handled with
+      // an artificial struct wrapper.
+      rc_return B.getArrayWrapper(Array).str().str() + " " + Emitted;
+    }
 
     Emitted += "[" + std::to_string(Array.ElementCount()) + "]";
     rc_return rc_recur getString(*Array.ElementType(),
