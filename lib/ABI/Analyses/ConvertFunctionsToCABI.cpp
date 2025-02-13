@@ -21,26 +21,27 @@
 // TODO: Stop using VerifyHelper for this verification.
 //       Introduce a new class instead.
 
-static RecursiveCoroutine<bool>
-checkVectorRegisterSupport(model::VerifyHelper &VH,
-                           const model::TypeDefinition &Type);
+// TODO: Also take advantage of `::edges()` helpers for traversing
+//       the file system.
+
+static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
+                                          const model::TypeDefinition &Type);
 
 static RecursiveCoroutine<bool>
-checkVectorRegisterSupport(model::VerifyHelper &VH,
-                           const model::PrimitiveKind::Values &Kind) {
+usesFloat(model::VerifyHelper &VH, const model::PrimitiveKind::Values &Kind) {
   rc_return VH.maybeFail(Kind != model::PrimitiveKind::Float,
                          "Floating Point primitive found.");
 }
 
-static RecursiveCoroutine<bool>
-checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type) {
+static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
+                                          const model::Type &Type) {
   if (const auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
     // Arrays have no impact on the type, so just unwrap them.
-    rc_return rc_recur checkVectorRegisterSupport(VH, *Array->ElementType());
+    rc_return rc_recur usesFloat(VH, *Array->ElementType());
 
   } else if (const auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
     // Defined types need special processing, so unwrap them.
-    rc_return rc_recur checkVectorRegisterSupport(VH, D->unwrap());
+    rc_return rc_recur usesFloat(VH, D->unwrap());
 
   } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
     // If it's a pointer, it's acceptable no matter what it points to.
@@ -48,7 +49,7 @@ checkVectorRegisterSupport(model::VerifyHelper &VH, const model::Type &Type) {
 
   } else if (const auto *P = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
     // For primitives it depends purely on the kind.
-    rc_return rc_recur checkVectorRegisterSupport(VH, P->PrimitiveKind());
+    rc_return rc_recur usesFloat(VH, P->PrimitiveKind());
 
   } else {
     revng_abort("Unsupported type.");
@@ -59,12 +60,11 @@ template<typename RealType>
 inline RecursiveCoroutine<bool>
 underlyingHelper(model::VerifyHelper &VH, const model::TypeDefinition &Value) {
   const RealType &Cast = llvm::cast<RealType>(Value);
-  rc_return rc_recur checkVectorRegisterSupport(VH, *Cast.UnderlyingType());
+  rc_return rc_recur usesFloat(VH, *Cast.UnderlyingType());
 }
 
-static RecursiveCoroutine<bool>
-checkVectorRegisterSupport(model::VerifyHelper &VH,
-                           const model::TypeDefinition &Type) {
+static RecursiveCoroutine<bool> usesFloat(model::VerifyHelper &VH,
+                                          const model::TypeDefinition &Type) {
   if (VH.isVerified(Type))
     rc_return true;
 
@@ -88,22 +88,22 @@ checkVectorRegisterSupport(model::VerifyHelper &VH,
   case model::TypeDefinitionKind::StructDefinition:
     Result = true;
     for (const auto &F : llvm::cast<model::StructDefinition>(Type).Fields())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, *F.Type());
+      Result = Result && rc_recur usesFloat(VH, *F.Type());
     break;
 
   case model::TypeDefinitionKind::UnionDefinition:
     Result = true;
     for (const auto &F : llvm::cast<model::UnionDefinition>(Type).Fields())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, *F.Type());
+      Result = Result && rc_recur usesFloat(VH, *F.Type());
     break;
 
   case model::TypeDefinitionKind::CABIFunctionDefinition: {
     Result = true;
     using CABIFT = model::CABIFunctionDefinition;
     for (const auto &A : llvm::cast<CABIFT>(Type).Arguments())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, *A.Type());
+      Result = Result && rc_recur usesFloat(VH, *A.Type());
     const auto &ReturnType = llvm::cast<CABIFT>(Type).ReturnType();
-    Result = Result && rc_recur checkVectorRegisterSupport(VH, *ReturnType);
+    Result = Result && rc_recur usesFloat(VH, *ReturnType);
   } break;
 
   case model::TypeDefinitionKind::RawFunctionDefinition: {
@@ -111,18 +111,18 @@ checkVectorRegisterSupport(model::VerifyHelper &VH,
     using RawFT = model::RawFunctionDefinition;
     for (const auto &A : llvm::cast<RawFT>(Type).Arguments()) {
       auto Kind = model::Register::primitiveKind(A.Location());
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, Kind);
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, *A.Type());
+      Result = Result && rc_recur usesFloat(VH, Kind);
+      Result = Result && rc_recur usesFloat(VH, *A.Type());
     }
     for (const auto &V : llvm::cast<RawFT>(Type).ReturnValues()) {
       auto Kind = model::Register::primitiveKind(V.Location());
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, Kind);
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, *V.Type());
+      Result = Result && rc_recur usesFloat(VH, Kind);
+      Result = Result && rc_recur usesFloat(VH, *V.Type());
     }
 
     const auto &Stack = llvm::cast<RawFT>(Type).StackArgumentsType();
     if (not Stack.isEmpty())
-      Result = Result && rc_recur checkVectorRegisterSupport(VH, *Stack);
+      Result = Result && rc_recur usesFloat(VH, *Stack);
   } break;
 
   default:
@@ -188,7 +188,7 @@ public:
     //
     // Use `--convert-functions-to-cabi-mode=unsafe` to force conversion even
     // when ABI is not considered fully tested.
-    if (Mode != "safe") {
+    if (Mode == "safe") {
       // TODO: extend this list.
       static constexpr std::array ABIsTheConversionIsEnabledFor = {
         model::ABI::SystemV_x86_64,
@@ -206,10 +206,8 @@ public:
         model::ABI::Microsoft_x86_stdcall_gcc,
         model::ABI::Microsoft_x86_thiscall,
         model::ABI::Microsoft_x86_vectorcall,
-        model::ABI::AAPCS
-
-        // There are known issues
-        // model::ABI::AAPCS64,
+        model::ABI::AAPCS,
+        model::ABI::AAPCS64
 
         // There are known issues
         // model::ABI::SystemV_MIPS_o32,
@@ -253,29 +251,38 @@ public:
     auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
                                          std::nullopt;
 
+    auto LogFunctionName = [&NameBuilder,
+                            &Model](const model::TypeDefinition::Key &Key) {
+      if (not Log.isEnabled())
+        return;
+
+      revng_log(Log,
+                "Converting a function: "
+                  << toString(Model->getDefinitionReference(Key)));
+
+      std::string Names = "";
+      for (model::Function &Function : Model->Functions())
+        if (Function.prototype() && Function.prototype()->key() == Key)
+          Names += "\"" + NameBuilder->name(Function).str().str() + "\", ";
+
+      if (Names.empty()) {
+        revng_log(Log, "There are no functions using it as a prototype.");
+      } else {
+        Names.resize(Names.size() - 2);
+        revng_log(Log, "It's a prototype of " << Names);
+      }
+    };
+
     // And convert them.
     for (model::RawFunctionDefinition *Old : ToConvert) {
-      auto &DT = llvm::cast<model::DefinedType>(*Model->makeType(Old->key()));
-      if (!checkVectorRegisterSupport(VectorVH, *Old)) {
+      LogFunctionName(Old->key());
+
+      if (!usesFloat(VectorVH, *Old)) {
         // TODO: remove this check after `abi::FunctionType` supports vectors.
         revng_log(Log,
-                  "Skip a function conversion because it requires vector type "
-                  "support: "
-                    << toString(DT.Definition()));
+                  "Do not touch this function because it requires vector "
+                  "register support.");
         continue;
-      }
-
-      revng_log(Log, "Converting a function: " << toString(DT.Definition()));
-      if (Log.isEnabled()) {
-        std::string Message = "";
-        for (model::Function &Function : Model->Functions())
-          if (Function.prototype() && Function.prototype()->key() == Old->key())
-            Message += "'" + NameBuilder->name(Function).str().str() + "', ";
-
-        if (!Message.empty()) {
-          Message.resize(Message.size() - 2);
-          revng_log(Log, "It's a prototype of " << Message);
-        }
       }
 
       namespace FT = abi::FunctionType;

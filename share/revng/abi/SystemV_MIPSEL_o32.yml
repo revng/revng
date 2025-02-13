@@ -17,7 +17,7 @@ TreatAllAggregatesAsPacked: false
 
 StackAlignment: 4
 MinimumStackArgumentSize: 4
-StackBytesAllocatedForRegisterArguments: 16
+UnusedStackArgumentBytes: 16
 
 MaximumGPRsPerAggregateArgument: 4
 MaximumGPRsPerAggregateReturnValue: 1
