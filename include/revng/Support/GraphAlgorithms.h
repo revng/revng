@@ -309,7 +309,7 @@ findReachableNodesImpl(GraphT Source, GraphT Stop = nullptr) {
 }
 
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
-inline llvm::SmallSetVector<GraphT, 4>
+inline llvm::SmallSetVector<typename llvm::GraphTraits<GraphT>::NodeRef, 4>
 findReachableNodes(GraphT Source, GraphT Stop = nullptr) {
   return findReachableNodesImpl<GraphT, GT>(Source, Stop);
 }
@@ -379,13 +379,13 @@ nodesBetweenImpl(GraphT Source, GraphT Target) {
 }
 
 template<class GraphT>
-inline llvm::SmallSetVector<GraphT, 4>
+inline llvm::SmallSetVector<typename llvm::GraphTraits<GraphT>::NodeRef, 4>
 nodesBetween(GraphT Source, GraphT Destination) {
   return nodesBetweenImpl<GraphT, GraphT>(Source, Destination);
 }
 
 template<class GraphT>
-inline llvm::SmallSetVector<GraphT, 4>
+inline llvm::SmallSetVector<typename llvm::GraphTraits<GraphT>::NodeRef, 4>
 nodesBetweenReverse(GraphT Source, GraphT Destination) {
   using namespace llvm;
   return nodesBetweenImpl<GraphT, Inverse<GraphT>>(Source, Destination);
