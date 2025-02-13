@@ -710,7 +710,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   // TODO: remember/clone StackFrameType as well.
 
-  auto [_, Prototype] = Model->recordNewType(std::move(NewType));
+  auto &&[_, Prototype] = Model->recordNewType(std::move(NewType));
   ModelFunction.Prototype() = Prototype;
 
   return true;
@@ -756,7 +756,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
                         "type of the typedef.\n");
     return false;
   }
-  auto [ID, Kind] = *Type;
+  auto &&[ID, Kind] = *Type;
   auto NewTypedef = model::makeTypeDefinition<model::TypedefDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
     NewTypedef->ID() = ID;
@@ -788,7 +788,7 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
                    makeTypeDefinition<RawFunctionDefinition>() :
                    makeTypeDefinition<CABIFunctionDefinition>();
 
-  auto [ID, Kind] = *Type;
+  auto &&[ID, Kind] = *Type;
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
 
@@ -866,7 +866,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     return false;
   }
 
-  auto [ID, Kind] = *Type;
+  auto &&[ID, Kind] = *Type;
   auto NewType = makeTypeDefinition<model::StructDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
@@ -1038,7 +1038,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     return false;
   }
 
-  auto [ID, Kind] = *Type;
+  auto &&[ID, Kind] = *Type;
   auto NewType = makeTypeDefinition<model::UnionDefinition>();
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;

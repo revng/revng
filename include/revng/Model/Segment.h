@@ -8,7 +8,6 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Relocation.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 
@@ -77,6 +76,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Segment.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::Segment : public model::generated::Segment {
 public:

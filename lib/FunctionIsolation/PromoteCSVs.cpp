@@ -246,7 +246,7 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   // Initialize the new set of arguments with the old ones
   SmallVector<Value *, 16> NewArguments;
-  for (auto [Argument, Type] : zip(Call->args(), HelperType->params()))
+  for (auto &&[Argument, Type] : zip(Call->args(), HelperType->params()))
     NewArguments.push_back(Builder.CreateBitOrPointerCast(Argument, Type));
 
   // Add arguments read
@@ -520,7 +520,7 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
   // Populate results set
   for (auto &[Label, Value] : AnalysisResult) {
     auto &FunctionDescriptor = Result.Functions[Label->F];
-    for (auto [IsWrite, CSV] : Value.OutValue) {
+    for (auto &&[IsWrite, CSV] : Value.OutValue) {
       if (IsWrite)
         FunctionDescriptor.Written.push_back(CSV);
       else

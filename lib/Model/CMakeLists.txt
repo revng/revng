@@ -66,6 +66,7 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/CABIFunctionDefinition.h"
   "${MODEL_HEADERS_DIR}/CanonicalRegisterValue.h"
   "${MODEL_HEADERS_DIR}/CallSitePrototype.h"
+  "${MODEL_HEADERS_DIR}/StatementComment.h"
   "${MODEL_HEADERS_DIR}/DefinedType.h"
   "${MODEL_HEADERS_DIR}/DisassemblyConfiguration.h"
   "${MODEL_HEADERS_DIR}/DisassemblyConfigurationAddressStyle.h"

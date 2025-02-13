@@ -447,15 +447,15 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
     if (&U != &Call->getCalledOperandUse())
       return false;
 
-  auto [InstructionPrecedence,
-        NumberOfClassesToForceParenthesesFor,
-        InstructionAssociativity,
-        InstructionArity] = getPrecedence(*I);
+  auto &&[InstructionPrecedence,
+          NumberOfClassesToForceParenthesesFor,
+          InstructionAssociativity,
+          InstructionArity] = getPrecedence(*I);
 
-  auto [OperandPrecedence,
-        _,
-        OperandAssociativity,
-        OperandArity] = getPrecedence(*Op);
+  auto &&[OperandPrecedence,
+          _,
+          OperandAssociativity,
+          OperandArity] = getPrecedence(*Op);
 
   // If the precedence of the instruction and the operand is the same, we have
   // to discriminate by Associativity and by Arity

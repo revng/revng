@@ -41,6 +41,7 @@
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/ExecutionContext.h"
@@ -352,7 +353,7 @@ void printAddressListComparison(const LeftMap &ExpectedAddresses,
                                 const RightMap &ActualAddresses) {
   // Compare expected and actual
   if (TheLogger.isEnabled()) {
-    for (auto [ExpectedAddress, ActualAddress] :
+    for (auto &&[ExpectedAddress, ActualAddress] :
          zipmap_range(ExpectedAddresses, ActualAddresses)) {
       if (ExpectedAddress == nullptr) {
         TheLogger << "Warning: ";

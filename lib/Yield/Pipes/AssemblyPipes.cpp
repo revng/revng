@@ -8,6 +8,7 @@
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Doxygen.h"
 #include "revng/PTML/Tag.h"
@@ -80,12 +81,16 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
 
     const model::Architecture::Values A = Model->Architecture();
     auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+
+    const model::Configuration &Configuration = Model->Configuration();
+    uint64_t LineWidth = Configuration.commentLineWidth();
+
     std::string R = ptml::functionComment(B,
                                           Function,
                                           *Model,
                                           CommentIndicator,
                                           0,
-                                          80,
+                                          LineWidth,
                                           &NameBuilder);
     R += yield::ptml::functionAssembly(B, **MaybeFunction, *Model);
     R = B.getTag(ptml::tags::Div, std::move(R)).toString();

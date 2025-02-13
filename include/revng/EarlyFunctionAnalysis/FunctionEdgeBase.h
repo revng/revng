@@ -5,7 +5,6 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeType.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -38,6 +37,10 @@ abstract: true
 TUPLE-TREE-YAML */
 
 #include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdgeBase.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class efa::FunctionEdgeBase : public efa::generated::FunctionEdgeBase {
 public:

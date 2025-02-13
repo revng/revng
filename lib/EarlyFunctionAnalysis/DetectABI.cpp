@@ -33,6 +33,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Pass/PromoteOriginalName.h"
 #include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"
@@ -541,10 +542,10 @@ Changes DetectABI::analyzeFunctionABI(const model::Function &Function,
     auto CalleeAddress = MetaAddress::fromValue(Call->getArgOperand(1));
     auto ExtractString = extractFromConstantStringPtr;
     StringRef CalleeSymbol = ExtractString(Call->getArgOperand(2));
-    auto [Summary, _] = Oracle.getCallSite(Function.Entry(),
-                                           CallerBlock,
-                                           CalleeAddress,
-                                           CalleeSymbol);
+    auto &&[Summary, _] = Oracle.getCallSite(Function.Entry(),
+                                             CallerBlock,
+                                             CalleeAddress,
+                                             CalleeSymbol);
     auto &ABIResults = Summary->ABIResults;
 
     auto *BB = Call->getParent();
@@ -681,7 +682,7 @@ void DetectABI::finalizeModel() {
     // Replace function attributes
     Function.Attributes() = Summary.Attributes;
 
-    auto [Prototype, NewType] = Binary->makeRawFunctionDefinition();
+    auto &&[Prototype, NewType] = Binary->makeRawFunctionDefinition();
     Prototype.Architecture() = getCodeArchitecture(EntryPC);
 
     // Record arguments and return values
@@ -859,7 +860,7 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                          const efa::BasicBlock &CallerBlock) {
   using namespace model;
 
-  auto [Prototype, NewType] = Binary->makeRawFunctionDefinition();
+  auto &&[Prototype, NewType] = Binary->makeRawFunctionDefinition();
   Prototype.Architecture() = getCodeArchitecture(CallerBlock.ID().start());
 
   bool Found = false;

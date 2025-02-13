@@ -36,6 +36,8 @@ using tuple_cat_t = decltype(std::tuple_cat(std::declval<T1>(),
 // branch gets instantiated if it doesn't depend on a template, these provide
 // an easy way to "fake" dependence on an arbitrary template parameter.
 //
+// TODO: these will no longer be necessary after we switch to clang 17+ (defect
+//       report 2518), don't forget to replace their usages with just `false`.
 
 template<typename T>
 struct type_always_false {

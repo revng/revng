@@ -23,6 +23,7 @@
 
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Option.h"
@@ -101,7 +102,7 @@ struct ImportFromCAnalysis {
     } else {
       if (auto L = pipeline::locationFromString(revng::ranks::Function,
                                                 LocationToEdit)) {
-        auto [Key] = L->at(revng::ranks::Function);
+        auto &&[Key] = L->at(revng::ranks::Function);
         auto Iterator = Model->Functions().find(Key);
         if (Iterator == Model->Functions().end()) {
           return revng::createError("Couldn't find the function "
@@ -112,7 +113,7 @@ struct ImportFromCAnalysis {
         TheOption = ImportFromCOption::EditFunctionPrototype;
       } else if (auto L = pipeline::locationFromString(RRanks::TypeDefinition,
                                                        LocationToEdit)) {
-        auto [Key, Kind] = L->at(revng::ranks::TypeDefinition);
+        auto &&[Key, Kind] = L->at(revng::ranks::TypeDefinition);
         auto Iterator = Model->TypeDefinitions().find({ Key, Kind });
         if (Iterator == Model->TypeDefinitions().end()) {
           return revng::createError("Couldn't find the type " + LocationToEdit);

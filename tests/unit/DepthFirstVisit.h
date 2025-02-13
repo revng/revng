@@ -219,7 +219,7 @@ inline RecursiveCoroutine<size_t> findMaxDepthRet(Node *Current,
                                                   std::set<Node *> &Stack) {
   size_t MaxChildDepth = 0ULL;
   for (Node *Child : Current->children()) {
-    auto [_, New] = Stack.insert(Child);
+    auto &&[_, New] = Stack.insert(Child);
     if (New)
       MaxChildDepth = std::max(MaxChildDepth,
                                rc_recur findMaxDepthRet(Child, Stack));

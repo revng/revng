@@ -40,7 +40,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
       MinimalLayerWidths[Index] += Node->Size.W + MarginSize;
 
   for (size_t Iteration = 0; Iteration < IterationCount; ++Iteration) {
-    for (auto [Child, Parent] : LinearSegments)
+    for (auto &&[Child, Parent] : LinearSegments)
       if (Child->Center.X > Parent->Center.X)
         Parent->Center.X = Child->Center.X;
       else
@@ -78,7 +78,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
       // graph, these are the segments that can be moved freely.
       std::map<NodeView, bool> FreeSegments;
 
-      for (auto [Child, Parent] : LinearSegments) {
+      for (auto &&[Child, Parent] : LinearSegments) {
         auto const &ChildPosition = Layout.at(Child);
         auto ChildLayerSize = Layers.at(ChildPosition.Layer).size();
         if (ChildLayerSize == ChildPosition.Index + 1) {

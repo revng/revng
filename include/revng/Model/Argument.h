@@ -7,7 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: Argument
@@ -36,6 +35,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Argument.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::Argument : public model::generated::Argument {
 public:

@@ -608,3 +608,25 @@ add_test(NAME test_pointer_array_emission COMMAND test_pointer_array_emission)
 add_library(test_scopegraph SHARED "${SRC}/ScopeGraphLoggerPass.cpp")
 target_link_libraries(test_scopegraph revngScopeGraphUtils revngSupport
                       ${LLVM_LIBRARIES})
+
+#
+# test_statement_comment_placement
+#
+
+revng_add_test_executable(test_statement_comment_placement
+                          "${SRC}/StatementCommentPlacement.cpp")
+target_compile_definitions(test_statement_comment_placement
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_statement_comment_placement
+                           PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(
+  test_statement_comment_placement
+  revngModel
+  revngPTML
+  revngSupport
+  revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+revng_add_test(NAME test_statement_comment_placement COMMAND
+               test_statement_comment_placement)
+set_tests_properties(test_statement_comment_placement PROPERTIES LABELS "unit")

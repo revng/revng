@@ -18,7 +18,7 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
   // To keep the hierarchy consistent, V-shapes were added using forward
   // direction. So that's what we're going to use to detect them.
   for (auto *From : Graph.nodes())
-    for (auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       if (!From->IsVirtual != !To->IsVirtual && !Label->IsBackwards)
         CornerEdges.emplace_back(From, To, *Label);
 
@@ -55,7 +55,7 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
                             + LaneIndex * EdgeDistance;
 
       auto &From = Edge.From;
-      for (auto [To, Label] : From->successor_edges()) {
+      for (auto &&[To, Label] : From->successor_edges()) {
         auto FromTop = From->Center.Y + From->Size.H / 2;
         auto ToTop = To->Center.Y + To->Size.H / 2;
 
@@ -116,7 +116,7 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
       Edge.To->Center.Y += MarginSize + LaneIndex * EdgeDistance;
 
       auto &To = Edge.To;
-      for (auto [From, Label] : To->predecessor_edges()) {
+      for (auto &&[From, Label] : To->predecessor_edges()) {
         auto FromBottom = From->Center.Y - From->Size.H / 2;
         auto ToBottom = To->Center.Y - To->Size.H / 2;
 
@@ -231,7 +231,7 @@ void restoreEdgeDirections(InternalGraph &Graph) {
   for (auto *From : Graph.nodes()) {
     for (auto Iterator = From->successor_edges().begin();
          Iterator != From->successor_edges().end();) {
-      if (auto [To, Label] = *Iterator; Label->IsBackwards) {
+      if (auto &&[To, Label] = *Iterator; Label->IsBackwards) {
         Label->IsBackwards = !Label->IsBackwards;
         To->addSuccessor(From, std::move(*Label));
         Iterator = From->removeSuccessor(Iterator);
@@ -250,7 +250,7 @@ OrderedEdgeContainer orderEdges(InternalGraph &Graph,
   RoutableEdgeMaker Maker(Ranks, Lanes, std::move(Prerouted));
   for (auto *From : Graph.nodes()) {
     if (!From->IsVirtual) {
-      for (auto [To, Label] : From->successor_edges()) {
+      for (auto &&[To, Label] : From->successor_edges()) {
         Result.emplace_back(Maker.make(From, To, *Label));
         if (To->IsVirtual) {
           for (auto *Current : llvm::depth_first(To)) {
@@ -263,7 +263,7 @@ OrderedEdgeContainer orderEdges(InternalGraph &Graph,
                              && Graph.hasEntryNode && Graph.getEntryNode()
                              && Graph.getEntryNode()->IsVirtual));
 
-            auto [Next, NextLabel] = *Current->successor_edges().begin();
+            auto &&[Next, NextLabel] = *Current->successor_edges().begin();
             Result.emplace_back(Maker.make(Current, Next, *NextLabel));
           }
         }

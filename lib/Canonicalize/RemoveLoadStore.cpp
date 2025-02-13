@@ -126,8 +126,8 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         InjectedCall = Builder.CreateCall(CopyFunction, { DerefCall });
 
         // Add the dereferenced type to the type map
-        auto [_, Inserted] = TypeMap.insert({ InjectedCall, PointedT.copy() });
-        revng_assert(Inserted);
+        auto &&[_, Success] = TypeMap.insert({ InjectedCall, PointedT.copy() });
+        revng_assert(Success);
 
       } else if (auto *Store = dyn_cast<llvm::StoreInst>(&I)) {
         llvm::Value *ValueOp = Store->getValueOperand();

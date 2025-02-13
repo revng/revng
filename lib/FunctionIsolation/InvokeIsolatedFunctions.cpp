@@ -12,6 +12,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Kind.h"
@@ -171,8 +172,8 @@ public:
     // Add the personality to the root function
     RootFunction->setPersonalityFn(PersonalityFunction);
 
-    for (auto [_, T] : Map) {
-      auto [ModelF, BB, F] = T;
+    for (auto &&[_, T] : Map) {
+      auto &&[ModelF, BB, F] = T;
 
       // Create a new trampoline entry block and substitute it to the old entry
       // block

@@ -76,7 +76,7 @@ void VH::verifyValuePreservation(llvm::ArrayRef<std::byte> ExpectedBytes,
   }
 
   uint64_t MatchingByteCount = 0;
-  for (auto [FByte, EByte] : llvm::zip(FoundBytes, ExpectedBytes))
+  for (auto &&[FByte, EByte] : llvm::zip(FoundBytes, ExpectedBytes))
     if (FByte == EByte)
       ++MatchingByteCount;
 

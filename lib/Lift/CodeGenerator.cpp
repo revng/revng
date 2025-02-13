@@ -89,7 +89,7 @@ public:
 
   void drop() {
     SmallVector<CallInst *, 16> ToErase;
-    for (auto [T, F] : Map) {
+    for (auto &&[T, F] : Map) {
       for (User *U : F->users()) {
         auto *Call = cast<CallInst>(U);
         Call->replaceAllUsesWith(Call->getArgOperand(0));
@@ -100,7 +100,7 @@ public:
     for (CallInst *Call : ToErase)
       eraseFromParent(Call);
 
-    for (auto [T, F] : Map)
+    for (auto &&[T, F] : Map)
       eraseFromParent(F);
 
     Map.clear();

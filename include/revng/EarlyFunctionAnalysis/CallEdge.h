@@ -8,7 +8,6 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionAttribute.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: CallEdge
@@ -39,6 +38,10 @@ fields:
 TUPLE-TREE-YAML */
 
 #include "revng/EarlyFunctionAnalysis/Generated/Early/CallEdge.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class efa::CallEdge : public efa::generated::CallEdge {
 private:

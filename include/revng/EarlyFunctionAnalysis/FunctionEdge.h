@@ -5,7 +5,6 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: FunctionEdge
@@ -16,6 +15,10 @@ fields: []
 TUPLE-TREE-YAML */
 
 #include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdge.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class efa::FunctionEdge : public efa::generated::FunctionEdge {
 private:

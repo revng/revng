@@ -83,7 +83,7 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
   // Since this conversion cannot fail, nothing prevents us from creating
   // the result type right away.
-  auto [NewPrototype, NewType] = Binary->makeRawFunctionDefinition();
+  auto &&[NewPrototype, NewType] = Binary->makeRawFunctionDefinition();
 
   revng_assert(FunctionType.ABI() != model::ABI::Invalid);
   NewPrototype.Architecture() = model::ABI::getArchitecture(FunctionType.ABI());
@@ -280,8 +280,8 @@ ToRawConverter::convert(const model::CABIFunctionDefinition &FunctionType,
 
     // Otherwise, add a new struct to the model.
     if (NewPrototype.StackArgumentsType().isEmpty()) {
-      auto [_, Path] = Binary->makeStructDefinition(std::move(StackArguments));
-      NewPrototype.StackArgumentsType() = Path;
+      auto &&[_, T] = Binary->makeStructDefinition(std::move(StackArguments));
+      NewPrototype.StackArgumentsType() = T;
     }
   }
 
@@ -357,7 +357,7 @@ ToRawConverter::distributeArguments(CFTArguments Arguments,
                       std::back_inserter(Result));
 
   if (ABI.PackStackArguments()) {
-    for (auto [Current, Next] : zip_pairs(Result)) {
+    for (auto &&[Current, Next] : zip_pairs(Result)) {
       if (Current.SizeOnStack && Next.SizeOnStack) {
         if (Current.OffsetOnStack + Current.SizeOnStack > Next.OffsetOnStack) {
           Current.SizeOnStack -= Current.PostPaddingSize;

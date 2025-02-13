@@ -372,7 +372,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   OptimizedFunction = CloneFunction(TheFunction, OldToNew);
 
   // Restore callees after function_call
-  for (auto [U, BB] : Undo)
+  for (auto &&[U, BB] : Undo)
     U->set(BB);
 
   // Force canonical register values at the beginning of each callee

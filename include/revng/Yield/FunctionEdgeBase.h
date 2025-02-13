@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -38,6 +37,10 @@ abstract: true
 TUPLE-TREE-YAML */
 
 #include "revng/Yield/Generated/Early/FunctionEdgeBase.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class yield::FunctionEdgeBase : public yield::generated::FunctionEdgeBase {
 public:

@@ -97,7 +97,7 @@ public:
 
   std::optional<llvm::ArrayRef<uint8_t>>
   getFromAddressOn(MetaAddress Address) const {
-    auto [Segment, OffsetInSegment] = findOffsetInSegment(Address, 0);
+    auto &&[Segment, OffsetInSegment] = findOffsetInSegment(Address, 0);
     if (Segment == nullptr)
       return std::nullopt;
 
@@ -114,7 +114,7 @@ public:
   ///       translation.
   std::optional<uint64_t> addressToOffset(MetaAddress Address,
                                           uint64_t Size = 0) const {
-    auto [Segment, OffsetInSegment] = findOffsetInSegment(Address, Size);
+    auto &&[Segment, OffsetInSegment] = findOffsetInSegment(Address, Size);
     if (Segment == nullptr) {
       return std::nullopt;
     } else {

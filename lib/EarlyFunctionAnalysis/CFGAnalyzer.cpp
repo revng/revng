@@ -58,7 +58,7 @@ static opt<std::string> IndirectBranchInfoSummaryPath("indirect-branch-info-"
 static Logger<> Log("cfg-analyzer");
 
 static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
-  auto [End, Size] = getPC(BB->getTerminator());
+  auto &&[End, Size] = getPC(BB->getTerminator());
   return End + Size;
 }
 
@@ -779,10 +779,10 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     // it's useful to determine the FSO of the caller
     auto *CalledSymbolArgument = CI->getArgOperand(CalledSymbolIndex);
     StringRef CalledSymbol = extractFromConstantStringPtr(CalledSymbolArgument);
-    auto [Summary, IsTailCall] = Oracle.getCallSite(OutlinedFunction->Address,
-                                                    Block.ID(),
-                                                    MetaAddress::invalid(),
-                                                    CalledSymbol);
+    auto &&[Summary, IsTailCall] = Oracle.getCallSite(OutlinedFunction->Address,
+                                                      Block.ID(),
+                                                      MetaAddress::invalid(),
+                                                      CalledSymbol);
 
     Argument = CI->getArgOperand(StackPointerOffsetIndex);
     auto *StackPointerOffset = dyn_cast<ConstantInt>(Argument);
@@ -867,7 +867,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   if (TailCalls.size() > 0) {
     MaybeWinFSO = electFSO(TailCalls);
     bool Different = false;
-    for (auto [CI, FSO, Summary] : TailCalls) {
+    for (auto &&[CI, FSO, Summary] : TailCalls) {
       if (FSO == *MaybeWinFSO) {
         ClobberedRegisters.recordClobberedRegisters(CI);
         ClobberedRegisters.add(Summary->ClobberedRegisters);

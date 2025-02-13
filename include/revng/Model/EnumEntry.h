@@ -6,7 +6,6 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Identifier.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: EnumEntry
@@ -40,6 +39,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/EnumEntry.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::EnumEntry : public model::generated::EnumEntry {
 public:

@@ -205,8 +205,8 @@ void ptml::CTypeBuilder::printTypeDeclaration(const RFT &F) {
 void ptml::CTypeBuilder::generateArrayWrapper(const model::ArrayType
                                                 &ArrayType) {
   // Check if the wrapper was already added
-  auto [It, IsNew] = ArtificialNameCache.emplace(ArrayType,
-                                                 getArrayWrapper(ArrayType));
+  auto &&[It, IsNew] = ArtificialNameCache.emplace(ArrayType,
+                                                   getArrayWrapper(ArrayType));
   if (not IsNew)
     return;
 
@@ -330,7 +330,7 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
         continue;
       }
 
-      auto [Iterator, _] = DependentTypeCount.try_emplace(Node->T->key(), 0);
+      auto &&[Iterator, _] = DependentTypeCount.try_emplace(Node->T->key(), 0);
       Iterator->second += Node->predecessorCount();
       if (Node->K == TypeNode::Kind::Declaration) {
         // Ignore a reference from a type definition to its own declaration.

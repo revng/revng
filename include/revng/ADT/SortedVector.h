@@ -62,7 +62,7 @@ private:
   bool BatchInsertInProgress = false;
 
 public:
-  SortedVector() {}
+  constexpr SortedVector() {}
 
   SortedVector(std::initializer_list<T> List) {
     auto Inserter = batch_insert_or_assign();

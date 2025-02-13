@@ -106,13 +106,13 @@ static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
 
   case ExprNode::NodeKind::NK_And: {
     auto *And = llvm::cast<AndNode>(Expr);
-    const auto [LHS, RHS] = And->getInternalNodes();
+    auto &&[LHS, RHS] = And->getInternalNodes();
     rc_return rc_recur hasSideEffects(LHS) or rc_recur hasSideEffects(RHS);
   }
 
   case ExprNode::NodeKind::NK_Or: {
     auto *Or = llvm::cast<OrNode>(Expr);
-    const auto [LHS, RHS] = Or->getInternalNodes();
+    auto &&[LHS, RHS] = Or->getInternalNodes();
     rc_return rc_recur hasSideEffects(LHS) or rc_recur hasSideEffects(RHS);
   }
 

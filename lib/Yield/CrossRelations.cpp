@@ -90,7 +90,7 @@ CR::CrossRelations::toCallGraph() const {
   std::unordered_map<std::string_view, NodeView> LookupHelper;
   auto AddNode = [&Result, &LookupHelper](llvm::StringRef Location) {
     auto *Node = Result.addNode(Location);
-    auto [Iterator, Success] = LookupHelper.try_emplace(Location, Node);
+    auto &&[Iterator, Success] = LookupHelper.try_emplace(Location, Node);
     revng_assert(Success);
   };
   auto AddEdge = [&LookupHelper](llvm::StringRef Callee,
@@ -129,7 +129,7 @@ yield::calls::PreLayoutGraph CR::CrossRelations::toYieldGraph() const {
     else
       revng_abort("Unsupported location found in cross relations.");
 
-    auto [Iterator, Success] = LookupHelper.try_emplace(Location, Node);
+    auto &&[Iterator, Success] = LookupHelper.try_emplace(Location, Node);
     revng_assert(Success);
   };
   auto AddEdge = [&LookupHelper](llvm::StringRef Callee,

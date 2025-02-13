@@ -467,7 +467,7 @@ void collectTypes(Type *Root, std::set<Type *> &Set) {
     Type *T = ToVisit.front();
     ToVisit.pop();
 
-    auto [_, IsNew] = Set.insert(T);
+    auto &&[_, IsNew] = Set.insert(T);
     if (not IsNew)
       continue;
 

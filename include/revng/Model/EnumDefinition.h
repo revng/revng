@@ -40,9 +40,6 @@ public:
   using generated::EnumDefinition::EnumDefinition;
 
 public:
-  Identifier entryName(const model::EnumEntry &Entry) const;
-
-public:
   /// The helper for underlying type unwrapping.
   /// Use this when you need to access/modify the existing type,
   /// and \ref Type() when you need to assign a new one.

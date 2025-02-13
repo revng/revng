@@ -14,6 +14,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/TypeSystemPrinter.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommandLine.h"
 
 namespace {
@@ -91,7 +92,7 @@ model::Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
 
   T->ID() = getAvailableTypeID();
 
-  auto [It, Success] = TypeDefinitions().insert(T);
+  auto &&[It, Success] = TypeDefinitions().insert(T);
   revng_assert(Success);
 
   return { **It, makeType((*It)->key()) };

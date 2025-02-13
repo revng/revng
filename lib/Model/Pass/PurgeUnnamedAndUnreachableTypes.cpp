@@ -11,6 +11,7 @@
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Processing.h"
+#include "revng/Model/VerifyHelper.h"
 
 using namespace llvm;
 

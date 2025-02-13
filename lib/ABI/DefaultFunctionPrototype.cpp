@@ -11,7 +11,7 @@
 
 static model::UpcastableType defaultPrototype(model::Binary &Binary,
                                               model::ABI::Values ABI) {
-  auto [Definition, Type] = Binary.makeRawFunctionDefinition();
+  auto &&[Definition, Type] = Binary.makeRawFunctionDefinition();
 
   revng_assert(ABI != model::ABI::Invalid);
   Definition.Architecture() = model::ABI::getArchitecture(ABI);

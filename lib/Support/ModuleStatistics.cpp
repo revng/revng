@@ -100,7 +100,7 @@ void ModuleStatistics::dump(llvm::raw_ostream &Output,
 
   emitIndentation(Output, Indent);
   Output << "TaggedFunctions:\n";
-  for (auto [NewEntry, OldEntry] :
+  for (auto &&[NewEntry, OldEntry] :
        zipmap_range(TaggedFunctions, Old->TaggedFunctions)) {
     const FunctionTags::Tag *Tag = nullptr;
     static const FunctionClass Empty;

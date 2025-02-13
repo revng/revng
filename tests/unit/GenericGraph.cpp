@@ -69,7 +69,7 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
 
       using NodeType = ForwardNode<MyForwardNodeWithEdges, EdgeLabel>;
 
-      auto [A, B] = Edge<NodeType, EdgeLabel>{ nullptr };
+      auto &&[A, B] = Edge<NodeType, EdgeLabel>{ nullptr };
 
       GenericGraph<NodeType> Graph;
       auto *Node = Graph.addNode(3);
@@ -469,7 +469,7 @@ BOOST_AUTO_TEST_CASE(BasicMutableEdgeNodeTest) {
 
   for (auto *Node : G.nodes()) {
     revng_check(!Node->Text.empty());
-    for (auto [Neighbor, Edge] : Node->successor_edges()) {
+    for (auto &&[Neighbor, Edge] : Node->successor_edges()) {
       revng_check(!Neighbor->Text.empty());
       for (auto &Point : Edge->Points)
         revng_check(Point.X == 1.0 && Point.Y < 0.4 && Point.Y > 0.0);
@@ -477,7 +477,7 @@ BOOST_AUTO_TEST_CASE(BasicMutableEdgeNodeTest) {
   }
   for (auto *Node : G.nodes()) {
     revng_check(!Node->Text.empty());
-    for (auto [Neighbor, Edge] : Node->predecessor_edges()) {
+    for (auto &&[Neighbor, Edge] : Node->predecessor_edges()) {
       revng_check(!Neighbor->Text.empty());
       for (auto &Point : Edge->Points)
         revng_check(Point.X == 1.0 && Point.Y < 0.4 && Point.Y > 0.0);

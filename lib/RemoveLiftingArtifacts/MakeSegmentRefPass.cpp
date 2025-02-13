@@ -21,6 +21,7 @@
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"

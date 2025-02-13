@@ -84,8 +84,8 @@ int main(int argc, char *argv[]) {
 
     size_t CommandNo = 0;
     size_t ArgNo = 0;
-    auto [CommandNoStr,
-          ArgNoStr] = StringRef(Options::ExtractBuffer).split(":");
+    auto &&[CommandNoStr,
+            ArgNoStr] = StringRef(Options::ExtractBuffer).split(":");
     if (CommandNoStr.getAsInteger(10, CommandNo)
         || ArgNoStr.getAsInteger(10, ArgNo)) {
       dbg << "Error parsing extract value\n";

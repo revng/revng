@@ -12,7 +12,6 @@ revng_add_library_internal(
   ControlFlow/ConvertFromEFA.cpp
   ControlFlow/Extraction.cpp
   ControlFlow/FallthroughDetection.cpp
-  ControlFlow/NodeSizeCalculation.cpp
   CrossRelations.cpp
   HexDump.cpp
   PTML.cpp

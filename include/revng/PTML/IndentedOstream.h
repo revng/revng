@@ -49,6 +49,8 @@ public:
   void indent() { IndentDepth = std::min(INT_MAX, IndentDepth + 1); }
   void unindent() { IndentDepth = std::max(0, IndentDepth - 1); }
 
+  uint64_t currentIndentation() const { return IndentSize * IndentDepth; }
+
   const MarkupBuilder &getMarkupBuilder() const { return B; }
 
 private:

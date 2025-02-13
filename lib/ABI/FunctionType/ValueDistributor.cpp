@@ -246,19 +246,19 @@ ArgumentDistributor::nonPositionBased(bool IsScalar,
 
   if (ABI.TreatAllAggregatesAsPacked() && !IsScalar) {
     // This is a bit of trick: manually setting the alignment to unnatural
-    // forces the underlying distribution to be _extra_ careful about how it
+    // forces the underlying distribution to be *extra* careful about how it
     // handles the type. Which just happened to be exactly what we want in
     // some other, unrelated to unnatural alignment, cases.
     HasNaturalAlignment = false;
   }
 
-  auto [Result, NextRegisterIndex] = distribute(Size,
-                                                Alignment,
-                                                HasNaturalAlignment,
-                                                RegisterList,
-                                                *RegisterCounter,
-                                                RegisterLimit,
-                                                ForbidSplitting);
+  auto &&[Result, NextRegisterIndex] = distribute(Size,
+                                                  Alignment,
+                                                  HasNaturalAlignment,
+                                                  RegisterList,
+                                                  *RegisterCounter,
+                                                  RegisterLimit,
+                                                  ForbidSplitting);
   if (UsesPointerToCopy) {
     revng_assert(Result.size() == 1);
     Result[0].UsesPointerToCopy = UsesPointerToCopy;
@@ -357,7 +357,7 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
                               ABI.MaximumGPRsPerAggregateReturnValue();
   }
 
-  auto [Result, _] = distribute(Type, RegisterList, 0, Limit, true);
+  auto &&[Result, _] = distribute(Type, RegisterList, 0, Limit, true);
   revng_assert(Result.size() == 1, "Return values should never be padded.");
   return Result[0];
 }

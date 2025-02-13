@@ -695,13 +695,13 @@ public:
 
 public:
   EdgeView addSuccessor(MutableEdgeNode *NewSuccessor, EdgeLabel EL = {}) {
-    auto [Owner, View] = constructEdge(this, NewSuccessor, std::move(EL));
+    auto &&[Owner, View] = constructEdge(this, NewSuccessor, std::move(EL));
     auto &Output = Successors.emplace_back(std::move(Owner));
     NewSuccessor->Predecessors.emplace_back(std::move(View));
     return EdgeView(Output);
   }
   EdgeView addPredecessor(MutableEdgeNode *NewPredecessor, EdgeLabel EL = {}) {
-    auto [Owner, View] = constructEdge(NewPredecessor, this, std::move(EL));
+    auto &&[Owner, View] = constructEdge(NewPredecessor, this, std::move(EL));
     auto &Output = NewPredecessor->Successors.emplace_back(std::move(Owner));
     Predecessors.emplace_back(std::move(View));
     return EdgeView(Output);

@@ -172,7 +172,7 @@ public:
   TupleTreePath &operator=(const TupleTreePath &Other) {
     if (&Other != this) {
       Storage.resize(Other.size());
-      for (auto [ThisElement, OtherElement] :
+      for (auto &&[ThisElement, OtherElement] :
            llvm::zip(Storage, Other.Storage)) {
         static_assert(std::is_reference_v<decltype(ThisElement)>);
         OtherElement.clone(&ThisElement);

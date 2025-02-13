@@ -136,7 +136,7 @@ fallThroughScopeImpl(const model::Binary &Model,
 
       // We need to special case the first iteration over the `case`s, so that
       // we initialize the `AllFallThrough` variable with the state that is
-      // the lowest over the _lattice_ of `FallThroughScopeType`
+      // the lowest over the *lattice* of `FallThroughScopeType`
       if (FirstIteration) {
         AllFallThrough = CaseFallThrough;
         FirstIteration = false;

@@ -72,7 +72,7 @@ private:
                                    ABI.VectorReturnValueRegisters());
   }
 
-  template<range_with_value_type<CRegister> Registers>
+  template<RangeOf<CRegister> Registers>
   bool ensureRegistersAreAllowed(Def::RegisterSet &UsedSet,
                                  Registers &&AllowedRegisters) const {
     if constexpr (EnforceABIConformance == true) {
@@ -126,7 +126,7 @@ private:
     }
 
     auto ArgumentRange = llvm::zip(llvm::reverse(GPAR), llvm::reverse(VAR));
-    for (auto [GPR, VR] : ArgumentRange)
+    for (auto &&[GPR, VR] : ArgumentRange)
       if (!singlePositionBasedDeduction(GPR, VR, State, IsRequired))
         return false;
 
@@ -188,7 +188,7 @@ private:
     return true;
   }
 
-  template<range_with_value_type<CRegister> Registers>
+  template<RangeOf<CRegister> Registers>
   void fillState(Def::RegisterSet &State, Registers RequiredRegisters) {
     for (model::Register::Values Register : RequiredRegisters)
       State.emplace(Register);

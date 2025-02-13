@@ -196,7 +196,7 @@ const Definition &Definition::get(model::ABI::Values ABI) {
     revng_abort(Error.c_str());
   }
 
-  auto [It, Success] = DefinitionCache.try_emplace(ABI, std::move(**Parsed));
+  auto &&[It, Success] = DefinitionCache.try_emplace(ABI, std::move(**Parsed));
   revng_assert(Success);
   return It->second;
 }

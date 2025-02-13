@@ -44,7 +44,7 @@ TypedefDecomposition clift::decomposeTypedef(ValueType Type) {
 }
 
 ValueType clift::dealias(ValueType Type, bool IgnoreQualifiers) {
-  auto [UnderlyingType, HasConstTypedef] = decomposeTypedef(Type);
+  auto &&[UnderlyingType, HasConstTypedef] = decomposeTypedef(Type);
 
   if (HasConstTypedef and not IgnoreQualifiers)
     UnderlyingType = UnderlyingType.addConst();
@@ -53,7 +53,7 @@ ValueType clift::dealias(ValueType Type, bool IgnoreQualifiers) {
 }
 
 bool clift::isModifiableType(ValueType Type) {
-  auto [UnderlyingType, HasConst] = decomposeTypedef(Type);
+  auto &&[UnderlyingType, HasConst] = decomposeTypedef(Type);
   return not HasConst and not UnderlyingType.isConst();
 }
 

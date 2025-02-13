@@ -69,7 +69,7 @@ embedContentIntoTags(const std::vector<yield::Instruction::RawTag> &Tags,
 
   uint64_t Index = 0;
   for (const yield::Instruction::RawTag &T : Tags) {
-    auto [New, S] = Result.emplace(Index++, T.Type, Text.slice(T.From, T.To));
+    auto &&[New, S] = Result.emplace(Index++, T.Type, Text.slice(T.From, T.To));
     revng_assert(S);
 
     if (New->Type() == yield::TagType::Whitespace)
@@ -163,11 +163,11 @@ static Directives detectDirectives(SortedVector<yield::TaggedString> &&Tagged) {
     if (Line.Tags().begin()->Content()[0] == '.') {
       if (Instruction.empty()) {
         // No instruction yet, this is a preceding directive.
-        auto [_, Success] = Preceding.emplace(std::move(Line));
+        auto &&[_, Success] = Preceding.emplace(std::move(Line));
         revng_assert(Success);
       } else {
         // Instruction is set already, this is a following directive.
-        auto [_, Success] = Following.emplace(std::move(Line));
+        auto &&[_, Success] = Following.emplace(std::move(Line));
         revng_assert(Success);
       }
     } else {
@@ -179,19 +179,19 @@ static Directives detectDirectives(SortedVector<yield::TaggedString> &&Tagged) {
   }
 
   // Fix indexing and mark appropriate tags as `Directive`s.
-  for (auto [Index, Tag] : llvm::enumerate(Instruction))
+  for (auto &&[Index, Tag] : llvm::enumerate(Instruction))
     Tag.Index() = Index;
-  for (auto [Index, String] : llvm::enumerate(Preceding)) {
+  for (auto &&[Index, String] : llvm::enumerate(Preceding)) {
     String.Index() = Index;
-    for (auto [Index, Tag] : llvm::enumerate(String.Tags())) {
+    for (auto &&[Index, Tag] : llvm::enumerate(String.Tags())) {
       Tag.Index() = Index;
       if (Tag.Type() == yield::TagType::Untagged && Tag.Content()[0] == '.')
         Tag.Type() = yield::TagType::Directive;
     }
   }
-  for (auto [Index, String] : llvm::enumerate(Following)) {
+  for (auto &&[Index, String] : llvm::enumerate(Following)) {
     String.Index() = Index;
-    for (auto [Index, Tag] : llvm::enumerate(String.Tags())) {
+    for (auto &&[Index, Tag] : llvm::enumerate(String.Tags())) {
       Tag.Index() = Index;
       if (Tag.Type() == yield::TagType::Untagged && Tag.Content()[0] == '.')
         Tag.Type() = yield::TagType::Directive;
@@ -298,10 +298,10 @@ static bool tryToTurnIntoALabel(yield::TaggedString &Input,
         && Successor->Destination().start().address() == Address.address()) {
       // Since we have no easy way to decide which one of the successors
       // is better, stop looking after the first match.
-      auto [Name, Loc] = labelImpl(Successor->Destination(),
-                                   Function,
-                                   Binary,
-                                   NameBuilder);
+      auto &&[Name, Loc] = labelImpl(Successor->Destination(),
+                                     Function,
+                                     Binary,
+                                     NameBuilder);
 
       Input.Type() = yield::TagType::Label;
       Input.Content() = std::move(Name);
@@ -445,7 +445,7 @@ void yield::Instruction::handleSpecialTags(const yield::BasicBlock &BasicBlock,
 void yield::BasicBlock::setLabel(const yield::Function &Function,
                                  const model::Binary &Binary,
                                  model::NameBuilder &NameBuilder) {
-  auto [N, Location] = labelImpl(ID(), Function, Binary, NameBuilder);
+  auto &&[N, Location] = labelImpl(ID(), Function, Binary, NameBuilder);
 
   SortedVector<TagAttribute> Attributes;
   Attributes.emplace(ptml::attributes::LocationDefinition, Location);

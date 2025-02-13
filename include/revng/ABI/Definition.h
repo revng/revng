@@ -216,7 +216,7 @@ public:
   /// In short, when we have any information about arguments (for example, if
   /// we know that `r2` is used as a function argument) - we can extrapolate it
   /// to uncover more information about other register (in this example, that
-  /// `r0` and `r1` must also either be active _unused_ arguments _or_ padding).
+  /// `r0` and `r1` must also either be active *unused* arguments *or* padding).
   /// This in information is embedded into the returned map.
   ///
   /// \returns `std::nullopt` if \ref State does not match the ABI (i.e. it

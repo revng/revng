@@ -8,6 +8,7 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
+#include "revng/Yield/BasicBlock.h"
 
 namespace yield::cfg {
 
@@ -23,11 +24,11 @@ private:
 
 public:
   Node() = default;
-  Node(BasicBlockID Address,
+  Node(const yield::BasicBlock &Block,
        const MetaAddress &Function = MetaAddress::invalid()) :
     Location(pipeline::locationString(revng::ranks::BasicBlock,
                                       Function,
-                                      Address)) {}
+                                      Block.ID())) {}
   explicit Node(const pipeline::Location<BasicBlockRank> &Location) :
     Location(Location.toString()) {}
   Node &operator=(const pipeline::Location<BasicBlockRank> &NewLocation) {

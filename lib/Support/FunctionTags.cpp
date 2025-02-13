@@ -240,6 +240,8 @@ Tag StackOffsetMarker("stack-offset-marker");
 
 Tag BinaryOperationOverflows("binary-operation-overflow");
 
+Tag Comment("comment");
+
 } // namespace FunctionTags
 
 template<typename T>

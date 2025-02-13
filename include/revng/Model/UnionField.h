@@ -7,7 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
 name: UnionField
@@ -38,6 +37,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/UnionField.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::UnionField : public model::generated::UnionField {
 public:

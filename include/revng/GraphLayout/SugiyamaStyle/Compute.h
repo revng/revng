@@ -87,7 +87,7 @@ template<layout::HasLayoutableGraphTraits GraphType>
 inline bool
 computeInPlace(GraphType &&Graph, const Configuration &Configuration) {
   using IG = InternalGraph;
-  auto [Internal, InputNodeLookup] = IG::make(std::forward<GraphType>(Graph));
+  auto &&[Internal, InputNodeLookup] = IG::make(std::forward<GraphType>(Graph));
   if (!detail::computeImpl(Internal, Configuration))
     return false;
 

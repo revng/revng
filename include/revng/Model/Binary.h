@@ -19,12 +19,10 @@
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/FunctionAttribute.h"
-#include "revng/Model/NameBuilder.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Segment.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
@@ -121,6 +119,10 @@ TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Binary.h"
 
+namespace model {
+class VerifyHelper;
+}
+
 // TODO: Prevent changing the keys. Currently we need them to be public and
 //       non-const for serialization purposes.
 
@@ -149,7 +151,7 @@ public:
   makeTypeDefinition(ArgumentTypes &&...Arguments) {
     using UTD = model::UpcastableTypeDefinition;
     UTD New = UTD::make<NewType>(std::forward<ArgumentTypes>(Arguments)...);
-    auto [Reference, Result] = recordNewType(std::move(New));
+    auto &&[Reference, Result] = recordNewType(std::move(New));
     return { llvm::cast<NewType>(Reference), std::move(Result) };
   }
 
@@ -209,7 +211,7 @@ public:
   ///
   /// \tparam Range constrained input range type.
   /// \param  NewTypes the input range.
-  template<range_with_value_type<UpcastablePointer<TypeDefinition>> Range>
+  template<RangeOf<UpcastablePointer<TypeDefinition>> Range>
   void recordNewTypeDefinitions(Range &&NewTypes) {
     auto Inserter = TypeDefinitions().batch_insert();
 

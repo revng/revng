@@ -76,7 +76,7 @@ private:
         Entry->CustomName() = Name;
 
         // Record new name as taken in the current namespace
-        auto [_, Inserted] = Namespace.insert(Name);
+        auto &&[_, Inserted] = Namespace.insert(Name);
         revng_assert(Inserted);
       }
     }

@@ -46,7 +46,7 @@ bool sugiyama::detail::computeImpl(InternalGraph &Graph,
       std::swap(Node->Size.W, Node->Size.H);
       std::swap(Node->Center.X, Node->Center.Y);
 
-      for (auto [_, Edge] : Node->successor_edges())
+      for (auto &&[_, Edge] : Node->successor_edges())
         if (!Edge->isVirtual())
           for (auto &[X, Y] : Edge->getPath())
             std::swap(X, Y);
@@ -57,7 +57,7 @@ bool sugiyama::detail::computeImpl(InternalGraph &Graph,
     for (auto *Node : Graph.nodes()) {
       Node->Center.Y = -Node->Center.Y;
 
-      for (auto [_, Edge] : Node->successor_edges())
+      for (auto &&[_, Edge] : Node->successor_edges())
         if (!Edge->isVirtual())
           for (auto &[X, Y] : Edge->getPath())
             Y = -Y;
@@ -66,7 +66,7 @@ bool sugiyama::detail::computeImpl(InternalGraph &Graph,
     for (auto *Node : Graph.nodes()) {
       Node->Center.X = -Node->Center.X;
 
-      for (auto [_, Edge] : Node->successor_edges())
+      for (auto &&[_, Edge] : Node->successor_edges())
         if (!Edge->isVirtual())
           for (auto &[X, Y] : Edge->getPath())
             X = -X;

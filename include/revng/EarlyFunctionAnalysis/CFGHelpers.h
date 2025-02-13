@@ -70,6 +70,17 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
   }
 }
 
+namespace detail {
+
+template<typename GraphType, typename BasicBlockType>
+concept CFGCompatible = SpecializationOfGenericGraph<GraphType>
+                        && SpecializationOfBasicBlock<BasicBlockType>
+                        && std::constructible_from<typename GraphType::Node,
+                                                   const BasicBlockType &,
+                                                   const MetaAddress &>;
+
+} // namespace detail
+
 /// A function for converting EFA's internal CFG representation into a generic
 /// graph.
 ///
@@ -105,14 +116,16 @@ std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
 buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
                       const MetaAddress &EntryAddress,
                       const model::Binary &Binary) {
+  static_assert(detail::CFGCompatible<GraphType, BasicBlockType>);
+
   using Node = typename GraphType::Node;
   std::pair<GraphType, std::map<BasicBlockID, Node *>> Res;
 
   auto &[Graph, NodeLookup] = Res;
   for (const BasicBlockType &Block : BB) {
     revng_assert(Block.ID().isValid());
-    auto *NewNode = Graph.addNode(Node{ Block.ID(), EntryAddress });
-    auto [_, Success] = NodeLookup.try_emplace(Block.ID(), NewNode);
+    auto *NewNode = Graph.addNode(Node{ Block, EntryAddress });
+    auto &&[_, Success] = NodeLookup.try_emplace(Block.ID(), NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
   }
@@ -123,8 +136,8 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
     revng_assert(FromNodeIterator != NodeLookup.end());
 
     for (const auto &Edge : Block.Successors()) {
-      auto [NextInstruction,
-            _] = parseSuccessor(*Edge, Block.nextBlock(), Binary);
+      auto &&[NextInstruction,
+              _] = parseSuccessor(*Edge, Block.nextBlock(), Binary);
       if (NextInstruction.isValid()) {
         auto ToNodeIterator = NodeLookup.find(NextInstruction);
         revng_assert(ToNodeIterator != NodeLookup.end());
@@ -132,9 +145,10 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
       } else {
         if (ExitNode == nullptr) {
           constexpr auto Invalid = BasicBlockID::invalid();
-          ExitNode = Graph.addNode(Node{ Invalid, EntryAddress });
-          auto [_, Success] = NodeLookup.try_emplace(BasicBlockID::invalid(),
-                                                     ExitNode);
+          ExitNode = Graph.addNode(Node{ BasicBlockType{ Invalid },
+                                         EntryAddress });
+          auto &&[_, Success] = NodeLookup.try_emplace(BasicBlockID::invalid(),
+                                                       ExitNode);
           revng_assert(Success != false);
         }
         FromNodeIterator->second->addSuccessor(ExitNode);

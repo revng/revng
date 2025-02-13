@@ -6,6 +6,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Doxygen.h"
 #include "revng/Pipeline/Location.h"
@@ -92,7 +93,7 @@ public:
     std::string Result;
 
     for (DoxygenLine &&Line : as_rvalue(Lines)) {
-      auto [ResultLine, CurrentSize] = line();
+      auto &&[ResultLine, CurrentSize] = line();
 
       if (Line.Tags.empty())
         Result += toString(std::move(ResultLine));
@@ -295,7 +296,7 @@ gatherArgumentComments(const model::Binary &Binary,
     //       ret
     // ```
     //
-    // is pretty confusing, isn't it?
+    // which is pretty confusing, isn't it?
 
     std::size_t IndOffset = Layout.hasSPTAR() ? 1 : 0;
     revng_assert(FT->Arguments().size() + IndOffset == Layout.Arguments.size());
@@ -416,7 +417,7 @@ gatherArgumentComments(const model::Binary &Binary,
         static constexpr llvm::StringRef FirstLine = "stack_args ";
 
         bool IsFirst = true;
-        for (auto [Name, Comment, Field] : Comments) {
+        for (auto &&[Name, Comment, Field] : Comments) {
           DoxygenLine &Line = Result.emplace_back();
           if (IsFirst) {
             Line->emplace_back(DoxygenToken::Types::Keyword,
@@ -582,4 +583,45 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
 
   CommentBuilder Builder(PTML, CommentIndicator, Indentation, WrapAt);
   return Builder.emit(std::move(Result));
+}
+
+static Logger ImprecisePositionWarning("statement-comment-emission");
+
+std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
+                                   const model::StatementComment &Comment,
+                                   llvm::StringRef IsBeingEmittedAt,
+                                   llvm::StringRef CommentIndicator,
+                                   size_t Indentation,
+                                   size_t WrapAt) {
+  std::string Result = "";
+
+  revng_assert(not Comment.Location().empty());
+
+  std::string ExpectedLocation = "";
+  for (const MetaAddress &Address : Comment.Location())
+    ExpectedLocation += Address.toString() + " + ";
+  ExpectedLocation.resize(ExpectedLocation.size() - 3);
+
+  if (ImprecisePositionWarning.isEnabled()) {
+    if (IsBeingEmittedAt != ExpectedLocation) {
+      std::string Warning = "WARNING: Looks like this comment is attached to a "
+                            "non-existent location ("
+                            + ExpectedLocation + "), so it's emitted elsewhere";
+
+      if (not IsBeingEmittedAt.empty())
+        Warning += " (" + IsBeingEmittedAt.str() + ")";
+
+      Warning += ".\n";
+
+      revng_log(ImprecisePositionWarning, Warning.c_str());
+
+      Result += std::move(Warning);
+      Result += '\n';
+    }
+  }
+
+  Result += Comment.Body();
+
+  CommentBuilder Builder(B, CommentIndicator, Indentation, WrapAt);
+  return Builder.emit(Result);
 }

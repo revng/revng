@@ -473,7 +473,7 @@ static std::unordered_map<NodeView, size_t> rankSubtrees(InternalGraph &Graph) {
           revng_assert(Iterator != Result.end());
           CurrentRank += Iterator->second;
         }
-        auto [_, Success] = Result.try_emplace(CurrentNode, CurrentRank);
+        auto &&[_, Success] = Result.try_emplace(CurrentNode, CurrentRank);
         revng_assert(Success);
       }
     }
@@ -535,7 +535,7 @@ LayerContainer selectSimpleTreePermutation(InternalGraph &Graph,
     // Update the last layer lookup table.
     LastLayerLookup.clear();
     for (size_t Index = 0; Index < Layer.size(); ++Index) {
-      auto [_, Success] = LastLayerLookup.try_emplace(Layer[Index], Index);
+      auto &&[_, Success] = LastLayerLookup.try_emplace(Layer[Index], Index);
       revng_assert(Success);
     }
   }

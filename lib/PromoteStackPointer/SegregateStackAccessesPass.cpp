@@ -172,7 +172,7 @@ public:
     if (Map.size() >= 2) {
       auto FirstToSemiLast = llvm::make_range(Map.begin(), --Map.end());
       auto SecondToLast = llvm::make_range(++Map.begin(), Map.end());
-      for (auto [Current, Next] : llvm::zip(FirstToSemiLast, SecondToLast)) {
+      for (auto &&[Current, Next] : llvm::zip(FirstToSemiLast, SecondToLast)) {
         auto CurrentEnd = Current.first
                           + static_cast<int64_t>(Current.second.first);
         auto NextStart = Next.first;
@@ -185,7 +185,7 @@ public:
 
   template<typename T>
   void dump(T &Stream) const {
-    for (auto [K, V] : Map) {
+    for (auto &&[K, V] : Map) {
       Stream << K << ": [" << V.first << ", " << getName(V.second) << "]\n";
     }
   }
@@ -385,7 +385,7 @@ public:
       eraseFromParent(I);
 
     // Erase original functions
-    for (auto [OldFunction, NewFunction] : OldToNew)
+    for (auto &&[OldFunction, NewFunction] : OldToNew)
       eraseFromParent(OldFunction);
 
     return true;
@@ -470,7 +470,7 @@ private:
   Function &upgradeLocalFunction(Function *OldFunction) {
     using namespace abi::FunctionType;
 
-    auto [NewFunction, Layout] = getOrCreateNewLocalFunction(OldFunction);
+    auto &&[NewFunction, Layout] = getOrCreateNewLocalFunction(OldFunction);
 
     // Let the new function steal the body from the old function
     moveBlocksInto(*OldFunction, *NewFunction);
@@ -582,7 +582,7 @@ private:
     setInsertPointToFirstNonAlloca(B, *NewFunction);
 
     // Handle arguments
-    for (auto [ModelArgument, NewArgument] :
+    for (auto &&[ModelArgument, NewArgument] :
          zip(ModelArguments, NewFunction->args())) {
 
       // Extract from the new argument the old arguments
@@ -918,8 +918,8 @@ private:
     //
     std::map<model::Register::Values, llvm::Value *> ArgumentToRegister;
     auto ArgumentRegisters = Layout.argumentRegisters();
-    for (auto [Register, OldArgument] : zip(ArgumentRegisters, OldCall->args()))
-      ArgumentToRegister[Register] = OldArgument.get();
+    for (auto &&[Register, OldArg] : zip(ArgumentRegisters, OldCall->args()))
+      ArgumentToRegister[Register] = OldArg.get();
 
     // Check if it's a direct call
     auto *Callee = dyn_cast<Function>(OldCall->getCalledOperand());
@@ -957,7 +957,7 @@ private:
     copy(CalleeType->params(), std::back_inserter(LLVMArgumentTypes));
 
     bool MessageEmitted = false;
-    for (auto [LLVMType, ModelArgument] :
+    for (auto &&[LLVMType, ModelArgument] :
          llvm::zip(LLVMArgumentTypes, Layout.Arguments)) {
       uint64_t NewSize = *ModelArgument.Type->size();
 

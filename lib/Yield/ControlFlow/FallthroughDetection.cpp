@@ -17,8 +17,8 @@ yield::cfg::detectFallthrough(const yield::BasicBlock &BasicBlock,
   const yield::BasicBlock *Result = nullptr;
 
   for (const auto &Edge : BasicBlock.Successors()) {
-    auto [NextAddress,
-          _] = efa::parseSuccessor(*Edge, BasicBlock.nextBlock(), Binary);
+    auto &&[NextAddress,
+            _] = efa::parseSuccessor(*Edge, BasicBlock.nextBlock(), Binary);
     if (NextAddress.isValid() && NextAddress == BasicBlock.nextBlock()) {
       if (auto Iterator = Function.Blocks().find(NextAddress);
           Iterator != Function.Blocks().end()) {

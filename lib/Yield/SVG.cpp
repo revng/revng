@@ -11,6 +11,7 @@
 
 #include "revng/GraphLayout/SugiyamaStyle/Compute.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Yield/CallGraphs/CallGraphSlices.h"
@@ -198,7 +199,7 @@ Viewbox calculateViewbox(const GraphType &Graph) {
 
   // Ensure every edge point fits.
   for (const auto *From : Graph.nodes())
-    for (const auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       for (const auto &Point : Label->Path)
         expandViewbox(Result, Point);
 
@@ -294,7 +295,7 @@ static std::string exportGraph(const ptml::MarkupBuilder &B,
   // Export all the edges.
   for (const auto *From : Graph.nodes()) {
     if (ShouldEmitEmptyNodes || !From->isEmpty()) {
-      for (const auto [To, Edge] : From->successor_edges()) {
+      for (auto &&[To, Edge] : From->successor_edges()) {
         if (ShouldEmitEmptyNodes || !To->isEmpty()) {
           revng_assert(Edge != nullptr);
           Result += edge(B,
@@ -375,7 +376,23 @@ yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
   Pre Graph = cfg::extractFromInternal(InternalFunction, Binary, Configuration);
 
   model::NameBuilder NB = Binary;
-  cfg::calculateNodeSizes(Graph, InternalFunction, Binary, NB, Configuration);
+
+  // This is somewhat crude, as it forces each node's text to be manifested
+  // twice: once without any ptml tags and once containing them.
+  // TODO: clean this up if it ever becomes a performance concern.
+  ::ptml::MarkupBuilder Tagless{ .IsInTaglessMode = true };
+  for (yield::cfg::PreLayoutNode *Node : Graph.nodes()) {
+    if (Node->isEmpty()) {
+      Node->Size = yield::cfg::emptyNodeSize(Configuration);
+
+    } else {
+      auto NodeContents = yield::ptml::controlFlowNode(Tagless,
+                                                       Node->getBasicBlock(),
+                                                       InternalFunction,
+                                                       Binary);
+      Node->Size = yield::cfg::nodeSize(NodeContents, Configuration);
+    }
+  }
 
   constexpr auto TopToBottom = layout::sugiyama::Orientation::TopToBottom;
 
@@ -404,35 +421,29 @@ struct LabelNodeHelper {
 
   void computeSizes(yield::calls::PreLayoutGraph &Graph) {
     for (auto *Node : Graph.nodes()) {
-      if (!Node->isEmpty()) {
-        // A normal node
+      if (Node->isEmpty()) {
+        Node->Size = yield::cfg::emptyNodeSize(Configuration);
+
+      } else {
         size_t NameLength = 0;
         if (std::optional<model::Function::Key> Key = Node->getFunction()) {
           auto Iterator = Binary.Functions().find(std::get<0>(*Key));
           revng_assert(Iterator != Binary.Functions().end());
           NameLength = NameBuilder.name(*Iterator).size();
+
         } else if (auto DynamicFunctionKey = Node->getDynamicFunction()) {
           const std::string &Key = std::get<0>(*DynamicFunctionKey);
           auto Iterator = Binary.ImportedDynamicFunctions().find(Key);
           revng_assert(Iterator != Binary.ImportedDynamicFunctions().end());
           NameLength = NameBuilder.name(*Iterator).size();
+
         } else {
           revng_abort("Unsupported node type.");
         }
 
         revng_assert(NameLength != 0);
-        Node->Size = yield::layout::Size{
-          NameLength * Configuration.LabelFontSize
-            * Configuration.HorizontalFontFactor,
-          1 * Configuration.LabelFontSize * Configuration.VerticalFontFactor
-        };
-      } else {
-        // An entry node.
-        Node->Size = yield::layout::Size{ 30, 30 };
+        Node->Size = yield::cfg::nodeSize(NameLength, 0, Configuration);
       }
-
-      Node->Size.W += Configuration.InternalNodeMarginSize * 2;
-      Node->Size.H += Configuration.InternalNodeMarginSize * 2;
     }
   }
 
@@ -536,7 +547,7 @@ combineHalvesHelper(llvm::StringRef SlicePoint,
   // Ready the backwards part of the graph
   for (auto *From : BackwardsSlice.nodes()) {
     From->Center = convertPoint(From->Center, Delta);
-    for (auto [Neighbor, Label] : From->successor_edges())
+    for (auto &&[Neighbor, Label] : From->successor_edges())
       for (auto &Point : Label->Path)
         Point = convertPoint(Point, Delta);
   }
@@ -555,18 +566,18 @@ combineHalvesHelper(llvm::StringRef SlicePoint,
     revng_assert(Node != nullptr);
     if (Node != BackwardsSlicePoint) {
       auto NewNode = ForwardsSlice.addNode(Node->moveData());
-      auto [Iterator, Success] = Lookup.try_emplace(Node, NewNode);
+      auto &&[Iterator, Success] = Lookup.try_emplace(Node, NewNode);
       revng_assert(Success == true);
     } else {
-      auto [Iterator, Success] = Lookup.try_emplace(BackwardsSlicePoint,
-                                                    ForwardsSlicePoint);
+      auto &&[Iterator, Success] = Lookup.try_emplace(BackwardsSlicePoint,
+                                                      ForwardsSlicePoint);
       revng_assert(Success == true);
     }
   }
 
   // Move all the edges while also inverting their direction.
   for (auto *From : BackwardsSlice.nodes()) {
-    for (auto [To, Label] : From->successor_edges()) {
+    for (auto &&[To, Label] : From->successor_edges()) {
       std::reverse(Label->Path.begin(), Label->Path.end());
       AccessLookup(To)->addSuccessor(AccessLookup(From), std::move(*Label));
     }
@@ -591,7 +602,7 @@ std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
   // Ready the forwards facing part of the slice
   auto Forward = calls::makeCalleeTree(Relations.toYieldGraph(), SlicePoint);
   for (auto *From : Forward.nodes())
-    for (auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       Label->IsBackwards = false;
   Helper.computeSizes(Forward);
   auto LaidOutForwardsGraph = layout::sugiyama::compute(Forward,
@@ -604,7 +615,7 @@ std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
   // Ready the backwards facing part of the slice
   auto Backwards = calls::makeCallerTree(Relations.toYieldGraph(), SlicePoint);
   for (auto *From : Backwards.nodes())
-    for (auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       Label->IsBackwards = true;
   Helper.computeSizes(Backwards);
   auto LaidOutBackwardsGraph = layout::sugiyama::compute(Backwards,

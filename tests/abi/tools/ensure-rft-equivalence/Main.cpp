@@ -21,6 +21,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"
@@ -95,7 +96,7 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
     auto NewPath = Model.getDefinitionReference(MovedOut->key());
 
     // Reinsert the type.
-    auto [_, Success] = Model.TypeDefinitions().insert(std::move(MovedOut));
+    auto &&[_, Success] = Model.TypeDefinitions().insert(std::move(MovedOut));
     revng_assert(Success);
 
     // Return the "replacement pair", so that the caller is able to gather them
@@ -164,7 +165,7 @@ int main(int Argc, char *Argv[]) {
       if (Left->ID() == LeftModel->defaultPrototype()->ID())
         continue; // Skip the default prototype.
 
-      auto [It, Success] = Functions.try_emplace(LeftNameBuilder.name(F));
+      auto &&[It, Success] = Functions.try_emplace(LeftNameBuilder.name(F));
       revng_assert(Success);
       It->second.Left = Left->key();
     }
@@ -216,7 +217,7 @@ int main(int Argc, char *Argv[]) {
       revng_abort(Error.c_str());
     }
 
-    auto [_, Success] = DeduplicationHelper.emplace(Iterator->second);
+    auto &&[_, Success] = DeduplicationHelper.emplace(Iterator->second);
     if (!Success)
       Iterator = Functions.erase(Iterator);
     else
@@ -228,8 +229,8 @@ int main(int Argc, char *Argv[]) {
   // models instead of doing that manually, since the ID is the only piece
   // of the types that is allowed to change.
   std::map<model::DefinitionReference, model::DefinitionReference> Replacements;
-  for (auto [Name, Pair] : Functions) {
-    auto [LKey, RKey] = Pair;
+  for (auto &&[Name, Pair] : Functions) {
+    auto &&[LKey, RKey] = Pair;
 
     auto LeftIt = LeftModel->TypeDefinitions().find(LKey.value());
     revng_assert(LeftIt != LeftModel->TypeDefinitions().end());

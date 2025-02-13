@@ -80,7 +80,7 @@ static void ensureSingleEntry(InternalGraph &Graph,
 static void convertToDAG(InternalGraph &Graph) {
   ensureSingleEntry(Graph);
 
-  for (auto [From, To] : getBackedges(&Graph)) {
+  for (auto &&[From, To] : getBackedges(&Graph)) {
     for (auto Iterator = From->successor_edges_begin();
          Iterator != From->successor_edges_end();) {
       if (To == Iterator->Neighbor) {
@@ -112,7 +112,7 @@ static std::vector<EdgeView> pickLongEdges(InternalGraph &Graph,
   std::vector<EdgeView> Result;
 
   for (auto *From : Graph.nodes())
-    for (auto [To, Label] : From->successor_edges())
+    for (auto &&[To, Label] : From->successor_edges())
       if (delta(From, To, Ranks) > RankDelta(1))
         Result.emplace_back(From, To, *Label);
 
@@ -272,7 +272,7 @@ void partitionArtificialBackwardsEdges(InternalGraph &Graph,
     auto *From = *std::next(Graph.nodes().begin(), NodeIndex);
     for (auto EdgeIterator = From->successor_edges_rbegin();
          EdgeIterator != From->successor_edges_rend();) {
-      auto [To, Original] = *EdgeIterator;
+      auto &&[To, Original] = *EdgeIterator;
       if (From->IsVirtual != To->IsVirtual && Original->IsBackwards == true) {
         // Move the label out, so that the original edge can be deleted right
         // away. If this is not done, inserting new edges might cause
@@ -329,7 +329,7 @@ void partitionOriginalBackwardsEdges(InternalGraph &Graph,
     auto *From = *std::next(Graph.nodes().begin(), NodeIndex);
     for (auto EdgeIterator = From->successor_edges_rbegin();
          EdgeIterator != From->successor_edges_rend();) {
-      auto [To, Original] = *EdgeIterator;
+      auto &&[To, Original] = *EdgeIterator;
       if (!From->IsVirtual && !To->IsVirtual && Original->IsBackwards == true) {
         InternalEdge Label = std::move(*Original);
         EdgeIterator = From->removeSuccessor(EdgeIterator);

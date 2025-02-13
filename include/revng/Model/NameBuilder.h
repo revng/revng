@@ -8,6 +8,7 @@
 #include "revng/Model/ArrayType.h"
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/EnumDefinition.h"
+#include "revng/Model/Function.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/NamingConfiguration.h"
 #include "revng/Model/RawFunctionDefinition.h"

@@ -8,9 +8,10 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/Model/VerifyHelper.h"
 
 namespace model {
+
+class VerifyHelper;
 
 /// \note Zero-sized identifiers are valid
 class Identifier : public llvm::SmallString<16> {

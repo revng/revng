@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Yield/BasicBlock.h"
 #include "revng/Yield/CallEdge.h"
 #include "revng/Yield/Function.h"
@@ -28,7 +29,7 @@ bool yield::TaggedString::verify(model::VerifyHelper &VH) const {
 }
 
 bool yield::TaggedLine::verify(model::VerifyHelper &VH) const {
-  for (auto [Index, String] : llvm::enumerate(Tags())) {
+  for (auto &&[Index, String] : llvm::enumerate(Tags())) {
     if (Index != String.Index())
       return VH.fail("Tagged string indexing is broken.");
 
@@ -47,7 +48,7 @@ bool yield::Instruction::verify(model::VerifyHelper &VH) const {
 
   if (Disassembled().empty())
     return VH.fail("An instruction must have at least one tag.");
-  for (auto [Index, Tagged] : llvm::enumerate(Disassembled())) {
+  for (auto &&[Index, Tagged] : llvm::enumerate(Disassembled())) {
     if (Index != Tagged.Index())
       return VH.fail("Tagged string indexing is broken.");
 
@@ -55,14 +56,14 @@ bool yield::Instruction::verify(model::VerifyHelper &VH) const {
       return VH.fail();
   }
 
-  for (auto [Index, Directive] : llvm::enumerate(PrecedingDirectives())) {
+  for (auto &&[Index, Directive] : llvm::enumerate(PrecedingDirectives())) {
     if (Index != Directive.Index())
       return VH.fail("Preceding directive indexing is broken.");
 
     if (!Directive.verify(VH))
       return VH.fail();
   }
-  for (auto [Index, Directive] : llvm::enumerate(FollowingDirectives())) {
+  for (auto &&[Index, Directive] : llvm::enumerate(FollowingDirectives())) {
     if (Index != Directive.Index())
       return VH.fail("Following directive indexing is broken.");
 
@@ -119,4 +120,44 @@ bool yield::Function::verify(model::VerifyHelper &VH) const {
       return VH.fail("Basic block verification failed.");
 
   return true;
+}
+
+bool yield::TaggedString::verify() const {
+  return verify(false);
+}
+bool yield::TaggedString::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::TaggedLine::verify() const {
+  return verify(false);
+}
+bool yield::TaggedLine::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::Instruction::verify() const {
+  return verify(false);
+}
+bool yield::Instruction::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::BasicBlock::verify() const {
+  return verify(false);
+}
+bool yield::BasicBlock::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool yield::Function::verify() const {
+  return verify(false);
+}
+bool yield::Function::verify(bool Assert) const {
+  model::VerifyHelper VH(Assert);
+  return verify(VH);
 }

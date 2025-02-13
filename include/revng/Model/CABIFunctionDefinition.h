@@ -52,7 +52,7 @@ public:
   using generated::CABIFunctionDefinition::CABIFunctionDefinition;
 
   Argument &addArgument(UpcastableType &&Type) {
-    auto [Iterator, Success] = Arguments().emplace(Arguments().size());
+    auto &&[Iterator, Success] = Arguments().emplace(Arguments().size());
     revng_assert(Success);
     Iterator->Type() = std::move(Type);
     return *Iterator;

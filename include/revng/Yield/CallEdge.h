@@ -7,7 +7,6 @@
 #include "revng/ADT/MutableSet.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionAttribute.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Yield/FunctionEdge.h"
 
 /* TUPLE-TREE-YAML
@@ -42,6 +41,10 @@ TUPLE-TREE-YAML */
 
 namespace efa {
 class CallEdge;
+}
+
+namespace model {
+class VerifyHelper;
 }
 
 class yield::CallEdge : public yield::generated::CallEdge {

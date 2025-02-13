@@ -932,7 +932,7 @@ inline bool CompareByName(const llvm::GlobalVariable *LHS,
   return LHS->getName() < RHS->getName();
 };
 
-template<range_with_value_type<llvm::GlobalVariable *> RangeOfPointersToGlobal>
+template<RangeOf<llvm::GlobalVariable *> RangeOfPointersToGlobal>
 inline llvm::SmallVector<llvm::GlobalVariable *>
 toSortedByName(const RangeOfPointersToGlobal &Range) {
   llvm::SmallVector<llvm::GlobalVariable *> Result{ Range.begin(),

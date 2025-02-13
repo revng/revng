@@ -27,7 +27,6 @@
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -619,7 +618,7 @@ fillStructWithRecoveredDLATypeAtOffset(model::Binary &Model,
           NewU->Fields().erase(FieldNum);
 
         // Re-enumerate the remaining fields
-        for (auto [Index, Field] : llvm::enumerate(NewU->Fields()))
+        for (auto &&[Index, Field] : llvm::enumerate(NewU->Fields()))
           Field.Index() = Index;
 
         revng_assert(NewU->Fields().size() == FieldsRemaining);

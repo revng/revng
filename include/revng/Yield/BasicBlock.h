@@ -8,7 +8,6 @@
 #include <string>
 
 #include "revng/ADT/SortedVector.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Yield/CallEdge.h"
@@ -75,6 +74,10 @@ TUPLE-TREE-YAML */
 
 #include "revng/Yield/Generated/Early/BasicBlock.h"
 
+namespace model {
+class VerifyHelper;
+}
+
 namespace yield {
 
 class BasicBlock : public generated::BasicBlock {
@@ -92,14 +95,9 @@ public:
   }
 
 public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
-
-public:
-  inline bool verify() const debug_function { return verify(false); }
-  inline bool verify(bool Assert) const debug_function {
-    model::VerifyHelper VH(Assert);
-    return verify(VH);
-  }
 };
 
 template<typename T>

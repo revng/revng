@@ -18,7 +18,7 @@ bool init_unit_test();
 
 template<typename T>
 static void assertInsert(T &Set, uint64_t Key, uint64_t Value) {
-  auto [It, Success] = Set.insert({ Key, Value });
+  auto &&[It, Success] = Set.insert({ Key, Value });
   revng_check(It->key() == Key and It->value() == Value);
   revng_check(Success);
 }
@@ -74,7 +74,7 @@ void testSet() {
   {
     revng_check(!Set.contains(0x1500));
 
-    auto [It, Success] = Set.insert({ 0x1500, 0xEEEE });
+    auto &&[It, Success] = Set.insert({ 0x1500, 0xEEEE });
     revng_check(Success);
     auto Next = Set.erase(It);
     revng_check(Next == Set.find(0x2000));
@@ -97,14 +97,14 @@ void testSet() {
 
   // insert vs insert_or_assign
   {
-    auto [It, Success] = Set.insert({ 0x1000, 0x5555 });
+    auto &&[It, Success] = Set.insert({ 0x1000, 0x5555 });
     revng_check(Set.find(0x1000) == It);
     revng_check(not Success);
     revng_check(Set[0x1000].value() == 0xDEADDEAD);
   }
 
   {
-    auto [It, Success] = Set.insert_or_assign({ 0x1000, 0x6666 });
+    auto &&[It, Success] = Set.insert_or_assign({ 0x1000, 0x6666 });
     revng_check(not Success);
     revng_check(Set[0x1000].value() == 0x6666);
     Set.insert_or_assign({ 0x1000, 0xDEADDEAD });

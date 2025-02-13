@@ -256,7 +256,7 @@ private:
       Node *RightNode = RightIt->second;
 
       // Zip out edges of the node pair: consider the destinations.
-      for (auto [LeftSuccessor, RightSuccessor] :
+      for (auto &&[LeftSuccessor, RightSuccessor] :
            zip(LeftNode->successors(), RightNode->successors())) {
         revng_log(Log, "Visiting successor " << LeftSuccessor->T->ID());
         if (not compareSuccessor(LeftToRight,
@@ -269,7 +269,7 @@ private:
     }
 
     // All those in the map are strongly equivalent
-    for (auto [LeftNode, RightMode] : LeftToRight)
+    for (auto &&[LeftNode, RightMode] : LeftToRight)
       StrongEquivalence.unionSets(Left->T, Right->T);
 
     return true;

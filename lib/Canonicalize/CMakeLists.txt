@@ -4,12 +4,13 @@
 
 revng_add_analyses_library_internal(
   revngCanonicalize
+  EmbedStatementComments.cpp
   ExitSSAPass.cpp
   FoldModelGEP.cpp
   HoistStructPhis.cpp
+  ImplicitModelCastPass.cpp
   LoopRewriteWithCanonicalIV.cpp
   MakeLocalVariables.cpp
-  ImplicitModelCastPass.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
   OperatorPrecedenceResolutionPass.cpp

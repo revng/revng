@@ -14,6 +14,7 @@
 #include "revng/EarlyFunctionAnalysis/CFGHelpers.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -21,7 +22,8 @@ using namespace llvm;
 namespace efa {
 
 struct FunctionCFGNodeData {
-  FunctionCFGNodeData(BasicBlockID ID, const MetaAddress &) : ID(ID) {}
+  FunctionCFGNodeData(const efa::BasicBlock &BB, const MetaAddress &) :
+    ID(BB.ID()) {}
   BasicBlockID ID;
 };
 
@@ -188,7 +190,7 @@ void ControlFlowGraph::simplify(const model::Binary &Binary) {
     ToMerge.emplace_back(Block.ID(), Block.nextBlock());
   }
 
-  for (auto [PredecessorAddress, BlockAddress] : llvm::reverse(ToMerge)) {
+  for (auto &&[PredecessorAddress, BlockAddress] : llvm::reverse(ToMerge)) {
     efa::BasicBlock &Predecessor = Blocks().at(PredecessorAddress);
     efa::BasicBlock &Block = Blocks().at(BlockAddress);
 
@@ -292,7 +294,7 @@ bool ControlFlowGraph::verify(const model::Binary &Binary,
 }
 
 void ControlFlowGraph::dumpCFG(const model::Binary &Binary) const {
-  auto [G, _] = buildControlFlowGraph<FunctionCFG>(Blocks(), Entry(), Binary);
+  auto &&[G, _] = buildControlFlowGraph<FunctionCFG>(Blocks(), Entry(), Binary);
   WriteGraph(&G, "function-metadata");
 }
 

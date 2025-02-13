@@ -19,16 +19,12 @@ using Dimension = Coordinate;
 struct Point {
   Coordinate X;
   Coordinate Y;
-
-  constexpr Point(Coordinate X = 0, Coordinate Y = 0) : X(X), Y(Y) {}
 };
 using Path = llvm::SmallVector<Point, 8>;
 
 struct Size {
   Dimension W;
   Dimension H;
-
-  constexpr Size(Dimension W = 0, Dimension H = 0) : W(W), H(H) {}
 };
 
 template<typename GraphType>

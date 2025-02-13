@@ -5,7 +5,6 @@
 //
 
 #include "revng/Model/RelocationType.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 
@@ -35,6 +34,10 @@ key:
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Relocation.h"
+
+namespace model {
+class VerifyHelper;
+}
 
 class model::Relocation : public model::generated::Relocation {
 public:

@@ -254,12 +254,12 @@ private:
 
 public:
   llvm::iterator_range<iterator> filterByKind(const Kind &K) {
-    auto [b, e] = std::equal_range(begin(), end(), K, Comp());
+    auto &&[b, e] = std::equal_range(begin(), end(), K, Comp());
     return llvm::make_range(b, e);
   }
 
   llvm::iterator_range<const_iterator> filterByKind(const Kind &K) const {
-    auto [b, e] = std::equal_range(begin(), end(), K, Comp());
+    auto &&[b, e] = std::equal_range(begin(), end(), K, Comp());
     return llvm::make_range(b, e);
   }
 
@@ -305,7 +305,7 @@ public:
   bool operator==(const ContainerToTargetsMap &) const = default;
 
   bool sameTargets(const ContainerToTargetsMap &Other) const {
-    for (auto [ThisPair, OtherPair] : zipmap_range(Status, Other.Status)) {
+    for (auto &&[ThisPair, OtherPair] : zipmap_range(Status, Other.Status)) {
       if (ThisPair == nullptr and not OtherPair->second.empty()) {
         return false;
       } else if (OtherPair == nullptr and not ThisPair->second.empty()) {

@@ -290,7 +290,7 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS,
                        const Link &ToKeep,
                        const Link &ToMerge) {
 
-  auto [AreEquiv, Subtree1, Subtree2] = areEquivSubtrees(ToKeep, ToMerge);
+  auto &&[AreEquiv, Subtree1, Subtree2] = areEquivSubtrees(ToKeep, ToMerge);
   if (not AreEquiv) {
     revng_log(CmpLog, "Different!");
     return { false, {}, {} };
@@ -456,11 +456,11 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
                 revng_log(Log, "skip pointer edge");
               }
 
-              auto [IsMerged,
-                    Preserved,
-                    Erased] = mergeIfTopologicallyEq(TS,
-                                                     NotMergedLink,
-                                                     CurLink);
+              auto &&[IsMerged,
+                      Preserved,
+                      Erased] = mergeIfTopologicallyEq(TS,
+                                                       NotMergedLink,
+                                                       CurLink);
               if (not IsMerged) {
                 revng_log(Log, "Edge not merged!");
                 continue;

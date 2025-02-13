@@ -72,9 +72,9 @@ public:
         visitTupleTree(NewType, Visitor, [](const auto &) {});
 
         // Record the type
-        auto [Def, Type] = DestinationModel->recordNewType(std::move(NewType));
-        NewTypes.insert(&Def);
-        auto [_, Success] = AlreadyCopied.insert({ P->ID(), Def.ID() });
+        auto &&[D, Type] = DestinationModel->recordNewType(std::move(NewType));
+        NewTypes.insert(&D);
+        auto &&[_, Success] = AlreadyCopied.insert({ P->ID(), D.ID() });
         revng_assert(Success);
 
         // Record the type we were looking for originally
@@ -104,7 +104,7 @@ public:
 
         // Extract ID from the key
         const TupleTreeKeyWrapper &TypeKey = Path.path().toArrayRef()[1];
-        auto [ID, Kind] = *TypeKey.tryGet<model::TypeDefinition::Key>();
+        auto &&[ID, Kind] = *TypeKey.tryGet<model::TypeDefinition::Key>();
         revng_assert(AlreadyCopied.count(ID) == 1);
         model::TypeDefinition::Key Key = { AlreadyCopied[ID], Kind };
         Path = DestinationModel->getDefinitionReference(Key);

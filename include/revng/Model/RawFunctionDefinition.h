@@ -86,14 +86,14 @@ public:
 
   NamedTypedRegister &addArgument(model::Register::Values Location,
                                   model::UpcastableType &&Type) {
-    auto [Iterator, Success] = Arguments().emplace(Location);
+    auto &&[Iterator, Success] = Arguments().emplace(Location);
     revng_assert(Success);
     Iterator->Type() = std::move(Type);
     return *Iterator;
   }
   NamedTypedRegister &addReturnValue(model::Register::Values Location,
                                      model::UpcastableType &&Type) {
-    auto [Iterator, Success] = ReturnValues().emplace(Location);
+    auto &&[Iterator, Success] = ReturnValues().emplace(Location);
     revng_assert(Success);
     Iterator->Type() = std::move(Type);
     return *Iterator;

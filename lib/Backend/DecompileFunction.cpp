@@ -39,12 +39,12 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Segment.h"
 #include "revng/Model/StructDefinition.h"
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"
@@ -124,7 +124,8 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::UnaryMinus)
          or isCallToTagged(I, FunctionTags::BinaryNot)
          or isCallToTagged(I, FunctionTags::BooleanNot)
-         or isCallToTagged(I, FunctionTags::StringLiteral);
+         or isCallToTagged(I, FunctionTags::StringLiteral)
+         or isCallToTagged(I, FunctionTags::Comment);
 }
 
 static bool isCConstant(const llvm::Value *V) {
@@ -900,6 +901,27 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) {
     rc_return B.getStringLiteral(StringLiteral).toString();
   }
 
+  if (isCallToTagged(Call, FunctionTags::Comment)) {
+    const auto *Index = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(0));
+    const auto &Comment = ModelFunction.Comments().at(Index->getZExtValue());
+
+    std::string ShouldBeEmittedAtOp = rc_recur getToken(Call->getArgOperand(2));
+    llvm::StringRef ShouldBeEmittedAt = llvm::StringRef(ShouldBeEmittedAtOp);
+    ShouldBeEmittedAt.consume_front("\"");
+    ShouldBeEmittedAt.consume_back("\"");
+
+    std::string IsBeingEmittedAtOp = rc_recur getToken(Call->getArgOperand(3));
+    llvm::StringRef IsBeingEmittedAt = llvm::StringRef(IsBeingEmittedAtOp);
+    IsBeingEmittedAt.consume_front("\"");
+    IsBeingEmittedAt.consume_back("\"");
+
+    const auto *IsExact = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
+    if (IsExact->getZExtValue())
+      revng_assert(ShouldBeEmittedAt == IsBeingEmittedAt);
+
+    rc_return "\n" + B.getStatementComment(Comment, IsBeingEmittedAt);
+  }
+
   std::string Error = "Cannot get token for custom opcode: "
                       + dumpToString(Call);
   revng_abort(Error.c_str());
@@ -1253,44 +1275,6 @@ CCodeGenerator::getCallToken(const llvm::CallInst *Call,
   rc_return Expression;
 }
 
-static bool isStatement(const llvm::Instruction *I) {
-  // Return are statements
-  if (isa<llvm::ReturnInst>(I))
-    return true;
-
-  // Instructions that are not calls are never statement.
-  auto *Call = dyn_cast<llvm::CallInst>(I);
-  if (not Call)
-    return false;
-
-  // Calls to Assign and LocalVariable are statemements.
-  // Stack frame declarations and call stack arguments declarations are
-  // statements.
-  if (isAssignment(Call))
-    return true;
-
-  // Calls to isolated functions or helpers that return struct types on LLVM IR
-  // need a statement.
-  // This is necessary as a result of the fact that there is no direct mapping
-  // between struct types on LLVM IR and on the model, so whenever a function
-  // returns a struct in LLVM IR we cannot generally create a call to
-  // LocalVariable nor to Copy/Assign (because we'd need to tag them with model
-  // Type and we can't do that.), so we have to deal with it here on the fly.
-  // We do it by marking these as statements, and emitting an assignment in C
-  if (isArtificialAggregateLocalVarDecl(Call)
-      or isHelperAggregateLocalVarDecl(Call))
-    return true;
-
-  // Calls to isolated functions and helpers that return void are statements.
-  // If they don't return void, they are not statements. They are expressions
-  // that will be assigned to some local variables in some other assign
-  // statements.
-  if (isCallToIsolatedFunction(Call) or isCallToNonIsolated(Call))
-    return Call->getType()->isVoidTy();
-
-  return false;
-}
-
 void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
                                     bool EmitReturn) {
   LoggerIndent Indent{ VisitLog };
@@ -1303,17 +1287,18 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
 
     auto *Call = dyn_cast<llvm::CallInst>(&I);
 
-    if (not isStatement(&I)) {
+    if (not isStatement(I)) {
       revng_log(Log, "Ignoring: non-statement instruction");
 
     } else if (I.getType()->isVoidTy()) {
       revng_assert(isa<llvm::ReturnInst>(I) or isCallToIsolatedFunction(&I)
-                   or isCallToNonIsolated(&I) or isAssignment(&I));
+                   or isCallToNonIsolated(&I) or isAssignment(&I)
+                   or isComment(&I));
 
       // Handle the implicit `return` emission. If the correct parameter is set,
       // avoid the emission of the `Instruction` token.
       if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn))
-        B.append(std::string(getToken(&I)) + ";\n");
+        B.append(std::string(getToken(&I)) + (not isComment(&I) ? ";\n" : ""));
 
     } else if (isHelperAggregateLocalVarDecl(Call)
                or isArtificialAggregateLocalVarDecl(Call)) {
