@@ -4,7 +4,7 @@
 
 import abc
 import sys
-from collections.abc import MutableSequence
+from collections.abc import Mapping, MutableSequence
 from copy import deepcopy
 from dataclasses import dataclass, fields
 from enum import Enum, EnumType
@@ -309,7 +309,7 @@ def _field_is_default(field, value):
     return value == factory()
 
 
-class TypedList(Generic[T], MutableSequence):
+class TypedList(Generic[T], MutableSequence, Mapping):
     def __init__(self, base_class: Type[T]):
         self._data: List[Any] = []
         self._base_class = base_class
@@ -333,7 +333,29 @@ class TypedList(Generic[T], MutableSequence):
         return dumper.represent_list(instance._data)
 
     def __getitem__(self, idx):
-        return self._data[idx]
+        """Fetching objects from this class works both as a normal python list
+        and as a dictionary if the `base_class` is `keyed`.
+        ```
+        key = "..."
+        example_list = TypedList(ExampleClass)
+        example_list[0]                  # Normal list access
+        example_list[ExampleClass(key)]  # Dictionary access with a keyable object
+        example_list[key]                # Dictionary access with raw key
+        ```
+        """
+        if isinstance(idx, (int, slice)):
+            return self._data[idx]
+        if getattr(self._base_class, "keyed", False):
+            if isinstance(idx, str):
+                key = idx
+            else:
+                key = idx.to_string()
+
+            for d in self._data:
+                if d.key() == key:
+                    return d
+            raise KeyError(idx)
+        raise TypeError(f"Cannot index TypedList with {type(idx)}")
 
     def __delitem__(self, idx):
         del self._data[idx]
@@ -352,6 +374,20 @@ class TypedList(Generic[T], MutableSequence):
             return self._base_class == other._base_class and self._data == other._data
         else:
             return self._data == other
+
+    def __contains__(self, item):
+        if isinstance(item, self._base_class):
+            return MutableSequence.__contains__(self, item)
+        if getattr(self._base_class, "keyed", False):
+            if isinstance(item, str):
+                key = item
+            else:
+                key = item.to_string()
+            return Mapping.__contains__(self, key)
+        return False
+
+    def __iter__(self):
+        return self._data.__iter__()
 
 
 YamlDumper.add_representer(TypedList, TypedList.yaml_representer)
