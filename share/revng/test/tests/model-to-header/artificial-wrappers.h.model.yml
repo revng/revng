@@ -1,0 +1,38 @@
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 0
+    CustomName: "A"
+    Size: 8
+    Fields:
+      - Offset: 0
+        CustomName: "pointer_to_array_of_B_with_wrapper"
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: ArrayType
+            ElementCount: 8
+            ElementType:
+              Kind: DefinedType
+              Definition: "/TypeDefinitions/1-StructDefinition"
+  - Kind: StructDefinition
+    ID: 1
+    CustomName: "B"
+    Size: 8
+    Fields:
+      - Offset: 0
+        CustomName: "pointer_to_array_of_A_with_wrapper"
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: ArrayType
+            ElementCount: 8
+            ElementType:
+              Kind: DefinedType
+              Definition: "/TypeDefinitions/0-StructDefinition"
+...
+

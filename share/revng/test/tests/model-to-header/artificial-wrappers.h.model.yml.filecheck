@@ -1,0 +1,16 @@
+CHECK-DAG:typedef struct _PACKED A A;
+CHECK-DAG:typedef struct _PACKED B B;
+CHECK-DAG:typedef struct _PACKED artificial_wrapper_array_8_of_A artificial_wrapper_array_8_of_A;
+CHECK-DAG: typedef struct _PACKED artificial_wrapper_array_8_of_B artificial_wrapper_array_8_of_B;
+
+CHECK:typedef struct _PACKED artificial_wrapper_array_8_of_[[A:[AB]]] {
+CHECK:  struct _PACKED [[A]] {
+CHECK:    artificial_wrapper_array_8_of_[[B:[AB]]] *pointer_to_array_of_[[B]]_with_wrapper;
+CHECK:  } the_array[8];
+CHECK:} artificial_wrapper_array_8_of_[[A]];
+
+CHECK:typedef struct _PACKED artificial_wrapper_array_8_of_[[B:[AB]]] {
+CHECK:  struct _PACKED [[B]] {
+CHECK:    artificial_wrapper_array_8_of_[[A:[AB]]] *pointer_to_array_of_[[A]]_with_wrapper;
+CHECK:  } the_array[8];
+CHECK:} artificial_wrapper_array_8_of_[[B]];

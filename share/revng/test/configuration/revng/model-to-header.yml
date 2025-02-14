@@ -19,6 +19,7 @@ sources:
       - inline-enum.h.model.yml
       - inline-union.h.model.yml
       - annotate-attibutes.model.yml
+      - artificial-wrappers.h.model.yml
 commands:
   - type: revng.model-to-header-unit-test
     from:
