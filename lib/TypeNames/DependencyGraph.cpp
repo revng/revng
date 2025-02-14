@@ -526,3 +526,7 @@ void DGBuilder::makeImpl() const {
 DependencyGraph DependencyGraph::make(const model::Binary &B) {
   return DGBuilder::make(B);
 }
+
+void DependencyGraph::view() const {
+  llvm::ViewGraph(this, "type-dependency-graph.dot");
+}

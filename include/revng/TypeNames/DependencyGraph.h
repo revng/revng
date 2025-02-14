@@ -115,6 +115,9 @@ public:
   getDefinition(const model::TypeDefinition *TD) const {
     return TypeToNodes.at(TD).Definition;
   }
+
+public:
+  void view() const;
 };
 
 std::string getNodeLabel(const TypeDependencyNode *N);
