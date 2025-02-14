@@ -92,6 +92,10 @@ public:
   getDefinition(const model::TypeDefinition *TD) const {
     return TypeToNodes.at(TD).Definition;
   }
+
+public:
+  /// Helper debug method. It visualizes the DependencyGraph, invoking xdot.
+  void viewGraph() const debug_function;
 };
 
 std::string getNodeLabel(const TypeDependencyNode *N);

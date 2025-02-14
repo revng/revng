@@ -401,3 +401,7 @@ DependencyGraph DependencyGraph::make(const TypeVector &TV) {
 
   return DependencyGraph::Builder::make(TV);
 }
+
+void DependencyGraph::viewGraph() const {
+  llvm::ViewGraph(this, "type-dependency-graph.dot");
+}
