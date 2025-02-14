@@ -31,6 +31,8 @@
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
+#include "Helpers.h"
+
 using llvm::dyn_cast;
 using llvm::StringRef;
 using llvm::Twine;
@@ -205,11 +207,8 @@ private:
                                        bool PreviousWasAPointer) {
     revng_assert(Array.IsConst() == false);
 
-    if (PreviousWasAPointer) {
-      // We're dealing with a pointer-to-array, which now is always handled with
-      // an artificial struct wrapper.
-      rc_return B.getArrayWrapper(Array).str().str() + " " + Emitted;
-    }
+    if (PreviousWasAPointer)
+      Emitted = "(" + std::move(Emitted) + ")";
 
     Emitted += "[" + std::to_string(Array.ElementCount()) + "]";
     rc_return rc_recur getString(*Array.ElementType(),
@@ -227,9 +226,20 @@ private:
       Current += constKeyword();
     Current += std::move(Emitted);
 
-    rc_return rc_recur getString(*Pointer.PointeeType(),
-                                 std::move(Current),
-                                 true);
+    const model::Type &Pointee = *Pointer.PointeeType();
+
+    if (const auto *Array = dyn_cast<model::ArrayType>(&Pointee)) {
+      const model::TypeDefinition *Specifier = Array->skipToDefinition();
+      if (Specifier
+          and transitivelyRequiresCompleteSubtypeDefinition(*Specifier)) {
+        // We're dealing with a pointer-to-array, whose field is either a
+        // struct, a union, or a typedef of struct/union.
+        // This case is now always handled with an artificial struct wrapper.
+        rc_return B.getArrayWrapper(*Array).str().str() + " " + Current;
+      }
+    }
+
+    rc_return rc_recur getString(Pointee, std::move(Current), true);
   }
 
   RecursiveCoroutine<std::string> impl(const model::DefinedType &Def,

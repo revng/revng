@@ -67,9 +67,14 @@ private:
   /// It is here so that we don't have to recompute it with multiple invocations
   std::optional<DependencyGraph> DependencyCache = std::nullopt;
 
-  /// This is the cache containing the keys of the types that should be inlined
-  /// into their only user.
-  std::set<model::TypeDefinition::Key> TypesToInlineCache = {};
+  /// This is the cache containing the keys of the types that should be inlined,
+  /// mapping them to the const model::UpcastableType in the definition of which
+  /// they should be inlined. If UpcastableType is empty, the key should be the
+  /// ID of a stack frame and it should be inlined in the only function that has
+  /// is as a stack frame, and it's guaranteed that there are no other reference
+  /// to the key in any other place.
+  std::map<model::TypeDefinition::Key, const model::UpcastableType>
+    TypesToInlineCache = {};
 
   /// This is the cache containing the keys of the stack frame types that
   /// should be inlined into the functions they belong to.
@@ -105,6 +110,35 @@ public:
 
   bool shouldInline(const model::TypeDefinition &Type) const {
     return shouldInline(Type.key());
+  }
+
+  bool shouldInlineAt(model::TypeDefinition::Key Key,
+                      const model::UpcastableType &UT) const {
+    revng_assert(InlinableCacheIsReady,
+                 "`shouldInlineAt` must not be called before "
+                 "`collectInlinableTypes`.");
+
+    auto It = TypesToInlineCache.find(Key);
+    if (It == TypesToInlineCache.end()) {
+      // This type is not allowed be inlined.
+      return false;
+    }
+
+    if (StackFrameTypeCache.contains(Key)) {
+      // This is a stack frame, it should never be inlined in another type
+      // definition but always as a top-level type of a local variable
+      // declaration representing the stack frame.
+      revng_assert(It->second.empty());
+      return false;
+
+    } else {
+      return Configuration.EnableTypeInlining and It->second == UT;
+    }
+  }
+
+  bool shouldInlineAt(const model::TypeDefinition &Type,
+                      const model::UpcastableType &UT) const {
+    return shouldInlineAt(Type.key(), UT);
   }
 
 public:

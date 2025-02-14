@@ -24,6 +24,8 @@
 #include "revng/Support/Debug.h"
 #include "revng/TypeNames/DependencyGraph.h"
 
+#include "Helpers.h"
+
 static Logger<> Log{ "type-dependency-graph" };
 
 using namespace llvm;
@@ -289,14 +291,6 @@ getTypeSpecifierResult(const model::Type &T, bool FoundPointer = false) {
   rc_return{ nullptr, FoundPointer };
 }
 
-/// Returns the type specifier of a model::Type \p T if it is a
-/// model::TypeDefinition. If it's a primitive type returns nullptr.
-static const model::TypeDefinition *
-getTypeSpecifierDefinition(const model::Type &T) {
-  TypeSpecifierResult Result = getTypeSpecifierResult(T, false);
-  return Result.SpecifierDefinition;
-}
-
 static auto returnValueTypes(const abi::FunctionType::Layout &L) {
   using abi::FunctionType::Layout;
   return llvm::map_range(L.ReturnValues,
@@ -344,8 +338,7 @@ DGBuilder::addWrappedArrayWithDependencies(const model::ArrayType &Array)
   // depending on any types. WrapperDef, instead, needs to depend on the full
   // definition of the type specifier of the array that the dependent depends
   // on, i.e. the SpecifierDef.
-  const model::TypeDefinition
-    *TypeSpecifier = getTypeSpecifierDefinition(Array);
+  const model::TypeDefinition *TypeSpecifier = Array.skipToDefinition();
   const auto &[SpecifierDecl,
                SpecifierDef] = Graph->TypeToNodes.at(TypeSpecifier);
   addAndLogSuccessor(WrapperDef, SpecifierDef);
@@ -357,38 +350,66 @@ void DGBuilder::addDependenciesFrom(const AssociatedNodes Dependent,
                                     const model::Type &DependedOn) const {
 
   const auto &[DependentDecl, DependentDef] = Dependent;
+  const model::TypeDefinition *TD = DependentDecl->T->tryGetAsDefinition();
+  revng_assert(TD);
 
-  const auto AddArrayWrapper = [&](const model::ArrayType &Array) {
+  const auto AddArrayWrapperWithDependencies = [&](const model::ArrayType &A) {
     const auto &[ArrayWrapperDecl,
-                 ArrayWrapperDef] = addWrappedArrayWithDependencies(Array);
-    // The declaration of Dependent always depends on the declaration of the
-    // struct wrapper that wraps the Array.
-    addAndLogSuccessor(DependentDecl, ArrayWrapperDecl);
+                 ArrayWrapperDef] = addWrappedArrayWithDependencies(A);
+    // The declaration of Dependent depends on the declaration of the struct
+    // wrapper that wraps A, only if the declaration of Dependent is *not* a
+    // forward declaration.
+    // If the declaration of Dependent is a forward declaration we can avoid
+    // adding a dependency from DependentDecl to ArrayWrapperDecl
+    if (not isa<model::StructDefinition>(TD)
+        and not isa<model::UnionDefinition>(TD)
+        and not isa<model::EnumDefinition>(TD))
+      addAndLogSuccessor(DependentDecl, ArrayWrapperDecl);
+
     // The definition of Dependent also only depends on the declaration of the
-    // struct wrapper that wraps the Array.
+    // struct wrapper that wraps A.
     // The reason is that Dependent will only contain a pointer to the struct
-    // wrapper that wraps the Array, so it only needs the forward declaration
+    // wrapper that wraps A, so it only needs the forward declaration
     // of the wrapper.
     addAndLogSuccessor(DependentDef, ArrayWrapperDecl);
   };
 
-  // If the DependedOn is a pointer-to-array, wrap the pointed array in a struct
-  // wrapper, creating the necessary artificial nodes and dependencies.
-  if (const model::ArrayType *Array = getArrayPointee(DependedOn)) {
-    AddArrayWrapper(*Array);
-    return;
-  }
+  // If Dependent's definition requires a complete subtypes that may be
+  // model::TypeDefinition, we have to inspect more closely for the presence of
+  // pointer-to-array subtypes, because these could eventually generate
+  // recursive types that cannot be emitted in C.
+  if (requiresCompleteSubtypeDefinition(*TD)) {
+    // If the DependedOn is a pointer-to-array, and its type specifiers is also
+    // a type whose definition requires complete subtypes, we have to wrap the
+    // pointed array in a struct wrapper, creating the necessary artificial
+    // nodes and dependencies.
+    if (const model::ArrayType *Array = getArrayPointee(DependedOn)) {
+      const model::TypeDefinition *Specifier = Array->skipToDefinition();
+      if (Specifier
+          and transitivelyRequiresCompleteSubtypeDefinition(*Specifier)) {
+        AddArrayWrapperWithDependencies(*Array);
+        return;
+      }
+    }
+  } else {
+    bool Artificial = DependentDecl->isArtificial();
+    revng_assert(Artificial == DependentDef->isArtificial());
 
-  bool Artificial = DependentDecl->isArtificial();
-  revng_assert(Artificial == DependentDef->isArtificial());
+    bool IsFunction = false;
+    if (TD) {
+      IsFunction = isa<model::RawFunctionDefinition>(TD)
+                   or isa<model::CABIFunctionDefinition>(TD);
+    }
 
-  const model::TypeDefinition *TD = DependentDecl->T->tryGetAsDefinition();
-  bool IsFunction = isa<model::RawFunctionDefinition>(TD)
-                    or isa<model::CABIFunctionDefinition>(TD);
-  const model::ArrayType *Array = dyn_cast<model::ArrayType>(&DependedOn);
-  if (Artificial and IsFunction and Array) {
-    AddArrayWrapper(*Array);
-    return;
+    const model::ArrayType *Array = dyn_cast<model::ArrayType>(&DependedOn);
+
+    // If Dependent is a function type and DependedOn is an ArrayType, we have
+    // to wrap the array in a struct wrapper, because C doesn't allow to pass
+    // array arguments to functions by copy, not to return arrays by copy.
+    if (Artificial and IsFunction and Array) {
+      AddArrayWrapperWithDependencies(*Array);
+      return;
+    }
   }
 
   TypeSpecifierResult Result = getTypeSpecifierResult(DependedOn);
@@ -397,10 +418,11 @@ void DGBuilder::addDependenciesFrom(const AssociatedNodes Dependent,
     return;
 
   AssociatedNodes Specifier = Graph->TypeToNodes.at(TypeSpecifierDef);
+
   // The declaration of Dependent needs the declaration of the Specifier only if
   // the declaration of Dependent is *not* a forward declaration.
-  // If the declaration of Dependent is a forward declaration we can avoi adding
-  // a dependency from DependentDecl to Specifier.Declaration
+  // If the declaration of Dependent is a forward declaration we can avoid
+  // adding a dependency from DependentDecl to Specifier.Declaration
   if (not isa<model::StructDefinition>(TD)
       and not isa<model::UnionDefinition>(TD)
       and not isa<model::EnumDefinition>(TD))

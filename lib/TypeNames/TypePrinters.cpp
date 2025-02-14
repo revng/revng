@@ -98,12 +98,13 @@ void ptml::CTypeBuilder::printDefinition(const model::StructDefinition &S,
       printPadding(PreviousOffset, Field.Offset());
 
       auto *Definition = Field.Type()->skipToDefinition();
-      if (not Definition or not shouldInline(*Definition)) {
+      if (Definition
+          and shouldInlineAt(*Definition, Binary.makeType(S.key()))) {
+        printInlineDefinition(NameBuilder.name(S, Field).str(), *Field.Type());
+      } else {
         auto F = getLocationDefinition(S, Field);
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
-      } else {
-        printInlineDefinition(NameBuilder.name(S, Field).str(), *Field.Type());
       }
 
       PreviousOffset = Field.Offset() + Field.Type()->size().value();
@@ -126,12 +127,13 @@ void ptml::CTypeBuilder::printDefinition(const model::UnionDefinition &U,
     Scope Scope(*Out, ptml::c::scopes::UnionBody);
     for (const auto &Field : U.Fields()) {
       auto *Definition = Field.Type()->skipToDefinition();
-      if (not Definition or not shouldInline(*Definition)) {
+      if (Definition
+          and shouldInlineAt(*Definition, Binary.makeType(U.key()))) {
+        printInlineDefinition(NameBuilder.name(U, Field).str(), *Field.Type());
+      } else {
         auto F = getLocationDefinition(U, Field);
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
-      } else {
-        printInlineDefinition(NameBuilder.name(U, Field).str(), *Field.Type());
       }
     }
   }
@@ -213,9 +215,17 @@ void ptml::CTypeBuilder::printArrayWrapperImpl(const model::ArrayType
   if (IsDefinition) {
     {
       Scope Scope(*Out, ptml::c::scopes::StructBody);
-      *Out << getNamedCInstance(ArrayType,
-                                NameBuilder.artificialArrayWrapperFieldName())
-           << ";\n";
+      std::string
+        FieldName = NameBuilder.artificialArrayWrapperFieldName().str().str();
+
+      const model::UpcastableType &ElementType = ArrayType.ElementType();
+      const model::TypeDefinition *ElementDefinition = ArrayType
+                                                         .skipToDefinition();
+      if (ElementDefinition and shouldInlineAt(*ElementDefinition, ArrayType)) {
+        printInlineDefinition(FieldName, ArrayType);
+      } else {
+        *Out << getNamedCInstance(ArrayType, FieldName) << ";\n";
+      }
     }
     *Out << " ";
   }
@@ -311,8 +321,14 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
 
   if (Configuration.EnableTypeInlining
       or Configuration.EnableStackFrameInlining) {
-    std::map<model::TypeDefinition::Key, uint64_t> DependentTypeCount;
+
+    std::map<model::TypeDefinition::Key, const model::UpcastableType> ToInline;
     for (const auto *Node : DependencyCache->nodes()) {
+
+      // Ignore declaration nodes
+      if (Node->isDeclaration())
+        continue;
+
       const model::TypeDefinition &T = *Node->T->tryGetAsDefinition();
 
       // Skip stuff we never want to inline.
@@ -354,7 +370,7 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
         //
         //     struct external {
         //       struct wrapper {
-        //         int32_t array[8];
+        //         other_t array[8];
         //       } *pointer_to_array;
         //     };
         //
@@ -365,25 +381,54 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
         // This is feasible but requires sensible redesign of how we track the
         // types to be inlined, so we don't do it for now and just ban
         // inlining for artificial wrapper types.
+        // Also, if in the example above other_t is an alias of struct external,
+        // the generated C code could fail to compile.
         continue;
       }
 
-      auto [Iterator, _] = DependentTypeCount.try_emplace(T.key(), 0);
-      Iterator->second += Node->predecessorCount();
-      if (Node->isDeclaration()) {
-        // Ignore a reference from a type definition to its own declaration.
-        // But only do so if there is exactly one. If there are more, keep it
-        // in order to ensure it is never marked for inlining.
-        using TDN = TypeDependencyNode;
-        const TDN *DefNode = DependencyCache->getDefinition(&T);
-        if (1 == llvm::count(Node->predecessors(), DefNode))
-          --Iterator->second;
+      const TypeDependencyNode *DeclNode = DependencyCache->getDeclaration(&T);
 
-        // Since dependency graph does not take functions into account,
-        // explicitly add one "use" to each struct that appears as a function
-        // stack frame.
-        if (StackFrameTypeCache.contains(T.key()))
-          ++Iterator->second;
+      // Compute all the nodes that depend on T, with multiplicity.
+      llvm::SmallVector<model::UpcastableType> Dependents;
+
+      // All predecessors of Node depend on it
+      ::append(llvm::map_range(Node->predecessors(),
+                               [](const TypeDependencyNode *N) {
+                                 return N->T;
+                               }),
+               Dependents);
+
+      // All predecessors of DeclNode depend on it, but we want to ignore the
+      // reference from a type definition to its own declaration. But only do so
+      // if there is exactly on. If there are mode, keep it in order to ensure
+      // it is not marked for inlining.
+      // So initially we add to Dependents everything except Node, and then if
+      // the number of self-dependencies are more than 1 we also add Node as
+      // dependent on itself, so that it it not marked for inlining.
+      uint64_t NumberOfSelfDependencies = 0;
+      for (const TypeDependencyNode *Dependent : DeclNode->predecessors()) {
+        if (Dependent == Node)
+          ++NumberOfSelfDependencies;
+        else
+          Dependents.push_back(Dependent->T);
+      }
+
+      revng_assert(NumberOfSelfDependencies);
+      if (1 != NumberOfSelfDependencies) {
+        Dependents.append(NumberOfSelfDependencies, Node->T);
+      }
+
+      // Since dependency graph does not take functions into account.
+      // Explicitly add one empty dependent to each struct that appears as a
+      // function stack frame.
+      bool IsStackFrame = StackFrameTypeCache.contains(T.key());
+      if (IsStackFrame)
+        Dependents.push_back(model::UpcastableType::empty());
+
+      // If there's only a single dependency we can mark this to inline
+      if (Dependents.size() == 1) {
+        auto New = ToInline.insert({ T.key(), Dependents.front() }).second;
+        revng_assert(New);
       }
 
       if (InlineTypeLog.isEnabled()) {
@@ -396,19 +441,15 @@ void ptml::CTypeBuilder::collectInlinableTypes() {
       }
     }
 
-    auto SingleDependencyFilter = std::views::filter([](const auto &Pair) {
-      return Pair.second == 1;
-    });
-    TypesToInlineCache = DependentTypeCount | SingleDependencyFilter
-                         | std::views::keys
-                         | revng::to<std::set<model::TypeDefinition::Key>>();
+    TypesToInlineCache = std::move(ToInline);
 
     if (InlineTypeLog.isEnabled()) {
       revng_log(InlineTypeLog, "Final list of types that can be inlined: {");
       {
         LoggerIndent Indent{ InlineTypeLog };
-        for (const model::TypeDefinition::Key &T : TypesToInlineCache)
-          revng_log(InlineTypeLog, ::toString(T));
+        for (const auto &[Key, Where] : TypesToInlineCache)
+          revng_log(InlineTypeLog,
+                    ::toString(Key) << " at " << ::toString(Where));
       }
       revng_log(InlineTypeLog, "}");
     }
