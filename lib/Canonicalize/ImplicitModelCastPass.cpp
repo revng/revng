@@ -284,6 +284,11 @@ ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
     return Result;
   }
 
+  auto GetPlainTypeName = [](const model::Type &Type) {
+    ptml::CTypeBuilder B(llvm::nulls(), {}, /* TaglessMode = */ true);
+    return B.getTypeName(Type).str().str();
+  };
+
   for (unsigned Index = 0; Index < I->getNumOperands(); ++Index) {
     llvm::Use &Op = I->getOperandUse(Index);
     if (not isCallToTagged(Op.get(), FunctionTags::ModelCast))
@@ -323,17 +328,17 @@ ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
 
     if (not IsImplicit) {
       revng_log(Log,
-                " '" << getPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
-                     << getPlainTypeName(CastedValueType)
+                " '" << GetPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
+                     << GetPlainTypeName(CastedValueType)
                      << "') CANNOT be implicitly cast to '"
-                     << getPlainTypeName(ExpectedType) << "'.");
+                     << GetPlainTypeName(ExpectedType) << "'.");
       continue;
     } else {
       revng_log(Log,
-                " '" << getPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
-                     << getPlainTypeName(CastedValueType)
+                " '" << GetPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
+                     << GetPlainTypeName(CastedValueType)
                      << "') can be implicitly cast to '"
-                     << getPlainTypeName(ExpectedType) << "'.");
+                     << GetPlainTypeName(ExpectedType) << "'.");
     }
 
     Result.insert(&Op);

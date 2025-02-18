@@ -537,8 +537,3 @@ public:
 };
 
 } // namespace ptml
-
-inline std::string getPlainTypeName(const model::Type &Type) {
-  ptml::CTypeBuilder B(llvm::nulls(), {}, /* EnableTaglessMode = */ true);
-  return B.getTypeName(Type).str().str();
-}
