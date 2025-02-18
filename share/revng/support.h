@@ -112,7 +112,7 @@ extern jmp_buf jmp_buffer;
 
 bool is_executable(uint64_t pc);
 void set_register(uint32_t register_id, uint64_t value);
-void unknown_pc();
+noreturn void unknown_pc();
 
 noreturn void _abort(const char *reason);
 
