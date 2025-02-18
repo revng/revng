@@ -206,14 +206,7 @@ static std::string charLiteral(const llvm::ConstantInt *Int,
   llvm::raw_string_ostream EscapeCStream(Escaped);
   EscapeCStream.write_escaped(std::string(&CharValue, 1));
 
-  if (not B.IsInTaglessMode) {
-    std::string Tmp;
-    llvm::raw_string_ostream EscapeHTMLStream(Tmp);
-    llvm::printHTMLEscaped(Escaped, EscapeHTMLStream);
-    Escaped = Tmp;
-  }
-
-  return llvm::formatv("'{0}'", Escaped);
+  return "'" + std::move(Escaped) + "'";
 }
 
 static std::string boolLiteral(const llvm::ConstantInt *Int) {
