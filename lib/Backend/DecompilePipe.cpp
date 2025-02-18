@@ -83,6 +83,45 @@ static void reportProblemNames(const model::Binary &Binary) {
     revng_abort(ErrorCode.message().c_str());
 }
 
+// Does a sanity check on the names we are possibly emitting.
+static std::optional<std::string>
+gatherNonReservedHelperNames(const llvm::Module &Module,
+                             const model::CNameBuilder &B) {
+  std::string Error = "";
+  for (const llvm::Function &Function : Module.functions()) {
+    std::string SanitizedName = model::sanitizeHelperName(Function.getName());
+
+    if (llvm::Error Error = B.isNameReserved(SanitizedName)) {
+      // If we get an error here, then the identifier is reserved, which is
+      // exactly what we want for helpers!
+      llvm::consumeError(std::move(Error));
+      continue;
+    }
+
+    if (FunctionTags::QEMU.isTagOf(&Function))
+      Error += "- QEMU: " + SanitizedName + "\n";
+
+    if (FunctionTags::Helper.isTagOf(&Function)
+        and not FunctionTags::BinaryOperationOverflows.isTagOf(&Function)) {
+      Error += "- Helper: " + SanitizedName + "\n";
+    }
+
+    if (FunctionTags::OpaqueCSVValue.isTagOf(&Function))
+      Error += "- OpaqueCSVValue: " + SanitizedName + "\n";
+
+    if (FunctionTags::Exceptional.isTagOf(&Function))
+      Error += "- Exceptional: " + SanitizedName + "\n";
+
+    if (Function.isIntrinsic())
+      Error += "- Intrinsic: " + SanitizedName + "\n";
+  }
+
+  if (Error.empty())
+    return std::nullopt;
+
+  return std::move(Error);
+}
+
 void Decompile::run(pipeline::ExecutionContext &EC,
                     pipeline::LLVMContainer &IRContainer,
                     const revng::pipes::CFGMap &CFGMap,
@@ -109,6 +148,9 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   }
 
   reportProblemNames(Model);
+
+  if (std::optional Names = gatherNonReservedHelperNames(Module, B.NameBuilder))
+    revng_abort(("Function names should be forbidden:\n" + *Names).c_str());
 }
 
 } // end namespace revng::pipes
