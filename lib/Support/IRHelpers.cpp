@@ -74,7 +74,7 @@ static std::string mangleName(StringRef String) {
 
   constexpr auto SHA1HexLength = 40;
   if (String.size() > SHA1HexLength or not IsPrintable(String)
-      or ContainsSpaces(String)) {
+      or ContainsSpaces(String) or String.empty()) {
     ArrayRef Data(reinterpret_cast<const uint8_t *>(String.data()),
                   String.size());
     return llvm::toHex(SHA1::hash(Data), true);
