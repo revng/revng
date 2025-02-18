@@ -7,6 +7,8 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Support/Annotations.h"
+#include "revng/Support/ResourceFinder.h"
+#include "revng/Support/YAMLTraits.h"
 
 static size_t trailingDigitCount(llvm::StringRef Name) {
   size_t Result = 0;
@@ -19,6 +21,56 @@ static size_t trailingDigitCount(llvm::StringRef Name) {
 
   revng_assert(Result == Name.size());
   return Result;
+}
+
+static llvm::StringRef dropWrapperSuffix(llvm::StringRef Name) {
+  size_t Position = Name.find("_wrapper");
+  if (Position != llvm::StringRef::npos)
+    return Name.substr(0, Position);
+
+  return Name;
+}
+
+static const SortedVector<std::string> &loadHelperNameList() {
+  static std::optional<SortedVector<std::string>> Cache = std::nullopt;
+  if (not Cache.has_value()) {
+    auto MaybePath = revng::ResourceFinder.findFile("share/revng/"
+                                                    "helper-list.csv");
+    revng_assert(MaybePath.has_value(),
+                 ("Helper list is missing: " + *MaybePath).c_str());
+
+    auto MaybeBuffer = llvm::MemoryBuffer::getFile(*MaybePath, true);
+    revng_assert(MaybeBuffer, ("Can't open " + *MaybePath).c_str());
+
+    llvm::SmallVector<llvm::StringRef, 8> Names;
+    llvm::StringRef(MaybeBuffer->get()->getBuffer()).split(Names, "\n");
+
+    revng_assert(!Names.empty());
+    revng_assert(Names[0] == "Name");
+    revng_assert(Names.back().empty());
+    Names.pop_back();
+
+    Cache = SortedVector<std::string>();
+    auto Inserter = Cache->batch_insert();
+    for (llvm::StringRef Name : Names | std::views::drop(1)) {
+      revng_assert(not Name.empty());
+      revng_assert(Name == Name.trim());
+
+      // We don't want to ban `main`, even if it's is in the helper module.
+      if (Name == "main")
+        continue;
+
+      // We don't care about llvm debug information.
+      if (Name.starts_with("llvm.dbg"))
+        continue;
+
+      // TODO: other names we don't want to ban?
+
+      Inserter.insert(model::sanitizeHelperName(Name));
+    }
+  }
+
+  return *Cache;
 }
 
 const std::set<llvm::StringRef> ReservedKeywords = {
@@ -332,6 +384,11 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   if (ReservedKeywords.contains(Name))
     return revng::createError("it is reserved by the C language or some common "
                               "extension");
+
+  llvm::StringRef Unwrapped = dropWrapperSuffix(Name);
+  if (loadHelperNameList().contains(Unwrapped.str()))
+    return revng::createError("it collides with a helper (`" + Unwrapped.str()
+                              + "`)");
 
   //
   // The following names are reserved based on the configuration
