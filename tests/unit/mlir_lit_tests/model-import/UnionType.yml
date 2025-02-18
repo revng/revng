@@ -3,6 +3,8 @@
 #
 # RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
+Architecture: x86_64
+
 TypeDefinitions:
   # CHECK: #my_union$def = #clift.union<
   # CHECK:   "/type-definition/1001-UnionDefinition"

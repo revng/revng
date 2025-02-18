@@ -31,6 +31,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   std::vector<std::pair<const model::UpcastableType &, std::string>> Tests;
 
   TupleTree<model::Binary> Binary = {};
+  Binary->Architecture() = model::Architecture::x86_64;
 
   auto Void = model::PrimitiveType::makeVoid();
   Tests.emplace_back(Void, "void test");
