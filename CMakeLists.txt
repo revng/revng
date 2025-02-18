@@ -174,6 +174,9 @@ set(SUPPORT_MODULES_CONFIGS "normal;trace")
 set(SUPPORT_MODULES_CONFIG_normal "")
 set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
 
+# A set of llvm modules that contain all the known helpers.
+set(HELPER_MODULE_LIST, "")
+
 foreach(
   ARCH
   aarch64
@@ -195,6 +198,7 @@ foreach(
   add_custom_target("early-linked-module-${OUTPUT}" ALL
                     DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
   add_dependencies(revng-all-binaries "early-linked-module-${OUTPUT}")
+  list(APPEND HELPER_MODULE_LIST "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
 
   # Enable the support for C exceptions to avoid optimizations that break
   # exception support when linking a module with isolated functions
@@ -212,16 +216,14 @@ foreach(
     add_custom_target("support-module-${OUTPUT}" ALL
                       DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
     add_dependencies(revng-all-binaries "support-module-${OUTPUT}")
+    list(APPEND HELPER_MODULE_LIST "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
   endforeach()
+
+  list(APPEND HELPER_MODULE_LIST
+       "${CMAKE_INSTALL_PREFIX}/lib/libtinycode-helpers-${ARCH}.bc")
 endforeach()
 
 # Produce well-known-models
-
-file(
-  GLOB
-  WELL_KNOWN_BINARIES
-  "${CMAKE_INSTALL_PREFIX}/share/revng/test/tests/well-known-models/*revng-qa.compiled-with-debug*"
-)
 
 add_custom_target(well-known-binaries ALL)
 
@@ -338,6 +340,18 @@ add_custom_command(
   COMMAND mv -T mkdocs-output "${HTML_DOCS_PATH}"
   COMMENT "Generating mkdocs")
 add_custom_target(mkdocs ALL DEPENDS share/doc/revng/html/404.html)
+
+#
+# Gather helper names
+#
+add_custom_command(
+  OUTPUT "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv"
+  COMMAND
+    ${CMAKE_SOURCE_DIR}/scripts/extract-helper-names.sh ${HELPER_MODULE_LIST} >
+    "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv"
+  DEPENDS copy_share ${HELPER_MODULE_LIST})
+add_custom_target(helper-list ALL
+                  DEPENDS "${CMAKE_BINARY_DIR}/share/revng/helper-list.csv")
 
 #
 # Proceed to subdirectories
