@@ -585,15 +585,6 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
   Task T(12, "Translation");
 
-  // Declare the abort function
-  auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
-  FunctionCallee AbortFunction = TheModule->getOrInsertFunction("abort",
-                                                                AbortTy);
-  {
-    auto *Abort = cast<Function>(skipCasts(AbortFunction.getCallee()));
-    FunctionTags::Exceptional.addTo(Abort);
-  }
-
   // Prepare the helper modules by transforming the cpu_loop function and
   // running SROA
   T.advance("Prepare helpers module", true);
@@ -656,12 +647,15 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
                                                      "do_arm_semihosting",
                                                      "EmulateAll");
   for (auto Name : AbortFunctionNames) {
-    Function *TheFunction = HelpersModule->getFunction(Name);
-    if (TheFunction != nullptr) {
-      revng_assert(HelpersModule->getFunction("abort") != nullptr);
-      BasicBlock *NewBody = replaceFunction(TheFunction);
-      CallInst::Create(HelpersModule->getFunction("abort"), {}, NewBody);
-      new UnreachableInst(Context, NewBody);
+    Function *OldFunction = HelpersModule->getFunction(Name);
+    if (OldFunction != nullptr) {
+      llvm::DebugLoc DLocation;
+      if (not OldFunction->empty())
+        DLocation = OldFunction->getEntryBlock().getTerminator()->getDebugLoc();
+
+      emitAbort(replaceFunction(OldFunction),
+                llvm::Twine("Abort instead a calling '") + Name + "'",
+                std::move(DLocation));
     }
   }
 
@@ -907,8 +901,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
     if (ConsumedSize == 0) {
       Translator.emitNewPCCall(Builder, VirtualAddress, 1, nullptr);
-      Builder.CreateCall(AbortFunction);
-      Builder.CreateUnreachable();
+      emitAbort(Builder, "", Entry->getTerminator()->getDebugLoc());
 
       // Obtain a new program counter to translate
       TranslateTask.complete();
@@ -978,8 +971,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
       if (Result == InstructionTranslator::Abort) {
         StopTranslation = true;
-        Builder.CreateCall(AbortFunction);
-        Builder.CreateUnreachable();
+        emitAbort(Builder, "", Entry->getTerminator()->getDebugLoc());
       }
 
       J++;
@@ -1047,8 +1039,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
         // No-op
         break;
       case IT::Abort:
-        Builder.CreateCall(AbortFunction);
-        Builder.CreateUnreachable();
+        emitAbort(Builder, "");
         StopTranslation = true;
         break;
       case IT::Stop:

@@ -114,6 +114,4 @@ bool is_executable(uint64_t pc);
 void set_register(uint32_t register_id, uint64_t value);
 noreturn void unknown_pc();
 
-noreturn void _abort(const char *reason);
-
-noreturn void _unreachable(const char *reason);
+noreturn void revng_abort(const char *reason);

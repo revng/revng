@@ -780,6 +780,10 @@ void JumpTargetManager::fixPostHelperPC() {
   for (BasicBlock &BB : *TheFunction) {
     for (Instruction &I : BB) {
       if (auto *Call = getCallToHelper(&I)) {
+        auto *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
+        if (Callee->getName() == AbortFunctionName)
+          continue;
+
         auto Written = std::move(getCSVUsedByHelperCall(Call).Written);
         auto WritesPC = [this](GlobalVariable *CSV) {
           return PCH->affectsPC(CSV);

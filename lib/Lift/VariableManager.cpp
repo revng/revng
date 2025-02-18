@@ -393,8 +393,7 @@ void VariableManager::finalize() {
 
   // Populate the default case of the switch
   Builder.SetInsertPoint(DefaultBB);
-  Builder.CreateCall(TheModule.getFunction("abort"));
-  Builder.CreateUnreachable();
+  emitAbort(Builder, "");
 
   // Create the switch statement
   Builder.SetInsertPoint(EntryBB);

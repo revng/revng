@@ -1150,9 +1150,9 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   Builder.CreateCall(PostCallHook, Args);
 }
 
-void CallSummarizer::handlePostNoReturn(llvm::IRBuilder<> &Builder) {
-  Builder.CreateCall(M->getFunction("abort"));
-  Builder.CreateUnreachable();
+void CallSummarizer::handlePostNoReturn(llvm::IRBuilder<> &Builder,
+                                        const llvm::DebugLoc &DbgLocation) {
+  emitAbort(Builder, "", DbgLocation);
 }
 
 void CallSummarizer::handleIndirectJump(llvm::IRBuilder<> &Builder,

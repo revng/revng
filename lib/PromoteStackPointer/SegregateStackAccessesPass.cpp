@@ -1006,8 +1006,9 @@ private:
           if (not MessageEmitted) {
             MessageEmitted = true;
             emitMessage(OldCall,
-                        "Ignoring stack arguments for this call site: stack "
-                        "size at call site unknown");
+                        "Ignoring stack arguments for this call site: "
+                        "stack size at call site unknown",
+                        OldCall->getDebugLoc());
           }
         } else if (ModelArgument.Stack) {
           unsigned OldSize = ModelArgument.Stack->Size;

@@ -3,6 +3,7 @@
 //
 
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/ProgramCounterHandler.h"
 
 namespace FunctionTags {
 
@@ -449,25 +450,73 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
   return { StartAddress, VirtualSize, Offset, StrLen, ReturnType };
 }
 
-void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message) {
-  llvm::IRBuilder<> Builder(EmitBefore);
-  emitMessage(Builder, Message);
-}
-
-void emitMessage(llvm::IRBuilder<> &Builder, const llvm::Twine &Message) {
+template<bool ShouldTerminateTheBlock>
+llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,
+                                const llvm::Twine &Message,
+                                const llvm::DebugLoc &DbgLocation,
+                                const ProgramCounterHandler *PCH) {
   using namespace llvm;
 
+  // Create the function if there's not already one.
   Module *M = getModule(Builder.GetInsertBlock());
   auto *FT = createFunctionType<void, const uint8_t *>(M->getContext());
-  // TODO: use reserved prefix
-  llvm::StringRef MessageFunctionName("revng_message");
-  FunctionCallee Callee = M->getOrInsertFunction(MessageFunctionName, FT);
+  FunctionCallee Callee = M->getOrInsertFunction(AbortFunctionName, FT);
 
+  // Ensure it's marked as a helper.
   Function *F = cast<Function>(Callee.getCallee());
   if (not FunctionTags::Helper.isTagOf(F))
     FunctionTags::Helper.addTo(F);
 
-  Builder.CreateCall(Callee, getUniqueString(M, Message.str()));
+  // Optionally update the program counter.
+  if (PCH != nullptr) {
+    MetaAddress SourcePC = MetaAddress::invalid();
+
+    if (Instruction *T = Builder.GetInsertBlock()->getTerminator())
+      SourcePC = getPC(T).first;
+
+    PCH->setLastPCPlainMetaAddress(Builder, SourcePC);
+    PCH->setCurrentPCPlainMetaAddress(Builder);
+  }
+
+  llvm::DebugLoc DebugLocation = DbgLocation ?
+                                   DbgLocation :
+                                   Builder.getCurrentDebugLocation();
+
+  // Create the call.
+  auto *NewCall = Builder.CreateCall(Callee, getUniqueString(M, Message.str()));
+  NewCall->setDebugLoc(DebugLocation);
+
+  if constexpr (ShouldTerminateTheBlock) {
+    // Add an unreachable mark after this call.
+    Instruction *T = Builder.CreateUnreachable();
+    T->setDebugLoc(DebugLocation);
+
+    // Assert there's one and only one terminator
+    auto *BB = Builder.GetInsertBlock();
+    unsigned Terminators = 0;
+    for (Instruction &I : *BB)
+      if (I.isTerminator())
+        ++Terminators;
+    revng_assert(Terminators == 1,
+                 "There's already a terminator in this basic block. "
+                 "Did you mean to use `emitMessage` instead?");
+  }
+
+  return *NewCall;
+}
+
+llvm::CallInst &emitAbort(llvm::IRBuilderBase &Builder,
+                          const llvm::Twine &Message,
+                          const llvm::DebugLoc &DbgLocation,
+                          const ProgramCounterHandler *PCH) {
+  return emitMessageImpl<true>(Builder, Message, DbgLocation, PCH);
+}
+
+llvm::CallInst &emitMessage(llvm::IRBuilderBase &Builder,
+                            const llvm::Twine &Message,
+                            const llvm::DebugLoc &DbgLocation,
+                            const ProgramCounterHandler *PCH) {
+  return emitMessageImpl<false>(Builder, Message, DbgLocation, PCH);
 }
 
 static constexpr const char *const ModelGEPName = "ModelGEP";

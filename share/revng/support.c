@@ -268,7 +268,7 @@ void unknown_pc() {
 }
 
 void jump_to_symbol(char *Symbol) {
-  _abort(Symbol);
+  revng_abort(Symbol);
 }
 
 #ifdef TRACE
@@ -465,15 +465,13 @@ int main(int argc, char *argv[]) {
   root((uintptr_t) stack);
 }
 
-static noreturn void fail(const char *reason,
-                          PlainMetaAddress *source,
-                          PlainMetaAddress *destination) {
+noreturn void revng_abort(const char *reason) {
   // Dump information about the exception
   fprintf(stderr, "Exception: %s", reason);
   fprintf(stderr, " (");
-  fprint_metaaddress(stderr, source);
+  fprint_metaaddress(stderr, &last_pc);
   fprintf(stderr, " -> ");
-  fprint_metaaddress(stderr, destination);
+  fprint_metaaddress(stderr, &current_pc);
   fprintf(stderr, ")\n");
 
   // Declare the exception object
@@ -483,12 +481,4 @@ static noreturn void fail(const char *reason,
   _Unwind_RaiseException(&exc);
 
   abort();
-}
-
-noreturn void _abort(const char *reason) {
-  fail(reason, &last_pc, &current_pc);
-}
-
-noreturn void _unreachable(const char *reason) {
-  fail(reason, &last_pc, &current_pc);
 }

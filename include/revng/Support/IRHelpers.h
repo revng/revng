@@ -1436,16 +1436,6 @@ void forceVerify(const llvm::Function *F);
 
 void collectTypes(llvm::Type *Root, std::set<llvm::Type *> &Set);
 
-/// Emit a call to a function passing as argument a string
-///
-/// \p PCH if not nullptr, the function will force the program counter CSVs to
-///    a sensible value for better debugging.
-void emitCall(llvm::IRBuilderBase &Builder,
-              llvm::Function *Callee,
-              const llvm::Twine &Reason,
-              const llvm::DebugLoc &DbgLocation,
-              const ProgramCounterHandler *PCH = nullptr);
-
 namespace llvm {
 class DominatorTree;
 }

@@ -451,7 +451,8 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
     Function *Callee = getCallee(Call);
     if (FunctionTags::Isolated.isTagOf(Callee)) {
       Queue.push(Callee);
-    } else if (FunctionTags::Helper.isTagOf(Callee)) {
+    } else if (FunctionTags::Helper.isTagOf(Callee)
+               and Callee->getName() != AbortFunctionName) {
       CSVsUsage &Usage = Result.Calls[Call];
       auto UsedCSVs = getCSVUsedByHelperCall(Call);
       Usage.Read = UsedCSVs.Read;
@@ -490,7 +491,7 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
           revng_assert(Callee != nullptr);
 
           // In case we meet an `abort` skip this block
-          if (Callee->getName() == "abort")
+          if (Callee->getName() == AbortFunctionName)
             break;
 
           // TODO: use forwardTaintAnalysis

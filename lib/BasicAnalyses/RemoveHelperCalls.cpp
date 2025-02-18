@@ -42,6 +42,11 @@ public:
   }
 };
 
+static bool isCallToAbort(const llvm::Instruction *I) {
+  const llvm::Function *Callee = getCallee(I);
+  return Callee and (Callee->getName() == AbortFunctionName);
+}
+
 llvm::PreservedAnalyses
 RemoveHelperCallsPass::run(llvm::Function &F,
                            llvm::FunctionAnalysisManager &FAM) {
@@ -54,7 +59,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   SmallVector<Instruction *, 16> ToReplace;
   for (auto &BB : F)
     for (auto &I : BB)
-      if (isCallToHelper(&I))
+      if (isCallToHelper(&I) and not isCallToAbort(&I))
         ToReplace.push_back(&I);
 
   bool Changed = not ToReplace.empty();

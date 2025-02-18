@@ -275,10 +275,47 @@ void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
 
 bool hasStringLiteralMetadata(const llvm::Function &StringLiteralFunction);
 
-void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);
-void emitMessage(llvm::IRBuilder<llvm::ConstantFolder,
-                                 llvm::IRBuilderDefaultInserter> &Builder,
-                 const llvm::Twine &Message);
+inline constexpr llvm::StringRef AbortFunctionName = "revng_abort";
+
+/// \p PCH if not nullptr, the function will force the program counter CSVs to
+///    a sensible value for better debugging.
+llvm::CallInst &emitAbort(llvm::IRBuilderBase &Builder,
+                          const llvm::Twine &Message,
+                          const llvm::DebugLoc &DbgLocation = {},
+                          const ProgramCounterHandler *PCH = nullptr);
+
+inline llvm::CallInst &emitAbort(llvm::Instruction *InsertionPoint,
+                                 const llvm::Twine &Message,
+                                 const llvm::DebugLoc &DbgLocation = {},
+                                 const ProgramCounterHandler *PCH = nullptr) {
+  llvm::IRBuilder<> Builder(InsertionPoint);
+  return emitAbort(Builder, Message, DbgLocation, PCH);
+}
+
+inline llvm::CallInst &emitAbort(llvm::BasicBlock *InsertionPoint,
+                                 const llvm::Twine &Message,
+                                 const llvm::DebugLoc &DbgLocation = {},
+                                 const ProgramCounterHandler *PCH = nullptr) {
+  llvm::IRBuilder<> Builder(InsertionPoint);
+  return emitAbort(Builder, Message, DbgLocation, PCH);
+}
+
+/// \p PCH if not nullptr, the function will force the program counter CSVs to
+///    a sensible value for better debugging.
+llvm::CallInst &emitMessage(llvm::IRBuilderBase &Builder,
+                            const llvm::Twine &Message,
+                            const llvm::DebugLoc &DbgLocation = {},
+                            const ProgramCounterHandler *PCH = nullptr);
+
+template<typename IPType>
+  requires std::constructible_from<llvm::IRBuilder<>, IPType>
+llvm::CallInst &emitMessage(IPType &&InsertionPoint,
+                            const llvm::Twine &Message,
+                            const llvm::DebugLoc &DbgLocation = {},
+                            const ProgramCounterHandler *PCH = nullptr) {
+  llvm::IRBuilder<> Builder(std::forward<IPType>(InsertionPoint));
+  return emitMessage(Builder, Message, DbgLocation, PCH);
+}
 
 inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   revng_assert(FunctionTags::Isolated.isTagOf(&F));

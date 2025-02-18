@@ -164,8 +164,6 @@ private:
   GeneratedCodeBasicInfo &GCBI;
   const model::Binary &Binary;
   model::CNameBuilder NameBuilder;
-  Function *AbortFunction = nullptr;
-  Function *UnreachableFunction = nullptr;
   Function *FunctionDispatcher = nullptr;
   std::map<MetaAddress, Function *> IsolatedFunctionsMap;
   std::map<StringRef, Function *> DynamicFunctionsMap;
@@ -219,11 +217,7 @@ public:
   void emitAbort(IRBuilder<> &Builder,
                  const Twine &Reason,
                  const DebugLoc &DbgLocation) {
-    emitCall(Builder,
-             AbortFunction,
-             Reason,
-             DbgLocation,
-             GCBI.programCounterHandler());
+    ::emitAbort(Builder, Reason, DbgLocation, GCBI.programCounterHandler());
   }
 
   void
@@ -235,12 +229,9 @@ public:
   void emitUnreachable(IRBuilder<> &Builder,
                        const Twine &Reason,
                        const DebugLoc &DbgLocation) {
-
-    emitCall(Builder,
-             UnreachableFunction,
-             Reason,
-             DbgLocation,
-             GCBI.programCounterHandler());
+    // Emitting any long-lasting messages here prevents switch detection,
+    // so use a simple `unreachable`.
+    Builder.CreateUnreachable();
   }
 
   void emitUnreachable(BasicBlock *BB,
@@ -396,11 +387,11 @@ public:
     handleCall(Builder, Callee, SymbolNamePointer);
   }
 
-  void handlePostNoReturn(llvm::IRBuilder<> &Builder) final {
-    // TODO: can we do better than DebugLoc()?
+  void handlePostNoReturn(llvm::IRBuilder<> &Builder,
+                          const llvm::DebugLoc &DbgLocation) final {
     IFI.emitUnreachable(Builder,
                         "We return from a noreturn function call",
-                        DebugLoc());
+                        DbgLocation);
   }
 
   void handleIndirectJump(llvm::IRBuilder<> &Builder,
@@ -505,13 +496,6 @@ public:
 
 void IsolateFunctionsImpl::run() {
   Task T(6, "IsolateFunctions");
-
-  AbortFunction = TheModule->getFunction("_abort");
-  revng_assert(AbortFunction != nullptr);
-
-  UnreachableFunction = TheModule->getFunction("_unreachable");
-  revng_assert(UnreachableFunction != nullptr);
-  FunctionTags::Exceptional.addTo(UnreachableFunction);
 
   FunctionDispatcher = Function::Create(createFunctionType<void>(Context),
                                         GlobalValue::ExternalLinkage,
