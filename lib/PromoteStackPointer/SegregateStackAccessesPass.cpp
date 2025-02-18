@@ -311,7 +311,7 @@ public:
     Binary(Binary),
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
-    InitLocalSP(M.getFunction("_init_local_sp")),
+    InitLocalSP(M.getFunction("init_local_sp")),
     CallInstructionPushSize(getCallPushSize(Binary)),
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
@@ -321,7 +321,7 @@ public:
     revng_assert(SSACS != nullptr);
 
     // After segregate, we should not introduce new calls to
-    // `_init_local_sp`: enable to DCE it away
+    // `init_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
   }
 
@@ -874,7 +874,7 @@ private:
     LoggerIndent<> Indent(Log);
 
     //
-    // Find call to _init_local_sp
+    // Find call to init_local_sp
     //
     Function *Caller = SSACSCall->getParent()->getParent();
 
@@ -1352,7 +1352,7 @@ private:
 
   void adjustStackFrame(const model::Function &ModelFunction, Function &F) {
     //
-    // Find call to _init_local_sp
+    // Find call to init_local_sp
     //
     CallInst *InitLocalSPCall = findCallTo(&F, InitLocalSP);
     if (InitLocalSPCall == nullptr or ModelFunction.StackFrameType().isEmpty())
@@ -1378,7 +1378,7 @@ private:
                                     getSPConstant(StackFrameSize));
       InitLocalSPCall->replaceAllUsesWith(SP0);
 
-      // Cleanup _init_local_sp
+      // Cleanup init_local_sp
       eraseFromParent(InitLocalSPCall);
     }
   }

@@ -151,7 +151,7 @@ bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
   Module *M = F.getParent();
   LLVMContext &Context = F.getContext();
   Type *SPType = GlobalSP->getValueType();
-  auto InitFunction = M->getOrInsertFunction("_init_local_sp", SPType);
+  auto InitFunction = M->getOrInsertFunction("init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
   InitLocalSP->addFnAttr(Attribute::WillReturn);

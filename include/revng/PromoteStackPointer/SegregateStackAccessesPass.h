@@ -19,4 +19,4 @@
 ///   stack arguments.
 ///
 /// After this pass, all stack accesses have positive offsets and
-/// `_init_local_sp` is dropped entirely.
+/// `init_local_sp` is dropped entirely.
