@@ -39,6 +39,10 @@ template<>
 struct KeyedObjectTraits<std::string>
   : public IdentityKeyedObjectTraits<std::string> {};
 
+template<>
+struct KeyedObjectTraits<llvm::StringRef>
+  : public IdentityKeyedObjectTraits<llvm::StringRef> {};
+
 static_assert(KeyedObjectContainerCompatible<int>);
 
 template<typename T>
