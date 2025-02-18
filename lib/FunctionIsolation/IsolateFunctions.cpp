@@ -163,7 +163,7 @@ private:
   LLVMContext &Context;
   GeneratedCodeBasicInfo &GCBI;
   const model::Binary &Binary;
-  model::NameBuilder NameBuilder;
+  model::CNameBuilder NameBuilder;
   Function *AbortFunction = nullptr;
   Function *UnreachableFunction = nullptr;
   Function *FunctionDispatcher = nullptr;

@@ -306,16 +306,15 @@ static bool isPrefixAndRegister(llvm::StringRef Name, llvm::StringRef Prefix) {
   return false;
 }
 
-using NC = model::NamingConfiguration;
-llvm::Error model::NameBuilder::isNameReserved(llvm::StringRef Name,
-                                               const NC &Configuration) {
+llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   revng_assert(!Name.empty());
 
   // Only alphanumeric characters and '_' are allowed
-  auto isCharacterForbidden = [](char Character) -> bool {
+  // TODO: handle unicode
+  auto IsCharacterForbidden = [](char Character) -> bool {
     return Character != '_' && !std::isalnum(Character);
   };
-  auto Iterator = llvm::find_if(Name, isCharacterForbidden);
+  auto Iterator = llvm::find_if(Name, IsCharacterForbidden);
   if (Iterator != Name.end()) {
     using namespace std::string_literals;
     return revng::createError("it contains a forbidden character: '"s
@@ -451,29 +450,40 @@ llvm::Error model::NameBuilder::isNameReserved(llvm::StringRef Name,
   return llvm::Error::success();
 }
 
-using T = model::Type;
-RecursiveCoroutine<std::string>
-model::NameBuilder::artificialArrayWrapperNameImpl(const T &Type) {
-  if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
-    std::string Result = "array_" + std::to_string(Array->ElementCount())
-                         + "_of_";
-    Result += rc_recur artificialArrayWrapperNameImpl(*Array->ElementType());
-    rc_return Result;
+llvm::Error
+model::AssemblyNameBuilder::isNameReserved(llvm::StringRef Name) const {
+  revng_assert(!Name.empty());
 
-  } else if (auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_" : "");
-    rc_return Result += this->name(D->unwrap());
-
-  } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_ptr_to_" : "ptr_to_");
-    Result += rc_recur artificialArrayWrapperNameImpl(*Pointer->PointeeType());
-    rc_return Result;
-
-  } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_" : "");
-    rc_return Result += Primitive->getCName();
-
-  } else {
-    revng_abort("Unsupported model::Type.");
+  // Only alphanumeric characters and '_' are allowed
+  // TODO: handle unicode
+  auto IsCharacterForbidden = [](char Character) -> bool {
+    return Character != '_' && !std::isalnum(Character);
+  };
+  auto Iterator = llvm::find_if(Name, IsCharacterForbidden);
+  if (Iterator != Name.end()) {
+    using namespace std::string_literals;
+    return revng::createError("it contains a forbidden character: '"s
+                              + *Iterator + "'");
   }
+
+  if (std::isdigit(Name[0]))
+    return revng::createError("it starts with a digit: '"s + Name[0] + "'");
+
+  if (Configuration.ReserveNamesStartingWithUnderscore())
+    if (Name[0] == '_')
+      return revng::createError("it is reserved because it begins with an "
+                                "underscore");
+
+  // Prefix + MetaAddress.toIdentifier()
+  if (isPrefixAndAddress(Name, Configuration.unnamedFunctionPrefix()))
+    return revng::createError("it is reserved for an automatic function name");
+
+  // Register names
+  for (model::Register::Values Register : registers(Architecture))
+    if (Name == model::Register::getRegisterName(Register))
+      return revng::createError("it collides with a register name");
+
+  // Anything else to add here?
+
+  return llvm::Error::success();
 }

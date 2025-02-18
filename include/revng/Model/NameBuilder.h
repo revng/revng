@@ -19,6 +19,7 @@
 
 namespace model {
 
+template<typename Inheritor>
 class NameBuilder {
 private:
   using RFT = model::RawFunctionDefinition;
@@ -31,24 +32,22 @@ public:
     Configuration(Binary.Configuration().Naming()) {}
 
 public:
-  [[nodiscard]] static llvm::Error
-  isNameReserved(llvm::StringRef Name,
-                 const model::NamingConfiguration &Configuration);
-
   [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const {
-    if (isNameReserved(Name, Configuration))
-      return llvm::Error::success();
-    else
-      return revng::createError("Name is reserved: " + Name);
+    return static_cast<const Inheritor &>(*this).isNameReserved(Name);
   }
 
 private:
-  static constexpr bool EnableSanityChecks = true;
-  static void failSanityCheck(llvm::StringRef Name) {
-    std::string Error = "An automatic name '" + Name.str()
-                        + "' must not be allowed, otherwise a name collision "
-                          "might occur.";
-    revng_abort(Error.c_str());
+  void assertNameIsReserved(llvm::StringRef Name) const {
+    if (llvm::Error Error = isNameReserved(Name)) {
+      // All good, we want an error here.
+      llvm::consumeError(std::move(Error));
+
+    } else {
+      std::string ActualError = "An automatic name '" + Name.str()
+                                + "' is reserved and should therefore be "
+                                  "banned in order to avoid collisions.";
+      revng_abort(ActualError.c_str());
+    }
   }
 
   [[nodiscard]] std::string automaticName(const model::Binary &Binary,
@@ -57,18 +56,14 @@ private:
     auto Result = std::string(Configuration.unnamedSegmentPrefix())
                   + std::to_string(std::distance(Binary.Segments().begin(),
                                                  Iterator));
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
   [[nodiscard]] std::string
   automaticName(const model::Function &Function) const {
     std::string Result = Configuration.unnamedFunctionPrefix().str()
                          + Function.Entry().toIdentifier();
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -76,9 +71,7 @@ private:
     auto K = model::TypeDefinitionKind::automaticNamePrefix(Definition.Kind());
     std::string Result = Configuration.unnamedTypeDefinitionPrefix().str()
                          + K.str() + std::to_string(Definition.ID());
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
 
@@ -88,9 +81,7 @@ private:
     std::string Result = Configuration.unnamedEnumEntryPrefix().str()
                          + name(Definition) + "_"
                          + std::to_string(Entry.Value());
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -98,9 +89,7 @@ private:
                 const model::StructField &Field) const {
     std::string Result = Configuration.unnamedStructFieldPrefix().str()
                          + std::to_string(Field.Offset());
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -108,9 +97,7 @@ private:
                 const model::UnionField &Field) const {
     std::string Result = Configuration.unnamedUnionFieldPrefix().str()
                          + std::to_string(Field.Index());
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
 
@@ -119,9 +106,7 @@ private:
                 const model::Argument &Argument) const {
     std::string Result = Configuration.unnamedFunctionArgumentPrefix().str()
                          + std::to_string(Argument.Index());
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -129,31 +114,54 @@ private:
                 const model::NamedTypedRegister &Argument) const {
     std::string Result = Configuration.unnamedFunctionRegisterPrefix().str()
                          + std::string(getRegisterName(Argument.Location()));
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
 
 public:
   [[nodiscard]] std::string name(EntityWithName auto const &E) {
-    if (E.Name().empty() || isNameReserved(E.Name(), Configuration))
+    if (E.Name().empty()) {
       return automaticName(E);
 
-    return E.Name();
+    } else if (llvm::Error Error = isNameReserved(E.Name())) {
+      // We don't care what the specific error is - if there is one,
+      // just fall back on the automatic name.
+      llvm::consumeError(std::move(Error));
+
+      return automaticName(E);
+
+    } else {
+      return E.Name();
+    }
   }
 
   [[nodiscard]] std::string name(const auto &Parent,
                                  EntityWithName auto const &E) {
-    if (E.Name().empty() || isNameReserved(E.Name(), Configuration))
+    if (E.Name().empty()) {
       return automaticName(Parent, E);
 
-    return E.Name();
+    } else if (llvm::Error Error = isNameReserved(E.Name())) {
+      // We don't care what the specific error is - if there is one,
+      // just fall back on the automatic name.
+      llvm::consumeError(std::move(Error));
+
+      return automaticName(Parent, E);
+
+    } else {
+      return E.Name();
+    }
   }
 
   // Dynamic functions are special - we never introduce automatic names for them
   [[nodiscard]] std::string name(const model::DynamicFunction &Function) {
-    revng_assert(not isNameReserved(Function.Name(), Configuration));
+    llvm::Error Error = isNameReserved(Function.Name());
+    if (Error) {
+      std::string ErrorMessage = "Dynamic function name `" + Function.Name()
+                                 + "` is not allowed: "
+                                 + revng::unwrapError(std::move(Error));
+      revng_abort(ErrorMessage.c_str());
+    }
+
     return Function.Name();
   }
 
@@ -186,7 +194,10 @@ private:
 public:
   [[nodiscard]] std::optional<std::string>
   warning(EntityWithName auto const &E) {
-    if (auto Reason = isNameReserved(E.Name(), Configuration))
+    if (E.Name().empty())
+      return std::nullopt;
+
+    if (auto Reason = isNameReserved(E.Name()))
       return warningImpl(automaticName(E), E.Name(), std::move(Reason));
 
     return std::nullopt;
@@ -194,7 +205,10 @@ public:
 
   [[nodiscard]] std::optional<std::string>
   warning(const auto &Parent, EntityWithName auto const &E) {
-    if (auto Reason = isNameReserved(E.Name(), Configuration))
+    if (E.Name().empty())
+      return std::nullopt;
+
+    if (auto Reason = isNameReserved(E.Name()))
       return warningImpl(automaticName(Parent, E), E.Name(), std::move(Reason));
 
     return std::nullopt;
@@ -204,9 +218,7 @@ public:
   [[nodiscard]] std::string paddingFieldName(uint64_t Offset) const {
     std::string Result = Configuration.structPaddingPrefix().str()
                          + std::to_string(Offset);
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
 
@@ -215,34 +227,76 @@ public:
   artificialReturnValueWrapperName(const RFT &Function) {
     auto Result = Configuration.artificialReturnValuePrefix().str()
                   + name(Function);
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
 
 private:
   RecursiveCoroutine<std::string>
-  artificialArrayWrapperNameImpl(const model::Type &Type);
+  artificialArrayWrapperNameImpl(const model::Type &Type) {
+    if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
+      std::string Result = "array_" + std::to_string(Array->ElementCount())
+                           + "_of_";
+      Result += rc_recur artificialArrayWrapperNameImpl(*Array->ElementType());
+      rc_return Result;
+
+    } else if (auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
+      std::string Result = (D->IsConst() ? "const_" : "");
+      rc_return Result += this->name(D->unwrap());
+
+    } else if (auto *Ptr = llvm::dyn_cast<model::PointerType>(&Type)) {
+      std::string Result = (D->IsConst() ? "const_ptr_to_" : "ptr_to_");
+      Result += rc_recur artificialArrayWrapperNameImpl(*Ptr->PointeeType());
+      rc_return Result;
+
+    } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
+      std::string Result = (D->IsConst() ? "const_" : "");
+      rc_return Result += Primitive->getCName();
+
+    } else {
+      revng_abort("Unsupported model::Type.");
+    }
+  }
 
 public:
   [[nodiscard]] std::string
   artificialArrayWrapperName(const model::ArrayType &Type) {
     auto Result = Configuration.artificialArrayWrapperPrefix().str()
                   + std::string(artificialArrayWrapperNameImpl(Type));
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
 
   [[nodiscard]] std::string artificialArrayWrapperFieldName() {
     auto Result = Configuration.artificialArrayWrapperFieldName().str();
-    if constexpr (EnableSanityChecks)
-      if (not isNameReserved(Result, Configuration))
-        failSanityCheck(Result);
+    assertNameIsReserved(Result);
     return Result;
   }
 };
+
+struct CNameBuilder : public NameBuilder<CNameBuilder> {
+public:
+  using NameBuilder<CNameBuilder>::NameBuilder;
+
+  [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const;
+};
+struct AssemblyNameBuilder : NameBuilder<AssemblyNameBuilder> {
+public:
+  const model::Architecture::Values &Architecture;
+
+public:
+  AssemblyNameBuilder(const model::Binary &Binary) :
+    NameBuilder<AssemblyNameBuilder>(Binary),
+    Architecture(Binary.Architecture()) {}
+
+  [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const;
+};
+
+inline std::string sanitizeHelperName(llvm::StringRef Name) {
+  auto Replace = std::views::transform([](char Character) -> char {
+    return std::isalnum(Character) ? Character : '_';
+  });
+  return Name | Replace | revng::to<std::string>();
+}
 
 } // namespace model

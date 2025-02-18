@@ -87,7 +87,7 @@ public:
 public:
   void setLabel(const yield::Function &Function,
                 const model::Binary &Binary,
-                model::NameBuilder &NameBuilder);
+                model::AssemblyNameBuilder &NameBuilder);
 
 public:
   BasicBlockID nextBlock() const {

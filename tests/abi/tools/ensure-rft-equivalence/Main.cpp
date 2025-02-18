@@ -151,7 +151,7 @@ int main(int Argc, char *Argv[]) {
 
   // Gather all the `RawFunctionDefinition` prototypes present in the first
   // model.
-  model::NameBuilder LeftNameBuilder = *LeftModel;
+  model::CNameBuilder LeftNameBuilder = *LeftModel;
   for (model::Function &F : LeftModel->Functions()) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
@@ -173,7 +173,7 @@ int main(int Argc, char *Argv[]) {
 
   // Gather all the `RawFunctionDefinition` prototypes present in the second
   // model.
-  model::NameBuilder RightNameBuilder = *RightModel;
+  model::CNameBuilder RightNameBuilder = *RightModel;
   for (model::Function &F : RightModel->Functions()) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.

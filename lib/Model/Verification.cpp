@@ -842,7 +842,7 @@ bool Binary::verify(VerifyHelper &VH) const {
   }
 
   // Verify DynamicFunctions
-  model::NameBuilder NameBuilder(*this);
+  model::CNameBuilder NameBuilder(*this);
   for (const DynamicFunction &DF : ImportedDynamicFunctions()) {
     if (not DF.verify(VH))
       return VH.fail();

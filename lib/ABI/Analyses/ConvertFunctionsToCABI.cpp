@@ -248,7 +248,7 @@ public:
     auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
                                         TypesToIgnore);
 
-    using NB = model::NameBuilder;
+    using NB = model::CNameBuilder;
     auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
                                          std::nullopt;
 

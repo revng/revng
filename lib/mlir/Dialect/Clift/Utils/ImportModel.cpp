@@ -23,7 +23,7 @@ using AttributeVector = llvm::SmallVector<Attribute, 16>;
 
 class CliftConverter {
   mlir::MLIRContext *Context;
-  model::NameBuilder NameBuilder;
+  model::CNameBuilder NameBuilder;
   llvm::function_ref<mlir::InFlightDiagnostic()> EmitError;
 
   llvm::DenseMap<uint64_t, clift::TypeDefinitionAttr> Cache;

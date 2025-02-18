@@ -121,13 +121,7 @@ std::string getScalarCType(const llvm::Type *LLVMType, const CBuilder &B) {
 static std::string getHelperFunctionIdentifier(const llvm::Function *F,
                                                const CTypeBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
-
-  auto ReplaceForbiddenCharacters = [](char Character) -> char {
-    return std::isalnum(Character) ? Character : '_';
-  };
-  return "_" + F->getName().str()
-         | std::views::transform(ReplaceForbiddenCharacters)
-         | revng::to<std::string>();
+  return model::sanitizeHelperName(F->getName());
 }
 
 static std::string getReturnedStructIdentifier(const llvm::Function *F,

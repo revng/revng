@@ -482,7 +482,7 @@ void DetectABI::analyzeABI() {
   }
 
   unsigned Runs = 0;
-  model::NameBuilder NameBuilder = *Binary;
+  model::CNameBuilder NameBuilder = *Binary;
   while (not ToAnalyze.empty()) {
     model::Function &Function = *ToAnalyze.pop();
     revng_log(Log, "Analyzing " << Function.Entry().toString());

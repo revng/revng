@@ -1880,7 +1880,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
 static std::string getModelArgIdentifier(const model::TypeDefinition &ModelFT,
                                          const llvm::Argument &Argument,
-                                         model::NameBuilder &NameBuilder) {
+                                         model::CNameBuilder &NameBuilder) {
   const llvm::Function *LLVMFunction = Argument.getParent();
   unsigned ArgNo = Argument.getArgNo();
 

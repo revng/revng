@@ -17,7 +17,7 @@ public:
 
 public:
   const model::Binary &Binary;
-  model::NameBuilder NameBuilder;
+  model::CNameBuilder NameBuilder;
 
 protected:
   /// The stream to print the result to.
@@ -147,8 +147,7 @@ public:
                ConfigurationOptions &&Configuration) :
     CTypeBuilder(OutputStream, Binary, {}, std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary = {}) :
+  CTypeBuilder(llvm::raw_ostream &OutputStream, const model::Binary &Binary) :
     CTypeBuilder(OutputStream, Binary, {}, {}) {}
 
 public:
@@ -380,7 +379,7 @@ public:
     return ptml::comment(*this, T, "///", 0, Width);
   }
 
-  std::string getFunctionComment(const model::Function &Function) const {
+  std::string getFunctionComment(const model::Function &Function) {
     const model::Configuration &Configuration = Binary.Configuration();
     uint64_t LineWidth = Configuration.commentLineWidth();
 
@@ -388,7 +387,13 @@ public:
     //       the same stream (even if it usually is).
     uint64_t Width = LineWidth - Out->currentIndentation();
 
-    return ptml::functionComment(*this, Function, Binary, "///", 0, Width);
+    return ptml::functionComment(*this,
+                                 Function,
+                                 Binary,
+                                 "///",
+                                 0,
+                                 Width,
+                                 NameBuilder);
   }
 
   std::string getStatementComment(const model::StatementComment &Text,

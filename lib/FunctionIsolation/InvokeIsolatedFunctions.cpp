@@ -82,7 +82,7 @@ public:
     Context(M->getContext()),
     GCBI(GCBI) {
 
-    model::NameBuilder NameBuilder = Binary;
+    model::CNameBuilder NameBuilder = Binary;
     for (const model::Function &Function : Binary.Functions()) {
       llvm::Function *F = M->getFunction(NameBuilder.llvmName(Function));
       revng_assert(F != nullptr);

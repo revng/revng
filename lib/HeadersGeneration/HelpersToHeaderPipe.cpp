@@ -44,7 +44,7 @@ public:
     if (ErrorCode)
       revng_abort(ErrorCode.message().c_str());
 
-    ptml::CTypeBuilder B = Header;
+    ptml::CTypeBuilder B(Header, *revng::getModelFromContext(EC));
     ptml::HeaderBuilder(B).printHelpersHeader(IRContainer.getModule());
     Header.flush();
     ErrorCode = Header.error();
