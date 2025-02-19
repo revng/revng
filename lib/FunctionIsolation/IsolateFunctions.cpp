@@ -55,6 +55,8 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
+RegisterIRHelper FDispatcher("function_dispatcher", "absent after enforce-abi");
+
 using namespace llvm;
 
 class IsolateFunctionsImpl;
@@ -497,10 +499,11 @@ public:
 void IsolateFunctionsImpl::run() {
   Task T(6, "IsolateFunctions");
 
-  FunctionDispatcher = Function::Create(createFunctionType<void>(Context),
-                                        GlobalValue::ExternalLinkage,
-                                        "function_dispatcher",
-                                        TheModule);
+  auto SimpleFunctionType = createFunctionType<void>(Context);
+  FunctionDispatcher = createIRHelper("function_dispatcher",
+                                      *TheModule,
+                                      SimpleFunctionType,
+                                      GlobalValue::ExternalLinkage);
   FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
 
   //

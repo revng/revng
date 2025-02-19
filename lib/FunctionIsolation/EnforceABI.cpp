@@ -114,7 +114,7 @@ static Register X("enforce-abi", "Enforce ABI Pass", true, true);
 static Logger<> EnforceABILog("enforce-abi");
 
 bool EnforceABI::prologue() {
-  FunctionDispatcher = M.getFunction("function_dispatcher");
+  FunctionDispatcher = getIRHelper("function_dispatcher", M);
 
   if (FunctionDispatcher != nullptr)
     OldFunctions.push_back(FunctionDispatcher);
