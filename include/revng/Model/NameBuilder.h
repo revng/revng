@@ -77,7 +77,7 @@ private:
 
   [[nodiscard]] std::string
   automaticName(const model::EnumDefinition &Definition,
-                const model::EnumEntry &Entry) {
+                const model::EnumEntry &Entry) const {
     std::string Result = Configuration.unnamedEnumEntryPrefix().str()
                          + name(Definition) + "_"
                          + std::to_string(Entry.Value());
@@ -119,7 +119,7 @@ private:
   }
 
 public:
-  [[nodiscard]] std::string name(EntityWithName auto const &E) {
+  [[nodiscard]] std::string name(EntityWithName auto const &E) const {
     if (E.Name().empty()) {
       return automaticName(E);
 
@@ -136,7 +136,7 @@ public:
   }
 
   [[nodiscard]] std::string name(const auto &Parent,
-                                 EntityWithName auto const &E) {
+                                 EntityWithName auto const &E) const {
     if (E.Name().empty()) {
       return automaticName(Parent, E);
 
@@ -153,7 +153,7 @@ public:
   }
 
   // Dynamic functions are special - we never introduce automatic names for them
-  [[nodiscard]] std::string name(const model::DynamicFunction &Function) {
+  [[nodiscard]] std::string name(const model::DynamicFunction &Function) const {
     llvm::Error Error = isNameReserved(Function.Name());
     if (Error) {
       std::string ErrorMessage = "Dynamic function name `" + Function.Name()
@@ -165,7 +165,7 @@ public:
     return Function.Name();
   }
 
-  [[nodiscard]] std::string llvmName(const model::Function &Function) {
+  [[nodiscard]] std::string llvmName(const model::Function &Function) const {
     if (DebugNames)
       return "local_" + name(Function);
     else
@@ -176,7 +176,7 @@ private:
   [[nodiscard]] std::optional<std::string>
   warningImpl(const std::string &Name,
               const std::string &OriginalName,
-              llvm::Error &&Reason) {
+              llvm::Error &&Reason) const {
     if (Name == OriginalName) {
       // Suppress warnings on appropriately placed automatic names in the model.
       //
@@ -193,7 +193,7 @@ private:
 
 public:
   [[nodiscard]] std::optional<std::string>
-  warning(EntityWithName auto const &E) {
+  warning(EntityWithName auto const &E) const {
     if (E.Name().empty())
       return std::nullopt;
 
@@ -204,7 +204,7 @@ public:
   }
 
   [[nodiscard]] std::optional<std::string>
-  warning(const auto &Parent, EntityWithName auto const &E) {
+  warning(const auto &Parent, EntityWithName auto const &E) const {
     if (E.Name().empty())
       return std::nullopt;
 
@@ -224,7 +224,7 @@ public:
 
 public:
   [[nodiscard]] std::string
-  artificialReturnValueWrapperName(const RFT &Function) {
+  artificialReturnValueWrapperName(const RFT &Function) const {
     auto Result = Configuration.artificialReturnValuePrefix().str()
                   + name(Function);
     assertNameIsReserved(Result);
@@ -233,7 +233,7 @@ public:
 
 private:
   RecursiveCoroutine<std::string>
-  artificialArrayWrapperNameImpl(const model::Type &Type) {
+  artificialArrayWrapperNameImpl(const model::Type &Type) const {
     if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
       std::string Result = "array_" + std::to_string(Array->ElementCount())
                            + "_of_";
@@ -260,14 +260,14 @@ private:
 
 public:
   [[nodiscard]] std::string
-  artificialArrayWrapperName(const model::ArrayType &Type) {
+  artificialArrayWrapperName(const model::ArrayType &Type) const {
     auto Result = Configuration.artificialArrayWrapperPrefix().str()
                   + std::string(artificialArrayWrapperNameImpl(Type));
     assertNameIsReserved(Result);
     return Result;
   }
 
-  [[nodiscard]] std::string artificialArrayWrapperFieldName() {
+  [[nodiscard]] std::string artificialArrayWrapperFieldName() const {
     auto Result = Configuration.artificialArrayWrapperFieldName().str();
     assertNameIsReserved(Result);
     return Result;

@@ -74,7 +74,7 @@ std::string functionComment(const ::ptml::MarkupBuilder &B,
                             llvm::StringRef CommentIndicator,
                             size_t Indentation,
                             size_t WrapAt,
-                            model::NameBuilder<T> &NameBuilder) {
+                            const model::NameBuilder<T> &NameBuilder) {
   std::vector<std::string> ArgumentNames;
   if (const auto *FT = Function.cabiPrototype()) {
     for (const model::Argument &Argument : FT->Arguments())

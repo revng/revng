@@ -135,7 +135,7 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
 }
 
 static std::string get128BitIntegerHexConstant(llvm::APInt Value,
-                                               ptml::CTypeBuilder &B) {
+                                               const ptml::CTypeBuilder &B) {
   revng_assert(Value.getBitWidth() > 64);
   revng_assert(Value.getBitWidth() <= 128);
   using PTMLOperator = ptml::CBuilder::Operator;
@@ -184,7 +184,7 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
 }
 
 static std::string hexLiteral(const llvm::ConstantInt *Int,
-                              ptml::CTypeBuilder &B) {
+                              const ptml::CTypeBuilder &B) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
     Int->getValue().toString(Formatted,
@@ -196,8 +196,7 @@ static std::string hexLiteral(const llvm::ConstantInt *Int,
   return get128BitIntegerHexConstant(Int->getValue(), B);
 }
 
-static std::string charLiteral(const llvm::ConstantInt *Int,
-                               ptml::CTypeBuilder &B) {
+static std::string charLiteral(const llvm::ConstantInt *Int) {
   revng_assert(Int->getValue().getBitWidth() == 8);
   const auto LimitedValue = Int->getLimitedValue(0xffu);
   const auto CharValue = static_cast<char>(LimitedValue);
@@ -358,28 +357,31 @@ private:
   void emitBasicBlock(const BasicBlock *BB, bool EmitReturn);
 
 private:
-  RecursiveCoroutine<std::string> getToken(const llvm::Value *V);
+  RecursiveCoroutine<std::string> getToken(const llvm::Value *V) const;
 
   RecursiveCoroutine<std::string>
   getCallToken(const llvm::CallInst *Call,
                const llvm::StringRef FuncName,
-               const model::TypeDefinition *Prototype);
+               const model::TypeDefinition *Prototype) const;
 
-  RecursiveCoroutine<std::string> getConstantToken(const llvm::Value *V);
-
-  RecursiveCoroutine<std::string>
-  getInstructionToken(const llvm::Instruction *I);
-
-  RecursiveCoroutine<std::string> getCustomOpcodeToken(const llvm::CallInst *C);
-
-  RecursiveCoroutine<std::string> getModelGEPToken(const llvm::CallInst *C);
-
-  std::string getIsolatedFunctionToken(const llvm::Function *F);
-
-  RecursiveCoroutine<std::string> getIsolatedCallToken(const llvm::CallInst *C);
+  RecursiveCoroutine<std::string> getConstantToken(const llvm::Value *V) const;
 
   RecursiveCoroutine<std::string>
-  getNonIsolatedCallToken(const llvm::CallInst *C);
+  getInstructionToken(const llvm::Instruction *I) const;
+
+  RecursiveCoroutine<std::string>
+  getCustomOpcodeToken(const llvm::CallInst *C) const;
+
+  RecursiveCoroutine<std::string>
+  getModelGEPToken(const llvm::CallInst *C) const;
+
+  std::string getIsolatedFunctionToken(const llvm::Function *F) const;
+
+  RecursiveCoroutine<std::string>
+  getIsolatedCallToken(const llvm::CallInst *C) const;
+
+  RecursiveCoroutine<std::string>
+  getNonIsolatedCallToken(const llvm::CallInst *C) const;
 
 private:
   std::string addParentheses(llvm::StringRef Expr) const;
@@ -468,7 +470,7 @@ static std::string getUndefToken(const model::Type &UndefType,
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
-                                            ptml::CTypeBuilder &B) {
+                                            const ptml::CTypeBuilder &B) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
@@ -479,7 +481,7 @@ static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
   if (isCallToTagged(Call, FunctionTags::CharInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return B.getConstantTag(charLiteral(Value, B)).toString();
+    return B.getConstantTag(charLiteral(Value)).toString();
   }
 
   if (isCallToTagged(Call, FunctionTags::BoolInteger)) {
@@ -501,7 +503,7 @@ static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
 }
 
 RecursiveCoroutine<std::string>
-CCodeGenerator::getConstantToken(const llvm::Value *C) {
+CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   revng_assert(isCConstant(C));
 
   if (auto *Undef = dyn_cast<llvm::UndefValue>(C))
@@ -596,7 +598,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) {
 }
 
 RecursiveCoroutine<std::string>
-CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) {
+CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
   revng_assert(isCallToTagged(Call, FunctionTags::ModelGEP)
                or isCallToTagged(Call, FunctionTags::ModelGEPRef));
@@ -761,7 +763,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) {
 }
 
 RecursiveCoroutine<std::string>
-CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) {
+CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
 
   if (isAssignment(Call)) {
     const llvm::Value *StoredVal = Call->getArgOperand(0);
@@ -938,9 +940,9 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) {
 }
 
 std::string
-CCodeGenerator::getIsolatedFunctionToken(const llvm::Function *CalledFunc) {
-  revng_assert(CalledFunc);
-  const model::Function *ModelFunc = llvmToModelFunction(Model, *CalledFunc);
+CCodeGenerator::getIsolatedFunctionToken(const llvm::Function *Called) const {
+  revng_assert(Called);
+  const model::Function *ModelFunc = llvmToModelFunction(Model, *Called);
   revng_assert(ModelFunc);
   std::string Location = locationString(ranks::Function, ModelFunc->key());
   return B.getTag(ptml::tags::Span, B.NameBuilder.name(*ModelFunc))
@@ -951,7 +953,7 @@ CCodeGenerator::getIsolatedFunctionToken(const llvm::Function *CalledFunc) {
 }
 
 RecursiveCoroutine<std::string>
-CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) {
+CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
 
   // Retrieve the CallEdge
   const auto &[CallEdge, _] = Cache.getCallEdge(Model, Call);
@@ -990,8 +992,7 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) {
 }
 
 RecursiveCoroutine<std::string>
-CCodeGenerator::getNonIsolatedCallToken(const llvm::CallInst *Call) {
-
+CCodeGenerator::getNonIsolatedCallToken(const llvm::CallInst *Call) const {
   auto *CalledFunc = getCalledFunction(Call);
   revng_assert(CalledFunc and CalledFunc->hasName(),
                "Special functions should all have a name");
@@ -1097,7 +1098,7 @@ static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred,
 }
 
 RecursiveCoroutine<std::string>
-CCodeGenerator::getInstructionToken(const llvm::Instruction *I) {
+CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
   if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)) {
     const llvm::Value *Op0 = I->getOperand(0);
@@ -1230,7 +1231,8 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) {
   rc_return "";
 }
 
-RecursiveCoroutine<std::string> CCodeGenerator::getToken(const llvm::Value *V) {
+RecursiveCoroutine<std::string>
+CCodeGenerator::getToken(const llvm::Value *V) const {
   revng_log(Log, "getToken(): " << dumpToString(V));
   LoggerIndent Indent{ Log };
   // If we already have a variable name for this, return it.
@@ -1266,7 +1268,7 @@ RecursiveCoroutine<std::string> CCodeGenerator::getToken(const llvm::Value *V) {
 RecursiveCoroutine<std::string>
 CCodeGenerator::getCallToken(const llvm::CallInst *Call,
                              const llvm::StringRef FuncName,
-                             const model::TypeDefinition *Prototype) {
+                             const model::TypeDefinition *Prototype) const {
   std::string Expression = FuncName.str();
   if (Call->arg_size() == 0) {
     Expression += "()";
@@ -1871,9 +1873,10 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   rc_return;
 }
 
-static std::string getModelArgIdentifier(const model::TypeDefinition &ModelFT,
-                                         const llvm::Argument &Argument,
-                                         model::CNameBuilder &NameBuilder) {
+static std::string
+getModelArgIdentifier(const model::TypeDefinition &ModelFT,
+                      const llvm::Argument &Argument,
+                      const model::CNameBuilder &NameBuilder) {
   const llvm::Function *LLVMFunction = Argument.getParent();
   unsigned ArgNo = Argument.getArgNo();
 

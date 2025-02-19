@@ -415,7 +415,7 @@ yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
 struct LabelNodeHelper {
   const ptml::MarkupBuilder &B;
   const model::Binary &Binary;
-  model::AssemblyNameBuilder &NameBuilder;
+  const model::AssemblyNameBuilder &NameBuilder;
   const yield::cfg::Configuration Configuration;
   std::optional<llvm::StringRef> RootNodeLocation = std::nullopt;
 

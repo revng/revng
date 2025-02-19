@@ -33,7 +33,7 @@ public:
                               const efa::ControlFlowGraph &Metadata,
                               const RawBinaryView &BinaryView,
                               const model::Binary &Binary,
-                              model::AssemblyNameBuilder &NameBuilder);
+                              const model::AssemblyNameBuilder &NameBuilder);
 
 private:
   LLVMDisassemblerInterface &

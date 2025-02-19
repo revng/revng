@@ -90,7 +90,7 @@ public:
   void handleSpecialTags(const yield::BasicBlock &BasicBlock,
                          const yield::Function &Function,
                          const model::Binary &Binary,
-                         model::AssemblyNameBuilder &NameBuilder);
+                         const model::AssemblyNameBuilder &NameBuilder);
 
 public:
   bool verify() const debug_function;

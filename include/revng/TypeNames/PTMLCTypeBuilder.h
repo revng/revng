@@ -184,24 +184,24 @@ public:
   }
 
 public:
-  auto getNameTag(const model::TypeDefinition &T) {
+  auto getNameTag(const model::TypeDefinition &T) const {
     // TODO: build a warning based on `NameBuilder.warning(T)`
     //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(T), ptml::c::tokens::Type);
   }
-  auto getNameTag(const model::Segment &S) {
+  auto getNameTag(const model::Segment &S) const {
     // TODO: build a warning based on `NameBuilder.warning(S)`
     //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(Binary, S), ptml::c::tokens::Variable);
   }
   auto getNameTag(const model::EnumDefinition &Enum,
-                  const model::EnumEntry &Entry) {
+                  const model::EnumEntry &Entry) const {
     // TODO: build a warning based on `NameBuilder.warning(Entry)`
     //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(Enum, Entry), ptml::c::tokens::Field);
   }
   template<class Aggregate, class Field>
-  auto getNameTag(const Aggregate &A, const Field &F) {
+  auto getNameTag(const Aggregate &A, const Field &F) const {
     // TODO: build a warning based on `NameBuilder.warning(F)`
     //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(A, F), c::tokens::Field);
@@ -247,7 +247,7 @@ public:
 
   std::string getLocation(bool IsDefinition,
                           const model::TypeDefinition &T,
-                          llvm::ArrayRef<std::string> AllowedActions) {
+                          llvm::ArrayRef<std::string> AllowedActions) const {
     auto Result = getNameTag(T);
     if (IsInTaglessMode)
       return Result.toString();
@@ -262,7 +262,7 @@ public:
     return Result.toString();
   }
 
-  std::string getLocation(bool IsDefinition, const model::Segment &S) {
+  std::string getLocation(bool IsDefinition, const model::Segment &S) const {
     std::string Location = locationString(S);
     return getNameTag(S)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
@@ -272,7 +272,7 @@ public:
 
   std::string getLocation(bool IsDefinition,
                           const model::EnumDefinition &Enum,
-                          const model::EnumEntry &Entry) {
+                          const model::EnumEntry &Entry) const {
     std::string Location = locationString(Enum, Entry);
     return getNameTag(Enum, Entry)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
@@ -282,7 +282,7 @@ public:
 
   template<typename Aggregate, typename Field>
   std::string
-  getLocation(bool IsDefinition, const Aggregate &A, const Field &F) {
+  getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
     std::string Location = locationString(A, F);
     return getNameTag(A, F)
       .addAttribute(getLocationAttribute(IsDefinition), Location)
@@ -293,7 +293,7 @@ public:
 public:
   std::string
   getLocationDefinition(const model::TypeDefinition &T,
-                        llvm::ArrayRef<std::string> AllowedActions = {}) {
+                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
     return getLocation(true, T, AllowedActions);
   }
 
@@ -311,24 +311,24 @@ public:
     return Result.toString();
   }
 
-  std::string getLocationDefinition(const model::Segment &S) {
+  std::string getLocationDefinition(const model::Segment &S) const {
     return getLocation(true, S);
   }
 
   std::string getLocationDefinition(const model::EnumDefinition &Enum,
-                                    const model::EnumEntry &Entry) {
+                                    const model::EnumEntry &Entry) const {
     return getLocation(true, Enum, Entry);
   }
 
   template<typename Aggregate, typename Field>
-  std::string getLocationDefinition(const Aggregate &A, const Field &F) {
+  std::string getLocationDefinition(const Aggregate &A, const Field &F) const {
     return getLocation(true, A, F);
   }
 
 public:
   std::string
   getLocationReference(const model::TypeDefinition &T,
-                       llvm::ArrayRef<std::string> AllowedActions = {}) {
+                       llvm::ArrayRef<std::string> AllowedActions = {}) const {
     return getLocation(false, T, AllowedActions);
   }
 
@@ -349,22 +349,22 @@ public:
     return getPrimitiveTypeLocationReference(P.getCName());
   }
 
-  std::string getLocationReference(const model::Segment &S) {
+  std::string getLocationReference(const model::Segment &S) const {
     return getLocation(false, S);
   }
 
   std::string getLocationReference(const model::EnumDefinition &Enum,
-                                   const model::EnumEntry &Entry) {
+                                   const model::EnumEntry &Entry) const {
     return getLocation(false, Enum, Entry);
   }
 
   template<typename Aggregate, typename Field>
-  std::string getLocationReference(const Aggregate &A, const Field &F) {
+  std::string getLocationReference(const Aggregate &A, const Field &F) const {
     return getLocation(false, A, F);
   }
 
-  std::string getLocationReference(const model::Function &F);
-  std::string getLocationReference(const model::DynamicFunction &F);
+  std::string getLocationReference(const model::Function &F) const;
+  std::string getLocationReference(const model::DynamicFunction &F) const;
 
 public:
   template<model::EntityWithComment Type>
@@ -379,7 +379,7 @@ public:
     return ptml::comment(*this, T, "///", 0, Width);
   }
 
-  std::string getFunctionComment(const model::Function &Function) {
+  std::string getFunctionComment(const model::Function &Function) const {
     const model::Configuration &Configuration = Binary.Configuration();
     uint64_t LineWidth = Configuration.commentLineWidth();
 
@@ -429,16 +429,16 @@ public:
   getNamedCInstance(const model::Type &Type,
                     llvm::StringRef InstanceName,
                     llvm::ArrayRef<std::string> AllowedActions = {},
-                    bool OmitInnerTypeName = false);
+                    bool OmitInnerTypeName = false) const;
 
-  tokenDefinition::types::TypeString getTypeName(const model::Type &Type) {
-    return getNamedCInstance(Type, "");
+  tokenDefinition::types::TypeString getTypeName(const model::Type &T) const {
+    return getNamedCInstance(T, "");
   }
 
 public:
   /// Return the name of the array wrapper that wraps \a ArrayType
   tokenDefinition::types::TypeString
-  getArrayWrapper(const model::ArrayType &ArrayType);
+  getArrayWrapper(const model::ArrayType &ArrayType) const;
 
   /// Return a string containing the C Type name of the return type of
   /// \a FunctionType, and a (possibly empty) \a InstanceName.
@@ -447,11 +447,11 @@ public:
   tokenDefinition::types::TypeString
   getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
                                llvm::StringRef InstanceName,
-                               bool IsDefinition);
+                               bool IsDefinition) const;
 
   tokenDefinition::types::TypeString
   getReturnTypeName(const model::TypeDefinition &FunctionType,
-                    bool IsDefinition) {
+                    bool IsDefinition) const {
     return getNamedInstanceOfReturnType(FunctionType, "", IsDefinition);
   }
 

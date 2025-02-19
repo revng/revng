@@ -6,7 +6,6 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/NameBuilder.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Doxygen.h"
 #include "revng/Pipeline/Location.h"

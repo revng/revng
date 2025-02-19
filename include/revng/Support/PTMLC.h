@@ -12,7 +12,6 @@
 
 #include "revng/ADT/ConstexprString.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/NameBuilder.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Doxygen.h"
 #include "revng/PTML/IndentedOstream.h"
