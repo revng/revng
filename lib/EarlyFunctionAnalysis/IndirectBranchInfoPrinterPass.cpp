@@ -22,7 +22,7 @@ using IBIPP = IndirectBranchInfoPrinterPass;
 PreservedAnalyses IBIPP::run(Function &F, FunctionAnalysisManager &FAM) {
   auto &M = *F.getParent();
 
-  for (auto *Call : callers(M.getFunction("indirect_branch_info")))
+  for (auto *Call : callers(getIRHelper("indirect_branch_info", M)))
     if (Call->getParent()->getParent() == &F)
       serialize(Call);
 

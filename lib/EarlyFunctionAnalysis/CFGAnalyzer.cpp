@@ -41,6 +41,8 @@
 #include "revng/Support/Generator.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
+RegisterIRHelper IBIMarker("indirect_branch_info", "absent after lift");
+
 using namespace llvm;
 using namespace llvm::cl;
 
@@ -182,7 +184,7 @@ OutlinedFunction CFGAnalyzer::outline(const MetaAddress &Entry) {
     auto IsJumpTarget = NewPCArguments::IsJumpTarget;
     return getLimitedValue(&*Call->getArgOperand(IsJumpTarget)) == 1;
   };
-  for (llvm::CallBase *Call : callers(M.getFunction("newpc")))
+  for (llvm::CallBase *Call : callers(getIRHelper("newpc", M)))
     if (IsJumpTarget(Call) and not IsFirst(Call))
       Call->getParent()->splitBasicBlock(Call);
 
@@ -449,10 +451,10 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
     ArgTypes.emplace_back(CSV->getValueType());
 
   auto *FTy = llvm::FunctionType::get(IntTy, ArgTypes, false);
-  auto *IBI = Function::Create(FTy,
-                               GlobalValue::ExternalLinkage,
-                               "indirect_branch_info",
-                               M);
+  auto *IBI = createIRHelper("indirect_branch_info",
+                             M,
+                             FTy,
+                             GlobalValue::ExternalLinkage);
   OutlinedFunction->IndirectBranchInfoMarker = UniqueValuePtr<Function>(IBI);
   OutlinedFunction->IndirectBranchInfoMarker->addFnAttr(Attribute::NoUnwind);
   OutlinedFunction->IndirectBranchInfoMarker->addFnAttr(Attribute::NoReturn);
