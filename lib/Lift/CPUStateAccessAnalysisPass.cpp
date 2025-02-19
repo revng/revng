@@ -23,6 +23,7 @@
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "CPUStateAccessAnalysisPass.h"
@@ -1526,7 +1527,7 @@ public:
     AddSubFolder(M),
     NumericFolder(M),
     GEPFolder(M),
-    CpuLoop(M.getFunction("cpu_loop")) {}
+    CpuLoop(getIRHelper("cpu_loop", M)) {}
 
 public:
   bool run();
@@ -3056,7 +3057,7 @@ class CPUStateAccessAnalysis {
 private:
   const bool Lazy;
   // A reference to the analyzed Module
-  const Module &M;
+  Module &M;
 
   // A reference to the associated VariableManager
   VariableManager *Variables = nullptr;
@@ -3079,9 +3080,7 @@ private:
   Value *CPUStatePtr = nullptr;
 
 public:
-  CPUStateAccessAnalysis(const Module &Mod,
-                         VariableManager *V,
-                         const bool IsLazy) :
+  CPUStateAccessAnalysis(Module &Mod, VariableManager *V, const bool IsLazy) :
     Lazy(IsLazy),
     M(Mod),
     Variables(V),

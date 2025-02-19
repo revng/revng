@@ -482,7 +482,7 @@ public:
   void createJTReasonMD() {
     using namespace llvm;
 
-    Function *CallMarker = TheModule.getFunction("function_call");
+    Function *CallMarker = getIRHelper("function_call", TheModule);
     if (CallMarker != nullptr) {
       auto UnwrapBA = [](Value *V) {
         return cast<BlockAddress>(V)->getBasicBlock();

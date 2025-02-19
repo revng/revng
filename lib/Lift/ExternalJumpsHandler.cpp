@@ -25,6 +25,8 @@
 
 #include "ExternalJumpsHandler.h"
 
+RegisterIRHelper IsExecutableHelper("is_executable", "in early-linked");
+
 using namespace llvm;
 using std::string;
 
@@ -288,7 +290,7 @@ void ExternalJumpsHandler::createExternalJumpsHandler() {
     BasicBlock *IsNotExecutable = DispatcherFail;
     buildExecutableSegmentsList();
 
-    Function *IsExecutableFunction = TheModule.getFunction("is_executable");
+    Function *IsExecutableFunction = getIRHelper("is_executable", TheModule);
     IRBuilder<> Builder(ExternalJumpHandler);
     Value *PC = PCH->loadJumpablePC(Builder);
     Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction,

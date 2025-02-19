@@ -35,7 +35,6 @@ class ValueMaterializerPass
   : public llvm::PassInfoMixin<ValueMaterializerPass> {
 private:
   StaticDataMemoryOracle &MO;
-  static constexpr const char *MarkerName = "revng_avi";
 
 public:
   ValueMaterializerPass(StaticDataMemoryOracle &MO) : MO(MO) {}
@@ -43,13 +42,5 @@ public:
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &);
 
-  static llvm::Function *createMarker(llvm::Module *M) {
-    using namespace llvm;
-    LLVMContext &C = M->getContext();
-    auto *Type = FunctionType::get(FunctionType::getVoidTy(C), {}, true);
-    FunctionCallee Callee = M->getOrInsertFunction(MarkerName, Type);
-    auto *Marker = cast<Function>(Callee.getCallee());
-    Marker->setOnlyAccessesInaccessibleMemory();
-    return Marker;
-  }
+  static llvm::Function *createMarker(llvm::Module &M);
 };
