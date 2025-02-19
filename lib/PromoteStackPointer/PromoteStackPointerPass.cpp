@@ -33,6 +33,9 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
+RegisterIRHelper IBIMarker("revng_undefined_local_sp",
+                           "absent after promote-stack-pointer");
+
 using namespace llvm;
 
 static Logger<> Log("promote-stack-pointer");
@@ -151,8 +154,8 @@ bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
   Module *M = F.getParent();
   LLVMContext &Context = F.getContext();
   Type *SPType = GlobalSP->getValueType();
-  auto InitFunction = M->getOrInsertFunction("init_local_sp", SPType);
-  Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
+  auto ILSPCallee = getOrInsertIRHelper("init_local_sp", *M, SPType);
+  Function *InitLocalSP = cast<Function>(ILSPCallee.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
   InitLocalSP->setOnlyAccessesInaccessibleMemory();

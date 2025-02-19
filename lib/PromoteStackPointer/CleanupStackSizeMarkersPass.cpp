@@ -25,7 +25,7 @@ bool CleanupStackSizeMarkersPass::runOnModule(Module &M) {
     FunctionsToDelete.push_back(&F);
   }
 
-  if (auto *SSACS = M.getFunction("stack_size_at_call_site")) {
+  if (auto *SSACS = getIRHelper("stack_size_at_call_site", M)) {
     for (User *U : SSACS->users()) {
       auto *Call = cast<CallInst>(U);
       CallsToDelete.push_back(Call);
