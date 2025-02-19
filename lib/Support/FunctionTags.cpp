@@ -450,6 +450,8 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
   return { StartAddress, VirtualSize, Offset, StrLen, ReturnType };
 }
 
+RegisterIRHelper RevngAbortHelper(AbortFunctionName.str(), "in early-linked");
+
 template<bool ShouldTerminateTheBlock>
 llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,
                                 const llvm::Twine &Message,
@@ -460,7 +462,7 @@ llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,
   // Create the function if there's not already one.
   Module *M = getModule(Builder.GetInsertBlock());
   auto *FT = createFunctionType<void, const uint8_t *>(M->getContext());
-  FunctionCallee Callee = M->getOrInsertFunction(AbortFunctionName, FT);
+  auto Callee = getOrInsertIRHelper(AbortFunctionName, *M, FT);
 
   // Ensure it's marked as a helper.
   Function *F = cast<Function>(Callee.getCallee());

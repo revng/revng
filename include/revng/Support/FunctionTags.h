@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
@@ -187,7 +188,7 @@ inline llvm::CallInst *getMarker(llvm::Instruction *T, llvm::Function *Marker) {
 
 inline llvm::CallInst *getMarker(llvm::Instruction *I,
                                  llvm::StringRef MarkerName) {
-  return getMarker(I, getModule(I)->getFunction(MarkerName));
+  return getMarker(I, getIRHelper(MarkerName, *getModule(I)));
 }
 
 inline llvm::CallInst *getMarker(llvm::BasicBlock *BB,
