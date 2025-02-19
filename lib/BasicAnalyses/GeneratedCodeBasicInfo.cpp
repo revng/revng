@@ -30,7 +30,7 @@ static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 void GeneratedCodeBasicInfo::run(Module &M) {
   RootFunction = M.getFunction("root");
-  NewPC = M.getFunction("newpc");
+  NewPC = getIRHelper("newpc", M);
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 

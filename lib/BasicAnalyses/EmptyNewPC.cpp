@@ -10,6 +10,7 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/BasicAnalyses/EmptyNewPC.h"
+#include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -20,7 +21,7 @@ static Register X("empty-newpc", "Create an empty newpc function", true, true);
 
 bool EmptyNewPC::runOnModule(llvm::Module &M) {
   LLVMContext &Context = getContext(&M);
-  Function *NewPCFunction = M.getFunction("newpc");
+  Function *NewPCFunction = getIRHelper("newpc", M);
   NewPCFunction->deleteBody();
   ReturnInst::Create(Context, BasicBlock::Create(Context, "", NewPCFunction));
   return false;
