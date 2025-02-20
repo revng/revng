@@ -593,23 +593,6 @@ public:
                                         Actions);
   }
 
-  /// Special case handling for the array wrapper structs.
-  ///
-  /// \note this will go away sooner rather than later.
-  template<bool IsDefinition>
-  std::string getArrayWrapperTag(const model::ArrayType &Array) const {
-    // TODO: currently there's no location dedicated to these, as such no action
-    //       is possible.
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-    auto Location = "";
-
-    auto Name = NameBuilder.artificialArrayWrapperName(Array);
-    return getNameTagImpl<IsDefinition>(tokenTag(std::move(Name),
-                                                 ptml::c::tokens::Type),
-                                        Location,
-                                        Actions);
-  }
-
   /// Special case handling for helper functions.
   template<bool IsDefinition>
   std::string getHelperFunctionTag(llvm::StringRef Name) const {
@@ -852,13 +835,7 @@ public:
   /// values of \a F.
   void generateReturnValueWrapper(const model::RawFunctionDefinition &F);
 
-  /// Generates the definition of a new struct type that wraps \a ArrayType.
-  /// This is used to wrap array arguments or array return values of
-  /// CABI functions.
-  void generateArrayWrapper(const model::ArrayType &ArrayType);
-
   void printFunctionWrappers(const model::RawFunctionDefinition &F);
-  void printFunctionWrappers(const model::CABIFunctionDefinition &F);
 
   void printPadding(uint64_t FieldOffset, uint64_t NextOffset);
 

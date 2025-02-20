@@ -220,46 +220,11 @@ void ptml::CTypeBuilder::printTypeDeclaration(const RFT &F) {
   *Out << ";\n";
 }
 
-/// Generate the definition of a new struct type that wraps \a ArrayType.
-/// This is used to wrap array arguments or array return values of
-/// CABI functions.
-void ptml::CTypeBuilder::generateArrayWrapper(const model::ArrayType
-                                                &ArrayType) {
-  // Check if the wrapper was already added
-  std::string Tag = getArrayWrapperTag<true>(ArrayType);
-  auto &&[It, IsNew] = ArtificialNameCache.emplace(ArrayType, Tag);
-  if (not IsNew)
-    return;
-
-  *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
-       << getKeyword(ptml::CBuilder::Keyword::Struct) << " "
-       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
-  {
-    Scope Scope(*Out, ptml::c::scopes::StructBody);
-    *Out << getNamedCInstance(ArrayType,
-                              NameBuilder.artificialArrayWrapperFieldName())
-         << ";\n";
-  }
-  *Out << " " << tokenTag(It->second, ptml::c::tokens::Type) << ";\n";
-}
-
-/// If the return value or any of the arguments is an array, generate a wrapper
-/// struct for each of them, if it's not already in the cache.
 using CFT = model::CABIFunctionDefinition;
-void ptml::CTypeBuilder::printFunctionWrappers(const CFT &F) {
-  if (not F.ReturnType().isEmpty())
-    if (auto *Array = F.ReturnType()->getArray())
-      generateArrayWrapper(*Array);
-
-  for (auto &Arg : F.Arguments())
-    if (auto *Array = Arg.Type()->getArray())
-      generateArrayWrapper(*Array);
-}
 
 /// Print a typedef for a CABI function, that can be used when you have
 /// a variable that is a pointer to a function.
 void ptml::CTypeBuilder::printTypeDeclaration(const CFT &F) {
-  printFunctionWrappers(F);
 
   *Out << getCommentableTag(getModelCommentWithoutLeadingNewline(F)
                               + getKeyword(ptml::CBuilder::Keyword::Typedef)

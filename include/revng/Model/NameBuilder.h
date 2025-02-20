@@ -264,48 +264,6 @@ public:
     assertNameIsReserved(Result);
     return Result;
   }
-
-private:
-  RecursiveCoroutine<std::string>
-  artificialArrayWrapperNameImpl(const model::Type &Type) const {
-    if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
-      std::string Result = "array_" + std::to_string(Array->ElementCount())
-                           + "_of_";
-      Result += rc_recur artificialArrayWrapperNameImpl(*Array->ElementType());
-      rc_return Result;
-
-    } else if (auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
-      std::string Result = (D->IsConst() ? "const_" : "");
-      rc_return Result += this->name(D->unwrap());
-
-    } else if (auto *Ptr = llvm::dyn_cast<model::PointerType>(&Type)) {
-      std::string Result = (Ptr->IsConst() ? "const_ptr_to_" : "ptr_to_");
-      Result += rc_recur artificialArrayWrapperNameImpl(*Ptr->PointeeType());
-      rc_return Result;
-
-    } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
-      std::string Result = (Primitive->IsConst() ? "const_" : "");
-      rc_return Result += Primitive->getCName();
-
-    } else {
-      revng_abort("Unsupported model::Type.");
-    }
-  }
-
-public:
-  [[nodiscard]] std::string
-  artificialArrayWrapperName(const model::ArrayType &Type) const {
-    auto Result = Configuration.artificialArrayWrapperPrefix().str()
-                  + std::string(artificialArrayWrapperNameImpl(Type));
-    assertNameIsReserved(Result);
-    return Result;
-  }
-
-  [[nodiscard]] std::string artificialArrayWrapperFieldName() const {
-    auto Result = Configuration.artificialArrayWrapperFieldName().str();
-    assertNameIsReserved(Result);
-    return Result;
-  }
 };
 
 struct CNameBuilder : public NameBuilder<CNameBuilder> {

@@ -513,6 +513,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                         "use empty type instead.",
                         T);
 
+    if (T.ReturnType()->isArray())
+      rc_return VH.fail("Array return value is not allowed in CABI functions, "
+                        "wrap it in a `struct` type instead.",
+                        T);
+
     if (not rc_recur T.ReturnType()->size(VH))
       rc_return VH.fail("Return value has no size", T);
   }
@@ -530,6 +535,11 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
+
+    if (Argument.Type()->isArray())
+      rc_return VH.fail("Array argument is not allowed in CABI functions, "
+                        "wrap it in a `struct` type instead.",
+                        Argument);
 
     if (not VH.isNameAllowed(Argument.Name()))
       rc_return VH.fail();
@@ -746,12 +756,6 @@ bool Configuration::verify(VerifyHelper &VH) const {
 
   if (Configuration().Naming().artificialReturnValuePrefix().empty())
     return VH.fail("Artificial return value prefix must not be empty.");
-
-  if (Configuration().Naming().artificialArrayWrapperPrefix().empty())
-    return VH.fail("Artificial array wrapper prefix must not be empty.");
-
-  if (Configuration().Naming().artificialArrayWrapperFieldName().empty())
-    return VH.fail("Artificial array field name must not be empty.");
 
   return true;
 }
