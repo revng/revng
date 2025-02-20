@@ -1189,7 +1189,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   // InstCombine must run before CPUStateAccessAnalysis (CSAA) because, if it
   // runs after it, it removes all the useful metadata attached by CSAA.
   legacy::FunctionPassManager InstCombinePM(&*TheModule);
-  InstCombinePM.add(createInstructionCombiningPass());
+  InstCombinePM.add(createInstructionCombiningPass(1));
   InstCombinePM.doInitialization();
   InstCombinePM.run(*MainFunction);
   InstCombinePM.doFinalization();
