@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Intrinsics.h"
+
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Support/Annotations.h"
@@ -29,6 +31,22 @@ static llvm::StringRef dropWrapperSuffix(llvm::StringRef Name) {
     return Name.substr(0, Position);
 
   return Name;
+}
+
+static bool isLLVMIntrinsic(llvm::StringRef Name) {
+  // Since intrinsics are all guaranteed to start with `llvm_`,
+  // we can skip the check for most of the identifiers.
+  if (not Name.starts_with("llvm_"))
+    return false;
+
+  // Start iteration from 1 because 0 is reserved for `not_intrinsic`.
+  for (llvm::Intrinsic::ID I = 1; I < llvm::Intrinsic::num_intrinsics; ++I) {
+    auto Sanitized = model::sanitizeHelperName(llvm::Intrinsic::getBaseName(I));
+    if (Name.starts_with(Sanitized))
+      return true;
+  }
+
+  return false;
 }
 
 static const SortedVector<std::string> &loadHelperNameList() {
@@ -62,6 +80,10 @@ static const SortedVector<std::string> &loadHelperNameList() {
 
       // We don't care about llvm debug information.
       if (Name.starts_with("llvm.dbg"))
+        continue;
+
+      // No reason to double-ban intrinsics.
+      if (isLLVMIntrinsic(Name))
         continue;
 
       // TODO: other names we don't want to ban?
@@ -389,6 +411,9 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   if (loadHelperNameList().contains(Unwrapped.str()))
     return revng::createError("it collides with a helper (`" + Unwrapped.str()
                               + "`)");
+
+  if (isLLVMIntrinsic(Name))
+    return revng::createError("it collides with one of the LLVM intrinsics");
 
   //
   // The following names are reserved based on the configuration
