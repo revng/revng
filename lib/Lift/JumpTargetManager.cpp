@@ -9,6 +9,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/Progress.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 
 #include "revng/Lift/Lift.h"
@@ -1228,7 +1229,7 @@ CallInst *JumpTargetManager::getJumpTarget(BasicBlock *Target) {
 // translate we proceed as long as we are able to create new edges on the CFG
 // (not considering the dispatcher).
 void JumpTargetManager::harvest() {
-  Task T(10, "Harvesting");
+  Task T(11, "Harvesting");
   HarvestingStats.push("harvest 0");
 
   if (empty()) {
@@ -1241,8 +1242,8 @@ void JumpTargetManager::harvest() {
   }
 
   if (empty()) {
-    T.advance("SROA + InstCombine + TBDP");
-    HarvestingStats.push("harvest 2: SROA + InstCombine + TBDP");
+    T.advance("SROA + InstSimplify + TBDP");
+    HarvestingStats.push("harvest 2: SROA + InstSimplify + TBDP");
 
     // Safely erase all unreachable blocks
     llvm::DenseSet<BasicBlock *> Unreachable = computeUnreachable();
@@ -1274,7 +1275,7 @@ void JumpTargetManager::harvest() {
 
     revng_log(JTCountLog, "Preliminary harvesting");
 
-    HarvestingStats.push("InstCombine");
+    HarvestingStats.push("InstSimplify");
     legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
     OptimizingPM.add(createInstSimplifyLegacyPass());
@@ -1287,8 +1288,23 @@ void JumpTargetManager::harvest() {
     PreliminaryBranchesPM.run(TheModule);
 
     if (empty()) {
+      T.advance("InstructionCombining + TBDP");
+      HarvestingStats.push("harvest 3: InstructionCombining + TBDP");
+
+      legacy::FunctionPassManager OptimizingPM(&TheModule);
+      OptimizingPM.add(createInstructionCombiningPass(1));
+      OptimizingPM.doInitialization();
+      OptimizingPM.run(*TheFunction);
+      OptimizingPM.doFinalization();
+
+      legacy::PassManager PreliminaryBranchesPM;
+      PreliminaryBranchesPM.add(new TranslateDirectBranchesPass(this));
+      PreliminaryBranchesPM.run(TheModule);
+    }
+
+    if (empty()) {
       T.advance("Advanced Value Info");
-      HarvestingStats.push("harvest 3: cloneOptimizeAndHarvest");
+      HarvestingStats.push("harvest 4: cloneOptimizeAndHarvest");
       revng_log(JTCountLog, "Harvesting with Advanced Value Info");
       RootAnalyzer(*this).cloneOptimizeAndHarvest(TheFunction);
     }
