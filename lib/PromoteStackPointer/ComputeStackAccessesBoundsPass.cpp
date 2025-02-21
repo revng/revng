@@ -59,27 +59,29 @@ getSCEVBoundaries(ScalarEvolution &SE, PostDominatorTree &PDT, Instruction *I) {
   // TODO: handle multiple AddRecs
   const auto *Start = AddRec->getStart();
   const class SCEV *End = nullptr;
-  auto *BackedgeTakenCount = SE.getBackedgeTakenCount(Loop);
   const auto *Stride = AddRec->getStepRecurrence(SE);
+  auto *BackedgeTakenCount = SE.getBackedgeTakenCount(Loop);
 
   if (not areAll<SCEVConstant>(std::vector{
         Start, BackedgeTakenCount, Stride })) {
     return FullSet;
   }
+
+  BackedgeTakenCount = SE.getTruncateOrZeroExtend(BackedgeTakenCount,
+                                                  Stride->getType());
+  const llvm::SCEV *Size = SE.getMulExpr(Stride, BackedgeTakenCount);
+  const llvm::SCEV *One = SE.getOne(Start->getType());
+
   bool Increasing = cast<SCEVConstant>(Stride)->getAPInt().isStrictlyPositive();
   revng_log(Log, "Increasing: " << Increasing);
 
   if (Increasing) {
     // Compute end value
-    llvm::SmallVector<const llvm::SCEV *, 4> Addends = {
-      Start,
-      SE.getMulExpr(Stride, BackedgeTakenCount),
-      SE.getOne(Start->getType())
-    };
+    llvm::SmallVector<const llvm::SCEV *, 4> Addends = { Start, Size, One };
     End = SE.getAddExpr(Addends);
   } else {
-    End = SE.getAddExpr(Start, SE.getOne(Start->getType()));
-    Start = SE.getAddExpr(Start, SE.getMulExpr(Stride, BackedgeTakenCount));
+    End = SE.getAddExpr(Start, One);
+    Start = SE.getAddExpr(Start, Size);
   }
 
   revng_log(Log,
