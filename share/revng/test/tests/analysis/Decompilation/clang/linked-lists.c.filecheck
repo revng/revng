@@ -6,7 +6,6 @@ struct representing the node of the linked list.
 
 CHECK: [[NODE_STRUCT:struct_[0-9]+]] *init_list(void)
 
-
 The release_list function should have the proper detected type for its first
 argument.
 TODO: unfortunately we can't recover it until we don't properly model `free` and

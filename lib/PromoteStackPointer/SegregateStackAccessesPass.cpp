@@ -311,7 +311,7 @@ public:
     Binary(Binary),
     M(M),
     SSACS(getIRHelper("stack_size_at_call_site", M)),
-    InitLocalSP(getIRHelper("init_local_sp", M)),
+    InitLocalSP(getIRHelper("revng_undefined_local_sp", M)),
     CallInstructionPushSize(getCallPushSize(Binary)),
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
@@ -321,7 +321,7 @@ public:
     revng_assert(SSACS != nullptr);
 
     // After segregate, we should not introduce new calls to
-    // `init_local_sp`: enable to DCE it away
+    // `revng_undefined_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
   }
 
@@ -334,7 +334,7 @@ public:
     Binary(Binary),
     M(M),
     SSACS(getIRHelper("stack_size_at_call_site", M)),
-    InitLocalSP(getIRHelper("init_local_sp", M)),
+    InitLocalSP(getIRHelper("revng_undefined_local_sp", M)),
     CallInstructionPushSize(getCallPushSize(Binary)),
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
@@ -346,7 +346,7 @@ public:
     revng_assert(SSACS != nullptr);
 
     // After segregate, we should not introduce new calls to
-    // `_init_local_sp`: enable to DCE it away
+    // `revng_undefined_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
   }
 
@@ -874,7 +874,7 @@ private:
     LoggerIndent<> Indent(Log);
 
     //
-    // Find call to init_local_sp
+    // Find call to revng_undefined_local_sp
     //
     Function *Caller = SSACSCall->getParent()->getParent();
 
@@ -1353,7 +1353,7 @@ private:
 
   void adjustStackFrame(const model::Function &ModelFunction, Function &F) {
     //
-    // Find call to init_local_sp
+    // Find call to revng_undefined_local_sp
     //
     CallInst *InitLocalSPCall = findCallTo(&F, InitLocalSP);
     if (InitLocalSPCall == nullptr or ModelFunction.StackFrameType().isEmpty())
@@ -1379,7 +1379,7 @@ private:
                                     getSPConstant(StackFrameSize));
       InitLocalSPCall->replaceAllUsesWith(SP0);
 
-      // Cleanup init_local_sp
+      // Cleanup revng_undefined_local_sp
       eraseFromParent(InitLocalSPCall);
     }
   }

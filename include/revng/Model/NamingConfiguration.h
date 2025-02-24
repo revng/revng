@@ -253,7 +253,7 @@ public:
   }
   llvm::StringRef opaqueCSVValuePrefix() const {
     if (OpaqueCSVValuePrefix().empty())
-      return "init_";
+      return "revng_undefined_";
     else
       return OpaqueCSVValuePrefix();
   }
