@@ -347,7 +347,27 @@ class IDBConverter:
                 aliased_type, ordinal=aliased_type_ordinal
             )
 
-            resulting_definition = m.TypedefDefinition(Name=type_name, UnderlyingType=underlying)
+            # IDA uses c-like type system in that for each struct/union a corresponding typedef
+            # is introduced. In our model type system, such typedefs are already included
+            # in the struct/union definitions (we emit them automatically for each aggregate, with
+            # no need for an explicit typedef - de facto, always introducing their names into
+            # the global namespace).
+            #
+            # As such, when importing from IDA, unless a typedef carries any extra information,
+            # there's no point of importing it (it's harmful, actually, as it introduces multiple
+            # types sharing the same name) - so we just skip it here.
+
+            if (
+                aliased_type.get_name() == type_name
+                and type.is_decl_const() == aliased_type.is_decl_const()
+                and isinstance(underlying, m.DefinedType)
+            ):
+                # skip unnecessary typedefs
+                resulting_definition = self.unwrap_definition(underlying)
+            else:
+                resulting_definition = m.TypedefDefinition(
+                    Name=type_name, UnderlyingType=underlying
+                )
 
         elif type.is_decl_enum():
             underlying = m.PrimitiveType(
@@ -573,12 +593,14 @@ class IDBConverter:
                     self.idb_types_to_revng_types[ordinal] = result
                 return result
 
-        assert not self.revng_types_by_id.get(resulting_definition.ID)
+        assert resulting_definition is not None
 
         result = self._type_for_definition(resulting_definition, type.is_decl_const())
         if ordinal is not None:
             self.idb_types_to_revng_types[ordinal] = result
-        self.revng_types_by_id[resulting_definition.ID] = resulting_definition
+
+        if not self.revng_types_by_id.get(resulting_definition.ID):
+            self.revng_types_by_id[resulting_definition.ID] = resulting_definition
 
         return result
 

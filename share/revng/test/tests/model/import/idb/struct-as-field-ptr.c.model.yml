@@ -26,14 +26,8 @@ TypeDefinitions:
           PointerSize: 8
           PointeeType:
             Kind: DefinedType
-            Definition: "/TypeDefinitions/626103279023675435-TypedefDefinition"
+            Definition: "/TypeDefinitions/2113910595525978593-StructDefinition"
     Size: 16
-  - Kind: TypedefDefinition
-    ID: 626103279023675435
-    Name: second_struct
-    UnderlyingType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/2113910595525978593-StructDefinition"
   - Kind: StructDefinition
     ID: 2113910595525978593
     Name: second_struct

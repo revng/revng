@@ -11,7 +11,7 @@ TypeDefinitions:
         Name: second
         Type:
           Kind: DefinedType
-          Definition: "/TypeDefinitions/3436967820219683210-TypedefDefinition"
+          Definition: "/TypeDefinitions/9993798603444101287-StructDefinition"
       - Offset: 8
         Name: x
         Type:
@@ -25,12 +25,6 @@ TypeDefinitions:
           PrimitiveKind: Number
           Size: 4
     Size: 16
-  - Kind: TypedefDefinition
-    ID: 3436967820219683210
-    Name: second_struct
-    UnderlyingType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/9993798603444101287-StructDefinition"
   - Kind: StructDefinition
     ID: 9993798603444101287
     Name: second_struct

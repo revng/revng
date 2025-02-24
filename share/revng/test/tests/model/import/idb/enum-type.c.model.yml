@@ -15,12 +15,6 @@ TypeDefinitions:
         Name: x
       - Value: 1
         Name: "y"
-  - Kind: TypedefDefinition
-    ID: 1687222338895130802
-    Name: A
-    UnderlyingType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/8119090305649570066-EnumDefinition"
   - Kind: CABIFunctionDefinition
     ID: 5232257417303549612
     ABI: SystemV_x86_64
@@ -28,5 +22,5 @@ TypeDefinitions:
       - Index: 0
         Type:
           Kind: DefinedType
-          Definition: "/TypeDefinitions/1687222338895130802-TypedefDefinition"
+          Definition: "/TypeDefinitions/8119090305649570066-EnumDefinition"
         Name: x_2
