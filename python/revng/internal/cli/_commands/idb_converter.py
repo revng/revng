@@ -605,8 +605,8 @@ class IDBConverter:
         return None
 
     def unwrap_definition(self, defined_type: m.Type) -> Optional[RevngTypeDefinitions]:
-        if not isinstance(defined_type, m.TypeDefinition):
-            raise ValueError("Trying to unwrap a nested definition!")
+        if not isinstance(defined_type, m.DefinedType):
+            raise ValueError("Trying to unwrap a nested definition:\n" + str(defined_type))
 
         return self.revng_types_by_id.get(defined_type.Definition.id)
 
