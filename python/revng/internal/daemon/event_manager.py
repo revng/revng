@@ -54,7 +54,7 @@ class EventManager(Thread):
             # related to speeding up the pipeline manager from saving (e.g. detecting dirtiness in
             # containers) need to be implemented before this can be dropped
             if self.last_save + self._interval < time.time() and (
-                self.last_event is not None and self.last_event < self.last_save
+                self.last_event is not None and self.last_event > self.last_save
             ):
                 self.save()
                 self.last_save = time.time()
@@ -63,7 +63,6 @@ class EventManager(Thread):
     def save(self) -> bool:
         result = self.manager.save()
         if result:
-            self.next_save = None
             for hook in self.save_hooks:
                 hook(self.manager, cast(str, self.credentials))
         return result

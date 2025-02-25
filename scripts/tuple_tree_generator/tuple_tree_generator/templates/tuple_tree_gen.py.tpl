@@ -106,6 +106,17 @@ class 'struct.name'(
     def __hash__(self):
         return id(self)
 
+    ## if struct.key_fields | length > 0 ##
+    @staticmethod
+    def parse_key(key):
+        parts = key.split("-")
+        return { ' struct | key_parser ' }
+
+    keyed = True
+    def key(self):
+        return ' struct | gen_key '
+    ## endif ##
+
 ## endfor ##
 
 ## for struct in structs ##

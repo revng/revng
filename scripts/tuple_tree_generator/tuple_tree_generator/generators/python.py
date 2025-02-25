@@ -30,6 +30,8 @@ class PythonGenerator:
         self.jinja_environment.filters["python_type"] = self.python_type
         self.jinja_environment.filters["docstring"] = self.render_docstring
         self.jinja_environment.filters["default_value"] = self.default_value
+        self.jinja_environment.filters["gen_key"] = self.gen_key
+        self.jinja_environment.filters["key_parser"] = self.key_parser
         self.jinja_environment.tests["simple_field"] = is_simple_struct_field
         self.jinja_environment.tests["sequence_field"] = is_sequence_struct_field
         self.jinja_environment.tests["reference_field"] = is_reference_struct_field
@@ -78,6 +80,16 @@ class PythonGenerator:
             return cls._python_type(resolved_type.base)
         else:
             assert False
+
+    @staticmethod
+    def gen_key(struct: StructDefinition) -> str:
+        fields = [f"{{self.{f.name}}}" for f in struct.key_fields]
+        return f"f\"{'-'.join(fields)}\""
+
+    @staticmethod
+    def key_parser(struct: StructDefinition) -> str:
+        fields = [f'"{f.name}": parts[{i}]' for i, f in enumerate(struct.key_fields)]
+        return ",".join(fields)
 
     @staticmethod
     def render_docstring(docstr: str, indent=1):

@@ -492,8 +492,11 @@ Step::storeInvalidationMetadata(const revng::DirectoryPath &Path) const {
     if (not File)
       return File.takeError();
 
-    ZstdCompressedOstream OS(File->get()->os(), 5);
-    ::serialize(OS, ToStore);
+    {
+      ZstdCompressedOstream OS(File->get()->os(), 5);
+      ::serialize(OS, ToStore);
+    }
+
     if (auto Error = File->get()->commit())
       return Error;
   }
