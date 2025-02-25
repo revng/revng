@@ -41,7 +41,6 @@ struct SerializedType {
 struct MakeModelCastPass : public llvm::FunctionPass {
 private:
   ModelTypesMap TypeMap;
-  const model::Function *ModelFunction = nullptr;
 
 public:
   static char ID;
@@ -197,7 +196,7 @@ bool MMCP::runOnFunction(Function &F) {
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
 
-  ModelFunction = llvmToModelFunction(*Model, F);
+  const model::Function *ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
 
   // First of all, remove all SExt, ZExt and Trunc, and replace them with
