@@ -8,6 +8,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/InitModelTypes/InitModelTypes.h"
@@ -106,10 +107,35 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
 
       if (auto *Load = dyn_cast<llvm::LoadInst>(&I)) {
         llvm::Value *PtrOp = Load->getPointerOperand();
-        const model::UpcastableType &PointedT = TypeMap.at(Load);
+        model::UpcastableType LoadedModelType = TypeMap.at(Load);
 
-        // Check that the Model type is compatible with the Load size
-        revng_assert(areMemOpCompatible(*PointedT, *Load->getType(), *Model));
+        // Check that the Model type is compatible with the Load
+        llvm::Type &LoadedLLVMType = *Load->getType();
+        bool Compatible = areMemOpCompatible(*LoadedModelType,
+                                             LoadedLLVMType,
+                                             *Model);
+        // If the types are not compatible it means that the LoadInst is trying
+        // to read something that according to our computations has a different
+        // size than the associated model::Type pointed-to by the pointer
+        // operand. So we have to compute a primitive type of the suitable size
+        // for making sure the DerefCall uses a pointee type with the correct
+        // size.
+        // MakeModelCast will then make sure that the pointer operand of the
+        // DerefCall itten value is casted to the appropriate pointer type
+        // before dereference.
+        if (not Compatible) {
+          revng_assert(LoadedModelType->size());
+          unsigned BitSize = LoadedLLVMType.getPrimitiveSizeInBits();
+          revng_assert(BitSize);
+          revng_assert(0 == BitSize % 8);
+          LoadedModelType = model::PrimitiveType::makeGeneric(BitSize / 8);
+          revng_assert(LoadedModelType->verify());
+
+          Compatible = areMemOpCompatible(*LoadedModelType,
+                                          LoadedLLVMType,
+                                          *Model);
+          revng_assert(Compatible);
+        }
 
         // Create an index-less ModelGEP for the pointer operand
         llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx,
@@ -117,16 +143,16 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PtrOp,
-                                         PointedT,
+                                         LoadedModelType,
                                          PtrSizedInt);
-
         // Create a Copy to dereference the ModelGEP
-        auto *CopyFnType = getCopyType(I.getType(), DerefCall->getType());
-        auto *CopyFunction = CopyPool.get(I.getType(), CopyFnType, "Copy");
+        auto *CopyFnType = getCopyType(&LoadedLLVMType, DerefCall->getType());
+        auto *CopyFunction = CopyPool.get(&LoadedLLVMType, CopyFnType, "Copy");
         InjectedCall = Builder.CreateCall(CopyFunction, { DerefCall });
 
         // Add the dereferenced type to the type map
-        auto &&[_, Success] = TypeMap.insert({ InjectedCall, PointedT.copy() });
+        auto &&[_, Success] = TypeMap.insert({ InjectedCall,
+                                               LoadedModelType.copy() });
         revng_assert(Success);
 
       } else if (auto *Store = dyn_cast<llvm::StoreInst>(&I)) {
@@ -157,7 +183,29 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
           if (areMemOpCompatible(PointeeType, *PointedType, *Model))
             StoredType = PointeeType;
         }
-        revng_assert(areMemOpCompatible(*StoredType, *PointedType, *Model));
+        // Check that the Model type is compatible with the Store
+        bool Compatible = areMemOpCompatible(*StoredType, *PointedType, *Model);
+
+        // If the types are not compatible it means that the StoreInst is trying
+        // to write something that according to our computations has a different
+        // size than the associated model::Type pointed-to by the pointer
+        // operand. So we have to compute a primitive type of the suitable size
+        // for making sure the DerefCall uses a pointee type with the correct
+        // size.
+        // MakeModelCast will then make sure that the pointer operand of the
+        // DerefCall itten value is casted to the appropriate pointer type
+        // before dereference.
+        if (not Compatible) {
+          revng_assert(StoredType->size());
+          unsigned BitSize = PointedType->getPrimitiveSizeInBits();
+          revng_assert(BitSize);
+          revng_assert(0 == BitSize % 8);
+          StoredType = model::PrimitiveType::makeGeneric(BitSize / 8);
+          revng_assert(StoredType->verify());
+
+          Compatible = areMemOpCompatible(*StoredType, *PointedType, *Model);
+          revng_assert(Compatible);
+        }
 
         llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx,
                                                                 *Model);
