@@ -41,6 +41,7 @@ struct SerializedType {
 struct MakeModelCastPass : public llvm::FunctionPass {
 private:
   ModelTypesMap TypeMap;
+  const model::Binary *Model;
 
 public:
   static char ID;
@@ -55,8 +56,8 @@ public:
   }
 
 private:
-  std::vector<SerializedType> serializeTypesForModelCast(Instruction *,
-                                                         const model::Binary &);
+  std::vector<SerializedType> serializeTypesForModelCast(Instruction *);
+
   void createAndInjectModelCast(Instruction *,
                                 const SerializedType &,
                                 OpaqueFunctionsPool<TypePair> &);
@@ -64,17 +65,16 @@ private:
 
 using MMCP = MakeModelCastPass;
 
-std::vector<SerializedType>
-MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
+std::vector<SerializedType> MMCP::serializeTypesForModelCast(Instruction *I) {
   using namespace model;
   using namespace abi::FunctionType;
 
   std::vector<SerializedType> Result;
   Module *M = I->getModule();
 
-  auto SerializeTypeFor = [this, &Model, &Result, &M](const llvm::Use &Op) {
+  auto SerializeTypeFor = [this, &Result, &M](const llvm::Use &Op) {
     // Check if we have strong model information about this operand
-    auto ModelTypes = getExpectedModelType(&Op, Model);
+    auto ModelTypes = getExpectedModelType(&Op, *Model);
 
     // Aggregates that do not correspond to model structs (e.g. return types
     // of RawFunctionTypes that return more than one value) cannot be handled
@@ -194,7 +194,7 @@ bool MMCP::runOnFunction(Function &F) {
   auto ModelCastPool = FunctionTags::ModelCast.getPool(*M);
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
+  Model = &*ModelWrapper.getReadOnlyModel();
 
   const model::Function *ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
@@ -255,7 +255,7 @@ bool MMCP::runOnFunction(Function &F) {
 
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
-      auto SerializedTypes = serializeTypesForModelCast(&I, *Model);
+      auto SerializedTypes = serializeTypesForModelCast(&I);
 
       if (SerializedTypes.empty())
         continue;
