@@ -484,6 +484,11 @@ llvm::Error Trace::run(const revng::tracing::RunTraceOptions Options) const {
     if (Options.BreakAt.contains(CommandI))
       raise(SIGTRAP);
 
+    if (Command.Name == "rp_manager_set_storage_credentials") {
+      // The storage has been overridden by the runner, do not run this function
+      continue;
+    }
+
     CommandHandler[Command.Name](Context, Arguments, Command.Result);
   }
 
