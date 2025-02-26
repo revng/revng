@@ -623,19 +623,37 @@ public:
     Out << ')';
   }
 
+  static bool isHiddenCast(CastOp Cast) {
+    return Cast.getKind() == CastKind::Decay;
+  }
+
+  static mlir::Value unwrapHiddenCasts(CastOp Cast) {
+    revng_assert(isHiddenCast(Cast));
+
+    while (true) {
+      auto InnerCast = Cast.getValue().getDefiningOp<CastOp>();
+      if (not InnerCast or not isHiddenCast(InnerCast))
+        break;
+    }
+
+    return Cast.getValue();
+  }
+
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOp>();
 
-    if (E.getKind() != CastKind::Decay) {
-      Out << '(';
-      rc_recur emitType(E.getResult().getType());
-      Out << ')';
-    }
+    Out << '(';
+    rc_recur emitType(E.getResult().getType());
+    Out << ')';
 
-    // Parenthesizing a nested unary postfix expression is not necessary.
-    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
+    // Parenthesizing a nested unary prefix expression is not necessary.
+    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
 
     rc_recur emitExpression(E.getValue());
+  }
+
+  RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
+    return emitExpression(unwrapHiddenCasts(V.getDefiningOp<CastOp>()));
   }
 
   RecursiveCoroutine<void> emitTernaryExpression(mlir::Value V) {
@@ -847,10 +865,12 @@ public:
     }
 
     if (auto Cast = mlir::dyn_cast<CastOp>(E.getOperation())) {
-      if (Cast.getKind() == CastKind::Decay) {
+      if (isHiddenCast(Cast)) {
+        auto Info = getExpressionEmitInfo(unwrapHiddenCasts(Cast));
+
         return {
-          .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CEmitter::emitCastExpression,
+          .Precedence = decrementPrecedence(Info.Precedence),
+          .Emit = &CEmitter::emitHiddenCastExpression,
         };
       }
 

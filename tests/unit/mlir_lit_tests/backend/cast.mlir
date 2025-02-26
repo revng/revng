@@ -9,6 +9,10 @@
 !int32_t = !clift.primitive<SignedKind 4>
 !uint32_t = !clift.primitive<UnsignedKind 4>
 
+!uint32_t$ptr = !clift.pointer<
+  pointer_size = 4,
+  pointee_type = !uint32_t>
+
 !f = !clift.defined<#clift.function<
   unique_handle = "/model-type/1001",
   name = "",
@@ -20,10 +24,19 @@ clift.module {
   clift.func @f<!f>() attributes {
     unique_handle = "/function/0x40001001:Code_x86_64"
   } {
+    %x = clift.local !uint32_t "x"
+
     // CHECK: (uint32_t)0;
     clift.expr {
       %0 = clift.imm 0 : !int32_t
       %1 = clift.cast<reinterpret> %0 : !int32_t -> !uint32_t
+      clift.yield %1 : !uint32_t
+    }
+
+    // CHECK: (uint32_t)&_var_0;
+    clift.expr {
+      %0 = clift.addressof %x : !uint32_t$ptr
+      %1 = clift.cast<reinterpret> %0 : !uint32_t$ptr -> !uint32_t
       clift.yield %1 : !uint32_t
     }
   }
