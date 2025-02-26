@@ -228,10 +228,16 @@ private:
       Offset += RegisterType.getByteSize();
     }
 
+    std::string TypeName;
+    {
+      llvm::raw_string_ostream Out(TypeName);
+      Out << "register_set_" << ModelType.ID();
+    }
+
     auto
       Attr = make<clift::StructTypeAttr>(getUniqueHandle(RegisterSetNamespace,
                                                          ModelType.ID()),
-                                         "",
+                                         TypeName,
                                          Offset,
                                          Elements);
 

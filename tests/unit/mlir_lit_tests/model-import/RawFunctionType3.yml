@@ -16,22 +16,30 @@ TypeDefinitions:
           PrimitiveKind: Unsigned
           Size: 8
 
+    # CHECK: #register_set_1002$def = #clift.struct<
+    # CHECK:   unique_handle = "/register-set-type/1002"
+    # CHECK:   name = "register_set_1002"
+    # CHECK:   size = 16
+    # CHECK:   fields = [
+    # CHECK:     <
+    # CHECK:       offset = 0
+    # CHECK:       type = !clift.primitive<UnsignedKind 8>
+    # CHECK:     >
+    # CHECK:     <
+    # CHECK:       offset = 8
+    # CHECK:       type = !clift.pointer<
+    # CHECK:         pointee_type = !clift.primitive<UnsignedKind 8>
+    # CHECK:         pointer_size = 8
+    # CHECK:       >
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+    # CHECK: !register_set_1002_ = !clift.defined<#register_set_1002$def>
+
     # CHECK: #my_function3$def = #clift.function<
     # CHECK:   unique_handle = "/model-type/1002"
     # CHECK:   name = "my_function3"
-    # CHECK:   return_type = !clift.defined<
-    # CHECK:     #clift.struct<
-    # CHECK:       unique_handle = "/register-set-type/1002"
-    # CHECK:       fields = [
-    # CHECK:         <
-    # CHECK:           type = !uint64_t
-    # CHECK:         >
-    # CHECK:         <
-    # CHECK:           type = !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
-    # CHECK:         >
-    # CHECK:       ]
-    # CHECK:     >
-    # CHECK:   >
+    # CHECK:   return_type = !register_set_1002_,
     # CHECK:   argument_types = [
     # CHECK:     !uint64_t
     # CHECK:     !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
