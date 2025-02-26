@@ -141,6 +141,11 @@ def Clift_FunctionOp : Clift_Op<"func",
 
   let hasCustomAssemblyFormat = 1;
 
+  let builders = [
+    OpBuilder<(ins "llvm::StringRef":$name,
+                   "mlir::Type":$function_type)>
+  ];
+
   code extraClassDeclaration = [{
     mlir::Region::BlockListType& getBlocks() {
         return getBody().getBlocks();

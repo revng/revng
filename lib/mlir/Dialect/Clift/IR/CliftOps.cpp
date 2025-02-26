@@ -457,6 +457,28 @@ mlir::LogicalResult clift::ModuleOp::verify() {
 
 //===----------------------------- FunctionOp -----------------------------===//
 
+void FunctionOp::build(OpBuilder &Builder,
+                       OperationState &State,
+                       llvm::StringRef Name,
+                       mlir::Type FunctionType) {
+  size_t ArgumentCount = 0;
+  if (auto TypeAttr = clift::getFunctionTypeAttr(FunctionType))
+    ArgumentCount = TypeAttr.getArgumentTypes().size();
+
+  llvm::SmallVector<mlir::Attribute> DictionaryArray;
+  DictionaryArray.resize(std::max<size_t>(ArgumentCount, 1),
+                         mlir::DictionaryAttr::get(Builder.getContext()));
+
+  llvm::ArrayRef Attrs(DictionaryArray);
+  build(Builder,
+        State,
+        Name,
+        FunctionType,
+        mlir::ArrayAttr::get(Builder.getContext(),
+                             Attrs.take_front(ArgumentCount)),
+        mlir::ArrayAttr::get(Builder.getContext(), Attrs.take_front(1)));
+}
+
 mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
                                     OperationState &Result) {
   StringAttr SymbolNameAttr;
