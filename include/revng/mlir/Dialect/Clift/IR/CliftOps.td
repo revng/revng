@@ -26,56 +26,58 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 def Clift_AnyLabelType
   : Type<CPred<"mlir::isa<mlir::clift::LabelType>($_self)">,
-         "a Clift label type",
+         "Clift label type",
          "mlir::clift::LabelType">,
     BuildableType<"$_builder.getType<mlir::clift::LabelType>()">;
 
 def Clift_AnyValueType
   : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
-         "a Clift value type",
+         "Clift value type",
          "mlir::clift::ValueType">;
 
 class Clift_AnyPrimitiveTypeOf<string Kind>
   : Type<CPred<"mlir::clift::impl::verifyPrimitiveTypeOf($_self," #
                                                          "mlir::clift::PrimitiveKind::" # Kind # ")">,
-         "a Clift primitive type of " # Kind,
+         "Clift primitive type of " # Kind,
          "mlir::clift::PrimitiveType">;
 
 def Clift_AnyScalarType
   : Type<CPred<"mlir::clift::isScalarType($_self)">,
-         "a Clift scalar type",
+         "Clift scalar type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyIntegerType
   : Type<CPred<"mlir::clift::isIntegerType($_self)">,
-         "a Clift integer type",
+         "Clift integer type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyPrimitiveIntegerType
   : Type<CPred<"mlir::clift::isPrimitiveIntegerType($_self)">,
-         "a primitive Clift integer type",
+         "primitive Clift integer type",
          "mlir::clift::PrimitiveType">;
 
 def Clift_AnyPointerType
   : Type<CPred<"mlir::clift::isPointerType($_self)">,
-         "a Clift pointer type",
+         "Clift pointer type",
          "mlir::clift::PointerType">;
 
 def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::isFunctionType($_self)">,
-         "a Clift function type",
+         "Clift function type",
          "mlir::clift::ValueType">;
 
 class Clift_AnyNonConstType<Type type>
   : Type<And<[type.predicate,
               CPred<"not mlir::cast<mlir::clift::ValueType>($_self).isConst()">]>,
-         "non-const",
+         // TODO: Figure out why the string concatenation isn't working here.
+         "non-const " # type.description,
          "mlir::clift::ValueType">;
 
 class Clift_AnyModifiableType<Type type>
   : Type<And<[type.predicate,
               CPred<"mlir::clift::isModifiableType($_self)">]>,
-         "modifiable",
+         // TODO: Figure out why the string concatenation isn't working here.
+         "modifiable " # type.description,
          "mlir::clift::ValueType">;
 
 class Clift_AllTypesMatch<list<string> names>
