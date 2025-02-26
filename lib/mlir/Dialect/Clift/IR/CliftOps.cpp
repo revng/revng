@@ -231,16 +231,6 @@ void clift::ModuleOp::build(OpBuilder &Builder, OperationState &State) {
 
 namespace {
 
-static bool isModuleLevelOperation(Operation *Op) {
-  if (mlir::isa<clift::FunctionOp>(Op))
-    return true;
-
-  if (mlir::isa<clift::GlobalVariableOp>(Op))
-    return true;
-
-  return false;
-}
-
 class ModuleVerifier : public ModuleValidator<ModuleVerifier> {
   enum class LoopOrSwitch : uint8_t {
     Loop,
@@ -332,7 +322,7 @@ public:
   }
 
   mlir::LogicalResult visitNestedOp(mlir::Operation *Op) {
-    if (isModuleLevelOperation(Op))
+    if (mlir::isa<clift::GlobalOpInterface>(Op))
       return Op->emitOpError() << Op->getName()
                                << " must be directly nested within a"
                                   " ModuleOp.";
@@ -384,7 +374,7 @@ public:
   }
 
   mlir::LogicalResult visitModuleLevelOp(mlir::Operation *Op) {
-    if (not isModuleLevelOperation(Op))
+    if (not mlir::isa<clift::GlobalOpInterface>(Op))
       return Op->emitOpError() << Op->getName()
                                << " cannot be directly nested within a"
                                   " ModuleOp.";

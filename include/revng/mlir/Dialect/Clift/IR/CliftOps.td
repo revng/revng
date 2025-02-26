@@ -119,7 +119,8 @@ def Clift_ModuleOp : Clift_Op<"module",
 }
 
 def Clift_FunctionOp : Clift_Op<"func",
-                                [Symbol,
+                                [Clift_GlobalOpInterface,
+                                 Symbol,
                                  CallableOpInterface,
                                  FunctionOpInterface,
                                  AutomaticAllocationScope,
@@ -152,6 +153,13 @@ def Clift_FunctionOp : Clift_Op<"func",
     }
 
 
+    // Implementation of Clift_GlobalOpInterface
+
+    clift::ValueType getType() {
+      return getFunctionType();
+    }
+
+
     // Implementation of CallableOpInterface
 
     Region *getCallableRegion() {
@@ -174,7 +182,8 @@ def Clift_FunctionOp : Clift_Op<"func",
 }
 
 def Clift_GlobalVariableOp : Clift_Op<"global",
-                                      [Symbol,
+                                      [Clift_GlobalOpInterface,
+                                       Symbol,
                                        NoRegionArguments,
                                        IsolatedFromAbove]> {
   let arguments = (ins SymbolNameAttr:$sym_name,
