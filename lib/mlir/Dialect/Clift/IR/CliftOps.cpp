@@ -320,15 +320,20 @@ public:
       if (Region &R = Return.getResult(); not R.empty())
         ReturnType = getExpressionType(R);
 
-      if (ReturnType and isVoid(FunctionReturnType))
+      if (isVoid(FunctionReturnType)) {
+        if (ReturnType)
+          return Op->emitOpError() << Op->getName()
+                                   << " cannot return expression in function"
+                                      " returning void.";
+      } else if (not ReturnType) {
         return Op->emitOpError() << Op->getName()
-                                 << " cannot return expression in function"
+                                 << " must return a value in function not"
                                     " returning void.";
-
-      if (ReturnType != FunctionReturnType)
+      } else if (ReturnType != FunctionReturnType) {
         return Op->emitOpError() << Op->getName()
                                  << " type does not match the function return"
                                     " type";
+      }
     } else if (mlir::isa<SwitchBreakOp>(Op)) {
       if (not hasLoopOrSwitchParent(Op,
                                     LoopOrSwitch::Switch,
@@ -686,9 +691,11 @@ mlir::LogicalResult MakeLabelOp::verify() {
 //===------------------------------ ReturnOp ------------------------------===//
 
 mlir::LogicalResult ReturnOp::verify() {
-  if (not isReturnableType(getExpressionType(getResult())))
-    return emitOpError() << getOperationName()
-                         << " requires void or non-array object type.";
+  if (mlir::Region &R = getResult(); not R.empty()) {
+    if (not isReturnableType(getExpressionType(R)))
+      return emitOpError() << getOperationName()
+                           << " requires void or non-array object type.";
+  }
 
   return mlir::success();
 }
