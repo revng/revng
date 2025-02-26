@@ -1441,3 +1441,97 @@ void mlir::printCliftTernaryOpTypes(OpAsmPrinter &Printer,
     Printer << Rhs;
   }
 }
+
+//===----------------------------- AggregateOp ----------------------------===//
+
+static auto makeAggregateArgumentTypeAccessor(clift::ValueType Type) {
+  auto UnderlyingType = dealias(Type, /*IgnoreQualifiers=*/true);
+  return [UnderlyingType](unsigned I) -> clift::ValueType {
+    if (auto Array = mlir::dyn_cast<ArrayType>(UnderlyingType))
+      return Array.getElementType();
+
+    if (auto Struct = getTypeDefinitionAttr<StructTypeAttr>(UnderlyingType)) {
+      auto Fields = Struct.getFields();
+      return I < Fields.size() ? Fields[I].getType() : clift::ValueType();
+    }
+
+    return {};
+  };
+}
+
+mlir::ParseResult AggregateOp::parse(OpAsmParser &Parser,
+                                     OperationState &Result) {
+  ArgumentListParser Arguments;
+  if (Arguments.parse(Parser, /*Requiretypes=*/false).failed())
+    return mlir::failure();
+
+  if (Parser.parseOptionalAttrDict(Result.attributes).failed())
+    return mlir::failure();
+
+  if (Parser.parseColon().failed())
+    return mlir::failure();
+
+  clift::ValueType ResultType;
+  if (Parser.parseType(ResultType).failed())
+    return mlir::failure();
+
+  if (Arguments
+        .resolveOperands(Parser,
+                         Result,
+                         makeAggregateArgumentTypeAccessor(ResultType))
+        .failed())
+    return mlir::failure();
+
+  Result.addTypes({ ResultType });
+
+  return mlir::success();
+}
+
+void AggregateOp::print(OpAsmPrinter &Printer) {
+  clift::ValueType ResultType = getResult().getType();
+
+  printArgumentList(Printer,
+                    getInitializers(),
+                    makeAggregateArgumentTypeAccessor(ResultType));
+
+  Printer.printOptionalAttrDict(getOperation()->getAttrs(), {});
+
+  Printer << " : ";
+  Printer << ResultType;
+}
+
+mlir::LogicalResult AggregateOp::verify() {
+  auto InitializerTypes = getInitializers().getTypes();
+  auto AT = dealias(getResult().getType(), true);
+
+  if (auto T = mlir::dyn_cast<StructTypeAttr>(getTypeDefinitionAttr(AT))) {
+    auto Fields = T.getFields();
+
+    if (InitializerTypes.size() != Fields.size())
+      return emitOpError() << getOperationName()
+                           << " must initialize all struct members.";
+
+    for (auto [IT, SF] : llvm::zip(InitializerTypes, Fields)) {
+      if (not clift::equivalent(IT, SF.getType()))
+        return emitOpError() << getOperationName()
+                             << " initializer types must match the struct field"
+                                " types.";
+    }
+  } else if (auto T = mlir::dyn_cast<ArrayType>(AT)) {
+    if (InitializerTypes.size() != T.getElementsCount())
+      return emitOpError() << getOperationName()
+                           << " must initialize all array elements.";
+
+    for (auto IT : InitializerTypes) {
+      if (not clift::equivalent(IT, T.getElementType()))
+        return emitOpError() << getOperationName()
+                             << " initializer types must match the array"
+                                " element type.";
+    }
+  } else {
+    return emitOpError() << getOperationName()
+                         << " result have struct or array type.";
+  }
+
+  return mlir::success();
+}

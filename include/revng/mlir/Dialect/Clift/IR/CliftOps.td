@@ -821,4 +821,12 @@ def Clift_TernaryOp
   }];
 }
 
+def Clift_AggregateOp : Clift_ExpressionOp<"aggregate"> {
+  let arguments = (ins Variadic<Clift_AnyValueType>:$initializers);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
 #endif

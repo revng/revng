@@ -59,6 +59,24 @@ mlir::Type clift::removeConst(mlir::Type Type) {
   return Type;
 }
 
+bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
+  if (Lhs == Rhs)
+    return true;
+
+  if (not Lhs or not Rhs)
+    return false;
+
+  auto LhsVT = mlir::dyn_cast<clift::ValueType>(Lhs);
+  if (not LhsVT)
+    return false;
+
+  auto RhsVT = mlir::dyn_cast<clift::ValueType>(Rhs);
+  if (not RhsVT)
+    return false;
+
+  return LhsVT.removeConst() == RhsVT.removeConst();
+}
+
 bool clift::isModifiableType(ValueType Type) {
   auto &&[UnderlyingType, HasConst] = decomposeTypedef(Type);
   return not HasConst and not UnderlyingType.isConst();

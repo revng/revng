@@ -481,6 +481,28 @@ public:
     rc_return;
   }
 
+  RecursiveCoroutine<void> emitAggregateExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<AggregateOp>();
+
+    Out << '(';
+    rc_recur emitType(E.getResult().getType());
+    Out << ')';
+
+    // The precedence here must be comma, because an initializer list cannot
+    // contain an unparenthesized comma expression. It would be parsed as two
+    // initializers instead.
+    CurrentPrecedence = OperatorPrecedence::Comma;
+
+    Out << '{';
+    for (auto [I, Initializer] : llvm::enumerate(E.getInitializers())) {
+      if (I != 0)
+        Out << ',' << ' ';
+
+      rc_recur emitExpression(Initializer);
+    }
+    Out << '}';
+  }
+
   RecursiveCoroutine<void> emitParameterExpression(mlir::Value V) {
     auto Arg = mlir::cast<mlir::BlockArgument>(V);
     Out << ParameterNames[Arg.getArgNumber()];
@@ -764,6 +786,13 @@ public:
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CEmitter::emitStringLiteralExpression,
+      };
+    }
+
+    if (mlir::isa<AggregateOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CEmitter::emitAggregateExpression,
       };
     }
 

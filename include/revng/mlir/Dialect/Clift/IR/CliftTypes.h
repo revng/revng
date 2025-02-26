@@ -49,6 +49,9 @@ TypeT removeConst(TypeT Type) {
   return mlir::cast<TypeT>(removeConst(static_cast<mlir::Type>(Type)));
 }
 
+/// Determine if the two types are equivalent, ignoring Clift qualifiers.
+bool equivalent(mlir::Type Lhs, mlir::Type Rhs);
+
 /// Determine if the type is non-const. This is different from
 /// `not Type.isConst()` in that the latter returns false for a typedef naming
 /// a const-qualified type.
