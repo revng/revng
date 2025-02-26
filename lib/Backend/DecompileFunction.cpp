@@ -448,8 +448,15 @@ std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
   if (SrcType == DestType)
     return ExprToCast.str();
 
-  revng_assert(*SrcType.skipTypedefs() == *DestType.skipTypedefs()
-               or (SrcType.isScalar() and DestType.isScalar()));
+  if (*SrcType.skipTypedefs() != *DestType.skipTypedefs()
+      and (not SrcType.isScalar() or not DestType.isScalar())) {
+    revng_log(Log,
+              "WARNING: emitting a invalid bitcast in C, using "
+              "__builtin_bit_cast");
+    return (llvm::Twine("__builtin_bit_cast(") + B.getTypeName(DestType) + ", "
+            + ExprToCast + ")")
+      .str();
+  }
 
   return addAlwaysParentheses(B.getTypeName(DestType)) + " "
          + addParentheses(ExprToCast);
