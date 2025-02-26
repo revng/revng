@@ -622,17 +622,17 @@ public:
       return Operator::LShift;
     if (mlir::isa<ShiftRightOp>(Op))
       return Operator::RShift;
-    if (mlir::isa<EqualOp>(Op))
+    if (mlir::isa<CmpEqOp>(Op))
       return Operator::CmpEq;
-    if (mlir::isa<NotEqualOp>(Op))
+    if (mlir::isa<CmpNeOp>(Op))
       return Operator::CmpNeq;
-    if (mlir::isa<LessThanOp>(Op))
+    if (mlir::isa<CmpLtOp>(Op))
       return Operator::CmpLt;
-    if (mlir::isa<GreaterThanOp>(Op))
+    if (mlir::isa<CmpGtOp>(Op))
       return Operator::CmpGt;
-    if (mlir::isa<LessThanOrEqualOp>(Op))
+    if (mlir::isa<CmpLeOp>(Op))
       return Operator::CmpLte;
-    if (mlir::isa<GreaterThanOrEqualOp>(Op))
+    if (mlir::isa<CmpGeOp>(Op))
       return Operator::CmpGte;
     if (mlir::isa<IncrementOp, PostIncrementOp>(Op))
       return Operator::Increment;
@@ -812,17 +812,14 @@ public:
       };
     }
 
-    if (mlir::isa<LessThanOp,
-                  GreaterThanOp,
-                  LessThanOrEqualOp,
-                  GreaterThanOrEqualOp>(E)) {
+    if (mlir::isa<CmpLtOp, CmpGtOp, CmpLeOp, CmpGeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Relational,
         .Emit = &CEmitter::emitInfixExpression,
       };
     }
 
-    if (mlir::isa<EqualOp, NotEqualOp>(E)) {
+    if (mlir::isa<CmpEqOp, CmpNeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Equality,
         .Emit = &CEmitter::emitInfixExpression,

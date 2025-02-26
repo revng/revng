@@ -74,12 +74,12 @@ private:
     return mlir::isa<LogicalNotOp,
                      LogicalAndOp,
                      LogicalOrOp,
-                     EqualOp,
-                     NotEqualOp,
-                     LessThanOp,
-                     GreaterThanOp,
-                     LessThanOrEqualOp,
-                     GreaterThanOrEqualOp>(Op);
+                     CmpEqOp,
+                     CmpNeOp,
+                     CmpLtOp,
+                     CmpGtOp,
+                     CmpLeOp,
+                     CmpGeOp>(Op);
   }
 
   bool isPotentiallyPromotingType(ValueType Type) {

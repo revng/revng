@@ -560,12 +560,12 @@ def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor">;
 def Clift_ShiftLeftOp : Clift_ShiftOp<"shl">;
 def Clift_ShiftRightOp : Clift_ShiftOp<"shr">;
 
-def Clift_EqualOp : Clift_ComparisonOp<"eq">;
-def Clift_NotEqualOp : Clift_ComparisonOp<"ne">;
-def Clift_LessThanOp : Clift_ComparisonOp<"lt">;
-def Clift_GreaterThanOp : Clift_ComparisonOp<"gt">;
-def Clift_LessThanOrEqualOp : Clift_ComparisonOp<"le">;
-def Clift_GreaterThanOrEqualOp : Clift_ComparisonOp<"ge">;
+def Clift_CmpEqOp : Clift_ComparisonOp<"eq">;
+def Clift_CmpNeOp : Clift_ComparisonOp<"ne">;
+def Clift_CmpLtOp : Clift_ComparisonOp<"lt">;
+def Clift_CmpGtOp : Clift_ComparisonOp<"gt">;
+def Clift_CmpLeOp : Clift_ComparisonOp<"le">;
+def Clift_CmpGeOp : Clift_ComparisonOp<"ge">;
 
 def Clift_IncrementOp : Clift_UnaryIntegerMutationOp<"inc">;
 def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;
