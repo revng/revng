@@ -618,7 +618,9 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) {
   if (IsRef) {
     // In ModelGEPRefs, the base value is a reference, and the base type is
     // its type
-    if (*TypeMap.at(BaseValue) != *CurType) {
+    const model::Type &Base = *TypeMap.at(BaseValue)->skipTypedefs();
+    const model::Type &Cur = *std::as_const(CurType)->skipTypedefs();
+    if (Base != Cur) {
       BaseValue->dump();
       TypeMap.at(BaseValue)->dump();
       CurType->dump();
