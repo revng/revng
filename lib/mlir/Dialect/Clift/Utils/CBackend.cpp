@@ -76,6 +76,8 @@ enum class OperatorPrecedence {
   UnaryPrefix,
   UnaryPostfix,
   Primary,
+
+  Ternary = Assignment,
 };
 
 class CEmitter {
@@ -606,6 +608,20 @@ public:
     rc_recur emitExpression(E.getValue());
   }
 
+  RecursiveCoroutine<void> emitTernaryExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<TernaryOp>();
+
+    rc_recur emitExpression(E.getCondition());
+    Out << " ? ";
+    rc_recur emitExpression(E.getLhs());
+    Out << " : ";
+
+    // The right hand expression does not need parentheses.
+    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::Ternary);
+
+    rc_recur emitExpression(E.getRhs());
+  }
+
   static ptml::CBuilder::Operator getOperator(mlir::Operation *Op) {
     if (mlir::isa<NegOp>(Op))
       return Operator::UnaryMinus;
@@ -894,6 +910,13 @@ public:
       return {
         .Precedence = OperatorPrecedence::Comma,
         .Emit = &CEmitter::emitInfixExpression,
+      };
+    }
+
+    if (mlir::isa<TernaryOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Ternary,
+        .Emit = &CEmitter::emitTernaryExpression,
       };
     }
 

@@ -801,4 +801,24 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
   let hasVerifier = 1;
 }
 
+def Clift_TernaryOp
+  : Clift_ExpressionOp<"ternary",
+                       [Clift_AllTypesMatch<["lhs", "rhs"]>,
+                        TypesMatchWith<"result type must match the value type, ignoring qualifiers",
+                                       "lhs",
+                                       "result",
+                                       "mlir::clift::removeConst($_self)">]> {
+
+  let arguments = (ins Clift_AnyScalarType:$condition,
+                       Clift_AnyValueType:$lhs,
+                       Clift_AnyValueType:$rhs);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let assemblyFormat = [{
+    $condition `,` $lhs `,` $rhs attr-dict `:` `(`
+    custom<CliftTernaryOpTypes>(type($condition), type($lhs), type($rhs)) `)`
+  }];
+}
+
 #endif

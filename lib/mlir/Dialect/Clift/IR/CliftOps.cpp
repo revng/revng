@@ -25,6 +25,17 @@ void printCliftPointerArithmeticOpTypes(OpAsmPrinter &Parser,
                                         Type Lhs,
                                         Type Rhs);
 
+ParseResult parseCliftTernaryOpTypes(OpAsmParser &Parser,
+                                     Type &Condition,
+                                     Type &Lhs,
+                                     Type &Rhs);
+
+void printCliftTernaryOpTypes(OpAsmPrinter &Printer,
+                              Operation *Op,
+                              Type Condition,
+                              Type Lhs,
+                              Type Rhs);
+
 } // namespace mlir
 
 #define GET_OP_CLASSES
@@ -1341,4 +1352,44 @@ mlir::LogicalResult CallOp::verify() {
                             " function, ignoring qualifiers.";
 
   return mlir::success();
+}
+
+//===------------------------------ TernaryOp -----------------------------===//
+
+ParseResult mlir::parseCliftTernaryOpTypes(OpAsmParser &Parser,
+                                           Type &Condition,
+                                           Type &Lhs,
+                                           Type &Rhs) {
+  if (Parser.parseType(Condition).failed())
+    return mlir::failure();
+
+  if (Parser.parseComma().failed())
+    return mlir::failure();
+
+  if (Parser.parseType(Lhs).failed())
+    return mlir::failure();
+
+  if (Parser.parseOptionalComma().succeeded()) {
+    if (Parser.parseType(Rhs).failed())
+      return mlir::failure();
+  } else {
+    Rhs = Lhs;
+  }
+
+  return mlir::success();
+}
+
+void mlir::printCliftTernaryOpTypes(OpAsmPrinter &Printer,
+                                    Operation *Op,
+                                    Type Condition,
+                                    Type Lhs,
+                                    Type Rhs) {
+  Printer << Condition;
+  Printer << ',';
+  Printer << Lhs;
+
+  if (Lhs != Rhs) {
+    Printer << ',';
+    Printer << Rhs;
+  }
 }
