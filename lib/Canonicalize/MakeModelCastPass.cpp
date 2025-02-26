@@ -11,6 +11,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Use.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
@@ -164,20 +165,20 @@ getModelCastFunction(TypePair Key,
 
 // Create a call to explicit ModelCast. Later on, we run `ImplicitModelCastPass`
 // to detect implicit casts.
-static Value *createCallToModelCast(IRBuilder<> &Builder,
-                                    TypePair Key,
-                                    const model::UpcastableType &TargetType,
-                                    Value *Operand,
-                                    OpaqueFunctionsPool<TypePair> &Pool) {
+static CallInst *createCallToModelCast(IRBuilder<> &Builder,
+                                       TypePair Key,
+                                       const model::UpcastableType &TargetType,
+                                       Value *Operand,
+                                       OpaqueFunctionsPool<TypePair> &Pool) {
   auto *ModelCastFunction = getModelCastFunction(Key, Pool);
   LLVMContext &Context = Builder.getContext();
   ConstantInt *IsImplicit = llvm::ConstantInt::getFalse(Context);
-  Value *Call = Builder
-                  .CreateCall(ModelCastFunction,
-                              { toLLVMString(TargetType,
-                                             *ModelCastFunction->getParent()),
-                                Operand,
-                                IsImplicit });
+  CallInst
+    *Call = Builder.CreateCall(ModelCastFunction,
+                               { toLLVMString(TargetType,
+                                              *ModelCastFunction->getParent()),
+                                 Operand,
+                                 IsImplicit });
   return Call;
 }
 
@@ -188,16 +189,42 @@ void MakeModelCastPass::makeModelCast(const CastToEmit &ToEmit,
 
   Value *Operand = OperandUse.get();
   const model::Type &OperandModelType = *TypeMap.at(Operand);
-  revng_assert(TargetType->isScalar() and OperandModelType.isScalar());
 
   auto *I = cast<Instruction>(OperandUse.getUser());
   IRBuilder<> Builder(I);
   Type *OperandType = Operand->getType();
-  Value *CallToModelCast = createCallToModelCast(Builder,
-                                                 { OperandType, OperandType },
-                                                 TargetType,
-                                                 Operand,
-                                                 Pool);
+  CallInst *CallToModelCast = createCallToModelCast(Builder,
+                                                    { OperandType,
+                                                      OperandType },
+                                                    TargetType,
+                                                    Operand,
+                                                    Pool);
+  // If either the source type or the target type, on the model, are not scalar
+  // types, we'll get a cast in C involving aggregates. This is guaranteed not
+  // to be syntactically valid C code, but the current LLVM-based decompilation
+  // pipeline has not way to strongly guarantee this never happens, so the only
+  // thing we can do is to print a warning.
+  // This problem will just go away with the clift-based backend.
+  if (not TargetType->isScalar() or not OperandModelType.isScalar()) {
+    std::string Warning;
+    {
+      llvm::raw_string_ostream OS{ Warning };
+
+      OS << "WARNING: ModelCast involves non-scalar types. "
+            "This may not compile in C.\n";
+
+      OS << "OperandType: ";
+      OperandModelType.dump(OS);
+      OS << '\n';
+
+      OS << "TargetType: ";
+      TargetType->dump(OS);
+      OS << '\n';
+
+      OS.flush();
+    }
+    revng_log(Log, Warning);
+  }
   OperandUse.set(CallToModelCast);
 
   revng_log(Log, "makeModelCast: " << dumpToString(CallToModelCast));
@@ -258,11 +285,11 @@ bool MakeModelCastPass::runOnFunction(Function &F) {
                                  model::PrimitiveType::makeUnsigned(ByteSize) :
                                  model::PrimitiveType::makeNumber(ByteSize);
 
-        Value *CallToModelCast = createCallToModelCast(Builder,
-                                                       Key,
-                                                       ResultModelType,
-                                                       CastedOperand,
-                                                       ModelCastPool);
+        CallInst *CallToModelCast = createCallToModelCast(Builder,
+                                                          Key,
+                                                          ResultModelType,
+                                                          CastedOperand,
+                                                          ModelCastPool);
         I.replaceAllUsesWith(CallToModelCast);
         I.eraseFromParent();
 
