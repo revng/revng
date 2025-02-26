@@ -1211,18 +1211,110 @@ UseOp::verifySymbolUses(SymbolTableCollection &SymbolTable) {
 
 //===-------------------------------- CallOp ------------------------------===//
 
+namespace {
+
+using DefaultArgumentTypeProvider = //
+  llvm::function_ref<clift::ValueType(unsigned)>;
+
+/// Parses an argument list delimited by parentheses with optional operand
+/// types. After parsing, default operand types may be provided.
+///
+/// Syntax examples:
+///   (%0)
+///   (%0, %1)
+///   (%0 : !int32_t, %1)
+///   (%0 : !int32_t, %1 : !int32_t)
+class ArgumentListParser {
+public:
+  ParseResult parse(OpAsmParser &Parser, bool RequireTypes) {
+    Location = Parser.getCurrentLocation();
+
+    if (Parser.parseLParen().failed())
+      return mlir::failure();
+
+    if (Parser.parseOptionalRParen().failed()) {
+      do {
+        if (Parser.parseOperand(Operands.emplace_back()).failed())
+          return mlir::failure();
+
+        mlir::Type Type = {};
+        if (Parser.parseOptionalColon().succeeded()) {
+          if (Parser.parseType(Type).failed())
+            return mlir::failure();
+        } else if (RequireTypes) {
+          // Parsing an optional colon already failed, but it was actually
+          // required. The easiest way to produce the appropriate error message
+          // is to try parsing a non-optional colon again.
+          return Parser.parseColon();
+        }
+
+        Types.push_back(Type);
+      } while (Parser.parseOptionalComma().succeeded());
+
+      if (Parser.parseRParen().failed())
+        return mlir::failure();
+    }
+
+    return mlir::success();
+  }
+
+  ParseResult resolveOperands(OpAsmParser &Parser, OperationState &Result) {
+    return Parser.resolveOperands(Operands, Types, Location, Result.operands);
+  }
+
+  ParseResult resolveOperands(OpAsmParser &Parser,
+                              OperationState &Result,
+                              DefaultArgumentTypeProvider GetDefaultType) {
+    for (auto [I, T] : llvm::enumerate(Types)) {
+      if (not T) {
+        if (clift::ValueType DefaultType = GetDefaultType(I))
+          T = DefaultType.removeConst();
+      }
+    }
+
+    return resolveOperands(Parser, Result);
+  }
+
+private:
+  SMLoc Location;
+  llvm::SmallVector<OpAsmParser::UnresolvedOperand> Operands;
+  llvm::SmallVector<mlir::Type> Types;
+};
+
+} // namespace
+
+static void printArgumentList(OpAsmPrinter &Printer,
+                              mlir::OperandRange Operands,
+                              DefaultArgumentTypeProvider GetDefaultType) {
+  Printer << '(';
+  for (auto [I, V] : llvm::enumerate(Operands)) {
+    if (I != 0)
+      Printer << ", ";
+
+    Printer << V;
+    if (clift::ValueType DefaultType = GetDefaultType(I))
+      if (V.getType() != DefaultType.removeConst())
+        Printer << " : " << V.getType();
+  }
+  Printer << ')';
+}
+
+static auto makeCallArgumentTypeAccessor(FunctionTypeAttr Function) {
+  return [Function](unsigned I) -> clift::ValueType {
+    auto ParameterTypes = Function.getArgumentTypes();
+    return I < ParameterTypes.size() ?
+             mlir::cast<clift::ValueType>(ParameterTypes[I]) :
+             clift::ValueType();
+  };
+}
+
 mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
   OpAsmParser::UnresolvedOperand FunctionOperand;
   if (Parser.parseOperand(FunctionOperand).failed())
     return mlir::failure();
 
-  auto ArgumentOperandsLoc = Parser.getCurrentLocation();
-  llvm::SmallVector<OpAsmParser::UnresolvedOperand, 4> ArgumentOperands;
-  if (Parser.parseLParen().failed())
-    return mlir::failure();
-  if (Parser.parseOperandList(ArgumentOperands).failed())
-    return mlir::failure();
-  if (Parser.parseRParen().failed())
+  ArgumentListParser Arguments;
+  if (Arguments.parse(Parser, /*RequireTypes=*/false).failed())
     return mlir::failure();
 
   if (Parser.parseOptionalAttrDict(Result.attributes).failed())
@@ -1241,38 +1333,16 @@ mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
     return Parser.emitError(FunctionTypeLoc) << "expected Clift function or "
                                                 "pointer-to-function type";
 
-  llvm::SmallVector<mlir::Type, 4> ArgumentTypes;
-
-  if (Parser.parseOptionalKeyword("as").succeeded()) {
-    if (Parser.parseLParen().failed())
-      return mlir::failure();
-
-    if (Parser.parseOptionalRParen().failed()) {
-      if (Parser.parseTypeList(ArgumentTypes).failed())
-        return mlir::failure();
-
-      if (Parser.parseRParen().failed())
-        return mlir::failure();
-    }
-  } else {
-    auto ParameterTypes = FunctionTypeAttr.getArgumentTypes();
-    ArgumentTypes.reserve(ParameterTypes.size());
-
-    for (mlir::Type T : ParameterTypes)
-      ArgumentTypes.push_back(mlir::cast<clift::ValueType>(T).removeConst());
-  }
-
   Result.addTypes(FunctionTypeAttr.getResultTypes());
 
   if (Parser.resolveOperand(FunctionOperand, FunctionType, Result.operands)
         .failed())
     return mlir::failure();
 
-  if (Parser
-        .resolveOperands(ArgumentOperands,
-                         ArgumentTypes,
-                         ArgumentOperandsLoc,
-                         Result.operands)
+  if (Arguments
+        .resolveOperands(Parser,
+                         Result,
+                         makeCallArgumentTypeAccessor(FunctionTypeAttr))
         .failed())
     return mlir::failure();
 
@@ -1280,40 +1350,18 @@ mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
 }
 
 void CallOp::print(OpAsmPrinter &Printer) {
-  Printer << ' ';
-  Printer << getFunction();
-  Printer << '(';
-  Printer << getArguments();
-  Printer << ')';
-
-  Printer.printOptionalAttrDict(getOperation()->getAttrs(), {});
-  Printer << ' ' << ':' << ' ';
-
   auto FunctionType = getFunction().getType();
-  Printer << FunctionType;
-
   auto FunctionTypeAttr = getFunctionOrFunctionPointerTypeAttr(FunctionType);
   revng_assert(FunctionTypeAttr); // Checked by verify.
 
-  auto ArgumentTypes = getArguments().getTypes();
-  auto ParameterTypes = FunctionTypeAttr.getArgumentTypes();
+  Printer << ' ';
+  Printer << getFunction();
+  printArgumentList(Printer,
+                    getArguments(),
+                    makeCallArgumentTypeAccessor(FunctionTypeAttr));
 
-  bool RequiresExplicitArgumentTypes = false;
-  for (auto &&[ArgumentT, ParameterT] :
-       llvm::zip_equal(ArgumentTypes, ParameterTypes)) {
-    auto ParameterValueT = mlir::cast<clift::ValueType>(ParameterT);
-
-    if (ArgumentT != ParameterValueT.removeConst()) {
-      RequiresExplicitArgumentTypes = true;
-      break;
-    }
-  }
-
-  if (RequiresExplicitArgumentTypes) {
-    Printer << ' ' << "as" << ' ' << '(';
-    Printer << getArguments().getTypes();
-    Printer << ')';
-  }
+  Printer.printOptionalAttrDict(getOperation()->getAttrs(), {});
+  Printer << ' ' << ':' << ' ' << FunctionType;
 }
 
 mlir::LogicalResult CallOp::verify() {

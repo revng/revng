@@ -17,4 +17,4 @@
 %u = clift.undef : !uint32_t
 
 // CHECK: argument types must match the parameter types
-clift.call %f(%u) : !f as (!uint32_t)
+clift.call %f(%u : !uint32_t) : !f

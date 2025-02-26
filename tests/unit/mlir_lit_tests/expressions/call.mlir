@@ -30,9 +30,9 @@
 %h = clift.undef : !h
 
 clift.call %g(%mi) : !g
-clift.call %g(%mi) : !g as (!int32_t)
-clift.call %g(%ci) : !g as (!int32_t$const)
+clift.call %g(%mi : !int32_t) : !g
+clift.call %g(%ci : !int32_t$const) : !g
 
 clift.call %h(%mi) : !h
-clift.call %h(%mi) : !h as (!int32_t)
-clift.call %h(%ci) : !h as (!int32_t$const)
+clift.call %h(%mi : !int32_t) : !h
+clift.call %h(%ci : !int32_t$const) : !h
