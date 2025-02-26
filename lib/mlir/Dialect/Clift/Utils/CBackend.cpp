@@ -464,6 +464,21 @@ public:
     rc_return;
   }
 
+  RecursiveCoroutine<void> emitStringLiteralExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<StringOp>();
+
+    std::string Literal;
+    {
+      llvm::raw_string_ostream Out(Literal);
+      Out << '"';
+      Out.write_escaped(E.getValue(), /*UseHexEscapes=*/true);
+      Out << '"';
+    }
+    Out << C.getStringLiteral(Literal);
+
+    rc_return;
+  }
+
   RecursiveCoroutine<void> emitParameterExpression(mlir::Value V) {
     auto Arg = mlir::cast<mlir::BlockArgument>(V);
     Out << ParameterNames[Arg.getArgNumber()];
@@ -726,6 +741,13 @@ public:
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CEmitter::emitImmediateExpression,
+      };
+    }
+
+    if (mlir::isa<StringOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CEmitter::emitStringLiteralExpression,
       };
     }
 

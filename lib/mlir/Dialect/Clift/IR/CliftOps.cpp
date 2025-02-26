@@ -811,6 +811,28 @@ mlir::LogicalResult WhileOp::verify() {
 
 //===----------------------------- Expressions ----------------------------===//
 
+//===------------------------------ StringOp ------------------------------===//
+
+mlir::LogicalResult StringOp::verify() {
+  auto ArrayT = mlir::dyn_cast<ArrayType>(getResult().getType());
+  if (not ArrayT or not ArrayT.isConst())
+    return emitOpError() << getOperationName()
+                         << " result must have const array type.";
+
+  auto CharT = mlir::dyn_cast<PrimitiveType>(ArrayT.getElementType());
+  if (not CharT or CharT.getKind() != PrimitiveKind::NumberKind
+      or CharT.getSize() != 1)
+    return emitOpError() << getOperationName()
+                         << " result must have number8_t element type.";
+
+  if (ArrayT.getElementsCount() != getValue().size() + 1)
+    return emitOpError() << getOperationName()
+                         << " result type length must match string length"
+                            " (including null terminator).";
+
+  return mlir::success();
+}
+
 //===----------------------- UnaryIntegerMutationOp -----------------------===//
 
 mlir::LogicalResult clift::impl::verifyUnaryIntegerMutationOp(Operation *Op) {

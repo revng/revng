@@ -446,6 +446,17 @@ def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
   }];
 }
 
+def Clift_StringOp : Clift_ExpressionOp<"str"> {
+  let arguments = (ins StrAttr:$value);
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
 class Clift_UnaryArithmeticOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [TypesMatchWith<"result type must match the value type, ignoring qualifiers",
