@@ -6,32 +6,10 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 
+#include "revng/ADT/ScopedExchange.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 
 namespace mlir::clift {
-
-namespace impl {
-
-template<typename T>
-class ScopedExchange {
-public:
-  template<std::convertible_to<T> NewValueT>
-  ScopedExchange(T &Object, NewValueT &&NewValue) :
-    Object(Object), OldValue(std::move(Object)) {
-    Object = std::forward<NewValueT>(NewValue);
-  }
-
-  ScopedExchange(const ScopedExchange &) = delete;
-  ScopedExchange &operator=(const ScopedExchange &) = delete;
-
-  ~ScopedExchange() { Object = std::move(OldValue); }
-
-private:
-  T &Object;
-  T OldValue;
-};
-
-} // namespace impl
 
 /// CRTP base class for ModuleOp validation. The derived class must inherit from
 /// this class template publicly. This class invokes a number of customization
@@ -170,7 +148,7 @@ private:
   }
 
   mlir::LogicalResult internalVisitNestedOp(mlir::Operation *Op) {
-    impl::ScopedExchange SetCurrentOp(CurrentOp, Op);
+    ScopedExchange SetCurrentOp(CurrentOp, Op);
 
     if (internalVisitOp(Op).failed())
       return mlir::failure();
@@ -184,8 +162,8 @@ private:
   }
 
   mlir::LogicalResult internalVisitModuleLevelOp(mlir::Operation *Op) {
-    impl::ScopedExchange SetCurrentModuleLevelOp(CurrentModuleLevelOp, Op);
-    impl::ScopedExchange SetCurrentOp(CurrentOp, Op);
+    ScopedExchange SetCurrentModuleLevelOp(CurrentModuleLevelOp, Op);
+    ScopedExchange SetCurrentOp(CurrentOp, Op);
 
     if (internalVisitOp(Op).failed())
       return mlir::failure();
@@ -209,8 +187,8 @@ private:
   }
 
   mlir::LogicalResult internalVisitModuleOp(clift::ModuleOp Module) {
-    impl::ScopedExchange SetCurrentModule(CurrentModule, Module);
-    impl::ScopedExchange SetCurrentOp(CurrentOp, Module.getOperation());
+    ScopedExchange SetCurrentModule(CurrentModule, Module);
+    ScopedExchange SetCurrentOp(CurrentOp, Module.getOperation());
 
     if (internalVisitOp(Module.getOperation()).failed())
       return mlir::failure();
