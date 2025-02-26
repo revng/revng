@@ -487,6 +487,21 @@ class Clift_BinaryArithmeticOp<string mnemonic>
   }];
 }
 
+class Clift_PointerArithmeticOp<string mnemonic>
+  : Clift_ExpressionOp<mnemonic> {
+
+  let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` `(`
+    custom<CliftPointerArithmeticOpTypes>(type($result), type($lhs), type($rhs))
+    `)`
+  }];
+
+  let hasVerifier = 1;
+}
+
 class Clift_BinaryLogicalOp<string mnemonic> : Clift_ExpressionOp<mnemonic> {
   let arguments = (ins Clift_AnyScalarType:$lhs,
                        Clift_AnyScalarType:$rhs);
@@ -559,6 +574,24 @@ def Clift_SubOp : Clift_BinaryArithmeticOp<"sub">;
 def Clift_MulOp : Clift_BinaryArithmeticOp<"mul">;
 def Clift_DivOp : Clift_BinaryArithmeticOp<"div">;
 def Clift_RemOp : Clift_BinaryArithmeticOp<"rem">;
+
+def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add">;
+def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
+
+def Clift_PtrDiffOp
+  : Clift_ExpressionOp<"ptr_diff",
+                       [Clift_AllTypesMatch<["lhs", "rhs"]>]> {
+
+  let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:`
+    custom<CliftOpOperandTypes>(type($lhs), type($rhs)) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
 
 def Clift_LogicalNotOp : Clift_ExpressionOp<"not"> {
   let arguments = (ins Clift_AnyIntegerType:$value);

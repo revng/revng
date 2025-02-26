@@ -7,6 +7,9 @@
 !void = !clift.primitive<VoidKind 0>
 
 !int32_t = !clift.primitive<SignedKind 4>
+!int32_t$ptr = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
+
+!ptrdiff_t = !clift.primitive<SignedKind 8>
 
 !f = !clift.defined<#clift.function<
   unique_handle = "/model-type/1001",
@@ -19,6 +22,9 @@ clift.module {
   clift.func @f<!f>() attributes {
     unique_handle = "/function/0x40001001:Code_x86_64"
   } {
+    %v0 = clift.local !int32_t "a"
+    %v1 = clift.local !int32_t "b"
+
     // (0 + 1 - 2) * 3 / 4 % 5;
     clift.expr {
       %0 = clift.imm 0 : !int32_t
@@ -71,6 +77,26 @@ clift.module {
       %e = clift.add %d, %5 : !int32_t
 
       clift.yield %e : !int32_t
+    }
+
+    // CHECK: &_var_0 + (&_var_1 - &_var_0);
+    clift.expr {
+      %0 = clift.addressof %v0 : !int32_t$ptr
+      %1 = clift.addressof %v1 : !int32_t$ptr
+      %2 = clift.ptr_diff %1, %0 : !int32_t$ptr -> !ptrdiff_t
+      %4 = clift.addressof %v0 : !int32_t$ptr
+      %3 = clift.ptr_add %4, %2 : (!int32_t$ptr, !ptrdiff_t)
+      clift.yield %3 : !int32_t$ptr
+    }
+
+    // CHECK: &_var_1 - (&_var_1 - &_var_0);
+    clift.expr {
+      %0 = clift.addressof %v0 : !int32_t$ptr
+      %1 = clift.addressof %v1 : !int32_t$ptr
+      %2 = clift.ptr_diff %1, %0 : !int32_t$ptr -> !ptrdiff_t
+      %4 = clift.addressof %v1 : !int32_t$ptr
+      %3 = clift.ptr_sub %4, %2 : (!int32_t$ptr, !ptrdiff_t)
+      clift.yield %3 : !int32_t$ptr
     }
   }
   // CHECK: }

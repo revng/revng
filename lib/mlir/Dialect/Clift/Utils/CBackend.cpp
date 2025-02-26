@@ -609,9 +609,9 @@ public:
   static ptml::CBuilder::Operator getOperator(mlir::Operation *Op) {
     if (mlir::isa<NegOp>(Op))
       return Operator::UnaryMinus;
-    if (mlir::isa<AddOp>(Op))
+    if (mlir::isa<AddOp, PtrAddOp>(Op))
       return Operator::Add;
-    if (mlir::isa<SubOp>(Op))
+    if (mlir::isa<SubOp, PtrSubOp, PtrDiffOp>(Op))
       return Operator::Sub;
     if (mlir::isa<MulOp>(Op))
       return Operator::Mul;
@@ -820,7 +820,7 @@ public:
       };
     }
 
-    if (mlir::isa<AddOp, SubOp>(E)) {
+    if (mlir::isa<AddOp, SubOp, PtrAddOp, PtrSubOp, PtrDiffOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Additive,
         .Emit = &CEmitter::emitInfixExpression,
