@@ -477,8 +477,8 @@ class Clift_BinaryArithmeticOp<string mnemonic>
 }
 
 class Clift_BinaryLogicalOp<string mnemonic> : Clift_ExpressionOp<mnemonic> {
-  let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
-                       Clift_AnyPrimitiveIntegerType:$rhs);
+  let arguments = (ins Clift_AnyScalarType:$lhs,
+                       Clift_AnyScalarType:$rhs);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveTypeOf<"SignedKind">>:$result);
 
