@@ -44,12 +44,6 @@ static ValueType getExpressionType(Region &R) {
   return {};
 }
 
-static FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
-  if (auto T = mlir::dyn_cast<DefinedType>(dealias(Type)))
-    return mlir::dyn_cast<FunctionTypeAttr>(T.getElementType());
-  return {};
-}
-
 //===-------------------------- Type constraints --------------------------===//
 
 bool clift::impl::verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind) {
@@ -457,7 +451,7 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
   if (Parser.parseType(FunctionType).failed())
     return mlir::failure();
 
-  auto FunctionTypeAttr = ::getFunctionTypeAttr(FunctionType);
+  auto FunctionTypeAttr = clift::getFunctionTypeAttr(FunctionType);
   if (not FunctionTypeAttr)
     return Parser.emitError(FunctionTypeLoc) << "expected Clift function or "
                                                 "pointer-to-function type.";
@@ -528,7 +522,7 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
   Printer.printType(getFunctionType());
   Printer << '>';
 
-  auto FunctionTypeAttr = ::getFunctionTypeAttr(getFunctionType());
+  auto FunctionTypeAttr = clift::getFunctionTypeAttr(getFunctionType());
 
   function_interface_impl::printFunctionSignature(Printer,
                                                   *this,
@@ -553,11 +547,11 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
 }
 
 ArrayRef<Type> FunctionOp::getArgumentTypes() {
-  return ::getFunctionTypeAttr(getFunctionType()).getArgumentTypes();
+  return clift::getFunctionTypeAttr(getFunctionType()).getArgumentTypes();
 }
 
 ArrayRef<Type> FunctionOp::getResultTypes() {
-  return ::getFunctionTypeAttr(getFunctionType()).getResultTypes();
+  return clift::getFunctionTypeAttr(getFunctionType()).getResultTypes();
 }
 
 Type FunctionOp::cloneTypeWith(TypeRange inputs, TypeRange results) {
@@ -1052,13 +1046,6 @@ UseOp::verifySymbolUses(SymbolTableCollection &SymbolTable) {
 }
 
 //===-------------------------------- CallOp ------------------------------===//
-
-static FunctionTypeAttr getFunctionOrFunctionPointerTypeAttr(ValueType Type) {
-  ValueType ValueT = decomposeTypedef(Type).Type;
-  if (auto P = mlir::dyn_cast<PointerType>(ValueT))
-    ValueT = decomposeTypedef(P.getPointeeType()).Type;
-  return getFunctionTypeAttr(ValueT);
-}
 
 mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
   OpAsmParser::UnresolvedOperand FunctionOperand;

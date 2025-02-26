@@ -202,6 +202,19 @@ bool clift::isReturnableType(ValueType ReturnType) {
   return isVoid(ReturnType);
 }
 
+TypeDefinitionAttr clift::getTypeDefinitionAttr(mlir::Type Type) {
+  if (auto T = mlir::dyn_cast<DefinedType>(dealias(Type, true)))
+    return T.getElementType();
+  return {};
+}
+
+FunctionTypeAttr clift::getFunctionOrFunctionPointerTypeAttr(mlir::Type Type) {
+  ValueType ValueT = dealias(Type, true);
+  if (auto P = mlir::dyn_cast<PointerType>(ValueT))
+    ValueT = dealias(P.getPointeeType(), true);
+  return getFunctionTypeAttr(ValueT);
+}
+
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerTypes() {

@@ -130,4 +130,24 @@ bool isCallableType(ValueType Type);
 /// Qualifiers are ignored.
 bool isReturnableType(ValueType Type);
 
+/// Get the underlying non-typedef type definition attribute, if any.
+TypeDefinitionAttr getTypeDefinitionAttr(mlir::Type Type);
+
+/// Get the underlying non-typedef type definition attribute of the specified
+/// type, if any.
+template<typename AttrT>
+AttrT getTypeDefinitionAttr(mlir::Type Type) {
+  return mlir::dyn_cast_or_null<AttrT>(getTypeDefinitionAttr(Type));
+}
+
+/// Get the underlying function type definition attribute, if any.
+inline FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
+  return getTypeDefinitionAttr<FunctionTypeAttr>(Type);
+}
+
+/// If the type, after unwrapping typedefs, is a function type or a pointer to a
+/// function type, returns the underlying function definition attribute of that
+/// function type.
+FunctionTypeAttr getFunctionOrFunctionPointerTypeAttr(mlir::Type Type);
+
 } // namespace mlir::clift
