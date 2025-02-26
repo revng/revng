@@ -460,6 +460,14 @@ public:
 
   //===---------------------------- Expressions ---------------------------===//
 
+  RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<UndefOp>();
+    Out << "/* undef */ (";
+    rc_recur emitType(E.getResult().getType());
+    Out << "){0}";
+    rc_return;
+  }
+
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<ImmediateOp>();
     emitIntegerImmediate(E.getValue(), E.getResult().getType());
@@ -773,6 +781,13 @@ public:
       }
 
       revng_abort("This operation is not supported.");
+    }
+
+    if (mlir::isa<UndefOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CEmitter::emitUndefExpression,
+      };
     }
 
     if (mlir::isa<ImmediateOp>(E)) {
