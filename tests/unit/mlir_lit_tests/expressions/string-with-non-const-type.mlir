@@ -7,4 +7,4 @@
 !char = !clift.primitive<number 1>
 
 // CHECK: result must have const array type
-clift.str "hello" : !clift.array<element_type = !char, elements_count = 6>
+clift.str "hello" : !clift.array<6 x !char>

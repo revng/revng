@@ -132,6 +132,6 @@ def Clift_ArrayType
   }];
 
   let assemblyFormat = [{
-    `<` struct($element_type, $elements_count) `>`
+    `<` $elements_count `x` $element_type `>`
   }];
 }

@@ -9,7 +9,7 @@
 !int32_t = !clift.primitive<signed 4>
 !int32_t$p = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
 
-!int32_t$1 = !clift.array<element_type = !int32_t, elements_count = 1>
+!int32_t$1 = !clift.array<1 x !int32_t>
 !int32_t$1$p = !clift.pointer<pointer_size = 8, pointee_type = !int32_t$1>
 
 !f = !clift.defined<#clift.function<

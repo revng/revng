@@ -8,4 +8,4 @@
 !char$const$ptr$const = !clift.pointer<is_const = true, pointer_size = 8, pointee_type = !char$const>
 
 // CHECK: result must have number8_t element type
-clift.str "hello" : !clift.array<element_type = !char$const$ptr$const, elements_count = 6>
+clift.str "hello" : !clift.array<6 x !char$const$ptr$const>

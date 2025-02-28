@@ -20,8 +20,8 @@ clift.module {
   } {
     // CHECK: "hello";
     clift.expr {
-      %s = clift.str "hello" : !clift.array<element_type = !char$const, elements_count = 6>
-      clift.yield %s : !clift.array<element_type = !char$const, elements_count = 6>
+      %s = clift.str "hello" : !clift.array<6 x !char$const>
+      clift.yield %s : !clift.array<6 x !char$const>
     }
   }
   // CHECK: }

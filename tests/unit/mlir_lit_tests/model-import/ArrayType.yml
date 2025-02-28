@@ -12,10 +12,10 @@ TypeDefinitions:
   # CHECK:     <
   # CHECK:       offset = 0
   # CHECK:       type = !clift.array<
-  # CHECK:         element_type = !clift.primitive<
+  # CHECK:         1024 x
+  # CHECK:         !clift.primitive<
   # CHECK:           generic 1
   # CHECK:         >
-  # CHECK:         elements_count = 1024
   # CHECK:       >
   # CHECK:     >
   # CHECK:   ]
