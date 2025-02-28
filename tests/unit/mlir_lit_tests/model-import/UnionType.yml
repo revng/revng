@@ -5,28 +5,19 @@
 
 TypeDefinitions:
   # CHECK: #my_union$def = #clift.union<
-  # CHECK:   unique_handle = "/model-type/1001"
-  # CHECK:   name = "my_union"
-  # CHECK:   fields = [
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.primitive<
-  # CHECK:         unsigned 1
-  # CHECK:       >
+  # CHECK:   "/model-type/1001"
+  # CHECK:   as "my_union"
+  # CHECK:   {
+  # CHECK:     !clift.primitive<
+  # CHECK:       unsigned 1
   # CHECK:     >
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.primitive<
-  # CHECK:         unsigned 2
-  # CHECK:       >
+  # CHECK:     !clift.primitive<
+  # CHECK:       unsigned 2
   # CHECK:     >
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.primitive<
-  # CHECK:         unsigned 4
-  # CHECK:       >
+  # CHECK:     !clift.primitive<
+  # CHECK:       unsigned 4
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   }
   # CHECK: >
   # CHECK: !my_union = !clift.defined<
   # CHECK:   #my_union$def

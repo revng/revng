@@ -6,14 +6,8 @@
 
 !b = !clift.primitive<unsigned 1>
 
-!s = !clift.defined<#clift.struct<unique_handle = "/model-type/1",
-                                  name = "",
-                                  size = 1,
-                                  fields = []>>
-
-!u = !clift.defined<#clift.union<unique_handle = "/model-type/1",
-                                 name = "",
-                                 fields = [<offset = 0, name = "", type = !b>]>>
+!s = !clift.defined<#clift.struct<"/model-type/1" : size(1) {}>>
+!u = !clift.defined<#clift.union<"/model-type/1" : { !b }>>
 
 // CHECK: two distinct type definitions with the same unique handle: '/model-type/1'
 clift.module {

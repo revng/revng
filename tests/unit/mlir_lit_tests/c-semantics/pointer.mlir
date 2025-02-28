@@ -7,16 +7,9 @@
 !void = !clift.primitive<void 0>
 
 !s = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/1",
-  name = "",
-  size = 8,
-  fields = [
-    <
-      offset = 1,
-      name = "",
-      type = !clift.ptr<4 to !void>
-    >
-  ]>>
+  "/model-type/1" : size(8) {
+    offset(1) : !clift.ptr<4 to !void>
+  }>>
 
 clift.module {
   // CHECK: Pointer type is not representable in the target implementation.

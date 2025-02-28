@@ -7,15 +7,9 @@
 !int32_t = !clift.primitive<signed 4>
 
 !s = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/1",
-  name = "",
-  size = 4,
-  fields = [<
-      offset = 0,
-      name = "x",
-      type = !int32_t
-    >
-  ]
+  "/model-type/1" : size(4) {
+    offset(0) as "x" : !int32_t
+  }
 >>
 
 %0 = clift.undef : !s

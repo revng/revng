@@ -8,15 +8,9 @@
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 
 !s = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/1",
-  name = "",
-  size = 4,
-  fields = [<
-      offset = 0,
-      name = "x",
-      type = !int32_t
-    >
-  ]
+  "/model-type/1" : size(4) {
+    offset(0) as "x" : !int32_t
+  }
 >>
 !p_s = !clift.ptr<8 to !s>
 

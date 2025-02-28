@@ -20,62 +20,26 @@
 
 !my_struct$const = !clift.defined<
   const #clift.struct<
-    unique_handle = "/model-type/1003",
-    name = "my_struct",
-    size = 40,
-    fields = [
-      <
-        offset = 10,
-        name = "my_struct_10",
-        type = !clift.primitive<const signed 4>
-      >,
-      <
-        offset = 20,
-        name = "my_struct_20",
-        type = !clift.primitive<signed 4>
-      >
-    ]>>
+    "/model-type/1003" as "my_struct" : size(40) {
+      offset(10) as "my_struct_10" : !clift.primitive<const signed 4>,
+      offset(20) as "my_struct_20" : !clift.primitive<signed 4>
+    }>>
 
 !my_union$const = !clift.defined<
   const #clift.union<
-    unique_handle = "/model-type/1004",
-    name = "my_union",
-    fields = [
-      <
-        offset = 0,
-        name = "my_union_10",
-        type = !clift.primitive<const signed 4>
-      >,
-      <
-        offset = 0,
-        name = "my_union_20",
-        type = !clift.primitive<signed 4>
-      >
-    ]>>
+    "/model-type/1004" as "my_union" : {
+      "my_union_10" : !clift.primitive<const signed 4>,
+      "my_union_20" : !clift.primitive<signed 4>
+    }>>
 
 !my_function = !clift.defined<#clift.func<
   "/model-type/1005" as "my_function" : !my_struct$const(!int32_t$const)>>
 
 !my_recursive_union = !clift.defined<
-  const #clift.union<
-    unique_handle = "/model-type/1006",
-    name = "my_recursive_union",
-    fields = [
-      <
-        offset = 0,
-        name = "my_recursive_union_10",
-        type = !clift.primitive<const signed 4>
-      >,
-      <
-        offset = 0,
-        name = "my_recursive_union_20",
-        type = !clift.ptr<
-          8 to !clift.defined<
-            const #clift.union<unique_handle = "/model-type/1006">
-          >
-        >
-      >
-    ]>>
+  const #clift.union<"/model-type/1006" as "my_recursive_union" : {
+      "my_recursive_union_10" : !clift.primitive<const signed 4>,
+      "my_recursive_union_20" : !clift.ptr<8 to !clift.defined<const #clift.union<"/model-type/1006">>>
+    }>>
 
 %0 = clift.undef : !int32_t$const
 %1 = clift.undef : !uint32_t$const

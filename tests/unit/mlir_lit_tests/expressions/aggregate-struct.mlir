@@ -8,21 +8,10 @@
 !int32_t$const = !clift.primitive<const signed 4>
 
 !s = !clift.defined<#clift.struct<
-  unique_handle = "",
-  name = "",
-  size = 8,
-  fields = [
-    <
-      offset = 0,
-      name = "x",
-      type = !int32_t
-    >,
-    <
-      offset = 4,
-      name = "y",
-      type = !int32_t
-    >
-  ]
+  "" : size(8) {
+    offset(0) as "x" : !int32_t,
+    offset(4) as "y" : !int32_t
+  }
 >>
 
 %0 = clift.undef : !int32_t

@@ -9,15 +9,7 @@
 !f = !clift.defined<#clift.func<"/model-type/1000" as "f" : !void()>>
 
 // CHECK: field types must be object types
-!s = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/1",
-  name = "",
-  size = 1,
-  fields = [
-    <
-      offset = 0,
-      name = "",
-      type = !f
-    >
-  ]
+!s = !clift.defined<#clift.struct<"/model-type/1" : size(1) {
+    offset(0) : !f
+  }
 >>

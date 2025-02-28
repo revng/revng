@@ -16,9 +16,9 @@ class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
 }
 
 def Clift_FieldAttr
-  : Clift_Attr<"Field",
-               "field",
-               [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+  : AttrDef<Clift_Dialect,
+            "Field",
+            [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
 
   let summary = "A attribute representing a field of a struct or a union";
   let description = [{
@@ -43,8 +43,6 @@ def Clift_FieldAttr
   ];
 
   let genVerifyDecl = 1;
-
-  let assemblyFormat = "`<`struct($offset, $name, $type)`>`";
 }
 
 def Clift_EnumFieldAttr

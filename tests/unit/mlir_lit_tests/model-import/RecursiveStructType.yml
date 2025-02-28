@@ -5,21 +5,17 @@
 
 TypeDefinitions:
   # CHECK: #my_struct$def = #clift.struct<
-  # CHECK:   unique_handle = "/model-type/1001"
-  # CHECK:   name = "my_struct"
-  # CHECK:   size = 4
-  # CHECK:   fields = [
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.ptr<
-  # CHECK:         4 to !clift.defined<
-  # CHECK:           #clift.struct<
-  # CHECK:             unique_handle = "/model-type/1001"
-  # CHECK:           >
-  # CHECK:         >
+  # CHECK:   "/model-type/1001"
+  # CHECK:   as "my_struct"
+  # CHECK:   : size(4)
+  # CHECK:   {
+  # CHECK:     offset(0)
+  # CHECK:     : !clift.ptr<
+  # CHECK:       4 to !clift.defined<
+  # CHECK:         #clift.struct<"/model-type/1001">
   # CHECK:       >
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   }
   # CHECK: >
   # CHECK: !my_struct = !clift.defined<
   # CHECK:   #my_struct$def

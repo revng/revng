@@ -6,17 +6,9 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!f_args = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/2004",
-  name = "",
-  size = 4,
-  fields = [
-    <
-      offset = 0,
-      name = "",
-      type = !int32_t
-    >
-  ]>>
+!f_args = !clift.defined<#clift.struct<"/model-type/2004" : size(4) {
+    offset(0) : !int32_t
+  }>>
 
 !f = !clift.defined<#clift.func<"/model-type/1003" : !int32_t(!int32_t, !f_args)>>
 

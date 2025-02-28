@@ -16,27 +16,14 @@
   }>>
 
 !my_struct = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/2002",
-  name = "",
-  size = 4,
-  fields = [
-    <
-      offset = 0,
-      name = "",
-      type = !int32_t
-    >
-  ]>>
+  "/model-type/2002" : size(4) {
+    offset(0) : !int32_t
+  }>>
 
 !my_union = !clift.defined<#clift.union<
-  unique_handle = "/model-type/2003",
-  name = "",
-  fields = [
-    <
-      offset = 0,
-      name = "",
-      type = !int32_t
-    >
-  ]>>
+  "/model-type/2003" : {
+    !int32_t
+  }>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

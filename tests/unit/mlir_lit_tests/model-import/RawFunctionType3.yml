@@ -17,25 +17,21 @@ TypeDefinitions:
           Size: 8
 
     # CHECK: #register_set_1002$def = #clift.struct<
-    # CHECK:   unique_handle = "/register-set-type/1002"
-    # CHECK:   name = "register_set_1002"
-    # CHECK:   size = 16
-    # CHECK:   fields = [
-    # CHECK:     <
-    # CHECK:       offset = 0
-    # CHECK:       type = !clift.primitive<
+    # CHECK:   "/register-set-type/1002"
+    # CHECK:   as "register_set_1002"
+    # CHECK:   : size(16)
+    # CHECK:   {
+    # CHECK:     offset(0)
+    # CHECK:     : !clift.primitive<
+    # CHECK:       unsigned 8
+    # CHECK.     >
+    # CHECK:     offset(8)
+    # CHECK.     : !clift.ptr<
+    # CHECK:       8 to !clift.primitive<
     # CHECK:         unsigned 8
     # CHECK:       >
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       offset = 8
-    # CHECK:       type = !clift.ptr<
-    # CHECK:         8 to !clift.primitive<
-    # CHECK:           unsigned 8
-    # CHECK:         >
-    # CHECK:       >
-    # CHECK:     >
-    # CHECK:   ]
+    # CHECK.     >
+    # CHECK:   }
     # CHECK: >
     # CHECK: !register_set_1002_ = !clift.defined<
     # CHECK:   #register_set_1002$def

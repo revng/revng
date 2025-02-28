@@ -7,22 +7,10 @@
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
 
-!s = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/2002",
-  name = "",
-  size = 8,
-  fields = [
-    <
-      name = "",
-      offset = 0,
-      type = !int32_t
-    >,
-    <
-      name = "",
-      offset = 4,
-      type = !int32_t
-    >
-  ]>>
+!s = !clift.defined<#clift.struct<"/model-type/2002" : size(8) {
+    offset(0) : !int32_t,
+    offset(4) : !int32_t
+  }>>
 
 !f = !clift.defined<
   #clift.func<"/model-type/1001" : !void()>>

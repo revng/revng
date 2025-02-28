@@ -9,38 +9,16 @@
 !int32_t = !clift.primitive<signed 4>
 
 !s = !clift.defined<#clift.struct<
-  unique_handle = "/model-type/2002",
-  name = "",
-  size = 8,
-  fields = [
-    <
-      name = "",
-      offset = 0,
-      type = !int32_t
-    >,
-    <
-      name = "",
-      offset = 4,
-      type = !int32_t
-    >
-  ]>>
+  "/model-type/2002" : size(8) {
+    offset(0) : !int32_t,
+    offset(4) : !int32_t
+  }>>
 !s$p = !clift.ptr<8 to !s>
 
-!u = !clift.defined<#clift.union<
-  unique_handle = "/model-type/2003",
-  name = "",
-  fields = [
-    <
-      name = "",
-      offset = 0,
-      type = !int32_t
-    >,
-    <
-      name = "",
-      offset = 0,
-      type = !int32_t
-    >
-  ]>>
+!u = !clift.defined<#clift.union<"/model-type/2003" : {
+    !int32_t,
+    !int32_t
+  }>>
 !u$p = !clift.ptr<8 to !u>
 
 !f = !clift.defined<#clift.func<
