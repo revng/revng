@@ -15,10 +15,8 @@
     21 as "my_enum_21"
   }>>
 
-!my_typedef = !clift.defined<#clift.typedef<
-  unique_handle = "/model-type/1002",
-  name = "my_typedef",
-  underlying_type = !int32_t$const>>
+!my_typedef = !clift.defined<
+  #clift.typedef<"/model-type/1002" as "my_typedef" : !int32_t$const>>
 
 !my_struct$const = !clift.defined<
   const #clift.struct<

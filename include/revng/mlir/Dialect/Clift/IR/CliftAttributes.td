@@ -135,7 +135,7 @@ def Clift_TypedefTypeAttr
   let genVerifyDecl = 1;
 
   let assemblyFormat = [{
-    `<` struct($unique_handle, $name, $underlying_type) `>`
+    `<` $unique_handle custom<CliftDebugName>($name) `:` $underlying_type `>`
   }];
 }
 
