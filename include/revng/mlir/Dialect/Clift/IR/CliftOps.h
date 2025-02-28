@@ -28,8 +28,6 @@ bool verifyExpressionRegion(Region &R, bool Required);
 
 bool verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind);
 
-mlir::Type removeCliftConst(mlir::Type Type);
-
 ParseResult parseCliftOpTypes(OpAsmParser &Parser,
                               Type *Result,
                               llvm::ArrayRef<Type *> Arguments);

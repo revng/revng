@@ -38,6 +38,17 @@ TypedefDecomposition decomposeTypedef(ValueType Type);
 /// to the returned type. Otherwise such qualifiers are ignored.
 ValueType dealias(ValueType Type, bool IgnoreQualifiers = false);
 
+/// Remove top-level qualification from the given type, if it is a Clift value
+/// type. Otherwise returns the type unchanged.
+mlir::Type removeConst(mlir::Type Type);
+
+/// Remove top-level qualification from the given type, if it is a Clift value
+/// type. Otherwise returns the type unchanged.
+template<typename TypeT>
+TypeT removeConst(TypeT Type) {
+  return mlir::cast<TypeT>(removeConst(static_cast<mlir::Type>(Type)));
+}
+
 /// Determine if the type is non-const. This is different from
 /// `not Type.isConst()` in that the latter returns false for a typedef naming
 /// a const-qualified type.

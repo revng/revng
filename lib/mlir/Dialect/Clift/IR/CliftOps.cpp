@@ -53,13 +53,6 @@ bool clift::impl::verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind) {
   return false;
 }
 
-mlir::Type clift::impl::removeCliftConst(mlir::Type Type) {
-  if (auto ValueT = mlir::dyn_cast<ValueType>(Type))
-    Type = ValueT.removeConst();
-
-  return Type;
-}
-
 //===---------------------------- Region types ----------------------------===//
 
 template<typename OpInterface>

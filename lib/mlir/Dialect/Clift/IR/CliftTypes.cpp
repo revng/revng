@@ -52,6 +52,13 @@ ValueType clift::dealias(ValueType Type, bool IgnoreQualifiers) {
   return UnderlyingType;
 }
 
+mlir::Type clift::removeConst(mlir::Type Type) {
+  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+    Type = ValueT.removeConst();
+
+  return Type;
+}
+
 bool clift::isModifiableType(ValueType Type) {
   auto &&[UnderlyingType, HasConst] = decomposeTypedef(Type);
   return not HasConst and not UnderlyingType.isConst();

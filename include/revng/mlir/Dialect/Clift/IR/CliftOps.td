@@ -80,7 +80,7 @@ class Clift_AnyModifiableType<Type type>
 
 class Clift_AllTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
-                              "mlir::clift::impl::removeCliftConst($_self.getType())",
+                              "mlir::clift::removeConst($_self.getType())",
                               "type, ignoring qualifiers">;
 
 //===---------------------------- Region types ----------------------------===//
@@ -451,7 +451,7 @@ class Clift_UnaryArithmeticOp<string mnemonic>
                        [TypesMatchWith<"result type must match the value type, ignoring qualifiers",
                                        "value",
                                        "result",
-                                       "mlir::clift::impl::removeCliftConst($_self)">]> {
+                                       "mlir::clift::removeConst($_self)">]> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
@@ -493,7 +493,7 @@ class Clift_ShiftOp<string mnemonic>
                        [TypesMatchWith<"result type must match the lhs type, ignoring qualifiers",
                                        "lhs",
                                        "result",
-                                       "mlir::clift::impl::removeCliftConst($_self)">]> {
+                                       "mlir::clift::removeConst($_self)">]> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
                        Clift_AnyPrimitiveIntegerType:$rhs);
