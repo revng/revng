@@ -37,7 +37,9 @@ TypeDefinitions:
     # CHECK:     >
     # CHECK:   ]
     # CHECK: >
-    # CHECK: !register_set_1002_ = !clift.defined<#register_set_1002$def>
+    # CHECK: !register_set_1002_ = !clift.defined<
+    # CHECK:   #register_set_1002$def
+    # CHECK: >
 
     # CHECK: #my_function3$def = #clift.function<
     # CHECK:   unique_handle = "/model-type/1002"
@@ -53,7 +55,9 @@ TypeDefinitions:
     # CHECK:     >
     # CHECK:   ]
     # CHECK: >
-    # CHECK: !my_function3_ = !clift.defined<#my_function3$def>
+    # CHECK: !my_function3_ = !clift.defined<
+    # CHECK:   #my_function3$def
+    # CHECK: >
   - ID: 1002
     Kind: RawFunctionDefinition
     CustomName: "my_function3"

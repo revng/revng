@@ -27,8 +27,7 @@
   underlying_type = !int32_t$const>>
 
 !my_struct$const = !clift.defined<
-  is_const = true,
-  #clift.struct<
+  const #clift.struct<
     unique_handle = "/model-type/1003",
     name = "my_struct",
     size = 40,
@@ -46,8 +45,7 @@
     ]>>
 
 !my_union$const = !clift.defined<
-  is_const = true,
-  #clift.union<
+  const #clift.union<
     unique_handle = "/model-type/1004",
     name = "my_union",
     fields = [
@@ -70,8 +68,7 @@
   argument_types = [!int32_t$const]>>
 
 !my_recursive_union = !clift.defined<
-  is_const = true,
-  #clift.union<
+  const #clift.union<
     unique_handle = "/model-type/1006",
     name = "my_recursive_union",
     fields = [
@@ -85,8 +82,7 @@
         name = "my_recursive_union_20",
         type = !clift.ptr<
           8 to !clift.defined<
-            is_const = true,
-            #clift.union<unique_handle = "/model-type/1006">
+            const #clift.union<unique_handle = "/model-type/1006">
           >
         >
       >

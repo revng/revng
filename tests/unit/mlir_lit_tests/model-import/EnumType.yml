@@ -138,7 +138,15 @@ TypeDefinitions:
       - Value: 0xffffffffffffffff # 2^64 - 1
 
 
-    # CHECK: !my_enum1_ = !clift.defined<#my_enum1$def>
-    # CHECK: !my_enum2_ = !clift.defined<#my_enum2$def>
-    # CHECK: !my_enum3_ = !clift.defined<#my_enum3$def>
-    # CHECK: !my_enum4_ = !clift.defined<#my_enum4$def>
+  # CHECK: !my_enum1_ = !clift.defined<
+  # CHECK:   #my_enum1$def
+  # CHECK: >
+  # CHECK: !my_enum2_ = !clift.defined<
+  # CHECK:   #my_enum2$def
+  # CHECK: >
+  # CHECK: !my_enum3_ = !clift.defined<
+  # CHECK:   #my_enum3$def
+  # CHECK: >
+  # CHECK: !my_enum4_ = !clift.defined<
+  # CHECK:   #my_enum4$def
+  # CHECK: >

@@ -13,7 +13,9 @@ TypeDefinitions:
   # CHECK:     !uint64_t
   # CHECK:   ]
   # CHECK: >
-  # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
+  # CHECK: !my_function2_ = !clift.defined<
+  # CHECK:   #my_function2$def
+  # CHECK: >
   - ID: 1001
     Kind: RawFunctionDefinition
     CustomName: "my_function2"

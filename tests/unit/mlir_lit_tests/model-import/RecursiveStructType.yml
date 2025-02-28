@@ -21,7 +21,9 @@ TypeDefinitions:
   # CHECK:     >
   # CHECK:   ]
   # CHECK: >
-  # CHECK: !my_struct = !clift.defined<#my_struct$def>
+  # CHECK: !my_struct = !clift.defined<
+  # CHECK:   #my_struct$def
+  # CHECK: >
   - ID: 1001
     Kind: StructDefinition
     CustomName: "my_struct"

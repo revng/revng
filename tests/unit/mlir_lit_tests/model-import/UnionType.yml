@@ -28,7 +28,9 @@ TypeDefinitions:
   # CHECK:     >
   # CHECK:   ]
   # CHECK: >
-  # CHECK: !my_union = !clift.defined<#my_union$def>
+  # CHECK: !my_union = !clift.defined<
+  # CHECK:   #my_union$def
+  # CHECK: >
   - ID: 1001
     Kind: UnionDefinition
     CustomName: "my_union"

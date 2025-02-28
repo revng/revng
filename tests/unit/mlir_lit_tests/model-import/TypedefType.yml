@@ -94,10 +94,24 @@ TypeDefinitions:
       Kind: PrimitiveType
       PrimitiveKind: Void
 
-  # CHECK:  !my_float = !clift.defined<#my_float$def>
-  # CHECK:  !my_generic = !clift.defined<#my_generic$def>
-  # CHECK:  !my_int = !clift.defined<#my_int$def>
-  # CHECK:  !my_number = !clift.defined<#my_number$def>
-  # CHECK:  !my_pon = !clift.defined<#my_pon$def>
-  # CHECK:  !my_uint = !clift.defined<#my_uint$def>
-  # CHECK:  !my_void = !clift.defined<#my_void$def>
+  # CHECK: !my_float = !clift.defined<
+  # CHECK:   #my_float$def
+  # CHECK: >
+  # CHECK: !my_generic = !clift.defined<
+  # CHECK:   #my_generic$def
+  # CHECK: >
+  # CHECK: !my_int = !clift.defined<
+  # CHECK:   #my_int$def
+  # CHECK: >
+  # CHECK: !my_number = !clift.defined<
+  # CHECK:   #my_number$def
+  # CHECK: >
+  # CHECK: !my_pon = !clift.defined<
+  # CHECK:   #my_pon$def
+  # CHECK: >
+  # CHECK: !my_uint = !clift.defined<
+  # CHECK:   #my_uint$def
+  # CHECK: >
+  # CHECK: !my_void = !clift.defined<
+  # CHECK:   #my_void$def
+  # CHECK: >
