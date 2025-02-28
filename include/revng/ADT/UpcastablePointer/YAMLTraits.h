@@ -23,7 +23,7 @@ void initializeOwningPointer(llvm::StringRef Kind,
       initializeOwningPointer<O, I + 1>(Kind, TheIO, Obj);
     }
   } else {
-    revng_abort();
+    TheIO.setError("No concrete type for Kind " + Kind.str());
   }
 }
 
@@ -38,7 +38,7 @@ void dispatchMappingTraits(llvm::yaml::IO &TheIO, O &Obj) {
     else
       dispatchMappingTraits<O, I + 1>(TheIO, Obj);
   } else {
-    revng_abort();
+    TheIO.setError("Upcastable pointer could not be upcast");
   }
 }
 

@@ -12,7 +12,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/Support/Assert.h"
 #include "revng/TupleTree/TupleTreeCompatible.h"
 
 template<typename T>
@@ -57,10 +56,10 @@ inline std::string getNameFromYAMLScalar(T V) {
   }
 }
 
-template<typename T>
+template<HasScalarEnumTraits T>
 T getInvalidValueFromYAMLScalar() {
-  // Default action: abort. Users can override this behavior.
-  revng_abort();
+  // Default action: return Invalid. Users can override this behavior.
+  return T::Invalid;
 }
 
 template<HasScalarOrEnumTraits T>
