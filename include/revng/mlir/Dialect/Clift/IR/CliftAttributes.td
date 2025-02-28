@@ -48,9 +48,9 @@ def Clift_FieldAttr
 }
 
 def Clift_EnumFieldAttr
-  : Clift_Attr<"EnumField",
-               "enum_field",
-               [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
+  : AttrDef<Clift_Dialect,
+            "EnumField",
+            [DeclareAttrInterfaceMethods<SubElementAttrInterface>]> {
 
   let summary = "A attribute representing a field of enum";
   let description = [{
@@ -61,10 +61,6 @@ def Clift_EnumFieldAttr
                         StringRefParameter<>:$name);
 
   let genVerifyDecl = 1;
-
-  let assemblyFormat = [{
-    `<` struct($name, $raw_value) `>`
-  }];
 }
 
 def Clift_EnumTypeAttr
@@ -101,7 +97,10 @@ def Clift_EnumTypeAttr
   let genVerifyDecl = 1;
 
   let assemblyFormat = [{
-    `<` struct($unique_handle, $name, $underlying_type) `,` `fields` `=` `[` $fields `]` `>`
+    `<`
+    $unique_handle custom<CliftDebugName>($name) `:` $underlying_type
+    custom<CliftEnumerators>($fields)
+    `>`
   }];
 }
 

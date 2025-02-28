@@ -10,17 +10,7 @@
 !float = !clift.primitive<float 4>
 !pointer = !clift.ptr<8 to !int32_t>
 
-!enum = !clift.defined<#clift.enum<
-  unique_handle = "/model-type/1",
-  name = "",
-  underlying_type = !int32_t,
-  fields = [
-    <
-      raw_value = 0,
-      name = ""
-    >
-  ]
->>
+!enum = !clift.defined<#clift.enum<"/model-type/1" : !int32_t { 0 }>>
 
 clift.do_while {} {
   %0 = clift.undef : !int32_t

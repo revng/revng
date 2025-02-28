@@ -16,15 +16,10 @@
                                            name = "my_uint32",
                                            underlying_type = !uint32_t>>
 
-!my_enum = !clift.defined<#clift.enum<unique_handle = "/model-type/2",
-                                      name = "my_enum",
-                                      underlying_type = !uint32_t,
-                                      fields = [
-                                        <
-                                          name = "enumerator",
-                                          raw_value = 1
-                                        >
-                                      ]>>
+!my_enum = !clift.defined<#clift.enum<
+  "/model-type/2" as "my_enum" : !uint32_t {
+    1 as "enumerator"
+  }>>
 
 %i = clift.undef : !int32_t
 clift.cast<reinterpret> %i : !int32_t -> !uint32_t

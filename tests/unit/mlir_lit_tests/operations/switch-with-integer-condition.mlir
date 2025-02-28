@@ -6,17 +6,7 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!enum = !clift.defined<#clift.enum<
-  unique_handle = "/model-type/1",
-  name = "",
-  underlying_type = !int32_t,
-  fields = [
-    <
-      raw_value = 0,
-      name = ""
-    >
-  ]
->>
+!enum = !clift.defined<#clift.enum<"/model-type/1" : !int32_t { 0 }>>
 
 clift.switch {
   %0 = clift.undef : !int32_t

@@ -3,23 +3,17 @@
 //
 // RUN: %revngcliftopt %s | %revngcliftopt
 
+!int32_t = !clift.primitive<signed 4>
 !int32_t$const = !clift.primitive<const signed 4>
+
+!uint32_t = !clift.primitive<unsigned 8>
 !uint32_t$const = !clift.primitive<const unsigned 8>
 
 !my_enum = !clift.defined<#clift.enum<
-  unique_handle = "/model-type/1001",
-  name = "my_enum",
-  underlying_type = !uint32_t$const,
-  fields = [
-    <
-      name = "my_enum_20",
-      raw_value = 20
-    >,
-    <
-      name = "my_enum_21",
-      raw_value = 21
-    >
-  ]>>
+  "/model-type/1001" as "my_enum" : !uint32_t {
+    20 as "my_enum_20",
+    21 as "my_enum_21"
+  }>>
 
 !my_typedef = !clift.defined<#clift.typedef<
   unique_handle = "/model-type/1002",

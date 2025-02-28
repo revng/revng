@@ -21,6 +21,71 @@
 #include "CliftParser.h"
 #include "CliftStorage.h"
 
+namespace mlir {
+
+static ParseResult parseCliftDebugName(AsmParser &Parser, std::string &Name) {
+  if (Parser.parseOptionalKeyword("as").succeeded()) {
+    if (Parser.parseString(&Name).failed())
+      return mlir::failure();
+  }
+  return mlir::success();
+}
+
+static void printCliftDebugName(AsmPrinter &Printer, llvm::StringRef Name) {
+  if (not Name.empty()) {
+    Printer << "as \"";
+    llvm::printEscapedString(Name, Printer.getStream());
+    Printer << "\"";
+  }
+}
+
+static ParseResult
+parseCliftEnumerators(AsmParser &Parser,
+                      llvm::SmallVector<clift::EnumFieldAttr> &Enumerators) {
+  auto ParseEnumerator = [&]() -> ParseResult {
+    uint64_t Value;
+    if (Parser.parseInteger(Value).failed())
+      return mlir::failure();
+
+    std::string Name;
+    if (Parser.parseOptionalKeyword("as").succeeded()) {
+      if (Parser.parseString(&Name).failed())
+        return mlir::failure();
+    }
+
+    Enumerators.push_back(clift::EnumFieldAttr::get(Parser.getContext(),
+                                                    Value,
+                                                    std::move(Name)));
+
+    return mlir::success();
+  };
+
+  return Parser.parseCommaSeparatedList(mlir::AsmParser::Delimiter::Braces,
+                                        ParseEnumerator,
+                                        " in enumerator list");
+}
+
+static void
+printCliftEnumerators(AsmPrinter &Printer,
+                      llvm::ArrayRef<clift::EnumFieldAttr> Enumerators) {
+  Printer << '{';
+  for (auto [I, E] : llvm::enumerate(Enumerators)) {
+    if (I != 0)
+      Printer << ", ";
+
+    Printer << E.getRawValue();
+
+    if (llvm::StringRef Name = E.getName(); not Name.empty()) {
+      Printer << " as \"";
+      llvm::printEscapedString(Name, Printer.getStream());
+      Printer << "\"";
+    }
+  }
+  Printer << '}';
+}
+
+} // namespace mlir
+
 // This include should stay here for correct build procedure
 //
 #define GET_ATTRDEF_CLASSES
@@ -108,11 +173,12 @@ mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
                                          llvm::StringRef Name,
                                          clift::ValueType UnderlyingType,
                                          llvm::ArrayRef<EnumFieldAttr> Fields) {
-  UnderlyingType = dealias(UnderlyingType);
+  auto [DealiasedType, HasConst] = decomposeTypedef(UnderlyingType);
 
-  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(UnderlyingType);
-  if (not PrimitiveType)
-    return EmitError() << "Underlying type of enum must be a primitive type";
+  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(DealiasedType);
+  if (not PrimitiveType or HasConst or PrimitiveType.isConst())
+    return EmitError() << "Underlying type of enum must be a non-const "
+                          "primitive type";
 
   const uint64_t BitWidth = PrimitiveType.getSize() * 8;
 

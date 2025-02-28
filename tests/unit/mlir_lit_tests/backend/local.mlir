@@ -14,15 +14,9 @@
   argument_types = []>>
 
 !my_enum = !clift.defined<#clift.enum<
-  unique_handle = "/model-type/2001",
-  name = "",
-  underlying_type = !int32_t,
-  fields = [
-    <
-      raw_value = 0,
-      name = ""
-    >
-  ]>>
+  "/model-type/2001" : !int32_t {
+    0
+  }>>
 
 !my_struct = !clift.defined<#clift.struct<
   unique_handle = "/model-type/2002",
