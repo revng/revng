@@ -14,10 +14,10 @@
 
 !int32_t = !clift.primitive<signed 4>
 !int32_t$const = !clift.primitive<const signed 4>
-!int32_t$const$ptr = !clift.pointer<pointer_size = 8, pointee_type = !int32_t$const>
-!int32_t$const$ptr$const = !clift.pointer<is_const = true, pointer_size = 8, pointee_type = !int32_t$const>
-!int32_t$const$ptr$const$ptr = !clift.pointer<pointer_size = 8, pointee_type = !int32_t$const$ptr$const>
-!int32_t$const$ptr$const$ptr$const = !clift.pointer<is_const = true, pointer_size = 8, pointee_type = !int32_t$const$ptr$const>
+!int32_t$const$ptr = !clift.ptr<8 to !int32_t$const>
+!int32_t$const$ptr$const = !clift.ptr<const 8 to !int32_t$const>
+!int32_t$const$ptr$const$ptr = !clift.ptr<8 to !int32_t$const$ptr$const>
+!int32_t$const$ptr$const$ptr$const = !clift.ptr<const 8 to !int32_t$const$ptr$const>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

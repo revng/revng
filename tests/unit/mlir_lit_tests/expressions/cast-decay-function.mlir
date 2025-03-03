@@ -11,7 +11,7 @@
   return_type = !void,
   argument_types = []>>
 
-!function$ptr = !clift.pointer<pointee_type = !function, pointer_size = 8>
+!function$ptr = !clift.ptr<8 to !function>
 
 %function = clift.undef : !function
 clift.cast<decay> %function : !function -> !function$ptr

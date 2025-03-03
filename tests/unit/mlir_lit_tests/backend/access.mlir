@@ -24,7 +24,7 @@
       type = !int32_t
     >
   ]>>
-!s$p = !clift.pointer<pointer_size = 8, pointee_type = !s>
+!s$p = !clift.ptr<8 to !s>
 
 !u = !clift.defined<#clift.union<
   unique_handle = "/model-type/2003",
@@ -41,7 +41,7 @@
       type = !int32_t
     >
   ]>>
-!u$p = !clift.pointer<pointer_size = 8, pointee_type = !u>
+!u$p = !clift.ptr<8 to !u>
 
 !f = !clift.defined<#clift.function<
   unique_handle = "/model-type/1001",

@@ -4,6 +4,8 @@
 
 // RUN: not %revngcliftopt --verify-c %s 2>&1 | FileCheck %s
 
+!void = !clift.primitive<void 0>
+
 !s = !clift.defined<#clift.struct<
   unique_handle = "/model-type/1",
   name = "",
@@ -12,9 +14,7 @@
     <
       offset = 1,
       name = "",
-      type = !clift.pointer<
-        pointer_size = 4,
-        pointee_type = !clift.primitive<void 0>>
+      type = !clift.ptr<4 to !void>
     >
   ]>>
 

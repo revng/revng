@@ -6,7 +6,7 @@
 
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
-!int32_t$p = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
+!int32_t$p = !clift.ptr<8 to !int32_t>
 
 !f = !clift.defined<#clift.function<
   unique_handle = "/model-type/1001",

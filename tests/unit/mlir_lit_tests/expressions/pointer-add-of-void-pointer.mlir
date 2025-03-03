@@ -5,7 +5,7 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 !void = !clift.primitive<void 0>
-!void$ptr = !clift.pointer<pointer_size = 8, pointee_type = !void>
+!void$ptr = !clift.ptr<8 to !void>
 !ptrdiff_t = !clift.primitive<signed 8>
 
 %p = clift.undef : !void$ptr

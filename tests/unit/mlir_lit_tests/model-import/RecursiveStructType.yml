@@ -11,8 +11,8 @@ TypeDefinitions:
   # CHECK:   fields = [
   # CHECK:     <
   # CHECK:       offset = 0
-  # CHECK:       type = !clift.pointer<
-  # CHECK:         pointee_type = !clift.defined<
+  # CHECK:       type = !clift.ptr<
+  # CHECK:         4 to !clift.defined<
   # CHECK:           #clift.struct<
   # CHECK:             unique_handle = "/model-type/1001"
   # CHECK:           >

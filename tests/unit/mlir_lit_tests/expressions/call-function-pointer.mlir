@@ -17,7 +17,7 @@
                                     return_type = !int32_t,
                                     argument_types = [!int32_t]>>
 
-!g$ptr = !clift.pointer<pointee_type = !g, pointer_size = 8>
+!g$ptr = !clift.ptr<8 to !g>
 
 clift.module {
   clift.func @f<!f>() {

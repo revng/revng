@@ -50,7 +50,7 @@ def Clift_PrimitiveType
 
 def Clift_PointerType
   : Clift_Type<"Pointer",
-               "pointer",
+               "ptr",
                [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize",
                                                               "addConst",
                                                               "removeConst"]>,
@@ -68,7 +68,7 @@ def Clift_PointerType
   let genVerifyDecl = 1;
 
   let assemblyFormat = [{
-    `<` ( `is_const` `=` $is_const^ `,` ` ` )? struct($pointee_type, $pointer_size) `>`
+    `<` custom<CliftConst>($is_const) $pointer_size `to` $pointee_type `>`
   }];
 }
 

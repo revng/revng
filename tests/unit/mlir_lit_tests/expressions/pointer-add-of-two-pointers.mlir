@@ -5,7 +5,7 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 !int32_t = !clift.primitive<signed 4>
-!int32_t$ptr = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
+!int32_t$ptr = !clift.ptr<8 to !int32_t>
 
 %p = clift.undef : !int32_t$ptr
 

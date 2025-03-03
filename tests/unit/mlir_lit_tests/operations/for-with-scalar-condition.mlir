@@ -8,7 +8,7 @@
 
 !int32_t = !clift.primitive<signed 4>
 !float = !clift.primitive<float 4>
-!pointer = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
+!pointer = !clift.ptr<8 to !int32_t>
 
 !enum = !clift.defined<#clift.enum<
   unique_handle = "/model-type/1",

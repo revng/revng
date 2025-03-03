@@ -12,7 +12,7 @@
   return_type = !void,
   argument_types = []>>
 
-!f$ptr = !clift.pointer<pointer_size = 8, pointee_type = !f>
+!f$ptr = !clift.ptr<8 to !f>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

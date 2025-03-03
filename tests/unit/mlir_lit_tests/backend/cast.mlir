@@ -9,9 +9,7 @@
 !int32_t = !clift.primitive<signed 4>
 !uint32_t = !clift.primitive<unsigned 4>
 
-!uint32_t$ptr = !clift.pointer<
-  pointer_size = 4,
-  pointee_type = !uint32_t>
+!uint32_t$ptr = !clift.ptr<4 to !uint32_t>
 
 !f = !clift.defined<#clift.function<
   unique_handle = "/model-type/1001",

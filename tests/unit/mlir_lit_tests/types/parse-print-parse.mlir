@@ -83,11 +83,12 @@
       <
         offset = 0,
         name = "my_recursive_union_20",
-        type = !clift.pointer<
-          pointee_type = !clift.defined<
+        type = !clift.ptr<
+          8 to !clift.defined<
             is_const = true,
-            #clift.union<unique_handle = "/model-type/1006">>,
-          pointer_size = 8>
+            #clift.union<unique_handle = "/model-type/1006">
+          >
+        >
       >
     ]>>
 

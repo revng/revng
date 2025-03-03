@@ -11,9 +11,8 @@
   fields = [<
       offset = 0,
       name = "",
-      type = !clift.pointer<
-        pointer_size = 8,
-        pointee_type = !clift.defined<#clift.struct<unique_handle = "/model-type/1">>
+      type = !clift.ptr<
+        8 to !clift.defined<#clift.struct<unique_handle = "/model-type/1">>
       >
     >
   ]
