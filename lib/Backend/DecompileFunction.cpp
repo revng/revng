@@ -1282,12 +1282,16 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
   LoggerIndent MoreIndent{ VisitLog };
   revng_log(Log, "--------- BB " << BB->getName());
 
+  bool NextStatementDoesNotReturn = false;
+
   for (const Instruction &I : *BB) {
     revng_log(Log, "Analyzing: " << dumpToString(I));
 
     auto *Call = dyn_cast<llvm::CallInst>(&I);
 
-    if (not isStatement(I)) {
+    bool IsStatement = isStatement(I);
+
+    if (not IsStatement) {
       revng_log(Log, "Ignoring: non-statement instruction");
 
     } else if (I.getType()->isVoidTy()) {
@@ -1297,8 +1301,12 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
 
       // Handle the implicit `return` emission. If the correct parameter is set,
       // avoid the emission of the `Instruction` token.
-      if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn))
+      if (not(llvm::isa<llvm::ReturnInst>(I) and not EmitReturn)) {
         B.append(std::string(getToken(&I)) + (not isComment(&I) ? ";\n" : ""));
+
+        if (NextStatementDoesNotReturn)
+          B.append("// The previous function call does not return\n");
+      }
 
     } else if (isHelperAggregateLocalVarDecl(Call)
                or isArtificialAggregateLocalVarDecl(Call)) {
@@ -1328,10 +1336,14 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
       revng_abort(Error.c_str());
     }
 
+    if (IsStatement)
+      NextStatementDoesNotReturn = false;
+
     if (Call != nullptr and isCallToIsolatedFunction(Call)) {
       const auto &[CallEdge, _] = Cache.getCallEdge(Model, Call);
-      if (CallEdge->hasAttribute(Model, model::FunctionAttribute::NoReturn))
-        B.append("// The previous function call does not return\n");
+      if (CallEdge->hasAttribute(Model, model::FunctionAttribute::NoReturn)) {
+        NextStatementDoesNotReturn = true;
+      }
     }
   }
 }
