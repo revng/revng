@@ -198,6 +198,8 @@ findLibrary(StringRef ToImport,
     LdSoConfParser(SearchPaths).parse();
     SearchPaths.push_back("/" + LibName);
     SearchPaths.push_back("/usr/" + LibName);
+    // This is an hack
+    SearchPaths.push_back(Origin);
   }
 
   if (Log.isEnabled()) {
