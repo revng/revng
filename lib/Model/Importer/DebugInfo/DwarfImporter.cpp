@@ -912,10 +912,12 @@ private:
       ToDrop.insert(Type);
 
     unsigned DroppedTypes = dropTypesDependingOnDefinitions(Model, ToDrop);
-    revng_log(DILogger,
-              "Purging " << DroppedTypes << " types (out of "
-                         << TypesWithIdentityCount << ") due to "
-                         << Placeholders.size() << " unresolved types");
+    if (DroppedTypes > 0) {
+      revng_log(DILogger,
+                "Purging " << DroppedTypes << " types (out of "
+                           << TypesWithIdentityCount << ") due to "
+                           << Placeholders.size() << " unresolved types");
+    }
 
     Placeholders.clear();
   }

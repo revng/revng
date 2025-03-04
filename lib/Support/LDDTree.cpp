@@ -207,7 +207,7 @@ findLibrary(StringRef ToImport,
     Log << DoLog;
   }
 
-  for (std::string SearchPath : SearchPaths) {
+  for (const std::string &SearchPath : SearchPaths) {
     SmallString<128> Candidate;
     sys::path::append(Candidate, SearchPath, ToImport);
 
