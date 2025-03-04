@@ -442,7 +442,7 @@ struct LabelNodeHelper {
         }
 
         revng_assert(NameLength != 0);
-        Node->Size = yield::cfg::nodeSize(NameLength, 0, Configuration);
+        Node->Size = yield::cfg::nodeSize(NameLength, 1, Configuration);
       }
     }
   }
