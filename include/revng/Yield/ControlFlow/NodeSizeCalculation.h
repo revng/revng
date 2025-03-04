@@ -70,9 +70,14 @@ inline yield::layout::Size
 nodeSize(size_t HorizontalCharacterCount,
          size_t VerticalCharacterCount,
          const yield::cfg::Configuration &Configuration) {
-  return fontSize(yield::layout::Size(HorizontalCharacterCount,
-                                      VerticalCharacterCount),
-                  Configuration);
+  auto Result = fontSize(yield::layout::Size(HorizontalCharacterCount,
+                                             VerticalCharacterCount),
+                         Configuration);
+
+  Result.W += Configuration.InternalNodeMarginSize * 2;
+  Result.H += Configuration.InternalNodeMarginSize * 2;
+
+  return Result;
 }
 
 inline yield::layout::Size
