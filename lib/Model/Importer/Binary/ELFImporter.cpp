@@ -22,6 +22,7 @@
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/RawBinaryView.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/LDDTree.h"
 
@@ -444,7 +445,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   unsigned MaximumRecursionDepth = 1;
 
   LDDTree Dependencies;
-  lddtree(Dependencies, TheBinary.getFileName().str(), MaximumRecursionDepth);
+  lddtree(Dependencies, InputPath, MaximumRecursionDepth);
   for (auto &Library : Dependencies) {
     revng_log(ELFImporterLog,
               "Importing Models for dependencies of " << Library.first << ":");

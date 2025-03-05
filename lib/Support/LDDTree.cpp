@@ -198,6 +198,8 @@ findLibrary(StringRef ToImport,
     LdSoConfParser(SearchPaths).parse();
     SearchPaths.push_back("/" + LibName);
     SearchPaths.push_back("/usr/" + LibName);
+    // This is an hack
+    SearchPaths.push_back(Origin);
   }
 
   if (Log.isEnabled()) {
@@ -207,7 +209,7 @@ findLibrary(StringRef ToImport,
     Log << DoLog;
   }
 
-  for (std::string SearchPath : SearchPaths) {
+  for (const std::string &SearchPath : SearchPaths) {
     SmallString<128> Candidate;
     sys::path::append(Candidate, SearchPath, ToImport);
 
