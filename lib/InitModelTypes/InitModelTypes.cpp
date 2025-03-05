@@ -8,6 +8,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -39,8 +40,10 @@
 using llvm::BasicBlock;
 using llvm::Function;
 using llvm::Instruction;
+using llvm::SmallVector;
 
 using llvm::dyn_cast;
+using llvm::isa;
 
 template<typename T>
 using RPOT = llvm::ReversePostOrderTraversal<T>;
@@ -394,9 +397,8 @@ static model::UpcastableType getCommonScalarType(const model::Type &A,
       return model::PrimitiveType::make(CommonKind, Size);
 
     } else if (A.isPointer() and B.isPointer()) {
-      // Make a `PointerOrNumber` of the proper size (or could we do a `void
-      // *`)
-      return model::PrimitiveType::makePointerOrNumber(Size);
+      // Make a `void *`
+      return model::PointerType::make(model::PrimitiveType::makeVoid(), Size);
 
     } else {
       // One is a pointer and the other is an enum: we can't find a common
@@ -683,9 +685,267 @@ initModelTypesImpl(const llvm::Function &F,
   rc_return TypeMap;
 }
 
+static bool isUpgradable(const model::UpcastableType &UT) {
+  // The only upgradable type is a pointer to void (where
+  // neither the pointer nor the pointee doesn't have typedefs).
+  const auto *Pointer = dyn_cast<model::PointerType>(&*UT);
+  if (not Pointer)
+    return false;
+
+  const model::Type &Pointee = Pointer->getPointee();
+  return isa<model::PrimitiveType>(Pointee) and Pointee.isVoidPrimitive();
+}
+
+static bool isValidScalarUpgrade(const model::UpcastableType &From,
+                                 const model::UpcastableType &To) {
+  revng_assert(isUpgradable(From));
+
+  if (From == To)
+    return true;
+
+  if (From->size() != To->size())
+    return false;
+
+  if (From->isNumberPrimitive()) {
+    return To->isSignedPrimitive() or To->isUnsignedPrimitive();
+  }
+  if (From->isPointerOrNumberPrimitive()) {
+    return To->isPointer() or To->isNumberPrimitive() or To->isSignedPrimitive()
+           or To->isUnsignedPrimitive();
+  }
+  if (From->isGenericPrimitive()) {
+    return not To->isVoidPrimitive();
+  }
+
+  // Here From is a non-typedefed pointer to non-typedefed void.
+  // Any other pointer is a valid upgrade.
+  return To->isPointer();
+}
+
+// Returns the most accurate common scalar type among T1 and T2.
+// If either T1 or T2 are typedefs, enums, or are *not* scalars, it returns
+// nullopt. If either T1 or T2 is empty, it returns the other one. NOTE: this is
+// different from getCommonScalarType because it allows for promotion, meaning
+// that the common most accurate scalar type among e.g. generic and number is
+// number.
+static std::optional<model::UpcastableType>
+getCommonScalarTypeForPromotion(const model::UpcastableType &T1,
+                                const model::UpcastableType &T2) {
+
+  bool T1Empty = T1.isEmpty();
+  if (not T1Empty) {
+    if (T1->isTypedef())
+      return std::nullopt;
+    if (T1->isEnum())
+      return std::nullopt;
+    if (not T1->isScalar())
+      return std::nullopt;
+  }
+
+  bool T2Empty = T2.isEmpty();
+  if (T2Empty) {
+    if (T2->isTypedef())
+      return std::nullopt;
+    if (T2->isEnum())
+      return std::nullopt;
+    if (not T2->isScalar())
+      return std::nullopt;
+  }
+
+  if (T1Empty)
+    return T2;
+  if (T2Empty)
+    return T1;
+
+  if (T1->size() != T2->size())
+    return std::nullopt;
+
+  auto T1Size = T1->size();
+  auto T2Size = T2->size();
+  revng_assert(T1Size == T2Size);
+  size_t Size = T1Size.value();
+
+  //
+  // Handle generic first
+  //
+
+  bool T1G = T1->isGenericPrimitive();
+  bool T2G = T2->isGenericPrimitive();
+  // If both are generic, either one is good.
+  if (T1G and T2G)
+    return T1;
+
+  // If only one is generic, return the other one, because everything is more
+  // accurate than generic, and generic is always compatible with everything
+  // else.
+  if (T1G or T2G)
+    return T1G ? T2 : T1;
+
+  //
+  // Then look for floats
+  //
+
+  unsigned NumFloats = T1->isFloatPrimitive() + T2->isFloatPrimitive();
+  // If both are floats, either is good.
+  if (NumFloats == 2)
+    return T1;
+  // If only one is float, given that we've ruled out generics first, the most
+  // accurate type that is compatible with both float and something non-float
+  // and non-generic is just generic
+  if (NumFloats == 1)
+    return model::PrimitiveType::makeGeneric(Size);
+
+  //
+  // Then deal with PointerOrNumber
+  //
+
+  bool T1NP = T1->isPointerOrNumberPrimitive();
+  bool T2NP = T2->isPointerOrNumberPrimitive();
+  // If both are PointerOrNumber, either is good.
+  if (T1NP and T2NP)
+    return T1;
+  // If only one is PointerOrNumber, given that we've ruled out generics and
+  // floats first, the other one must be at the same time more accurate than
+  // PointerOrNumber and compatible with it.
+  if (T1NP or T2NP)
+    return T1NP ? T2 : T1;
+
+  //
+  // Deal with pointers
+  //
+
+  unsigned NumPointers = T1->isPointer() + T2->isPointer();
+  // If only one is a pointer, given that we've ruled out generics, floats, and
+  // PointerOrNumber first, the other one is either Number, Signed or Unsigned.
+  // Then, the most accurate that is compatible with both pointers and an
+  // integer non-pointer type is a PointerOrNumber
+  if (NumPointers == 1)
+    return model::PrimitiveType::makePointerOrNumber(Size);
+  // If both are pointers we have to look at pointees.
+  if (NumPointers == 2) {
+    const model::Type &Pointee1 = T1->getPointee();
+    const model::Type &Pointee2 = T2->getPointee();
+    // If the pointees are the same, either is fine.
+    if (Pointee1 == Pointee2)
+      return T1;
+
+    bool P1Void = isa<model::PrimitiveType>(Pointee1)
+                  and Pointee1.isVoidPrimitive();
+    bool P2Void = isa<model::PrimitiveType>(Pointee2)
+                  and Pointee2.isVoidPrimitive();
+    // If either of the pointees is exactly void * return the other.
+    if (P1Void)
+      return T2;
+    if (P2Void)
+      return T1;
+
+    // In all the other cases we have two pointer types, pointing to 2 different
+    // types, and none of the pointees is a naked void primitive. In all these
+    // cases we return void *.
+    return model::PointerType::make(model::PrimitiveType::makeVoid(), Size);
+  }
+
+  //
+  // Deal with Numbers
+  //
+
+  bool T1N = T1->isNumberPrimitive();
+  bool T2N = T2->isNumberPrimitive();
+  // If both are Number, either is good.
+  if (T1N and T2N)
+    return T1;
+  // If only one is Number, given that we've ruled out generic, floats,
+  // pointers, and PointerOrNumber, then the other one must be at the same time
+  // more accurate than Number and compatible with it.
+  if (T1N or T2N)
+    return T1N ? T2 : T1;
+
+  //
+  // Deal with Signed
+  //
+
+  unsigned NumSigned = T1->isSignedPrimitive() + T2->isSignedPrimitive();
+
+  // If both are signed, either is fine
+  if (NumSigned == 2)
+    return T1;
+  // If only one is Signed, given that we're only left with Signed and Unsigned,
+  // the most accurate that is common to both can only be Number
+  if (NumSigned == 1)
+    return model::PrimitiveType::makeNumber(Size);
+
+  //
+  // In principle we're only left with Unsigned here, but make some extra checks
+  // to ensure this asserts if in the future we add more kinds of primitives.
+  //
+
+  unsigned NumUnsigned = T1->isUnsignedPrimitive() + T2->isUnsignedPrimitive();
+  revng_assert(NumUnsigned == 2);
+  if (NumUnsigned == 2)
+    return T1;
+
+  return std::nullopt;
+}
+
 ModelTypesMap initModelTypes(const llvm::Function &F,
                              const model::Function *ModelF,
                              const model::Binary &Model,
                              bool PointersOnly) {
-  return initModelTypesImpl(F, ModelF, Model, PointersOnly);
+  ModelTypesMap Result = initModelTypesImpl(F, ModelF, Model, PointersOnly);
+
+  // Refine the Result map, trying to upgrade types by looking at their uses and
+  // see if they provide more accurate types.
+  for (const auto &[V, UT] : llvm::make_early_inc_range(Result)) {
+    if (not isa<Instruction>(V))
+      continue;
+
+    if (V->getNumUses() == 0)
+      continue;
+
+    if (not isUpgradable(UT))
+      continue;
+
+    // If this optional is ever cleared it means that we cannot compute an
+    // accurate common type to all users that is valid, so the substitution
+    // should not take place.
+    std::optional<model::UpcastableType>
+      UpgradedType = model::UpcastableType::empty();
+
+    // If UT is upgradable, we try to promote it, looking at the expected type
+    // of all uses of V.
+    for (const llvm::Use &U : V->uses()) {
+
+      SmallVector<model::UpcastableType>
+        ExpectedTypes = getExpectedModelType(&U, Model);
+      revng_assert(ExpectedTypes.size() <= 1);
+
+      if (ExpectedTypes.empty())
+        continue;
+
+      auto &UseType = ExpectedTypes[0];
+
+      revng_assert(not UseType.empty());
+
+      UpgradedType = getCommonScalarTypeForPromotion(UpgradedType.value(),
+                                                     UseType);
+
+      // If at some point we figure out the Upgraded type cannot be computed we
+      // bail out.
+      if (not UpgradedType.has_value())
+        break;
+    }
+
+    if (not UpgradedType.has_value())
+      continue;
+
+    if (not UpgradedType->isEmpty() /* we hit at use with strong expected type
+                                     */
+        and *UpgradedType != UT /* we actually need to upgrade something */
+        and isValidScalarUpgrade(UT,
+                                 *UpgradedType) /* the upgrade is valid */) {
+      Result.erase(V);
+      Result.insert({ V, UpgradedType->copy() });
+    }
+  }
+  return Result;
 }
