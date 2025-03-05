@@ -448,8 +448,15 @@ std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
   if (SrcType == DestType)
     return ExprToCast.str();
 
-  revng_assert(*SrcType.skipTypedefs() == *DestType.skipTypedefs()
-               or (SrcType.isScalar() and DestType.isScalar()));
+  if (*SrcType.skipTypedefs() != *DestType.skipTypedefs()
+      and (not SrcType.isScalar() or not DestType.isScalar())) {
+    revng_log(Log,
+              "WARNING: emitting a invalid bitcast in C, using "
+              "__builtin_bit_cast");
+    return (llvm::Twine("__builtin_bit_cast(") + B.getTypeName(DestType) + ", "
+            + ExprToCast + ")")
+      .str();
+  }
 
   return addAlwaysParentheses(B.getTypeName(DestType)) + " "
          + addParentheses(ExprToCast);
@@ -611,7 +618,9 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) {
   if (IsRef) {
     // In ModelGEPRefs, the base value is a reference, and the base type is
     // its type
-    if (*TypeMap.at(BaseValue) != *CurType) {
+    const model::Type &Base = *TypeMap.at(BaseValue)->skipTypedefs();
+    const model::Type &Cur = *std::as_const(CurType)->skipTypedefs();
+    if (Base != Cur) {
       BaseValue->dump();
       TypeMap.at(BaseValue)->dump();
       CurType->dump();

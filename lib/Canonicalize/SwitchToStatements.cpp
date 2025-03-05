@@ -1073,7 +1073,7 @@ public:
 private:
   bool serializeToLocalVariable(Instruction *I);
 
-  bool shouldReplaceUsesWithCopies(const Instruction *I) const;
+  bool shouldReplaceUseWithCopies(const Instruction *I, const Use &U) const;
 
   model::UpcastableType getModelType(const Instruction *I) const {
     if constexpr (IsLegacy) {
@@ -1104,8 +1104,11 @@ private:
 };
 
 template<bool IsLegacy>
-bool VariableInserter<IsLegacy>::shouldReplaceUsesWithCopies(const Instruction
-                                                               *I) const {
+using VI = VariableInserter<IsLegacy>;
+
+template<bool IsLegacy>
+bool VI<IsLegacy>::shouldReplaceUseWithCopies(const Instruction *I,
+                                              const Use &U) const {
   auto *Call = getCallToIsolatedFunction(I);
   if (not Call)
     return true;
@@ -1133,13 +1136,15 @@ bool VariableInserter<IsLegacy>::shouldReplaceUsesWithCopies(const Instruction
     // 2. their only expected use is supposed to be in custom opcodes that
     // expect references
     // For these reasons it would be wrong to inject a Copy.
-    for (const llvm::Use &U : I->uses()) {
-      revng_assert(1 == U.getOperandNo()
-                   and (isCallToTagged(U.getUser(), FunctionTags::AddressOf)
-                        or isCallToTagged(U.getUser(),
-                                          FunctionTags::ModelGEPRef)
-                        or isCallToTagged(U.getUser(), FunctionTags::Assign)));
+    if (isCallToTagged(U.getUser(), FunctionTags::Assign)) {
+      // If it's an assignment, and the operand number is 0, the value of I is
+      // being written somewhere (in the location referenced by operand 1).
+      // Hence we have to inject a copy.
+      return U.getOperandNo() == 0;
     }
+    revng_assert(1 == U.getOperandNo());
+    revng_assert(isCallToTagged(U.getUser(), FunctionTags::AddressOf)
+                 or isCallToTagged(U.getUser(), FunctionTags::ModelGEPRef));
   } else {
     // Non-SPTAR return aggregates expect at most a single use, which is an
     // assignment of their value into a local variable.
@@ -1191,12 +1196,11 @@ bool VariableInserter<IsLegacy>::serializeToLocalVariable(Instruction *I) {
   // from the LocalVariable, unless it's a call to an IsolatedFunction that
   // already returns a local variable, in which case we don't have to do
   // anything with uses.
-  bool DoCopy = shouldReplaceUsesWithCopies(I);
   for (Use &U : llvm::make_early_inc_range(I->uses())) {
     revng_assert(isa<Instruction>(U.getUser()));
 
     llvm::Value *ValueToUse = LocalVariable;
-    if (DoCopy) {
+    if (shouldReplaceUseWithCopies(I, U)) {
       ValueToUse = LocalVariableBuilder.createCopyOnUse(LocalVariable, U);
     }
     U.set(ValueToUse);

@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <vector>
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -9,6 +11,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Use.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
@@ -23,6 +26,8 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 
+static Logger<> Log{ "make-model-cast" };
+
 using namespace llvm;
 
 using TypePair = FunctionTags::TypePair;
@@ -30,18 +35,15 @@ using TypePair = FunctionTags::TypePair;
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
 
-struct SerializedType {
-  Constant *StringType = nullptr;
-  uint64_t OperandId;
-
-  SerializedType(Constant *StringType, uint64_t OperandId = 0) :
-    StringType(StringType), OperandId(OperandId) {}
+struct CastToEmit {
+  Use &OperandToCast;
+  const model::UpcastableType TargetType;
 };
 
 struct MakeModelCastPass : public llvm::FunctionPass {
 private:
   ModelTypesMap TypeMap;
-  const model::Function *ModelFunction = nullptr;
+  const model::Binary *Model;
 
 public:
   static char ID;
@@ -56,44 +58,46 @@ public:
   }
 
 private:
-  std::vector<SerializedType> serializeTypesForModelCast(Instruction *,
-                                                         const model::Binary &);
-  void createAndInjectModelCast(Instruction *,
-                                const SerializedType &,
-                                OpaqueFunctionsPool<TypePair> &);
+  std::optional<CastToEmit> computeCast(Use &U) const;
+
+  std::vector<CastToEmit> computeCasts(Instruction *I) const;
+
+  void makeModelCast(const CastToEmit &ToEmit,
+                     OpaqueFunctionsPool<TypePair> &Pool) const;
 };
 
-using MMCP = MakeModelCastPass;
+std::optional<CastToEmit> MakeModelCastPass::computeCast(Use &Operand) const {
 
-std::vector<SerializedType>
-MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
-  using namespace model;
-  using namespace abi::FunctionType;
+  // Check if we have strong model information about this operand
+  auto ModelTypes = getExpectedModelType(&Operand, *Model);
 
-  std::vector<SerializedType> Result;
-  Module *M = I->getModule();
+  // Aggregates that do not correspond to model structs (e.g. return types
+  // of RawFunctionTypes that return more than one value) cannot be handled
+  // with casts, since we don't have a model::TypeDefinition to cast them to.
+  if (ModelTypes.size() == 1) {
+    const model::UpcastableType &ExpectedType = ModelTypes.back();
+    revng_assert(ExpectedType->verify());
 
-  auto SerializeTypeFor = [this, &Model, &Result, &M](const llvm::Use &Op) {
-    // Check if we have strong model information about this operand
-    auto ModelTypes = getExpectedModelType(&Op, Model);
-
-    // Aggregates that do not correspond to model structs (e.g. return types
-    // of RawFunctionTypes that return more than one value) cannot be handled
-    // with casts, since we don't have a model::TypeDefinition to cast them to.
-    if (ModelTypes.size() == 1) {
-      const model::UpcastableType &ExpectedType = ModelTypes.back();
-      revng_assert(ExpectedType->verify());
-
-      const model::Type &OperandType = *TypeMap.at(Op.get());
-      if (*ExpectedType->skipTypedefs() != *OperandType.skipTypedefs()) {
-        revng_assert(ExpectedType->isScalar() and OperandType.isScalar());
-        // Create a cast only if the expected type is different from the
-        // actual type propagated until here
-        auto Type = SerializedType(toLLVMString(ExpectedType, *M),
-                                   Op.getOperandNo());
-        Result.emplace_back(std::move(Type));
-      }
+    const model::Type &OperandType = *TypeMap.at(Operand.get());
+    if (*ExpectedType->skipTypedefs() != *OperandType.skipTypedefs()) {
+      revng_log(Log,
+                "New CastToEmit on use of: "
+                  << dumpToString(Operand.get())
+                  << " in : " << dumpToString(Operand.getUser()));
+      revng_log(Log,
+                "Casting from : " << OperandType << " to : " << *ExpectedType);
+      return CastToEmit{ .OperandToCast = Operand, .TargetType = ExpectedType };
     }
+  }
+  return std::nullopt;
+}
+
+std::vector<CastToEmit> MakeModelCastPass::computeCasts(Instruction *I) const {
+  std::vector<CastToEmit> CastsToEmit;
+
+  const auto PushBackMoving = [&CastsToEmit](std::optional<CastToEmit> &&C) {
+    if (C.has_value())
+      CastsToEmit.push_back(std::move(C.value()));
   };
 
   if (auto *Call = dyn_cast<CallInst>(I)) {
@@ -103,39 +107,44 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
     if (isCallToIsolatedFunction(Call)) {
       // For indirect calls, cast the callee to the right function type
       if (not Callee)
-        SerializeTypeFor(Call->getCalledOperandUse());
+        PushBackMoving(computeCast(Call->getCalledOperandUse()));
 
-      // For all calls, check the formal arguments types
-      for (llvm::Use &Op : Call->args())
-        SerializeTypeFor(Op);
+      // For all calls, check if we need to cast the actual types to the formal
+      // arguments types
+      for (Use &Op : Call->args())
+        PushBackMoving(computeCast(Op));
 
     } else if (FunctionTags::ModelGEP.isTagOf(Callee)
                or FunctionTags::ModelGEPRef.isTagOf(Callee)
                or FunctionTags::AddressOf.isTagOf(Callee)) {
       // Check the type of the base operand
-      SerializeTypeFor(Call->getArgOperandUse(1));
+      PushBackMoving(computeCast(Call->getArgOperandUse(1)));
+
     } else if (FunctionTags::BinaryNot.isTagOf(Callee)) {
-      SerializeTypeFor(Call->getArgOperandUse(0));
+      PushBackMoving(computeCast(Call->getArgOperandUse(0)));
+
     } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {
       // StructInitializers are used to pack together a returned struct, so
       // we know the types of each element by looking at the Prototype
       for (llvm::Use &Op : Call->args())
-        SerializeTypeFor(Op);
+        PushBackMoving(computeCast(Op));
     }
+
   } else if (auto *Ret = dyn_cast<ReturnInst>(I)) {
     // Check the formal return type
     if (Ret->getNumOperands() > 0)
-      SerializeTypeFor(Ret->getOperandUse(0));
+      PushBackMoving(computeCast(Ret->getOperandUse(0)));
 
   } else if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)
              or isa<llvm::SelectInst>(I)) {
-    for (unsigned Index = 0; Index < I->getNumOperands(); ++Index)
-      SerializeTypeFor(I->getOperandUse(Index));
+    for (Use &Op : I->operands())
+      PushBackMoving(computeCast(Op));
+
   } else if (auto *Switch = dyn_cast<llvm::SwitchInst>(I)) {
-    SerializeTypeFor(Switch->getOperandUse(0));
+    PushBackMoving(computeCast(Switch->getOperandUse(0)));
   }
 
-  return Result;
+  return CastsToEmit;
 }
 
 static FunctionType *getModelCastType(TypePair Key) {
@@ -156,53 +165,90 @@ getModelCastFunction(TypePair Key,
 
 // Create a call to explicit ModelCast. Later on, we run `ImplicitModelCastPass`
 // to detect implicit casts.
-static Value *createCallToModelCast(IRBuilder<> &Builder,
-                                    TypePair Key,
-                                    Constant *SerializedTypeAsString,
-                                    Value *Operand,
-                                    OpaqueFunctionsPool<TypePair> &Pool) {
+static CallInst *createCallToModelCast(IRBuilder<> &Builder,
+                                       TypePair Key,
+                                       const model::UpcastableType &TargetType,
+                                       Value *Operand,
+                                       OpaqueFunctionsPool<TypePair> &Pool) {
   auto *ModelCastFunction = getModelCastFunction(Key, Pool);
   LLVMContext &Context = Builder.getContext();
   ConstantInt *IsImplicit = llvm::ConstantInt::getFalse(Context);
-  Value *Call = Builder.CreateCall(ModelCastFunction,
-                                   { SerializedTypeAsString,
-                                     Operand,
-                                     IsImplicit });
+  CallInst
+    *Call = Builder.CreateCall(ModelCastFunction,
+                               { toLLVMString(TargetType,
+                                              *ModelCastFunction->getParent()),
+                                 Operand,
+                                 IsImplicit });
   return Call;
 }
 
-void MMCP::createAndInjectModelCast(Instruction *Ins,
-                                    const SerializedType &ST,
-                                    OpaqueFunctionsPool<TypePair> &Pool) {
-  IRBuilder<> Builder(Ins);
+void MakeModelCastPass::makeModelCast(const CastToEmit &ToEmit,
+                                      OpaqueFunctionsPool<TypePair> &Pool)
+  const {
+  const auto &[OperandUse, TargetType] = ToEmit;
 
-  uint64_t OperandId = ST.OperandId;
-  Value *Operand = Ins->getOperand(OperandId);
-  Type *BaseAddressTy = Ins->getOperand(OperandId)->getType();
-  Value *CallToModelCast = createCallToModelCast(Builder,
-                                                 { BaseAddressTy,
-                                                   BaseAddressTy },
-                                                 ST.StringType,
-                                                 Operand,
-                                                 Pool);
-  Ins->setOperand(OperandId, CallToModelCast);
+  Value *Operand = OperandUse.get();
+  const model::Type &OperandModelType = *TypeMap.at(Operand);
+
+  auto *I = cast<Instruction>(OperandUse.getUser());
+  IRBuilder<> Builder(I);
+  Type *OperandType = Operand->getType();
+  CallInst *CallToModelCast = createCallToModelCast(Builder,
+                                                    { OperandType,
+                                                      OperandType },
+                                                    TargetType,
+                                                    Operand,
+                                                    Pool);
+  // If either the source type or the target type, on the model, are not scalar
+  // types, we'll get a cast in C involving aggregates. This is guaranteed not
+  // to be syntactically valid C code, but the current LLVM-based decompilation
+  // pipeline has not way to strongly guarantee this never happens, so the only
+  // thing we can do is to print a warning.
+  // This problem will just go away with the clift-based backend.
+  if (not TargetType->isScalar() or not OperandModelType.isScalar()) {
+    std::string Warning;
+    {
+      llvm::raw_string_ostream OS{ Warning };
+
+      OS << "WARNING: ModelCast involves non-scalar types. "
+            "This may not compile in C.\n";
+
+      OS << "OperandType: ";
+      OperandModelType.dump(OS);
+      OS << '\n';
+
+      OS << "TargetType: ";
+      TargetType->dump(OS);
+      OS << '\n';
+
+      OS.flush();
+    }
+    revng_log(Log, Warning);
+  }
+  OperandUse.set(CallToModelCast);
+
+  revng_log(Log, "makeModelCast: " << dumpToString(CallToModelCast));
 }
 
-bool MMCP::runOnFunction(Function &F) {
+bool MakeModelCastPass::runOnFunction(Function &F) {
   bool Changed = false;
 
   Module *M = F.getParent();
   auto ModelCastPool = FunctionTags::ModelCast.getPool(*M);
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
+  Model = &*ModelWrapper.getReadOnlyModel();
 
-  ModelFunction = llvmToModelFunction(*Model, F);
+  const model::Function *ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
 
+  revng_log(Log, "analyzing Function: " << F.getName());
   // First of all, remove all SExt, ZExt and Trunc, and replace them with
   // ModelCasts.
   {
+    LoggerIndent Indent{ Log };
+    revng_log(Log, "replacing sext/zext/trunc with ModelCast");
+
     LLVMContext &LLVMCtxt = F.getContext();
     IRBuilder<> Builder(LLVMCtxt);
     for (BasicBlock &BB : F) {
@@ -212,6 +258,9 @@ bool MMCP::runOnFunction(Function &F) {
         auto *Trunc = dyn_cast<llvm::TruncInst>(&I);
         if (not SExt and not ZExt and not Trunc)
           continue;
+
+        LoggerIndent MoreIndent{ Log };
+        revng_log(Log, "replacing: " << dumpToString(I));
 
         llvm::Value *CastedOperand = I.getOperand(0);
 
@@ -236,18 +285,15 @@ bool MMCP::runOnFunction(Function &F) {
                                  model::PrimitiveType::makeUnsigned(ByteSize) :
                                  model::PrimitiveType::makeNumber(ByteSize);
 
-        // Create a string constant to pass as first argument of the call to
-        // ModelCast, to represent the target model type.
-        Constant *TargetModelTypeString = toLLVMString(ResultModelType, *M);
-        revng_assert(TargetModelTypeString);
-
-        Value *CallToModelCast = createCallToModelCast(Builder,
-                                                       Key,
-                                                       TargetModelTypeString,
-                                                       CastedOperand,
-                                                       ModelCastPool);
+        CallInst *CallToModelCast = createCallToModelCast(Builder,
+                                                          Key,
+                                                          ResultModelType,
+                                                          CastedOperand,
+                                                          ModelCastPool);
         I.replaceAllUsesWith(CallToModelCast);
         I.eraseFromParent();
+
+        revng_log(Log, "with: " << dumpToString(CallToModelCast));
       }
     }
   }
@@ -255,16 +301,23 @@ bool MMCP::runOnFunction(Function &F) {
   TypeMap = initModelTypes(F, ModelFunction, *Model, false);
 
   for (BasicBlock &BB : F) {
-    for (Instruction &I : BB) {
-      auto SerializedTypes = serializeTypesForModelCast(&I, *Model);
+    for (Instruction &I : llvm::make_early_inc_range(BB)) {
+      LoggerIndent Indent{ Log };
+      revng_log(Log, "computeCasts on operands of: " << dumpToString(I));
+      LoggerIndent MoreIndent{ Log };
 
-      if (SerializedTypes.empty())
+      std::vector<CastToEmit> ToEmit = computeCasts(&I);
+
+      if (ToEmit.empty()) {
+        revng_log(Log, "no casts!");
         continue;
+      }
 
       Changed = true;
 
-      for (unsigned Idx = 0; Idx < SerializedTypes.size(); ++Idx)
-        createAndInjectModelCast(&I, SerializedTypes[Idx], ModelCastPool);
+      for (const CastToEmit &C : ToEmit) {
+        makeModelCast(C, ModelCastPool);
+      }
     }
   }
 
