@@ -544,31 +544,39 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
                   "Some fields were converted successfully, try to slot in the "
                   "rest as a struct.");
 
-        model::StructDefinition RemainingArgs;
-        RemainingArgs.Size() = Stack.Size() - StartingOffset;
-        for (const auto &Field : RemainingRange) {
-          model::StructField Copy = Field;
-          revng_assert(Copy.Offset() >= StartingOffset);
-          Copy.Offset() -= StartingOffset;
-          RemainingArgs.Fields().emplace(std::move(Copy));
-        }
+        if (RemainingRange.empty()
+            or RemainingRange.begin()->Offset() >= StartingOffset) {
 
-        ArgumentProperties RemainingProperties = {
-          .Offset = StartingOffset,
-          .Size = RemainingArgs.Size(),
-          .Alignment = adjustedAlignment(RemainingArgs)
-        };
+          revng_log(Log,
+                    "Such a struct would start on a misaligned offset, "
+                    "which is not supported.");
 
-        const auto &PAS = PreviousArgumentProperties;
-        if (canBeNext(Distributor, RemainingArgs, RemainingProperties, PAS)) {
-          revng_log(Log, "Struct for the remaining arguments worked.");
-          model::Argument &New = Result.emplace_back();
-          New.Index() = Distributor.ArgumentIndex - 1;
+          model::StructDefinition RemainingArgs;
+          RemainingArgs.Size() = Stack.Size() - StartingOffset;
+          for (const auto &Field : RemainingRange) {
+            model::StructField Copy = Field;
+            revng_assert(Copy.Offset() >= StartingOffset);
+            Copy.Offset() -= StartingOffset;
+            RemainingArgs.Fields().emplace(std::move(Copy));
+          }
 
-          auto &RA = RemainingArgs;
-          New.Type() = Bucket.makeStructDefinition(std::move(RA)).second;
+          ArgumentProperties RemainingProperties = {
+            .Offset = StartingOffset,
+            .Size = RemainingArgs.Size(),
+            .Alignment = adjustedAlignment(RemainingArgs)
+          };
 
-          return Result;
+          const auto &PAS = PreviousArgumentProperties;
+          if (canBeNext(Distributor, RemainingArgs, RemainingProperties, PAS)) {
+            revng_log(Log, "Struct for the remaining arguments worked.");
+            model::Argument &New = Result.emplace_back();
+            New.Index() = Distributor.ArgumentIndex - 1;
+
+            auto &RA = RemainingArgs;
+            New.Type() = Bucket.makeStructDefinition(std::move(RA)).second;
+
+            return Result;
+          }
         }
       } else {
         if (StartingOffset != Stack.Size()) {
