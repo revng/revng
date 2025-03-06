@@ -7,6 +7,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/Support/Assert.h"
 
 namespace revng {
@@ -24,11 +25,14 @@ inline void cantFail(std::error_code EC) {
   revng_assert(not EC);
 }
 
-template<std::ranges::range T>
+template<RangeOf<llvm::Error> T>
 inline llvm::Error joinErrors(T &Container) {
+  auto Size = std::ranges::distance(Container);
+  revng_check(Size > 0);
+
   auto Iter = Container.begin();
   llvm::Error Result{ std::move(*Iter) };
-  if (std::distance(Container.begin(), Container.end()) == 1) {
+  if (Size == 1) {
     return Result;
   }
   for (Iter++; Iter < Container.end(); Iter++) {
