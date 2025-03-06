@@ -186,6 +186,13 @@ bool clift::isIntegerType(ValueType Type) {
   return false;
 }
 
+bool clift::isFloatType(ValueType Type) {
+  if (auto T = mlir::dyn_cast<PrimitiveType>(dealias(Type, true)))
+    return T.getKind() == PrimitiveKind::FloatKind;
+
+  return false;
+}
+
 bool clift::isPointerType(ValueType Type) {
   return mlir::isa<PointerType>(dealias(Type));
 }

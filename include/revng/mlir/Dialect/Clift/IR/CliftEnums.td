@@ -24,8 +24,9 @@ def Clift_PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
 def Clift_CastKind : I32EnumAttr<"CastKind", "Cast operation semantic kinds", [
     I32EnumAttrCase<"Extend",           1,      "extend">,
     I32EnumAttrCase<"Truncate",         2,      "truncate">,
-    I32EnumAttrCase<"Reinterpret",      3,      "reinterpret">,
+    I32EnumAttrCase<"Bitcast",          3,      "bitcast">,
     I32EnumAttrCase<"Decay",            4,      "decay">,
+    I32EnumAttrCase<"Convert",          5,      "convert">,
   ]> {
   let cppNamespace = "mlir::clift";
 }

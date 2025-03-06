@@ -23,14 +23,14 @@ clift.module {
     // CHECK: (uint32_t)0;
     clift.expr {
       %0 = clift.imm 0 : !int32_t
-      %1 = clift.cast<reinterpret> %0 : !int32_t -> !uint32_t
+      %1 = clift.cast<bitcast> %0 : !int32_t -> !uint32_t
       clift.yield %1 : !uint32_t
     }
 
     // CHECK: (uint32_t)&_var_0;
     clift.expr {
       %0 = clift.addressof %x : !uint32_t$ptr
-      %1 = clift.cast<reinterpret> %0 : !uint32_t$ptr -> !uint32_t
+      %1 = clift.cast<bitcast> %0 : !uint32_t$ptr -> !uint32_t
       clift.yield %1 : !uint32_t
     }
   }

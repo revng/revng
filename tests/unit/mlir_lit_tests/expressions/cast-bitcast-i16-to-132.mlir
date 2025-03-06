@@ -4,11 +4,10 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
+!int16_t = !clift.primitive<signed 2>
 !int32_t = !clift.primitive<signed 4>
-!int32_t$ptr32 = !clift.ptr<4 to !int32_t>
-!int32_t$ptr64 = !clift.ptr<8 to !int32_t>
 
-%p = clift.undef : !int32_t$ptr32
+%i = clift.undef : !int16_t
 
 // CHECK: result and argument types must be equal in size
-clift.cast<reinterpret> %p : !int32_t$ptr32 -> !int32_t$ptr64
+clift.cast<bitcast> %i : !int16_t -> !int32_t

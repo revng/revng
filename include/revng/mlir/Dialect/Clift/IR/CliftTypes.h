@@ -94,6 +94,10 @@ bool isPrimitiveIntegerType(ValueType Type);
 /// a breakdown of the set of integer types.
 bool isIntegerType(ValueType Type);
 
+/// Determine if the type is a floating point type, or a typedef naming such a
+/// type, ignoring qualifiers.
+bool isFloatType(ValueType Type);
+
 /// Determine if the type is a pointer type. This includes pointers to objects
 /// as well as pointers to functions. Qualifiers are ignored.
 bool isPointerType(ValueType Type);

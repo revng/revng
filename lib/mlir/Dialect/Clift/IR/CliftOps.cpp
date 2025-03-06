@@ -1043,7 +1043,7 @@ mlir::LogicalResult CastOp::verify() {
                                 " argument type.";
     }
   } break;
-  case CastKind::Reinterpret: {
+  case CastKind::Bitcast: {
     if (not isObjectType(ResT) or isArrayType(ResT))
       return emitOpError() << " result must have non-array object type.";
 
@@ -1082,6 +1082,25 @@ mlir::LogicalResult CastOp::verify() {
       return emitOpError() << getOperationName()
                            << " argument must have array or function type.";
     }
+  } break;
+  case CastKind::Convert: {
+    bool ArgIsFloat = isFloatType(ArgT);
+    bool ResIsFloat = isFloatType(ResT);
+
+    if (not ArgIsFloat and not isIntegerType(ArgT))
+      return emitOpError() << " operand must have floating point or integer"
+                              " type";
+
+    if (not ResIsFloat and not isIntegerType(ResT))
+      return emitOpError() << " result must have floating point or integer"
+                              " type";
+
+    if (not ArgIsFloat and not ResIsFloat)
+      return emitOpError() << " requires either the operand or result to have"
+                              " floating point type.";
+
+    if (equivalent(ArgT, ResT))
+      return emitOpError() << " result type cannot match the operand type.";
   } break;
 
   default:
