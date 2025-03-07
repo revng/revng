@@ -77,7 +77,7 @@ private:
   llvm::IntegerType *Int8Ty = nullptr;
 
   /// The function where this helper inserts local variables.
-  llvm::Function *F;
+  llvm::Function *F = nullptr;
 
   /// \name Data members used only for Legacy mode.
   ///
