@@ -730,12 +730,19 @@ public:
 
   RecursiveCoroutine<void> emitPrefixExpression(mlir::Value V) {
     mlir::Operation *Op = V.getDefiningOp();
+    mlir::Value Operand = Op->getOperand(0);
+
     Out << C.getOperator(getOperator(Op));
+
+    // Double negation requires a space in between to avoid being confused as
+    // decrement. (- -x) vs (--x)
+    if (V.getDefiningOp<NegOp>() and Operand.getDefiningOp<NegOp>())
+      Out << ' ';
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
 
-    return emitExpression(Op->getOperand(0));
+    return emitExpression(Operand);
   }
 
   RecursiveCoroutine<void> emitPostfixExpression(mlir::Value V) {
