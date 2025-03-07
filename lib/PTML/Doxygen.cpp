@@ -113,12 +113,14 @@ public:
     return Result;
   }
 
+  std::string emit(DoxygenToken Token) {
+    DoxygenLine Line{ .Tags = { std::move(Token) }, .InternalIndentation = 0 };
+    return emit({ std::move(Line) });
+  }
+
   std::string emit(llvm::StringRef Text) {
-    DoxygenLine Argument{ .Tags = { DoxygenToken{
-                            .Type = DoxygenToken::Types::Untagged,
-                            .Value = Text.str() } },
-                          .InternalIndentation = 0 };
-    return emit({ std::move(Argument) });
+    return emit(DoxygenToken{ .Type = DoxygenToken::Types::Untagged,
+                              .Value = Text.str() });
   }
 
 private:
@@ -584,6 +586,7 @@ static Logger ImprecisePositionWarning("statement-comment-emission");
 
 std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
                                    const model::StatementComment &Comment,
+                                   const std::string &CommentLocation,
                                    llvm::StringRef IsBeingEmittedAt,
                                    llvm::StringRef CommentIndicator,
                                    size_t Indentation,
@@ -618,5 +621,13 @@ std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
   Result += Comment.Body();
 
   CommentBuilder Builder(B, CommentIndicator, Indentation, WrapAt);
-  return Builder.emit(Result);
+
+  DoxygenToken Tag{ .Type = DoxygenToken::Types::Untagged,
+                    .Value = std::move(Result) };
+  Tag.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
+                                   CommentLocation);
+  Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
+                                   ptml::actions::Comment);
+
+  return Builder.emit(std::move(Tag));
 }

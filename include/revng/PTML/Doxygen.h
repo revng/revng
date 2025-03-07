@@ -111,6 +111,7 @@ std::string functionComment(const ::ptml::MarkupBuilder &B,
 /// \returns a serialized PTML string containing the comment.
 std::string statementComment(const ::ptml::MarkupBuilder &B,
                              const model::StatementComment &Comment,
+                             const std::string &CommentLocation,
                              llvm::StringRef IsBeingEmittedAt,
                              llvm::StringRef CommentIndicator,
                              size_t Indentation,
