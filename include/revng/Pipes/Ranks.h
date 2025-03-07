@@ -90,6 +90,10 @@ inline auto LocalVariable = defineRank<"local-variable", std::string>(Function);
 /// Rank for locations associated to goto-labels within functions.
 inline auto GotoLabel = defineRank<"goto-label", std::string>(Function);
 
+/// Rank for locations associated to comments within function bodies.
+inline auto
+  StatementComment = defineRank<"statement-comment", uint64_t>(Function);
+
 /// Rank for artificial structs returned by raw functions
 inline auto
   ArtificialStruct = defineRank<"artificial-struct",
