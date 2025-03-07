@@ -39,7 +39,7 @@ class Clift_AnyPrimitiveTypeOf<string Kind>
   : Type<CPred<"mlir::clift::impl::verifyPrimitiveTypeOf($_self," #
                                                          "mlir::clift::PrimitiveKind::" # Kind # ")">,
          "Clift primitive type of " # Kind,
-         "mlir::clift::PrimitiveType">;
+         "mlir::clift::ValueType">;
 
 def Clift_AnyScalarType
   : Type<CPred<"mlir::clift::isScalarType($_self)">,
@@ -54,12 +54,12 @@ def Clift_AnyIntegerType
 def Clift_AnyPrimitiveIntegerType
   : Type<CPred<"mlir::clift::isPrimitiveIntegerType($_self)">,
          "primitive Clift integer type",
-         "mlir::clift::PrimitiveType">;
+         "mlir::clift::ValueType">;
 
 def Clift_AnyPointerType
   : Type<CPred<"mlir::clift::isPointerType($_self)">,
          "Clift pointer type",
-         "mlir::clift::PointerType">;
+         "mlir::clift::ValueType">;
 
 def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::isFunctionType($_self)">,
