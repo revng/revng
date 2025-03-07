@@ -570,15 +570,22 @@ class Clift_UnaryArithmeticOp<string mnemonic>
   }];
 }
 
-class Clift_BinaryArithmeticOp<string mnemonic>
+class Clift_BinaryArithmeticOp<string mnemonic, list<Trait> traits = []>
   : Clift_ExpressionOp<mnemonic,
-                       [NoMemoryEffect,
-                        Clift_AllTypesMatch<["lhs", "rhs", "result"]>]> {
+                       !listconcat(traits,
+                                   [NoMemoryEffect,
+                                    Clift_AllTypesMatch<["lhs", "rhs", "result"]>])> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
                        Clift_AnyPrimitiveIntegerType:$rhs);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
+
+  let builders = [
+    OpBuilder<(ins "mlir::Value":$Lhs, "mlir::Value":$Rhs), [{
+      build($_builder, $_state, Lhs.getType(), Lhs, Rhs);
+    }]>
+  ];
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
@@ -586,8 +593,10 @@ class Clift_BinaryArithmeticOp<string mnemonic>
   }];
 }
 
-class Clift_PointerArithmeticOp<string mnemonic>
-  : Clift_ExpressionOp<mnemonic, [NoMemoryEffect]> {
+class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
+  : Clift_ExpressionOp<mnemonic,
+                       !listconcat(traits,
+                                   [NoMemoryEffect])> {
 
   let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
   let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
@@ -656,6 +665,7 @@ class Clift_ShiftOp<string mnemonic>
 class Clift_ComparisonOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [NoMemoryEffect,
+                        Commutative,
                         Clift_ReturnsBoolean,
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
@@ -694,13 +704,13 @@ class Clift_UnaryIntegerMutationOp<string mnemonic>
 }
 
 def Clift_NegOp : Clift_UnaryArithmeticOp<"neg">;
-def Clift_AddOp : Clift_BinaryArithmeticOp<"add">;
+def Clift_AddOp : Clift_BinaryArithmeticOp<"add", [Commutative]>;
 def Clift_SubOp : Clift_BinaryArithmeticOp<"sub">;
-def Clift_MulOp : Clift_BinaryArithmeticOp<"mul">;
+def Clift_MulOp : Clift_BinaryArithmeticOp<"mul", [Commutative]>;
 def Clift_DivOp : Clift_BinaryArithmeticOp<"div">;
 def Clift_RemOp : Clift_BinaryArithmeticOp<"rem">;
 
-def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add">;
+def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add", [Commutative]>;
 def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
 
 def Clift_PtrDiffOp
@@ -736,9 +746,9 @@ def Clift_LogicalAndOp : Clift_BinaryLogicalOp<"and">;
 def Clift_LogicalOrOp : Clift_BinaryLogicalOp<"or">;
 
 def Clift_BitwiseNotOp : Clift_UnaryArithmeticOp<"bitnot">;
-def Clift_BitwiseAndOp : Clift_BinaryArithmeticOp<"bitand">;
-def Clift_BitwiseOrOp : Clift_BinaryArithmeticOp<"bitor">;
-def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor">;
+def Clift_BitwiseAndOp : Clift_BinaryArithmeticOp<"bitand", [Commutative]>;
+def Clift_BitwiseOrOp : Clift_BinaryArithmeticOp<"bitor", [Commutative]>;
+def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor", [Commutative]>;
 
 def Clift_ShiftLeftOp : Clift_ShiftOp<"shl">;
 def Clift_ShiftRightOp : Clift_ShiftOp<"shr">;
