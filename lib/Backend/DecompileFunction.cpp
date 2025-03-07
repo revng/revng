@@ -928,7 +928,12 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) {
     if (IsExact->getZExtValue())
       revng_assert(ShouldBeEmittedAt == IsBeingEmittedAt);
 
-    rc_return "\n" + B.getStatementComment(Comment, IsBeingEmittedAt);
+    rc_return "\n"
+      + B.getStatementComment(Comment,
+                              pipeline::locationString(ranks::StatementComment,
+                                                       ModelFunction.key(),
+                                                       Index->getZExtValue()),
+                              IsBeingEmittedAt);
   }
 
   std::string Error = "Cannot get token for custom opcode: "
