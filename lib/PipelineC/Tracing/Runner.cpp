@@ -489,6 +489,14 @@ llvm::Error Trace::run(const revng::tracing::RunTraceOptions Options) const {
       continue;
     }
 
+    if (TraceRunnerLogger.isEnabled()) {
+      TraceRunnerLogger << "Running #" << Command.ID << ": " << Command.Name;
+      for (const revng::tracing::Argument &Argument : Arguments) {
+        TraceRunnerLogger << ", " << Argument.toString();
+      }
+      TraceRunnerLogger << DoLog;
+    }
+
     CommandHandler[Command.Name](Context, Arguments, Command.Result);
   }
 

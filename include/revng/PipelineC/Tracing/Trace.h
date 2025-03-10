@@ -65,6 +65,15 @@ public:
     return Sequence;
   }
 
+  const std::string toString() const {
+    revng_assert(isValid());
+    if (isScalar()) {
+      return Scalar;
+    } else {
+      return "[" + llvm::join(Sequence, ", ") + "]";
+    }
+  }
+
 public:
   template<typename T>
   T asInt() const {
