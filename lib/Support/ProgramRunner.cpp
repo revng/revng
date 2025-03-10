@@ -75,6 +75,7 @@ int ProgramRunner::run(llvm::StringRef ProgramName,
   Log << DoLog;
 
   int ExitCode = llvm::sys::ExecuteAndWait(StringRefs[0], StringRefs);
+  revng_log(Log, "Program exited with code " << ExitCode);
 
   return ExitCode;
 }
