@@ -27,15 +27,16 @@ inline T toInt(const llvm::StringRef StrInt) {
 
 namespace revng::tracing {
 
-enum ArgumentState {
-  Invalid,
-  Scalar,
-  Sequence
-};
-
 struct Argument {
 private:
-  ArgumentState State = Invalid;
+  enum class ArgumentState {
+    Invalid,
+    Scalar,
+    Sequence
+  };
+
+private:
+  ArgumentState State = ArgumentState::Invalid;
   std::string Scalar;
   std::vector<std::string> Sequence;
 
@@ -88,7 +89,7 @@ public:
 
 private:
   void setState(const ArgumentState NewState) {
-    revng_assert(State == Invalid || State == NewState);
+    revng_assert(State == ArgumentState::Invalid || State == NewState);
     State = NewState;
   }
 };
