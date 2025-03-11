@@ -156,7 +156,7 @@ int main(int Argc, char *Argv[]) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(LeftNameBuilder.name(F) != "",
+    revng_assert(F.Name() != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
@@ -178,7 +178,7 @@ int main(int Argc, char *Argv[]) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(RightNameBuilder.name(F) != "",
+    revng_assert(F.Name() != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
