@@ -6,6 +6,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Support/Annotations.h"
 
 static size_t trailingDigitCount(llvm::StringRef Name) {
   size_t Result = 0;
@@ -331,6 +332,10 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
   //
   // The following names are reserved based on the configuration
   //
+
+  // Names we emit as macros.
+  if (ptml::Attributes.isMacro(Name))
+    return true;
 
   if (Configuration.ReserveNamesStartingWithUnderscore())
     if (Name[0] == '_')
